@@ -1,7 +1,0 @@
-f x: [{""}; _] = None
-
-arr = ["aaa"]
-for! arr, elem =>
-    # elem: Never
-    a = ["", elem] # [{"", "aaa"}; 2]
-    f a

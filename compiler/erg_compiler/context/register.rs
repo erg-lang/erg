@@ -824,7 +824,7 @@ impl Context {
                         self.level,
                     );
                     for sup in super_classes.into_iter() {
-                        let sup_ctx = self
+                        let (_, sup_ctx) = self
                             .get_nominal_type_ctx(&sup)
                             .unwrap_or_else(|| todo!("{sup} not found"));
                         ctx.register_superclass(sup, sup_ctx);
@@ -942,7 +942,7 @@ impl Context {
                         }
                     }
                     for sup in super_classes.into_iter() {
-                        let sup_ctx = self.get_nominal_type_ctx(&sup).unwrap();
+                        let (_, sup_ctx) = self.get_nominal_type_ctx(&sup).unwrap();
                         ctx.register_supertrait(sup, sup_ctx);
                     }
                     self.register_gen_mono_type(ident, gen, ctx, Const);

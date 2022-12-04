@@ -145,6 +145,11 @@ fn exec_args() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_infer_union_array() -> Result<(), ()> {
+    expect_failure("tests/should_err/infer_union_array.er", 1)
+}
+
+#[test]
 fn exec_invalid_param() -> Result<(), ()> {
     expect_failure("tests/should_err/invalid_param.er", 3)
 }
