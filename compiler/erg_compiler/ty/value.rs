@@ -624,6 +624,14 @@ impl ValueObj {
         }
     }
 
+    pub fn is_int(&self) -> bool {
+        match self {
+            Self::Int(_) | Self::Nat(_) | Self::Bool(_) => true,
+            Self::Mut(n) => n.borrow().is_nat(),
+            _ => false,
+        }
+    }
+
     pub fn is_nat(&self) -> bool {
         match self {
             Self::Nat(_) | Self::Bool(_) => true,

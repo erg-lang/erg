@@ -85,6 +85,11 @@ fn exec_infer_trait() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_mut() -> Result<(), ()> {
+    expect_success("examples/mut.er")
+}
+
+#[test]
 fn exec_pattern() -> Result<(), ()> {
     expect_success("tests/should_ok/pattern.er")
 }

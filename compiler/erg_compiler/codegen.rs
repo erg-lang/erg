@@ -133,6 +133,7 @@ pub struct PyCodeGenerator {
     pub(crate) py_version: PythonVersion,
     str_cache: CacheSet<str>,
     prelude_loaded: bool,
+    mutate_op_loaded: bool,
     in_op_loaded: bool,
     record_type_loaded: bool,
     module_type_loaded: bool,
@@ -149,6 +150,7 @@ impl PyCodeGenerator {
             cfg,
             str_cache: CacheSet::new(),
             prelude_loaded: false,
+            mutate_op_loaded: false,
             in_op_loaded: false,
             record_type_loaded: false,
             module_type_loaded: false,
@@ -426,7 +428,8 @@ impl PyCodeGenerator {
     }
 
     fn emit_load_const<C: Into<ValueObj>>(&mut self, cons: C) {
-        let value = cons.into();
+        let value: ValueObj = cons.into();
+        let is_int = value.is_int();
         let is_nat = value.is_nat();
         let is_bool = value.is_bool();
         if !self.cfg.no_std {
@@ -436,6 +439,9 @@ impl PyCodeGenerator {
             } else if is_nat {
                 self.emit_push_null();
                 self.emit_load_name_instr(Identifier::public("Nat"));
+            } else if is_int {
+                self.emit_push_null();
+                self.emit_load_name_instr(Identifier::public("Int"));
             }
         }
         let idx = self
@@ -450,7 +456,8 @@ impl PyCodeGenerator {
         self.write_instr(LOAD_CONST);
         self.write_arg(idx);
         self.stack_inc();
-        if !self.cfg.no_std && is_nat {
+        if !self.cfg.no_std && is_int {
+            // is_int => is_nat and is_bool
             self.emit_call_instr(1, Name);
             self.stack_dec();
         }
@@ -1258,12 +1265,18 @@ impl PyCodeGenerator {
     fn emit_unaryop(&mut self, unary: UnaryOp) {
         log!(info "entered {} ({unary})", fn_name!());
         let tycode = TypeCode::from(unary.lhs_t());
-        self.emit_expr(*unary.expr);
         let instr = match &unary.op.kind {
             // TODO:
             TokenKind::PrePlus => UNARY_POSITIVE,
             TokenKind::PreMinus => UNARY_NEGATIVE,
-            TokenKind::Mutate => NOP, // ERG_MUTATE,
+            TokenKind::Mutate => {
+                if !self.mutate_op_loaded {
+                    self.load_mutate_op();
+                }
+                self.emit_push_null();
+                self.emit_load_name_instr(Identifier::private("#mutate_operator"));
+                NOP // ERG_MUTATE,
+            }
             _ => {
                 CompileError::feature_error(
                     self.cfg.input.clone(),
@@ -1275,8 +1288,14 @@ impl PyCodeGenerator {
                 NOT_IMPLEMENTED
             }
         };
-        self.write_instr(instr);
-        self.write_arg(tycode as usize);
+        self.emit_expr(*unary.expr);
+        if instr != NOP {
+            self.write_instr(instr);
+            self.write_arg(tycode as usize);
+        } else {
+            self.emit_precall_and_call(1);
+            self.stack_dec();
+        }
     }
 
     fn emit_binop(&mut self, bin: BinOp) {
@@ -1792,7 +1811,7 @@ impl PyCodeGenerator {
                     if i != 0 && i != len - 1 {
                         self.dup_top();
                     }
-                    self.emit_load_const(i as i32);
+                    self.emit_load_const(i);
                     self.write_instr(Opcode311::BINARY_SUBSCR);
                     self.write_arg(0);
                     self.stack_dec();
@@ -1806,7 +1825,7 @@ impl PyCodeGenerator {
                     if i != 0 && i != len - 1 {
                         self.dup_top();
                     }
-                    self.emit_load_const(i as i32);
+                    self.emit_load_const(i);
                     self.write_instr(Opcode311::BINARY_SUBSCR);
                     self.write_arg(0);
                     self.stack_dec();
@@ -2695,10 +2714,15 @@ impl PyCodeGenerator {
     }
 
     fn load_prelude(&mut self) {
+        // NOTE: Integers need to be used in IMPORT_NAME
+        // but `Int` are called before importing it, so they need to be no_std mode
+        let no_std = self.cfg.no_std;
+        self.cfg.no_std = true;
         self.load_record_type();
         self.load_prelude_py();
         self.prelude_loaded = true;
         self.record_type_loaded = true;
+        self.cfg.no_std = no_std;
     }
 
     fn load_in_op(&mut self) {
@@ -2715,6 +2739,22 @@ impl PyCodeGenerator {
             )],
         );
         self.in_op_loaded = true;
+    }
+
+    fn load_mutate_op(&mut self) {
+        let mod_name = if self.py_version.minor >= Some(10) {
+            Identifier::public("_erg_std_prelude")
+        } else {
+            Identifier::public("_erg_std_prelude_old")
+        };
+        self.emit_global_import_items(
+            mod_name,
+            vec![(
+                Identifier::public("mutate_operator"),
+                Some(Identifier::private("#mutate_operator")),
+            )],
+        );
+        self.mutate_op_loaded = true;
     }
 
     fn load_control(&mut self) {

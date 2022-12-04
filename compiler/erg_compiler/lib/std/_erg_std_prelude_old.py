@@ -54,7 +54,6 @@ class Bool(Nat):
 
 class Str(str):
     def __instancecheck__(cls, obj):
-        print(cls, obj)
         return obj == Str or obj == str
 
     def try_new(s: str): # -> Result[Nat]
