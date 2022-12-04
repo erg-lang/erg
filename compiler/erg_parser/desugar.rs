@@ -992,6 +992,17 @@ impl Desugarer {
                 insertion_idx += 1;
                 insertion_idx
             }
+            ParamPattern::Lit(l) => {
+                let lit = l.clone();
+                sig.pat = ParamPattern::Discard(Token::new(
+                    TokenKind::UBar,
+                    "_",
+                    l.ln_begin().unwrap(),
+                    l.col_begin().unwrap(),
+                ));
+                sig.t_spec = Some(TypeSpecWithOp::new(COLON, TypeSpec::enum_t_spec(vec![lit])));
+                insertion_idx
+            }
             _ => insertion_idx,
         }
     }
