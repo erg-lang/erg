@@ -736,15 +736,21 @@ impl ValueObj {
         }
     }
 
+    pub fn from_const_expr(expr: ConstExpr) -> Self {
+        let ConstExpr::Lit(lit) = expr else { todo!() };
+        let t = type_from_token_kind(lit.token.kind);
+        ValueObj::from_str(t, lit.token.content).unwrap()
+    }
+
+    pub fn tuple_from_const_args(args: ConstArgs) -> Self {
+        Self::Tuple(Rc::from(&Self::vec_from_const_args(args)[..]))
+    }
+
     pub fn vec_from_const_args(args: ConstArgs) -> Vec<Self> {
         args.deconstruct()
             .0
             .into_iter()
-            .map(|elem| {
-                let ConstExpr::Lit(lit) = elem.expr else { todo!() };
-                let t = type_from_token_kind(lit.token.kind);
-                ValueObj::from_str(t, lit.token.content).unwrap()
-            })
+            .map(|elem| Self::from_const_expr(elem.expr))
             .collect::<Vec<_>>()
     }
 

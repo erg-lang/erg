@@ -240,7 +240,14 @@ impl Context {
         kw_args: &[hir::KwArg],
     ) -> TyCheckResult<VarInfo> {
         if !kw_args.is_empty() {
-            todo!()
+            // TODO: this error desc is not good
+            return Err(TyCheckErrors::from(TyCheckError::default_param_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                kw_args[0].loc(),
+                self.caused_by(),
+                "match",
+            )));
         }
         for pos_arg in pos_args.iter().skip(1) {
             let t = pos_arg.expr.ref_t();
@@ -266,22 +273,22 @@ impl Context {
         for (i, pos_arg) in pos_args.iter().skip(1).enumerate() {
             let lambda = erg_common::enum_unwrap!(&pos_arg.expr, hir::Expr::Lambda);
             if !lambda.params.defaults.is_empty() {
-                todo!()
+                return Err(TyCheckErrors::from(TyCheckError::default_param_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    pos_args[i + 1].loc(),
+                    self.caused_by(),
+                    "match",
+                )));
             }
-            // TODO: If the first argument of the match is a tuple?
             if lambda.params.len() != 1 {
-                return Err(TyCheckErrors::from(TyCheckError::argument_error(
+                return Err(TyCheckErrors::from(TyCheckError::param_error(
                     self.cfg.input.clone(),
                     line!() as usize,
                     pos_args[i + 1].loc(),
                     self.caused_by(),
                     1,
-                    pos_args[i + 1]
-                        .expr
-                        .signature_t()
-                        .unwrap()
-                        .typarams_len()
-                        .unwrap_or(0),
+                    lambda.params.len(),
                 )));
             }
             let mut dummy_tv_cache = TyVarCache::new(self.level, self);

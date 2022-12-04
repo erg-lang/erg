@@ -1553,14 +1553,27 @@ impl Context {
             }
             (Type::Proj { .. }, _) => todo!(),
             (_, Type::Proj { .. }) => todo!(),
-            (Refinement(l), Refinement(r)) => {
-                if l.preds.len() == 1 && r.preds.len() == 1 {
-                    let l_first = l.preds.iter().next().unwrap();
-                    let r_first = r.preds.iter().next().unwrap();
+            (Refinement(sub), Refinement(sup)) => {
+                if sub.preds.len() == 1 && sup.preds.len() == 1 {
+                    let sub_first = sub.preds.iter().next().unwrap();
+                    let sup_first = sup.preds.iter().next().unwrap();
+                    self.sub_unify_pred(sub_first, sup_first, loc)?;
+                    return Ok(());
+                }
+                todo!("{sub}, {sup}")
+            },
+            // {I: Int | I >= 1} <: Nat == {I: Int | I >= 0}
+            (Type::Refinement(sub), sup) => {
+                let sup = self.into_refinement(sup.clone());
+                if sup.preds.is_empty() {
+                    return self.sub_unify(&sub.t, maybe_sup, loc, param_name);
+                } else if sub.preds.len() == 1 && sup.preds.len() == 1 {
+                    let l_first = sub.preds.iter().next().unwrap();
+                    let r_first = sup.preds.iter().next().unwrap();
                     self.sub_unify_pred(l_first, r_first, loc)?;
                     return Ok(());
                 }
-                todo!("{l}, {r}")
+                todo!("{sub}, {sup}")
             },
             (Type::Subr(_) | Type::Record(_), Type) => Ok(()),
             // REVIEW: correct?
