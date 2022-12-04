@@ -1735,7 +1735,7 @@ impl PyCodeGenerator {
     }
 
     fn emit_match_guard(&mut self, t_spec: TypeSpec, pop_jump_points: &mut Vec<usize>) {
-        #[allow(clippy::single_match)]
+        log!(info "entered {} ({t_spec})", fn_name!());
         match t_spec {
             TypeSpec::Enum(enum_t) => {
                 let elems = ValueObj::vec_from_const_args(enum_t);
@@ -1785,14 +1785,42 @@ impl PyCodeGenerator {
                 self.write_arg(0);
                 self.stack_dec();
             }
+            // _: (Int, Str)
+            TypeSpec::Tuple(tup) => {
+                let len = tup.len();
+                for (i, t_spec) in tup.into_iter().enumerate() {
+                    if i != 0 && i != len - 1 {
+                        self.dup_top();
+                    }
+                    self.emit_load_const(i as i32);
+                    self.write_instr(Opcode311::BINARY_SUBSCR);
+                    self.write_arg(0);
+                    self.stack_dec();
+                    self.emit_match_guard(t_spec, pop_jump_points);
+                }
+            }
+            // TODO: consider ordering (e.g. both [1, 2] and [2, 1] is type of [{1, 2}; 2])
+            TypeSpec::Array(arr) => {
+                let ValueObj::Nat(len) = ValueObj::from_const_expr(arr.len) else { todo!() };
+                for i in 0..=(len - 1) {
+                    if i != 0 && i != len - 1 {
+                        self.dup_top();
+                    }
+                    self.emit_load_const(i as i32);
+                    self.write_instr(Opcode311::BINARY_SUBSCR);
+                    self.write_arg(0);
+                    self.stack_dec();
+                    self.emit_match_guard(*arr.ty.clone(), pop_jump_points);
+                }
+            }
             /*TypeSpec::Interval { op, lhs, rhs } => {
                 let binop = BinOp::new(op, lhs.downcast(), rhs.downcast(), VarInfo::default());
                 self.emit_binop(binop);
             }*/
             // TODO:
-            other => {
-                log!(err "{other}")
-            }
+            TypeSpec::Infer(_) => unreachable!(),
+            // TODO:
+            other => log!(err "{other}"),
         }
     }
 
