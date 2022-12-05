@@ -26,6 +26,9 @@ pub enum TokenKind {
     RatioLit,
     BoolLit,
     StrLit,
+    StrInterpLeft,  // e.g. "abc\{
+    StrInterpMid,   // e.g. }abc\{
+    StrInterpRight, // e.g. }def"
     NoneLit,
     NoImplLit,
     EllipsisLit,
@@ -174,6 +177,7 @@ use TokenKind::*;
 pub enum TokenCategory {
     Symbol,
     Literal,
+    Interpolation,
     BinOp,
     UnaryOp,
     /// ? <.. ..
@@ -215,6 +219,7 @@ impl TokenKind {
             Symbol => TokenCategory::Symbol,
             NatLit | IntLit | RatioLit | StrLit | BoolLit | NoneLit | EllipsisLit | NoImplLit
             | InfLit => TokenCategory::Literal,
+            StrInterpLeft | StrInterpMid | StrInterpRight => TokenCategory::Interpolation,
             PrePlus | PreMinus | PreBitNot | Mutate | RefOp | RefMutOp => TokenCategory::UnaryOp,
             Try => TokenCategory::PostfixOp,
             Comma | Colon | DblColon | SupertypeOf | SubtypeOf | Dot | Pipe | Walrus
