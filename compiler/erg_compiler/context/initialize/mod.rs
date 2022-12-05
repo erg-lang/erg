@@ -1794,6 +1794,7 @@ impl Context {
         let t_exit = t_quit.clone();
         let t_repr = nd_func(vec![kw("object", Obj)], None, Str);
         let t_round = nd_func(vec![kw("number", Float)], None, Int);
+        let t_str = nd_func(vec![kw("object", Obj)], None, Str);
         let t_unreachable = nd_func(vec![], None, Never);
         self.register_builtin_py_impl("abs", t_abs, Immutable, Private, Some("abs"));
         self.register_builtin_py_impl("ascii", t_ascii, Immutable, Private, Some("ascii"));
@@ -1855,6 +1856,7 @@ impl Context {
         self.register_builtin_py_impl("quit", t_quit, Immutable, Private, Some("quit"));
         self.register_builtin_py_impl("repr", t_repr, Immutable, Private, Some("repr"));
         self.register_builtin_py_impl("round", t_round, Immutable, Private, Some("round"));
+        self.register_builtin_py_impl("str", t_str, Immutable, Private, Some("str"));
         // TODO: original implementation
         self.register_builtin_py_impl(
             "unreachable",
