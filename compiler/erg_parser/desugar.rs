@@ -16,9 +16,10 @@ use crate::ast::{
     ClassAttr, ClassAttrs, ClassDef, ConstExpr, DataPack, Def, DefBody, DefId, Dict, Expr,
     Identifier, KeyValue, KwArg, Lambda, LambdaSignature, Literal, Methods, MixedRecord, Module,
     NonDefaultParamSignature, NormalArray, NormalDict, NormalRecord, NormalSet, NormalTuple,
-    ParamPattern, ParamRecordAttr, Params, PosArg, Record, RecordAttrOrIdent, RecordAttrs,
-    Set as astSet, SetWithLength, Signature, SubrSignature, Tuple, TypeAppArgs, TypeBoundSpecs,
-    TypeSpec, TypeSpecWithOp, UnaryOp, VarName, VarPattern, VarRecordAttr, VarSignature,
+    ParamPattern, ParamRecordAttr, Params, PatchDef, PosArg, Record, RecordAttrOrIdent,
+    RecordAttrs, Set as astSet, SetWithLength, Signature, SubrSignature, Tuple, TypeAppArgs,
+    TypeBoundSpecs, TypeSpec, TypeSpecWithOp, UnaryOp, VarName, VarPattern, VarRecordAttr,
+    VarSignature,
 };
 use crate::token::{Token, TokenKind, COLON, DOT};
 
@@ -223,6 +224,15 @@ impl Desugarer {
                     .map(|method| enum_unwrap!(desugar(Expr::Methods(method)), Expr::Methods))
                     .collect();
                 Expr::ClassDef(ClassDef::new(def, methods))
+            }
+            Expr::PatchDef(class_def) => {
+                let def = enum_unwrap!(desugar(Expr::Def(class_def.def)), Expr::Def);
+                let methods = class_def
+                    .methods_list
+                    .into_iter()
+                    .map(|method| enum_unwrap!(desugar(Expr::Methods(method)), Expr::Methods))
+                    .collect();
+                Expr::PatchDef(PatchDef::new(def, methods))
             }
             Expr::Lambda(lambda) => {
                 let mut chunks = vec![];

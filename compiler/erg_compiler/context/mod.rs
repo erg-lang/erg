@@ -232,6 +232,7 @@ pub enum ContextKind {
     Proc,
     Class,
     MethodDefs(Option<Type>), // Type: trait implemented
+    PatchMethodDefs(Type),
     Trait,
     StructuralTrait,
     Patch(Type),
@@ -269,6 +270,10 @@ impl ContextKind {
 
     pub fn is_trait(&self) -> bool {
         matches!(self, Self::Trait | Self::StructuralTrait)
+    }
+
+    pub fn is_patch(&self) -> bool {
+        matches!(self, Self::Patch(_) | Self::GluePatch(_))
     }
 }
 
@@ -682,6 +687,31 @@ impl Context {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
+    pub fn poly_patch<S: Into<Str>>(
+        name: S,
+        base: Type,
+        params: Vec<ParamSpec>,
+        cfg: ErgConfig,
+        mod_cache: Option<SharedModuleCache>,
+        py_mod_cache: Option<SharedModuleCache>,
+        capacity: usize,
+        level: usize,
+    ) -> Self {
+        let name = name.into();
+        Self::poly(
+            name,
+            cfg,
+            ContextKind::Patch(base),
+            params,
+            None,
+            mod_cache,
+            py_mod_cache,
+            capacity,
+            level,
+        )
+    }
+
     #[inline]
     pub fn mono_trait<S: Into<Str>>(
         name: S,
@@ -727,6 +757,28 @@ impl Context {
             None,
             capacity,
             Self::TOP_LEVEL,
+        )
+    }
+
+    #[inline]
+    pub fn mono_patch<S: Into<Str>>(
+        name: S,
+        base: Type,
+        cfg: ErgConfig,
+        mod_cache: Option<SharedModuleCache>,
+        py_mod_cache: Option<SharedModuleCache>,
+        capacity: usize,
+        level: usize,
+    ) -> Self {
+        Self::poly_patch(
+            name,
+            base,
+            vec![],
+            cfg,
+            mod_cache,
+            py_mod_cache,
+            capacity,
+            level,
         )
     }
 

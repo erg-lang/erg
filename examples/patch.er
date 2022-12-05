@@ -1,12 +1,20 @@
-Binary = Patch {0, 1}
-Binary.
-    invert self =
-        if self == 0, 1 else 0
-assert 1.invert() == 0
-assert 0.invert() == 1
+Invert = Patch Bool
+Invert::
+    _zero = False
+    _invert self = not self
+Invert.
+    zero = Invert::_zero
+    invert self = self::_invert()
 
-Nat = Patch {I | I >= 0}
-Nat.times! self, block! =
-    for! 0..<self, _ => block!()
-10.times! do!:
-    print! "!"
+assert False.invert()
+
+.ToLower = Patch Str
+.ToLower::
+    _lowers = "abcdefghijklmnopqrstuvwxyz"
+    _to_lowercase self = self.lower()
+.ToLower.
+    lowers = .ToLower::_lowers
+    to_lowercase self = self::_to_lowercase()
+
+print! "".lowers
+print! "AAA".to_lowercase()

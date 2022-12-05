@@ -95,8 +95,16 @@ impl SideEffectChecker {
                     self.check_def(def);
                 }
                 Expr::ClassDef(class_def) => {
+                    self.check_expr(class_def.require_or_sup.as_ref());
                     // TODO: grow
                     for def in class_def.methods.iter() {
+                        self.check_expr(def);
+                    }
+                }
+                Expr::PatchDef(patch_def) => {
+                    self.check_expr(patch_def.base.as_ref());
+                    // TODO: grow
+                    for def in patch_def.methods.iter() {
                         self.check_expr(def);
                     }
                 }
@@ -271,7 +279,14 @@ impl SideEffectChecker {
                 self.check_def(def);
             }
             Expr::ClassDef(class_def) => {
+                self.check_expr(class_def.require_or_sup.as_ref());
                 for def in class_def.methods.iter() {
+                    self.check_expr(def);
+                }
+            }
+            Expr::PatchDef(patch_def) => {
+                self.check_expr(patch_def.base.as_ref());
+                for def in patch_def.methods.iter() {
                     self.check_expr(def);
                 }
             }

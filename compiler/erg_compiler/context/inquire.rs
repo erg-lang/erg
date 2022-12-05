@@ -35,7 +35,7 @@ use crate::AccessKind;
 use RegistrationMode::*;
 use Visibility::*;
 
-use super::MethodInfo;
+use super::{ContextKind, MethodInfo};
 
 impl Context {
     pub(crate) fn validate_var_sig_t(
@@ -151,6 +151,7 @@ impl Context {
     ) -> SingleTyCheckResult<&Context> {
         self.get_mod(ident.inspect())
             .or_else(|| self.rec_get_type(ident.inspect()).map(|(_, ctx)| ctx))
+            .or_else(|| self.rec_get_patch(ident.inspect()))
             .ok_or_else(|| {
                 TyCheckError::no_var_error(
                     self.cfg.input.clone(),
@@ -475,6 +476,26 @@ impl Context {
                 return Err(e);
             }
         }
+        for patch in self.find_patches_of(obj.ref_t()) {
+            if let Some(vi) = patch
+                .locals
+                .get(ident.inspect())
+                .or_else(|| patch.decls.get(ident.inspect()))
+            {
+                self.validate_visibility(ident, vi, input, namespace)?;
+                return Ok(vi.clone());
+            }
+            for (_, methods_ctx) in patch.methods_list.iter() {
+                if let Some(vi) = methods_ctx
+                    .locals
+                    .get(ident.inspect())
+                    .or_else(|| methods_ctx.decls.get(ident.inspect()))
+                {
+                    self.validate_visibility(ident, vi, input, namespace)?;
+                    return Ok(vi.clone());
+                }
+            }
+        }
         // TODO: dependent type widening
         if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
             parent.rec_get_attr_info(obj, ident, input, namespace)
@@ -614,7 +635,10 @@ impl Context {
                                 line!() as usize,
                             ))
                         }
-                        other => todo!("{other}"),
+                        _other => Err(TyCheckError::dummy(
+                            self.cfg.input.clone(),
+                            line!() as usize,
+                        )),
                     }
                 } else {
                     Err(TyCheckError::dummy(
@@ -708,7 +732,26 @@ impl Context {
                 }
                 _ => {}
             }
-            // TODO: patch
+            for patch in self.find_patches_of(obj.ref_t()) {
+                if let Some(vi) = patch
+                    .locals
+                    .get(attr_name.inspect())
+                    .or_else(|| patch.decls.get(attr_name.inspect()))
+                {
+                    self.validate_visibility(attr_name, vi, input, namespace)?;
+                    return Ok(vi.clone());
+                }
+                for (_, methods_ctx) in patch.methods_list.iter() {
+                    if let Some(vi) = methods_ctx
+                        .locals
+                        .get(attr_name.inspect())
+                        .or_else(|| methods_ctx.decls.get(attr_name.inspect()))
+                    {
+                        self.validate_visibility(attr_name, vi, input, namespace)?;
+                        return Ok(vi.clone());
+                    }
+                }
+            }
             Err(TyCheckError::no_attr_error(
                 self.cfg.input.clone(),
                 line!() as usize,
@@ -748,6 +791,7 @@ impl Context {
             && &self.name[..] != namespace
             && !namespace.contains(&self.name[..])
         {
+            log!(err "{namespace}/{}", self.name);
             Err(TyCheckError::visibility_error(
                 input.clone(),
                 line!() as usize,
@@ -1888,19 +1932,9 @@ impl Context {
         }
     }
 
-    pub(crate) fn _rec_get_patch(&self, name: &VarName) -> Option<&Context> {
-        if let Some(patch) = self.patches.get(name) {
-            Some(patch)
-        } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
-            outer._rec_get_patch(name)
-        } else {
-            None
-        }
-    }
-
-    pub(crate) fn _all_patches(&self) -> Vec<&Context> {
+    pub(crate) fn all_patches(&self) -> Vec<&Context> {
         if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
-            [outer._all_patches(), self.patches.values().collect()].concat()
+            [outer.all_patches(), self.patches.values().collect()].concat()
         } else {
             self.patches.values().collect()
         }
@@ -1993,15 +2027,9 @@ impl Context {
     // TODO: poly type
     pub(crate) fn rec_get_self_t(&self) -> Option<Type> {
         if self.kind.is_method_def() || self.kind.is_type() {
-            // let name = self.name.split(&[':', '.']).last().unwrap();
-            /*if let Some((t, _)) = self.rec_get_type(name) {
-                log!("{t}");
-                Some(t.clone())
-            } else {
-                log!("none");
-                None
-            }*/
             Some(mono(self.name.clone()))
+        } else if let ContextKind::PatchMethodDefs(t) = &self.kind {
+            Some(t.clone())
         } else if let Some(outer) = self.get_outer() {
             outer.rec_get_self_t()
         } else {
@@ -2067,6 +2095,16 @@ impl Context {
             Some((t, ctx))
         } else if let Some((t, ctx)) = self.poly_types.get_mut(name) {
             Some((t, ctx))
+        } else {
+            None
+        }
+    }
+
+    pub(crate) fn rec_get_patch(&self, name: &str) -> Option<&Context> {
+        if let Some(ctx) = self.patches.get(name) {
+            Some(ctx)
+        } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
+            outer.rec_get_patch(name)
         } else {
             None
         }

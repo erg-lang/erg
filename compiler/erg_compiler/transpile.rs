@@ -17,14 +17,38 @@ use crate::context::{Context, ContextProvider};
 use crate::desugar_hir::HIRDesugarer;
 use crate::error::{CompileError, CompileErrors};
 use crate::hir::{
-    Accessor, Array, Block, Call, ClassDef, Def, Dict, Expr, Identifier, Lambda, Params, Set,
-    Signature, Tuple, HIR,
+    Accessor, Args, Array, BinOp, Block, Call, ClassDef, Def, Dict, Expr, Identifier, Lambda,
+    Params, PatchDef, Record, Set, Signature, Tuple, HIR,
 };
 use crate::link::Linker;
 use crate::mod_cache::SharedModuleCache;
 use crate::ty::value::ValueObj;
 use crate::ty::Type;
 use crate::varinfo::VarInfo;
+
+/// patch method -> function
+/// patch attr -> variable
+fn debind(ident: &Identifier) -> Option<Str> {
+    match ident.vi.py_name.as_ref().map(|s| &s[..]) {
+        Some(name) if name.starts_with("Function::") => {
+            Some(Str::from(name.replace("Function::", "")))
+        }
+        Some(patch_method) if patch_method.contains("::") || patch_method.contains('.') => {
+            if ident.vis().is_private() {
+                Some(Str::from(format!("{patch_method}__")))
+            } else {
+                Some(Str::rc(patch_method))
+            }
+        }
+        _ => None,
+    }
+}
+
+fn demangle(name: &str) -> String {
+    name.trim_start_matches("::<module>")
+        .replace("::", "__")
+        .replace('.', "_")
+}
 
 #[derive(Debug)]
 pub enum LastLineOperation {
@@ -291,52 +315,7 @@ impl ScriptGenerator {
                 }
             }
             Expr::Call(call) => self.transpile_call(call),
-            Expr::BinOp(bin) => match bin.op.kind {
-                TokenKind::Closed
-                | TokenKind::LeftOpen
-                | TokenKind::RightOpen
-                | TokenKind::Open => {
-                    if !self.range_ops_loaded {
-                        self.load_range_ops();
-                        self.range_ops_loaded = true;
-                    }
-                    let mut code = match bin.op.kind {
-                        TokenKind::Closed => "ClosedRange(",
-                        TokenKind::LeftOpen => "LeftOpenRange(",
-                        TokenKind::RightOpen => "RightOpenRange(",
-                        TokenKind::Open => "OpenRange(",
-                        _ => unreachable!(),
-                    }
-                    .to_string();
-                    code += &self.transpile_expr(*bin.lhs);
-                    code.push(',');
-                    code += &self.transpile_expr(*bin.rhs);
-                    code.push(')');
-                    code
-                }
-                TokenKind::InOp => {
-                    if !self.in_op_loaded {
-                        self.load_in_op();
-                        self.in_op_loaded = true;
-                    }
-                    let mut code = "in_operator(".to_string();
-                    code += &self.transpile_expr(*bin.lhs);
-                    code.push(',');
-                    code += &self.transpile_expr(*bin.rhs);
-                    code.push(')');
-                    code
-                }
-                _ => {
-                    let mut code = "(".to_string();
-                    code += &self.transpile_expr(*bin.lhs);
-                    code.push(' ');
-                    code += &bin.op.content;
-                    code.push(' ');
-                    code += &self.transpile_expr(*bin.rhs);
-                    code += ")";
-                    code
-                }
-            },
+            Expr::BinOp(bin) => self.transpile_binop(bin),
             Expr::UnaryOp(unary) => {
                 let mut code = "".to_string();
                 if unary.op.kind == TokenKind::Mutate {
@@ -375,31 +354,7 @@ impl ScriptGenerator {
                 }
                 other => todo!("transpiling {other}"),
             },
-            Expr::Record(rec) => {
-                if !self.namedtuple_loaded {
-                    self.load_namedtuple();
-                    self.namedtuple_loaded = true;
-                }
-                let mut attrs = "[".to_string();
-                let mut values = "(".to_string();
-                for mut attr in rec.attrs.into_iter() {
-                    attrs += &format!("'{}',", Self::transpile_ident(attr.sig.into_ident()));
-                    if attr.body.block.len() > 1 {
-                        let name = format!("instant_block_{}__", self.fresh_var_n);
-                        self.fresh_var_n += 1;
-                        let mut code = format!("def {name}():\n");
-                        code += &self.transpile_block(attr.body.block, Return);
-                        self.prelude += &code;
-                        values += &format!("{name}(),");
-                    } else {
-                        let expr = attr.body.block.remove(0);
-                        values += &format!("{},", self.transpile_expr(expr));
-                    }
-                }
-                attrs += "]";
-                values += ")";
-                format!("NamedTuple__('Record', {attrs}){values}")
-            }
+            Expr::Record(rec) => self.transpile_record(rec),
             Expr::Tuple(tuple) => match tuple {
                 Tuple::Normal(tup) => {
                     let mut code = "(".to_string();
@@ -425,28 +380,11 @@ impl ScriptGenerator {
                 }
                 other => todo!("transpiling {other}"),
             },
-            Expr::Accessor(acc) => match acc {
-                Accessor::Ident(ident) => {
-                    match &ident.inspect()[..] {
-                        "Str" | "Bool" | "Nat" | "Array" if !self.builtin_types_loaded => {
-                            self.load_builtin_types();
-                            self.builtin_types_loaded = true;
-                        }
-                        _ => {}
-                    }
-                    Self::transpile_ident(ident)
-                }
-                Accessor::Attr(attr) => {
-                    format!(
-                        "({}).{}",
-                        self.transpile_expr(*attr.obj),
-                        Self::transpile_ident(attr.ident)
-                    )
-                }
-            },
+            Expr::Accessor(acc) => self.transpile_acc(acc),
             Expr::Def(def) => self.transpile_def(def),
             Expr::Lambda(lambda) => self.transpile_lambda(lambda),
             Expr::ClassDef(classdef) => self.transpile_classdef(classdef),
+            Expr::PatchDef(patchdef) => self.transpile_patchdef(patchdef),
             Expr::AttrDef(mut adef) => {
                 let mut code = format!("{} = ", self.transpile_expr(Expr::Accessor(adef.attr)));
                 if adef.block.len() > 1 {
@@ -480,7 +418,105 @@ impl ScriptGenerator {
                 );
                 String::new()
             }
-            other => todo!("transpile {other:?}"),
+            other => todo!("transpile {other}"),
+        }
+    }
+
+    fn transpile_record(&mut self, rec: Record) -> String {
+        if !self.namedtuple_loaded {
+            self.load_namedtuple();
+            self.namedtuple_loaded = true;
+        }
+        let mut attrs = "[".to_string();
+        let mut values = "(".to_string();
+        for mut attr in rec.attrs.into_iter() {
+            attrs += &format!("'{}',", Self::transpile_ident(attr.sig.into_ident()));
+            if attr.body.block.len() > 1 {
+                let name = format!("instant_block_{}__", self.fresh_var_n);
+                self.fresh_var_n += 1;
+                let mut code = format!("def {name}():\n");
+                code += &self.transpile_block(attr.body.block, Return);
+                self.prelude += &code;
+                values += &format!("{name}(),");
+            } else {
+                let expr = attr.body.block.remove(0);
+                values += &format!("{},", self.transpile_expr(expr));
+            }
+        }
+        attrs += "]";
+        values += ")";
+        format!("NamedTuple__('Record', {attrs}){values}")
+    }
+
+    fn transpile_binop(&mut self, bin: BinOp) -> String {
+        match bin.op.kind {
+            TokenKind::Closed | TokenKind::LeftOpen | TokenKind::RightOpen | TokenKind::Open => {
+                if !self.range_ops_loaded {
+                    self.load_range_ops();
+                    self.range_ops_loaded = true;
+                }
+                let mut code = match bin.op.kind {
+                    TokenKind::Closed => "ClosedRange(",
+                    TokenKind::LeftOpen => "LeftOpenRange(",
+                    TokenKind::RightOpen => "RightOpenRange(",
+                    TokenKind::Open => "OpenRange(",
+                    _ => unreachable!(),
+                }
+                .to_string();
+                code += &self.transpile_expr(*bin.lhs);
+                code.push(',');
+                code += &self.transpile_expr(*bin.rhs);
+                code.push(')');
+                code
+            }
+            TokenKind::InOp => {
+                if !self.in_op_loaded {
+                    self.load_in_op();
+                    self.in_op_loaded = true;
+                }
+                let mut code = "in_operator(".to_string();
+                code += &self.transpile_expr(*bin.lhs);
+                code.push(',');
+                code += &self.transpile_expr(*bin.rhs);
+                code.push(')');
+                code
+            }
+            _ => {
+                let mut code = "(".to_string();
+                code += &self.transpile_expr(*bin.lhs);
+                code.push(' ');
+                code += &bin.op.content;
+                code.push(' ');
+                code += &self.transpile_expr(*bin.rhs);
+                code += ")";
+                code
+            }
+        }
+    }
+
+    fn transpile_acc(&mut self, acc: Accessor) -> String {
+        match acc {
+            Accessor::Ident(ident) => {
+                match &ident.inspect()[..] {
+                    "Str" | "Bool" | "Nat" | "Array" if !self.builtin_types_loaded => {
+                        self.load_builtin_types();
+                        self.builtin_types_loaded = true;
+                    }
+                    _ => {}
+                }
+                Self::transpile_ident(ident)
+            }
+            Accessor::Attr(attr) => {
+                if let Some(name) = debind(&attr.ident) {
+                    demangle(&name)
+                } else {
+                    format!(
+                        "({}).{}",
+                        self.transpile_expr(*attr.obj),
+                        Self::transpile_ident(attr.ident)
+                    )
+                }
+            }
         }
     }
 
@@ -493,52 +529,8 @@ impl ScriptGenerator {
                 }
                 code
             }
-            Some("if" | "if!") => {
-                let cond = self.transpile_expr(call.args.remove(0));
-                let Expr::Lambda(mut then_block) = call.args.remove(0) else { todo!() };
-                let else_block = call.args.try_remove(0).map(|ex| {
-                    if let Expr::Lambda(blk) = ex {
-                        blk
-                    } else {
-                        todo!()
-                    }
-                });
-                if then_block.body.len() == 1
-                    && else_block
-                        .as_ref()
-                        .map(|blk| blk.body.len() == 1)
-                        .unwrap_or(true)
-                {
-                    let then = self.transpile_expr(then_block.body.remove(0));
-                    if let Some(mut else_block) = else_block {
-                        let els = self.transpile_expr(else_block.body.remove(0));
-                        return format!("{then} if {cond} else {els}");
-                    } else {
-                        return format!("{then} if {cond} else None");
-                    }
-                }
-                let tmp = Str::from(format!("if_tmp_{}__", self.fresh_var_n));
-                self.fresh_var_n += 1;
-                let tmp_func = Str::from(format!("if_tmp_func_{}__", self.fresh_var_n));
-                self.fresh_var_n += 1;
-                let mut code = format!("def {tmp_func}():\n");
-                code += &"    ".repeat(self.level);
-                code += "if ";
-                code += &format!("{cond}:\n");
-                log!(err "{then_block}");
-                code += &self.transpile_block(then_block.body, StoreTmp(tmp.clone()));
-                if let Some(else_block) = else_block {
-                    code += &"    ".repeat(self.level);
-                    code += "else:\n";
-                    code += &self.transpile_block(else_block.body, StoreTmp(tmp.clone()));
-                }
-                code += &"    ".repeat(self.level);
-                code += &format!("return {tmp}\n");
-                self.prelude += &code;
-                // NOTE: In Python, the variable environment of a function is determined at call time
-                // This is a very bad design, but can be used for this code
-                format!("{tmp_func}()")
-            }
+            Some("not") => format!("(not ({}))", self.transpile_expr(call.args.remove(0))),
+            Some("if" | "if!") => self.transpile_if(call),
             Some("for" | "for!") => {
                 let mut code = "for ".to_string();
                 let iter = call.args.remove(0);
@@ -558,60 +550,118 @@ impl ScriptGenerator {
                 code += &self.transpile_block(block.body, Discard);
                 code
             }
-            Some("match" | "match!") => {
-                let tmp = Str::from(format!("match_tmp_{}__", self.fresh_var_n));
-                self.fresh_var_n += 1;
-                let tmp_func = Str::from(format!("match_tmp_func_{}__", self.fresh_var_n));
-                self.fresh_var_n += 1;
-                let mut code = format!("def {tmp_func}():\n");
-                self.level += 1;
-                code += &"    ".repeat(self.level);
-                code += "match ";
-                let cond = call.args.remove(0);
-                code += &format!("{}:\n", self.transpile_expr(cond));
-                while let Some(Expr::Lambda(arm)) = call.args.try_remove(0) {
-                    self.level += 1;
-                    code += &"    ".repeat(self.level);
-                    let target = arm.params.non_defaults.get(0).unwrap();
-                    match &target.pat {
-                        ParamPattern::VarName(param) => {
-                            code += &format!("case {}__:\n", &param.token().content);
-                            code += &self.transpile_block(arm.body, StoreTmp(tmp.clone()));
-                            self.level -= 1;
-                        }
-                        ParamPattern::Discard(_) => {
-                            match target.t_spec.as_ref().map(|t| &t.t_spec) {
-                                Some(TypeSpec::Enum(enum_t)) => {
-                                    let values = ValueObj::vec_from_const_args(enum_t.clone());
-                                    if values.len() == 1 {
-                                        code += &format!("case {}:\n", values[0]);
-                                    } else {
-                                        todo!()
-                                    }
-                                }
-                                Some(_) => todo!(),
-                                None => {
-                                    code += "case _:\n";
-                                }
-                            }
-                            code += &self.transpile_block(arm.body, StoreTmp(tmp.clone()));
-                            self.level -= 1;
-                        }
-                        _ => todo!(),
-                    }
-                }
-                code += &"    ".repeat(self.level);
-                code += &format!("return {tmp}\n");
-                self.prelude += &code;
-                format!("{tmp_func}()")
-            }
+            Some("match" | "match!") => self.transpile_match(call),
             _ => self.transpile_simple_call(call),
         }
     }
 
-    fn transpile_simple_call(&mut self, mut call: Call) -> String {
+    fn transpile_if(&mut self, mut call: Call) -> String {
+        let cond = self.transpile_expr(call.args.remove(0));
+        let Expr::Lambda(mut then_block) = call.args.remove(0) else { todo!() };
+        let else_block = call.args.try_remove(0).map(|ex| {
+            if let Expr::Lambda(blk) = ex {
+                blk
+            } else {
+                todo!()
+            }
+        });
+        if then_block.body.len() == 1
+            && else_block
+                .as_ref()
+                .map(|blk| blk.body.len() == 1)
+                .unwrap_or(true)
+        {
+            let then = self.transpile_expr(then_block.body.remove(0));
+            if let Some(mut else_block) = else_block {
+                let els = self.transpile_expr(else_block.body.remove(0));
+                return format!("{then} if {cond} else {els}");
+            } else {
+                return format!("{then} if {cond} else None");
+            }
+        }
+        let tmp = Str::from(format!("if_tmp_{}__", self.fresh_var_n));
+        self.fresh_var_n += 1;
+        let tmp_func = Str::from(format!("if_tmp_func_{}__", self.fresh_var_n));
+        self.fresh_var_n += 1;
+        let mut code = format!("def {tmp_func}():\n");
+        code += &"    ".repeat(self.level);
+        code += "if ";
+        code += &format!("{cond}:\n");
+        log!(err "{then_block}");
+        code += &self.transpile_block(then_block.body, StoreTmp(tmp.clone()));
+        if let Some(else_block) = else_block {
+            code += &"    ".repeat(self.level);
+            code += "else:\n";
+            code += &self.transpile_block(else_block.body, StoreTmp(tmp.clone()));
+        }
+        code += &"    ".repeat(self.level);
+        code += &format!("return {tmp}\n");
+        self.prelude += &code;
+        // NOTE: In Python, the variable environment of a function is determined at call time
+        // This is a very bad design, but can be used for this code
+        format!("{tmp_func}()")
+    }
+
+    fn transpile_match(&mut self, mut call: Call) -> String {
+        let tmp = Str::from(format!("match_tmp_{}__", self.fresh_var_n));
+        self.fresh_var_n += 1;
+        let tmp_func = Str::from(format!("match_tmp_func_{}__", self.fresh_var_n));
+        self.fresh_var_n += 1;
+        let mut code = format!("def {tmp_func}():\n");
+        self.level += 1;
+        code += &"    ".repeat(self.level);
+        code += "match ";
+        let cond = call.args.remove(0);
+        code += &format!("{}:\n", self.transpile_expr(cond));
+        while let Some(Expr::Lambda(arm)) = call.args.try_remove(0) {
+            self.level += 1;
+            code += &"    ".repeat(self.level);
+            let target = arm.params.non_defaults.get(0).unwrap();
+            match &target.pat {
+                ParamPattern::VarName(param) => {
+                    code += &format!("case {}__:\n", &param.token().content);
+                    code += &self.transpile_block(arm.body, StoreTmp(tmp.clone()));
+                    self.level -= 1;
+                }
+                ParamPattern::Discard(_) => {
+                    match target.t_spec.as_ref().map(|t| &t.t_spec) {
+                        Some(TypeSpec::Enum(enum_t)) => {
+                            let values = ValueObj::vec_from_const_args(enum_t.clone());
+                            if values.len() == 1 {
+                                code += &format!("case {}:\n", values[0]);
+                            } else {
+                                todo!()
+                            }
+                        }
+                        Some(_) => todo!(),
+                        None => {
+                            code += "case _:\n";
+                        }
+                    }
+                    code += &self.transpile_block(arm.body, StoreTmp(tmp.clone()));
+                    self.level -= 1;
+                }
+                _ => todo!(),
+            }
+        }
+        code += &"    ".repeat(self.level);
+        code += &format!("return {tmp}\n");
+        self.prelude += &code;
+        format!("{tmp_func}()")
+    }
+
+    fn transpile_simple_call(&mut self, call: Call) -> String {
         let is_py_api = if let Some(attr) = &call.attr_name {
-            attr.is_py_api()
+            let is_py_api = attr.is_py_api();
+            if let Some(name) = debind(attr) {
+                let name = demangle(&name);
+                return format!(
+                    "{name}({}, {})",
+                    self.transpile_expr(*call.obj),
+                    self.transpile_args(call.args, is_py_api, false)
+                );
+            }
+            is_py_api
         } else {
             call.obj.is_py_api()
         };
@@ -619,12 +669,20 @@ impl ScriptGenerator {
         if let Some(attr) = call.attr_name {
             code += &format!(".{}", Self::transpile_ident(attr));
         }
-        code.push('(');
-        while let Some(arg) = call.args.try_remove_pos(0) {
+        code += &self.transpile_args(call.args, is_py_api, true);
+        code
+    }
+
+    fn transpile_args(&mut self, mut args: Args, is_py_api: bool, paren: bool) -> String {
+        let mut code = String::new();
+        if paren {
+            code.push('(');
+        }
+        while let Some(arg) = args.try_remove_pos(0) {
             code += &self.transpile_expr(arg.expr);
             code.push(',');
         }
-        while let Some(arg) = call.args.try_remove_kw(0) {
+        while let Some(arg) = args.try_remove_kw(0) {
             let escape = if is_py_api { "" } else { "__" };
             code += &format!(
                 "{}{escape}={},",
@@ -632,13 +690,15 @@ impl ScriptGenerator {
                 self.transpile_expr(arg.expr)
             );
         }
-        code.push(')');
+        if paren {
+            code.push(')');
+        }
         code
     }
 
     fn transpile_ident(ident: Identifier) -> String {
         if let Some(py_name) = ident.vi.py_name {
-            py_name.to_string()
+            demangle(&py_name)
         } else if ident.dot.is_some() {
             ident.name.into_token().content.to_string()
         } else {
@@ -769,6 +829,23 @@ impl ScriptGenerator {
             code += &format!("def new(x): return {class_name}.__call__(x)\n");
         }
         code += &self.transpile_block(classdef.methods, Discard);
+        code
+    }
+
+    fn transpile_patchdef(&mut self, patch_def: PatchDef) -> String {
+        let mut code = String::new();
+        for chunk in patch_def.methods.into_iter() {
+            let Expr::Def(mut def) = chunk else { todo!() };
+            let name = format!(
+                "{}{}",
+                demangle(&patch_def.sig.ident().to_string_without_type()),
+                demangle(&def.sig.ident().to_string_without_type()),
+            );
+            def.sig.ident_mut().name = VarName::from_str(Str::from(name));
+            code += &"    ".repeat(self.level);
+            code += &self.transpile_def(def);
+            code.push('\n');
+        }
         code
     }
 }
