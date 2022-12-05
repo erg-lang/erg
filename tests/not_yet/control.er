@@ -25,5 +25,5 @@ for! 0..<1000, i =>
 
 counter = !100
 while! do!(not counter.is_zero()), do!:
-    print! "counter = {counter}"
+    print! "counter = \{counter}"
     counter.dec!()

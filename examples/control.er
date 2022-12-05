@@ -17,12 +17,12 @@ _ = match a:
     _ -> panic "unknown object"
 
 for! 0..<10, i =>
-    print! "i = {i}"
+    print! "i = \{i}"
 
 counter = !10
 print! counter
 while! do!(not(counter == 0)), do!:
-    print! "counter = {counter}"
+    print! "counter = \{counter}"
     counter.update!(i -> i - 1)
 
 x = 1

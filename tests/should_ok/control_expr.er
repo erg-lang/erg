@@ -16,12 +16,12 @@ i! cond:
         print! "else block!"
 
 f! 0..<10, i =>
-    print! "i = {i}"
+    print! "i = \{i}"
 
 counter = !10
 print! counter
 w! do!(not(counter == 0)), do!:
-    print! "counter = {counter}"
+    print! "counter = \{counter}"
     counter.update!(i -> i - 1)
 
 counter2 = !2
