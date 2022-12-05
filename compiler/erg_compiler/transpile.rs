@@ -298,9 +298,20 @@ impl ScriptGenerator {
         }
     }
 
+    fn escape_str(s: &str) -> String {
+        s.replace('\n', "\\n")
+            .replace('\r', "\\r")
+            .replace('\t', "\\t")
+            .replace('\'', "\\'")
+            .replace('\"', "\\\"")
+            .replace('\0', "\\0")
+            .replace('\\', "\\\\")
+    }
+
     fn transpile_expr(&mut self, expr: Expr) -> String {
         match expr {
             Expr::Lit(lit) => {
+                let escaped = Self::escape_str(&lit.token.content);
                 if matches!(
                     &lit.value,
                     ValueObj::Bool(_) | ValueObj::Int(_) | ValueObj::Nat(_) | ValueObj::Str(_)
@@ -309,9 +320,9 @@ impl ScriptGenerator {
                         self.load_builtin_types();
                         self.builtin_types_loaded = true;
                     }
-                    format!("{}({})", lit.value.class(), lit.token.content)
+                    format!("{}({escaped})", lit.value.class())
                 } else {
-                    lit.token.content.to_string()
+                    escaped
                 }
             }
             Expr::Call(call) => self.transpile_call(call),
@@ -587,12 +598,16 @@ impl ScriptGenerator {
         code += &"    ".repeat(self.level);
         code += "if ";
         code += &format!("{cond}:\n");
-        log!(err "{then_block}");
         code += &self.transpile_block(then_block.body, StoreTmp(tmp.clone()));
         if let Some(else_block) = else_block {
             code += &"    ".repeat(self.level);
             code += "else:\n";
             code += &self.transpile_block(else_block.body, StoreTmp(tmp.clone()));
+        } else {
+            code += &"    ".repeat(self.level);
+            code += "else:\n";
+            code += &"    ".repeat(self.level + 1);
+            code += &format!("{tmp} = None\n");
         }
         code += &"    ".repeat(self.level);
         code += &format!("return {tmp}\n");
