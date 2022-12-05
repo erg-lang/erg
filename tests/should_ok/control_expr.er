@@ -28,4 +28,4 @@ counter2 = !2
 not_zero!() = not counter2 == 0
 while! not_zero!, do!:
     print! "aaa"
-    counter2.update!(i -> i - 1)
+    counter2.dec!()
