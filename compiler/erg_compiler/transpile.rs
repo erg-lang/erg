@@ -303,9 +303,7 @@ impl ScriptGenerator {
             .replace('\r', "\\r")
             .replace('\t', "\\t")
             .replace('\'', "\\'")
-            .replace('\"', "\\\"")
             .replace('\0', "\\0")
-            .replace('\\', "\\\\")
     }
 
     fn transpile_expr(&mut self, expr: Expr) -> String {
@@ -595,22 +593,22 @@ impl ScriptGenerator {
         let tmp_func = Str::from(format!("if_tmp_func_{}__", self.fresh_var_n));
         self.fresh_var_n += 1;
         let mut code = format!("def {tmp_func}():\n");
-        code += &"    ".repeat(self.level);
-        code += "if ";
-        code += &format!("{cond}:\n");
+        code += &format!("    if {cond}:\n");
+        let level = self.level;
+        self.level = 1;
         code += &self.transpile_block(then_block.body, StoreTmp(tmp.clone()));
+        self.level = level;
         if let Some(else_block) = else_block {
-            code += &"    ".repeat(self.level);
-            code += "else:\n";
+            code += "    else:\n";
+            let level = self.level;
+            self.level = 1;
             code += &self.transpile_block(else_block.body, StoreTmp(tmp.clone()));
+            self.level = level;
         } else {
-            code += &"    ".repeat(self.level);
-            code += "else:\n";
-            code += &"    ".repeat(self.level + 1);
-            code += &format!("{tmp} = None\n");
+            code += "    else:\n";
+            code += &format!("        {tmp} = None\n");
         }
-        code += &"    ".repeat(self.level);
-        code += &format!("return {tmp}\n");
+        code += &format!("    return {tmp}\n");
         self.prelude += &code;
         // NOTE: In Python, the variable environment of a function is determined at call time
         // This is a very bad design, but can be used for this code
