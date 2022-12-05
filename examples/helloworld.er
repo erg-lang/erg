@@ -3,5 +3,6 @@ print! "こんにちは、世界！"
 print! "Γειά σου Κόσμε!"
 print! "!مرحبا بالعالم"
 
-greeting = "Hello"
-print! "{greeting}, world!"
+greetings = ["Good morning", "Hello", "Good evening"]
+for! greetings, greeting =>
+    print! "\{greeting}, world!"

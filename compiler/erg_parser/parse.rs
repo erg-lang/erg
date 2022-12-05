@@ -554,6 +554,7 @@ impl Parser {
         match self.peek() {
             Some(t)
                 if t.category_is(TC::Literal)
+                    || t.is(StrInterpLeft)
                     || t.is(Symbol)
                     || t.category_is(TC::UnaryOp)
                     || t.is(LParen)
@@ -1422,6 +1423,13 @@ impl Parser {
                 self.level -= 1;
                 Ok(Expr::Lit(lit))
             }
+            Some(t) if t.is(StrInterpLeft) => {
+                let str_interp = self
+                    .try_reduce_string_interpolation()
+                    .map_err(|_| self.stack_dec())?;
+                self.level -= 1;
+                Ok(str_interp)
+            }
             Some(t) if t.is(AtSign) => {
                 let decos = self.opt_reduce_decorators()?;
                 let expr = self.try_reduce_chunk(false, in_brace)?;
@@ -2137,6 +2145,87 @@ impl Parser {
                 let err = self.skip_and_throw_syntax_err(caused_by!());
                 self.errs.push(err);
                 Err(())
+            }
+        }
+    }
+
+    /// "...\{, expr, }..." ==> "..." + str(expr) + "..."
+    /// "...\{, expr, }..." ==> "..." + str(expr) + "..."
+    fn try_reduce_string_interpolation(&mut self) -> ParseResult<Expr> {
+        debug_call_info!(self);
+        let mut left = self.lpop();
+        left.content = Str::from(left.content.trim_end_matches("\\{").to_string() + "\"");
+        left.kind = StrLit;
+        let mut expr = Expr::Lit(Literal::from(left));
+        loop {
+            match self.peek() {
+                Some(l) if l.is(StrInterpRight) => {
+                    let mut right = self.lpop();
+                    right.content =
+                        Str::from(format!("\"{}", right.content.trim_start_matches('}')));
+                    right.kind = StrLit;
+                    let right = Expr::Lit(Literal::from(right));
+                    let op = Token::new(
+                        Plus,
+                        "+",
+                        right.ln_begin().unwrap(),
+                        right.col_begin().unwrap(),
+                    );
+                    expr = Expr::BinOp(BinOp::new(op, expr, right));
+                    self.level -= 1;
+                    return Ok(expr);
+                }
+                Some(_) => {
+                    let mid_expr = self.try_reduce_expr(true, false, false, false)?;
+                    let str_func = Expr::local(
+                        "str",
+                        mid_expr.ln_begin().unwrap(),
+                        mid_expr.col_begin().unwrap(),
+                    );
+                    let call = Call::new(
+                        str_func,
+                        None,
+                        Args::new(vec![PosArg::new(mid_expr)], vec![], None),
+                    );
+                    let op = Token::new(
+                        Plus,
+                        "+",
+                        call.ln_begin().unwrap(),
+                        call.col_begin().unwrap(),
+                    );
+                    let bin = BinOp::new(op, expr, Expr::Call(call));
+                    expr = Expr::BinOp(bin);
+                    if self.cur_is(StrInterpMid) {
+                        let mut mid = self.lpop();
+                        mid.content = Str::from(format!(
+                            "\"{}\"",
+                            mid.content.trim_start_matches('}').trim_end_matches("\\{")
+                        ));
+                        mid.kind = StrLit;
+                        let mid = Expr::Lit(Literal::from(mid));
+                        let op = Token::new(
+                            Plus,
+                            "+",
+                            mid.ln_begin().unwrap(),
+                            mid.col_begin().unwrap(),
+                        );
+                        expr = Expr::BinOp(BinOp::new(op, expr, mid));
+                    }
+                }
+                None => {
+                    self.level -= 1;
+                    let err = ParseError::syntax_error(
+                        line!() as usize,
+                        expr.loc(),
+                        switch_lang!(
+                            "japanese" => "文字列補間の終わりが見つかりませんでした",
+                            "english" => "end of string interpolation not found",
+                        ),
+                        None,
+                    );
+                    self.errs.push(err);
+                    return Err(());
+                }
             }
         }
     }
