@@ -652,8 +652,16 @@ impl ScriptGenerator {
     fn transpile_params(&mut self, params: Params) -> String {
         let mut code = String::new();
         for non_default in params.non_defaults {
-            let ParamPattern::VarName(param) = non_default.pat else { todo!() };
-            code += &format!("{}__,", param.into_token().content);
+            match non_default.pat {
+                ParamPattern::VarName(param) => {
+                    code += &format!("{}__,", param.into_token().content);
+                }
+                ParamPattern::Discard(_) => {
+                    code += &format!("_{},", self.fresh_var_n);
+                    self.fresh_var_n += 1;
+                }
+                _ => unreachable!(),
+            }
         }
         for default in params.defaults {
             let ParamPattern::VarName(param) = default.sig.pat else { todo!() };
