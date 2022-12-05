@@ -1967,6 +1967,11 @@ impl Expr {
         }
     }
 
+    pub fn to_string_notype(&self) -> String {
+        let s = self.to_string();
+        s.split("(:").next().unwrap_or("?").trim_end().to_string()
+    }
+
     /// 参照するオブジェクト自体が持っている名前(e.g. Int.qual_name == Some("int"), Socket!.qual_name == Some("io.Socket!"))
     pub fn qual_name(&self) -> Option<&str> {
         match self {

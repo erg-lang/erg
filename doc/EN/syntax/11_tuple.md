@@ -27,9 +27,12 @@ i, b, s = t
 
 Tuples can hold objects of different types, so they cannot be iterated like arrays.
 
-```python
+```python,compile_fail
 t: ({1}, {2}, {3}) = (1, 2, 3)
 (1, 2, 3).iter().map(x -> x + 1) # TypeError: type ({1}, {2}, {3}) has no method `.iter()`
+```
+
+```python
 # If all types are the same, they can be represented by `(T; n)` like arrays, but this still does not allow iteration
 t: (Int; 3) = (1, 2, 3)
 assert (Int; 3) == (Int, Int, Int)

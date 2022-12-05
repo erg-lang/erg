@@ -309,6 +309,31 @@ impl ASTLowerer {
         }
     }
 
+    fn elem_err(&self, l: &Type, r: &Type, elem: &hir::Expr) -> LowerErrors {
+        let elem_disp_notype = elem.to_string_notype();
+        let l = Context::readable_type(l);
+        let r = Context::readable_type(r);
+        LowerErrors::from(LowerError::syntax_error(
+            self.cfg.input.clone(),
+            line!() as usize,
+            elem.loc(),
+            String::from(&self.ctx.name[..]),
+            switch_lang!(
+                "japanese" => "配列の要素は全て同じ型である必要があります",
+                "simplified_chinese" => "数组元素必须全部是相同类型",
+                "traditional_chinese" => "數組元素必須全部是相同類型",
+                "english" => "all elements of an array must be of the same type",
+            )
+            .to_owned(),
+            Some(switch_lang!(
+                "japanese" => format!("[..., {elem_disp_notype}: {l} or {r}]など明示的に型を指定してください"),
+                "simplified_chinese" => format!("请明确指定类型，例如: [..., {elem_disp_notype}: {l} or {r}]"),
+                "traditional_chinese" => format!("請明確指定類型，例如: [..., {elem_disp_notype}: {l} or {r}]"),
+                "english" => format!("please specify the type explicitly, e.g. [..., {elem_disp_notype}: {l} or {r}]"),
+            )),
+        ))
+    }
+
     fn lower_normal_array(&mut self, array: ast::NormalArray) -> LowerResult<hir::NormalArray> {
         log!(info "entered {}({array})", fn_name!());
         let mut new_array = vec![];
@@ -317,29 +342,16 @@ impl ASTLowerer {
         for elem in elems {
             let elem = self.lower_expr(elem.expr)?;
             union = self.ctx.union(&union, elem.ref_t());
-            if matches!(union, Type::Or(_, _)) {
-                return Err(LowerErrors::from(LowerError::syntax_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    elem.loc(),
-                    String::from(&self.ctx.name[..]),
-                    switch_lang!(
-                        "japanese" => "配列の要素は全て同じ型である必要があります",
-                        "simplified_chinese" => "数组元素必须全部是相同类型",
-                        "traditional_chinese" => "數組元素必須全部是相同類型",
-                        "english" => "all elements of an array must be of the same type",
-                    )
-                    .to_owned(),
-                    Some(
-                        switch_lang!(
-                            "japanese" => "Int or Strなど明示的に型を指定してください",
-                            "simplified_chinese" => "请明确指定类型，例如: Int or Str",
-                            "traditional_chinese" => "請明確指定類型，例如: Int or Str",
-                            "english" => "please specify the type explicitly, e.g. Int or Str",
-                        )
-                        .to_owned(),
-                    ),
-                )));
+            if let Some((l, r)) = union.union_types() {
+                match (l.is_unbound_var(), r.is_unbound_var()) {
+                    (false, false) => {
+                        return Err(self.elem_err(&l, &r, &elem));
+                    }
+                    // TODO: check if the type is compatible with the other type
+                    (true, false) => {}
+                    (false, true) => {}
+                    (true, true) => {}
+                }
             }
             new_array.push(elem);
         }
@@ -1209,7 +1221,7 @@ impl ASTLowerer {
             if let Some((trait_, trait_loc)) = &impl_trait {
                 self.register_trait_impl(&class, trait_, *trait_loc)?;
             }
-            if let Some(class_root) = self.ctx.get_nominal_type_ctx(&class) {
+            if let Some((_, class_root)) = self.ctx.get_nominal_type_ctx(&class) {
                 if !class_root.kind.is_class() {
                     return Err(LowerErrors::from(LowerError::method_definition_error(
                         self.cfg.input.clone(),
@@ -1278,7 +1290,7 @@ impl ASTLowerer {
             self.check_collision_and_push(class);
         }
         let class = mono(hir_def.sig.ident().inspect());
-        let class_ctx = self.ctx.get_nominal_type_ctx(&class).unwrap();
+        let (_, class_ctx) = self.ctx.get_nominal_type_ctx(&class).unwrap();
         let type_obj = enum_unwrap!(self.ctx.rec_get_const_obj(hir_def.sig.ident().inspect()).unwrap(), ValueObj::Type:(TypeObj::Generated:(_)));
         let sup_type = enum_unwrap!(&hir_def.body.block.first().unwrap(), hir::Expr::Call)
             .args
@@ -1385,7 +1397,7 @@ impl ASTLowerer {
                 set! {TypeRelationInstance::new(class.clone(), trait_.clone())},
             );
         }
-        let trait_ctx = if let Some(trait_ctx) = self.ctx.get_nominal_type_ctx(trait_) {
+        let trait_ctx = if let Some((_, trait_ctx)) = self.ctx.get_nominal_type_ctx(trait_) {
             trait_ctx.clone()
         } else {
             // TODO: maybe parameters are wrong
@@ -1523,7 +1535,7 @@ impl ASTLowerer {
                             other => todo!("{other}"),
                         },
                         TypeObj::Builtin(_typ) => {
-                            let ctx = self.ctx.get_nominal_type_ctx(_typ).unwrap();
+                            let (_, ctx) = self.ctx.get_nominal_type_ctx(_typ).unwrap();
                             for (decl_name, decl_vi) in ctx.decls.iter() {
                                 if let Some((name, vi)) = self.ctx.get_local_kv(decl_name.inspect())
                                 {
@@ -2079,6 +2091,7 @@ impl ASTLowerer {
                 }
             }
         }
+        self.ctx.clear_invalid_vars();
         self.ctx.check_decls().unwrap_or_else(|mut errs| {
             self.errs.append(&mut errs);
         });

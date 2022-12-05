@@ -21,7 +21,7 @@ enum Sequence {
 
 // TODO: these should not be in Context
 impl Context {
-    fn readable_type(typ: &Type) -> Type {
+    pub(crate) fn readable_type(typ: &Type) -> Type {
         match typ {
             Type::FreeVar(fv) if fv.constraint_is_sandwiched() => {
                 let (sub, sup) = fv.get_subsup().unwrap();

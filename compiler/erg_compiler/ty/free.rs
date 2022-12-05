@@ -152,6 +152,7 @@ impl Constraint {
         }
     }
 
+    /// :> Sub
     pub fn get_sub(&self) -> Option<&Type> {
         match self {
             Self::Sandwiched { sub, .. } => Some(sub),
@@ -159,6 +160,7 @@ impl Constraint {
         }
     }
 
+    /// <: Sup
     pub fn get_super(&self) -> Option<&Type> {
         match self {
             Self::Sandwiched { sup, .. } => Some(sup),
@@ -567,10 +569,12 @@ impl<T: CanbeFree> Free<T> {
         self.constraint().and_then(|c| c.get_type().cloned())
     }
 
-    pub fn get_sup(&self) -> Option<Type> {
+    /// <: Super
+    pub fn get_super(&self) -> Option<Type> {
         self.constraint().and_then(|c| c.get_super().cloned())
     }
 
+    /// :> Sub
     pub fn get_sub(&self) -> Option<Type> {
         self.constraint().and_then(|c| c.get_sub().cloned())
     }

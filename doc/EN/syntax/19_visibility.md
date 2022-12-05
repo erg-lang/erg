@@ -23,7 +23,7 @@ Public variables are defined with `.`.
 .x = "this is a visible variable"
 ```
 
-```python
+```python,checker_ignore
 # bar.er
 foo = import "foo"
 assert foo.x == "this is a visible variable"
@@ -96,13 +96,15 @@ A class defined in one module can actually define methods from an external modul
 
 ```python
 # bar.er
-{Foo; ...} = import "foo"
+{Foo;} = import "foo"
 
 Foo::
     private self = pass
 Foo.
     public self = self::private()
+```
 
+```python,compile_fail
 .f() =
     foo = Foo.new()
     foo.public()
@@ -113,9 +115,9 @@ However, both of those methods are only available within that module.
 Private methods defined externally are visible to methods of the `Foo` class only within the defining module.
 Public methods are exposed outside the class, but not outside the module.
 
-```python
+```python,compile_fail
 # baz.er
-{Foo; ...} = import "foo"
+{Foo;} = import "foo"
 
 foo = Foo.new()
 foo.public() # AttributeError: 'Foo' has no attribute 'public' ('public' is defined in module 'bar')
@@ -126,7 +128,7 @@ This is to avoid confusion about methods being found or not found depending on t
 
 ```python,compile_fail
 # bar.er
-{.Foo; ...} = import "foo"
+{.Foo;} = import "foo"
 
 .Foo::
     private self = pass # Error
@@ -138,7 +140,7 @@ If you want to do something like this, define a [patch](./type/07_patch.md).
 
 ```python
 # bar.er
-{Foo; ...} = import "foo"
+{Foo;} = import "foo"
 
 FooImpl = Patch Foo
 FooImpl :=:
@@ -149,8 +151,8 @@ Foo Impl.
 
 ```python
 # baz.er
-{Foo; ...} = import "foo"
-{FooImpl; ...} = import "bar"
+{Foo;} = import "foo"
+{FooImpl;} = import "bar"
 
 foo = Foo.new()
 foo.public()
@@ -161,7 +163,7 @@ foo.public()
 Variable visibility is not limited to complete public/private.
 You can also publish with restrictions.
 
-```python
+```python,checker_ignore
 # foo.er
 .record = {
     .a = {
@@ -179,7 +181,7 @@ _ = .record.a.y # OK
 _ = .record.a.z # OK
 ```
 
-```python
+```python,checker_ignore
 foo = import "foo"
 _ = foo.record.a.x # VisibilityError
 _ = foo.record.a.y # VisibilityError

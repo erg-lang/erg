@@ -773,6 +773,8 @@ impl Context {
         // class("Rational"),
         // class("Integral"),
         int.register_builtin_py_impl("abs", fn0_met(Int, Nat), Immutable, Public, Some("__abs__"));
+        int.register_builtin_py_impl("succ", fn0_met(Int, Int), Immutable, Public, Some("succ"));
+        int.register_builtin_py_impl("pred", fn0_met(Int, Int), Immutable, Public, Some("pred"));
         let mut int_ord = Self::builtin_methods(Some(mono("Ord")), 2);
         int_ord.register_builtin_impl(
             "__partial_cmp__",
@@ -1345,6 +1347,9 @@ impl Context {
         let mut int_mut = Self::builtin_mono_class("Int!", 2);
         int_mut.register_superclass(Int, &int);
         int_mut.register_superclass(mono("Float!"), &float_mut);
+        let t = pr_met(mono("Int!"), vec![], None, vec![kw("i", Int)], NoneType);
+        int_mut.register_builtin_py_impl("inc!", t.clone(), Immutable, Public, Some("inc"));
+        int_mut.register_builtin_py_impl("dec!", t, Immutable, Public, Some("dec"));
         let mut int_mut_mutable = Self::builtin_methods(Some(mono("Mutable")), 2);
         int_mut_mutable.register_builtin_const("ImmutType", Public, ValueObj::builtin_t(Int));
         let f_t = kw("func", func(vec![kw("old", Int)], None, vec![], Int));

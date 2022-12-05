@@ -85,6 +85,11 @@ fn exec_infer_trait() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_mut() -> Result<(), ()> {
+    expect_success("examples/mut.er")
+}
+
+#[test]
 fn exec_patch() -> Result<(), ()> {
     expect_success("examples/patch.er")
 }
@@ -147,6 +152,11 @@ fn exec_addition_err() -> Result<(), ()> {
 #[test]
 fn exec_args() -> Result<(), ()> {
     expect_failure("tests/should_err/args.er", 16)
+}
+
+#[test]
+fn exec_infer_union_array() -> Result<(), ()> {
+    expect_failure("tests/should_err/infer_union_array.er", 1)
 }
 
 #[test]

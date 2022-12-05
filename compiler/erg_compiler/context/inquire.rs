@@ -241,7 +241,14 @@ impl Context {
         kw_args: &[hir::KwArg],
     ) -> TyCheckResult<VarInfo> {
         if !kw_args.is_empty() {
-            todo!()
+            // TODO: this error desc is not good
+            return Err(TyCheckErrors::from(TyCheckError::default_param_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                kw_args[0].loc(),
+                self.caused_by(),
+                "match",
+            )));
         }
         for pos_arg in pos_args.iter().skip(1) {
             let t = pos_arg.expr.ref_t();
@@ -267,22 +274,22 @@ impl Context {
         for (i, pos_arg) in pos_args.iter().skip(1).enumerate() {
             let lambda = erg_common::enum_unwrap!(&pos_arg.expr, hir::Expr::Lambda);
             if !lambda.params.defaults.is_empty() {
-                todo!()
+                return Err(TyCheckErrors::from(TyCheckError::default_param_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    pos_args[i + 1].loc(),
+                    self.caused_by(),
+                    "match",
+                )));
             }
-            // TODO: If the first argument of the match is a tuple?
             if lambda.params.len() != 1 {
-                return Err(TyCheckErrors::from(TyCheckError::argument_error(
+                return Err(TyCheckErrors::from(TyCheckError::param_error(
                     self.cfg.input.clone(),
                     line!() as usize,
                     pos_args[i + 1].loc(),
                     self.caused_by(),
                     1,
-                    pos_args[i + 1]
-                        .expr
-                        .signature_t()
-                        .unwrap()
-                        .typarams_len()
-                        .unwrap_or(0),
+                    lambda.params.len(),
                 )));
             }
             let mut dummy_tv_cache = TyVarCache::new(self.level, self);
@@ -565,7 +572,7 @@ impl Context {
                 self.get_attr_info_from_attributive(&fv.crack(), ident, namespace)
             }
             Type::FreeVar(fv) => {
-                let sup = fv.get_sup().unwrap();
+                let sup = fv.get_super().unwrap();
                 self.get_attr_info_from_attributive(&sup, ident, namespace)
             }
             Type::Ref(t) => self.get_attr_info_from_attributive(t, ident, namespace),
@@ -1610,7 +1617,7 @@ impl Context {
         match t {
             Type::FreeVar(fv) if fv.is_linked() => self.get_nominal_super_type_ctxs(&fv.crack()),
             Type::FreeVar(fv) => {
-                if let Some(sup) = fv.get_sup() {
+                if let Some(sup) = fv.get_super() {
                     self.get_nominal_super_type_ctxs(&sup)
                 } else {
                     self.get_nominal_super_type_ctxs(&Type)
@@ -1651,7 +1658,7 @@ impl Context {
         &'a self,
         t: &Type,
     ) -> Option<impl Iterator<Item = &'a Context>> {
-        let ctx = self.get_nominal_type_ctx(t)?;
+        let (_, ctx) = self.get_nominal_type_ctx(t)?;
         let sups = ctx
             .super_classes
             .iter()
@@ -1659,18 +1666,19 @@ impl Context {
             .map(|sup| {
                 self.get_nominal_type_ctx(sup)
                     .unwrap_or_else(|| todo!("compiler bug: {sup} not found"))
+                    .1
             });
         Some(vec![ctx].into_iter().chain(sups))
     }
 
     pub(crate) fn _get_super_traits(&self, typ: &Type) -> Option<impl Iterator<Item = Type>> {
         self.get_nominal_type_ctx(typ)
-            .map(|ctx| ctx.super_traits.clone().into_iter())
+            .map(|(_, ctx)| ctx.super_traits.clone().into_iter())
     }
 
     /// if `typ` is a refinement type, include the base type (refine.t)
     pub(crate) fn _get_super_classes(&self, typ: &Type) -> Option<impl Iterator<Item = Type>> {
-        self.get_nominal_type_ctx(typ).map(|ctx| {
+        self.get_nominal_type_ctx(typ).map(|(_, ctx)| {
             let super_classes = ctx.super_classes.clone();
             let derefined = typ.derefine();
             if typ != &derefined {
@@ -1682,7 +1690,10 @@ impl Context {
     }
 
     // TODO: Never
-    pub(crate) fn get_nominal_type_ctx<'a>(&'a self, typ: &Type) -> Option<&'a Context> {
+    pub(crate) fn get_nominal_type_ctx<'a>(
+        &'a self,
+        typ: &Type,
+    ) -> Option<(&'a Type, &'a Context)> {
         match typ {
             Type::FreeVar(fv) if fv.is_linked() => {
                 if let Some(res) = self.get_nominal_type_ctx(&fv.crack()) {
@@ -1690,7 +1701,7 @@ impl Context {
                 }
             }
             Type::FreeVar(fv) => {
-                let sup = fv.get_sup().unwrap();
+                let sup = fv.get_super().unwrap();
                 if let Some(res) = self.get_nominal_type_ctx(&sup) {
                     return Some(res);
                 }
@@ -1701,37 +1712,37 @@ impl Context {
                 }
             }
             Type::Quantified(_) => {
-                if let Some((_t, ctx)) = self
+                if let Some((t, ctx)) = self
                     .get_builtins()
                     .unwrap_or(self)
                     .rec_get_mono_type("QuantifiedFunc")
                 {
-                    return Some(ctx);
+                    return Some((t, ctx));
                 }
             }
             Type::Subr(subr) => match subr.kind {
                 SubrKind::Func => {
-                    if let Some((_, ctx)) = self
+                    if let Some((t, ctx)) = self
                         .get_builtins()
                         .unwrap_or(self)
                         .rec_get_mono_type("Func")
                     {
-                        return Some(ctx);
+                        return Some((t, ctx));
                     }
                 }
                 SubrKind::Proc => {
-                    if let Some((_, ctx)) = self
+                    if let Some((t, ctx)) = self
                         .get_builtins()
                         .unwrap_or(self)
                         .rec_get_mono_type("Proc")
                     {
-                        return Some(ctx);
+                        return Some((t, ctx));
                     }
                 }
             },
             Type::Mono(name) => {
-                if let Some((_, ctx)) = self.rec_get_mono_type(&typ.local_name()) {
-                    return Some(ctx);
+                if let Some((t, ctx)) = self.rec_get_mono_type(&typ.local_name()) {
+                    return Some((t, ctx));
                 }
                 // e.g. http.client.Response -> http.client
                 let mut namespaces = name.split_with(&[".", "::"]);
@@ -1754,14 +1765,14 @@ impl Context {
                             .and_then(|cache| cache.ref_ctx(path.as_path()))
                     })
                 {
-                    if let Some((_, ctx)) = ctx.rec_get_mono_type(type_name) {
-                        return Some(ctx);
+                    if let Some((t, ctx)) = ctx.rec_get_mono_type(type_name) {
+                        return Some((t, ctx));
                     }
                 }
             }
             Type::Poly { name, .. } => {
-                if let Some((_, ctx)) = self.rec_get_poly_type(&typ.local_name()) {
-                    return Some(ctx);
+                if let Some((t, ctx)) = self.rec_get_poly_type(&typ.local_name()) {
+                    return Some((t, ctx));
                 }
                 // NOTE: This needs to be changed if we want to be able to define classes/traits outside of the top level
                 let mut namespaces = name.split_with(&[".", "::"]);
@@ -1784,8 +1795,8 @@ impl Context {
                             .and_then(|cache| cache.ref_ctx(path.as_path()))
                     })
                 {
-                    if let Some((_, ctx)) = ctx.rec_get_poly_type(type_name) {
-                        return Some(ctx);
+                    if let Some((t, ctx)) = ctx.rec_get_poly_type(type_name) {
+                        return Some((t, ctx));
                     }
                 }
             }
@@ -1793,15 +1804,13 @@ impl Context {
                 return self
                     .get_builtins()
                     .unwrap_or(self)
-                    .rec_get_mono_type("RecordType")
-                    .map(|(_, ctx)| ctx);
+                    .rec_get_mono_type("RecordType");
             }
             Type::Record(_) => {
                 return self
                     .get_builtins()
                     .unwrap_or(self)
-                    .rec_get_mono_type("Record")
-                    .map(|(_, ctx)| ctx);
+                    .rec_get_mono_type("Record");
             }
             Type::Or(_l, _r) => {
                 if let Some(ctx) = self.get_nominal_type_ctx(&poly("Or", vec![])) {
@@ -1810,8 +1819,8 @@ impl Context {
             }
             // FIXME: `F()`などの場合、実際は引数が省略されていてもmonomorphicになる
             other if other.is_monomorphic() => {
-                if let Some((_t, ctx)) = self.rec_get_mono_type(&other.local_name()) {
-                    return Some(ctx);
+                if let Some((t, ctx)) = self.rec_get_mono_type(&other.local_name()) {
+                    return Some((t, ctx));
                 }
             }
             Type::Ref(t) | Type::RefMut { before: t, .. } => {
@@ -1838,7 +1847,7 @@ impl Context {
                 }
             }
             Type::FreeVar(fv) => {
-                let sup = fv.get_sup().unwrap();
+                let sup = fv.get_super().unwrap();
                 if let Some(res) = self.get_mut_nominal_type_ctx(&sup) {
                     return Some(res);
                 }
@@ -2215,7 +2224,7 @@ impl Context {
         #[allow(clippy::single_match)]
         match lhs {
             Type::FreeVar(fv) => {
-                if let Some(sup) = fv.get_sup() {
+                if let Some(sup) = fv.get_super() {
                     let insts = self.get_trait_impls(&sup);
                     let candidates = insts.into_iter().filter_map(move |inst| {
                         if self.supertype_of(&inst.sup_trait, &sup) {
@@ -2251,7 +2260,7 @@ impl Context {
             Type::Refinement(refine) => self.is_class(&refine.t),
             Type::Ref(t) | Type::RefMut { before: t, .. } => self.is_class(t),
             _ => {
-                if let Some(ctx) = self.get_nominal_type_ctx(typ) {
+                if let Some((_, ctx)) = self.get_nominal_type_ctx(typ) {
                     ctx.kind.is_class()
                 } else {
                     // TODO: unknown types
@@ -2274,7 +2283,7 @@ impl Context {
             Type::Refinement(refine) => self.is_trait(&refine.t),
             Type::Ref(t) | Type::RefMut { before: t, .. } => self.is_trait(t),
             _ => {
-                if let Some(ctx) = self.get_nominal_type_ctx(typ) {
+                if let Some((_, ctx)) = self.get_nominal_type_ctx(typ) {
                     ctx.kind.is_trait()
                 } else {
                     false

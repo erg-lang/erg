@@ -1,0 +1,8 @@
+i = !1
+i.update! i -> i * 3
+assert i == 3
+
+i.inc!()
+assert i == 4
+i.dec!()
+assert i == 3

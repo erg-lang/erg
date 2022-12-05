@@ -18,7 +18,7 @@ Specify `Error` in `pyimport` `exception_type` (`exception_type: {Error, Panic}`
 The `Result` type represents values ​​that may be errors. Error handling with `Result` is superior to the exception mechanism in several ways.
 First of all, it's obvious from the type definition that the subroutine might throw an error, and it's also obvious when you actually use it.
 
-```python
+```python,checker_ignore
 # Python
 try:
     x = foo().bar()
@@ -50,7 +50,7 @@ The benefits of using the `Result` type don't stop there. The `Result` type is a
 
 Since the `Error`/`Result` type alone does not cause side effects, unlike exceptions, it cannot have information such as the sending location (Context), but if you use the `.context` method, you can put information in the `Error` object. can be added. The `.context` method is a type of method that consumes the `Error` object itself and creates a new `Error` object. They are chainable and can hold multiple contexts.
 
-```python
+```python,chekcer_ignore
 f() =
     todo() \
         .context "to be implemented in ver 1.2" \
@@ -71,7 +71,7 @@ Therefore, in Erg, the `Error` object has an attribute called `.stack`, and repr
 `.stack` is an array of caller objects. Each time an Error object is `returned` (including by `?`) it pushes its calling subroutine onto the `.stack`.
 And if it is `?`ed or `.unwrap`ed in a context where `return` is not possible, it will panic with a traceback.
 
-```python
+```python,checker_ignore
 f x =
     ...
     y = foo.try_some(x)?
@@ -100,7 +100,7 @@ An unrecoverable error is an error caused by an external factor such as a softwa
 
 Panic is done with the `panic` function.
 
-```python
+```python,checker_ignore
 panic "something went wrong!"
 ```
 

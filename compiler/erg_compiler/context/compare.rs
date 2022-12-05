@@ -274,7 +274,7 @@ impl Context {
         if !self.is_class(lhs) || !self.is_class(rhs) {
             return (Maybe, false);
         }
-        if let Some(ty_ctx) = self.get_nominal_type_ctx(rhs) {
+        if let Some((_, ty_ctx)) = self.get_nominal_type_ctx(rhs) {
             for rhs_sup in ty_ctx.super_classes.iter() {
                 let rhs_sup = if rhs_sup.has_qvar() {
                     let rhs = match rhs {
@@ -312,7 +312,7 @@ impl Context {
         if !self.is_trait(lhs) {
             return (Maybe, false);
         }
-        if let Some(rhs_ctx) = self.get_nominal_type_ctx(rhs) {
+        if let Some((_, rhs_ctx)) = self.get_nominal_type_ctx(rhs) {
             for rhs_sup in rhs_ctx.super_traits.iter() {
                 // Not `supertype_of` (only structures are compared)
                 match self.cheap_supertype_of(lhs, rhs_sup) {
@@ -656,7 +656,7 @@ impl Context {
             erg_common::fmt_vec(lparams),
             erg_common::fmt_vec(rparams)
         );
-        let ctx = self
+        let (_, ctx) = self
             .get_nominal_type_ctx(typ)
             .unwrap_or_else(|| panic!("{typ} is not found"));
         let variances = ctx.type_params_variance();
@@ -858,9 +858,13 @@ impl Context {
             }
             (Refinement(l), Refinement(r)) => Type::Refinement(self.union_refinement(l, r)),
             (t, Type::Never) | (Type::Never, t) => t.clone(),
-            (t, Refinement(r)) | (Refinement(r), t) => {
-                let t = self.into_refinement(t.clone());
-                Type::Refinement(self.union_refinement(&t, r))
+            // ?T or {"b"} cannot be {I: (?T or Str) | I == "b"} because ?T may be {"a"} etc.
+            // (if so, {I: ?T or Str | I == "b"} == {I: {"a"} or Str | I == "b"} == {I: Str | I == "b"})
+            (other, Refinement(refine)) | (Refinement(refine), other)
+                if !other.is_unbound_var() =>
+            {
+                let other = self.into_refinement(other.clone());
+                Type::Refinement(self.union_refinement(&other, refine))
             }
             // Array({1, 2}, 2), Array({3, 4}, 2) ==> Array({1, 2, 3, 4}, 2)
             (

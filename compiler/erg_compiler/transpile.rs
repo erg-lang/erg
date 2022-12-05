@@ -209,6 +209,7 @@ pub struct ScriptGenerator {
     level: usize,
     fresh_var_n: usize,
     namedtuple_loaded: bool,
+    mutate_op_loaded: bool,
     in_op_loaded: bool,
     range_ops_loaded: bool,
     builtin_types_loaded: bool,
@@ -221,6 +222,7 @@ impl ScriptGenerator {
             level: 0,
             fresh_var_n: 0,
             namedtuple_loaded: false,
+            mutate_op_loaded: false,
             in_op_loaded: false,
             range_ops_loaded: false,
             builtin_types_loaded: false,
@@ -244,12 +246,14 @@ impl ScriptGenerator {
     // TODO: more smart way
     fn replace_import(src: &str) -> String {
         src.replace("from _erg_nat import Nat", "")
-            .replace("from _erg_result import Error", "")
-            .replace("from _erg_result import is_ok", "")
+            .replace("from _erg_int import IntMut", "")
+            .replace("from _erg_int import Int", "")
             .replace("from _erg_bool import Bool", "")
             .replace("from _erg_str import Str", "")
             .replace("from _erg_array import Array", "")
             .replace("from _erg_range import Range", "")
+            .replace("from _erg_result import Error", "")
+            .replace("from _erg_result import is_ok", "")
     }
 
     fn load_namedtuple(&mut self) {
@@ -259,6 +263,7 @@ impl ScriptGenerator {
     // TODO: name escaping
     fn load_range_ops(&mut self) {
         self.prelude += &Self::replace_import(include_str!("lib/std/_erg_result.py"));
+        self.prelude += &Self::replace_import(include_str!("lib/std/_erg_int.py"));
         self.prelude += &Self::replace_import(include_str!("lib/std/_erg_nat.py"));
         self.prelude += &Self::replace_import(include_str!("lib/std/_erg_str.py"));
         self.prelude += &Self::replace_import(include_str!("lib/std/_erg_range.py"));
@@ -270,16 +275,22 @@ impl ScriptGenerator {
         self.prelude += &Self::replace_import(include_str!("lib/std/_erg_in_operator.py"));
     }
 
+    fn load_mutate_op(&mut self) {
+        self.prelude += &Self::replace_import(include_str!("lib/std/_erg_mutate_operator.py"));
+    }
+
     fn load_builtin_types(&mut self) {
         if self.range_ops_loaded {
             self.prelude += &Self::replace_import(include_str!("lib/std/_erg_array.py"));
         } else if self.in_op_loaded {
+            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_int.py"));
             self.prelude += &Self::replace_import(include_str!("lib/std/_erg_nat.py"));
             self.prelude += &Self::replace_import(include_str!("lib/std/_erg_bool.py"));
             self.prelude += &Self::replace_import(include_str!("lib/std/_erg_str.py"));
             self.prelude += &Self::replace_import(include_str!("lib/std/_erg_array.py"));
         } else {
             self.prelude += &Self::replace_import(include_str!("lib/std/_erg_result.py"));
+            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_int.py"));
             self.prelude += &Self::replace_import(include_str!("lib/std/_erg_nat.py"));
             self.prelude += &Self::replace_import(include_str!("lib/std/_erg_bool.py"));
             self.prelude += &Self::replace_import(include_str!("lib/std/_erg_str.py"));
@@ -289,12 +300,32 @@ impl ScriptGenerator {
 
     fn transpile_expr(&mut self, expr: Expr) -> String {
         match expr {
-            Expr::Lit(lit) => lit.token.content.to_string(),
+            Expr::Lit(lit) => {
+                if matches!(
+                    &lit.value,
+                    ValueObj::Bool(_) | ValueObj::Int(_) | ValueObj::Nat(_) | ValueObj::Str(_)
+                ) {
+                    if !self.builtin_types_loaded {
+                        self.load_builtin_types();
+                        self.builtin_types_loaded = true;
+                    }
+                    format!("{}({})", lit.value.class(), lit.token.content)
+                } else {
+                    lit.token.content.to_string()
+                }
+            }
             Expr::Call(call) => self.transpile_call(call),
             Expr::BinOp(bin) => self.transpile_binop(bin),
             Expr::UnaryOp(unary) => {
-                let mut code = "(".to_string();
-                if unary.op.kind != TokenKind::Mutate {
+                let mut code = "".to_string();
+                if unary.op.kind == TokenKind::Mutate {
+                    if !self.mutate_op_loaded {
+                        self.load_mutate_op();
+                        self.mutate_op_loaded = true;
+                    }
+                    code += "mutate_operator(";
+                } else {
+                    code += "(";
                     code += &unary.op.content;
                 }
                 code += &self.transpile_expr(*unary.expr);
@@ -681,8 +712,16 @@ impl ScriptGenerator {
     fn transpile_params(&mut self, params: Params) -> String {
         let mut code = String::new();
         for non_default in params.non_defaults {
-            let ParamPattern::VarName(param) = non_default.pat else { todo!() };
-            code += &format!("{}__,", param.into_token().content);
+            match non_default.pat {
+                ParamPattern::VarName(param) => {
+                    code += &format!("{}__,", param.into_token().content);
+                }
+                ParamPattern::Discard(_) => {
+                    code += &format!("_{},", self.fresh_var_n);
+                    self.fresh_var_n += 1;
+                }
+                _ => unreachable!(),
+            }
         }
         for default in params.defaults {
             let ParamPattern::VarName(param) = default.sig.pat else { todo!() };

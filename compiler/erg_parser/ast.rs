@@ -1979,7 +1979,13 @@ impl fmt::Display for TypeSpec {
                 }
                 write!(f, "}}")
             }
-            Self::Enum(elems) => write!(f, "{{{elems}}}"),
+            Self::Enum(elems) => {
+                write!(f, "{{")?;
+                for elem in elems.pos_args() {
+                    write!(f, "{}, ", elem.expr)?;
+                }
+                write!(f, "}}")
+            }
             Self::Interval { op, lhs, rhs } => write!(f, "{lhs}{}{rhs}", op.inspect()),
             Self::Subr(s) => write!(f, "{s}"),
             Self::TypeApp { spec, args } => write!(f, "{spec}{args}"),

@@ -2043,6 +2043,24 @@ impl Type {
         }
     }
 
+    pub fn container_len(&self) -> Option<usize> {
+        log!(err "{self}");
+        match self {
+            Self::Poly { name, params } => match &name[..] {
+                "Array" => {
+                    if let TyParam::Value(ValueObj::Nat(n)) = &params[0] {
+                        Some(*n as usize)
+                    } else {
+                        None
+                    }
+                }
+                "Tuple" => Some(params.len()),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
     pub fn typarams(&self) -> Vec<TyParam> {
         match self {
             Self::FreeVar(f) if f.is_linked() => f.crack().typarams(),

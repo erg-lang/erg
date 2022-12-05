@@ -67,8 +67,7 @@ impl Desugarer {
         let kw_args = kw_args
             .into_iter()
             .map(|arg| {
-                let expr = desugar(arg.expr);
-                KwArg::new(arg.keyword, arg.t_spec, expr) // TODO: t_spec
+                KwArg::new(arg.keyword, arg.t_spec, desugar(arg.expr)) // TODO: t_spec
             })
             .collect();
         Args::new(pos_args, kw_args, paren)
@@ -1001,6 +1000,17 @@ impl Desugarer {
                 let def = Def::new(Signature::Var(v), body);
                 new_body.insert(insertion_idx, Expr::Def(def));
                 insertion_idx += 1;
+                insertion_idx
+            }
+            ParamPattern::Lit(l) => {
+                let lit = l.clone();
+                sig.pat = ParamPattern::Discard(Token::new(
+                    TokenKind::UBar,
+                    "_",
+                    l.ln_begin().unwrap(),
+                    l.col_begin().unwrap(),
+                ));
+                sig.t_spec = Some(TypeSpecWithOp::new(COLON, TypeSpec::enum_t_spec(vec![lit])));
                 insertion_idx
             }
             _ => insertion_idx,

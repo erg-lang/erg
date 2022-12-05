@@ -71,7 +71,7 @@ Also, modules that are not reimported in `__init__.er` are private modules and c
 .qux = import "qux" # this is public
 ```
 
-```python
+```python,checker_ignore
 # foo.er
 bar = import "bar"
 bar.qux

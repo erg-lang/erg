@@ -25,7 +25,7 @@ This is almost identical to Python and other languages in the same family. The m
 In Erg, parentheses `()` can be omitted unless there is some confusion in interpretation.
 The omission of parentheses is similar to Ruby, but it is not possible to omit parentheses that can be interpreted in more than one way.
 
-```python
+```python,checker_ignore
 print! "Hello, World!" # OK
 print! "Hello,", "World!" # OK
 print!() # OK
@@ -81,7 +81,7 @@ The code after `#` is ignored as a comment. Use this to explain the intent of th
 # `#` and after are ignored until a new line is inserted
 #[
 Multi-line comment
-Treated as a comment all the way up to the corresponding `]#`
+Everything from `#[` to `]#` is a comment.
 ]#
 ```
 
@@ -93,6 +93,7 @@ Erg scripts are basically evaluated from left to right, top to bottom.
 
 ```python
 n = 1 # assignment expression
+f x, y = x + y # function definition
 f(1, 2) # function-call expression
 1 + 1 # operator-call expression
 f(1, 2); 1 + 1

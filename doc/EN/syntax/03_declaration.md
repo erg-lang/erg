@@ -26,20 +26,21 @@ i: Nat # this will not pass (-1 is not an element of Nat)
 
 Functions can be declared in 2 different ways.
 
-```python
+```python,checker_ignore
 f: (x: Int, y: Int) -> Int
 f: (Int, Int) -> Int
 ```
 
 If you declare the argument names explicitly, a type error will result if the names are different at definition time. If you want to give the argument names arbitrary names, you can declare them in the second way. In that case, only the method name and its type will be seen by type checking.
 
-```python
+```python,compile_fail
 T = Trait {
     .f = (x: Int, y: Int): Int
 }
 
-C = Class(U, Impl := T)
-C.f(a: Int, b: Int): Int = ... # TypeError: `.f` must be type of `(x: Int, y: Int) -> Int`, not `(a: Int, b: Int) -> Int`
+C = Class()
+C|<: T|.
+    f(a: Int, b: Int): Int = ... # TypeError: `.f` must be type of `(x: Int, y: Int) -> Int`, not `(a: Int, b: Int) -> Int`
 ```
 
 <p align='center'>
