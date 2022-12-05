@@ -85,6 +85,11 @@ fn exec_infer_trait() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_interpolation() -> Result<(), ()> {
+    expect_success("tests/should_ok/interpolation.er")
+}
+
+#[test]
 fn exec_mut() -> Result<(), ()> {
     expect_success("examples/mut.er")
 }
@@ -157,6 +162,11 @@ fn exec_args() -> Result<(), ()> {
 #[test]
 fn exec_infer_union_array() -> Result<(), ()> {
     expect_failure("tests/should_err/infer_union_array.er", 1)
+}
+
+#[test]
+fn exec_invalid_interpol() -> Result<(), ()> {
+    expect_failure("tests/should_err/invalid_interpol.er", 2)
 }
 
 #[test]
