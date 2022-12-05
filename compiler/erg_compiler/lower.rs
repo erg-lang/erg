@@ -1978,6 +1978,7 @@ impl ASTLowerer {
                 }
             }
         }
+        self.ctx.clear_invalid_vars();
         self.ctx.check_decls().unwrap_or_else(|mut errs| {
             self.errs.append(&mut errs);
         });

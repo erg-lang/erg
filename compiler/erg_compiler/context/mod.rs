@@ -950,6 +950,12 @@ impl Context {
         self.kind = kind;
     }
 
+    pub(crate) fn clear_invalid_vars(&mut self) {
+        self.locals.retain(|_, v| v.t != Failure);
+        self.decls.retain(|_, v| v.t != Failure);
+        self.params.retain(|(_, v)| v.t != Failure);
+    }
+
     pub fn pop(&mut self) -> Context {
         if let Some(parent) = self.outer.as_mut() {
             let parent = mem::take(parent);
