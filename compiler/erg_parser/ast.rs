@@ -94,52 +94,6 @@ impl Literal {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct JoinedStr {
-    pub values: Vec<JoinedStrValue>,
-}
-
-impl NestedDisplay for JoinedStr {
-    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
-        write!(f, "\"")?;
-        for value in self.values.iter() {
-            match value {
-                JoinedStrValue::Str(st) => write!(f, "{st}")?,
-                JoinedStrValue::Expr(ex) => {
-                    write!(f, "{{")?;
-                    ex.fmt_nest(f, level)?;
-                    write!(f, "}}")?;
-                }
-            }
-        }
-        write!(f, "\"")
-    }
-}
-
-impl_display_from_nested!(JoinedStr);
-
-impl Locational for JoinedStr {
-    fn loc(&self) -> Location {
-        Location::concat(self.values.first().unwrap(), self.values.last().unwrap())
-    }
-}
-
-impl JoinedStr {
-    pub const fn new(values: Vec<JoinedStrValue>) -> Self {
-        Self { values }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum JoinedStrValue {
-    Str(Literal),
-    Expr(Expr), // e.g.{x+1}
-                // FormattedExpr(Expr), // e.g. {x+1:0.2f}
-}
-
-impl_nested_display_for_enum!(JoinedStrValue; Str, Expr);
-impl_locational_for_enum!(JoinedStrValue; Str, Expr);
-
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PosArg {
     pub expr: Expr,
 }
@@ -3462,7 +3416,6 @@ impl ClassDef {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Expr {
     Lit(Literal),
-    JoinedStr(JoinedStr),
     Accessor(Accessor),
     Array(Array),
     Tuple(Tuple),
@@ -3480,9 +3433,9 @@ pub enum Expr {
     ClassDef(ClassDef),
 }
 
-impl_nested_display_for_chunk_enum!(Expr; Lit, JoinedStr, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAsc, Def, Methods, ClassDef);
+impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAsc, Def, Methods, ClassDef);
 impl_display_from_nested!(Expr);
-impl_locational_for_enum!(Expr; Lit, JoinedStr, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAsc, Def, Methods, ClassDef);
+impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAsc, Def, Methods, ClassDef);
 
 impl Expr {
     pub fn is_match_call(&self) -> bool {

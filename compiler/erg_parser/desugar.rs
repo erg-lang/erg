@@ -13,12 +13,11 @@ use erg_common::{enum_unwrap, get_hash, log, set};
 use crate::ast::{
     Accessor, Args, Array, ArrayComprehension, ArrayTypeSpec, ArrayWithLength, BinOp, Block, Call,
     ClassAttr, ClassAttrs, ClassDef, ConstExpr, DataPack, Def, DefBody, DefId, Dict, Expr,
-    Identifier, JoinedStr, JoinedStrValue, KeyValue, KwArg, Lambda, LambdaSignature, Literal,
-    Methods, MixedRecord, Module, NonDefaultParamSignature, NormalArray, NormalDict, NormalRecord,
-    NormalSet, NormalTuple, ParamPattern, ParamRecordAttr, Params, PosArg, Record,
-    RecordAttrOrIdent, RecordAttrs, Set as astSet, SetWithLength, Signature, SubrSignature, Tuple,
-    TypeAppArgs, TypeBoundSpecs, TypeSpec, TypeSpecWithOp, UnaryOp, VarName, VarPattern,
-    VarRecordAttr, VarSignature,
+    Identifier, KeyValue, KwArg, Lambda, LambdaSignature, Literal, Methods, MixedRecord, Module,
+    NonDefaultParamSignature, NormalArray, NormalDict, NormalRecord, NormalSet, NormalTuple,
+    ParamPattern, ParamRecordAttr, Params, PosArg, Record, RecordAttrOrIdent, RecordAttrs,
+    Set as astSet, SetWithLength, Signature, SubrSignature, Tuple, TypeAppArgs, TypeBoundSpecs,
+    TypeSpec, TypeSpecWithOp, UnaryOp, VarName, VarPattern, VarRecordAttr, VarSignature,
 };
 use crate::token::{Token, TokenKind, COLON, DOT};
 
@@ -83,13 +82,6 @@ impl Desugarer {
     fn perform_desugar(mut desugar: impl FnMut(Expr) -> Expr, expr: Expr) -> Expr {
         match expr {
             Expr::Lit(_) => expr,
-            Expr::JoinedStr(joined_str) => {
-                let values = joined_str.values.into_iter().map(|value| match value {
-                    JoinedStrValue::Expr(expr) => JoinedStrValue::Expr(desugar(expr)),
-                    JoinedStrValue::Str(_) => value,
-                });
-                Expr::JoinedStr(JoinedStr::new(values.collect()))
-            }
             Expr::Record(record) => match record {
                 Record::Normal(rec) => {
                     let mut new_attrs = vec![];
