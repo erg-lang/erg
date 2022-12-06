@@ -378,7 +378,9 @@ impl PyCodeGenerator {
             }
             Err(_) => {
                 let delta = self.jump_delta(code);
-                let bytes = u32::try_from(code + delta).unwrap().to_be_bytes();
+                let shift_bytes = 6;
+                let arg = code + delta + shift_bytes;
+                let bytes = u32::try_from(arg).unwrap().to_be_bytes();
                 let before_instr = self.lasti().saturating_sub(1);
                 self.mut_cur_block_codeobj().code.push(bytes[3]);
                 self.mut_cur_block().lasti += 1;
