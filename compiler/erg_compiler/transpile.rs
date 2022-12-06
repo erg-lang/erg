@@ -17,8 +17,8 @@ use crate::context::{Context, ContextProvider};
 use crate::desugar_hir::HIRDesugarer;
 use crate::error::{CompileError, CompileErrors};
 use crate::hir::{
-    Accessor, Args, Array, BinOp, Block, Call, ClassDef, Def, Dict, Expr, Identifier, Lambda,
-    Params, PatchDef, Record, Set, Signature, Tuple, HIR,
+    Accessor, Args, Array, AttrDef, BinOp, Block, Call, ClassDef, Def, Dict, Expr, Identifier,
+    Lambda, Literal, Params, PatchDef, Record, Set, Signature, Tuple, UnaryOp, HIR,
 };
 use crate::link::Linker;
 use crate::mod_cache::SharedModuleCache;
@@ -124,7 +124,7 @@ impl Runnable for Transpiler {
     }
 
     fn exec(&mut self) -> Result<i32, Self::Errs> {
-        let path = self.input().filename().replace(".er", ".py");
+        let path = self.cfg.dump_path().replace(".er", ".py");
         let artifact = self
             .transpile(self.input().read(), "exec")
             .map_err(|eart| {
@@ -308,39 +308,10 @@ impl ScriptGenerator {
 
     fn transpile_expr(&mut self, expr: Expr) -> String {
         match expr {
-            Expr::Lit(lit) => {
-                let escaped = Self::escape_str(&lit.token.content);
-                if matches!(
-                    &lit.value,
-                    ValueObj::Bool(_) | ValueObj::Int(_) | ValueObj::Nat(_) | ValueObj::Str(_)
-                ) {
-                    if !self.builtin_types_loaded {
-                        self.load_builtin_types();
-                        self.builtin_types_loaded = true;
-                    }
-                    format!("{}({escaped})", lit.value.class())
-                } else {
-                    escaped
-                }
-            }
+            Expr::Lit(lit) => self.transpile_lit(lit),
             Expr::Call(call) => self.transpile_call(call),
             Expr::BinOp(bin) => self.transpile_binop(bin),
-            Expr::UnaryOp(unary) => {
-                let mut code = "".to_string();
-                if unary.op.kind == TokenKind::Mutate {
-                    if !self.mutate_op_loaded {
-                        self.load_mutate_op();
-                        self.mutate_op_loaded = true;
-                    }
-                    code += "mutate_operator(";
-                } else {
-                    code += "(";
-                    code += &unary.op.content;
-                }
-                code += &self.transpile_expr(*unary.expr);
-                code += ")";
-                code
-            }
+            Expr::UnaryOp(unary) => self.transpile_unaryop(unary),
             Expr::Array(array) => match array {
                 Array::Normal(arr) => {
                     let mut code = "[".to_string();
@@ -394,21 +365,7 @@ impl ScriptGenerator {
             Expr::Lambda(lambda) => self.transpile_lambda(lambda),
             Expr::ClassDef(classdef) => self.transpile_classdef(classdef),
             Expr::PatchDef(patchdef) => self.transpile_patchdef(patchdef),
-            Expr::AttrDef(mut adef) => {
-                let mut code = format!("{} = ", self.transpile_expr(Expr::Accessor(adef.attr)));
-                if adef.block.len() > 1 {
-                    let name = format!("instant_block_{}__", self.fresh_var_n);
-                    self.fresh_var_n += 1;
-                    let mut code = format!("def {name}():\n");
-                    code += &self.transpile_block(adef.block, Return);
-                    self.prelude += &code;
-                    format!("{name}()")
-                } else {
-                    let expr = adef.block.remove(0);
-                    code += &self.transpile_expr(expr);
-                    code
-                }
-            }
+            Expr::AttrDef(adef) => self.transpile_attrdef(adef),
             // TODO:
             Expr::Compound(comp) => {
                 let mut code = "".to_string();
@@ -428,6 +385,22 @@ impl ScriptGenerator {
                 String::new()
             }
             other => todo!("transpile {other}"),
+        }
+    }
+
+    fn transpile_lit(&mut self, lit: Literal) -> String {
+        let escaped = Self::escape_str(&lit.token.content);
+        if matches!(
+            &lit.value,
+            ValueObj::Bool(_) | ValueObj::Int(_) | ValueObj::Nat(_) | ValueObj::Str(_)
+        ) {
+            if !self.builtin_types_loaded {
+                self.load_builtin_types();
+                self.builtin_types_loaded = true;
+            }
+            format!("{}({escaped})", lit.value.class())
+        } else {
+            escaped
         }
     }
 
@@ -501,6 +474,23 @@ impl ScriptGenerator {
                 code
             }
         }
+    }
+
+    fn transpile_unaryop(&mut self, unary: UnaryOp) -> String {
+        let mut code = "".to_string();
+        if unary.op.kind == TokenKind::Mutate {
+            if !self.mutate_op_loaded {
+                self.load_mutate_op();
+                self.mutate_op_loaded = true;
+            }
+            code += "mutate_operator(";
+        } else {
+            code += "(";
+            code += &unary.op.content;
+        }
+        code += &self.transpile_expr(*unary.expr);
+        code += ")";
+        code
     }
 
     fn transpile_acc(&mut self, acc: Accessor) -> String {
@@ -860,5 +850,21 @@ impl ScriptGenerator {
             code.push('\n');
         }
         code
+    }
+
+    fn transpile_attrdef(&mut self, mut adef: AttrDef) -> String {
+        let mut code = format!("{} = ", self.transpile_expr(Expr::Accessor(adef.attr)));
+        if adef.block.len() > 1 {
+            let name = format!("instant_block_{}__", self.fresh_var_n);
+            self.fresh_var_n += 1;
+            let mut code = format!("def {name}():\n");
+            code += &self.transpile_block(adef.block, Return);
+            self.prelude += &code;
+            format!("{name}()")
+        } else {
+            let expr = adef.block.remove(0);
+            code += &self.transpile_expr(expr);
+            code
+        }
     }
 }
