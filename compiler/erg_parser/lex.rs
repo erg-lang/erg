@@ -240,9 +240,13 @@ impl Lexer /*<'a>*/ {
             | TokenCategory::SpecialBinOp
             | TokenCategory::DefOp
             | TokenCategory::LambdaOp
+            | TokenCategory::StrInterpLeft
+            | TokenCategory::StrInterpMid
             | TokenCategory::BOF => Some(false),
-            // bin: `] +`, `1 +`, `true and[true]`
-            TokenCategory::REnclosure | TokenCategory::Literal => Some(true),
+            // bin: `] +`, `1 +`, `true and[true]`, `}aaa"`
+            TokenCategory::REnclosure | TokenCategory::Literal | TokenCategory::StrInterpRight => {
+                Some(true)
+            }
             // bin: `fn +1`
             // NOTE: if semantic analysis shows `fn` is a function, should this be rewritten to be unary?
             TokenCategory::Symbol => Some(true),
