@@ -75,6 +75,9 @@ fn try_get_op_kind_from_token(kind: TokenKind) -> EvalResult<OpKind> {
         TokenKind::Shl => Ok(OpKind::Shl),
         TokenKind::Shr => Ok(OpKind::Shr),
         TokenKind::Mutate => Ok(OpKind::Mutate),
+        TokenKind::PrePlus => Ok(OpKind::Pos),
+        TokenKind::PreMinus => Ok(OpKind::Neg),
+        TokenKind::PreBitNot => Ok(OpKind::Invert),
         _other => todo!("{_other}"),
     }
 }
@@ -625,7 +628,11 @@ impl Context {
                     line!(),
                 ))),
             },
-            other => todo!("{other}"),
+            _other => Err(EvalErrors::from(EvalError::unreachable(
+                self.cfg.input.clone(),
+                fn_name!(),
+                line!(),
+            ))),
         }
     }
 
@@ -683,11 +690,23 @@ impl Context {
 
     fn eval_unary_val(&self, op: OpKind, val: ValueObj) -> EvalResult<ValueObj> {
         match op {
-            Pos => todo!(),
-            Neg => todo!(),
-            Invert => todo!(),
+            Pos => Err(EvalErrors::from(EvalError::unreachable(
+                self.cfg.input.clone(),
+                fn_name!(),
+                line!(),
+            ))),
+            Neg => Err(EvalErrors::from(EvalError::unreachable(
+                self.cfg.input.clone(),
+                fn_name!(),
+                line!(),
+            ))),
+            Invert => Err(EvalErrors::from(EvalError::unreachable(
+                self.cfg.input.clone(),
+                fn_name!(),
+                line!(),
+            ))),
             Mutate => Ok(ValueObj::Mut(Shared::new(val))),
-            other => todo!("{other}"),
+            other => unreachable!("{other}"),
         }
     }
 
