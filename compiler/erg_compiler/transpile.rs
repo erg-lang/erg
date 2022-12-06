@@ -227,6 +227,7 @@ pub struct ScriptGenerator {
     range_ops_loaded: bool,
     builtin_types_loaded: bool,
     builtin_control_loaded: bool,
+    convertors_loaded: bool,
     prelude: String,
 }
 
@@ -241,6 +242,7 @@ impl ScriptGenerator {
             range_ops_loaded: false,
             builtin_types_loaded: false,
             builtin_control_loaded: false,
+            convertors_loaded: false,
             prelude: String::new(),
         }
     }
@@ -315,6 +317,10 @@ impl ScriptGenerator {
 
     fn load_builtin_controls(&mut self) {
         self.prelude += include_str!("lib/std/_erg_control.py");
+    }
+
+    fn load_convertors(&mut self) {
+        self.prelude += &Self::replace_import(include_str!("lib/std/_erg_convertors.py"));
     }
 
     fn escape_str(s: &str) -> String {
@@ -524,6 +530,10 @@ impl ScriptGenerator {
                     "if" | "if!" | "for!" | "while" | "discard" if !self.builtin_control_loaded => {
                         self.load_builtin_controls();
                         self.builtin_control_loaded = true;
+                    }
+                    "int" | "nat" if !self.convertors_loaded => {
+                        self.load_convertors();
+                        self.convertors_loaded = true;
                     }
                     _ => {}
                 }

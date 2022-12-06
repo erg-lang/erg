@@ -941,6 +941,12 @@ impl Context {
             Immutable,
             Public,
         );
+        str_.register_builtin_impl(
+            "to_int",
+            fn_met(Str, vec![], None, vec![], or(Int, NoneType)),
+            Immutable,
+            Public,
+        );
         let str_getitem_t = fn1_kw_met(Str, kw("idx", Nat), Str);
         str_.register_builtin_impl("__getitem__", str_getitem_t, Immutable, Public);
         let mut str_eq = Self::builtin_methods(Some(mono("Eq")), 2);
@@ -1731,6 +1737,7 @@ impl Context {
             or(T, U),
         )
         .quantify();
+        let t_int = nd_func(vec![kw("obj", Obj)], None, or(Int, NoneType));
         let t_import = nd_func(
             vec![anon(tp_enum(Str, set! {Path.clone()}))],
             None,
@@ -1769,6 +1776,7 @@ impl Context {
             ],
             NoneType,
         );
+        let t_nat = nd_func(vec![kw("obj", Obj)], None, or(Nat, NoneType));
         // e.g. not(b: Bool!): Bool!
         let B = mono_q("B", subtypeof(Bool));
         let t_not = nd_func(vec![kw("b", B.clone())], None, B).quantify();
@@ -1808,6 +1816,7 @@ impl Context {
         self.register_builtin_py_impl("discard", t_discard, Immutable, Private, Some("discard__"));
         self.register_builtin_py_impl("exit", t_exit, Immutable, Private, Some("exit"));
         self.register_builtin_py_impl("if", t_if, Immutable, Private, Some("if__"));
+        self.register_builtin_py_impl("int", t_int, Immutable, Private, Some("int__"));
         self.register_builtin_py_impl("import", t_import, Immutable, Private, Some("__import__"));
         self.register_builtin_py_impl(
             "isinstance",
@@ -1825,6 +1834,7 @@ impl Context {
         );
         self.register_builtin_py_impl("len", t_len, Immutable, Private, Some("len"));
         self.register_builtin_py_impl("log", t_log, Immutable, Private, Some("print"));
+        self.register_builtin_py_impl("nat", t_nat, Immutable, Private, Some("nat__"));
         self.register_builtin_py_impl("not", t_not, Immutable, Private, None); // `not` is not a function in Python
         self.register_builtin_py_impl("oct", t_oct, Immutable, Private, Some("oct"));
         self.register_builtin_py_impl("ord", t_ord, Immutable, Private, Some("ord"));

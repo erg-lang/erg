@@ -677,6 +677,10 @@ impl ValueObj {
         }
     }
 
+    pub const fn is_str(&self) -> bool {
+        matches!(self, Self::Str(_))
+    }
+
     pub const fn is_type(&self) -> bool {
         matches!(self, Self::Type(_))
     }

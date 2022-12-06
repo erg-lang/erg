@@ -1,4 +1,5 @@
 from _erg_result import Error
+from _erg_int import Int
 
 class Str(str):
     def __instancecheck__(cls, obj):
@@ -15,6 +16,8 @@ class Str(str):
             return None
     def mutate(self):
         return StrMut(self)
+    def to_int(self):
+        return Int(self) if self.isdigit() else None
 
 class StrMut(): # Inherits Str
     value: Str

@@ -143,6 +143,7 @@ pub struct PyCodeGenerator {
     record_type_loaded: bool,
     module_type_loaded: bool,
     control_loaded: bool,
+    convertors_loaded: bool,
     abc_loaded: bool,
     unit_size: usize,
     units: PyCodeGenStack,
@@ -160,6 +161,7 @@ impl PyCodeGenerator {
             record_type_loaded: false,
             module_type_loaded: false,
             control_loaded: false,
+            convertors_loaded: false,
             abc_loaded: false,
             unit_size: 0,
             units: PyCodeGenStack::empty(),
@@ -436,6 +438,7 @@ impl PyCodeGenerator {
 
     fn emit_load_const<C: Into<ValueObj>>(&mut self, cons: C) {
         let value: ValueObj = cons.into();
+        let is_str = value.is_str();
         let is_int = value.is_int();
         let is_nat = value.is_nat();
         let is_bool = value.is_bool();
@@ -449,8 +452,12 @@ impl PyCodeGenerator {
             } else if is_int {
                 self.emit_push_null();
                 self.emit_load_name_instr(Identifier::public("Int"));
+            } else if is_str {
+                self.emit_push_null();
+                self.emit_load_name_instr(Identifier::public("Str"));
             }
         }
+        let wrapped = is_str || is_int; // is_int => is_nat and is_bool
         let idx = self
             .mut_cur_block_codeobj()
             .consts
@@ -463,8 +470,7 @@ impl PyCodeGenerator {
         self.write_instr(LOAD_CONST);
         self.write_arg(idx);
         self.stack_inc();
-        if !self.cfg.no_std && is_int {
-            // is_int => is_nat and is_bool
+        if !self.cfg.no_std && wrapped {
             self.emit_call_instr(1, Name);
             self.stack_dec();
         }
@@ -632,8 +638,14 @@ impl PyCodeGenerator {
     fn emit_load_name_instr(&mut self, ident: Identifier) {
         log!(info "entered {}({ident})", fn_name!());
         let escaped = escape_name(ident);
-        if let "if__" | "for__" | "while__" | "with__" | "discard__" = &escaped[..] {
-            self.load_control();
+        match &escaped[..] {
+            "if__" | "for__" | "while__" | "with__" | "discard__" => {
+                self.load_control();
+            }
+            "int__" | "nat__" => {
+                self.load_convertors();
+            }
+            _ => {}
         }
         let name = self
             .local_search(&escaped, Name)
@@ -2795,6 +2807,12 @@ impl PyCodeGenerator {
         let mod_name = Identifier::public("_erg_control");
         self.emit_import_all_instr(mod_name);
         self.control_loaded = true;
+    }
+
+    fn load_convertors(&mut self) {
+        let mod_name = Identifier::public("_erg_convertors");
+        self.emit_import_all_instr(mod_name);
+        self.convertors_loaded = true;
     }
 
     fn load_prelude_py(&mut self) {
