@@ -1,0 +1,26 @@
+i = 0 + 2 * 3 / 2 ** 2
+j = -+1
+
+k = !0
+if! i >= 0:
+    do!:
+        i = 2
+        while! do!(k <= 10), do!:
+            print! k
+            for! [0, 1], i =>
+                print! i + k
+
+        match! k:
+            0 => print! "zero"
+            _ => print! "\{k}"
+
+match! k:
+    0 => print! "zero"
+    _ => print! "\{k}"
+
+arrs = [[0, 1], [2, 3]]
+
+for! arrs, arr =>
+    print! arr
+    for! arr, elem =>
+        print! elem
