@@ -50,6 +50,19 @@ fn demangle(name: &str) -> String {
         .replace('.', "_")
 }
 
+// TODO:
+fn replace_non_symbolic(name: String) -> String {
+    name.replace('\'', "__single_quote__")
+        .replace(' ', "__space__")
+        .replace('+', "__plus__")
+        .replace('-', "__minus__")
+        .replace('*', "__star__")
+        .replace('/', "__slash__")
+        .replace('%', "__percent__")
+        .replace('!', "__erg_proc__")
+        .replace('$', "erg_shared__")
+}
+
 #[derive(Debug)]
 pub enum LastLineOperation {
     Discard,
@@ -213,6 +226,7 @@ pub struct ScriptGenerator {
     in_op_loaded: bool,
     range_ops_loaded: bool,
     builtin_types_loaded: bool,
+    builtin_control_loaded: bool,
     prelude: String,
 }
 
@@ -226,6 +240,7 @@ impl ScriptGenerator {
             in_op_loaded: false,
             range_ops_loaded: false,
             builtin_types_loaded: false,
+            builtin_control_loaded: false,
             prelude: String::new(),
         }
     }
@@ -296,6 +311,10 @@ impl ScriptGenerator {
             self.prelude += &Self::replace_import(include_str!("lib/std/_erg_str.py"));
             self.prelude += &Self::replace_import(include_str!("lib/std/_erg_array.py"));
         }
+    }
+
+    fn load_builtin_controls(&mut self) {
+        self.prelude += include_str!("lib/std/_erg_control.py");
     }
 
     fn escape_str(s: &str) -> String {
@@ -384,7 +403,8 @@ impl ScriptGenerator {
                 );
                 String::new()
             }
-            other => todo!("transpile {other}"),
+            Expr::TypeAsc(tasc) => self.transpile_expr(*tasc.expr),
+            Expr::Code(_) => todo!("transpiling importing user-defined code"),
         }
     }
 
@@ -501,6 +521,10 @@ impl ScriptGenerator {
                         self.load_builtin_types();
                         self.builtin_types_loaded = true;
                     }
+                    "if" | "if!" | "for!" | "while" | "discard" if !self.builtin_control_loaded => {
+                        self.load_builtin_controls();
+                        self.builtin_control_loaded = true;
+                    }
                     _ => {}
                 }
                 Self::transpile_ident(ident)
@@ -600,8 +624,9 @@ impl ScriptGenerator {
         }
         code += &format!("    return {tmp}\n");
         self.prelude += &code;
-        // NOTE: In Python, the variable environment of a function is determined at call time
-        // This is a very bad design, but can be used for this code
+        // ~~ NOTE: In Python, the variable environment of a function is determined at call time
+        // This is a very bad design, but can be used for this code ~~
+        // FIXME: this trick only works in the global namespace
         format!("{tmp_func}()")
     }
 
@@ -701,13 +726,13 @@ impl ScriptGenerator {
 
     fn transpile_ident(ident: Identifier) -> String {
         if let Some(py_name) = ident.vi.py_name {
-            demangle(&py_name)
-        } else if ident.dot.is_some() {
-            ident.name.into_token().content.to_string()
+            return demangle(&py_name);
+        }
+        let name = ident.name.into_token().content.to_string();
+        let name = replace_non_symbolic(name);
+        if ident.dot.is_some() {
+            name
         } else {
-            let name = ident.name.into_token().content;
-            let name = name.replace('!', "__erg_proc__");
-            let name = name.replace('$', "erg_shared__");
             format!("{name}__")
         }
     }
@@ -778,6 +803,7 @@ impl ScriptGenerator {
         }
     }
 
+    // TODO: trait definition
     fn transpile_def(&mut self, mut def: Def) -> String {
         match def.sig {
             Signature::Var(var) => {
@@ -817,11 +843,12 @@ impl ScriptGenerator {
         match classdef.__new__.non_default_params().unwrap()[0].typ() {
             Type::Record(rec) => {
                 for field in rec.keys() {
+                    let vis = if field.vis.is_private() { "__" } else { "" };
                     init_method += &format!(
-                        "{}self.{} = param__.{}\n",
+                        "{}self.{}{vis} = param__.{}{vis}\n",
                         "    ".repeat(self.level + 2),
                         field.symbol,
-                        field.symbol
+                        field.symbol,
                     );
                 }
             }
@@ -829,6 +856,7 @@ impl ScriptGenerator {
         }
         code += &init_method;
         if classdef.need_to_gen_new {
+            code += &"    ".repeat(self.level + 1);
             code += &format!("def new(x): return {class_name}.__call__(x)\n");
         }
         code += &self.transpile_block(classdef.methods, Discard);
