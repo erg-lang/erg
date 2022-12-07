@@ -502,9 +502,19 @@ impl Context {
             Expr::UnaryOp(unary) => self.eval_const_unary(unary),
             Expr::Call(call) => self.eval_const_call(call),
             Expr::Array(arr) => self.eval_const_array(arr),
+            Expr::Set(set) => self.eval_const_set(set),
+            Expr::Dict(dict) => self.eval_const_dict(dict),
+            Expr::Tuple(tuple) => self.eval_const_tuple(tuple),
             Expr::Record(rec) => self.eval_const_record(rec),
             Expr::Lambda(lambda) => self.eval_const_lambda(lambda),
-            other => todo!("{other}"),
+            // FIXME: type check
+            Expr::TypeAsc(tasc) => self.eval_const_expr(&tasc.expr),
+            other => Err(EvalErrors::from(EvalError::not_const_expr(
+                self.cfg.input.clone(),
+                line!() as usize,
+                other.loc(),
+                self.caused_by(),
+            ))),
         }
     }
 
@@ -524,6 +534,7 @@ impl Context {
             Expr::Tuple(tuple) => self.eval_const_tuple(tuple),
             Expr::Record(rec) => self.eval_const_record(rec),
             Expr::Lambda(lambda) => self.eval_const_lambda(lambda),
+            Expr::TypeAsc(tasc) => self.eval_const_expr(&tasc.expr),
             other => Err(EvalErrors::from(EvalError::not_const_expr(
                 self.cfg.input.clone(),
                 line!() as usize,
