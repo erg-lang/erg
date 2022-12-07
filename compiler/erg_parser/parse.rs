@@ -214,7 +214,7 @@ impl Runnable for ParserRunner {
 
     fn expect_block(&self, src: &str) -> BlockKind {
         let multi_line_str = "\"\"\"";
-        if src.contains(multi_line_str) && src.rfind(multi_line_str) != src.find(multi_line_str) {
+        if src.contains(multi_line_str) && src.rfind(multi_line_str) == src.find(multi_line_str) {
             return BlockKind::MultiLineStr;
         }
         if src.ends_with("do!:") && !src.starts_with("do!:") {
