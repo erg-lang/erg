@@ -36,6 +36,22 @@ impl Input {
         matches!(self, Input::REPL)
     }
 
+    pub fn lineno(&self) -> usize {
+        GLOBAL_STDIN.lineno()
+    }
+
+    pub fn block_begin(&self) -> usize {
+        GLOBAL_STDIN.block_begin()
+    }
+
+    pub fn set_block_begin(&self) {
+        GLOBAL_STDIN.set_block_begin(self.lineno())
+    }
+
+    pub fn init_block_begin(&self) {
+        GLOBAL_STDIN.set_block_begin(0)
+    }
+
     pub fn enclosed_name(&self) -> &str {
         match self {
             Self::File(filename) => filename.to_str().unwrap_or("???"),
@@ -117,7 +133,19 @@ impl Input {
                 .iter()
                 .map(|s| s.to_string())
                 .collect(),
-            Self::REPL => GLOBAL_STDIN.reread_lines(ln_begin, ln_end),
+            Self::REPL => {
+                let block_begin = self.block_begin();
+                if block_begin == 0 {
+                    vec![self.reread()]
+                } else {
+                    GLOBAL_STDIN
+                        // Since ln_begin and ln_end are always numbers greater than or equal to 1
+                        .reread_lines(block_begin + ln_begin - 1, block_begin + ln_end - 1)
+                        .into_iter()
+                        .map(|s| s.trim_end().to_owned())
+                        .collect()
+                }
+            }
             Self::Dummy => panic!("cannot read lines from a dummy file"),
         }
     }
@@ -129,6 +157,10 @@ impl Input {
             Self::REPL => GLOBAL_STDIN.reread().trim_end().to_owned(),
             Self::Dummy => panic!("cannot read from a dummy file"),
         }
+    }
+
+    pub fn insert_whitespace(&self, whitespace: &str) {
+        GLOBAL_STDIN.insert_whitespace(whitespace);
     }
 
     pub fn local_resolve(&self, path: &Path) -> Result<PathBuf, std::io::Error> {

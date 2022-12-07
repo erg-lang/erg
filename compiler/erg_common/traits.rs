@@ -451,8 +451,25 @@ pub trait Runnable: Sized + Default {
                         ":clear" => {
                             output.write_all("\x1b[2J\x1b[1;1H".as_bytes()).unwrap();
                             output.flush().unwrap();
-                            output.write_all(instance.ps1().as_bytes()).unwrap();
-                            output.flush().unwrap();
+                        }
+                        "" => {
+                            match instance.eval(mem::take(&mut vm.codes)) {
+                                Ok(out) => {
+                                    output.write_all((out + "\n").as_bytes()).unwrap();
+                                    output.flush().unwrap();
+                                }
+                                Err(errs) => {
+                                    if errs
+                                        .first()
+                                        .map(|e| e.core().kind == ErrorKind::SystemExit)
+                                        .unwrap_or(false)
+                                    {
+                                        instance.quit_successfully(output);
+                                    }
+                                    errs.fmt_all_stderr();
+                                }
+                            }
+                            instance.input().init_block_begin();
                             instance.clear();
                             continue;
                         }
@@ -480,6 +497,24 @@ pub trait Runnable: Sized + Default {
                         continue;
                     }
 
+                        match instance.eval(mem::take(&mut vm.codes)) {
+                            Ok(out) => {
+                                output.write_all((out + "\n").as_bytes()).unwrap();
+                                output.flush().unwrap();
+                            }
+                            Err(errs) => {
+                                if errs
+                                    .first()
+                                    .map(|e| e.core().kind == ErrorKind::SystemExit)
+                                    .unwrap_or(false)
+                                {
+                                    instance.quit_successfully(output);
+                                }
+                                errs.fmt_all_stderr();
+                            }
+                        }
+                        instance.input().init_block_begin();
+                        instance.clear();
                     match instance.eval(mem::take(&mut lines)) {
                         Ok(out) => {
                             output.write_all((out + "\n").as_bytes()).unwrap();
