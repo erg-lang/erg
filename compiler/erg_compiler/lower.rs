@@ -4,18 +4,18 @@
 
 use erg_common::config::ErgConfig;
 use erg_common::dict;
-use erg_common::error::{Location, MultiErrorDisplay};
+use erg_common::error::{ErrorDisplay, ErrorKind, Location, MultiErrorDisplay};
 use erg_common::set;
 use erg_common::set::Set;
-use erg_common::traits::{Locational, NoTypeDisplay, Runnable, Stream};
+use erg_common::traits::{BlockKind, Locational, NoTypeDisplay, Runnable, Stream};
 use erg_common::vis::Visibility;
 use erg_common::{enum_unwrap, fmt_option, fn_name, get_hash, log, switch_lang, Str};
 
-use erg_parser::ast;
 use erg_parser::ast::{OperationKind, AST};
 use erg_parser::build_ast::ASTBuilder;
 use erg_parser::token::{Token, TokenKind};
 use erg_parser::Parser;
+use erg_parser::{ast, ParserRunner};
 
 use crate::artifact::{CompleteArtifact, IncompleteArtifact};
 use crate::context::instantiate::TyVarCache;
@@ -114,6 +114,42 @@ impl Runnable for ASTLowerer {
             .map_err(|artifact| artifact.errors)?;
         artifact.warns.fmt_all_stderr();
         Ok(format!("{}", artifact.object))
+    }
+
+    fn expect_block(&self, src: &str) -> BlockKind {
+        let mut parser = ParserRunner::new(self.cfg().clone());
+        match parser.eval(src.to_string()) {
+            Err(errs) => {
+                let (has_next_line, kind) = errs
+                    .first()
+                    .map(|e| {
+                        let enl = e.core().kind == ErrorKind::ExpectNextLine;
+                        let msg = if enl {
+                            // if enl is true, sub_message and hint must exit
+                            // if not, it is a bug
+                            let msg = e.core().sub_messages.last().unwrap();
+                            msg.get_hint().unwrap().to_string()
+                        } else {
+                            String::new()
+                        };
+                        (enl, msg)
+                    })
+                    .unwrap_or((false, String::new()));
+                if has_next_line {
+                    return match kind.as_str() {
+                        "Lambda" => BlockKind::Lambda,
+                        "Assignment" => BlockKind::Assignment,
+                        "MultiLineStr" => BlockKind::MultiLineStr,
+                        "ClassAttr" => BlockKind::ClassAttr,
+                        "ClassAttrDecl" => BlockKind::ClassAttrDecl,
+                        _ => BlockKind::Error,
+                    };
+                }
+                errs.fmt_all_stderr();
+                BlockKind::Error
+            }
+            Ok(_) => BlockKind::None,
+        }
     }
 }
 

@@ -475,6 +475,7 @@ pub trait Runnable: Sized + Default {
                                 vm.now_block.pop();
                             } else if vm.now_block.len() > 1 {
                                 vm.now_block.pop();
+                                vm.push_code("\n");
                                 continue;
                             }
                             match instance.eval(mem::take(&mut vm.codes)) {
@@ -516,6 +517,7 @@ pub trait Runnable: Sized + Default {
                                 continue;
                             }
                             vm.push_code(whitespace.as_str());
+                            instance.input().insert_whitespace(whitespace.as_str());
                             vm.push_code(line);
                             vm.push_code("\n");
                         }

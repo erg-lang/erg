@@ -6,6 +6,7 @@ use unicode_xid::UnicodeXID;
 use erg_common::cache::CacheSet;
 use erg_common::config::ErgConfig;
 use erg_common::config::Input;
+use erg_common::traits::BlockKind;
 use erg_common::traits::{Locational, Runnable, Stream};
 use erg_common::{debug_power_assert, fn_name_full, normalize_newline, switch_lang};
 
@@ -66,6 +67,40 @@ impl Runnable for LexerRunner {
                 .map_err(|errs| LexerRunnerErrors::convert(self.input(), errs))?
                 .to_string())
         }
+    }
+
+    #[inline]
+    fn expect_block(&self, src: &str) -> BlockKind {
+        let multi_line_str = "\"\"\"";
+        if src.contains(multi_line_str) && src.rfind(multi_line_str) != src.find(multi_line_str) {
+            return BlockKind::MultiLineStr;
+        }
+        if src.ends_with("do!:") && !src.starts_with("do!:") {
+            return BlockKind::Lambda;
+        }
+        if src.ends_with("do:") && !src.starts_with("do:") {
+            return BlockKind::Lambda;
+        }
+        if src.ends_with(':') && !src.starts_with(':') {
+            return BlockKind::Lambda;
+        }
+        if src.ends_with('=') && !src.starts_with('=') {
+            return BlockKind::Assignment;
+        }
+        if src.ends_with('.') && !src.starts_with('.') {
+            return BlockKind::ClassAttrDecl;
+        }
+        if src.ends_with("::") && !src.starts_with("::") {
+            return BlockKind::ClassAttr;
+        }
+        if src.ends_with("=>") && !src.starts_with("=>") {
+            return BlockKind::Lambda;
+        }
+        if src.ends_with("->") && !src.starts_with("->") {
+            return BlockKind::Lambda;
+        }
+
+        BlockKind::None
     }
 }
 
