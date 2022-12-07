@@ -1327,7 +1327,12 @@ impl Parser {
                     let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                     let t_spec = self
                         .try_reduce_expr(false, in_type_args, in_brace, false)
-                        .map_err(|_| self.stack_dec())?;
+                        .map_err(|_| {
+                            self.stack_dec();
+                            if let Some(err) = self.errs.last_mut() {
+                                err.set_hint("ColonCall");
+                            }
+                        })?;
                     let t_spec = Self::expr_to_type_spec(t_spec).map_err(|e| self.errs.push(e))?;
                     let expr = lhs.type_asc_expr(op, t_spec);
                     stack.push(ExprOrOp::Expr(expr));
