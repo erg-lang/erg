@@ -45,6 +45,7 @@ pub enum ErrorKind {
     VisibilityError = 20,
     MethodError = 21,
     DummyError = 22,
+    ExpectNextLine = 23,
     /* compile warnings */
     AttributeWarning = 60,
     CastWarning = 61,
