@@ -522,12 +522,13 @@ impl Context {
     // コンパイル時評価できないならNoneを返す
     pub(crate) fn eval_const_chunk(&mut self, expr: &Expr) -> EvalResult<ValueObj> {
         match expr {
+            // TODO: ClassDef, PatchDef
+            Expr::Def(def) => self.eval_const_def(def),
             Expr::Lit(lit) => self.eval_lit(lit),
             Expr::Accessor(acc) => self.eval_const_acc(acc),
             Expr::BinOp(bin) => self.eval_const_bin(bin),
             Expr::UnaryOp(unary) => self.eval_const_unary(unary),
             Expr::Call(call) => self.eval_const_call(call),
-            Expr::Def(def) => self.eval_const_def(def),
             Expr::Array(arr) => self.eval_const_array(arr),
             Expr::Set(set) => self.eval_const_set(set),
             Expr::Dict(dict) => self.eval_const_dict(dict),
