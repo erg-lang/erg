@@ -823,7 +823,8 @@ impl Lexer /*<'a>*/ {
     }
 
     fn lex_multi_line_str(&mut self) -> LexResult<Token> {
-        let mut s = "\"\"\"".to_string();
+        const TRIPLE_QUOTES: &str = "\"\"\"";
+        let mut s = TRIPLE_QUOTES.to_string();
         while let Some(c) = self.peek_cur_ch() {
             if c == '"' {
                 let c = self.consume().unwrap();
@@ -849,7 +850,7 @@ impl Lexer /*<'a>*/ {
                 if next_c.unwrap() == '"' && aft_next_c.unwrap() == '"' {
                     self.consume().unwrap();
                     self.consume().unwrap();
-                    s.push_str("\"\"\"");
+                    s.push_str(TRIPLE_QUOTES);
                     let token = self.emit_token(StrLit, &s);
                     return Ok(token);
                 }
@@ -901,11 +902,8 @@ impl Lexer /*<'a>*/ {
         }
         let token = self.emit_token(Illegal, &s);
         if self.interpol_stack.len() == 1 {
-            Err(Self::unclosed_string_error(
-                token,
-                "\"\"\"",
-                line!() as usize,
-            ))
+            let err = Self::unclosed_string_error(token, TRIPLE_QUOTES, line!() as usize);
+            Err(err)
         } else {
             Err(Self::unclosed_interpol_error(token))
         }
@@ -1351,6 +1349,24 @@ impl Iterator for Lexer /*<'a>*/ {
                 let c = self.peek_cur_ch();
                 let next_c = self.peek_next_ch();
                 match (c, next_c) {
+                    (Some(c), Some(next_c)) => {
+                        if c == '"' && next_c == '"' {
+                            self.consume(); // consume second '"'
+                            self.consume(); // consume third '"'
+                            Some(self.lex_multi_line_str())
+                        } else {
+                            Some(self.lex_single_str())
+                        }
+                    }
+                    (Some(c), None) => {
+                        if c == '"' {
+                            self.consume(); // consume second '"'
+                            let token = self.emit_token(StrLit, "\"\"");
+                            Some(Ok(token))
+                        } else {
+                            Some(self.lex_single_str())
+                        }
+                    }
                     (None, _) => {
                         let token = self.emit_token(Illegal, "\"");
                         Some(Err(LexError::syntax_error(
@@ -1364,24 +1380,6 @@ impl Iterator for Lexer /*<'a>*/ {
                             ),
                             None,
                         )))
-                    }
-                    (Some(c), None) => {
-                        if c == '"' {
-                            self.consume(); // consume second '"'
-                            let token = self.emit_token(StrLit, "\"\"");
-                            Some(Ok(token))
-                        } else {
-                            Some(self.lex_single_str())
-                        }
-                    }
-                    (Some(c), Some(next_c)) => {
-                        if c == '"' && next_c == '"' {
-                            self.consume(); // consume second '"'
-                            self.consume(); // consume third '"'
-                            Some(self.lex_multi_line_str())
-                        } else {
-                            Some(self.lex_single_str())
-                        }
                     }
                 }
             }
