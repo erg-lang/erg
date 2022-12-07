@@ -351,7 +351,8 @@ pub trait LimitedDisplay {
 pub enum BlockKind {
     Main,          // now_block Vec must contain this
     Assignment,    // =
-    Lambda,        // =>, ->, do:, do!:
+    Lambda,        // =>, ->, do, do!
+    ColonCall,     // :
     MultiLineStr,  // """
     ClassAttr,     // ::
     ClassAttrDecl, // .

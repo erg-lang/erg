@@ -213,6 +213,7 @@ impl Runnable for DummyVM {
                     return match kind.as_str() {
                         "Lambda" => BlockKind::Lambda,
                         "Assignment" => BlockKind::Assignment,
+                        "ColonCall" => BlockKind::ColonCall,
                         "MultiLineStr" => BlockKind::MultiLineStr,
                         "ClassAttr" => BlockKind::ClassAttr,
                         "ClassAttrDecl" => BlockKind::ClassAttrDecl,
