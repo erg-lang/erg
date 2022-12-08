@@ -805,6 +805,26 @@ impl Context {
         }
     }
 
+    // HACK: dname.loc()はダミーLocationしか返さないので、エラーならop.loc()で上書きする
+    fn append_loc_info(&self, e: TyCheckError, loc: Location) -> TyCheckError {
+        if e.core.loc == Location::Unknown {
+            let mut sub_msges = Vec::new();
+            for sub_msg in e.core.sub_messages {
+                sub_msges.push(SubMessage::ambiguous_new(loc, sub_msg.msg, sub_msg.hint));
+            }
+            let core = ErrorCore::new(
+                sub_msges,
+                e.core.main_message,
+                e.core.errno,
+                e.core.kind,
+                e.core.loc,
+            );
+            TyCheckError::new(core, self.cfg.input.clone(), e.caused_by)
+        } else {
+            e
+        }
+    }
+
     pub(crate) fn get_binop_t(
         &self,
         op: &Token,
@@ -814,7 +834,7 @@ impl Context {
     ) -> TyCheckResult<VarInfo> {
         erg_common::debug_power_assert!(args.len() == 2);
         let cont = binop_to_dname(op.inspect());
-        let symbol = Token::new(op.kind, Str::rc(cont), op.lineno, op.col_begin);
+        let symbol = Token::from_str(op.kind, cont);
         let t = self.rec_get_var_info(
             &Identifier::new(None, VarName::new(symbol.clone())),
             AccessKind::Name,
@@ -829,29 +849,11 @@ impl Context {
                 let lhs = args[0].expr.clone();
                 let rhs = args[1].expr.clone();
                 let bin = hir::BinOp::new(op_ident.name.into_token(), lhs, rhs, vi);
-                TyCheckErrors::new(
-                    errs.into_iter()
-                        .map(|e| {
-                            let mut sub_msges = Vec::new();
-                            for sub_msg in e.core.sub_messages {
-                                sub_msges.push(SubMessage::ambiguous_new(
-                                    // HACK: dname.loc()はダミーLocationしか返さないので、エラーならop.loc()で上書きする
-                                    bin.loc(),
-                                    sub_msg.msg,
-                                    sub_msg.hint,
-                                ));
-                            }
-                            let core = ErrorCore::new(
-                                sub_msges,
-                                e.core.main_message,
-                                e.core.errno,
-                                e.core.kind,
-                                e.core.loc,
-                            );
-                            TyCheckError::new(core, self.cfg.input.clone(), e.caused_by)
-                        })
-                        .collect(),
-                )
+                let errs = errs
+                    .into_iter()
+                    .map(|e| self.append_loc_info(e, bin.loc()))
+                    .collect();
+                TyCheckErrors::new(errs)
             })
     }
 
@@ -864,7 +866,7 @@ impl Context {
     ) -> TyCheckResult<VarInfo> {
         erg_common::debug_power_assert!(args.len() == 1);
         let cont = unaryop_to_dname(op.inspect());
-        let symbol = Token::new(op.kind, Str::rc(cont), op.lineno, op.col_begin);
+        let symbol = Token::from_str(op.kind, cont);
         let vi = self.rec_get_var_info(
             &Identifier::new(None, VarName::new(symbol.clone())),
             AccessKind::Name,
@@ -878,28 +880,11 @@ impl Context {
                 let vi = op_ident.vi.clone();
                 let expr = args[0].expr.clone();
                 let unary = hir::UnaryOp::new(op_ident.name.into_token(), expr, vi);
-                TyCheckErrors::new(
-                    errs.into_iter()
-                        .map(|e| {
-                            let mut sub_msges = Vec::new();
-                            for sub_msg in e.core.sub_messages {
-                                sub_msges.push(SubMessage::ambiguous_new(
-                                    unary.loc(),
-                                    sub_msg.msg,
-                                    sub_msg.hint,
-                                ));
-                            }
-                            let core = ErrorCore::new(
-                                sub_msges,
-                                e.core.main_message,
-                                e.core.errno,
-                                e.core.kind,
-                                e.core.loc,
-                            );
-                            TyCheckError::new(core, self.cfg.input.clone(), e.caused_by)
-                        })
-                        .collect(),
-                )
+                let errs = errs
+                    .into_iter()
+                    .map(|e| self.append_loc_info(e, unary.loc()))
+                    .collect();
+                TyCheckErrors::new(errs)
             })
     }
 
