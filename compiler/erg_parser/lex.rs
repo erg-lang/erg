@@ -363,9 +363,8 @@ impl Lexer /*<'a>*/ {
     }
 
     fn lex_space_indent_dedent(&mut self) -> Option<LexResult<Token>> {
-        let is_linebreak_after = self.cursor > 0
-            && !self.indent_stack.is_empty()
-            && self.peek_prev_ch() == Some('\n');
+        let is_linebreak_after =
+            self.cursor > 0 && !self.indent_stack.is_empty() && self.peek_prev_ch() == Some('\n');
         let is_space = self.peek_cur_ch() == Some(' ');
         let is_linebreak = self.peek_cur_ch() == Some('\n');
         let is_empty = is_space || is_linebreak;
@@ -467,6 +466,9 @@ impl Lexer /*<'a>*/ {
                     Some(Ok(dedent))
                 } else {
                     let invalid_dedent = self.emit_token(Dedent, "");
+                    let hint = if self.peek_cur_ch() == Some('\n') {
+                        Some("unnecessary spaces after linebreak".into())
+                    } else { None };
                     Some(Err(LexError::syntax_error(
                         0,
                         invalid_dedent.loc(),
@@ -476,7 +478,7 @@ impl Lexer /*<'a>*/ {
                             "traditional_chinese" => "無效縮進",
                             "english" => "invalid indent",
                         ),
-                        None,
+                        hint,
                     )))
                 }
             }

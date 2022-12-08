@@ -308,7 +308,9 @@ impl Parser {
             self.errs.push(err);
             return Err(());
         }
-        while self.cur_is(Newline) { self.skip(); }
+        while self.cur_is(Newline) {
+            self.skip();
+        }
         if !self.cur_is(Indent) {
             let err = self.skip_and_throw_syntax_err("try_reduce_block");
             self.level -= 1;
