@@ -40,7 +40,7 @@ Only one procedural methods can have a mutable reference at any given time. In a
 
 Note, however, that it is possible to create (immutable/mutable) references from mutable references. This allows recursion and `print!` of `self` in procedural methods.
 
-```python
+```python,checker_ignore
 T -> T # OK (move)
 T -> Ref T # OK (move)
 T => Ref! T # OK (only once)
@@ -70,7 +70,7 @@ assert nan(1) ! = nan(1)
 
 There are also objects, such as classes, for which equivalence determination itself is not possible.
 
-```python
+```python,checker_ignore
 T = Structural {i = Int}
 U = Structural {i = Int}
 assert T == U

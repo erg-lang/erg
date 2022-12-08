@@ -5,7 +5,7 @@ The syntax of the decorator is as follows.
 
 ```python
 @deco
-X=...
+X = ...
 ```
 
 You can have multiple decorators as long as they don't conflict.
@@ -13,7 +13,7 @@ You can have multiple decorators as long as they don't conflict.
 A decorator is not a special object, it's just a one-argument function. The decorator is equivalent to the following pseudocode.
 
 ```python
-X=...
+X = ...
 X = deco(X)
 ```
 
@@ -100,7 +100,7 @@ Internally it's just attached using the trait's `.attach` method. Conflicts can 
 
 ```python
 @Attach X
-T = Trait...
+T = Trait ...
 assert X in T. attaches
 U = T.detach(X).attach(Y)
 assert X not in U. attaches

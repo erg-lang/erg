@@ -4,7 +4,7 @@ use erg_common::log;
 use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
 
-use erg_parser::ast::{ClassDef, Expr, Methods, Module, PreDeclTypeSpec, TypeSpec, AST};
+use erg_parser::ast::{ClassDef, Expr, Methods, Module, PatchDef, PreDeclTypeSpec, TypeSpec, AST};
 
 use crate::error::{TyCheckError, TyCheckErrors};
 
@@ -45,6 +45,14 @@ impl Reorderer {
                                     );
                                     let type_def = ClassDef::new(def, vec![]);
                                     new.push(Expr::ClassDef(type_def));
+                                }
+                                Some("Patch") => {
+                                    self.def_root_pos_map.insert(
+                                        def.sig.ident().unwrap().inspect().clone(),
+                                        new.len(),
+                                    );
+                                    let type_def = PatchDef::new(def, vec![]);
+                                    new.push(Expr::PatchDef(type_def));
                                 }
                                 _ => {
                                     new.push(Expr::Def(def));
@@ -97,12 +105,17 @@ impl Reorderer {
 
     fn link_methods(&mut self, name: Str, new: &mut Vec<Expr>, methods: Methods) {
         if let Some(pos) = self.def_root_pos_map.get(&name) {
-            let mut class_def = match new.remove(*pos) {
-                Expr::ClassDef(class_def) => class_def,
+            match new.remove(*pos) {
+                Expr::ClassDef(mut class_def) => {
+                    class_def.methods_list.push(methods);
+                    new.insert(*pos, Expr::ClassDef(class_def));
+                }
+                Expr::PatchDef(mut patch_def) => {
+                    patch_def.methods_list.push(methods);
+                    new.insert(*pos, Expr::PatchDef(patch_def));
+                }
                 _ => unreachable!(),
-            };
-            class_def.methods_list.push(methods);
-            new.insert(*pos, Expr::ClassDef(class_def));
+            }
         } else {
             let similar_name = self
                 .def_root_pos_map

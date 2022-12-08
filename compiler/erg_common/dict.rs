@@ -127,6 +127,14 @@ impl<K, V> Dict<K, V> {
     pub fn clear(&mut self) {
         self.dict.clear();
     }
+
+    /// remove all elements for which the predicate returns false
+    pub fn retain<F>(&mut self, f: F)
+    where
+        F: FnMut(&K, &mut V) -> bool,
+    {
+        self.dict.retain(f);
+    }
 }
 
 impl<K, V> IntoIterator for Dict<K, V> {

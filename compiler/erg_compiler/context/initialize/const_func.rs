@@ -143,6 +143,35 @@ pub fn trait_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueOb
     Ok(ValueObj::gen_t(GenTypeObj::trait_(t, require, impls)))
 }
 
+/// Base: Type, Impl := Type -> Patch
+pub fn patch_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
+    let base = args.remove_left_or_key("Base").ok_or_else(|| {
+        ErrorCore::new(
+            vec![SubMessage::only_loc(Location::Unknown)],
+            format!("{REQ_ERR} is not passed"),
+            line!() as usize,
+            ErrorKind::KeyError,
+            Location::Unknown,
+        )
+    })?;
+    let Some(base) = base.as_type() else {
+        let base = StyledString::new(&format!("{base}"), Some(ERR), None);
+        return Err(ErrorCore::new(
+            vec![SubMessage::only_loc(Location::Unknown)],
+            format!(
+                "non-type object {base} is passed to {REQ_WARN}",
+            ),
+            line!() as usize,
+            ErrorKind::TypeError,
+            Location::Unknown,
+        ).into());
+    };
+    let impls = args.remove_left_or_key("Impl");
+    let impls = impls.map(|v| v.as_type().unwrap());
+    let t = mono(ctx.name.clone());
+    Ok(ValueObj::gen_t(GenTypeObj::patch(t, base, impls)))
+}
+
 /// Super: TraitType, Impl := Type, Additional := Type -> TraitType
 pub fn subsume_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
     let sup = args.remove_left_or_key("Super").ok_or_else(|| {

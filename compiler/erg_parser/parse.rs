@@ -264,12 +264,6 @@ impl Parser {
                 Some(t) if t.is(EOF) => {
                     break;
                 }
-                /*Some(t) if t.is(Indent) => {
-                    switch_unreachable!()
-                }
-                Some(t) if t.is(Dedent) => {
-                    switch_unreachable!()
-                }*/
                 Some(_) => {
                     if let Ok(expr) = self.try_reduce_chunk(true, false) {
                         chunks.push(expr);
@@ -314,14 +308,16 @@ impl Parser {
             self.errs.push(err);
             return Err(());
         }
-        self.skip();
+        while self.cur_is(Newline) {
+            self.skip();
+        }
         if !self.cur_is(Indent) {
             let err = self.skip_and_throw_syntax_err("try_reduce_block");
             self.level -= 1;
             self.errs.push(err);
             return Err(());
         }
-        self.skip();
+        self.skip(); // Indent
         loop {
             match self.peek() {
                 Some(t) if t.is(Newline) && self.nth_is(1, Dedent) => {
@@ -554,6 +550,7 @@ impl Parser {
         match self.peek() {
             Some(t)
                 if t.category_is(TC::Literal)
+                    || t.is(StrInterpLeft)
                     || t.is(Symbol)
                     || t.category_is(TC::UnaryOp)
                     || t.is(LParen)
@@ -712,11 +709,6 @@ impl Parser {
         debug_call_info!(self);
         match self.peek() {
             Some(t) if t.is(Symbol) => {
-                if &t.inspect()[..] == "do" || &t.inspect()[..] == "do!" {
-                    let lambda = self.try_reduce_do_block().map_err(|_| self.stack_dec())?;
-                    self.level -= 1;
-                    return Ok(PosOrKwArg::Pos(PosArg::new(Expr::Lambda(lambda))));
-                }
                 if self.nth_is(1, Walrus) {
                     let acc = self.try_reduce_acc_lhs().map_err(|_| self.stack_dec())?;
                     debug_power_assert!(self.cur_is(Walrus));
@@ -921,7 +913,7 @@ impl Parser {
             Ok(Lambda::new(sig, op, body, self.counter))
         } else {
             let expr = self
-                .try_reduce_expr(true, false, false, false)
+                .try_reduce_expr(false, false, false, false)
                 .map_err(|_| self.stack_dec())?;
             let block = Block::new(vec![expr]);
             self.level -= 1;
@@ -946,22 +938,40 @@ impl Parser {
                 }
                 Some(op) if op.category_is(TC::DefOp) => {
                     let op = self.lpop();
+                    let is_multiline_block = self.cur_is(Newline);
                     let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                     let sig = self.convert_rhs_to_sig(lhs).map_err(|_| self.stack_dec())?;
                     self.counter.inc();
-                    let block = self.try_reduce_block().map_err(|_| self.stack_dec())?;
+                    let block = if is_multiline_block {
+                        self.try_reduce_block().map_err(|_| self.stack_dec())?
+                    } else {
+                        // precedence: `=` < `,`
+                        let expr = self
+                            .try_reduce_expr(true, false, false, false)
+                            .map_err(|_| self.stack_dec())?;
+                        Block::new(vec![expr])
+                    };
                     let body = DefBody::new(op, block, self.counter);
                     self.level -= 1;
                     return Ok(Expr::Def(Def::new(sig, body)));
                 }
                 Some(op) if op.category_is(TC::LambdaOp) => {
                     let op = self.lpop();
+                    let is_multiline_block = self.cur_is(Newline);
                     let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                     let sig = self
                         .convert_rhs_to_lambda_sig(lhs)
                         .map_err(|_| self.stack_dec())?;
                     self.counter.inc();
-                    let block = self.try_reduce_block().map_err(|_| self.stack_dec())?;
+                    let block = if is_multiline_block {
+                        self.try_reduce_block().map_err(|_| self.stack_dec())?
+                    } else {
+                        // precedence: `->` > `,`
+                        let expr = self
+                            .try_reduce_expr(false, false, false, false)
+                            .map_err(|_| self.stack_dec())?;
+                        Block::new(vec![expr])
+                    };
                     stack.push(ExprOrOp::Expr(Expr::Lambda(Lambda::new(
                         sig,
                         op,
@@ -1217,12 +1227,20 @@ impl Parser {
             match self.peek() {
                 Some(op) if op.category_is(TC::LambdaOp) => {
                     let op = self.lpop();
+                    let is_multiline_block = self.cur_is(Newline);
                     let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                     let sig = self
                         .convert_rhs_to_lambda_sig(lhs)
                         .map_err(|_| self.stack_dec())?;
                     self.counter.inc();
-                    let block = self.try_reduce_block().map_err(|_| self.stack_dec())?;
+                    let block = if is_multiline_block {
+                        self.try_reduce_block().map_err(|_| self.stack_dec())?
+                    } else {
+                        let expr = self
+                            .try_reduce_expr(false, false, false, false)
+                            .map_err(|_| self.stack_dec())?;
+                        Block::new(vec![expr])
+                    };
                     stack.push(ExprOrOp::Expr(Expr::Lambda(Lambda::new(
                         sig,
                         op,
@@ -1416,11 +1434,23 @@ impl Parser {
     fn try_reduce_bin_lhs(&mut self, in_type_args: bool, in_brace: bool) -> ParseResult<Expr> {
         debug_call_info!(self);
         match self.peek() {
+            Some(t) if &t.inspect()[..] == "do" || &t.inspect()[..] == "do!" => {
+                let lambda = self.try_reduce_do_block().map_err(|_| self.stack_dec())?;
+                self.level -= 1;
+                Ok(Expr::Lambda(lambda))
+            }
             Some(t) if t.category_is(TC::Literal) => {
                 // TODO: 10.times ...などメソッド呼び出しもある
                 let lit = self.try_reduce_lit().map_err(|_| self.stack_dec())?;
                 self.level -= 1;
                 Ok(Expr::Lit(lit))
+            }
+            Some(t) if t.is(StrInterpLeft) => {
+                let str_interp = self
+                    .try_reduce_string_interpolation()
+                    .map_err(|_| self.stack_dec())?;
+                self.level -= 1;
+                Ok(str_interp)
             }
             Some(t) if t.is(AtSign) => {
                 let decos = self.opt_reduce_decorators()?;
@@ -2137,6 +2167,87 @@ impl Parser {
                 let err = self.skip_and_throw_syntax_err(caused_by!());
                 self.errs.push(err);
                 Err(())
+            }
+        }
+    }
+
+    /// "...\{, expr, }..." ==> "..." + str(expr) + "..."
+    /// "...\{, expr, }..." ==> "..." + str(expr) + "..."
+    fn try_reduce_string_interpolation(&mut self) -> ParseResult<Expr> {
+        debug_call_info!(self);
+        let mut left = self.lpop();
+        left.content = Str::from(left.content.trim_end_matches("\\{").to_string() + "\"");
+        left.kind = StrLit;
+        let mut expr = Expr::Lit(Literal::from(left));
+        loop {
+            match self.peek() {
+                Some(l) if l.is(StrInterpRight) => {
+                    let mut right = self.lpop();
+                    right.content =
+                        Str::from(format!("\"{}", right.content.trim_start_matches('}')));
+                    right.kind = StrLit;
+                    let right = Expr::Lit(Literal::from(right));
+                    let op = Token::new(
+                        Plus,
+                        "+",
+                        right.ln_begin().unwrap(),
+                        right.col_begin().unwrap(),
+                    );
+                    expr = Expr::BinOp(BinOp::new(op, expr, right));
+                    self.level -= 1;
+                    return Ok(expr);
+                }
+                Some(_) => {
+                    let mid_expr = self.try_reduce_expr(true, false, false, false)?;
+                    let str_func = Expr::local(
+                        "str",
+                        mid_expr.ln_begin().unwrap(),
+                        mid_expr.col_begin().unwrap(),
+                    );
+                    let call = Call::new(
+                        str_func,
+                        None,
+                        Args::new(vec![PosArg::new(mid_expr)], vec![], None),
+                    );
+                    let op = Token::new(
+                        Plus,
+                        "+",
+                        call.ln_begin().unwrap(),
+                        call.col_begin().unwrap(),
+                    );
+                    let bin = BinOp::new(op, expr, Expr::Call(call));
+                    expr = Expr::BinOp(bin);
+                    if self.cur_is(StrInterpMid) {
+                        let mut mid = self.lpop();
+                        mid.content = Str::from(format!(
+                            "\"{}\"",
+                            mid.content.trim_start_matches('}').trim_end_matches("\\{")
+                        ));
+                        mid.kind = StrLit;
+                        let mid = Expr::Lit(Literal::from(mid));
+                        let op = Token::new(
+                            Plus,
+                            "+",
+                            mid.ln_begin().unwrap(),
+                            mid.col_begin().unwrap(),
+                        );
+                        expr = Expr::BinOp(BinOp::new(op, expr, mid));
+                    }
+                }
+                None => {
+                    self.level -= 1;
+                    let err = ParseError::syntax_error(
+                        line!() as usize,
+                        expr.loc(),
+                        switch_lang!(
+                            "japanese" => "文字列補間の終わりが見つかりませんでした",
+                            "english" => "end of string interpolation not found",
+                        ),
+                        None,
+                    );
+                    self.errs.push(err);
+                    return Err(());
+                }
             }
         }
     }

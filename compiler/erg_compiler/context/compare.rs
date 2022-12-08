@@ -4,12 +4,12 @@ use std::option::Option; // conflicting to Type::Option
 use erg_common::error::MultiErrorDisplay;
 
 use crate::ty::constructors::{and, or, poly};
-use crate::ty::free::fresh_varname;
 use crate::ty::free::{Constraint, FreeKind};
 use crate::ty::typaram::{OpKind, TyParam, TyParamOrdering};
 use crate::ty::value::ValueObj;
 use crate::ty::value::ValueObj::Inf;
 use crate::ty::{Predicate, RefinementType, SubrKind, SubrType, Type};
+use erg_common::fresh::fresh_varname;
 use Predicate as Pred;
 
 use erg_common::dict::Dict;
@@ -245,8 +245,20 @@ impl Context {
         self.nominal_supertype_of(rhs, lhs)
     }
 
-    fn _find_compatible_patch(&self, sup: &Type, sub: &Type) -> Option<&Context> {
-        for patch in self._all_patches().into_iter() {
+    pub(crate) fn find_patches_of<'a>(
+        &'a self,
+        typ: &'a Type,
+    ) -> impl Iterator<Item = &'a Context> {
+        self.all_patches().into_iter().filter(|ctx| {
+            if let ContextKind::Patch(base) = &ctx.kind {
+                return self.supertype_of(base, typ);
+            }
+            false
+        })
+    }
+
+    fn _find_compatible_glue_patch(&self, sup: &Type, sub: &Type) -> Option<&Context> {
+        for patch in self.all_patches().into_iter() {
             if let ContextKind::GluePatch(tr_inst) = &patch.kind {
                 if self.subtype_of(sub, &tr_inst.sub_type)
                     && self.subtype_of(&tr_inst.sup_trait, sup)
@@ -262,7 +274,7 @@ impl Context {
         if !self.is_class(lhs) || !self.is_class(rhs) {
             return (Maybe, false);
         }
-        if let Some(ty_ctx) = self.get_nominal_type_ctx(rhs) {
+        if let Some((_, ty_ctx)) = self.get_nominal_type_ctx(rhs) {
             for rhs_sup in ty_ctx.super_classes.iter() {
                 let rhs_sup = if rhs_sup.has_qvar() {
                     let rhs = match rhs {
@@ -300,7 +312,7 @@ impl Context {
         if !self.is_trait(lhs) {
             return (Maybe, false);
         }
-        if let Some(rhs_ctx) = self.get_nominal_type_ctx(rhs) {
+        if let Some((_, rhs_ctx)) = self.get_nominal_type_ctx(rhs) {
             for rhs_sup in rhs_ctx.super_traits.iter() {
                 // Not `supertype_of` (only structures are compared)
                 match self.cheap_supertype_of(lhs, rhs_sup) {
@@ -452,13 +464,14 @@ impl Context {
             (Type, Poly { name, params }) | (Poly { name, params }, Type)
                 if &name[..] == "Tuple" =>
             {
-                let tps = Vec::try_from(params[0].clone()).unwrap();
-                for tp in tps {
-                    let Ok(t) = self.convert_tp_into_ty(tp) else {
-                        return false;
-                    };
-                    if !self.supertype_of(&Type, &t) {
-                        return false;
+                if let Ok(tps) = Vec::try_from(params[0].clone()) {
+                    for tp in tps {
+                        let Ok(t) = self.convert_tp_into_ty(tp) else {
+                            return false;
+                        };
+                        if !self.supertype_of(&Type, &t) {
+                            return false;
+                        }
                     }
                 }
                 false
@@ -643,7 +656,7 @@ impl Context {
             erg_common::fmt_vec(lparams),
             erg_common::fmt_vec(rparams)
         );
-        let ctx = self
+        let (_, ctx) = self
             .get_nominal_type_ctx(typ)
             .unwrap_or_else(|| panic!("{typ} is not found"));
         let variances = ctx.type_params_variance();
@@ -845,9 +858,13 @@ impl Context {
             }
             (Refinement(l), Refinement(r)) => Type::Refinement(self.union_refinement(l, r)),
             (t, Type::Never) | (Type::Never, t) => t.clone(),
-            (t, Refinement(r)) | (Refinement(r), t) => {
-                let t = self.into_refinement(t.clone());
-                Type::Refinement(self.union_refinement(&t, r))
+            // ?T or {"b"} cannot be {I: (?T or Str) | I == "b"} because ?T may be {"a"} etc.
+            // (if so, {I: ?T or Str | I == "b"} == {I: {"a"} or Str | I == "b"} == {I: Str | I == "b"})
+            (other, Refinement(refine)) | (Refinement(refine), other)
+                if !other.is_unbound_var() =>
+            {
+                let other = self.into_refinement(other.clone());
+                Type::Refinement(self.union_refinement(&other, refine))
             }
             // Array({1, 2}, 2), Array({3, 4}, 2) ==> Array({1, 2, 3, 4}, 2)
             (

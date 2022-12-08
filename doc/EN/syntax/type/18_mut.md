@@ -8,7 +8,7 @@ But you can of course also define mutable types. Variable types are declared wit
 ```python
 Person! = Class({name = Str; age = Nat!})
 Person!.
-    greet! ref! self = print! "Hello, my name is {self::name}. I am {self::age}."
+    greet! ref! self = print! "Hello, my name is \{self::name}. I am \{self::age}."
     inc_age!ref!self = self::name.update!old -> old + 1
 ```
 

@@ -120,7 +120,7 @@ impl Runnable for DummyVM {
         let filename = self
             .cfg()
             .input
-            .filename()
+            .full_path()
             .split('/')
             .last()
             .unwrap()

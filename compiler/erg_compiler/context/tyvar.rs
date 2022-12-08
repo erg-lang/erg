@@ -5,7 +5,9 @@ use std::option::Option;
 use erg_common::error::Location;
 use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
-use erg_common::{assume_unreachable, fn_name, log};
+use erg_common::{assume_unreachable, fn_name};
+#[allow(unused_imports)]
+use erg_common::{fmt_vec, log};
 
 use crate::ty::constructors::*;
 use crate::ty::free::{Constraint, FreeKind, HasLevel};
@@ -358,6 +360,7 @@ impl Context {
                             Variance::Covariant => Ok(sub_t),
                             Variance::Contravariant => Ok(super_t),
                             Variance::Invariant => {
+                                // need to check if sub_t == super_t
                                 if self.supertype_of(&sub_t, &super_t) {
                                     Ok(sub_t)
                                 } else {
@@ -421,7 +424,7 @@ impl Context {
             }
             Type::Poly { name, mut params } => {
                 let typ = poly(&name, params.clone());
-                let ctx = self.get_nominal_type_ctx(&typ).unwrap();
+                let (_, ctx) = self.get_nominal_type_ctx(&typ).unwrap();
                 let variances = ctx.type_params_variance();
                 for (param, variance) in params.iter_mut().zip(variances.into_iter()) {
                     *param = self.deref_tp(mem::take(param), variance, loc)?;
@@ -768,6 +771,12 @@ impl Context {
             }
             hir::Expr::ClassDef(class_def) => {
                 for def in class_def.methods.iter_mut() {
+                    self.resolve_expr_t(def)?;
+                }
+                Ok(())
+            }
+            hir::Expr::PatchDef(patch_def) => {
+                for def in patch_def.methods.iter_mut() {
                     self.resolve_expr_t(def)?;
                 }
                 Ok(())
@@ -1504,63 +1513,86 @@ impl Context {
                 },
             ) => {
                 // e.g. Set(?T) <: Eq(Set(?T))
+                //      Array(Str) <: Iterable(Str)
                 if ln != rn {
-                    if let Some(sub_ctx) = self.get_nominal_type_ctx(maybe_sub) {
+                    if let Some((sub_def_t, sub_ctx)) = self.get_nominal_type_ctx(maybe_sub) {
+                        self.substitute_typarams(sub_def_t, maybe_sub);
                         for sup_trait in sub_ctx.super_traits.iter() {
                             if self.supertype_of(maybe_sup, sup_trait) {
                                 for (l_maybe_sub, r_maybe_sup) in sup_trait.typarams().iter().zip(rps.iter()) {
-                                    self.sub_unify_tp(l_maybe_sub, r_maybe_sup, None, loc, false)?;
+                                    self.sub_unify_tp(l_maybe_sub, r_maybe_sup, None, loc, false)
+                                        .map_err(|e| { self.undo_substitute_typarams(sub_def_t); e })?;
                                 }
+                                self.undo_substitute_typarams(sub_def_t);
                                 return Ok(());
                             }
                         }
                     }
-                    return Err(TyCheckErrors::from(TyCheckError::unification_error(
+                    Err(TyCheckErrors::from(TyCheckError::unification_error(
                         self.cfg.input.clone(),
                         line!() as usize,
                         maybe_sub,
                         maybe_sup,
                         loc,
                         self.caused_by(),
-                    )));
+                    )))
+                } else {
+                    for (l_maybe_sub, r_maybe_sup) in lps.iter().zip(rps.iter()) {
+                        self.sub_unify_tp(l_maybe_sub, r_maybe_sup, None, loc, false)?;
+                    }
+                    Ok(())
                 }
-                for (l_maybe_sub, r_maybe_sup) in lps.iter().zip(rps.iter()) {
-                    self.sub_unify_tp(l_maybe_sub, r_maybe_sup, None, loc, false)?;
-                }
-                Ok(())
             }
-            (Type::And(l, r), _)
-            | (Type::Or(l, r), _)
-            | (Type::Not(l, r), _) => {
+            // (X or Y) <: Z is valid when X <: Z and Y <: Z
+            (Type::Or(l, r), _) => {
                 self.sub_unify(l, maybe_sup, loc, param_name)?;
-                self.sub_unify(r, maybe_sup, loc, param_name)?;
-                Ok(())
+                self.sub_unify(r, maybe_sup, loc, param_name)
             }
-            (_, Type::And(l, r))
-            | (_, Type::Or(l, r))
-            | (_, Type::Not(l, r)) => {
+            // X <: (Y and Z) is valid when X <: Y and X <: Z
+            (_, Type::And(l, r)) => {
                 self.sub_unify(maybe_sub, l, loc, param_name)?;
-                self.sub_unify(maybe_sub, r, loc, param_name)?;
-                Ok(())
+                self.sub_unify(maybe_sub, r, loc, param_name)
+            }
+            // (X and Y) <: Z is valid when X <: Z or Y <: Z
+            (Type::And(l, r), _) => {
+                self.sub_unify(l, maybe_sup, loc, param_name)
+                    .or_else(|_e| self.sub_unify(r, maybe_sup, loc, param_name))
+            }
+            // X <: (Y or Z) is valid when X <: Y or X <: Z
+            (_, Type::Or(l, r)) => {
+                self.sub_unify(maybe_sub, l, loc, param_name)
+                    .or_else(|_e| self.sub_unify(maybe_sub, r, loc, param_name))
             }
             (_, Type::Ref(t)) => {
-                self.sub_unify(maybe_sub, t, loc, param_name)?;
-                Ok(())
+                self.sub_unify(maybe_sub, t, loc, param_name)
             }
             (_, Type::RefMut{ before, .. }) => {
-                self.sub_unify(maybe_sub, before, loc, param_name)?;
-                Ok(())
+                self.sub_unify(maybe_sub, before, loc, param_name)
             }
             (Type::Proj { .. }, _) => todo!(),
             (_, Type::Proj { .. }) => todo!(),
-            (Refinement(l), Refinement(r)) => {
-                if l.preds.len() == 1 && r.preds.len() == 1 {
-                    let l_first = l.preds.iter().next().unwrap();
-                    let r_first = r.preds.iter().next().unwrap();
-                    self.sub_unify_pred(l_first, r_first, loc)?;
+            // TODO: Judgment for any number of preds
+            (Refinement(sub), Refinement(sup)) => {
+                // {I: Int or Str | I == 0} <: {I: Int}
+                if self.subtype_of(&sub.t, &sup.t) {
+                    self.sub_unify(&sub.t, &sup.t, loc, param_name)?;
+                }
+                if sup.preds.is_empty() {
+                    self.sub_unify(&sub.t, &sup.t, loc, param_name)?;
                     return Ok(());
                 }
-                todo!("{l}, {r}")
+                if sub.preds.len() == 1 && sup.preds.len() == 1 {
+                    let sub_first = sub.preds.iter().next().unwrap();
+                    let sup_first = sup.preds.iter().next().unwrap();
+                    self.sub_unify_pred(sub_first, sup_first, loc)?;
+                    return Ok(());
+                }
+                todo!("{sub}, {sup}")
+            },
+            // {I: Int | I >= 1} <: Nat == {I: Int | I >= 0}
+            (Type::Refinement(_), sup) => {
+                let sup = self.into_refinement(sup.clone());
+                self.sub_unify(maybe_sub, &Type::Refinement(sup), loc, param_name)
             },
             (Type::Subr(_) | Type::Record(_), Type) => Ok(()),
             // REVIEW: correct?

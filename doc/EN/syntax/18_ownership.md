@@ -57,9 +57,7 @@ sum|T <: Add + HasUnit| i: Iterator T = ...
 
 x = [1, 2, 3].into [Int; !3]
 x.push!(4)
-i = x.iter() # TypeError: [Int; !4] has no method `iter`
-y = x.freeze()
-i = y.iter()
+i = x.iter()
 assert sum(i) == 10
 y # y can still be touched
 ```

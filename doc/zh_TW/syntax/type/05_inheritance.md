@@ -88,7 +88,7 @@ Base!
 Inherited! = Inherit Base!
 Inherited!
     @Override
-    g! ref! self = self.f!() # 無限遞歸警告: 此代碼陷入無限循環 
+    g! ref! self = self.f!() # 無限遞歸警告: 此代碼陷入無限循環
     # 覆蓋錯誤: 方法 `.g` 被 `.f` 引用但未被覆蓋
 ```
 
@@ -236,9 +236,9 @@ Dog = Class {name = Str; breed = Str}
 Person = Class {name = Str}
 Student = Inherit Person, additional: {id = Int}
 structural_greet! person: Named =
-    print! "Hello, my name is {person::name}."
+    print! "Hello, my name is \{person::name}."
 greet! person: Person =
-    print! "Hello, my name is {person::name}."
+    print! "Hello, my name is \{person::name}."
 
 max = Dog.new {name = "Max", breed = "Labrador"}
 john = Person.new {name = "John"}
@@ -247,7 +247,7 @@ alice = Student.new {name = "Alice", id = 123}
 structural_greet! max # 你好，我是馬克斯
 structural_greet! john # 你好，我是約翰
 greet! alice # 你好，我是愛麗絲
-greet! max # 類型錯誤: 
+greet! max # 類型錯誤:
 ```
 
 <p align='center'>

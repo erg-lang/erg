@@ -158,7 +158,7 @@ List T.
 
 ```python
 match x:
-    i: {1, 2} -> "one or two: {i}"
+    i: {1, 2} -> "one or two: \{i}"
     _ -> "other"
 ```
 

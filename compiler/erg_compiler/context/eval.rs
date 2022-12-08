@@ -75,6 +75,9 @@ fn try_get_op_kind_from_token(kind: TokenKind) -> EvalResult<OpKind> {
         TokenKind::Shl => Ok(OpKind::Shl),
         TokenKind::Shr => Ok(OpKind::Shr),
         TokenKind::Mutate => Ok(OpKind::Mutate),
+        TokenKind::PrePlus => Ok(OpKind::Pos),
+        TokenKind::PreMinus => Ok(OpKind::Neg),
+        TokenKind::PreBitNot => Ok(OpKind::Invert),
         _other => todo!("{_other}"),
     }
 }
@@ -246,7 +249,12 @@ impl Context {
                 _ => unreachable!(),
             }
         } else {
-            todo!()
+            Err(EvalErrors::from(EvalError::not_const_expr(
+                self.cfg.input.clone(),
+                line!() as usize,
+                call.loc(),
+                self.caused_by(),
+            )))
         }
     }
 
@@ -311,12 +319,15 @@ impl Context {
                     let elem = self.eval_const_expr(&elem.expr)?;
                     elems.push(elem);
                 }
+                Ok(ValueObj::Array(RcArray::from(elems)))
             }
-            _ => {
-                todo!()
-            }
+            _ => Err(EvalErrors::from(EvalError::not_const_expr(
+                self.cfg.input.clone(),
+                line!() as usize,
+                arr.loc(),
+                self.caused_by(),
+            ))),
         }
-        Ok(ValueObj::Array(RcArray::from(elems)))
     }
 
     fn eval_const_set(&self, set: &AstSet) -> EvalResult<ValueObj> {
@@ -327,12 +338,15 @@ impl Context {
                     let elem = self.eval_const_expr(&elem.expr)?;
                     elems.push(elem);
                 }
+                Ok(ValueObj::Set(Set::from(elems)))
             }
-            _ => {
-                todo!()
-            }
+            _ => Err(EvalErrors::from(EvalError::not_const_expr(
+                self.cfg.input.clone(),
+                line!() as usize,
+                set.loc(),
+                self.caused_by(),
+            ))),
         }
-        Ok(ValueObj::Set(Set::from(elems)))
     }
 
     fn eval_const_dict(&self, dict: &AstDict) -> EvalResult<ValueObj> {
@@ -344,12 +358,15 @@ impl Context {
                     let value = self.eval_const_expr(&elem.value)?;
                     elems.insert(key, value);
                 }
+                Ok(ValueObj::Dict(elems))
             }
-            _ => {
-                todo!()
-            }
+            _ => Err(EvalErrors::from(EvalError::not_const_expr(
+                self.cfg.input.clone(),
+                line!() as usize,
+                dict.loc(),
+                self.caused_by(),
+            ))),
         }
-        Ok(ValueObj::Dict(elems))
     }
 
     fn eval_const_tuple(&self, tuple: &Tuple) -> EvalResult<ValueObj> {
@@ -446,33 +463,20 @@ impl Context {
             self.py_mod_cache.clone(),
             self.clone(),
         );
-        let return_t = lambda_ctx.eval_const_block(&lambda.body)?;
-        // FIXME: lambda: i: Int -> Int
-        // => sig_t: (i: Type) -> Type
-        // => as_type: (i: Int) -> Int
+        let return_t = v_enum(set! {lambda_ctx.eval_const_block(&lambda.body)?});
         let sig_t = subr_t(
             SubrKind::from(lambda.op.kind),
             non_default_params.clone(),
-            var_params.clone(),
+            var_params,
             default_params.clone(),
-            v_enum(set![return_t.clone()]),
+            return_t,
         );
         let sig_t = self.generalize_t(sig_t);
-        let as_type = subr_t(
-            SubrKind::from(lambda.op.kind),
-            non_default_params,
-            var_params,
-            default_params,
-            // TODO: unwrap
-            return_t.as_type().unwrap().into_typ(),
-        );
-        let as_type = self.generalize_t(as_type);
         let subr = ConstSubr::User(UserConstSubr::new(
             Str::ever("<lambda>"),
             lambda.sig.params.clone(),
             lambda.body.clone(),
             sig_t,
-            Some(as_type),
         ));
         Ok(ValueObj::Subr(subr))
     }
@@ -498,9 +502,19 @@ impl Context {
             Expr::UnaryOp(unary) => self.eval_const_unary(unary),
             Expr::Call(call) => self.eval_const_call(call),
             Expr::Array(arr) => self.eval_const_array(arr),
+            Expr::Set(set) => self.eval_const_set(set),
+            Expr::Dict(dict) => self.eval_const_dict(dict),
+            Expr::Tuple(tuple) => self.eval_const_tuple(tuple),
             Expr::Record(rec) => self.eval_const_record(rec),
             Expr::Lambda(lambda) => self.eval_const_lambda(lambda),
-            other => todo!("{other}"),
+            // FIXME: type check
+            Expr::TypeAsc(tasc) => self.eval_const_expr(&tasc.expr),
+            other => Err(EvalErrors::from(EvalError::not_const_expr(
+                self.cfg.input.clone(),
+                line!() as usize,
+                other.loc(),
+                self.caused_by(),
+            ))),
         }
     }
 
@@ -508,18 +522,20 @@ impl Context {
     // コンパイル時評価できないならNoneを返す
     pub(crate) fn eval_const_chunk(&mut self, expr: &Expr) -> EvalResult<ValueObj> {
         match expr {
+            // TODO: ClassDef, PatchDef
+            Expr::Def(def) => self.eval_const_def(def),
             Expr::Lit(lit) => self.eval_lit(lit),
             Expr::Accessor(acc) => self.eval_const_acc(acc),
             Expr::BinOp(bin) => self.eval_const_bin(bin),
             Expr::UnaryOp(unary) => self.eval_const_unary(unary),
             Expr::Call(call) => self.eval_const_call(call),
-            Expr::Def(def) => self.eval_const_def(def),
             Expr::Array(arr) => self.eval_const_array(arr),
             Expr::Set(set) => self.eval_const_set(set),
             Expr::Dict(dict) => self.eval_const_dict(dict),
             Expr::Tuple(tuple) => self.eval_const_tuple(tuple),
             Expr::Record(rec) => self.eval_const_record(rec),
             Expr::Lambda(lambda) => self.eval_const_lambda(lambda),
+            Expr::TypeAsc(tasc) => self.eval_const_expr(&tasc.expr),
             other => Err(EvalErrors::from(EvalError::not_const_expr(
                 self.cfg.input.clone(),
                 line!() as usize,
@@ -624,7 +640,11 @@ impl Context {
                     line!(),
                 ))),
             },
-            other => todo!("{other}"),
+            _other => Err(EvalErrors::from(EvalError::unreachable(
+                self.cfg.input.clone(),
+                fn_name!(),
+                line!(),
+            ))),
         }
     }
 
@@ -682,11 +702,23 @@ impl Context {
 
     fn eval_unary_val(&self, op: OpKind, val: ValueObj) -> EvalResult<ValueObj> {
         match op {
-            Pos => todo!(),
-            Neg => todo!(),
-            Invert => todo!(),
+            Pos => Err(EvalErrors::from(EvalError::unreachable(
+                self.cfg.input.clone(),
+                fn_name!(),
+                line!(),
+            ))),
+            Neg => Err(EvalErrors::from(EvalError::unreachable(
+                self.cfg.input.clone(),
+                fn_name!(),
+                line!(),
+            ))),
+            Invert => Err(EvalErrors::from(EvalError::unreachable(
+                self.cfg.input.clone(),
+                fn_name!(),
+                line!(),
+            ))),
             Mutate => Ok(ValueObj::Mut(Shared::new(val))),
-            other => todo!("{other}"),
+            other => unreachable!("{other}"),
         }
     }
 

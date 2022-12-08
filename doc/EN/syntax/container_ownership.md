@@ -15,13 +15,16 @@ It is also not possible to reproduce the behavior of `[]` in a method.
 
 ```python
 C = Class {i = Int!}
-C. get(ref self) =
-    self::i # TypeError: `self::i` is `Int!` (require ownership) but `get` doesn't own `self`
 C.steal(self) =
     self::i
-# NG
-C.new({i = 1}).steal().inc!() # OwnershipWarning: `C.new({i = 1}).steal()` is not owned by anyone
-# hint: assign to a variable or use `uwn_do!`
+```
+
+```python,compile_fail
+C.get(ref self) =
+    self::i # TypeError: `self::i` is `Int!` (require ownership) but `get` doesn't own `self`
+```
+
+```python
 # OK (assigning)
 c = C.new({i = 1})
 i = c.steal()
@@ -31,9 +34,15 @@ assert i == 2
 own_do! C.new({i = 1}).steal(), i => i.inc!()
 ```
 
+```python
+# NG
+C.new({i = 1}).steal().inc!() # OwnershipWarning: `C.new({i = 1}).steal()` is not owned by anyone
+# hint: assign to a variable or use `uwn_do!`
+```
+
 Also, `[]` can be disowned, but the element is not shifted.
 
-```python
+```python,compile_fail
 a = [!1, !2]
 i = a[0]
 i.inc!()

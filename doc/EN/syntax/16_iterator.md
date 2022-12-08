@@ -8,7 +8,7 @@ for! 0..9, i =>
 ```
 
 This code prints the numbers 0 through 9.
-Each number (=Int object) is assigned to `i` and the following operation (=`print! i``) is executed. This kind of repetitive execution is called __iteration__.
+Each number (=Int object) is assigned to `i` and the following operation (=`print! i`) is executed. This kind of repetitive execution is called __iteration__.
 
 Now let's look at the type signature of the `for!` procedure.
 

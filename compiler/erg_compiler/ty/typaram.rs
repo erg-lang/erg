@@ -496,6 +496,21 @@ impl<'a> TryFrom<&'a TyParam> for &'a Type {
     }
 }
 
+impl TryFrom<TyParam> for Type {
+    type Error = ();
+    fn try_from(tp: TyParam) -> Result<Type, ()> {
+        match tp {
+            TyParam::FreeVar(fv) if fv.is_linked() => {
+                Type::try_from(fv.forced_as_ref().linked().unwrap().clone()).map_err(|_| ())
+            }
+            TyParam::Type(t) => Ok(*t),
+            TyParam::Value(v) => Type::try_from(v),
+            // TODO: Array, Dict, Set
+            _ => Err(()),
+        }
+    }
+}
+
 impl HasLevel for TyParam {
     fn level(&self) -> Option<Level> {
         match self {

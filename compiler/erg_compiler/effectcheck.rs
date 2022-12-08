@@ -95,8 +95,16 @@ impl SideEffectChecker {
                     self.check_def(def);
                 }
                 Expr::ClassDef(class_def) => {
+                    self.check_expr(class_def.require_or_sup.as_ref());
                     // TODO: grow
                     for def in class_def.methods.iter() {
+                        self.check_expr(def);
+                    }
+                }
+                Expr::PatchDef(patch_def) => {
+                    self.check_expr(patch_def.base.as_ref());
+                    // TODO: grow
+                    for def in patch_def.methods.iter() {
                         self.check_expr(def);
                     }
                 }
@@ -271,7 +279,14 @@ impl SideEffectChecker {
                 self.check_def(def);
             }
             Expr::ClassDef(class_def) => {
+                self.check_expr(class_def.require_or_sup.as_ref());
                 for def in class_def.methods.iter() {
+                    self.check_expr(def);
+                }
+            }
+            Expr::PatchDef(patch_def) => {
+                self.check_expr(patch_def.base.as_ref());
+                for def in patch_def.methods.iter() {
                     self.check_expr(def);
                 }
             }
@@ -373,6 +388,16 @@ impl SideEffectChecker {
             }
             Expr::TypeAsc(type_asc) => {
                 self.check_expr(&type_asc.expr);
+            }
+            Expr::Accessor(acc) => {
+                if !self.in_context_effects_allowed() && acc.ref_t().is_mut_type() {
+                    self.errs.push(EffectError::touch_mut_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        expr,
+                        self.full_path(),
+                    ));
+                }
             }
             _ => {}
         }

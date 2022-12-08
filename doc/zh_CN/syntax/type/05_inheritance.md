@@ -88,7 +88,7 @@ Base!
 Inherited! = Inherit Base!
 Inherited!
     @Override
-    g! ref! self = self.f!() # 无限递归警告: 此代码陷入无限循环 
+    g! ref! self = self.f!() # 无限递归警告: 此代码陷入无限循环
     # 覆盖错误: 方法 `.g` 被 `.f` 引用但未被覆盖
 ```
 
@@ -135,6 +135,7 @@ Int = Class ... , Impl := Add() and ...
 ## 多重继承
 
 Erg 不允许普通类之间的交集、差异和互补
+
 ```python
 Int and Str # 类型错误: 无法合并类
 ```
@@ -236,9 +237,9 @@ Dog = Class {name = Str; breed = Str}
 Person = Class {name = Str}
 Student = Inherit Person, additional: {id = Int}
 structural_greet! person: Named =
-    print! "Hello, my name is {person::name}."
+    print! "Hello, my name is \{person::name}."
 greet! person: Person =
-    print! "Hello, my name is {person::name}."
+    print! "Hello, my name is \{person::name}."
 
 max = Dog.new {name = "Max", breed = "Labrador"}
 john = Person.new {name = "John"}
@@ -247,7 +248,7 @@ alice = Student.new {name = "Alice", id = 123}
 structural_greet! max # 你好，我是马克斯
 structural_greet! john # 你好，我是约翰
 greet! alice # 你好，我是爱丽丝
-greet! max # 类型错误: 
+greet! max # 类型错误:
 ```
 
 <p align='center'>

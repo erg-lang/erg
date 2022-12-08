@@ -28,9 +28,9 @@
 
 以塊的動作遍歷迭代器
 
-## while!cond: Bool!, block: () => NoneType
+## while! cond!: () => Bool, block!: () => NoneType
 
-當cond為True時的執行塊
+當cond!()為True時的執行塊
 
 ## Lineno!() -> Nat
 

@@ -35,13 +35,11 @@ Unlike Python, quotation marks cannot be enclosed in `'`. If you want to use `"`
 "", "a", "abc", "111", "1# 3f2-3*8$", "こんにちは", "السَّلَامُ عَلَيْكُمْ", ...
 ```
 
-`{}` allows you to embed expressions in strings. This is called string interpolation.
-If you want to output `{`, `}` itself, use `\{`, `\}`.
+`\{..}` allows you to embed expressions in strings. This is called string interpolation.
+If you want to output `\{..}` itself, use `\\{..}`.
 
 ```python
-assert "1 + 1 is 2" == "{1} + {1} is {1+1}"
-s = "1+1"
-assert "\{1+1}\" == "\{{s}\}"
+assert "1 + 1 is 2" == "\{1} + \{1} is \{1+1}"
 ```
 
 ### Exponential Literal

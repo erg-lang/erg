@@ -18,23 +18,6 @@ pub const GENERIC_LEVEL: usize = usize::MAX;
 
 thread_local! {
     static UNBOUND_ID: Shared<usize> = Shared::new(0);
-    static REFINEMENT_VAR_ID: Shared<usize> = Shared::new(0);
-}
-
-pub fn fresh_varname() -> String {
-    REFINEMENT_VAR_ID.with(|id| {
-        *id.borrow_mut() += 1;
-        let i = *id.borrow();
-        format!("%v{i}")
-    })
-}
-
-pub fn fresh_param_name() -> String {
-    REFINEMENT_VAR_ID.with(|id| {
-        *id.borrow_mut() += 1;
-        let i = *id.borrow();
-        format!("%p{i}")
-    })
 }
 
 pub trait HasLevel {
@@ -169,6 +152,7 @@ impl Constraint {
         }
     }
 
+    /// :> Sub
     pub fn get_sub(&self) -> Option<&Type> {
         match self {
             Self::Sandwiched { sub, .. } => Some(sub),
@@ -176,6 +160,7 @@ impl Constraint {
         }
     }
 
+    /// <: Sup
     pub fn get_super(&self) -> Option<&Type> {
         match self {
             Self::Sandwiched { sup, .. } => Some(sup),
@@ -584,10 +569,12 @@ impl<T: CanbeFree> Free<T> {
         self.constraint().and_then(|c| c.get_type().cloned())
     }
 
-    pub fn get_sup(&self) -> Option<Type> {
+    /// <: Super
+    pub fn get_super(&self) -> Option<Type> {
         self.constraint().and_then(|c| c.get_super().cloned())
     }
 
+    /// :> Sub
     pub fn get_sub(&self) -> Option<Type> {
         self.constraint().and_then(|c| c.get_sub().cloned())
     }

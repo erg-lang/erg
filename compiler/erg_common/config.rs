@@ -45,10 +45,21 @@ impl Input {
         }
     }
 
-    /// ファイルに書き出すとき使う
-    pub fn filename(&self) -> &str {
+    pub fn full_path(&self) -> &str {
         match self {
             Self::File(filename) => filename.to_str().unwrap_or("???"),
+            Self::REPL | Self::Pipe(_) => "stdin",
+            Self::Str(_) => "string",
+            Self::Dummy => "dummy",
+        }
+    }
+
+    pub fn filename(&self) -> &str {
+        match self {
+            Self::File(filename) => filename
+                .file_name()
+                .and_then(|f| f.to_str())
+                .unwrap_or("???"),
             Self::REPL | Self::Pipe(_) => "stdin",
             Self::Str(_) => "string",
             Self::Dummy => "dummy",
@@ -168,6 +179,7 @@ pub struct ErgConfig {
     pub quiet_repl: bool,
     pub show_type: bool,
     pub input: Input,
+    pub output_dir: Option<&'static str>,
     /// module name to be executed
     pub module: &'static str,
     /// verbosity level for system messages.
@@ -194,6 +206,7 @@ impl Default for ErgConfig {
             quiet_repl: false,
             show_type: false,
             input: Input::REPL,
+            output_dir: None,
             module: "<module>",
             verbose: 1,
             ps1: ">>> ",
@@ -224,6 +237,14 @@ impl ErgConfig {
     #[inline]
     pub fn copy(&self) -> Self {
         self.clone()
+    }
+
+    pub fn dump_path(&self) -> String {
+        if let Some(output) = &self.output_dir {
+            format!("{output}/{}", self.input.filename())
+        } else {
+            self.input.full_path().to_string()
+        }
     }
 
     pub fn parse() -> Self {
@@ -293,6 +314,13 @@ impl ErgConfig {
                         .expect("the value of `-o` is not passed")
                         .parse::<u8>()
                         .expect("the value of `-o` is not a number");
+                }
+                "--output-dir" | "--dest" => {
+                    let output_dir = args
+                        .next()
+                        .expect("the value of `--output-dir` is not passed")
+                        .into_boxed_str();
+                    cfg.output_dir = Some(Box::leak(output_dir));
                 }
                 "--py-command" | "--python-command" => {
                     let py_command = args

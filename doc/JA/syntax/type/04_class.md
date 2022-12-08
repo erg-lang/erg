@@ -69,9 +69,9 @@ Person::
     species = "human"
 Person.
     describe() =
-        log "species: {species}"
+        log "species: \{Person::species}"
     greet self =
-        log "Hello, My name is {self::name}."
+        log "Hello, My name is \{self::name}."
 
 Person.describe() # species: human
 Person.greet() # TypeError: unbound method Person.greet needs an argument
@@ -187,7 +187,7 @@ DogImpl.
 Person = {.name = Str; .age = Nat}
 PersonImpl = Patch Person
 PersonImpl.
-    greet self = log "Hello, my name is {self.name}."
+    greet self = log "Hello, my name is \{self.name}."
 
 john = {.name = "John Smith"; .age = 20}
 john.bark() # "Yelp!"
@@ -203,7 +203,7 @@ Dog.
 ...
 Person = Class {.name = Str; .age = Nat}
 Person.
-    greet self = log "Hello, my name is {self.name}."
+    greet self = log "Hello, my name is \{self.name}."
 
 john = Person.new {.name = "John Smith"; .age = 20}
 john.bark() # TypeError: `Person` object has no method `.bark`

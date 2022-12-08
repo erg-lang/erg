@@ -5,6 +5,7 @@
 //! 型チェックなどによる検証は行わない
 #![allow(dead_code)]
 
+use erg_common::fresh::fresh_varname;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
@@ -15,9 +16,10 @@ use crate::ast::{
     ClassAttr, ClassAttrs, ClassDef, ConstExpr, DataPack, Def, DefBody, DefId, Dict, Expr,
     Identifier, KeyValue, KwArg, Lambda, LambdaSignature, Literal, Methods, MixedRecord, Module,
     NonDefaultParamSignature, NormalArray, NormalDict, NormalRecord, NormalSet, NormalTuple,
-    ParamPattern, ParamRecordAttr, Params, PosArg, Record, RecordAttrOrIdent, RecordAttrs,
-    Set as astSet, SetWithLength, Signature, SubrSignature, Tuple, TypeAppArgs, TypeBoundSpecs,
-    TypeSpec, TypeSpecWithOp, UnaryOp, VarName, VarPattern, VarRecordAttr, VarSignature,
+    ParamPattern, ParamRecordAttr, Params, PatchDef, PosArg, Record, RecordAttrOrIdent,
+    RecordAttrs, Set as astSet, SetWithLength, Signature, SubrSignature, Tuple, TypeAppArgs,
+    TypeBoundSpecs, TypeSpec, TypeSpecWithOp, UnaryOp, VarName, VarPattern, VarRecordAttr,
+    VarSignature,
 };
 use crate::token::{Token, TokenKind, COLON, DOT};
 
@@ -31,21 +33,14 @@ enum BufIndex<'i> {
 #[derive(Debug)]
 pub struct Desugarer {
     desugared: Set<Str>,
-    var_id: usize,
+    // var_id: usize, // must be global
 }
 
 impl Desugarer {
     pub fn new() -> Desugarer {
         Self {
             desugared: Set::default(),
-            var_id: 0,
         }
-    }
-
-    fn fresh_var_name(&mut self) -> String {
-        let var_name = format!("%v{}", self.var_id);
-        self.var_id += 1;
-        var_name
     }
 
     pub fn desugar(&mut self, module: Module) -> Module {
@@ -72,8 +67,7 @@ impl Desugarer {
         let kw_args = kw_args
             .into_iter()
             .map(|arg| {
-                let expr = desugar(arg.expr);
-                KwArg::new(arg.keyword, arg.t_spec, expr) // TODO: t_spec
+                KwArg::new(arg.keyword, arg.t_spec, desugar(arg.expr)) // TODO: t_spec
             })
             .collect();
         Args::new(pos_args, kw_args, paren)
@@ -230,6 +224,15 @@ impl Desugarer {
                     .map(|method| enum_unwrap!(desugar(Expr::Methods(method)), Expr::Methods))
                     .collect();
                 Expr::ClassDef(ClassDef::new(def, methods))
+            }
+            Expr::PatchDef(class_def) => {
+                let def = enum_unwrap!(desugar(Expr::Def(class_def.def)), Expr::Def);
+                let methods = class_def
+                    .methods_list
+                    .into_iter()
+                    .map(|method| enum_unwrap!(desugar(Expr::Methods(method)), Expr::Methods))
+                    .collect();
+                Expr::PatchDef(PatchDef::new(def, methods))
             }
             Expr::Lambda(lambda) => {
                 let mut chunks = vec![];
@@ -403,7 +406,7 @@ impl Desugarer {
         line: usize,
         t_spec: Option<TypeSpec>,
     ) -> (String, Signature) {
-        let buf_name = self.fresh_var_name();
+        let buf_name = fresh_varname();
         let buf_sig = Signature::Var(VarSignature::new(
             VarPattern::Ident(Identifier::private_with_line(Str::rc(&buf_name), line)),
             t_spec,
@@ -412,7 +415,7 @@ impl Desugarer {
     }
 
     fn gen_buf_nd_param(&mut self, line: usize) -> (String, ParamPattern) {
-        let buf_name = self.fresh_var_name();
+        let buf_name = fresh_varname();
         let pat = ParamPattern::VarName(VarName::from_str_and_line(Str::rc(&buf_name), line));
         (buf_name, pat)
     }
@@ -997,6 +1000,17 @@ impl Desugarer {
                 let def = Def::new(Signature::Var(v), body);
                 new_body.insert(insertion_idx, Expr::Def(def));
                 insertion_idx += 1;
+                insertion_idx
+            }
+            ParamPattern::Lit(l) => {
+                let lit = l.clone();
+                sig.pat = ParamPattern::Discard(Token::new(
+                    TokenKind::UBar,
+                    "_",
+                    l.ln_begin().unwrap(),
+                    l.col_begin().unwrap(),
+                ));
+                sig.t_spec = Some(TypeSpecWithOp::new(COLON, TypeSpec::enum_t_spec(vec![lit])));
                 insertion_idx
             }
             _ => insertion_idx,

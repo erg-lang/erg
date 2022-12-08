@@ -237,9 +237,9 @@ Dog = Class {name = Str; breed = Str}
 Person = Class {name = Str}
 Student = Inherit Person, additional: {id = Int}
 structural_greet! person: Named =
-    print! "Hello, my name is {person::name}."
+    print! "Hello, my name is \{person::name}."
 greet! person: Person =
-    print! "Hello, my name is {person::name}."
+    print! "Hello, my name is \{person::name}."
 
 max = Dog.new {name = "Max", breed = "Labrador"}
 john = Person.new {name = "John"}

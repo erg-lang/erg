@@ -16,12 +16,12 @@ use erg_common::vis::Visibility;
 use erg_common::Str;
 use erg_common::{set, unique_in_place};
 
-use crate::ty::free::fresh_varname;
 use crate::ty::free::Constraint;
 use crate::ty::typaram::TyParam;
 use crate::ty::value::ValueObj;
 use crate::ty::Type;
 use crate::ty::{constructors::*, BuiltinConstSubr, ConstSubr, Predicate};
+use erg_common::fresh::fresh_varname;
 use ParamSpec as PS;
 use Type::*;
 
@@ -491,7 +491,7 @@ impl Context {
         iterable.register_superclass(poly("Output", vec![ty_tp(T.clone())]), &output);
         let Slf = mono_q("Self", subtypeof(poly("Iterable", vec![ty_tp(T.clone())])));
         let t = fn0_met(Slf.clone(), proj(Slf, "Iter")).quantify();
-        iterable.register_builtin_decl("iter", t, Public);
+        iterable.register_builtin_py_decl("iter", t, Public, Some("__iter__"));
         iterable.register_builtin_decl("Iter", Type, Public);
         let R = mono_q("R", instanceof(Type));
         let params = vec![PS::t("R", WithDefault)];
@@ -772,7 +772,9 @@ impl Context {
         int.register_marker_trait(mono("Num"));
         // class("Rational"),
         // class("Integral"),
-        int.register_builtin_impl("abs", fn0_met(Int, Nat), Immutable, Public);
+        int.register_builtin_py_impl("abs", fn0_met(Int, Nat), Immutable, Public, Some("__abs__"));
+        int.register_builtin_py_impl("succ", fn0_met(Int, Int), Immutable, Public, Some("succ"));
+        int.register_builtin_py_impl("pred", fn0_met(Int, Int), Immutable, Public, Some("pred"));
         let mut int_ord = Self::builtin_methods(Some(mono("Ord")), 2);
         int_ord.register_builtin_impl(
             "__partial_cmp__",
@@ -927,6 +929,26 @@ impl Context {
             Immutable,
             Public,
         );
+        str_.register_builtin_impl(
+            "lower",
+            fn_met(Str, vec![], None, vec![], Str),
+            Immutable,
+            Public,
+        );
+        str_.register_builtin_impl(
+            "upper",
+            fn_met(Str, vec![], None, vec![], Str),
+            Immutable,
+            Public,
+        );
+        str_.register_builtin_impl(
+            "to_int",
+            fn_met(Str, vec![], None, vec![], or(Int, NoneType)),
+            Immutable,
+            Public,
+        );
+        let str_getitem_t = fn1_kw_met(Str, kw("idx", Nat), Str);
+        str_.register_builtin_impl("__getitem__", str_getitem_t, Immutable, Public);
         let mut str_eq = Self::builtin_methods(Some(mono("Eq")), 2);
         str_eq.register_builtin_impl("__eq__", fn1_met(Str, Str, Bool), Const, Public);
         str_.register_trait(Str, str_eq);
@@ -949,11 +971,12 @@ impl Context {
         str_show.register_builtin_impl("to_str", fn0_met(Str, Str), Immutable, Public);
         str_.register_trait(Str, str_show);
         let mut str_iterable = Self::builtin_methods(Some(poly("Iterable", vec![ty_tp(Str)])), 2);
-        str_iterable.register_builtin_impl(
+        str_iterable.register_builtin_py_impl(
             "iter",
             fn0_met(Str, mono("StrIterator")),
             Immutable,
             Public,
+            Some("__iter__"),
         );
         str_.register_trait(Str, str_iterable);
         /* NoneType */
@@ -1149,12 +1172,12 @@ impl Context {
         array_.register_trait(arr_t.clone(), array_show);
         let mut array_iterable =
             Self::builtin_methods(Some(poly("Iterable", vec![ty_tp(T.clone())])), 2);
-        array_iterable.register_builtin_impl(
-            "iter",
-            fn0_met(Str, mono("ArrayIterator")),
-            Immutable,
-            Public,
-        );
+        let t = fn0_met(
+            array_t(T.clone(), TyParam::erased(Nat)),
+            poly("ArrayIterator", vec![ty_tp(T.clone())]),
+        )
+        .quantify();
+        array_iterable.register_builtin_py_impl("iter", t, Immutable, Public, Some("__iter__"));
         array_.register_trait(arr_t.clone(), array_iterable);
         /* Set */
         let mut set_ =
@@ -1278,8 +1301,10 @@ impl Context {
         str_iterator.register_superclass(Obj, &obj);
         let mut array_iterator = Self::builtin_poly_class("ArrayIterator", vec![PS::t_nd("T")], 1);
         array_iterator.register_superclass(Obj, &obj);
+        array_iterator.register_marker_trait(poly("Output", vec![ty_tp(T.clone())]));
         let mut range_iterator = Self::builtin_poly_class("RangeIterator", vec![PS::t_nd("T")], 1);
         range_iterator.register_superclass(Obj, &obj);
+        range_iterator.register_marker_trait(poly("Output", vec![ty_tp(T.clone())]));
         let mut obj_mut = Self::builtin_mono_class("Obj!", 2);
         obj_mut.register_superclass(Obj, &obj);
         let mut obj_mut_mutable = Self::builtin_methods(Some(mono("Mutable")), 2);
@@ -1328,6 +1353,9 @@ impl Context {
         let mut int_mut = Self::builtin_mono_class("Int!", 2);
         int_mut.register_superclass(Int, &int);
         int_mut.register_superclass(mono("Float!"), &float_mut);
+        let t = pr_met(mono("Int!"), vec![], None, vec![kw("i", Int)], NoneType);
+        int_mut.register_builtin_py_impl("inc!", t.clone(), Immutable, Public, Some("inc"));
+        int_mut.register_builtin_py_impl("dec!", t, Immutable, Public, Some("dec"));
         let mut int_mut_mutable = Self::builtin_methods(Some(mono("Mutable")), 2);
         int_mut_mutable.register_builtin_const("ImmutType", Public, ValueObj::builtin_t(Int));
         let f_t = kw("func", func(vec![kw("old", Int)], None, vec![], Int));
@@ -1526,11 +1554,12 @@ impl Context {
         range.register_trait(range_t.clone(), range_eq);
         let mut range_iterable =
             Self::builtin_methods(Some(poly("Iterable", vec![ty_tp(T.clone())])), 2);
-        range_iterable.register_builtin_impl(
+        range_iterable.register_builtin_py_impl(
             "iter",
             fn0_met(Str, mono("RangeIterator")),
             Immutable,
             Public,
+            Some("__iter__"),
         );
         range.register_trait(range_t.clone(), range_iterable);
         let range_getitem_t = fn1_kw_met(range_t.clone(), anon(T.clone()), T.clone()).quantify();
@@ -1708,6 +1737,7 @@ impl Context {
             or(T, U),
         )
         .quantify();
+        let t_int = nd_func(vec![kw("obj", Obj)], None, or(Int, NoneType));
         let t_import = nd_func(
             vec![anon(tp_enum(Str, set! {Path.clone()}))],
             None,
@@ -1746,6 +1776,7 @@ impl Context {
             ],
             NoneType,
         );
+        let t_nat = nd_func(vec![kw("obj", Obj)], None, or(Nat, NoneType));
         // e.g. not(b: Bool!): Bool!
         let B = mono_q("B", subtypeof(Bool));
         let t_not = nd_func(vec![kw("b", B.clone())], None, B).quantify();
@@ -1771,6 +1802,7 @@ impl Context {
         let t_exit = t_quit.clone();
         let t_repr = nd_func(vec![kw("object", Obj)], None, Str);
         let t_round = nd_func(vec![kw("number", Float)], None, Int);
+        let t_str = nd_func(vec![kw("object", Obj)], None, Str);
         let t_unreachable = nd_func(vec![], None, Never);
         self.register_builtin_py_impl("abs", t_abs, Immutable, Private, Some("abs"));
         self.register_builtin_py_impl("ascii", t_ascii, Immutable, Private, Some("ascii"));
@@ -1781,9 +1813,10 @@ impl Context {
         self.register_builtin_py_impl("classof", t_classof, Immutable, Private, Some("type"));
         self.register_builtin_py_impl("compile", t_compile, Immutable, Private, Some("compile"));
         self.register_builtin_impl("cond", t_cond, Immutable, Private);
-        self.register_builtin_impl("discard", t_discard, Immutable, Private);
+        self.register_builtin_py_impl("discard", t_discard, Immutable, Private, Some("discard__"));
         self.register_builtin_py_impl("exit", t_exit, Immutable, Private, Some("exit"));
-        self.register_builtin_impl("if", t_if, Immutable, Private);
+        self.register_builtin_py_impl("if", t_if, Immutable, Private, Some("if__"));
+        self.register_builtin_py_impl("int", t_int, Immutable, Private, Some("int__"));
         self.register_builtin_py_impl("import", t_import, Immutable, Private, Some("__import__"));
         self.register_builtin_py_impl(
             "isinstance",
@@ -1801,6 +1834,7 @@ impl Context {
         );
         self.register_builtin_py_impl("len", t_len, Immutable, Private, Some("len"));
         self.register_builtin_py_impl("log", t_log, Immutable, Private, Some("print"));
+        self.register_builtin_py_impl("nat", t_nat, Immutable, Private, Some("nat__"));
         self.register_builtin_py_impl("not", t_not, Immutable, Private, None); // `not` is not a function in Python
         self.register_builtin_py_impl("oct", t_oct, Immutable, Private, Some("oct"));
         self.register_builtin_py_impl("ord", t_ord, Immutable, Private, Some("ord"));
@@ -1832,6 +1866,7 @@ impl Context {
         self.register_builtin_py_impl("quit", t_quit, Immutable, Private, Some("quit"));
         self.register_builtin_py_impl("repr", t_repr, Immutable, Private, Some("repr"));
         self.register_builtin_py_impl("round", t_round, Immutable, Private, Some("round"));
+        self.register_builtin_py_impl("str", t_str, Immutable, Private, Some("str"));
         // TODO: original implementation
         self.register_builtin_py_impl(
             "unreachable",
@@ -1897,6 +1932,14 @@ impl Context {
         // TODO: register Del function object
         let t_del = nd_func(vec![kw("obj", Obj)], None, NoneType);
         self.register_builtin_impl("Del", t_del, Immutable, Private);
+        let patch_t = func(
+            vec![kw("Requirement", Type)],
+            None,
+            vec![kw("Impl", Type)],
+            TraitType,
+        );
+        let patch = ConstSubr::Builtin(BuiltinConstSubr::new("Patch", patch_func, patch_t, None));
+        self.register_builtin_const("Patch", Private, ValueObj::Subr(patch));
     }
 
     fn init_builtin_procs(&mut self) {
@@ -1944,7 +1987,7 @@ impl Context {
         let t_locals = proc(vec![], None, vec![], dict! { Str => Obj }.into());
         let t_while = nd_proc(
             vec![
-                kw("cond", Bool), // not Bool! type because `cond` may be the result of evaluation of a mutable object's method returns Bool.
+                kw("cond!", nd_proc(vec![], None, Bool)), // not Bool! type because `cond` may be the result of evaluation of a mutable object's method returns Bool.
                 kw("proc!", nd_proc(vec![], None, NoneType)),
             ],
             None,
@@ -1980,13 +2023,13 @@ impl Context {
         self.register_builtin_py_impl("print!", t_print, Immutable, Private, Some("print"));
         self.register_builtin_py_impl("id!", t_id, Immutable, Private, Some("id"));
         self.register_builtin_py_impl("input!", t_input, Immutable, Private, Some("input"));
-        self.register_builtin_impl("if!", t_if, Immutable, Private);
-        self.register_builtin_impl("for!", t_for, Immutable, Private);
+        self.register_builtin_py_impl("if!", t_if, Immutable, Private, Some("if__"));
+        self.register_builtin_py_impl("for!", t_for, Immutable, Private, Some("for__"));
         self.register_builtin_py_impl("globals!", t_globals, Immutable, Private, Some("globals"));
         self.register_builtin_py_impl("locals!", t_locals, Immutable, Private, Some("locals"));
-        self.register_builtin_impl("while!", t_while, Immutable, Private);
+        self.register_builtin_py_impl("while!", t_while, Immutable, Private, Some("while__"));
         self.register_builtin_py_impl("open!", t_open, Immutable, Private, Some("open"));
-        self.register_builtin_impl("with!", t_with, Immutable, Private);
+        self.register_builtin_py_impl("with!", t_with, Immutable, Private, Some("with__"));
     }
 
     fn init_builtin_operators(&mut self) {
