@@ -1319,7 +1319,9 @@ impl PyCodeGenerator {
                 if !self.mutate_op_loaded {
                     self.load_mutate_op();
                 }
-                self.emit_push_null();
+                if self.py_version.minor >= Some(11) {
+                    self.emit_push_null();
+                }
                 self.emit_load_name_instr(Identifier::private("#mutate_operator"));
                 NOP // ERG_MUTATE,
             }
@@ -1339,7 +1341,12 @@ impl PyCodeGenerator {
             self.write_instr(instr);
             self.write_arg(tycode as usize);
         } else {
-            self.emit_precall_and_call(1);
+            if self.py_version.minor >= Some(11) {
+                self.emit_precall_and_call(1);
+            } else {
+                self.write_instr(Opcode310::CALL_FUNCTION);
+                self.write_arg(1);
+            }
             self.stack_dec();
         }
     }
