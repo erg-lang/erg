@@ -1391,7 +1391,8 @@ impl Context {
                 Ok(())
             }
             (Type::FreeVar(lfv), _) if lfv.is_unbound() => {
-                match &mut *lfv.borrow_mut() {
+                let lfv_ref = unsafe { lfv.as_ptr().as_mut().unwrap() };
+                match lfv_ref {
                     FreeKind::NamedUnbound { constraint, .. }
                     | FreeKind::Unbound { constraint, .. } => match constraint {
                         // sub !<: r => Error

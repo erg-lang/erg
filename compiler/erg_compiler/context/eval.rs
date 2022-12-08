@@ -1159,6 +1159,7 @@ impl Context {
                     if !st.is_generalized() {
                         self.substitute_typarams(&qt, &st);
                     }
+                    self.sub_unify(&st, &qt, Location::Unknown, None).unwrap();
                 }
                 _ => {}
             }
