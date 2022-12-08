@@ -1,0 +1,6 @@
+f x: [{""}; _] = None
+
+arr = ["aaa"]
+for! arr, elem =>
+    a = ["", "aaa"] # [{"", "aaa"}; 2]
+    f a # ERR: type mismatched

@@ -22,7 +22,7 @@ print! {x = Int; y = Int}.sample!() # {x = -32432892, y = 78458576891}
 EmailAddress = Class {header = Str; domain = Str}, Impl=Sample and Show
 @Impl Show
 EmailAddress.
-    show self = "{self::header}@{self::domain}"
+    show self = "\{self::header}@\{self::domain}"
 @Impl Sample
 EmailAddress.
     sample(): Self = Self.new "sample@gmail.com"

@@ -370,7 +370,7 @@ fn format_context<E: ErrorDisplay + ?Sized>(
     let msg_num = sub_msg.len().saturating_sub(1);
     for (i, msg) in sub_msg.iter().enumerate() {
         context.push_str_with_color(&offset, gutter_color);
-        context.push_str(&" ".repeat(col_end - 1));
+        context.push_str(&" ".repeat(col_end.saturating_sub(1)));
         if i == msg_num && hint.is_none() {
             context.push_str_with_color(&chars.left_bottom_line(), err_color);
         } else {
@@ -381,7 +381,7 @@ fn format_context<E: ErrorDisplay + ?Sized>(
     }
     if let Some(hint) = hint {
         context.push_str_with_color(&offset, gutter_color);
-        context.push_str(&" ".repeat(col_end - 1));
+        context.push_str(&" ".repeat(col_end.saturating_sub(1)));
         context.push_str_with_color(&chars.left_bottom_line(), err_color);
         context.push_str(hint);
         context.push_str("\n")

@@ -34,7 +34,7 @@ StrangeInt.
     # Overriding methods must be given Override decorators.
     # In addition, you need to override all Int methods that depend on Int.`_+_`.
     @Override
-    `_+_` = Super.`_-_` # OverrideError: Int.`_+_` is referenced by ... ````` , so these methods must also be overridden
+    `_+_` = Super.`_-_` # OverrideError: Int.`_+_` is referenced by ... , so these methods must also be overridden
 ```
 
 ## Selecting Patches

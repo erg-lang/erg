@@ -77,9 +77,9 @@
     Ergでは特別扱いされる構文要素がとても少なく、例えば予約語が一つもありません。以下のような芸当も可能です。
 
     ```python
-    loop! block = while! True, block
+    loop! block = while! do(True), block
 
-    # `while! True, do! print! "hello"`と同じです
+    # `while! do(True), do! print! "hello"`と同じです
     loop! do!:
         print! "hello"
     ```

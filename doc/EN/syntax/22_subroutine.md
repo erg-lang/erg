@@ -2,14 +2,14 @@
 
 ## Func
 
-```python
+```python,checker_ignore
 some_func(x: T, y: U) -> V
 some_func: (T, U) -> V
 ```
 
 ## Proc
 
-```python
+```python,checker_ignore
 some_proc!(x: T, y: U) => V
 some_proc!: (T, U) => V
 ```
@@ -18,7 +18,7 @@ some_proc!: (T, U) => V
 
 The method type cannot be specified externally with ``Self``.
 
-```python
+```python,checker_ignore
 .some_method(self, x: T, y: U) => ()
 # Self.(T, U) => () takes ownership of self
 .some_method: (Ref(Self), T, U) => ()
@@ -28,13 +28,13 @@ The method type cannot be specified externally with ``Self``.
 
 In the following, assume that the type `T!` takes the type argument `N: Nat`. To specify it externally, use a type variable.
 
-```python
-T!: Nat -> Type
+```python,checker_ignore
+K!: Nat -> Type
 # ~> indicates the state of the type argument before and after application (in this case, self must be a variable reference)
-T!(N).some_method!: (Ref!(T! N ~> N+X), X: Nat) => ()
+K!(N).some_method!: (Ref!(K! N ~> N+X), X: Nat) => ()
 ```
 
-As a note, the type of `.some_method` is `|N, X: Nat| (Ref!(T N ~> N+X), {X}) => ()`.
+As a note, the type of `.some_method` is `|N, X: Nat| (Ref!(K! N ~> N+X), {X}) => ()`.
 For methods that do not have `ref!`, i.e., are deprived of ownership after application, the type argument transition (`~>`) cannot be used.
 
 If ownership is taken, it is as follows.

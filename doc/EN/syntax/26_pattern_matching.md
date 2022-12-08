@@ -64,7 +64,7 @@ name = match num:
 
 ### Refinement pattern
 
-```python
+```python,checker_ignore
 # these two are the same
 Array(T, N: {N | N >= 3})
 Array(T, N | N >= 3)
@@ -160,7 +160,7 @@ List T.
 
 ```python
 match x:
-    i: {1, 2} -> "one or two: {i}"
+    i: {1, 2} -> "one or two: \{i}"
     _ -> "other"
 ```
 

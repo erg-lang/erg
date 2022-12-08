@@ -1,6 +1,8 @@
 //! defines and implements `Lexer` (Tokenizer).
 use std::cmp::Ordering;
 
+use unicode_xid::UnicodeXID;
+
 use erg_common::cache::CacheSet;
 use erg_common::config::ErgConfig;
 use erg_common::config::Input;
@@ -67,6 +69,19 @@ impl Runnable for LexerRunner {
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum Interpolation {
+    SingleLine,
+    MultiLine,
+    Not,
+}
+
+impl Interpolation {
+    pub const fn is_in(&self) -> bool {
+        matches!(self, Self::SingleLine | Self::MultiLine)
+    }
+}
+
 /// Lexes a source code and iterates tokens.
 ///
 /// This can be used as an iterator or to generate a `TokenStream`.
@@ -83,6 +98,7 @@ pub struct Lexer /*<'a>*/ {
     lineno_token_starts: usize,
     /// 0-origin, indicates the column number in which the token appears
     col_token_starts: usize,
+    interpol_stack: Vec<Interpolation>,
 }
 
 impl Lexer /*<'a>*/ {
@@ -96,6 +112,7 @@ impl Lexer /*<'a>*/ {
             prev_token: Token::new(TokenKind::BOF, "", 0, 0),
             lineno_token_starts: 0,
             col_token_starts: 0,
+            interpol_stack: vec![Interpolation::Not],
         }
     }
 
@@ -110,6 +127,7 @@ impl Lexer /*<'a>*/ {
             prev_token: Token::new(TokenKind::BOF, "", 0, 0),
             lineno_token_starts: 0,
             col_token_starts: 0,
+            interpol_stack: vec![Interpolation::Not],
         }
     }
 
@@ -156,28 +174,22 @@ impl Lexer /*<'a>*/ {
         Some(Err(LexError::feature_error(0, token.loc(), feat_name)))
     }
 
-    const fn is_valid_symbol_ch(c: char) -> bool {
-        match c {
-            '0'..='9' => true,
-            // control characters
-            '\0' | '\u{0009}'..='\u{001F}' => false,
-            // white spaces
-            ' ' | '\u{00A0}' => false,
-            '\u{007F}' | '\u{0085}' | '\u{05C1}' | '\u{05C2}' => false,
-            '\u{0701}'..='\u{070d}' => false,
-            '\u{07B2}'..='\u{07BF}' => false,
-            '\u{1680}' | '\u{180E}' => false,
-            '\u{2000}'..='\u{200F}' => false,
-            '\u{2028}'..='\u{202F}' => false,
-            '\u{205F}'..='\u{206F}' => false,
-            '\u{3000}' | '\u{3164}' | '\u{FEFF}' => false,
-            // operator characters + special markers
-            '<' | '>' | '$' | '%' | '.' | ',' | ':' | ';' | '+' | '-' | '*' | '/' | '=' | '#'
-            | '&' | '|' | '^' | '~' | '@' | '!' | '?' | '\\' => false,
-            // enclosures
-            '[' | ']' | '(' | ')' | '{' | '}' | '\"' | '\'' | '`' => false,
-            _ => true,
-        }
+    fn is_valid_start_symbol_ch(c: char) -> bool {
+        // fast-path
+        // https://github.com/rust-lang/rust/blob/6b5f9b2e973e438fc1726a2d164d046acd80b170/src/librustc_lexer/src/lib.rs#L153
+        ('a'..='z').contains(&c)
+            || ('A'..='Z').contains(&c)
+            || ('0'..='9').contains(&c)
+            || c == '_'
+            || c.is_xid_start()
+    }
+
+    fn is_valid_continue_symbol_ch(c: char) -> bool {
+        ('a'..='z').contains(&c)
+            || ('A'..='Z').contains(&c)
+            || ('0'..='9').contains(&c)
+            || c == '_'
+            || (c.is_xid_continue() && !('０'..='９').contains(&c))
     }
 
     /// Detect `c` is a bidirectional overriding character.
@@ -228,9 +240,13 @@ impl Lexer /*<'a>*/ {
             | TokenCategory::SpecialBinOp
             | TokenCategory::DefOp
             | TokenCategory::LambdaOp
+            | TokenCategory::StrInterpLeft
+            | TokenCategory::StrInterpMid
             | TokenCategory::BOF => Some(false),
-            // bin: `] +`, `1 +`, `true and[true]`
-            TokenCategory::REnclosure | TokenCategory::Literal => Some(true),
+            // bin: `] +`, `1 +`, `true and[true]`, `}aaa"`
+            TokenCategory::REnclosure | TokenCategory::Literal | TokenCategory::StrInterpRight => {
+                Some(true)
+            }
             // bin: `fn +1`
             // NOTE: if semantic analysis shows `fn` is a function, should this be rewritten to be unary?
             TokenCategory::Symbol => Some(true),
@@ -347,15 +363,23 @@ impl Lexer /*<'a>*/ {
     }
 
     fn lex_space_indent_dedent(&mut self) -> Option<LexResult<Token>> {
-        let is_toplevel = self.cursor > 0
-            && !self.indent_stack.is_empty()
-            && self.peek_prev_ch() == Some('\n')
-            && self.peek_cur_ch() != Some(' ');
+        let is_linebreak_after =
+            self.cursor > 0 && !self.indent_stack.is_empty() && self.peek_prev_ch() == Some('\n');
+        let is_space = self.peek_cur_ch() == Some(' ');
+        let is_linebreak = self.peek_cur_ch() == Some('\n');
+        let is_empty = is_space || is_linebreak;
+        let is_toplevel = is_linebreak_after && !is_empty;
         if is_toplevel {
             let dedent = self.emit_token(Dedent, "");
             self.indent_stack.pop();
             self.col_token_starts = 0;
             return Some(Ok(dedent));
+        } else if is_linebreak {
+            self.consume();
+            let token = self.emit_token(Newline, "\n");
+            self.lineno_token_starts += 1;
+            self.col_token_starts = 0;
+            return Some(Ok(token));
         }
         let mut spaces = "".to_string();
         while let Some(' ') = self.peek_cur_ch() {
@@ -442,6 +466,9 @@ impl Lexer /*<'a>*/ {
                     Some(Ok(dedent))
                 } else {
                     let invalid_dedent = self.emit_token(Dedent, "");
+                    let hint = if self.peek_cur_ch() == Some('\n') {
+                        Some("unnecessary spaces after linebreak".into())
+                    } else { None };
                     Some(Err(LexError::syntax_error(
                         0,
                         invalid_dedent.loc(),
@@ -451,7 +478,7 @@ impl Lexer /*<'a>*/ {
                             "traditional_chinese" => "無效縮進",
                             "english" => "invalid indent",
                         ),
-                        None,
+                        hint,
                     )))
                 }
             }
@@ -504,7 +531,7 @@ impl Lexer /*<'a>*/ {
                 n if n.is_ascii_digit() || n == '_' => {
                     num.push(self.consume().unwrap());
                 }
-                c if Self::is_valid_symbol_ch(c) => {
+                c if Self::is_valid_continue_symbol_ch(c) => {
                     // exponent (e.g. 10e+3)
                     if c == 'e'
                         && (self.peek_next_ch() == Some('+') || self.peek_next_ch() == Some('-'))
@@ -544,7 +571,7 @@ impl Lexer /*<'a>*/ {
             }
             // method call of IntLit
             // or range operator (e.g. 1..)
-            Some(c) if Self::is_valid_symbol_ch(c) || c == '.' => {
+            Some(c) if Self::is_valid_continue_symbol_ch(c) || c == '.' => {
                 let kind = if num.starts_with('-') && !Self::is_zero(&num) {
                     IntLit
                 } else {
@@ -583,7 +610,7 @@ impl Lexer /*<'a>*/ {
     fn lex_symbol(&mut self, first_ch: char) -> LexResult<Token> {
         let mut cont = first_ch.to_string();
         while let Some(c) = self.peek_cur_ch() {
-            if Self::is_valid_symbol_ch(c) {
+            if Self::is_valid_continue_symbol_ch(c) {
                 cont.push(self.consume().unwrap());
             } else {
                 break;
@@ -627,32 +654,94 @@ impl Lexer /*<'a>*/ {
         Ok(self.emit_token(kind, &cont))
     }
 
-    fn lex_str(&mut self) -> LexResult<Token> {
+    fn str_line_break_error(token: Token, line: usize) -> LexError {
+        LexError::syntax_error(
+            line,
+            token.loc(),
+            switch_lang!(
+                "japanese" => "文字列内で改行をすることはできません",
+                "simplified_chinese" => "在一个字符串中不允许有换行符",
+                "traditional_chinese" => "在一個字符串中不允許有換行符",
+                "english" => "Line breaks are not allowed within a string",
+            ),
+            Some(
+                switch_lang!(
+                    "japanese" => "\"\"内で改行を使いたい場合は'\\n'を利用してください",
+                    "simplified_chinese" => "如果你想在\"\"中使用换行符,请使用'\\n'",
+                    "traditional_chinese" => "如果你想在\"\"中使用換行符,請使用'\\n'",
+                    "english" => "If you want to use line breaks within \"\", use '\\n'",
+                )
+                .into(),
+            ),
+        )
+    }
+
+    fn invalid_escape_error(ch: char, token: Token) -> LexError {
+        LexError::syntax_error(
+            0,
+            token.loc(),
+            switch_lang!(
+                "japanese" => format!("不正なエスケープシーケンスです: \\{}", ch),
+                "simplified_chinese" => format!("不合法的转义序列: \\{}", ch),
+                "traditional_chinese" => format!("不合法的轉義序列: \\{}", ch),
+                "english" => format!("illegal escape sequence: \\{}", ch),
+            ),
+            None,
+        )
+    }
+
+    fn unclosed_string_error(token: Token, by: &str, line: usize) -> LexError {
+        let by = if by.is_empty() {
+            "".to_string()
+        } else {
+            switch_lang!(
+                "japanese" => format!("\"\"\"によって"),
+                "simplified_chinese" => format!("\"\"\"关"),
+                "traditional_chinese" => format!("\"\"\"关"),
+                "english" => format!("by \"\"\""),
+            )
+        };
+        LexError::syntax_error(
+            line,
+            token.loc(),
+            switch_lang!(
+                "japanese" => format!("文字列が{by}閉じられていません"),
+                "simplified_chinese" => format!("字符串没有被{by}闭"),
+                "traditional_chinese" => format!("字符串没有被{by}闭"),
+                "english" => format!("the string is not closed {by}"),
+            ),
+            None,
+        )
+    }
+
+    fn unclosed_interpol_error(token: Token) -> LexError {
+        LexError::syntax_error(
+            0,
+            token.loc(),
+            switch_lang!(
+                "japanese" => "文字列内の補間が閉じられていません",
+                "simplified_chinese" => "字符串内的插值没有被闭",
+                "traditional_chinese" => "字符串內的插值沒有被閉",
+                "english" => "the interpolation in the string is not closed",
+            ),
+            None,
+        )
+    }
+
+    fn lex_single_str(&mut self) -> LexResult<Token> {
         let mut s = "\"".to_string();
         while let Some(c) = self.peek_cur_ch() {
             match c {
-                '\n' => {
-                    let token = self.emit_token(Illegal, &s);
-                    return Err(LexError::syntax_error(
-                        0,
-                        token.loc(),
-                        switch_lang!(
-                            "japanese" => "文字列内で改行をすることはできません",
-                            "simplified_chinese" => "在一个字符串中不允许有换行符",
-                            "traditional_chinese" => "在一個字符串中不允許有換行符",
-                            "english" => "Line breaks are not allowed within a string",
-                        ),
-                        Some(
-                            switch_lang!(
-                                "japanese" => "\"\"内で改行を使いたい場合は'\\n'を利用してください",
-                                "simplified_chinese" => "如果你想在\"\"中使用换行符,请使用'\\n'",
-                                "traditional_chinese" => "如果你想在\"\"中使用換行符,請使用'\\n'",
-                                "english" => "If you want to use line breaks within \"\", use '\\n'",
-                            )
-                            .into(),
-                        ),
-                    ));
-                }
+                '\n' => match self.interpol_stack.last().unwrap() {
+                    Interpolation::SingleLine if self.interpol_stack.len() == 1 => {
+                        let token = self.emit_token(Illegal, &s);
+                        return Err(Self::str_line_break_error(token, line!() as usize));
+                    }
+                    _ => {
+                        let token = self.emit_token(Illegal, &s);
+                        return Err(Self::unclosed_interpol_error(token));
+                    }
+                },
                 '"' => {
                     s.push(self.consume().unwrap());
                     let token = self.emit_token(StrLit, &s);
@@ -663,6 +752,12 @@ impl Lexer /*<'a>*/ {
                     if c == '\\' {
                         let next_c = self.consume().unwrap();
                         match next_c {
+                            '{' => {
+                                s.push_str("\\{");
+                                self.interpol_stack.push(Interpolation::SingleLine);
+                                let token = self.emit_token(StrInterpLeft, &s);
+                                return Ok(token);
+                            }
                             '0' => s.push('\0'),
                             'r' => s.push('\r'),
                             'n' => s.push('\n'),
@@ -672,17 +767,7 @@ impl Lexer /*<'a>*/ {
                             '\\' => s.push('\\'),
                             _ => {
                                 let token = self.emit_token(Illegal, &format!("\\{next_c}"));
-                                return Err(LexError::syntax_error(
-                                    0,
-                                    token.loc(),
-                                    switch_lang!(
-                                        "japanese" => format!("不正なエスケープシーケンスです: \\{}", next_c),
-                                        "simplified_chinese" => format!("不合法的转义序列: \\{}", next_c),
-                                        "traditional_chinese" => format!("不合法的轉義序列: \\{}", next_c),
-                                        "english" => format!("illegal escape sequence: \\{}", next_c),
-                                    ),
-                                    None,
-                                ));
+                                return Err(Self::invalid_escape_error(next_c, token));
                             }
                         }
                     } else {
@@ -695,17 +780,7 @@ impl Lexer /*<'a>*/ {
             }
         }
         let token = self.emit_token(Illegal, &s);
-        Err(LexError::syntax_error(
-            0,
-            token.loc(),
-            switch_lang!(
-                "japanese" => "文字列が\"によって閉じられていません",
-                "simplified_chinese" => "字符串没有被\"关闭",
-                "traditional_chinese" => "字符串没有被\"关闭",
-                "english" => "the string is not closed by \"",
-            ),
-            None,
-        ))
+        Err(Self::unclosed_string_error(token, "\"", line!() as usize))
     }
 
     fn lex_multi_line_str(&mut self) -> LexResult<Token> {
@@ -716,11 +791,21 @@ impl Lexer /*<'a>*/ {
                 let next_c = self.peek_cur_ch();
                 let aft_next_c = self.peek_next_ch();
                 if next_c.is_none() {
-                    return self._unclosed_multi_string(&s);
+                    let token = self.emit_token(Illegal, &s);
+                    return Err(Self::unclosed_string_error(
+                        token,
+                        "\"\"\"",
+                        line!() as usize,
+                    ));
                 }
                 if aft_next_c.is_none() {
                     s.push(self.consume().unwrap());
-                    return self._unclosed_multi_string(&s);
+                    let token = self.emit_token(Illegal, &s);
+                    return Err(Self::unclosed_string_error(
+                        token,
+                        "\"\"\"",
+                        line!() as usize,
+                    ));
                 }
                 if next_c.unwrap() == '"' && aft_next_c.unwrap() == '"' {
                     self.consume().unwrap();
@@ -729,6 +814,7 @@ impl Lexer /*<'a>*/ {
                     let token = self.emit_token(StrLit, &s);
                     return Ok(token);
                 }
+                // else unclosed_string_error
                 s.push(c);
             } else {
                 let c = self.consume().unwrap();
@@ -736,6 +822,12 @@ impl Lexer /*<'a>*/ {
                     '\\' => {
                         let next_c = self.consume().unwrap();
                         match next_c {
+                            '{' => {
+                                s.push_str("\\{");
+                                self.interpol_stack.push(Interpolation::MultiLine);
+                                let token = self.emit_token(StrInterpLeft, &s);
+                                return Ok(token);
+                            }
                             '0' => s.push('\0'),
                             'r' => s.push('\r'),
                             '\'' => s.push('\''),
@@ -750,24 +842,14 @@ impl Lexer /*<'a>*/ {
                             }
                             _ => {
                                 let token = self.emit_token(Illegal, &format!("\\{next_c}"));
-                                return Err(LexError::syntax_error(
-                                    0,
-                                    token.loc(),
-                                    switch_lang!(
-                                        "japanese" => format!("不正なエスケープシーケンスです: \\{}", next_c),
-                                        "simplified_chinese" => format!("不合法的转义序列: \\{}", next_c),
-                                        "traditional_chinese" => format!("不合法的轉義序列: \\{}", next_c),
-                                        "english" => format!("illegal escape sequence: \\{}", next_c),
-                                    ),
-                                    None,
-                                ));
+                                return Err(Self::invalid_escape_error(next_c, token));
                             }
                         }
                     }
                     '\n' => {
                         self.lineno_token_starts += 1;
                         self.col_token_starts = 0;
-                        s.push('\n')
+                        s.push('\n');
                     }
                     _ => {
                         s.push(c);
@@ -778,25 +860,120 @@ impl Lexer /*<'a>*/ {
                 }
             }
         }
-        self._unclosed_multi_string(&s)
+        let token = self.emit_token(Illegal, &s);
+        if self.interpol_stack.len() == 1 {
+            Err(Self::unclosed_string_error(
+                token,
+                "\"\"\"",
+                line!() as usize,
+            ))
+        } else {
+            Err(Self::unclosed_interpol_error(token))
+        }
     }
 
-    // for multi-line strings unclosed error
-    fn _unclosed_multi_string(&mut self, s: &str) -> LexResult<Token> {
-        let col_end = s.rfind('\n').unwrap_or_default();
-        let error_s = &s[col_end..s.len() - 1];
-        let token = self.emit_token(Illegal, error_s);
-        Err(LexError::syntax_error(
-            0,
-            token.loc(),
-            switch_lang!(
-                "japanese" => "文字列が\"\"\"によって閉じられていません",
-                "simplified_chinese" => "字符串没有被\"\"\"关闭",
-                "traditional_chinese" => "字符串没有被\"\"\"关闭",
-                "english" => "the string is not closed by \"\"\"",
-            ),
-            None,
-        ))
+    /// e.g. `}aaa"`, `}aaa{`
+    fn lex_interpolation_mid(&mut self) -> LexResult<Token> {
+        let mut s = "}".to_string();
+        while let Some(c) = self.peek_cur_ch() {
+            match c {
+                '\n' => match self.interpol_stack.last().unwrap() {
+                    Interpolation::MultiLine => {
+                        self.lineno_token_starts += 1;
+                        self.col_token_starts = 0;
+                        self.consume().unwrap();
+                        s.push('\n');
+                    }
+                    Interpolation::SingleLine => {
+                        if self.peek_next_ch().is_some() {
+                            let token = self.emit_token(Illegal, &s);
+                            return Err(Self::str_line_break_error(token, line!() as usize));
+                        } else {
+                            let token = self.emit_token(Illegal, &s);
+                            return Err(Self::unclosed_string_error(token, "", line!() as usize));
+                        }
+                    }
+                    Interpolation::Not => {
+                        let token = self.emit_token(Illegal, &s);
+                        return Err(Self::unclosed_interpol_error(token));
+                    }
+                },
+                '"' => {
+                    s.push(self.consume().unwrap());
+                    match self.interpol_stack.last().unwrap() {
+                        Interpolation::MultiLine => {
+                            let next_c = self.peek_cur_ch();
+                            let aft_next_c = self.peek_next_ch();
+                            if next_c.is_none() {
+                                self.interpol_stack.pop();
+                                let token = self.emit_token(Illegal, &s);
+                                return Err(Self::unclosed_string_error(
+                                    token,
+                                    "\"\"\"",
+                                    line!() as usize,
+                                ));
+                            }
+                            if aft_next_c.is_none() {
+                                self.interpol_stack.pop();
+                                s.push(self.consume().unwrap());
+                                let token = self.emit_token(Illegal, &s);
+                                return Err(Self::unclosed_string_error(
+                                    token,
+                                    "\"\"\"",
+                                    line!() as usize,
+                                ));
+                            }
+                            if next_c.unwrap() == '"' && aft_next_c.unwrap() == '"' {
+                                self.interpol_stack.pop();
+                                self.consume().unwrap();
+                                self.consume().unwrap();
+                                s.push_str("\"\"\"");
+                                let token = self.emit_token(StrInterpRight, &s);
+                                return Ok(token);
+                            }
+                            // else unclosed_string_error
+                        }
+                        Interpolation::SingleLine => {
+                            self.interpol_stack.pop();
+                            let token = self.emit_token(StrInterpRight, &s);
+                            return Ok(token);
+                        }
+                        Interpolation::Not => {}
+                    }
+                }
+                _ => {
+                    let c = self.consume().unwrap();
+                    if c == '\\' {
+                        let next_c = self.consume().unwrap();
+                        match next_c {
+                            '{' => {
+                                s.push_str("\\{");
+                                let token = self.emit_token(StrInterpMid, &s);
+                                return Ok(token);
+                            }
+                            '0' => s.push('\0'),
+                            'r' => s.push('\r'),
+                            'n' => s.push('\n'),
+                            '\'' => s.push('\''),
+                            '"' => s.push('"'),
+                            't' => s.push_str("    "), // tab is invalid, so changed into 4 whitespace
+                            '\\' => s.push('\\'),
+                            _ => {
+                                let token = self.emit_token(Illegal, &format!("\\{next_c}"));
+                                return Err(Self::invalid_escape_error(next_c, token));
+                            }
+                        }
+                    } else {
+                        s.push(c);
+                        if Self::is_bidi(c) {
+                            return Err(self._invalid_unicode_character(&s));
+                        }
+                    }
+                }
+            }
+        }
+        let token = self.emit_token(Illegal, &s);
+        Err(Self::unclosed_string_error(token, "", line!() as usize))
     }
 
     fn lex_raw_ident(&mut self) -> LexResult<Token> {
@@ -882,7 +1059,13 @@ impl Iterator for Lexer /*<'a>*/ {
             Some('[') => self.accept(LSqBr, "["),
             Some(']') => self.accept(RSqBr, "]"),
             Some('{') => self.accept(LBrace, "{"),
-            Some('}') => self.accept(RBrace, "}"),
+            Some('}') => {
+                if self.interpol_stack.last().unwrap().is_in() {
+                    Some(self.lex_interpolation_mid())
+                } else {
+                    self.accept(RBrace, "}")
+                }
+            }
             Some('<') => match self.peek_cur_ch() {
                 Some('.') => {
                     self.consume();
@@ -1149,7 +1332,7 @@ impl Iterator for Lexer /*<'a>*/ {
                             let token = self.emit_token(StrLit, "\"\"");
                             Some(Ok(token))
                         } else {
-                            Some(self.lex_str())
+                            Some(self.lex_single_str())
                         }
                     }
                     (Some(c), Some(next_c)) => {
@@ -1158,7 +1341,7 @@ impl Iterator for Lexer /*<'a>*/ {
                             self.consume(); // consume third '"'
                             Some(self.lex_multi_line_str())
                         } else {
-                            Some(self.lex_str())
+                            Some(self.lex_single_str())
                         }
                     }
                 }
@@ -1245,7 +1428,7 @@ impl Iterator for Lexer /*<'a>*/ {
             // IntLit or RatioLit
             Some(n) if n.is_ascii_digit() => Some(self.lex_num(n)),
             // Symbol (includes '_')
-            Some(c) if Self::is_valid_symbol_ch(c) => Some(self.lex_symbol(c)),
+            Some(c) if Self::is_valid_start_symbol_ch(c) => Some(self.lex_symbol(c)),
             // Invalid character (e.g. space-like character)
             Some(invalid) => {
                 let token = self.emit_token(Illegal, &invalid.to_string());

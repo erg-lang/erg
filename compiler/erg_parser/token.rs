@@ -19,13 +19,19 @@ use erg_common::traits::{Locational, Stream};
 pub enum TokenKind {
     /// e.g. i, p!, $s, T, `+`, `and`, 'd/dx'
     Symbol,
-    // e.g. 0, 1
+    /// e.g. 0, 1
     NatLit,
-    // e.g. -1, -2
+    /// e.g. -1, -2
     IntLit,
     RatioLit,
     BoolLit,
     StrLit,
+    /// e.g. "abc\{
+    StrInterpLeft,
+    /// e.g. }abc\{
+    StrInterpMid,
+    /// e.g. }def"
+    StrInterpRight,
     NoneLit,
     NoImplLit,
     EllipsisLit,
@@ -174,6 +180,9 @@ use TokenKind::*;
 pub enum TokenCategory {
     Symbol,
     Literal,
+    StrInterpLeft,
+    StrInterpMid,
+    StrInterpRight,
     BinOp,
     UnaryOp,
     /// ? <.. ..
@@ -215,6 +224,9 @@ impl TokenKind {
             Symbol => TokenCategory::Symbol,
             NatLit | IntLit | RatioLit | StrLit | BoolLit | NoneLit | EllipsisLit | NoImplLit
             | InfLit => TokenCategory::Literal,
+            StrInterpLeft => TokenCategory::StrInterpLeft,
+            StrInterpMid => TokenCategory::StrInterpMid,
+            StrInterpRight => TokenCategory::StrInterpRight,
             PrePlus | PreMinus | PreBitNot | Mutate | RefOp | RefMutOp => TokenCategory::UnaryOp,
             Try => TokenCategory::PostfixOp,
             Comma | Colon | DblColon | SupertypeOf | SubtypeOf | Dot | Pipe | Walrus

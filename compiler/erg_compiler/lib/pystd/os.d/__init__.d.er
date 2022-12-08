@@ -15,3 +15,6 @@
 
 # posix = pyimport "posix"
 # .uname!: () => posix.UnameResult
+
+.getrandom!: (size: Nat) => Bytes
+.urandom!: (size: Nat) => Bytes

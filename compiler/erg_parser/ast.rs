@@ -1979,7 +1979,13 @@ impl fmt::Display for TypeSpec {
                 }
                 write!(f, "}}")
             }
-            Self::Enum(elems) => write!(f, "{{{elems}}}"),
+            Self::Enum(elems) => {
+                write!(f, "{{")?;
+                for elem in elems.pos_args() {
+                    write!(f, "{}, ", elem.expr)?;
+                }
+                write!(f, "}}")
+            }
             Self::Interval { op, lhs, rhs } => write!(f, "{lhs}{}{rhs}", op.inspect()),
             Self::Subr(s) => write!(f, "{s}"),
             Self::TypeApp { spec, args } => write!(f, "{spec}{args}"),
@@ -3412,6 +3418,36 @@ impl ClassDef {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct PatchDef {
+    pub def: Def,
+    pub methods_list: Vec<Methods>,
+}
+
+impl NestedDisplay for PatchDef {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
+        write!(f, "(patch)")?;
+        self.def.fmt_nest(f, level)?;
+        for methods in self.methods_list.iter() {
+            write!(f, "(methods)")?;
+            methods.fmt_nest(f, level + 1)?;
+        }
+        Ok(())
+    }
+}
+
+impl_display_from_nested!(PatchDef);
+impl_locational!(PatchDef, def);
+
+impl PatchDef {
+    pub const fn new(def: Def, methods: Vec<Methods>) -> Self {
+        Self {
+            def,
+            methods_list: methods,
+        }
+    }
+}
+
 /// Expression(式)
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Expr {
@@ -3431,11 +3467,12 @@ pub enum Expr {
     Def(Def),
     Methods(Methods),
     ClassDef(ClassDef),
+    PatchDef(PatchDef),
 }
 
-impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAsc, Def, Methods, ClassDef);
+impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAsc, Def, Methods, ClassDef, PatchDef);
 impl_display_from_nested!(Expr);
-impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAsc, Def, Methods, ClassDef);
+impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAsc, Def, Methods, ClassDef, PatchDef);
 
 impl Expr {
     pub fn is_match_call(&self) -> bool {
@@ -3451,7 +3488,10 @@ impl Expr {
     }
 
     pub const fn is_definition(&self) -> bool {
-        matches!(self, Expr::Def(_) | Expr::ClassDef(_) | Expr::Methods(_))
+        matches!(
+            self,
+            Expr::Def(_) | Expr::ClassDef(_) | Expr::PatchDef(_) | Expr::Methods(_)
+        )
     }
 
     pub fn need_to_be_closed(&self) -> bool {

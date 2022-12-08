@@ -60,7 +60,7 @@ assert sum == 45
 
 The equivalent program above can be written in Python as follows:
 
-```python
+```python,checker_ignore
 # Python
 sum = 0
 for i in range(1, 10):

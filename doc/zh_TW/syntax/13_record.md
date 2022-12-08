@@ -66,7 +66,7 @@ Named = {.name = Str}
 john: Named
 
 greet! n: Named =
-    print! "Hello, I am {n.name}"
+    print! "Hello, I am \{n.name}"
 john # "你好，我是約翰 print！
 
 Named.name # Str
@@ -87,7 +87,7 @@ match point:
     {x = 0; y = 0; z = 0} -> "origin"
     {x = _; y = 0; z = 0} -> "on the x axis"
     {x = 0; ...} -> "x = 0"
-    {x = x; y = y; z = z} -> "({x}, {y}, {z})"
+    {x = x; y = y; z = z} -> "(\{x}, \{y}, \{z})"
 ```
 
 當存在與屬性同名的變量時，`x = ...`也可以縮寫為`x`，例如`x = x`或`x = .x`到`x`，和` .x = .x` 或 `.x = x` 到 `.x`
@@ -175,7 +175,7 @@ y =
 john = {
     name = "John Smith"
     age = !20
-    .greet! ref self = print! "Hello, my name is {self::name} and I am {self::age} years old."
+    .greet! ref self = print! "Hello, my name is \{self::name} and I am \{self::age} years old."
     .inc_age! ref! self = self::age.update! x -> x + 1
 }
 john + 1
@@ -188,7 +188,7 @@ john + 1
 ```python
 Person = Inherit {name = Str; age = Nat}
 Person.
-    greet! ref self = print! "Hello, my name is {self::name} and I am {self::age} years old."
+    greet! ref self = print! "Hello, my name is \{self::name} and I am \{self::age} years old."
     inc_age! ref! self = self::age.update! x -> x + 1
 
 john = Person.new {name = "John Smith"; age = 20}

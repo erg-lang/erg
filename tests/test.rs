@@ -31,7 +31,12 @@ fn exec_class() -> Result<(), ()> {
 
 #[test]
 fn exec_control() -> Result<(), ()> {
-    expect_success("tests/should_ok/control.er")
+    expect_success("examples/control.er")
+}
+
+#[test]
+fn exec_control_expr() -> Result<(), ()> {
+    expect_success("tests/should_ok/control_expr.er")
 }
 
 #[test]
@@ -55,6 +60,11 @@ fn exec_helloworld() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_if() -> Result<(), ()> {
+    expect_success("tests/should_ok/if.er")
+}
+
+#[test]
 fn exec_impl() -> Result<(), ()> {
     expect_success("examples/impl.er")
 }
@@ -75,6 +85,21 @@ fn exec_infer_trait() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_interpolation() -> Result<(), ()> {
+    expect_success("tests/should_ok/interpolation.er")
+}
+
+#[test]
+fn exec_mut() -> Result<(), ()> {
+    expect_success("examples/mut.er")
+}
+
+#[test]
+fn exec_patch() -> Result<(), ()> {
+    expect_success("examples/patch.er")
+}
+
+#[test]
 fn exec_pattern() -> Result<(), ()> {
     expect_success("tests/should_ok/pattern.er")
 }
@@ -87,6 +112,11 @@ fn exec_quantified() -> Result<(), ()> {
 #[test]
 fn exec_raw_ident() -> Result<(), ()> {
     expect_success("examples/raw_ident.er")
+}
+
+#[test]
+fn exec_rec() -> Result<(), ()> {
+    expect_success("tests/should_ok/rec.er")
 }
 
 #[test]
@@ -125,6 +155,21 @@ fn exec_addition_err() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_args() -> Result<(), ()> {
+    expect_failure("tests/should_err/args.er", 16)
+}
+
+#[test]
+fn exec_infer_union_array() -> Result<(), ()> {
+    expect_failure("tests/should_err/infer_union_array.er", 1)
+}
+
+#[test]
+fn exec_invalid_interpol() -> Result<(), ()> {
+    expect_failure("tests/should_err/invalid_interpol.er", 2)
+}
+
+#[test]
 fn exec_invalid_param() -> Result<(), ()> {
     expect_failure("tests/should_err/invalid_param.er", 3)
 }
@@ -141,12 +186,6 @@ fn exec_pyimport() -> Result<(), ()> {
     } else {
         expect_failure("examples/pyimport.er", 1)
     }
-}
-
-#[test]
-fn exec_rec() -> Result<(), ()> {
-    // this script is valid but the current code generating process has a bug.
-    expect_end_with("tests/should_err/rec.er", 1)
 }
 
 #[test]

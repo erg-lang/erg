@@ -10,6 +10,7 @@ use std::rc::Rc;
 
 use erg_common::dict::Dict;
 use erg_common::error::ErrorCore;
+use erg_common::fresh::fresh_varname;
 use erg_common::python_util::PythonVersion;
 use erg_common::serialize::*;
 use erg_common::set;
@@ -18,10 +19,14 @@ use erg_common::shared::Shared;
 use erg_common::vis::Field;
 use erg_common::{dict, fmt_iter, impl_display_from_debug, switch_lang};
 use erg_common::{RcArray, Str};
+use erg_parser::ast::{ConstArgs, ConstExpr};
+
+use crate::context::eval::type_from_token_kind;
+
+use self::value_set::inner_class;
 
 use super::codeobj::CodeObj;
 use super::constructors::{array_t, dict_t, mono, poly, refinement, set_t, tuple_t};
-use super::free::fresh_varname;
 use super::typaram::TyParam;
 use super::{ConstSubr, HasType, Predicate, Type};
 
@@ -131,6 +136,23 @@ impl UnionTypeObj {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct PatchObj {
+    pub t: Type,
+    pub base: Box<TypeObj>,
+    pub impls: Option<Box<TypeObj>>,
+}
+
+impl PatchObj {
+    pub fn new(t: Type, base: TypeObj, impls: Option<TypeObj>) -> Self {
+        Self {
+            t,
+            base: Box::new(base),
+            impls: impls.map(Box::new),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum GenTypeObj {
     Class(ClassTypeObj),
     Subclass(InheritedTypeObj),
@@ -138,6 +160,7 @@ pub enum GenTypeObj {
     Subtrait(SubsumedTypeObj),
     StructuralTrait(TraitTypeObj),
     Union(UnionTypeObj),
+    Patch(PatchObj),
 }
 
 impl fmt::Display for GenTypeObj {
@@ -164,6 +187,10 @@ impl GenTypeObj {
         GenTypeObj::Trait(TraitTypeObj::new(t, require, impls))
     }
 
+    pub fn patch(t: Type, base: TypeObj, impls: Option<TypeObj>) -> Self {
+        GenTypeObj::Patch(PatchObj::new(t, base, impls))
+    }
+
     pub fn subsumed(
         t: Type,
         sup: TypeObj,
@@ -184,6 +211,7 @@ impl GenTypeObj {
             Self::Trait(trait_) => Some(trait_.require.as_ref()),
             Self::Subtrait(subtrait) => Some(subtrait.sup.as_ref()),
             Self::StructuralTrait(trait_) => Some(trait_.require.as_ref()),
+            Self::Patch(patch) => Some(patch.base.as_ref()),
             _ => None,
         }
     }
@@ -193,6 +221,7 @@ impl GenTypeObj {
             Self::Class(class) => class.impls.as_ref().map(|x| x.as_ref()),
             Self::Subclass(subclass) => subclass.impls.as_ref().map(|x| x.as_ref()),
             Self::Subtrait(subtrait) => subtrait.impls.as_ref().map(|x| x.as_ref()),
+            Self::Patch(patch) => patch.impls.as_ref().map(|x| x.as_ref()),
             _ => None,
         }
     }
@@ -202,6 +231,7 @@ impl GenTypeObj {
             Self::Class(class) => Some(&mut class.impls),
             Self::Subclass(subclass) => Some(&mut subclass.impls),
             Self::Subtrait(subtrait) => Some(&mut subtrait.impls),
+            Self::Patch(patch) => Some(&mut patch.impls),
             _ => None,
         }
     }
@@ -218,6 +248,7 @@ impl GenTypeObj {
         match self {
             Self::Class(_) | Self::Subclass(_) => Type::ClassType,
             Self::Trait(_) | Self::Subtrait(_) | Self::StructuralTrait(_) => Type::TraitType,
+            Self::Patch(_) => Type::Patch,
             _ => Type::Type,
         }
     }
@@ -230,6 +261,7 @@ impl GenTypeObj {
             Self::Subtrait(subtrait) => &subtrait.t,
             Self::StructuralTrait(trait_) => &trait_.t,
             Self::Union(union_) => &union_.t,
+            Self::Patch(patch) => &patch.t,
         }
     }
 
@@ -241,6 +273,7 @@ impl GenTypeObj {
             Self::Subtrait(subtrait) => &mut subtrait.t,
             Self::StructuralTrait(trait_) => &mut trait_.t,
             Self::Union(union_) => &mut union_.t,
+            Self::Patch(patch) => &mut patch.t,
         }
     }
 
@@ -252,6 +285,7 @@ impl GenTypeObj {
             Self::Subtrait(subtrait) => subtrait.t,
             Self::StructuralTrait(trait_) => trait_.t,
             Self::Union(union_) => union_.t,
+            Self::Patch(patch) => patch.t,
         }
     }
 }
@@ -619,6 +653,14 @@ impl ValueObj {
         }
     }
 
+    pub fn is_int(&self) -> bool {
+        match self {
+            Self::Int(_) | Self::Nat(_) | Self::Bool(_) => true,
+            Self::Mut(n) => n.borrow().is_nat(),
+            _ => false,
+        }
+    }
+
     pub fn is_nat(&self) -> bool {
         match self {
             Self::Nat(_) | Self::Bool(_) => true,
@@ -633,6 +675,10 @@ impl ValueObj {
             Self::Mut(n) => n.borrow().is_bool(),
             _ => false,
         }
+    }
+
+    pub const fn is_str(&self) -> bool {
+        matches!(self, Self::Str(_))
     }
 
     pub const fn is_type(&self) -> bool {
@@ -731,6 +777,24 @@ impl ValueObj {
         }
     }
 
+    pub fn from_const_expr(expr: ConstExpr) -> Self {
+        let ConstExpr::Lit(lit) = expr else { todo!() };
+        let t = type_from_token_kind(lit.token.kind);
+        ValueObj::from_str(t, lit.token.content).unwrap()
+    }
+
+    pub fn tuple_from_const_args(args: ConstArgs) -> Self {
+        Self::Tuple(Rc::from(&Self::vec_from_const_args(args)[..]))
+    }
+
+    pub fn vec_from_const_args(args: ConstArgs) -> Vec<Self> {
+        args.deconstruct()
+            .0
+            .into_iter()
+            .map(|elem| Self::from_const_expr(elem.expr))
+            .collect::<Vec<_>>()
+    }
+
     pub fn class(&self) -> Type {
         match self {
             Self::Int(_) => Type::Int,
@@ -738,9 +802,12 @@ impl ValueObj {
             Self::Float(_) => Type::Float,
             Self::Str(_) => Type::Str,
             Self::Bool(_) => Type::Bool,
-            // TODO: Zero
             Self::Array(arr) => array_t(
-                arr.iter().next().unwrap().class(),
+                // REVIEW: Never?
+                arr.iter()
+                    .next()
+                    .map(|elem| elem.class())
+                    .unwrap_or(Type::Never),
                 TyParam::value(arr.len()),
             ),
             Self::Dict(dict) => {
@@ -750,7 +817,7 @@ impl ValueObj {
                 dict_t(TyParam::Dict(tp.collect()))
             }
             Self::Tuple(tup) => tuple_t(tup.iter().map(|v| v.class()).collect()),
-            Self::Set(st) => set_t(st.iter().next().unwrap().class(), TyParam::value(st.len())),
+            Self::Set(st) => set_t(inner_class(st), TyParam::value(st.len())),
             Self::Code(_) => Type::Code,
             Self::Record(rec) => {
                 Type::Record(rec.iter().map(|(k, v)| (k.clone(), v.class())).collect())
@@ -1139,7 +1206,7 @@ impl ValueObj {
                 }
                 Some(TypeObj::Builtin(Type::Record(attr_ts)))
             }
-            Self::Subr(subr) => Some(TypeObj::Builtin(subr.as_type().unwrap().clone())),
+            Self::Subr(subr) => subr.as_type().map(TypeObj::Builtin),
             Self::Array(_) | Self::Tuple(_) | Self::Dict(_) => todo!(),
             _other => None,
         }
@@ -1162,7 +1229,10 @@ pub mod value_set {
     }
 
     pub fn inner_class(set: &Set<ValueObj>) -> Type {
-        set.iter().next().unwrap().class()
+        set.iter()
+            .next()
+            .map(|elem| elem.class())
+            .unwrap_or(Type::Never)
     }
 
     pub fn max(set: &Set<ValueObj>) -> Option<ValueObj> {

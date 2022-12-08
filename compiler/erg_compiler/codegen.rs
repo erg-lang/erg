@@ -23,9 +23,7 @@ use erg_common::{
     debug_power_assert, enum_unwrap, fn_name, fn_name_full, impl_stream_for_wrapper, log,
     switch_unreachable,
 };
-use erg_parser::ast::ConstExpr;
-use erg_parser::ast::DefId;
-use erg_parser::ast::DefKind;
+use erg_parser::ast::{DefId, DefKind};
 use CommonOpcode::*;
 
 use erg_parser::ast::PreDeclTypeSpec;
@@ -36,23 +34,27 @@ use erg_parser::token::EQUAL;
 use erg_parser::token::{Token, TokenKind};
 
 use crate::compile::{AccessKind, Name, StoreLoadKind};
-use crate::context::eval::type_from_token_kind;
 use crate::error::CompileError;
 use crate::hir::{
     Accessor, Args, Array, AttrDef, BinOp, Block, Call, ClassDef, Def, DefBody, Expr, Identifier,
-    Lambda, Literal, Params, PosArg, Record, Signature, SubrSignature, Tuple, UnaryOp,
+    Lambda, Literal, Params, PatchDef, PosArg, Record, Signature, SubrSignature, Tuple, UnaryOp,
     VarSignature, HIR,
 };
-use crate::ty::free::fresh_varname;
 use crate::ty::value::ValueObj;
 use crate::ty::{HasType, Type, TypeCode, TypePair};
+use erg_common::fresh::fresh_varname;
 use AccessKind::*;
 
-fn fake_method_to_func(class: &str, name: &str) -> Option<&'static str> {
-    match (class, name) {
-        (_, "abs") => Some("abs"),
-        (_, "iter") => Some("iter"),
-        (_, "map") => Some("map"),
+/// patch method -> function
+/// patch attr -> variable
+fn debind(ident: &Identifier) -> Option<Str> {
+    match ident.vi.py_name.as_ref().map(|s| &s[..]) {
+        Some(name) if name.starts_with("Function::") => {
+            Some(Str::from(name.replace("Function::", "")))
+        }
+        Some(patch_method) if patch_method.contains("::") || patch_method.contains('.') => {
+            Some(Str::rc(patch_method))
+        }
         _ => None,
     }
 }
@@ -136,9 +138,12 @@ pub struct PyCodeGenerator {
     pub(crate) py_version: PythonVersion,
     str_cache: CacheSet<str>,
     prelude_loaded: bool,
+    mutate_op_loaded: bool,
     in_op_loaded: bool,
     record_type_loaded: bool,
     module_type_loaded: bool,
+    control_loaded: bool,
+    convertors_loaded: bool,
     abc_loaded: bool,
     unit_size: usize,
     units: PyCodeGenStack,
@@ -151,9 +156,12 @@ impl PyCodeGenerator {
             cfg,
             str_cache: CacheSet::new(),
             prelude_loaded: false,
+            mutate_op_loaded: false,
             in_op_loaded: false,
             record_type_loaded: false,
             module_type_loaded: false,
+            control_loaded: false,
+            convertors_loaded: false,
             abc_loaded: false,
             unit_size: 0,
             units: PyCodeGenStack::empty(),
@@ -303,6 +311,9 @@ impl PyCodeGenerator {
         } else {
             jump_to
         };
+        if !CommonOpcode::is_jump_op(*self.cur_block_codeobj().code.get(idx - 1).unwrap()) {
+            self.crash(&format!("calc_edit_jump: not jump op: {idx} {jump_to}"));
+        }
         self.edit_code(idx, arg);
     }
 
@@ -369,7 +380,9 @@ impl PyCodeGenerator {
             }
             Err(_) => {
                 let delta = self.jump_delta(code);
-                let bytes = u32::try_from(code + delta).unwrap().to_be_bytes();
+                let shift_bytes = 6;
+                let arg = code + delta + shift_bytes;
+                let bytes = u32::try_from(arg).unwrap().to_be_bytes();
                 let before_instr = self.lasti().saturating_sub(1);
                 self.mut_cur_block_codeobj().code.push(bytes[3]);
                 self.mut_cur_block().lasti += 1;
@@ -424,7 +437,9 @@ impl PyCodeGenerator {
     }
 
     fn emit_load_const<C: Into<ValueObj>>(&mut self, cons: C) {
-        let value = cons.into();
+        let value: ValueObj = cons.into();
+        let is_str = value.is_str();
+        let is_int = value.is_int();
         let is_nat = value.is_nat();
         let is_bool = value.is_bool();
         if !self.cfg.no_std {
@@ -434,8 +449,15 @@ impl PyCodeGenerator {
             } else if is_nat {
                 self.emit_push_null();
                 self.emit_load_name_instr(Identifier::public("Nat"));
+            } else if is_int {
+                self.emit_push_null();
+                self.emit_load_name_instr(Identifier::public("Int"));
+            } else if is_str {
+                self.emit_push_null();
+                self.emit_load_name_instr(Identifier::public("Str"));
             }
         }
+        let wrapped = is_str || is_int; // is_int => is_nat and is_bool
         let idx = self
             .mut_cur_block_codeobj()
             .consts
@@ -448,7 +470,7 @@ impl PyCodeGenerator {
         self.write_instr(LOAD_CONST);
         self.write_arg(idx);
         self.stack_inc();
-        if !self.cfg.no_std && is_nat {
+        if !self.cfg.no_std && wrapped {
             self.emit_call_instr(1, Name);
             self.stack_dec();
         }
@@ -616,6 +638,15 @@ impl PyCodeGenerator {
     fn emit_load_name_instr(&mut self, ident: Identifier) {
         log!(info "entered {}({ident})", fn_name!());
         let escaped = escape_name(ident);
+        match &escaped[..] {
+            "if__" | "for__" | "while__" | "with__" | "discard__" => {
+                self.load_control();
+            }
+            "int__" | "nat__" => {
+                self.load_convertors();
+            }
+            _ => {}
+        }
         let name = self
             .local_search(&escaped, Name)
             .unwrap_or_else(|| self.register_name(escaped));
@@ -865,8 +896,14 @@ impl PyCodeGenerator {
                 if is_record {
                     a.ident.dot = Some(DOT);
                 }
-                self.emit_expr(*a.obj);
-                self.emit_load_attr_instr(a.ident);
+                if let Some(varname) = debind(&a.ident) {
+                    a.ident.dot = None;
+                    a.ident.name = VarName::from_str(varname);
+                    self.emit_load_name_instr(a.ident);
+                } else {
+                    self.emit_expr(*a.obj);
+                    self.emit_load_attr_instr(a.ident);
+                }
             }
         }
     }
@@ -1127,6 +1164,27 @@ impl PyCodeGenerator {
         self.stack_dec();
     }
 
+    fn emit_patch_def(&mut self, patch_def: PatchDef) {
+        log!(info "entered {} ({})", fn_name!(), patch_def.sig);
+        for def in patch_def.methods {
+            // Invert.
+            //     invert self = ...
+            // ↓
+            // def Invert::invert(self): ...
+            let Expr::Def(mut def) = def else { todo!() };
+            let namespace = self.cur_block_codeobj().name.trim_start_matches("::");
+            let name = format!(
+                "{}{}{}",
+                namespace,
+                patch_def.sig.ident().to_string_without_type(),
+                def.sig.ident().to_string_without_type()
+            );
+            def.sig.ident_mut().name = VarName::from_str(Str::from(name));
+            def.sig.ident_mut().dot = None;
+            self.emit_def(def);
+        }
+    }
+
     // NOTE: use `TypeVar`, `Generic` in `typing` module
     // fn emit_poly_type_def(&mut self, sig: SubrSignature, body: DefBody) {}
 
@@ -1253,12 +1311,18 @@ impl PyCodeGenerator {
     fn emit_unaryop(&mut self, unary: UnaryOp) {
         log!(info "entered {} ({unary})", fn_name!());
         let tycode = TypeCode::from(unary.lhs_t());
-        self.emit_expr(*unary.expr);
         let instr = match &unary.op.kind {
             // TODO:
             TokenKind::PrePlus => UNARY_POSITIVE,
             TokenKind::PreMinus => UNARY_NEGATIVE,
-            TokenKind::Mutate => NOP, // ERG_MUTATE,
+            TokenKind::Mutate => {
+                if !self.mutate_op_loaded {
+                    self.load_mutate_op();
+                }
+                self.emit_push_null();
+                self.emit_load_name_instr(Identifier::private("#mutate_operator"));
+                NOP // ERG_MUTATE,
+            }
             _ => {
                 CompileError::feature_error(
                     self.cfg.input.clone(),
@@ -1270,8 +1334,14 @@ impl PyCodeGenerator {
                 NOT_IMPLEMENTED
             }
         };
-        self.write_instr(instr);
-        self.write_arg(tycode as usize);
+        self.emit_expr(*unary.expr);
+        if instr != NOP {
+            self.write_instr(instr);
+            self.write_arg(tycode as usize);
+        } else {
+            self.emit_precall_and_call(1);
+            self.stack_dec();
+        }
     }
 
     fn emit_binop(&mut self, bin: BinOp) {
@@ -1509,6 +1579,7 @@ impl PyCodeGenerator {
         let cond = args.remove(0);
         self.emit_expr(cond);
         let idx_pop_jump_if_false = self.lasti();
+        // Opcode310::POP_JUMP_IF_FALSE == Opcode311::POP_JUMP_FORWARD_IF_FALSE
         self.write_instr(Opcode310::POP_JUMP_IF_FALSE);
         // cannot detect where to jump to at this moment, so put as 0
         self.write_arg(0);
@@ -1523,10 +1594,15 @@ impl PyCodeGenerator {
             }
         }
         if args.get(0).is_some() {
+            let idx_jump_forward = self.lasti();
             self.write_instr(JUMP_FORWARD); // jump to end
             self.write_arg(0);
             // else block
-            let idx_else_begin = self.lasti();
+            let idx_else_begin = if self.py_version.minor >= Some(11) {
+                self.lasti() - idx_pop_jump_if_false - 2
+            } else {
+                self.lasti()
+            };
             self.calc_edit_jump(idx_pop_jump_if_false + 1, idx_else_begin);
             match args.remove(0) {
                 Expr::Lambda(lambda) => {
@@ -1537,7 +1613,6 @@ impl PyCodeGenerator {
                     self.emit_expr(other);
                 }
             }
-            let idx_jump_forward = idx_else_begin - 2;
             let idx_end = self.lasti();
             self.calc_edit_jump(idx_jump_forward + 1, idx_end - idx_jump_forward - 2);
             // FIXME: this is a hack to make sure the stack is balanced
@@ -1545,6 +1620,8 @@ impl PyCodeGenerator {
                 self.stack_dec();
             }
         } else {
+            self.write_instr(JUMP_FORWARD);
+            self.write_arg(1);
             // no else block
             let idx_end = if self.py_version.minor >= Some(11) {
                 self.lasti() - idx_pop_jump_if_false - 1
@@ -1609,7 +1686,13 @@ impl PyCodeGenerator {
     fn emit_while_instr(&mut self, mut args: Args) {
         log!(info "entered {} ({})", fn_name!(), args);
         let _init_stack_len = self.stack_len();
-        let cond = args.remove(0);
+        // e.g. is_foo!: () => Bool, do!(is_bar)
+        let cond_block = args.remove(0);
+        let cond = match cond_block {
+            Expr::Lambda(mut lambda) => lambda.body.remove(0),
+            Expr::Accessor(acc) => Expr::Accessor(acc).call_expr(Args::empty()),
+            _ => todo!(),
+        };
         self.emit_expr(cond.clone());
         let idx_while = self.lasti();
         self.write_instr(Opcode310::POP_JUMP_IF_FALSE);
@@ -1717,19 +1800,10 @@ impl PyCodeGenerator {
     }
 
     fn emit_match_guard(&mut self, t_spec: TypeSpec, pop_jump_points: &mut Vec<usize>) {
-        #[allow(clippy::single_match)]
+        log!(info "entered {} ({t_spec})", fn_name!());
         match t_spec {
             TypeSpec::Enum(enum_t) => {
-                let elems = enum_t
-                    .deconstruct()
-                    .0
-                    .into_iter()
-                    .map(|elem| {
-                        let ConstExpr::Lit(lit) = elem.expr else { todo!() };
-                        let t = type_from_token_kind(lit.token.kind);
-                        ValueObj::from_str(t, lit.token.content).unwrap()
-                    })
-                    .collect::<Vec<_>>();
+                let elems = ValueObj::vec_from_const_args(enum_t);
                 self.emit_load_const(elems);
                 self.write_instr(CONTAINS_OP);
                 self.write_arg(0);
@@ -1776,14 +1850,42 @@ impl PyCodeGenerator {
                 self.write_arg(0);
                 self.stack_dec();
             }
+            // _: (Int, Str)
+            TypeSpec::Tuple(tup) => {
+                let len = tup.len();
+                for (i, t_spec) in tup.into_iter().enumerate() {
+                    if i != 0 && i != len - 1 {
+                        self.dup_top();
+                    }
+                    self.emit_load_const(i);
+                    self.write_instr(Opcode311::BINARY_SUBSCR);
+                    self.write_arg(0);
+                    self.stack_dec();
+                    self.emit_match_guard(t_spec, pop_jump_points);
+                }
+            }
+            // TODO: consider ordering (e.g. both [1, 2] and [2, 1] is type of [{1, 2}; 2])
+            TypeSpec::Array(arr) => {
+                let ValueObj::Nat(len) = ValueObj::from_const_expr(arr.len) else { todo!() };
+                for i in 0..=(len - 1) {
+                    if i != 0 && i != len - 1 {
+                        self.dup_top();
+                    }
+                    self.emit_load_const(i);
+                    self.write_instr(Opcode311::BINARY_SUBSCR);
+                    self.write_arg(0);
+                    self.stack_dec();
+                    self.emit_match_guard(*arr.ty.clone(), pop_jump_points);
+                }
+            }
             /*TypeSpec::Interval { op, lhs, rhs } => {
                 let binop = BinOp::new(op, lhs.downcast(), rhs.downcast(), VarInfo::default());
                 self.emit_binop(binop);
             }*/
             // TODO:
-            other => {
-                log!(err "{other}")
-            }
+            TypeSpec::Infer(_) => unreachable!(),
+            // TODO:
+            other => log!(err "{other}"),
         }
     }
 
@@ -1965,17 +2067,16 @@ impl PyCodeGenerator {
 
     fn emit_call_method(&mut self, obj: Expr, method_name: Identifier, args: Args) {
         log!(info "entered {}", fn_name!());
-        let class = obj.ref_t().qual_name(); // これは必ずmethodのあるクラスになっている
         if &method_name.inspect()[..] == "update!" {
             if self.py_version.minor >= Some(11) {
                 return self.emit_call_update_311(obj, args);
             } else {
                 return self.emit_call_update_310(obj, args);
             }
-        } else if let Some(func_name) = fake_method_to_func(&class, method_name.inspect()) {
+        } else if let Some(func_name) = debind(&method_name) {
             return self.emit_call_fake_method(obj, func_name, method_name, args);
         }
-        let is_py_api = obj.is_py_api();
+        let is_py_api = method_name.is_py_api();
         self.emit_expr(obj);
         self.emit_load_method_instr(method_name);
         self.emit_args_311(args, Method, is_py_api);
@@ -2093,13 +2194,13 @@ impl PyCodeGenerator {
     fn emit_call_fake_method(
         &mut self,
         obj: Expr,
-        func_name: &'static str,
+        func_name: Str,
         mut method_name: Identifier,
         mut args: Args,
     ) {
         log!(info "entered {}", fn_name!());
         method_name.dot = None;
-        method_name.vi.py_name = Some(Str::ever(func_name));
+        method_name.vi.py_name = Some(func_name);
         self.emit_push_null();
         self.emit_load_name_instr(method_name);
         args.insert_pos(0, PosArg::new(obj));
@@ -2228,7 +2329,7 @@ impl PyCodeGenerator {
         debug_assert_eq!(self.stack_len(), init_stack_len + 1);
     }
 
-    fn get_root(acc: &Accessor) -> Identifier {
+    pub(crate) fn get_root(acc: &Accessor) -> Identifier {
         match acc {
             Accessor::Ident(ident) => ident.clone(),
             Accessor::Attr(attr) => {
@@ -2293,6 +2394,7 @@ impl PyCodeGenerator {
             Expr::Accessor(acc) => self.emit_acc(acc),
             Expr::Def(def) => self.emit_def(def),
             Expr::ClassDef(class) => self.emit_class_def(class),
+            Expr::PatchDef(patch) => self.emit_patch_def(patch),
             Expr::AttrDef(attr) => self.emit_attr_def(attr),
             Expr::Lambda(lambda) => self.emit_lambda(lambda),
             Expr::UnaryOp(unary) => self.emit_unaryop(unary),
@@ -2381,9 +2483,6 @@ impl PyCodeGenerator {
                     }
                 }
                 self.cancel_if_pop_top();
-                /*if is_module_loading_chunks {
-                    self.stack_dec_n(0);
-                }*/
             }
             Expr::TypeAsc(tasc) => {
                 self.emit_expr(*tasc.expr);
@@ -2661,10 +2760,15 @@ impl PyCodeGenerator {
     }
 
     fn load_prelude(&mut self) {
+        // NOTE: Integers need to be used in IMPORT_NAME
+        // but `Int` are called before importing it, so they need to be no_std mode
+        let no_std = self.cfg.no_std;
+        self.cfg.no_std = true;
         self.load_record_type();
         self.load_prelude_py();
         self.prelude_loaded = true;
         self.record_type_loaded = true;
+        self.cfg.no_std = no_std;
     }
 
     fn load_in_op(&mut self) {
@@ -2681,6 +2785,34 @@ impl PyCodeGenerator {
             )],
         );
         self.in_op_loaded = true;
+    }
+
+    fn load_mutate_op(&mut self) {
+        let mod_name = if self.py_version.minor >= Some(10) {
+            Identifier::public("_erg_std_prelude")
+        } else {
+            Identifier::public("_erg_std_prelude_old")
+        };
+        self.emit_global_import_items(
+            mod_name,
+            vec![(
+                Identifier::public("mutate_operator"),
+                Some(Identifier::private("#mutate_operator")),
+            )],
+        );
+        self.mutate_op_loaded = true;
+    }
+
+    fn load_control(&mut self) {
+        let mod_name = Identifier::public("_erg_control");
+        self.emit_import_all_instr(mod_name);
+        self.control_loaded = true;
+    }
+
+    fn load_convertors(&mut self) {
+        let mod_name = Identifier::public("_erg_convertors");
+        self.emit_import_all_instr(mod_name);
+        self.convertors_loaded = true;
     }
 
     fn load_prelude_py(&mut self) {

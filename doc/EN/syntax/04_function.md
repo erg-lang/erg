@@ -4,6 +4,9 @@ A function is a block that takes an "argument", processes it, and returns it as 
 
 ```python
 add x, y = x + y
+```
+
+```python
 # or
 add(x, y) = x + y
 ```
@@ -23,11 +26,11 @@ add(1, 2)
 
 Functions are invoked like `f x, y, ...`, but if there are too many arguments for a single line, they can be applied using `:` (colon).
 
-```python
+```python,checker_ignore
 f some_long_name_variable_1 + some_long_name_variable_2, some_long_name_variable_3 * some_long_name_variable_4
 ```
 
-```python
+```python,checker_ignore
 f some_long_name_variable_1 + some_long_name_variable_2:
     some_long_name_variable_3 * some_long_name_variable_4
 ```
@@ -47,12 +50,14 @@ result = if Bool.sample!():
 After `:`, no code other than comments may be written, and must always be on a new line.
 Also, you cannot use `:` immediately after a function. Only `do` and `do!` can do this.
 
-```python
+```python,compile_fail
 # NG
 f:
     x
     y
+```
 
+```python,checker_ignore
 # Ok
 f(
     x,
@@ -71,7 +76,7 @@ f x, y, z, w, v, u: Int = ...
 
 The functions defined above have many arguments and are arranged in a confusing order. You should not create such a function, but you may encounter such code when using code written by others. Therefore, we use keyword arguments. If you use keyword arguments, the values are passed from the name to the correct argument, even if they are in the wrong order.
 
-```python
+```python,checker_ignore
 f u := 6, v := 5, w:= 4, x := 1, y := 2, z := 3
 ```
 
@@ -106,13 +111,13 @@ f [x, y] := [1, 2] = ...
 
 However, within the default arguments, it is not possible to call the procedures (described later) or assign mutable objects.
 
-```python
+```python,compile_fail
 f x := p! 1 = ... # NG
 ```
 
 Also, the argument just defined cannot be used as the value passed to the default argument.
 
-```python
+```python,compile_fail
 f x := 1, y := x = ... # NG
 ```
 
@@ -231,7 +236,9 @@ assert Add(1, 2) == 3
 Factorial 0 = 1
 Factorial(X: Nat): Nat = X * Factorial(X - 1)
 assert Factorial(10) == 3628800
+```
 
+```python,compile_fail
 math = import "math"
 Sin X = math.sin X # ConstantError: this function is not computable at compile time
 ```
@@ -247,7 +254,7 @@ Option: Type -> Type
 
 Erg does not define `==` for functions. This is because there is no structural equivalence algorithm for functions in general.
 
-```python
+```python,compile_fail
 f = x: Int -> (x + 1)**2
 g = x: Int -> x**2 + 2x + 1
 
@@ -257,7 +264,7 @@ assert f == g # TypeError: cannot compare functions
 Although `f` and `g` always return the same result, it is extremely difficult to make that determination. We have to teach algebra to the compiler.
 So Erg gives up on function comparisons entirely, and `(x -> x) == (x -> x)` also results in a compile error. This is a different specification from Python and should be noted.
 
-```python
+```python,checker_ignore
 # Python, weird example
 f = lambda x: x
 assert f == f
@@ -266,7 +273,7 @@ assert (lambda x: x) ! = (lambda x: x)
 
 ## Appendix2: ()-completion
 
-```python
+```python,checker_ignore
 f x: Object = ...
 # will be completed to
 f(x: Object) = ...

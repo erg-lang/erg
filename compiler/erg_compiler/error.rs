@@ -554,6 +554,79 @@ impl TyCheckError {
         )
     }
 
+    pub fn param_error(
+        input: Input,
+        errno: usize,
+        loc: Location,
+        caused_by: String,
+        expect: usize,
+        found: usize,
+    ) -> Self {
+        let mut expct = StyledStrings::default();
+        switch_lang!(
+            "japanese" => expct.push_str("予期した個数: "),
+            "simplified_chinese" =>expct.push_str("预期: "),
+            "traditional_chinese" => expct.push_str("預期: "),
+            "english" => expct.push_str("expected: "),
+        );
+        expct.push_str_with_color_and_attribute(format!("{}", expect), HINT, ATTR);
+
+        let mut fnd = StyledStrings::default();
+        switch_lang!(
+            "japanese" => fnd.push_str("与えられた個数: "),
+            "simplified_chinese" => fnd.push_str("但找到: "),
+            "traditional_chinese" => fnd.push_str("但找到: "),
+            "english" =>fnd.push_str("but found: "),
+        );
+        fnd.push_str_with_color_and_attribute(format!("{}", found), ERR, ATTR);
+
+        Self::new(
+            ErrorCore::new(
+                vec![SubMessage::ambiguous_new(
+                    loc,
+                    vec![expct.to_string(), fnd.to_string()],
+                    None,
+                )],
+                switch_lang!(
+                    "japanese" => format!("引数の数が違います"),
+                    "simplified_chinese" => format!("参数的数量不匹配"),
+                    "traditional_chinese" => format!("參數的數量不匹配"),
+                    "english" => format!("the number of parameters is mismatched"),
+                ),
+                errno,
+                TypeError,
+                loc,
+            ),
+            input,
+            caused_by,
+        )
+    }
+
+    pub fn default_param_error(
+        input: Input,
+        errno: usize,
+        loc: Location,
+        caused_by: String,
+        name: &str,
+    ) -> Self {
+        Self::new(
+            ErrorCore::new(
+                vec![],
+                switch_lang!(
+                    "japanese" => format!("{name}はデフォルト引数を受け取りません"),
+                    "simplified_chinese" => format!("{name}不接受默认参数"),
+                    "traditional_chinese" => format!("{name}不接受預設參數"),
+                    "english" => format!("{name} does not accept default parameters"),
+                ),
+                errno,
+                TypeError,
+                loc,
+            ),
+            input,
+            caused_by,
+        )
+    }
+
     pub fn match_error(
         input: Input,
         errno: usize,
@@ -673,11 +746,11 @@ passed keyword args:    {kw_args_len}"
         loc: Location,
         callee_name: &str,
         caused_by: String,
-        missing_len: usize,
         missing_params: Vec<Str>,
     ) -> Self {
         let name = StyledStr::new(readable_name(callee_name), Some(WARN), Some(ATTR));
         let vec_cxt = StyledString::new(&fmt_vec(&missing_params), Some(WARN), Some(ATTR));
+        let missing_len = missing_params.len();
         Self::new(
             ErrorCore::new(
                 vec![SubMessage::only_loc(loc)],
@@ -1378,6 +1451,25 @@ impl EffectError {
                 errno,
                 HasEffect,
                 sig.loc(),
+            ),
+            input,
+            caused_by,
+        )
+    }
+
+    pub fn touch_mut_error(input: Input, errno: usize, expr: &Expr, caused_by: String) -> Self {
+        Self::new(
+            ErrorCore::new(
+                vec![SubMessage::only_loc(expr.loc())],
+                switch_lang!(
+                    "japanese" => "関数中で可変オブジェクトにアクセスすることは出来ません",
+                    "simplified_chinese" => "函数中不能访问可变对象",
+                    "traditional_chinese" => "函數中不能訪問可變對象",
+                    "english" => "cannot access a mutable object in a function",
+                ),
+                errno,
+                HasEffect,
+                expr.loc(),
             ),
             input,
             caused_by,
@@ -2380,7 +2472,6 @@ mod test {
             loc,
             "\"Callee name here\"",
             caused_by.into(),
-            0,
             vec!["sample".into(), "args".into(), "here".into()],
         );
         errors.push(err);

@@ -126,6 +126,18 @@ impl OwnershipChecker {
                 self.check_block(&def.body.block);
                 self.path_stack.pop();
             }
+            Expr::ClassDef(class_def) => {
+                self.check_expr(&class_def.require_or_sup, Ownership::Owned, false);
+                for def in class_def.methods.iter() {
+                    self.check_expr(def, Ownership::Owned, true);
+                }
+            }
+            Expr::PatchDef(patch_def) => {
+                self.check_expr(&patch_def.base, Ownership::Owned, false);
+                for def in patch_def.methods.iter() {
+                    self.check_expr(def, Ownership::Owned, true);
+                }
+            }
             // Access in chunks does not drop variables (e.g., access in REPL)
             Expr::Accessor(acc) => self.check_acc(acc, ownership, chunk),
             // TODO: referenced

@@ -1,0 +1,30 @@
+print! sep:="" # OK
+print! 1, "", sep:="" # OK
+print! end:="", sep:="" # OK
+print! 1, end:="", sep:="" # OK
+
+add x: Int, y: Int = x + y
+print! add 1, 1 # OK
+print! add x:=1, y:=2 # OK
+print! add y:=1, x:=2 # OK
+print! add 1, y:=1 # OK
+print! add() # ERR, missing argument x, y
+print! add 1 # ERR, missing argument y
+print! add y:=1 # ERR, missing argument x
+print! add x:=1, y:="" # ERR, the type of y is wrong
+print! add x:=1, y:=2, z:=1 # ERR, z is unexpected
+print! add x:=1, y:=2, x:=2 # ERR, x is passed twice
+print! add x:=1, y:=2, x:=2, z:=1 # ERR, x is passed twice, z is unexpected
+print! add "", y:=1 # ERR, the type of x is wrong
+print! add 1, 1, 1 # ERR, too many args
+print! add 1, 1, y:=1 # ERR, too many args
+print! add "", y:=1, x:=1 # ERR, the type of x is wrong, x is passed twice (or args are too many)
+print! add "", y:="" # ERR, the types of x, y are wrong
+
+sub x: Int, y: Int := 0 = x - y
+print! sub 1 # OK
+print! sub 1, 1 # OK
+print! sub x:=1, y:=2 # OK
+print! sub x:=1 # OK
+print! sub y:=1 # ERR, missing argument x
+print! sub 1, 1, y:=2 # ERR, too many args

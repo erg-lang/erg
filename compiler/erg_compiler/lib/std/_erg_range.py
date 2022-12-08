@@ -69,7 +69,7 @@ class RangeIterator:
                 self.needle = chr(ord(self.needle) + 1)
         else:
             if not(self.needle in self.rng):
-                self.needle = self.needle.incremented()
+                self.needle = self.needle.succ()
 
     def __iter__(self):
         return self
@@ -88,7 +88,7 @@ class RangeIterator:
         else:
             if self.needle in self.rng:
                 result = self.needle
-                self.needle = self.needle.incremented()
+                self.needle = self.needle.succ()
                 return result
         raise StopIteration
 
