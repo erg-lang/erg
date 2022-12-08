@@ -1042,8 +1042,12 @@ impl Context {
         level: usize,
         t_loc: Location,
     ) -> Option<Type> {
+        // e.g. sub: Int, opt_sup: Add(?T), rhs: Output, methods: Int.methods
+        //      sub: [Int; 4], opt_sup: Add([Int; 2]), rhs: Output, methods: [T; N].methods
         if let Ok(obj) = methods.get_const_local(&Token::symbol(rhs), &self.name) {
             #[allow(clippy::single_match)]
+            // opt_sup: Add(?T), methods.impl_of(): Add(Int)
+            // opt_sup: Add([Int; 2]), methods.impl_of(): Add([T; M])
             match (&opt_sup, methods.impl_of()) {
                 (Some(sup), Some(trait_)) => {
                     if !self.supertype_of(&trait_, sup) {
@@ -1052,19 +1056,25 @@ impl Context {
                 }
                 _ => {}
             }
+            // obj: Int|<: Add(Int)|.Output == ValueObj::Type(<type Int>)
+            // obj: [T; N]|<: Add([T; M])|.Output == ValueObj::Type(<type [T; M+N]>)
             if let ValueObj::Type(quant_projected_t) = obj {
                 let projected_t = quant_projected_t.into_typ();
                 let (quant_sub, _) = self.rec_get_type(&sub.local_name()).unwrap();
                 if let Some(sup) = opt_sup {
                     if let Some(quant_sup) = methods.impl_of() {
+                        // T -> Int, M -> 2
                         self.substitute_typarams(&quant_sup, sup);
                     }
                 }
+                // T -> Int, N -> 4
                 self.substitute_typarams(quant_sub, sub);
+                // [T; M+N] -> [Int; 4+2] -> [Int; 6]
                 let res = self.eval_t_params(projected_t, level, t_loc).ok();
                 if let Some(t) = res {
                     let mut tv_cache = TyVarCache::new(self.level, self);
                     let t = self.detach(t, &mut tv_cache);
+                    // Int -> T, 2 -> M, 4 -> N
                     self.undo_substitute_typarams(quant_sub);
                     if let Some(quant_sup) = methods.impl_of() {
                         self.undo_substitute_typarams(&quant_sup);
