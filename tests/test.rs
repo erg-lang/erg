@@ -95,6 +95,11 @@ fn exec_mut() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_nested() -> Result<(), ()> {
+    expect_success("tests/should_ok/nested.er")
+}
+
+#[test]
 fn exec_patch() -> Result<(), ()> {
     expect_success("examples/patch.er")
 }
