@@ -308,14 +308,14 @@ impl Parser {
             self.errs.push(err);
             return Err(());
         }
-        self.skip();
+        while self.cur_is(Newline) { self.skip(); }
         if !self.cur_is(Indent) {
             let err = self.skip_and_throw_syntax_err("try_reduce_block");
             self.level -= 1;
             self.errs.push(err);
             return Err(());
         }
-        self.skip();
+        self.skip(); // Indent
         loop {
             match self.peek() {
                 Some(t) if t.is(Newline) && self.nth_is(1, Dedent) => {

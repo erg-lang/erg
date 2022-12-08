@@ -363,15 +363,24 @@ impl Lexer /*<'a>*/ {
     }
 
     fn lex_space_indent_dedent(&mut self) -> Option<LexResult<Token>> {
-        let is_toplevel = self.cursor > 0
+        let is_linebreak_after = self.cursor > 0
             && !self.indent_stack.is_empty()
-            && self.peek_prev_ch() == Some('\n')
-            && self.peek_cur_ch() != Some(' ');
+            && self.peek_prev_ch() == Some('\n');
+        let is_space = self.peek_cur_ch() == Some(' ');
+        let is_linebreak = self.peek_cur_ch() == Some('\n');
+        let is_empty = is_space || is_linebreak;
+        let is_toplevel = is_linebreak_after && !is_empty;
         if is_toplevel {
             let dedent = self.emit_token(Dedent, "");
             self.indent_stack.pop();
             self.col_token_starts = 0;
             return Some(Ok(dedent));
+        } else if is_linebreak {
+            self.consume();
+            let token = self.emit_token(Newline, "\n");
+            self.lineno_token_starts += 1;
+            self.col_token_starts = 0;
+            return Some(Ok(token));
         }
         let mut spaces = "".to_string();
         while let Some(' ') = self.peek_cur_ch() {
