@@ -85,6 +85,9 @@ impl Interpolation {
 /// Lexes a source code and iterates tokens.
 ///
 /// This can be used as an iterator or to generate a `TokenStream`.
+///
+/// NOTE: `Lexer` checks if indent/dedent is used in the correct format,
+/// but cannot check if indent/dedent is used in the grammatically correct position; `Parser` does that.
 #[derive(Debug)]
 pub struct Lexer /*<'a>*/ {
     str_cache: CacheSet<str>,
