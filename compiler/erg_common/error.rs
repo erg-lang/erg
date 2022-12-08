@@ -392,8 +392,8 @@ fn format_context<E: ErrorDisplay + ?Sized>(
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SubMessage {
     pub loc: Location,
-    msg: Vec<String>,
-    hint: Option<String>,
+    pub msg: Vec<String>,
+    pub hint: Option<String>,
 }
 
 impl SubMessage {
@@ -459,8 +459,12 @@ impl SubMessage {
         self.hint = Some(hint.into());
     }
 
-    pub fn get_hint(self) -> Option<String> {
-        self.hint
+    pub fn get_hint(&self) -> Option<&str> {
+        self.hint.as_deref()
+    }
+
+    pub fn get_msg(&self) -> &[String] {
+        self.msg.as_ref()
     }
 
     // Line breaks are not included except for line breaks that signify the end of a sentence.
