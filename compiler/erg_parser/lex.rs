@@ -363,12 +363,12 @@ impl Lexer /*<'a>*/ {
     }
 
     fn lex_space_indent_dedent(&mut self) -> Option<LexResult<Token>> {
-        let is_linebreak_after =
+        let is_line_break_after =
             self.cursor > 0 && !self.indent_stack.is_empty() && self.peek_prev_ch() == Some('\n');
         let is_space = self.peek_cur_ch() == Some(' ');
         let is_linebreak = self.peek_cur_ch() == Some('\n');
         let is_empty = is_space || is_linebreak;
-        let is_toplevel = is_linebreak_after && !is_empty;
+        let is_toplevel = is_line_break_after && !is_empty;
         if is_toplevel {
             let dedent = self.emit_token(Dedent, "");
             self.indent_stack.pop();
@@ -386,7 +386,7 @@ impl Lexer /*<'a>*/ {
             spaces.push(self.consume().unwrap());
         }
         // indent in the first line: error
-        if !spaces.is_empty() && self.cursor == 0 {
+        if !spaces.is_empty() && self.prev_token.is(BOF) {
             let space = self.emit_token(Illegal, &spaces);
             Some(Err(LexError::syntax_error(
                 0,
@@ -399,7 +399,7 @@ impl Lexer /*<'a>*/ {
                 ),
                 None,
             )))
-        } else if self.prev_token.is(Newline) {
+        } else if self.prev_token.is(Newline) || self.prev_token.is(Dedent) {
             self.lex_indent_dedent(spaces)
         } else {
             self.col_token_starts += spaces.len();
@@ -460,9 +460,10 @@ impl Lexer /*<'a>*/ {
                 Some(Ok(indent))
             }
             Ordering::Greater => {
+                self.cursor -= spaces.len();
+                self.indent_stack.pop();
                 if is_valid_dedent {
                     let dedent = self.emit_token(Dedent, "");
-                    self.indent_stack.pop();
                     Some(Ok(dedent))
                 } else {
                     let invalid_dedent = self.emit_token(Dedent, "");
