@@ -642,6 +642,19 @@ impl ErrorCore {
         )
     }
 
+    pub fn get_loc_with_fallback(&self) -> Location {
+        if self.loc == Location::Unknown {
+            for sub in &self.sub_messages {
+                if sub.loc != Location::Unknown {
+                    return sub.loc;
+                }
+            }
+            Location::Unknown
+        } else {
+            self.loc
+        }
+    }
+
     pub fn fmt_header(&self, color: Color, caused_by: &str, input: &str) -> String {
         let loc = match self.loc {
             Location::Range {
