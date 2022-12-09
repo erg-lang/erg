@@ -686,6 +686,31 @@ impl Context {
             {
                 true
             }
+            (TyParam::Array(lp), TyParam::Array(rp), _)
+            | (TyParam::Tuple(lp), TyParam::Tuple(rp), _) => {
+                for (l, r) in lp.iter().zip(rp.iter()) {
+                    if !self.supertype_of_tp(l, r, variance) {
+                        return false;
+                    }
+                }
+                true
+            }
+            // {Int: Str} :> {Int: Str, Bool: Int}
+            (TyParam::Dict(ld), TyParam::Dict(rd), _) => {
+                if ld.len() > rd.len() {
+                    return false;
+                }
+                for (k, lv) in ld.iter() {
+                    if let Some(rv) = rd.get(k) {
+                        if !self.supertype_of_tp(lv, rv, variance) {
+                            return false;
+                        }
+                    } else {
+                        return false;
+                    }
+                }
+                true
+            }
             (TyParam::Type(l), TyParam::Type(r), Variance::Contravariant) => self.subtype_of(l, r),
             (TyParam::Type(l), TyParam::Type(r), Variance::Covariant) => {
                 // if matches!(r.as_ref(), &Type::Refinement(_)) { log!(info "{l}, {r}, {}", self.structural_supertype_of(l, r, bounds, Some(lhs_variance))); }
