@@ -7,9 +7,9 @@ use erg_common::env::{erg_pystd_path, erg_std_path};
 use erg_common::error::{ErrorCore, ErrorKind, Location, SubMessage};
 use erg_common::levenshtein::get_similar_name;
 use erg_common::set::Set;
-use erg_common::traits::{Locational, Stream};
+use erg_common::traits::{Locational, NoTypeDisplay, Stream};
 use erg_common::vis::Visibility;
-use erg_common::{enum_unwrap, fmt_option, fmt_slice, log, set};
+use erg_common::{enum_unwrap, fmt_option, fmt_slice, log, set, switch_lang};
 use erg_common::{option_enum_unwrap, Str};
 use Type::*;
 
@@ -1106,6 +1106,16 @@ impl Context {
                 }
             }
             other => {
+                let hint = if other == &ClassType {
+                    Some(switch_lang! {
+                        "japanese" => format!("インスタンスを生成したい場合は、{}.newを使用してください", obj.to_string_notype()),
+                        "simplified_chinese" => format!("如果要生成实例，请使用 {}.new", obj.to_string_notype()),
+                        "traditional_chinese" => format!("如果要生成實例，請使用 {}.new", obj.to_string_notype()),
+                        "english" => format!("If you want to generate an instance, use {}.new", obj.to_string_notype()),
+                    })
+                } else {
+                    None
+                };
                 if let Some(attr_name) = attr_name {
                     Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
                         self.cfg.input.clone(),
@@ -1117,7 +1127,7 @@ impl Context {
                         &mono("Callable"),
                         other,
                         self.get_candidates(other),
-                        None,
+                        hint,
                     )))
                 } else {
                     Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
@@ -1130,7 +1140,7 @@ impl Context {
                         &mono("Callable"),
                         other,
                         self.get_candidates(other),
-                        None,
+                        hint,
                     )))
                 }
             }

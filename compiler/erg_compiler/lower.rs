@@ -7,7 +7,7 @@ use erg_common::dict;
 use erg_common::error::{Location, MultiErrorDisplay};
 use erg_common::set;
 use erg_common::set::Set;
-use erg_common::traits::{Locational, Runnable, Stream};
+use erg_common::traits::{Locational, NoTypeDisplay, Runnable, Stream};
 use erg_common::vis::Visibility;
 use erg_common::{enum_unwrap, fmt_option, fn_name, get_hash, log, switch_lang, Str};
 

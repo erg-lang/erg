@@ -589,6 +589,10 @@ pub trait NestedDisplay {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, level: usize) -> std::fmt::Result;
 }
 
+pub trait NoTypeDisplay {
+    fn to_string_notype(&self) -> String;
+}
+
 /// `impl<T: NestedDisplay> Display for T NestedDisplay`はorphan-ruleに違反するので個別定義する
 #[macro_export]
 macro_rules! impl_display_from_nested {
@@ -605,7 +609,7 @@ macro_rules! impl_display_from_nested {
 #[macro_export]
 macro_rules! impl_nested_display_for_chunk_enum {
     ($Enum: ident; $($Variant: ident $(,)?)*) => {
-        impl NestedDisplay for $Enum {
+        impl $crate::traits::NestedDisplay for $Enum {
             fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
                 write!(f, "{}", "    ".repeat(level))?;
                 match self {
@@ -619,10 +623,23 @@ macro_rules! impl_nested_display_for_chunk_enum {
 #[macro_export]
 macro_rules! impl_nested_display_for_enum {
     ($Enum: ident; $($Variant: ident $(,)?)*) => {
-        impl NestedDisplay for $Enum {
+        impl $crate::traits::NestedDisplay for $Enum {
             fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
                 match self {
                     $($Enum::$Variant(v) => v.fmt_nest(f, level),)*
+                }
+            }
+        }
+    }
+}
+
+#[macro_export]
+macro_rules! impl_no_type_display_for_enum {
+    ($Enum: ident; $($Variant: ident $(,)?)*) => {
+        impl $crate::traits::NoTypeDisplay for $Enum {
+            fn to_string_notype(&self) -> String {
+                match self {
+                    $($Enum::$Variant(v) => v.to_string_notype(),)*
                 }
             }
         }
