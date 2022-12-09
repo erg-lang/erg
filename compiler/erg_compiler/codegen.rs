@@ -1859,8 +1859,8 @@ impl PyCodeGenerator {
             }
             // _: (Int, Str)
             TypeSpec::Tuple(tup) => {
-                let len = tup.len();
-                for (i, t_spec) in tup.into_iter().enumerate() {
+                let len = tup.tys.len();
+                for (i, t_spec) in tup.tys.into_iter().enumerate() {
                     if i != 0 && i != len - 1 {
                         self.dup_top();
                     }

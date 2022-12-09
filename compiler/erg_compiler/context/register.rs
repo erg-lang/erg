@@ -188,7 +188,11 @@ impl Context {
             self.locals.insert(ident.name.clone(), vi);
             return Ok(());
         }
-        self.validate_var_sig_t(ident, sig.t_spec.as_ref(), body_t, Normal)?;
+        let (var_t, errs) =
+            match self.validate_var_sig_t(ident, sig.t_spec.as_ref(), body_t, Normal) {
+                Ok(()) => (body_t.clone(), None),
+                Err(errs) => (Type::Failure, Some(errs)),
+            };
         let muty = Mutability::from(&ident.inspect()[..]);
         let py_name = if let Some(vi) = self
             .decls
@@ -201,7 +205,7 @@ impl Context {
         };
         let vis = ident.vis();
         let vi = VarInfo::new(
-            body_t.clone(),
+            var_t,
             muty,
             vis,
             VarKind::Defined(id),
@@ -211,7 +215,11 @@ impl Context {
         );
         log!(info "Registered {}::{}: {}", self.name, ident.name, vi);
         self.locals.insert(ident.name.clone(), vi);
-        Ok(())
+        if let Some(errs) = errs {
+            Err(errs)
+        } else {
+            Ok(())
+        }
     }
 
     /// 宣言が既にある場合、opt_decl_tに宣言の型を渡す

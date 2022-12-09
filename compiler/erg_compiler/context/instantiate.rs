@@ -699,9 +699,9 @@ impl Context {
                 }
                 Ok(set_t(elem_t, len))
             }
-            TypeSpec::Tuple(tys) => {
+            TypeSpec::Tuple(tup) => {
                 let mut inst_tys = vec![];
-                for spec in tys {
+                for spec in tup.tys.iter() {
                     inst_tys.push(self.instantiate_typespec(
                         spec,
                         opt_decl_t,
