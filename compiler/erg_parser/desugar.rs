@@ -17,9 +17,9 @@ use crate::ast::{
     Identifier, KeyValue, KwArg, Lambda, LambdaSignature, Literal, Methods, MixedRecord, Module,
     NonDefaultParamSignature, NormalArray, NormalDict, NormalRecord, NormalSet, NormalTuple,
     ParamPattern, ParamRecordAttr, Params, PatchDef, PosArg, Record, RecordAttrOrIdent,
-    RecordAttrs, Set as astSet, SetWithLength, Signature, SubrSignature, Tuple, TypeAppArgs,
-    TypeBoundSpecs, TypeSpec, TypeSpecWithOp, UnaryOp, VarName, VarPattern, VarRecordAttr,
-    VarSignature,
+    RecordAttrs, Set as astSet, SetWithLength, Signature, SubrSignature, Tuple, TupleTypeSpec,
+    TypeAppArgs, TypeBoundSpecs, TypeSpec, TypeSpecWithOp, UnaryOp, VarName, VarPattern,
+    VarRecordAttr, VarSignature,
 };
 use crate::token::{Token, TokenKind, COLON, DOT};
 
@@ -766,7 +766,8 @@ impl Desugarer {
                     );
                 }
                 if param.t_spec.is_none() {
-                    param.t_spec = Some(TypeSpecWithOp::new(COLON, TypeSpec::Tuple(tys)));
+                    let t_spec = TypeSpec::Tuple(TupleTypeSpec::new(tup.elems.parens.clone(), tys));
+                    param.t_spec = Some(TypeSpecWithOp::new(COLON, t_spec));
                 }
                 param.pat = buf_param;
             }
@@ -901,7 +902,8 @@ impl Desugarer {
                     );
                 }
                 if sig.t_spec.is_none() {
-                    sig.t_spec = Some(TypeSpecWithOp::new(COLON, TypeSpec::Tuple(tys)));
+                    let t_spec = TypeSpec::Tuple(TupleTypeSpec::new(tup.elems.parens.clone(), tys));
+                    sig.t_spec = Some(TypeSpecWithOp::new(COLON, t_spec));
                 }
                 sig.pat = buf_sig;
                 insertion_idx

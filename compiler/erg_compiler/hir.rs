@@ -159,16 +159,7 @@ impl NestedDisplay for Args {
     }
 }
 
-impl From<Vec<Expr>> for Args {
-    fn from(exprs: Vec<Expr>) -> Self {
-        Self {
-            pos_args: exprs.into_iter().map(PosArg::new).collect(),
-            var_args: None,
-            kw_args: Vec::new(),
-            paren: None,
-        }
-    }
-}
+// do not implement From<Vec<Expr>> to Args, because it will miss paren info (use `values`)
 
 impl_display_from_nested!(Args);
 
@@ -183,6 +174,8 @@ impl Locational for Args {
                 self.pos_args.first().unwrap(),
                 self.pos_args.last().unwrap(),
             )
+        } else if let Some(va) = self.var_args.as_ref() {
+            va.loc()
         } else {
             Location::Unknown
         }
@@ -204,6 +197,15 @@ impl Args {
             kw_args,
             paren,
         }
+    }
+
+    pub fn values(exprs: Vec<Expr>, paren: Option<(Token, Token)>) -> Self {
+        Self::new(
+            exprs.into_iter().map(PosArg::new).collect(),
+            None,
+            vec![],
+            paren,
+        )
     }
 
     pub fn empty() -> Self {

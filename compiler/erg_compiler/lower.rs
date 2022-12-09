@@ -364,7 +364,7 @@ impl ASTLowerer {
             array.l_sqbr,
             array.r_sqbr,
             elem_t,
-            hir::Args::from(new_array),
+            hir::Args::values(new_array, None),
         ))
     }
 
@@ -428,12 +428,12 @@ impl ASTLowerer {
     fn lower_normal_tuple(&mut self, tuple: ast::NormalTuple) -> LowerResult<hir::NormalTuple> {
         log!(info "entered {}({tuple})", fn_name!());
         let mut new_tuple = vec![];
-        let (elems, _) = tuple.elems.into_iters();
+        let (elems, .., paren) = tuple.elems.deconstruct();
         for elem in elems {
             let elem = self.lower_expr(elem.expr)?;
             new_tuple.push(elem);
         }
-        Ok(hir::NormalTuple::new(hir::Args::from(new_tuple)))
+        Ok(hir::NormalTuple::new(hir::Args::values(new_tuple, paren)))
     }
 
     fn lower_record(&mut self, record: ast::Record) -> LowerResult<hir::Record> {
@@ -526,7 +526,7 @@ impl ASTLowerer {
         }
         Ok(normal_set)
         */
-        let elems = hir::Args::from(new_set);
+        let elems = hir::Args::values(new_set, None);
         // check if elem_t is Eq
         if let Err(errs) = self.ctx.sub_unify(&elem_t, &mono("Eq"), elems.loc(), None) {
             self.errs.extend(errs);

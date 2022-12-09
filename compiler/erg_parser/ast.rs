@@ -1916,6 +1916,34 @@ impl SetWithLenTypeSpec {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TupleTypeSpec {
+    pub parens: Option<(Token, Token)>,
+    pub tys: Vec<TypeSpec>,
+}
+
+impl fmt::Display for TupleTypeSpec {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({})", fmt_vec(&self.tys))
+    }
+}
+
+impl Locational for TupleTypeSpec {
+    fn loc(&self) -> Location {
+        if let Some((lparen, rparen)) = &self.parens {
+            Location::concat(lparen, rparen)
+        } else {
+            Location::concat(self.tys.first().unwrap(), self.tys.last().unwrap())
+        }
+    }
+}
+
+impl TupleTypeSpec {
+    pub fn new(parens: Option<(Token, Token)>, tys: Vec<TypeSpec>) -> Self {
+        Self { parens, tys }
+    }
+}
+
 /// * Array: `[Int; 3]`, `[Int, Ratio, Complex]`, etc.
 /// * Dict: `[Str: Str]`, etc.
 /// * And (Intersection type): Add and Sub and Mul (== Num), etc.
@@ -1933,7 +1961,7 @@ pub enum TypeSpec {
     /* Composite types */
     Array(ArrayTypeSpec),
     SetWithLen(SetWithLenTypeSpec),
-    Tuple(Vec<TypeSpec>),
+    Tuple(TupleTypeSpec),
     Dict(Vec<(TypeSpec, TypeSpec)>),
     Record(Vec<(Identifier, TypeSpec)>),
     // Option(),
@@ -1964,7 +1992,7 @@ impl fmt::Display for TypeSpec {
             Self::Or(lhs, rhs) => write!(f, "{lhs} or {rhs}"),
             Self::Array(arr) => write!(f, "{arr}"),
             Self::SetWithLen(set) => write!(f, "{set}"),
-            Self::Tuple(tys) => write!(f, "({})", fmt_vec(tys)),
+            Self::Tuple(tup) => write!(f, "{tup}"),
             Self::Dict(dict) => {
                 write!(f, "{{")?;
                 for (k, v) in dict.iter() {
@@ -2003,8 +2031,7 @@ impl Locational for TypeSpec {
             }
             Self::Array(arr) => arr.loc(),
             Self::SetWithLen(set) => set.loc(),
-            // TODO: ユニット
-            Self::Tuple(tys) => Location::concat(tys.first().unwrap(), tys.last().unwrap()),
+            Self::Tuple(tup) => tup.loc(),
             Self::Dict(dict) => Location::concat(&dict.first().unwrap().0, &dict.last().unwrap().1),
             Self::Record(rec) => Location::concat(&rec.first().unwrap().0, &rec.last().unwrap().1),
             Self::Enum(set) => set.loc(),

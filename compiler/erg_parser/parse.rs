@@ -1150,7 +1150,7 @@ impl Parser {
                         enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_))),
                     ));
                     let tup = self
-                        .try_reduce_tuple(first_elem, false)
+                        .try_reduce_nonempty_tuple(first_elem, false)
                         .map_err(|_| self.stack_dec())?;
                     stack.push(ExprOrOp::Expr(Expr::Tuple(tup)));
                 }
@@ -1329,7 +1329,7 @@ impl Parser {
                         enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_))),
                     ));
                     let tup = self
-                        .try_reduce_tuple(first_elem, line_break)
+                        .try_reduce_nonempty_tuple(first_elem, line_break)
                         .map_err(|_| self.stack_dec())?;
                     stack.push(ExprOrOp::Expr(Expr::Tuple(tup)));
                 }
@@ -1423,7 +1423,7 @@ impl Parser {
             .map_err(|_| self.stack_dec())?;
         let first_elem = PosOrKwArg::Kw(KwArg::new(keyword, t_spec, rhs));
         let tuple = self
-            .try_reduce_tuple(first_elem, false)
+            .try_reduce_nonempty_tuple(first_elem, false)
             .map_err(|_| self.stack_dec())?;
         self.level -= 1;
         Ok(tuple)
@@ -2097,7 +2097,11 @@ impl Parser {
         Err(())
     }
 
-    fn try_reduce_tuple(&mut self, first_elem: PosOrKwArg, line_break: bool) -> ParseResult<Tuple> {
+    fn try_reduce_nonempty_tuple(
+        &mut self,
+        first_elem: PosOrKwArg,
+        line_break: bool,
+    ) -> ParseResult<Tuple> {
         debug_call_info!(self);
         let mut args = match first_elem {
             PosOrKwArg::Pos(pos) => Args::new(vec![pos], vec![], None),
@@ -3284,16 +3288,16 @@ impl Parser {
         }
     }
 
-    fn tuple_to_tuple_type_spec(tuple: Tuple) -> Result<Vec<TypeSpec>, ParseError> {
+    fn tuple_to_tuple_type_spec(tuple: Tuple) -> Result<TupleTypeSpec, ParseError> {
         match tuple {
             Tuple::Normal(tup) => {
                 let mut tup_spec = vec![];
-                let (elems, ..) = tup.elems.deconstruct();
+                let (elems, .., parens) = tup.elems.deconstruct();
                 for elem in elems.into_iter() {
                     let value = Self::expr_to_type_spec(elem.expr)?;
                     tup_spec.push(value);
                 }
-                Ok(tup_spec)
+                Ok(TupleTypeSpec::new(parens, tup_spec))
             }
         }
     }
