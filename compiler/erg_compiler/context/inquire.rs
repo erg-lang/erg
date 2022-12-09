@@ -2,8 +2,8 @@
 use std::option::Option; // conflicting to Type::Option
 use std::path::{Path, PathBuf};
 
-use erg_common::config::Input;
-use erg_common::env::erg_pystd_path;
+use erg_common::config::{ErgConfig, Input};
+use erg_common::env::{erg_pystd_path, erg_std_path};
 use erg_common::error::{ErrorCore, ErrorKind, Location, SubMessage};
 use erg_common::levenshtein::get_similar_name;
 use erg_common::set::Set;
@@ -1736,7 +1736,7 @@ impl Context {
                 }
                 let type_name = namespaces.pop().unwrap(); // Response
                 let path = Path::new(namespaces.remove(0));
-                let mut path = self.resolve_path(path);
+                let mut path = Self::resolve_path(&self.cfg, path)?;
                 for p in namespaces.into_iter() {
                     path = self.push_path(path, Path::new(p));
                 }
@@ -1766,7 +1766,7 @@ impl Context {
                 }
                 let type_name = namespaces.pop().unwrap(); // Response
                 let path = Path::new(namespaces.remove(0));
-                let mut path = self.resolve_path(path);
+                let mut path = Self::resolve_path(&self.cfg, path)?;
                 for p in namespaces.into_iter() {
                     path = self.push_path(path, Path::new(p));
                 }
@@ -1925,23 +1925,45 @@ impl Context {
         }
     }
 
-    // TODO: erg std
-    pub(crate) fn resolve_path(&self, path: &Path) -> PathBuf {
-        if let Ok(path) = self.cfg.input.local_resolve(path) {
-            path
+    pub(crate) fn resolve_path(cfg: &ErgConfig, path: &Path) -> Option<PathBuf> {
+        Self::resolve_real_path(cfg, path).or_else(|| Self::resolve_d_path(cfg, path))
+    }
+
+    pub(crate) fn resolve_real_path(cfg: &ErgConfig, path: &Path) -> Option<PathBuf> {
+        if let Ok(path) = cfg.input.local_resolve(path) {
+            Some(path)
+        } else if let Ok(path) = erg_std_path()
+            .join(format!("{}.er", path.display()))
+            .canonicalize()
+        {
+            Some(path)
+        } else if let Ok(path) = erg_std_path()
+            .join(format!("{}", path.display()))
+            .join("__init__.er")
+            .canonicalize()
+        {
+            Some(path)
+        } else {
+            None
+        }
+    }
+
+    pub(crate) fn resolve_d_path(cfg: &ErgConfig, path: &Path) -> Option<PathBuf> {
+        if let Ok(path) = cfg.input.local_resolve(path) {
+            Some(path)
         } else if let Ok(path) = erg_pystd_path()
             .join(format!("{}.d.er", path.display()))
             .canonicalize()
         {
-            path
+            Some(path)
         } else if let Ok(path) = erg_pystd_path()
             .join(format!("{}.d", path.display()))
             .join("__init__.d.er")
             .canonicalize()
         {
-            path
+            Some(path)
         } else {
-            PathBuf::from(format!("<builtins>.{}", path.display()))
+            None
         }
     }
 
@@ -1968,7 +1990,7 @@ impl Context {
         if t.is_module() {
             let path =
                 option_enum_unwrap!(t.typarams().remove(0), TyParam::Value:(ValueObj::Str:(_)))?;
-            let path = self.resolve_path(Path::new(&path[..]));
+            let path = Self::resolve_path(&self.cfg, Path::new(&path[..]))?;
             self.mod_cache
                 .as_ref()
                 .and_then(|cache| cache.ref_ctx(&path))

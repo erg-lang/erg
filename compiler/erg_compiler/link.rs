@@ -10,6 +10,7 @@ use erg_common::{enum_unwrap, log};
 use erg_parser::ast::{DefId, OperationKind};
 use erg_parser::token::{Token, TokenKind, DOT, EQUAL};
 
+use crate::context::Context;
 use crate::ty::typaram::TyParam;
 use crate::ty::value::ValueObj;
 use crate::ty::HasType;
@@ -297,7 +298,7 @@ impl<'a> Linker<'a> {
         let path =
             enum_unwrap!(expr.ref_t().typarams().remove(0), TyParam::Value:(ValueObj::Str:(_)));
         let path = Path::new(&path[..]);
-        let path = self.cfg.input.local_resolve(path).unwrap();
+        let path = Context::resolve_real_path(self.cfg, path).unwrap();
         // In the case of REPL, entries cannot be used up
         let hir = if self.cfg.input.is_repl() {
             self.mod_cache

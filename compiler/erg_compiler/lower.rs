@@ -2051,6 +2051,15 @@ impl ASTLowerer {
         HIR::new(ast.name, module)
     }
 
+    fn return_incomplete_artifact(&mut self, hir: HIR) -> IncompleteArtifact {
+        self.ctx.clear_all_vars();
+        IncompleteArtifact::new(
+            Some(hir),
+            LowerErrors::from(self.errs.take_all()),
+            LowerWarnings::from(self.warns.take_all()),
+        )
+    }
+
     pub fn lower(&mut self, ast: AST, mode: &str) -> Result<CompleteArtifact, IncompleteArtifact> {
         log!(info "the AST lowering process has started.");
         log!(info "the type-checking process has started.");
@@ -2070,11 +2079,7 @@ impl ASTLowerer {
                 ));
             } else {
                 log!(err "the declaring process has failed.");
-                return Err(IncompleteArtifact::new(
-                    Some(hir),
-                    LowerErrors::from(self.errs.take_all()),
-                    LowerWarnings::from(self.warns.take_all()),
-                ));
+                return Err(self.return_incomplete_artifact(hir));
             }
         }
         let mut module = hir::Module::with_capacity(ast.module.len());
@@ -2105,11 +2110,7 @@ impl ASTLowerer {
             Err((hir, errs)) => {
                 self.errs.extend(errs);
                 log!(err "the resolving process has failed. errs:  {}", self.errs.len());
-                return Err(IncompleteArtifact::new(
-                    Some(hir),
-                    LowerErrors::from(self.errs.take_all()),
-                    LowerWarnings::from(self.warns.take_all()),
-                ));
+                return Err(self.return_incomplete_artifact(hir));
             }
         };
         // TODO: recursive check
@@ -2126,11 +2127,7 @@ impl ASTLowerer {
             ))
         } else {
             log!(err "the AST lowering process has failed. errs: {}", self.errs.len());
-            Err(IncompleteArtifact::new(
-                Some(hir),
-                LowerErrors::from(self.errs.take_all()),
-                LowerWarnings::from(self.warns.take_all()),
-            ))
+            Err(self.return_incomplete_artifact(hir))
         }
     }
 }

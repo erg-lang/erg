@@ -1168,22 +1168,18 @@ impl Context {
         let __name__ = enum_unwrap!(mod_name.value.clone(), ValueObj::Str);
         let mod_cache = self.mod_cache.as_ref().unwrap();
         let py_mod_cache = self.py_mod_cache.as_ref().unwrap();
-        let path = match self.cfg.input.local_resolve(Path::new(&__name__[..])) {
-            Ok(path) => path,
-            Err(err) => {
+        let path = match Self::resolve_real_path(&self.cfg, Path::new(&__name__[..])) {
+            Some(path) => path,
+            None => {
                 let err = TyCheckErrors::from(TyCheckError::import_error(
                     self.cfg.input.clone(),
                     line!() as usize,
-                    err.to_string(),
+                    format!("module {__name__} not found"),
                     mod_name.loc(),
                     self.caused_by(),
                     self.mod_cache.as_ref().unwrap().get_similar_name(&__name__),
-                    self.similar_builtin_py_mod_name(&__name__).or_else(|| {
-                        self.py_mod_cache
-                            .as_ref()
-                            .unwrap()
-                            .get_similar_name(&__name__)
-                    }),
+                    self.similar_builtin_py_mod_name(&__name__)
+                        .or_else(|| py_mod_cache.get_similar_name(&__name__)),
                 ));
                 return Err(err);
             }
@@ -1250,9 +1246,8 @@ impl Context {
         let __name__ = enum_unwrap!(mod_name.value.clone(), ValueObj::Str);
         let mod_cache = self.mod_cache.as_ref().unwrap();
         let py_mod_cache = self.py_mod_cache.as_ref().unwrap();
-        let path = self.resolve_path(Path::new(&__name__[..]));
-        let path = match path.canonicalize() {
-            Ok(path) => {
+        let path = match Self::resolve_d_path(&self.cfg, Path::new(&__name__[..])) {
+            Some(path) => {
                 if self.is_pystd_main_module(path.as_path())
                     && !BUILTIN_PYTHON_MODS.contains(&&__name__[..])
                 {
@@ -1267,11 +1262,11 @@ impl Context {
                 }
                 path
             }
-            Err(err) => {
+            None => {
                 let err = TyCheckError::import_error(
                     self.cfg.input.clone(),
                     line!() as usize,
-                    err.to_string(),
+                    format!("module {__name__} not found"),
                     mod_name.loc(),
                     self.caused_by(),
                     self.mod_cache.as_ref().unwrap().get_similar_name(&__name__),
