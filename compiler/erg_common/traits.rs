@@ -347,7 +347,7 @@ pub trait LimitedDisplay {
     fn limited_fmt(&self, f: &mut std::fmt::Formatter<'_>, limit: usize) -> std::fmt::Result;
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum BlockKind {
     Main,          // now_block Vec must contain this
     Assignment,    // =
@@ -360,17 +360,31 @@ pub enum BlockKind {
     Error,         // parser error
 }
 
-pub struct VM {
+pub struct VirtualMachine {
     codes: String,
     now_block: Vec<BlockKind>,
+    now: BlockKind,
+    length: usize,
 }
 
-impl VM {
+impl VirtualMachine {
     fn new() -> Self {
         Self {
             codes: String::new(),
             now_block: vec![BlockKind::Main],
+            now: BlockKind::Main,
+            length: 1,
         }
+    }
+    fn push_block_kind(&mut self, bk: BlockKind) {
+        self.now = bk;
+        self.now_block.push(bk);
+        self.length += 1;
+    }
+    fn remove_block_kind(&mut self) {
+        self.now_block.pop().unwrap();
+        self.now = *self.now_block.last().unwrap();
+        self.length -= 1;
     }
     fn push_code(&mut self, src: &str) {
         self.codes.push_str(src)
@@ -378,6 +392,15 @@ impl VM {
     fn clear(&mut self) {
         self.codes = String::new();
         self.now_block = vec![BlockKind::Main];
+        self.now = BlockKind::Main;
+        self.length = 1;
+    }
+    fn indent(&self) -> String {
+        if self.now == BlockKind::MultiLineStr {
+            String::new()
+        } else {
+            "    ".repeat(self.length - 1)
+        }
     }
 }
 /// This trait implements REPL (Read-Eval-Print-Loop) automatically
@@ -442,17 +465,12 @@ pub trait Runnable: Sized + Default {
                         .write_all(instance.start_message().as_bytes())
                         .unwrap();
                 }
-                let mut vm = VM::new();
+                let mut vm = VirtualMachine::new();
                 loop {
-                    let lst_bk = vm.now_block.last().unwrap();
-                    let whitespace = if lst_bk == &BlockKind::MultiLineStr {
-                        String::new()
-                    } else {
-                        "    ".repeat(vm.now_block.len() - 1)
-                    };
+                    let indent = vm.indent();
                     if vm.now_block.len() > 1 {
                         output.write_all(instance.ps2().as_bytes()).unwrap();
-                        output.write_all(whitespace.as_str().as_bytes()).unwrap();
+                        output.write_all(indent.as_str().as_bytes()).unwrap();
                         output.flush().unwrap();
                     } else {
                         output.write_all(instance.ps1().as_bytes()).unwrap();
@@ -473,9 +491,9 @@ pub trait Runnable: Sized + Default {
                         "" => {
                             // Execute after block ends
                             if vm.now_block.len() == 2 {
-                                vm.now_block.pop();
+                                vm.remove_block_kind();
                             } else if vm.now_block.len() > 1 {
-                                vm.now_block.pop();
+                                vm.remove_block_kind();
                                 vm.push_code("\n");
                                 continue;
                             }
@@ -517,8 +535,8 @@ pub trait Runnable: Sized + Default {
                                 vm.push_code("\n");
                                 continue;
                             }
-                            vm.push_code(whitespace.as_str());
-                            instance.input().insert_whitespace(whitespace.as_str());
+                            vm.push_code(indent.as_str());
+                            instance.input().insert_whitespace(indent.as_str());
                             vm.push_code(line);
                             vm.push_code("\n");
                         }
@@ -536,21 +554,19 @@ pub trait Runnable: Sized + Default {
                             if vm.now_block.len() == 1 {
                                 instance.input().set_block_begin();
                             }
-                            if let Some(lst_bk) = vm.now_block.last() {
-                                if lst_bk != &BlockKind::MultiLineStr {
-                                    vm.push_code(whitespace.as_str());
-                                    instance.input().insert_whitespace(whitespace.as_str());
-                                    vm.now_block.push(bk);
-                                }
-                                vm.push_code(line);
-                                vm.push_code("\n");
-                                continue;
+                            if vm.now != BlockKind::MultiLineStr {
+                                vm.push_code(indent.as_str());
+                                instance.input().insert_whitespace(indent.as_str());
+                                vm.push_block_kind(bk);
                             }
+                            vm.push_code(line);
+                            vm.push_code("\n");
+                            continue;
                         }
                     }
 
                     // single eval
-                    if vm.now_block.len() == 1 {
+                    if vm.now == BlockKind::Main {
                         match instance.eval(mem::take(&mut vm.codes)) {
                             Ok(out) => {
                                 output.write_all((out + "\n").as_bytes()).unwrap();
