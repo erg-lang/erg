@@ -489,7 +489,7 @@ pub trait Runnable: Sized + Default {
                             continue;
                         }
                         "" => {
-                            // Execute after block ends
+                            // eval after the end of the block
                             if vm.now_block.len() == 2 {
                                 vm.remove_block_kind();
                             } else if vm.now_block.len() > 1 {
@@ -527,10 +527,8 @@ pub trait Runnable: Sized + Default {
                     };
                     let bk = instance.expect_block(line);
                     match bk {
-                        // eval and cause error
                         BlockKind::None => {
-                            let bk = vm.now_block.last().unwrap();
-                            if bk == &BlockKind::MultiLineStr {
+                            if vm.now == BlockKind::MultiLineStr {
                                 vm.push_code(line);
                                 vm.push_code("\n");
                                 continue;
@@ -546,21 +544,37 @@ pub trait Runnable: Sized + Default {
                             continue;
                         }
                         BlockKind::MultiLineStr => {
-                            vm.now_block.push(BlockKind::MultiLineStr);
-                            vm.push_code(line);
-                            vm.push_code("\n");
-                        }
-                        _ => {
-                            if vm.now_block.len() == 1 {
-                                instance.input().set_block_begin();
-                            }
-                            if vm.now != BlockKind::MultiLineStr {
+                            // end of MultiLineStr
+                            if vm.now == BlockKind::MultiLineStr {
+                                vm.remove_block_kind();
+                                vm.push_code(line);
+                                vm.push_code("\n");
+                            } else {
+                                // start of MultiLineStr
+                                vm.push_block_kind(BlockKind::MultiLineStr);
                                 vm.push_code(indent.as_str());
                                 instance.input().insert_whitespace(indent.as_str());
+                                vm.push_code(line);
+                                vm.push_code("\n");
+                                continue;
+                            }
+                        }
+                        // expect block
+                        _ => {
+                            if vm.length == 1 {
+                                instance.input().set_block_begin();
+                            }
+                            // even if the parser expects a block, line will all be string
+                            if vm.now == BlockKind::MultiLineStr {
+                                vm.push_code(line);
+                                vm.push_code("\n");
+                            } else {
+                                vm.push_code(indent.as_str());
+                                instance.input().insert_whitespace(indent.as_str());
+                                vm.push_code(line);
+                                vm.push_code("\n");
                                 vm.push_block_kind(bk);
                             }
-                            vm.push_code(line);
-                            vm.push_code("\n");
                             continue;
                         }
                     }
