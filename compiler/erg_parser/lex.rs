@@ -823,8 +823,8 @@ impl Lexer /*<'a>*/ {
     }
 
     fn lex_multi_line_str(&mut self) -> LexResult<Token> {
-        const TRIPLE_QUOTES: &str = "\"\"\"";
-        let mut s = TRIPLE_QUOTES.to_string();
+        const QUOTES: &str = "\"\"\"";
+        let mut s = QUOTES.to_string();
         while let Some(c) = self.peek_cur_ch() {
             if c == '"' {
                 let c = self.consume().unwrap();
@@ -832,25 +832,17 @@ impl Lexer /*<'a>*/ {
                 let aft_next_c = self.peek_next_ch();
                 if next_c.is_none() {
                     let token = self.emit_token(Illegal, &s);
-                    return Err(Self::unclosed_string_error(
-                        token,
-                        "\"\"\"",
-                        line!() as usize,
-                    ));
+                    return Err(Self::unclosed_string_error(token, QUOTES, line!() as usize));
                 }
                 if aft_next_c.is_none() {
                     s.push(self.consume().unwrap());
                     let token = self.emit_token(Illegal, &s);
-                    return Err(Self::unclosed_string_error(
-                        token,
-                        "\"\"\"",
-                        line!() as usize,
-                    ));
+                    return Err(Self::unclosed_string_error(token, QUOTES, line!() as usize));
                 }
                 if next_c.unwrap() == '"' && aft_next_c.unwrap() == '"' {
                     self.consume().unwrap();
                     self.consume().unwrap();
-                    s.push_str(TRIPLE_QUOTES);
+                    s.push_str(QUOTES);
                     let token = self.emit_token(StrLit, &s);
                     return Ok(token);
                 }
@@ -902,7 +894,7 @@ impl Lexer /*<'a>*/ {
         }
         let token = self.emit_token(Illegal, &s);
         if self.interpol_stack.len() == 1 {
-            let err = Self::unclosed_string_error(token, TRIPLE_QUOTES, line!() as usize);
+            let err = Self::unclosed_string_error(token, QUOTES, line!() as usize);
             Err(err)
         } else {
             Err(Self::unclosed_interpol_error(token))
