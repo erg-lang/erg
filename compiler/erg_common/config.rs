@@ -387,8 +387,11 @@ impl ErgConfig {
                     println!(
                         "\
 invalid option: {other}
-USAGE:\n    erg [OPTIONS] [SUBCOMMAND] [ARGS]...
-For more information try `erg --help`"
+
+USAGE:
+    erg [OPTIONS] [SUBCOMMAND] [ARGS]...
+
+    For more information try `erg --help`"
                     );
                     process::exit(0);
                 }
