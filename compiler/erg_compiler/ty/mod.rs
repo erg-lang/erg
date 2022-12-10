@@ -836,11 +836,28 @@ impl LimitedDisplay for RefinementType {
 
 impl RefinementType {
     pub fn new(var: Str, t: Type, preds: Set<Predicate>) -> Self {
-        Self {
-            var,
-            t: Box::new(t),
-            preds,
+        match t.deconstruct_refinement() {
+            Ok((inner_var, inner_t, inner_preds)) => {
+                let new_preds = preds
+                    .into_iter()
+                    .map(|pred| pred.change_subject_name(inner_var.clone()))
+                    .collect::<Set<_>>();
+                Self {
+                    var: inner_var,
+                    t: Box::new(inner_t),
+                    preds: inner_preds.concat(new_preds),
+                }
+            }
+            Err(t) => Self {
+                var,
+                t: Box::new(t),
+                preds,
+            },
         }
+    }
+
+    pub fn deconstruct(self) -> (Str, Type, Set<Predicate>) {
+        (self.var, *self.t, self.preds)
     }
 }
 
@@ -1611,6 +1628,14 @@ impl Type {
         }
     }
 
+    pub fn is_refinement(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_refinement(),
+            Self::Refinement(_) => true,
+            _ => false,
+        }
+    }
+
     pub fn is_record(&self) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_record(),
@@ -1850,6 +1875,41 @@ impl Type {
     pub fn is_monomorphized(&self) -> bool {
         matches!(self.typarams_len(), Some(0) | None)
             || (self.has_no_qvar() && self.has_no_unbound_var())
+    }
+
+    pub fn into_refinement(self) -> RefinementType {
+        match self {
+            Type::FreeVar(fv) if fv.is_linked() => fv.crack().clone().into_refinement(),
+            Type::Nat => {
+                let var = Str::from(fresh_varname());
+                RefinementType::new(
+                    var.clone(),
+                    Type::Int,
+                    set! {Predicate::ge(var, TyParam::value(0))},
+                )
+            }
+            Type::Bool => {
+                let var = Str::from(fresh_varname());
+                RefinementType::new(
+                    var.clone(),
+                    Type::Int,
+                    set! {Predicate::ge(var.clone(), TyParam::value(true)), Predicate::le(var, TyParam::value(false))},
+                )
+            }
+            Type::Refinement(r) => r,
+            t => {
+                let var = Str::from(fresh_varname());
+                RefinementType::new(var, t, set! {})
+            }
+        }
+    }
+
+    pub fn deconstruct_refinement(self) -> Result<(Str, Type, Set<Predicate>), Type> {
+        match self {
+            Type::FreeVar(fv) if fv.is_linked() => fv.crack().clone().deconstruct_refinement(),
+            Type::Refinement(r) => Ok(r.deconstruct()),
+            _ => Err(self),
+        }
     }
 
     pub fn qvars(&self) -> Set<(Str, Constraint)> {

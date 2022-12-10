@@ -1592,7 +1592,7 @@ impl Context {
             },
             // {I: Int | I >= 1} <: Nat == {I: Int | I >= 0}
             (Type::Refinement(_), sup) => {
-                let sup = self.into_refinement(sup.clone());
+                let sup = sup.clone().into_refinement();
                 self.sub_unify(maybe_sub, &Type::Refinement(sup), loc, param_name)
             },
             (Type::Subr(_) | Type::Record(_), Type) => Ok(()),
