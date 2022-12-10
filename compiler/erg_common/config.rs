@@ -384,7 +384,13 @@ impl ErgConfig {
                     process::exit(0);
                 }
                 other if other.starts_with('-') => {
-                    panic!("invalid option: {other}");
+                    println!(
+                        "\
+invalid option: {other}
+USAGE:\n    erg [OPTIONS] [SUBCOMMAND] [ARGS]...
+For more information try `erg --help`"
+                    );
+                    process::exit(0);
                 }
                 _ => {
                     cfg.input = Input::File(
