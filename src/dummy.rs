@@ -214,11 +214,20 @@ impl Runnable for DummyVM {
                         "Lambda" => BlockKind::Lambda,
                         "Assignment" => BlockKind::Assignment,
                         "ColonCall" => BlockKind::ColonCall,
-                        "MultiLineStr" => BlockKind::MultiLineStr,
                         "ClassAttr" => BlockKind::ClassAttr,
                         "ClassAttrDecl" => BlockKind::ClassAttrDecl,
                         _ => BlockKind::Error,
                     };
+                }
+                if errs
+                    .first()
+                    .map(|e| {
+                        e.core().kind == ErrorKind::SyntaxError
+                            && e.core().main_message.contains("\"\"\"")
+                    })
+                    .unwrap_or(false)
+                {
+                    return BlockKind::MultiLineStr;
                 }
                 errs.fmt_all_stderr();
                 BlockKind::Error
