@@ -502,12 +502,9 @@ impl Context {
             // ({I: Int | I >= 0} :> {F: Float | F >= 0}) == false,
             // {1, 2, 3} :> {1, } == true
             (Refinement(l), Refinement(r)) => {
-                match (self.subtype_of(&l.t, &r.t), self.supertype_of(&l.t, &r.t)) {
-                    // no relation
-                    (false, false)
-                    // l.t <: r.t (not equal)
-                    | (true, false) => { return false; }
-                    _ => {}
+                // no relation or l.t <: r.t (not equal)
+                if !self.supertype_of(&l.t, &r.t) {
+                    return false;
                 }
                 let mut r_preds_clone = r.preds.clone();
                 for l_pred in l.preds.iter() {
