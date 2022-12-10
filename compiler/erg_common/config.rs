@@ -393,7 +393,7 @@ USAGE:
 
     For more information try `erg --help`"
                     );
-                    process::exit(0);
+                    process::exit(2);
                 }
                 _ => {
                     cfg.input = Input::File(
