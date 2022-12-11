@@ -6,7 +6,7 @@ use erg_common::Str;
 use erg_parser::ast::{VarName, AST};
 use erg_parser::build_ast::ASTBuilder;
 
-use crate::artifact::{CompleteArtifact, IncompleteArtifact};
+use crate::artifact::{Buildable, CompleteArtifact, IncompleteArtifact};
 use crate::context::{Context, ContextProvider};
 use crate::effectcheck::SideEffectChecker;
 use crate::error::{CompileError, CompileErrors};
@@ -69,6 +69,18 @@ impl Runnable for HIRBuilder {
         let artifact = self.check(ast, "eval").map_err(|arti| arti.errors)?;
         artifact.warns.fmt_all_stderr();
         Ok(artifact.object.to_string())
+    }
+}
+
+impl Buildable for HIRBuilder {
+    fn build(&mut self, src: String, mode: &str) -> Result<CompleteArtifact, IncompleteArtifact> {
+        self.build(src, mode)
+    }
+    fn pop_context(&mut self) -> Option<Context> {
+        Some(self.pop_mod_ctx())
+    }
+    fn get_context(&self) -> Option<&Context> {
+        Some(&self.lowerer.ctx)
     }
 }
 

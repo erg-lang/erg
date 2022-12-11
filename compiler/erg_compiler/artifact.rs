@@ -2,6 +2,7 @@ use std::fmt;
 
 use erg_common::traits::Stream;
 
+use crate::context::Context;
 use crate::error::CompileErrors;
 use crate::hir::HIR;
 
@@ -77,6 +78,12 @@ impl ErrorArtifact {
     }
 }
 
-pub trait Buildable {
-    fn build(&mut self, src: String, mode: &str) -> Result<CompleteArtifact, IncompleteArtifact>;
+pub trait Buildable<T = HIR> {
+    fn build(
+        &mut self,
+        src: String,
+        mode: &str,
+    ) -> Result<CompleteArtifact<T>, IncompleteArtifact<T>>;
+    fn pop_context(&mut self) -> Option<Context>;
+    fn get_context(&self) -> Option<&Context>;
 }
