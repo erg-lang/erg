@@ -375,7 +375,7 @@ impl_display_from_nested!(TypeAppArgs);
 impl_locational!(TypeAppArgs, l_vbar, r_vbar);
 
 impl TypeAppArgs {
-    pub fn new(l_vbar: Token, args: Args, r_vbar: Token) -> Self {
+    pub const fn new(l_vbar: Token, args: Args, r_vbar: Token) -> Self {
         Self {
             l_vbar,
             args,
@@ -488,7 +488,7 @@ impl_display_from_nested!(NormalArray);
 impl_locational!(NormalArray, l_sqbr, r_sqbr);
 
 impl NormalArray {
-    pub fn new(l_sqbr: Token, r_sqbr: Token, elems: Args) -> Self {
+    pub const fn new(l_sqbr: Token, r_sqbr: Token, elems: Args) -> Self {
         Self {
             l_sqbr,
             r_sqbr,
@@ -599,7 +599,7 @@ impl_display_from_nested!(NormalTuple);
 impl_locational!(NormalTuple, elems, elems);
 
 impl NormalTuple {
-    pub fn new(elems: Args) -> Self {
+    pub const fn new(elems: Args) -> Self {
         Self { elems }
     }
 }
@@ -660,7 +660,7 @@ impl_display_from_nested!(NormalDict);
 impl_locational!(NormalDict, l_brace, r_brace);
 
 impl NormalDict {
-    pub fn new(l_brace: Token, r_brace: Token, kvs: Vec<KeyValue>) -> Self {
+    pub const fn new(l_brace: Token, r_brace: Token, kvs: Vec<KeyValue>) -> Self {
         Self {
             l_brace,
             r_brace,
@@ -688,7 +688,7 @@ impl_display_from_nested!(DictComprehension);
 impl_locational!(DictComprehension, l_brace, r_brace);
 
 impl DictComprehension {
-    pub fn new(l_brace: Token, r_brace: Token, attrs: Args, guards: Vec<Expr>) -> Self {
+    pub const fn new(l_brace: Token, r_brace: Token, attrs: Args, guards: Vec<Expr>) -> Self {
         Self {
             l_brace,
             r_brace,
@@ -825,7 +825,7 @@ impl_display_from_nested!(NormalRecord);
 impl_locational!(NormalRecord, l_brace, r_brace);
 
 impl NormalRecord {
-    pub fn new(l_brace: Token, r_brace: Token, attrs: RecordAttrs) -> Self {
+    pub const fn new(l_brace: Token, r_brace: Token, attrs: RecordAttrs) -> Self {
         Self {
             l_brace,
             r_brace,
@@ -884,7 +884,7 @@ impl_display_from_nested!(MixedRecord);
 impl_locational!(MixedRecord, l_brace, r_brace);
 
 impl MixedRecord {
-    pub fn new(l_brace: Token, r_brace: Token, attrs: Vec<RecordAttrOrIdent>) -> Self {
+    pub const fn new(l_brace: Token, r_brace: Token, attrs: Vec<RecordAttrOrIdent>) -> Self {
         Self {
             l_brace,
             r_brace,
@@ -922,7 +922,7 @@ impl_display_from_nested!(NormalSet);
 impl_locational!(NormalSet, l_brace, r_brace);
 
 impl NormalSet {
-    pub fn new(l_brace: Token, r_brace: Token, elems: Args) -> Self {
+    pub const fn new(l_brace: Token, r_brace: Token, elems: Args) -> Self {
         Self {
             l_brace,
             r_brace,
@@ -1385,7 +1385,7 @@ impl_display_from_nested!(ConstDict);
 impl_locational!(ConstDict, l_brace, r_brace);
 
 impl ConstDict {
-    pub fn new(l_brace: Token, r_brace: Token, attrs: ConstArgs) -> Self {
+    pub const fn new(l_brace: Token, r_brace: Token, attrs: ConstArgs) -> Self {
         Self {
             l_brace,
             r_brace,
@@ -1939,7 +1939,7 @@ impl Locational for TupleTypeSpec {
 }
 
 impl TupleTypeSpec {
-    pub fn new(parens: Option<(Token, Token)>, tys: Vec<TypeSpec>) -> Self {
+    pub const fn new(parens: Option<(Token, Token)>, tys: Vec<TypeSpec>) -> Self {
         Self { parens, tys }
     }
 }
@@ -2094,7 +2094,7 @@ impl_display_from_nested!(TypeSpecWithOp);
 impl_locational!(TypeSpecWithOp, op, t_spec);
 
 impl TypeSpecWithOp {
-    pub fn new(op: Token, t_spec: TypeSpec) -> Self {
+    pub const fn new(op: Token, t_spec: TypeSpec) -> Self {
         Self { op, t_spec }
     }
 }
@@ -3113,10 +3113,14 @@ impl Locational for LambdaSignature {
 }
 
 impl LambdaSignature {
-    pub const fn new(params: Params, return_t: Option<TypeSpec>, bounds: TypeBoundSpecs) -> Self {
+    pub const fn new(
+        params: Params,
+        return_t_spec: Option<TypeSpec>,
+        bounds: TypeBoundSpecs,
+    ) -> Self {
         Self {
             params,
-            return_t_spec: return_t,
+            return_t_spec,
             bounds,
         }
     }
