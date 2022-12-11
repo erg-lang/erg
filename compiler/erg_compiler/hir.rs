@@ -1425,7 +1425,9 @@ pub struct Block(Vec<Expr>);
 impl HasType for Block {
     #[inline]
     fn ref_t(&self) -> &Type {
-        self.last().unwrap().ref_t()
+        self.last()
+            .map(|last| last.ref_t())
+            .unwrap_or(Type::FAILURE)
     }
     #[inline]
     fn ref_mut_t(&mut self) -> &mut Type {
@@ -1433,11 +1435,11 @@ impl HasType for Block {
     }
     #[inline]
     fn t(&self) -> Type {
-        self.last().unwrap().t()
+        self.last().map(|last| last.t()).unwrap_or(Type::Failure)
     }
     #[inline]
     fn signature_t(&self) -> Option<&Type> {
-        self.last().unwrap().signature_t()
+        self.last().and_then(|last| last.signature_t())
     }
     #[inline]
     fn signature_mut_t(&mut self) -> Option<&mut Type> {
