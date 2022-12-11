@@ -1156,7 +1156,11 @@ impl_display_from_nested!(Block);
 
 impl Locational for Block {
     fn loc(&self) -> Location {
-        Location::concat(self.0.first().unwrap(), self.0.last().unwrap())
+        if self.0.is_empty() {
+            Location::Unknown
+        } else {
+            Location::concat(self.0.first().unwrap(), self.0.last().unwrap())
+        }
     }
 }
 
