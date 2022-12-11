@@ -6,7 +6,7 @@ use erg_common::Str;
 use erg_parser::ast::{VarName, AST};
 use erg_parser::build_ast::ASTBuilder;
 
-use crate::artifact::{Buildable, CompleteArtifact, IncompleteArtifact};
+use crate::artifact::{BuildRunnable, Buildable, CompleteArtifact, IncompleteArtifact};
 use crate::context::{Context, ContextProvider};
 use crate::effectcheck::SideEffectChecker;
 use crate::error::{CompileError, CompileErrors};
@@ -83,6 +83,8 @@ impl Buildable for HIRBuilder {
         Some(&self.lowerer.ctx)
     }
 }
+
+impl BuildRunnable for HIRBuilder {}
 
 impl ContextProvider for HIRBuilder {
     fn dir(&self) -> Vec<(&VarName, &VarInfo)> {

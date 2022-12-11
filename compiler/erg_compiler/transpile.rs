@@ -10,7 +10,9 @@ use erg_common::Str;
 use erg_parser::ast::{ParamPattern, TypeSpec, VarName};
 use erg_parser::token::TokenKind;
 
-use crate::artifact::{Buildable, CompleteArtifact, ErrorArtifact, IncompleteArtifact};
+use crate::artifact::{
+    BuildRunnable, Buildable, CompleteArtifact, ErrorArtifact, IncompleteArtifact,
+};
 use crate::build_hir::HIRBuilder;
 use crate::codegen::PyCodeGenerator;
 use crate::context::{Context, ContextProvider};
@@ -190,6 +192,8 @@ impl Buildable<PyScript> for Transpiler {
         self.builder.get_context()
     }
 }
+
+impl BuildRunnable<PyScript> for Transpiler {}
 
 impl Transpiler {
     pub fn transpile(
