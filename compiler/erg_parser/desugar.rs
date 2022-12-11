@@ -14,9 +14,9 @@ use erg_common::{enum_unwrap, get_hash, log, set};
 use crate::ast::{
     Accessor, Args, Array, ArrayComprehension, ArrayTypeSpec, ArrayWithLength, AttrDef, BinOp,
     Block, Call, ClassAttr, ClassAttrs, ClassDef, ConstExpr, DataPack, Def, DefBody, DefId, Dict,
-    Expr, Identifier, KeyValue, KwArg, Lambda, LambdaSignature, Literal, Methods, MixedRecord,
-    Module, NonDefaultParamSignature, NormalArray, NormalDict, NormalRecord, NormalSet,
-    NormalTuple, ParamPattern, ParamRecordAttr, Params, PatchDef, PosArg, Record,
+    Dummy, Expr, Identifier, KeyValue, KwArg, Lambda, LambdaSignature, Literal, Methods,
+    MixedRecord, Module, NonDefaultParamSignature, NormalArray, NormalDict, NormalRecord,
+    NormalSet, NormalTuple, ParamPattern, ParamRecordAttr, Params, PatchDef, PosArg, Record,
     RecordAttrOrIdent, RecordAttrs, Set as astSet, SetWithLength, Signature, SubrSignature, Tuple,
     TupleTypeSpec, TypeAppArgs, TypeBoundSpecs, TypeSpec, TypeSpecWithOp, UnaryOp, VarName,
     VarPattern, VarRecordAttr, VarSignature,
@@ -301,7 +301,7 @@ impl Desugarer {
                 for chunk in exprs.into_iter() {
                     chunks.push(desugar(chunk));
                 }
-                Expr::Dummy(Block::new(chunks))
+                Expr::Dummy(Dummy::new(chunks))
             }
         }
     }

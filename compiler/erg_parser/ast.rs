@@ -1167,6 +1167,29 @@ impl Locational for Block {
 impl_stream_for_wrapper!(Block, Expr);
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Dummy(Vec<Expr>);
+
+impl NestedDisplay for Dummy {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
+        fmt_lines(self.0.iter(), f, level)
+    }
+}
+
+impl_display_from_nested!(Dummy);
+
+impl Locational for Dummy {
+    fn loc(&self) -> Location {
+        if self.0.is_empty() {
+            Location::Unknown
+        } else {
+            Location::concat(self.0.first().unwrap(), self.0.last().unwrap())
+        }
+    }
+}
+
+impl_stream_for_wrapper!(Dummy, Expr);
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstLocal {
     pub symbol: Token,
 }
@@ -3532,7 +3555,7 @@ pub enum Expr {
     PatchDef(PatchDef),
     AttrDef(AttrDef),
     /// for mapping to Python AST
-    Dummy(Block),
+    Dummy(Dummy),
 }
 
 impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAsc, Def, Methods, ClassDef, PatchDef, AttrDef, Dummy);

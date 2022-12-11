@@ -1771,7 +1771,7 @@ impl ASTLowerer {
             ast::Expr::AttrDef(adef) => Ok(hir::Expr::AttrDef(self.lower_attr_def(adef)?)),
             ast::Expr::TypeAsc(tasc) => Ok(hir::Expr::TypeAsc(self.lower_type_asc(tasc)?)),
             // Checking is also performed for expressions in Dummy. However, it has no meaning in code generation
-            ast::Expr::Dummy(dummy) => Ok(hir::Expr::Dummy(self.lower_block(dummy)?)),
+            ast::Expr::Dummy(dummy) => Ok(hir::Expr::Dummy(self.lower_dummy(dummy)?)),
             other => todo!("{other}"),
         }
     }
@@ -1784,6 +1784,16 @@ impl ASTLowerer {
             hir_block.push(chunk);
         }
         Ok(hir::Block::new(hir_block))
+    }
+
+    fn lower_dummy(&mut self, ast_dummy: ast::Dummy) -> LowerResult<hir::Dummy> {
+        log!(info "entered {}", fn_name!());
+        let mut hir_dummy = Vec::with_capacity(ast_dummy.len());
+        for chunk in ast_dummy.into_iter() {
+            let chunk = self.lower_expr(chunk)?;
+            hir_dummy.push(chunk);
+        }
+        Ok(hir::Dummy::new(hir_dummy))
     }
 
     fn declare_or_import_var(

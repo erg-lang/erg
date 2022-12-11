@@ -1477,6 +1477,61 @@ impl Locational for Block {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Dummy(Vec<Expr>);
+
+impl HasType for Dummy {
+    #[inline]
+    fn ref_t(&self) -> &Type {
+        Type::FAILURE
+    }
+    #[inline]
+    fn ref_mut_t(&mut self) -> &mut Type {
+        todo!()
+    }
+    #[inline]
+    fn t(&self) -> Type {
+        Type::Failure
+    }
+    #[inline]
+    fn signature_t(&self) -> Option<&Type> {
+        Some(Type::FAILURE)
+    }
+    #[inline]
+    fn signature_mut_t(&mut self) -> Option<&mut Type> {
+        todo!()
+    }
+}
+
+impl NestedDisplay for Dummy {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
+        fmt_lines(self.0.iter(), f, level)
+    }
+}
+
+impl NoTypeDisplay for Dummy {
+    fn to_string_notype(&self) -> String {
+        self.0
+            .iter()
+            .map(|e| e.to_string_notype())
+            .collect::<Vec<_>>()
+            .join("; ")
+    }
+}
+
+impl_display_from_nested!(Dummy);
+impl_stream_for_wrapper!(Dummy, Expr);
+
+impl Locational for Dummy {
+    fn loc(&self) -> Location {
+        if self.0.is_empty() {
+            Location::Unknown
+        } else {
+            Location::concat(self.0.first().unwrap(), self.0.last().unwrap())
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct VarSignature {
     pub ident: Identifier,
 }
@@ -2231,7 +2286,7 @@ pub enum Expr {
     Code(Block),     // code object
     Compound(Block), // compound statement
     Import(Accessor),
-    Dummy(Block), // for mapping to Python AST
+    Dummy(Dummy), // for mapping to Python AST
 }
 
 impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, AttrDef, Code, Compound, TypeAsc, Set, Import, Dummy);
