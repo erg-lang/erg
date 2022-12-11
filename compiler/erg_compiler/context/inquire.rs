@@ -17,7 +17,7 @@ use ast::VarName;
 use erg_parser::ast::{self, Identifier};
 use erg_parser::token::Token;
 
-use crate::ty::constructors::{anon, free_var, func, mono, poly, proc, proj, subr_t};
+use crate::ty::constructors::{anon, free_var, func, mono, poly, proc, proj, ref_, subr_t};
 use crate::ty::free::Constraint;
 use crate::ty::typaram::TyParam;
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
@@ -448,8 +448,8 @@ impl Context {
         let self_t = obj.t();
         let name = ident.name.token();
         match self.get_attr_info_from_attributive(&self_t, ident, namespace) {
-            Ok(t) => {
-                return Ok(t);
+            Ok(vi) => {
+                return Ok(vi);
             }
             Err(e) if e.core.kind == ErrorKind::DummyError => {}
             Err(e) => {
@@ -468,8 +468,8 @@ impl Context {
             }
         }
         match self.get_attr_from_nominal_t(obj, ident, input, namespace) {
-            Ok(t) => {
-                return Ok(t);
+            Ok(vi) => {
+                return Ok(vi);
             }
             Err(e) if e.core.kind == ErrorKind::DummyError => {}
             Err(e) => {
@@ -568,6 +568,8 @@ impl Context {
         namespace: &Str,
     ) -> SingleTyCheckResult<VarInfo> {
         match t {
+            // (obj: Never).foo: Never
+            Type::Never => Ok(VarInfo::ILLEGAL.clone()),
             Type::FreeVar(fv) if fv.is_linked() => {
                 self.get_attr_info_from_attributive(&fv.crack(), ident, namespace)
             }
@@ -658,6 +660,19 @@ impl Context {
         input: &Input,
         namespace: &Str,
     ) -> SingleTyCheckResult<VarInfo> {
+        if obj.ref_t() == Type::FAILURE {
+            // (...Obj) -> Failure
+            return Ok(VarInfo {
+                t: Type::Subr(SubrType::new(
+                    SubrKind::Func,
+                    vec![],
+                    Some(ParamTy::pos(None, ref_(Obj))),
+                    vec![],
+                    Failure,
+                )),
+                ..VarInfo::default()
+            });
+        }
         if let Some(attr_name) = attr_name.as_ref() {
             for ctx in self
                 .get_nominal_super_type_ctxs(obj.ref_t())

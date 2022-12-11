@@ -117,7 +117,7 @@ impl VarInfo {
 
     pub const fn const_default() -> Self {
         Self::new(
-            Type::Untyped,
+            Type::Failure,
             Immutable,
             Private,
             VarKind::DoesNotExist,

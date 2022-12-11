@@ -1023,7 +1023,6 @@ pub enum Type {
     }, // e.g. Ts.__getitem__(N)
     FreeVar(FreeTyVar), // a reference to the type of other expression, see docs/compiler/inference.md
     Failure,            // indicates a failure of type inference and behaves as `Never`.
-    Untyped,            // e.g. the type of `match`
     /// used to represent `TyParam` is not initialized (see `erg_compiler::context::instantiate_tp`)
     Uninited,
 }
@@ -1123,9 +1122,7 @@ impl PartialEq for Type {
             (Self::FreeVar(fv), other) if fv.is_linked() => &*fv.crack() == other,
             (_self, Self::FreeVar(fv)) if fv.is_linked() => _self == &*fv.crack(),
             (Self::FreeVar(l), Self::FreeVar(r)) => l == r,
-            (Self::Failure, Self::Failure)
-            | (Self::Untyped, Self::Untyped)
-            | (Self::Uninited, Self::Uninited) => true,
+            (Self::Failure, Self::Failure) | (Self::Uninited, Self::Uninited) => true,
             _ => false,
         }
     }
@@ -1796,7 +1793,6 @@ impl Type {
             Self::Proj { .. } => Str::ever("Proj"),
             Self::ProjCall { .. } => Str::ever("ProjCall"),
             Self::Failure => Str::ever("Failure"),
-            Self::Untyped => Str::ever("Untyped"),
             Self::Uninited => Str::ever("Uninited"),
         }
     }

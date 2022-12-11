@@ -703,12 +703,17 @@ impl ASTLowerer {
     }
 
     fn lower_ident(&self, ident: ast::Identifier) -> LowerResult<hir::Identifier> {
-        // `match` is an untypable special form
-        // `match`は型付け不可能な特殊形式
+        // `match` is a special form, typing is magic
         let (vi, __name__) = if ident.vis().is_private()
             && (&ident.inspect()[..] == "match" || &ident.inspect()[..] == "match!")
         {
-            (VarInfo::default(), None)
+            (
+                VarInfo {
+                    t: mono("GenericCallable"),
+                    ..VarInfo::default()
+                },
+                None,
+            )
         } else {
             (
                 self.ctx.rec_get_var_info(
