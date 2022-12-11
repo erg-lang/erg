@@ -76,3 +76,7 @@ impl ErrorArtifact {
         Self { errors, warns }
     }
 }
+
+pub trait Buildable {
+    fn build(&mut self, src: String, mode: &str) -> Result<CompleteArtifact, IncompleteArtifact>;
+}
