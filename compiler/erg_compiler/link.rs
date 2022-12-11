@@ -158,6 +158,7 @@ impl<'a> Linker<'a> {
                 }
             }
             Expr::Import(_) => unreachable!(),
+            Expr::Dummy(_) => {}
         }
     }
 
@@ -279,6 +280,7 @@ impl<'a> Linker<'a> {
                 }
             }
             Expr::Import(_) => unreachable!(),
+            Expr::Dummy(_) => {}
         }
     }
 

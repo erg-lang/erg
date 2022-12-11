@@ -2495,6 +2495,7 @@ impl PyCodeGenerator {
                 self.emit_expr(*tasc.expr);
             }
             Expr::Import(acc) => self.emit_import(acc),
+            Expr::Dummy(_) => {}
         }
     }
 

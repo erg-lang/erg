@@ -621,7 +621,7 @@ impl Context {
 
     fn resolve_expr_t(&self, expr: &mut hir::Expr) -> SingleTyCheckResult<()> {
         match expr {
-            hir::Expr::Lit(_) => Ok(()),
+            hir::Expr::Lit(_) | hir::Expr::Dummy(_) => Ok(()),
             hir::Expr::Accessor(acc) => {
                 let loc = acc.loc();
                 let t = acc.ref_mut_t();

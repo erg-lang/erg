@@ -411,6 +411,7 @@ impl ScriptGenerator {
             }
             Expr::TypeAsc(tasc) => self.transpile_expr(*tasc.expr),
             Expr::Code(_) => todo!("transpiling importing user-defined code"),
+            Expr::Dummy(_) => "".to_string(),
         }
     }
 

@@ -296,6 +296,13 @@ impl Desugarer {
                 Expr::Methods(Methods::new(method_defs.class, method_defs.vis, new_attrs))
             }
             Expr::Accessor(acc) => Expr::Accessor(Self::perform_desugar_acc(desugar, acc)),
+            Expr::Dummy(exprs) => {
+                let mut chunks = vec![];
+                for chunk in exprs.into_iter() {
+                    chunks.push(desugar(chunk));
+                }
+                Expr::Dummy(Block::new(chunks))
+            }
         }
     }
 

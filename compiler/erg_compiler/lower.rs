@@ -1765,6 +1765,8 @@ impl ASTLowerer {
             ast::Expr::PatchDef(defs) => Ok(hir::Expr::PatchDef(self.lower_patch_def(defs)?)),
             ast::Expr::AttrDef(adef) => Ok(hir::Expr::AttrDef(self.lower_attr_def(adef)?)),
             ast::Expr::TypeAsc(tasc) => Ok(hir::Expr::TypeAsc(self.lower_type_asc(tasc)?)),
+            // Checking is also performed for expressions in Dummy. However, it has no meaning in code generation
+            ast::Expr::Dummy(dummy) => Ok(hir::Expr::Dummy(self.lower_block(dummy)?)),
             other => todo!("{other}"),
         }
     }
