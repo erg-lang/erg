@@ -262,7 +262,9 @@ impl Context {
         match subr {
             ConstSubr::User(_user) => todo!(),
             ConstSubr::Builtin(builtin) => builtin.call(args, self).map_err(|mut e| {
-                e.0.loc = loc;
+                if e.0.loc.is_unknown() {
+                    e.0.loc = loc;
+                }
                 EvalErrors::from(EvalError::new(
                     *e.0,
                     self.cfg.input.clone(),

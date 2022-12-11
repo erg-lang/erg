@@ -279,6 +279,18 @@ impl Location {
         }
     }
 
+    pub const fn is_unknown(&self) -> bool {
+        matches!(self, Self::Unknown)
+    }
+
+    pub const fn unknown_or(&self, other: Self) -> Self {
+        if self.is_unknown() {
+            other
+        } else {
+            *self
+        }
+    }
+
     pub const fn ln_begin(&self) -> Option<usize> {
         match self {
             Self::Range { ln_begin, .. } | Self::LineRange(ln_begin, _) | Self::Line(ln_begin) => {
@@ -477,7 +489,7 @@ impl SubMessage {
         mark: char,
         chars: &Characters,
     ) -> String {
-        match self.loc {
+        match self.loc.unknown_or(e.core().loc) {
             Location::Range {
                 ln_begin,
                 col_begin,
@@ -752,6 +764,8 @@ pub trait ErrorDisplay {
         for sub_msg in &core.sub_messages {
             msg += &sub_msg.format_code_and_pointer(self, color, gutter_color, mark, chars);
         }
+        msg += &core.kind.to_string();
+        msg += ": ";
         msg += &core.main_message;
         msg += "\n\n";
         msg
