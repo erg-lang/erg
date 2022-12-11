@@ -441,7 +441,7 @@ impl Context {
         let non_default_params = t.non_default_params().unwrap();
         let var_args = t.var_args();
         let default_params = t.default_params().unwrap();
-        if let Some(spec_ret_t) = t.return_t() {
+        let mut errs = if let Some(spec_ret_t) = t.return_t() {
             self.sub_unify(body_t, spec_ret_t, ident.loc(), None)
                 .map_err(|errs| {
                     TyCheckErrors::new(
@@ -450,8 +450,7 @@ impl Context {
                                 TyCheckError::return_type_error(
                                     self.cfg.input.clone(),
                                     line!() as usize,
-                                    // TODO: is it possible to get 0?
-                                    e.core.sub_messages.get(0).unwrap().loc,
+                                    e.core.get_loc_with_fallback(),
                                     e.caused_by,
                                     readable_name(name.inspect()),
                                     spec_ret_t,
@@ -460,28 +459,35 @@ impl Context {
                             })
                             .collect(),
                     )
-                })?;
-        }
+                })
+        } else {
+            Ok(())
+        };
+        let return_t = if errs.is_err() {
+            Type::Failure
+        } else {
+            body_t.clone()
+        };
         let sub_t = if ident.is_procedural() {
             proc(
                 non_default_params.clone(),
                 var_args.cloned(),
                 default_params.clone(),
-                body_t.clone(),
+                return_t,
             )
         } else {
             func(
                 non_default_params.clone(),
                 var_args.cloned(),
                 default_params.clone(),
-                body_t.clone(),
+                return_t,
             )
         };
         sub_t.lift();
         let found_t = self.generalize_t(sub_t);
         let py_name = if let Some(vi) = self.decls.remove(name) {
             if !self.supertype_of(&vi.t, &found_t) {
-                return Err(TyCheckErrors::from(TyCheckError::violate_decl_error(
+                let err = TyCheckError::violate_decl_error(
                     self.cfg.input.clone(),
                     line!() as usize,
                     ident.loc(),
@@ -489,7 +495,15 @@ impl Context {
                     name.inspect(),
                     &vi.t,
                     &found_t,
-                )));
+                );
+                match errs {
+                    Ok(()) => {
+                        errs = Err(TyCheckErrors::from(err));
+                    }
+                    Err(ref mut es) => {
+                        es.push(err);
+                    }
+                }
             }
             vi.py_name
         } else {
@@ -516,6 +530,7 @@ impl Context {
         let t = vi.t.clone();
         log!(info "Registered {}::{name}: {t}", self.name);
         self.locals.insert(name.clone(), vi);
+        errs?;
         Ok(t)
     }
 
