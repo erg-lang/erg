@@ -6,6 +6,7 @@ use unicode_xid::UnicodeXID;
 use erg_common::cache::CacheSet;
 use erg_common::config::ErgConfig;
 use erg_common::config::Input;
+use erg_common::traits::BlockKind;
 use erg_common::traits::{Locational, Runnable, Stream};
 use erg_common::{debug_power_assert, fn_name_full, normalize_newline, switch_lang};
 
@@ -66,6 +67,40 @@ impl Runnable for LexerRunner {
                 .map_err(|errs| LexerRunnerErrors::convert(self.input(), errs))?
                 .to_string())
         }
+    }
+
+    #[inline]
+    fn expect_block(&self, src: &str) -> BlockKind {
+        let multi_line_str = "\"\"\"";
+        if src.contains(multi_line_str) && src.rfind(multi_line_str) == src.find(multi_line_str) {
+            return BlockKind::MultiLineStr;
+        }
+        if src.ends_with("do!:") && !src.starts_with("do!:") {
+            return BlockKind::Lambda;
+        }
+        if src.ends_with("do:") && !src.starts_with("do:") {
+            return BlockKind::Lambda;
+        }
+        if src.ends_with(':') && !src.starts_with(':') {
+            return BlockKind::Lambda;
+        }
+        if src.ends_with('=') && !src.starts_with('=') {
+            return BlockKind::Assignment;
+        }
+        if src.ends_with('.') && !src.starts_with('.') {
+            return BlockKind::ClassAttrDecl;
+        }
+        if src.ends_with("::") && !src.starts_with("::") {
+            return BlockKind::ClassAttr;
+        }
+        if src.ends_with("=>") && !src.starts_with("=>") {
+            return BlockKind::Lambda;
+        }
+        if src.ends_with("->") && !src.starts_with("->") {
+            return BlockKind::Lambda;
+        }
+
+        BlockKind::None
     }
 }
 
@@ -788,7 +823,8 @@ impl Lexer /*<'a>*/ {
     }
 
     fn lex_multi_line_str(&mut self) -> LexResult<Token> {
-        let mut s = "\"\"\"".to_string();
+        const QUOTES: &str = "\"\"\"";
+        let mut s = QUOTES.to_string();
         while let Some(c) = self.peek_cur_ch() {
             if c == '"' {
                 let c = self.consume().unwrap();
@@ -796,25 +832,17 @@ impl Lexer /*<'a>*/ {
                 let aft_next_c = self.peek_next_ch();
                 if next_c.is_none() {
                     let token = self.emit_token(Illegal, &s);
-                    return Err(Self::unclosed_string_error(
-                        token,
-                        "\"\"\"",
-                        line!() as usize,
-                    ));
+                    return Err(Self::unclosed_string_error(token, QUOTES, line!() as usize));
                 }
                 if aft_next_c.is_none() {
                     s.push(self.consume().unwrap());
                     let token = self.emit_token(Illegal, &s);
-                    return Err(Self::unclosed_string_error(
-                        token,
-                        "\"\"\"",
-                        line!() as usize,
-                    ));
+                    return Err(Self::unclosed_string_error(token, QUOTES, line!() as usize));
                 }
                 if next_c.unwrap() == '"' && aft_next_c.unwrap() == '"' {
                     self.consume().unwrap();
                     self.consume().unwrap();
-                    s.push_str("\"\"\"");
+                    s.push_str(QUOTES);
                     let token = self.emit_token(StrLit, &s);
                     return Ok(token);
                 }
@@ -866,11 +894,8 @@ impl Lexer /*<'a>*/ {
         }
         let token = self.emit_token(Illegal, &s);
         if self.interpol_stack.len() == 1 {
-            Err(Self::unclosed_string_error(
-                token,
-                "\"\"\"",
-                line!() as usize,
-            ))
+            let err = Self::unclosed_string_error(token, QUOTES, line!() as usize);
+            Err(err)
         } else {
             Err(Self::unclosed_interpol_error(token))
         }
@@ -1316,6 +1341,24 @@ impl Iterator for Lexer /*<'a>*/ {
                 let c = self.peek_cur_ch();
                 let next_c = self.peek_next_ch();
                 match (c, next_c) {
+                    (Some(c), Some(next_c)) => {
+                        if c == '"' && next_c == '"' {
+                            self.consume(); // consume second '"'
+                            self.consume(); // consume third '"'
+                            Some(self.lex_multi_line_str())
+                        } else {
+                            Some(self.lex_single_str())
+                        }
+                    }
+                    (Some(c), None) => {
+                        if c == '"' {
+                            self.consume(); // consume second '"'
+                            let token = self.emit_token(StrLit, "\"\"");
+                            Some(Ok(token))
+                        } else {
+                            Some(self.lex_single_str())
+                        }
+                    }
                     (None, _) => {
                         let token = self.emit_token(Illegal, "\"");
                         Some(Err(LexError::syntax_error(
@@ -1329,24 +1372,6 @@ impl Iterator for Lexer /*<'a>*/ {
                             ),
                             None,
                         )))
-                    }
-                    (Some(c), None) => {
-                        if c == '"' {
-                            self.consume(); // consume second '"'
-                            let token = self.emit_token(StrLit, "\"\"");
-                            Some(Ok(token))
-                        } else {
-                            Some(self.lex_single_str())
-                        }
-                    }
-                    (Some(c), Some(next_c)) => {
-                        if c == '"' && next_c == '"' {
-                            self.consume(); // consume second '"'
-                            self.consume(); // consume third '"'
-                            Some(self.lex_multi_line_str())
-                        } else {
-                            Some(self.lex_single_str())
-                        }
                     }
                 }
             }

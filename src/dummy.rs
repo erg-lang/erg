@@ -5,15 +5,16 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use erg_common::config::ErgConfig;
-use erg_common::error::MultiErrorDisplay;
+use erg_common::error::{ErrorDisplay, ErrorKind, MultiErrorDisplay};
 use erg_common::python_util::{exec_pyc, spawn_py};
-use erg_common::traits::Runnable;
+use erg_common::traits::{BlockKind, Runnable, Stream};
 
 use erg_compiler::hir::Expr;
 use erg_compiler::ty::HasType;
 
 use erg_compiler::error::{CompileError, CompileErrors};
 use erg_compiler::Compiler;
+use erg_parser::ParserRunner;
 
 pub type EvalError = CompileError;
 pub type EvalErrors = CompileErrors;
@@ -187,6 +188,52 @@ impl Runnable for DummyVM {
             }
         }
         Ok(res)
+    }
+
+    fn expect_block(&self, src: &str) -> BlockKind {
+        let mut parser = ParserRunner::new(self.cfg().clone());
+        match parser.eval(src.to_string()) {
+            Err(errs) => {
+                let (has_next_line, kind) = errs
+                    .first()
+                    .map(|e| {
+                        let enl = e.core().kind == ErrorKind::ExpectNextLine;
+                        let msg = if enl {
+                            // if enl is true, sub_message and hint must exit
+                            // if not, it is a bug
+                            let msg = e.core().sub_messages.last().unwrap();
+                            msg.get_hint().unwrap().to_string()
+                        } else {
+                            String::new()
+                        };
+                        (enl, msg)
+                    })
+                    .unwrap_or((false, String::new()));
+                if has_next_line {
+                    return match kind.as_str() {
+                        "Lambda" => BlockKind::Lambda,
+                        "Assignment" => BlockKind::Assignment,
+                        "ColonCall" => BlockKind::ColonCall,
+                        "ClassAttr" => BlockKind::ClassAttr,
+                        "ClassAttrDecl" => BlockKind::ClassAttrDecl,
+                        _ => BlockKind::Error,
+                    };
+                }
+                if errs
+                    .first()
+                    .map(|e| {
+                        e.core().kind == ErrorKind::SyntaxError
+                            && e.core().main_message.contains("\"\"\"")
+                    })
+                    .unwrap_or(false)
+                {
+                    return BlockKind::MultiLineStr;
+                }
+                errs.fmt_all_stderr();
+                BlockKind::Error
+            }
+            Ok(_) => BlockKind::None,
+        }
     }
 }
 

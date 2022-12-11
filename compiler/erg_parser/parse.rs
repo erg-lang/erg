@@ -11,6 +11,7 @@ use erg_common::error::Location;
 use erg_common::option_enum_unwrap;
 use erg_common::set::Set as HashSet;
 use erg_common::str::Str;
+use erg_common::traits::BlockKind;
 use erg_common::traits::Runnable;
 use erg_common::traits::{Locational, Stream};
 use erg_common::{
@@ -154,6 +155,13 @@ impl Parser {
         ParseError::simple_syntax_error(0, loc)
     }
 
+    fn expect_newline_error(&mut self, caused_by: &str) -> ParseError {
+        let loc = self.peek().map(|t| t.loc()).unwrap_or_default();
+        log!(err "error caused by: {caused_by}");
+        self.next_expr();
+        ParseError::expect_next_line_error(0, loc, caused_by)
+    }
+
     #[inline]
     fn restore(&mut self, token: Token) {
         self.tokens.insert(0, token);
@@ -202,6 +210,39 @@ impl Runnable for ParserRunner {
     fn eval(&mut self, src: String) -> Result<String, ParserRunnerErrors> {
         let ast = self.parse(src)?;
         Ok(format!("{ast}"))
+    }
+
+    fn expect_block(&self, src: &str) -> BlockKind {
+        let multi_line_str = "\"\"\"";
+        if src.contains(multi_line_str) && src.rfind(multi_line_str) == src.find(multi_line_str) {
+            return BlockKind::MultiLineStr;
+        }
+        if src.ends_with("do!:") && !src.starts_with("do!:") {
+            return BlockKind::Lambda;
+        }
+        if src.ends_with("do:") && !src.starts_with("do:") {
+            return BlockKind::Lambda;
+        }
+        if src.ends_with(':') && !src.starts_with(':') {
+            return BlockKind::Lambda;
+        }
+        if src.ends_with('=') && !src.starts_with('=') {
+            return BlockKind::Assignment;
+        }
+        if src.ends_with('.') && !src.starts_with('.') {
+            return BlockKind::ClassAttrDecl;
+        }
+        if src.ends_with("::") && !src.starts_with("::") {
+            return BlockKind::ClassAttr;
+        }
+        if src.ends_with("=>") && !src.starts_with("=>") {
+            return BlockKind::Lambda;
+        }
+        if src.ends_with("->") && !src.starts_with("->") {
+            return BlockKind::Lambda;
+        }
+
+        BlockKind::None
     }
 }
 
@@ -287,20 +328,25 @@ impl Parser {
         debug_call_info!(self);
         let mut block = Block::with_capacity(2);
         // single line block
+        if self.cur_is(EOF) {
+            let err = self.expect_newline_error(caused_by!());
+            self.level -= 1;
+            self.errs.push(err);
+            return Err(());
+        }
         if !self.cur_is(Newline) {
             let chunk = self
                 .try_reduce_chunk(true, false)
                 .map_err(|_| self.stack_dec())?;
-            block.push(chunk);
-            if block.last().unwrap().is_definition() {
+            if chunk.is_definition() {
                 let err = ParseError::simple_syntax_error(0, block.last().unwrap().loc());
                 self.level -= 1;
                 self.errs.push(err);
                 return Err(());
-            } else {
-                self.level -= 1;
-                return Ok(block);
             }
+            block.push(chunk);
+            self.level -= 1;
+            return Ok(block);
         }
         if !self.cur_is(Newline) {
             let err = self.skip_and_throw_syntax_err("try_reduce_block");
@@ -907,14 +953,24 @@ impl Parser {
         };
         if self.cur_is(Colon) {
             self.lpop();
-            let body = self.try_reduce_block().map_err(|_| self.stack_dec())?;
+            let body = self.try_reduce_block().map_err(|_| {
+                self.stack_dec();
+                if let Some(err) = self.errs.last_mut() {
+                    err.set_hint("Lambda");
+                }
+            })?;
             self.counter.inc();
             self.level -= 1;
             Ok(Lambda::new(sig, op, body, self.counter))
         } else {
             let expr = self
                 .try_reduce_expr(false, false, false, false)
-                .map_err(|_| self.stack_dec())?;
+                .map_err(|_| {
+                    self.stack_dec();
+                    if let Some(err) = self.errs.last_mut() {
+                        err.set_hint("Lambda");
+                    }
+                })?;
             let block = Block::new(vec![expr]);
             self.level -= 1;
             Ok(Lambda::new(sig, op, block, self.counter))
@@ -1234,11 +1290,21 @@ impl Parser {
                         .map_err(|_| self.stack_dec())?;
                     self.counter.inc();
                     let block = if is_multiline_block {
-                        self.try_reduce_block().map_err(|_| self.stack_dec())?
+                        self.try_reduce_block().map_err(|_| {
+                            self.stack_dec();
+                            if let Some(err) = self.errs.last_mut() {
+                                err.set_hint("Lambda");
+                            }
+                        })?
                     } else {
-                        let expr = self
-                            .try_reduce_expr(false, false, false, false)
-                            .map_err(|_| self.stack_dec())?;
+                        let expr =
+                            self.try_reduce_expr(false, false, false, false)
+                                .map_err(|_| {
+                                    self.stack_dec();
+                                    if let Some(err) = self.errs.last_mut() {
+                                        err.set_hint("Lambda");
+                                    }
+                                })?;
                         Block::new(vec![expr])
                     };
                     stack.push(ExprOrOp::Expr(Expr::Lambda(Lambda::new(
@@ -1261,7 +1327,12 @@ impl Parser {
                     let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                     let t_spec = self
                         .try_reduce_expr(false, in_type_args, in_brace, false)
-                        .map_err(|_| self.stack_dec())?;
+                        .map_err(|_| {
+                            self.stack_dec();
+                            if let Some(err) = self.errs.last_mut() {
+                                err.set_hint("ColonCall");
+                            }
+                        })?;
                     let t_spec = Self::expr_to_type_spec(t_spec).map_err(|e| self.errs.push(e))?;
                     let expr = lhs.type_asc_expr(op, t_spec);
                     stack.push(ExprOrOp::Expr(expr));
@@ -1587,6 +1658,15 @@ impl Parser {
                 ));
                 Err(())
             }
+            Some(t) if t.is(EOF) => {
+                let token = self.lpop();
+                self.level -= 1;
+                let mut err =
+                    ParseError::expect_next_line_error(line!() as usize, token.loc(), caused_by!());
+                err.set_hint("Assignment");
+                self.errs.push(err);
+                Err(())
+            }
             _other => {
                 self.level -= 1;
                 let err = self.skip_and_throw_syntax_err(caused_by!());
@@ -1654,6 +1734,12 @@ impl Parser {
                             self.restore(vis);
                             break;
                         }
+                        EOF => {
+                            let mut err = self.expect_newline_error(caused_by!());
+                            err.set_hint("ClassAttrDecl");
+                            self.errs.push(err);
+                            return Err(());
+                        }
                         _ => {
                             self.restore(token);
                             self.level -= 1;
@@ -1704,6 +1790,14 @@ impl Parser {
                             self.restore(token);
                             self.restore(vis);
                             break;
+                        }
+                        EOF => {
+                            self.restore(token);
+                            self.level -= 1;
+                            let mut err = self.expect_newline_error(caused_by!());
+                            err.set_hint("ClassAttr");
+                            self.errs.push(err);
+                            return Err(());
                         }
                         _ => {
                             self.restore(token);
