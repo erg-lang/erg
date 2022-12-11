@@ -57,7 +57,7 @@ impl Context {
                 &spec_t,
                 body_t,
                 self.get_candidates(body_t),
-                Self::get_type_mismatch_hint(&spec_t, body_t),
+                Self::get_simple_type_mismatch_hint(&spec_t, body_t),
             )));
         }
         Ok(())
@@ -264,7 +264,7 @@ impl Context {
                     &mono("LambdaFunc"),
                     t,
                     self.get_candidates(t),
-                    Self::get_type_mismatch_hint(&mono("LambdaFunc"), t),
+                    Self::get_simple_type_mismatch_hint(&mono("LambdaFunc"), t),
                 )));
             }
         }
@@ -1251,6 +1251,13 @@ impl Context {
                     callee.show_acc().unwrap_or_default()
                 };
                 let name = name + "::" + param.name().map(|s| readable_name(&s[..])).unwrap_or("");
+                let mut hint = Self::get_call_type_mismatch_hint(
+                    callee.ref_t(),
+                    attr_name.as_ref().map(|i| &i.inspect()[..]),
+                    nth,
+                    param_t,
+                    arg_t,
+                );
                 TyCheckErrors::new(
                     errs.into_iter()
                         .map(|e| {
@@ -1264,7 +1271,7 @@ impl Context {
                                 param_t,
                                 arg_t,
                                 self.get_candidates(arg_t),
-                                Self::get_type_mismatch_hint(param_t, arg_t),
+                                std::mem::take(&mut hint),
                             )
                         })
                         .collect(),
@@ -1305,7 +1312,7 @@ impl Context {
                                 param_t,
                                 arg_t,
                                 self.get_candidates(arg_t),
-                                Self::get_type_mismatch_hint(param_t, arg_t),
+                                Self::get_simple_type_mismatch_hint(param_t, arg_t),
                             )
                         })
                         .collect(),
@@ -1363,7 +1370,7 @@ impl Context {
                                     pt.typ(),
                                     arg_t,
                                     self.get_candidates(arg_t),
-                                    Self::get_type_mismatch_hint(pt.typ(), arg_t),
+                                    Self::get_simple_type_mismatch_hint(pt.typ(), arg_t),
                                 )
                             })
                             .collect(),

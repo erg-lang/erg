@@ -1045,7 +1045,7 @@ passed keyword args:    {kw_args_len}"
         caused_by: String,
         hint: Option<String>,
     ) -> Self {
-        let hint = hint.or_else(|| Context::get_type_mismatch_hint(trait_, class));
+        let hint = hint.or_else(|| Context::get_simple_type_mismatch_hint(trait_, class));
         Self::new(
             ErrorCore::new(
                 vec![SubMessage::ambiguous_new(loc, vec![], hint)],

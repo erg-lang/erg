@@ -2,7 +2,8 @@ use erg_common::style::{Attribute, Color, StyledStrings, THEME};
 use erg_common::{enum_unwrap, switch_lang};
 
 use crate::ty::typaram::TyParam;
-use crate::ty::{HasType, SubrKind, Type};
+use crate::ty::value::ValueObj;
+use crate::ty::{HasType, Predicate, SubrKind, Type};
 
 use crate::context::Context;
 
@@ -47,7 +48,42 @@ impl Context {
         }
     }
 
-    pub(crate) fn get_type_mismatch_hint(expected: &Type, found: &Type) -> Option<String> {
+    pub(crate) fn get_call_type_mismatch_hint(
+        callee_t: &Type,
+        attr: Option<&str>,
+        nth: usize,
+        expected: &Type,
+        found: &Type,
+    ) -> Option<String> {
+        if &callee_t.qual_name()[..] == "Array" && attr == Some("__getitem__") && nth == 1 {
+            let len = &callee_t.typarams()[1];
+            let (_, _, preds) = found.clone().deconstruct_refinement().ok()?;
+            if let Predicate::Equal {
+                lhs: _,
+                rhs: accessed,
+            } = preds.iter().next()?
+            {
+                let accessed = if let TyParam::Value(value) = accessed {
+                    value
+                        .clone()
+                        .try_add(ValueObj::Nat(1))
+                        .map(TyParam::Value)
+                        .unwrap_or_else(|| accessed.clone())
+                } else {
+                    accessed.clone()
+                };
+                return Some(switch_lang! {
+                    "japanese" => format!("配列の長さは{len}ですが、{accessed}番目の要素にアクセスしようとしています"),
+                    "simplified_chinese" => format!("数组长度为{len}但尝试访问第{accessed}个元素"),
+                    "traditional_chinese" => format!("陣列長度為{len}但嘗試訪問第{accessed}個元素"),
+                    "english" => format!("Array length is {len} but tried to access the {accessed}th element"),
+                });
+            }
+        }
+        Self::get_simple_type_mismatch_hint(expected, found)
+    }
+
+    pub(crate) fn get_simple_type_mismatch_hint(expected: &Type, found: &Type) -> Option<String> {
         let expected = if let Type::FreeVar(fv) = expected {
             if fv.is_linked() {
                 fv.crack().clone()
