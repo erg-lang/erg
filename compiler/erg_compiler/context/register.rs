@@ -415,24 +415,23 @@ impl Context {
     /// * AssignError: if `name` has already been registered
     pub(crate) fn assign_subr(
         &mut self,
-        ident: &Identifier,
-        decorators: &Set<Decorator>,
+        sig: &ast::SubrSignature,
         id: DefId,
         body_t: &Type,
     ) -> TyCheckResult<Type> {
         // already defined as const
-        if ident.is_const() {
-            let vi = self.decls.remove(ident.inspect()).unwrap();
+        if sig.ident.is_const() {
+            let vi = self.decls.remove(sig.ident.inspect()).unwrap();
             let t = vi.t.clone();
-            self.locals.insert(ident.name.clone(), vi);
+            self.locals.insert(sig.ident.name.clone(), vi);
             return Ok(t);
         }
-        let muty = if ident.is_const() {
+        let muty = if sig.ident.is_const() {
             Mutability::Const
         } else {
             Mutability::Immutable
         };
-        let name = &ident.name;
+        let name = &sig.ident.name;
         // FIXME: constでない関数
         let t = self
             .get_current_scope_var(name.inspect())
@@ -442,7 +441,12 @@ impl Context {
         let var_args = t.var_args();
         let default_params = t.default_params().unwrap();
         let mut errs = if let Some(spec_ret_t) = t.return_t() {
-            self.sub_unify(body_t, spec_ret_t, ident.loc(), None)
+            let return_t_loc = sig
+                .return_t_spec
+                .as_ref()
+                .map(|t_spec| t_spec.loc())
+                .unwrap_or_else(|| sig.loc());
+            self.sub_unify(body_t, spec_ret_t, return_t_loc, None)
                 .map_err(|errs| {
                     TyCheckErrors::new(
                         errs.into_iter()
@@ -468,7 +472,7 @@ impl Context {
         } else {
             body_t.clone()
         };
-        let sub_t = if ident.is_procedural() {
+        let sub_t = if sig.ident.is_procedural() {
             proc(
                 non_default_params.clone(),
                 var_args.cloned(),
@@ -490,7 +494,7 @@ impl Context {
                 let err = TyCheckError::violate_decl_error(
                     self.cfg.input.clone(),
                     line!() as usize,
-                    ident.loc(),
+                    sig.ident.loc(),
                     self.caused_by(),
                     name.inspect(),
                     &vi.t,
@@ -509,7 +513,8 @@ impl Context {
         } else {
             None
         };
-        let comptime_decos = decorators
+        let comptime_decos = sig
+            .decorators
             .iter()
             .filter_map(|deco| match &deco.0 {
                 ast::Expr::Accessor(ast::Accessor::Ident(local)) if local.is_const() => {
@@ -521,7 +526,7 @@ impl Context {
         let vi = VarInfo::new(
             found_t,
             muty,
-            ident.vis(),
+            sig.ident.vis(),
             VarKind::Defined(id),
             Some(comptime_decos),
             self.impl_of(),

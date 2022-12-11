@@ -147,7 +147,7 @@ impl ASTLowerer {
         }
     }
 
-    fn return_t_check(
+    fn var_result_t_check(
         &self,
         loc: Location,
         name: &Str,
@@ -1054,7 +1054,7 @@ impl ASTLowerer {
                     // TODO: expect_body_t is smaller for constants
                     // TODO: 定数の場合、expect_body_tのほうが小さくなってしまう
                     if !sig.is_const() {
-                        if let Err(e) = self.return_t_check(
+                        if let Err(e) = self.var_result_t_check(
                             sig.loc(),
                             ident.inspect(),
                             &expect_body_t,
@@ -1104,9 +1104,9 @@ impl ASTLowerer {
             .map(|vi| vi.t.clone())
             .unwrap_or(Type::Failure);
         match t {
-            Type::Subr(t) => {
-                let params = self.lower_params(sig.params)?;
-                if let Err(errs) = self.ctx.assign_params(&params, Some(t.clone())) {
+            Type::Subr(subr_t) => {
+                let params = self.lower_params(sig.params.clone())?;
+                if let Err(errs) = self.ctx.assign_params(&params, Some(subr_t)) {
                     self.errs.extend(errs);
                 }
                 if let Err(errs) = self.ctx.preregister(&body.block) {
@@ -1115,22 +1115,9 @@ impl ASTLowerer {
                 match self.lower_block(body.block) {
                     Ok(block) => {
                         let found_body_t = block.ref_t();
-                        let expect_body_t = t.return_t.as_ref();
-                        if !sig.ident.is_const() {
-                            if let Err(e) = self.return_t_check(
-                                sig.ident.loc(),
-                                sig.ident.inspect(),
-                                expect_body_t,
-                                found_body_t,
-                            ) {
-                                self.errs.push(e);
-                            }
-                        }
-                        let id = body.id;
                         let t = self.ctx.outer.as_mut().unwrap().assign_subr(
-                            &sig.ident,
-                            &sig.decorators,
-                            id,
+                            &sig,
+                            body.id,
                             found_body_t,
                         )?;
                         let mut ident = hir::Identifier::bare(sig.ident.dot, sig.ident.name);
@@ -1141,8 +1128,7 @@ impl ASTLowerer {
                     }
                     Err(errs) => {
                         self.ctx.outer.as_mut().unwrap().assign_subr(
-                            &sig.ident,
-                            &sig.decorators,
+                            &sig,
                             ast::DefId(0),
                             &Type::Failure,
                         )?;
