@@ -1284,6 +1284,15 @@ impl Context {
         let tuple_getitem_t = fn1_met(tuple_t.clone(), tp_enum(Nat, set! {N}), return_t).quantify();
         tuple_.register_builtin_py_impl(
             "__Tuple_getitem__",
+            tuple_getitem_t.clone(),
+            Const,
+            Public,
+            Some("__getitem__"),
+        );
+        // `__Tuple_getitem__` and `__getitem__` are the same thing
+        // but `x.0` => `x__Tuple_getitem__(0)` determines that `x` is a tuple, which is better for type inference.
+        tuple_.register_builtin_py_impl(
+            "__getitem__",
             tuple_getitem_t,
             Const,
             Public,
