@@ -1610,7 +1610,7 @@ impl Locational for Params {
         } else if !self.defaults.is_empty() {
             Location::concat(&self.defaults[0], self.defaults.last().unwrap())
         } else {
-            panic!()
+            Location::Unknown
         }
     }
 }
