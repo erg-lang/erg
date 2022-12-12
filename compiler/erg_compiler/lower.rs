@@ -271,6 +271,14 @@ impl ASTLowerer {
         self.ctx.pop_mod()
     }
 
+    pub fn pop_mod_ctx_or_default(&mut self) -> Context {
+        std::mem::take(&mut self.ctx)
+    }
+
+    pub fn get_mod_ctx(&self) -> &Context {
+        &self.ctx
+    }
+
     pub fn dir(&self) -> Vec<(&VarName, &VarInfo)> {
         ContextProvider::dir(self)
     }
