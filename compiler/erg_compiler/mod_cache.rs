@@ -4,6 +4,7 @@ use std::hash::Hash;
 use std::path::PathBuf;
 use std::rc::Rc;
 
+use erg_common::config::ErgConfig;
 use erg_common::dict::Dict;
 use erg_common::levenshtein::get_similar_name;
 use erg_common::shared::Shared;
@@ -146,9 +147,9 @@ impl fmt::Display for SharedModuleCache {
 }
 
 impl SharedModuleCache {
-    pub fn new() -> Self {
+    pub fn new(cfg: ErgConfig) -> Self {
         let self_ = Self(Shared::new(ModuleCache::new()));
-        Context::init_builtins(&self_);
+        Context::init_builtins(cfg, &self_);
         self_
     }
 

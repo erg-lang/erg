@@ -2170,9 +2170,9 @@ impl Context {
         self.register_builtin_patch("OptionEq", option_eq, Private, Const);
     }
 
-    pub(crate) fn init_builtins(mod_cache: &SharedModuleCache) {
+    pub(crate) fn init_builtins(cfg: ErgConfig, mod_cache: &SharedModuleCache) {
         // TODO: capacityを正確に把握する
-        let mut ctx = Context::builtin_module("<builtins>", 40);
+        let mut ctx = Context::builtin_module("<builtins>", cfg, 40);
         ctx.init_builtin_consts();
         ctx.init_builtin_funcs();
         ctx.init_builtin_const_funcs();
