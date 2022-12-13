@@ -1865,29 +1865,31 @@ impl Context {
         self.register_builtin_py_impl("ord", t_ord, Immutable, Private, Some("ord"));
         self.register_builtin_py_impl("panic", t_panic, Immutable, Private, Some("quit"));
         self.register_builtin_py_impl("pow", t_pow, Immutable, Private, Some("pow"));
-        if cfg!(feature = "debug") {
+        if !self.cfg.pylyzer_mode {
+            if cfg!(feature = "debug") {
+                self.register_builtin_py_impl(
+                    "py",
+                    t_pyimport.clone(),
+                    Immutable,
+                    Private,
+                    Some("__import__"),
+                );
+            }
             self.register_builtin_py_impl(
-                "py",
-                t_pyimport.clone(),
+                "pyimport",
+                t_pyimport,
                 Immutable,
                 Private,
                 Some("__import__"),
             );
+            self.register_builtin_py_impl(
+                "pycompile",
+                t_pycompile,
+                Immutable,
+                Private,
+                Some("compile"),
+            );
         }
-        self.register_builtin_py_impl(
-            "pyimport",
-            t_pyimport,
-            Immutable,
-            Private,
-            Some("__import__"),
-        );
-        self.register_builtin_py_impl(
-            "pycompile",
-            t_pycompile,
-            Immutable,
-            Private,
-            Some("compile"),
-        );
         self.register_builtin_py_impl("quit", t_quit, Immutable, Private, Some("quit"));
         self.register_builtin_py_impl("repr", t_repr, Immutable, Private, Some("repr"));
         self.register_builtin_py_impl("round", t_round, Immutable, Private, Some("round"));
