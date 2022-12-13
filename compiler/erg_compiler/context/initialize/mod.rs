@@ -69,7 +69,15 @@ impl Context {
         } else {
             None
         };
-        let name = VarName::from_static(name);
+        let name = if self.cfg.pylyzer_mode {
+            if let Some(py_name) = py_name {
+                VarName::from_static(py_name)
+            } else {
+                VarName::from_static(name)
+            }
+        } else {
+            VarName::from_static(name)
+        };
         if self.decls.get(&name).is_some() {
             panic!("already registered: {name}");
         } else {
@@ -124,7 +132,15 @@ impl Context {
         } else {
             None
         };
-        let name = VarName::from_static(name);
+        let name = if self.cfg.pylyzer_mode {
+            if let Some(py_name) = py_name {
+                VarName::from_static(py_name)
+            } else {
+                VarName::from_static(name)
+            }
+        } else {
+            VarName::from_static(name)
+        };
         if self.locals.get(&name).is_some() {
             panic!("already registered: {name}");
         } else {
