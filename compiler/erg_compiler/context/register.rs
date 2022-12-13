@@ -2,7 +2,6 @@ use std::option::Option;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use erg_common::config::ErgConfig;
 use erg_common::env::erg_pystd_path;
 use erg_common::levenshtein::get_similar_name;
 use erg_common::python_util::BUILTIN_PYTHON_MODS;
@@ -1216,7 +1215,7 @@ impl Context {
         if mod_cache.get(&path).is_some() {
             return Ok(path);
         }
-        let cfg = ErgConfig::with_module_path(path.clone());
+        let cfg = self.cfg.inherit(path.clone());
         let src = cfg.input.read();
         let mut builder =
             HIRBuilder::new_with_cache(cfg, __name__, mod_cache.clone(), py_mod_cache.clone());
@@ -1333,7 +1332,7 @@ impl Context {
         if py_mod_cache.get(&path).is_some() {
             return Ok(path);
         }
-        let cfg = ErgConfig::with_module_path(path.clone());
+        let cfg = self.cfg.inherit(path.clone());
         let src = cfg.input.read();
         let mut builder = HIRBuilder::new_with_cache(
             cfg,
