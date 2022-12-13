@@ -225,14 +225,6 @@ impl ErgConfig {
         }
     }
 
-    pub fn with_module_path(path: PathBuf) -> Self {
-        Self {
-            module: Box::leak(path.to_str().unwrap().to_string().into_boxed_str()),
-            input: Input::File(path),
-            ..ErgConfig::default()
-        }
-    }
-
     /// cloneのエイリアス(実際のcloneコストは低いので)
     #[inline]
     pub fn copy(&self) -> Self {
@@ -244,6 +236,14 @@ impl ErgConfig {
             format!("{output}/{}", self.input.filename())
         } else {
             self.input.full_path().to_string()
+        }
+    }
+
+    pub fn inherit(&self, path: PathBuf) -> Self {
+        Self {
+            module: Box::leak(path.to_str().unwrap().to_string().into_boxed_str()),
+            input: Input::File(path),
+            ..self.copy()
         }
     }
 
