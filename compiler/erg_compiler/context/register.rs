@@ -229,6 +229,11 @@ impl Context {
         default_val_exists: bool,
         opt_decl_t: Option<&ParamTy>,
     ) -> TyCheckResult<()> {
+        let vis = if self.cfg.python_compatible_mode {
+            Public
+        } else {
+            Private
+        };
         match &sig.pat {
             // Literal patterns will be desugared to discard patterns
             ast::ParamPattern::Lit(_) => unreachable!(),
@@ -245,7 +250,7 @@ impl Context {
                 );
                 self.params.push((
                     Some(VarName::from_static("_")),
-                    VarInfo::new(spec_t, Immutable, Private, kind, None, None, None),
+                    VarInfo::new(spec_t, Immutable, vis, kind, None, None, None),
                 ));
                 Ok(())
             }
@@ -279,7 +284,7 @@ impl Context {
                     let muty = Mutability::from(&name.inspect()[..]);
                     self.params.push((
                         Some(name.clone()),
-                        VarInfo::new(spec_t, muty, Private, kind, None, None, None),
+                        VarInfo::new(spec_t, muty, vis, kind, None, None, None),
                     ));
                     Ok(())
                 }
@@ -314,7 +319,7 @@ impl Context {
                     let kind = VarKind::parameter(DefId(get_hash(&(&self.name, name))), default);
                     self.params.push((
                         Some(name.clone()),
-                        VarInfo::new(spec_t, Immutable, Private, kind, None, None, None),
+                        VarInfo::new(spec_t, Immutable, vis, kind, None, None, None),
                     ));
                     Ok(())
                 }
@@ -349,7 +354,7 @@ impl Context {
                     let kind = VarKind::parameter(DefId(get_hash(&(&self.name, name))), default);
                     self.params.push((
                         Some(name.clone()),
-                        VarInfo::new(spec_t, Immutable, Private, kind, None, None, None),
+                        VarInfo::new(spec_t, Immutable, vis, kind, None, None, None),
                     ));
                     Ok(())
                 }
