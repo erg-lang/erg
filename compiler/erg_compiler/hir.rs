@@ -1412,7 +1412,7 @@ impl Call {
     pub fn additional_operation(&self) -> Option<OperationKind> {
         self.obj.show_acc().and_then(|s| match &s[..] {
             "import" => Some(OperationKind::Import),
-            "pyimport" | "py" => Some(OperationKind::PyImport),
+            "pyimport" | "py" | "__import__" => Some(OperationKind::PyImport),
             "Del" => Some(OperationKind::Del),
             _ => None,
         })
@@ -1974,7 +1974,7 @@ impl Def {
                     }
                 }
                 Some("import") => DefKind::ErgImport,
-                Some("pyimport") | Some("py") => DefKind::PyImport,
+                Some("pyimport") | Some("py") | Some("__import__") => DefKind::PyImport,
                 _ => DefKind::Other,
             },
             _ => DefKind::Other,
