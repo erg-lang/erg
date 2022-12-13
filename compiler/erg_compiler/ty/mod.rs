@@ -1192,7 +1192,7 @@ impl LimitedDisplay for Type {
                 write!(f, "|")?;
                 for (i, (name, constr)) in qvars.iter().enumerate() {
                     if i != 0 {
-                        write!(f, "; ")?;
+                        write!(f, ", ")?;
                     }
                     write!(f, "{name}")?;
                     constr.limited_fmt(f, limit - 1)?;
