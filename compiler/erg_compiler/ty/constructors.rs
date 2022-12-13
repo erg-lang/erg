@@ -65,13 +65,8 @@ pub fn module(path: TyParam) -> Type {
 }
 
 #[inline]
-pub fn py_module(path: TyParam, py_comp_mode: bool) -> Type {
-    let name = if py_comp_mode {
-        "ModuleType"
-    } else {
-        "PyModule"
-    };
-    poly(name, vec![path])
+pub fn py_module(path: TyParam) -> Type {
+    poly("PyModule", vec![path])
 }
 
 pub fn module_from_path<P: Into<PathBuf>>(path: P) -> Type {

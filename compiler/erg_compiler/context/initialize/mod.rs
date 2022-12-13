@@ -1119,7 +1119,7 @@ impl Context {
         generic_module.register_trait(g_module_t.clone(), generic_module_eq);
         let Path = mono_q_tp("Path", instanceof(Str));
         let module_t = module(Path.clone());
-        let py_module_t = py_module(Path, self.cfg.python_compatible_mode);
+        let py_module_t = py_module(Path);
         let mut module = Self::builtin_poly_class("Module", vec![PS::named_nd("Path", Str)], 2);
         module.register_superclass(g_module_t.clone(), &generic_module);
         let mut py_module =
@@ -1849,7 +1849,7 @@ impl Context {
         let t_pyimport = nd_func(
             vec![anon(tp_enum(Str, set! {Path.clone()}))],
             None,
-            py_module(Path, self.cfg.python_compatible_mode),
+            py_module(Path),
         )
         .quantify();
         let t_pycompile = nd_func(
