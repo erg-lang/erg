@@ -3071,7 +3071,18 @@ impl Parser {
                     "???",
                 )),
             },
-            // TODO: App, Record, BinOp, UnaryOp,
+            Expr::BinOp(bin) => {
+                let mut args = bin.args.into_iter();
+                let lhs = Self::validate_const_expr(*args.next().unwrap())?;
+                let rhs = Self::validate_const_expr(*args.next().unwrap())?;
+                Ok(ConstExpr::BinOp(ConstBinOp::new(bin.op, lhs, rhs)))
+            }
+            Expr::UnaryOp(unary) => {
+                let mut args = unary.args.into_iter();
+                let arg = Self::validate_const_expr(*args.next().unwrap())?;
+                Ok(ConstExpr::UnaryOp(ConstUnaryOp::new(unary.op, arg)))
+            }
+            // TODO: App, Record,
             other => Err(ParseError::syntax_error(
                 line!() as usize,
                 other.loc(),
