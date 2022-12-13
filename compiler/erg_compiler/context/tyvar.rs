@@ -424,7 +424,15 @@ impl Context {
             }
             Type::Poly { name, mut params } => {
                 let typ = poly(&name, params.clone());
-                let (_, ctx) = self.get_nominal_type_ctx(&typ).unwrap();
+                let (_, ctx) = self.get_nominal_type_ctx(&typ).ok_or_else(|| {
+                    TyCheckError::type_not_found(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        loc,
+                        self.caused_by(),
+                        &typ,
+                    )
+                })?;
                 let variances = ctx.type_params_variance();
                 for (param, variance) in params.iter_mut().zip(variances.into_iter()) {
                     *param = self.deref_tp(mem::take(param), variance, loc)?;

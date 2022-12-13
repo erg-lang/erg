@@ -1646,7 +1646,9 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_module(),
             Self::Refinement(refine) => refine.t.is_module(),
-            Self::Poly { name, .. } => &name[..] == "PyModule" || &name[..] == "Module",
+            Self::Poly { name, .. } => {
+                &name[..] == "PyModule" || &name[..] == "Module" || &name[..] == "ModuleType"
+            }
             _ => false,
         }
     }
@@ -1655,7 +1657,7 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_py_module(),
             Self::Refinement(refine) => refine.t.is_py_module(),
-            Self::Poly { name, .. } => &name[..] == "PyModule",
+            Self::Poly { name, .. } => &name[..] == "PyModule" || &name[..] == "ModuleType",
             _ => false,
         }
     }

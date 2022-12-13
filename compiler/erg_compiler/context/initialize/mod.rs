@@ -1135,12 +1135,14 @@ impl Context {
         generic_module.register_trait(g_module_t.clone(), generic_module_eq);
         let Path = mono_q_tp("Path", instanceof(Str));
         let module_t = module(Path.clone());
-        let py_module_t = py_module(Path);
+        let py_module_t = py_module(Path, self.cfg.python_compatible_mode);
         let mut module = Self::builtin_poly_class("Module", vec![PS::named_nd("Path", Str)], 2);
         module.register_superclass(g_module_t.clone(), &generic_module);
         let mut py_module =
             Self::builtin_poly_class("PyModule", vec![PS::named_nd("Path", Str)], 2);
-        py_module.register_superclass(g_module_t.clone(), &generic_module);
+        if !self.cfg.python_compatible_mode {
+            py_module.register_superclass(g_module_t.clone(), &generic_module);
+        }
         /* Array */
         let mut array_ =
             Self::builtin_poly_class("Array", vec![PS::t_nd("T"), PS::named_nd("N", Nat)], 10);
@@ -1672,7 +1674,6 @@ impl Context {
             Const,
             Some("ModuleType"),
         );
-        self.register_builtin_type(module_t, module, vis, Const, Some("ModuleType"));
         self.register_builtin_type(py_module_t, py_module, vis, Const, Some("ModuleType"));
         self.register_builtin_type(arr_t, array_, vis, Const, Some("list"));
         self.register_builtin_type(set_t, set_, vis, Const, Some("set"));
@@ -1714,6 +1715,7 @@ impl Context {
         self.register_builtin_type(array_mut_t, array_mut_, vis, Const, Some("list"));
         self.register_builtin_type(set_mut_t, set_mut_, vis, Const, Some("set"));
         if !self.cfg.python_compatible_mode {
+            self.register_builtin_type(module_t, module, vis, Const, Some("ModuleType"));
             self.register_builtin_type(mono("Obj!"), obj_mut, vis, Const, Some("object"));
             self.register_builtin_type(mono("Int!"), int_mut, vis, Const, Some("int"));
             self.register_builtin_type(mono("Nat!"), nat_mut, vis, Const, Some("Nat"));
@@ -1863,7 +1865,7 @@ impl Context {
         let t_pyimport = nd_func(
             vec![anon(tp_enum(Str, set! {Path.clone()}))],
             None,
-            py_module(Path),
+            py_module(Path, self.cfg.python_compatible_mode),
         )
         .quantify();
         let t_pycompile = nd_func(
@@ -1885,21 +1887,20 @@ impl Context {
         self.register_builtin_py_impl("chr", t_chr, Immutable, vis, Some("chr"));
         self.register_builtin_py_impl("classof", t_classof, Immutable, vis, Some("type"));
         self.register_builtin_py_impl("compile", t_compile, Immutable, vis, Some("compile"));
-        self.register_builtin_impl("cond", t_cond, Immutable, Private);
+        self.register_builtin_impl("cond", t_cond, Immutable, vis);
         self.register_builtin_py_impl("exit", t_exit, Immutable, vis, Some("exit"));
-        self.register_builtin_py_impl("import", t_import, Immutable, vis, Some("__import__"));
         self.register_builtin_py_impl(
             "isinstance",
             t_isinstance,
             Immutable,
-            Private,
+            vis,
             Some("isinstance"),
         );
         self.register_builtin_py_impl(
             "issubclass",
             t_issubclass,
             Immutable,
-            Private,
+            vis,
             Some("issubclass"),
         );
         self.register_builtin_py_impl("len", t_len, Immutable, vis, Some("len"));
@@ -1907,6 +1908,13 @@ impl Context {
         self.register_builtin_py_impl("oct", t_oct, Immutable, vis, Some("oct"));
         self.register_builtin_py_impl("ord", t_ord, Immutable, vis, Some("ord"));
         self.register_builtin_py_impl("pow", t_pow, Immutable, vis, Some("pow"));
+        self.register_builtin_py_impl(
+            "pyimport",
+            t_pyimport.clone(),
+            Immutable,
+            vis,
+            Some("__import__"),
+        );
         self.register_builtin_py_impl("quit", t_quit, Immutable, vis, Some("quit"));
         self.register_builtin_py_impl("repr", t_repr, Immutable, vis, Some("repr"));
         self.register_builtin_py_impl("round", t_round, Immutable, vis, Some("round"));
@@ -1919,37 +1927,19 @@ impl Context {
         self.register_builtin_py_impl("int", t_int, Immutable, vis, Some(name));
         if !self.cfg.python_compatible_mode {
             self.register_builtin_py_impl("if", t_if, Immutable, vis, Some("if__"));
-            self.register_builtin_py_impl(
-                "discard",
-                t_discard,
-                Immutable,
-                Private,
-                Some("discard__"),
-            );
+            self.register_builtin_py_impl("discard", t_discard, Immutable, vis, Some("discard__"));
+            self.register_builtin_py_impl("import", t_import, Immutable, vis, Some("__import__"));
             self.register_builtin_py_impl("log", t_log, Immutable, vis, Some("print"));
             self.register_builtin_py_impl("nat", t_nat, Immutable, vis, Some("nat__"));
             self.register_builtin_py_impl("panic", t_panic, Immutable, vis, Some("quit"));
             if cfg!(feature = "debug") {
-                self.register_builtin_py_impl(
-                    "py",
-                    t_pyimport.clone(),
-                    Immutable,
-                    Private,
-                    Some("__import__"),
-                );
+                self.register_builtin_py_impl("py", t_pyimport, Immutable, vis, Some("__import__"));
             }
-            self.register_builtin_py_impl(
-                "pyimport",
-                t_pyimport,
-                Immutable,
-                Private,
-                Some("__import__"),
-            );
             self.register_builtin_py_impl(
                 "pycompile",
                 t_pycompile,
                 Immutable,
-                Private,
+                vis,
                 Some("compile"),
             );
             // TODO: original implementation
@@ -1957,7 +1947,7 @@ impl Context {
                 "unreachable",
                 t_unreachable,
                 Immutable,
-                Private,
+                vis,
                 Some("exit"),
             );
         }
