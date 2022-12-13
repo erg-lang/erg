@@ -158,6 +158,14 @@ impl Input {
                 dir.push("__init__.d.er"); // {path}.d/__init__.d.er
                 dir.canonicalize()
             })
+            .or_else(|_| {
+                dir.pop(); // {path}.d
+                dir.pop();
+                dir.push("__pycache__");
+                dir.push(path);
+                dir.set_extension("d.er"); // __pycache__/{path}.d.er
+                dir.canonicalize()
+            })
     }
 }
 
