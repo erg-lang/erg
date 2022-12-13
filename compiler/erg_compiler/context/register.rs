@@ -1,5 +1,6 @@
 use std::option::Option;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 use erg_common::config::ErgConfig;
 use erg_common::env::erg_pystd_path;
@@ -1270,11 +1271,8 @@ impl Context {
         Str::from(name)
     }
 
-    fn import_py_mod(&self, mod_name: &Literal) -> CompileResult<PathBuf> {
-        let __name__ = enum_unwrap!(mod_name.value.clone(), ValueObj::Str);
-        let mod_cache = self.mod_cache.as_ref().unwrap();
-        let py_mod_cache = self.py_mod_cache.as_ref().unwrap();
-        let path = match Self::resolve_d_path(&self.cfg, Path::new(&__name__[..])) {
+    fn get_path(&self, mod_name: &Literal, __name__: Str) -> CompileResult<PathBuf> {
+        match Self::resolve_decl_path(&self.cfg, Path::new(&__name__[..])) {
             Some(path) => {
                 if self.is_pystd_main_module(path.as_path())
                     && !BUILTIN_PYTHON_MODS.contains(&&__name__[..])
@@ -1288,9 +1286,26 @@ impl Context {
                     );
                     return Err(TyCheckErrors::from(err));
                 }
-                path
+                Ok(path)
             }
             None => {
+                // pylyzer is a static analysis tool for Python.
+                // It can convert a Python script to an Erg AST for code analysis.
+                // There is also an option to output the analysis result as `d.er`. Use this if the system have pylyzer installed.
+                match Command::new("pylyzer")
+                    .arg("--dump-decl")
+                    .arg(format!("{__name__}.py"))
+                    .output()
+                {
+                    Ok(out) if out.status.success() => {
+                        if let Some(path) =
+                            Self::resolve_decl_path(&self.cfg, Path::new(&__name__[..]))
+                        {
+                            return Ok(path);
+                        }
+                    }
+                    _ => {}
+                }
                 let err = TyCheckError::import_error(
                     self.cfg.input.clone(),
                     line!() as usize,
@@ -1298,12 +1313,23 @@ impl Context {
                     mod_name.loc(),
                     self.caused_by(),
                     self.mod_cache.as_ref().unwrap().get_similar_name(&__name__),
-                    self.similar_builtin_py_mod_name(&__name__)
-                        .or_else(|| py_mod_cache.get_similar_name(&__name__)),
+                    self.similar_builtin_py_mod_name(&__name__).or_else(|| {
+                        self.py_mod_cache
+                            .as_ref()
+                            .unwrap()
+                            .get_similar_name(&__name__)
+                    }),
                 );
-                return Err(TyCheckErrors::from(err));
+                Err(TyCheckErrors::from(err))
             }
-        };
+        }
+    }
+
+    fn import_py_mod(&self, mod_name: &Literal) -> CompileResult<PathBuf> {
+        let __name__ = enum_unwrap!(mod_name.value.clone(), ValueObj::Str);
+        let mod_cache = self.mod_cache.as_ref().unwrap();
+        let py_mod_cache = self.py_mod_cache.as_ref().unwrap();
+        let path = self.get_path(mod_name, __name__)?;
         if py_mod_cache.get(&path).is_some() {
             return Ok(path);
         }

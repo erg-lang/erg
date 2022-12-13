@@ -1958,7 +1958,7 @@ impl Context {
     }
 
     pub(crate) fn resolve_path(cfg: &ErgConfig, path: &Path) -> Option<PathBuf> {
-        Self::resolve_real_path(cfg, path).or_else(|| Self::resolve_d_path(cfg, path))
+        Self::resolve_real_path(cfg, path).or_else(|| Self::resolve_decl_path(cfg, path))
     }
 
     pub(crate) fn resolve_real_path(cfg: &ErgConfig, path: &Path) -> Option<PathBuf> {
@@ -1980,7 +1980,7 @@ impl Context {
         }
     }
 
-    pub(crate) fn resolve_d_path(cfg: &ErgConfig, path: &Path) -> Option<PathBuf> {
+    pub(crate) fn resolve_decl_path(cfg: &ErgConfig, path: &Path) -> Option<PathBuf> {
         if let Ok(path) = cfg.input.local_resolve(path) {
             Some(path)
         } else if let Ok(path) = erg_pystd_path()
