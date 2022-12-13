@@ -56,8 +56,8 @@ impl Default for ASTLowerer {
         Self::new_with_cache(
             ErgConfig::default(),
             Str::ever("<module>"),
-            SharedModuleCache::new(),
-            SharedModuleCache::new(),
+            SharedModuleCache::new(ErgConfig::default()),
+            SharedModuleCache::new(ErgConfig::default()),
         )
     }
 }
@@ -74,10 +74,10 @@ impl Runnable for ASTLowerer {
 
     fn new(cfg: ErgConfig) -> Self {
         Self::new_with_cache(
-            cfg,
+            cfg.copy(),
             Str::ever("<module>"),
-            SharedModuleCache::new(),
-            SharedModuleCache::new(),
+            SharedModuleCache::new(cfg.copy()),
+            SharedModuleCache::new(cfg),
         )
     }
 

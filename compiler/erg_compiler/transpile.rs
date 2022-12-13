@@ -105,8 +105,8 @@ impl Runnable for Transpiler {
     const NAME: &'static str = "Erg transpiler";
 
     fn new(cfg: ErgConfig) -> Self {
-        let mod_cache = SharedModuleCache::new();
-        let py_mod_cache = SharedModuleCache::new();
+        let mod_cache = SharedModuleCache::new(cfg.copy());
+        let py_mod_cache = SharedModuleCache::new(cfg.copy());
         Self {
             builder: HIRBuilder::new_with_cache(
                 cfg.copy(),

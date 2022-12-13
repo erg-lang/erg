@@ -29,10 +29,10 @@ impl Runnable for HIRBuilder {
 
     fn new(cfg: ErgConfig) -> Self {
         HIRBuilder::new_with_cache(
-            cfg,
+            cfg.copy(),
             Str::ever("<module>"),
-            SharedModuleCache::new(),
-            SharedModuleCache::new(),
+            SharedModuleCache::new(cfg.copy()),
+            SharedModuleCache::new(cfg),
         )
     }
 
