@@ -235,15 +235,7 @@ impl Context {
         } else if self.rec_get_const_obj(&t.local_name()).is_some() {
             panic!("{} has already been registered as const", t.local_name());
         } else {
-            let name = if self.cfg.python_compatible_mode {
-                if let Some(py_name) = py_name {
-                    VarName::from_static(py_name)
-                } else {
-                    VarName::from_str(t.local_name())
-                }
-            } else {
-                VarName::from_str(t.local_name())
-            };
+            let name = VarName::from_str(t.local_name());
             let meta_t = match ctx.kind {
                 ContextKind::Class => Type::ClassType,
                 ContextKind::Trait => Type::TraitType,
@@ -313,15 +305,7 @@ impl Context {
         if let Some((_, root_ctx)) = self.poly_types.get_mut(&t.local_name()) {
             root_ctx.methods_list.push((ClassDefType::Simple(t), ctx));
         } else {
-            let name = if self.cfg.python_compatible_mode {
-                if let Some(py_name) = py_name {
-                    VarName::from_static(py_name)
-                } else {
-                    VarName::from_str(t.local_name())
-                }
-            } else {
-                VarName::from_str(t.local_name())
-            };
+            let name = VarName::from_str(t.local_name());
             let meta_t = match ctx.kind {
                 ContextKind::Class => Type::ClassType,
                 ContextKind::Trait => Type::TraitType,
