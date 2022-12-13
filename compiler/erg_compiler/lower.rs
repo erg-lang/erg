@@ -1910,7 +1910,7 @@ impl ASTLowerer {
         let mut dummy_tv_cache = TyVarCache::new(self.ctx.level, &self.ctx);
         match *tasc.expr {
             ast::Expr::Accessor(ast::Accessor::Ident(mut ident)) => {
-                if self.cfg.pylyzer_mode {
+                if self.cfg.python_compatible_mode {
                     ident.trim_end_proc_mark();
                 }
                 let py_name = Str::rc(ident.inspect().trim_end_matches('!'));
@@ -1936,7 +1936,7 @@ impl ASTLowerer {
                 Ok(hir::Expr::Accessor(hir::Accessor::Ident(ident)).type_asc(tasc.t_spec))
             }
             ast::Expr::Accessor(ast::Accessor::Attr(mut attr)) => {
-                if self.cfg.pylyzer_mode {
+                if self.cfg.python_compatible_mode {
                     attr.ident.trim_end_proc_mark();
                 }
                 let py_name = Str::rc(attr.ident.inspect().trim_end_matches('!'));

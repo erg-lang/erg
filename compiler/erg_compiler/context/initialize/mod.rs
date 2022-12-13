@@ -69,7 +69,7 @@ impl Context {
         } else {
             None
         };
-        let name = if self.cfg.pylyzer_mode {
+        let name = if self.cfg.python_compatible_mode {
             if let Some(py_name) = py_name {
                 VarName::from_static(py_name)
             } else {
@@ -132,7 +132,7 @@ impl Context {
         } else {
             None
         };
-        let name = if self.cfg.pylyzer_mode {
+        let name = if self.cfg.python_compatible_mode {
             if let Some(py_name) = py_name {
                 VarName::from_static(py_name)
             } else {
@@ -235,24 +235,35 @@ impl Context {
         } else if self.rec_get_const_obj(&t.local_name()).is_some() {
             panic!("{} has already been registered as const", t.local_name());
         } else {
-            let name = VarName::from_str(t.local_name());
+            let name = if self.cfg.python_compatible_mode {
+                if let Some(py_name) = py_name {
+                    VarName::from_static(py_name)
+                } else {
+                    VarName::from_str(t.local_name())
+                }
+            } else {
+                VarName::from_str(t.local_name())
+            };
             let meta_t = match ctx.kind {
                 ContextKind::Class => Type::ClassType,
                 ContextKind::Trait => Type::TraitType,
                 _ => Type::Type,
             };
-            self.locals.insert(
-                name.clone(),
-                VarInfo::new(
-                    meta_t,
-                    muty,
-                    vis,
-                    Builtin,
-                    None,
-                    None,
-                    py_name.map(Str::ever),
-                ),
-            );
+            // or we should define a type as a function (e.g. `str`)
+            if !self.cfg.python_compatible_mode {
+                self.locals.insert(
+                    name.clone(),
+                    VarInfo::new(
+                        meta_t,
+                        muty,
+                        vis,
+                        Builtin,
+                        None,
+                        None,
+                        py_name.map(Str::ever),
+                    ),
+                );
+            }
             self.consts
                 .insert(name.clone(), ValueObj::builtin_t(t.clone()));
             for impl_trait in ctx.super_traits.iter() {
@@ -302,24 +313,34 @@ impl Context {
         if let Some((_, root_ctx)) = self.poly_types.get_mut(&t.local_name()) {
             root_ctx.methods_list.push((ClassDefType::Simple(t), ctx));
         } else {
-            let name = VarName::from_str(t.local_name());
+            let name = if self.cfg.python_compatible_mode {
+                if let Some(py_name) = py_name {
+                    VarName::from_static(py_name)
+                } else {
+                    VarName::from_str(t.local_name())
+                }
+            } else {
+                VarName::from_str(t.local_name())
+            };
             let meta_t = match ctx.kind {
                 ContextKind::Class => Type::ClassType,
                 ContextKind::Trait => Type::TraitType,
                 _ => Type::Type,
             };
-            self.locals.insert(
-                name.clone(),
-                VarInfo::new(
-                    meta_t,
-                    muty,
-                    vis,
-                    Builtin,
-                    None,
-                    None,
-                    py_name.map(Str::ever),
-                ),
-            );
+            if !self.cfg.python_compatible_mode {
+                self.locals.insert(
+                    name.clone(),
+                    VarInfo::new(
+                        meta_t,
+                        muty,
+                        vis,
+                        Builtin,
+                        None,
+                        None,
+                        py_name.map(Str::ever),
+                    ),
+                );
+            }
             self.consts
                 .insert(name.clone(), ValueObj::builtin_t(t.clone()));
             for impl_trait in ctx.super_traits.iter() {
@@ -422,7 +443,7 @@ impl Context {
     // 型境界はすべて各サブルーチンで定義する
     // push_subtype_boundなどはユーザー定義APIの型境界決定のために使用する
     fn init_builtin_traits(&mut self) {
-        let vis = if self.cfg.pylyzer_mode {
+        let vis = if self.cfg.python_compatible_mode {
             Public
         } else {
             Private
@@ -649,7 +670,7 @@ impl Context {
     }
 
     fn init_builtin_classes(&mut self) {
-        let vis = if self.cfg.pylyzer_mode {
+        let vis = if self.cfg.python_compatible_mode {
             Public
         } else {
             Private
@@ -1627,8 +1648,18 @@ impl Context {
         self.register_builtin_type(Nat, nat, vis, Const, Some("Nat"));
         self.register_builtin_type(Float, float, vis, Const, Some("float"));
         self.register_builtin_type(Ratio, ratio, vis, Const, Some("Ratio"));
-        self.register_builtin_type(Bool, bool_, vis, Const, Some("Bool"));
-        self.register_builtin_type(Str, str_, vis, Const, Some("Str"));
+        let name = if self.cfg.python_compatible_mode {
+            "bool"
+        } else {
+            "Bool"
+        };
+        self.register_builtin_type(Bool, bool_, vis, Const, Some(name));
+        let name = if self.cfg.python_compatible_mode {
+            "str"
+        } else {
+            "Str"
+        };
+        self.register_builtin_type(Str, str_, vis, Const, Some(name));
         self.register_builtin_type(NoneType, nonetype, vis, Const, Some("NoneType"));
         self.register_builtin_type(Type, type_, vis, Const, Some("type"));
         self.register_builtin_type(ClassType, class_type, vis, Const, Some("ClassType"));
@@ -1679,51 +1710,53 @@ impl Context {
             Const,
             Some("RangeIterator"),
         );
-        self.register_builtin_type(mono("Obj!"), obj_mut, vis, Const, Some("object"));
-        self.register_builtin_type(mono("Int!"), int_mut, vis, Const, Some("int"));
-        self.register_builtin_type(mono("Nat!"), nat_mut, vis, Const, Some("Nat"));
-        self.register_builtin_type(mono("Float!"), float_mut, vis, Const, Some("float"));
-        self.register_builtin_type(mono("Ratio!"), ratio_mut, vis, Const, Some("Ratio"));
-        self.register_builtin_type(mono("Bool!"), bool_mut, vis, Const, Some("Bool"));
-        self.register_builtin_type(mono("Str!"), str_mut, vis, Const, Some("Str"));
         self.register_builtin_type(mono("File!"), file_mut, vis, Const, Some("File"));
         self.register_builtin_type(array_mut_t, array_mut_, vis, Const, Some("list"));
         self.register_builtin_type(set_mut_t, set_mut_, vis, Const, Some("set"));
-        self.register_builtin_type(range_t, range, vis, Const, Some("Range"));
-        self.register_builtin_type(mono("Proc"), proc, vis, Const, Some("Proc"));
-        self.register_builtin_type(
-            mono("NamedProc"),
-            named_proc,
-            Private,
-            Const,
-            Some("NamedProc"),
-        );
-        self.register_builtin_type(mono("Func"), func, vis, Const, Some("Func"));
-        self.register_builtin_type(
-            mono("NamedFunc"),
-            named_func,
-            Private,
-            Const,
-            Some("NamedFunc"),
-        );
-        self.register_builtin_type(
-            mono("Quantified"),
-            quant,
-            Private,
-            Const,
-            Some("Quantified"),
-        );
-        self.register_builtin_type(
-            mono("QuantifiedFunc"),
-            qfunc,
-            Private,
-            Const,
-            Some("QuantifiedFunc"),
-        );
+        if !self.cfg.python_compatible_mode {
+            self.register_builtin_type(mono("Obj!"), obj_mut, vis, Const, Some("object"));
+            self.register_builtin_type(mono("Int!"), int_mut, vis, Const, Some("int"));
+            self.register_builtin_type(mono("Nat!"), nat_mut, vis, Const, Some("Nat"));
+            self.register_builtin_type(mono("Float!"), float_mut, vis, Const, Some("float"));
+            self.register_builtin_type(mono("Ratio!"), ratio_mut, vis, Const, Some("Ratio"));
+            self.register_builtin_type(mono("Bool!"), bool_mut, vis, Const, Some("Bool"));
+            self.register_builtin_type(mono("Str!"), str_mut, vis, Const, Some("Str"));
+            self.register_builtin_type(range_t, range, vis, Const, Some("Range"));
+            self.register_builtin_type(mono("Proc"), proc, vis, Const, Some("Proc"));
+            self.register_builtin_type(
+                mono("NamedProc"),
+                named_proc,
+                Private,
+                Const,
+                Some("NamedProc"),
+            );
+            self.register_builtin_type(mono("Func"), func, vis, Const, Some("Func"));
+            self.register_builtin_type(
+                mono("NamedFunc"),
+                named_func,
+                Private,
+                Const,
+                Some("NamedFunc"),
+            );
+            self.register_builtin_type(
+                mono("Quantified"),
+                quant,
+                Private,
+                Const,
+                Some("Quantified"),
+            );
+            self.register_builtin_type(
+                mono("QuantifiedFunc"),
+                qfunc,
+                Private,
+                Const,
+                Some("QuantifiedFunc"),
+            );
+        }
     }
 
     fn init_builtin_funcs(&mut self) {
-        let vis = if self.cfg.pylyzer_mode {
+        let vis = if self.cfg.python_compatible_mode {
             Public
         } else {
             Private
@@ -1878,13 +1911,13 @@ impl Context {
         self.register_builtin_py_impl("repr", t_repr, Immutable, vis, Some("repr"));
         self.register_builtin_py_impl("round", t_round, Immutable, vis, Some("round"));
         self.register_builtin_py_impl("str", t_str, Immutable, vis, Some("str"));
-        let name = if self.cfg.pylyzer_mode {
+        let name = if self.cfg.python_compatible_mode {
             "int"
         } else {
             "int__"
         };
         self.register_builtin_py_impl("int", t_int, Immutable, vis, Some(name));
-        if !self.cfg.pylyzer_mode {
+        if !self.cfg.python_compatible_mode {
             self.register_builtin_py_impl("if", t_if, Immutable, vis, Some("if__"));
             self.register_builtin_py_impl(
                 "discard",
@@ -1996,7 +2029,7 @@ impl Context {
     }
 
     fn init_builtin_procs(&mut self) {
-        let vis = if self.cfg.pylyzer_mode {
+        let vis = if self.cfg.python_compatible_mode {
             Public
         } else {
             Private
@@ -2084,7 +2117,7 @@ impl Context {
         self.register_builtin_py_impl("globals!", t_globals, Immutable, vis, Some("globals"));
         self.register_builtin_py_impl("locals!", t_locals, Immutable, vis, Some("locals"));
         self.register_builtin_py_impl("open!", t_open, Immutable, vis, Some("open"));
-        if !self.cfg.pylyzer_mode {
+        if !self.cfg.python_compatible_mode {
             self.register_builtin_py_impl("if!", t_if, Immutable, Private, Some("if__"));
             self.register_builtin_py_impl("for!", t_for, Immutable, Private, Some("for__"));
             self.register_builtin_py_impl("while!", t_while, Immutable, Private, Some("while__"));
