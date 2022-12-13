@@ -2300,7 +2300,7 @@ impl VarName {
     /// Procedures defined in `d.er` automatically register the name without `!` as `py_name`.
     /// This method is for undoing it (e.g. pylyzer-mode)
     pub fn trim_end_proc_mark(&mut self) {
-        let _ = self.0.content.trim_end_matches('!');
+        self.0.content = Str::rc(self.0.content.trim_end_matches('!'));
     }
 }
 
