@@ -368,6 +368,9 @@ impl ErgConfig {
                         .parse::<u64>()
                         .expect("the value of `--py-server-timeout` is not a number");
                 }
+                "--pylyzer-mode" if cfg!(feature = "debug") => {
+                    cfg.pylyzer_mode = true;
+                }
                 "--quiet-startup" | "--quiet-repl" => {
                     cfg.quiet_repl = true;
                 }

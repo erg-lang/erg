@@ -1838,10 +1838,7 @@ impl Context {
         self.register_builtin_py_impl("classof", t_classof, Immutable, Private, Some("type"));
         self.register_builtin_py_impl("compile", t_compile, Immutable, Private, Some("compile"));
         self.register_builtin_impl("cond", t_cond, Immutable, Private);
-        self.register_builtin_py_impl("discard", t_discard, Immutable, Private, Some("discard__"));
         self.register_builtin_py_impl("exit", t_exit, Immutable, Private, Some("exit"));
-        self.register_builtin_py_impl("if", t_if, Immutable, Private, Some("if__"));
-        self.register_builtin_py_impl("int", t_int, Immutable, Private, Some("int__"));
         self.register_builtin_py_impl("import", t_import, Immutable, Private, Some("__import__"));
         self.register_builtin_py_impl(
             "isinstance",
@@ -1858,14 +1855,32 @@ impl Context {
             Some("issubclass"),
         );
         self.register_builtin_py_impl("len", t_len, Immutable, Private, Some("len"));
-        self.register_builtin_py_impl("log", t_log, Immutable, Private, Some("print"));
-        self.register_builtin_py_impl("nat", t_nat, Immutable, Private, Some("nat__"));
         self.register_builtin_py_impl("not", t_not, Immutable, Private, None); // `not` is not a function in Python
         self.register_builtin_py_impl("oct", t_oct, Immutable, Private, Some("oct"));
         self.register_builtin_py_impl("ord", t_ord, Immutable, Private, Some("ord"));
-        self.register_builtin_py_impl("panic", t_panic, Immutable, Private, Some("quit"));
         self.register_builtin_py_impl("pow", t_pow, Immutable, Private, Some("pow"));
+        self.register_builtin_py_impl("quit", t_quit, Immutable, Private, Some("quit"));
+        self.register_builtin_py_impl("repr", t_repr, Immutable, Private, Some("repr"));
+        self.register_builtin_py_impl("round", t_round, Immutable, Private, Some("round"));
+        self.register_builtin_py_impl("str", t_str, Immutable, Private, Some("str"));
+        let name = if self.cfg.pylyzer_mode {
+            "int"
+        } else {
+            "int__"
+        };
+        self.register_builtin_py_impl("int", t_int, Immutable, Private, Some(name));
         if !self.cfg.pylyzer_mode {
+            self.register_builtin_py_impl("if", t_if, Immutable, Private, Some("if__"));
+            self.register_builtin_py_impl(
+                "discard",
+                t_discard,
+                Immutable,
+                Private,
+                Some("discard__"),
+            );
+            self.register_builtin_py_impl("log", t_log, Immutable, Private, Some("print"));
+            self.register_builtin_py_impl("nat", t_nat, Immutable, Private, Some("nat__"));
+            self.register_builtin_py_impl("panic", t_panic, Immutable, Private, Some("quit"));
             if cfg!(feature = "debug") {
                 self.register_builtin_py_impl(
                     "py",
@@ -1889,19 +1904,15 @@ impl Context {
                 Private,
                 Some("compile"),
             );
+            // TODO: original implementation
+            self.register_builtin_py_impl(
+                "unreachable",
+                t_unreachable,
+                Immutable,
+                Private,
+                Some("exit"),
+            );
         }
-        self.register_builtin_py_impl("quit", t_quit, Immutable, Private, Some("quit"));
-        self.register_builtin_py_impl("repr", t_repr, Immutable, Private, Some("repr"));
-        self.register_builtin_py_impl("round", t_round, Immutable, Private, Some("round"));
-        self.register_builtin_py_impl("str", t_str, Immutable, Private, Some("str"));
-        // TODO: original implementation
-        self.register_builtin_py_impl(
-            "unreachable",
-            t_unreachable,
-            Immutable,
-            Private,
-            Some("exit"),
-        );
     }
 
     fn init_builtin_const_funcs(&mut self) {
@@ -2050,13 +2061,15 @@ impl Context {
         self.register_builtin_py_impl("print!", t_print, Immutable, Private, Some("print"));
         self.register_builtin_py_impl("id!", t_id, Immutable, Private, Some("id"));
         self.register_builtin_py_impl("input!", t_input, Immutable, Private, Some("input"));
-        self.register_builtin_py_impl("if!", t_if, Immutable, Private, Some("if__"));
-        self.register_builtin_py_impl("for!", t_for, Immutable, Private, Some("for__"));
         self.register_builtin_py_impl("globals!", t_globals, Immutable, Private, Some("globals"));
         self.register_builtin_py_impl("locals!", t_locals, Immutable, Private, Some("locals"));
-        self.register_builtin_py_impl("while!", t_while, Immutable, Private, Some("while__"));
         self.register_builtin_py_impl("open!", t_open, Immutable, Private, Some("open"));
-        self.register_builtin_py_impl("with!", t_with, Immutable, Private, Some("with__"));
+        if !self.cfg.pylyzer_mode {
+            self.register_builtin_py_impl("if!", t_if, Immutable, Private, Some("if__"));
+            self.register_builtin_py_impl("for!", t_for, Immutable, Private, Some("for__"));
+            self.register_builtin_py_impl("while!", t_while, Immutable, Private, Some("while__"));
+            self.register_builtin_py_impl("with!", t_with, Immutable, Private, Some("with__"));
+        }
     }
 
     fn init_builtin_operators(&mut self) {
