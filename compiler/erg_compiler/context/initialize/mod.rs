@@ -2173,7 +2173,8 @@ impl Context {
         let T = mono_q("T", instanceof(Type));
         let I = mono_q("I", subtypeof(poly("In", vec![ty_tp(T.clone())])));
         let op_t = bin_op(I, T, Bool).quantify();
-        self.register_builtin_impl("__in__", op_t, Const, Private);
+        self.register_builtin_impl("__in__", op_t.clone(), Const, Private);
+        self.register_builtin_impl("__notin__", op_t, Const, Private);
         /* unary */
         // TODO: Boolの+/-は警告を出したい
         let M = mono_q("M", subtypeof(mono("Mutizable")));
