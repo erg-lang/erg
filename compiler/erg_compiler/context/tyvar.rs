@@ -4,8 +4,8 @@ use std::option::Option;
 
 use erg_common::error::Location;
 use erg_common::traits::{Locational, Stream};
-use erg_common::Str;
 use erg_common::{assume_unreachable, fn_name};
+use erg_common::{dict, set, Str};
 #[allow(unused_imports)]
 use erg_common::{fmt_vec, log};
 
@@ -304,6 +304,23 @@ impl Context {
                 }
                 Ok(TyParam::Tuple(new_tps))
             }
+            TyParam::Dict(dic) => {
+                let mut new_dic = dict! {};
+                for (k, v) in dic.into_iter() {
+                    new_dic.insert(
+                        self.deref_tp(k, variance, loc)?,
+                        self.deref_tp(v, variance, loc)?,
+                    );
+                }
+                Ok(TyParam::Dict(new_dic))
+            }
+            TyParam::Set(set) => {
+                let mut new_set = set! {};
+                for v in set.into_iter() {
+                    new_set.insert(self.deref_tp(v, variance, loc)?);
+                }
+                Ok(TyParam::Set(new_set))
+            }
             TyParam::Proj { .. } | TyParam::Failure if self.level == 0 => Err(
                 TyCheckError::dummy_infer_error(self.cfg.input.clone(), fn_name!(), line!()),
             ),
@@ -469,30 +486,13 @@ impl Context {
                 };
                 Ok(ref_mut(before, after))
             }
-            Type::Callable { .. } => todo!(),
+            // Type::Callable { .. } => todo!(),
             Type::Record(mut rec) => {
                 for (_, field) in rec.iter_mut() {
                     *field = self.deref_tyvar(mem::take(field), variance, loc)?;
                 }
                 Ok(Type::Record(rec))
             }
-            // |X <: T <: X| X -> X ==> T -> T
-            /*Type::Quantified(quant) => {
-                let mut replace_list = vec![];
-                let mut new_bounds = set!{};
-                for bound in quant.bounds.into_iter() {
-                    if let Some((sub, mid, sup)) = bound.get_types() {
-                        if self.subtype_of(sub, sup) && self.supertype_of(sub, sup) {
-                            replace_list.push((mid, sub));
-                        } else {
-                            new_bounds.insert(bound);
-                        }
-                    } else {
-                        new_bounds.insert(bound);
-                    }
-                }
-                Ok(())
-            }*/
             Type::Refinement(refine) => {
                 let t = self.deref_tyvar(*refine.t, variance, loc)?;
                 // TODO: deref_predicate
