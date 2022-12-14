@@ -8,8 +8,8 @@ use erg_common::python_util::BUILTIN_PYTHON_MODS;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Visibility;
-use erg_common::Str;
 use erg_common::{enum_unwrap, get_hash, log, set};
+use erg_common::{fn_name, Str};
 
 use ast::{Decorator, DefId, Identifier, OperationKind, VarName};
 use erg_parser::ast;
@@ -558,10 +558,16 @@ impl Context {
         ident: &Identifier,
         decorators: &Set<Decorator>,
         failure_t: Type,
-    ) {
+    ) -> TyCheckResult<()> {
         // already defined as const
         if ident.is_const() {
-            let vi = self.decls.remove(ident.inspect()).unwrap();
+            let Some(vi) = self.decls.remove(ident.inspect()) else {
+                return Err(TyCheckErrors::from(TyCheckError::unreachable(
+                    self.cfg.input.clone(),
+                    fn_name!(),
+                    line!(),
+                )));
+            };
             self.locals.insert(ident.name.clone(), vi);
         }
         let muty = if ident.is_const() {
@@ -591,6 +597,7 @@ impl Context {
         );
         log!(info "Registered {}::{name}: {}", self.name, &vi.t);
         self.locals.insert(name.clone(), vi);
+        Ok(())
     }
 
     // To allow forward references and recursive definitions
@@ -1494,7 +1501,12 @@ impl Context {
                 if let Some(vi) = self.get_mut_current_scope_var(ident.inspect()) {
                     vi.t = t;
                 } else {
-                    todo!()
+                    return Err(TyCheckErrors::from(TyCheckError::feature_error(
+                        self.cfg.input.clone(),
+                        acc.loc(),
+                        &format!("casting {acc}"),
+                        self.caused_by(),
+                    )));
                 }
             }
             _ => {

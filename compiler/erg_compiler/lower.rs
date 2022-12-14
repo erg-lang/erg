@@ -42,6 +42,26 @@ use crate::varinfo::{VarInfo, VarKind};
 use crate::AccessKind;
 use Visibility::*;
 
+macro_rules! unreachable_error {
+    ($self: ident) => {
+        Err(LowerErrors::from(LowerError::unreachable(
+            $self.cfg.input.clone(),
+            fn_name!(),
+            line!(),
+        )))
+    };
+}
+macro_rules! todo_error {
+    ($self: ident, $loc: expr, $name: expr) => {
+        Err(LowerErrors::from(LowerError::feature_error(
+            $self.cfg.input.clone(),
+            $loc,
+            $name,
+            $self.ctx.caused_by(),
+        )))
+    };
+}
+
 /// Checks & infers types of an AST, and convert (lower) it into a HIR
 #[derive(Debug)]
 pub struct ASTLowerer {
@@ -317,7 +337,7 @@ impl ASTLowerer {
             ast::Array::WithLength(arr) => {
                 Ok(hir::Array::WithLength(self.lower_array_with_length(arr)?))
             }
-            other => todo!("{other}"),
+            other => todo_error!(self, other.loc(), "array comprehension"),
         }
     }
 
@@ -602,7 +622,7 @@ impl ASTLowerer {
         log!(info "enter {}({dict})", fn_name!());
         match dict {
             ast::Dict::Normal(set) => Ok(hir::Dict::Normal(self.lower_normal_dict(set)?)),
-            other => todo!("{other}"),
+            other => todo_error!(self, other.loc(), "dict comprehension"),
             // ast::Dict::WithLength(set) => Ok(hir::Dict::WithLength(self.lower_dict_with_length(set)?)),
         }
     }
@@ -706,9 +726,7 @@ impl ASTLowerer {
                 let acc = hir::Accessor::Attr(hir::Attribute::new(obj, ident));
                 Ok(acc)
             }
-            ast::Accessor::TypeApp(_t_app) => {
-                todo!()
-            }
+            ast::Accessor::TypeApp(t_app) => todo_error!(self, t_app.loc(), "type application"),
             // TupleAttr, Subscr are desugared
             _ => unreachable!(),
         }
@@ -1168,14 +1186,14 @@ impl ASTLowerer {
                     &sig.ident,
                     &sig.decorators,
                     Type::Failure,
-                );
+                )?;
                 let block = self.lower_block(body.block)?;
                 let ident = hir::Identifier::bare(sig.ident.dot, sig.ident.name);
                 let sig = hir::SubrSignature::new(ident, params);
                 let body = hir::DefBody::new(body.op, block, body.id);
                 Ok(hir::Def::new(hir::Signature::Subr(sig), body))
             }
-            _ => unreachable!(),
+            _ => unreachable_error!(self),
         }
     }
 
@@ -1199,7 +1217,7 @@ impl ASTLowerer {
                             )?,
                             tasc.t_spec.loc(),
                         ),
-                        _ => unreachable!(),
+                        _ => return unreachable_error!(self),
                     };
                     (
                         self.ctx.instantiate_typespec(
@@ -1321,7 +1339,7 @@ impl ASTLowerer {
         ) {
             (dunder_new_vi.t.clone(), new_vi.kind == VarKind::Auto)
         } else {
-            todo!()
+            return unreachable_error!(self);
         };
         let require_or_sup = self.get_require_or_sup_or_base(hir_def.body.block.remove(0));
         Ok(hir::ClassDef::new(
@@ -1445,10 +1463,15 @@ impl ASTLowerer {
                 None,
             )));
         };
-        let (_, class_ctx) = self
-            .ctx
-            .get_mut_nominal_type_ctx(class)
-            .unwrap_or_else(|| todo!("{class} not found"));
+        let Some((_, class_ctx)) = self.ctx.get_mut_nominal_type_ctx(class) else {
+            return Err(LowerErrors::from(LowerError::type_not_found(
+                self.cfg.input.clone(),
+                line!() as usize,
+                trait_loc,
+                self.ctx.caused_by(),
+                class,
+            )));
+        };
         class_ctx.register_supertrait(trait_.clone(), &trait_ctx);
         Ok(())
     }
@@ -1567,7 +1590,14 @@ impl ASTLowerer {
                                     }
                                 }
                             }
-                            other => todo!("{other}"),
+                            other => {
+                                return todo_error!(
+                                    self,
+                                    Location::Unknown,
+                                    &format!("Impl {other}")
+                                )
+                                .map_err(|mut e| e.remove(0));
+                            }
                         },
                         TypeObj::Builtin(_typ) => {
                             let (_, ctx) = self.ctx.get_nominal_type_ctx(_typ).unwrap();
