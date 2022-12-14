@@ -272,8 +272,11 @@ impl Context {
                     let spec_t =
                         self.instantiate_param_sig_t(sig, opt_decl_t, &mut dummy_tv_cache, Normal)?;
                     if &name.inspect()[..] == "self" {
-                        let self_t = self.rec_get_self_t().unwrap();
-                        self.sub_unify(&spec_t, &self_t, name.loc(), Some(name.inspect()))?;
+                        if let Some(self_t) = self.rec_get_self_t() {
+                            self.sub_unify(&spec_t, &self_t, name.loc(), Some(name.inspect()))?;
+                        } else {
+                            log!(err "self_t is None");
+                        }
                     }
                     let default = if default_val_exists {
                         DefaultInfo::WithDefault
@@ -307,8 +310,11 @@ impl Context {
                     let spec_t =
                         self.instantiate_param_sig_t(sig, opt_decl_t, &mut dummy_tv_cache, Normal)?;
                     if &name.inspect()[..] == "self" {
-                        let self_t = self.rec_get_self_t().unwrap();
-                        self.sub_unify(&spec_t, &self_t, name.loc(), Some(name.inspect()))?;
+                        if let Some(self_t) = self.rec_get_self_t() {
+                            self.sub_unify(&spec_t, &self_t, name.loc(), Some(name.inspect()))?;
+                        } else {
+                            log!(err "self_t is None");
+                        }
                     }
                     let spec_t = ref_(spec_t);
                     let default = if default_val_exists {
@@ -342,8 +348,11 @@ impl Context {
                     let spec_t =
                         self.instantiate_param_sig_t(sig, opt_decl_t, &mut dummy_tv_cache, Normal)?;
                     if &name.inspect()[..] == "self" {
-                        let self_t = self.rec_get_self_t().unwrap();
-                        self.sub_unify(&spec_t, &self_t, name.loc(), Some(name.inspect()))?;
+                        if let Some(self_t) = self.rec_get_self_t() {
+                            self.sub_unify(&spec_t, &self_t, name.loc(), Some(name.inspect()))?;
+                        } else {
+                            log!(err "self_t is None");
+                        }
                     }
                     let spec_t = ref_mut(spec_t.clone(), Some(spec_t));
                     let default = if default_val_exists {
@@ -1016,8 +1025,11 @@ impl Context {
                         }
                     }
                     for sup in super_classes.into_iter() {
-                        let (_, sup_ctx) = self.get_nominal_type_ctx(&sup).unwrap();
-                        ctx.register_supertrait(sup, sup_ctx);
+                        if let Some((_, sup_ctx)) = self.get_nominal_type_ctx(&sup) {
+                            ctx.register_supertrait(sup, sup_ctx);
+                        } else {
+                            log!(err "{sup} not found");
+                        }
                     }
                     self.register_gen_mono_type(ident, gen, ctx, Const);
                 } else {
