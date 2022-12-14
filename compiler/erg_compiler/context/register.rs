@@ -1293,22 +1293,24 @@ impl Context {
                 Ok(path)
             }
             None => {
-                // pylyzer is a static analysis tool for Python.
-                // It can convert a Python script to an Erg AST for code analysis.
-                // There is also an option to output the analysis result as `d.er`. Use this if the system have pylyzer installed.
-                match Command::new("pylyzer")
-                    .arg("--dump-decl")
-                    .arg(format!("{__name__}.py"))
-                    .output()
-                {
-                    Ok(out) if out.status.success() => {
-                        if let Some(path) =
-                            Self::resolve_decl_path(&self.cfg, Path::new(&__name__[..]))
-                        {
-                            return Ok(path);
+                if let Ok(path) = self.cfg.input.local_py_resolve(Path::new(&__name__[..])) {
+                    // pylyzer is a static analysis tool for Python.
+                    // It can convert a Python script to an Erg AST for code analysis.
+                    // There is also an option to output the analysis result as `d.er`. Use this if the system have pylyzer installed.
+                    match Command::new("pylyzer")
+                        .arg("--dump-decl")
+                        .arg(path.to_str().unwrap())
+                        .output()
+                    {
+                        Ok(out) if out.status.success() => {
+                            if let Some(path) =
+                                Self::resolve_decl_path(&self.cfg, Path::new(&__name__[..]))
+                            {
+                                return Ok(path);
+                            }
                         }
+                        _ => {}
                     }
-                    _ => {}
                 }
                 let err = TyCheckError::import_error(
                     self.cfg.input.clone(),

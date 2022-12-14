@@ -167,6 +167,23 @@ impl Input {
                 dir.canonicalize()
             })
     }
+
+    pub fn local_py_resolve(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
+        let mut dir = if let Self::File(mut path) = self.clone() {
+            path.pop();
+            path
+        } else {
+            PathBuf::new()
+        };
+        dir.push(path);
+        dir.set_extension("py");
+        dir.canonicalize().or_else(|_| {
+            dir.pop();
+            dir.push(path);
+            dir.push("__init__.py"); // {path}/__init__.er
+            dir.canonicalize()
+        })
+    }
 }
 
 #[derive(Debug, Clone)]
