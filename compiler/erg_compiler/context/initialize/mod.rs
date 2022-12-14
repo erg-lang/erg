@@ -1865,7 +1865,7 @@ impl Context {
         let t_unreachable = nd_func(vec![], None, Never);
         self.register_builtin_py_impl("abs", t_abs, Immutable, vis, Some("abs"));
         self.register_builtin_py_impl("ascii", t_ascii, Immutable, vis, Some("ascii"));
-        self.register_builtin_impl("assert", t_assert, Const, Private); // assert casting に悪影響が出る可能性があるため、Constとしておく
+        self.register_builtin_impl("assert", t_assert, Const, vis); // assert casting に悪影響が出る可能性があるため、Constとしておく
         self.register_builtin_py_impl("bin", t_bin, Immutable, vis, Some("bin"));
         self.register_builtin_py_impl("bytes", t_bytes, Immutable, vis, Some("bytes"));
         self.register_builtin_py_impl("chr", t_chr, Immutable, vis, Some("chr"));
