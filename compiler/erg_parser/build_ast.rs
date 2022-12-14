@@ -58,7 +58,7 @@ impl Runnable for ASTBuilder {
 impl ASTBuilder {
     pub fn build(&mut self, src: String) -> Result<AST, ParserRunnerErrors> {
         let module = self.runner.parse(src)?;
-        let mut desugarer = Desugarer::new();
+        let mut desugarer = Desugarer::new(self.cfg().copy());
         let module = desugarer.desugar(module);
         let ast = AST::new(Str::rc(self.runner.cfg().input.full_path()), module);
         Ok(ast)

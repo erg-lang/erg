@@ -5,6 +5,7 @@
 //! 型チェックなどによる検証は行わない
 #![allow(dead_code)]
 
+use erg_common::config::ErgConfig;
 use erg_common::fresh::fresh_varname;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
@@ -32,13 +33,15 @@ enum BufIndex<'i> {
 
 #[derive(Debug)]
 pub struct Desugarer {
+    cfg: ErgConfig,
     desugared: Set<Str>,
     // var_id: usize, // must be global
 }
 
 impl Desugarer {
-    pub fn new() -> Desugarer {
+    pub fn new(cfg: ErgConfig) -> Desugarer {
         Self {
+            cfg,
             desugared: Set::default(),
         }
     }
@@ -885,11 +888,16 @@ impl Desugarer {
         match &mut sig.pat {
             ParamPattern::Tuple(tup) => {
                 let (buf_name, buf_sig) = self.gen_buf_nd_param(line);
+                let ident = if self.cfg.python_compatible_mode {
+                    Identifier::public(Str::from(&buf_name))
+                } else {
+                    Identifier::private(Str::from(&buf_name))
+                };
                 new_body.insert(
                     insertion_idx,
                     Expr::Def(Def::new(
                         Signature::Var(VarSignature::new(
-                            VarPattern::Ident(Identifier::private(Str::from(&buf_name))),
+                            VarPattern::Ident(ident),
                             sig.t_spec.as_ref().map(|ts| ts.t_spec.clone()),
                         )),
                         body,
@@ -1008,8 +1016,13 @@ impl Desugarer {
             }
             */
             ParamPattern::VarName(name) => {
+                let ident = if self.cfg.python_compatible_mode {
+                    Identifier::new(Some(DOT), name.clone())
+                } else {
+                    Identifier::new(None, name.clone())
+                };
                 let v = VarSignature::new(
-                    VarPattern::Ident(Identifier::new(None, name.clone())),
+                    VarPattern::Ident(ident),
                     sig.t_spec.as_ref().map(|ts| ts.t_spec.clone()),
                 );
                 let def = Def::new(Signature::Var(v), body);
@@ -1106,6 +1119,6 @@ impl Desugarer {
 
 impl Default for Desugarer {
     fn default() -> Self {
-        Self::new()
+        Self::new(ErgConfig::default())
     }
 }

@@ -2352,10 +2352,17 @@ impl Identifier {
         Self { dot, name }
     }
 
-    pub fn public(name: &'static str) -> Self {
+    pub fn static_public(name: &'static str) -> Self {
         Self::new(
             Some(Token::from_str(TokenKind::Dot, ".")),
             VarName::from_static(name),
+        )
+    }
+
+    pub fn public(name: Str) -> Self {
+        Self::new(
+            Some(Token::from_str(TokenKind::Dot, ".")),
+            VarName::from_str(name),
         )
     }
 
