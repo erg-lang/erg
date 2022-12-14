@@ -81,7 +81,7 @@ impl Buildable for HIRBuilder {
         self.build(src, mode)
     }
     fn pop_context(&mut self) -> Option<Context> {
-        Some(self.pop_mod_ctx())
+        self.pop_mod_ctx()
     }
     fn get_context(&self) -> Option<&Context> {
         Some(&self.lowerer.ctx)
@@ -145,7 +145,7 @@ impl HIRBuilder {
         self.check(ast, mode)
     }
 
-    pub fn pop_mod_ctx(&mut self) -> Context {
+    pub fn pop_mod_ctx(&mut self) -> Option<Context> {
         self.lowerer.pop_mod_ctx()
     }
 

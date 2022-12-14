@@ -225,7 +225,7 @@ impl Transpiler {
         Ok(CompleteArtifact::new(desugared, artifact.warns))
     }
 
-    pub fn pop_mod_ctx(&mut self) -> Context {
+    pub fn pop_mod_ctx(&mut self) -> Option<Context> {
         self.builder.pop_mod_ctx()
     }
 

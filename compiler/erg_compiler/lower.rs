@@ -271,7 +271,7 @@ impl ASTLowerer {
         }
     }
 
-    pub fn pop_mod_ctx(&mut self) -> Context {
+    pub fn pop_mod_ctx(&mut self) -> Option<Context> {
         self.ctx.pop_mod()
     }
 
