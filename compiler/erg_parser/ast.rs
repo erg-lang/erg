@@ -171,7 +171,7 @@ impl Locational for Args {
             (Some(l), Some(r)) => Location::concat(l, r),
             (Some(l), None) => Location::concat(l, self.pos_args.last().unwrap()),
             (None, Some(r)) => Location::concat(self.kw_args.first().unwrap(), r),
-            _ => unreachable!(),
+            _ => Location::Unknown,
         }
     }
 }
@@ -1622,7 +1622,7 @@ impl Locational for ConstArgs {
         } else if let Some(last) = self.pos_args.last() {
             Location::concat(self.pos_args.first().unwrap(), last)
         } else {
-            unreachable!()
+            Location::Unknown
         }
     }
 }
@@ -3143,7 +3143,7 @@ impl Locational for LambdaSignature {
         } else if let Some(return_t) = &self.return_t_spec {
             Location::concat(&self.params, return_t)
         } else if self.params.is_empty() && self.params.parens.is_none() {
-            unreachable!()
+            Location::Unknown
         } else {
             self.params.loc()
         }
