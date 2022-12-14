@@ -958,7 +958,10 @@ impl ASTLowerer {
             .ctx
             .instantiate_ty_bounds(&lambda.sig.bounds, RegistrationMode::Normal)?;
         self.ctx.grow(&name, kind, Private, Some(tv_cache));
-        let params = self.lower_params(lambda.sig.params)?;
+        let params = self.lower_params(lambda.sig.params).map_err(|errs| {
+            self.pop_append_errs();
+            errs
+        })?;
         if let Err(errs) = self.ctx.assign_params(&params, None) {
             self.errs.extend(errs);
         }
@@ -1258,7 +1261,10 @@ impl ASTLowerer {
                                 def.sig.col_begin().unwrap(),
                             ));
                         }
-                        self.ctx.preregister_def(def)?;
+                        self.ctx.preregister_def(def).map_err(|errs| {
+                            self.pop_append_errs();
+                            errs
+                        })?;
                     }
                     ast::ClassAttr::Decl(_decl) => {}
                 }
@@ -1356,7 +1362,10 @@ impl ASTLowerer {
                                 def.sig.col_begin().unwrap(),
                             ));
                         }
-                        self.ctx.preregister_def(def)?;
+                        self.ctx.preregister_def(def).map_err(|errs| {
+                            self.pop_append_errs();
+                            errs
+                        })?;
                     }
                     ast::ClassAttr::Decl(_decl) => {}
                 }

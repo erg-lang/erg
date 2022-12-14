@@ -671,8 +671,9 @@ impl Context {
                     self.grow(__name__, kind, sig.vis(), None);
                     let (obj, const_t) = match self.eval_const_block(&def.body.block) {
                         Ok(obj) => (obj.clone(), v_enum(set! {obj})),
-                        Err(e) => {
-                            return Err(e);
+                        Err(errs) => {
+                            self.pop();
+                            return Err(errs);
                         }
                     };
                     if let Some(spec) = sig.t_spec.as_ref() {
