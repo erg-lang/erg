@@ -124,6 +124,10 @@ impl Runnable for Transpiler {
     fn cfg(&self) -> &ErgConfig {
         &self.cfg
     }
+    #[inline]
+    fn cfg_mut(&mut self) -> &mut ErgConfig {
+        &mut self.cfg
+    }
 
     #[inline]
     fn finish(&mut self) {}

@@ -48,6 +48,10 @@ impl Runnable for DummyVM {
     fn cfg(&self) -> &ErgConfig {
         &self.compiler.cfg
     }
+    #[inline]
+    fn cfg_mut(&mut self) -> &mut ErgConfig {
+        &mut self.compiler.cfg
+    }
 
     fn new(cfg: ErgConfig) -> Self {
         let stream = if cfg.input.is_repl() {

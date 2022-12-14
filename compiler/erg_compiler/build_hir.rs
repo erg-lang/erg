@@ -40,6 +40,10 @@ impl Runnable for HIRBuilder {
     fn cfg(&self) -> &ErgConfig {
         self.lowerer.cfg()
     }
+    #[inline]
+    fn cfg_mut(&mut self) -> &mut ErgConfig {
+        self.lowerer.cfg_mut()
+    }
 
     #[inline]
     fn finish(&mut self) {}
