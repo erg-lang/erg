@@ -632,14 +632,23 @@ impl Context {
                     };
                     if let Some(spec) = sig.return_t_spec.as_ref() {
                         let mut dummy_tv_cache = TyVarCache::new(self.level, self);
-                        let spec_t = self.instantiate_typespec(
-                            spec,
-                            None,
-                            &mut dummy_tv_cache,
-                            PreRegister,
-                            false,
-                        )?;
-                        self.sub_unify(&const_t, &spec_t, def.body.loc(), None)?;
+                        let spec_t = self
+                            .instantiate_typespec(
+                                spec,
+                                None,
+                                &mut dummy_tv_cache,
+                                PreRegister,
+                                false,
+                            )
+                            .map_err(|err| {
+                                self.pop();
+                                err
+                            })?;
+                        self.sub_unify(&const_t, &spec_t, def.body.loc(), None)
+                            .map_err(|err| {
+                                self.pop();
+                                err
+                            })?;
                     }
                     self.pop();
                     self.register_gen_const(def.sig.ident().unwrap(), obj)?;
@@ -659,14 +668,23 @@ impl Context {
                     };
                     if let Some(spec) = sig.t_spec.as_ref() {
                         let mut dummy_tv_cache = TyVarCache::new(self.level, self);
-                        let spec_t = self.instantiate_typespec(
-                            spec,
-                            None,
-                            &mut dummy_tv_cache,
-                            PreRegister,
-                            false,
-                        )?;
-                        self.sub_unify(&const_t, &spec_t, def.body.loc(), None)?;
+                        let spec_t = self
+                            .instantiate_typespec(
+                                spec,
+                                None,
+                                &mut dummy_tv_cache,
+                                PreRegister,
+                                false,
+                            )
+                            .map_err(|err| {
+                                self.pop();
+                                err
+                            })?;
+                        self.sub_unify(&const_t, &spec_t, def.body.loc(), None)
+                            .map_err(|err| {
+                                self.pop();
+                                err
+                            })?;
                     }
                     self.pop();
                     if let Some(ident) = sig.ident() {

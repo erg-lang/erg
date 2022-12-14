@@ -25,6 +25,10 @@ pub enum OperationKind {
     PyImport,
     Del,
     AssertCast,
+    Class,
+    Inherit,
+    Trait,
+    Subsume,
 }
 
 impl OperationKind {
@@ -1106,6 +1110,10 @@ impl Call {
             "import" => Some(OperationKind::Import),
             "pyimport" | "py" | "__import__" => Some(OperationKind::PyImport),
             "Del" => Some(OperationKind::Del),
+            "Class" => Some(OperationKind::Class),
+            "Inherit" => Some(OperationKind::Inherit),
+            "Trait" => Some(OperationKind::Trait),
+            "Subsume" => Some(OperationKind::Subsume),
             _ => None,
         })
     }

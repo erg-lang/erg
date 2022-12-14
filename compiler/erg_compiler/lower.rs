@@ -22,7 +22,7 @@ use crate::context::instantiate::TyVarCache;
 use crate::ty::constructors::{
     array_mut, array_t, free_var, func, mono, poly, proc, set_mut, set_t, ty_tp,
 };
-use crate::ty::free::{Constraint, HasLevel};
+use crate::ty::free::Constraint;
 use crate::ty::typaram::TyParam;
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{HasType, ParamTy, Type};
@@ -38,7 +38,7 @@ use crate::hir;
 use crate::hir::HIR;
 use crate::mod_cache::SharedModuleCache;
 use crate::reorder::Reorderer;
-use crate::varinfo::{Mutability, VarInfo, VarKind};
+use crate::varinfo::{VarInfo, VarKind};
 use crate::AccessKind;
 use Visibility::*;
 
@@ -47,8 +47,8 @@ use Visibility::*;
 pub struct ASTLowerer {
     cfg: ErgConfig,
     pub(crate) ctx: Context,
-    errs: LowerErrors,
-    warns: LowerWarnings,
+    pub(crate) errs: LowerErrors,
+    pub(crate) warns: LowerWarnings,
 }
 
 impl Default for ASTLowerer {
@@ -772,7 +772,7 @@ impl ASTLowerer {
         Ok(hir::UnaryOp::new(unary.op, expr, t))
     }
 
-    fn lower_call(&mut self, call: ast::Call) -> LowerResult<hir::Call> {
+    pub(crate) fn lower_call(&mut self, call: ast::Call) -> LowerResult<hir::Call> {
         log!(info "entered {}({}{}(...))", fn_name!(), call.obj, fmt_option!(call.attr_name));
         let mut errs = LowerErrors::empty();
         let opt_cast_to = if call.is_assert_cast() {
@@ -1806,286 +1806,6 @@ impl ASTLowerer {
             hir_dummy.push(chunk);
         }
         Ok(hir::Dummy::new(hir_dummy))
-    }
-
-    fn declare_or_import_var(
-        &mut self,
-        sig: ast::VarSignature,
-        mut body: ast::DefBody,
-    ) -> LowerResult<hir::Def> {
-        log!(info "entered {}({sig})", fn_name!());
-        if body.block.len() > 1 {
-            return Err(LowerErrors::from(LowerError::declare_error(
-                self.cfg.input.clone(),
-                line!() as usize,
-                body.block.loc(),
-                self.ctx.caused_by(),
-            )));
-        }
-        let chunk = self.declare_chunk(body.block.remove(0))?;
-        let py_name = if let hir::Expr::TypeAsc(tasc) = &chunk {
-            enum_unwrap!(tasc.expr.as_ref(), hir::Expr::Accessor)
-                .local_name()
-                .map(Str::rc)
-        } else {
-            sig.inspect().cloned()
-        };
-        let block = hir::Block::new(vec![chunk]);
-        let found_body_t = block.ref_t();
-        let ident = match &sig.pat {
-            ast::VarPattern::Ident(ident) => ident,
-            _ => unreachable!(),
-        };
-        let id = body.id;
-        self.ctx
-            .assign_var_sig(&sig, found_body_t, id, py_name.clone())?;
-        let mut ident = hir::Identifier::bare(ident.dot.clone(), ident.name.clone());
-        ident.vi.t = found_body_t.clone();
-        ident.vi.py_name = py_name;
-        let sig = hir::VarSignature::new(ident);
-        let body = hir::DefBody::new(body.op, block, body.id);
-        Ok(hir::Def::new(hir::Signature::Var(sig), body))
-    }
-
-    fn declare_alias_or_import(&mut self, def: ast::Def) -> LowerResult<hir::Def> {
-        log!(info "entered {}({})", fn_name!(), def.sig);
-        let name = if let Some(name) = def.sig.name_as_str() {
-            name.clone()
-        } else {
-            Str::ever("<lambda>")
-        };
-        if self
-            .ctx
-            .registered_info(&name, def.sig.is_const())
-            .is_some()
-            && def.sig.vis().is_private()
-        {
-            return Err(LowerErrors::from(LowerError::reassign_error(
-                self.cfg.input.clone(),
-                line!() as usize,
-                def.sig.loc(),
-                self.ctx.caused_by(),
-                &name,
-            )));
-        }
-        #[allow(clippy::let_and_return)]
-        let res = match def.sig {
-            ast::Signature::Subr(sig) => {
-                return Err(LowerErrors::from(LowerError::declare_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    sig.loc(),
-                    self.ctx.caused_by(),
-                )));
-            }
-            ast::Signature::Var(sig) => self.declare_or_import_var(sig, def.body),
-        };
-        // self.pop_append_errs();
-        res
-    }
-
-    fn declare_class_def(&mut self, _class_def: ast::ClassDef) -> LowerResult<hir::ClassDef> {
-        todo!()
-    }
-
-    fn fake_lower_obj(&self, obj: ast::Expr) -> LowerResult<hir::Expr> {
-        match obj {
-            ast::Expr::Accessor(ast::Accessor::Ident(ident)) => {
-                let acc = hir::Accessor::Ident(hir::Identifier::bare(ident.dot, ident.name));
-                Ok(hir::Expr::Accessor(acc))
-            }
-            ast::Expr::Accessor(ast::Accessor::Attr(attr)) => {
-                let obj = self.fake_lower_obj(*attr.obj)?;
-                let ident = hir::Identifier::bare(attr.ident.dot, attr.ident.name);
-                Ok(obj.attr_expr(ident))
-            }
-            other => Err(LowerErrors::from(LowerError::declare_error(
-                self.cfg.input.clone(),
-                line!() as usize,
-                other.loc(),
-                self.ctx.caused_by(),
-            ))),
-        }
-    }
-
-    fn declare_ident(&mut self, tasc: ast::TypeAscription) -> LowerResult<hir::TypeAscription> {
-        log!(info "entered {}({})", fn_name!(), tasc);
-        let is_instance_ascription = tasc.is_instance_ascription();
-        let mut dummy_tv_cache = TyVarCache::new(self.ctx.level, &self.ctx);
-        match *tasc.expr {
-            ast::Expr::Accessor(ast::Accessor::Ident(mut ident)) => {
-                if self.cfg.python_compatible_mode {
-                    ident.trim_end_proc_mark();
-                }
-                let py_name = Str::rc(ident.inspect().trim_end_matches('!'));
-                let t = self.ctx.instantiate_typespec(
-                    &tasc.t_spec,
-                    None,
-                    &mut dummy_tv_cache,
-                    RegistrationMode::Normal,
-                    false,
-                )?;
-                t.lift();
-                let t = self.ctx.generalize_t(t);
-                if is_instance_ascription {
-                    self.declare_instance(&ident, &t, py_name)?;
-                } else {
-                    self.declare_subtype(&ident, &t)?;
-                }
-                let muty = Mutability::from(&ident.inspect()[..]);
-                let vis = ident.vis();
-                let py_name = Str::rc(ident.inspect().trim_end_matches('!'));
-                let vi = VarInfo::new(t, muty, vis, VarKind::Declared, None, None, Some(py_name));
-                let ident = hir::Identifier::new(ident.dot, ident.name, None, vi);
-                Ok(hir::Expr::Accessor(hir::Accessor::Ident(ident)).type_asc(tasc.t_spec))
-            }
-            ast::Expr::Accessor(ast::Accessor::Attr(mut attr)) => {
-                if self.cfg.python_compatible_mode {
-                    attr.ident.trim_end_proc_mark();
-                }
-                let py_name = Str::rc(attr.ident.inspect().trim_end_matches('!'));
-                let t = self.ctx.instantiate_typespec(
-                    &tasc.t_spec,
-                    None,
-                    &mut dummy_tv_cache,
-                    RegistrationMode::Normal,
-                    false,
-                )?;
-                let namespace = self.ctx.name.clone();
-                let ctx = self
-                    .ctx
-                    .get_mut_singular_ctx(attr.obj.as_ref(), &namespace)?;
-                ctx.assign_var_sig(
-                    &ast::VarSignature::new(ast::VarPattern::Ident(attr.ident.clone()), None),
-                    &t,
-                    ast::DefId(0),
-                    Some(py_name),
-                )?;
-                let obj = self.fake_lower_obj(*attr.obj)?;
-                let muty = Mutability::from(&attr.ident.inspect()[..]);
-                let vis = attr.ident.vis();
-                let py_name = Str::rc(attr.ident.inspect().trim_end_matches('!'));
-                let vi = VarInfo::new(t, muty, vis, VarKind::Declared, None, None, Some(py_name));
-                let ident = hir::Identifier::new(attr.ident.dot, attr.ident.name, None, vi);
-                let attr = obj.attr_expr(ident);
-                Ok(attr.type_asc(tasc.t_spec))
-            }
-            other => Err(LowerErrors::from(LowerError::declare_error(
-                self.cfg.input.clone(),
-                line!() as usize,
-                other.loc(),
-                self.ctx.caused_by(),
-            ))),
-        }
-    }
-
-    fn declare_instance(
-        &mut self,
-        ident: &ast::Identifier,
-        t: &Type,
-        py_name: Str,
-    ) -> LowerResult<()> {
-        // .X = 'x': Type
-        if ident.is_raw() {
-            return Ok(());
-        }
-        if ident.is_const() {
-            let vi = VarInfo::new(
-                t.clone(),
-                Mutability::Const,
-                ident.vis(),
-                VarKind::Declared,
-                None,
-                None,
-                Some(py_name.clone()),
-            );
-            self.ctx.decls.insert(ident.name.clone(), vi);
-        }
-        self.ctx.assign_var_sig(
-            &ast::VarSignature::new(ast::VarPattern::Ident(ident.clone()), None),
-            t,
-            ast::DefId(0),
-            Some(py_name),
-        )?;
-        match t {
-            Type::ClassType => {
-                let ty_obj = GenTypeObj::class(
-                    mono(format!("{}{ident}", self.ctx.path())),
-                    TypeObj::Builtin(Type::Uninited),
-                    None,
-                );
-                self.ctx.register_gen_type(ident, ty_obj);
-            }
-            Type::TraitType => {
-                let ty_obj = GenTypeObj::trait_(
-                    mono(format!("{}{ident}", self.ctx.path())),
-                    TypeObj::Builtin(Type::Uninited),
-                    None,
-                );
-                self.ctx.register_gen_type(ident, ty_obj);
-            }
-            _ => {}
-        }
-        Ok(())
-    }
-
-    fn declare_subtype(&mut self, ident: &ast::Identifier, trait_: &Type) -> LowerResult<()> {
-        if ident.is_raw() {
-            return Ok(());
-        }
-        if let Some((_, ctx)) = self.ctx.get_mut_type(ident.inspect()) {
-            ctx.register_marker_trait(trait_.clone());
-            Ok(())
-        } else {
-            Err(LowerErrors::from(LowerError::no_var_error(
-                self.cfg.input.clone(),
-                line!() as usize,
-                ident.loc(),
-                self.ctx.caused_by(),
-                ident.inspect(),
-                self.ctx.get_similar_name(ident.inspect()),
-            )))
-        }
-    }
-
-    fn declare_chunk(&mut self, expr: ast::Expr) -> LowerResult<hir::Expr> {
-        log!(info "entered {}", fn_name!());
-        match expr {
-            ast::Expr::Def(def) => Ok(hir::Expr::Def(self.declare_alias_or_import(def)?)),
-            ast::Expr::ClassDef(class_def) => {
-                Ok(hir::Expr::ClassDef(self.declare_class_def(class_def)?))
-            }
-            ast::Expr::TypeAsc(tasc) => Ok(hir::Expr::TypeAsc(self.declare_ident(tasc)?)),
-            ast::Expr::Call(call)
-                if call
-                    .additional_operation()
-                    .map(|op| op.is_import())
-                    .unwrap_or(false) =>
-            {
-                Ok(hir::Expr::Call(self.lower_call(call)?))
-            }
-            other => Err(LowerErrors::from(LowerError::declare_error(
-                self.cfg.input.clone(),
-                line!() as usize,
-                other.loc(),
-                self.ctx.caused_by(),
-            ))),
-        }
-    }
-
-    fn declare_module(&mut self, ast: AST) -> HIR {
-        let mut module = hir::Module::with_capacity(ast.module.len());
-        for chunk in ast.module.into_iter() {
-            match self.declare_chunk(chunk) {
-                Ok(chunk) => {
-                    module.push(chunk);
-                }
-                Err(errs) => {
-                    self.errs.extend(errs);
-                }
-            }
-        }
-        HIR::new(ast.name, module)
     }
 
     fn return_incomplete_artifact(&mut self, hir: HIR) -> IncompleteArtifact {
