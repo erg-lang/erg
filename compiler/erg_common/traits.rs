@@ -386,6 +386,7 @@ pub trait Runnable: Sized + Default {
     const NAME: &'static str;
     fn new(cfg: ErgConfig) -> Self;
     fn cfg(&self) -> &ErgConfig;
+    fn cfg_mut(&mut self) -> &mut ErgConfig;
     fn finish(&mut self); // called when the :exit command is received.
     /// Erase all but immutable information.
     fn initialize(&mut self);
@@ -396,6 +397,9 @@ pub trait Runnable: Sized + Default {
 
     fn input(&self) -> &Input {
         &self.cfg().input
+    }
+    fn set_input(&mut self, input: Input) {
+        self.cfg_mut().input = input;
     }
     fn start_message(&self) -> String {
         format!(

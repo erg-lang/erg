@@ -29,6 +29,10 @@ impl Runnable for ASTBuilder {
     fn cfg(&self) -> &ErgConfig {
         self.runner.cfg()
     }
+    #[inline]
+    fn cfg_mut(&mut self) -> &mut ErgConfig {
+        self.runner.cfg_mut()
+    }
 
     #[inline]
     fn finish(&mut self) {}
