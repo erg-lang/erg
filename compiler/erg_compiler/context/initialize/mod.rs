@@ -2091,12 +2091,30 @@ impl Context {
         self.register_builtin_py_impl("globals!", t_globals, Immutable, vis, Some("globals"));
         self.register_builtin_py_impl("locals!", t_locals, Immutable, vis, Some("locals"));
         self.register_builtin_py_impl("open!", t_open, Immutable, vis, Some("open"));
-        if !self.cfg.python_compatible_mode {
-            self.register_builtin_py_impl("if!", t_if, Immutable, Private, Some("if__"));
-            self.register_builtin_py_impl("for!", t_for, Immutable, Private, Some("for__"));
-            self.register_builtin_py_impl("while!", t_while, Immutable, Private, Some("while__"));
-            self.register_builtin_py_impl("with!", t_with, Immutable, Private, Some("with__"));
-        }
+        let name = if self.cfg.python_compatible_mode {
+            "if"
+        } else {
+            "if__"
+        };
+        self.register_builtin_py_impl("if!", t_if, Immutable, vis, Some(name));
+        let name = if self.cfg.python_compatible_mode {
+            "for"
+        } else {
+            "for__"
+        };
+        self.register_builtin_py_impl("for!", t_for, Immutable, vis, Some(name));
+        let name = if self.cfg.python_compatible_mode {
+            "while"
+        } else {
+            "while__"
+        };
+        self.register_builtin_py_impl("while!", t_while, Immutable, vis, Some(name));
+        let name = if self.cfg.python_compatible_mode {
+            "with"
+        } else {
+            "with__"
+        };
+        self.register_builtin_py_impl("with!", t_with, Immutable, vis, Some(name));
     }
 
     fn init_builtin_operators(&mut self) {
