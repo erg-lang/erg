@@ -136,6 +136,23 @@ impl UnionTypeObj {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct IntersectionTypeObj {
+    pub t: Type,
+    pub lhs: Box<TypeObj>,
+    pub rhs: Box<TypeObj>,
+}
+
+impl IntersectionTypeObj {
+    pub fn new(t: Type, lhs: TypeObj, rhs: TypeObj) -> Self {
+        Self {
+            t,
+            lhs: Box::new(lhs),
+            rhs: Box::new(rhs),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PatchObj {
     pub t: Type,
     pub base: Box<TypeObj>,
@@ -160,6 +177,7 @@ pub enum GenTypeObj {
     Subtrait(SubsumedTypeObj),
     StructuralTrait(TraitTypeObj),
     Union(UnionTypeObj),
+    Intersection(IntersectionTypeObj),
     Patch(PatchObj),
 }
 
@@ -202,6 +220,10 @@ impl GenTypeObj {
 
     pub fn union(t: Type, lhs: TypeObj, rhs: TypeObj) -> Self {
         GenTypeObj::Union(UnionTypeObj::new(t, lhs, rhs))
+    }
+
+    pub fn intersection(t: Type, lhs: TypeObj, rhs: TypeObj) -> Self {
+        GenTypeObj::Intersection(IntersectionTypeObj::new(t, lhs, rhs))
     }
 
     pub fn require_or_sup(&self) -> Option<&TypeObj> {
@@ -261,6 +283,7 @@ impl GenTypeObj {
             Self::Subtrait(subtrait) => &subtrait.t,
             Self::StructuralTrait(trait_) => &trait_.t,
             Self::Union(union_) => &union_.t,
+            Self::Intersection(intersection) => &intersection.t,
             Self::Patch(patch) => &patch.t,
         }
     }
@@ -273,6 +296,7 @@ impl GenTypeObj {
             Self::Subtrait(subtrait) => &mut subtrait.t,
             Self::StructuralTrait(trait_) => &mut trait_.t,
             Self::Union(union_) => &mut union_.t,
+            Self::Intersection(intersection) => &mut intersection.t,
             Self::Patch(patch) => &mut patch.t,
         }
     }
@@ -285,6 +309,7 @@ impl GenTypeObj {
             Self::Subtrait(subtrait) => subtrait.t,
             Self::StructuralTrait(trait_) => trait_.t,
             Self::Union(union_) => union_.t,
+            Self::Intersection(intersection) => intersection.t,
             Self::Patch(patch) => patch.t,
         }
     }

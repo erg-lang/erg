@@ -642,6 +642,15 @@ impl Context {
                     line!(),
                 ))),
             },
+            And => match (lhs, rhs) {
+                (ValueObj::Bool(l), ValueObj::Bool(r)) => Ok(ValueObj::Bool(l && r)),
+                (ValueObj::Type(lhs), ValueObj::Type(rhs)) => Ok(self.eval_and_type(lhs, rhs)),
+                _ => Err(EvalErrors::from(EvalError::unreachable(
+                    self.cfg.input.clone(),
+                    fn_name!(),
+                    line!(),
+                ))),
+            },
             _other => Err(EvalErrors::from(EvalError::unreachable(
                 self.cfg.input.clone(),
                 fn_name!(),
@@ -655,6 +664,19 @@ impl Context {
             (TypeObj::Builtin(l), TypeObj::Builtin(r)) => ValueObj::builtin_t(self.union(&l, &r)),
             (lhs, rhs) => ValueObj::gen_t(GenTypeObj::union(
                 self.union(lhs.typ(), rhs.typ()),
+                lhs,
+                rhs,
+            )),
+        }
+    }
+
+    fn eval_and_type(&self, lhs: TypeObj, rhs: TypeObj) -> ValueObj {
+        match (lhs, rhs) {
+            (TypeObj::Builtin(l), TypeObj::Builtin(r)) => {
+                ValueObj::builtin_t(self.intersection(&l, &r))
+            }
+            (lhs, rhs) => ValueObj::gen_t(GenTypeObj::intersection(
+                self.intersection(lhs.typ(), rhs.typ()),
                 lhs,
                 rhs,
             )),
