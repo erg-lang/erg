@@ -25,6 +25,10 @@ pub enum OperationKind {
     PyImport,
     Del,
     AssertCast,
+    Class,
+    Inherit,
+    Trait,
+    Subsume,
 }
 
 impl OperationKind {
@@ -171,7 +175,7 @@ impl Locational for Args {
             (Some(l), Some(r)) => Location::concat(l, r),
             (Some(l), None) => Location::concat(l, self.pos_args.last().unwrap()),
             (None, Some(r)) => Location::concat(self.kw_args.first().unwrap(), r),
-            _ => unreachable!(),
+            _ => Location::Unknown,
         }
     }
 }
@@ -1104,8 +1108,12 @@ impl Call {
     pub fn additional_operation(&self) -> Option<OperationKind> {
         self.obj.get_name().and_then(|s| match &s[..] {
             "import" => Some(OperationKind::Import),
-            "pyimport" | "py" => Some(OperationKind::PyImport),
+            "pyimport" | "py" | "__import__" => Some(OperationKind::PyImport),
             "Del" => Some(OperationKind::Del),
+            "Class" => Some(OperationKind::Class),
+            "Inherit" => Some(OperationKind::Inherit),
+            "Trait" => Some(OperationKind::Trait),
+            "Subsume" => Some(OperationKind::Subsume),
             _ => None,
         })
     }
@@ -1622,7 +1630,7 @@ impl Locational for ConstArgs {
         } else if let Some(last) = self.pos_args.last() {
             Location::concat(self.pos_args.first().unwrap(), last)
         } else {
-            unreachable!()
+            Location::Unknown
         }
     }
 }
@@ -2295,6 +2303,13 @@ impl VarName {
     pub const fn inspect(&self) -> &Str {
         &self.0.content
     }
+
+    /// Remove `!` from the end of the identifier.
+    /// Procedures defined in `d.er` automatically register the name without `!` as `py_name`.
+    /// This method is for undoing it (e.g. pylyzer-mode)
+    pub fn trim_end_proc_mark(&mut self) {
+        self.0.content = Str::rc(self.0.content.trim_end_matches('!'));
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -2377,6 +2392,10 @@ impl Identifier {
 
     pub fn is_procedural(&self) -> bool {
         self.name.is_procedural()
+    }
+
+    pub fn trim_end_proc_mark(&mut self) {
+        self.name.trim_end_proc_mark();
     }
 }
 
@@ -3132,7 +3151,7 @@ impl Locational for LambdaSignature {
         } else if let Some(return_t) = &self.return_t_spec {
             Location::concat(&self.params, return_t)
         } else if self.params.is_empty() && self.params.parens.is_none() {
-            unreachable!()
+            Location::Unknown
         } else {
             self.params.loc()
         }
@@ -3373,7 +3392,7 @@ impl DefBody {
                     }
                 }
                 Some("import") => DefKind::ErgImport,
-                Some("pyimport") | Some("py") => DefKind::PyImport,
+                Some("pyimport") | Some("py") | Some("__import__") => DefKind::PyImport,
                 _ => DefKind::Other,
             },
             _ => DefKind::Other,

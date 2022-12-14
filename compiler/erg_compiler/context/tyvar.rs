@@ -4,8 +4,8 @@ use std::option::Option;
 
 use erg_common::error::Location;
 use erg_common::traits::{Locational, Stream};
-use erg_common::Str;
 use erg_common::{assume_unreachable, fn_name};
+use erg_common::{dict, set, Str};
 #[allow(unused_imports)]
 use erg_common::{fmt_vec, log};
 
@@ -304,6 +304,23 @@ impl Context {
                 }
                 Ok(TyParam::Tuple(new_tps))
             }
+            TyParam::Dict(dic) => {
+                let mut new_dic = dict! {};
+                for (k, v) in dic.into_iter() {
+                    new_dic.insert(
+                        self.deref_tp(k, variance, loc)?,
+                        self.deref_tp(v, variance, loc)?,
+                    );
+                }
+                Ok(TyParam::Dict(new_dic))
+            }
+            TyParam::Set(set) => {
+                let mut new_set = set! {};
+                for v in set.into_iter() {
+                    new_set.insert(self.deref_tp(v, variance, loc)?);
+                }
+                Ok(TyParam::Set(new_set))
+            }
             TyParam::Proj { .. } | TyParam::Failure if self.level == 0 => Err(
                 TyCheckError::dummy_infer_error(self.cfg.input.clone(), fn_name!(), line!()),
             ),
@@ -357,11 +374,30 @@ impl Context {
                     // REVIEW: Even if type constraints can be satisfied, implementation may not exist
                     if self.subtype_of(&sub_t, &super_t) {
                         match variance {
-                            Variance::Covariant => Ok(sub_t),
-                            Variance::Contravariant => Ok(super_t),
+                            Variance::Covariant => {
+                                let sub_t = if cfg!(feature = "debug") {
+                                    sub_t
+                                } else {
+                                    self.deref_tyvar(sub_t, variance, loc)?
+                                };
+                                Ok(sub_t)
+                            }
+                            Variance::Contravariant => {
+                                let super_t = if cfg!(feature = "debug") {
+                                    super_t
+                                } else {
+                                    self.deref_tyvar(super_t, variance, loc)?
+                                };
+                                Ok(super_t)
+                            }
                             Variance::Invariant => {
                                 // need to check if sub_t == super_t
                                 if self.supertype_of(&sub_t, &super_t) {
+                                    let sub_t = if cfg!(feature = "debug") {
+                                        sub_t
+                                    } else {
+                                        self.deref_tyvar(sub_t, variance, loc)?
+                                    };
                                     Ok(sub_t)
                                 } else {
                                     Err(TyCheckError::subtyping_error(
@@ -424,7 +460,15 @@ impl Context {
             }
             Type::Poly { name, mut params } => {
                 let typ = poly(&name, params.clone());
-                let (_, ctx) = self.get_nominal_type_ctx(&typ).unwrap();
+                let (_, ctx) = self.get_nominal_type_ctx(&typ).ok_or_else(|| {
+                    TyCheckError::type_not_found(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        loc,
+                        self.caused_by(),
+                        &typ,
+                    )
+                })?;
                 let variances = ctx.type_params_variance();
                 for (param, variance) in params.iter_mut().zip(variances.into_iter()) {
                     *param = self.deref_tp(mem::take(param), variance, loc)?;
@@ -461,30 +505,13 @@ impl Context {
                 };
                 Ok(ref_mut(before, after))
             }
-            Type::Callable { .. } => todo!(),
+            // Type::Callable { .. } => todo!(),
             Type::Record(mut rec) => {
                 for (_, field) in rec.iter_mut() {
                     *field = self.deref_tyvar(mem::take(field), variance, loc)?;
                 }
                 Ok(Type::Record(rec))
             }
-            // |X <: T <: X| X -> X ==> T -> T
-            /*Type::Quantified(quant) => {
-                let mut replace_list = vec![];
-                let mut new_bounds = set!{};
-                for bound in quant.bounds.into_iter() {
-                    if let Some((sub, mid, sup)) = bound.get_types() {
-                        if self.subtype_of(sub, sup) && self.supertype_of(sub, sup) {
-                            replace_list.push((mid, sub));
-                        } else {
-                            new_bounds.insert(bound);
-                        }
-                    } else {
-                        new_bounds.insert(bound);
-                    }
-                }
-                Ok(())
-            }*/
             Type::Refinement(refine) => {
                 let t = self.deref_tyvar(*refine.t, variance, loc)?;
                 // TODO: deref_predicate

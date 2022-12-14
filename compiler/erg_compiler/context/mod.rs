@@ -1030,13 +1030,14 @@ impl Context {
         }
     }
 
-    pub fn pop_mod(&mut self) -> Context {
+    pub fn pop_mod(&mut self) -> Option<Context> {
         if self.outer.is_some() {
-            panic!("not in the top-level context");
+            log!(err "not in the top-level context");
+            None
         } else {
             log!(info "{}: current namespace: <builtins>", fn_name!());
             // toplevel
-            mem::take(self)
+            Some(mem::take(self))
         }
     }
 

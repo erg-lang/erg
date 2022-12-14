@@ -1,5 +1,6 @@
 use std::option::Option;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 use erg_common::env::erg_pystd_path;
 use erg_common::levenshtein::get_similar_name;
@@ -228,6 +229,11 @@ impl Context {
         default_val_exists: bool,
         opt_decl_t: Option<&ParamTy>,
     ) -> TyCheckResult<()> {
+        let vis = if self.cfg.python_compatible_mode {
+            Public
+        } else {
+            Private
+        };
         match &sig.pat {
             // Literal patterns will be desugared to discard patterns
             ast::ParamPattern::Lit(_) => unreachable!(),
@@ -244,7 +250,7 @@ impl Context {
                 );
                 self.params.push((
                     Some(VarName::from_static("_")),
-                    VarInfo::new(spec_t, Immutable, Private, kind, None, None, None),
+                    VarInfo::new(spec_t, Immutable, vis, kind, None, None, None),
                 ));
                 Ok(())
             }
@@ -266,8 +272,11 @@ impl Context {
                     let spec_t =
                         self.instantiate_param_sig_t(sig, opt_decl_t, &mut dummy_tv_cache, Normal)?;
                     if &name.inspect()[..] == "self" {
-                        let self_t = self.rec_get_self_t().unwrap();
-                        self.sub_unify(&spec_t, &self_t, name.loc(), Some(name.inspect()))?;
+                        if let Some(self_t) = self.rec_get_self_t() {
+                            self.sub_unify(&spec_t, &self_t, name.loc(), Some(name.inspect()))?;
+                        } else {
+                            log!(err "self_t is None");
+                        }
                     }
                     let default = if default_val_exists {
                         DefaultInfo::WithDefault
@@ -278,7 +287,7 @@ impl Context {
                     let muty = Mutability::from(&name.inspect()[..]);
                     self.params.push((
                         Some(name.clone()),
-                        VarInfo::new(spec_t, muty, Private, kind, None, None, None),
+                        VarInfo::new(spec_t, muty, vis, kind, None, None, None),
                     ));
                     Ok(())
                 }
@@ -301,8 +310,11 @@ impl Context {
                     let spec_t =
                         self.instantiate_param_sig_t(sig, opt_decl_t, &mut dummy_tv_cache, Normal)?;
                     if &name.inspect()[..] == "self" {
-                        let self_t = self.rec_get_self_t().unwrap();
-                        self.sub_unify(&spec_t, &self_t, name.loc(), Some(name.inspect()))?;
+                        if let Some(self_t) = self.rec_get_self_t() {
+                            self.sub_unify(&spec_t, &self_t, name.loc(), Some(name.inspect()))?;
+                        } else {
+                            log!(err "self_t is None");
+                        }
                     }
                     let spec_t = ref_(spec_t);
                     let default = if default_val_exists {
@@ -313,7 +325,7 @@ impl Context {
                     let kind = VarKind::parameter(DefId(get_hash(&(&self.name, name))), default);
                     self.params.push((
                         Some(name.clone()),
-                        VarInfo::new(spec_t, Immutable, Private, kind, None, None, None),
+                        VarInfo::new(spec_t, Immutable, vis, kind, None, None, None),
                     ));
                     Ok(())
                 }
@@ -336,8 +348,11 @@ impl Context {
                     let spec_t =
                         self.instantiate_param_sig_t(sig, opt_decl_t, &mut dummy_tv_cache, Normal)?;
                     if &name.inspect()[..] == "self" {
-                        let self_t = self.rec_get_self_t().unwrap();
-                        self.sub_unify(&spec_t, &self_t, name.loc(), Some(name.inspect()))?;
+                        if let Some(self_t) = self.rec_get_self_t() {
+                            self.sub_unify(&spec_t, &self_t, name.loc(), Some(name.inspect()))?;
+                        } else {
+                            log!(err "self_t is None");
+                        }
                     }
                     let spec_t = ref_mut(spec_t.clone(), Some(spec_t));
                     let default = if default_val_exists {
@@ -348,7 +363,7 @@ impl Context {
                     let kind = VarKind::parameter(DefId(get_hash(&(&self.name, name))), default);
                     self.params.push((
                         Some(name.clone()),
-                        VarInfo::new(spec_t, Immutable, Private, kind, None, None, None),
+                        VarInfo::new(spec_t, Immutable, vis, kind, None, None, None),
                     ));
                     Ok(())
                 }
@@ -626,14 +641,23 @@ impl Context {
                     };
                     if let Some(spec) = sig.return_t_spec.as_ref() {
                         let mut dummy_tv_cache = TyVarCache::new(self.level, self);
-                        let spec_t = self.instantiate_typespec(
-                            spec,
-                            None,
-                            &mut dummy_tv_cache,
-                            PreRegister,
-                            false,
-                        )?;
-                        self.sub_unify(&const_t, &spec_t, def.body.loc(), None)?;
+                        let spec_t = self
+                            .instantiate_typespec(
+                                spec,
+                                None,
+                                &mut dummy_tv_cache,
+                                PreRegister,
+                                false,
+                            )
+                            .map_err(|err| {
+                                self.pop();
+                                err
+                            })?;
+                        self.sub_unify(&const_t, &spec_t, def.body.loc(), None)
+                            .map_err(|err| {
+                                self.pop();
+                                err
+                            })?;
                     }
                     self.pop();
                     self.register_gen_const(def.sig.ident().unwrap(), obj)?;
@@ -647,20 +671,30 @@ impl Context {
                     self.grow(__name__, kind, sig.vis(), None);
                     let (obj, const_t) = match self.eval_const_block(&def.body.block) {
                         Ok(obj) => (obj.clone(), v_enum(set! {obj})),
-                        Err(e) => {
-                            return Err(e);
+                        Err(errs) => {
+                            self.pop();
+                            return Err(errs);
                         }
                     };
                     if let Some(spec) = sig.t_spec.as_ref() {
                         let mut dummy_tv_cache = TyVarCache::new(self.level, self);
-                        let spec_t = self.instantiate_typespec(
-                            spec,
-                            None,
-                            &mut dummy_tv_cache,
-                            PreRegister,
-                            false,
-                        )?;
-                        self.sub_unify(&const_t, &spec_t, def.body.loc(), None)?;
+                        let spec_t = self
+                            .instantiate_typespec(
+                                spec,
+                                None,
+                                &mut dummy_tv_cache,
+                                PreRegister,
+                                false,
+                            )
+                            .map_err(|err| {
+                                self.pop();
+                                err
+                            })?;
+                        self.sub_unify(&const_t, &spec_t, def.body.loc(), None)
+                            .map_err(|err| {
+                                self.pop();
+                                err
+                            })?;
                     }
                     self.pop();
                     if let Some(ident) = sig.ident() {
@@ -992,8 +1026,11 @@ impl Context {
                         }
                     }
                     for sup in super_classes.into_iter() {
-                        let (_, sup_ctx) = self.get_nominal_type_ctx(&sup).unwrap();
-                        ctx.register_supertrait(sup, sup_ctx);
+                        if let Some((_, sup_ctx)) = self.get_nominal_type_ctx(&sup) {
+                            ctx.register_supertrait(sup, sup_ctx);
+                        } else {
+                            log!(err "{sup} not found");
+                        }
                     }
                     self.register_gen_mono_type(ident, gen, ctx, Const);
                 } else {
@@ -1220,11 +1257,15 @@ impl Context {
             HIRBuilder::new_with_cache(cfg, __name__, mod_cache.clone(), py_mod_cache.clone());
         match builder.build(src, "exec") {
             Ok(artifact) => {
-                mod_cache.register(path.clone(), Some(artifact.object), builder.pop_mod_ctx());
+                mod_cache.register(
+                    path.clone(),
+                    Some(artifact.object),
+                    builder.pop_mod_ctx().unwrap(),
+                );
             }
             Err(artifact) => {
                 if let Some(hir) = artifact.object {
-                    mod_cache.register(path, Some(hir), builder.pop_mod_ctx());
+                    mod_cache.register(path, Some(hir), builder.pop_mod_ctx().unwrap());
                 }
                 return Err(artifact.errors);
             }
@@ -1269,11 +1310,8 @@ impl Context {
         Str::from(name)
     }
 
-    fn import_py_mod(&self, mod_name: &Literal) -> CompileResult<PathBuf> {
-        let __name__ = enum_unwrap!(mod_name.value.clone(), ValueObj::Str);
-        let mod_cache = self.mod_cache.as_ref().unwrap();
-        let py_mod_cache = self.py_mod_cache.as_ref().unwrap();
-        let path = match Self::resolve_d_path(&self.cfg, Path::new(&__name__[..])) {
+    fn get_path(&self, mod_name: &Literal, __name__: Str) -> CompileResult<PathBuf> {
+        match Self::resolve_decl_path(&self.cfg, Path::new(&__name__[..])) {
             Some(path) => {
                 if self.is_pystd_main_module(path.as_path())
                     && !BUILTIN_PYTHON_MODS.contains(&&__name__[..])
@@ -1287,9 +1325,28 @@ impl Context {
                     );
                     return Err(TyCheckErrors::from(err));
                 }
-                path
+                Ok(path)
             }
             None => {
+                if let Ok(path) = self.cfg.input.local_py_resolve(Path::new(&__name__[..])) {
+                    // pylyzer is a static analysis tool for Python.
+                    // It can convert a Python script to an Erg AST for code analysis.
+                    // There is also an option to output the analysis result as `d.er`. Use this if the system have pylyzer installed.
+                    match Command::new("pylyzer")
+                        .arg("--dump-decl")
+                        .arg(path.to_str().unwrap())
+                        .output()
+                    {
+                        Ok(out) if out.status.success() => {
+                            if let Some(path) =
+                                Self::resolve_decl_path(&self.cfg, Path::new(&__name__[..]))
+                            {
+                                return Ok(path);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
                 let err = TyCheckError::import_error(
                     self.cfg.input.clone(),
                     line!() as usize,
@@ -1297,12 +1354,23 @@ impl Context {
                     mod_name.loc(),
                     self.caused_by(),
                     self.mod_cache.as_ref().unwrap().get_similar_name(&__name__),
-                    self.similar_builtin_py_mod_name(&__name__)
-                        .or_else(|| py_mod_cache.get_similar_name(&__name__)),
+                    self.similar_builtin_py_mod_name(&__name__).or_else(|| {
+                        self.py_mod_cache
+                            .as_ref()
+                            .unwrap()
+                            .get_similar_name(&__name__)
+                    }),
                 );
-                return Err(TyCheckErrors::from(err));
+                Err(TyCheckErrors::from(err))
             }
-        };
+        }
+    }
+
+    fn import_py_mod(&self, mod_name: &Literal) -> CompileResult<PathBuf> {
+        let __name__ = enum_unwrap!(mod_name.value.clone(), ValueObj::Str);
+        let mod_cache = self.mod_cache.as_ref().unwrap();
+        let py_mod_cache = self.py_mod_cache.as_ref().unwrap();
+        let path = self.get_path(mod_name, __name__)?;
         if py_mod_cache.get(&path).is_some() {
             return Ok(path);
         }
@@ -1316,12 +1384,12 @@ impl Context {
         );
         match builder.build(src, "declare") {
             Ok(artifact) => {
-                let ctx = builder.pop_mod_ctx();
+                let ctx = builder.pop_mod_ctx().unwrap();
                 py_mod_cache.register(path.clone(), Some(artifact.object), ctx);
             }
             Err(artifact) => {
                 if let Some(hir) = artifact.object {
-                    py_mod_cache.register(path, Some(hir), builder.pop_mod_ctx());
+                    py_mod_cache.register(path, Some(hir), builder.pop_mod_ctx().unwrap());
                 }
                 return Err(artifact.errors);
             }

@@ -9,6 +9,7 @@ mod compile;
 pub use compile::*;
 mod codegen;
 pub mod context;
+pub mod declare;
 pub mod desugar_hir;
 pub mod effectcheck;
 pub mod error;

@@ -69,7 +69,15 @@ impl Context {
         } else {
             None
         };
-        let name = VarName::from_static(name);
+        let name = if self.cfg.python_compatible_mode {
+            if let Some(py_name) = py_name {
+                VarName::from_static(py_name)
+            } else {
+                VarName::from_static(name)
+            }
+        } else {
+            VarName::from_static(name)
+        };
         if self.decls.get(&name).is_some() {
             panic!("already registered: {name}");
         } else {
@@ -124,7 +132,15 @@ impl Context {
         } else {
             None
         };
-        let name = VarName::from_static(name);
+        let name = if self.cfg.python_compatible_mode {
+            if let Some(py_name) = py_name {
+                VarName::from_static(py_name)
+            } else {
+                VarName::from_static(name)
+            }
+        } else {
+            VarName::from_static(name)
+        };
         if self.locals.get(&name).is_some() {
             panic!("already registered: {name}");
         } else {
@@ -225,18 +241,21 @@ impl Context {
                 ContextKind::Trait => Type::TraitType,
                 _ => Type::Type,
             };
-            self.locals.insert(
-                name.clone(),
-                VarInfo::new(
-                    meta_t,
-                    muty,
-                    vis,
-                    Builtin,
-                    None,
-                    None,
-                    py_name.map(Str::ever),
-                ),
-            );
+            // or we should define a type as a function (e.g. `str`)
+            if !self.cfg.python_compatible_mode {
+                self.locals.insert(
+                    name.clone(),
+                    VarInfo::new(
+                        meta_t,
+                        muty,
+                        vis,
+                        Builtin,
+                        None,
+                        None,
+                        py_name.map(Str::ever),
+                    ),
+                );
+            }
             self.consts
                 .insert(name.clone(), ValueObj::builtin_t(t.clone()));
             for impl_trait in ctx.super_traits.iter() {
@@ -292,18 +311,20 @@ impl Context {
                 ContextKind::Trait => Type::TraitType,
                 _ => Type::Type,
             };
-            self.locals.insert(
-                name.clone(),
-                VarInfo::new(
-                    meta_t,
-                    muty,
-                    vis,
-                    Builtin,
-                    None,
-                    None,
-                    py_name.map(Str::ever),
-                ),
-            );
+            if !self.cfg.python_compatible_mode {
+                self.locals.insert(
+                    name.clone(),
+                    VarInfo::new(
+                        meta_t,
+                        muty,
+                        vis,
+                        Builtin,
+                        None,
+                        None,
+                        py_name.map(Str::ever),
+                    ),
+                );
+            }
             self.consts
                 .insert(name.clone(), ValueObj::builtin_t(t.clone()));
             for impl_trait in ctx.super_traits.iter() {
@@ -406,6 +427,11 @@ impl Context {
     // 型境界はすべて各サブルーチンで定義する
     // push_subtype_boundなどはユーザー定義APIの型境界決定のために使用する
     fn init_builtin_traits(&mut self) {
+        let vis = if self.cfg.python_compatible_mode {
+            Public
+        } else {
+            Private
+        };
         let unpack = Self::builtin_mono_trait("Unpack", 2);
         let inheritable_type = Self::builtin_mono_trait("InheritableType", 2);
         let named = Self::builtin_mono_trait("Named", 2);
@@ -532,7 +558,7 @@ impl Context {
         let op_t = fn1_met(Slf.clone(), R, proj(Slf.clone(), "Output")).quantify();
         floor_div.register_builtin_decl("__floordiv__", op_t, Public);
         floor_div.register_builtin_decl("Output", Type, Public);
-        self.register_builtin_type(mono("Unpack"), unpack, Private, Const, None);
+        self.register_builtin_type(mono("Unpack"), unpack, vis, Const, None);
         self.register_builtin_type(
             mono("InheritableType"),
             inheritable_type,
@@ -540,11 +566,11 @@ impl Context {
             Const,
             None,
         );
-        self.register_builtin_type(mono("Named"), named, Private, Const, None);
-        self.register_builtin_type(mono("Mutable"), mutable, Private, Const, None);
-        self.register_builtin_type(mono("Immutizable"), immutizable, Private, Const, None);
-        self.register_builtin_type(mono("Mutizable"), mutizable, Private, Const, None);
-        self.register_builtin_type(mono("PathLike"), pathlike, Private, Const, None);
+        self.register_builtin_type(mono("Named"), named, vis, Const, None);
+        self.register_builtin_type(mono("Mutable"), mutable, vis, Const, None);
+        self.register_builtin_type(mono("Immutizable"), immutizable, vis, Const, None);
+        self.register_builtin_type(mono("Mutizable"), mutizable, vis, Const, None);
+        self.register_builtin_type(mono("PathLike"), pathlike, vis, Const, None);
         self.register_builtin_type(
             mono("Readable!"),
             readable,
@@ -559,9 +585,9 @@ impl Context {
             Const,
             Some("Writable"),
         );
-        self.register_builtin_type(mono("FileLike"), filelike, Private, Const, None);
-        self.register_builtin_type(mono("FileLike!"), filelike_mut, Private, Const, None);
-        self.register_builtin_type(mono("Show"), show, Private, Const, None);
+        self.register_builtin_type(mono("FileLike"), filelike, vis, Const, None);
+        self.register_builtin_type(mono("FileLike!"), filelike_mut, vis, Const, None);
+        self.register_builtin_type(mono("Show"), show, vis, Const, None);
         self.register_builtin_type(
             poly("Input", vec![ty_tp(T.clone())]),
             input,
@@ -583,9 +609,9 @@ impl Context {
             Const,
             None,
         );
-        self.register_builtin_type(mono("Eq"), eq, Private, Const, None);
-        self.register_builtin_type(mono("Ord"), ord, Private, Const, None);
-        self.register_builtin_type(mono("Num"), num, Private, Const, None);
+        self.register_builtin_type(mono("Eq"), eq, vis, Const, None);
+        self.register_builtin_type(mono("Ord"), ord, vis, Const, None);
+        self.register_builtin_type(mono("Num"), num, vis, Const, None);
         self.register_builtin_type(
             poly("Seq", vec![ty_tp(T.clone())]),
             seq,
@@ -600,11 +626,11 @@ impl Context {
             Const,
             None,
         );
-        self.register_builtin_type(poly("Add", ty_params.clone()), add, Private, Const, None);
-        self.register_builtin_type(poly("Sub", ty_params.clone()), sub, Private, Const, None);
-        self.register_builtin_type(poly("Mul", ty_params.clone()), mul, Private, Const, None);
-        self.register_builtin_type(poly("Div", ty_params.clone()), div, Private, Const, None);
-        self.register_builtin_type(poly("FloorDiv", ty_params), floor_div, Private, Const, None);
+        self.register_builtin_type(poly("Add", ty_params.clone()), add, vis, Const, None);
+        self.register_builtin_type(poly("Sub", ty_params.clone()), sub, vis, Const, None);
+        self.register_builtin_type(poly("Mul", ty_params.clone()), mul, vis, Const, None);
+        self.register_builtin_type(poly("Div", ty_params.clone()), div, vis, Const, None);
+        self.register_builtin_type(poly("FloorDiv", ty_params), floor_div, vis, Const, None);
         self.register_const_param_defaults(
             "Add",
             vec![ConstTemplate::Obj(ValueObj::builtin_t(Slf.clone()))],
@@ -628,6 +654,11 @@ impl Context {
     }
 
     fn init_builtin_classes(&mut self) {
+        let vis = if self.cfg.python_compatible_mode {
+            Public
+        } else {
+            Private
+        };
         let T = mono_q("T", instanceof(Type));
         let L = mono_q("L", instanceof(Type));
         let R = mono_q("R", instanceof(Type));
@@ -1093,7 +1124,9 @@ impl Context {
         module.register_superclass(g_module_t.clone(), &generic_module);
         let mut py_module =
             Self::builtin_poly_class("PyModule", vec![PS::named_nd("Path", Str)], 2);
-        py_module.register_superclass(g_module_t.clone(), &generic_module);
+        if !self.cfg.python_compatible_mode {
+            py_module.register_superclass(g_module_t.clone(), &generic_module);
+        }
         /* Array */
         let mut array_ =
             Self::builtin_poly_class("Array", vec![PS::t_nd("T"), PS::named_nd("N", Nat)], 10);
@@ -1595,19 +1628,29 @@ impl Context {
         quant.register_superclass(mono("Proc"), &proc);
         let mut qfunc = Self::builtin_mono_class("QuantifiedFunc", 2);
         qfunc.register_superclass(mono("Func"), &func);
-        self.register_builtin_type(Obj, obj, Private, Const, Some("object"));
+        self.register_builtin_type(Obj, obj, vis, Const, Some("object"));
         // self.register_type(mono("Record"), vec![], record, Private, Const);
-        self.register_builtin_type(Int, int, Private, Const, Some("int"));
-        self.register_builtin_type(Nat, nat, Private, Const, Some("Nat"));
-        self.register_builtin_type(Float, float, Private, Const, Some("float"));
-        self.register_builtin_type(Ratio, ratio, Private, Const, Some("Ratio"));
-        self.register_builtin_type(Bool, bool_, Private, Const, Some("Bool"));
-        self.register_builtin_type(Str, str_, Private, Const, Some("Str"));
-        self.register_builtin_type(NoneType, nonetype, Private, Const, Some("NoneType"));
-        self.register_builtin_type(Type, type_, Private, Const, Some("type"));
-        self.register_builtin_type(ClassType, class_type, Private, Const, Some("ClassType"));
-        self.register_builtin_type(TraitType, trait_type, Private, Const, Some("TraitType"));
-        self.register_builtin_type(Code, code, Private, Const, Some("CodeType"));
+        self.register_builtin_type(Int, int, vis, Const, Some("int"));
+        self.register_builtin_type(Nat, nat, vis, Const, Some("Nat"));
+        self.register_builtin_type(Float, float, vis, Const, Some("float"));
+        self.register_builtin_type(Ratio, ratio, vis, Const, Some("Ratio"));
+        let name = if self.cfg.python_compatible_mode {
+            "bool"
+        } else {
+            "Bool"
+        };
+        self.register_builtin_type(Bool, bool_, vis, Const, Some(name));
+        let name = if self.cfg.python_compatible_mode {
+            "str"
+        } else {
+            "Str"
+        };
+        self.register_builtin_type(Str, str_, vis, Const, Some(name));
+        self.register_builtin_type(NoneType, nonetype, vis, Const, Some("NoneType"));
+        self.register_builtin_type(Type, type_, vis, Const, Some("type"));
+        self.register_builtin_type(ClassType, class_type, vis, Const, Some("ClassType"));
+        self.register_builtin_type(TraitType, trait_type, vis, Const, Some("TraitType"));
+        self.register_builtin_type(Code, code, vis, Const, Some("CodeType"));
         self.register_builtin_type(
             g_module_t,
             generic_module,
@@ -1615,13 +1658,12 @@ impl Context {
             Const,
             Some("ModuleType"),
         );
-        self.register_builtin_type(module_t, module, Private, Const, Some("ModuleType"));
-        self.register_builtin_type(py_module_t, py_module, Private, Const, Some("ModuleType"));
-        self.register_builtin_type(arr_t, array_, Private, Const, Some("list"));
-        self.register_builtin_type(set_t, set_, Private, Const, Some("set"));
-        self.register_builtin_type(g_dict_t, generic_dict, Private, Const, Some("dict"));
-        self.register_builtin_type(dict_t, dict_, Private, Const, Some("dict"));
-        self.register_builtin_type(mono("Bytes"), bytes, Private, Const, Some("bytes"));
+        self.register_builtin_type(py_module_t, py_module, vis, Const, Some("ModuleType"));
+        self.register_builtin_type(arr_t, array_, vis, Const, Some("list"));
+        self.register_builtin_type(set_t, set_, vis, Const, Some("set"));
+        self.register_builtin_type(g_dict_t, generic_dict, vis, Const, Some("dict"));
+        self.register_builtin_type(dict_t, dict_, vis, Const, Some("dict"));
+        self.register_builtin_type(mono("Bytes"), bytes, vis, Const, Some("bytes"));
         self.register_builtin_type(
             mono("GenericTuple"),
             generic_tuple,
@@ -1629,9 +1671,9 @@ impl Context {
             Const,
             Some("tuple"),
         );
-        self.register_builtin_type(tuple_t, tuple_, Private, Const, Some("tuple"));
-        self.register_builtin_type(mono("Record"), record, Private, Const, Some("Record"));
-        self.register_builtin_type(or_t, or, Private, Const, Some("Union"));
+        self.register_builtin_type(tuple_t, tuple_, vis, Const, Some("tuple"));
+        self.register_builtin_type(mono("Record"), record, vis, Const, Some("Record"));
+        self.register_builtin_type(or_t, or, vis, Const, Some("Union"));
         self.register_builtin_type(
             mono("StrIterator"),
             str_iterator,
@@ -1653,50 +1695,58 @@ impl Context {
             Const,
             Some("RangeIterator"),
         );
-        self.register_builtin_type(mono("Obj!"), obj_mut, Private, Const, Some("object"));
-        self.register_builtin_type(mono("Int!"), int_mut, Private, Const, Some("int"));
-        self.register_builtin_type(mono("Nat!"), nat_mut, Private, Const, Some("Nat"));
-        self.register_builtin_type(mono("Float!"), float_mut, Private, Const, Some("float"));
-        self.register_builtin_type(mono("Ratio!"), ratio_mut, Private, Const, Some("Ratio"));
-        self.register_builtin_type(mono("Bool!"), bool_mut, Private, Const, Some("Bool"));
-        self.register_builtin_type(mono("Str!"), str_mut, Private, Const, Some("Str"));
-        self.register_builtin_type(mono("File!"), file_mut, Private, Const, Some("File"));
-        self.register_builtin_type(array_mut_t, array_mut_, Private, Const, Some("list"));
-        self.register_builtin_type(set_mut_t, set_mut_, Private, Const, Some("set"));
-        self.register_builtin_type(range_t, range, Private, Const, Some("Range"));
-        self.register_builtin_type(mono("Proc"), proc, Private, Const, Some("Proc"));
-        self.register_builtin_type(
-            mono("NamedProc"),
-            named_proc,
-            Private,
-            Const,
-            Some("NamedProc"),
-        );
-        self.register_builtin_type(mono("Func"), func, Private, Const, Some("Func"));
-        self.register_builtin_type(
-            mono("NamedFunc"),
-            named_func,
-            Private,
-            Const,
-            Some("NamedFunc"),
-        );
-        self.register_builtin_type(
-            mono("Quantified"),
-            quant,
-            Private,
-            Const,
-            Some("Quantified"),
-        );
-        self.register_builtin_type(
-            mono("QuantifiedFunc"),
-            qfunc,
-            Private,
-            Const,
-            Some("QuantifiedFunc"),
-        );
+        self.register_builtin_type(mono("File!"), file_mut, vis, Const, Some("File"));
+        self.register_builtin_type(array_mut_t, array_mut_, vis, Const, Some("list"));
+        self.register_builtin_type(set_mut_t, set_mut_, vis, Const, Some("set"));
+        if !self.cfg.python_compatible_mode {
+            self.register_builtin_type(module_t, module, vis, Const, Some("ModuleType"));
+            self.register_builtin_type(mono("Obj!"), obj_mut, vis, Const, Some("object"));
+            self.register_builtin_type(mono("Int!"), int_mut, vis, Const, Some("int"));
+            self.register_builtin_type(mono("Nat!"), nat_mut, vis, Const, Some("Nat"));
+            self.register_builtin_type(mono("Float!"), float_mut, vis, Const, Some("float"));
+            self.register_builtin_type(mono("Ratio!"), ratio_mut, vis, Const, Some("Ratio"));
+            self.register_builtin_type(mono("Bool!"), bool_mut, vis, Const, Some("Bool"));
+            self.register_builtin_type(mono("Str!"), str_mut, vis, Const, Some("Str"));
+            self.register_builtin_type(range_t, range, vis, Const, Some("Range"));
+            self.register_builtin_type(mono("Proc"), proc, vis, Const, Some("Proc"));
+            self.register_builtin_type(
+                mono("NamedProc"),
+                named_proc,
+                Private,
+                Const,
+                Some("NamedProc"),
+            );
+            self.register_builtin_type(mono("Func"), func, vis, Const, Some("Func"));
+            self.register_builtin_type(
+                mono("NamedFunc"),
+                named_func,
+                Private,
+                Const,
+                Some("NamedFunc"),
+            );
+            self.register_builtin_type(
+                mono("Quantified"),
+                quant,
+                Private,
+                Const,
+                Some("Quantified"),
+            );
+            self.register_builtin_type(
+                mono("QuantifiedFunc"),
+                qfunc,
+                Private,
+                Const,
+                Some("QuantifiedFunc"),
+            );
+        }
     }
 
     fn init_builtin_funcs(&mut self) {
+        let vis = if self.cfg.python_compatible_mode {
+            Public
+        } else {
+            Private
+        };
         let T = mono_q("T", instanceof(Type));
         let U = mono_q("U", instanceof(Type));
         let Path = mono_q_tp("Path", instanceof(Str));
@@ -1813,77 +1863,78 @@ impl Context {
         let t_round = nd_func(vec![kw("number", Float)], None, Int);
         let t_str = nd_func(vec![kw("object", Obj)], None, Str);
         let t_unreachable = nd_func(vec![], None, Never);
-        self.register_builtin_py_impl("abs", t_abs, Immutable, Private, Some("abs"));
-        self.register_builtin_py_impl("ascii", t_ascii, Immutable, Private, Some("ascii"));
-        self.register_builtin_impl("assert", t_assert, Const, Private); // assert casting に悪影響が出る可能性があるため、Constとしておく
-        self.register_builtin_py_impl("bin", t_bin, Immutable, Private, Some("bin"));
-        self.register_builtin_py_impl("bytes", t_bytes, Immutable, Private, Some("bytes"));
-        self.register_builtin_py_impl("chr", t_chr, Immutable, Private, Some("chr"));
-        self.register_builtin_py_impl("classof", t_classof, Immutable, Private, Some("type"));
-        self.register_builtin_py_impl("compile", t_compile, Immutable, Private, Some("compile"));
-        self.register_builtin_impl("cond", t_cond, Immutable, Private);
-        self.register_builtin_py_impl("discard", t_discard, Immutable, Private, Some("discard__"));
-        self.register_builtin_py_impl("exit", t_exit, Immutable, Private, Some("exit"));
-        self.register_builtin_py_impl("if", t_if, Immutable, Private, Some("if__"));
-        self.register_builtin_py_impl("int", t_int, Immutable, Private, Some("int__"));
-        self.register_builtin_py_impl("import", t_import, Immutable, Private, Some("__import__"));
+        self.register_builtin_py_impl("abs", t_abs, Immutable, vis, Some("abs"));
+        self.register_builtin_py_impl("ascii", t_ascii, Immutable, vis, Some("ascii"));
+        self.register_builtin_impl("assert", t_assert, Const, vis); // assert casting に悪影響が出る可能性があるため、Constとしておく
+        self.register_builtin_py_impl("bin", t_bin, Immutable, vis, Some("bin"));
+        self.register_builtin_py_impl("bytes", t_bytes, Immutable, vis, Some("bytes"));
+        self.register_builtin_py_impl("chr", t_chr, Immutable, vis, Some("chr"));
+        self.register_builtin_py_impl("classof", t_classof, Immutable, vis, Some("type"));
+        self.register_builtin_py_impl("compile", t_compile, Immutable, vis, Some("compile"));
+        self.register_builtin_impl("cond", t_cond, Immutable, vis);
+        self.register_builtin_py_impl("exit", t_exit, Immutable, vis, Some("exit"));
         self.register_builtin_py_impl(
             "isinstance",
             t_isinstance,
             Immutable,
-            Private,
+            vis,
             Some("isinstance"),
         );
         self.register_builtin_py_impl(
             "issubclass",
             t_issubclass,
             Immutable,
-            Private,
+            vis,
             Some("issubclass"),
         );
-        self.register_builtin_py_impl("len", t_len, Immutable, Private, Some("len"));
-        self.register_builtin_py_impl("log", t_log, Immutable, Private, Some("print"));
-        self.register_builtin_py_impl("nat", t_nat, Immutable, Private, Some("nat__"));
-        self.register_builtin_py_impl("not", t_not, Immutable, Private, None); // `not` is not a function in Python
-        self.register_builtin_py_impl("oct", t_oct, Immutable, Private, Some("oct"));
-        self.register_builtin_py_impl("ord", t_ord, Immutable, Private, Some("ord"));
-        self.register_builtin_py_impl("panic", t_panic, Immutable, Private, Some("quit"));
-        self.register_builtin_py_impl("pow", t_pow, Immutable, Private, Some("pow"));
-        if cfg!(feature = "debug") {
-            self.register_builtin_py_impl(
-                "py",
-                t_pyimport.clone(),
-                Immutable,
-                Private,
-                Some("__import__"),
-            );
-        }
+        self.register_builtin_py_impl("len", t_len, Immutable, vis, Some("len"));
+        self.register_builtin_py_impl("not", t_not, Immutable, vis, None); // `not` is not a function in Python
+        self.register_builtin_py_impl("oct", t_oct, Immutable, vis, Some("oct"));
+        self.register_builtin_py_impl("ord", t_ord, Immutable, vis, Some("ord"));
+        self.register_builtin_py_impl("pow", t_pow, Immutable, vis, Some("pow"));
         self.register_builtin_py_impl(
             "pyimport",
-            t_pyimport,
+            t_pyimport.clone(),
             Immutable,
-            Private,
+            vis,
             Some("__import__"),
         );
-        self.register_builtin_py_impl(
-            "pycompile",
-            t_pycompile,
-            Immutable,
-            Private,
-            Some("compile"),
-        );
-        self.register_builtin_py_impl("quit", t_quit, Immutable, Private, Some("quit"));
-        self.register_builtin_py_impl("repr", t_repr, Immutable, Private, Some("repr"));
-        self.register_builtin_py_impl("round", t_round, Immutable, Private, Some("round"));
-        self.register_builtin_py_impl("str", t_str, Immutable, Private, Some("str"));
-        // TODO: original implementation
-        self.register_builtin_py_impl(
-            "unreachable",
-            t_unreachable,
-            Immutable,
-            Private,
-            Some("exit"),
-        );
+        self.register_builtin_py_impl("quit", t_quit, Immutable, vis, Some("quit"));
+        self.register_builtin_py_impl("repr", t_repr, Immutable, vis, Some("repr"));
+        self.register_builtin_py_impl("round", t_round, Immutable, vis, Some("round"));
+        self.register_builtin_py_impl("str", t_str, Immutable, vis, Some("str"));
+        let name = if self.cfg.python_compatible_mode {
+            "int"
+        } else {
+            "int__"
+        };
+        self.register_builtin_py_impl("int", t_int, Immutable, vis, Some(name));
+        if !self.cfg.python_compatible_mode {
+            self.register_builtin_py_impl("if", t_if, Immutable, vis, Some("if__"));
+            self.register_builtin_py_impl("discard", t_discard, Immutable, vis, Some("discard__"));
+            self.register_builtin_py_impl("import", t_import, Immutable, vis, Some("__import__"));
+            self.register_builtin_py_impl("log", t_log, Immutable, vis, Some("print"));
+            self.register_builtin_py_impl("nat", t_nat, Immutable, vis, Some("nat__"));
+            self.register_builtin_py_impl("panic", t_panic, Immutable, vis, Some("quit"));
+            if cfg!(feature = "debug") {
+                self.register_builtin_py_impl("py", t_pyimport, Immutable, vis, Some("__import__"));
+            }
+            self.register_builtin_py_impl(
+                "pycompile",
+                t_pycompile,
+                Immutable,
+                vis,
+                Some("compile"),
+            );
+            // TODO: original implementation
+            self.register_builtin_py_impl(
+                "unreachable",
+                t_unreachable,
+                Immutable,
+                vis,
+                Some("exit"),
+            );
+        }
     }
 
     fn init_builtin_const_funcs(&mut self) {
@@ -1952,6 +2003,11 @@ impl Context {
     }
 
     fn init_builtin_procs(&mut self) {
+        let vis = if self.cfg.python_compatible_mode {
+            Public
+        } else {
+            Private
+        };
         let T = mono_q("T", instanceof(Type));
         let U = mono_q("U", instanceof(Type));
         let t_dir = proc(
@@ -2028,17 +2084,19 @@ impl Context {
             U,
         )
         .quantify();
-        self.register_builtin_py_impl("dir!", t_dir, Immutable, Private, Some("dir"));
-        self.register_builtin_py_impl("print!", t_print, Immutable, Private, Some("print"));
-        self.register_builtin_py_impl("id!", t_id, Immutable, Private, Some("id"));
-        self.register_builtin_py_impl("input!", t_input, Immutable, Private, Some("input"));
-        self.register_builtin_py_impl("if!", t_if, Immutable, Private, Some("if__"));
-        self.register_builtin_py_impl("for!", t_for, Immutable, Private, Some("for__"));
-        self.register_builtin_py_impl("globals!", t_globals, Immutable, Private, Some("globals"));
-        self.register_builtin_py_impl("locals!", t_locals, Immutable, Private, Some("locals"));
-        self.register_builtin_py_impl("while!", t_while, Immutable, Private, Some("while__"));
-        self.register_builtin_py_impl("open!", t_open, Immutable, Private, Some("open"));
-        self.register_builtin_py_impl("with!", t_with, Immutable, Private, Some("with__"));
+        self.register_builtin_py_impl("dir!", t_dir, Immutable, vis, Some("dir"));
+        self.register_builtin_py_impl("print!", t_print, Immutable, vis, Some("print"));
+        self.register_builtin_py_impl("id!", t_id, Immutable, vis, Some("id"));
+        self.register_builtin_py_impl("input!", t_input, Immutable, vis, Some("input"));
+        self.register_builtin_py_impl("globals!", t_globals, Immutable, vis, Some("globals"));
+        self.register_builtin_py_impl("locals!", t_locals, Immutable, vis, Some("locals"));
+        self.register_builtin_py_impl("open!", t_open, Immutable, vis, Some("open"));
+        if !self.cfg.python_compatible_mode {
+            self.register_builtin_py_impl("if!", t_if, Immutable, Private, Some("if__"));
+            self.register_builtin_py_impl("for!", t_for, Immutable, Private, Some("for__"));
+            self.register_builtin_py_impl("while!", t_while, Immutable, Private, Some("while__"));
+            self.register_builtin_py_impl("with!", t_with, Immutable, Private, Some("with__"));
+        }
     }
 
     fn init_builtin_operators(&mut self) {

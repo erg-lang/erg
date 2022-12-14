@@ -345,6 +345,7 @@ impl fmt::Display for Token {
 }
 
 // the values of lineno and col are not relevant for comparison
+// use `deep_eq` if you want to compare them
 impl PartialEq for Token {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
@@ -438,6 +439,13 @@ impl Token {
             lineno: 0,
             col_begin: 0,
         }
+    }
+
+    pub fn deep_eq(&self, other: &Self) -> bool {
+        self.kind == other.kind
+            && self.content == other.content
+            && self.lineno == other.lineno
+            && self.col_begin == other.col_begin
     }
 
     pub const fn category(&self) -> TokenCategory {

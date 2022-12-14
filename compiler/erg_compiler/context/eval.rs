@@ -289,9 +289,9 @@ impl Context {
             // TODO: set params
             let kind = ContextKind::from(def.def_kind());
             self.grow(__name__, kind, vis, tv_cache);
-            let obj = self.eval_const_block(&def.body.block).map_err(|e| {
+            let obj = self.eval_const_block(&def.body.block).map_err(|errs| {
                 self.pop();
-                e
+                errs
             })?;
             match self.check_decls_and_pop() {
                 Ok(_) => {

@@ -255,14 +255,18 @@ impl<T: LimitedDisplay> LimitedDisplay for FreeKind<T> {
                 constraint,
             } => {
                 if *lev == GENERIC_LEVEL {
-                    write!(f, "{name}(")?;
-                    constraint.limited_fmt(f, limit - 1)?;
-                    write!(f, ")")?;
-                } else {
-                    write!(f, "?{name}(")?;
-                    constraint.limited_fmt(f, limit - 1)?;
-                    write!(f, ")")?;
+                    write!(f, "{name}")?;
                     if cfg!(feature = "debug") {
+                        write!(f, "(")?;
+                        constraint.limited_fmt(f, limit - 1)?;
+                        write!(f, ")")?;
+                    }
+                } else {
+                    write!(f, "?{name}")?;
+                    if cfg!(feature = "debug") {
+                        write!(f, "(")?;
+                        constraint.limited_fmt(f, limit - 1)?;
+                        write!(f, ")")?;
                         write!(f, "[{lev}]")?;
                     }
                 }
@@ -274,14 +278,18 @@ impl<T: LimitedDisplay> LimitedDisplay for FreeKind<T> {
                 constraint,
             } => {
                 if *lev == GENERIC_LEVEL {
-                    write!(f, "%{id}(")?;
-                    constraint.limited_fmt(f, limit - 1)?;
-                    write!(f, ")")?;
-                } else {
-                    write!(f, "?{id}(")?;
-                    constraint.limited_fmt(f, limit - 1)?;
-                    write!(f, ")")?;
+                    write!(f, "%{id}")?;
                     if cfg!(feature = "debug") {
+                        write!(f, "(")?;
+                        constraint.limited_fmt(f, limit - 1)?;
+                        write!(f, ")")?;
+                    }
+                } else {
+                    write!(f, "?{id}")?;
+                    if cfg!(feature = "debug") {
+                        write!(f, "(")?;
+                        constraint.limited_fmt(f, limit - 1)?;
+                        write!(f, ")")?;
                         write!(f, "[{lev}]")?;
                     }
                 }
