@@ -370,7 +370,7 @@ impl Context {
             }
             other => {
                 log!(err "{other}");
-                unreachable!()
+                unreachable!("{other}")
             }
         }
     }
