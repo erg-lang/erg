@@ -374,11 +374,30 @@ impl Context {
                     // REVIEW: Even if type constraints can be satisfied, implementation may not exist
                     if self.subtype_of(&sub_t, &super_t) {
                         match variance {
-                            Variance::Covariant => Ok(sub_t),
-                            Variance::Contravariant => Ok(super_t),
+                            Variance::Covariant => {
+                                let sub_t = if cfg!(feature = "debug") {
+                                    sub_t
+                                } else {
+                                    self.deref_tyvar(sub_t, variance, loc)?
+                                };
+                                Ok(sub_t)
+                            }
+                            Variance::Contravariant => {
+                                let super_t = if cfg!(feature = "debug") {
+                                    super_t
+                                } else {
+                                    self.deref_tyvar(super_t, variance, loc)?
+                                };
+                                Ok(super_t)
+                            }
                             Variance::Invariant => {
                                 // need to check if sub_t == super_t
                                 if self.supertype_of(&sub_t, &super_t) {
+                                    let sub_t = if cfg!(feature = "debug") {
+                                        sub_t
+                                    } else {
+                                        self.deref_tyvar(sub_t, variance, loc)?
+                                    };
                                     Ok(sub_t)
                                 } else {
                                     Err(TyCheckError::subtyping_error(
