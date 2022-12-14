@@ -1257,8 +1257,8 @@ impl ASTLowerer {
                             def.sig.ident_mut().unwrap().dot = Some(Token::new(
                                 TokenKind::Dot,
                                 ".",
-                                def.sig.ln_begin().unwrap(),
-                                def.sig.col_begin().unwrap(),
+                                def.sig.ln_begin().unwrap_or(0),
+                                def.sig.col_begin().unwrap_or(0),
                             ));
                         }
                         self.ctx.preregister_def(def).map_err(|errs| {
@@ -1299,7 +1299,15 @@ impl ASTLowerer {
             self.check_collision_and_push(class);
         }
         let class = mono(hir_def.sig.ident().inspect());
-        let (_, class_ctx) = self.ctx.get_nominal_type_ctx(&class).unwrap();
+        let Some((_, class_ctx)) = self.ctx.get_nominal_type_ctx(&class) else {
+            return Err(LowerErrors::from(LowerError::type_not_found(
+                self.cfg.input.clone(),
+                line!() as usize,
+                hir_def.sig.loc(),
+                self.ctx.caused_by(),
+                &class,
+            )));
+        };
         let type_obj = enum_unwrap!(self.ctx.rec_get_const_obj(hir_def.sig.ident().inspect()).unwrap(), ValueObj::Type:(TypeObj::Generated:(_)));
         let sup_type = enum_unwrap!(&hir_def.body.block.first().unwrap(), hir::Expr::Call)
             .args
