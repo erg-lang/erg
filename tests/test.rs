@@ -206,7 +206,7 @@ fn exec_side_effect() -> Result<(), ()> {
 
 #[test]
 fn exec_subtyping() -> Result<(), ()> {
-    expect_failure("tests/should_err/subtyping.er", 1)
+    expect_failure("tests/should_err/subtyping.er", 2)
 }
 
 fn expect_success(file_path: &'static str) -> Result<(), ()> {

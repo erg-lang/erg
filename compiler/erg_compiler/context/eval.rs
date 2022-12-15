@@ -920,7 +920,13 @@ impl Context {
         }
     }
 
-    fn eval_proj(&self, lhs: Type, rhs: Str, level: usize, t_loc: Location) -> EvalResult<Type> {
+    pub(crate) fn eval_proj(
+        &self,
+        lhs: Type,
+        rhs: Str,
+        level: usize,
+        t_loc: Location,
+    ) -> EvalResult<Type> {
         // Currently Erg does not allow projection-types to be evaluated with type variables included.
         // All type variables will be dereferenced or fail.
         let (sub, opt_sup) = match lhs.clone() {
@@ -1233,7 +1239,7 @@ impl Context {
         }
     }
 
-    fn eval_proj_call(
+    pub(crate) fn eval_proj_call(
         &self,
         lhs: TyParam,
         attr_name: Str,

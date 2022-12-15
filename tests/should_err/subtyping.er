@@ -4,3 +4,10 @@ y: Ratio = f 1
 z: Int = y
 # But this is invalid.
 invalid: 10..<20 = z
+
+for! [(1, 2)], ((i, j),) =>
+    k = i + 1 # OK
+    print! k
+for! [(1, 2)], ((i, j),) =>
+    k = i + "a" # ERR
+    print! k

@@ -256,16 +256,14 @@ impl Context {
         tp: TyParam,
         variance: Variance,
         loc: Location,
-    ) -> SingleTyCheckResult<TyParam> {
+    ) -> TyCheckResult<TyParam> {
         match tp {
             TyParam::FreeVar(fv) if fv.is_linked() => {
                 let inner = fv.unwrap_linked();
                 self.deref_tp(inner, variance, loc)
             }
-            TyParam::FreeVar(_fv) if self.level == 0 => Err(TyCheckError::dummy_infer_error(
-                self.cfg.input.clone(),
-                fn_name!(),
-                line!(),
+            TyParam::FreeVar(_fv) if self.level == 0 => Err(TyCheckErrors::from(
+                TyCheckError::dummy_infer_error(self.cfg.input.clone(), fn_name!(), line!()),
             )),
             TyParam::Type(t) => Ok(TyParam::t(self.deref_tyvar(*t, variance, loc)?)),
             TyParam::App { name, mut args } => {
@@ -321,9 +319,9 @@ impl Context {
                 }
                 Ok(TyParam::Set(new_set))
             }
-            TyParam::Proj { .. } | TyParam::Failure if self.level == 0 => Err(
+            TyParam::Proj { .. } | TyParam::Failure if self.level == 0 => Err(TyCheckErrors::from(
                 TyCheckError::dummy_infer_error(self.cfg.input.clone(), fn_name!(), line!()),
-            ),
+            )),
             t => Ok(t),
         }
     }
@@ -333,7 +331,7 @@ impl Context {
         constraint: Constraint,
         variance: Variance,
         loc: Location,
-    ) -> SingleTyCheckResult<Constraint> {
+    ) -> TyCheckResult<Constraint> {
         match constraint {
             Constraint::Sandwiched { sub, sup } => Ok(Constraint::new_sandwiched(
                 self.deref_tyvar(sub, variance, loc)?,
@@ -343,6 +341,125 @@ impl Context {
                 Ok(Constraint::new_type_of(self.deref_tyvar(t, variance, loc)?))
             }
             _ => unreachable!(),
+        }
+    }
+
+    fn validate_subsup(
+        &self,
+        sub_t: Type,
+        super_t: Type,
+        variance: Variance,
+        loc: Location,
+    ) -> TyCheckResult<Type> {
+        // TODO: Subr, ...
+        match (sub_t, super_t) {
+            // See tests\should_err\subtyping.er:8~13
+            (
+                Type::Poly {
+                    name: ln,
+                    params: lps,
+                },
+                Type::Poly {
+                    name: rn,
+                    params: rps,
+                },
+            ) if ln == rn => {
+                let typ = poly(ln, lps.clone());
+                let (_, ctx) = self.get_nominal_type_ctx(&typ).ok_or_else(|| {
+                    TyCheckError::type_not_found(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        loc,
+                        self.caused_by(),
+                        &typ,
+                    )
+                })?;
+                let variances = ctx.type_params_variance();
+                let mut tps = vec![];
+                for ((lp, rp), variance) in lps
+                    .into_iter()
+                    .zip(rps.into_iter())
+                    .zip(variances.into_iter())
+                {
+                    self.sub_unify_tp(&lp, &rp, Some(variance), loc, false)?;
+                    let param = if variance == Covariant { lp } else { rp };
+                    tps.push(param);
+                }
+                Ok(poly(rn, tps))
+            }
+            (sub_t, super_t) => self.validate_simple_subsup(sub_t, super_t, variance, loc),
+        }
+    }
+
+    fn validate_simple_subsup(
+        &self,
+        sub_t: Type,
+        super_t: Type,
+        variance: Variance,
+        loc: Location,
+    ) -> TyCheckResult<Type> {
+        if self.is_trait(&super_t) {
+            self.check_trait_impl(&sub_t, &super_t, loc)?;
+        }
+        // REVIEW: Even if type constraints can be satisfied, implementation may not exist
+        if self.subtype_of(&sub_t, &super_t) {
+            match variance {
+                Variance::Covariant => {
+                    let sub_t = if cfg!(feature = "debug") {
+                        sub_t
+                    } else {
+                        self.deref_tyvar(sub_t, variance, loc)?
+                    };
+                    Ok(sub_t)
+                }
+                Variance::Contravariant => {
+                    let super_t = if cfg!(feature = "debug") {
+                        super_t
+                    } else {
+                        self.deref_tyvar(super_t, variance, loc)?
+                    };
+                    Ok(super_t)
+                }
+                Variance::Invariant => {
+                    // need to check if sub_t == super_t
+                    if self.supertype_of(&sub_t, &super_t) {
+                        let sub_t = if cfg!(feature = "debug") {
+                            sub_t
+                        } else {
+                            self.deref_tyvar(sub_t, variance, loc)?
+                        };
+                        Ok(sub_t)
+                    } else {
+                        Err(TyCheckErrors::from(TyCheckError::subtyping_error(
+                            self.cfg.input.clone(),
+                            line!() as usize,
+                            &self.deref_tyvar(sub_t, variance, loc)?,
+                            &self.deref_tyvar(super_t, variance, loc)?,
+                            loc,
+                            self.caused_by(),
+                        )))
+                    }
+                }
+            }
+        } else {
+            let sub_t = if cfg!(feature = "debug") {
+                sub_t
+            } else {
+                self.deref_tyvar(sub_t, variance, loc)?
+            };
+            let super_t = if cfg!(feature = "debug") {
+                super_t
+            } else {
+                self.deref_tyvar(super_t, variance, loc)?
+            };
+            Err(TyCheckErrors::from(TyCheckError::subtyping_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                &sub_t,
+                &super_t,
+                loc,
+                self.caused_by(),
+            )))
         }
     }
 
@@ -359,7 +476,7 @@ impl Context {
         t: Type,
         variance: Variance,
         loc: Location,
-    ) -> SingleTyCheckResult<Type> {
+    ) -> TyCheckResult<Type> {
         match t {
             // ?T(:> Nat, <: Int)[n] ==> Nat (self.level <= n)
             // ?T(:> Nat, <: Sub ?U(:> {1}))[n] ==> Nat
@@ -368,69 +485,7 @@ impl Context {
             Type::FreeVar(fv) if fv.constraint_is_sandwiched() => {
                 let (sub_t, super_t) = fv.get_subsup().unwrap();
                 if self.level <= fv.level().unwrap() {
-                    if self.is_trait(&super_t) {
-                        self.check_trait_impl(&sub_t, &super_t, loc)?;
-                    }
-                    // REVIEW: Even if type constraints can be satisfied, implementation may not exist
-                    if self.subtype_of(&sub_t, &super_t) {
-                        match variance {
-                            Variance::Covariant => {
-                                let sub_t = if cfg!(feature = "debug") {
-                                    sub_t
-                                } else {
-                                    self.deref_tyvar(sub_t, variance, loc)?
-                                };
-                                Ok(sub_t)
-                            }
-                            Variance::Contravariant => {
-                                let super_t = if cfg!(feature = "debug") {
-                                    super_t
-                                } else {
-                                    self.deref_tyvar(super_t, variance, loc)?
-                                };
-                                Ok(super_t)
-                            }
-                            Variance::Invariant => {
-                                // need to check if sub_t == super_t
-                                if self.supertype_of(&sub_t, &super_t) {
-                                    let sub_t = if cfg!(feature = "debug") {
-                                        sub_t
-                                    } else {
-                                        self.deref_tyvar(sub_t, variance, loc)?
-                                    };
-                                    Ok(sub_t)
-                                } else {
-                                    Err(TyCheckError::subtyping_error(
-                                        self.cfg.input.clone(),
-                                        line!() as usize,
-                                        &self.deref_tyvar(sub_t, variance, loc)?,
-                                        &self.deref_tyvar(super_t, variance, loc)?,
-                                        loc,
-                                        self.caused_by(),
-                                    ))
-                                }
-                            }
-                        }
-                    } else {
-                        let sub_t = if cfg!(feature = "debug") {
-                            sub_t
-                        } else {
-                            self.deref_tyvar(sub_t, variance, loc)?
-                        };
-                        let super_t = if cfg!(feature = "debug") {
-                            super_t
-                        } else {
-                            self.deref_tyvar(super_t, variance, loc)?
-                        };
-                        Err(TyCheckError::subtyping_error(
-                            self.cfg.input.clone(),
-                            line!() as usize,
-                            &sub_t,
-                            &super_t,
-                            loc,
-                            self.caused_by(),
-                        ))
-                    }
+                    self.validate_subsup(sub_t, super_t, variance, loc)
                 } else {
                     // no dereference at this point
                     // drop(constraint);
@@ -440,11 +495,13 @@ impl Context {
             Type::FreeVar(fv) if fv.is_unbound() => {
                 if self.level == 0 {
                     match &*fv.crack_constraint() {
-                        Constraint::TypeOf(_) => Err(TyCheckError::dummy_infer_error(
-                            self.cfg.input.clone(),
-                            fn_name!(),
-                            line!(),
-                        )),
+                        Constraint::TypeOf(_) => {
+                            Err(TyCheckErrors::from(TyCheckError::dummy_infer_error(
+                                self.cfg.input.clone(),
+                                fn_name!(),
+                                line!(),
+                            )))
+                        }
                         _ => unreachable!(),
                     }
                 } else {
@@ -532,6 +589,22 @@ impl Context {
                 let r = self.deref_tyvar(*r, variance, loc)?;
                 // TODO: complement
                 Ok(not(l, r))
+            }
+            Type::Proj { lhs, rhs } => {
+                let lhs = self.deref_tyvar(*lhs, variance, loc)?;
+                self.eval_proj(lhs, rhs, self.level, loc)
+            }
+            Type::ProjCall {
+                lhs,
+                attr_name,
+                args,
+            } => {
+                let lhs = self.deref_tp(*lhs, variance, loc)?;
+                let mut new_args = vec![];
+                for arg in args.into_iter() {
+                    new_args.push(self.deref_tp(arg, variance, loc)?);
+                }
+                self.eval_proj_call(lhs, attr_name, new_args, self.level, loc)
             }
             t => Ok(t),
         }
@@ -635,8 +708,8 @@ impl Context {
         self.level = 0;
         let mut errs = TyCheckErrors::empty();
         for chunk in hir.module.iter_mut() {
-            if let Err(err) = self.resolve_expr_t(chunk) {
-                errs.push(err);
+            if let Err(es) = self.resolve_expr_t(chunk) {
+                errs.extend(es);
             }
         }
         if errs.is_empty() {
@@ -646,7 +719,7 @@ impl Context {
         }
     }
 
-    fn resolve_expr_t(&self, expr: &mut hir::Expr) -> SingleTyCheckResult<()> {
+    fn resolve_expr_t(&self, expr: &mut hir::Expr) -> TyCheckResult<()> {
         match expr {
             hir::Expr::Lit(_) | hir::Expr::Dummy(_) => Ok(()),
             hir::Expr::Accessor(acc) => {
@@ -675,6 +748,7 @@ impl Context {
                     Ok(())
                 }
                 other => feature_error!(
+                    TyCheckErrors,
                     TyCheckError,
                     self,
                     other.loc(),
@@ -717,6 +791,7 @@ impl Context {
                     Ok(())
                 }
                 other => feature_error!(
+                    TyCheckErrors,
                     TyCheckError,
                     self,
                     other.loc(),

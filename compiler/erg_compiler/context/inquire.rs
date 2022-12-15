@@ -533,7 +533,9 @@ impl Context {
                 }
             }
         }
-        let coerced = self.deref_tyvar(obj.t(), Variance::Covariant, Location::Unknown)?;
+        let coerced = self
+            .deref_tyvar(obj.t(), Variance::Covariant, Location::Unknown)
+            .map_err(|mut es| es.remove(0))?;
         if obj.ref_t() != &coerced {
             for ctx in self.get_nominal_super_type_ctxs(&coerced).ok_or_else(|| {
                 TyCheckError::type_not_found(
