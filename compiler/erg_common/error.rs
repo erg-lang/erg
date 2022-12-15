@@ -520,7 +520,7 @@ impl SubMessage {
                 let mark = mark.to_string();
                 for (i, lineno) in (ln_begin..=ln_end).enumerate() {
                     cxt.push_str_with_color(&format!("{lineno} {vbar} "), gutter_color);
-                    cxt.push_str(codes.get(0).unwrap_or(&String::new()));
+                    cxt.push_str(codes.get(i).unwrap_or(&String::new()));
                     cxt.push_str("\n");
                     cxt.push_str_with_color(
                         &format!("{} {}", &" ".repeat(lineno.to_string().len()), vbreak),
