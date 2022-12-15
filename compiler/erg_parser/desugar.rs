@@ -3,11 +3,7 @@
 //! Syntax sugarをdesugarする
 //! e.g. Literal parameters, Multi assignment
 //! 型チェックなどによる検証は行わない
-#![allow(dead_code)]
-
-use erg_common::config::ErgConfig;
 use erg_common::fresh::fresh_varname;
-use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
 use erg_common::{enum_unwrap, get_hash, log, set};
@@ -33,16 +29,14 @@ enum BufIndex<'i> {
 
 #[derive(Debug)]
 pub struct Desugarer {
-    cfg: ErgConfig,
-    desugared: Set<Str>,
+    // _desugared: Set<Str>,
     // var_id: usize, // must be global
 }
 
 impl Desugarer {
-    pub fn new(cfg: ErgConfig) -> Desugarer {
+    pub fn new() -> Desugarer {
         Self {
-            cfg,
-            desugared: Set::default(),
+            // _desugared: Set::default(),
         }
     }
 
@@ -413,7 +407,7 @@ impl Desugarer {
     }
 
     /// `f 0 = 1` -> `f _: {0} = 1`
-    fn desugar_literal_pattern(&self, _mod: Module) -> Module {
+    fn _desugar_literal_pattern(&self, _mod: Module) -> Module {
         todo!()
     }
 
@@ -888,11 +882,7 @@ impl Desugarer {
         match &mut sig.pat {
             ParamPattern::Tuple(tup) => {
                 let (buf_name, buf_sig) = self.gen_buf_nd_param(line);
-                let ident = if self.cfg.python_compatible_mode {
-                    Identifier::public(Str::from(&buf_name))
-                } else {
-                    Identifier::private(Str::from(&buf_name))
-                };
+                let ident = Identifier::private(Str::from(&buf_name));
                 new_body.insert(
                     insertion_idx,
                     Expr::Def(Def::new(
@@ -1016,11 +1006,7 @@ impl Desugarer {
             }
             */
             ParamPattern::VarName(name) => {
-                let ident = if self.cfg.python_compatible_mode {
-                    Identifier::new(Some(DOT), name.clone())
-                } else {
-                    Identifier::new(None, name.clone())
-                };
+                let ident = Identifier::new(None, name.clone());
                 let v = VarSignature::new(
                     VarPattern::Ident(ident),
                     sig.t_spec.as_ref().map(|ts| ts.t_spec.clone()),
@@ -1045,16 +1031,16 @@ impl Desugarer {
         }
     }
 
-    fn desugar_self(module: Module) -> Module {
-        Self::desugar_all_chunks(module, Self::desugar_self_inner)
+    fn _desugar_self(module: Module) -> Module {
+        Self::desugar_all_chunks(module, Self::_desugar_self_inner)
     }
 
-    fn desugar_self_inner(_expr: Expr) -> Expr {
+    fn _desugar_self_inner(_expr: Expr) -> Expr {
         todo!()
     }
 
     /// `F(I | I > 0)` -> `F(I: {I: Int | I > 0})`
-    fn desugar_refinement_pattern(_mod: Module) -> Module {
+    fn _desugar_refinement_pattern(_mod: Module) -> Module {
         todo!()
     }
 
@@ -1119,6 +1105,6 @@ impl Desugarer {
 
 impl Default for Desugarer {
     fn default() -> Self {
-        Self::new(ErgConfig::default())
+        Self::new()
     }
 }
