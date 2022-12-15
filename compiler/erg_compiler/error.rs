@@ -89,9 +89,9 @@ pub fn binop_to_dname(op: &str) -> &str {
         "<.." => "__lorng__",
         "..<" => "__rorng__",
         "<..<" => "__orng__",
-        "&&" | "and" => "__and__",
-        "||" | "or" => "__or__",
-        "^^" => "__xor__",
+        "&&" | "&" | "and" => "__and__",
+        "||" | "|" | "or" => "__or__",
+        "^^" | "^" => "__xor__",
         "in" => "__in__",
         "notin" => "__notin__", // NOTE: this doesn't exist in Python
         "contains" => "__contains__",
@@ -134,8 +134,8 @@ pub fn readable_name(name: &str) -> &str {
         "__lorng__" => "`<..`",
         "__rorng__" => "`..<`",
         "__orng__" => "`<..<`",
-        "__and__" => "`and`",
-        "__or__" => "`or`",
+        "__and__" => "`and`", // TODO: `&&` if not boolean
+        "__or__" => "`or`",   // TODO: `||` if not boolean
         "__in__" => "`in`",
         "__notin__" => "`notin`",
         "__contains__" => "`contains`",
