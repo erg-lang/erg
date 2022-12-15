@@ -1256,10 +1256,24 @@ impl Context {
                     let is_method = subr.sig_t().self_t().is_some();
                     let mut pos_args = vec![];
                     if is_method {
-                        pos_args.push(ValueObj::try_from(lhs).unwrap());
+                        match ValueObj::try_from(lhs) {
+                            Ok(value) => {
+                                pos_args.push(value);
+                            }
+                            Err(_) => {
+                                return feature_error!(self, t_loc, "??");
+                            }
+                        }
                     }
                     for pos_arg in args.into_iter() {
-                        pos_args.push(ValueObj::try_from(pos_arg).unwrap());
+                        match ValueObj::try_from(pos_arg) {
+                            Ok(value) => {
+                                pos_args.push(value);
+                            }
+                            Err(_) => {
+                                return feature_error!(self, t_loc, "??");
+                            }
+                        }
                     }
                     let args = ValueArgs::new(pos_args, dict! {});
                     let t = self.call(subr, args, t_loc)?;
@@ -1274,7 +1288,14 @@ impl Context {
                     if let ValueObj::Subr(subr) = obj {
                         let mut pos_args = vec![];
                         for pos_arg in args.into_iter() {
-                            pos_args.push(ValueObj::try_from(pos_arg).unwrap());
+                            match ValueObj::try_from(pos_arg) {
+                                Ok(value) => {
+                                    pos_args.push(value);
+                                }
+                                Err(_) => {
+                                    return feature_error!(self, t_loc, "??");
+                                }
+                            }
                         }
                         let args = ValueArgs::new(pos_args, dict! {});
                         let t = self.call(subr, args, t_loc)?;
