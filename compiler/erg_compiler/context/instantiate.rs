@@ -19,12 +19,14 @@ use erg_parser::ast;
 use erg_parser::token::TokenKind;
 use erg_parser::Parser;
 
+use crate::feature_error;
 use crate::ty::constructors::*;
 use crate::ty::free::CanbeFree;
 use crate::ty::free::{Constraint, HasLevel};
 use crate::ty::typaram::{IntervalOp, TyParam, TyParamOrdering};
 use crate::ty::value::ValueObj;
 use crate::ty::{HasType, ParamTy, Predicate, SubrKind, Type};
+use crate::type_feature_error;
 use TyParamOrdering::*;
 use Type::*;
 
@@ -393,7 +395,7 @@ impl Context {
                     )))
                 }
             }
-            other => todo!("{other}"),
+            other => type_feature_error!(self, other.loc(), &format!("instantiating {other}")),
         }
     }
 
@@ -579,7 +581,7 @@ impl Context {
                     self.get_similar_name(name.inspect()),
                 )))
             }
-            _ => todo!(),
+            other => type_feature_error!(self, other.loc(), &format!("instantiating {other}")),
         }
     }
 
@@ -592,7 +594,7 @@ impl Context {
         match self.instantiate_const_expr(expr, erased_idx, tmp_tv_cache)? {
             TyParam::Type(t) => Ok(*t),
             TyParam::Value(ValueObj::Type(t)) => Ok(t.into_typ()),
-            other => todo!("{other}"),
+            other => type_feature_error!(self, expr.loc(), &format!("{other}")),
         }
     }
 
@@ -621,13 +623,13 @@ impl Context {
 
     pub(crate) fn instantiate_typespec(
         &self,
-        spec: &TypeSpec,
+        t_spec: &TypeSpec,
         opt_decl_t: Option<&ParamTy>,
         tmp_tv_cache: &mut TyVarCache,
         mode: RegistrationMode,
         not_found_is_qvar: bool,
     ) -> TyCheckResult<Type> {
-        match spec {
+        match t_spec {
             TypeSpec::Infer(_) => Ok(free_var(self.level, Constraint::new_type_of(Type))),
             TypeSpec::PreDeclTy(predecl) => Ok(self.instantiate_predecl_t(
                 predecl,
@@ -830,7 +832,7 @@ impl Context {
                 ))
             }
             TypeSpec::TypeApp { spec, args } => {
-                todo!("{spec}{args}")
+                type_feature_error!(self, t_spec.loc(), &format!("instantiating {spec}{args}"))
             }
         }
     }
@@ -850,7 +852,9 @@ impl Context {
                         TokenKind::SubtypeOf => Constraint::new_subtype_of(
                             self.instantiate_typespec(&spec.t_spec, None, tv_cache, mode, true)?,
                         ),
-                        TokenKind::SupertypeOf => todo!(),
+                        TokenKind::SupertypeOf => {
+                            return type_feature_error!(self, spec.loc(), "supertype of");
+                        }
                         TokenKind::Colon => Constraint::new_type_of(self.instantiate_typespec(
                             &spec.t_spec,
                             None,
@@ -862,10 +866,14 @@ impl Context {
                     };
                 let tv = named_free_var(lhs.inspect().clone(), self.level, constr);
                 tv_cache.push_or_init_tyvar(lhs.inspect(), &tv);
+                Ok(())
             }
-            TypeBoundSpec::WithDefault { .. } => todo!(),
+            TypeBoundSpec::WithDefault { .. } => type_feature_error!(
+                self,
+                bound.loc(),
+                "type boundary specification with default"
+            ),
         }
-        Ok(())
     }
 
     pub(crate) fn instantiate_ty_bounds(
@@ -983,7 +991,7 @@ impl Context {
             | TyParam::Mono(_)
             | TyParam::FreeVar(_)
             | TyParam::Erased(_)) => Ok(p),
-            other => todo!("{other}"),
+            other => type_feature_error!(self, loc, &format!("instantiating {other}")),
         }
     }
 
@@ -1134,7 +1142,7 @@ impl Context {
                 Ok(not(l, r))
             }
             other if other.is_monomorphic() => Ok(other),
-            other => todo!("{other}"),
+            other => type_feature_error!(self, loc, &format!("instantiating {other}")),
         }
     }
 

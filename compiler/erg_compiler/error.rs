@@ -20,6 +20,51 @@ use crate::context::Context;
 use crate::hir::{Expr, Identifier, Signature};
 use crate::ty::{HasType, Predicate, Type};
 
+/// `unreachable!(self: Context)`
+#[macro_export]
+macro_rules! unreachable_error {
+    ($Strcs: ident, $Strc: ident, $ctx: expr) => {
+        Err($Strcs::from($Strc::unreachable(
+            $ctx.cfg.input.clone(),
+            fn_name!(),
+            line!(),
+        )))
+    };
+    ($Strc: ident, $ctx: expr) => {
+        Err($Strc::unreachable(
+            $ctx.cfg.input.clone(),
+            fn_name!(),
+            line!(),
+        ))
+    };
+}
+/// `feature_error!($Strc: struct, ctx: Context, loc: Location, name: &str)`
+#[macro_export]
+macro_rules! feature_error {
+    ($Strcs: ident, $Strc: ident, $ctx: expr, $loc: expr, $name: expr) => {
+        Err($Strcs::from($Strc::feature_error(
+            $ctx.cfg.input.clone(),
+            $loc,
+            $name,
+            $ctx.caused_by(),
+        )))
+    };
+    ($Strc: ident, $ctx: expr, $loc: expr, $name: expr) => {
+        Err($Strc::feature_error(
+            $ctx.cfg.input.clone(),
+            $loc,
+            $name,
+            $ctx.caused_by(),
+        ))
+    };
+}
+#[macro_export]
+macro_rules! type_feature_error {
+    ($ctx: expr, $loc: expr, $name: expr) => {
+        feature_error!(TyCheckErrors, TyCheckError, $ctx, $loc, $name)
+    };
+}
+
 pub fn ordinal_num(n: usize) -> String {
     match n.to_string().chars().last().unwrap() {
         '1' => format!("{n}st"),

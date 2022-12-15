@@ -3,8 +3,9 @@ use std::mem;
 use erg_common::enum_unwrap;
 
 use crate::context::Context;
+use crate::feature_error;
 use crate::ty::constructors::{and, mono};
-use crate::ty::value::{EvalValueResult, GenTypeObj, TypeObj, ValueObj};
+use crate::ty::value::{EvalValueError, EvalValueResult, GenTypeObj, TypeObj, ValueObj};
 use crate::ty::ValueArgs;
 use erg_common::error::{ErrorCore, ErrorKind, Location, SubMessage};
 use erg_common::style::{Color, StyledStr, StyledString, THEME};
@@ -110,7 +111,12 @@ pub fn inheritable_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<
             }
             Ok(ValueObj::Type(TypeObj::Generated(gen)))
         }
-        _ => todo!(),
+        other => feature_error!(
+            EvalValueError,
+            _ctx,
+            Location::Unknown,
+            &format!("Inheritable {other}")
+        ),
     }
 }
 
@@ -126,7 +132,7 @@ pub fn trait_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueOb
         )
     })?;
     let Some(require) = require.as_type() else {
-        let require = StyledString::new(&format!("{}", require), Some(ERR), None);
+        let require = StyledString::new(&format!("{require}"), Some(ERR), None);
         return Err(ErrorCore::new(
             vec![SubMessage::only_loc(Location::Unknown)],
             format!(

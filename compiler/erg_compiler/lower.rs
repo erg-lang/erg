@@ -40,27 +40,8 @@ use crate::mod_cache::SharedModuleCache;
 use crate::reorder::Reorderer;
 use crate::varinfo::{VarInfo, VarKind};
 use crate::AccessKind;
+use crate::{feature_error, unreachable_error};
 use Visibility::*;
-
-macro_rules! unreachable_error {
-    ($self: ident) => {
-        Err(LowerErrors::from(LowerError::unreachable(
-            $self.cfg.input.clone(),
-            fn_name!(),
-            line!(),
-        )))
-    };
-}
-macro_rules! todo_error {
-    ($self: ident, $loc: expr, $name: expr) => {
-        Err(LowerErrors::from(LowerError::feature_error(
-            $self.cfg.input.clone(),
-            $loc,
-            $name,
-            $self.ctx.caused_by(),
-        )))
-    };
-}
 
 /// Checks & infers types of an AST, and convert (lower) it into a HIR
 #[derive(Debug)]
@@ -337,7 +318,13 @@ impl ASTLowerer {
             ast::Array::WithLength(arr) => {
                 Ok(hir::Array::WithLength(self.lower_array_with_length(arr)?))
             }
-            other => todo_error!(self, other.loc(), "array comprehension"),
+            other => feature_error!(
+                LowerErrors,
+                LowerError,
+                self.ctx,
+                other.loc(),
+                "array comprehension"
+            ),
         }
     }
 
@@ -622,7 +609,13 @@ impl ASTLowerer {
         log!(info "enter {}({dict})", fn_name!());
         match dict {
             ast::Dict::Normal(set) => Ok(hir::Dict::Normal(self.lower_normal_dict(set)?)),
-            other => todo_error!(self, other.loc(), "dict comprehension"),
+            other => feature_error!(
+                LowerErrors,
+                LowerError,
+                self.ctx,
+                other.loc(),
+                "dict comprehension"
+            ),
             // ast::Dict::WithLength(set) => Ok(hir::Dict::WithLength(self.lower_dict_with_length(set)?)),
         }
     }
@@ -726,9 +719,15 @@ impl ASTLowerer {
                 let acc = hir::Accessor::Attr(hir::Attribute::new(obj, ident));
                 Ok(acc)
             }
-            ast::Accessor::TypeApp(t_app) => todo_error!(self, t_app.loc(), "type application"),
+            ast::Accessor::TypeApp(t_app) => feature_error!(
+                LowerErrors,
+                LowerError,
+                self.ctx,
+                t_app.loc(),
+                "type application"
+            ),
             // TupleAttr, Subscr are desugared
-            _ => unreachable!(),
+            _ => unreachable_error!(LowerErrors, LowerError, self.ctx),
         }
     }
 
@@ -1193,7 +1192,7 @@ impl ASTLowerer {
                 let body = hir::DefBody::new(body.op, block, body.id);
                 Ok(hir::Def::new(hir::Signature::Subr(sig), body))
             }
-            _ => unreachable_error!(self),
+            _ => unreachable_error!(LowerErrors, LowerError, self),
         }
     }
 
@@ -1217,7 +1216,7 @@ impl ASTLowerer {
                             )?,
                             tasc.t_spec.loc(),
                         ),
-                        _ => return unreachable_error!(self),
+                        _ => return unreachable_error!(LowerErrors, LowerError, self),
                     };
                     (
                         self.ctx.instantiate_typespec(
@@ -1339,7 +1338,7 @@ impl ASTLowerer {
         ) {
             (dunder_new_vi.t.clone(), new_vi.kind == VarKind::Auto)
         } else {
-            return unreachable_error!(self);
+            return unreachable_error!(LowerErrors, LowerError, self);
         };
         let require_or_sup = self.get_require_or_sup_or_base(hir_def.body.block.remove(0));
         Ok(hir::ClassDef::new(
@@ -1591,12 +1590,12 @@ impl ASTLowerer {
                                 }
                             }
                             other => {
-                                return todo_error!(
-                                    self,
+                                return feature_error!(
+                                    LowerError,
+                                    self.ctx,
                                     Location::Unknown,
                                     &format!("Impl {other}")
-                                )
-                                .map_err(|mut e| e.remove(0));
+                                );
                             }
                         },
                         TypeObj::Builtin(_typ) => {

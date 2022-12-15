@@ -8,8 +8,9 @@ use std::mem;
 use std::ops::Neg;
 use std::rc::Rc;
 
+use erg_common::config::Input;
 use erg_common::dict::Dict;
-use erg_common::error::ErrorCore;
+use erg_common::error::{ErrorCore, ErrorKind, Location};
 use erg_common::fresh::fresh_varname;
 use erg_common::python_util::PythonVersion;
 use erg_common::serialize::*;
@@ -41,6 +42,18 @@ impl From<ErrorCore> for EvalValueError {
 impl From<EvalValueError> for ErrorCore {
     fn from(err: EvalValueError) -> Self {
         *err.0
+    }
+}
+
+impl EvalValueError {
+    pub fn feature_error(_input: Input, loc: Location, name: &str, caused_by: String) -> Self {
+        Self::from(ErrorCore::new(
+            vec![],
+            format!("{name} is not supported yet: {caused_by}"),
+            0,
+            ErrorKind::FeatureError,
+            loc,
+        ))
     }
 }
 

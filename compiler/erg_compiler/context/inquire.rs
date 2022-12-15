@@ -29,9 +29,9 @@ use crate::error::{
     binop_to_dname, readable_name, unaryop_to_dname, SingleTyCheckResult, TyCheckError,
     TyCheckErrors, TyCheckResult,
 };
-use crate::hir;
 use crate::varinfo::{Mutability, VarInfo, VarKind};
 use crate::AccessKind;
+use crate::{feature_error, hir};
 use RegistrationMode::*;
 use Visibility::*;
 
@@ -940,8 +940,8 @@ impl Context {
                 self.substitute_call(obj, attr_name, &fv.crack(), pos_args, kw_args)
             }
             Type::FreeVar(fv) => {
-                if let Some(_attr_name) = attr_name {
-                    todo!()
+                if let Some(attr_name) = attr_name {
+                    feature_error!(TyCheckErrors, TyCheckError, self, attr_name.loc(), "")
                 } else {
                     let is_procedural = obj
                         .show_acc()

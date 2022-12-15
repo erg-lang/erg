@@ -1,7 +1,6 @@
 use std::mem;
 
 use erg_common::dict::Dict;
-use erg_common::enum_unwrap;
 use erg_common::error::Location;
 #[allow(unused)]
 use erg_common::log;
@@ -10,6 +9,7 @@ use erg_common::shared::Shared;
 use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Field;
 use erg_common::{dict, fn_name, option_enum_unwrap, set};
+use erg_common::{enum_unwrap, fmt_vec};
 use erg_common::{RcArray, Str};
 use OpKind::*;
 
@@ -33,6 +33,17 @@ use crate::error::{EvalError, EvalErrors, EvalResult, SingleEvalResult};
 
 use super::instantiate::TyVarCache;
 use super::Variance;
+
+macro_rules! feature_error {
+    ($ctx: expr, $loc: expr, $name: expr) => {
+        $crate::feature_error!(EvalErrors, EvalError, $ctx, $loc, $name)
+    };
+}
+macro_rules! unreachable_error {
+    ($ctx: expr) => {
+        $crate::unreachable_error!(EvalErrors, EvalError, $ctx)
+    };
+}
 
 #[inline]
 pub fn type_from_token_kind(kind: TokenKind) -> Type {
@@ -139,7 +150,9 @@ impl Context {
                 let obj = self.eval_const_expr(&attr.obj)?;
                 Ok(self.eval_attr(obj, &attr.ident)?)
             }
-            _ => todo!(),
+            other => {
+                feature_error!(self, other.loc(), &format!("eval {other}")).map_err(Into::into)
+            }
         }
     }
 
@@ -260,7 +273,9 @@ impl Context {
 
     fn call(&self, subr: ConstSubr, args: ValueArgs, loc: Location) -> EvalResult<ValueObj> {
         match subr {
-            ConstSubr::User(_user) => todo!(),
+            ConstSubr::User(_user) => {
+                feature_error!(self, loc, "calling user-defined subroutines").map_err(Into::into)
+            }
             ConstSubr::Builtin(builtin) => builtin.call(args, self).map_err(|mut e| {
                 if e.0.loc.is_unknown() {
                     e.0.loc = loc;
@@ -387,7 +402,7 @@ impl Context {
     fn eval_const_record(&self, record: &Record) -> EvalResult<ValueObj> {
         match record {
             Record::Normal(rec) => self.eval_const_normal_record(rec),
-            Record::Mixed(_rec) => unreachable!(), // should be desugared
+            Record::Mixed(_rec) => unreachable_error!(self), // should be desugared
         }
     }
 
@@ -408,9 +423,13 @@ impl Context {
             let ident = match &attr.sig {
                 Signature::Var(var) => match &var.pat {
                     VarPattern::Ident(ident) => Field::new(ident.vis(), ident.inspect().clone()),
-                    _ => todo!(),
+                    other => {
+                        return feature_error!(self, other.loc(), &format!("record field: {other}"))
+                    }
                 },
-                _ => todo!(),
+                other => {
+                    return feature_error!(self, other.loc(), &format!("record field: {other}"))
+                }
             };
             attrs.push((ident, elem));
         }
@@ -720,7 +739,8 @@ impl Context {
             (lhs @ TyParam::FreeVar(_), rhs) => Ok(TyParam::bin(op, lhs, rhs)),
             (lhs, rhs @ TyParam::FreeVar(_)) => Ok(TyParam::bin(op, lhs, rhs)),
             (e @ TyParam::Erased(_), _) | (_, e @ TyParam::Erased(_)) => Ok(e),
-            (l, r) => todo!("{l:?} {op} {r:?}"),
+            (l, r) => feature_error!(self, Location::Unknown, &format!("{l:?} {op} {r:?}"))
+                .map_err(Into::into),
         }
     }
 
@@ -742,7 +762,7 @@ impl Context {
                 line!(),
             ))),
             Mutate => Ok(ValueObj::Mut(Shared::new(val))),
-            other => unreachable!("{other}"),
+            _other => unreachable_error!(self),
         }
     }
 
@@ -759,15 +779,19 @@ impl Context {
                     let tp = TyParam::FreeVar(fv);
                     Ok(tp)
                 } else {
-                    todo!("{op} {fv}")
+                    feature_error!(self, Location::Unknown, &format!("{op} {fv}"))
                 }
             }
-            other => todo!("{op} {other}"),
+            other => feature_error!(self, Location::Unknown, &format!("{op} {other}")),
         }
     }
 
-    fn eval_app(&self, _name: Str, _args: Vec<TyParam>) -> EvalResult<TyParam> {
-        todo!()
+    fn eval_app(&self, name: Str, args: Vec<TyParam>) -> EvalResult<TyParam> {
+        feature_error!(
+            self,
+            Location::Unknown,
+            &format!("{name}({})", fmt_vec(&args))
+        )
     }
 
     /// 量化変数などはそのまま返す
@@ -810,12 +834,7 @@ impl Context {
                 Ok(TyParam::Dict(new_dic))
             }
             TyParam::Type(_) | TyParam::Erased(_) | TyParam::Value(_) => Ok(p.clone()),
-            _other => Err(EvalErrors::from(EvalError::feature_error(
-                self.cfg.input.clone(),
-                Location::Unknown,
-                "???",
-                self.caused_by(),
-            ))),
+            _other => feature_error!(self, Location::Unknown, "???"),
         }
     }
 
@@ -897,12 +916,7 @@ impl Context {
                 Ok(not(l, r))
             }
             other if other.is_monomorphic() => Ok(other),
-            _other => Err(EvalErrors::from(EvalError::feature_error(
-                self.cfg.input.clone(),
-                t_loc,
-                "???",
-                self.caused_by(),
-            ))),
+            _other => feature_error!(self, t_loc, "???"),
         }
     }
 
@@ -1252,7 +1266,7 @@ impl Context {
                     let t = enum_unwrap!(t, ValueObj::Type); // TODO: error handling
                     return Ok(t.into_typ());
                 } else {
-                    todo!()
+                    return feature_error!(self, t_loc, "??");
                 }
             }
             for (_class, methods) in ty_ctx.methods_list.iter() {
@@ -1267,7 +1281,7 @@ impl Context {
                         let t = enum_unwrap!(t, ValueObj::Type); // TODO: error handling
                         return Ok(t.into_typ());
                     } else {
-                        todo!()
+                        return feature_error!(self, t_loc, "??");
                     }
                 }
             }
@@ -1332,7 +1346,7 @@ impl Context {
                 if let Some(t) = fv.get_type() {
                     Ok(t)
                 } else {
-                    todo!() // Type
+                    feature_error!(self, Location::Unknown, "??")
                 }
             }
             TyParam::Type(typ) => Ok(self.meta_type(&typ)),
@@ -1361,13 +1375,21 @@ impl Context {
             dict @ TyParam::Dict(_) => Ok(dict_t(dict)),
             TyParam::UnaryOp { op, val } => match op {
                 OpKind::Mutate => Ok(self.get_tp_t(&val)?.mutate()),
-                _ => todo!(),
+                _ => feature_error!(self, Location::Unknown, "??"),
             },
             TyParam::BinOp { op, lhs, rhs } => {
                 let op_name = op_to_name(op);
-                todo!("get type: {op_name}({lhs}, {rhs})")
+                feature_error!(
+                    self,
+                    Location::Unknown,
+                    &format!("get type: {op_name}({lhs}, {rhs})")
+                )
             }
-            other => todo!("{other}"),
+            other => feature_error!(
+                self,
+                Location::Unknown,
+                &format!("getting the type of {other}")
+            ),
         }
     }
 
@@ -1380,7 +1402,7 @@ impl Context {
                 if let Some(t) = fv.get_type() {
                     Ok(t)
                 } else {
-                    todo!()
+                    feature_error!(self, Location::Unknown, "??")
                 }
             }
             TyParam::Type(_) => Ok(Type::Type),
@@ -1395,7 +1417,11 @@ impl Context {
                         ))
                     })
             }
-            other => todo!("{other}"),
+            other => feature_error!(
+                self,
+                Location::Unknown,
+                &format!("getting the class of {other}")
+            ),
         }
     }
 

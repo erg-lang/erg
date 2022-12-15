@@ -18,7 +18,7 @@ use crate::ty::{HasType, Predicate, Type};
 // use crate::context::eval::SubstContext;
 use crate::context::{Context, Variance};
 use crate::error::{SingleTyCheckResult, TyCheckError, TyCheckErrors, TyCheckResult};
-use crate::hir;
+use crate::{feature_error, hir, type_feature_error};
 
 use Predicate as Pred;
 use Type::*;
@@ -674,7 +674,12 @@ impl Context {
                     self.resolve_expr_t(&mut arr.len)?;
                     Ok(())
                 }
-                _ => todo!(),
+                other => feature_error!(
+                    TyCheckError,
+                    self,
+                    other.loc(),
+                    "resolve types of array comprehension"
+                ),
             },
             hir::Expr::Tuple(tuple) => match tuple {
                 hir::Tuple::Normal(tup) => {
@@ -711,7 +716,12 @@ impl Context {
                     }
                     Ok(())
                 }
-                other => todo!("{other}"),
+                other => feature_error!(
+                    TyCheckError,
+                    self,
+                    other.loc(),
+                    "resolve types of dict comprehension"
+                ),
             },
             hir::Expr::Record(record) => {
                 for attr in record.attrs.iter_mut() {
@@ -1367,10 +1377,12 @@ impl Context {
                 }
                 Ok(())
             }
-            (Type::FreeVar(lfv), _) if lfv.is_linked() =>
-                self.sub_unify(&lfv.crack(), maybe_sup, loc, param_name),
-            (_, Type::FreeVar(rfv)) if rfv.is_linked() =>
-                self.sub_unify(maybe_sub, &rfv.crack(), loc, param_name),
+            (Type::FreeVar(lfv), _) if lfv.is_linked() => {
+                self.sub_unify(&lfv.crack(), maybe_sup, loc, param_name)
+            }
+            (_, Type::FreeVar(rfv)) if rfv.is_linked() => {
+                self.sub_unify(maybe_sub, &rfv.crack(), loc, param_name)
+            }
             (_, Type::FreeVar(rfv)) if rfv.is_unbound() => {
                 // NOTE: cannot `borrow_mut` because of cycle reference
                 let rfv_ref = unsafe { rfv.as_ptr().as_mut().unwrap() };
@@ -1477,15 +1489,24 @@ impl Context {
             }
             (Type::Subr(lsub), Type::Subr(rsub)) => {
                 for lpt in lsub.default_params.iter() {
-                    if let Some(rpt) = rsub.default_params.iter().find(|rpt| rpt.name() == lpt.name()) {
+                    if let Some(rpt) = rsub
+                        .default_params
+                        .iter()
+                        .find(|rpt| rpt.name() == lpt.name())
+                    {
                         // contravariant
                         self.sub_unify(rpt.typ(), lpt.typ(), loc, param_name)?;
-                    } else { todo!() }
+                    } else {
+                        todo!()
+                    }
                 }
-                lsub.non_default_params.iter().zip(rsub.non_default_params.iter()).try_for_each(|(l, r)| {
-                    // contravariant
-                    self.sub_unify(r.typ(), l.typ(), loc, param_name)
-                })?;
+                lsub.non_default_params
+                    .iter()
+                    .zip(rsub.non_default_params.iter())
+                    .try_for_each(|(l, r)| {
+                        // contravariant
+                        self.sub_unify(r.typ(), l.typ(), loc, param_name)
+                    })?;
                 // covariant
                 self.sub_unify(&lsub.return_t, &rsub.return_t, loc, param_name)?;
                 Ok(())
@@ -1493,17 +1514,32 @@ impl Context {
             (Type::Quantified(lsub), Type::Subr(rsub)) => {
                 let Type::Subr(lsub) = lsub.as_ref() else { unreachable!() };
                 for lpt in lsub.default_params.iter() {
-                    if let Some(rpt) = rsub.default_params.iter().find(|rpt| rpt.name() == lpt.name()) {
-                        if lpt.typ().is_generalized() { continue; }
+                    if let Some(rpt) = rsub
+                        .default_params
+                        .iter()
+                        .find(|rpt| rpt.name() == lpt.name())
+                    {
+                        if lpt.typ().is_generalized() {
+                            continue;
+                        }
                         // contravariant
                         self.sub_unify(rpt.typ(), lpt.typ(), loc, param_name)?;
-                    } else { todo!() }
+                    } else {
+                        todo!()
+                    }
                 }
-                lsub.non_default_params.iter().zip(rsub.non_default_params.iter()).try_for_each(|(l, r)| {
-                    if l.typ().is_generalized() { Ok(()) }
-                    // contravariant
-                    else { self.sub_unify(r.typ(), l.typ(), loc, param_name) }
-                })?;
+                lsub.non_default_params
+                    .iter()
+                    .zip(rsub.non_default_params.iter())
+                    .try_for_each(|(l, r)| {
+                        if l.typ().is_generalized() {
+                            Ok(())
+                        }
+                        // contravariant
+                        else {
+                            self.sub_unify(r.typ(), l.typ(), loc, param_name)
+                        }
+                    })?;
                 // covariant
                 if !lsub.return_t.is_generalized() {
                     self.sub_unify(&lsub.return_t, &rsub.return_t, loc, param_name)?;
@@ -1513,17 +1549,31 @@ impl Context {
             (Type::Subr(lsub), Type::Quantified(rsub)) => {
                 let Type::Subr(rsub) = rsub.as_ref() else { unreachable!() };
                 for lpt in lsub.default_params.iter() {
-                    if let Some(rpt) = rsub.default_params.iter().find(|rpt| rpt.name() == lpt.name()) {
+                    if let Some(rpt) = rsub
+                        .default_params
+                        .iter()
+                        .find(|rpt| rpt.name() == lpt.name())
+                    {
                         // contravariant
-                        if rpt.typ().is_generalized() { continue; }
+                        if rpt.typ().is_generalized() {
+                            continue;
+                        }
                         self.sub_unify(rpt.typ(), lpt.typ(), loc, param_name)?;
-                    } else { todo!() }
+                    } else {
+                        todo!()
+                    }
                 }
-                lsub.non_default_params.iter().zip(rsub.non_default_params.iter()).try_for_each(|(l, r)| {
-                    // contravariant
-                    if r.typ().is_generalized() { Ok(()) }
-                    else { self.sub_unify(r.typ(), l.typ(), loc, param_name) }
-                })?;
+                lsub.non_default_params
+                    .iter()
+                    .zip(rsub.non_default_params.iter())
+                    .try_for_each(|(l, r)| {
+                        // contravariant
+                        if r.typ().is_generalized() {
+                            Ok(())
+                        } else {
+                            self.sub_unify(r.typ(), l.typ(), loc, param_name)
+                        }
+                    })?;
                 // covariant
                 if !rsub.return_t.is_generalized() {
                     self.sub_unify(&lsub.return_t, &rsub.return_t, loc, param_name)?;
@@ -1547,9 +1597,14 @@ impl Context {
                         self.substitute_typarams(sub_def_t, maybe_sub);
                         for sup_trait in sub_ctx.super_traits.iter() {
                             if self.supertype_of(maybe_sup, sup_trait) {
-                                for (l_maybe_sub, r_maybe_sup) in sup_trait.typarams().iter().zip(rps.iter()) {
+                                for (l_maybe_sub, r_maybe_sup) in
+                                    sup_trait.typarams().iter().zip(rps.iter())
+                                {
                                     self.sub_unify_tp(l_maybe_sub, r_maybe_sup, None, loc, false)
-                                        .map_err(|e| { self.undo_substitute_typarams(sub_def_t); e })?;
+                                        .map_err(|e| {
+                                            self.undo_substitute_typarams(sub_def_t);
+                                            e
+                                        })?;
                                 }
                                 self.undo_substitute_typarams(sub_def_t);
                                 return Ok(());
@@ -1582,21 +1637,15 @@ impl Context {
                 self.sub_unify(maybe_sub, r, loc, param_name)
             }
             // (X and Y) <: Z is valid when X <: Z or Y <: Z
-            (Type::And(l, r), _) => {
-                self.sub_unify(l, maybe_sup, loc, param_name)
-                    .or_else(|_e| self.sub_unify(r, maybe_sup, loc, param_name))
-            }
+            (Type::And(l, r), _) => self
+                .sub_unify(l, maybe_sup, loc, param_name)
+                .or_else(|_e| self.sub_unify(r, maybe_sup, loc, param_name)),
             // X <: (Y or Z) is valid when X <: Y or X <: Z
-            (_, Type::Or(l, r)) => {
-                self.sub_unify(maybe_sub, l, loc, param_name)
-                    .or_else(|_e| self.sub_unify(maybe_sub, r, loc, param_name))
-            }
-            (_, Type::Ref(t)) => {
-                self.sub_unify(maybe_sub, t, loc, param_name)
-            }
-            (_, Type::RefMut{ before, .. }) => {
-                self.sub_unify(maybe_sub, before, loc, param_name)
-            }
+            (_, Type::Or(l, r)) => self
+                .sub_unify(maybe_sub, l, loc, param_name)
+                .or_else(|_e| self.sub_unify(maybe_sub, r, loc, param_name)),
+            (_, Type::Ref(t)) => self.sub_unify(maybe_sub, t, loc, param_name),
+            (_, Type::RefMut { before, .. }) => self.sub_unify(maybe_sub, before, loc, param_name),
             (Type::Proj { .. }, _) => todo!(),
             (_, Type::Proj { .. }) => todo!(),
             // TODO: Judgment for any number of preds
@@ -1616,16 +1665,22 @@ impl Context {
                     return Ok(());
                 }
                 todo!("{sub}, {sup}")
-            },
+            }
             // {I: Int | I >= 1} <: Nat == {I: Int | I >= 0}
             (Type::Refinement(_), sup) => {
                 let sup = sup.clone().into_refinement();
                 self.sub_unify(maybe_sub, &Type::Refinement(sup), loc, param_name)
-            },
+            }
             (Type::Subr(_) | Type::Record(_), Type) => Ok(()),
             // REVIEW: correct?
-            (Type::Poly{ name, .. }, Type) if &name[..] == "Array" || &name[..] == "Tuple" => Ok(()),
-            _ => todo!("{maybe_sub} can be a subtype of {maybe_sup}, but failed to semi-unify (or existential types are not supported)"),
+            (Type::Poly { name, .. }, Type) if &name[..] == "Array" || &name[..] == "Tuple" => {
+                Ok(())
+            }
+            _ => type_feature_error!(
+                self,
+                loc,
+                &format!("{maybe_sub} can be a subtype of {maybe_sup}, but failed to semi-unify")
+            ),
         }
     }
 }
