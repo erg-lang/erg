@@ -272,7 +272,7 @@ impl Context {
         // Never or T => T
         let mut union_pat_t = Type::Never;
         for (i, pos_arg) in pos_args.iter().skip(1).enumerate() {
-            let lambda = erg_common::enum_unwrap!(&pos_arg.expr, hir::Expr::Lambda);
+            let lambda = erg_common::enum_unwrap!(&pos_arg.expr, hir::Expr::Lambda); // already checked
             if !lambda.params.defaults.is_empty() {
                 return Err(TyCheckErrors::from(TyCheckError::default_param_error(
                     self.cfg.input.clone(),
@@ -369,7 +369,7 @@ impl Context {
                 ident.loc(),
                 namespace.into(),
                 ident.inspect(),
-                name.ln_begin().unwrap(),
+                name.ln_begin().unwrap_or(0),
                 self.get_similar_name(ident.inspect()),
             ));
         } else if let Some((name, _vi)) = self.deleted_locals.get_key_value(&ident.inspect()[..]) {
@@ -379,7 +379,7 @@ impl Context {
                 ident.loc(),
                 namespace.into(),
                 ident.inspect(),
-                name.ln_begin().unwrap(),
+                name.ln_begin().unwrap_or(0),
                 self.get_similar_name(ident.inspect()),
             ));
         }
@@ -575,7 +575,7 @@ impl Context {
             Type::FreeVar(fv) if fv.is_linked() => {
                 self.get_attr_info_from_attributive(&fv.crack(), ident, namespace)
             }
-            Type::FreeVar(fv) => {
+            Type::FreeVar(fv) /* if fv.is_unbound() */ => {
                 let sup = fv.get_super().unwrap();
                 self.get_attr_info_from_attributive(&sup, ident, namespace)
             }
@@ -1362,7 +1362,7 @@ impl Context {
             .non_default_params
             .iter()
             .chain(subr_ty.default_params.iter())
-            .find(|pt| pt.name().unwrap() == kw_name)
+            .find(|pt| pt.name().as_ref() == Some(&kw_name))
         {
             passed_params.insert(kw_name.clone());
             self.sub_unify(arg_t, pt.typ(), arg.loc(), Some(kw_name))
@@ -1546,7 +1546,7 @@ impl Context {
             (&t.qual_name()[..] == "Input" || &t.qual_name()[..] == "Output")
                 && t.typarams()
                     .first()
-                    .map(|inner| &inner.qual_name().unwrap() == name.inspect())
+                    .map(|inner| inner.qual_name().as_ref() == Some(name.inspect()))
                     .unwrap_or(false)
         };
         self.params
