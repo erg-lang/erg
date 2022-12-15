@@ -1,0 +1,5 @@
+.HTTPServer: ClassType
+.ThreadingServer: ClassType
+.BaseHTTPReqeustHandler: ClassType
+.SimpleHTTPRequestHandler: ClassType
+.CGIHTTPRequestHandler: ClassType

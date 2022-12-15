@@ -1,0 +1,4 @@
+.heappush!: |T: Type|(heap: Iterable(T), item: T) => NoneType # TODO: Push!
+.heappop!: |T: Type|(heap: Iterable(T)) => T # TODO: Pop!
+.heappushpop!: |T: Type|(heap: Iterable(T), item: T) => T # TODO: Push! and Pop!
+.heapify!: (heap: Array(Obj, _)) => NoneType
