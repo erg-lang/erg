@@ -428,8 +428,11 @@ impl Context {
                 let mut args = simple.args.pos_args();
                 if let Some(first) = args.next() {
                     let t = self.instantiate_const_expr_as_type(&first.expr, None, tmp_tv_cache)?;
-                    let len = args.next().unwrap();
-                    let len = self.instantiate_const_expr(&len.expr, None, tmp_tv_cache)?;
+                    let len = if let Some(len) = args.next() {
+                        self.instantiate_const_expr(&len.expr, None, tmp_tv_cache)?
+                    } else {
+                        TyParam::erased(Nat)
+                    };
                     Ok(array_t(t, len))
                 } else {
                     Ok(mono("GenericArray"))
@@ -437,14 +440,32 @@ impl Context {
             }
             "Ref" => {
                 let mut args = simple.args.pos_args();
-                let first = args.next().unwrap();
+                let Some(first) = args.next() else {
+                    return Err(TyCheckErrors::from(TyCheckError::args_missing_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        simple.args.loc(),
+                        "Ref",
+                        self.caused_by(),
+                        vec![Str::from("T")],
+                    )));
+                };
                 let t = self.instantiate_const_expr_as_type(&first.expr, None, tmp_tv_cache)?;
                 Ok(ref_(t))
             }
             "RefMut" => {
                 // TODO after
                 let mut args = simple.args.pos_args();
-                let first = args.next().unwrap();
+                let Some(first) = args.next() else {
+                    return Err(TyCheckErrors::from(TyCheckError::args_missing_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        simple.args.loc(),
+                        "RefMut",
+                        self.caused_by(),
+                        vec![Str::from("T")],
+                    )));
+                };
                 let t = self.instantiate_const_expr_as_type(&first.expr, None, tmp_tv_cache)?;
                 Ok(ref_mut(t, None))
             }
