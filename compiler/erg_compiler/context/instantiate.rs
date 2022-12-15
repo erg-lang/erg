@@ -886,7 +886,7 @@ impl Context {
             self.instantiate_ty_bound(bound, &mut tv_cache, mode)?;
         }
         for tv in tv_cache.tyvar_instances.values() {
-            if tv.constraint().unwrap().is_uninited() {
+            if tv.constraint().map(|c| c.is_uninited()).unwrap_or(false) {
                 return Err(TyCheckErrors::from(TyCheckError::no_var_error(
                     self.cfg.input.clone(),
                     line!() as usize,
@@ -898,7 +898,7 @@ impl Context {
             }
         }
         for tp in tv_cache.typaram_instances.values() {
-            if tp.constraint().unwrap().is_uninited() {
+            if tp.constraint().map(|c| c.is_uninited()).unwrap_or(false) {
                 return Err(TyCheckErrors::from(TyCheckError::no_var_error(
                     self.cfg.input.clone(),
                     line!() as usize,
