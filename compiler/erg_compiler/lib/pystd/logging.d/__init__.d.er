@@ -1,0 +1,40 @@
+.Logger: ClassType
+
+.Handler: ClassType
+
+.Formatter: ClassType
+
+.Filter: ClassType
+
+.LogRecord: ClassType
+.LogRecord.name: Str
+.LogRecord.level: Nat
+.LogRecord.pathname: Str
+.LogRecord.lineno: Nat
+.LogRecord.msg: Str
+.LogRecord.args: Tuple
+.LogRecord.exc_info: Tuple
+.LogRecord.func: Str or NoneType
+.LogRecord.sinfo: Str or NoneType
+.LogRecord.getMessage: (self: .LogRecord) -> Str
+
+.LoggerAdaptor: ClassType
+
+.getLogger: (name: Str or NoneType := NoneType) -> .Logger
+.getLoggerClass: () -> ClassType
+.getLogRecordFactory: () -> ClassType
+.debug!: (msg: Str, args := Tuple, kwargs := Dict) => NoneType
+.info!: (msg: Str, args := Tuple, kwargs := Dict) => NoneType
+.warning!: (msg: Str, args := Tuple, kwargs := Dict) => NoneType
+.error!: (msg: Str, args := Tuple, kwargs := Dict) => NoneType
+.critical!: (msg: Str, args := Tuple, kwargs := Dict) => NoneType
+.exception!: (msg: Str, args := Tuple, kwargs := Dict) => NoneType
+.log!: (level: Nat, msg: Str, args := Tuple, kwargs := Dict) => NoneType
+.disable!: (level := Nat) => NoneType
+.addLevelName!: (level: Nat, levelName: Str) => NoneType
+.getLevelNamesMapping!: () => Dict
+.getLevelName!: (level: Nat) -> Str
+.makeLogRecord!: (args: Tuple) -> .LogRecord
+# TODO: stream
+.basicConfig!: (level := Nat, format := Str, datefmt := Str, filename := Str, filemode := Str, stream := Obj) => NoneType
+.shutdown!: () => NoneType
