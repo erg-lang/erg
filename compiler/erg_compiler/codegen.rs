@@ -2140,6 +2140,7 @@ impl PyCodeGenerator {
         }
         let kwsc = if !kws.is_empty() {
             self.emit_call_kw_instr(argc, kws);
+            #[allow(clippy::bool_to_int_with_if)]
             if self.py_version.minor >= Some(11) {
                 0
             } else {
@@ -2696,7 +2697,7 @@ impl PyCodeGenerator {
             self.py_version,
             params,
             Str::rc(self.cfg.input.enclosed_name()),
-            &name,
+            name,
             firstlineno,
         ));
         let idx_copy_free_vars = if self.py_version.minor >= Some(11) {

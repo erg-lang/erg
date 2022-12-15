@@ -20,7 +20,7 @@ pub fn levenshtein(lhs: &str, rhs: &str) -> usize {
     for i1 in 0..l_len {
         #[allow(clippy::needless_range_loop)]
         for i2 in 0..r_len {
-            let cost = if lhs[i1] == rhs[i2] { 0 } else { 1 };
+            let cost = usize::from(lhs[i1] != rhs[i2]);
             table[i1 + 1][i2 + 1] = *[
                 table[i1][i2 + 1] + 1, // delete cost
                 table[i1 + 1][i2] + 1, // insert cost

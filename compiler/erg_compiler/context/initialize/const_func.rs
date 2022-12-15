@@ -31,7 +31,7 @@ pub fn class_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueOb
         )
     })?;
     let Some(require) = require.as_type() else {
-        let require = StyledString::new(&format!("{}", require), Some(ERR), None);
+        let require = StyledString::new(format!("{}", require), Some(ERR), None);
         return Err(ErrorCore::new(
             vec![SubMessage::only_loc(Location::Unknown)],
             format!(
@@ -61,7 +61,7 @@ pub fn inherit_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<Value
         )
     })?;
     let Some(sup) = sup.as_type() else {
-        let sup_ty = StyledString::new(&format!("{}", sup), Some(ERR), None);
+        let sup_ty = StyledString::new(format!("{sup}"), Some(ERR), None);
         return Err(ErrorCore::new(
             vec![SubMessage::only_loc(Location::Unknown)],
             format!(
@@ -132,7 +132,7 @@ pub fn trait_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueOb
         )
     })?;
     let Some(require) = require.as_type() else {
-        let require = StyledString::new(&format!("{require}"), Some(ERR), None);
+        let require = StyledString::new(format!("{require}"), Some(ERR), None);
         return Err(ErrorCore::new(
             vec![SubMessage::only_loc(Location::Unknown)],
             format!(
@@ -161,7 +161,7 @@ pub fn patch_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueOb
         )
     })?;
     let Some(base) = base.as_type() else {
-        let base = StyledString::new(&format!("{base}"), Some(ERR), None);
+        let base = StyledString::new(format!("{base}"), Some(ERR), None);
         return Err(ErrorCore::new(
             vec![SubMessage::only_loc(Location::Unknown)],
             format!(
@@ -190,7 +190,7 @@ pub fn subsume_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<Value
         )
     })?;
     let Some(sup) = sup.as_type() else {
-        let sup = StyledString::new(&format!("{}", sup), Some(ERR), None);
+        let sup = StyledString::new(format!("{sup}"), Some(ERR), None);
         return Err(ErrorCore::new(
             vec![SubMessage::only_loc(Location::Unknown)],
             format!(

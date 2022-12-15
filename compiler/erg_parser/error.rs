@@ -133,7 +133,7 @@ impl LexError {
         similar_name: Option<String>,
     ) -> Self {
         let hint = similar_name.map(|n| {
-            let n = StyledString::new(&n, Some(HINT), Some(Attribute::Bold));
+            let n = StyledString::new(n, Some(HINT), Some(Attribute::Bold));
             switch_lang!(
                 "japanese" => format!("似た名前の変数があります: {n}"),
                 "simplified_chinese" => format!("存在相同名称变量: {n}"),

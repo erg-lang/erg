@@ -798,7 +798,7 @@ passed keyword args:    {kw_args_len}"
         missing_params: Vec<Str>,
     ) -> Self {
         let name = StyledStr::new(readable_name(callee_name), Some(WARN), Some(ATTR));
-        let vec_cxt = StyledString::new(&fmt_vec(&missing_params), Some(WARN), Some(ATTR));
+        let vec_cxt = StyledString::new(fmt_vec(&missing_params), Some(WARN), Some(ATTR));
         let missing_len = missing_params.len();
         Self::new(
             ErrorCore::new(
@@ -1865,7 +1865,7 @@ impl LowerError {
         caused_by: String,
         typ: &Type,
     ) -> Self {
-        let typ = StyledString::new(&typ.to_string(), Some(ERR), Some(ATTR));
+        let typ = StyledString::new(typ.to_string(), Some(ERR), Some(ATTR));
         let hint = Some(switch_lang!(
             "japanese" => format!("恐らくこれはErgコンパイラのバグです、{URL}へ報告してください"),
             "simplified_chinese" => format!("这可能是Erg编译器的错误，请报告给{URL}"),

@@ -620,11 +620,11 @@ impl ErrorCore {
 
     pub fn dummy(errno: usize) -> Self {
         Self::new(
-            vec![SubMessage::only_loc(Location::Line(errno as usize))],
+            vec![SubMessage::only_loc(Location::Line(errno))],
             "<dummy>",
             errno,
             DummyError,
-            Location::Line(errno as usize),
+            Location::Line(errno),
         )
     }
 
@@ -647,7 +647,7 @@ impl ErrorCore {
         );
         Self::new(
             vec![SubMessage::only_loc(loc)],
-            &m_msg,
+            m_msg,
             errno,
             CompilerSystemError,
             loc,

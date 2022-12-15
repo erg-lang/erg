@@ -2267,7 +2267,7 @@ impl VarName {
     }
 
     pub fn from_str_and_line(symbol: Str, line: usize) -> Self {
-        Self(Token::new(TokenKind::Symbol, &symbol, line, 0))
+        Self(Token::new(TokenKind::Symbol, symbol, line, 0))
     }
 
     #[inline]

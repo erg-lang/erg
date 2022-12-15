@@ -151,7 +151,7 @@ impl Runnable for Transpiler {
                 eart.errors
             })?;
         artifact.warns.fmt_all_stderr();
-        let mut f = File::create(&path).unwrap();
+        let mut f = File::create(path).unwrap();
         f.write_all(artifact.object.code.as_bytes()).unwrap();
         Ok(0)
     }
