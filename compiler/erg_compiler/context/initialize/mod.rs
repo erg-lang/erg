@@ -2035,8 +2035,12 @@ impl Context {
                 kw("then", nd_proc(vec![], None, T.clone())),
             ],
             None,
-            vec![kw("else", nd_proc(vec![], None, T.clone()))],
-            or(T.clone(), NoneType),
+            vec![kw_default(
+                "else",
+                nd_proc(vec![], None, U.clone()),
+                nd_proc(vec![], None, NoneType),
+            )],
+            or(T.clone(), U.clone()),
         )
         .quantify();
         let t_for = nd_proc(
