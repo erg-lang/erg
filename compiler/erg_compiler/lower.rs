@@ -1855,7 +1855,7 @@ impl ASTLowerer {
     }
 
     fn return_incomplete_artifact(&mut self, hir: HIR) -> IncompleteArtifact {
-        self.ctx.clear_all_vars();
+        self.ctx.clear_invalid_vars();
         IncompleteArtifact::new(
             Some(hir),
             LowerErrors::from(self.errs.take_all()),

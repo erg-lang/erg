@@ -123,11 +123,11 @@ impl HIRBuilder {
         let hir = effect_checker
             .check(artifact.object)
             .map_err(|(hir, errs)| {
-                self.lowerer.ctx.clear_all_vars();
+                self.lowerer.ctx.clear_invalid_vars();
                 IncompleteArtifact::new(Some(hir), errs, artifact.warns.clone())
             })?;
         let hir = self.ownership_checker.check(hir).map_err(|(hir, errs)| {
-            self.lowerer.ctx.clear_all_vars();
+            self.lowerer.ctx.clear_invalid_vars();
             IncompleteArtifact::new(Some(hir), errs, artifact.warns.clone())
         })?;
         Ok(CompleteArtifact::new(hir, artifact.warns))

@@ -1012,12 +1012,6 @@ impl Context {
         self.params.retain(|(_, v)| v.t != Failure);
     }
 
-    pub(crate) fn clear_all_vars(&mut self) {
-        self.locals.clear();
-        self.decls.clear();
-        self.params.retain(|(_, v)| v.t != Failure);
-    }
-
     pub fn pop(&mut self) -> Context {
         if let Some(parent) = self.outer.as_mut() {
             let parent = mem::take(parent);
