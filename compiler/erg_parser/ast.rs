@@ -152,6 +152,7 @@ impl KwArg {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Args {
     pos_args: Vec<PosArg>,
+    // var_args: Option<Box<PosArg>>,
     kw_args: Vec<KwArg>,
     pub paren: Option<(Token, Token)>,
 }
@@ -169,7 +170,10 @@ impl_display_from_nested!(Args);
 impl Locational for Args {
     fn loc(&self) -> Location {
         if let Some((l, r)) = &self.paren {
-            return Location::concat(l, r);
+            let loc = Location::concat(l, r);
+            if !loc.is_unknown() {
+                return loc;
+            }
         }
         match (self.pos_args.first(), self.kw_args.last()) {
             (Some(l), Some(r)) => Location::concat(l, r),
@@ -376,7 +380,7 @@ impl NestedDisplay for TypeAppArgs {
 }
 
 impl_display_from_nested!(TypeAppArgs);
-impl_locational!(TypeAppArgs, l_vbar, r_vbar);
+impl_locational!(TypeAppArgs, l_vbar, args, r_vbar);
 
 impl TypeAppArgs {
     pub const fn new(l_vbar: Token, args: Args, r_vbar: Token) -> Self {
@@ -489,7 +493,7 @@ impl NestedDisplay for NormalArray {
 }
 
 impl_display_from_nested!(NormalArray);
-impl_locational!(NormalArray, l_sqbr, r_sqbr);
+impl_locational!(NormalArray, l_sqbr, elems, r_sqbr);
 
 impl NormalArray {
     pub const fn new(l_sqbr: Token, r_sqbr: Token, elems: Args) -> Self {
@@ -516,7 +520,7 @@ impl NestedDisplay for ArrayWithLength {
 }
 
 impl_display_from_nested!(ArrayWithLength);
-impl_locational!(ArrayWithLength, l_sqbr, r_sqbr);
+impl_locational!(ArrayWithLength, l_sqbr, elem, r_sqbr);
 
 impl ArrayWithLength {
     pub fn new(l_sqbr: Token, r_sqbr: Token, elem: PosArg, len: Expr) -> Self {
@@ -555,7 +559,7 @@ impl NestedDisplay for ArrayComprehension {
 }
 
 impl_display_from_nested!(ArrayComprehension);
-impl_locational!(ArrayComprehension, l_sqbr, r_sqbr);
+impl_locational!(ArrayComprehension, l_sqbr, elem, r_sqbr);
 
 impl ArrayComprehension {
     pub fn new(
@@ -689,7 +693,7 @@ impl NestedDisplay for DictComprehension {
 }
 
 impl_display_from_nested!(DictComprehension);
-impl_locational!(DictComprehension, l_brace, r_brace);
+impl_locational!(DictComprehension, l_brace, attrs, r_brace);
 
 impl DictComprehension {
     pub const fn new(l_brace: Token, r_brace: Token, attrs: Args, guards: Vec<Expr>) -> Self {
@@ -826,7 +830,7 @@ impl NestedDisplay for NormalRecord {
 }
 
 impl_display_from_nested!(NormalRecord);
-impl_locational!(NormalRecord, l_brace, r_brace);
+impl_locational!(NormalRecord, l_brace, attrs, r_brace);
 
 impl NormalRecord {
     pub const fn new(l_brace: Token, r_brace: Token, attrs: RecordAttrs) -> Self {
@@ -923,7 +927,7 @@ impl NestedDisplay for NormalSet {
 }
 
 impl_display_from_nested!(NormalSet);
-impl_locational!(NormalSet, l_brace, r_brace);
+impl_locational!(NormalSet, l_brace, elems, r_brace);
 
 impl NormalSet {
     pub const fn new(l_brace: Token, r_brace: Token, elems: Args) -> Self {
@@ -950,7 +954,7 @@ impl NestedDisplay for SetWithLength {
 }
 
 impl_display_from_nested!(SetWithLength);
-impl_locational!(SetWithLength, l_brace, r_brace);
+impl_locational!(SetWithLength, l_brace, elem, r_brace);
 
 impl SetWithLength {
     pub fn new(l_brace: Token, r_brace: Token, elem: PosArg, len: Expr) -> Self {
@@ -2126,7 +2130,7 @@ impl NestedDisplay for TypeSpecWithOp {
 }
 
 impl_display_from_nested!(TypeSpecWithOp);
-impl_locational!(TypeSpecWithOp, op, t_spec);
+impl_locational!(TypeSpecWithOp, lossy op, t_spec);
 
 impl TypeSpecWithOp {
     pub const fn new(op: Token, t_spec: TypeSpec) -> Self {
@@ -2332,7 +2336,11 @@ impl_display_from_nested!(Identifier);
 impl Locational for Identifier {
     fn loc(&self) -> Location {
         if let Some(dot) = &self.dot {
-            Location::concat(dot, &self.name)
+            if dot.loc().is_unknown() {
+                self.name.loc()
+            } else {
+                Location::concat(dot, &self.name)
+            }
         } else {
             self.name.loc()
         }
@@ -2996,19 +3004,22 @@ impl fmt::Display for Params {
 impl Locational for Params {
     fn loc(&self) -> Location {
         if let Some((l, r)) = &self.parens {
-            Location::concat(l, r)
-        } else if !self.non_defaults.is_empty() {
-            Location::concat(&self.non_defaults[0], self.non_defaults.last().unwrap())
-        } else if let Some(var_args) = &self.var_args {
-            if !self.defaults.is_empty() {
-                Location::concat(var_args.as_ref(), self.defaults.last().unwrap())
-            } else {
-                var_args.loc()
+            let loc = Location::concat(l, r);
+            if !loc.is_unknown() {
+                return loc;
             }
-        } else if !self.defaults.is_empty() {
-            Location::concat(&self.defaults[0], self.defaults.last().unwrap())
-        } else {
-            Location::Unknown
+        }
+        match (
+            self.non_defaults.first(),
+            self.var_args.as_ref(),
+            self.defaults.last(),
+        ) {
+            (Some(l), _, Some(r)) => Location::concat(l, r),
+            (Some(l), Some(r), None) => Location::concat(l, r.as_ref()),
+            (Some(l), None, None) => Location::concat(l, self.non_defaults.last().unwrap()),
+            (None, Some(l), Some(r)) => Location::concat(l.as_ref(), r),
+            (None, None, Some(r)) => Location::concat(self.defaults.first().unwrap(), r),
+            _ => Location::Unknown,
         }
     }
 }
@@ -3373,7 +3384,7 @@ pub struct DefBody {
     pub id: DefId,
 }
 
-impl_locational!(DefBody, op, block);
+impl_locational!(DefBody, lossy op, block);
 
 impl DefBody {
     pub const fn new(op: Token, block: Block, id: DefId) -> Self {
