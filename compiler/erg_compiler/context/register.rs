@@ -485,11 +485,7 @@ impl Context {
             Type::Failure
         } else {
             // NOTE: not `body_t.clone()` because the body may contain `return`
-            match t.return_t() {
-                Some(Type::FreeVar(fv)) if fv.is_unbound() => fv.get_sub().unwrap(),
-                Some(t) => t.clone(),
-                _ => todo!(),
-            }
+            t.return_t().unwrap().clone()
         };
         let sub_t = if sig.ident.is_procedural() {
             proc(
