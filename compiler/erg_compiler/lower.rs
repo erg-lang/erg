@@ -1170,6 +1170,18 @@ impl ASTLowerer {
                             body.id,
                             found_body_t,
                         )?;
+                        let return_t = t.return_t().unwrap();
+                        if return_t.union_types().is_some() && sig.return_t_spec.is_none() {
+                            let warn = LowerWarning::union_return_type_warning(
+                                self.input().clone(),
+                                line!() as usize,
+                                sig.loc(),
+                                self.ctx.caused_by(),
+                                sig.ident.inspect(),
+                                &Context::readable_type(return_t),
+                            );
+                            self.warns.push(warn);
+                        }
                         let mut ident = hir::Identifier::bare(sig.ident.dot, sig.ident.name);
                         ident.vi.t = t;
                         let sig = hir::SubrSignature::new(ident, params);

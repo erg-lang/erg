@@ -2017,6 +2017,38 @@ impl LowerError {
         )
     }
 
+    pub fn union_return_type_warning(
+        input: Input,
+        errno: usize,
+        loc: Location,
+        caused_by: String,
+        fn_name: &str,
+        typ: &Type,
+    ) -> Self {
+        let hint = switch_lang!(
+            "japanese" => format!("`{fn_name}(...): {typ} = ...`など明示的に戻り値型を指定してください"),
+            "simplified_chinese" => format!("请明确指定函数{fn_name}的返回类型，例如`{fn_name}(...): {typ} = ...`"),
+            "traditional_chinese" => format!("請明確指定函數{fn_name}的返回類型，例如`{fn_name}(...): {typ} = ...`"),
+            "english" => format!("please explicitly specify the return type of function {fn_name}, for example `{fn_name}(...): {typ} = ...`"),
+        );
+        LowerError::new(
+            ErrorCore::new(
+                vec![SubMessage::ambiguous_new(loc, vec![], Some(hint))],
+                switch_lang!(
+                    "japanese" => format!("関数{fn_name}の戻り値型が単一ではありません"),
+                    "simplified_chinese" => format!("函数{fn_name}的返回类型不是单一的"),
+                    "traditional_chinese" => format!("函數{fn_name}的返回類型不是單一的"),
+                    "english" => format!("the return type of function {fn_name} is not single"),
+                ),
+                errno,
+                TypeWarning,
+                loc,
+            ),
+            input,
+            caused_by,
+        )
+    }
+
     pub fn del_error(input: Input, errno: usize, ident: &Identifier, caused_by: String) -> Self {
         let name = StyledString::new(readable_name(ident.inspect()), Some(WARN), Some(ATTR));
         Self::new(
