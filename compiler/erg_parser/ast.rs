@@ -29,6 +29,8 @@ pub enum OperationKind {
     Inherit,
     Trait,
     Subsume,
+    Return,
+    Yield,
 }
 
 impl OperationKind {

@@ -2074,13 +2074,24 @@ impl PyCodeGenerator {
 
     fn emit_call_method(&mut self, obj: Expr, method_name: Identifier, args: Args) {
         log!(info "entered {}", fn_name!());
-        if &method_name.inspect()[..] == "update!" {
-            if self.py_version.minor >= Some(11) {
-                return self.emit_call_update_311(obj, args);
-            } else {
-                return self.emit_call_update_310(obj, args);
+        match &method_name.inspect()[..] {
+            "update!" => {
+                if self.py_version.minor >= Some(11) {
+                    return self.emit_call_update_311(obj, args);
+                } else {
+                    return self.emit_call_update_310(obj, args);
+                }
             }
-        } else if let Some(func_name) = debind(&method_name) {
+            "return" if obj.ref_t().is_callable() => {
+                return self.emit_return_instr(args);
+            }
+            // TODO: create `Generator` type
+            "yield" /* if obj.ref_t().is_callable() */ => {
+                return self.emit_yield_instr(args);
+            }
+            _ => {}
+        }
+        if let Some(func_name) = debind(&method_name) {
             return self.emit_call_fake_method(obj, func_name, method_name, args);
         }
         let is_py_api = method_name.is_py_api();
@@ -2196,6 +2207,29 @@ impl PyCodeGenerator {
         self.stack_dec_n((1 + 1) - 1);
         self.store_acc(acc);
         self.emit_load_const(ValueObj::None);
+    }
+
+    // TODO: use exception
+    fn emit_return_instr(&mut self, mut args: Args) {
+        log!(info "entered {}", fn_name!());
+        if args.is_empty() {
+            self.emit_load_const(ValueObj::None);
+        } else {
+            self.emit_expr(args.remove(0));
+        }
+        self.write_instr(RETURN_VALUE);
+        self.write_arg(0);
+    }
+
+    fn emit_yield_instr(&mut self, mut args: Args) {
+        log!(info "entered {}", fn_name!());
+        if args.is_empty() {
+            self.emit_load_const(ValueObj::None);
+        } else {
+            self.emit_expr(args.remove(0));
+        }
+        self.write_instr(YIELD_VALUE);
+        self.write_arg(0);
     }
 
     /// 1.abs() => abs(1)

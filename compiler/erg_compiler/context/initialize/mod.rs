@@ -1612,6 +1612,14 @@ impl Context {
             None,
         )));
         range.register_builtin_const("__getitem__", Public, get_item);
+        let mut g_callable = Self::builtin_mono_class("GenericCallable", 2);
+        g_callable.register_superclass(Obj, &obj);
+        let t_return = fn1_met(mono("GenericCallable"), Obj, Never).quantify();
+        g_callable.register_builtin_impl("return", t_return, Immutable, Public);
+        let mut g_generator = Self::builtin_mono_class("GenericGenerator", 2);
+        g_generator.register_superclass(mono("GenericCallable"), &g_callable);
+        let t_yield = fn1_met(mono("GenericGenerator"), Obj, Never).quantify();
+        g_generator.register_builtin_impl("yield", t_yield, Immutable, Public);
         /* Proc */
         let mut proc = Self::builtin_mono_class("Proc", 2);
         proc.register_superclass(Obj, &obj);
@@ -1698,6 +1706,20 @@ impl Context {
         self.register_builtin_type(mono("File!"), file_mut, vis, Const, Some("File"));
         self.register_builtin_type(array_mut_t, array_mut_, vis, Const, Some("list"));
         self.register_builtin_type(set_mut_t, set_mut_, vis, Const, Some("set"));
+        self.register_builtin_type(
+            mono("GenericCallable"),
+            g_callable,
+            vis,
+            Const,
+            Some("Callable"),
+        );
+        self.register_builtin_type(
+            mono("GenericGenerator"),
+            g_generator,
+            vis,
+            Const,
+            Some("Generator"),
+        );
         if !self.cfg.python_compatible_mode {
             self.register_builtin_type(module_t, module, vis, Const, Some("ModuleType"));
             self.register_builtin_type(mono("Obj!"), obj_mut, vis, Const, Some("object"));

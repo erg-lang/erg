@@ -484,7 +484,8 @@ impl Context {
         let return_t = if errs.is_err() {
             Type::Failure
         } else {
-            body_t.clone()
+            // NOTE: not `body_t.clone()` because the body may contain `return`
+            t.return_t().unwrap().clone()
         };
         let sub_t = if sig.ident.is_procedural() {
             proc(
