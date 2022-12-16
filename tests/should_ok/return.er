@@ -3,7 +3,7 @@ fib n: Int =
         fib.return n
     fib(n - 1) + fib(n - 2)
 
-print! fib 10
+assert fib(10) == 55
 
 # Int -> Int or Str
 invalid_fib n: Int =
