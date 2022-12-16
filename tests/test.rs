@@ -131,6 +131,11 @@ fn exec_record() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_return() -> Result<(), ()> {
+    expect_success("tests/should_ok/return.er")
+}
+
+#[test]
 fn exec_trait() -> Result<(), ()> {
     expect_success("examples/trait.er")
 }
