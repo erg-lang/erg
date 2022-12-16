@@ -1417,7 +1417,17 @@ impl Call {
             "import" => Some(OperationKind::Import),
             "pyimport" | "py" | "__import__" => Some(OperationKind::PyImport),
             "Del" => Some(OperationKind::Del),
-            _ => None,
+            _ => {
+                if self.obj.ref_t().is_callable() {
+                    match self.attr_name.as_ref().map(|i| &i.inspect()[..]) {
+                        Some("return") => Some(OperationKind::Return),
+                        Some("yield") => Some(OperationKind::Yield),
+                        _ => None,
+                    }
+                } else {
+                    None
+                }
+            }
         })
     }
 }

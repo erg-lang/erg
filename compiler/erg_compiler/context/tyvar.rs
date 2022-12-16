@@ -1751,6 +1751,7 @@ impl Context {
             (Type::Poly { name, .. }, Type) if &name[..] == "Array" || &name[..] == "Tuple" => {
                 Ok(())
             }
+            (Type::Subr(_), Mono(name)) if &name[..] == "GenericCallable" => Ok(()),
             _ => type_feature_error!(
                 self,
                 loc,

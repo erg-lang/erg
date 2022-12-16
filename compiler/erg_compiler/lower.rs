@@ -890,6 +890,19 @@ impl ASTLowerer {
                     )))
                 }
             },
+            Some(OperationKind::Return | OperationKind::Yield) => {
+                // (f: ?T -> ?U).return: (self: GenericCallable, arg: Obj) -> Never
+                let callable_t = call.obj.ref_t();
+                let ret_t = match callable_t {
+                    Type::Subr(subr) => *subr.return_t.clone(),
+                    Type::FreeVar(fv) if fv.is_unbound() => {
+                        fv.get_sub().unwrap().return_t().unwrap().clone()
+                    }
+                    other => todo!("{other:?}"),
+                };
+                let arg_t = call.args.get(0).unwrap().ref_t();
+                self.ctx.sub_unify(arg_t, &ret_t, call.loc(), None)?;
+            }
             _ => {
                 if let Some(type_spec) = opt_cast_to {
                     self.ctx.cast(type_spec, &mut call)?;
