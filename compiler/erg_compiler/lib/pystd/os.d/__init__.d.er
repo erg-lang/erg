@@ -1,4 +1,5 @@
 .path = pyimport "path"
+.PathLike: ClassType
 
 .name: Str
 
