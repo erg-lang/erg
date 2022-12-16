@@ -1960,6 +1960,11 @@ impl Context {
     }
 
     fn init_builtin_const_funcs(&mut self) {
+        let vis = if self.cfg.python_compatible_mode {
+            Public
+        } else {
+            Private
+        };
         let class_t = func(
             vec![kw("Requirement", Type)],
             None,
@@ -1967,7 +1972,7 @@ impl Context {
             ClassType,
         );
         let class = ConstSubr::Builtin(BuiltinConstSubr::new("Class", class_func, class_t, None));
-        self.register_builtin_const("Class", Private, ValueObj::Subr(class));
+        self.register_builtin_const("Class", vis, ValueObj::Subr(class));
         let inherit_t = func(
             vec![kw("Super", ClassType)],
             None,
@@ -1980,7 +1985,7 @@ impl Context {
             inherit_t,
             None,
         ));
-        self.register_builtin_const("Inherit", Private, ValueObj::Subr(inherit));
+        self.register_builtin_const("Inherit", vis, ValueObj::Subr(inherit));
         let trait_t = func(
             vec![kw("Requirement", Type)],
             None,
@@ -1988,7 +1993,7 @@ impl Context {
             TraitType,
         );
         let trait_ = ConstSubr::Builtin(BuiltinConstSubr::new("Trait", trait_func, trait_t, None));
-        self.register_builtin_const("Trait", Private, ValueObj::Subr(trait_));
+        self.register_builtin_const("Trait", vis, ValueObj::Subr(trait_));
         let subsume_t = func(
             vec![kw("Super", TraitType)],
             None,
@@ -2001,7 +2006,7 @@ impl Context {
             subsume_t,
             None,
         ));
-        self.register_builtin_const("Subsume", Private, ValueObj::Subr(subsume));
+        self.register_builtin_const("Subsume", vis, ValueObj::Subr(subsume));
         // decorators
         let inheritable_t = func1(ClassType, ClassType);
         let inheritable = ConstSubr::Builtin(BuiltinConstSubr::new(
@@ -2010,10 +2015,10 @@ impl Context {
             inheritable_t,
             None,
         ));
-        self.register_builtin_const("Inheritable", Private, ValueObj::Subr(inheritable));
+        self.register_builtin_const("Inheritable", vis, ValueObj::Subr(inheritable));
         // TODO: register Del function object
         let t_del = nd_func(vec![kw("obj", Obj)], None, NoneType);
-        self.register_builtin_impl("Del", t_del, Immutable, Private);
+        self.register_builtin_impl("Del", t_del, Immutable, vis);
         let patch_t = func(
             vec![kw("Requirement", Type)],
             None,
@@ -2021,7 +2026,7 @@ impl Context {
             TraitType,
         );
         let patch = ConstSubr::Builtin(BuiltinConstSubr::new("Patch", patch_func, patch_t, None));
-        self.register_builtin_const("Patch", Private, ValueObj::Subr(patch));
+        self.register_builtin_const("Patch", vis, ValueObj::Subr(patch));
     }
 
     fn init_builtin_procs(&mut self) {
