@@ -1634,7 +1634,7 @@ impl Context {
         quant.register_superclass(mono("Proc"), &proc);
         let mut qfunc = Self::builtin_mono_class("QuantifiedFunc", 2);
         qfunc.register_superclass(mono("Func"), &func);
-        self.register_builtin_type(Never, never, vis, Const, None);
+        self.register_builtin_type(Never, never, vis, Const, Some("Never"));
         self.register_builtin_type(Obj, obj, vis, Const, Some("object"));
         // self.register_type(mono("Record"), vec![], record, Private, Const);
         self.register_builtin_type(Int, int, vis, Const, Some("int"));
