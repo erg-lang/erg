@@ -921,6 +921,8 @@ impl Context {
         Ok(())
     }
 
+    /// if `obj` has `__call__` method, then the return value is `Some(call_instance)`
+    ///
     /// e.g.
     /// ```python
     /// substitute_call(instance: ((?T, ?U) -> ?T), [Int, Str], []) => instance: (Int, Str) -> Int
@@ -936,7 +938,7 @@ impl Context {
         instance: &Type,
         pos_args: &[hir::PosArg],
         kw_args: &[hir::KwArg],
-    ) -> TyCheckResult<()> {
+    ) -> TyCheckResult<Option<Type>> {
         match instance {
             Type::FreeVar(fv) if fv.is_linked() => {
                 self.substitute_call(obj, attr_name, &fv.crack(), pos_args, kw_args)
@@ -958,7 +960,7 @@ impl Context {
                     let non_default_params = pos_args.iter().map(|a| anon(a.expr.t())).collect();
                     let subr_t = subr_t(kind, non_default_params, None, vec![], ret_t);
                     fv.link(&subr_t);
-                    Ok(())
+                    Ok(None)
                 }
             }
             Type::Refinement(refine) => {
@@ -1117,15 +1119,19 @@ impl Context {
                     }
                 }
                 if errs.is_empty() {
-                    Ok(())
+                    Ok(None)
                 } else {
                     Err(errs)
                 }
             }
             other => {
-                if let Some((_typ, typ_ctx)) = self.get_nominal_type_ctx(other) {
-                    if let Some((_, call_vi)) = typ_ctx.get_var_info("__call__") {
-                        return self.substitute_call(obj, attr_name, &call_vi.t, pos_args, kw_args);
+                if let Ok(typ_ctx) = self.get_singular_ctx_by_hir_expr(obj, &self.name) {
+                    if let Some(call_vi) = typ_ctx.get_current_scope_var("__call__") {
+                        let mut dummy = TyVarCache::new(self.level, self);
+                        let instance =
+                            self.instantiate_t_inner(call_vi.t.clone(), &mut dummy, obj.loc())?;
+                        self.substitute_call(obj, attr_name, &instance, pos_args, kw_args)?;
+                        return Ok(Some(instance));
                     }
                 }
                 let hint = if other == &ClassType {
@@ -1444,7 +1450,12 @@ impl Context {
             fmt_slice(pos_args),
             fmt_slice(kw_args)
         );
-        self.substitute_call(obj, attr_name, &instance, pos_args, kw_args)?;
+        let res = self.substitute_call(obj, attr_name, &instance, pos_args, kw_args)?;
+        let instance = if let Some(__call__) = res {
+            __call__
+        } else {
+            instance
+        };
         log!(info "Substituted:\ninstance: {instance}");
         let res = self.eval_t_params(instance, self.level, obj.loc())?;
         log!(info "Params evaluated:\nres: {res}\n");
