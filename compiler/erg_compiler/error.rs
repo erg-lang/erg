@@ -20,6 +20,51 @@ use crate::context::Context;
 use crate::hir::{Expr, Identifier, Signature};
 use crate::ty::{HasType, Predicate, Type};
 
+/// `unreachable!(self: Context)`
+#[macro_export]
+macro_rules! unreachable_error {
+    ($Strcs: ident, $Strc: ident, $ctx: expr) => {
+        Err($Strcs::from($Strc::unreachable(
+            $ctx.cfg.input.clone(),
+            fn_name!(),
+            line!(),
+        )))
+    };
+    ($Strc: ident, $ctx: expr) => {
+        Err($Strc::unreachable(
+            $ctx.cfg.input.clone(),
+            fn_name!(),
+            line!(),
+        ))
+    };
+}
+/// `feature_error!($Strc: struct, ctx: Context, loc: Location, name: &str)`
+#[macro_export]
+macro_rules! feature_error {
+    ($Strcs: ident, $Strc: ident, $ctx: expr, $loc: expr, $name: expr) => {
+        Err($Strcs::from($Strc::feature_error(
+            $ctx.cfg.input.clone(),
+            $loc,
+            $name,
+            $ctx.caused_by(),
+        )))
+    };
+    ($Strc: ident, $ctx: expr, $loc: expr, $name: expr) => {
+        Err($Strc::feature_error(
+            $ctx.cfg.input.clone(),
+            $loc,
+            $name,
+            $ctx.caused_by(),
+        ))
+    };
+}
+#[macro_export]
+macro_rules! type_feature_error {
+    ($ctx: expr, $loc: expr, $name: expr) => {
+        feature_error!(TyCheckErrors, TyCheckError, $ctx, $loc, $name)
+    };
+}
+
 pub fn ordinal_num(n: usize) -> String {
     match n.to_string().chars().last().unwrap() {
         '1' => format!("{n}st"),
@@ -39,14 +84,16 @@ pub fn binop_to_dname(op: &str) -> &str {
         "//" => "__floordiv__",
         "**" => "__pow__",
         "%" => "__mod__",
+        "@" => "__matmul__",
         ".." => "__rng__",
         "<.." => "__lorng__",
         "..<" => "__rorng__",
         "<..<" => "__orng__",
-        "&&" | "and" => "__and__",
-        "||" | "or" => "__or__",
-        "^^" => "__xor__",
+        "&&" | "&" | "and" => "__and__",
+        "||" | "|" | "or" => "__or__",
+        "^^" | "^" => "__xor__",
         "in" => "__in__",
+        "notin" => "__notin__", // NOTE: this doesn't exist in Python
         "contains" => "__contains__",
         "subof" => "__subof__",
         "supof" => "__supof__",
@@ -82,13 +129,15 @@ pub fn readable_name(name: &str) -> &str {
         "__floordiv__" => "`//`",
         "__pow__" => "`**`",
         "__mod__" => "`%`",
+        "__matmul__" => "`@`",
         "__rng__" => "`..`",
         "__lorng__" => "`<..`",
         "__rorng__" => "`..<`",
         "__orng__" => "`<..<`",
-        "__and__" => "`and`",
-        "__or__" => "`or`",
+        "__and__" => "`and`", // TODO: `&&` if not boolean
+        "__or__" => "`or`",   // TODO: `||` if not boolean
         "__in__" => "`in`",
+        "__notin__" => "`notin`",
         "__contains__" => "`contains`",
         "__subof__" => "`subof`",
         "__supof__" => "`supof`",
@@ -749,7 +798,7 @@ passed keyword args:    {kw_args_len}"
         missing_params: Vec<Str>,
     ) -> Self {
         let name = StyledStr::new(readable_name(callee_name), Some(WARN), Some(ATTR));
-        let vec_cxt = StyledString::new(&fmt_vec(&missing_params), Some(WARN), Some(ATTR));
+        let vec_cxt = StyledString::new(fmt_vec(&missing_params), Some(WARN), Some(ATTR));
         let missing_len = missing_params.len();
         Self::new(
             ErrorCore::new(
@@ -1045,7 +1094,7 @@ passed keyword args:    {kw_args_len}"
         caused_by: String,
         hint: Option<String>,
     ) -> Self {
-        let hint = hint.or_else(|| Context::get_type_mismatch_hint(trait_, class));
+        let hint = hint.or_else(|| Context::get_simple_type_mismatch_hint(trait_, class));
         Self::new(
             ErrorCore::new(
                 vec![SubMessage::ambiguous_new(loc, vec![], hint)],
@@ -1816,7 +1865,7 @@ impl LowerError {
         caused_by: String,
         typ: &Type,
     ) -> Self {
-        let typ = StyledString::new(&typ.to_string(), Some(ERR), Some(ATTR));
+        let typ = StyledString::new(typ.to_string(), Some(ERR), Some(ATTR));
         let hint = Some(switch_lang!(
             "japanese" => format!("恐らくこれはErgコンパイラのバグです、{URL}へ報告してください"),
             "simplified_chinese" => format!("这可能是Erg编译器的错误，请报告给{URL}"),
@@ -1961,6 +2010,38 @@ impl LowerError {
                 ),
                 errno,
                 UnusedWarning,
+                loc,
+            ),
+            input,
+            caused_by,
+        )
+    }
+
+    pub fn union_return_type_warning(
+        input: Input,
+        errno: usize,
+        loc: Location,
+        caused_by: String,
+        fn_name: &str,
+        typ: &Type,
+    ) -> Self {
+        let hint = switch_lang!(
+            "japanese" => format!("`{fn_name}(...): {typ} = ...`など明示的に戻り値型を指定してください"),
+            "simplified_chinese" => format!("请明确指定函数{fn_name}的返回类型，例如`{fn_name}(...): {typ} = ...`"),
+            "traditional_chinese" => format!("請明確指定函數{fn_name}的返回類型，例如`{fn_name}(...): {typ} = ...`"),
+            "english" => format!("please explicitly specify the return type of function {fn_name}, for example `{fn_name}(...): {typ} = ...`"),
+        );
+        LowerError::new(
+            ErrorCore::new(
+                vec![SubMessage::ambiguous_new(loc, vec![], Some(hint))],
+                switch_lang!(
+                    "japanese" => format!("関数{fn_name}の戻り値型が単一ではありません"),
+                    "simplified_chinese" => format!("函数{fn_name}的返回类型不是单一的"),
+                    "traditional_chinese" => format!("函數{fn_name}的返回類型不是單一的"),
+                    "english" => format!("the return type of function {fn_name} is not single"),
+                ),
+                errno,
+                TypeWarning,
                 loc,
             ),
             input,

@@ -1,7 +1,8 @@
 use std::fmt;
 
-use erg_common::traits::Stream;
+use erg_common::traits::{Runnable, Stream};
 
+use crate::context::Context;
 use crate::error::CompileErrors;
 use crate::hir::HIR;
 
@@ -76,3 +77,15 @@ impl ErrorArtifact {
         Self { errors, warns }
     }
 }
+
+pub trait Buildable<T = HIR> {
+    fn build(
+        &mut self,
+        src: String,
+        mode: &str,
+    ) -> Result<CompleteArtifact<T>, IncompleteArtifact<T>>;
+    fn pop_context(&mut self) -> Option<Context>;
+    fn get_context(&self) -> Option<&Context>;
+}
+
+pub trait BuildRunnable<T = HIR>: Buildable<T> + Runnable {}

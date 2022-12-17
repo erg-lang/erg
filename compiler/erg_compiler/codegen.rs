@@ -1319,7 +1319,9 @@ impl PyCodeGenerator {
                 if !self.mutate_op_loaded {
                     self.load_mutate_op();
                 }
-                self.emit_push_null();
+                if self.py_version.minor >= Some(11) {
+                    self.emit_push_null();
+                }
                 self.emit_load_name_instr(Identifier::private("#mutate_operator"));
                 NOP // ERG_MUTATE,
             }
@@ -1339,7 +1341,12 @@ impl PyCodeGenerator {
             self.write_instr(instr);
             self.write_arg(tycode as usize);
         } else {
-            self.emit_precall_and_call(1);
+            if self.py_version.minor >= Some(11) {
+                self.emit_precall_and_call(1);
+            } else {
+                self.write_instr(Opcode310::CALL_FUNCTION);
+                self.write_arg(1);
+            }
             self.stack_dec();
         }
     }
@@ -1852,8 +1859,8 @@ impl PyCodeGenerator {
             }
             // _: (Int, Str)
             TypeSpec::Tuple(tup) => {
-                let len = tup.len();
-                for (i, t_spec) in tup.into_iter().enumerate() {
+                let len = tup.tys.len();
+                for (i, t_spec) in tup.tys.into_iter().enumerate() {
                     if i != 0 && i != len - 1 {
                         self.dup_top();
                     }
@@ -2067,13 +2074,24 @@ impl PyCodeGenerator {
 
     fn emit_call_method(&mut self, obj: Expr, method_name: Identifier, args: Args) {
         log!(info "entered {}", fn_name!());
-        if &method_name.inspect()[..] == "update!" {
-            if self.py_version.minor >= Some(11) {
-                return self.emit_call_update_311(obj, args);
-            } else {
-                return self.emit_call_update_310(obj, args);
+        match &method_name.inspect()[..] {
+            "update!" => {
+                if self.py_version.minor >= Some(11) {
+                    return self.emit_call_update_311(obj, args);
+                } else {
+                    return self.emit_call_update_310(obj, args);
+                }
             }
-        } else if let Some(func_name) = debind(&method_name) {
+            "return" if obj.ref_t().is_callable() => {
+                return self.emit_return_instr(args);
+            }
+            // TODO: create `Generator` type
+            "yield" /* if obj.ref_t().is_callable() */ => {
+                return self.emit_yield_instr(args);
+            }
+            _ => {}
+        }
+        if let Some(func_name) = debind(&method_name) {
             return self.emit_call_fake_method(obj, func_name, method_name, args);
         }
         let is_py_api = method_name.is_py_api();
@@ -2133,6 +2151,7 @@ impl PyCodeGenerator {
         }
         let kwsc = if !kws.is_empty() {
             self.emit_call_kw_instr(argc, kws);
+            #[allow(clippy::bool_to_int_with_if)]
             if self.py_version.minor >= Some(11) {
                 0
             } else {
@@ -2188,6 +2207,29 @@ impl PyCodeGenerator {
         self.stack_dec_n((1 + 1) - 1);
         self.store_acc(acc);
         self.emit_load_const(ValueObj::None);
+    }
+
+    // TODO: use exception
+    fn emit_return_instr(&mut self, mut args: Args) {
+        log!(info "entered {}", fn_name!());
+        if args.is_empty() {
+            self.emit_load_const(ValueObj::None);
+        } else {
+            self.emit_expr(args.remove(0));
+        }
+        self.write_instr(RETURN_VALUE);
+        self.write_arg(0);
+    }
+
+    fn emit_yield_instr(&mut self, mut args: Args) {
+        log!(info "entered {}", fn_name!());
+        if args.is_empty() {
+            self.emit_load_const(ValueObj::None);
+        } else {
+            self.emit_expr(args.remove(0));
+        }
+        self.write_instr(YIELD_VALUE);
+        self.write_arg(0);
     }
 
     /// 1.abs() => abs(1)
@@ -2488,6 +2530,7 @@ impl PyCodeGenerator {
                 self.emit_expr(*tasc.expr);
             }
             Expr::Import(acc) => self.emit_import(acc),
+            Expr::Dummy(_) => {}
         }
     }
 
@@ -2688,7 +2731,7 @@ impl PyCodeGenerator {
             self.py_version,
             params,
             Str::rc(self.cfg.input.enclosed_name()),
-            &name,
+            name,
             firstlineno,
         ));
         let idx_copy_free_vars = if self.py_version.minor >= Some(11) {

@@ -1,0 +1,24 @@
+i = !0
+j = !0
+k = !0
+l = !0
+m = !0
+for! [1, 2], _i =>
+    for! [3, 4], _j =>
+            for! [5, 6], _k =>
+
+                i.inc!()
+
+
+            j.inc!()
+
+            k.inc!()
+    l.inc!()
+
+m.inc!()
+
+assert i == 8
+assert j == 4
+assert k == 4
+assert l == 2
+assert m == 1

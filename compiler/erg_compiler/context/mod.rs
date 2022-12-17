@@ -383,16 +383,7 @@ pub struct Context {
 impl Default for Context {
     #[inline]
     fn default() -> Self {
-        Self::new(
-            "<dummy>".into(),
-            ErgConfig::default(),
-            ContextKind::Dummy,
-            vec![],
-            None,
-            None,
-            None,
-            Self::TOP_LEVEL,
-        )
+        Self::default_with_name("<dummy>")
     }
 }
 
@@ -499,6 +490,19 @@ impl Context {
             py_mod_cache,
             0,
             level,
+        )
+    }
+
+    pub fn default_with_name(name: &'static str) -> Self {
+        Self::new(
+            name.into(),
+            ErgConfig::default(),
+            ContextKind::Dummy,
+            vec![],
+            None,
+            None,
+            None,
+            Self::TOP_LEVEL,
         )
     }
 
@@ -890,8 +894,8 @@ impl Context {
     }
 
     #[inline]
-    pub fn builtin_module<S: Into<Str>>(name: S, capacity: usize) -> Self {
-        Self::module(name.into(), ErgConfig::default(), None, None, capacity)
+    pub fn builtin_module<S: Into<Str>>(name: S, cfg: ErgConfig, capacity: usize) -> Self {
+        Self::module(name.into(), cfg, None, None, capacity)
     }
 
     #[inline]
@@ -1020,13 +1024,14 @@ impl Context {
         }
     }
 
-    pub fn pop_mod(&mut self) -> Context {
+    pub fn pop_mod(&mut self) -> Option<Context> {
         if self.outer.is_some() {
-            panic!("not in the top-level context");
+            log!(err "not in the top-level context");
+            None
         } else {
             log!(info "{}: current namespace: <builtins>", fn_name!());
             // toplevel
-            mem::take(self)
+            Some(mem::take(self))
         }
     }
 

@@ -21,6 +21,7 @@ pub mod python_util;
 pub mod serialize;
 pub mod set;
 pub mod shared;
+pub mod spawn;
 pub mod stdin;
 pub mod str;
 pub mod style;

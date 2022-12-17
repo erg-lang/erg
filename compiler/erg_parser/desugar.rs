@@ -3,23 +3,20 @@
 //! Syntax sugarをdesugarする
 //! e.g. Literal parameters, Multi assignment
 //! 型チェックなどによる検証は行わない
-#![allow(dead_code)]
-
 use erg_common::fresh::fresh_varname;
-use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
 use erg_common::{enum_unwrap, get_hash, log, set};
 
 use crate::ast::{
-    Accessor, Args, Array, ArrayComprehension, ArrayTypeSpec, ArrayWithLength, BinOp, Block, Call,
-    ClassAttr, ClassAttrs, ClassDef, ConstExpr, DataPack, Def, DefBody, DefId, Dict, Expr,
-    Identifier, KeyValue, KwArg, Lambda, LambdaSignature, Literal, Methods, MixedRecord, Module,
-    NonDefaultParamSignature, NormalArray, NormalDict, NormalRecord, NormalSet, NormalTuple,
-    ParamPattern, ParamRecordAttr, Params, PatchDef, PosArg, Record, RecordAttrOrIdent,
-    RecordAttrs, Set as astSet, SetWithLength, Signature, SubrSignature, Tuple, TypeAppArgs,
-    TypeBoundSpecs, TypeSpec, TypeSpecWithOp, UnaryOp, VarName, VarPattern, VarRecordAttr,
-    VarSignature,
+    Accessor, Args, Array, ArrayComprehension, ArrayTypeSpec, ArrayWithLength, AttrDef, BinOp,
+    Block, Call, ClassAttr, ClassAttrs, ClassDef, ConstExpr, DataPack, Def, DefBody, DefId, Dict,
+    Dummy, Expr, Identifier, KeyValue, KwArg, Lambda, LambdaSignature, Literal, Methods,
+    MixedRecord, Module, NonDefaultParamSignature, NormalArray, NormalDict, NormalRecord,
+    NormalSet, NormalTuple, ParamPattern, ParamRecordAttr, Params, PatchDef, PosArg, Record,
+    RecordAttrOrIdent, RecordAttrs, Set as astSet, SetWithLength, Signature, SubrSignature, Tuple,
+    TupleTypeSpec, TypeAppArgs, TypeBoundSpecs, TypeSpec, TypeSpecWithOp, UnaryOp, VarName,
+    VarPattern, VarRecordAttr, VarSignature,
 };
 use crate::token::{Token, TokenKind, COLON, DOT};
 
@@ -32,14 +29,14 @@ enum BufIndex<'i> {
 
 #[derive(Debug)]
 pub struct Desugarer {
-    desugared: Set<Str>,
+    // _desugared: Set<Str>,
     // var_id: usize, // must be global
 }
 
 impl Desugarer {
     pub fn new() -> Desugarer {
         Self {
-            desugared: Set::default(),
+            // _desugared: Set::default(),
         }
     }
 
@@ -71,6 +68,29 @@ impl Desugarer {
             })
             .collect();
         Args::new(pos_args, kw_args, paren)
+    }
+
+    fn perform_desugar_acc(mut desugar: impl FnMut(Expr) -> Expr, acc: Accessor) -> Accessor {
+        match acc {
+            Accessor::Ident(ident) => Accessor::Ident(ident),
+            Accessor::Attr(attr) => desugar(*attr.obj).attr(attr.ident),
+            Accessor::TupleAttr(tup) => {
+                let obj = desugar(*tup.obj);
+                obj.tuple_attr(tup.index)
+            }
+            Accessor::Subscr(sub) => {
+                let obj = desugar(*sub.obj);
+                let index = desugar(*sub.index);
+                obj.subscr(index, sub.r_sqbr)
+            }
+            Accessor::TypeApp(tapp) => {
+                let obj = desugar(*tapp.obj);
+                let args = Self::desugar_args(desugar, tapp.type_args.args);
+                let type_args =
+                    TypeAppArgs::new(tapp.type_args.l_vbar, args, tapp.type_args.r_vbar);
+                obj.type_app(type_args)
+            }
+        }
     }
 
     fn perform_desugar(mut desugar: impl FnMut(Expr) -> Expr, expr: Expr) -> Expr {
@@ -234,6 +254,11 @@ impl Desugarer {
                     .collect();
                 Expr::PatchDef(PatchDef::new(def, methods))
             }
+            Expr::AttrDef(adef) => {
+                let expr = desugar(*adef.expr);
+                let attr = Self::perform_desugar_acc(desugar, adef.attr);
+                Expr::AttrDef(AttrDef::new(attr, expr))
+            }
             Expr::Lambda(lambda) => {
                 let mut chunks = vec![];
                 for chunk in lambda.body.into_iter() {
@@ -267,28 +292,13 @@ impl Desugarer {
                 let new_attrs = ClassAttrs::from(new_attrs);
                 Expr::Methods(Methods::new(method_defs.class, method_defs.vis, new_attrs))
             }
-            Expr::Accessor(acc) => {
-                let acc = match acc {
-                    Accessor::Ident(ident) => Accessor::Ident(ident),
-                    Accessor::Attr(attr) => desugar(*attr.obj).attr(attr.ident),
-                    Accessor::TupleAttr(tup) => {
-                        let obj = desugar(*tup.obj);
-                        obj.tuple_attr(tup.index)
-                    }
-                    Accessor::Subscr(sub) => {
-                        let obj = desugar(*sub.obj);
-                        let index = desugar(*sub.index);
-                        obj.subscr(index, sub.r_sqbr)
-                    }
-                    Accessor::TypeApp(tapp) => {
-                        let obj = desugar(*tapp.obj);
-                        let args = Self::desugar_args(desugar, tapp.type_args.args);
-                        let type_args =
-                            TypeAppArgs::new(tapp.type_args.l_vbar, args, tapp.type_args.r_vbar);
-                        obj.type_app(type_args)
-                    }
-                };
-                Expr::Accessor(acc)
+            Expr::Accessor(acc) => Expr::Accessor(Self::perform_desugar_acc(desugar, acc)),
+            Expr::Dummy(exprs) => {
+                let mut chunks = vec![];
+                for chunk in exprs.into_iter() {
+                    chunks.push(desugar(chunk));
+                }
+                Expr::Dummy(Dummy::new(chunks))
             }
         }
     }
@@ -397,7 +407,7 @@ impl Desugarer {
     }
 
     /// `f 0 = 1` -> `f _: {0} = 1`
-    fn desugar_literal_pattern(&self, _mod: Module) -> Module {
+    fn _desugar_literal_pattern(&self, _mod: Module) -> Module {
         todo!()
     }
 
@@ -766,7 +776,8 @@ impl Desugarer {
                     );
                 }
                 if param.t_spec.is_none() {
-                    param.t_spec = Some(TypeSpecWithOp::new(COLON, TypeSpec::Tuple(tys)));
+                    let t_spec = TypeSpec::Tuple(TupleTypeSpec::new(tup.elems.parens.clone(), tys));
+                    param.t_spec = Some(TypeSpecWithOp::new(COLON, t_spec));
                 }
                 param.pat = buf_param;
             }
@@ -871,11 +882,12 @@ impl Desugarer {
         match &mut sig.pat {
             ParamPattern::Tuple(tup) => {
                 let (buf_name, buf_sig) = self.gen_buf_nd_param(line);
+                let ident = Identifier::private(Str::from(&buf_name));
                 new_body.insert(
                     insertion_idx,
                     Expr::Def(Def::new(
                         Signature::Var(VarSignature::new(
-                            VarPattern::Ident(Identifier::private(Str::from(&buf_name))),
+                            VarPattern::Ident(ident),
                             sig.t_spec.as_ref().map(|ts| ts.t_spec.clone()),
                         )),
                         body,
@@ -901,7 +913,8 @@ impl Desugarer {
                     );
                 }
                 if sig.t_spec.is_none() {
-                    sig.t_spec = Some(TypeSpecWithOp::new(COLON, TypeSpec::Tuple(tys)));
+                    let t_spec = TypeSpec::Tuple(TupleTypeSpec::new(tup.elems.parens.clone(), tys));
+                    sig.t_spec = Some(TypeSpecWithOp::new(COLON, t_spec));
                 }
                 sig.pat = buf_sig;
                 insertion_idx
@@ -993,8 +1006,9 @@ impl Desugarer {
             }
             */
             ParamPattern::VarName(name) => {
+                let ident = Identifier::new(None, name.clone());
                 let v = VarSignature::new(
-                    VarPattern::Ident(Identifier::new(None, name.clone())),
+                    VarPattern::Ident(ident),
                     sig.t_spec.as_ref().map(|ts| ts.t_spec.clone()),
                 );
                 let def = Def::new(Signature::Var(v), body);
@@ -1017,16 +1031,16 @@ impl Desugarer {
         }
     }
 
-    fn desugar_self(module: Module) -> Module {
-        Self::desugar_all_chunks(module, Self::desugar_self_inner)
+    fn _desugar_self(module: Module) -> Module {
+        Self::desugar_all_chunks(module, Self::_desugar_self_inner)
     }
 
-    fn desugar_self_inner(_expr: Expr) -> Expr {
+    fn _desugar_self_inner(_expr: Expr) -> Expr {
         todo!()
     }
 
     /// `F(I | I > 0)` -> `F(I: {I: Int | I > 0})`
-    fn desugar_refinement_pattern(_mod: Module) -> Module {
+    fn _desugar_refinement_pattern(_mod: Module) -> Module {
         todo!()
     }
 

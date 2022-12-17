@@ -5,14 +5,14 @@ use erg_common::dict::Dict as HashMap;
 use erg_common::error::Location;
 #[allow(unused_imports)]
 use erg_common::log;
-use erg_common::traits::{Locational, NestedDisplay, Stream};
+use erg_common::traits::{Locational, NestedDisplay, NoTypeDisplay, Stream};
 use erg_common::vis::{Field, Visibility};
-use erg_common::Str;
 use erg_common::{
     enum_unwrap, fmt_option, fmt_vec, impl_display_for_enum, impl_display_from_nested,
     impl_locational, impl_locational_for_enum, impl_nested_display_for_chunk_enum,
     impl_nested_display_for_enum, impl_stream_for_wrapper,
 };
+use erg_common::{impl_no_type_display_for_enum, Str};
 
 use erg_parser::ast::{
     fmt_lines, DefId, DefKind, NonDefaultParamSignature, OperationKind, TypeSpec, VarName,
@@ -41,6 +41,12 @@ impl_t!(Literal);
 impl NestedDisplay for Literal {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         write!(f, "{} (: {})", self.token.content, self.t)
+    }
+}
+
+impl NoTypeDisplay for Literal {
+    fn to_string_notype(&self) -> String {
+        format!("{}", self.token.content)
     }
 }
 
@@ -94,6 +100,12 @@ impl NestedDisplay for PosArg {
     }
 }
 
+impl NoTypeDisplay for PosArg {
+    fn to_string_notype(&self) -> String {
+        self.expr.to_string_notype()
+    }
+}
+
 impl_display_from_nested!(PosArg);
 
 impl Locational for PosArg {
@@ -118,6 +130,16 @@ impl NestedDisplay for KwArg {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, level: usize) -> std::fmt::Result {
         writeln!(f, "{} := ", self.keyword)?;
         self.expr.fmt_nest(f, level + 1)
+    }
+}
+
+impl NoTypeDisplay for KwArg {
+    fn to_string_notype(&self) -> String {
+        format!(
+            "{} := {}",
+            self.keyword.content,
+            self.expr.to_string_notype()
+        )
     }
 }
 
@@ -159,37 +181,56 @@ impl NestedDisplay for Args {
     }
 }
 
-impl From<Vec<Expr>> for Args {
-    fn from(exprs: Vec<Expr>) -> Self {
-        Self {
-            pos_args: exprs.into_iter().map(PosArg::new).collect(),
-            var_args: None,
-            kw_args: Vec::new(),
-            paren: None,
+impl NoTypeDisplay for Args {
+    fn to_string_notype(&self) -> String {
+        let mut s = String::new();
+        if !self.pos_args.is_empty() {
+            s += &self
+                .pos_args
+                .iter()
+                .map(|x| x.to_string_notype())
+                .fold("".to_string(), |acc, s| acc + &s + ", ");
         }
+        if let Some(var_args) = &self.var_args {
+            s += &format!(", ...{}", var_args.to_string_notype());
+        }
+        if !self.kw_args.is_empty() {
+            s += &self
+                .kw_args
+                .iter()
+                .map(|x| x.to_string_notype())
+                .fold("".to_string(), |acc, s| acc + &s + ", ");
+        }
+        s
     }
 }
+
+// do not implement From<Vec<Expr>> to Args, because it will miss paren info (use `values`)
 
 impl_display_from_nested!(Args);
 
 impl Locational for Args {
     fn loc(&self) -> Location {
         if let Some((l, r)) = &self.paren {
-            Location::concat(l, r)
-        } else if !self.kw_args.is_empty() {
-            Location::concat(self.kw_args.first().unwrap(), self.kw_args.last().unwrap())
-        } else if !self.pos_args.is_empty() {
-            Location::concat(
-                self.pos_args.first().unwrap(),
-                self.pos_args.last().unwrap(),
-            )
-        } else {
-            Location::Unknown
+            let loc = Location::concat(l, r);
+            if !loc.is_unknown() {
+                return loc;
+            }
+        }
+        match (
+            self.pos_args.first(),
+            self.var_args.as_ref(),
+            self.kw_args.last(),
+        ) {
+            (Some(l), _, Some(r)) => Location::concat(l, r),
+            (Some(l), Some(r), None) => Location::concat(l, r.as_ref()),
+            (Some(l), None, None) => Location::concat(l, self.pos_args.last().unwrap()),
+            (None, Some(l), Some(r)) => Location::concat(l.as_ref(), r),
+            (None, None, Some(r)) => Location::concat(self.kw_args.first().unwrap(), r),
+            _ => Location::Unknown,
         }
     }
 }
-
-// impl_stream!(Args, KwArg, kw_args);
 
 impl Args {
     pub fn new(
@@ -206,12 +247,22 @@ impl Args {
         }
     }
 
+    pub fn values(exprs: Vec<Expr>, paren: Option<(Token, Token)>) -> Self {
+        Self::new(
+            exprs.into_iter().map(PosArg::new).collect(),
+            None,
+            vec![],
+            paren,
+        )
+    }
+
     pub fn empty() -> Self {
         Self::new(vec![], None, vec![], None)
     }
 
     #[inline]
     pub fn len(&self) -> usize {
+        #[allow(clippy::bool_to_int_with_if)]
         let var_argc = if self.var_args.is_none() { 0 } else { 1 };
         self.pos_args.len() + var_argc + self.kw_args.len()
     }
@@ -347,6 +398,15 @@ impl NestedDisplay for Identifier {
     }
 }
 
+impl NoTypeDisplay for Identifier {
+    fn to_string_notype(&self) -> String {
+        match &self.dot {
+            Some(_dot) => format!(".{}", self.name),
+            None => format!("::{}", self.name),
+        }
+    }
+}
+
 impl_display_from_nested!(Identifier);
 
 impl HasType for Identifier {
@@ -471,6 +531,16 @@ impl NestedDisplay for Attribute {
     }
 }
 
+impl NoTypeDisplay for Attribute {
+    fn to_string_notype(&self) -> String {
+        format!(
+            "({}){}",
+            self.obj.to_string_notype(),
+            self.ident.to_string_notype()
+        )
+    }
+}
+
 impl_display_from_nested!(Attribute);
 impl_locational!(Attribute, obj, ident);
 
@@ -509,6 +579,7 @@ pub enum Accessor {
 }
 
 impl_nested_display_for_enum!(Accessor; Ident, Attr);
+impl_no_type_display_for_enum!(Accessor; Ident, Attr);
 impl_display_from_nested!(Accessor);
 impl_locational_for_enum!(Accessor; Ident, Attr);
 impl_t_for_enum!(Accessor; Ident, Attr);
@@ -600,8 +671,18 @@ impl NestedDisplay for ArrayWithLength {
     }
 }
 
+impl NoTypeDisplay for ArrayWithLength {
+    fn to_string_notype(&self) -> String {
+        format!(
+            "[{}; {}]",
+            self.elem.to_string_notype(),
+            self.len.to_string_notype()
+        )
+    }
+}
+
 impl_display_from_nested!(ArrayWithLength);
-impl_locational!(ArrayWithLength, l_sqbr, r_sqbr);
+impl_locational!(ArrayWithLength, l_sqbr, elem, r_sqbr);
 impl_t!(ArrayWithLength);
 
 impl ArrayWithLength {
@@ -632,8 +713,18 @@ impl NestedDisplay for ArrayComprehension {
     }
 }
 
+impl NoTypeDisplay for ArrayComprehension {
+    fn to_string_notype(&self) -> String {
+        format!(
+            "[{} | {}]",
+            self.elem.to_string_notype(),
+            self.guard.to_string_notype()
+        )
+    }
+}
+
 impl_display_from_nested!(ArrayComprehension);
-impl_locational!(ArrayComprehension, l_sqbr, r_sqbr);
+impl_locational!(ArrayComprehension, l_sqbr, elem, r_sqbr);
 impl_t!(ArrayComprehension);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -652,8 +743,22 @@ impl NestedDisplay for NormalArray {
     }
 }
 
+impl NoTypeDisplay for NormalArray {
+    fn to_string_notype(&self) -> String {
+        format!(
+            "[{}]",
+            self.elems
+                .pos_args
+                .iter()
+                .map(|arg| arg.to_string_notype())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    }
+}
+
 impl_display_from_nested!(NormalArray);
-impl_locational!(NormalArray, l_sqbr, r_sqbr);
+impl_locational!(NormalArray, l_sqbr, elems, r_sqbr);
 impl_t!(NormalArray);
 
 impl NormalArray {
@@ -680,6 +785,7 @@ pub enum Array {
 }
 
 impl_nested_display_for_enum!(Array; Normal, Comprehension, WithLength);
+impl_no_type_display_for_enum!(Array; Normal, Comprehension, WithLength);
 impl_display_for_enum!(Array; Normal, Comprehension, WithLength);
 impl_locational_for_enum!(Array; Normal, Comprehension, WithLength);
 impl_t_for_enum!(Array; Normal, Comprehension, WithLength);
@@ -695,6 +801,20 @@ impl NestedDisplay for NormalTuple {
         writeln!(f, "(")?;
         self.elems.fmt_nest(f, level + 1)?;
         write!(f, "\n{})(: {})", "    ".repeat(level), self.t)
+    }
+}
+
+impl NoTypeDisplay for NormalTuple {
+    fn to_string_notype(&self) -> String {
+        format!(
+            "({})",
+            self.elems
+                .pos_args
+                .iter()
+                .map(|arg| arg.to_string_notype())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
     }
 }
 
@@ -716,6 +836,7 @@ pub enum Tuple {
 }
 
 impl_nested_display_for_enum!(Tuple; Normal);
+impl_no_type_display_for_enum!(Tuple; Normal);
 impl_display_for_enum!(Tuple; Normal);
 impl_locational_for_enum!(Tuple; Normal);
 impl_t_for_enum!(Tuple; Normal);
@@ -729,6 +850,16 @@ pub struct KeyValue {
 impl NestedDisplay for KeyValue {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         write!(f, "{}: {}", self.key, self.value)
+    }
+}
+
+impl NoTypeDisplay for KeyValue {
+    fn to_string_notype(&self) -> String {
+        format!(
+            "{}: {}",
+            self.key.to_string_notype(),
+            self.value.to_string_notype()
+        )
     }
 }
 
@@ -754,6 +885,19 @@ impl_t!(NormalDict);
 impl NestedDisplay for NormalDict {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         write!(f, "{{{}}}(: {})", fmt_vec(&self.kvs), self.t)
+    }
+}
+
+impl NoTypeDisplay for NormalDict {
+    fn to_string_notype(&self) -> String {
+        format!(
+            "{{{}}}",
+            self.kvs
+                .iter()
+                .map(|kv| kv.to_string_notype())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
     }
 }
 
@@ -796,8 +940,19 @@ impl NestedDisplay for DictComprehension {
     }
 }
 
+impl NoTypeDisplay for DictComprehension {
+    fn to_string_notype(&self) -> String {
+        format!(
+            "[{}: {} | {}]",
+            self.key.to_string_notype(),
+            self.value.to_string_notype(),
+            self.guard.to_string_notype()
+        )
+    }
+}
+
 impl_display_from_nested!(DictComprehension);
-impl_locational!(DictComprehension, l_sqbr, r_sqbr);
+impl_locational!(DictComprehension, l_sqbr, key, r_sqbr);
 impl_t!(DictComprehension);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -807,6 +962,7 @@ pub enum Dict {
 }
 
 impl_nested_display_for_enum!(Dict; Normal, Comprehension);
+impl_no_type_display_for_enum!(Dict; Normal, Comprehension);
 impl_display_for_enum!(Dict; Normal, Comprehension);
 impl_locational_for_enum!(Dict; Normal, Comprehension);
 impl_t_for_enum!(Dict; Normal, Comprehension);
@@ -827,8 +983,22 @@ impl NestedDisplay for NormalSet {
     }
 }
 
+impl NoTypeDisplay for NormalSet {
+    fn to_string_notype(&self) -> String {
+        format!(
+            "{{{}}}",
+            self.elems
+                .pos_args
+                .iter()
+                .map(|e| e.to_string_notype())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    }
+}
+
 impl_display_from_nested!(NormalSet);
-impl_locational!(NormalSet, l_brace, r_brace);
+impl_locational!(NormalSet, l_brace, elems, r_brace);
 impl_t!(NormalSet);
 
 impl NormalSet {
@@ -854,12 +1024,22 @@ pub struct SetWithLength {
 
 impl NestedDisplay for SetWithLength {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "[{}; {}](: {})", self.elem, self.len, self.t)
+        write!(f, "{{{}; {}}}(: {})", self.elem, self.len, self.t)
+    }
+}
+
+impl NoTypeDisplay for SetWithLength {
+    fn to_string_notype(&self) -> String {
+        format!(
+            "{{{}; {}}}",
+            self.elem.to_string_notype(),
+            self.len.to_string_notype()
+        )
     }
 }
 
 impl_display_from_nested!(SetWithLength);
-impl_locational!(SetWithLength, l_brace, r_brace);
+impl_locational!(SetWithLength, l_brace, elem, r_brace);
 impl_t!(SetWithLength);
 
 impl SetWithLength {
@@ -881,6 +1061,7 @@ pub enum Set {
 }
 
 impl_nested_display_for_enum!(Set; Normal, WithLength);
+impl_no_type_display_for_enum!(Set; Normal, WithLength);
 impl_display_for_enum!(Set; Normal, WithLength);
 impl_locational_for_enum!(Set; Normal, WithLength);
 impl_t_for_enum!(Set; Normal, WithLength);
@@ -891,6 +1072,16 @@ pub struct RecordAttrs(Vec<Def>);
 impl NestedDisplay for RecordAttrs {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
         fmt_lines(self.0.iter(), f, level)
+    }
+}
+
+impl NoTypeDisplay for RecordAttrs {
+    fn to_string_notype(&self) -> String {
+        self.0
+            .iter()
+            .map(|a| a.to_string_notype())
+            .collect::<Vec<_>>()
+            .join("\n")
     }
 }
 
@@ -951,8 +1142,21 @@ impl NestedDisplay for Record {
     }
 }
 
+impl NoTypeDisplay for Record {
+    fn to_string_notype(&self) -> String {
+        format!(
+            "{{{}}}",
+            self.attrs
+                .iter()
+                .map(|a| a.to_string_notype())
+                .collect::<Vec<_>>()
+                .join("; ")
+        )
+    }
+}
+
 impl_display_from_nested!(Record);
-impl_locational!(Record, l_brace, r_brace);
+impl_locational!(Record, l_brace, attrs, r_brace);
 impl_t!(Record);
 
 impl Record {
@@ -991,6 +1195,17 @@ impl NestedDisplay for BinOp {
         self.lhs.fmt_nest(f, level + 1)?;
         writeln!(f)?;
         self.rhs.fmt_nest(f, level + 1)
+    }
+}
+
+impl NoTypeDisplay for BinOp {
+    fn to_string_notype(&self) -> String {
+        format!(
+            "`{}`({}, {})",
+            self.op.content,
+            self.lhs.to_string_notype(),
+            self.rhs.to_string_notype()
+        )
     }
 }
 
@@ -1074,6 +1289,12 @@ impl NestedDisplay for UnaryOp {
     }
 }
 
+impl NoTypeDisplay for UnaryOp {
+    fn to_string_notype(&self) -> String {
+        format!("`{}`({})", self.op.content, self.expr.to_string_notype())
+    }
+}
+
 impl_display_from_nested!(UnaryOp);
 impl_locational!(UnaryOp, op, expr);
 
@@ -1103,6 +1324,17 @@ impl NestedDisplay for Call {
             writeln!(f, ":")?;
             self.args.fmt_nest(f, level + 1)
         }
+    }
+}
+
+impl NoTypeDisplay for Call {
+    fn to_string_notype(&self) -> String {
+        format!(
+            "({}){}({})",
+            self.obj.to_string_notype(),
+            fmt_option!(self.attr_name),
+            self.args.to_string_notype()
+        )
     }
 }
 
@@ -1183,9 +1415,19 @@ impl Call {
     pub fn additional_operation(&self) -> Option<OperationKind> {
         self.obj.show_acc().and_then(|s| match &s[..] {
             "import" => Some(OperationKind::Import),
-            "pyimport" | "py" => Some(OperationKind::PyImport),
+            "pyimport" | "py" | "__import__" => Some(OperationKind::PyImport),
             "Del" => Some(OperationKind::Del),
-            _ => None,
+            _ => {
+                if self.obj.ref_t().is_callable() {
+                    match self.attr_name.as_ref().map(|i| &i.inspect()[..]) {
+                        Some("return") => Some(OperationKind::Return),
+                        Some("yield") => Some(OperationKind::Yield),
+                        _ => None,
+                    }
+                } else {
+                    None
+                }
+            }
         })
     }
 }
@@ -1196,7 +1438,9 @@ pub struct Block(Vec<Expr>);
 impl HasType for Block {
     #[inline]
     fn ref_t(&self) -> &Type {
-        self.last().unwrap().ref_t()
+        self.last()
+            .map(|last| last.ref_t())
+            .unwrap_or(Type::FAILURE)
     }
     #[inline]
     fn ref_mut_t(&mut self) -> &mut Type {
@@ -1204,11 +1448,11 @@ impl HasType for Block {
     }
     #[inline]
     fn t(&self) -> Type {
-        self.last().unwrap().t()
+        self.last().map(|last| last.t()).unwrap_or(Type::Failure)
     }
     #[inline]
     fn signature_t(&self) -> Option<&Type> {
-        self.last().unwrap().signature_t()
+        self.last().and_then(|last| last.signature_t())
     }
     #[inline]
     fn signature_mut_t(&mut self) -> Option<&mut Type> {
@@ -1222,12 +1466,81 @@ impl NestedDisplay for Block {
     }
 }
 
+impl NoTypeDisplay for Block {
+    fn to_string_notype(&self) -> String {
+        self.0
+            .iter()
+            .map(|e| e.to_string_notype())
+            .collect::<Vec<_>>()
+            .join("; ")
+    }
+}
+
 impl_display_from_nested!(Block);
 impl_stream_for_wrapper!(Block, Expr);
 
 impl Locational for Block {
     fn loc(&self) -> Location {
-        Location::concat(self.0.first().unwrap(), self.0.last().unwrap())
+        if self.0.is_empty() {
+            Location::Unknown
+        } else {
+            Location::concat(self.0.first().unwrap(), self.0.last().unwrap())
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Dummy(Vec<Expr>);
+
+impl HasType for Dummy {
+    #[inline]
+    fn ref_t(&self) -> &Type {
+        Type::FAILURE
+    }
+    #[inline]
+    fn ref_mut_t(&mut self) -> &mut Type {
+        todo!()
+    }
+    #[inline]
+    fn t(&self) -> Type {
+        Type::Failure
+    }
+    #[inline]
+    fn signature_t(&self) -> Option<&Type> {
+        Some(Type::FAILURE)
+    }
+    #[inline]
+    fn signature_mut_t(&mut self) -> Option<&mut Type> {
+        todo!()
+    }
+}
+
+impl NestedDisplay for Dummy {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
+        fmt_lines(self.0.iter(), f, level)
+    }
+}
+
+impl NoTypeDisplay for Dummy {
+    fn to_string_notype(&self) -> String {
+        self.0
+            .iter()
+            .map(|e| e.to_string_notype())
+            .collect::<Vec<_>>()
+            .join("; ")
+    }
+}
+
+impl_display_from_nested!(Dummy);
+impl_stream_for_wrapper!(Dummy, Expr);
+
+impl Locational for Dummy {
+    fn loc(&self) -> Location {
+        if self.0.is_empty() {
+            Location::Unknown
+        } else {
+            Location::concat(self.0.first().unwrap(), self.0.last().unwrap())
+        }
     }
 }
 
@@ -1291,6 +1604,12 @@ impl NestedDisplay for DefaultParamSignature {
     }
 }
 
+impl NoTypeDisplay for DefaultParamSignature {
+    fn to_string_notype(&self) -> String {
+        format!("{} := {}", self.sig, self.default_val.to_string_notype())
+    }
+}
+
 impl_display_from_nested!(DefaultParamSignature);
 
 impl Locational for DefaultParamSignature {
@@ -1329,23 +1648,39 @@ impl fmt::Display for Params {
     }
 }
 
+impl NoTypeDisplay for Params {
+    fn to_string_notype(&self) -> String {
+        format!(
+            "({}, {}, {})",
+            fmt_vec(&self.non_defaults),
+            fmt_option!(pre "...", &self.var_args),
+            self.defaults
+                .iter()
+                .map(|p| p.to_string_notype())
+                .fold("".to_string(), |acc, e| acc + &e + ", ")
+        )
+    }
+}
+
 impl Locational for Params {
     fn loc(&self) -> Location {
-        // FIXME: varargs
         if let Some((l, r)) = &self.parens {
-            Location::concat(l, r)
-        } else if !self.non_defaults.is_empty() {
-            Location::concat(&self.non_defaults[0], self.non_defaults.last().unwrap())
-        } else if let Some(var_args) = &self.var_args {
-            if !self.defaults.is_empty() {
-                Location::concat(var_args.as_ref(), self.defaults.last().unwrap())
-            } else {
-                var_args.loc()
+            let loc = Location::concat(l, r);
+            if !loc.is_unknown() {
+                return loc;
             }
-        } else if !self.defaults.is_empty() {
-            Location::concat(&self.defaults[0], self.defaults.last().unwrap())
-        } else {
-            panic!()
+        }
+        match (
+            self.non_defaults.first(),
+            self.var_args.as_ref(),
+            self.defaults.last(),
+        ) {
+            (Some(l), _, Some(r)) => Location::concat(l, r),
+            (Some(l), Some(r), None) => Location::concat(l, r.as_ref()),
+            (Some(l), None, None) => Location::concat(l, self.non_defaults.last().unwrap()),
+            (None, Some(l), Some(r)) => Location::concat(l.as_ref(), r),
+            (None, None, Some(r)) => Location::concat(self.defaults.first().unwrap(), r),
+            _ => Location::Unknown,
         }
     }
 }
@@ -1414,9 +1749,19 @@ impl NestedDisplay for SubrSignature {
         write!(
             f,
             "{}{} (: {})",
-            self.ident.to_string_without_type(),
+            self.ident.to_string_notype(),
             self.params,
             self.ident.t()
+        )
+    }
+}
+
+impl NoTypeDisplay for SubrSignature {
+    fn to_string_notype(&self) -> String {
+        format!(
+            "{}{}",
+            self.ident.to_string_notype(),
+            self.params.to_string_notype()
         )
     }
 }
@@ -1466,6 +1811,17 @@ impl NestedDisplay for Lambda {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
         writeln!(f, "{} {} (: {})", self.params, self.op.content, self.t)?;
         self.body.fmt_nest(f, level + 1)
+    }
+}
+
+impl NoTypeDisplay for Lambda {
+    fn to_string_notype(&self) -> String {
+        format!(
+            "{} {} {}",
+            self.params.to_string_notype(),
+            self.op.content,
+            self.body.to_string_notype()
+        )
     }
 }
 
@@ -1548,58 +1904,6 @@ impl Signature {
     }
 }
 
-/// represents a declaration of a variable
-/// necessary for type field declaration
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Decl {
-    pub sig: Signature,
-    pub t: Type,
-}
-
-impl NestedDisplay for Decl {
-    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "{}: {}", self.sig, self.t)
-    }
-}
-
-impl_display_from_nested!(Decl);
-
-impl Locational for Decl {
-    #[inline]
-    fn loc(&self) -> Location {
-        self.sig.loc()
-    }
-}
-
-impl HasType for Decl {
-    #[inline]
-    fn ref_t(&self) -> &Type {
-        Type::NONE
-    }
-    #[inline]
-    fn ref_mut_t(&mut self) -> &mut Type {
-        todo!()
-    }
-    #[inline]
-    fn signature_t(&self) -> Option<&Type> {
-        None
-    }
-    #[inline]
-    fn signature_mut_t(&mut self) -> Option<&mut Type> {
-        None
-    }
-}
-
-impl Decl {
-    pub const fn spec_t(&self) -> &Type {
-        &self.t
-    }
-
-    pub const fn is_sub(&self) -> bool {
-        self.sig.is_subr()
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DefBody {
     pub op: Token,
@@ -1607,7 +1911,7 @@ pub struct DefBody {
     pub id: DefId,
 }
 
-impl_locational!(DefBody, op, block);
+impl_locational!(DefBody, lossy op, block);
 
 impl DefBody {
     pub const fn new(op: Token, block: Block, id: DefId) -> Self {
@@ -1625,6 +1929,17 @@ impl NestedDisplay for Def {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
         writeln!(f, "{} {}", self.sig, self.body.op.content)?;
         self.body.block.fmt_nest(f, level + 1)
+    }
+}
+
+impl NoTypeDisplay for Def {
+    fn to_string_notype(&self) -> String {
+        format!(
+            "{} {} {}",
+            self.sig,
+            self.body.op.content,
+            self.body.block.to_string_notype()
+        )
     }
 }
 
@@ -1674,7 +1989,7 @@ impl Def {
                     }
                 }
                 Some("import") => DefKind::ErgImport,
-                Some("pyimport") | Some("py") => DefKind::PyImport,
+                Some("pyimport") | Some("py") | Some("__import__") => DefKind::PyImport,
                 _ => DefKind::Other,
             },
             _ => DefKind::Other,
@@ -1693,6 +2008,18 @@ impl NestedDisplay for Methods {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
         writeln!(f, "{}{}", self.class, self.vis.content)?;
         self.defs.fmt_nest(f, level + 1)
+    }
+}
+
+// TODO
+impl NoTypeDisplay for Methods {
+    fn to_string_notype(&self) -> String {
+        format!(
+            "{}{} {}",
+            self.class,
+            self.vis.content,
+            self.defs.to_string_notype()
+        )
     }
 }
 
@@ -1740,6 +2067,13 @@ impl NestedDisplay for ClassDef {
         self.sig.fmt_nest(f, level)?;
         writeln!(f, ":")?;
         self.methods.fmt_nest(f, level + 1)
+    }
+}
+
+// TODO
+impl NoTypeDisplay for ClassDef {
+    fn to_string_notype(&self) -> String {
+        format!("{}: {}", self.sig, self.methods.to_string_notype())
     }
 }
 
@@ -1801,6 +2135,18 @@ impl NestedDisplay for PatchDef {
     }
 }
 
+// TODO
+impl NoTypeDisplay for PatchDef {
+    fn to_string_notype(&self) -> String {
+        format!(
+            "{} = Patch {}: {}",
+            self.sig,
+            self.base.to_string_notype(),
+            self.methods.to_string_notype()
+        )
+    }
+}
+
 impl_display_from_nested!(PatchDef);
 impl_locational!(PatchDef, sig);
 
@@ -1847,6 +2193,16 @@ impl NestedDisplay for AttrDef {
     }
 }
 
+impl NoTypeDisplay for AttrDef {
+    fn to_string_notype(&self) -> String {
+        format!(
+            "{} = {}",
+            self.attr.to_string_notype(),
+            self.block.to_string_notype()
+        )
+    }
+}
+
 impl_display_from_nested!(AttrDef);
 impl_locational!(AttrDef, attr, block);
 
@@ -1884,6 +2240,12 @@ pub struct TypeAscription {
 impl NestedDisplay for TypeAscription {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         writeln!(f, "{}: {}", self.expr, self.spec)
+    }
+}
+
+impl NoTypeDisplay for TypeAscription {
+    fn to_string_notype(&self) -> String {
+        format!("{}: {}", self.expr.to_string_notype(), self.spec)
     }
 }
 
@@ -1939,12 +2301,14 @@ pub enum Expr {
     Code(Block),     // code object
     Compound(Block), // compound statement
     Import(Accessor),
+    Dummy(Dummy), // for mapping to Python AST
 }
 
-impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, AttrDef, Code, Compound, TypeAsc, Set, Import);
+impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, AttrDef, Code, Compound, TypeAsc, Set, Import, Dummy);
+impl_no_type_display_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, AttrDef, Code, Compound, TypeAsc, Set, Import, Dummy);
 impl_display_from_nested!(Expr);
-impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, AttrDef, Code, Compound, TypeAsc, Set, Import);
-impl_t_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, AttrDef, Code, Compound, TypeAsc, Set, Import);
+impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, AttrDef, Code, Compound, TypeAsc, Set, Import, Dummy);
+impl_t_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, AttrDef, Code, Compound, TypeAsc, Set, Import, Dummy);
 
 impl Default for Expr {
     fn default() -> Self {
@@ -1965,11 +2329,6 @@ impl Expr {
             Expr::Accessor(acc) => Some(acc.show()),
             _ => None,
         }
-    }
-
-    pub fn to_string_notype(&self) -> String {
-        let s = self.to_string();
-        s.split("(:").next().unwrap_or("?").trim_end().to_string()
     }
 
     /// 参照するオブジェクト自体が持っている名前(e.g. Int.qual_name == Some("int"), Socket!.qual_name == Some("io.Socket!"))

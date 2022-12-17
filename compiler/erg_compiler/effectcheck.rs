@@ -191,7 +191,11 @@ impl SideEffectChecker {
                     self.path_stack.pop();
                     self.block_stack.pop();
                 }
-                other => todo!("{other}"),
+                Expr::AttrDef(_)
+                | Expr::Code(_)
+                | Expr::Compound(_)
+                | Expr::Import(_)
+                | Expr::Dummy(_) => {}
             }
         }
         log!(info "the side-effects checking process has completed, found errors: {}{RESET}", self.errs.len());
@@ -275,6 +279,7 @@ impl SideEffectChecker {
     /// ```
     fn check_expr(&mut self, expr: &Expr) {
         match expr {
+            Expr::Lit(_) => {}
             Expr::Def(def) => {
                 self.check_def(def);
             }
@@ -399,7 +404,11 @@ impl SideEffectChecker {
                     ));
                 }
             }
-            _ => {}
+            Expr::AttrDef(_)
+            | Expr::Code(_)
+            | Expr::Compound(_)
+            | Expr::Import(_)
+            | Expr::Dummy(_) => {}
         }
     }
 }

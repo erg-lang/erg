@@ -279,6 +279,18 @@ impl Location {
         }
     }
 
+    pub const fn is_unknown(&self) -> bool {
+        matches!(self, Self::Unknown)
+    }
+
+    pub const fn unknown_or(&self, other: Self) -> Self {
+        if self.is_unknown() {
+            other
+        } else {
+            *self
+        }
+    }
+
     pub const fn ln_begin(&self) -> Option<usize> {
         match self {
             Self::Range { ln_begin, .. } | Self::LineRange(ln_begin, _) | Self::Line(ln_begin) => {
@@ -392,8 +404,8 @@ fn format_context<E: ErrorDisplay + ?Sized>(
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SubMessage {
     pub loc: Location,
-    msg: Vec<String>,
-    hint: Option<String>,
+    pub msg: Vec<String>,
+    pub hint: Option<String>,
 }
 
 impl SubMessage {
@@ -459,8 +471,12 @@ impl SubMessage {
         self.hint = Some(hint.into());
     }
 
-    pub fn get_hint(self) -> Option<String> {
-        self.hint
+    pub fn get_hint(&self) -> Option<&str> {
+        self.hint.as_deref()
+    }
+
+    pub fn get_msg(&self) -> &[String] {
+        self.msg.as_ref()
     }
 
     // Line breaks are not included except for line breaks that signify the end of a sentence.
@@ -473,7 +489,7 @@ impl SubMessage {
         mark: char,
         chars: &Characters,
     ) -> String {
-        match self.loc {
+        match self.loc.unknown_or(e.core().loc) {
             Location::Range {
                 ln_begin,
                 col_begin,
@@ -504,7 +520,7 @@ impl SubMessage {
                 let mark = mark.to_string();
                 for (i, lineno) in (ln_begin..=ln_end).enumerate() {
                     cxt.push_str_with_color(&format!("{lineno} {vbar} "), gutter_color);
-                    cxt.push_str(codes.get(0).unwrap_or(&String::new()));
+                    cxt.push_str(codes.get(i).unwrap_or(&String::new()));
                     cxt.push_str("\n");
                     cxt.push_str_with_color(
                         &format!("{} {}", &" ".repeat(lineno.to_string().len()), vbreak),
@@ -604,11 +620,11 @@ impl ErrorCore {
 
     pub fn dummy(errno: usize) -> Self {
         Self::new(
-            vec![SubMessage::only_loc(Location::Line(errno as usize))],
+            vec![SubMessage::only_loc(Location::Line(errno))],
             "<dummy>",
             errno,
             DummyError,
-            Location::Line(errno as usize),
+            Location::Line(errno),
         )
     }
 
@@ -631,11 +647,24 @@ impl ErrorCore {
         );
         Self::new(
             vec![SubMessage::only_loc(loc)],
-            &m_msg,
+            m_msg,
             errno,
             CompilerSystemError,
             loc,
         )
+    }
+
+    pub fn get_loc_with_fallback(&self) -> Location {
+        if self.loc == Location::Unknown {
+            for sub in &self.sub_messages {
+                if sub.loc != Location::Unknown {
+                    return sub.loc;
+                }
+            }
+            Location::Unknown
+        } else {
+            self.loc
+        }
     }
 
     pub fn fmt_header(&self, color: Color, caused_by: &str, input: &str) -> String {
@@ -735,6 +764,8 @@ pub trait ErrorDisplay {
         for sub_msg in &core.sub_messages {
             msg += &sub_msg.format_code_and_pointer(self, color, gutter_color, mark, chars);
         }
+        msg += &core.kind.to_string();
+        msg += ": ";
         msg += &core.main_message;
         msg += "\n\n";
         msg

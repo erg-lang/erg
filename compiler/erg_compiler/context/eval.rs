@@ -1,7 +1,6 @@
 use std::mem;
 
 use erg_common::dict::Dict;
-use erg_common::enum_unwrap;
 use erg_common::error::Location;
 #[allow(unused)]
 use erg_common::log;
@@ -10,6 +9,7 @@ use erg_common::shared::Shared;
 use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Field;
 use erg_common::{dict, fn_name, option_enum_unwrap, set};
+use erg_common::{enum_unwrap, fmt_vec};
 use erg_common::{RcArray, Str};
 use OpKind::*;
 
@@ -33,6 +33,17 @@ use crate::error::{EvalError, EvalErrors, EvalResult, SingleEvalResult};
 
 use super::instantiate::TyVarCache;
 use super::Variance;
+
+macro_rules! feature_error {
+    ($ctx: expr, $loc: expr, $name: expr) => {
+        $crate::feature_error!(EvalErrors, EvalError, $ctx, $loc, $name)
+    };
+}
+macro_rules! unreachable_error {
+    ($ctx: expr) => {
+        $crate::unreachable_error!(EvalErrors, EvalError, $ctx)
+    };
+}
 
 #[inline]
 pub fn type_from_token_kind(kind: TokenKind) -> Type {
@@ -139,7 +150,9 @@ impl Context {
                 let obj = self.eval_const_expr(&attr.obj)?;
                 Ok(self.eval_attr(obj, &attr.ident)?)
             }
-            _ => todo!(),
+            other => {
+                feature_error!(self, other.loc(), &format!("eval {other}")).map_err(Into::into)
+            }
         }
     }
 
@@ -260,9 +273,13 @@ impl Context {
 
     fn call(&self, subr: ConstSubr, args: ValueArgs, loc: Location) -> EvalResult<ValueObj> {
         match subr {
-            ConstSubr::User(_user) => todo!(),
+            ConstSubr::User(_user) => {
+                feature_error!(self, loc, "calling user-defined subroutines").map_err(Into::into)
+            }
             ConstSubr::Builtin(builtin) => builtin.call(args, self).map_err(|mut e| {
-                e.0.loc = loc;
+                if e.0.loc.is_unknown() {
+                    e.0.loc = loc;
+                }
                 EvalErrors::from(EvalError::new(
                     *e.0,
                     self.cfg.input.clone(),
@@ -287,9 +304,9 @@ impl Context {
             // TODO: set params
             let kind = ContextKind::from(def.def_kind());
             self.grow(__name__, kind, vis, tv_cache);
-            let obj = self.eval_const_block(&def.body.block).map_err(|e| {
+            let obj = self.eval_const_block(&def.body.block).map_err(|errs| {
                 self.pop();
-                e
+                errs
             })?;
             match self.check_decls_and_pop() {
                 Ok(_) => {
@@ -385,7 +402,7 @@ impl Context {
     fn eval_const_record(&self, record: &Record) -> EvalResult<ValueObj> {
         match record {
             Record::Normal(rec) => self.eval_const_normal_record(rec),
-            Record::Mixed(_rec) => unreachable!(), // should be desugared
+            Record::Mixed(_rec) => unreachable_error!(self), // should be desugared
         }
     }
 
@@ -406,9 +423,13 @@ impl Context {
             let ident = match &attr.sig {
                 Signature::Var(var) => match &var.pat {
                     VarPattern::Ident(ident) => Field::new(ident.vis(), ident.inspect().clone()),
-                    _ => todo!(),
+                    other => {
+                        return feature_error!(self, other.loc(), &format!("record field: {other}"))
+                    }
                 },
-                _ => todo!(),
+                other => {
+                    return feature_error!(self, other.loc(), &format!("record field: {other}"))
+                }
             };
             attrs.push((ident, elem));
         }
@@ -640,6 +661,15 @@ impl Context {
                     line!(),
                 ))),
             },
+            And => match (lhs, rhs) {
+                (ValueObj::Bool(l), ValueObj::Bool(r)) => Ok(ValueObj::Bool(l && r)),
+                (ValueObj::Type(lhs), ValueObj::Type(rhs)) => Ok(self.eval_and_type(lhs, rhs)),
+                _ => Err(EvalErrors::from(EvalError::unreachable(
+                    self.cfg.input.clone(),
+                    fn_name!(),
+                    line!(),
+                ))),
+            },
             _other => Err(EvalErrors::from(EvalError::unreachable(
                 self.cfg.input.clone(),
                 fn_name!(),
@@ -653,6 +683,19 @@ impl Context {
             (TypeObj::Builtin(l), TypeObj::Builtin(r)) => ValueObj::builtin_t(self.union(&l, &r)),
             (lhs, rhs) => ValueObj::gen_t(GenTypeObj::union(
                 self.union(lhs.typ(), rhs.typ()),
+                lhs,
+                rhs,
+            )),
+        }
+    }
+
+    fn eval_and_type(&self, lhs: TypeObj, rhs: TypeObj) -> ValueObj {
+        match (lhs, rhs) {
+            (TypeObj::Builtin(l), TypeObj::Builtin(r)) => {
+                ValueObj::builtin_t(self.intersection(&l, &r))
+            }
+            (lhs, rhs) => ValueObj::gen_t(GenTypeObj::intersection(
+                self.intersection(lhs.typ(), rhs.typ()),
                 lhs,
                 rhs,
             )),
@@ -696,7 +739,8 @@ impl Context {
             (lhs @ TyParam::FreeVar(_), rhs) => Ok(TyParam::bin(op, lhs, rhs)),
             (lhs, rhs @ TyParam::FreeVar(_)) => Ok(TyParam::bin(op, lhs, rhs)),
             (e @ TyParam::Erased(_), _) | (_, e @ TyParam::Erased(_)) => Ok(e),
-            (l, r) => todo!("{l:?} {op} {r:?}"),
+            (l, r) => feature_error!(self, Location::Unknown, &format!("{l:?} {op} {r:?}"))
+                .map_err(Into::into),
         }
     }
 
@@ -718,7 +762,7 @@ impl Context {
                 line!(),
             ))),
             Mutate => Ok(ValueObj::Mut(Shared::new(val))),
-            other => unreachable!("{other}"),
+            _other => unreachable_error!(self),
         }
     }
 
@@ -735,15 +779,19 @@ impl Context {
                     let tp = TyParam::FreeVar(fv);
                     Ok(tp)
                 } else {
-                    todo!("{op} {fv}")
+                    feature_error!(self, Location::Unknown, &format!("{op} {fv}"))
                 }
             }
-            other => todo!("{op} {other}"),
+            other => feature_error!(self, Location::Unknown, &format!("{op} {other}")),
         }
     }
 
-    fn eval_app(&self, _name: Str, _args: Vec<TyParam>) -> EvalResult<TyParam> {
-        todo!()
+    fn eval_app(&self, name: Str, args: Vec<TyParam>) -> EvalResult<TyParam> {
+        feature_error!(
+            self,
+            Location::Unknown,
+            &format!("{name}({})", fmt_vec(&args))
+        )
     }
 
     /// 量化変数などはそのまま返す
@@ -786,12 +834,7 @@ impl Context {
                 Ok(TyParam::Dict(new_dic))
             }
             TyParam::Type(_) | TyParam::Erased(_) | TyParam::Value(_) => Ok(p.clone()),
-            _other => Err(EvalErrors::from(EvalError::feature_error(
-                self.cfg.input.clone(),
-                Location::Unknown,
-                "???",
-                self.caused_by(),
-            ))),
+            _other => feature_error!(self, Location::Unknown, "???"),
         }
     }
 
@@ -873,16 +916,17 @@ impl Context {
                 Ok(not(l, r))
             }
             other if other.is_monomorphic() => Ok(other),
-            _other => Err(EvalErrors::from(EvalError::feature_error(
-                self.cfg.input.clone(),
-                t_loc,
-                "???",
-                self.caused_by(),
-            ))),
+            _other => feature_error!(self, t_loc, "???"),
         }
     }
 
-    fn eval_proj(&self, lhs: Type, rhs: Str, level: usize, t_loc: Location) -> EvalResult<Type> {
+    pub(crate) fn eval_proj(
+        &self,
+        lhs: Type,
+        rhs: Str,
+        level: usize,
+        t_loc: Location,
+    ) -> EvalResult<Type> {
         // Currently Erg does not allow projection-types to be evaluated with type variables included.
         // All type variables will be dereferenced or fail.
         let (sub, opt_sup) = match lhs.clone() {
@@ -1042,8 +1086,12 @@ impl Context {
         level: usize,
         t_loc: Location,
     ) -> Option<Type> {
+        // e.g. sub: Int, opt_sup: Add(?T), rhs: Output, methods: Int.methods
+        //      sub: [Int; 4], opt_sup: Add([Int; 2]), rhs: Output, methods: [T; N].methods
         if let Ok(obj) = methods.get_const_local(&Token::symbol(rhs), &self.name) {
             #[allow(clippy::single_match)]
+            // opt_sup: Add(?T), methods.impl_of(): Add(Int)
+            // opt_sup: Add([Int; 2]), methods.impl_of(): Add([T; M])
             match (&opt_sup, methods.impl_of()) {
                 (Some(sup), Some(trait_)) => {
                     if !self.supertype_of(&trait_, sup) {
@@ -1052,19 +1100,25 @@ impl Context {
                 }
                 _ => {}
             }
+            // obj: Int|<: Add(Int)|.Output == ValueObj::Type(<type Int>)
+            // obj: [T; N]|<: Add([T; M])|.Output == ValueObj::Type(<type [T; M+N]>)
             if let ValueObj::Type(quant_projected_t) = obj {
                 let projected_t = quant_projected_t.into_typ();
                 let (quant_sub, _) = self.rec_get_type(&sub.local_name()).unwrap();
                 if let Some(sup) = opt_sup {
                     if let Some(quant_sup) = methods.impl_of() {
+                        // T -> Int, M -> 2
                         self.substitute_typarams(&quant_sup, sup);
                     }
                 }
+                // T -> Int, N -> 4
                 self.substitute_typarams(quant_sub, sub);
+                // [T; M+N] -> [Int; 4+2] -> [Int; 6]
                 let res = self.eval_t_params(projected_t, level, t_loc).ok();
                 if let Some(t) = res {
                     let mut tv_cache = TyVarCache::new(self.level, self);
                     let t = self.detach(t, &mut tv_cache);
+                    // Int -> T, 2 -> M, 4 -> N
                     self.undo_substitute_typarams(quant_sub);
                     if let Some(quant_sup) = methods.impl_of() {
                         self.undo_substitute_typarams(&quant_sup);
@@ -1159,6 +1213,7 @@ impl Context {
                     if !st.is_generalized() {
                         self.substitute_typarams(&qt, &st);
                     }
+                    self.sub_unify(&st, &qt, Location::Unknown, None).unwrap();
                 }
                 _ => {}
             }
@@ -1184,7 +1239,7 @@ impl Context {
         }
     }
 
-    fn eval_proj_call(
+    pub(crate) fn eval_proj_call(
         &self,
         lhs: TyParam,
         attr_name: Str,
@@ -1207,17 +1262,31 @@ impl Context {
                     let is_method = subr.sig_t().self_t().is_some();
                     let mut pos_args = vec![];
                     if is_method {
-                        pos_args.push(ValueObj::try_from(lhs).unwrap());
+                        match ValueObj::try_from(lhs) {
+                            Ok(value) => {
+                                pos_args.push(value);
+                            }
+                            Err(_) => {
+                                return feature_error!(self, t_loc, "??");
+                            }
+                        }
                     }
                     for pos_arg in args.into_iter() {
-                        pos_args.push(ValueObj::try_from(pos_arg).unwrap());
+                        match ValueObj::try_from(pos_arg) {
+                            Ok(value) => {
+                                pos_args.push(value);
+                            }
+                            Err(_) => {
+                                return feature_error!(self, t_loc, "??");
+                            }
+                        }
                     }
                     let args = ValueArgs::new(pos_args, dict! {});
                     let t = self.call(subr, args, t_loc)?;
                     let t = enum_unwrap!(t, ValueObj::Type); // TODO: error handling
                     return Ok(t.into_typ());
                 } else {
-                    todo!()
+                    return feature_error!(self, t_loc, "??");
                 }
             }
             for (_class, methods) in ty_ctx.methods_list.iter() {
@@ -1225,14 +1294,21 @@ impl Context {
                     if let ValueObj::Subr(subr) = obj {
                         let mut pos_args = vec![];
                         for pos_arg in args.into_iter() {
-                            pos_args.push(ValueObj::try_from(pos_arg).unwrap());
+                            match ValueObj::try_from(pos_arg) {
+                                Ok(value) => {
+                                    pos_args.push(value);
+                                }
+                                Err(_) => {
+                                    return feature_error!(self, t_loc, "??");
+                                }
+                            }
                         }
                         let args = ValueArgs::new(pos_args, dict! {});
                         let t = self.call(subr, args, t_loc)?;
                         let t = enum_unwrap!(t, ValueObj::Type); // TODO: error handling
                         return Ok(t.into_typ());
                     } else {
-                        todo!()
+                        return feature_error!(self, t_loc, "??");
                     }
                 }
             }
@@ -1297,7 +1373,7 @@ impl Context {
                 if let Some(t) = fv.get_type() {
                     Ok(t)
                 } else {
-                    todo!() // Type
+                    feature_error!(self, Location::Unknown, "??")
                 }
             }
             TyParam::Type(typ) => Ok(self.meta_type(&typ)),
@@ -1326,13 +1402,21 @@ impl Context {
             dict @ TyParam::Dict(_) => Ok(dict_t(dict)),
             TyParam::UnaryOp { op, val } => match op {
                 OpKind::Mutate => Ok(self.get_tp_t(&val)?.mutate()),
-                _ => todo!(),
+                _ => feature_error!(self, Location::Unknown, "??"),
             },
             TyParam::BinOp { op, lhs, rhs } => {
                 let op_name = op_to_name(op);
-                todo!("get type: {op_name}({lhs}, {rhs})")
+                feature_error!(
+                    self,
+                    Location::Unknown,
+                    &format!("get type: {op_name}({lhs}, {rhs})")
+                )
             }
-            other => todo!("{other}"),
+            other => feature_error!(
+                self,
+                Location::Unknown,
+                &format!("getting the type of {other}")
+            ),
         }
     }
 
@@ -1345,7 +1429,7 @@ impl Context {
                 if let Some(t) = fv.get_type() {
                     Ok(t)
                 } else {
-                    todo!()
+                    feature_error!(self, Location::Unknown, "??")
                 }
             }
             TyParam::Type(_) => Ok(Type::Type),
@@ -1360,7 +1444,11 @@ impl Context {
                         ))
                     })
             }
-            other => todo!("{other}"),
+            other => feature_error!(
+                self,
+                Location::Unknown,
+                &format!("getting the class of {other}")
+            ),
         }
     }
 

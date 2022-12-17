@@ -25,6 +25,22 @@ pub const CUSTOM_MAGENTA: &str = "\x1b[38;2;165;76;255m";
 pub const CUSTOM_GREEN: &str = "\x1b[38;2;76;255;76m";
 pub const CUSTOM_YELLOW: &str = "\x1b[38;2;255;255;76m";
 
+pub fn remove_style(s: &str) -> String {
+    s.replace(RED, "")
+        .replace(YELLOW, "")
+        .replace(GREEN, "")
+        .replace(CYAN, "")
+        .replace(BLUE, "")
+        .replace(MAGENTA, "")
+        .replace(GRAY, "")
+        .replace(WHITE, "")
+        .replace(BLACK, "")
+        .replace(BOLD, "")
+        .replace(UNDERLINE, "")
+        .replace(ATTR_RESET, "")
+        .replace(RESET, "")
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Hash)]
 pub enum Color {
     Reset,

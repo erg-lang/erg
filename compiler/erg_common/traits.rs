@@ -386,6 +386,7 @@ pub trait Runnable: Sized + Default {
     const NAME: &'static str;
     fn new(cfg: ErgConfig) -> Self;
     fn cfg(&self) -> &ErgConfig;
+    fn cfg_mut(&mut self) -> &mut ErgConfig;
     fn finish(&mut self); // called when the :exit command is received.
     /// Erase all but immutable information.
     fn initialize(&mut self);
@@ -396,6 +397,9 @@ pub trait Runnable: Sized + Default {
 
     fn input(&self) -> &Input {
         &self.cfg().input
+    }
+    fn set_input(&mut self, input: Input) {
+        self.cfg_mut().input = input;
     }
     fn start_message(&self) -> String {
         format!(
@@ -576,6 +580,46 @@ macro_rules! impl_locational {
             }
         }
     };
+    ($T: ty, lossy $begin: ident, $end: ident) => {
+        impl Locational for $T {
+            fn loc(&self) -> Location {
+                if self.$begin.loc().is_unknown() {
+                    return self.$end.loc();
+                }
+                match (
+                    self.$begin.ln_begin(),
+                    self.$begin.col_begin(),
+                    self.$end.ln_end(),
+                    self.$end.col_end(),
+                ) {
+                    (Some(lb), Some(cb), Some(le), Some(ce)) => Location::range(lb, cb, le, ce),
+                    (Some(lb), _, Some(le), _) => Location::LineRange(lb, le),
+                    (Some(l), _, _, _) | (_, _, Some(l), _) => Location::Line(l),
+                    _ => Location::Unknown,
+                }
+            }
+        }
+    };
+    ($T: ty, $begin: ident, $middle: ident, $end: ident) => {
+        impl Locational for $T {
+            fn loc(&self) -> Location {
+                if self.$begin.loc().is_unknown() && self.$end.loc().is_unknown() {
+                    return self.$middle.loc();
+                }
+                match (
+                    self.$begin.ln_begin(),
+                    self.$begin.col_begin(),
+                    self.$end.ln_end(),
+                    self.$end.col_end(),
+                ) {
+                    (Some(lb), Some(cb), Some(le), Some(ce)) => Location::range(lb, cb, le, ce),
+                    (Some(lb), _, Some(le), _) => Location::LineRange(lb, le),
+                    (Some(l), _, _, _) | (_, _, Some(l), _) => Location::Line(l),
+                    _ => Location::Unknown,
+                }
+            }
+        }
+    };
     ($T: ty, $inner: ident) => {
         impl Locational for $T {
             fn loc(&self) -> Location {
@@ -587,6 +631,10 @@ macro_rules! impl_locational {
 
 pub trait NestedDisplay {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, level: usize) -> std::fmt::Result;
+}
+
+pub trait NoTypeDisplay {
+    fn to_string_notype(&self) -> String;
 }
 
 /// `impl<T: NestedDisplay> Display for T NestedDisplay`はorphan-ruleに違反するので個別定義する
@@ -605,7 +653,7 @@ macro_rules! impl_display_from_nested {
 #[macro_export]
 macro_rules! impl_nested_display_for_chunk_enum {
     ($Enum: ident; $($Variant: ident $(,)?)*) => {
-        impl NestedDisplay for $Enum {
+        impl $crate::traits::NestedDisplay for $Enum {
             fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
                 write!(f, "{}", "    ".repeat(level))?;
                 match self {
@@ -619,10 +667,23 @@ macro_rules! impl_nested_display_for_chunk_enum {
 #[macro_export]
 macro_rules! impl_nested_display_for_enum {
     ($Enum: ident; $($Variant: ident $(,)?)*) => {
-        impl NestedDisplay for $Enum {
+        impl $crate::traits::NestedDisplay for $Enum {
             fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
                 match self {
                     $($Enum::$Variant(v) => v.fmt_nest(f, level),)*
+                }
+            }
+        }
+    }
+}
+
+#[macro_export]
+macro_rules! impl_no_type_display_for_enum {
+    ($Enum: ident; $($Variant: ident $(,)?)*) => {
+        impl $crate::traits::NoTypeDisplay for $Enum {
+            fn to_string_notype(&self) -> String {
+                match self {
+                    $($Enum::$Variant(v) => v.to_string_notype(),)*
                 }
             }
         }

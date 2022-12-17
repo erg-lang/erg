@@ -18,7 +18,7 @@ unicode = ["erg_common/unicode"]
 pretty = ["erg_common/pretty"]
 
 [dependencies]
-erg_common = { version = "0.6.0-beta.1", path = "../erg_common" }
+erg_common = { version = "0.6.0-beta.2", path = "../erg_common" }
 unicode-xid = "0.2.4"
 
 [lib]

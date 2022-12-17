@@ -3,12 +3,12 @@ use std::fmt;
 use std::ops::{Add, Div, Mul, Neg, Range, RangeInclusive, Sub};
 use std::rc::Rc;
 
-use erg_common::dict;
 use erg_common::dict::Dict;
 use erg_common::set;
 use erg_common::set::Set;
 use erg_common::traits::LimitedDisplay;
 use erg_common::Str;
+use erg_common::{dict, log};
 
 use super::constructors::int_interval;
 use super::free::{CanbeFree, Constraint, FreeKind, FreeTyParam, HasLevel, Level, GENERIC_LEVEL};
@@ -454,7 +454,10 @@ impl TryFrom<TyParam> for ValueObj {
             TyParam::FreeVar(fv) if fv.is_linked() => ValueObj::try_from(fv.crack().clone()),
             TyParam::Type(t) => Ok(ValueObj::builtin_t(*t)),
             TyParam::Value(v) => Ok(v),
-            _ => panic!("Expected value, got {:?}", tp),
+            _ => {
+                log!(err "Expected value, got {:?}", tp);
+                Err(())
+            }
         }
     }
 }

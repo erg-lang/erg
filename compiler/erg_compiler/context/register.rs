@@ -1,15 +1,15 @@
 use std::option::Option;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
-use erg_common::config::ErgConfig;
 use erg_common::env::erg_pystd_path;
 use erg_common::levenshtein::get_similar_name;
 use erg_common::python_util::BUILTIN_PYTHON_MODS;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Visibility;
-use erg_common::Str;
 use erg_common::{enum_unwrap, get_hash, log, set};
+use erg_common::{fn_name, Str};
 
 use ast::{Decorator, DefId, Identifier, OperationKind, VarName};
 use erg_parser::ast;
@@ -188,7 +188,11 @@ impl Context {
             self.locals.insert(ident.name.clone(), vi);
             return Ok(());
         }
-        self.validate_var_sig_t(ident, sig.t_spec.as_ref(), body_t, Normal)?;
+        let (var_t, errs) =
+            match self.validate_var_sig_t(ident, sig.t_spec.as_ref(), body_t, Normal) {
+                Ok(()) => (body_t.clone(), None),
+                Err(errs) => (Type::Failure, Some(errs)),
+            };
         let muty = Mutability::from(&ident.inspect()[..]);
         let py_name = if let Some(vi) = self
             .decls
@@ -201,7 +205,7 @@ impl Context {
         };
         let vis = ident.vis();
         let vi = VarInfo::new(
-            body_t.clone(),
+            var_t,
             muty,
             vis,
             VarKind::Defined(id),
@@ -211,7 +215,11 @@ impl Context {
         );
         log!(info "Registered {}::{}: {}", self.name, ident.name, vi);
         self.locals.insert(ident.name.clone(), vi);
-        Ok(())
+        if let Some(errs) = errs {
+            Err(errs)
+        } else {
+            Ok(())
+        }
     }
 
     /// 宣言が既にある場合、opt_decl_tに宣言の型を渡す
@@ -221,6 +229,11 @@ impl Context {
         default_val_exists: bool,
         opt_decl_t: Option<&ParamTy>,
     ) -> TyCheckResult<()> {
+        let vis = if self.cfg.python_compatible_mode {
+            Public
+        } else {
+            Private
+        };
         match &sig.pat {
             // Literal patterns will be desugared to discard patterns
             ast::ParamPattern::Lit(_) => unreachable!(),
@@ -237,7 +250,7 @@ impl Context {
                 );
                 self.params.push((
                     Some(VarName::from_static("_")),
-                    VarInfo::new(spec_t, Immutable, Private, kind, None, None, None),
+                    VarInfo::new(spec_t, Immutable, vis, kind, None, None, None),
                 ));
                 Ok(())
             }
@@ -259,8 +272,11 @@ impl Context {
                     let spec_t =
                         self.instantiate_param_sig_t(sig, opt_decl_t, &mut dummy_tv_cache, Normal)?;
                     if &name.inspect()[..] == "self" {
-                        let self_t = self.rec_get_self_t().unwrap();
-                        self.sub_unify(&spec_t, &self_t, name.loc(), Some(name.inspect()))?;
+                        if let Some(self_t) = self.rec_get_self_t() {
+                            self.sub_unify(&spec_t, &self_t, name.loc(), Some(name.inspect()))?;
+                        } else {
+                            log!(err "self_t is None");
+                        }
                     }
                     let default = if default_val_exists {
                         DefaultInfo::WithDefault
@@ -271,7 +287,7 @@ impl Context {
                     let muty = Mutability::from(&name.inspect()[..]);
                     self.params.push((
                         Some(name.clone()),
-                        VarInfo::new(spec_t, muty, Private, kind, None, None, None),
+                        VarInfo::new(spec_t, muty, vis, kind, None, None, None),
                     ));
                     Ok(())
                 }
@@ -294,8 +310,11 @@ impl Context {
                     let spec_t =
                         self.instantiate_param_sig_t(sig, opt_decl_t, &mut dummy_tv_cache, Normal)?;
                     if &name.inspect()[..] == "self" {
-                        let self_t = self.rec_get_self_t().unwrap();
-                        self.sub_unify(&spec_t, &self_t, name.loc(), Some(name.inspect()))?;
+                        if let Some(self_t) = self.rec_get_self_t() {
+                            self.sub_unify(&spec_t, &self_t, name.loc(), Some(name.inspect()))?;
+                        } else {
+                            log!(err "self_t is None");
+                        }
                     }
                     let spec_t = ref_(spec_t);
                     let default = if default_val_exists {
@@ -306,7 +325,7 @@ impl Context {
                     let kind = VarKind::parameter(DefId(get_hash(&(&self.name, name))), default);
                     self.params.push((
                         Some(name.clone()),
-                        VarInfo::new(spec_t, Immutable, Private, kind, None, None, None),
+                        VarInfo::new(spec_t, Immutable, vis, kind, None, None, None),
                     ));
                     Ok(())
                 }
@@ -329,8 +348,11 @@ impl Context {
                     let spec_t =
                         self.instantiate_param_sig_t(sig, opt_decl_t, &mut dummy_tv_cache, Normal)?;
                     if &name.inspect()[..] == "self" {
-                        let self_t = self.rec_get_self_t().unwrap();
-                        self.sub_unify(&spec_t, &self_t, name.loc(), Some(name.inspect()))?;
+                        if let Some(self_t) = self.rec_get_self_t() {
+                            self.sub_unify(&spec_t, &self_t, name.loc(), Some(name.inspect()))?;
+                        } else {
+                            log!(err "self_t is None");
+                        }
                     }
                     let spec_t = ref_mut(spec_t.clone(), Some(spec_t));
                     let default = if default_val_exists {
@@ -341,14 +363,14 @@ impl Context {
                     let kind = VarKind::parameter(DefId(get_hash(&(&self.name, name))), default);
                     self.params.push((
                         Some(name.clone()),
-                        VarInfo::new(spec_t, Immutable, Private, kind, None, None, None),
+                        VarInfo::new(spec_t, Immutable, vis, kind, None, None, None),
                     ));
                     Ok(())
                 }
             }
             other => {
                 log!(err "{other}");
-                unreachable!()
+                unreachable!("{other}")
             }
         }
     }
@@ -407,24 +429,23 @@ impl Context {
     /// * AssignError: if `name` has already been registered
     pub(crate) fn assign_subr(
         &mut self,
-        ident: &Identifier,
-        decorators: &Set<Decorator>,
+        sig: &ast::SubrSignature,
         id: DefId,
         body_t: &Type,
     ) -> TyCheckResult<Type> {
         // already defined as const
-        if ident.is_const() {
-            let vi = self.decls.remove(ident.inspect()).unwrap();
+        if sig.ident.is_const() {
+            let vi = self.decls.remove(sig.ident.inspect()).unwrap();
             let t = vi.t.clone();
-            self.locals.insert(ident.name.clone(), vi);
+            self.locals.insert(sig.ident.name.clone(), vi);
             return Ok(t);
         }
-        let muty = if ident.is_const() {
+        let muty = if sig.ident.is_const() {
             Mutability::Const
         } else {
             Mutability::Immutable
         };
-        let name = &ident.name;
+        let name = &sig.ident.name;
         // FIXME: constでない関数
         let t = self
             .get_current_scope_var(name.inspect())
@@ -433,8 +454,13 @@ impl Context {
         let non_default_params = t.non_default_params().unwrap();
         let var_args = t.var_args();
         let default_params = t.default_params().unwrap();
-        if let Some(spec_ret_t) = t.return_t() {
-            self.sub_unify(body_t, spec_ret_t, ident.loc(), None)
+        let mut errs = if let Some(spec_ret_t) = t.return_t() {
+            let return_t_loc = sig
+                .return_t_spec
+                .as_ref()
+                .map(|t_spec| t_spec.loc())
+                .unwrap_or_else(|| sig.loc());
+            self.sub_unify(body_t, spec_ret_t, return_t_loc, None)
                 .map_err(|errs| {
                     TyCheckErrors::new(
                         errs.into_iter()
@@ -442,8 +468,7 @@ impl Context {
                                 TyCheckError::return_type_error(
                                     self.cfg.input.clone(),
                                     line!() as usize,
-                                    // TODO: is it possible to get 0?
-                                    e.core.sub_messages.get(0).unwrap().loc,
+                                    e.core.get_loc_with_fallback(),
                                     e.caused_by,
                                     readable_name(name.inspect()),
                                     spec_ret_t,
@@ -452,42 +477,59 @@ impl Context {
                             })
                             .collect(),
                     )
-                })?;
-        }
-        let sub_t = if ident.is_procedural() {
+                })
+        } else {
+            Ok(())
+        };
+        let return_t = if errs.is_err() {
+            Type::Failure
+        } else {
+            // NOTE: not `body_t.clone()` because the body may contain `return`
+            t.return_t().unwrap().clone()
+        };
+        let sub_t = if sig.ident.is_procedural() {
             proc(
                 non_default_params.clone(),
                 var_args.cloned(),
                 default_params.clone(),
-                body_t.clone(),
+                return_t,
             )
         } else {
             func(
                 non_default_params.clone(),
                 var_args.cloned(),
                 default_params.clone(),
-                body_t.clone(),
+                return_t,
             )
         };
         sub_t.lift();
         let found_t = self.generalize_t(sub_t);
         let py_name = if let Some(vi) = self.decls.remove(name) {
             if !self.supertype_of(&vi.t, &found_t) {
-                return Err(TyCheckErrors::from(TyCheckError::violate_decl_error(
+                let err = TyCheckError::violate_decl_error(
                     self.cfg.input.clone(),
                     line!() as usize,
-                    ident.loc(),
+                    sig.ident.loc(),
                     self.caused_by(),
                     name.inspect(),
                     &vi.t,
                     &found_t,
-                )));
+                );
+                match errs {
+                    Ok(()) => {
+                        errs = Err(TyCheckErrors::from(err));
+                    }
+                    Err(ref mut es) => {
+                        es.push(err);
+                    }
+                }
             }
             vi.py_name
         } else {
             None
         };
-        let comptime_decos = decorators
+        let comptime_decos = sig
+            .decorators
             .iter()
             .filter_map(|deco| match &deco.0 {
                 ast::Expr::Accessor(ast::Accessor::Ident(local)) if local.is_const() => {
@@ -499,7 +541,7 @@ impl Context {
         let vi = VarInfo::new(
             found_t,
             muty,
-            ident.vis(),
+            sig.ident.vis(),
             VarKind::Defined(id),
             Some(comptime_decos),
             self.impl_of(),
@@ -508,6 +550,7 @@ impl Context {
         let t = vi.t.clone();
         log!(info "Registered {}::{name}: {t}", self.name);
         self.locals.insert(name.clone(), vi);
+        errs?;
         Ok(t)
     }
 
@@ -516,10 +559,16 @@ impl Context {
         ident: &Identifier,
         decorators: &Set<Decorator>,
         failure_t: Type,
-    ) {
+    ) -> TyCheckResult<()> {
         // already defined as const
         if ident.is_const() {
-            let vi = self.decls.remove(ident.inspect()).unwrap();
+            let Some(vi) = self.decls.remove(ident.inspect()) else {
+                return Err(TyCheckErrors::from(TyCheckError::unreachable(
+                    self.cfg.input.clone(),
+                    fn_name!(),
+                    line!(),
+                )));
+            };
             self.locals.insert(ident.name.clone(), vi);
         }
         let muty = if ident.is_const() {
@@ -549,6 +598,7 @@ impl Context {
         );
         log!(info "Registered {}::{name}: {}", self.name, &vi.t);
         self.locals.insert(name.clone(), vi);
+        Ok(())
     }
 
     // To allow forward references and recursive definitions
@@ -599,14 +649,23 @@ impl Context {
                     };
                     if let Some(spec) = sig.return_t_spec.as_ref() {
                         let mut dummy_tv_cache = TyVarCache::new(self.level, self);
-                        let spec_t = self.instantiate_typespec(
-                            spec,
-                            None,
-                            &mut dummy_tv_cache,
-                            PreRegister,
-                            false,
-                        )?;
-                        self.sub_unify(&const_t, &spec_t, def.body.loc(), None)?;
+                        let spec_t = self
+                            .instantiate_typespec(
+                                spec,
+                                None,
+                                &mut dummy_tv_cache,
+                                PreRegister,
+                                false,
+                            )
+                            .map_err(|err| {
+                                self.pop();
+                                err
+                            })?;
+                        self.sub_unify(&const_t, &spec_t, def.body.loc(), None)
+                            .map_err(|err| {
+                                self.pop();
+                                err
+                            })?;
                     }
                     self.pop();
                     self.register_gen_const(def.sig.ident().unwrap(), obj)?;
@@ -620,20 +679,30 @@ impl Context {
                     self.grow(__name__, kind, sig.vis(), None);
                     let (obj, const_t) = match self.eval_const_block(&def.body.block) {
                         Ok(obj) => (obj.clone(), v_enum(set! {obj})),
-                        Err(e) => {
-                            return Err(e);
+                        Err(errs) => {
+                            self.pop();
+                            return Err(errs);
                         }
                     };
                     if let Some(spec) = sig.t_spec.as_ref() {
                         let mut dummy_tv_cache = TyVarCache::new(self.level, self);
-                        let spec_t = self.instantiate_typespec(
-                            spec,
-                            None,
-                            &mut dummy_tv_cache,
-                            PreRegister,
-                            false,
-                        )?;
-                        self.sub_unify(&const_t, &spec_t, def.body.loc(), None)?;
+                        let spec_t = self
+                            .instantiate_typespec(
+                                spec,
+                                None,
+                                &mut dummy_tv_cache,
+                                PreRegister,
+                                false,
+                            )
+                            .map_err(|err| {
+                                self.pop();
+                                err
+                            })?;
+                        self.sub_unify(&const_t, &spec_t, def.body.loc(), None)
+                            .map_err(|err| {
+                                self.pop();
+                                err
+                            })?;
                     }
                     self.pop();
                     if let Some(ident) = sig.ident() {
@@ -965,8 +1034,11 @@ impl Context {
                         }
                     }
                     for sup in super_classes.into_iter() {
-                        let (_, sup_ctx) = self.get_nominal_type_ctx(&sup).unwrap();
-                        ctx.register_supertrait(sup, sup_ctx);
+                        if let Some((_, sup_ctx)) = self.get_nominal_type_ctx(&sup) {
+                            ctx.register_supertrait(sup, sup_ctx);
+                        } else {
+                            log!(err "{sup} not found");
+                        }
                     }
                     self.register_gen_mono_type(ident, gen, ctx, Const);
                 } else {
@@ -1168,22 +1240,18 @@ impl Context {
         let __name__ = enum_unwrap!(mod_name.value.clone(), ValueObj::Str);
         let mod_cache = self.mod_cache.as_ref().unwrap();
         let py_mod_cache = self.py_mod_cache.as_ref().unwrap();
-        let path = match self.cfg.input.local_resolve(Path::new(&__name__[..])) {
-            Ok(path) => path,
-            Err(err) => {
+        let path = match Self::resolve_real_path(&self.cfg, Path::new(&__name__[..])) {
+            Some(path) => path,
+            None => {
                 let err = TyCheckErrors::from(TyCheckError::import_error(
                     self.cfg.input.clone(),
                     line!() as usize,
-                    err.to_string(),
+                    format!("module {__name__} not found"),
                     mod_name.loc(),
                     self.caused_by(),
                     self.mod_cache.as_ref().unwrap().get_similar_name(&__name__),
-                    self.similar_builtin_py_mod_name(&__name__).or_else(|| {
-                        self.py_mod_cache
-                            .as_ref()
-                            .unwrap()
-                            .get_similar_name(&__name__)
-                    }),
+                    self.similar_builtin_py_mod_name(&__name__)
+                        .or_else(|| py_mod_cache.get_similar_name(&__name__)),
                 ));
                 return Err(err);
             }
@@ -1191,17 +1259,21 @@ impl Context {
         if mod_cache.get(&path).is_some() {
             return Ok(path);
         }
-        let cfg = ErgConfig::with_module_path(path.clone());
+        let cfg = self.cfg.inherit(path.clone());
         let src = cfg.input.read();
         let mut builder =
             HIRBuilder::new_with_cache(cfg, __name__, mod_cache.clone(), py_mod_cache.clone());
         match builder.build(src, "exec") {
             Ok(artifact) => {
-                mod_cache.register(path.clone(), Some(artifact.object), builder.pop_mod_ctx());
+                mod_cache.register(
+                    path.clone(),
+                    Some(artifact.object),
+                    builder.pop_mod_ctx().unwrap(),
+                );
             }
             Err(artifact) => {
                 if let Some(hir) = artifact.object {
-                    mod_cache.register(path, Some(hir), builder.pop_mod_ctx());
+                    mod_cache.register(path, Some(hir), builder.pop_mod_ctx().unwrap());
                 }
                 return Err(artifact.errors);
             }
@@ -1246,13 +1318,9 @@ impl Context {
         Str::from(name)
     }
 
-    fn import_py_mod(&self, mod_name: &Literal) -> CompileResult<PathBuf> {
-        let __name__ = enum_unwrap!(mod_name.value.clone(), ValueObj::Str);
-        let mod_cache = self.mod_cache.as_ref().unwrap();
-        let py_mod_cache = self.py_mod_cache.as_ref().unwrap();
-        let path = self.resolve_path(Path::new(&__name__[..]));
-        let path = match path.canonicalize() {
-            Ok(path) => {
+    fn get_path(&self, mod_name: &Literal, __name__: Str) -> CompileResult<PathBuf> {
+        match Self::resolve_decl_path(&self.cfg, Path::new(&__name__[..])) {
+            Some(path) => {
                 if self.is_pystd_main_module(path.as_path())
                     && !BUILTIN_PYTHON_MODS.contains(&&__name__[..])
                 {
@@ -1265,26 +1333,56 @@ impl Context {
                     );
                     return Err(TyCheckErrors::from(err));
                 }
-                path
+                Ok(path)
             }
-            Err(err) => {
+            None => {
+                if let Ok(path) = self.cfg.input.local_py_resolve(Path::new(&__name__[..])) {
+                    // pylyzer is a static analysis tool for Python.
+                    // It can convert a Python script to an Erg AST for code analysis.
+                    // There is also an option to output the analysis result as `d.er`. Use this if the system have pylyzer installed.
+                    match Command::new("pylyzer")
+                        .arg("--dump-decl")
+                        .arg(path.to_str().unwrap())
+                        .output()
+                    {
+                        Ok(out) if out.status.success() => {
+                            if let Some(path) =
+                                Self::resolve_decl_path(&self.cfg, Path::new(&__name__[..]))
+                            {
+                                return Ok(path);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
                 let err = TyCheckError::import_error(
                     self.cfg.input.clone(),
                     line!() as usize,
-                    err.to_string(),
+                    format!("module {__name__} not found"),
                     mod_name.loc(),
                     self.caused_by(),
                     self.mod_cache.as_ref().unwrap().get_similar_name(&__name__),
-                    self.similar_builtin_py_mod_name(&__name__)
-                        .or_else(|| py_mod_cache.get_similar_name(&__name__)),
+                    self.similar_builtin_py_mod_name(&__name__).or_else(|| {
+                        self.py_mod_cache
+                            .as_ref()
+                            .unwrap()
+                            .get_similar_name(&__name__)
+                    }),
                 );
-                return Err(TyCheckErrors::from(err));
+                Err(TyCheckErrors::from(err))
             }
-        };
+        }
+    }
+
+    fn import_py_mod(&self, mod_name: &Literal) -> CompileResult<PathBuf> {
+        let __name__ = enum_unwrap!(mod_name.value.clone(), ValueObj::Str);
+        let mod_cache = self.mod_cache.as_ref().unwrap();
+        let py_mod_cache = self.py_mod_cache.as_ref().unwrap();
+        let path = self.get_path(mod_name, __name__)?;
         if py_mod_cache.get(&path).is_some() {
             return Ok(path);
         }
-        let cfg = ErgConfig::with_module_path(path.clone());
+        let cfg = self.cfg.inherit(path.clone());
         let src = cfg.input.read();
         let mut builder = HIRBuilder::new_with_cache(
             cfg,
@@ -1294,12 +1392,12 @@ impl Context {
         );
         match builder.build(src, "declare") {
             Ok(artifact) => {
-                let ctx = builder.pop_mod_ctx();
+                let ctx = builder.pop_mod_ctx().unwrap();
                 py_mod_cache.register(path.clone(), Some(artifact.object), ctx);
             }
             Err(artifact) => {
                 if let Some(hir) = artifact.object {
-                    py_mod_cache.register(path, Some(hir), builder.pop_mod_ctx());
+                    py_mod_cache.register(path, Some(hir), builder.pop_mod_ctx().unwrap());
                 }
                 return Err(artifact.errors);
             }
@@ -1404,7 +1502,12 @@ impl Context {
                 if let Some(vi) = self.get_mut_current_scope_var(ident.inspect()) {
                     vi.t = t;
                 } else {
-                    todo!()
+                    return Err(TyCheckErrors::from(TyCheckError::feature_error(
+                        self.cfg.input.clone(),
+                        acc.loc(),
+                        &format!("casting {acc}"),
+                        self.caused_by(),
+                    )));
                 }
             }
             _ => {

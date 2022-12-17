@@ -25,6 +25,12 @@ pub enum OperationKind {
     PyImport,
     Del,
     AssertCast,
+    Class,
+    Inherit,
+    Trait,
+    Subsume,
+    Return,
+    Yield,
 }
 
 impl OperationKind {
@@ -148,6 +154,7 @@ impl KwArg {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Args {
     pos_args: Vec<PosArg>,
+    // var_args: Option<Box<PosArg>>,
     kw_args: Vec<KwArg>,
     pub paren: Option<(Token, Token)>,
 }
@@ -165,13 +172,16 @@ impl_display_from_nested!(Args);
 impl Locational for Args {
     fn loc(&self) -> Location {
         if let Some((l, r)) = &self.paren {
-            return Location::concat(l, r);
+            let loc = Location::concat(l, r);
+            if !loc.is_unknown() {
+                return loc;
+            }
         }
         match (self.pos_args.first(), self.kw_args.last()) {
             (Some(l), Some(r)) => Location::concat(l, r),
             (Some(l), None) => Location::concat(l, self.pos_args.last().unwrap()),
             (None, Some(r)) => Location::concat(self.kw_args.first().unwrap(), r),
-            _ => unreachable!(),
+            _ => Location::Unknown,
         }
     }
 }
@@ -372,10 +382,10 @@ impl NestedDisplay for TypeAppArgs {
 }
 
 impl_display_from_nested!(TypeAppArgs);
-impl_locational!(TypeAppArgs, l_vbar, r_vbar);
+impl_locational!(TypeAppArgs, l_vbar, args, r_vbar);
 
 impl TypeAppArgs {
-    pub fn new(l_vbar: Token, args: Args, r_vbar: Token) -> Self {
+    pub const fn new(l_vbar: Token, args: Args, r_vbar: Token) -> Self {
         Self {
             l_vbar,
             args,
@@ -485,10 +495,10 @@ impl NestedDisplay for NormalArray {
 }
 
 impl_display_from_nested!(NormalArray);
-impl_locational!(NormalArray, l_sqbr, r_sqbr);
+impl_locational!(NormalArray, l_sqbr, elems, r_sqbr);
 
 impl NormalArray {
-    pub fn new(l_sqbr: Token, r_sqbr: Token, elems: Args) -> Self {
+    pub const fn new(l_sqbr: Token, r_sqbr: Token, elems: Args) -> Self {
         Self {
             l_sqbr,
             r_sqbr,
@@ -512,7 +522,7 @@ impl NestedDisplay for ArrayWithLength {
 }
 
 impl_display_from_nested!(ArrayWithLength);
-impl_locational!(ArrayWithLength, l_sqbr, r_sqbr);
+impl_locational!(ArrayWithLength, l_sqbr, elem, r_sqbr);
 
 impl ArrayWithLength {
     pub fn new(l_sqbr: Token, r_sqbr: Token, elem: PosArg, len: Expr) -> Self {
@@ -551,7 +561,7 @@ impl NestedDisplay for ArrayComprehension {
 }
 
 impl_display_from_nested!(ArrayComprehension);
-impl_locational!(ArrayComprehension, l_sqbr, r_sqbr);
+impl_locational!(ArrayComprehension, l_sqbr, elem, r_sqbr);
 
 impl ArrayComprehension {
     pub fn new(
@@ -599,7 +609,7 @@ impl_display_from_nested!(NormalTuple);
 impl_locational!(NormalTuple, elems, elems);
 
 impl NormalTuple {
-    pub fn new(elems: Args) -> Self {
+    pub const fn new(elems: Args) -> Self {
         Self { elems }
     }
 }
@@ -660,7 +670,7 @@ impl_display_from_nested!(NormalDict);
 impl_locational!(NormalDict, l_brace, r_brace);
 
 impl NormalDict {
-    pub fn new(l_brace: Token, r_brace: Token, kvs: Vec<KeyValue>) -> Self {
+    pub const fn new(l_brace: Token, r_brace: Token, kvs: Vec<KeyValue>) -> Self {
         Self {
             l_brace,
             r_brace,
@@ -685,10 +695,10 @@ impl NestedDisplay for DictComprehension {
 }
 
 impl_display_from_nested!(DictComprehension);
-impl_locational!(DictComprehension, l_brace, r_brace);
+impl_locational!(DictComprehension, l_brace, attrs, r_brace);
 
 impl DictComprehension {
-    pub fn new(l_brace: Token, r_brace: Token, attrs: Args, guards: Vec<Expr>) -> Self {
+    pub const fn new(l_brace: Token, r_brace: Token, attrs: Args, guards: Vec<Expr>) -> Self {
         Self {
             l_brace,
             r_brace,
@@ -822,10 +832,10 @@ impl NestedDisplay for NormalRecord {
 }
 
 impl_display_from_nested!(NormalRecord);
-impl_locational!(NormalRecord, l_brace, r_brace);
+impl_locational!(NormalRecord, l_brace, attrs, r_brace);
 
 impl NormalRecord {
-    pub fn new(l_brace: Token, r_brace: Token, attrs: RecordAttrs) -> Self {
+    pub const fn new(l_brace: Token, r_brace: Token, attrs: RecordAttrs) -> Self {
         Self {
             l_brace,
             r_brace,
@@ -884,7 +894,7 @@ impl_display_from_nested!(MixedRecord);
 impl_locational!(MixedRecord, l_brace, r_brace);
 
 impl MixedRecord {
-    pub fn new(l_brace: Token, r_brace: Token, attrs: Vec<RecordAttrOrIdent>) -> Self {
+    pub const fn new(l_brace: Token, r_brace: Token, attrs: Vec<RecordAttrOrIdent>) -> Self {
         Self {
             l_brace,
             r_brace,
@@ -919,10 +929,10 @@ impl NestedDisplay for NormalSet {
 }
 
 impl_display_from_nested!(NormalSet);
-impl_locational!(NormalSet, l_brace, r_brace);
+impl_locational!(NormalSet, l_brace, elems, r_brace);
 
 impl NormalSet {
-    pub fn new(l_brace: Token, r_brace: Token, elems: Args) -> Self {
+    pub const fn new(l_brace: Token, r_brace: Token, elems: Args) -> Self {
         Self {
             l_brace,
             r_brace,
@@ -946,7 +956,7 @@ impl NestedDisplay for SetWithLength {
 }
 
 impl_display_from_nested!(SetWithLength);
-impl_locational!(SetWithLength, l_brace, r_brace);
+impl_locational!(SetWithLength, l_brace, elem, r_brace);
 
 impl SetWithLength {
     pub fn new(l_brace: Token, r_brace: Token, elem: PosArg, len: Expr) -> Self {
@@ -1104,8 +1114,12 @@ impl Call {
     pub fn additional_operation(&self) -> Option<OperationKind> {
         self.obj.get_name().and_then(|s| match &s[..] {
             "import" => Some(OperationKind::Import),
-            "pyimport" | "py" => Some(OperationKind::PyImport),
+            "pyimport" | "py" | "__import__" => Some(OperationKind::PyImport),
             "Del" => Some(OperationKind::Del),
+            "Class" => Some(OperationKind::Class),
+            "Inherit" => Some(OperationKind::Inherit),
+            "Trait" => Some(OperationKind::Trait),
+            "Subsume" => Some(OperationKind::Subsume),
             _ => None,
         })
     }
@@ -1156,11 +1170,38 @@ impl_display_from_nested!(Block);
 
 impl Locational for Block {
     fn loc(&self) -> Location {
-        Location::concat(self.0.first().unwrap(), self.0.last().unwrap())
+        if self.0.is_empty() {
+            Location::Unknown
+        } else {
+            Location::concat(self.0.first().unwrap(), self.0.last().unwrap())
+        }
     }
 }
 
 impl_stream_for_wrapper!(Block, Expr);
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Dummy(Vec<Expr>);
+
+impl NestedDisplay for Dummy {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
+        fmt_lines(self.0.iter(), f, level)
+    }
+}
+
+impl_display_from_nested!(Dummy);
+
+impl Locational for Dummy {
+    fn loc(&self) -> Location {
+        if self.0.is_empty() {
+            Location::Unknown
+        } else {
+            Location::concat(self.0.first().unwrap(), self.0.last().unwrap())
+        }
+    }
+}
+
+impl_stream_for_wrapper!(Dummy, Expr);
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstLocal {
@@ -1385,7 +1426,7 @@ impl_display_from_nested!(ConstDict);
 impl_locational!(ConstDict, l_brace, r_brace);
 
 impl ConstDict {
-    pub fn new(l_brace: Token, r_brace: Token, attrs: ConstArgs) -> Self {
+    pub const fn new(l_brace: Token, r_brace: Token, attrs: ConstArgs) -> Self {
         Self {
             l_brace,
             r_brace,
@@ -1595,7 +1636,7 @@ impl Locational for ConstArgs {
         } else if let Some(last) = self.pos_args.last() {
             Location::concat(self.pos_args.first().unwrap(), last)
         } else {
-            unreachable!()
+            Location::Unknown
         }
     }
 }
@@ -1916,6 +1957,34 @@ impl SetWithLenTypeSpec {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TupleTypeSpec {
+    pub parens: Option<(Token, Token)>,
+    pub tys: Vec<TypeSpec>,
+}
+
+impl fmt::Display for TupleTypeSpec {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({})", fmt_vec(&self.tys))
+    }
+}
+
+impl Locational for TupleTypeSpec {
+    fn loc(&self) -> Location {
+        if let Some((lparen, rparen)) = &self.parens {
+            Location::concat(lparen, rparen)
+        } else {
+            Location::concat(self.tys.first().unwrap(), self.tys.last().unwrap())
+        }
+    }
+}
+
+impl TupleTypeSpec {
+    pub const fn new(parens: Option<(Token, Token)>, tys: Vec<TypeSpec>) -> Self {
+        Self { parens, tys }
+    }
+}
+
 /// * Array: `[Int; 3]`, `[Int, Ratio, Complex]`, etc.
 /// * Dict: `[Str: Str]`, etc.
 /// * And (Intersection type): Add and Sub and Mul (== Num), etc.
@@ -1933,7 +2002,7 @@ pub enum TypeSpec {
     /* Composite types */
     Array(ArrayTypeSpec),
     SetWithLen(SetWithLenTypeSpec),
-    Tuple(Vec<TypeSpec>),
+    Tuple(TupleTypeSpec),
     Dict(Vec<(TypeSpec, TypeSpec)>),
     Record(Vec<(Identifier, TypeSpec)>),
     // Option(),
@@ -1964,7 +2033,7 @@ impl fmt::Display for TypeSpec {
             Self::Or(lhs, rhs) => write!(f, "{lhs} or {rhs}"),
             Self::Array(arr) => write!(f, "{arr}"),
             Self::SetWithLen(set) => write!(f, "{set}"),
-            Self::Tuple(tys) => write!(f, "({})", fmt_vec(tys)),
+            Self::Tuple(tup) => write!(f, "{tup}"),
             Self::Dict(dict) => {
                 write!(f, "{{")?;
                 for (k, v) in dict.iter() {
@@ -2003,8 +2072,7 @@ impl Locational for TypeSpec {
             }
             Self::Array(arr) => arr.loc(),
             Self::SetWithLen(set) => set.loc(),
-            // TODO: ユニット
-            Self::Tuple(tys) => Location::concat(tys.first().unwrap(), tys.last().unwrap()),
+            Self::Tuple(tup) => tup.loc(),
             Self::Dict(dict) => Location::concat(&dict.first().unwrap().0, &dict.last().unwrap().1),
             Self::Record(rec) => Location::concat(&rec.first().unwrap().0, &rec.last().unwrap().1),
             Self::Enum(set) => set.loc(),
@@ -2064,10 +2132,10 @@ impl NestedDisplay for TypeSpecWithOp {
 }
 
 impl_display_from_nested!(TypeSpecWithOp);
-impl_locational!(TypeSpecWithOp, op, t_spec);
+impl_locational!(TypeSpecWithOp, lossy op, t_spec);
 
 impl TypeSpecWithOp {
-    pub fn new(op: Token, t_spec: TypeSpec) -> Self {
+    pub const fn new(op: Token, t_spec: TypeSpec) -> Self {
         Self { op, t_spec }
     }
 }
@@ -2201,7 +2269,7 @@ impl VarName {
     }
 
     pub fn from_str_and_line(symbol: Str, line: usize) -> Self {
-        Self(Token::new(TokenKind::Symbol, &symbol, line, 0))
+        Self(Token::new(TokenKind::Symbol, symbol, line, 0))
     }
 
     #[inline]
@@ -2241,6 +2309,13 @@ impl VarName {
     pub const fn inspect(&self) -> &Str {
         &self.0.content
     }
+
+    /// Remove `!` from the end of the identifier.
+    /// Procedures defined in `d.er` automatically register the name without `!` as `py_name`.
+    /// This method is for undoing it (e.g. pylyzer-mode)
+    pub fn trim_end_proc_mark(&mut self) {
+        self.0.content = Str::rc(self.0.content.trim_end_matches('!'));
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -2263,7 +2338,11 @@ impl_display_from_nested!(Identifier);
 impl Locational for Identifier {
     fn loc(&self) -> Location {
         if let Some(dot) = &self.dot {
-            Location::concat(dot, &self.name)
+            if dot.loc().is_unknown() {
+                self.name.loc()
+            } else {
+                Location::concat(dot, &self.name)
+            }
         } else {
             self.name.loc()
         }
@@ -2283,10 +2362,17 @@ impl Identifier {
         Self { dot, name }
     }
 
-    pub fn public(name: &'static str) -> Self {
+    pub fn static_public(name: &'static str) -> Self {
         Self::new(
             Some(Token::from_str(TokenKind::Dot, ".")),
             VarName::from_static(name),
+        )
+    }
+
+    pub fn public(name: Str) -> Self {
+        Self::new(
+            Some(Token::from_str(TokenKind::Dot, ".")),
+            VarName::from_str(name),
         )
     }
 
@@ -2323,6 +2409,10 @@ impl Identifier {
 
     pub fn is_procedural(&self) -> bool {
         self.name.is_procedural()
+    }
+
+    pub fn trim_end_proc_mark(&mut self) {
+        self.name.trim_end_proc_mark();
     }
 }
 
@@ -2916,19 +3006,22 @@ impl fmt::Display for Params {
 impl Locational for Params {
     fn loc(&self) -> Location {
         if let Some((l, r)) = &self.parens {
-            Location::concat(l, r)
-        } else if !self.non_defaults.is_empty() {
-            Location::concat(&self.non_defaults[0], self.non_defaults.last().unwrap())
-        } else if let Some(var_args) = &self.var_args {
-            if !self.defaults.is_empty() {
-                Location::concat(var_args.as_ref(), self.defaults.last().unwrap())
-            } else {
-                var_args.loc()
+            let loc = Location::concat(l, r);
+            if !loc.is_unknown() {
+                return loc;
             }
-        } else if !self.defaults.is_empty() {
-            Location::concat(&self.defaults[0], self.defaults.last().unwrap())
-        } else {
-            panic!()
+        }
+        match (
+            self.non_defaults.first(),
+            self.var_args.as_ref(),
+            self.defaults.last(),
+        ) {
+            (Some(l), _, Some(r)) => Location::concat(l, r),
+            (Some(l), Some(r), None) => Location::concat(l, r.as_ref()),
+            (Some(l), None, None) => Location::concat(l, self.non_defaults.last().unwrap()),
+            (None, Some(l), Some(r)) => Location::concat(l.as_ref(), r),
+            (None, None, Some(r)) => Location::concat(self.defaults.first().unwrap(), r),
+            _ => Location::Unknown,
         }
     }
 }
@@ -3078,7 +3171,7 @@ impl Locational for LambdaSignature {
         } else if let Some(return_t) = &self.return_t_spec {
             Location::concat(&self.params, return_t)
         } else if self.params.is_empty() && self.params.parens.is_none() {
-            unreachable!()
+            Location::Unknown
         } else {
             self.params.loc()
         }
@@ -3086,10 +3179,14 @@ impl Locational for LambdaSignature {
 }
 
 impl LambdaSignature {
-    pub const fn new(params: Params, return_t: Option<TypeSpec>, bounds: TypeBoundSpecs) -> Self {
+    pub const fn new(
+        params: Params,
+        return_t_spec: Option<TypeSpec>,
+        bounds: TypeBoundSpecs,
+    ) -> Self {
         Self {
             params,
-            return_t_spec: return_t,
+            return_t_spec,
             bounds,
         }
     }
@@ -3289,7 +3386,7 @@ pub struct DefBody {
     pub id: DefId,
 }
 
-impl_locational!(DefBody, op, block);
+impl_locational!(DefBody, lossy op, block);
 
 impl DefBody {
     pub const fn new(op: Token, block: Block, id: DefId) -> Self {
@@ -3315,7 +3412,7 @@ impl DefBody {
                     }
                 }
                 Some("import") => DefKind::ErgImport,
-                Some("pyimport") | Some("py") => DefKind::PyImport,
+                Some("pyimport") | Some("py") | Some("__import__") => DefKind::PyImport,
                 _ => DefKind::Other,
             },
             _ => DefKind::Other,
@@ -3355,6 +3452,33 @@ impl Def {
 
     pub fn def_kind(&self) -> DefKind {
         self.body.def_kind()
+    }
+}
+
+/// This is not necessary for Erg syntax, but necessary for mapping ASTs in Python
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct AttrDef {
+    pub attr: Accessor,
+    pub expr: Box<Expr>,
+}
+
+impl NestedDisplay for AttrDef {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
+        self.attr.fmt_nest(f, level)?;
+        writeln!(f, " = ")?;
+        self.expr.fmt_nest(f, level + 1)
+    }
+}
+
+impl_display_from_nested!(AttrDef);
+impl_locational!(AttrDef, attr, expr);
+
+impl AttrDef {
+    pub fn new(attr: Accessor, expr: Expr) -> Self {
+        Self {
+            attr,
+            expr: Box::new(expr),
+        }
     }
 }
 
@@ -3468,11 +3592,14 @@ pub enum Expr {
     Methods(Methods),
     ClassDef(ClassDef),
     PatchDef(PatchDef),
+    AttrDef(AttrDef),
+    /// for mapping to Python AST
+    Dummy(Dummy),
 }
 
-impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAsc, Def, Methods, ClassDef, PatchDef);
+impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAsc, Def, Methods, ClassDef, PatchDef, AttrDef, Dummy);
 impl_display_from_nested!(Expr);
-impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAsc, Def, Methods, ClassDef, PatchDef);
+impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAsc, Def, Methods, ClassDef, PatchDef, AttrDef, Dummy);
 
 impl Expr {
     pub fn is_match_call(&self) -> bool {

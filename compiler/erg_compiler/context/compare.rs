@@ -9,12 +9,10 @@ use crate::ty::typaram::{OpKind, TyParam, TyParamOrdering};
 use crate::ty::value::ValueObj;
 use crate::ty::value::ValueObj::Inf;
 use crate::ty::{Predicate, RefinementType, SubrKind, SubrType, Type};
-use erg_common::fresh::fresh_varname;
 use Predicate as Pred;
 
 use erg_common::dict::Dict;
-use erg_common::Str;
-use erg_common::{assume_unreachable, log, set};
+use erg_common::{assume_unreachable, log};
 use TyParamOrdering::*;
 use Type::*;
 
@@ -501,9 +499,11 @@ impl Context {
             // ({I: Int | I >= 0} :> {I: Int | I >= 1}) == true,
             // ({I: Int | I >= 0} :> {N: Nat | N >= 1}) == true,
             // ({I: Int | I > 1 or I < -1} :> {I: Int | I >= 0}) == false,
+            // ({I: Int | I >= 0} :> {F: Float | F >= 0}) == false,
             // {1, 2, 3} :> {1, } == true
             (Refinement(l), Refinement(r)) => {
-                if !self.supertype_of(&l.t, &r.t) && !self.supertype_of(&r.t, &l.t) {
+                // no relation or l.t <: r.t (not equal)
+                if !self.supertype_of(&l.t, &r.t) {
                     return false;
                 }
                 let mut r_preds_clone = r.preds.clone();
@@ -520,11 +520,11 @@ impl Context {
                 r_preds_clone.is_empty()
             }
             (Nat, re @ Refinement(_)) => {
-                let nat = Type::Refinement(self.into_refinement(Nat));
+                let nat = Type::Refinement(Nat.into_refinement());
                 self.structural_supertype_of(&nat, re)
             }
             (re @ Refinement(_), Nat) => {
-                let nat = Type::Refinement(self.into_refinement(Nat));
+                let nat = Type::Refinement(Nat.into_refinement());
                 self.structural_supertype_of(re, &nat)
             }
             // Int :> {I: Int | ...} == true
@@ -541,7 +541,7 @@ impl Context {
                 if self.supertype_of(&l, &r.t) {
                     return true;
                 }
-                let l = Type::Refinement(self.into_refinement(l));
+                let l = Type::Refinement(l.into_refinement());
                 self.structural_supertype_of(&l, rhs)
             }
             // ({I: Int | True} :> Int) == true, ({N: Nat | ...} :> Int) == false, ({I: Int | I >= 0} :> Int) == false
@@ -686,6 +686,31 @@ impl Context {
             {
                 true
             }
+            (TyParam::Array(lp), TyParam::Array(rp), _)
+            | (TyParam::Tuple(lp), TyParam::Tuple(rp), _) => {
+                for (l, r) in lp.iter().zip(rp.iter()) {
+                    if !self.supertype_of_tp(l, r, variance) {
+                        return false;
+                    }
+                }
+                true
+            }
+            // {Int: Str} :> {Int: Str, Bool: Int}
+            (TyParam::Dict(ld), TyParam::Dict(rd), _) => {
+                if ld.len() > rd.len() {
+                    return false;
+                }
+                for (k, lv) in ld.iter() {
+                    if let Some(rv) = rd.get(k) {
+                        if !self.supertype_of_tp(lv, rv, variance) {
+                            return false;
+                        }
+                    } else {
+                        return false;
+                    }
+                }
+                true
+            }
             (TyParam::Type(l), TyParam::Type(r), Variance::Contravariant) => self.subtype_of(l, r),
             (TyParam::Type(l), TyParam::Type(r), Variance::Covariant) => {
                 // if matches!(r.as_ref(), &Type::Refinement(_)) { log!(info "{l}, {r}, {}", self.structural_supertype_of(l, r, bounds, Some(lhs_variance))); }
@@ -810,33 +835,6 @@ impl Context {
         }
     }
 
-    #[allow(clippy::wrong_self_convention)]
-    pub(crate) fn into_refinement(&self, t: Type) -> RefinementType {
-        match t {
-            Nat => {
-                let var = Str::from(fresh_varname());
-                RefinementType::new(
-                    var.clone(),
-                    Int,
-                    set! {Predicate::ge(var, TyParam::value(0))},
-                )
-            }
-            Bool => {
-                let var = Str::from(fresh_varname());
-                RefinementType::new(
-                    var.clone(),
-                    Int,
-                    set! {Predicate::ge(var.clone(), TyParam::value(true)), Predicate::le(var, TyParam::value(false))},
-                )
-            }
-            Refinement(r) => r,
-            t => {
-                let var = Str::from(fresh_varname());
-                RefinementType::new(var, t, set! {})
-            }
-        }
-    }
-
     /// returns union of two types (A or B)
     pub(crate) fn union(&self, lhs: &Type, rhs: &Type) -> Type {
         if lhs == rhs {
@@ -863,7 +861,7 @@ impl Context {
             (other, Refinement(refine)) | (Refinement(refine), other)
                 if !other.is_unbound_var() =>
             {
-                let other = self.into_refinement(other.clone());
+                let other = other.clone().into_refinement();
                 Type::Refinement(self.union_refinement(&other, refine))
             }
             // Array({1, 2}, 2), Array({3, 4}, 2) ==> Array({1, 2, 3, 4}, 2)

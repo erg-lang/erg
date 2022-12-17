@@ -1,0 +1,11 @@
+.abc = pyimport "abc"
+
+.NamedTuple = 'namedtuple': ClassType
+.Deque = 'deque': ClassType
+.ChainMap: ClassType
+.Counter: ClassType
+.OrderedDict: ClassType
+.Defaultdict = 'defaultDict': ClassType
+.UserDict: ClassType
+.UserList: ClassType
+.UserString: ClassType

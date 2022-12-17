@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use erg_common::config::ErgConfig;
 use erg_common::error::MultiErrorDisplay;
 use erg_common::python_util::PythonVersion;
+use erg_common::spawn::exec_new_thread;
 use erg_common::traits::{Runnable, Stream};
 
 use erg_compiler::error::CompileErrors;
@@ -95,6 +96,11 @@ fn exec_mut() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_nested() -> Result<(), ()> {
+    expect_success("tests/should_ok/nested.er")
+}
+
+#[test]
 fn exec_patch() -> Result<(), ()> {
     expect_success("examples/patch.er")
 }
@@ -125,6 +131,11 @@ fn exec_record() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_return() -> Result<(), ()> {
+    expect_success("tests/should_ok/return.er")
+}
+
+#[test]
 fn exec_trait() -> Result<(), ()> {
     expect_success("examples/trait.er")
 }
@@ -151,7 +162,7 @@ fn exec_with() -> Result<(), ()> {
 
 #[test]
 fn exec_addition_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/addition.er", 1)
+    expect_failure("tests/should_err/addition.er", 7)
 }
 
 #[test]
@@ -200,7 +211,7 @@ fn exec_side_effect() -> Result<(), ()> {
 
 #[test]
 fn exec_subtyping() -> Result<(), ()> {
-    expect_failure("tests/should_err/subtyping.er", 1)
+    expect_failure("tests/should_err/subtyping.er", 2)
 }
 
 fn expect_success(file_path: &'static str) -> Result<(), ()> {
@@ -263,19 +274,6 @@ fn _exec_vm(file_path: &'static str) -> Result<i32, CompileErrors> {
     vm.exec()
 }
 
-#[cfg(target_os = "windows")]
 fn exec_vm(file_path: &'static str) -> Result<i32, CompileErrors> {
-    const STACK_SIZE: usize = 4 * 1024 * 1024;
-
-    let child = std::thread::Builder::new()
-        .stack_size(STACK_SIZE)
-        .spawn(move || _exec_vm(file_path))
-        .unwrap();
-    // Wait for thread to join
-    child.join().unwrap()
-}
-
-#[cfg(not(target_os = "windows"))]
-fn exec_vm(file_path: &'static str) -> Result<i32, CompileErrors> {
-    _exec_vm(file_path)
+    exec_new_thread(move || _exec_vm(file_path))
 }
