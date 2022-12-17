@@ -38,7 +38,7 @@ impl Input {
 
     pub fn enclosed_name(&self) -> &str {
         match self {
-            Self::File(filename) => filename.to_str().unwrap_or("???"),
+            Self::File(filename) => filename.to_str().unwrap_or("_"),
             Self::REPL | Self::Pipe(_) => "<stdin>",
             Self::Str(_) => "<string>",
             Self::Dummy => "<dummy>",
@@ -47,7 +47,7 @@ impl Input {
 
     pub fn full_path(&self) -> &str {
         match self {
-            Self::File(filename) => filename.to_str().unwrap_or("???"),
+            Self::File(filename) => filename.to_str().unwrap_or("_"),
             Self::REPL | Self::Pipe(_) => "stdin",
             Self::Str(_) => "string",
             Self::Dummy => "dummy",
@@ -56,10 +56,7 @@ impl Input {
 
     pub fn filename(&self) -> &str {
         match self {
-            Self::File(filename) => filename
-                .file_name()
-                .and_then(|f| f.to_str())
-                .unwrap_or("???"),
+            Self::File(filename) => filename.file_name().and_then(|f| f.to_str()).unwrap_or("_"),
             Self::REPL | Self::Pipe(_) => "stdin",
             Self::Str(_) => "string",
             Self::Dummy => "dummy",
@@ -263,6 +260,32 @@ impl ErgConfig {
             format!("{output}/{}", self.input.filename())
         } else {
             self.input.full_path().to_string()
+        }
+    }
+
+    pub fn dump_filename(&self) -> String {
+        if let Some(output) = &self.output_dir {
+            format!("{output}/{}", self.input.filename())
+        } else {
+            self.input.filename().to_string()
+        }
+    }
+
+    pub fn dump_pyc_path(&self) -> String {
+        let dump_path = self.dump_path();
+        if dump_path.ends_with(".er") {
+            dump_path.replace(".er", ".pyc")
+        } else {
+            dump_path + ".pyc"
+        }
+    }
+
+    pub fn dump_pyc_filename(&self) -> String {
+        let dump_filename = self.dump_filename();
+        if dump_filename.ends_with(".er") {
+            dump_filename.replace(".er", ".pyc")
+        } else {
+            dump_filename + ".pyc"
         }
     }
 

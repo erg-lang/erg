@@ -147,7 +147,7 @@ impl Runnable for Compiler {
     }
 
     fn exec(&mut self) -> Result<i32, Self::Errs> {
-        let path = self.cfg.dump_path().replace(".er", ".pyc");
+        let path = self.cfg.dump_pyc_path();
         let warns = self
             .compile_and_dump_as_pyc(path, self.input().read(), "exec")
             .map_err(|eart| {
