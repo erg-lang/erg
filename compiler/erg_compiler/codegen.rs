@@ -245,7 +245,12 @@ impl PyCodeGenerator {
         self.emit_push_null();
         self.emit_load_name_instr(Identifier::public("exit"));
         self.emit_load_const(1);
-        self.emit_precall_and_call(1);
+        if self.py_version.minor >= Some(11) {
+            self.emit_precall_and_call(1);
+        } else {
+            self.write_instr(Opcode310::CALL_FUNCTION);
+            self.write_arg(1);
+        }
         self.stack_dec();
     }
 
@@ -955,10 +960,6 @@ impl PyCodeGenerator {
             let idx = self.register_const(kws);
             self.write_instr(Opcode311::KW_NAMES);
             self.write_arg(idx);
-            /*self.write_instr(Opcode311::PRECALL);
-            self.write_arg(argc);
-            self.write_instr(Opcode311::CALL);
-            self.write_arg(argc);*/
             self.emit_precall_and_call(argc);
         } else {
             self.emit_load_const(kws);
@@ -1790,7 +1791,11 @@ impl PyCodeGenerator {
         if let Some(t_spec) = param.t_spec.map(|spec| spec.t_spec) {
             // If it's the last arm, there's no need to inspect it
             if !is_last_arm {
-                self.emit_match_guard(t_spec, &mut pop_jump_points);
+                if self.py_version.minor >= Some(11) {
+                    self.emit_match_guard_311(t_spec, &mut pop_jump_points);
+                } else {
+                    self.emit_match_guard_310(t_spec, &mut pop_jump_points);
+                }
             }
         }
         match param.pat {
@@ -1806,7 +1811,7 @@ impl PyCodeGenerator {
         pop_jump_points
     }
 
-    fn emit_match_guard(&mut self, t_spec: TypeSpec, pop_jump_points: &mut Vec<usize>) {
+    fn emit_match_guard_311(&mut self, t_spec: TypeSpec, pop_jump_points: &mut Vec<usize>) {
         log!(info "entered {} ({t_spec})", fn_name!());
         match t_spec {
             TypeSpec::Enum(enum_t) => {
@@ -1868,7 +1873,7 @@ impl PyCodeGenerator {
                     self.write_instr(Opcode311::BINARY_SUBSCR);
                     self.write_arg(0);
                     self.stack_dec();
-                    self.emit_match_guard(t_spec, pop_jump_points);
+                    self.emit_match_guard_311(t_spec, pop_jump_points);
                 }
             }
             // TODO: consider ordering (e.g. both [1, 2] and [2, 1] is type of [{1, 2}; 2])
@@ -1882,7 +1887,91 @@ impl PyCodeGenerator {
                     self.write_instr(Opcode311::BINARY_SUBSCR);
                     self.write_arg(0);
                     self.stack_dec();
-                    self.emit_match_guard(*arr.ty.clone(), pop_jump_points);
+                    self.emit_match_guard_311(*arr.ty.clone(), pop_jump_points);
+                }
+            }
+            /*TypeSpec::Interval { op, lhs, rhs } => {
+                let binop = BinOp::new(op, lhs.downcast(), rhs.downcast(), VarInfo::default());
+                self.emit_binop(binop);
+            }*/
+            // TODO:
+            TypeSpec::Infer(_) => unreachable!(),
+            // TODO:
+            other => log!(err "{other}"),
+        }
+    }
+
+    fn emit_match_guard_310(&mut self, t_spec: TypeSpec, pop_jump_points: &mut Vec<usize>) {
+        log!(info "entered {} ({t_spec})", fn_name!());
+        match t_spec {
+            TypeSpec::Enum(enum_t) => {
+                let elems = ValueObj::vec_from_const_args(enum_t);
+                self.emit_load_const(elems);
+                self.write_instr(Opcode310::CONTAINS_OP);
+                self.write_arg(0);
+                self.stack_dec();
+                pop_jump_points.push(self.lasti());
+                // in 3.11, POP_JUMP_IF_FALSE is replaced with POP_JUMP_FORWARD_IF_FALSE
+                // but the numbers are the same, only the way the jumping points are calculated is different.
+                self.write_instr(Opcode310::POP_JUMP_IF_FALSE); // jump to the next case
+                self.write_arg(0);
+                // self.stack_dec();
+            }
+            TypeSpec::PreDeclTy(PreDeclTypeSpec::Simple(simple)) if simple.args.is_empty() => {
+                // arg
+                // ↓ LOAD_NAME(in_operator)
+                // arg in_operator
+                // ↓ ROT 2
+                // in_operator arg
+                // ↓ LOAD_NAME(typ)
+                // in_operator arg typ
+                self.emit_load_name_instr(Identifier::private("#in_operator"));
+                self.rot2();
+                // TODO: DOT/not
+                let mut typ = Identifier::bare(Some(DOT), simple.ident.name);
+                // TODO:
+                typ.vi.py_name = match &typ.name.inspect()[..] {
+                    "Int" => Some("int".into()),
+                    "Float" => Some("float".into()),
+                    _ => None,
+                };
+                self.emit_load_name_instr(typ);
+                self.write_instr(Opcode310::CALL_FUNCTION);
+                self.write_arg(2);
+                self.stack_dec();
+                pop_jump_points.push(self.lasti());
+                // in 3.11, POP_JUMP_IF_FALSE is replaced with POP_JUMP_FORWARD_IF_FALSE
+                // but the numbers are the same, only the way the jumping points are calculated is different.
+                self.write_instr(Opcode310::POP_JUMP_IF_FALSE); // jump to the next case
+                self.write_arg(0);
+                self.stack_dec();
+            }
+            // _: (Int, Str)
+            TypeSpec::Tuple(tup) => {
+                let len = tup.tys.len();
+                for (i, t_spec) in tup.tys.into_iter().enumerate() {
+                    if i != 0 && i != len - 1 {
+                        self.dup_top();
+                    }
+                    self.emit_load_const(i);
+                    self.write_instr(Opcode310::BINARY_SUBSCR);
+                    self.write_arg(0);
+                    self.stack_dec();
+                    self.emit_match_guard_310(t_spec, pop_jump_points);
+                }
+            }
+            // TODO: consider ordering (e.g. both [1, 2] and [2, 1] is type of [{1, 2}; 2])
+            TypeSpec::Array(arr) => {
+                let ValueObj::Nat(len) = ValueObj::from_const_expr(arr.len) else { todo!() };
+                for i in 0..=(len - 1) {
+                    if i != 0 && i != len - 1 {
+                        self.dup_top();
+                    }
+                    self.emit_load_const(i);
+                    self.write_instr(Opcode310::BINARY_SUBSCR);
+                    self.write_arg(0);
+                    self.stack_dec();
+                    self.emit_match_guard_310(*arr.ty.clone(), pop_jump_points);
                 }
             }
             /*TypeSpec::Interval { op, lhs, rhs } => {
