@@ -1257,7 +1257,14 @@ impl ValueObj {
                 Some(TypeObj::Builtin(Type::Record(attr_ts)))
             }
             Self::Subr(subr) => subr.as_type().map(TypeObj::Builtin),
-            Self::Array(_) | Self::Tuple(_) | Self::Dict(_) => todo!(),
+            Self::Array(elems) | Self::Tuple(elems) => {
+                erg_common::log!(err "as_type({})", erg_common::fmt_vec(elems));
+                None
+            }
+            Self::Dict(elems) => {
+                erg_common::log!(err "as_type({elems})");
+                None
+            }
             _other => None,
         }
     }
