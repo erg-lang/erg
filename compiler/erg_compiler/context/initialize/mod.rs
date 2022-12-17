@@ -241,21 +241,18 @@ impl Context {
                 ContextKind::Trait => Type::TraitType,
                 _ => Type::Type,
             };
-            // or we should define a type as a function (e.g. `str`)
-            if !self.cfg.python_compatible_mode {
-                self.locals.insert(
-                    name.clone(),
-                    VarInfo::new(
-                        meta_t,
-                        muty,
-                        vis,
-                        Builtin,
-                        None,
-                        None,
-                        py_name.map(Str::ever),
-                    ),
-                );
-            }
+            self.locals.insert(
+                name.clone(),
+                VarInfo::new(
+                    meta_t,
+                    muty,
+                    vis,
+                    Builtin,
+                    None,
+                    None,
+                    py_name.map(Str::ever),
+                ),
+            );
             self.consts
                 .insert(name.clone(), ValueObj::builtin_t(t.clone()));
             for impl_trait in ctx.super_traits.iter() {
