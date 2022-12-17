@@ -661,6 +661,7 @@ impl Context {
         let R = mono_q("R", instanceof(Type));
         let N = mono_q_tp("N", instanceof(Nat));
         let M = mono_q_tp("M", instanceof(Nat));
+        let never = Self::builtin_mono_class("Never", 1);
         /* Obj */
         let mut obj = Self::builtin_mono_class("Obj", 2);
         let Slf = mono_q("Self", subtypeof(Obj));
@@ -1633,6 +1634,7 @@ impl Context {
         quant.register_superclass(mono("Proc"), &proc);
         let mut qfunc = Self::builtin_mono_class("QuantifiedFunc", 2);
         qfunc.register_superclass(mono("Func"), &func);
+        self.register_builtin_type(Never, never, vis, Const, None);
         self.register_builtin_type(Obj, obj, vis, Const, Some("object"));
         // self.register_type(mono("Record"), vec![], record, Private, Const);
         self.register_builtin_type(Int, int, vis, Const, Some("int"));
