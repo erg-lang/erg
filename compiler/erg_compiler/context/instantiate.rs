@@ -19,12 +19,14 @@ use erg_parser::ast;
 use erg_parser::token::TokenKind;
 use erg_parser::Parser;
 
+use crate::feature_error;
 use crate::ty::constructors::*;
 use crate::ty::free::CanbeFree;
 use crate::ty::free::{Constraint, HasLevel};
 use crate::ty::typaram::{IntervalOp, TyParam, TyParamOrdering};
 use crate::ty::value::ValueObj;
 use crate::ty::{HasType, ParamTy, Predicate, SubrKind, Type};
+use crate::type_feature_error;
 use TyParamOrdering::*;
 use Type::*;
 
@@ -393,7 +395,7 @@ impl Context {
                     )))
                 }
             }
-            other => todo!("{other}"),
+            other => type_feature_error!(self, other.loc(), &format!("instantiating {other}")),
         }
     }
 
@@ -426,8 +428,11 @@ impl Context {
                 let mut args = simple.args.pos_args();
                 if let Some(first) = args.next() {
                     let t = self.instantiate_const_expr_as_type(&first.expr, None, tmp_tv_cache)?;
-                    let len = args.next().unwrap();
-                    let len = self.instantiate_const_expr(&len.expr, None, tmp_tv_cache)?;
+                    let len = if let Some(len) = args.next() {
+                        self.instantiate_const_expr(&len.expr, None, tmp_tv_cache)?
+                    } else {
+                        TyParam::erased(Nat)
+                    };
                     Ok(array_t(t, len))
                 } else {
                     Ok(mono("GenericArray"))
@@ -435,14 +440,32 @@ impl Context {
             }
             "Ref" => {
                 let mut args = simple.args.pos_args();
-                let first = args.next().unwrap();
+                let Some(first) = args.next() else {
+                    return Err(TyCheckErrors::from(TyCheckError::args_missing_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        simple.args.loc(),
+                        "Ref",
+                        self.caused_by(),
+                        vec![Str::from("T")],
+                    )));
+                };
                 let t = self.instantiate_const_expr_as_type(&first.expr, None, tmp_tv_cache)?;
                 Ok(ref_(t))
             }
             "RefMut" => {
                 // TODO after
                 let mut args = simple.args.pos_args();
-                let first = args.next().unwrap();
+                let Some(first) = args.next() else {
+                    return Err(TyCheckErrors::from(TyCheckError::args_missing_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        simple.args.loc(),
+                        "RefMut",
+                        self.caused_by(),
+                        vec![Str::from("T")],
+                    )));
+                };
                 let t = self.instantiate_const_expr_as_type(&first.expr, None, tmp_tv_cache)?;
                 Ok(ref_mut(t, None))
             }
@@ -579,7 +602,7 @@ impl Context {
                     self.get_similar_name(name.inspect()),
                 )))
             }
-            _ => todo!(),
+            other => type_feature_error!(self, other.loc(), &format!("instantiating {other}")),
         }
     }
 
@@ -592,7 +615,7 @@ impl Context {
         match self.instantiate_const_expr(expr, erased_idx, tmp_tv_cache)? {
             TyParam::Type(t) => Ok(*t),
             TyParam::Value(ValueObj::Type(t)) => Ok(t.into_typ()),
-            other => todo!("{other}"),
+            other => type_feature_error!(self, expr.loc(), &format!("{other}")),
         }
     }
 
@@ -621,13 +644,13 @@ impl Context {
 
     pub(crate) fn instantiate_typespec(
         &self,
-        spec: &TypeSpec,
+        t_spec: &TypeSpec,
         opt_decl_t: Option<&ParamTy>,
         tmp_tv_cache: &mut TyVarCache,
         mode: RegistrationMode,
         not_found_is_qvar: bool,
     ) -> TyCheckResult<Type> {
-        match spec {
+        match t_spec {
             TypeSpec::Infer(_) => Ok(free_var(self.level, Constraint::new_type_of(Type))),
             TypeSpec::PreDeclTy(predecl) => Ok(self.instantiate_predecl_t(
                 predecl,
@@ -699,9 +722,9 @@ impl Context {
                 }
                 Ok(set_t(elem_t, len))
             }
-            TypeSpec::Tuple(tys) => {
+            TypeSpec::Tuple(tup) => {
                 let mut inst_tys = vec![];
-                for spec in tys {
+                for spec in tup.tys.iter() {
                     inst_tys.push(self.instantiate_typespec(
                         spec,
                         opt_decl_t,
@@ -830,7 +853,7 @@ impl Context {
                 ))
             }
             TypeSpec::TypeApp { spec, args } => {
-                todo!("{spec}{args}")
+                type_feature_error!(self, t_spec.loc(), &format!("instantiating {spec}{args}"))
             }
         }
     }
@@ -850,7 +873,9 @@ impl Context {
                         TokenKind::SubtypeOf => Constraint::new_subtype_of(
                             self.instantiate_typespec(&spec.t_spec, None, tv_cache, mode, true)?,
                         ),
-                        TokenKind::SupertypeOf => todo!(),
+                        TokenKind::SupertypeOf => {
+                            return type_feature_error!(self, spec.loc(), "supertype of");
+                        }
                         TokenKind::Colon => Constraint::new_type_of(self.instantiate_typespec(
                             &spec.t_spec,
                             None,
@@ -862,10 +887,14 @@ impl Context {
                     };
                 let tv = named_free_var(lhs.inspect().clone(), self.level, constr);
                 tv_cache.push_or_init_tyvar(lhs.inspect(), &tv);
+                Ok(())
             }
-            TypeBoundSpec::WithDefault { .. } => todo!(),
+            TypeBoundSpec::WithDefault { .. } => type_feature_error!(
+                self,
+                bound.loc(),
+                "type boundary specification with default"
+            ),
         }
-        Ok(())
     }
 
     pub(crate) fn instantiate_ty_bounds(
@@ -878,7 +907,7 @@ impl Context {
             self.instantiate_ty_bound(bound, &mut tv_cache, mode)?;
         }
         for tv in tv_cache.tyvar_instances.values() {
-            if tv.constraint().unwrap().is_uninited() {
+            if tv.constraint().map(|c| c.is_uninited()).unwrap_or(false) {
                 return Err(TyCheckErrors::from(TyCheckError::no_var_error(
                     self.cfg.input.clone(),
                     line!() as usize,
@@ -890,7 +919,7 @@ impl Context {
             }
         }
         for tp in tv_cache.typaram_instances.values() {
-            if tp.constraint().unwrap().is_uninited() {
+            if tp.constraint().map(|c| c.is_uninited()).unwrap_or(false) {
                 return Err(TyCheckErrors::from(TyCheckError::no_var_error(
                     self.cfg.input.clone(),
                     line!() as usize,
@@ -983,7 +1012,7 @@ impl Context {
             | TyParam::Mono(_)
             | TyParam::FreeVar(_)
             | TyParam::Erased(_)) => Ok(p),
-            other => todo!("{other}"),
+            other => type_feature_error!(self, loc, &format!("instantiating {other}")),
         }
     }
 
@@ -1134,7 +1163,7 @@ impl Context {
                 Ok(not(l, r))
             }
             other if other.is_monomorphic() => Ok(other),
-            other => todo!("{other}"),
+            other => type_feature_error!(self, loc, &format!("instantiating {other}")),
         }
     }
 

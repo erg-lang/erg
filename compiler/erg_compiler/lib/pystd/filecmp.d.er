@@ -1,0 +1,2 @@
+.cmp: (f1: File!, f2: File!, shallow := Bool) -> Bool
+.cmpfiles: (dir1: PathLike, dir2: PathLike, common: [Str; _], shallow := Bool) -> Bool

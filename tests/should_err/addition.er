@@ -1,4 +1,18 @@
 add x, y =
     x + y
 
-print! add("a", 1) # this will be an error
+print! add 1, 2
+print! add 1, "a" # ERR
+print! add "a", 1 # ERR
+
+add_l x: Int, y = x + y
+print! add_l 1, 2
+print! add_l 1, "a" # ERR
+print! add_l "a", 1 # ERR
+
+add_r x, y: Int = x + y
+print! add_r 1, 2
+print! add_r 1, "a" # ERR
+print! add_r "a", 1 # ERR
+
+invalid_add x: Int, y: Str = x + y

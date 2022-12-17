@@ -64,8 +64,8 @@ impl From<Str> for String {
 impl<'a> From<Str> for Cow<'a, str> {
     fn from(s: Str) -> Self {
         match s {
-            Str::Static(s) => Cow::Owned(s.to_owned()),
-            _ => unreachable!(),
+            Str::Static(s) => Cow::Borrowed(s),
+            Str::Rc(s) => Cow::Owned(s.to_string()),
         }
     }
 }

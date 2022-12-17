@@ -158,6 +158,31 @@ impl Input {
                 dir.push("__init__.d.er"); // {path}.d/__init__.d.er
                 dir.canonicalize()
             })
+            .or_else(|_| {
+                dir.pop(); // {path}.d
+                dir.pop();
+                dir.push("__pycache__");
+                dir.push(path);
+                dir.set_extension("d.er"); // __pycache__/{path}.d.er
+                dir.canonicalize()
+            })
+    }
+
+    pub fn local_py_resolve(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
+        let mut dir = if let Self::File(mut path) = self.clone() {
+            path.pop();
+            path
+        } else {
+            PathBuf::new()
+        };
+        dir.push(path);
+        dir.set_extension("py");
+        dir.canonicalize().or_else(|_| {
+            dir.pop();
+            dir.push(path);
+            dir.push("__init__.py"); // {path}/__init__.er
+            dir.canonicalize()
+        })
     }
 }
 
@@ -176,6 +201,7 @@ pub struct ErgConfig {
     pub py_command: Option<&'static str>,
     pub target_version: Option<PythonVersion>,
     pub py_server_timeout: u64,
+    pub python_compatible_mode: bool,
     pub quiet_repl: bool,
     pub show_type: bool,
     pub input: Input,
@@ -203,6 +229,7 @@ impl Default for ErgConfig {
             py_command: None,
             target_version: None,
             py_server_timeout: 10,
+            python_compatible_mode: false,
             quiet_repl: false,
             show_type: false,
             input: Input::REPL,
@@ -225,14 +252,6 @@ impl ErgConfig {
         }
     }
 
-    pub fn with_module_path(path: PathBuf) -> Self {
-        Self {
-            module: Box::leak(path.to_str().unwrap().to_string().into_boxed_str()),
-            input: Input::File(path),
-            ..ErgConfig::default()
-        }
-    }
-
     /// cloneのエイリアス(実際のcloneコストは低いので)
     #[inline]
     pub fn copy(&self) -> Self {
@@ -244,6 +263,14 @@ impl ErgConfig {
             format!("{output}/{}", self.input.filename())
         } else {
             self.input.full_path().to_string()
+        }
+    }
+
+    pub fn inherit(&self, path: PathBuf) -> Self {
+        Self {
+            module: Box::leak(path.to_str().unwrap().to_string().into_boxed_str()),
+            input: Input::File(path),
+            ..self.copy()
         }
     }
 
@@ -358,6 +385,9 @@ impl ErgConfig {
                         .parse::<u64>()
                         .expect("the value of `--py-server-timeout` is not a number");
                 }
+                "--pylyzer-mode" if cfg!(feature = "debug") => {
+                    cfg.python_compatible_mode = true;
+                }
                 "--quiet-startup" | "--quiet-repl" => {
                     cfg.quiet_repl = true;
                 }
@@ -384,7 +414,16 @@ impl ErgConfig {
                     process::exit(0);
                 }
                 other if other.starts_with('-') => {
-                    panic!("invalid option: {other}");
+                    println!(
+                        "\
+invalid option: {other}
+
+USAGE:
+    erg [OPTIONS] [SUBCOMMAND] [ARGS]...
+
+    For more information try `erg --help`"
+                    );
+                    process::exit(2);
                 }
                 _ => {
                     cfg.input = Input::File(

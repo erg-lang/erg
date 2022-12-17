@@ -8,8 +8,9 @@ use std::mem;
 use std::ops::Neg;
 use std::rc::Rc;
 
+use erg_common::config::Input;
 use erg_common::dict::Dict;
-use erg_common::error::ErrorCore;
+use erg_common::error::{ErrorCore, ErrorKind, Location};
 use erg_common::fresh::fresh_varname;
 use erg_common::python_util::PythonVersion;
 use erg_common::serialize::*;
@@ -41,6 +42,18 @@ impl From<ErrorCore> for EvalValueError {
 impl From<EvalValueError> for ErrorCore {
     fn from(err: EvalValueError) -> Self {
         *err.0
+    }
+}
+
+impl EvalValueError {
+    pub fn feature_error(_input: Input, loc: Location, name: &str, caused_by: String) -> Self {
+        Self::from(ErrorCore::new(
+            vec![],
+            format!("{name} is not supported yet: {caused_by}"),
+            0,
+            ErrorKind::FeatureError,
+            loc,
+        ))
     }
 }
 
@@ -136,6 +149,23 @@ impl UnionTypeObj {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct IntersectionTypeObj {
+    pub t: Type,
+    pub lhs: Box<TypeObj>,
+    pub rhs: Box<TypeObj>,
+}
+
+impl IntersectionTypeObj {
+    pub fn new(t: Type, lhs: TypeObj, rhs: TypeObj) -> Self {
+        Self {
+            t,
+            lhs: Box::new(lhs),
+            rhs: Box::new(rhs),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PatchObj {
     pub t: Type,
     pub base: Box<TypeObj>,
@@ -160,6 +190,7 @@ pub enum GenTypeObj {
     Subtrait(SubsumedTypeObj),
     StructuralTrait(TraitTypeObj),
     Union(UnionTypeObj),
+    Intersection(IntersectionTypeObj),
     Patch(PatchObj),
 }
 
@@ -202,6 +233,10 @@ impl GenTypeObj {
 
     pub fn union(t: Type, lhs: TypeObj, rhs: TypeObj) -> Self {
         GenTypeObj::Union(UnionTypeObj::new(t, lhs, rhs))
+    }
+
+    pub fn intersection(t: Type, lhs: TypeObj, rhs: TypeObj) -> Self {
+        GenTypeObj::Intersection(IntersectionTypeObj::new(t, lhs, rhs))
     }
 
     pub fn require_or_sup(&self) -> Option<&TypeObj> {
@@ -261,6 +296,7 @@ impl GenTypeObj {
             Self::Subtrait(subtrait) => &subtrait.t,
             Self::StructuralTrait(trait_) => &trait_.t,
             Self::Union(union_) => &union_.t,
+            Self::Intersection(intersection) => &intersection.t,
             Self::Patch(patch) => &patch.t,
         }
     }
@@ -273,6 +309,7 @@ impl GenTypeObj {
             Self::Subtrait(subtrait) => &mut subtrait.t,
             Self::StructuralTrait(trait_) => &mut trait_.t,
             Self::Union(union_) => &mut union_.t,
+            Self::Intersection(intersection) => &mut intersection.t,
             Self::Patch(patch) => &mut patch.t,
         }
     }
@@ -285,6 +322,7 @@ impl GenTypeObj {
             Self::Subtrait(subtrait) => subtrait.t,
             Self::StructuralTrait(trait_) => trait_.t,
             Self::Union(union_) => union_.t,
+            Self::Intersection(intersection) => intersection.t,
             Self::Patch(patch) => patch.t,
         }
     }
@@ -299,8 +337,20 @@ pub enum TypeObj {
 impl fmt::Display for TypeObj {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            TypeObj::Builtin(t) => write!(f, "<type {t}>"),
-            TypeObj::Generated(t) => write!(f, "<user type {t}>"),
+            TypeObj::Builtin(t) => {
+                if cfg!(feature = "debug") {
+                    write!(f, "<type {t}>")
+                } else {
+                    write!(f, "{t}")
+                }
+            }
+            TypeObj::Generated(t) => {
+                if cfg!(feature = "debug") {
+                    write!(f, "<user type {t}>")
+                } else {
+                    write!(f, "{t}")
+                }
+            }
         }
     }
 }
@@ -1207,7 +1257,14 @@ impl ValueObj {
                 Some(TypeObj::Builtin(Type::Record(attr_ts)))
             }
             Self::Subr(subr) => subr.as_type().map(TypeObj::Builtin),
-            Self::Array(_) | Self::Tuple(_) | Self::Dict(_) => todo!(),
+            Self::Array(elems) | Self::Tuple(elems) => {
+                erg_common::log!(err "as_type({})", erg_common::fmt_vec(elems));
+                None
+            }
+            Self::Dict(elems) => {
+                erg_common::log!(err "as_type({elems})");
+                None
+            }
             _other => None,
         }
     }

@@ -10,7 +10,9 @@ use erg_common::Str;
 use erg_parser::ast::{ParamPattern, TypeSpec, VarName};
 use erg_parser::token::TokenKind;
 
-use crate::artifact::{CompleteArtifact, ErrorArtifact};
+use crate::artifact::{
+    BuildRunnable, Buildable, CompleteArtifact, ErrorArtifact, IncompleteArtifact,
+};
 use crate::build_hir::HIRBuilder;
 use crate::codegen::PyCodeGenerator;
 use crate::context::{Context, ContextProvider};
@@ -103,8 +105,8 @@ impl Runnable for Transpiler {
     const NAME: &'static str = "Erg transpiler";
 
     fn new(cfg: ErgConfig) -> Self {
-        let mod_cache = SharedModuleCache::new();
-        let py_mod_cache = SharedModuleCache::new();
+        let mod_cache = SharedModuleCache::new(cfg.copy());
+        let py_mod_cache = SharedModuleCache::new(cfg.copy());
         Self {
             builder: HIRBuilder::new_with_cache(
                 cfg.copy(),
@@ -121,6 +123,10 @@ impl Runnable for Transpiler {
     #[inline]
     fn cfg(&self) -> &ErgConfig {
         &self.cfg
+    }
+    #[inline]
+    fn cfg_mut(&mut self) -> &mut ErgConfig {
+        &mut self.cfg
     }
 
     #[inline]
@@ -145,7 +151,7 @@ impl Runnable for Transpiler {
                 eart.errors
             })?;
         artifact.warns.fmt_all_stderr();
-        let mut f = File::create(&path).unwrap();
+        let mut f = File::create(path).unwrap();
         f.write_all(artifact.object.code.as_bytes()).unwrap();
         Ok(0)
     }
@@ -174,6 +180,25 @@ impl ContextProvider for Transpiler {
     }
 }
 
+impl Buildable<PyScript> for Transpiler {
+    fn build(
+        &mut self,
+        src: String,
+        mode: &str,
+    ) -> Result<CompleteArtifact<PyScript>, IncompleteArtifact<PyScript>> {
+        self.transpile(src, mode)
+            .map_err(|err| IncompleteArtifact::new(None, err.errors, err.warns))
+    }
+    fn pop_context(&mut self) -> Option<Context> {
+        self.builder.pop_context()
+    }
+    fn get_context(&self) -> Option<&Context> {
+        self.builder.get_context()
+    }
+}
+
+impl BuildRunnable<PyScript> for Transpiler {}
+
 impl Transpiler {
     pub fn transpile(
         &mut self,
@@ -200,7 +225,7 @@ impl Transpiler {
         Ok(CompleteArtifact::new(desugared, artifact.warns))
     }
 
-    pub fn pop_mod_ctx(&mut self) -> Context {
+    pub fn pop_mod_ctx(&mut self) -> Option<Context> {
         self.builder.pop_mod_ctx()
     }
 
@@ -411,6 +436,7 @@ impl ScriptGenerator {
             }
             Expr::TypeAsc(tasc) => self.transpile_expr(*tasc.expr),
             Expr::Code(_) => todo!("transpiling importing user-defined code"),
+            Expr::Dummy(_) => "".to_string(),
         }
     }
 

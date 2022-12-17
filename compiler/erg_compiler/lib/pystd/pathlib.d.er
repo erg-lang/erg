@@ -1,0 +1,7 @@
+.PurePath: ClassType
+.PurePath.parts: [Str; _]
+.PurePosixPath: ClassType
+.PureWindowsPath: ClassType
+.Path: ClassType
+.PosixPath: ClassType
+.WindowsPath: ClassType

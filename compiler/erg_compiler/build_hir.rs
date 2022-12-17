@@ -6,7 +6,7 @@ use erg_common::Str;
 use erg_parser::ast::{VarName, AST};
 use erg_parser::build_ast::ASTBuilder;
 
-use crate::artifact::{CompleteArtifact, IncompleteArtifact};
+use crate::artifact::{BuildRunnable, Buildable, CompleteArtifact, IncompleteArtifact};
 use crate::context::{Context, ContextProvider};
 use crate::effectcheck::SideEffectChecker;
 use crate::error::{CompileError, CompileErrors};
@@ -29,16 +29,20 @@ impl Runnable for HIRBuilder {
 
     fn new(cfg: ErgConfig) -> Self {
         HIRBuilder::new_with_cache(
-            cfg,
+            cfg.copy(),
             Str::ever("<module>"),
-            SharedModuleCache::new(),
-            SharedModuleCache::new(),
+            SharedModuleCache::new(cfg.copy()),
+            SharedModuleCache::new(cfg),
         )
     }
 
     #[inline]
     fn cfg(&self) -> &ErgConfig {
         self.lowerer.cfg()
+    }
+    #[inline]
+    fn cfg_mut(&mut self) -> &mut ErgConfig {
+        self.lowerer.cfg_mut()
     }
 
     #[inline]
@@ -71,6 +75,20 @@ impl Runnable for HIRBuilder {
         Ok(artifact.object.to_string())
     }
 }
+
+impl Buildable for HIRBuilder {
+    fn build(&mut self, src: String, mode: &str) -> Result<CompleteArtifact, IncompleteArtifact> {
+        self.build(src, mode)
+    }
+    fn pop_context(&mut self) -> Option<Context> {
+        self.pop_mod_ctx()
+    }
+    fn get_context(&self) -> Option<&Context> {
+        Some(&self.lowerer.ctx)
+    }
+}
+
+impl BuildRunnable for HIRBuilder {}
 
 impl ContextProvider for HIRBuilder {
     fn dir(&self) -> Vec<(&VarName, &VarInfo)> {
@@ -105,9 +123,11 @@ impl HIRBuilder {
         let hir = effect_checker
             .check(artifact.object)
             .map_err(|(hir, errs)| {
+                self.lowerer.ctx.clear_invalid_vars();
                 IncompleteArtifact::new(Some(hir), errs, artifact.warns.clone())
             })?;
         let hir = self.ownership_checker.check(hir).map_err(|(hir, errs)| {
+            self.lowerer.ctx.clear_invalid_vars();
             IncompleteArtifact::new(Some(hir), errs, artifact.warns.clone())
         })?;
         Ok(CompleteArtifact::new(hir, artifact.warns))
@@ -125,7 +145,7 @@ impl HIRBuilder {
         self.check(ast, mode)
     }
 
-    pub fn pop_mod_ctx(&mut self) -> Context {
+    pub fn pop_mod_ctx(&mut self) -> Option<Context> {
         self.lowerer.pop_mod_ctx()
     }
 

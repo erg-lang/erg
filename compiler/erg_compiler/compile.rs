@@ -108,8 +108,8 @@ impl Runnable for Compiler {
     const NAME: &'static str = "Erg compiler";
 
     fn new(cfg: ErgConfig) -> Self {
-        let mod_cache = SharedModuleCache::new();
-        let py_mod_cache = SharedModuleCache::new();
+        let mod_cache = SharedModuleCache::new(cfg.copy());
+        let py_mod_cache = SharedModuleCache::new(cfg.copy());
         Self {
             builder: HIRBuilder::new_with_cache(
                 cfg.copy(),
@@ -126,6 +126,10 @@ impl Runnable for Compiler {
     #[inline]
     fn cfg(&self) -> &ErgConfig {
         &self.cfg
+    }
+    #[inline]
+    fn cfg_mut(&mut self) -> &mut ErgConfig {
+        &mut self.cfg
     }
 
     #[inline]

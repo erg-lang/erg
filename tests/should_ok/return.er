@@ -1,0 +1,12 @@
+fib n: Int =
+    if n <= 1, do:
+        fib.return n
+    fib(n - 1) + fib(n - 2)
+
+assert fib(10) == 55
+
+# Int -> Int or Str
+invalid_fib n: Int =
+    if n <= 1, do:
+        invalid_fib.return n
+    "string" # Warning

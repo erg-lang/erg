@@ -2,9 +2,9 @@ extern crate erg_common;
 extern crate erg_parser;
 
 use std::process;
-use std::thread;
 
 use erg_common::config::ErgConfig;
+use erg_common::spawn::exec_new_thread;
 use erg_common::traits::Runnable;
 
 use erg_parser::build_ast::ASTBuilder;
@@ -31,17 +31,5 @@ fn run() {
 }
 
 fn main() {
-    if cfg!(windows) {
-        const STACK_SIZE: usize = 4 * 1024 * 1024;
-
-        let child = thread::Builder::new()
-            .stack_size(STACK_SIZE)
-            .spawn(run)
-            .unwrap();
-
-        // Wait for thread to join
-        child.join().unwrap();
-    } else {
-        run();
-    }
+    exec_new_thread(run);
 }

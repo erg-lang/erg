@@ -1,0 +1,23 @@
+.Thread!: ClassType
+.Thread!.name: Str
+.Thread!.daemon: Bool
+.Thread!.ident: Nat or NoneType # TODO: Pos or NoneType
+.Thread!.native_id: Nat or NoneType
+.Thread!.start!: (self: .Thread!) => NoneType
+.Thread!.run!: (self: .Thread!) => NoneType
+.Thread!.join!: (self: .Thread!, timeout := Nat or NoneType) => NoneType
+.Thread!.is_alive: (self: .Thread!) -> Bool
+
+.Local! = 'local': ClassType
+
+.Lock!: ClassType
+.RLock!: ClassType
+.Condition!: ClassType
+.Semaphore!: ClassType
+.BoundedSemaphore!: ClassType
+.Event!: ClassType
+.Timer!: ClassType
+.Barrier!: ClassType
+.BrokenBarrierError: ClassType
+
+.active_count!: () => Nat

@@ -1,0 +1,2 @@
+.cache: |T <: Proc|(user_function: T) -> T
+.lru_cache: |T <: Proc|(user_function: T) -> T

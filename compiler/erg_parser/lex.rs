@@ -33,6 +33,10 @@ impl Runnable for LexerRunner {
     fn cfg(&self) -> &ErgConfig {
         &self.cfg
     }
+    #[inline]
+    fn cfg_mut(&mut self) -> &mut ErgConfig {
+        &mut self.cfg
+    }
 
     #[inline]
     fn finish(&mut self) {}
@@ -85,6 +89,9 @@ impl Interpolation {
 /// Lexes a source code and iterates tokens.
 ///
 /// This can be used as an iterator or to generate a `TokenStream`.
+///
+/// NOTE: `Lexer` checks if indent/dedent is used in the correct format,
+/// but cannot check if indent/dedent is used in the grammatically correct position; `Parser` does that.
 #[derive(Debug)]
 pub struct Lexer /*<'a>*/ {
     str_cache: CacheSet<str>,
@@ -363,12 +370,12 @@ impl Lexer /*<'a>*/ {
     }
 
     fn lex_space_indent_dedent(&mut self) -> Option<LexResult<Token>> {
-        let is_linebreak_after =
+        let is_line_break_after =
             self.cursor > 0 && !self.indent_stack.is_empty() && self.peek_prev_ch() == Some('\n');
         let is_space = self.peek_cur_ch() == Some(' ');
         let is_linebreak = self.peek_cur_ch() == Some('\n');
         let is_empty = is_space || is_linebreak;
-        let is_toplevel = is_linebreak_after && !is_empty;
+        let is_toplevel = is_line_break_after && !is_empty;
         if is_toplevel {
             let dedent = self.emit_token(Dedent, "");
             self.indent_stack.pop();
@@ -386,7 +393,7 @@ impl Lexer /*<'a>*/ {
             spaces.push(self.consume().unwrap());
         }
         // indent in the first line: error
-        if !spaces.is_empty() && self.cursor == 0 {
+        if !spaces.is_empty() && self.prev_token.is(BOF) {
             let space = self.emit_token(Illegal, &spaces);
             Some(Err(LexError::syntax_error(
                 0,
@@ -399,7 +406,7 @@ impl Lexer /*<'a>*/ {
                 ),
                 None,
             )))
-        } else if self.prev_token.is(Newline) {
+        } else if self.prev_token.is(Newline) || self.prev_token.is(Dedent) {
             self.lex_indent_dedent(spaces)
         } else {
             self.col_token_starts += spaces.len();
@@ -460,9 +467,10 @@ impl Lexer /*<'a>*/ {
                 Some(Ok(indent))
             }
             Ordering::Greater => {
+                self.cursor -= spaces.len();
+                self.indent_stack.pop();
                 if is_valid_dedent {
                     let dedent = self.emit_token(Dedent, "");
-                    self.indent_stack.pop();
                     Some(Ok(dedent))
                 } else {
                     let invalid_dedent = self.emit_token(Dedent, "");
@@ -695,10 +703,10 @@ impl Lexer /*<'a>*/ {
             "".to_string()
         } else {
             switch_lang!(
-                "japanese" => format!("\"\"\"によって"),
-                "simplified_chinese" => format!("\"\"\"关"),
-                "traditional_chinese" => format!("\"\"\"关"),
-                "english" => format!("by \"\"\""),
+                "japanese" => format!("{by}によって"),
+                "simplified_chinese" => format!("{by}关"),
+                "traditional_chinese" => format!("{by}关"),
+                "english" => format!("by {by}"),
             )
         };
         LexError::syntax_error(
@@ -723,6 +731,21 @@ impl Lexer /*<'a>*/ {
                 "simplified_chinese" => "字符串内的插值没有被闭",
                 "traditional_chinese" => "字符串內的插值沒有被閉",
                 "english" => "the interpolation in the string is not closed",
+            ),
+            None,
+        )
+    }
+
+    fn invalid_unicode_character(&mut self, s: &str) -> LexError {
+        let token = self.emit_token(Illegal, s);
+        LexError::syntax_error(
+            0,
+            token.loc(),
+            switch_lang!(
+                "japanese" => "不正なユニコード文字(双方向オーバーライド)が文字列中に使用されています",
+                "simplified_chinese" => "注释中使用了非法的unicode字符（双向覆盖）",
+                "traditional_chinese" => "註釋中使用了非法的unicode字符（雙向覆蓋）",
+                "english" => "invalid unicode character (bi-directional override) in string literal",
             ),
             None,
         )
@@ -773,7 +796,7 @@ impl Lexer /*<'a>*/ {
                     } else {
                         s.push(c);
                         if Self::is_bidi(c) {
-                            return Err(self._invalid_unicode_character(&s));
+                            return Err(self.invalid_unicode_character(&s));
                         }
                     }
                 }
@@ -783,8 +806,9 @@ impl Lexer /*<'a>*/ {
         Err(Self::unclosed_string_error(token, "\"", line!() as usize))
     }
 
+    const QUOTES: &str = "\"\"\"";
     fn lex_multi_line_str(&mut self) -> LexResult<Token> {
-        let mut s = "\"\"\"".to_string();
+        let mut s = Self::QUOTES.to_string();
         while let Some(c) = self.peek_cur_ch() {
             if c == '"' {
                 let c = self.consume().unwrap();
@@ -794,7 +818,7 @@ impl Lexer /*<'a>*/ {
                     let token = self.emit_token(Illegal, &s);
                     return Err(Self::unclosed_string_error(
                         token,
-                        "\"\"\"",
+                        Self::QUOTES,
                         line!() as usize,
                     ));
                 }
@@ -803,14 +827,14 @@ impl Lexer /*<'a>*/ {
                     let token = self.emit_token(Illegal, &s);
                     return Err(Self::unclosed_string_error(
                         token,
-                        "\"\"\"",
+                        Self::QUOTES,
                         line!() as usize,
                     ));
                 }
                 if next_c.unwrap() == '"' && aft_next_c.unwrap() == '"' {
                     self.consume().unwrap();
                     self.consume().unwrap();
-                    s.push_str("\"\"\"");
+                    s.push_str(Self::QUOTES);
                     let token = self.emit_token(StrLit, &s);
                     return Ok(token);
                 }
@@ -854,7 +878,7 @@ impl Lexer /*<'a>*/ {
                     _ => {
                         s.push(c);
                         if Self::is_bidi(c) {
-                            return Err(self._invalid_unicode_character(&s));
+                            return Err(self.invalid_unicode_character(&s));
                         }
                     }
                 }
@@ -864,7 +888,7 @@ impl Lexer /*<'a>*/ {
         if self.interpol_stack.len() == 1 {
             Err(Self::unclosed_string_error(
                 token,
-                "\"\"\"",
+                Self::QUOTES,
                 line!() as usize,
             ))
         } else {
@@ -909,7 +933,7 @@ impl Lexer /*<'a>*/ {
                                 let token = self.emit_token(Illegal, &s);
                                 return Err(Self::unclosed_string_error(
                                     token,
-                                    "\"\"\"",
+                                    Self::QUOTES,
                                     line!() as usize,
                                 ));
                             }
@@ -919,7 +943,7 @@ impl Lexer /*<'a>*/ {
                                 let token = self.emit_token(Illegal, &s);
                                 return Err(Self::unclosed_string_error(
                                     token,
-                                    "\"\"\"",
+                                    Self::QUOTES,
                                     line!() as usize,
                                 ));
                             }
@@ -927,7 +951,7 @@ impl Lexer /*<'a>*/ {
                                 self.interpol_stack.pop();
                                 self.consume().unwrap();
                                 self.consume().unwrap();
-                                s.push_str("\"\"\"");
+                                s.push_str(Self::QUOTES);
                                 let token = self.emit_token(StrInterpRight, &s);
                                 return Ok(token);
                             }
@@ -966,7 +990,7 @@ impl Lexer /*<'a>*/ {
                     } else {
                         s.push(c);
                         if Self::is_bidi(c) {
-                            return Err(self._invalid_unicode_character(&s));
+                            return Err(self.invalid_unicode_character(&s));
                         }
                     }
                 }
@@ -996,7 +1020,7 @@ impl Lexer /*<'a>*/ {
                     let c = self.consume().unwrap();
                     s.push(c);
                     if Self::is_bidi(c) {
-                        return Err(self._invalid_unicode_character(&s));
+                        return Err(self.invalid_unicode_character(&s));
                     }
                 }
             }
@@ -1013,22 +1037,6 @@ impl Lexer /*<'a>*/ {
             ),
             None,
         ))
-    }
-
-    // for single strings and multi-line strings
-    fn _invalid_unicode_character(&mut self, s: &str) -> LexError {
-        let token = self.emit_token(Illegal, s);
-        LexError::syntax_error(
-            0,
-            token.loc(),
-            switch_lang!(
-                "japanese" => "不正なユニコード文字(双方向オーバーライド)が文字列中に使用されています",
-                "simplified_chinese" => "注释中使用了非法的unicode字符（双向覆盖）",
-                "traditional_chinese" => "註釋中使用了非法的unicode字符（雙向覆蓋）",
-                "english" => "invalid unicode character (bi-directional override) in string literal",
-            ),
-            None,
-        )
     }
 }
 
