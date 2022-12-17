@@ -1123,6 +1123,11 @@ impl Context {
                 }
             }
             other => {
+                if let Some((_typ, typ_ctx)) = self.get_nominal_type_ctx(other) {
+                    if let Some((_, call_vi)) = typ_ctx.get_var_info("__call__") {
+                        return self.substitute_call(obj, attr_name, &call_vi.t, pos_args, kw_args);
+                    }
+                }
                 let hint = if other == &ClassType {
                     Some(switch_lang! {
                         "japanese" => format!("インスタンスを生成したい場合は、{}.newを使用してください", obj.to_string_notype()),
