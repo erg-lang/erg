@@ -1876,7 +1876,7 @@ impl Context {
             None,
             Code,
         );
-        let t_quit = func(vec![], None, vec![kw("code", Int)], NoneType);
+        let t_quit = func(vec![], None, vec![kw("code", Int)], Never);
         let t_exit = t_quit.clone();
         let t_repr = nd_func(vec![kw("object", Obj)], None, Str);
         let t_round = nd_func(vec![kw("number", Float)], None, Int);
