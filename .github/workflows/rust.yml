@@ -16,14 +16,16 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+    - uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
     - uses: Swatinem/rust-cache@v2
     - name: Build
       run: |
         rustup update stable
         cargo build --verbose
-    # Removed because it caused a segmentation fault and would not stop executing. Testing should be done locally.
-    # - name: Run tests
-    #   run: cargo test --verbose -- --test-threads=2
+    - name: Run tests
+      run: cargo test --verbose
     - uses: actions-rs/cargo@v1
       with:
         command: clippy
