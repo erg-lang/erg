@@ -1291,7 +1291,12 @@ impl ASTLowerer {
                 )));
             }
             let kind = ContextKind::MethodDefs(impl_trait.as_ref().map(|(t, _)| t.clone()));
-            self.ctx.grow(&class.local_name(), kind, Private, None);
+            let vis = if self.cfg.python_compatible_mode {
+                Public
+            } else {
+                Private
+            };
+            self.ctx.grow(&class.local_name(), kind, vis, None);
             for attr in methods.attrs.iter_mut() {
                 match attr {
                     ast::ClassAttr::Def(def) => {
