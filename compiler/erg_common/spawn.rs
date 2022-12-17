@@ -8,7 +8,7 @@ where
     F: FnOnce() -> T + Send + 'static,
     T: Send + 'static,
 {
-    if cfg!(windows) {
+    if cfg!(windows) || cfg!(features = "large_thread") {
         const STACK_SIZE: usize = 4 * 1024 * 1024;
         let child = thread::Builder::new()
             .stack_size(STACK_SIZE)

@@ -17,6 +17,7 @@ simplified_chinese = []
 traditional_chinese = []
 unicode = []
 pretty = []
+large_thread = []
 
 [target.'cfg(unix)'.dependencies]
 libc = { version = "0.2", default-features = false }
