@@ -2127,6 +2127,7 @@ impl Type {
                 vec![TyParam::t(*lhs.clone()), TyParam::t(*rhs.clone())]
             }
             Self::Subr(subr) => subr.typarams(),
+            Self::Quantified(quant) => quant.typarams(),
             Self::Callable { param_ts: _, .. } => todo!(),
             Self::Poly { params, .. } => params.clone(),
             _ => vec![],
@@ -2156,6 +2157,7 @@ impl Type {
             Self::Subr(SubrType {
                 non_default_params, ..
             }) => Some(non_default_params),
+            Self::Quantified(quant) => quant.non_default_params(),
             Self::Callable { param_ts: _, .. } => todo!(),
             _ => None,
         }
@@ -2172,6 +2174,7 @@ impl Type {
                 var_params: var_args,
                 ..
             }) => var_args.as_deref(),
+            Self::Quantified(quant) => quant.var_args(),
             Self::Callable { param_ts: _, .. } => todo!(),
             _ => None,
         }
@@ -2185,6 +2188,7 @@ impl Type {
                 .and_then(|t| t.default_params()),
             Self::Refinement(refine) => refine.t.default_params(),
             Self::Subr(SubrType { default_params, .. }) => Some(default_params),
+            Self::Quantified(quant) => quant.default_params(),
             _ => None,
         }
     }
@@ -2221,7 +2225,12 @@ impl Type {
             Self::Subr(SubrType { return_t, .. }) | Self::Callable { return_t, .. } => {
                 Some(return_t)
             }
-            // Self::Quantified(quant) => quant.unbound_callable.mut_return_t(),
+            Self::Quantified(quant) => {
+                if quant.return_t().unwrap().is_generalized() {
+                    log!(err "quantified return type (recursive function type inference)");
+                }
+                quant.mut_return_t()
+            }
             _ => None,
         }
     }

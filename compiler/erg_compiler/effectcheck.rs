@@ -4,7 +4,7 @@
 
 use erg_common::config::ErgConfig;
 use erg_common::log;
-use erg_common::traits::Stream;
+use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Visibility;
 use erg_common::Str;
 use Visibility::*;
@@ -235,6 +235,44 @@ impl SideEffectChecker {
                 self.block_stack.push(ConstInstant);
             }
         }
+        if let Signature::Subr(sig) = &def.sig {
+            let t = sig.ident.ref_t();
+            for (nd_param, nd_type) in sig
+                .params
+                .non_defaults
+                .iter()
+                .zip(t.non_default_params().unwrap())
+            {
+                if nd_type.typ().is_procedure() && !nd_param.inspect().unwrap().ends_with('!') {
+                    self.errs.push(EffectError::proc_assign_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        nd_param.pat.loc(),
+                        self.full_path(),
+                    ));
+                }
+            }
+            if let Some((var_arg, va_type)) = sig.params.var_args.as_ref().zip(t.var_args()) {
+                if va_type.typ().is_procedure() && !var_arg.inspect().unwrap().ends_with('!') {
+                    self.errs.push(EffectError::proc_assign_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        var_arg.pat.loc(),
+                        self.full_path(),
+                    ));
+                }
+            }
+            for (d_param, d_type) in sig.params.defaults.iter().zip(t.default_params().unwrap()) {
+                if d_type.typ().is_procedure() && !d_param.inspect().unwrap().ends_with('!') {
+                    self.errs.push(EffectError::proc_assign_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        d_param.sig.pat.loc(),
+                        self.full_path(),
+                    ));
+                }
+            }
+        }
         let last_idx = def.body.block.len() - 1;
         for (i, chunk) in def.body.block.iter().enumerate() {
             self.check_expr(chunk);
@@ -247,7 +285,7 @@ impl SideEffectChecker {
                 self.errs.push(EffectError::proc_assign_error(
                     self.cfg.input.clone(),
                     line!() as usize,
-                    &def.sig,
+                    def.sig.loc(),
                     self.full_path(),
                 ));
             }
