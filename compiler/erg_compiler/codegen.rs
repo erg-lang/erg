@@ -18,6 +18,7 @@ use erg_common::opcode311::{BinOpCode, Opcode311};
 use erg_common::option_enum_unwrap;
 use erg_common::python_util::{env_python_version, PythonVersion};
 use erg_common::traits::{Locational, Stream};
+use erg_common::vis::Visibility;
 use erg_common::Str;
 use erg_common::{
     debug_power_assert, enum_unwrap, fn_name, fn_name_full, impl_stream_for_wrapper, log,
@@ -59,19 +60,22 @@ fn debind(ident: &Identifier) -> Option<Str> {
     }
 }
 
-fn escape_name(ident: Identifier) -> Str {
+fn escape_name(name: &str, vis: Visibility) -> Str {
+    let name = name.replace('!', "__erg_proc__");
+    let name = name.replace('$', "__erg_shared__");
+    if vis.is_private() {
+        Str::from("::".to_string() + &name)
+    } else {
+        Str::from(name)
+    }
+}
+
+fn escape_ident(ident: Identifier) -> Str {
     let vis = ident.vis();
     if let Some(py_name) = ident.vi.py_name {
         py_name
     } else {
-        let name = ident.name.into_token().content.to_string();
-        let name = name.replace('!', "__erg_proc__");
-        let name = name.replace('$', "__erg_shared__");
-        if vis.is_private() {
-            Str::from("::".to_string() + &name)
-        } else {
-            Str::from(name)
-        }
+        escape_name(ident.inspect(), vis)
     }
 }
 
@@ -642,7 +646,7 @@ impl PyCodeGenerator {
 
     fn emit_load_name_instr(&mut self, ident: Identifier) {
         log!(info "entered {}({ident})", fn_name!());
-        let escaped = escape_name(ident);
+        let escaped = escape_ident(ident);
         match &escaped[..] {
             "if__" | "for__" | "while__" | "with__" | "discard__" => {
                 self.load_control();
@@ -675,7 +679,7 @@ impl PyCodeGenerator {
 
     fn emit_load_global_instr(&mut self, ident: Identifier) {
         log!(info "entered {} ({ident})", fn_name!());
-        let escaped = escape_name(ident);
+        let escaped = escape_ident(ident);
         let name = self
             .local_search(&escaped, Name)
             .unwrap_or_else(|| self.register_name(escaped));
@@ -687,7 +691,7 @@ impl PyCodeGenerator {
 
     fn emit_import_name_instr(&mut self, ident: Identifier, items_len: usize) {
         log!(info "entered {}({ident})", fn_name!());
-        let escaped = escape_name(ident);
+        let escaped = escape_ident(ident);
         let name = self
             .local_search(&escaped, Name)
             .unwrap_or_else(|| self.register_name(escaped));
@@ -699,7 +703,7 @@ impl PyCodeGenerator {
 
     fn emit_import_from_instr(&mut self, ident: Identifier) {
         log!(info "entered {}", fn_name!());
-        let escaped = escape_name(ident);
+        let escaped = escape_ident(ident);
         let name = self
             .local_search(&escaped, Name)
             .unwrap_or_else(|| self.register_name(escaped));
@@ -712,7 +716,7 @@ impl PyCodeGenerator {
         log!(info "entered {}", fn_name!());
         self.emit_load_const(0i32); // escaping to call access `Nat` before importing `Nat`
         self.emit_load_const([Str::ever("*")]);
-        let escaped = escape_name(ident);
+        let escaped = escape_ident(ident);
         let name = self
             .local_search(&escaped, Name)
             .unwrap_or_else(|| self.register_name(escaped));
@@ -752,7 +756,7 @@ impl PyCodeGenerator {
 
     fn emit_load_attr_instr(&mut self, ident: Identifier) {
         log!(info "entered {} ({ident})", fn_name!());
-        let escaped = escape_name(ident);
+        let escaped = escape_ident(ident);
         let name = self
             .local_search(&escaped, Attr)
             .unwrap_or_else(|| self.register_attr(escaped));
@@ -769,7 +773,7 @@ impl PyCodeGenerator {
         if &ident.inspect()[..] == "__new__" {
             log!("{:?}", ident.vi);
         }
-        let escaped = escape_name(ident);
+        let escaped = escape_ident(ident);
         let name = self
             .local_search(&escaped, Method)
             .unwrap_or_else(|| self.register_method(escaped));
@@ -784,7 +788,7 @@ impl PyCodeGenerator {
 
     fn emit_store_instr(&mut self, ident: Identifier, acc_kind: AccessKind) {
         log!(info "entered {} ({ident})", fn_name!());
-        let escaped = escape_name(ident);
+        let escaped = escape_ident(ident);
         let name = self.local_search(&escaped, acc_kind).unwrap_or_else(|| {
             if acc_kind.is_local() {
                 self.register_name(escaped)
@@ -808,7 +812,7 @@ impl PyCodeGenerator {
     // Ergの組み込みオブジェクトをimportするときなどに使う、通常は使わない
     fn emit_store_global_instr(&mut self, ident: Identifier) {
         log!(info "entered {} ({ident})", fn_name!());
-        let escaped = escape_name(ident);
+        let escaped = escape_ident(ident);
         let name = self
             .local_search(&escaped, Name)
             .unwrap_or_else(|| self.register_name(escaped));
@@ -879,7 +883,14 @@ impl PyCodeGenerator {
                     .iter()
                     .map(|p| p.inspect().map(|s| &s[..]).unwrap_or("_")),
             )
-            .map(|s| format!("::{s}"))
+            .enumerate()
+            .map(|(i, s)| {
+                if s == "_" {
+                    format!("_{i}")
+                } else {
+                    escape_name(s, Visibility::Private).to_string()
+                }
+            })
             .map(|s| self.get_cached(&s))
             .collect()
     }
@@ -1555,7 +1566,7 @@ impl PyCodeGenerator {
     fn emit_del_instr(&mut self, mut args: Args) {
         let ident = enum_unwrap!(args.remove_left_or_key("obj").unwrap(), Expr::Accessor:(Accessor::Ident:(_)));
         log!(info "entered {} ({ident})", fn_name!());
-        let escaped = escape_name(ident);
+        let escaped = escape_ident(ident);
         let name = self
             .local_search(&escaped, Name)
             .unwrap_or_else(|| self.register_name(escaped));
@@ -2233,7 +2244,7 @@ impl PyCodeGenerator {
             let kw = if is_py_api {
                 arg.keyword.content
             } else {
-                Str::from(format!("::{}", arg.keyword.content))
+                escape_name(&arg.keyword.content, Visibility::Private)
             };
             kws.push(ValueObj::Str(kw));
             self.emit_expr(arg.expr);

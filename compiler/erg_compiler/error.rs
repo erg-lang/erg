@@ -17,7 +17,7 @@ use erg_common::{
 use erg_parser::error::{ParserRunnerError, ParserRunnerErrors};
 
 use crate::context::Context;
-use crate::hir::{Expr, Identifier, Signature};
+use crate::hir::{Expr, Identifier};
 use crate::ty::{HasType, Predicate, Type};
 
 /// `unreachable!(self: Context)`
@@ -1450,12 +1450,7 @@ impl EffectError {
         )
     }
 
-    pub fn proc_assign_error(
-        input: Input,
-        errno: usize,
-        sig: &Signature,
-        caused_by: String,
-    ) -> Self {
+    pub fn proc_assign_error(input: Input, errno: usize, loc: Location, caused_by: String) -> Self {
         let hint = Some(
             switch_lang!(
                 "japanese" => {
@@ -1490,7 +1485,7 @@ impl EffectError {
         );
         Self::new(
             ErrorCore::new(
-                vec![SubMessage::ambiguous_new(sig.loc(), vec![], hint)],
+                vec![SubMessage::ambiguous_new(loc, vec![], hint)],
                 switch_lang!(
                     "japanese" => "プロシージャを通常の変数に代入することはできません",
                     "simplified_chinese" => "不能将过程赋值给普通变量",
@@ -1499,7 +1494,7 @@ impl EffectError {
                 ),
                 errno,
                 HasEffect,
-                sig.loc(),
+                loc,
             ),
             input,
             caused_by,
