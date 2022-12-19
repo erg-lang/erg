@@ -328,6 +328,7 @@ impl PyCodeGenerator {
 
     #[inline]
     fn edit_code(&mut self, idx: usize, arg: usize) {
+        log!(err "editing: {idx} {arg}");
         match u8::try_from(arg) {
             Ok(u8code) => {
                 *self.mut_cur_block_codeobj().code.get_mut(idx).unwrap() = u8code;
@@ -660,14 +661,6 @@ impl PyCodeGenerator {
             .local_search(&escaped, Name)
             .unwrap_or_else(|| self.register_name(escaped));
         let instr = self.select_load_instr(name.kind, Name);
-        /*let null_idx = self.cur_block_codeobj().code.len() - 2;
-        if instr == LOAD_GLOBAL
-            && self.cur_block_codeobj().code.get(null_idx) == Some(&(Opcode311::PUSH_NULL as u8))
-        {
-            self.mut_cur_block_codeobj().code.pop();
-            self.mut_cur_block_codeobj().code.pop();
-            self.mut_cur_block().lasti -= 2;
-        }*/
         self.write_instr(instr);
         self.write_arg(name.idx);
         self.stack_inc();
@@ -2879,8 +2872,11 @@ impl PyCodeGenerator {
         let freevars_len = self.cur_block_codeobj().freevars.len();
         if freevars_len > 0 {
             self.mut_cur_block_codeobj().flags += CodeObjFlags::Nested as u32;
-            self.edit_code(idx_copy_free_vars + 1, freevars_len);
+            if self.py_version.minor >= Some(11) {
+                self.edit_code(idx_copy_free_vars + 1, freevars_len);
+            }
         } else if self.py_version.minor >= Some(11) {
+            // cancel copying
             let code = self.cur_block_codeobj().code.get(idx_copy_free_vars);
             debug_assert_eq!(code, Some(&(Opcode311::COPY_FREE_VARS as u8)));
             self.edit_code(idx_copy_free_vars, CommonOpcode::NOP as usize);
