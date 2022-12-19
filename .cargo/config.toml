@@ -58,5 +58,5 @@ bd_zh_cn_re = "build --features debug --features simplified_chinese --release"
 bd_zh_tw_re = "build --features debug --features traditional_chinese --release"
 
 # static linking to libc
-# [target.'cfg(unix)']
-# rustflags = ["-C", "target-feature=+crt-static"]
+[target.'cfg(unix)']
+rustflags = ["-C", "target-feature=+crt-static"]
