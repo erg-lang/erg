@@ -204,3 +204,8 @@ fn exec_side_effect() -> Result<(), ()> {
 fn exec_subtyping() -> Result<(), ()> {
     expect_failure("tests/should_err/subtyping.er", 2)
 }
+
+#[test]
+fn exec_callable() -> Result<(), ()> {
+    expect_failure("tests/should_err/callable.er", 4)
+}
