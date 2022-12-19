@@ -4,15 +4,16 @@ if %~dp0 == C:%homepath%\GitHub\erg\ (
     cd compiler/erg_common
     echo publish erg_common ...
     cargo publish
-    timeout 12
+    rem from cargo 1.66 timeout is not needed
+    rem timeout 12
     cd ../erg_parser
     echo publish erg_parser ...
     cargo publish
-    timeout 12
+    rem timeout 12
     cd ../erg_compiler
     echo publish erg_compiler ...
     cargo publish
-    timeout 12
+    rem timeout 12
     cd ../../
     cargo publish
     echo completed
