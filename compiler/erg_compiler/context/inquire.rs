@@ -921,6 +921,35 @@ impl Context {
         Ok(())
     }
 
+    fn not_callable_error(
+        &self,
+        obj: &hir::Expr,
+        attr_name: &Option<Identifier>,
+        other: &Type,
+        hint: Option<String>,
+    ) -> TyCheckErrors {
+        let (loc, name) = if let Some(attr_name) = attr_name {
+            (
+                Location::concat(obj, attr_name),
+                (obj.to_string() + &attr_name.to_string()),
+            )
+        } else {
+            (obj.loc(), obj.to_string())
+        };
+        TyCheckErrors::from(TyCheckError::type_mismatch_error(
+            self.cfg.input.clone(),
+            line!() as usize,
+            loc,
+            self.caused_by(),
+            &name,
+            None,
+            &mono("Callable"),
+            other,
+            self.get_candidates(other),
+            hint,
+        ))
+    }
+
     /// if `obj` has `__call__` method, then the return value is `Some(call_instance)`
     ///
     /// e.g.
@@ -944,6 +973,11 @@ impl Context {
                 self.substitute_call(obj, attr_name, &fv.crack(), pos_args, kw_args)
             }
             Type::FreeVar(fv) => {
+                if let Some(sub) = fv.get_sub() {
+                    if !self.subtype_of(&sub, &mono("GenericCallable")) {
+                        return Err(self.not_callable_error(obj, attr_name, instance, None));
+                    }
+                }
                 if let Some(attr_name) = attr_name {
                     feature_error!(TyCheckErrors, TyCheckError, self, attr_name.loc(), "")
                 } else {
@@ -1144,33 +1178,7 @@ impl Context {
                 } else {
                     None
                 };
-                if let Some(attr_name) = attr_name {
-                    Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        Location::concat(obj, attr_name),
-                        self.caused_by(),
-                        &(obj.to_string() + &attr_name.to_string()),
-                        None,
-                        &mono("Callable"),
-                        other,
-                        self.get_candidates(other),
-                        hint,
-                    )))
-                } else {
-                    Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        obj.loc(),
-                        self.caused_by(),
-                        &obj.to_string(),
-                        None,
-                        &mono("Callable"),
-                        other,
-                        self.get_candidates(other),
-                        hint,
-                    )))
-                }
+                Err(self.not_callable_error(obj, attr_name, other, hint))
             }
         }
     }
