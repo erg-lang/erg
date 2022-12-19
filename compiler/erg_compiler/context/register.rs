@@ -76,7 +76,7 @@ impl Context {
             ast::VarPattern::Discard(_) => {
                 return Ok(());
             }
-            _ => todo!(),
+            other => unreachable!("{other}"),
         };
         let vis = ident.vis();
         let kind = id.map_or(VarKind::Declared, VarKind::Defined);
