@@ -70,7 +70,9 @@ fn _exec_vm(file_path: &'static str) -> Result<i32, CompileErrors> {
     } else {
         Some("python3")
     };
-    // cfg.target_version = Some(PythonVersion::new(3, Some(10), Some(6))); // your Python's version
+    // cfg.target_version = Some(PythonVersion::new(3, Some(8), Some(10))); // your Python's version
+    // cfg.py_magic_num = Some(3413); // in (most) 3.8.x
+    // cfg.target_version = Some(PythonVersion::new(3, Some(10), Some(6)));
     // cfg.py_magic_num = Some(3439); // in (most) 3.10.x
     cfg.target_version = Some(PythonVersion::new(3, Some(11), Some(0)));
     cfg.py_magic_num = Some(3495); // in 3.11.0

@@ -1,6 +1,7 @@
 use std::fs::remove_file;
 use std::io::{Read, Write};
 use std::net::{Ipv4Addr, SocketAddrV4, TcpListener, TcpStream};
+use std::process;
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -94,7 +95,10 @@ impl Runnable for DummyVM {
 
     fn finish(&mut self) {
         if let Some(stream) = &mut self.stream {
-            stream.write_all("exit".as_bytes()).unwrap();
+            if let Err(err) = stream.write_all("exit".as_bytes()) {
+                eprintln!("Write error: {err}");
+                process::exit(1);
+            }
             let mut buf = [0; 1024];
             match stream.read(&mut buf) {
                 Result::Ok(n) => {
@@ -103,8 +107,9 @@ impl Runnable for DummyVM {
                         println!("The REPL server is closed.");
                     }
                 }
-                Result::Err(e) => {
-                    panic!("{}", format!("Read error: {e}"));
+                Result::Err(err) => {
+                    eprintln!("Read error: {err}");
+                    process::exit(1);
                 }
             }
             remove_file("o.pyc").unwrap_or(());
@@ -156,15 +161,17 @@ impl Runnable for DummyVM {
                         }
                         s.to_string()
                     }
-                    Result::Err(e) => {
+                    Result::Err(err) => {
                         self.finish();
-                        panic!("{}", format!("Read error: {e}"));
+                        eprintln!("Read error: {err}");
+                        process::exit(1);
                     }
                 }
             }
-            Result::Err(e) => {
+            Result::Err(err) => {
                 self.finish();
-                panic!("{}", format!("Sending error: {e}"))
+                eprintln!("Sending error: {err}");
+                process::exit(1);
             }
         };
         if res.ends_with("None") {
