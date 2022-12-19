@@ -297,7 +297,7 @@ impl Lexer /*<'a>*/ {
             if Self::is_bidi(self.peek_cur_ch().unwrap()) {
                 let comment = self.emit_token(Illegal, &s);
                 return Err(LexError::syntax_error(
-                    0,
+                    line!() as usize,
                     comment.loc(),
                     switch_lang!(
                         "japanese" => "不正なユニコード文字(双方向オーバーライド)がコメント中に使用されています",
@@ -339,7 +339,7 @@ impl Lexer /*<'a>*/ {
                     if Self::is_bidi(self.peek_cur_ch().unwrap()) {
                         let comment = self.emit_token(Illegal, &s);
                         return Err(LexError::syntax_error(
-                            0,
+                            line!() as usize,
                             comment.loc(),
                             switch_lang!(
                                 "japanese" => "不正なユニコード文字(双方向オーバーライド)がコメント中に使用されています",
@@ -354,7 +354,7 @@ impl Lexer /*<'a>*/ {
                 None => {
                     let comment = self.emit_token(Illegal, &s);
                     return Err(LexError::syntax_error(
-                        0,
+                        line!() as usize,
                         comment.loc(),
                         switch_lang!(
                         "japanese" => "複数行コメントが]#で閉じられていません",
@@ -396,7 +396,7 @@ impl Lexer /*<'a>*/ {
         if !spaces.is_empty() && self.prev_token.is(BOF) {
             let space = self.emit_token(Illegal, &spaces);
             Some(Err(LexError::syntax_error(
-                0,
+                line!() as usize,
                 space.loc(),
                 switch_lang!(
                     "japanese" => "インデントが不正です",
@@ -420,7 +420,7 @@ impl Lexer /*<'a>*/ {
         if spaces.len() > 100 {
             let token = self.emit_token(Indent, &spaces);
             return Some(Err(LexError::syntax_error(
-                0,
+                line!() as usize,
                 token.loc(),
                 switch_lang!(
                     "japanese" => "インデントが深すぎます",
@@ -478,7 +478,7 @@ impl Lexer /*<'a>*/ {
                         Some("unnecessary spaces after linebreak".into())
                     } else { None };
                     Some(Err(LexError::syntax_error(
-                        0,
+                        line!() as usize,
                         invalid_dedent.loc(),
                         switch_lang!(
                             "japanese" => "インデントが不正です",
@@ -514,7 +514,7 @@ impl Lexer /*<'a>*/ {
         } else {
             let token = self.emit_token(RatioLit, &num);
             Err(LexError::syntax_error(
-                0,
+                line!() as usize,
                 token.loc(),
                 switch_lang!(
                     "japanese" => format!("`{}`は無効な十進数リテラルです", &token.content),
@@ -686,7 +686,7 @@ impl Lexer /*<'a>*/ {
 
     fn invalid_escape_error(ch: char, token: Token) -> LexError {
         LexError::syntax_error(
-            0,
+            line!() as usize,
             token.loc(),
             switch_lang!(
                 "japanese" => format!("不正なエスケープシーケンスです: \\{}", ch),
@@ -724,7 +724,7 @@ impl Lexer /*<'a>*/ {
 
     fn unclosed_interpol_error(token: Token) -> LexError {
         LexError::syntax_error(
-            0,
+            line!() as usize,
             token.loc(),
             switch_lang!(
                 "japanese" => "文字列内の補間が閉じられていません",
@@ -739,7 +739,7 @@ impl Lexer /*<'a>*/ {
     fn invalid_unicode_character(&mut self, s: &str) -> LexError {
         let token = self.emit_token(Illegal, s);
         LexError::syntax_error(
-            0,
+            line!() as usize,
             token.loc(),
             switch_lang!(
                 "japanese" => "不正なユニコード文字(双方向オーバーライド)が文字列中に使用されています",
@@ -1027,7 +1027,7 @@ impl Lexer /*<'a>*/ {
         }
         let token = self.emit_token(Illegal, &s);
         Err(LexError::syntax_error(
-            0,
+            line!() as usize,
             token.loc(),
             switch_lang!(
                 "japanese" => "raw識別子が'によって閉じられていません",
@@ -1089,7 +1089,7 @@ impl Iterator for Lexer /*<'a>*/ {
                     } else {
                         let token = self.emit_token(Illegal, "<.");
                         Some(Err(LexError::syntax_error(
-                            0,
+                            line!() as usize,
                             token.loc(),
                             switch_lang!(
                                 "japanese" => "<.という演算子はありません",
@@ -1294,7 +1294,7 @@ impl Iterator for Lexer /*<'a>*/ {
             Some('\t') => {
                 let token = self.emit_token(Illegal, "\t");
                 Some(Err(LexError::syntax_error(
-                    0,
+                    line!() as usize,
                     token.loc(),
                     switch_lang!(
                         "japanese" => "タブ文字は使用できません",
@@ -1323,7 +1323,7 @@ impl Iterator for Lexer /*<'a>*/ {
                     (None, _) => {
                         let token = self.emit_token(Illegal, "\"");
                         Some(Err(LexError::syntax_error(
-                            0,
+                            line!() as usize,
                             token.loc(),
                             switch_lang!(
                                 "japanese" => "文字列が\"によって閉じられていません",
@@ -1361,7 +1361,7 @@ impl Iterator for Lexer /*<'a>*/ {
                     None => {
                         let token = self.emit_token(Illegal, "'");
                         Some(Err(LexError::syntax_error(
-                            0,
+                            line!() as usize,
                             token.loc(),
                             switch_lang!(
                                 "japanese" => "raw識別子が'によって閉じられていません",
@@ -1406,7 +1406,7 @@ impl Iterator for Lexer /*<'a>*/ {
                                 None
                             };
                             return Some(Err(LexError::syntax_error(
-                                0,
+                                line!() as usize,
                                 token.loc(),
                                 switch_lang!(
                                     "japanese" => format!("`{}`はユーザー定義できません", &token.content),
@@ -1422,7 +1422,7 @@ impl Iterator for Lexer /*<'a>*/ {
                 }
                 let token = self.emit_token(Illegal, &op);
                 Some(Err(LexError::syntax_error(
-                    0,
+                    line!() as usize,
                     token.loc(),
                     switch_lang!(
                         "japanese" => format!("バッククォート(`)が閉じられていません"),
@@ -1441,7 +1441,7 @@ impl Iterator for Lexer /*<'a>*/ {
             Some(invalid) => {
                 let token = self.emit_token(Illegal, &invalid.to_string());
                 Some(Err(LexError::syntax_error(
-                    0,
+                    line!() as usize,
                     token.loc(),
                     switch_lang!(
                         "japanese" => format!("この文字は使用できません: '{invalid}'"),
