@@ -331,6 +331,9 @@ impl Lexer /*<'a>*/ {
                 if c == '\n' {
                     self.lineno_token_starts += 1;
                     self.col_token_starts = 0;
+                    s.clear();
+                    self.consume();
+                    continue;
                 }
             }
             if Self::is_bidi(c) {
@@ -350,6 +353,12 @@ impl Lexer /*<'a>*/ {
             s.push(self.consume().unwrap());
         }
         let comment = self.emit_token(Illegal, &s);
+        let hint = switch_lang!(
+            "japanese" => format!("`]#`の数があと{}個必要です", nest_level),
+            "simplified_chinese" => format!("需要{}个`]#`", nest_level),
+            "traditional_chinese" => format!("需要{}個`]#`", nest_level),
+            "english" => format!("{} `]#`(s) are needed", nest_level),
+        );
         Err(LexError::syntax_error(
             line!() as usize,
             comment.loc(),
@@ -359,7 +368,7 @@ impl Lexer /*<'a>*/ {
             "traditional_chinese" => "多條評論未用]#關閉",
             "english" => "multi-comment is not closed with ]#",
             ),
-            None,
+            Some(hint),
         ))
     }
 
