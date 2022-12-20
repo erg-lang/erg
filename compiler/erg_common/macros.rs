@@ -269,7 +269,7 @@ macro_rules! fn_name {
         fn type_name_of<T>(_: T) -> &'static str {
             std::any::type_name::<T>()
         }
-        let name = type_name_of(dummy).rsplit("::").nth(1).unwrap();
+        let name = type_name_of(dummy).rsplit("::").nth(1).unwrap_or("?");
         &name[..]
     }};
 }
