@@ -1048,6 +1048,7 @@ impl ASTLowerer {
             .registered_info(&name, def.sig.is_const())
             .is_some()
             && def.sig.vis().is_private()
+            && !self.cfg.python_compatible_mode
         {
             return Err(LowerErrors::from(LowerError::reassign_error(
                 self.cfg.input.clone(),
