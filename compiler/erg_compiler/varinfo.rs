@@ -63,6 +63,10 @@ impl VarKind {
     pub const fn is_parameter(&self) -> bool {
         matches!(self, Self::Parameter { .. })
     }
+
+    pub const fn is_defined(&self) -> bool {
+        matches!(self, Self::Defined(_))
+    }
 }
 
 /// Has information about the type, variability, visibility, and where the variable was defined (or declared, generated)
