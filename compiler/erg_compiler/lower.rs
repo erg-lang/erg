@@ -1802,7 +1802,7 @@ impl ASTLowerer {
         log!(info "entered {}({tasc})", fn_name!());
         let is_instance_ascription = tasc.is_instance_ascription();
         let mut dummy_tv_cache = TyVarCache::new(self.ctx.level, &self.ctx);
-        let t = self.ctx.instantiate_typespec(
+        let spec_t = self.ctx.instantiate_typespec(
             &tasc.t_spec,
             None,
             &mut dummy_tv_cache,
@@ -1814,23 +1814,24 @@ impl ASTLowerer {
         if is_instance_ascription {
             self.ctx.sub_unify(
                 expr.ref_t(),
-                &t,
+                &spec_t,
                 expr.loc(),
                 Some(&Str::from(expr.to_string())),
             )?;
         } else {
+            // if subtype ascription
             let ctx = self
                 .ctx
                 .get_singular_ctx_by_hir_expr(&expr, &self.ctx.name)?;
             // REVIEW: need to use subtype_of?
-            if ctx.super_traits.iter().all(|trait_| trait_ != &t)
-                && ctx.super_classes.iter().all(|class| class != &t)
+            if ctx.super_traits.iter().all(|trait_| trait_ != &spec_t)
+                && ctx.super_classes.iter().all(|class| class != &spec_t)
             {
                 return Err(LowerErrors::from(LowerError::subtyping_error(
                     self.cfg.input.clone(),
                     line!() as usize,
                     expr.ref_t(), // FIXME:
-                    &t,
+                    &spec_t,
                     loc,
                     self.ctx.caused_by(),
                 )));
