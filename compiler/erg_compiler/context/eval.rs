@@ -1108,11 +1108,21 @@ impl Context {
                 if let Some(sup) = opt_sup {
                     if let Some(quant_sup) = methods.impl_of() {
                         // T -> Int, M -> 2
-                        self.substitute_typarams(&quant_sup, sup).ok()?;
+                        self.substitute_typarams(&quant_sup, sup)
+                            .map_err(|errs| {
+                                Self::undo_substitute_typarams(&quant_sup);
+                                errs
+                            })
+                            .ok()?;
                     }
                 }
                 // T -> Int, N -> 4
-                self.substitute_typarams(quant_sub, sub).ok()?;
+                self.substitute_typarams(quant_sub, sub)
+                    .map_err(|errs| {
+                        Self::undo_substitute_typarams(quant_sub);
+                        errs
+                    })
+                    .ok()?;
                 // [T; M+N] -> [Int; 4+2] -> [Int; 6]
                 let res = self.eval_t_params(projected_t, level, t_loc).ok();
                 if let Some(t) = res {
@@ -1124,6 +1134,10 @@ impl Context {
                         Self::undo_substitute_typarams(&quant_sup);
                     }
                     return Some(t);
+                }
+                Self::undo_substitute_typarams(quant_sub);
+                if let Some(quant_sup) = methods.impl_of() {
+                    Self::undo_substitute_typarams(&quant_sup);
                 }
             } else {
                 todo!()
@@ -1180,6 +1194,8 @@ impl Context {
     }
 
     /// e.g. qt: Array(T, N), st: Array(Int, 3)
+    ///
+    /// use `undo_substitute_typarams` after executing this method
     pub(crate) fn substitute_typarams(&self, qt: &Type, st: &Type) -> EvalResult<()> {
         let qtps = qt.typarams();
         let stps = st.typarams();
@@ -1222,8 +1238,8 @@ impl Context {
         Ok(())
     }
 
-    pub(crate) fn undo_substitute_typarams(substituted: &Type) {
-        for tp in substituted.typarams().into_iter() {
+    pub(crate) fn undo_substitute_typarams(substituted_q: &Type) {
+        for tp in substituted_q.typarams().into_iter() {
             match tp {
                 TyParam::FreeVar(fv) if fv.is_undoable_linked() => fv.undo(),
                 TyParam::Type(t) if t.is_free_var() => {

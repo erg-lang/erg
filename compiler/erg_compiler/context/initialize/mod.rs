@@ -1366,10 +1366,6 @@ impl Context {
         ));
         zip.register_marker_trait(poly("Output", vec![ty_tp(T.clone())]));
         zip.register_marker_trait(poly("Output", vec![ty_tp(U.clone())]));
-        zip.register_marker_trait(poly(
-            "Output",
-            vec![ty_tp(tuple_t(vec![T.clone(), U.clone()]))],
-        ));
         let mut obj_mut = Self::builtin_mono_class("Obj!", 2);
         obj_mut.register_superclass(Obj, &obj);
         let mut obj_mut_mutable = Self::builtin_methods(Some(mono("Mutable")), 2);

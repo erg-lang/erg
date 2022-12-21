@@ -1630,22 +1630,27 @@ impl Context {
                 //      Zip(T, U) <: Iterable(Tuple([T, U]))
                 if ln != rn {
                     if let Some((sub_def_t, sub_ctx)) = self.get_nominal_type_ctx(maybe_sub) {
-                        self.substitute_typarams(sub_def_t, maybe_sub)?;
+                        self.substitute_typarams(sub_def_t, maybe_sub)
+                            .map_err(|errs| {
+                                Self::undo_substitute_typarams(sub_def_t);
+                                errs
+                            })?;
                         for sup_trait in sub_ctx.super_traits.iter() {
                             if self.supertype_of(maybe_sup, sup_trait) {
                                 for (l_maybe_sub, r_maybe_sup) in
                                     sup_trait.typarams().iter().zip(rps.iter())
                                 {
                                     self.sub_unify_tp(l_maybe_sub, r_maybe_sup, None, loc, false)
-                                        .map_err(|e| {
+                                        .map_err(|errs| {
                                             Self::undo_substitute_typarams(sub_def_t);
-                                            e
+                                            errs
                                         })?;
                                 }
                                 Self::undo_substitute_typarams(sub_def_t);
                                 return Ok(());
                             }
                         }
+                        Self::undo_substitute_typarams(sub_def_t);
                     }
                     Err(TyCheckErrors::from(TyCheckError::unification_error(
                         self.cfg.input.clone(),
