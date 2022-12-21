@@ -267,8 +267,8 @@ impl ASTLowerer {
     }
 
     fn pop_append_errs(&mut self) {
-        if let Err(mut errs) = self.ctx.check_decls_and_pop() {
-            self.errs.append(&mut errs);
+        if let Err(errs) = self.ctx.check_decls_and_pop() {
+            self.errs.extend(errs);
         }
     }
 
@@ -1329,14 +1329,18 @@ impl ASTLowerer {
                             self.errs.extend(errs);
                         }
                     },
-                    ast::ClassAttr::Decl(decl) => {
-                        let decl = self.lower_type_asc(decl)?;
-                        hir_methods.push(hir::Expr::TypeAsc(decl));
-                    }
+                    ast::ClassAttr::Decl(decl) => match self.lower_type_asc(decl) {
+                        Ok(decl) => {
+                            hir_methods.push(hir::Expr::TypeAsc(decl));
+                        }
+                        Err(errs) => {
+                            self.errs.extend(errs);
+                        }
+                    },
                 }
             }
-            if let Err(mut errs) = self.ctx.check_decls() {
-                self.errs.append(&mut errs);
+            if let Err(errs) = self.ctx.check_decls() {
+                self.errs.extend(errs);
             }
             if let Some((trait_, _)) = &impl_trait {
                 self.check_override(&class, Some(trait_));
@@ -1438,14 +1442,18 @@ impl ASTLowerer {
                             self.errs.extend(errs);
                         }
                     },
-                    ast::ClassAttr::Decl(decl) => {
-                        let decl = self.lower_type_asc(decl)?;
-                        hir_methods.push(hir::Expr::TypeAsc(decl));
-                    }
+                    ast::ClassAttr::Decl(decl) => match self.lower_type_asc(decl) {
+                        Ok(decl) => {
+                            hir_methods.push(hir::Expr::TypeAsc(decl));
+                        }
+                        Err(errs) => {
+                            self.errs.extend(errs);
+                        }
+                    },
                 }
             }
-            if let Err(mut errs) = self.ctx.check_decls() {
-                self.errs.append(&mut errs);
+            if let Err(errs) = self.ctx.check_decls() {
+                self.errs.extend(errs);
             }
             self.push_patch();
         }
@@ -1934,8 +1942,8 @@ impl ASTLowerer {
             }
         }
         self.ctx.clear_invalid_vars();
-        self.ctx.check_decls().unwrap_or_else(|mut errs| {
-            self.errs.append(&mut errs);
+        self.ctx.check_decls().unwrap_or_else(|errs| {
+            self.errs.extend(errs);
         });
         let hir = HIR::new(ast.name, module);
         log!(info "HIR (not resolved, current errs: {}):\n{hir}", self.errs.len());
