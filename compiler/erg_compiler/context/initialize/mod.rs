@@ -657,6 +657,7 @@ impl Context {
             Private
         };
         let T = mono_q("T", instanceof(Type));
+        let U = mono_q("U", instanceof(Type));
         let L = mono_q("L", instanceof(Type));
         let R = mono_q("R", instanceof(Type));
         let N = mono_q_tp("N", instanceof(Nat));
@@ -1302,7 +1303,7 @@ impl Context {
         generic_tuple.register_trait(mono("GenericTuple"), tuple_eq);
         let Ts = mono_q_tp("Ts", instanceof(array_t(Type, N.clone())));
         // Ts <: GenericArray
-        let tuple_t = poly("Tuple", vec![Ts.clone()]);
+        let _tuple_t = poly("Tuple", vec![Ts.clone()]);
         let mut tuple_ = Self::builtin_poly_class(
             "Tuple",
             vec![PS::named_nd("Ts", array_t(Type, N.clone()))],
@@ -1312,7 +1313,8 @@ impl Context {
         tuple_.register_marker_trait(poly("Output", vec![Ts.clone()]));
         // __Tuple_getitem__: (self: Tuple(Ts), _: {N}) -> Ts[N]
         let return_t = proj_call(Ts, "__getitem__", vec![N.clone()]);
-        let tuple_getitem_t = fn1_met(tuple_t.clone(), tp_enum(Nat, set! {N}), return_t).quantify();
+        let tuple_getitem_t =
+            fn1_met(_tuple_t.clone(), tp_enum(Nat, set! {N}), return_t).quantify();
         tuple_.register_builtin_py_impl(
             "__Tuple_getitem__",
             tuple_getitem_t.clone(),
@@ -1345,6 +1347,29 @@ impl Context {
         let mut range_iterator = Self::builtin_poly_class("RangeIterator", vec![PS::t_nd("T")], 1);
         range_iterator.register_superclass(Obj, &obj);
         range_iterator.register_marker_trait(poly("Output", vec![ty_tp(T.clone())]));
+        /* Map */
+        let mut map = Self::builtin_poly_class("Map", vec![PS::t_nd("T")], 2);
+        map.register_superclass(Obj, &obj);
+        map.register_marker_trait(poly("Iterable", vec![ty_tp(T.clone())]));
+        map.register_marker_trait(poly("Output", vec![ty_tp(T.clone())]));
+        /* Filter */
+        let mut filter = Self::builtin_poly_class("Filter", vec![PS::t_nd("T")], 2);
+        filter.register_superclass(Obj, &obj);
+        filter.register_marker_trait(poly("Iterable", vec![ty_tp(T.clone())]));
+        filter.register_marker_trait(poly("Output", vec![ty_tp(T.clone())]));
+        /* Zip */
+        let mut zip = Self::builtin_poly_class("Zip", vec![PS::t_nd("T"), PS::t_nd("U")], 2);
+        zip.register_superclass(Obj, &obj);
+        zip.register_marker_trait(poly(
+            "Iterable",
+            vec![ty_tp(tuple_t(vec![T.clone(), U.clone()]))],
+        ));
+        zip.register_marker_trait(poly("Output", vec![ty_tp(T.clone())]));
+        zip.register_marker_trait(poly("Output", vec![ty_tp(U.clone())]));
+        zip.register_marker_trait(poly(
+            "Output",
+            vec![ty_tp(tuple_t(vec![T.clone(), U.clone()]))],
+        ));
         let mut obj_mut = Self::builtin_mono_class("Obj!", 2);
         obj_mut.register_superclass(Obj, &obj);
         let mut obj_mut_mutable = Self::builtin_methods(Some(mono("Mutable")), 2);
@@ -1678,7 +1703,7 @@ impl Context {
             Const,
             Some("tuple"),
         );
-        self.register_builtin_type(tuple_t, tuple_, vis, Const, Some("tuple"));
+        self.register_builtin_type(_tuple_t, tuple_, vis, Const, Some("tuple"));
         self.register_builtin_type(mono("Record"), record, vis, Const, Some("Record"));
         self.register_builtin_type(or_t, or, vis, Const, Some("Union"));
         self.register_builtin_type(
@@ -1696,11 +1721,32 @@ impl Context {
             Some("array_iterator"),
         );
         self.register_builtin_type(
-            poly("RangeIterator", vec![ty_tp(T)]),
+            poly("RangeIterator", vec![ty_tp(T.clone())]),
             range_iterator,
             Private,
             Const,
             Some("RangeIterator"),
+        );
+        self.register_builtin_type(
+            poly("Map", vec![ty_tp(T.clone())]),
+            map,
+            Private,
+            Const,
+            Some("map"),
+        );
+        self.register_builtin_type(
+            poly("Filter", vec![ty_tp(T.clone())]),
+            filter,
+            Private,
+            Const,
+            Some("filter"),
+        );
+        self.register_builtin_type(
+            poly("Zip", vec![ty_tp(T), ty_tp(U)]),
+            zip,
+            Private,
+            Const,
+            Some("zip"),
         );
         self.register_builtin_type(mono("File!"), file_mut, vis, Const, Some("File"));
         self.register_builtin_type(array_mut_t, array_mut_, vis, Const, Some("list"));
@@ -1814,7 +1860,7 @@ impl Context {
                 nd_func(vec![], None, U.clone()),
                 nd_func(vec![], None, NoneType),
             )],
-            or(T, U),
+            or(T.clone(), U.clone()),
         )
         .quantify();
         let t_int = nd_func(vec![kw("obj", Obj)], None, or(Int, NoneType));
@@ -1856,6 +1902,14 @@ impl Context {
             ],
             NoneType,
         );
+        let t_map = nd_func(
+            vec![
+                kw("proc!", nd_proc(vec![anon(T.clone())], None, T.clone())),
+                kw("iterable", poly("Iterable", vec![ty_tp(T.clone())])),
+            ],
+            None,
+            poly("Map", vec![ty_tp(T.clone())]),
+        );
         let t_nat = nd_func(vec![kw("obj", Obj)], None, or(Nat, NoneType));
         // e.g. not(b: Bool!): Bool!
         let B = mono_q("B", subtypeof(Bool));
@@ -1884,6 +1938,14 @@ impl Context {
         let t_round = nd_func(vec![kw("number", Float)], None, Int);
         let t_str = nd_func(vec![kw("object", Obj)], None, Str);
         let t_unreachable = nd_func(vec![], None, Never);
+        let t_zip = nd_func(
+            vec![
+                kw("iterable1", poly("Iterable", vec![ty_tp(T.clone())])),
+                kw("iterable2", poly("Iterable", vec![ty_tp(U.clone())])),
+            ],
+            None,
+            poly("Zip", vec![ty_tp(T), ty_tp(U)]),
+        );
         self.register_builtin_py_impl("abs", t_abs, Immutable, vis, Some("abs"));
         self.register_builtin_py_impl("ascii", t_ascii, Immutable, vis, Some("ascii"));
         self.register_builtin_impl("assert", t_assert, Const, vis); // assert casting に悪影響が出る可能性があるため、Constとしておく
@@ -1909,6 +1971,7 @@ impl Context {
             Some("issubclass"),
         );
         self.register_builtin_py_impl("len", t_len, Immutable, vis, Some("len"));
+        self.register_builtin_py_impl("map", t_map, Immutable, vis, Some("map"));
         self.register_builtin_py_impl("not", t_not, Immutable, vis, None); // `not` is not a function in Python
         self.register_builtin_py_impl("oct", t_oct, Immutable, vis, Some("oct"));
         self.register_builtin_py_impl("ord", t_ord, Immutable, vis, Some("ord"));
@@ -1924,6 +1987,7 @@ impl Context {
         self.register_builtin_py_impl("repr", t_repr, Immutable, vis, Some("repr"));
         self.register_builtin_py_impl("round", t_round, Immutable, vis, Some("round"));
         self.register_builtin_py_impl("str", t_str, Immutable, vis, Some("str"));
+        self.register_builtin_py_impl("zip", t_zip, Immutable, vis, Some("zip"));
         let name = if self.cfg.python_compatible_mode {
             "int"
         } else {
@@ -2080,6 +2144,14 @@ impl Context {
         .quantify();
         let t_globals = proc(vec![], None, vec![], dict! { Str => Obj }.into());
         let t_locals = proc(vec![], None, vec![], dict! { Str => Obj }.into());
+        let t_next = nd_proc(
+            vec![kw(
+                "iterable",
+                ref_mut(poly("Iterable", vec![ty_tp(T.clone())]), None),
+            )],
+            None,
+            T.clone(),
+        );
         let t_while = nd_proc(
             vec![
                 kw("cond!", nd_proc(vec![], None, Bool)), // not Bool! type because `cond` may be the result of evaluation of a mutable object's method returns Bool.
@@ -2120,6 +2192,7 @@ impl Context {
         self.register_builtin_py_impl("input!", t_input, Immutable, vis, Some("input"));
         self.register_builtin_py_impl("globals!", t_globals, Immutable, vis, Some("globals"));
         self.register_builtin_py_impl("locals!", t_locals, Immutable, vis, Some("locals"));
+        self.register_builtin_py_impl("next!", t_next, Immutable, vis, Some("next"));
         self.register_builtin_py_impl("open!", t_open, Immutable, vis, Some("open"));
         let name = if self.cfg.python_compatible_mode {
             "if"
