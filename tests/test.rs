@@ -209,3 +209,8 @@ fn exec_subtyping() -> Result<(), ()> {
 fn exec_callable() -> Result<(), ()> {
     expect_failure("tests/should_err/callable.er", 4)
 }
+
+#[test]
+fn exec_multiline_invalid_next() -> Result<(), ()> {
+    expect_failure("tests/should_err/multi_line_invalid_nest.er", 1)
+}

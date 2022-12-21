@@ -316,57 +316,60 @@ impl Lexer /*<'a>*/ {
     fn lex_multi_line_comment(&mut self) -> LexResult<()> {
         let mut s = "".to_string();
         let mut nest_level = 0;
-        loop {
-            match self.peek_cur_ch() {
-                Some(c) => {
-                    if let Some(next_c) = self.peek_next_ch() {
-                        match (c, next_c) {
-                            ('#', '[') => nest_level += 1,
-                            (']', '#') => {
-                                nest_level -= 1;
-                                if nest_level == 0 {
-                                    return Ok(());
-                                }
-                            }
-                            _ => {}
+        while let Some(c) = self.peek_cur_ch() {
+            if let Some(next_c) = self.peek_next_ch() {
+                match (c, next_c) {
+                    ('#', '[') => nest_level += 1,
+                    (']', '#') => {
+                        nest_level -= 1;
+                        if nest_level == 0 {
+                            return Ok(());
                         }
-                        if c == '\n' {
-                            self.lineno_token_starts += 1;
-                            self.col_token_starts = 0;
-                        }
-                        s.push(self.consume().unwrap());
                     }
-                    if Self::is_bidi(self.peek_cur_ch().unwrap()) {
-                        let comment = self.emit_token(Illegal, &s);
-                        return Err(LexError::syntax_error(
-                            line!() as usize,
-                            comment.loc(),
-                            switch_lang!(
-                                "japanese" => "不正なユニコード文字(双方向オーバーライド)がコメント中に使用されています",
-                                "simplified_chinese" => "注释中使用了非法的unicode字符（双向覆盖）",
-                                "traditional_chinese" => "註釋中使用了非法的unicode字符（雙向覆蓋）",
-                                "english" => "invalid unicode character (bi-directional override) in comments",
-                            ),
-                            None,
-                        ));
-                    }
+                    _ => {}
                 }
-                None => {
-                    let comment = self.emit_token(Illegal, &s);
-                    return Err(LexError::syntax_error(
-                        line!() as usize,
-                        comment.loc(),
-                        switch_lang!(
-                        "japanese" => "複数行コメントが]#で閉じられていません",
-                        "simplified_chinese" => "未用]#号结束的多处评论",
-                        "traditional_chinese" => "多條評論未用]#關閉",
-                        "english" => "Multi-comment is not closed with ]#",
-                        ),
-                        None,
-                    ));
+                if c == '\n' {
+                    self.lineno_token_starts += 1;
+                    self.col_token_starts = 0;
+                    s.clear();
+                    self.consume();
+                    continue;
                 }
             }
+            if Self::is_bidi(c) {
+                let comment = self.emit_token(Illegal, &s);
+                return Err(LexError::syntax_error(
+                    line!() as usize,
+                    comment.loc(),
+                    switch_lang!(
+                        "japanese" => "不正なユニコード文字(双方向オーバーライド)がコメント中に使用されています",
+                        "simplified_chinese" => "注释中使用了非法的unicode字符（双向覆盖）",
+                        "traditional_chinese" => "註釋中使用了非法的unicode字符（雙向覆蓋）",
+                        "english" => "invalid unicode character (bi-directional override) in comments",
+                    ),
+                    None,
+                ));
+            }
+            s.push(self.consume().unwrap());
         }
+        let comment = self.emit_token(Illegal, &s);
+        let hint = switch_lang!(
+            "japanese" => format!("`]#`の数があと{}個必要です", nest_level),
+            "simplified_chinese" => format!("需要{}个`]#`", nest_level),
+            "traditional_chinese" => format!("需要{}個`]#`", nest_level),
+            "english" => format!("{} `]#`(s) are needed", nest_level),
+        );
+        Err(LexError::syntax_error(
+            line!() as usize,
+            comment.loc(),
+            switch_lang!(
+            "japanese" => "複数行コメントが]#で閉じられていません",
+            "simplified_chinese" => "未用]#号结束的多处评论",
+            "traditional_chinese" => "多條評論未用]#關閉",
+            "english" => "multi-comment is not closed with ]#",
+            ),
+            Some(hint),
+        ))
     }
 
     fn lex_space_indent_dedent(&mut self) -> Option<LexResult<Token>> {
