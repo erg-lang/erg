@@ -977,8 +977,8 @@ passed keyword args:    {kw_args_len}"
         let mut sub_type = StyledStrings::default();
         switch_lang!(
             "japanese" => sub_type.push_str("部分型: "),
-            "simplified_chinese" => sub_type.push_str("超类型: "),
-            "simplified_chinese" =>sub_type.push_str("超類型: "),
+            "simplified_chinese" => sub_type.push_str("部分类型: "),
+            "simplified_chinese" =>sub_type.push_str("部分類型:"),
             "english" => sub_type.push_str("subtype: "),
         );
         sub_type.push_str_with_color_and_attribute(format!("{}", sub_t), HINT, ATTR);
@@ -991,13 +991,18 @@ passed keyword args:    {kw_args_len}"
             "english" =>sup_type.push_str("supertype: "),
         );
         sup_type.push_str_with_color_and_attribute(format!("{}", sup_t), ERR, ATTR);
-
+        let hint = switch_lang!(
+            "japanese" => "型推論が失敗している可能性があります。型を明示的に指定してみてください。",
+            "simplified_chinese" => "可能是编译器推断失败。请尝试明确指定类型。",
+            "traditional_chinese" => "可能是編譯器推斷失敗。請嘗試明確指定類型。",
+            "english" => "The type checker may fail to inference types. Please try to explicitly specify the type.",
+        );
         Self::new(
             ErrorCore::new(
                 vec![SubMessage::ambiguous_new(
                     loc,
                     vec![sub_type.to_string(), sup_type.to_string()],
-                    None,
+                    Some(hint.to_string()),
                 )],
                 switch_lang!(
                     "japanese" => format!("この式の部分型制約を満たせません"),
