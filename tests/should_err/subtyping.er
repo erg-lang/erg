@@ -11,3 +11,11 @@ for! [(1, 2)], ((i, j),) =>
 for! [(1, 2)], ((i, j),) =>
     k = i + "a" # ERR
     print! k
+for! zip([1], ["a"]), ((i: Int, s: Str),) =>
+    k = i + 1
+    l = s + "b"
+    print! k, l
+# ERR
+for! zip([1], ["a"]), ((i: Str, s: Str),) =>
+    k = i + "a"
+    print! k

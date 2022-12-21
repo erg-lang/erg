@@ -403,38 +403,29 @@ impl Context {
         }
         // REVIEW: Even if type constraints can be satisfied, implementation may not exist
         if self.subtype_of(&sub_t, &super_t) {
+            let sub_t = if cfg!(feature = "debug") {
+                sub_t
+            } else {
+                self.deref_tyvar(sub_t, variance, loc)?
+            };
+            let super_t = if cfg!(feature = "debug") {
+                super_t
+            } else {
+                self.deref_tyvar(super_t, variance, loc)?
+            };
             match variance {
-                Variance::Covariant => {
-                    let sub_t = if cfg!(feature = "debug") {
-                        sub_t
-                    } else {
-                        self.deref_tyvar(sub_t, variance, loc)?
-                    };
-                    Ok(sub_t)
-                }
-                Variance::Contravariant => {
-                    let super_t = if cfg!(feature = "debug") {
-                        super_t
-                    } else {
-                        self.deref_tyvar(super_t, variance, loc)?
-                    };
-                    Ok(super_t)
-                }
+                Variance::Covariant => Ok(sub_t),
+                Variance::Contravariant => Ok(super_t),
                 Variance::Invariant => {
                     // need to check if sub_t == super_t
                     if self.supertype_of(&sub_t, &super_t) {
-                        let sub_t = if cfg!(feature = "debug") {
-                            sub_t
-                        } else {
-                            self.deref_tyvar(sub_t, variance, loc)?
-                        };
                         Ok(sub_t)
                     } else {
                         Err(TyCheckErrors::from(TyCheckError::subtyping_error(
                             self.cfg.input.clone(),
                             line!() as usize,
-                            &self.deref_tyvar(sub_t, variance, loc)?,
-                            &self.deref_tyvar(super_t, variance, loc)?,
+                            &sub_t,
+                            &super_t,
                             loc,
                             self.caused_by(),
                         )))
@@ -687,7 +678,7 @@ impl Context {
 
     fn resolve_expr_t(&self, expr: &mut hir::Expr) -> TyCheckResult<()> {
         match expr {
-            hir::Expr::Lit(_) | hir::Expr::Dummy(_) => Ok(()),
+            hir::Expr::Lit(_) => Ok(()),
             hir::Expr::Accessor(acc) => {
                 let loc = acc.loc();
                 let t = acc.ref_mut_t();
@@ -699,16 +690,14 @@ impl Context {
             }
             hir::Expr::Array(array) => match array {
                 hir::Array::Normal(arr) => {
-                    let loc = arr.loc();
-                    arr.t = self.deref_tyvar(mem::take(&mut arr.t), Covariant, loc)?;
+                    arr.t = self.deref_tyvar(mem::take(&mut arr.t), Covariant, arr.loc())?;
                     for elem in arr.elems.pos_args.iter_mut() {
                         self.resolve_expr_t(&mut elem.expr)?;
                     }
                     Ok(())
                 }
                 hir::Array::WithLength(arr) => {
-                    let loc = arr.loc();
-                    arr.t = self.deref_tyvar(mem::take(&mut arr.t), Covariant, loc)?;
+                    arr.t = self.deref_tyvar(mem::take(&mut arr.t), Covariant, arr.loc())?;
                     self.resolve_expr_t(&mut arr.elem)?;
                     self.resolve_expr_t(&mut arr.len)?;
                     Ok(())
@@ -723,6 +712,7 @@ impl Context {
             },
             hir::Expr::Tuple(tuple) => match tuple {
                 hir::Tuple::Normal(tup) => {
+                    tup.t = self.deref_tyvar(mem::take(&mut tup.t), Covariant, tup.loc())?;
                     for elem in tup.elems.pos_args.iter_mut() {
                         self.resolve_expr_t(&mut elem.expr)?;
                     }
@@ -731,16 +721,14 @@ impl Context {
             },
             hir::Expr::Set(set) => match set {
                 hir::Set::Normal(st) => {
-                    let loc = st.loc();
-                    st.t = self.deref_tyvar(mem::take(&mut st.t), Covariant, loc)?;
+                    st.t = self.deref_tyvar(mem::take(&mut st.t), Covariant, st.loc())?;
                     for elem in st.elems.pos_args.iter_mut() {
                         self.resolve_expr_t(&mut elem.expr)?;
                     }
                     Ok(())
                 }
                 hir::Set::WithLength(st) => {
-                    let loc = st.loc();
-                    st.t = self.deref_tyvar(mem::take(&mut st.t), Covariant, loc)?;
+                    st.t = self.deref_tyvar(mem::take(&mut st.t), Covariant, st.loc())?;
                     self.resolve_expr_t(&mut st.elem)?;
                     self.resolve_expr_t(&mut st.len)?;
                     Ok(())
@@ -748,8 +736,7 @@ impl Context {
             },
             hir::Expr::Dict(dict) => match dict {
                 hir::Dict::Normal(dic) => {
-                    let loc = dic.loc();
-                    dic.t = self.deref_tyvar(mem::take(&mut dic.t), Covariant, loc)?;
+                    dic.t = self.deref_tyvar(mem::take(&mut dic.t), Covariant, dic.loc())?;
                     for kv in dic.kvs.iter_mut() {
                         self.resolve_expr_t(&mut kv.key)?;
                         self.resolve_expr_t(&mut kv.value)?;
@@ -765,6 +752,7 @@ impl Context {
                 ),
             },
             hir::Expr::Record(record) => {
+                record.t = self.deref_tyvar(mem::take(&mut record.t), Covariant, record.loc())?;
                 for attr in record.attrs.iter_mut() {
                     match &mut attr.sig {
                         hir::Signature::Var(var) => {
@@ -868,6 +856,12 @@ impl Context {
             }
             hir::Expr::TypeAsc(tasc) => self.resolve_expr_t(&mut tasc.expr),
             hir::Expr::Code(chunks) | hir::Expr::Compound(chunks) => {
+                for chunk in chunks.iter_mut() {
+                    self.resolve_expr_t(chunk)?;
+                }
+                Ok(())
+            }
+            hir::Expr::Dummy(chunks) => {
                 for chunk in chunks.iter_mut() {
                     self.resolve_expr_t(chunk)?;
                 }
@@ -1636,7 +1630,7 @@ impl Context {
                 //      Zip(T, U) <: Iterable(Tuple([T, U]))
                 if ln != rn {
                     if let Some((sub_def_t, sub_ctx)) = self.get_nominal_type_ctx(maybe_sub) {
-                        self.substitute_typarams(sub_def_t, maybe_sub);
+                        self.substitute_typarams(sub_def_t, maybe_sub)?;
                         for sup_trait in sub_ctx.super_traits.iter() {
                             if self.supertype_of(maybe_sup, sup_trait) {
                                 for (l_maybe_sub, r_maybe_sup) in

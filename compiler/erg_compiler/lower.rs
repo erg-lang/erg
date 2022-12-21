@@ -1377,7 +1377,7 @@ impl ASTLowerer {
         } else {
             return unreachable_error!(LowerErrors, LowerError, self);
         };
-        let require_or_sup = self.get_require_or_sup_or_base(hir_def.body.block.remove(0));
+        let require_or_sup = Self::get_require_or_sup_or_base(hir_def.body.block.remove(0));
         Ok(hir::ClassDef::new(
             type_obj.clone(),
             hir_def.sig,
@@ -1407,7 +1407,7 @@ impl ASTLowerer {
             )?
         };
         let mut hir_def = self.lower_def(class_def.def)?;
-        let base = self.get_require_or_sup_or_base(hir_def.body.block.remove(0));
+        let base = Self::get_require_or_sup_or_base(hir_def.body.block.remove(0));
         let mut hir_methods = hir::Block::empty();
         for mut methods in class_def.methods_list.into_iter() {
             let kind = ContextKind::PatchMethodDefs(base_t.clone());
@@ -1789,15 +1789,14 @@ impl ASTLowerer {
             .push((ClassDefType::Simple(base.clone()), methods));
     }
 
-    #[allow(clippy::only_used_in_recursion)]
-    fn get_require_or_sup_or_base(&self, expr: hir::Expr) -> hir::Expr {
+    fn get_require_or_sup_or_base(expr: hir::Expr) -> hir::Expr {
         match expr {
             acc @ hir::Expr::Accessor(_) => acc,
             hir::Expr::Call(mut call) => match call.obj.show_acc().as_ref().map(|s| &s[..]) {
                 Some("Class") => call.args.remove_left_or_key("Requirement").unwrap(),
                 Some("Inherit") => call.args.remove_left_or_key("Super").unwrap(),
                 Some("Inheritable") => {
-                    self.get_require_or_sup_or_base(call.args.remove_left_or_key("Class").unwrap())
+                    Self::get_require_or_sup_or_base(call.args.remove_left_or_key("Class").unwrap())
                 }
                 Some("Patch") => call.args.remove_left_or_key("Base").unwrap(),
                 _ => todo!(),

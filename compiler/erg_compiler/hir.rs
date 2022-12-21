@@ -793,7 +793,7 @@ impl_t_for_enum!(Array; Normal, Comprehension, WithLength);
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NormalTuple {
     pub elems: Args,
-    t: Type,
+    pub(crate) t: Type,
 }
 
 impl NestedDisplay for NormalTuple {
@@ -1131,7 +1131,7 @@ pub struct Record {
     l_brace: Token,
     r_brace: Token,
     pub attrs: RecordAttrs,
-    t: Type,
+    pub(crate) t: Type,
 }
 
 impl NestedDisplay for Record {
