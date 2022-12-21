@@ -469,9 +469,9 @@ impl ASTLowerer {
             hir::Record::new(record.l_brace, record.r_brace, hir::RecordAttrs::empty());
         self.ctx.grow("<record>", ContextKind::Dummy, Private, None);
         for attr in record.attrs.into_iter() {
-            let attr = self.lower_def(attr).map_err(|e| {
+            let attr = self.lower_def(attr).map_err(|errs| {
                 self.pop_append_errs();
-                e
+                errs
             })?;
             hir_record.push(attr);
         }
@@ -998,9 +998,9 @@ impl ASTLowerer {
         if let Err(errs) = self.ctx.preregister(&lambda.body) {
             self.errs.extend(errs);
         }
-        let body = self.lower_block(lambda.body).map_err(|e| {
+        let body = self.lower_block(lambda.body).map_err(|errs| {
             self.pop_append_errs();
-            e
+            errs
         })?;
         let (non_default_params, default_params): (Vec<_>, Vec<_>) = self
             .ctx

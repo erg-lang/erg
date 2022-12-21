@@ -642,9 +642,9 @@ impl Context {
                     self.grow(__name__, ContextKind::Proc, vis, Some(tv_cache));
                     let (obj, const_t) = match self.eval_const_block(&def.body.block) {
                         Ok(obj) => (obj.clone(), v_enum(set! {obj})),
-                        Err(e) => {
+                        Err(errs) => {
                             self.pop();
-                            return Err(e);
+                            return Err(errs);
                         }
                     };
                     if let Some(spec) = sig.return_t_spec.as_ref() {
@@ -657,14 +657,14 @@ impl Context {
                                 PreRegister,
                                 false,
                             )
-                            .map_err(|err| {
+                            .map_err(|errs| {
                                 self.pop();
-                                err
+                                errs
                             })?;
                         self.sub_unify(&const_t, &spec_t, def.body.loc(), None)
-                            .map_err(|err| {
+                            .map_err(|errs| {
                                 self.pop();
-                                err
+                                errs
                             })?;
                     }
                     self.pop();
@@ -694,14 +694,14 @@ impl Context {
                                 PreRegister,
                                 false,
                             )
-                            .map_err(|err| {
+                            .map_err(|errs| {
                                 self.pop();
-                                err
+                                errs
                             })?;
                         self.sub_unify(&const_t, &spec_t, def.body.loc(), None)
-                            .map_err(|err| {
+                            .map_err(|errs| {
                                 self.pop();
-                                err
+                                errs
                             })?;
                     }
                     self.pop();

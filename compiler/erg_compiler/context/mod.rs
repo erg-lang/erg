@@ -1036,7 +1036,10 @@ impl Context {
     }
 
     pub(crate) fn check_decls_and_pop(&mut self) -> Result<Context, TyCheckErrors> {
-        self.check_decls()?;
+        self.check_decls().map_err(|errs| {
+            self.pop();
+            errs
+        })?;
         Ok(self.pop())
     }
 
