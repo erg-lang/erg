@@ -665,40 +665,6 @@ impl Context {
         }
     }
 
-    #[allow(clippy::only_used_in_recursion)]
-    /// Fix type variables at their lower bound
-    /// ```erg
-    /// i: ?T(:> Int)
-    /// assert i.Real == 1
-    /// i: (Int)
-    /// ```
-    pub(crate) fn coerce(&self, t: &Type) {
-        match t {
-            Type::FreeVar(fv) if fv.is_linked() => {
-                self.coerce(&fv.crack());
-            }
-            Type::FreeVar(fv) if fv.is_unbound() => {
-                let (sub, _sup) = fv.get_subsup().unwrap();
-                fv.link(&sub);
-            }
-            Type::And(l, r) | Type::Or(l, r) | Type::Not(l, r) => {
-                self.coerce(l);
-                self.coerce(r);
-            }
-            _ => {}
-        }
-    }
-
-    pub(crate) fn coerce_tp(&self, tp: &TyParam) {
-        match tp {
-            TyParam::FreeVar(fv) if fv.is_linked() => {
-                self.coerce_tp(&fv.crack());
-            }
-            TyParam::Type(t) => self.coerce(t),
-            _ => {}
-        }
-    }
-
     /// Check if all types are resolvable (if traits, check if an implementation exists)
     /// And replace them if resolvable
     pub(crate) fn resolve(
@@ -1667,6 +1633,7 @@ impl Context {
             ) => {
                 // e.g. Set(?T) <: Eq(Set(?T))
                 //      Array(Str) <: Iterable(Str)
+                //      Zip(T, U) <: Iterable(Tuple([T, U]))
                 if ln != rn {
                     if let Some((sub_def_t, sub_ctx)) = self.get_nominal_type_ctx(maybe_sub) {
                         self.substitute_typarams(sub_def_t, maybe_sub);
@@ -1677,11 +1644,11 @@ impl Context {
                                 {
                                     self.sub_unify_tp(l_maybe_sub, r_maybe_sup, None, loc, false)
                                         .map_err(|e| {
-                                            self.undo_substitute_typarams(sub_def_t);
+                                            Self::undo_substitute_typarams(sub_def_t);
                                             e
                                         })?;
                                 }
-                                self.undo_substitute_typarams(sub_def_t);
+                                Self::undo_substitute_typarams(sub_def_t);
                                 return Ok(());
                             }
                         }

@@ -705,6 +705,16 @@ impl TyParam {
         }
     }
 
+    pub fn coerce(&self) {
+        match self {
+            TyParam::FreeVar(fv) if fv.is_linked() => {
+                fv.crack().coerce();
+            }
+            TyParam::Type(t) => t.coerce(),
+            _ => {}
+        }
+    }
+
     pub fn qvars(&self) -> Set<(Str, Constraint)> {
         match self {
             Self::FreeVar(fv) if !fv.constraint_is_uninited() => {

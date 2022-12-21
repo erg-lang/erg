@@ -1006,7 +1006,7 @@ impl Context {
         if lhs != coerced {
             let proj = proj(coerced, rhs);
             self.eval_t_params(proj, level, t_loc).map(|t| {
-                self.coerce(&lhs);
+                lhs.coerce();
                 t
             })
         } else {
@@ -1119,9 +1119,9 @@ impl Context {
                     let mut tv_cache = TyVarCache::new(self.level, self);
                     let t = self.detach(t, &mut tv_cache);
                     // Int -> T, 2 -> M, 4 -> N
-                    self.undo_substitute_typarams(quant_sub);
+                    Self::undo_substitute_typarams(quant_sub);
                     if let Some(quant_sup) = methods.impl_of() {
-                        self.undo_substitute_typarams(&quant_sup);
+                        Self::undo_substitute_typarams(&quant_sup);
                     }
                     return Some(t);
                 }
@@ -1179,7 +1179,6 @@ impl Context {
         }
     }
 
-    #[allow(clippy::only_used_in_recursion)]
     /// e.g. qt: Array(T, N), st: Array(Int, 3)
     pub(crate) fn substitute_typarams(&self, qt: &Type, st: &Type) {
         let qtps = qt.typarams();
@@ -1220,8 +1219,7 @@ impl Context {
         }
     }
 
-    #[allow(clippy::only_used_in_recursion)]
-    pub(crate) fn undo_substitute_typarams(&self, substituted: &Type) {
+    pub(crate) fn undo_substitute_typarams(substituted: &Type) {
         for tp in substituted.typarams().into_iter() {
             match tp {
                 TyParam::FreeVar(fv) if fv.is_undoable_linked() => fv.undo(),
@@ -1232,7 +1230,7 @@ impl Context {
                     }
                 }
                 TyParam::Type(t) => {
-                    self.undo_substitute_typarams(&t);
+                    Self::undo_substitute_typarams(&t);
                 }
                 _ => {}
             }
@@ -1333,7 +1331,7 @@ impl Context {
         if lhs != coerced {
             let proj = proj_call(coerced, attr_name, args);
             self.eval_t_params(proj, level, t_loc).map(|t| {
-                self.coerce_tp(&lhs);
+                lhs.coerce();
                 t
             })
         } else {

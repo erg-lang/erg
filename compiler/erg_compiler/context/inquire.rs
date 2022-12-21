@@ -548,7 +548,7 @@ impl Context {
             })? {
                 match ctx.rec_get_var_info(ident, AccessKind::Attr, input, namespace) {
                     Ok(t) => {
-                        self.coerce(obj.ref_t());
+                        obj.ref_t().coerce();
                         return Ok(t);
                     }
                     Err(e) if e.core.kind == ErrorKind::NameError => {}

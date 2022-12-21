@@ -1908,6 +1908,29 @@ impl Type {
         }
     }
 
+    /// Fix type variables at their lower bound
+    /// ```erg
+    /// i: ?T(:> Int)
+    /// assert i.Real == 1
+    /// i: (Int)
+    /// ```
+    pub fn coerce(&self) {
+        match self {
+            Type::FreeVar(fv) if fv.is_linked() => {
+                Self::coerce(&fv.crack());
+            }
+            Type::FreeVar(fv) if fv.is_unbound() => {
+                let (sub, _sup) = fv.get_subsup().unwrap();
+                fv.link(&sub);
+            }
+            Type::And(l, r) | Type::Or(l, r) | Type::Not(l, r) => {
+                Self::coerce(l);
+                Self::coerce(r);
+            }
+            _ => {}
+        }
+    }
+
     pub fn qvars(&self) -> Set<(Str, Constraint)> {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.forced_as_ref().linked().unwrap().qvars(),
