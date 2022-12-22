@@ -310,10 +310,10 @@ impl LimitedDisplay for TyParam {
 
 impl CanbeFree for TyParam {
     fn unbound_name(&self) -> Option<Str> {
-        if let TyParam::FreeVar(fv) = self {
-            fv.unbound_name()
-        } else {
-            None
+        match self {
+            TyParam::FreeVar(fv) => fv.unbound_name(),
+            TyParam::Type(t) => t.unbound_name(),
+            _ => None,
         }
     }
 

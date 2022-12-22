@@ -1566,11 +1566,14 @@ impl Context {
     // -> K.variance() == vec![Contravariant, Covariant]
     // TODO: support keyword arguments
     pub(crate) fn type_params_variance(&self) -> Vec<Variance> {
+        let match_tp_name = |tp: &TyParam, name: &VarName| -> bool {
+            tp.qual_name().as_ref() == Some(name.inspect())
+        };
         let in_inout = |t: &Type, name: &VarName| {
             (&t.qual_name()[..] == "Input" || &t.qual_name()[..] == "Output")
                 && t.typarams()
                     .first()
-                    .map(|inner| inner.qual_name().as_ref() == Some(name.inspect()))
+                    .map(|inner| match_tp_name(inner, name))
                     .unwrap_or(false)
         };
         self.params
@@ -1578,13 +1581,13 @@ impl Context {
             .map(|(opt_name, _)| {
                 if let Some(name) = opt_name {
                     // トレイトの変性を調べるときはsuper_classesも見る必要がある
-                    if let Some(t) = self
+                    if let Some(variance_trait) = self
                         .super_traits
                         .iter()
                         .chain(self.super_classes.iter())
                         .find(|t| in_inout(t, name))
                     {
-                        match &t.qual_name()[..] {
+                        match &variance_trait.qual_name()[..] {
                             "Output" => Variance::Covariant,
                             "Input" => Variance::Contravariant,
                             _ => unreachable!(),

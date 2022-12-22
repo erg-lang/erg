@@ -18,7 +18,7 @@ use crate::ty::{HasType, Predicate, Type};
 // use crate::context::eval::SubstContext;
 use crate::context::{Context, Variance};
 use crate::error::{SingleTyCheckResult, TyCheckError, TyCheckErrors, TyCheckResult};
-use crate::{feature_error, hir, type_feature_error};
+use crate::{feature_error, hir, type_feature_error, unreachable_error};
 
 use Predicate as Pred;
 use Type::*;
@@ -1438,17 +1438,12 @@ impl Context {
                         // * sub_unify({0},   ?T(:> {1},   <: Nat)): (?T(:> {0, 1}, <: Nat))
                         // * sub_unify(Bool,  ?T(<: Bool or Y)): (?T == Bool)
                         Constraint::Sandwiched { sub, sup } => {
-                            /*if let Some(new_sub) = self.max(maybe_sub, sub) {
-                                *constraint =
-                                    Constraint::new_sandwiched(new_sub.clone(), mem::take(sup), *cyclicity);
-                            } else {*/
                             let new_sub = self.union(maybe_sub, sub);
                             if sup.contains_union(&new_sub) {
                                 rfv.link(&new_sub); // Bool <: ?T <: Bool or Y ==> ?T == Bool
                             } else {
                                 *constraint = Constraint::new_sandwiched(new_sub, mem::take(sup));
                             }
-                            // }
                         }
                         // sub_unify(Nat, ?T(: Type)): (/* ?T(:> Nat) */)
                         Constraint::TypeOf(ty) => {
@@ -1705,7 +1700,8 @@ impl Context {
                     self.sub_unify_pred(sub_first, sup_first, loc)?;
                     return Ok(());
                 }
-                todo!("{sub}, {sup}")
+                log!(err "unification error: {sub} <: {sup}");
+                unreachable_error!(TyCheckErrors, TyCheckError, self)
             }
             // {I: Int | I >= 1} <: Nat == {I: Int | I >= 0}
             (Type::Refinement(_), sup) => {
