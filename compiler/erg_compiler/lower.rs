@@ -1094,8 +1094,8 @@ impl ASTLowerer {
                 let found_body_t = block.ref_t();
                 let outer = self.ctx.outer.as_ref().unwrap();
                 let opt_expect_body_vi = sig
-                    .inspect()
-                    .and_then(|name| outer.get_current_scope_var(name));
+                    .ident()
+                    .and_then(|ident| outer.get_current_scope_var(&ident.name));
                 let ident = match &sig.pat {
                     ast::VarPattern::Ident(ident) => ident,
                     ast::VarPattern::Discard(_) => ast::Identifier::UBAR,
@@ -1148,15 +1148,15 @@ impl ASTLowerer {
         body: ast::DefBody,
     ) -> LowerResult<hir::Def> {
         log!(info "entered {}({sig})", fn_name!());
-        let t = self
+        let registered_t = self
             .ctx
             .outer
             .as_ref()
             .unwrap()
-            .get_current_scope_var(sig.ident.inspect())
+            .get_current_scope_var(&sig.ident.name)
             .map(|vi| vi.t.clone())
             .unwrap_or(Type::Failure);
-        match t {
+        match registered_t {
             Type::Subr(subr_t) => {
                 let params = self.lower_params(sig.params.clone())?;
                 if let Err(errs) = self.ctx.assign_params(&params, Some(subr_t)) {
@@ -1370,8 +1370,8 @@ impl ASTLowerer {
         Self::check_inheritable(&self.cfg, &mut self.errs, type_obj, sup_type, &hir_def.sig);
         // vi.t.non_default_params().unwrap()[0].typ().clone()
         let (__new__, need_to_gen_new) = if let (Some(dunder_new_vi), Some(new_vi)) = (
-            class_ctx.get_current_scope_var("__new__"),
-            class_ctx.get_current_scope_var("new"),
+            class_ctx.get_current_scope_var(&VarName::from_static("__new__")),
+            class_ctx.get_current_scope_var(&VarName::from_static("new")),
         ) {
             (dunder_new_vi.t.clone(), new_vi.kind == VarKind::Auto)
         } else {
@@ -1557,7 +1557,7 @@ impl ASTLowerer {
                         .iter()
                         .flat_map(|(_, c)| c.locals.iter()),
                 ) {
-                    if let Some(sup_vi) = sup.get_current_scope_var(method_name.inspect()) {
+                    if let Some(sup_vi) = sup.get_current_scope_var(method_name) {
                         // must `@Override`
                         if let Some(decos) = &vi.comptime_decos {
                             if decos.contains("Override") {

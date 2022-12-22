@@ -152,7 +152,19 @@ impl Context {
                 )));
             }
         }
-        self.decls.insert(sig.ident.name.clone(), vi);
+        // Python allows a function to be defined more than once.
+        // To distinguish this, add a line number to the identifier.
+        if self.decls.contains_key(&sig.ident.name) {
+            // && self.cfg.python_compatible_mode
+            let line = sig.ident.ln_begin().unwrap_or(0);
+            let mangled_name = VarName::from_str_and_line(
+                Str::from(format!("{}${line}", sig.ident.inspect())),
+                line,
+            );
+            self.decls.insert(mangled_name, vi);
+        } else {
+            self.decls.insert(sig.ident.name.clone(), vi);
+        }
         if errs.is_empty() {
             Ok(())
         } else {
@@ -384,11 +396,11 @@ impl Context {
     ) -> TyCheckResult<()> {
         let mut errs = TyCheckErrors::empty();
         if let Some(decl_subr_t) = opt_decl_subr_t {
-            assert_eq!(
+            debug_assert_eq!(
                 params.non_defaults.len(),
                 decl_subr_t.non_default_params.len()
             );
-            assert_eq!(params.defaults.len(), decl_subr_t.default_params.len());
+            debug_assert_eq!(params.defaults.len(), decl_subr_t.default_params.len());
             for (sig, pt) in params
                 .non_defaults
                 .iter()
@@ -449,10 +461,7 @@ impl Context {
         };
         let name = &sig.ident.name;
         // FIXME: constでない関数
-        let t = self
-            .get_current_scope_var(name.inspect())
-            .map(|v| &v.t)
-            .unwrap();
+        let t = self.get_current_scope_var(name).map(|v| &v.t).unwrap();
         let non_default_params = t.non_default_params().unwrap();
         let var_args = t.var_args();
         let default_params = t.default_params().unwrap();
@@ -1501,7 +1510,7 @@ impl Context {
         #[allow(clippy::single_match)]
         match acc {
             hir::Accessor::Ident(ident) => {
-                if let Some(vi) = self.get_mut_current_scope_var(ident.inspect()) {
+                if let Some(vi) = self.get_mut_current_scope_var(&ident.name) {
                     vi.t = t;
                 } else {
                     return Err(TyCheckErrors::from(TyCheckError::feature_error(

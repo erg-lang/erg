@@ -63,19 +63,23 @@ impl Context {
         Ok(())
     }
 
-    pub(crate) fn get_current_scope_var(&self, name: &str) -> Option<&VarInfo> {
+    pub(crate) fn get_current_scope_var(&self, name: &VarName) -> Option<&VarInfo> {
         self.locals
             .get(name)
             .or_else(|| self.decls.get(name))
             .or_else(|| {
+                if self.cfg.python_compatible_mode {
+                    let mangled_name =
+                        format!("{}${}", name.inspect(), name.ln_begin().unwrap_or(0));
+                    self.decls.get(&mangled_name[..])
+                } else {
+                    None
+                }
+            })
+            .or_else(|| {
                 self.params
                     .iter()
-                    .find(|(opt_name, _)| {
-                        opt_name
-                            .as_ref()
-                            .map(|n| &n.inspect()[..] == name)
-                            .unwrap_or(false)
-                    })
+                    .find(|(opt_name, _)| opt_name.as_ref().map(|n| n == name).unwrap_or(false))
                     .map(|(_, vi)| vi)
             })
             .or_else(|| {
@@ -88,19 +92,26 @@ impl Context {
             })
     }
 
-    pub(crate) fn get_mut_current_scope_var(&mut self, name: &str) -> Option<&mut VarInfo> {
+    pub(crate) fn get_mut_current_scope_var(&mut self, name: &VarName) -> Option<&mut VarInfo> {
         self.locals
             .get_mut(name)
-            .or_else(|| self.decls.get_mut(name))
+            .or_else(|| {
+                if self.cfg.python_compatible_mode {
+                    if self.decls.contains_key(name) {
+                        self.decls.get_mut(name)
+                    } else {
+                        let mangled_name =
+                            format!("{}${}", name.inspect(), name.ln_begin().unwrap_or(0));
+                        self.decls.get_mut(&mangled_name[..])
+                    }
+                } else {
+                    self.decls.get_mut(name)
+                }
+            })
             .or_else(|| {
                 self.params
                     .iter_mut()
-                    .find(|(opt_name, _)| {
-                        opt_name
-                            .as_ref()
-                            .map(|n| &n.inspect()[..] == name)
-                            .unwrap_or(false)
-                    })
+                    .find(|(opt_name, _)| opt_name.as_ref().map(|n| n == name).unwrap_or(false))
                     .map(|(_, vi)| vi)
             })
             .or_else(|| {
@@ -348,7 +359,7 @@ impl Context {
         input: &Input,
         namespace: &Str,
     ) -> SingleTyCheckResult<VarInfo> {
-        if let Some(vi) = self.get_current_scope_var(&ident.inspect()[..]) {
+        if let Some(vi) = self.get_current_scope_var(&ident.name) {
             match self.validate_visibility(ident, vi, input, namespace) {
                 Ok(()) => {
                     return Ok(vi.clone());
@@ -851,7 +862,8 @@ impl Context {
     ) -> TyCheckResult<VarInfo> {
         erg_common::debug_power_assert!(args.len() == 2);
         let cont = binop_to_dname(op.inspect());
-        let symbol = Token::from_str(op.kind, cont);
+        // not a `Token::from_str(op.kind, cont)` because ops are defined as symbols
+        let symbol = Token::symbol(cont);
         let t = self.rec_get_var_info(
             &Identifier::new(None, VarName::new(symbol.clone())),
             AccessKind::Name,
@@ -883,7 +895,7 @@ impl Context {
     ) -> TyCheckResult<VarInfo> {
         erg_common::debug_power_assert!(args.len() == 1);
         let cont = unaryop_to_dname(op.inspect());
-        let symbol = Token::from_str(op.kind, cont);
+        let symbol = Token::symbol(cont);
         let vi = self.rec_get_var_info(
             &Identifier::new(None, VarName::new(symbol.clone())),
             AccessKind::Name,
@@ -1163,7 +1175,9 @@ impl Context {
             }
             other => {
                 if let Ok(typ_ctx) = self.get_singular_ctx_by_hir_expr(obj, &self.name) {
-                    if let Some(call_vi) = typ_ctx.get_current_scope_var("__call__") {
+                    if let Some(call_vi) =
+                        typ_ctx.get_current_scope_var(&VarName::from_static("__call__"))
+                    {
                         let mut dummy = TyVarCache::new(self.level, self);
                         let instance =
                             self.instantiate_t_inner(call_vi.t.clone(), &mut dummy, obj.loc())?;
