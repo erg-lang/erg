@@ -66,7 +66,6 @@ impl Context {
     pub(crate) fn get_current_scope_var(&self, name: &VarName) -> Option<&VarInfo> {
         self.locals
             .get(name)
-            .or_else(|| self.decls.get(name))
             .or_else(|| {
                 if self.cfg.python_compatible_mode {
                     let mangled_name =
@@ -76,6 +75,7 @@ impl Context {
                     None
                 }
             })
+            .or_else(|| self.decls.get(name))
             .or_else(|| {
                 self.params
                     .iter()
@@ -97,12 +97,12 @@ impl Context {
             .get_mut(name)
             .or_else(|| {
                 if self.cfg.python_compatible_mode {
-                    if self.decls.contains_key(name) {
-                        self.decls.get_mut(name)
-                    } else {
-                        let mangled_name =
-                            format!("{}${}", name.inspect(), name.ln_begin().unwrap_or(0));
+                    let mangled_name =
+                        format!("{}${}", name.inspect(), name.ln_begin().unwrap_or(0));
+                    if self.decls.contains_key(&mangled_name[..]) {
                         self.decls.get_mut(&mangled_name[..])
+                    } else {
+                        self.decls.get_mut(name)
                     }
                 } else {
                     self.decls.get_mut(name)
