@@ -1048,7 +1048,6 @@ impl ASTLowerer {
             .registered_info(&name, def.sig.is_const())
             .is_some()
             && def.sig.vis().is_private()
-            && !self.cfg.python_compatible_mode
         {
             return Err(LowerErrors::from(LowerError::reassign_error(
                 self.cfg.input.clone(),
@@ -1102,11 +1101,9 @@ impl ASTLowerer {
                     _ => unreachable!(),
                 };
                 if let Some(expect_body_vi) = opt_expect_body_vi {
-                    let python_shadowing =
-                        self.cfg.python_compatible_mode && expect_body_vi.kind.is_defined();
                     // TODO: expect_body_t is smaller for constants
                     // TODO: 定数の場合、expect_body_tのほうが小さくなってしまう
-                    if !sig.is_const() && !python_shadowing {
+                    if !sig.is_const() {
                         if let Err(e) = self.var_result_t_check(
                             sig.loc(),
                             ident.inspect(),
