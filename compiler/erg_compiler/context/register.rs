@@ -87,18 +87,19 @@ impl Context {
             None
         };
         if let Some(_decl) = self.decls.remove(&ident.name) {
-            Err(TyCheckErrors::from(TyCheckError::duplicate_decl_error(
-                self.cfg.input.clone(),
-                line!() as usize,
-                sig.loc(),
-                self.caused_by(),
-                ident.name.inspect(),
-            )))
-        } else {
-            let vi = VarInfo::new(sig_t, muty, vis, kind, None, self.impl_of(), py_name);
-            self.future_defined_locals.insert(ident.name.clone(), vi);
-            Ok(())
+            if !self.cfg.python_compatible_mode {
+                return Err(TyCheckErrors::from(TyCheckError::duplicate_decl_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    sig.loc(),
+                    self.caused_by(),
+                    ident.name.inspect(),
+                )));
+            }
         }
+        let vi = VarInfo::new(sig_t, muty, vis, kind, None, self.impl_of(), py_name);
+        self.future_defined_locals.insert(ident.name.clone(), vi);
+        Ok(())
     }
 
     pub(crate) fn declare_sub(
@@ -141,20 +142,21 @@ impl Context {
             py_name,
         );
         if let Some(_decl) = self.decls.remove(name) {
-            Err(TyCheckErrors::from(TyCheckError::duplicate_decl_error(
-                self.cfg.input.clone(),
-                line!() as usize,
-                sig.loc(),
-                self.caused_by(),
-                name,
-            )))
-        } else {
-            self.decls.insert(sig.ident.name.clone(), vi);
-            if errs.is_empty() {
-                Ok(())
-            } else {
-                Err(errs)
+            if !self.cfg.python_compatible_mode {
+                return Err(TyCheckErrors::from(TyCheckError::duplicate_decl_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    sig.loc(),
+                    self.caused_by(),
+                    name,
+                )));
             }
+        }
+        self.decls.insert(sig.ident.name.clone(), vi);
+        if errs.is_empty() {
+            Ok(())
+        } else {
+            Err(errs)
         }
     }
 
