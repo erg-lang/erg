@@ -87,19 +87,18 @@ impl Context {
             None
         };
         if let Some(_decl) = self.decls.remove(&ident.name) {
-            if !self.cfg.python_compatible_mode {
-                return Err(TyCheckErrors::from(TyCheckError::duplicate_decl_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    sig.loc(),
-                    self.caused_by(),
-                    ident.name.inspect(),
-                )));
-            }
+            Err(TyCheckErrors::from(TyCheckError::duplicate_decl_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                sig.loc(),
+                self.caused_by(),
+                ident.name.inspect(),
+            )))
+        } else {
+            let vi = VarInfo::new(sig_t, muty, vis, kind, None, self.impl_of(), py_name);
+            self.future_defined_locals.insert(ident.name.clone(), vi);
+            Ok(())
         }
-        let vi = VarInfo::new(sig_t, muty, vis, kind, None, self.impl_of(), py_name);
-        self.future_defined_locals.insert(ident.name.clone(), vi);
-        Ok(())
     }
 
     pub(crate) fn declare_sub(
@@ -142,33 +141,20 @@ impl Context {
             py_name,
         );
         if let Some(_decl) = self.decls.remove(name) {
-            if !self.cfg.python_compatible_mode {
-                return Err(TyCheckErrors::from(TyCheckError::duplicate_decl_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    sig.loc(),
-                    self.caused_by(),
-                    name,
-                )));
-            }
-        }
-        // Python allows a function to be defined more than once.
-        // To distinguish this, add a line number to the identifier.
-        if self.decls.contains_key(&sig.ident.name) {
-            // && self.cfg.python_compatible_mode
-            let line = sig.ident.ln_begin().unwrap_or(0);
-            let mangled_name = VarName::from_str_and_line(
-                Str::from(format!("{}${line}", sig.ident.inspect())),
-                line,
-            );
-            self.decls.insert(mangled_name, vi);
+            Err(TyCheckErrors::from(TyCheckError::duplicate_decl_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                sig.loc(),
+                self.caused_by(),
+                name,
+            )))
         } else {
             self.decls.insert(sig.ident.name.clone(), vi);
-        }
-        if errs.is_empty() {
-            Ok(())
-        } else {
-            Err(errs)
+            if errs.is_empty() {
+                Ok(())
+            } else {
+                Err(errs)
+            }
         }
     }
 

@@ -68,15 +68,6 @@ impl Context {
             .get(name)
             .or_else(|| self.decls.get(name))
             .or_else(|| {
-                if self.cfg.python_compatible_mode {
-                    let mangled_name =
-                        format!("{}${}", name.inspect(), name.ln_begin().unwrap_or(0));
-                    self.decls.get(&mangled_name[..])
-                } else {
-                    None
-                }
-            })
-            .or_else(|| {
                 self.params
                     .iter()
                     .find(|(opt_name, _)| opt_name.as_ref().map(|n| n == name).unwrap_or(false))
@@ -95,19 +86,7 @@ impl Context {
     pub(crate) fn get_mut_current_scope_var(&mut self, name: &VarName) -> Option<&mut VarInfo> {
         self.locals
             .get_mut(name)
-            .or_else(|| {
-                if self.cfg.python_compatible_mode {
-                    if self.decls.contains_key(name) {
-                        self.decls.get_mut(name)
-                    } else {
-                        let mangled_name =
-                            format!("{}${}", name.inspect(), name.ln_begin().unwrap_or(0));
-                        self.decls.get_mut(&mangled_name[..])
-                    }
-                } else {
-                    self.decls.get_mut(name)
-                }
-            })
+            .or_else(|| self.decls.get_mut(name))
             .or_else(|| {
                 self.params
                     .iter_mut()
