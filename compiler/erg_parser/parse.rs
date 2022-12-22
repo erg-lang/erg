@@ -1171,6 +1171,7 @@ impl Parser {
                     self.level -= 1;
                     let err = self.skip_and_throw_syntax_err(caused_by!());
                     self.errs.push(err);
+                    return Err(());
                 }
                 _ => {
                     if stack.len() <= 1 {
