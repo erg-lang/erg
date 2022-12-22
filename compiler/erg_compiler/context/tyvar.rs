@@ -9,6 +9,7 @@ use erg_common::{dict, set, Str};
 #[allow(unused_imports)]
 use erg_common::{fmt_vec, log};
 
+use crate::context::instantiate::TyVarCache;
 use crate::ty::constructors::*;
 use crate::ty::free::{Constraint, FreeKind, HasLevel};
 use crate::ty::typaram::TyParam;
@@ -1374,10 +1375,6 @@ impl Context {
             )));
         }
         match (maybe_sub, maybe_sup) {
-            /*
-            (Type::FreeVar(fv), _) if fv.is_generalized() => todo!("{maybe_sub}, {maybe_sup}"),
-            (_, Type::FreeVar(fv)) if fv.is_generalized() => todo!("{maybe_sub}, {maybe_sup}"),
-            */
             // lfv's sup can be shrunk (take min), rfv's sub can be expanded (take union)
             // lfvのsupは縮小可能(minを取る)、rfvのsubは拡大可能(unionを取る)
             // sub_unify(?T[0](:> Never, <: Int), ?U[1](:> Never, <: Nat)): (/* ?U[1] --> ?T[0](:> Never, <: Nat))
@@ -1625,15 +1622,24 @@ impl Context {
                 //      Zip(T, U) <: Iterable(Tuple([T, U]))
                 if ln != rn {
                     if let Some((sub_def_t, sub_ctx)) = self.get_nominal_type_ctx(maybe_sub) {
+                        let mut tv_cache = TyVarCache::new(self.level, self);
+                        let _sub_def_instance =
+                            self.instantiate_t_inner(sub_def_t.clone(), &mut tv_cache, loc)?;
+                        // e.g.
+                        // maybe_sub: Zip(Int, Str)
+                        // sub_def_t: Zip(T, U) ==> Zip(Int, Str)
+                        // super_traits: [Iterable((T, U)), ...] ==> [Iterable((Int, Str)), ...]
                         self.substitute_typarams(sub_def_t, maybe_sub)
                             .map_err(|errs| {
                                 Self::undo_substitute_typarams(sub_def_t);
                                 errs
                             })?;
                         for sup_trait in sub_ctx.super_traits.iter() {
+                            let sub_trait_instance =
+                                self.instantiate_t_inner(sup_trait.clone(), &mut tv_cache, loc)?;
                             if self.supertype_of(maybe_sup, sup_trait) {
                                 for (l_maybe_sub, r_maybe_sup) in
-                                    sup_trait.typarams().iter().zip(rps.iter())
+                                    sub_trait_instance.typarams().iter().zip(rps.iter())
                                 {
                                     self.sub_unify_tp(l_maybe_sub, r_maybe_sup, None, loc, false)
                                         .map_err(|errs| {

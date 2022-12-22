@@ -41,6 +41,13 @@ use Visibility::*;
 
 impl Context {
     fn register_builtin_decl(&mut self, name: &'static str, t: Type, vis: Visibility) {
+        if cfg!(feature = "debug") {
+            if let Type::Subr(subr) = &t {
+                if subr.has_qvar() {
+                    panic!("not quantified subr: {subr}");
+                }
+            }
+        }
         let impl_of = if let ContextKind::MethodDefs(Some(tr)) = &self.kind {
             Some(tr.clone())
         } else {
@@ -64,6 +71,13 @@ impl Context {
         vis: Visibility,
         py_name: Option<&'static str>,
     ) {
+        if cfg!(feature = "debug") {
+            if let Type::Subr(subr) = &t {
+                if subr.has_qvar() {
+                    panic!("not quantified subr: {subr}");
+                }
+            }
+        }
         let impl_of = if let ContextKind::MethodDefs(Some(tr)) = &self.kind {
             Some(tr.clone())
         } else {
@@ -103,6 +117,13 @@ impl Context {
         muty: Mutability,
         vis: Visibility,
     ) {
+        if cfg!(feature = "debug") {
+            if let Type::Subr(subr) = &t {
+                if subr.has_qvar() {
+                    panic!("not quantified subr: {subr}");
+                }
+            }
+        }
         let impl_of = if let ContextKind::MethodDefs(Some(tr)) = &self.kind {
             Some(tr.clone())
         } else {
@@ -127,6 +148,13 @@ impl Context {
         vis: Visibility,
         py_name: Option<&'static str>,
     ) {
+        if cfg!(feature = "debug") {
+            if let Type::Subr(subr) = &t {
+                if subr.has_qvar() {
+                    panic!("not quantified subr: {subr}");
+                }
+            }
+        }
         let impl_of = if let ContextKind::MethodDefs(Some(tr)) = &self.kind {
             Some(tr.clone())
         } else {
@@ -1186,7 +1214,7 @@ impl Context {
         let mut array_eq = Self::builtin_methods(Some(mono("Eq")), 2);
         array_eq.register_builtin_impl(
             "__eq__",
-            fn1_met(arr_t.clone(), arr_t.clone(), Bool),
+            fn1_met(arr_t.clone(), arr_t.clone(), Bool).quantify(),
             Const,
             Public,
         );
@@ -1196,7 +1224,7 @@ impl Context {
         let mut array_show = Self::builtin_methods(Some(mono("Show")), 1);
         array_show.register_builtin_py_impl(
             "to_str",
-            fn0_met(arr_t.clone(), Str),
+            fn0_met(arr_t.clone(), Str).quantify(),
             Immutable,
             Public,
             Some("__str__"),
@@ -1234,7 +1262,7 @@ impl Context {
         let mut set_eq = Self::builtin_methods(Some(mono("Eq")), 2);
         set_eq.register_builtin_impl(
             "__eq__",
-            fn1_met(set_t.clone(), set_t.clone(), Bool),
+            fn1_met(set_t.clone(), set_t.clone(), Bool).quantify(),
             Const,
             Public,
         );
@@ -1242,7 +1270,12 @@ impl Context {
         set_.register_marker_trait(mono("Mutizable"));
         set_.register_marker_trait(poly("Seq", vec![ty_tp(T.clone())]));
         let mut set_show = Self::builtin_methods(Some(mono("Show")), 1);
-        set_show.register_builtin_impl("to_str", fn0_met(set_t.clone(), Str), Immutable, Public);
+        set_show.register_builtin_impl(
+            "to_str",
+            fn0_met(set_t.clone(), Str).quantify(),
+            Immutable,
+            Public,
+        );
         set_.register_trait(set_t.clone(), set_show);
         let g_dict_t = mono("GenericDict");
         let mut generic_dict = Self::builtin_mono_class("GenericDict", 2);
@@ -1250,7 +1283,7 @@ impl Context {
         let mut generic_dict_eq = Self::builtin_methods(Some(mono("Eq")), 2);
         generic_dict_eq.register_builtin_impl(
             "__eq__",
-            fn1_met(g_dict_t.clone(), g_dict_t.clone(), Bool),
+            fn1_met(g_dict_t.clone(), g_dict_t.clone(), Bool).quantify(),
             Const,
             Public,
         );
@@ -1547,7 +1580,8 @@ impl Context {
             None,
             vec![],
             NoneType,
-        );
+        )
+        .quantify();
         let mut array_mut_mutable = Self::builtin_methods(Some(mono("Mutable")), 2);
         array_mut_mutable.register_builtin_impl("update!", t, Immutable, Public);
         array_mut_.register_trait(array_mut_t.clone(), array_mut_mutable);
@@ -1594,7 +1628,8 @@ impl Context {
             None,
             vec![],
             NoneType,
-        );
+        )
+        .quantify();
         let mut set_mut_mutable = Self::builtin_methods(Some(mono("Mutable")), 2);
         set_mut_mutable.register_builtin_impl("update!", t, Immutable, Public);
         set_mut_.register_trait(set_mut_t.clone(), set_mut_mutable);
@@ -1608,7 +1643,7 @@ impl Context {
         let mut range_eq = Self::builtin_methods(Some(mono("Eq")), 2);
         range_eq.register_builtin_impl(
             "__eq__",
-            fn1_met(range_t.clone(), range_t.clone(), Bool),
+            fn1_met(range_t.clone(), range_t.clone(), Bool).quantify(),
             Const,
             Public,
         );
@@ -1905,7 +1940,8 @@ impl Context {
             ],
             None,
             poly("Map", vec![ty_tp(T.clone())]),
-        );
+        )
+        .quantify();
         let t_nat = nd_func(vec![kw("obj", Obj)], None, or(Nat, NoneType));
         // e.g. not(b: Bool!): Bool!
         let B = mono_q("B", subtypeof(Bool));
@@ -1941,7 +1977,8 @@ impl Context {
             ],
             None,
             poly("Zip", vec![ty_tp(T), ty_tp(U)]),
-        );
+        )
+        .quantify();
         self.register_builtin_py_impl("abs", t_abs, Immutable, vis, Some("abs"));
         self.register_builtin_py_impl("ascii", t_ascii, Immutable, vis, Some("ascii"));
         self.register_builtin_impl("assert", t_assert, Const, vis); // assert casting に悪影響が出る可能性があるため、Constとしておく
@@ -2147,7 +2184,8 @@ impl Context {
             )],
             None,
             T.clone(),
-        );
+        )
+        .quantify();
         let t_while = nd_proc(
             vec![
                 kw("cond!", nd_proc(vec![], None, Bool)), // not Bool! type because `cond` may be the result of evaluation of a mutable object's method returns Bool.
@@ -2305,7 +2343,8 @@ impl Context {
             class.clone(),
             Type::from(&o..=&p),
             Type::from(m.clone() + o.clone()..=n.clone() + p.clone()),
-        );
+        )
+        .quantify();
         let mut interval_add = Self::builtin_methods(Some(impls), 2);
         interval_add.register_builtin_impl("__add__", op_t, Const, Public);
         interval_add.register_builtin_const(
@@ -2320,7 +2359,8 @@ impl Context {
             class.clone(),
             Type::from(&o..=&p),
             Type::from(m.clone() - p.clone()..=n.clone() - o.clone()),
-        );
+        )
+        .quantify();
         interval_sub.register_builtin_impl("__sub__", op_t, Const, Public);
         interval_sub.register_builtin_const(
             "Output",

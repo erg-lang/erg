@@ -37,6 +37,8 @@ use crate::AccessKind;
 use RegistrationMode::*;
 
 /// Context for instantiating a quantified type
+/// For example, cloning each type variable of quantified type `?T -> ?T` would result in `?1 -> ?2`.
+/// To avoid this, an environment to store type variables is needed, which is `TyVarCache`.
 /// 量化型をインスタンス化するための文脈
 /// e.g. Array -> [("T": ?T(: Type)), ("N": ?N(: Nat))]
 /// FIXME: current implementation is wrong

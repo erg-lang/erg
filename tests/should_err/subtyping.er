@@ -15,7 +15,10 @@ for! zip([1], ["a"]), ((i: Int, s: Str),) =>
     k = i + 1
     l = s + "b"
     print! k, l
-# ERR
+# ERR: i should be Int
 for! zip([1], ["a"]), ((i: Str, s: Str),) =>
     k = i + "a"
+    print! k
+for! zip([1], ["a"]), ((i, s),) =>
+    k = i + "a" # ERR
     print! k

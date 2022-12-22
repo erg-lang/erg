@@ -1153,6 +1153,9 @@ impl Context {
                     }
                 }
                 if errs.is_empty() {
+                    /*if subr.has_qvar() {
+                        panic!("{subr} has qvar");
+                    }*/
                     Ok(None)
                 } else {
                     Err(errs)
