@@ -105,6 +105,8 @@ pub fn binop_to_dname(op: &str) -> &str {
         "<=" => "__le__",
         ">" => "__gt__",
         ">=" => "__ge__",
+        "<<" => "__lshift__",
+        ">>" => "__rshift__",
         other => todo!("no such binary operator: {other}"),
     }
 }
@@ -154,6 +156,8 @@ pub fn readable_name(name: &str) -> &str {
         "__invert__" => "`~`",
         "__mutate__" => "`!`",
         "__spread__" => "`...`",
+        "__lshift__" => "`<<`",
+        "__rshift__" => "`>>`",
         other => other,
     }
 }
