@@ -355,32 +355,12 @@ impl Parser {
             } else {
                 Location::Unknown
             };
-            let err = ParseError::syntax_error(
-                line!() as usize,
-                loc,
-                switch_lang!(
-                    "japanese" => "ブロックの解析に失敗しました",
-                    "simplified_chinese" => "无法解析块",
-                    "traditional_chinese" => "無法解析塊",
-                    "english" => "failed to parse a block",
-                ),
-                None,
-            );
+            let err = ParseError::failed_to_analyze_block(line!() as usize, loc);
             self.level -= 1;
             self.errs.push(err);
             Err(())
         } else if block.last().unwrap().is_definition() {
-            let err = ParseError::syntax_error(
-                line!() as usize,
-                block.last().unwrap().loc(),
-                switch_lang!(
-                    "japanese" => "ブロックの終端で変数を定義することは出来ません",
-                    "simplified_chinese" => "无法在块的末尾定义变量",
-                    "traditional_chinese" => "無法在塊的末尾定義變量",
-                    "english" => "cannot define a variable at the end of a block",
-                ),
-                None,
-            );
+            let err = ParseError::invalid_chunk_error(line!() as usize, block.loc());
             self.level -= 1;
             self.errs.push(err);
             Err(())
@@ -1467,8 +1447,19 @@ impl Parser {
                 Ok(Expr::Lambda(lambda))
             }
             Some(t) if t.category_is(TC::Literal) => {
-                // TODO: 10.times ...などメソッド呼び出しもある
                 let lit = self.try_reduce_lit().map_err(|_| self.stack_dec())?;
+                if let Some(tk) = self.peek() {
+                    if tk.is(Mutate) {
+                        self.level -= 1;
+                        let err = ParseError::invalid_mutable_symbol(
+                            line!() as usize,
+                            &lit.token.inspect()[..],
+                            lit.loc(),
+                        );
+                        self.errs.push(err);
+                        return Err(());
+                    }
+                }
                 self.level -= 1;
                 Ok(Expr::Lit(lit))
             }
