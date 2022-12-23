@@ -2234,19 +2234,20 @@ impl Context {
     }
 
     fn get_gen_t_require_attr_t<'a>(&'a self, gen: &'a GenTypeObj, attr: &str) -> Option<&'a Type> {
-        match gen.require_or_sup().unwrap().typ() {
-            Type::Record(rec) => {
+        match gen.require_or_sup().map(|req_sup| req_sup.typ()) {
+            Some(Type::Record(rec)) => {
                 if let Some(t) = rec.get(attr) {
                     return Some(t);
                 }
             }
-            other => {
+            Some(other) => {
                 let obj = self.rec_get_const_obj(&other.local_name());
                 let obj = enum_unwrap!(obj, Some:(ValueObj::Type:(TypeObj::Generated:(_))));
                 if let Some(t) = self.get_gen_t_require_attr_t(obj, attr) {
                     return Some(t);
                 }
             }
+            None => {}
         }
         if let Some(additional) = gen.additional() {
             if let Type::Record(gen) = additional.typ() {
