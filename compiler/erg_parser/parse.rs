@@ -1447,7 +1447,6 @@ impl Parser {
                 Ok(Expr::Lambda(lambda))
             }
             Some(t) if t.category_is(TC::Literal) => {
-                // TODO: 10.times ...などメソッド呼び出しもある
                 let lit = self.try_reduce_lit().map_err(|_| self.stack_dec())?;
                 if let Some(tk) = self.peek() {
                     if tk.is(Mutate) {
