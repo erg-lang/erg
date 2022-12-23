@@ -14,11 +14,10 @@ use erg_common::error::{ErrorCore, ErrorKind, Location};
 use erg_common::fresh::fresh_varname;
 use erg_common::python_util::PythonVersion;
 use erg_common::serialize::*;
-use erg_common::set;
 use erg_common::set::Set;
 use erg_common::shared::Shared;
 use erg_common::vis::Field;
-use erg_common::{dict, fmt_iter, impl_display_from_debug, switch_lang};
+use erg_common::{dict, fmt_iter, impl_display_from_debug, log, set, switch_lang};
 use erg_common::{RcArray, Str};
 use erg_parser::ast::{ConstArgs, ConstExpr};
 
@@ -1229,7 +1228,10 @@ impl ValueObj {
     pub fn try_get_attr(&self, attr: &Field) -> Option<Self> {
         match self {
             Self::Type(typ) => match typ {
-                TypeObj::Builtin(builtin) => todo!("{builtin}{attr}"),
+                TypeObj::Builtin(builtin) => {
+                    log!(err "TODO: {builtin}{attr}");
+                    None
+                }
                 TypeObj::Generated(gen) => match gen.typ() {
                     Type::Record(rec) => {
                         let t = rec.get(attr)?;
