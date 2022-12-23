@@ -14,7 +14,7 @@ use erg_common::{fn_name, Str};
 use ast::{Decorator, DefId, Identifier, OperationKind, VarName};
 use erg_parser::ast;
 
-use crate::ty::constructors::{free_var, func, func1, proc, ref_, ref_mut, v_enum};
+use crate::ty::constructors::{free_var, func, func0, func1, proc, ref_, ref_mut, v_enum};
 use crate::ty::free::{Constraint, FreeKind, HasLevel};
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{HasType, ParamTy, SubrType, Type};
@@ -882,8 +882,11 @@ impl Context {
                         2,
                         self.level,
                     );
-                    let require = gen.require_or_sup().unwrap().typ().clone();
-                    let new_t = func1(require, gen.typ().clone());
+                    let new_t = if let Some(require) = gen.require_or_sup() {
+                        func1(require.typ().clone(), gen.typ().clone())
+                    } else {
+                        func0(gen.typ().clone())
+                    };
                     methods.register_fixed_auto_impl(
                         "__new__",
                         new_t.clone(),

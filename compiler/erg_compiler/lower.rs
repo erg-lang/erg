@@ -1360,12 +1360,12 @@ impl ASTLowerer {
             )));
         };
         let type_obj = enum_unwrap!(self.ctx.rec_get_const_obj(hir_def.sig.ident().inspect()).unwrap(), ValueObj::Type:(TypeObj::Generated:(_)));
-        let sup_type = enum_unwrap!(&hir_def.body.block.first().unwrap(), hir::Expr::Call)
+        if let Some(sup_type) = enum_unwrap!(&hir_def.body.block.first().unwrap(), hir::Expr::Call)
             .args
             .get_left_or_key("Super")
-            .unwrap();
-        Self::check_inheritable(&self.cfg, &mut self.errs, type_obj, sup_type, &hir_def.sig);
-        // vi.t.non_default_params().unwrap()[0].typ().clone()
+        {
+            Self::check_inheritable(&self.cfg, &mut self.errs, type_obj, sup_type, &hir_def.sig);
+        }
         let (__new__, need_to_gen_new) = if let (Some(dunder_new_vi), Some(new_vi)) = (
             class_ctx.get_current_scope_var(&VarName::from_static("__new__")),
             class_ctx.get_current_scope_var(&VarName::from_static("new")),
@@ -1404,7 +1404,7 @@ impl ASTLowerer {
             )?
         };
         let mut hir_def = self.lower_def(class_def.def)?;
-        let base = Self::get_require_or_sup_or_base(hir_def.body.block.remove(0));
+        let base = Self::get_require_or_sup_or_base(hir_def.body.block.remove(0)).unwrap();
         let mut hir_methods = hir::Block::empty();
         for mut methods in class_def.methods_list.into_iter() {
             let kind = ContextKind::PatchMethodDefs(base_t.clone());
@@ -1786,16 +1786,16 @@ impl ASTLowerer {
             .push((ClassDefType::Simple(base.clone()), methods));
     }
 
-    fn get_require_or_sup_or_base(expr: hir::Expr) -> hir::Expr {
+    fn get_require_or_sup_or_base(expr: hir::Expr) -> Option<hir::Expr> {
         match expr {
-            acc @ hir::Expr::Accessor(_) => acc,
+            acc @ hir::Expr::Accessor(_) => Some(acc),
             hir::Expr::Call(mut call) => match call.obj.show_acc().as_ref().map(|s| &s[..]) {
-                Some("Class") => call.args.remove_left_or_key("Requirement").unwrap(),
-                Some("Inherit") => call.args.remove_left_or_key("Super").unwrap(),
+                Some("Class") => call.args.remove_left_or_key("Requirement"),
+                Some("Inherit") => call.args.remove_left_or_key("Super"),
                 Some("Inheritable") => {
                     Self::get_require_or_sup_or_base(call.args.remove_left_or_key("Class").unwrap())
                 }
-                Some("Patch") => call.args.remove_left_or_key("Base").unwrap(),
+                Some("Patch") => call.args.remove_left_or_key("Base"),
                 _ => todo!(),
             },
             other => todo!("{other}"),

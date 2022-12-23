@@ -1,0 +1,8 @@
+# z: Zip(Nat, Str)
+z = zip [1+1], ["a"+"b"]
+
+for! z, ((i, s),) =>
+    print! i + 1
+    print! s + "b"
+    print! s + 1
+    print! i + "a"

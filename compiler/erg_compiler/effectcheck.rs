@@ -95,7 +95,9 @@ impl SideEffectChecker {
                     self.check_def(def);
                 }
                 Expr::ClassDef(class_def) => {
-                    self.check_expr(class_def.require_or_sup.as_ref());
+                    if let Some(req_sup) = &class_def.require_or_sup {
+                        self.check_expr(req_sup);
+                    }
                     // TODO: grow
                     for def in class_def.methods.iter() {
                         self.check_expr(def);
@@ -322,7 +324,9 @@ impl SideEffectChecker {
                 self.check_def(def);
             }
             Expr::ClassDef(class_def) => {
-                self.check_expr(class_def.require_or_sup.as_ref());
+                if let Some(req_sup) = &class_def.require_or_sup {
+                    self.check_expr(req_sup);
+                }
                 for def in class_def.methods.iter() {
                     self.check_expr(def);
                 }

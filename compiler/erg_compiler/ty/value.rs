@@ -62,15 +62,15 @@ pub type EvalValueResult<T> = Result<T, EvalValueError>;
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ClassTypeObj {
     pub t: Type,
-    pub require: Box<TypeObj>,
+    pub require: Option<Box<TypeObj>>,
     pub impls: Option<Box<TypeObj>>,
 }
 
 impl ClassTypeObj {
-    pub fn new(t: Type, require: TypeObj, impls: Option<TypeObj>) -> Self {
+    pub fn new(t: Type, require: Option<TypeObj>, impls: Option<TypeObj>) -> Self {
         Self {
             t,
-            require: Box::new(require),
+            require: require.map(Box::new),
             impls: impls.map(Box::new),
         }
     }
@@ -201,7 +201,7 @@ impl fmt::Display for GenTypeObj {
 }
 
 impl GenTypeObj {
-    pub fn class(t: Type, require: TypeObj, impls: Option<TypeObj>) -> Self {
+    pub fn class(t: Type, require: Option<TypeObj>, impls: Option<TypeObj>) -> Self {
         GenTypeObj::Class(ClassTypeObj::new(t, require, impls))
     }
 
@@ -241,7 +241,7 @@ impl GenTypeObj {
 
     pub fn require_or_sup(&self) -> Option<&TypeObj> {
         match self {
-            Self::Class(class) => Some(class.require.as_ref()),
+            Self::Class(class) => class.require.as_ref().map(AsRef::as_ref),
             Self::Subclass(subclass) => Some(subclass.sup.as_ref()),
             Self::Trait(trait_) => Some(trait_.require.as_ref()),
             Self::Subtrait(subtrait) => Some(subtrait.sup.as_ref()),

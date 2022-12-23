@@ -2062,9 +2062,9 @@ impl Context {
             Private
         };
         let class_t = func(
-            vec![kw("Requirement", Type)],
+            vec![],
             None,
-            vec![kw("Impl", Type)],
+            vec![kw("Requirement", or(Type, Ellipsis)), kw("Impl", Type)],
             ClassType,
         );
         let class = ConstSubr::Builtin(BuiltinConstSubr::new("Class", class_func, class_t, None));

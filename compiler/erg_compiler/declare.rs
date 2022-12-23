@@ -222,7 +222,7 @@ impl ASTLowerer {
             Type::ClassType => {
                 let ty_obj = GenTypeObj::class(
                     mono(format!("{}{ident}", self.ctx.path())),
-                    TypeObj::Builtin(Type::Uninited),
+                    Some(TypeObj::Builtin(Type::Uninited)),
                     None,
                 );
                 self.ctx.register_gen_type(ident, ty_obj);

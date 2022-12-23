@@ -1146,7 +1146,7 @@ impl PyCodeGenerator {
         log!(info "entered {} ({})", fn_name!(), class_def.sig);
         self.emit_push_null();
         let ident = class_def.sig.ident().clone();
-        let require_or_sup = class_def.require_or_sup.clone();
+        let require_or_sup = class_def.require_or_sup.clone().map(|x| *x);
         let obj = class_def.obj.clone();
         self.write_instr(LOAD_BUILD_CLASS);
         self.write_arg(0);
@@ -1162,7 +1162,7 @@ impl PyCodeGenerator {
         self.write_arg(0);
         self.emit_load_const(ident.inspect().clone());
         // LOAD subclasses
-        let subclasses_len = self.emit_require_type(obj, *require_or_sup);
+        let subclasses_len = self.emit_require_type(obj, require_or_sup);
         self.emit_call_instr(2 + subclasses_len, Name);
         self.stack_dec_n((1 + 2 + subclasses_len) - 1);
         self.emit_store_instr(ident, Name);
@@ -1194,12 +1194,12 @@ impl PyCodeGenerator {
     // fn emit_poly_type_def(&mut self, sig: SubrSignature, body: DefBody) {}
 
     /// Y = Inherit X => class Y(X): ...
-    fn emit_require_type(&mut self, obj: GenTypeObj, require_or_sup: Expr) -> usize {
-        log!(info "entered {} ({obj}, {require_or_sup})", fn_name!());
+    fn emit_require_type(&mut self, obj: GenTypeObj, require_or_sup: Option<Expr>) -> usize {
+        log!(info "entered {} ({obj}, {require_or_sup:?})", fn_name!());
         match obj {
             GenTypeObj::Class(_) => 0,
             GenTypeObj::Subclass(_) => {
-                self.emit_expr(require_or_sup);
+                self.emit_expr(require_or_sup.unwrap());
                 1 // TODO: not always 1
             }
             _ => todo!(),
@@ -2728,25 +2728,38 @@ impl PyCodeGenerator {
 
     fn emit_init_method(&mut self, sig: &Signature, __new__: Type) {
         log!(info "entered {}", fn_name!());
+        let new_first_param = __new__.non_default_params().unwrap().first();
         let line = sig.ln_begin().unwrap();
         let class_name = sig.ident().inspect();
         let mut ident = Identifier::public_with_line(DOT, Str::ever("__init__"), line);
         ident.vi.t = __new__.clone();
-        let param_name = fresh_varname();
-        let param = VarName::from_str_and_line(Str::from(param_name.clone()), line);
-        let param = NonDefaultParamSignature::new(ParamPattern::VarName(param), None);
         let self_param = VarName::from_str_and_line(Str::ever("self"), line);
         let self_param = NonDefaultParamSignature::new(ParamPattern::VarName(self_param), None);
-        let params = Params::new(vec![self_param, param], None, vec![], None);
+        let (param_name, params) = if let Some(new_first_param) = new_first_param {
+            let param_name = new_first_param
+                .name()
+                .map(|s| s.to_string())
+                .unwrap_or_else(fresh_varname);
+            let param = VarName::from_str_and_line(Str::from(param_name.clone()), line);
+            let param = NonDefaultParamSignature::new(ParamPattern::VarName(param), None);
+            let params = Params::new(vec![self_param, param], None, vec![], None);
+            (param_name, params)
+        } else {
+            (
+                "_".into(),
+                Params::new(vec![self_param], None, vec![], None),
+            )
+        };
         let subr_sig = SubrSignature::new(ident, params);
         let mut attrs = vec![];
-        match __new__.non_default_params().unwrap()[0].typ() {
+        match new_first_param.map(|pt| pt.typ()) {
             // namedtupleは仕様上::xなどの名前を使えない
             // {x = Int; y = Int}
-            // => self::x = %x.x; self::y = %x.y
+            //   => self::x = %x.x; self::y = %x.y
             // {.x = Int; .y = Int}
-            // => self.x = %x.x; self.y = %x.y
-            Type::Record(rec) => {
+            //   => self.x = %x.x; self.y = %x.y
+            // () => pass
+            Some(Type::Record(rec)) => {
                 for field in rec.keys() {
                     let obj =
                         Expr::Accessor(Accessor::private_with_line(Str::from(&param_name), line));
@@ -2768,9 +2781,14 @@ impl PyCodeGenerator {
                     attrs.push(Expr::AttrDef(attr_def));
                 }
                 let none = Token::new(TokenKind::NoneLit, "None", line, 0);
-                attrs.push(Expr::Lit(Literal::try_from(none).unwrap()));
+                attrs.push(Expr::Lit(Literal::new(ValueObj::None, none)));
             }
-            other => todo!("{other}"),
+            Some(other) => todo!("{other}"),
+            None => {
+                let none = Token::new(TokenKind::NoneLit, "None", line, 0);
+                let none = Expr::Lit(Literal::new(ValueObj::None, none));
+                attrs.push(none);
+            }
         }
         let block = Block::new(attrs);
         let body = DefBody::new(EQUAL, block, DefId(0));
@@ -2787,24 +2805,37 @@ impl PyCodeGenerator {
         let class_ident = sig.ident();
         let line = sig.ln_begin().unwrap();
         let mut ident = Identifier::public_with_line(DOT, Str::ever("new"), line);
-        ident.vi.t = __new__;
-        let param_name = fresh_varname();
-        let param = VarName::from_str_and_line(Str::from(param_name.clone()), line);
-        let param = NonDefaultParamSignature::new(ParamPattern::VarName(param), None);
-        let sig = SubrSignature::new(ident, Params::new(vec![param], None, vec![], None));
-        let arg = PosArg::new(Expr::Accessor(Accessor::private_with_line(
-            Str::from(param_name),
-            line,
-        )));
         let class = Expr::Accessor(Accessor::Ident(class_ident.clone()));
         let mut new_ident =
             Identifier::bare(None, VarName::from_str_and_line(Str::ever("__new__"), line));
         new_ident.vi.py_name = Some(Str::ever("__call__"));
         let class_new = class.attr_expr(new_ident);
-        let call = class_new.call_expr(Args::new(vec![arg], None, vec![], None));
-        let block = Block::new(vec![call]);
-        let body = DefBody::new(EQUAL, block, DefId(0));
-        self.emit_subr_def(Some(class_ident.inspect()), sig, body);
+        ident.vi.t = __new__;
+        if let Some(new_first_param) = ident.vi.t.non_default_params().unwrap().first() {
+            let param_name = new_first_param
+                .name()
+                .map(|s| s.to_string())
+                .unwrap_or_else(fresh_varname);
+            let param = VarName::from_str_and_line(Str::from(param_name.clone()), line);
+            let param = NonDefaultParamSignature::new(ParamPattern::VarName(param), None);
+            let params = Params::new(vec![param], None, vec![], None);
+            let sig = SubrSignature::new(ident, params);
+            let arg = PosArg::new(Expr::Accessor(Accessor::private_with_line(
+                Str::from(param_name),
+                line,
+            )));
+            let call = class_new.call_expr(Args::new(vec![arg], None, vec![], None));
+            let block = Block::new(vec![call]);
+            let body = DefBody::new(EQUAL, block, DefId(0));
+            self.emit_subr_def(Some(class_ident.inspect()), sig, body);
+        } else {
+            let params = Params::new(vec![], None, vec![], None);
+            let sig = SubrSignature::new(ident, params);
+            let call = class_new.call_expr(Args::new(vec![], None, vec![], None));
+            let block = Block::new(vec![call]);
+            let body = DefBody::new(EQUAL, block, DefId(0));
+            self.emit_subr_def(Some(class_ident.inspect()), sig, body);
+        }
     }
 
     fn emit_block(&mut self, block: Block, opt_name: Option<Str>, params: Vec<Str>) -> CodeObj {

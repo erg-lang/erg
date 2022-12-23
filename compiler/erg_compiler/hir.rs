@@ -2055,7 +2055,7 @@ impl Methods {
 pub struct ClassDef {
     pub obj: GenTypeObj,
     pub sig: Signature,
-    pub require_or_sup: Box<Expr>,
+    pub require_or_sup: Option<Box<Expr>>,
     /// The type of `new` that is automatically defined if not defined
     pub need_to_gen_new: bool,
     pub __new__: Type,
@@ -2103,7 +2103,7 @@ impl ClassDef {
     pub fn new(
         obj: GenTypeObj,
         sig: Signature,
-        require_or_sup: Expr,
+        require_or_sup: Option<Expr>,
         need_to_gen_new: bool,
         __new__: Type,
         methods: Block,
@@ -2111,7 +2111,7 @@ impl ClassDef {
         Self {
             obj,
             sig,
-            require_or_sup: Box::new(require_or_sup),
+            require_or_sup: require_or_sup.map(Box::new),
             need_to_gen_new,
             __new__,
             methods,

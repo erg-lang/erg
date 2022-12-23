@@ -127,7 +127,9 @@ impl OwnershipChecker {
                 self.path_stack.pop();
             }
             Expr::ClassDef(class_def) => {
-                self.check_expr(&class_def.require_or_sup, Ownership::Owned, false);
+                if let Some(req_sup) = &class_def.require_or_sup {
+                    self.check_expr(req_sup, Ownership::Owned, false);
+                }
                 for def in class_def.methods.iter() {
                     self.check_expr(def, Ownership::Owned, true);
                 }
