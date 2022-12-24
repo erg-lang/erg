@@ -1380,16 +1380,26 @@ impl Context {
         let mut range_iterator = Self::builtin_poly_class("RangeIterator", vec![PS::t_nd("T")], 1);
         range_iterator.register_superclass(Obj, &obj);
         range_iterator.register_marker_trait(poly("Output", vec![ty_tp(T.clone())]));
-        /* Map */
-        let mut map = Self::builtin_poly_class("Map", vec![PS::t_nd("T")], 2);
-        map.register_superclass(Obj, &obj);
-        map.register_marker_trait(poly("Iterable", vec![ty_tp(T.clone())]));
-        map.register_marker_trait(poly("Output", vec![ty_tp(T.clone())]));
+        /* Enumerate */
+        let mut enumerate = Self::builtin_poly_class("Enumerate", vec![PS::t_nd("T")], 2);
+        enumerate.register_superclass(Obj, &obj);
+        enumerate.register_marker_trait(poly("Iterable", vec![ty_tp(T.clone())]));
+        enumerate.register_marker_trait(poly("Output", vec![ty_tp(T.clone())]));
         /* Filter */
         let mut filter = Self::builtin_poly_class("Filter", vec![PS::t_nd("T")], 2);
         filter.register_superclass(Obj, &obj);
         filter.register_marker_trait(poly("Iterable", vec![ty_tp(T.clone())]));
         filter.register_marker_trait(poly("Output", vec![ty_tp(T.clone())]));
+        /* Map */
+        let mut map = Self::builtin_poly_class("Map", vec![PS::t_nd("T")], 2);
+        map.register_superclass(Obj, &obj);
+        map.register_marker_trait(poly("Iterable", vec![ty_tp(T.clone())]));
+        map.register_marker_trait(poly("Output", vec![ty_tp(T.clone())]));
+        /* Revered */
+        let mut reversed = Self::builtin_poly_class("Reversed", vec![PS::t_nd("T")], 2);
+        reversed.register_superclass(Obj, &obj);
+        reversed.register_marker_trait(poly("Iterable", vec![ty_tp(T.clone())]));
+        reversed.register_marker_trait(poly("Output", vec![ty_tp(T.clone())]));
         /* Zip */
         let mut zip = Self::builtin_poly_class("Zip", vec![PS::t_nd("T"), PS::t_nd("U")], 2);
         zip.register_superclass(Obj, &obj);
@@ -1759,11 +1769,11 @@ impl Context {
             Some("RangeIterator"),
         );
         self.register_builtin_type(
-            poly("Map", vec![ty_tp(T.clone())]),
-            map,
+            poly("Enumerate", vec![ty_tp(T.clone())]),
+            enumerate,
             Private,
             Const,
-            Some("map"),
+            Some("enumerate"),
         );
         self.register_builtin_type(
             poly("Filter", vec![ty_tp(T.clone())]),
@@ -1771,6 +1781,20 @@ impl Context {
             Private,
             Const,
             Some("filter"),
+        );
+        self.register_builtin_type(
+            poly("Map", vec![ty_tp(T.clone())]),
+            map,
+            Private,
+            Const,
+            Some("map"),
+        );
+        self.register_builtin_type(
+            poly("Revered", vec![ty_tp(T.clone())]),
+            reversed,
+            Private,
+            Const,
+            Some("reversed"),
         );
         self.register_builtin_type(
             poly("Zip", vec![ty_tp(T), ty_tp(U)]),
@@ -1849,6 +1873,18 @@ impl Context {
         let U = mono_q("U", instanceof(Type));
         let Path = mono_q_tp("Path", instanceof(Str));
         let t_abs = nd_func(vec![kw("n", mono("Num"))], None, Nat);
+        let t_all = func(
+            vec![kw("iterable", poly("Iterable", vec![ty_tp(Bool)]))],
+            None,
+            vec![],
+            Bool,
+        );
+        let t_any = func(
+            vec![kw("iterable", poly("Iterable", vec![ty_tp(Bool)]))],
+            None,
+            vec![],
+            Bool,
+        );
         let t_ascii = nd_func(vec![kw("object", Obj)], None, Str);
         let t_assert = func(
             vec![kw("condition", Bool)],
@@ -1880,6 +1916,13 @@ impl Context {
         )
         .quantify();
         let t_discard = nd_func(vec![kw("obj", Obj)], None, NoneType);
+        let t_enumerate = func(
+            vec![kw("iterable", poly("Iterable", vec![ty_tp(T.clone())]))],
+            None,
+            vec![kw("start", Int)],
+            poly("Enumerate", vec![ty_tp(T.clone())]),
+        )
+        .quantify();
         let t_if = func(
             vec![
                 kw("cond", Bool),
@@ -1981,8 +2024,25 @@ impl Context {
         let t_quit = func(vec![], None, vec![kw("code", Int)], Never);
         let t_exit = t_quit.clone();
         let t_repr = nd_func(vec![kw("object", Obj)], None, Str);
+        let t_reversed = nd_func(
+            vec![kw("seq", poly("Seq", vec![ty_tp(T.clone())]))],
+            None,
+            poly("Reversed", vec![ty_tp(T.clone())]),
+        )
+        .quantify();
         let t_round = nd_func(vec![kw("number", Float)], None, Int);
         let t_str = nd_func(vec![kw("object", Obj)], None, Str);
+        let A = mono_q(
+            "A",
+            subtypeof(poly("Add", vec![ty_tp(mono_q("A", Constraint::Uninited))])),
+        );
+        let t_sum = func(
+            vec![kw("iterable", poly("Iterable", vec![ty_tp(A.clone())]))],
+            None,
+            vec![kw_default("start", or(A.clone(), Int), Int)],
+            A,
+        )
+        .quantify();
         let t_unreachable = nd_func(vec![], None, Never);
         let t_zip = nd_func(
             vec![
@@ -1994,6 +2054,8 @@ impl Context {
         )
         .quantify();
         self.register_builtin_py_impl("abs", t_abs, Immutable, vis, Some("abs"));
+        self.register_builtin_py_impl("all", t_all, Immutable, vis, Some("all"));
+        self.register_builtin_py_impl("any", t_any, Immutable, vis, Some("any"));
         self.register_builtin_py_impl("ascii", t_ascii, Immutable, vis, Some("ascii"));
         self.register_builtin_impl("assert", t_assert, Const, vis); // assert casting に悪影響が出る可能性があるため、Constとしておく
         self.register_builtin_py_impl("bin", t_bin, Immutable, vis, Some("bin"));
@@ -2002,6 +2064,7 @@ impl Context {
         self.register_builtin_py_impl("classof", t_classof, Immutable, vis, Some("type"));
         self.register_builtin_py_impl("compile", t_compile, Immutable, vis, Some("compile"));
         self.register_builtin_impl("cond", t_cond, Immutable, vis);
+        self.register_builtin_py_impl("enumerate", t_enumerate, Immutable, vis, Some("enumerate"));
         self.register_builtin_py_impl("exit", t_exit, Immutable, vis, Some("exit"));
         self.register_builtin_py_impl(
             "isinstance",
@@ -2034,8 +2097,10 @@ impl Context {
         );
         self.register_builtin_py_impl("quit", t_quit, Immutable, vis, Some("quit"));
         self.register_builtin_py_impl("repr", t_repr, Immutable, vis, Some("repr"));
+        self.register_builtin_py_impl("reversed", t_reversed, Immutable, vis, Some("reversed"));
         self.register_builtin_py_impl("round", t_round, Immutable, vis, Some("round"));
         self.register_builtin_py_impl("str", t_str, Immutable, vis, Some("str"));
+        self.register_builtin_py_impl("sum", t_sum, Immutable, vis, Some("sum"));
         self.register_builtin_py_impl("zip", t_zip, Immutable, vis, Some("zip"));
         let name = if self.cfg.python_compatible_mode {
             "int"
