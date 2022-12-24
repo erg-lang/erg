@@ -1844,6 +1844,70 @@ impl ASTLowerer {
         Ok(expr.type_asc(tasc.t_spec))
     }
 
+    fn lower_decl(&mut self, tasc: ast::TypeAscription) -> LowerResult<hir::TypeAscription> {
+        log!(info "entered {}({tasc})", fn_name!());
+        let is_instance_ascription = tasc.is_instance_ascription();
+        let mut dummy_tv_cache = TyVarCache::new(self.ctx.level, &self.ctx);
+        let spec_t = self.ctx.instantiate_typespec(
+            &tasc.t_spec,
+            None,
+            &mut dummy_tv_cache,
+            RegistrationMode::Normal,
+            false,
+        )?;
+        let loc = tasc.loc();
+        let ast::Expr::Accessor(ast::Accessor::Ident(ident)) = *tasc.expr else {
+            return Err(LowerErrors::from(LowerError::syntax_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                tasc.expr.loc(),
+                self.ctx.caused_by(),
+                switch_lang!(
+                    "japanese" => "無効な型宣言です".to_string(),
+                    "simplified_chinese" => "无效的类型声明".to_string(),
+                    "traditional_chinese" => "無效的型宣告".to_string(),
+                    "english" => "Invalid type declaration".to_string(),
+                ),
+                None,
+            )));
+        };
+        let ident_vi = self
+            .ctx
+            .rec_get_decl_info(&ident, AccessKind::Name, &self.cfg.input, &self.ctx.name)
+            .or_else(|_e| {
+                self.ctx
+                    .rec_get_var_info(&ident, AccessKind::Name, &self.cfg.input, &self.ctx.name)
+            })?;
+        if is_instance_ascription {
+            self.ctx
+                .sub_unify(&ident_vi.t, &spec_t, loc, Some(ident.inspect()))?;
+        } else {
+            // if subtype ascription
+            let ctx = self.ctx.get_singular_ctx_by_ident(&ident, &self.ctx.name)?;
+            // REVIEW: need to use subtype_of?
+            if ctx.super_traits.iter().all(|trait_| trait_ != &spec_t)
+                && ctx.super_classes.iter().all(|class| class != &spec_t)
+            {
+                return Err(LowerErrors::from(LowerError::subtyping_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    &ident_vi.t,
+                    &spec_t,
+                    loc,
+                    self.ctx.caused_by(),
+                )));
+            }
+        }
+        let qual_name = self
+            .ctx
+            .get_singular_ctx_by_ident(&ident, &self.ctx.name)
+            .ok()
+            .map(|ctx| ctx.name.clone());
+        let ident = hir::Identifier::new(ident.dot, ident.name, qual_name, ident_vi);
+        let expr = hir::Expr::Accessor(hir::Accessor::Ident(ident));
+        Ok(expr.type_asc(tasc.t_spec))
+    }
+
     // Call.obj == Accessor cannot be type inferred by itself (it can only be inferred with arguments)
     // so turn off type checking (check=false)
     fn lower_expr(&mut self, expr: ast::Expr) -> LowerResult<hir::Expr> {
@@ -1861,14 +1925,28 @@ impl ASTLowerer {
             ast::Expr::Call(call) => Ok(hir::Expr::Call(self.lower_call(call)?)),
             ast::Expr::DataPack(pack) => Ok(hir::Expr::Call(self.lower_pack(pack)?)),
             ast::Expr::Lambda(lambda) => Ok(hir::Expr::Lambda(self.lower_lambda(lambda)?)),
+            ast::Expr::TypeAsc(tasc) => Ok(hir::Expr::TypeAsc(self.lower_type_asc(tasc)?)),
+            // Checking is also performed for expressions in Dummy. However, it has no meaning in code generation
+            ast::Expr::Dummy(dummy) => Ok(hir::Expr::Dummy(self.lower_dummy(dummy)?)),
+            other => {
+                log!(err "unreachable: {other}");
+                unreachable_error!(LowerErrors, LowerError, self.ctx)
+            }
+        }
+    }
+
+    /// The meaning of TypeAscription changes between chunk and expr.
+    /// For example, `x: Int`, as expr, is `x` itself,
+    /// but as chunk, it declares that `x` is of type `Int`, and is valid even before `x` is defined.
+    fn lower_chunk(&mut self, chunk: ast::Expr) -> LowerResult<hir::Expr> {
+        log!(info "entered {}", fn_name!());
+        match chunk {
             ast::Expr::Def(def) => Ok(hir::Expr::Def(self.lower_def(def)?)),
             ast::Expr::ClassDef(defs) => Ok(hir::Expr::ClassDef(self.lower_class_def(defs)?)),
             ast::Expr::PatchDef(defs) => Ok(hir::Expr::PatchDef(self.lower_patch_def(defs)?)),
             ast::Expr::AttrDef(adef) => Ok(hir::Expr::AttrDef(self.lower_attr_def(adef)?)),
-            ast::Expr::TypeAsc(tasc) => Ok(hir::Expr::TypeAsc(self.lower_type_asc(tasc)?)),
-            // Checking is also performed for expressions in Dummy. However, it has no meaning in code generation
-            ast::Expr::Dummy(dummy) => Ok(hir::Expr::Dummy(self.lower_dummy(dummy)?)),
-            other => todo!("{other}"),
+            ast::Expr::TypeAsc(tasc) => Ok(hir::Expr::TypeAsc(self.lower_decl(tasc)?)),
+            other => self.lower_expr(other),
         }
     }
 
@@ -1876,7 +1954,7 @@ impl ASTLowerer {
         log!(info "entered {}", fn_name!());
         let mut hir_block = Vec::with_capacity(ast_block.len());
         for chunk in ast_block.into_iter() {
-            let chunk = self.lower_expr(chunk)?;
+            let chunk = self.lower_chunk(chunk)?;
             hir_block.push(chunk);
         }
         Ok(hir::Block::new(hir_block))
@@ -1886,7 +1964,7 @@ impl ASTLowerer {
         log!(info "entered {}", fn_name!());
         let mut hir_dummy = Vec::with_capacity(ast_dummy.len());
         for chunk in ast_dummy.into_iter() {
-            let chunk = self.lower_expr(chunk)?;
+            let chunk = self.lower_chunk(chunk)?;
             hir_dummy.push(chunk);
         }
         Ok(hir::Dummy::new(hir_dummy))
@@ -1928,7 +2006,7 @@ impl ASTLowerer {
             self.errs.extend(errs);
         }
         for chunk in ast.module.into_iter() {
-            match self.lower_expr(chunk) {
+            match self.lower_chunk(chunk) {
                 Ok(chunk) => {
                     module.push(chunk);
                 }

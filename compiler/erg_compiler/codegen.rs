@@ -2439,6 +2439,69 @@ impl PyCodeGenerator {
         debug_assert_eq!(self.stack_len(), init_stack_len + 1);
     }
 
+    // TODO: tuple comprehension
+    // TODO: tuples can be const
+    fn emit_tuple(&mut self, tuple: Tuple) {
+        match tuple {
+            Tuple::Normal(mut tup) => {
+                let len = tup.elems.len();
+                while let Some(arg) = tup.elems.try_remove_pos(0) {
+                    self.emit_expr(arg.expr);
+                }
+                self.write_instr(BUILD_TUPLE);
+                self.write_arg(len);
+                if len == 0 {
+                    self.stack_inc();
+                } else {
+                    self.stack_dec_n(len - 1);
+                }
+            }
+        }
+    }
+
+    fn emit_set(&mut self, set: crate::hir::Set) {
+        match set {
+            crate::hir::Set::Normal(mut set) => {
+                let len = set.elems.len();
+                while let Some(arg) = set.elems.try_remove_pos(0) {
+                    self.emit_expr(arg.expr);
+                }
+                self.write_instr(BUILD_SET);
+                self.write_arg(len);
+                if len == 0 {
+                    self.stack_inc();
+                } else {
+                    self.stack_dec_n(len - 1);
+                }
+            }
+            crate::hir::Set::WithLength(st) => {
+                self.emit_expr(*st.elem);
+                self.write_instr(BUILD_SET);
+                self.write_arg(1);
+            }
+        }
+    }
+
+    fn emit_dict(&mut self, dict: crate::hir::Dict) {
+        match dict {
+            crate::hir::Dict::Normal(dic) => {
+                let len = dic.kvs.len();
+                for kv in dic.kvs.into_iter() {
+                    self.emit_expr(kv.key);
+                    self.emit_expr(kv.value);
+                }
+                self.write_instr(BUILD_MAP);
+                self.write_arg(len);
+                if len == 0 {
+                    self.stack_inc();
+                } else {
+                    self.stack_dec_n(2 * len - 1);
+                }
+            }
+            other => todo!("{other}"),
+        }
+    }
+
     #[allow(clippy::identity_op)]
     fn emit_record(&mut self, rec: Record) {
         log!(info "entered {} ({rec})", fn_name!());
@@ -2505,8 +2568,30 @@ impl PyCodeGenerator {
         self.stack_dec();
     }
 
-    fn emit_expr(&mut self, expr: Expr) {
-        log!(info "entered {} ({expr})", fn_name!());
+    fn emit_compound(&mut self, chunks: Block) {
+        let is_module_loading_chunks = chunks
+            .get(2)
+            .map(|chunk| {
+                option_enum_unwrap!(chunk, Expr::Call)
+                    .map(|call| call.obj.show_acc().as_ref().map(|s| &s[..]) == Some("exec"))
+                    .unwrap_or(false)
+            })
+            .unwrap_or(false);
+        if !self.module_type_loaded && is_module_loading_chunks {
+            self.load_module_type();
+            self.module_type_loaded = true;
+        }
+        let init_stack_len = self.stack_len();
+        for chunk in chunks.into_iter() {
+            self.emit_chunk(chunk);
+            if self.stack_len() == init_stack_len + 1 {
+                self.emit_pop_top();
+            }
+        }
+        self.cancel_if_pop_top();
+    }
+
+    fn push_lnotab(&mut self, expr: &Expr) {
         if expr.ln_begin().unwrap_or_else(|| panic!("{expr}")) > self.cur_block().prev_lineno {
             let sd = self.lasti() - self.cur_block().prev_lasti;
             let ld = expr.ln_begin().unwrap() - self.cur_block().prev_lineno;
@@ -2538,6 +2623,40 @@ impl PyCodeGenerator {
                 self.crash("codegen failed: invalid bytecode format");
             }
         }
+    }
+
+    fn emit_chunk(&mut self, chunk: Expr) {
+        log!(info "entered {} ({chunk})", fn_name!());
+        self.push_lnotab(&chunk);
+        match chunk {
+            Expr::Lit(lit) => self.emit_load_const(lit.value),
+            Expr::Accessor(acc) => self.emit_acc(acc),
+            Expr::Def(def) => self.emit_def(def),
+            Expr::ClassDef(class) => self.emit_class_def(class),
+            Expr::PatchDef(patch) => self.emit_patch_def(patch),
+            Expr::AttrDef(attr) => self.emit_attr_def(attr),
+            Expr::Lambda(lambda) => self.emit_lambda(lambda),
+            Expr::UnaryOp(unary) => self.emit_unaryop(unary),
+            Expr::BinOp(bin) => self.emit_binop(bin),
+            Expr::Call(call) => self.emit_call(call),
+            Expr::Array(arr) => self.emit_array(arr),
+            Expr::Tuple(tup) => self.emit_tuple(tup),
+            Expr::Set(set) => self.emit_set(set),
+            Expr::Dict(dict) => self.emit_dict(dict),
+            Expr::Record(rec) => self.emit_record(rec),
+            Expr::Code(code) => {
+                let code = self.emit_block(code, None, vec![]);
+                self.emit_load_const(code);
+            }
+            Expr::Compound(chunks) => self.emit_compound(chunks),
+            Expr::Import(acc) => self.emit_import(acc),
+            Expr::Dummy(_) | Expr::TypeAsc(_) => {}
+        }
+    }
+
+    fn emit_expr(&mut self, expr: Expr) {
+        log!(info "entered {} ({expr})", fn_name!());
+        self.push_lnotab(&expr);
         match expr {
             Expr::Lit(lit) => self.emit_load_const(lit.value),
             Expr::Accessor(acc) => self.emit_acc(acc),
@@ -2550,92 +2669,16 @@ impl PyCodeGenerator {
             Expr::BinOp(bin) => self.emit_binop(bin),
             Expr::Call(call) => self.emit_call(call),
             Expr::Array(arr) => self.emit_array(arr),
-            // TODO: tuple comprehension
-            // TODO: tuples can be const
-            Expr::Tuple(tup) => match tup {
-                Tuple::Normal(mut tup) => {
-                    let len = tup.elems.len();
-                    while let Some(arg) = tup.elems.try_remove_pos(0) {
-                        self.emit_expr(arg.expr);
-                    }
-                    self.write_instr(BUILD_TUPLE);
-                    self.write_arg(len);
-                    if len == 0 {
-                        self.stack_inc();
-                    } else {
-                        self.stack_dec_n(len - 1);
-                    }
-                }
-            },
-            Expr::Set(set) => match set {
-                crate::hir::Set::Normal(mut set) => {
-                    let len = set.elems.len();
-                    while let Some(arg) = set.elems.try_remove_pos(0) {
-                        self.emit_expr(arg.expr);
-                    }
-                    self.write_instr(BUILD_SET);
-                    self.write_arg(len);
-                    if len == 0 {
-                        self.stack_inc();
-                    } else {
-                        self.stack_dec_n(len - 1);
-                    }
-                }
-                crate::hir::Set::WithLength(st) => {
-                    self.emit_expr(*st.elem);
-                    self.write_instr(BUILD_SET);
-                    self.write_arg(1);
-                }
-            },
-            Expr::Dict(dict) => match dict {
-                crate::hir::Dict::Normal(dic) => {
-                    let len = dic.kvs.len();
-                    for kv in dic.kvs.into_iter() {
-                        self.emit_expr(kv.key);
-                        self.emit_expr(kv.value);
-                    }
-                    self.write_instr(BUILD_MAP);
-                    self.write_arg(len);
-                    if len == 0 {
-                        self.stack_inc();
-                    } else {
-                        self.stack_dec_n(2 * len - 1);
-                    }
-                }
-                other => todo!("{other}"),
-            },
+            Expr::Tuple(tup) => self.emit_tuple(tup),
+            Expr::Set(set) => self.emit_set(set),
+            Expr::Dict(dict) => self.emit_dict(dict),
             Expr::Record(rec) => self.emit_record(rec),
             Expr::Code(code) => {
                 let code = self.emit_block(code, None, vec![]);
                 self.emit_load_const(code);
             }
-            Expr::Compound(chunks) => {
-                let is_module_loading_chunks = chunks
-                    .get(2)
-                    .map(|chunk| {
-                        option_enum_unwrap!(chunk, Expr::Call)
-                            .map(|call| {
-                                call.obj.show_acc().as_ref().map(|s| &s[..]) == Some("exec")
-                            })
-                            .unwrap_or(false)
-                    })
-                    .unwrap_or(false);
-                if !self.module_type_loaded && is_module_loading_chunks {
-                    self.load_module_type();
-                    self.module_type_loaded = true;
-                }
-                let init_stack_len = self.stack_len();
-                for expr in chunks.into_iter() {
-                    self.emit_expr(expr);
-                    if self.stack_len() == init_stack_len + 1 {
-                        self.emit_pop_top();
-                    }
-                }
-                self.cancel_if_pop_top();
-            }
-            Expr::TypeAsc(tasc) => {
-                self.emit_expr(*tasc.expr);
-            }
+            Expr::Compound(chunks) => self.emit_compound(chunks),
+            Expr::TypeAsc(tasc) => self.emit_expr(*tasc.expr),
             Expr::Import(acc) => self.emit_import(acc),
             Expr::Dummy(_) => {}
         }
@@ -2649,8 +2692,8 @@ impl PyCodeGenerator {
             self.emit_store_instr(Identifier::public_with_line(DOT, param, line), Name);
         }
         let init_stack_len = self.stack_len();
-        for expr in block.into_iter() {
-            self.emit_expr(expr);
+        for chunk in block.into_iter() {
+            self.emit_chunk(chunk);
             if self.stack_len() > init_stack_len {
                 self.emit_pop_top();
             }
@@ -2665,8 +2708,8 @@ impl PyCodeGenerator {
             self.emit_store_instr(Identifier::public_with_line(DOT, param, line), Name);
         }
         let init_stack_len = self.stack_len();
-        for expr in block.into_iter() {
-            self.emit_expr(expr);
+        for chunk in block.into_iter() {
+            self.emit_chunk(chunk);
             // __exit__, __enter__() are on the stack
             if self.stack_len() > init_stack_len {
                 self.emit_pop_top();
@@ -2883,8 +2926,8 @@ impl PyCodeGenerator {
             0
         };
         let init_stack_len = self.stack_len();
-        for expr in block.into_iter() {
-            self.emit_expr(expr);
+        for chunk in block.into_iter() {
+            self.emit_chunk(chunk);
             // NOTE: 各行のトップレベルでは0個または1個のオブジェクトが残っている
             // Pythonの場合使わなかったオブジェクトはそのまま捨てられるが、Ergではdiscardを使う必要がある
             // TODO: discard
@@ -3083,8 +3126,8 @@ impl PyCodeGenerator {
         if !self.cfg.no_std && !self.prelude_loaded {
             self.load_prelude();
         }
-        for expr in hir.module.into_iter() {
-            self.emit_expr(expr);
+        for chunk in hir.module.into_iter() {
+            self.emit_chunk(chunk);
             // TODO: discard
             if self.stack_len() == 1 {
                 self.emit_pop_top();

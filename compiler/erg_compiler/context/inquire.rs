@@ -403,7 +403,11 @@ impl Context {
         input: &Input,
         namespace: &Str,
     ) -> SingleTyCheckResult<VarInfo> {
-        if let Some(vi) = self.decls.get(&ident.inspect()[..]) {
+        if let Some(vi) = self
+            .decls
+            .get(&ident.inspect()[..])
+            .or_else(|| self.future_defined_locals.get(&ident.inspect()[..]))
+        {
             match self.validate_visibility(ident, vi, input, namespace) {
                 Ok(()) => {
                     return Ok(vi.clone());
