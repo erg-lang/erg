@@ -1185,6 +1185,7 @@ pub struct Dummy(Vec<Expr>);
 
 impl NestedDisplay for Dummy {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
+        writeln!(f, "Dummy:")?;
         fmt_lines(self.0.iter(), f, level)
     }
 }
