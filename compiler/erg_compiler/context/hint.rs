@@ -1,5 +1,5 @@
 use erg_common::style::{Attribute, Color, StyledStrings, THEME};
-use erg_common::{enum_unwrap, switch_lang};
+use erg_common::{option_enum_unwrap, switch_lang};
 
 use crate::ty::typaram::TyParam;
 use crate::ty::value::ValueObj;
@@ -56,7 +56,7 @@ impl Context {
         found: &Type,
     ) -> Option<String> {
         if &callee_t.qual_name()[..] == "Array" && attr == Some("__getitem__") && nth == 1 {
-            let len = &callee_t.typarams()[1];
+            let len = &callee_t.typarams().get(1).cloned()?;
             let (_, _, preds) = found.clone().deconstruct_refinement().ok()?;
             if let Predicate::Equal {
                 lhs: _,
@@ -88,7 +88,7 @@ impl Context {
             if fv.is_linked() {
                 fv.crack().clone()
             } else {
-                let (_sub, sup) = fv.get_subsup().unwrap();
+                let (_sub, sup) = fv.get_subsup()?;
                 sup
             }
         } else {
@@ -166,10 +166,10 @@ impl Context {
                     .union_types()
                     .map(|(t1, t2)| format!("cannot {verb} {t1} {preposition} {t2}"))
                     .or_else(|| {
-                        let expected_inner = Self::readable_type(&expected.inner_ts()[0]);
-                        Some(format!(
-                            "cannot {verb} {found} {preposition} {expected_inner}"
-                        ))
+                        expected.inner_ts().get(0).map(|expected_inner| {
+                            let expected_inner = Self::readable_type(expected_inner);
+                            format!("cannot {verb} {found} {preposition} {expected_inner}")
+                        })
                     })
             }
         }
@@ -181,7 +181,7 @@ impl Context {
                 if let Type::FreeVar(fv) = lhs.as_ref() {
                     let (sub, sup) = fv.get_subsup()?;
                     let (verb, preposition, sequence) = Self::get_verb_and_preposition(&sup)?;
-                    let sup = enum_unwrap!(sup.typarams().remove(0), TyParam::Type);
+                    let sup = option_enum_unwrap!(sup.typarams().get(0)?.clone(), TyParam::Type)?;
                     let sup = Self::readable_type(&sup);
                     let (l, r) = if sequence == Sequence::Forward {
                         (sub, sup)
