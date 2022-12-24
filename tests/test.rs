@@ -82,6 +82,11 @@ fn exec_interpolation() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_long() -> Result<(), ()> {
+    expect_success("tests/should_ok/long.er")
+}
+
+#[test]
 fn exec_mut() -> Result<(), ()> {
     expect_success("examples/mut.er")
 }

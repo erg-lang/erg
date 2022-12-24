@@ -354,25 +354,15 @@ impl PyCodeGenerator {
     // [..., EXTENDED_ARG 0, EXTENDED_ARG 0, EXTENDED_ARG 1, JUMP_ABSOLUTE 14]
     #[inline]
     fn extend_arg(&mut self, before_instr: usize, bytes: &[u8]) {
-        self.mut_cur_block_codeobj()
-            .code
-            .insert(before_instr, bytes[2]);
-        self.mut_cur_block_codeobj()
-            .code
-            .insert(before_instr, CommonOpcode::EXTENDED_ARG as u8);
-        self.mut_cur_block_codeobj()
-            .code
-            .insert(before_instr, bytes[1]);
-        self.mut_cur_block_codeobj()
-            .code
-            .insert(before_instr, CommonOpcode::EXTENDED_ARG as u8);
-        self.mut_cur_block_codeobj()
-            .code
-            .insert(before_instr, bytes[0]);
-        self.mut_cur_block_codeobj()
-            .code
-            .insert(before_instr, CommonOpcode::EXTENDED_ARG as u8);
-        self.mut_cur_block().lasti += 6;
+        for byte in bytes.iter().rev().skip(1) {
+            self.mut_cur_block_codeobj()
+                .code
+                .insert(before_instr, *byte);
+            self.mut_cur_block_codeobj()
+                .code
+                .insert(before_instr, CommonOpcode::EXTENDED_ARG as u8);
+            self.mut_cur_block().lasti += 2;
+        }
     }
 
     fn write_instr<C: Into<u8>>(&mut self, code: C) {
@@ -388,16 +378,40 @@ impl PyCodeGenerator {
                 self.mut_cur_block().lasti += 1;
                 // log!(info "wrote: {}", code);
             }
-            Err(_) => {
-                let delta = self.jump_delta(code);
-                let shift_bytes = 6;
-                let arg = code + delta + shift_bytes;
-                let bytes = u32::try_from(arg).unwrap().to_be_bytes();
-                let before_instr = self.lasti().saturating_sub(1);
-                self.mut_cur_block_codeobj().code.push(bytes[3]);
-                self.mut_cur_block().lasti += 1;
-                self.extend_arg(before_instr, &bytes);
-            }
+            Err(_) => match u16::try_from(code) {
+                Ok(_) => {
+                    let delta =
+                        if CommonOpcode::is_jump_op(*self.cur_block_codeobj().code.last().unwrap())
+                        {
+                            let shift_bytes = 2;
+                            self.jump_delta(code) + shift_bytes
+                        } else {
+                            0
+                        };
+                    let arg = code + delta;
+                    let bytes = u16::try_from(arg).unwrap().to_be_bytes(); // [u8; 2]
+                    let before_instr = self.lasti().saturating_sub(1);
+                    self.mut_cur_block_codeobj().code.push(bytes[1]);
+                    self.mut_cur_block().lasti += 1;
+                    self.extend_arg(before_instr, &bytes);
+                }
+                Err(_) => {
+                    let delta =
+                        if CommonOpcode::is_jump_op(*self.cur_block_codeobj().code.last().unwrap())
+                        {
+                            let shift_bytes = 6;
+                            self.jump_delta(code) + shift_bytes
+                        } else {
+                            0
+                        };
+                    let arg = code + delta;
+                    let bytes = u32::try_from(arg).unwrap().to_be_bytes(); // [u8; 4]
+                    let before_instr = self.lasti().saturating_sub(1);
+                    self.mut_cur_block_codeobj().code.push(bytes[3]);
+                    self.mut_cur_block().lasti += 1;
+                    self.extend_arg(before_instr, &bytes);
+                }
+            },
         }
     }
 
