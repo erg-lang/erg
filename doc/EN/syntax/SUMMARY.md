@@ -66,4 +66,5 @@
 - [Integration With Python](./32_integration_with_Python.md)
 - [Package System](./33_package_system.md)
 - [Generator](./34_generator.md)
+- [Quick Tour](./quick_tour.md)
 - [Index](./indexes.md)
