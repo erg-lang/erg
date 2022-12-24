@@ -1343,9 +1343,10 @@ impl Context {
                     match Command::new("pylyzer")
                         .arg("--dump-decl")
                         .arg(path.to_str().unwrap())
-                        .output()
+                        .spawn()
+                        .and_then(|mut child| child.wait())
                     {
-                        Ok(out) if out.status.success() => {
+                        Ok(status) if status.success() => {
                             if let Some(path) =
                                 Self::resolve_decl_path(&self.cfg, Path::new(&__name__[..]))
                             {
