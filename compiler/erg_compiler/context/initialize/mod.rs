@@ -2032,10 +2032,8 @@ impl Context {
         .quantify();
         let t_round = nd_func(vec![kw("number", Float)], None, Int);
         let t_str = nd_func(vec![kw("object", Obj)], None, Str);
-        let A = mono_q(
-            "A",
-            subtypeof(poly("Add", vec![ty_tp(mono_q("A", Constraint::Uninited))])),
-        );
+        let A = mono_q("A", Constraint::Uninited);
+        let A = mono_q("A", subtypeof(poly("Add", vec![ty_tp(A)])));
         let t_sum = func(
             vec![kw("iterable", poly("Iterable", vec![ty_tp(A.clone())]))],
             None,

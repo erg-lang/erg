@@ -87,6 +87,11 @@ fn exec_mut() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_mut_array() -> Result<(), ()> {
+    expect_success("tests/should_ok/mut_array.er")
+}
+
+#[test]
 fn exec_nested() -> Result<(), ()> {
     expect_success("tests/should_ok/nested.er")
 }

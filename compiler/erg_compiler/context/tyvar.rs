@@ -472,12 +472,17 @@ impl Context {
         match t {
             // ?T(:> Nat, <: Int)[n] ==> Nat (self.level <= n)
             // ?T(:> Nat, <: Sub ?U(:> {1}))[n] ==> Nat
+            // ?T(<: Int, :> Add(?T)) ==> Int
             // ?T(:> Nat, <: Sub(Str)) ==> Error!
             // ?T(:> {1, "a"}, <: Eq(?T(:> {1, "a"}, ...)) ==> Error!
             Type::FreeVar(fv) if fv.constraint_is_sandwiched() => {
                 let (sub_t, super_t) = fv.get_subsup().unwrap();
                 if self.level <= fv.level().unwrap() {
-                    self.validate_subsup(sub_t, super_t, variance, loc)
+                    // REVIEW:
+                    fv.forced_undoable_link(&sub_t);
+                    let res = self.validate_subsup(sub_t, super_t, variance, loc);
+                    fv.undo();
+                    res
                 } else {
                     // no dereference at this point
                     // drop(constraint);

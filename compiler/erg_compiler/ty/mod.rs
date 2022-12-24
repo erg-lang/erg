@@ -1682,17 +1682,7 @@ impl Type {
                         .map(|(sub, sup)| sub.contains_tvar(name) || sup.contains_tvar(name))
                         .unwrap_or(false)
             }
-            Self::Poly { params, .. } => {
-                for param in params.iter() {
-                    match param {
-                        TyParam::Type(t) if t.contains_tvar(name) => {
-                            return true;
-                        }
-                        _ => {}
-                    }
-                }
-                false
-            }
+            Self::Poly { params, .. } => params.iter().any(|tp| tp.contains_var(name)),
             Self::Subr(subr) => subr.contains_tvar(name),
             // TODO: preds
             Self::Refinement(refine) => refine.t.contains_tvar(name),

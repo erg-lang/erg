@@ -761,6 +761,27 @@ impl TyParam {
         }
     }
 
+    pub fn contains_var(&self, name: &str) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_unbound() => {
+                fv.unbound_name().as_ref().map(|s| &s[..]) == Some(name)
+            }
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains_var(name),
+            Self::Type(t) => t.contains_tvar(name),
+            Self::Erased(t) => t.contains_tvar(name),
+            Self::Proj { obj, .. } => obj.contains_var(name),
+            Self::Array(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.contains_var(name)),
+            Self::Set(ts) => ts.iter().any(|t| t.contains_var(name)),
+            Self::Dict(ts) => ts
+                .iter()
+                .any(|(k, v)| k.contains_var(name) || v.contains_var(name)),
+            Self::UnaryOp { val, .. } => val.contains_var(name),
+            Self::BinOp { lhs, rhs, .. } => lhs.contains_var(name) || rhs.contains_var(name),
+            Self::App { args, .. } => args.iter().any(|p| p.contains_var(name)),
+            _ => false,
+        }
+    }
+
     pub fn is_cachable(&self) -> bool {
         match self {
             Self::FreeVar(_) => false,
