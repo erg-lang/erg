@@ -478,7 +478,8 @@ impl Context {
             Type::FreeVar(fv) if fv.constraint_is_sandwiched() => {
                 let (sub_t, super_t) = fv.get_subsup().unwrap();
                 if self.level <= fv.level().unwrap() {
-                    // REVIEW:
+                    // if fv == ?T(<: Int, :> Add(?T)), deref_tyvar(super_t) will cause infinite loop
+                    // so we need to force linking
                     fv.forced_undoable_link(&sub_t);
                     let res = self.validate_subsup(sub_t, super_t, variance, loc);
                     fv.undo();
