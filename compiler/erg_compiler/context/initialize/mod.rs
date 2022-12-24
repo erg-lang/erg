@@ -1942,6 +1942,20 @@ impl Context {
             poly("Map", vec![ty_tp(T.clone())]),
         )
         .quantify();
+        let O = mono_q("O", subtypeof(mono("Ord")));
+        // TODO: iterable should be non-empty
+        let t_max = nd_func(
+            vec![kw("iterable", poly("Iterable", vec![ty_tp(O.clone())]))],
+            None,
+            O.clone(),
+        )
+        .quantify();
+        let t_min = nd_func(
+            vec![kw("iterable", poly("Iterable", vec![ty_tp(O.clone())]))],
+            None,
+            O,
+        )
+        .quantify();
         let t_nat = nd_func(vec![kw("obj", Obj)], None, or(Nat, NoneType));
         // e.g. not(b: Bool!): Bool!
         let B = mono_q("B", subtypeof(Bool));
@@ -2005,6 +2019,8 @@ impl Context {
         );
         self.register_builtin_py_impl("len", t_len, Immutable, vis, Some("len"));
         self.register_builtin_py_impl("map", t_map, Immutable, vis, Some("map"));
+        self.register_builtin_py_impl("max", t_max, Immutable, vis, Some("max"));
+        self.register_builtin_py_impl("min", t_min, Immutable, vis, Some("min"));
         self.register_builtin_py_impl("not", t_not, Immutable, vis, None); // `not` is not a function in Python
         self.register_builtin_py_impl("oct", t_oct, Immutable, vis, Some("oct"));
         self.register_builtin_py_impl("ord", t_ord, Immutable, vis, Some("ord"));
