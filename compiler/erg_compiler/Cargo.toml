@@ -36,11 +36,11 @@ large_thread = [
 ]
 
 [dependencies]
-erg_common = { version = "0.6.0-beta.4", path = "../erg_common" }
-erg_parser = { version = "0.6.0-beta.4", path = "../erg_parser" }
+erg_common = { version = "0.6.0", path = "../erg_common" }
+erg_parser = { version = "0.6.0", path = "../erg_parser" }
 
 [build-dependencies]
-erg_common = { version = "0.6.0-beta.4", path = "../erg_common" }
+erg_common = { version = "0.6.0", path = "../erg_common" }
 
 [lib]
 path = "lib.rs"
