@@ -1340,20 +1340,18 @@ impl Context {
                     // pylyzer is a static analysis tool for Python.
                     // It can convert a Python script to an Erg AST for code analysis.
                     // There is also an option to output the analysis result as `d.er`. Use this if the system have pylyzer installed.
-                    match Command::new("pylyzer")
+                    // A type definition file may be generated even if not all type checks succeed.
+                    if let Ok(_status) = Command::new("pylyzer")
                         .arg("--dump-decl")
                         .arg(path.to_str().unwrap())
                         .spawn()
                         .and_then(|mut child| child.wait())
                     {
-                        Ok(status) if status.success() => {
-                            if let Some(path) =
-                                Self::resolve_decl_path(&self.cfg, Path::new(&__name__[..]))
-                            {
-                                return Ok(path);
-                            }
+                        if let Some(path) =
+                            Self::resolve_decl_path(&self.cfg, Path::new(&__name__[..]))
+                        {
+                            return Ok(path);
                         }
-                        _ => {}
                     }
                 }
                 let err = TyCheckError::import_error(
