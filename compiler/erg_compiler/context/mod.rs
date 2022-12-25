@@ -27,7 +27,6 @@ use erg_common::vis::Visibility;
 use erg_common::Str;
 use erg_common::{fn_name, get_hash, log};
 
-use crate::ty::typaram::TyParam;
 use crate::ty::value::ValueObj;
 use crate::ty::{Predicate, Type};
 use erg_parser::ast::DefKind;
@@ -97,72 +96,6 @@ impl std::fmt::Display for ClassDefType {
 impl ClassDefType {
     pub const fn impl_trait(class: Type, impl_trait: Type) -> Self {
         ClassDefType::ImplTrait { class, impl_trait }
-    }
-}
-
-/// ```
-/// # use erg_common::ty::{Type, TyParam};
-/// # use erg_compiler::context::TyParamIdx;
-///
-/// let r = Type::mono_q("R");
-/// let o = Type::mono_q("O");
-/// let search_from = Type::poly("Add", vec![TyParam::t(r.clone()), TyParam::t(o.clone())]);
-/// assert_eq!(TyParamIdx::search(&search_from, &o), Some(TyParamIdx::Nth(1)));
-/// let i = Type::mono_q("I");
-/// let f = Type::poly("F", vec![TyParam::t(o.clone()), TyParam::t(i.clone())]);
-/// let search_from = Type::poly("Add", vec![TyParam::t(r), TyParam::t(f)]);
-/// assert_eq!(TyParamIdx::search(&search_from, &o), Some(TyParamIdx::nested(1, TyParamIdx::Nth(0))));
-/// ```
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum TyParamIdx {
-    Nth(usize),
-    Nested { idx: usize, inner: Box<TyParamIdx> },
-}
-
-impl TyParamIdx {
-    pub fn search(search_from: &Type, target: &Type) -> Option<Self> {
-        match search_from {
-            Type::Poly { params, .. } => {
-                for (i, tp) in params.iter().enumerate() {
-                    match tp {
-                        TyParam::Type(t) if t.as_ref() == target => return Some(Self::Nth(i)),
-                        TyParam::Type(t) if t.is_monomorphic() => {}
-                        TyParam::Type(inner) => {
-                            if let Some(inner) = Self::search(inner, target) {
-                                return Some(Self::nested(i, inner));
-                            }
-                        }
-                        other => todo!("{other:?}"),
-                    }
-                }
-                None
-            }
-            _ => todo!(),
-        }
-    }
-
-    /// ```python
-    /// Nested(Nth(1), 0).select(F(X, G(Y, Z))) == Y
-    /// ```
-    pub fn select(self, from: &Type) -> Type {
-        match self {
-            Self::Nth(n) => {
-                let tps = from.typarams();
-                let tp = tps.get(n).unwrap();
-                match tp {
-                    TyParam::Type(t) => *t.clone(),
-                    _ => todo!(),
-                }
-            }
-            Self::Nested { .. } => todo!(),
-        }
-    }
-
-    pub fn nested(idx: usize, inner: Self) -> Self {
-        Self::Nested {
-            idx,
-            inner: Box::new(inner),
-        }
     }
 }
 

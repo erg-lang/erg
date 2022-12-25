@@ -25,7 +25,7 @@ jobs:
         rustup update stable
         cargo build --verbose
     - name: Run tests
-      run: cargo test --features large_thread --verbose
+      run: cargo test --features large_thread --verbose --all
     - uses: actions-rs/cargo@v1
       with:
         command: clippy

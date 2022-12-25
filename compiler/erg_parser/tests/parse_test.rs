@@ -1,5 +1,6 @@
 use erg_common::config::{ErgConfig, Input};
 use erg_common::error::MultiErrorDisplay;
+use erg_common::spawn::exec_new_thread;
 use erg_common::traits::Runnable;
 
 use erg_parser::error::ParserRunnerErrors;
@@ -51,7 +52,7 @@ fn parse_test2_advanced_syntax() -> Result<(), ParserRunnerErrors> {
     expect_success("tests/test2_advanced_syntax.er")
 }
 
-fn parse_test_from_code(file_path: &'static str) -> Result<(), ParserRunnerErrors> {
+fn _parse_test_from_code(file_path: &'static str) -> Result<(), ParserRunnerErrors> {
     let input = Input::File(file_path.into());
     let cfg = ErgConfig {
         input: input.clone(),
@@ -74,6 +75,10 @@ fn parse_test_from_code(file_path: &'static str) -> Result<(), ParserRunnerError
             Err(e)
         }
     }
+}
+
+fn parse_test_from_code(file_path: &'static str) -> Result<(), ParserRunnerErrors> {
+    exec_new_thread(move || _parse_test_from_code(file_path))
 }
 
 fn expect_success(file_path: &'static str) -> Result<(), ParserRunnerErrors> {

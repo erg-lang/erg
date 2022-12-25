@@ -318,6 +318,7 @@ impl StyledString {
     ///
     /// # Example
     /// ```
+    /// # use erg_common::style::StyledString;
     /// let s = String::from("Hello, world");
     /// StyledString::new(s, None, None);
     /// let s = "Hello, world";

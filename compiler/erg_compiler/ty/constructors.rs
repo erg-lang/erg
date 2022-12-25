@@ -397,7 +397,7 @@ pub fn proj_call<S: Into<Str>>(lhs: TyParam, attr_name: S, args: Vec<TyParam>) -
     }
 }
 
-/// ```rust
+/// ```erg
 /// {I: Int | I >= 0}
 /// => Refinement{
 ///     layout: TyParam::MonoQ "I",

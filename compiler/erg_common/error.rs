@@ -414,26 +414,28 @@ impl SubMessage {
     /// `msg` is Vec\<String\> instead of Option\<String\> because it can be used when there are multiple `msg`s as well as multiple lines.
     /// # Example
     /// ```
+    /// # use erg_common::error::{Location, SubMessage};
+    /// # use erg_common::style::{Color, StyledString};
+    /// let loc = Location::Line(1);
     /// let msg = SubMessage::ambiguous_new(loc, vec![], None); // this code same as only_loc()
     ///
-    /// let hint = Some("hint message here".to_string())
+    /// let hint = Some("hint message here".to_string());
     /// let msg = SubMessage::ambiguous_new(loc, vec![], hint);
     /// /* example
     ///    -------
     ///          `- hint message here
     /// */
     ///
-    /// let hint = Some("hint here".to_string())
-    /// let first = StyledString::new("1th message", Color::Red, None);
-    /// let second = StyledString::new("2th message", Color::White, None);
-    ///      :
-    /// let nth = StyledString::new("nth message", Color::Green, None);
+    /// let hint = Some("hint here".to_string());
+    /// let first = StyledString::new("1th message", Some(Color::Red), None);
+    /// let second = StyledString::new("2th message", Some(Color::White), None);
+    /// let nth = StyledString::new("nth message", Some(Color::Green), None);
     /// let msg = SubMessage::ambiguous_new(
     ///     loc,
     ///     vec![
     ///         first.to_string(),
     ///         second.to_string(),
-    ///         ...,
+    ///         // ...,
     ///         nth.to_string(),
     ///     ],
     ///     hint);
@@ -457,6 +459,8 @@ impl SubMessage {
     /// In this case, error position is just modified
     /// # Example
     /// ```
+    /// # use erg_common::error::{Location, SubMessage};
+    /// let loc = Location::Line(1);
     /// let sub_msg = SubMessage::only_loc(loc);
     /// ```
     pub fn only_loc(loc: Location) -> Self {

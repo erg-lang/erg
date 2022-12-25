@@ -790,7 +790,7 @@ pub enum RefineKind {
 }
 
 /// e.g.
-/// ```
+/// ```erg
 /// {I: Int | I >= 0}
 /// {_: StrWithLen N | N >= 0}
 /// {T: (Int, Int) | T.0 >= 0, T.1 >= 0}
