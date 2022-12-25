@@ -1,3 +1,4 @@
+use std::io::BufRead;
 use std::option::Option;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -1321,6 +1322,15 @@ impl Context {
     fn get_path(&self, mod_name: &Literal, __name__: Str) -> CompileResult<PathBuf> {
         match Self::resolve_decl_path(&self.cfg, Path::new(&__name__[..])) {
             Some(path) => {
+                if let Ok(first_line) = std::fs::File::open(&path).and_then(|f| {
+                    let mut line = "".to_string();
+                    std::io::BufReader::new(f).read_line(&mut line)?;
+                    Ok(line)
+                }) {
+                    if first_line.starts_with("# failed") {
+                        let _ = self.try_gen_py_decl_file(&__name__);
+                    }
+                }
                 if self.is_pystd_main_module(path.as_path())
                     && !BUILTIN_PYTHON_MODS.contains(&&__name__[..])
                 {
@@ -1336,23 +1346,8 @@ impl Context {
                 Ok(path)
             }
             None => {
-                if let Ok(path) = self.cfg.input.local_py_resolve(Path::new(&__name__[..])) {
-                    // pylyzer is a static analysis tool for Python.
-                    // It can convert a Python script to an Erg AST for code analysis.
-                    // There is also an option to output the analysis result as `d.er`. Use this if the system have pylyzer installed.
-                    // A type definition file may be generated even if not all type checks succeed.
-                    if let Ok(_status) = Command::new("pylyzer")
-                        .arg("--dump-decl")
-                        .arg(path.to_str().unwrap())
-                        .spawn()
-                        .and_then(|mut child| child.wait())
-                    {
-                        if let Some(path) =
-                            Self::resolve_decl_path(&self.cfg, Path::new(&__name__[..]))
-                        {
-                            return Ok(path);
-                        }
-                    }
+                if let Ok(path) = self.try_gen_py_decl_file(&__name__) {
+                    return Ok(path);
                 }
                 let err = TyCheckError::import_error(
                     self.cfg.input.clone(),
@@ -1371,6 +1366,26 @@ impl Context {
                 Err(TyCheckErrors::from(err))
             }
         }
+    }
+
+    fn try_gen_py_decl_file(&self, __name__: &Str) -> Result<PathBuf, ()> {
+        if let Ok(path) = self.cfg.input.local_py_resolve(Path::new(&__name__[..])) {
+            // pylyzer is a static analysis tool for Python.
+            // It can convert a Python script to an Erg AST for code analysis.
+            // There is also an option to output the analysis result as `d.er`. Use this if the system have pylyzer installed.
+            // A type definition file may be generated even if not all type checks succeed.
+            if let Ok(_status) = Command::new("pylyzer")
+                .arg("--dump-decl")
+                .arg(path.to_str().unwrap())
+                .spawn()
+                .and_then(|mut child| child.wait())
+            {
+                if let Some(path) = Self::resolve_decl_path(&self.cfg, Path::new(&__name__[..])) {
+                    return Ok(path);
+                }
+            }
+        }
+        Err(())
     }
 
     fn import_py_mod(&self, mod_name: &Literal) -> CompileResult<PathBuf> {
