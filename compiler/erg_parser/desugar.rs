@@ -305,9 +305,9 @@ impl Desugarer {
 
     /// `fib 0 = 0; fib 1 = 1; fib n = fib(n-1) + fib(n-2)`
     /// -> `fib n = match n, (0 -> 0), (1 -> 1), n -> fib(n-1) + fib(n-2)`
-    fn desugar_multiple_pattern_def(&self, mut module: Module) -> Module {
+    fn desugar_multiple_pattern_def(&self, module: Module) -> Module {
         let mut new = Module::with_capacity(module.len());
-        while let Some(chunk) = module.lpop() {
+        for chunk in module.into_iter() {
             match chunk {
                 Expr::Def(def) if def.is_subr() => {
                     if let Some(Expr::Def(previous)) = new.last() {
