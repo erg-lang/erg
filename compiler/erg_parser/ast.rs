@@ -1369,7 +1369,6 @@ impl ConstAccessor {
     }
 }
 
-/// DictはキーつきArray(型としては別物)
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstArray {
     pub l_sqbr: Token,
@@ -1389,7 +1388,7 @@ impl NestedDisplay for ConstArray {
 }
 
 impl_display_from_nested!(ConstArray);
-impl_locational!(ConstArray, l_sqbr, r_sqbr);
+impl_locational!(ConstArray, l_sqbr, elems, r_sqbr);
 
 impl ConstArray {
     pub fn new(l_sqbr: Token, r_sqbr: Token, elems: ConstArgs, guard: Option<ConstExpr>) -> Self {
@@ -1411,15 +1410,70 @@ impl ConstArray {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ConstSet {
+    pub l_brace: Token,
+    pub r_brace: Token,
+    pub elems: ConstArgs,
+}
+
+impl NestedDisplay for ConstSet {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(f, "{{{}}}", self.elems)
+    }
+}
+
+impl_display_from_nested!(ConstSet);
+impl_locational!(ConstSet, l_brace, elems, r_brace);
+
+impl ConstSet {
+    pub fn new(l_brace: Token, r_brace: Token, elems: ConstArgs) -> Self {
+        Self {
+            l_brace,
+            r_brace,
+            elems,
+        }
+    }
+
+    pub fn downcast(self) -> Set {
+        Set::Normal(NormalSet::new(
+            self.l_brace,
+            self.r_brace,
+            self.elems.downcast(),
+        ))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ConstKeyValue {
+    pub key: ConstExpr,
+    pub value: ConstExpr,
+}
+
+impl NestedDisplay for ConstKeyValue {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(f, "{}: {}", self.key, self.value)
+    }
+}
+
+impl_display_from_nested!(ConstKeyValue);
+impl_locational!(ConstKeyValue, key, value);
+
+impl ConstKeyValue {
+    pub const fn new(key: ConstExpr, value: ConstExpr) -> Self {
+        Self { key, value }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstDict {
     l_brace: Token,
     r_brace: Token,
-    pub attrs: ConstArgs,
+    pub kvs: Vec<ConstKeyValue>,
 }
 
 impl NestedDisplay for ConstDict {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "{{{}}}", self.attrs)
+        write!(f, "{{{}}}", fmt_vec(&self.kvs))
     }
 }
 
@@ -1427,17 +1481,41 @@ impl_display_from_nested!(ConstDict);
 impl_locational!(ConstDict, l_brace, r_brace);
 
 impl ConstDict {
-    pub const fn new(l_brace: Token, r_brace: Token, attrs: ConstArgs) -> Self {
+    pub const fn new(l_brace: Token, r_brace: Token, kvs: Vec<ConstKeyValue>) -> Self {
         Self {
             l_brace,
             r_brace,
-            attrs,
+            kvs,
         }
     }
 
     /*pub fn downcast(self) -> Dict {
         Dict::Normal(NormalDict::new(self.l_brace, self.r_brace, self.attrs.downcast()))
     }*/
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ConstTuple {
+    pub elems: ConstArgs,
+}
+
+impl NestedDisplay for ConstTuple {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(f, "({})", self.elems)
+    }
+}
+
+impl_display_from_nested!(ConstTuple);
+impl_locational!(ConstTuple, elems);
+
+impl ConstTuple {
+    pub const fn new(elems: ConstArgs) -> Self {
+        Self { elems }
+    }
+
+    pub fn downcast(self) -> Tuple {
+        Tuple::Normal(NormalTuple::new(self.elems.downcast()))
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -1542,15 +1620,16 @@ pub enum ConstExpr {
     Accessor(ConstAccessor),
     App(ConstApp),
     Array(ConstArray),
-    Set(Set),
+    Set(ConstSet),
     Dict(ConstDict),
+    Tuple(ConstTuple),
     BinOp(ConstBinOp),
     UnaryOp(ConstUnaryOp),
 }
 
-impl_nested_display_for_chunk_enum!(ConstExpr; Lit, Accessor, App, Array, Dict, BinOp, UnaryOp, Erased, Set);
+impl_nested_display_for_chunk_enum!(ConstExpr; Lit, Accessor, App, Array, Set, Dict, Tuple, BinOp, UnaryOp, Erased, Set);
 impl_display_from_nested!(ConstExpr);
-impl_locational_for_enum!(ConstExpr; Lit, Accessor, App, Array, Dict, BinOp, UnaryOp, Erased, Set);
+impl_locational_for_enum!(ConstExpr; Lit, Accessor, App, Array, Set Dict, Tuple, BinOp, UnaryOp, Erased, Set);
 
 impl ConstExpr {
     pub fn need_to_be_closed(&self) -> bool {

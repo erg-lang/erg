@@ -901,7 +901,7 @@ impl ASTLowerer {
                     other => {
                         log!(err "todo: {other}");
                         return unreachable_error!(LowerErrors, LowerError, self.ctx);
-                    },
+                    }
                 };
                 let arg_t = call.args.get(0).unwrap().ref_t();
                 self.ctx.sub_unify(arg_t, &ret_t, call.loc(), None)?;

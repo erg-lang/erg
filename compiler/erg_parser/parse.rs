@@ -3086,8 +3086,56 @@ impl Parser {
                 other => Err(ParseError::feature_error(
                     line!() as usize,
                     other.loc(),
-                    "???",
+                    "const array comprehension",
                 )),
+            },
+            Expr::Set(set) => match set {
+                Set::Normal(set) => {
+                    let (elems, _, _) = set.elems.deconstruct();
+                    let mut const_elems = vec![];
+                    for elem in elems.into_iter() {
+                        let const_expr = Self::validate_const_expr(elem.expr)?;
+                        const_elems.push(ConstPosArg::new(const_expr));
+                    }
+                    let elems = ConstArgs::new(const_elems, vec![], None);
+                    let const_set = ConstSet::new(set.l_brace, set.r_brace, elems);
+                    Ok(ConstExpr::Set(const_set))
+                }
+                other => Err(ParseError::feature_error(
+                    line!() as usize,
+                    other.loc(),
+                    "const set comprehension",
+                )),
+            },
+            Expr::Dict(dict) => match dict {
+                Dict::Normal(dict) => {
+                    let mut const_kvs = vec![];
+                    for kv in dict.kvs.into_iter() {
+                        let key = Self::validate_const_expr(kv.key)?;
+                        let value = Self::validate_const_expr(kv.value)?;
+                        const_kvs.push(ConstKeyValue::new(key, value));
+                    }
+                    let const_dict = ConstDict::new(dict.l_brace, dict.r_brace, const_kvs);
+                    Ok(ConstExpr::Dict(const_dict))
+                }
+                other => Err(ParseError::feature_error(
+                    line!() as usize,
+                    other.loc(),
+                    "const dict comprehension",
+                )),
+            },
+            Expr::Tuple(tuple) => match tuple {
+                Tuple::Normal(tup) => {
+                    let (elems, _, paren) = tup.elems.deconstruct();
+                    let mut const_elems = vec![];
+                    for elem in elems.into_iter() {
+                        let const_expr = Self::validate_const_expr(elem.expr)?;
+                        const_elems.push(ConstPosArg::new(const_expr));
+                    }
+                    let elems = ConstArgs::new(const_elems, vec![], paren);
+                    let const_tup = ConstTuple::new(elems);
+                    Ok(ConstExpr::Tuple(const_tup))
+                }
             },
             Expr::BinOp(bin) => {
                 let mut args = bin.args.into_iter();
@@ -3099,6 +3147,24 @@ impl Parser {
                 let mut args = unary.args.into_iter();
                 let arg = Self::validate_const_expr(*args.next().unwrap())?;
                 Ok(ConstExpr::UnaryOp(ConstUnaryOp::new(unary.op, arg)))
+            }
+            Expr::Call(call) => {
+                let obj = Self::validate_const_expr(*call.obj)?;
+                let ConstExpr::Accessor(acc) = obj else {
+                    return Err(ParseError::feature_error(
+                        line!() as usize,
+                        obj.loc(),
+                        "complex const function call",
+                    ));
+                };
+                let (pos_args, _, paren) = call.args.deconstruct();
+                let mut const_pos_args = vec![];
+                for elem in pos_args.into_iter() {
+                    let const_expr = Self::validate_const_expr(elem.expr)?;
+                    const_pos_args.push(ConstPosArg::new(const_expr));
+                }
+                let args = ConstArgs::new(const_pos_args, vec![], paren);
+                Ok(ConstExpr::App(ConstApp::new(acc, args)))
             }
             // TODO: App, Record,
             other => Err(ParseError::syntax_error(
