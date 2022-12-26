@@ -98,9 +98,9 @@ pub enum TokenKind {
     NotInOp,
     /// `sub` (subtype of)
     SubOp,
-    /// `is`
+    /// `is!`
     IsOp,
-    /// `isnot`
+    /// `isnot!`
     IsNotOp,
     /// `and`
     AndOp,

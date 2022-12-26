@@ -236,7 +236,7 @@ impl Lexer /*<'a>*/ {
     }
 
     // +, -, * etc. may be pre/bin
-    // and, or, is, isnot, in, notin, as, dot, cross may be bin/function
+    // and, or, is!, isnot!, in, notin, as, dot, cross may be bin/function
     const fn is_bin_position(&self) -> Option<bool> {
         match self.prev_token.category() {
             // unary: `[ +`, `= +`, `+ +`, `, +`, `:: +`
@@ -648,8 +648,8 @@ impl Lexer /*<'a>*/ {
             "or" => OrOp,
             "in" => InOp,
             "notin" => NotInOp,
-            "is" => IsOp,
-            "isnot" => IsNotOp,
+            "is!" => IsOp,
+            "isnot!" => IsNotOp,
             "dot" => DotOp,
             "cross" => CrossOp,
             "ref" => RefOp,

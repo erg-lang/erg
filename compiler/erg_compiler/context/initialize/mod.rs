@@ -2366,6 +2366,9 @@ impl Context {
         let M = mono_q("M", subtypeof(poly("Div", vec![ty_tp(M)])));
         let op_t = bin_op(M.clone(), M.clone(), proj(M, "ModOutput")).quantify();
         self.register_builtin_impl("__mod__", op_t, Const, Private);
+        let op_t = nd_proc(vec![kw("lhs", Obj), kw("rhs", Obj)], None, Bool);
+        self.register_builtin_impl("__is__!", op_t.clone(), Const, Private);
+        self.register_builtin_impl("__isnot__!", op_t, Const, Private);
         let E = mono_q("E", subtypeof(mono("Eq")));
         let op_t = bin_op(E.clone(), E, Bool).quantify();
         self.register_builtin_impl("__eq__", op_t.clone(), Const, Private);

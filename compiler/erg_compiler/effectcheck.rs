@@ -7,6 +7,7 @@ use erg_common::log;
 use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Visibility;
 use erg_common::Str;
+use erg_parser::token::TokenKind;
 use Visibility::*;
 
 use crate::ty::HasType;
@@ -419,6 +420,16 @@ impl SideEffectChecker {
             Expr::BinOp(bin) => {
                 self.check_expr(&bin.lhs);
                 self.check_expr(&bin.rhs);
+                if (bin.op.kind == TokenKind::IsOp || bin.op.kind == TokenKind::IsNotOp)
+                    && !self.in_context_effects_allowed()
+                {
+                    self.errs.push(EffectError::has_effect(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        expr,
+                        self.full_path(),
+                    ));
+                }
             }
             Expr::Lambda(lambda) => {
                 let is_proc = lambda.is_procedural();

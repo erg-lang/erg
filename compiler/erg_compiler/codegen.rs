@@ -1427,6 +1427,7 @@ impl PyCodeGenerator {
             TokenKind::Mod => Opcode310::BINARY_MODULO,
             TokenKind::AndOp => Opcode310::BINARY_AND,
             TokenKind::OrOp => Opcode310::BINARY_OR,
+            TokenKind::IsOp | TokenKind::IsNotOp => Opcode310::IS_OP,
             TokenKind::Less
             | TokenKind::LessEq
             | TokenKind::DblEq
@@ -1456,6 +1457,8 @@ impl PyCodeGenerator {
             TokenKind::NotEq => 3,
             TokenKind::Gre => 4,
             TokenKind::GreEq => 5,
+            TokenKind::IsOp => 0,
+            TokenKind::IsNotOp => 1,
             TokenKind::LeftOpen
             | TokenKind::RightOpen
             | TokenKind::Closed
@@ -1489,6 +1492,7 @@ impl PyCodeGenerator {
             | TokenKind::Mod
             | TokenKind::AndOp
             | TokenKind::OrOp => Opcode311::BINARY_OP,
+            TokenKind::IsOp | TokenKind::IsNotOp => Opcode311::IS_OP,
             TokenKind::Less
             | TokenKind::LessEq
             | TokenKind::DblEq
@@ -1533,6 +1537,8 @@ impl PyCodeGenerator {
             TokenKind::NotEq => 3,
             TokenKind::Gre => 4,
             TokenKind::GreEq => 5,
+            TokenKind::IsOp => 0,
+            TokenKind::IsNotOp => 1,
             TokenKind::LeftOpen
             | TokenKind::RightOpen
             | TokenKind::Closed
