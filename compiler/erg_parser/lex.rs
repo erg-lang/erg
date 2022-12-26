@@ -323,6 +323,8 @@ impl Lexer /*<'a>*/ {
                     (']', '#') => {
                         nest_level -= 1;
                         if nest_level == 0 {
+                            self.consume(); // ]
+                            self.consume(); // #
                             return Ok(());
                         }
                     }
@@ -448,8 +450,11 @@ impl Lexer /*<'a>*/ {
                 if let Err(e) = self.lex_multi_line_comment() {
                     return Some(Err(e));
                 }
-            }
-            if let Err(e) = self.lex_comment() {
+                let indent_dedent = self.lex_space_indent_dedent();
+                if indent_dedent.is_some() {
+                    return indent_dedent;
+                }
+            } else if let Err(e) = self.lex_comment() {
                 return Some(Err(e));
             }
         }
@@ -1059,8 +1064,11 @@ impl Iterator for Lexer /*<'a>*/ {
                 if let Err(e) = self.lex_multi_line_comment() {
                     return Some(Err(e));
                 }
-            }
-            if let Err(e) = self.lex_comment() {
+                let indent_dedent = self.lex_space_indent_dedent();
+                if indent_dedent.is_some() {
+                    return indent_dedent;
+                }
+            } else if let Err(e) = self.lex_comment() {
                 return Some(Err(e));
             }
         }
