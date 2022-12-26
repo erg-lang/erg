@@ -1,0 +1,7 @@
+#[]#print! "hi"#[ if there isn't `;`, this code is evaluated `print! "hi"h print! "there"`
+]#;print! "there"
+print! #[]#0, 1#[]#, 2,#[]# 3
+a = {
+#[first]#    #[second]#name #[third]#=#[fourth]#"John"#[fifth]#
+}
+Del a
