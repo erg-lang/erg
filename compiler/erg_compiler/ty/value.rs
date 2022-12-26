@@ -902,10 +902,18 @@ impl ValueObj {
                         TyParam::value(arr.len()).mutate(),
                     ],
                 ),
-                Self::Dict(_dict) => todo!(),
-                Self::Code(_) => Type::Code,
-                Self::None => Type::NoneType,
-                other => panic!("{other} object cannot be mutated"),
+                Self::Dict(dict) => poly(
+                    "Dict!",
+                    vec![TyParam::Dict(
+                        dict.iter()
+                            .map(|(k, v)| (TyParam::value(k.clone()), TyParam::value(v.clone())))
+                            .collect(),
+                    )],
+                ),
+                other => {
+                    log!(err "{other} object cannot be mutated");
+                    other.class()
+                }
             },
             Self::Illegal => Type::Failure,
         }
@@ -913,9 +921,9 @@ impl ValueObj {
 
     pub fn try_cmp(&self, other: &Self) -> Option<Ordering> {
         match (self, other) {
-            (l, r) if l.is_num() && r.is_num() => f64::try_from(l)
-                .unwrap()
-                .partial_cmp(&f64::try_from(r).unwrap()),
+            (l, r) if l.is_num() && r.is_num() => {
+                f64::try_from(l).ok()?.partial_cmp(&f64::try_from(r).ok()?)
+            }
             (Self::Inf, n) | (n, Self::NegInf) if n.is_num() => Some(Ordering::Greater),
             (n, Self::Inf) | (Self::NegInf, n) if n.is_num() => Some(Ordering::Less),
             (Self::NegInf, Self::Inf) => Some(Ordering::Less),
