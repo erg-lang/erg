@@ -450,10 +450,6 @@ impl Lexer /*<'a>*/ {
                 if let Err(e) = self.lex_multi_line_comment() {
                     return Some(Err(e));
                 }
-                let indent_dedent = self.lex_space_indent_dedent();
-                if indent_dedent.is_some() {
-                    return indent_dedent;
-                }
             } else if let Err(e) = self.lex_comment() {
                 return Some(Err(e));
             }
@@ -1063,10 +1059,6 @@ impl Iterator for Lexer /*<'a>*/ {
             if let Some('[') = self.peek_next_ch() {
                 if let Err(e) = self.lex_multi_line_comment() {
                     return Some(Err(e));
-                }
-                let indent_dedent = self.lex_space_indent_dedent();
-                if indent_dedent.is_some() {
-                    return indent_dedent;
                 }
             } else if let Err(e) = self.lex_comment() {
                 return Some(Err(e));
