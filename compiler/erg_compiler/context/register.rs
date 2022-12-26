@@ -1,7 +1,7 @@
 use std::io::BufRead;
 use std::option::Option;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 use erg_common::env::erg_pystd_path;
 use erg_common::levenshtein::get_similar_name;
@@ -1370,6 +1370,11 @@ impl Context {
 
     fn try_gen_py_decl_file(&self, __name__: &Str) -> Result<PathBuf, ()> {
         if let Ok(path) = self.cfg.input.local_py_resolve(Path::new(&__name__[..])) {
+            let output = if self.cfg.quiet_repl {
+                Stdio::null()
+            } else {
+                Stdio::inherit()
+            };
             // pylyzer is a static analysis tool for Python.
             // It can convert a Python script to an Erg AST for code analysis.
             // There is also an option to output the analysis result as `d.er`. Use this if the system have pylyzer installed.
@@ -1377,6 +1382,7 @@ impl Context {
             if let Ok(_status) = Command::new("pylyzer")
                 .arg("--dump-decl")
                 .arg(path.to_str().unwrap())
+                .stdout(output)
                 .spawn()
                 .and_then(|mut child| child.wait())
             {
