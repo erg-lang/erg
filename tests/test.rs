@@ -224,3 +224,8 @@ fn exec_callable() -> Result<(), ()> {
 fn exec_multiline_invalid_next() -> Result<(), ()> {
     expect_failure("tests/should_err/multi_line_invalid_nest.er", 1)
 }
+
+#[test]
+fn exec_comment() -> Result<(), ()> {
+    expect_success("tests/should_ok/comment.er")
+}
