@@ -1,7 +1,11 @@
 #[]#print! "hi"#[ if there isn't `;`, this code is evaluated `print! "hi"h print! "there"`
 ]#;print! "there"
-print! #[]#0, 1#[]#, 2,#[]# 3
+print! #[]#0, 1#[]#, 2,#[]#3
 a = {
-#[first]#    #[second]#name #[third]#=#[fourth]#"John"#[fifth]#
+    #[first]#name #[second]#=#[third]#"John"#[fouth]#
 }
 Del a
+#[]#print! 0
+print!#[]#1
+#[]#print! 2#[
+]#
