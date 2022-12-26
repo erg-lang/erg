@@ -1,14 +1,14 @@
 [package]
 name = "erg"
-version = "0.6.0"
 description = "The Erg programming language"
-authors = ["erg-lang team <moderation.erglang@gmail.com>"]
-license = "MIT OR Apache-2.0"
-edition = "2021"
-repository = "https://github.com/erg-lang/erg"
 documentation = "https://docs.rs/erg"
-homepage = "https://erg-lang.org/"
 keywords = ["erg", "programming-language"]
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+repository.workspace = true
+homepage.workspace = true
 
 [workspace]
 members = [
@@ -52,10 +52,15 @@ large_thread = [
     "erg_compiler/large_thread"
 ]
 
-[dependencies]
+[workspace.dependencies]
 erg_common = { version = "0.6.0", path = "./compiler/erg_common" }
 erg_parser = { version = "0.6.0", path = "./compiler/erg_parser" }
 erg_compiler = { version = "0.6.0", path = "./compiler/erg_compiler" }
+
+[dependencies]
+erg_common = { workspace = true }
+erg_parser = { workspace = true }
+erg_compiler = { workspace = true }
 
 [lib]
 path = "src/lib.rs"

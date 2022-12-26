@@ -19,7 +19,7 @@ pretty = ["erg_common/pretty"]
 large_thread = ["erg_common/large_thread"]
 
 [dependencies]
-erg_common = { version = "0.6.0", path = "../erg_common" }
+erg_common = { workspace = true, path = "../erg_common" }
 unicode-xid = "0.2.4"
 
 [lib]
