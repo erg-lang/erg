@@ -1370,10 +1370,10 @@ impl Context {
 
     fn try_gen_py_decl_file(&self, __name__: &Str) -> Result<PathBuf, ()> {
         if let Ok(path) = self.cfg.input.local_py_resolve(Path::new(&__name__[..])) {
-            let output = if self.cfg.quiet_repl {
-                Stdio::null()
+            let (out, err) = if self.cfg.quiet_repl {
+                (Stdio::null(), Stdio::null())
             } else {
-                Stdio::inherit()
+                (Stdio::inherit(), Stdio::inherit())
             };
             // pylyzer is a static analysis tool for Python.
             // It can convert a Python script to an Erg AST for code analysis.
@@ -1382,7 +1382,8 @@ impl Context {
             if let Ok(_status) = Command::new("pylyzer")
                 .arg("--dump-decl")
                 .arg(path.to_str().unwrap())
-                .stdout(output)
+                .stdout(out)
+                .stderr(err)
                 .spawn()
                 .and_then(|mut child| child.wait())
             {
