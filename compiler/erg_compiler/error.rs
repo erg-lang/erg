@@ -26,14 +26,14 @@ macro_rules! unreachable_error {
     ($Strcs: ident, $Strc: ident, $ctx: expr) => {
         Err($Strcs::from($Strc::unreachable(
             $ctx.cfg.input.clone(),
-            fn_name!(),
+            $crate::erg_common::fn_name!(),
             line!(),
         )))
     };
     ($Strc: ident, $ctx: expr) => {
         Err($Strc::unreachable(
             $ctx.cfg.input.clone(),
-            fn_name!(),
+            $crate::erg_common::fn_name!(),
             line!(),
         ))
     };

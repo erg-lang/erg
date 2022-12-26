@@ -27,6 +27,7 @@ use crate::ty::typaram::{IntervalOp, TyParam, TyParamOrdering};
 use crate::ty::value::ValueObj;
 use crate::ty::{HasType, ParamTy, Predicate, SubrKind, Type};
 use crate::type_feature_error;
+use crate::unreachable_error;
 use TyParamOrdering::*;
 use Type::*;
 
@@ -397,7 +398,7 @@ impl Context {
                     )))
                 }
             }
-            other => type_feature_error!(self, other.loc(), &format!("instantiating {other}")),
+            other => type_feature_error!(self, other.loc(), &format!("instantiating type {other}")),
         }
     }
 
@@ -604,7 +605,49 @@ impl Context {
                     self.get_similar_name(name.inspect()),
                 )))
             }
-            other => type_feature_error!(self, other.loc(), &format!("instantiating {other}")),
+            ast::ConstExpr::Array(array) => {
+                let mut tp_arr = vec![];
+                for (i, elem) in array.elems.pos_args().enumerate() {
+                    let el =
+                        self.instantiate_const_expr(&elem.expr, Some((self, i)), tmp_tv_cache)?;
+                    tp_arr.push(el);
+                }
+                Ok(TyParam::Array(tp_arr))
+            }
+            ast::ConstExpr::Set(set) => {
+                let mut tp_set = set! {};
+                for (i, elem) in set.elems.pos_args().enumerate() {
+                    let el =
+                        self.instantiate_const_expr(&elem.expr, Some((self, i)), tmp_tv_cache)?;
+                    tp_set.insert(el);
+                }
+                Ok(TyParam::Set(tp_set))
+            }
+            ast::ConstExpr::Dict(dict) => {
+                let mut tp_dict = dict! {};
+                for (i, elem) in dict.kvs.iter().enumerate() {
+                    let key =
+                        self.instantiate_const_expr(&elem.key, Some((self, i)), tmp_tv_cache)?;
+                    let val =
+                        self.instantiate_const_expr(&elem.value, Some((self, i)), tmp_tv_cache)?;
+                    tp_dict.insert(key, val);
+                }
+                Ok(TyParam::Dict(tp_dict))
+            }
+            ast::ConstExpr::Tuple(tuple) => {
+                let mut tp_tuple = vec![];
+                for (i, elem) in tuple.elems.pos_args().enumerate() {
+                    let el =
+                        self.instantiate_const_expr(&elem.expr, Some((self, i)), tmp_tv_cache)?;
+                    tp_tuple.push(el);
+                }
+                Ok(TyParam::Tuple(tp_tuple))
+            }
+            other => type_feature_error!(
+                self,
+                other.loc(),
+                &format!("instantiating const expression {other}")
+            ),
         }
     }
 
@@ -614,10 +657,23 @@ impl Context {
         erased_idx: Option<(&Context, usize)>,
         tmp_tv_cache: &mut TyVarCache,
     ) -> TyCheckResult<Type> {
-        match self.instantiate_const_expr(expr, erased_idx, tmp_tv_cache)? {
+        let tp = self.instantiate_const_expr(expr, erased_idx, tmp_tv_cache)?;
+        self.instantiate_tp_as_type(tp, expr.loc())
+    }
+
+    fn instantiate_tp_as_type(&self, tp: TyParam, loc: Location) -> TyCheckResult<Type> {
+        match tp {
             TyParam::Type(t) => Ok(*t),
             TyParam::Value(ValueObj::Type(t)) => Ok(t.into_typ()),
-            other => type_feature_error!(self, expr.loc(), &format!("{other}")),
+            TyParam::Set(set) => {
+                let t = set
+                    .iter()
+                    .next()
+                    .and_then(|tp| self.get_tp_t(tp).ok())
+                    .unwrap_or(Type::Never);
+                Ok(tp_enum(t, set))
+            }
+            other => type_feature_error!(self, loc, &format!("instantiate `{other}` as type")),
         }
     }
 
@@ -855,7 +911,11 @@ impl Context {
                 ))
             }
             TypeSpec::TypeApp { spec, args } => {
-                type_feature_error!(self, t_spec.loc(), &format!("instantiating {spec}{args}"))
+                type_feature_error!(
+                    self,
+                    t_spec.loc(),
+                    &format!("instantiating type spec {spec}{args}")
+                )
             }
         }
     }
@@ -1014,7 +1074,9 @@ impl Context {
             | TyParam::Mono(_)
             | TyParam::FreeVar(_)
             | TyParam::Erased(_)) => Ok(p),
-            other => type_feature_error!(self, loc, &format!("instantiating {other}")),
+            other => {
+                type_feature_error!(self, loc, &format!("instantiating type-parameter {other}"))
+            }
         }
     }
 
@@ -1136,7 +1198,8 @@ impl Context {
                 Ok(poly(name, params))
             }
             Quantified(_) => {
-                panic!("a quantified type should not be instantiated, instantiate the inner type")
+                log!(err "a quantified type should not be instantiated, instantiate the inner type");
+                unreachable_error!(TyCheckErrors, TyCheckError, self)
             }
             FreeVar(fv) if fv.is_linked() => {
                 self.instantiate_t_inner(fv.crack().clone(), tmp_tv_cache, loc)
@@ -1165,7 +1228,7 @@ impl Context {
                 Ok(not(l, r))
             }
             other if other.is_monomorphic() => Ok(other),
-            other => type_feature_error!(self, loc, &format!("instantiating {other}")),
+            other => type_feature_error!(self, loc, &format!("instantiating type {other}")),
         }
     }
 
