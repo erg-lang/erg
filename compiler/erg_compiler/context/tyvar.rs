@@ -696,11 +696,35 @@ impl Context {
                 errs.extend(es);
             }
         }
+        self.resolve_ctx_vars();
         if errs.is_empty() {
             Ok(hir)
         } else {
             Err((hir, errs))
         }
+    }
+
+    fn resolve_ctx_vars(&mut self) {
+        let mut locals = mem::take(&mut self.locals);
+        let mut params = mem::take(&mut self.params);
+        let mut methods_list = mem::take(&mut self.methods_list);
+        for (name, vi) in locals.iter_mut() {
+            if let Ok(t) = self.deref_tyvar(mem::take(&mut vi.t), Variance::Covariant, name.loc()) {
+                vi.t = t;
+            }
+        }
+        for (name, vi) in params.iter_mut() {
+            let loc = name.as_ref().map(|n| n.loc()).unwrap_or_default();
+            if let Ok(t) = self.deref_tyvar(mem::take(&mut vi.t), Variance::Covariant, loc) {
+                vi.t = t;
+            }
+        }
+        for (_, methods) in methods_list.iter_mut() {
+            methods.resolve_ctx_vars();
+        }
+        self.locals = locals;
+        self.params = params;
+        self.methods_list = methods_list;
     }
 
     fn resolve_expr_t(&self, expr: &mut hir::Expr) -> TyCheckResult<()> {

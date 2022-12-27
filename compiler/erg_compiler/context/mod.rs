@@ -957,6 +957,7 @@ impl Context {
         }
     }
 
+    /// unlike `pop`, `outer` must be `None`.
     pub fn pop_mod(&mut self) -> Option<Context> {
         if self.outer.is_some() {
             log!(err "not in the top-level context");
