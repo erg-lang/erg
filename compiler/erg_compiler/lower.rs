@@ -821,13 +821,22 @@ impl ASTLowerer {
         for arg in pos_args.into_iter() {
             match self.lower_expr(arg.expr) {
                 Ok(expr) => hir_args.pos_args.push(hir::PosArg::new(expr)),
-                Err(es) => errs.extend(es),
+                Err(es) => {
+                    errs.extend(es);
+                    hir_args.push_pos(hir::PosArg::new(hir::Expr::Dummy(hir::Dummy::empty())));
+                }
             }
         }
         for arg in kw_args.into_iter() {
             match self.lower_expr(arg.expr) {
                 Ok(expr) => hir_args.push_kw(hir::KwArg::new(arg.keyword, expr)),
-                Err(es) => errs.extend(es),
+                Err(es) => {
+                    errs.extend(es);
+                    hir_args.push_kw(hir::KwArg::new(
+                        arg.keyword,
+                        hir::Expr::Dummy(hir::Dummy::empty()),
+                    ));
+                }
             }
         }
         let mut obj = match self.lower_expr(*call.obj) {
@@ -837,10 +846,6 @@ impl ASTLowerer {
                 return Err(errs);
             }
         };
-        // Calling get_call_t with incorrect arguments does not provide meaningful information
-        if !errs.is_empty() {
-            return Err(errs);
-        }
         let vi = match self.ctx.get_call_t(
             &obj,
             &call.attr_name,
