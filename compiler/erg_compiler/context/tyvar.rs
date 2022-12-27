@@ -657,22 +657,27 @@ impl Context {
         super_exists
     }
 
-    fn check_trait_impl(
-        &self,
-        class: &Type,
-        trait_: &Type,
-        loc: Location,
-    ) -> SingleTyCheckResult<()> {
+    fn check_trait_impl(&self, class: &Type, trait_: &Type, loc: Location) -> TyCheckResult<()> {
         if !self.trait_impl_exists(class, trait_) {
-            Err(TyCheckError::no_trait_impl_error(
+            let class = if cfg!(feature = "debug") {
+                class.clone()
+            } else {
+                self.deref_tyvar(class.clone(), Variance::Covariant, loc)?
+            };
+            let trait_ = if cfg!(feature = "debug") {
+                trait_.clone()
+            } else {
+                self.deref_tyvar(trait_.clone(), Variance::Covariant, loc)?
+            };
+            Err(TyCheckErrors::from(TyCheckError::no_trait_impl_error(
                 self.cfg.input.clone(),
                 line!() as usize,
-                class,
-                trait_,
+                &class,
+                &trait_,
                 loc,
                 self.caused_by(),
                 None,
-            ))
+            )))
         } else {
             Ok(())
         }
