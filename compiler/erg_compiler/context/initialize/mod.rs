@@ -2291,9 +2291,15 @@ impl Context {
             T.clone(),
         )
         .quantify();
+        let t_cond = if self.cfg.python_compatible_mode {
+            Bool
+        } else {
+            // not Bool! type because `cond` may be the result of evaluation of a mutable object's method returns Bool.
+            nd_proc(vec![], None, Bool)
+        };
         let t_while = nd_proc(
             vec![
-                kw("cond!", nd_proc(vec![], None, Bool)), // not Bool! type because `cond` may be the result of evaluation of a mutable object's method returns Bool.
+                kw("cond!", t_cond),
                 kw("proc!", nd_proc(vec![], None, NoneType)),
             ],
             None,
