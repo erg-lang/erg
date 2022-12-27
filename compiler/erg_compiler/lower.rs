@@ -171,7 +171,7 @@ impl ASTLowerer {
                     None,
                     expect,
                     found,
-                    self.ctx.get_candidates(found),
+                    None, // self.ctx.get_candidates(found),
                     Context::get_simple_type_mismatch_hint(expect, found),
                 )
             })
@@ -1475,7 +1475,6 @@ impl ASTLowerer {
 
     fn lower_redef(&mut self, redef: ast::ReDef) -> LowerResult<hir::ReDef> {
         log!(info "entered {}({redef})", fn_name!());
-        let loc = redef.loc();
         let attr = self.lower_acc(redef.attr)?;
         let expr = self.lower_expr(*redef.expr)?;
         if let Err(err) = self.var_result_t_check(
@@ -1485,20 +1484,6 @@ impl ASTLowerer {
             expr.ref_t(),
         ) {
             self.errs.push(err);
-        }
-        if !self.ctx.supertype_of(attr.ref_t(), expr.ref_t()) {
-            self.errs.push(LowerError::type_mismatch_error(
-                self.cfg.input.clone(),
-                line!() as usize,
-                loc,
-                self.ctx.caused_by(),
-                &attr.to_string_notype(),
-                None,
-                attr.ref_t(),
-                expr.ref_t(),
-                None,
-                None,
-            ));
         }
         Ok(hir::ReDef::new(attr, hir::Block::new(vec![expr])))
     }
