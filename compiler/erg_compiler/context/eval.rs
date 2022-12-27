@@ -989,6 +989,16 @@ impl Context {
         if lhs.is_unbound_var() {
             let (sub, sup) = enum_unwrap!(&lhs, Type::FreeVar).get_subsup().unwrap();
             if self.is_trait(&sup) && !self.trait_impl_exists(&sub, &sup) {
+                let sub = if cfg!(feature = "debug") {
+                    sub
+                } else {
+                    self.deref_tyvar(sub, Variance::Covariant, t_loc)?
+                };
+                let sup = if cfg!(feature = "debug") {
+                    sup
+                } else {
+                    self.deref_tyvar(sup, Variance::Covariant, t_loc)?
+                };
                 return Err(EvalErrors::from(EvalError::no_trait_impl_error(
                     self.cfg.input.clone(),
                     line!() as usize,
@@ -1333,6 +1343,16 @@ impl Context {
         if lhs.is_unbound_var() {
             let (sub, sup) = enum_unwrap!(&lhs, TyParam::FreeVar).get_subsup().unwrap();
             if self.is_trait(&sup) && !self.trait_impl_exists(&sub, &sup) {
+                let sub = if cfg!(feature = "debug") {
+                    sub
+                } else {
+                    self.deref_tyvar(sub, Variance::Covariant, t_loc)?
+                };
+                let sup = if cfg!(feature = "debug") {
+                    sup
+                } else {
+                    self.deref_tyvar(sup, Variance::Covariant, t_loc)?
+                };
                 return Err(EvalErrors::from(EvalError::no_trait_impl_error(
                     self.cfg.input.clone(),
                     line!() as usize,
