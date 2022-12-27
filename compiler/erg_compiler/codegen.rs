@@ -37,8 +37,8 @@ use erg_parser::token::{Token, TokenKind};
 use crate::compile::{AccessKind, Name, StoreLoadKind};
 use crate::error::CompileError;
 use crate::hir::{
-    Accessor, Args, Array, AttrDef, BinOp, Block, Call, ClassDef, Def, DefBody, Expr, Identifier,
-    Lambda, Literal, Params, PatchDef, PosArg, Record, Signature, SubrSignature, Tuple, UnaryOp,
+    Accessor, Args, Array, BinOp, Block, Call, ClassDef, Def, DefBody, Expr, Identifier, Lambda,
+    Literal, Params, PatchDef, PosArg, ReDef, Record, Signature, SubrSignature, Tuple, UnaryOp,
     VarSignature, HIR,
 };
 use crate::ty::value::ValueObj;
@@ -1220,10 +1220,10 @@ impl PyCodeGenerator {
         }
     }
 
-    fn emit_attr_def(&mut self, attr_def: AttrDef) {
-        log!(info "entered {} ({attr_def})", fn_name!());
-        self.emit_frameless_block(attr_def.block, vec![]);
-        self.store_acc(attr_def.attr);
+    fn emit_redef(&mut self, redef: ReDef) {
+        log!(info "entered {} ({redef})", fn_name!());
+        self.emit_frameless_block(redef.block, vec![]);
+        self.store_acc(redef.attr);
     }
 
     fn emit_var_def(&mut self, sig: VarSignature, mut body: DefBody) {
@@ -2640,7 +2640,7 @@ impl PyCodeGenerator {
             Expr::Def(def) => self.emit_def(def),
             Expr::ClassDef(class) => self.emit_class_def(class),
             Expr::PatchDef(patch) => self.emit_patch_def(patch),
-            Expr::AttrDef(attr) => self.emit_attr_def(attr),
+            Expr::ReDef(attr) => self.emit_redef(attr),
             Expr::Lambda(lambda) => self.emit_lambda(lambda),
             Expr::UnaryOp(unary) => self.emit_unaryop(unary),
             Expr::BinOp(bin) => self.emit_binop(bin),
@@ -2669,7 +2669,7 @@ impl PyCodeGenerator {
             Expr::Def(def) => self.emit_def(def),
             Expr::ClassDef(class) => self.emit_class_def(class),
             Expr::PatchDef(patch) => self.emit_patch_def(patch),
-            Expr::AttrDef(attr) => self.emit_attr_def(attr),
+            Expr::ReDef(attr) => self.emit_redef(attr),
             Expr::Lambda(lambda) => self.emit_lambda(lambda),
             Expr::UnaryOp(unary) => self.emit_unaryop(unary),
             Expr::BinOp(bin) => self.emit_binop(bin),
@@ -2840,8 +2840,8 @@ impl PyCodeGenerator {
                         dot,
                         VarName::from_str(field.symbol.clone()),
                     ));
-                    let attr_def = AttrDef::new(attr, Block::new(vec![expr]));
-                    attrs.push(Expr::AttrDef(attr_def));
+                    let redef = ReDef::new(attr, Block::new(vec![expr]));
+                    attrs.push(Expr::ReDef(redef));
                 }
                 let none = Token::new(TokenKind::NoneLit, "None", line, 0);
                 attrs.push(Expr::Lit(Literal::new(ValueObj::None, none)));

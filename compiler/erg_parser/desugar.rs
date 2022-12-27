@@ -9,14 +9,14 @@ use erg_common::Str;
 use erg_common::{enum_unwrap, get_hash, log, set};
 
 use crate::ast::{
-    Accessor, Args, Array, ArrayComprehension, ArrayTypeSpec, ArrayWithLength, AttrDef, BinOp,
-    Block, Call, ClassAttr, ClassAttrs, ClassDef, ConstExpr, DataPack, Def, DefBody, DefId, Dict,
-    Dummy, Expr, Identifier, KeyValue, KwArg, Lambda, LambdaSignature, Literal, Methods,
-    MixedRecord, Module, NonDefaultParamSignature, NormalArray, NormalDict, NormalRecord,
-    NormalSet, NormalTuple, ParamPattern, ParamRecordAttr, Params, PatchDef, PosArg, Record,
-    RecordAttrOrIdent, RecordAttrs, Set as astSet, SetWithLength, Signature, SubrSignature, Tuple,
-    TupleTypeSpec, TypeAppArgs, TypeBoundSpecs, TypeSpec, TypeSpecWithOp, UnaryOp, VarName,
-    VarPattern, VarRecordAttr, VarSignature,
+    Accessor, Args, Array, ArrayComprehension, ArrayTypeSpec, ArrayWithLength, BinOp, Block, Call,
+    ClassAttr, ClassAttrs, ClassDef, ConstExpr, DataPack, Def, DefBody, DefId, Dict, Dummy, Expr,
+    Identifier, KeyValue, KwArg, Lambda, LambdaSignature, Literal, Methods, MixedRecord, Module,
+    NonDefaultParamSignature, NormalArray, NormalDict, NormalRecord, NormalSet, NormalTuple,
+    ParamPattern, ParamRecordAttr, Params, PatchDef, PosArg, ReDef, Record, RecordAttrOrIdent,
+    RecordAttrs, Set as astSet, SetWithLength, Signature, SubrSignature, Tuple, TupleTypeSpec,
+    TypeAppArgs, TypeBoundSpecs, TypeSpec, TypeSpecWithOp, UnaryOp, VarName, VarPattern,
+    VarRecordAttr, VarSignature,
 };
 use crate::token::{Token, TokenKind, COLON, DOT};
 
@@ -254,10 +254,10 @@ impl Desugarer {
                     .collect();
                 Expr::PatchDef(PatchDef::new(def, methods))
             }
-            Expr::AttrDef(adef) => {
-                let expr = desugar(*adef.expr);
-                let attr = Self::perform_desugar_acc(desugar, adef.attr);
-                Expr::AttrDef(AttrDef::new(attr, expr))
+            Expr::ReDef(redef) => {
+                let expr = desugar(*redef.expr);
+                let attr = Self::perform_desugar_acc(desugar, redef.attr);
+                Expr::ReDef(ReDef::new(attr, expr))
             }
             Expr::Lambda(lambda) => {
                 let mut chunks = vec![];

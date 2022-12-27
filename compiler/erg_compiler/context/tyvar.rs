@@ -869,9 +869,9 @@ impl Context {
                 }
                 Ok(())
             }
-            hir::Expr::AttrDef(attr_def) => {
-                // REVIEW: attr_def.attr is not dereferenced
-                for chunk in attr_def.block.iter_mut() {
+            hir::Expr::ReDef(redef) => {
+                // REVIEW: redef.attr is not dereferenced
+                for chunk in redef.block.iter_mut() {
                     self.resolve_expr_t(chunk)?;
                 }
                 Ok(())

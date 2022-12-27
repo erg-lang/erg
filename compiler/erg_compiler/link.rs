@@ -145,9 +145,9 @@ impl<'a> Linker<'a> {
                     self.resolve_pymod_path(def);
                 }
             }
-            Expr::AttrDef(attr_def) => {
+            Expr::ReDef(redef) => {
                 // REVIEW:
-                for chunk in attr_def.block.iter_mut() {
+                for chunk in redef.block.iter_mut() {
                     self.resolve_pymod_path(chunk);
                 }
             }
@@ -267,9 +267,9 @@ impl<'a> Linker<'a> {
                     self.replace_import(def);
                 }
             }
-            Expr::AttrDef(attr_def) => {
+            Expr::ReDef(redef) => {
                 // REVIEW:
-                for chunk in attr_def.block.iter_mut() {
+                for chunk in redef.block.iter_mut() {
                     self.replace_import(chunk);
                 }
             }

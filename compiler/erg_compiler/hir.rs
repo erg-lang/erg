@@ -2181,12 +2181,12 @@ impl PatchDef {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct AttrDef {
+pub struct ReDef {
     pub attr: Accessor,
     pub block: Block,
 }
 
-impl NestedDisplay for AttrDef {
+impl NestedDisplay for ReDef {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
         self.attr.fmt_nest(f, level)?;
         writeln!(f, " = ")?;
@@ -2194,7 +2194,7 @@ impl NestedDisplay for AttrDef {
     }
 }
 
-impl NoTypeDisplay for AttrDef {
+impl NoTypeDisplay for ReDef {
     fn to_string_notype(&self) -> String {
         format!(
             "{} = {}",
@@ -2204,10 +2204,10 @@ impl NoTypeDisplay for AttrDef {
     }
 }
 
-impl_display_from_nested!(AttrDef);
-impl_locational!(AttrDef, attr, block);
+impl_display_from_nested!(ReDef);
+impl_locational!(ReDef, attr, block);
 
-impl HasType for AttrDef {
+impl HasType for ReDef {
     #[inline]
     fn ref_t(&self) -> &Type {
         Type::NONE
@@ -2226,7 +2226,7 @@ impl HasType for AttrDef {
     }
 }
 
-impl AttrDef {
+impl ReDef {
     pub const fn new(attr: Accessor, block: Block) -> Self {
         Self { attr, block }
     }
@@ -2297,7 +2297,7 @@ pub enum Expr {
     Def(Def),
     ClassDef(ClassDef),
     PatchDef(PatchDef),
-    AttrDef(AttrDef),
+    ReDef(ReDef),
     TypeAsc(TypeAscription),
     Code(Block),     // code object
     Compound(Block), // compound statement
@@ -2305,11 +2305,11 @@ pub enum Expr {
     Dummy(Dummy), // for mapping to Python AST
 }
 
-impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, AttrDef, Code, Compound, TypeAsc, Set, Import, Dummy);
-impl_no_type_display_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, AttrDef, Code, Compound, TypeAsc, Set, Import, Dummy);
+impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, ReDef, Code, Compound, TypeAsc, Set, Import, Dummy);
+impl_no_type_display_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, ReDef, Code, Compound, TypeAsc, Set, Import, Dummy);
 impl_display_from_nested!(Expr);
-impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, AttrDef, Code, Compound, TypeAsc, Set, Import, Dummy);
-impl_t_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, AttrDef, Code, Compound, TypeAsc, Set, Import, Dummy);
+impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, ReDef, Code, Compound, TypeAsc, Set, Import, Dummy);
+impl_t_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, ReDef, Code, Compound, TypeAsc, Set, Import, Dummy);
 
 impl Default for Expr {
     fn default() -> Self {

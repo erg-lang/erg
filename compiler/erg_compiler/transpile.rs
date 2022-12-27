@@ -19,8 +19,8 @@ use crate::context::{Context, ContextProvider};
 use crate::desugar_hir::HIRDesugarer;
 use crate::error::{CompileError, CompileErrors};
 use crate::hir::{
-    Accessor, Args, Array, AttrDef, BinOp, Block, Call, ClassDef, Def, Dict, Expr, Identifier,
-    Lambda, Literal, Params, PatchDef, Record, Set, Signature, Tuple, UnaryOp, HIR,
+    Accessor, Args, Array, BinOp, Block, Call, ClassDef, Def, Dict, Expr, Identifier, Lambda,
+    Literal, Params, PatchDef, ReDef, Record, Set, Signature, Tuple, UnaryOp, HIR,
 };
 use crate::link::Linker;
 use crate::mod_cache::SharedModuleCache;
@@ -415,7 +415,7 @@ impl ScriptGenerator {
             Expr::Lambda(lambda) => self.transpile_lambda(lambda),
             Expr::ClassDef(classdef) => self.transpile_classdef(classdef),
             Expr::PatchDef(patchdef) => self.transpile_patchdef(patchdef),
-            Expr::AttrDef(adef) => self.transpile_attrdef(adef),
+            Expr::ReDef(redef) => self.transpile_attrdef(redef),
             // TODO:
             Expr::Compound(comp) => {
                 let mut code = "".to_string();
@@ -916,17 +916,17 @@ impl ScriptGenerator {
         code
     }
 
-    fn transpile_attrdef(&mut self, mut adef: AttrDef) -> String {
-        let mut code = format!("{} = ", self.transpile_expr(Expr::Accessor(adef.attr)));
-        if adef.block.len() > 1 {
+    fn transpile_attrdef(&mut self, mut redef: ReDef) -> String {
+        let mut code = format!("{} = ", self.transpile_expr(Expr::Accessor(redef.attr)));
+        if redef.block.len() > 1 {
             let name = format!("instant_block_{}__", self.fresh_var_n);
             self.fresh_var_n += 1;
             let mut code = format!("def {name}():\n");
-            code += &self.transpile_block(adef.block, Return);
+            code += &self.transpile_block(redef.block, Return);
             self.prelude += &code;
             format!("{name}()")
         } else {
-            let expr = adef.block.remove(0);
+            let expr = redef.block.remove(0);
             code += &self.transpile_expr(expr);
             code
         }

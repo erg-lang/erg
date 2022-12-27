@@ -1473,10 +1473,11 @@ impl ASTLowerer {
         Ok(hir::PatchDef::new(hir_def.sig, base, hir_methods))
     }
 
-    fn lower_attr_def(&mut self, attr_def: ast::AttrDef) -> LowerResult<hir::AttrDef> {
-        log!(info "entered {}({attr_def})", fn_name!());
-        let attr = self.lower_acc(attr_def.attr)?;
-        let expr = self.lower_expr(*attr_def.expr)?;
+    fn lower_redef(&mut self, redef: ast::ReDef) -> LowerResult<hir::ReDef> {
+        log!(info "entered {}({redef})", fn_name!());
+        let loc = redef.loc();
+        let attr = self.lower_acc(redef.attr)?;
+        let expr = self.lower_expr(*redef.expr)?;
         if let Err(err) = self.var_result_t_check(
             attr.loc(),
             &Str::from(attr.show()),
@@ -1485,7 +1486,21 @@ impl ASTLowerer {
         ) {
             self.errs.push(err);
         }
-        Ok(hir::AttrDef::new(attr, hir::Block::new(vec![expr])))
+        if !self.ctx.supertype_of(attr.ref_t(), expr.ref_t()) {
+            self.errs.push(LowerError::type_mismatch_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                loc,
+                self.ctx.caused_by(),
+                &attr.to_string_notype(),
+                None,
+                attr.ref_t(),
+                expr.ref_t(),
+                None,
+                None,
+            ));
+        }
+        Ok(hir::ReDef::new(attr, hir::Block::new(vec![expr])))
     }
 
     fn register_trait_impl(
@@ -1960,7 +1975,7 @@ impl ASTLowerer {
             ast::Expr::Def(def) => Ok(hir::Expr::Def(self.lower_def(def)?)),
             ast::Expr::ClassDef(defs) => Ok(hir::Expr::ClassDef(self.lower_class_def(defs)?)),
             ast::Expr::PatchDef(defs) => Ok(hir::Expr::PatchDef(self.lower_patch_def(defs)?)),
-            ast::Expr::AttrDef(adef) => Ok(hir::Expr::AttrDef(self.lower_attr_def(adef)?)),
+            ast::Expr::ReDef(redef) => Ok(hir::Expr::ReDef(self.lower_redef(redef)?)),
             ast::Expr::TypeAsc(tasc) => Ok(hir::Expr::TypeAsc(self.lower_decl(tasc)?)),
             other => self.lower_expr(other),
         }

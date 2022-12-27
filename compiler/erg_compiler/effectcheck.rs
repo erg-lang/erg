@@ -194,7 +194,7 @@ impl SideEffectChecker {
                     self.path_stack.pop();
                     self.block_stack.pop();
                 }
-                Expr::AttrDef(_)
+                Expr::ReDef(_)
                 | Expr::Code(_)
                 | Expr::Compound(_)
                 | Expr::Import(_)
@@ -457,7 +457,7 @@ impl SideEffectChecker {
                     ));
                 }
             }
-            Expr::AttrDef(_)
+            Expr::ReDef(_)
             | Expr::Code(_)
             | Expr::Compound(_)
             | Expr::Import(_)

@@ -3537,12 +3537,12 @@ impl Def {
 
 /// This is not necessary for Erg syntax, but necessary for mapping ASTs in Python
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct AttrDef {
+pub struct ReDef {
     pub attr: Accessor,
     pub expr: Box<Expr>,
 }
 
-impl NestedDisplay for AttrDef {
+impl NestedDisplay for ReDef {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
         self.attr.fmt_nest(f, level)?;
         writeln!(f, " = ")?;
@@ -3550,10 +3550,10 @@ impl NestedDisplay for AttrDef {
     }
 }
 
-impl_display_from_nested!(AttrDef);
-impl_locational!(AttrDef, attr, expr);
+impl_display_from_nested!(ReDef);
+impl_locational!(ReDef, attr, expr);
 
-impl AttrDef {
+impl ReDef {
     pub fn new(attr: Accessor, expr: Expr) -> Self {
         Self {
             attr,
@@ -3672,14 +3672,14 @@ pub enum Expr {
     Methods(Methods),
     ClassDef(ClassDef),
     PatchDef(PatchDef),
-    AttrDef(AttrDef),
+    ReDef(ReDef),
     /// for mapping to Python AST
     Dummy(Dummy),
 }
 
-impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAsc, Def, Methods, ClassDef, PatchDef, AttrDef, Dummy);
+impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAsc, Def, Methods, ClassDef, PatchDef, ReDef, Dummy);
 impl_display_from_nested!(Expr);
-impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAsc, Def, Methods, ClassDef, PatchDef, AttrDef, Dummy);
+impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAsc, Def, Methods, ClassDef, PatchDef, ReDef, Dummy);
 
 impl Expr {
     pub fn is_match_call(&self) -> bool {
