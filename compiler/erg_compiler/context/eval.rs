@@ -56,7 +56,7 @@ pub fn type_from_token_kind(kind: TokenKind) -> Type {
         StrLit => Type::Str,
         BoolLit => Type::Bool,
         NoneLit => Type::NoneType,
-        NoImplLit => Type::NotImplemented,
+        NoImplLit => Type::NotImplementedType,
         EllipsisLit => Type::Ellipsis,
         InfLit => Type::Inf,
         other => panic!("this has not type: {other}"),

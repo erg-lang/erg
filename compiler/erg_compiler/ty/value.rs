@@ -764,7 +764,7 @@ impl ValueObj {
             Type::Bool => Some(Self::Bool(&content[..] == "True")),
             Type::NoneType => Some(Self::None),
             Type::Ellipsis => Some(Self::Ellipsis),
-            Type::NotImplemented => Some(Self::NotImplemented),
+            Type::NotImplementedType => Some(Self::NotImplemented),
             Type::Inf => Some(Self::Inf),
             Type::NegInf => Some(Self::NegInf),
             _ => todo!("{t} {content}"),
@@ -880,7 +880,7 @@ impl ValueObj {
             },
             Self::None => Type::NoneType,
             Self::Ellipsis => Type::Ellipsis,
-            Self::NotImplemented => Type::NotImplemented,
+            Self::NotImplemented => Type::NotImplementedType,
             Self::Inf => Type::Inf,
             Self::NegInf => Type::NegInf,
             Self::Mut(m) => match &*m.borrow() {

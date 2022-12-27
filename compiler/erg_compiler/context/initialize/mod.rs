@@ -179,15 +179,6 @@ impl Context {
         }
     }
 
-    fn register_builtin_immutable_private_var(
-        &mut self,
-        name: &'static str,
-        t: Type,
-        py_name: Option<&'static str>,
-    ) {
-        self.register_builtin_py_impl(name, t, Immutable, Private, py_name);
-    }
-
     fn register_builtin_const(&mut self, name: &str, vis: Visibility, obj: ValueObj) {
         if self.rec_get_const_obj(name).is_some() {
             panic!("already registered: {name}");
@@ -422,28 +413,45 @@ impl Context {
     }
 
     fn init_builtin_consts(&mut self) {
+        let vis = if self.cfg.python_compatible_mode {
+            Public
+        } else {
+            Private
+        };
         // TODO: this is not a const, but a special property
-        self.register_builtin_immutable_private_var("__name__", Str, Some("__name__"));
-        self.register_builtin_immutable_private_var(
+        self.register_builtin_py_impl("__name__", Str, Immutable, vis, Some("__name__"));
+        self.register_builtin_py_impl(
             "license",
             mono("_sitebuiltins._Printer"),
+            Immutable,
+            vis,
             Some("license"),
         );
-        self.register_builtin_immutable_private_var(
+        self.register_builtin_py_impl(
             "credits",
             mono("_sitebuiltins._Printer"),
+            Immutable,
+            vis,
             Some("credits"),
         );
-        self.register_builtin_immutable_private_var(
+        self.register_builtin_py_impl(
             "copyright",
             mono("_sitebuiltins._Printer"),
+            Immutable,
+            vis,
             Some("copyright"),
         );
-        self.register_builtin_immutable_private_var("True", Bool, Some("True"));
-        self.register_builtin_immutable_private_var("False", Bool, Some("False"));
-        self.register_builtin_immutable_private_var("None", NoneType, Some("None"));
-        self.register_builtin_immutable_private_var("NotImplemented", NotImplemented, None);
-        self.register_builtin_immutable_private_var("Ellipsis", Ellipsis, None);
+        self.register_builtin_py_impl("True", Bool, Const, Private, Some("True"));
+        self.register_builtin_py_impl("False", Bool, Const, Private, Some("False"));
+        self.register_builtin_py_impl("None", NoneType, Const, Private, Some("None"));
+        self.register_builtin_py_impl(
+            "NotImplemented",
+            NotImplementedType,
+            Const,
+            Private,
+            Some("NotImplemented"),
+        );
+        self.register_builtin_py_impl("Ellipsis", Ellipsis, Const, Private, Some("Ellipsis"));
     }
 
     /// see std/prelude.er

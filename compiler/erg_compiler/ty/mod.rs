@@ -978,7 +978,7 @@ pub enum Type {
     ClassType,
     TraitType,
     Patch,
-    NotImplemented,
+    NotImplementedType,
     Ellipsis,  // これはクラスのほうで型推論用のマーカーではない
     Never,     // {}
     Mono(Str), // the name is fully qualified (e.g. <module>::C, foo.D)
@@ -1047,7 +1047,7 @@ impl PartialEq for Type {
             | (Self::ClassType, Self::ClassType)
             | (Self::TraitType, Self::TraitType)
             | (Self::Patch, Self::Patch)
-            | (Self::NotImplemented, Self::NotImplemented)
+            | (Self::NotImplementedType, Self::NotImplementedType)
             | (Self::Ellipsis, Self::Ellipsis)
             | (Self::Never, Self::Never) => true,
             (Self::Mono(l), Self::Mono(r)) => l == r,
@@ -1512,7 +1512,7 @@ impl HasLevel for Type {
 impl Type {
     pub const OBJ: &'static Self = &Self::Obj;
     pub const NONE: &'static Self = &Self::NoneType;
-    pub const NOT_IMPLEMENTED: &'static Self = &Self::NotImplemented;
+    pub const NOT_IMPLEMENTED: &'static Self = &Self::NotImplementedType;
     pub const ELLIPSIS: &'static Self = &Self::Ellipsis;
     pub const INF: &'static Self = &Self::Inf;
     pub const NEG_INF: &'static Self = &Self::NegInf;
@@ -1562,7 +1562,7 @@ impl Type {
             | Self::ClassType
             | Self::TraitType
             | Self::Patch
-            | Self::NotImplemented
+            | Self::NotImplementedType
             | Self::Ellipsis
             | Self::Never => true,
             _ => false,
@@ -1773,7 +1773,7 @@ impl Type {
             Self::Refinement(refine) => refine.t.qual_name(),
             Self::Quantified(_) => Str::ever("Quantified"),
             Self::Ellipsis => Str::ever("Ellipsis"),
-            Self::NotImplemented => Str::ever("NotImplemented"),
+            Self::NotImplementedType => Str::ever("NotImplemented"),
             Self::Never => Str::ever("Never"),
             Self::FreeVar(fv) => match &*fv.borrow() {
                 FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => t.qual_name(),
