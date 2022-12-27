@@ -2031,6 +2031,11 @@ impl Context {
         )
         .quantify();
         let t_round = nd_func(vec![kw("number", Float)], None, Int);
+        let t_sorted = nd_func(
+            vec![kw("iterable", poly("Iterable", vec![ty_tp(T.clone())]))],
+            None,
+            array_t(T.clone(), TyParam::erased(Nat)),
+        );
         let t_str = nd_func(vec![kw("object", Obj)], None, Str);
         let A = mono_q("A", Constraint::Uninited);
         let A = mono_q("A", subtypeof(poly("Add", vec![ty_tp(A)])));
@@ -2097,6 +2102,7 @@ impl Context {
         self.register_builtin_py_impl("repr", t_repr, Immutable, vis, Some("repr"));
         self.register_builtin_py_impl("reversed", t_reversed, Immutable, vis, Some("reversed"));
         self.register_builtin_py_impl("round", t_round, Immutable, vis, Some("round"));
+        self.register_builtin_py_impl("sorted", t_sorted, Immutable, vis, Some("sorted"));
         self.register_builtin_py_impl("str", t_str, Immutable, vis, Some("str"));
         self.register_builtin_py_impl("sum", t_sum, Immutable, vis, Some("sum"));
         self.register_builtin_py_impl("zip", t_zip, Immutable, vis, Some("zip"));
@@ -2131,6 +2137,17 @@ impl Context {
                 vis,
                 Some("exit"),
             );
+        } else {
+            let t_range = func(
+                vec![kw("stop", or(Int, NoneType))],
+                None,
+                vec![
+                    kw("start", or(Int, NoneType)),
+                    kw("step", or(Int, NoneType)),
+                ],
+                poly("Range", vec![ty_tp(Int)]),
+            );
+            self.register_builtin_py_impl("range", t_range, Immutable, vis, Some("range"));
         }
     }
 
