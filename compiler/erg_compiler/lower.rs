@@ -1059,6 +1059,19 @@ impl ASTLowerer {
                 self.ctx.caused_by(),
                 &name,
             )));
+        } else if self
+            .ctx
+            .get_builtins()
+            .and_then(|ctx| ctx.get_var_info(&name))
+            .is_some()
+        {
+            self.warns.push(LowerWarning::builtin_exists_warning(
+                self.cfg.input.clone(),
+                line!() as usize,
+                def.sig.loc(),
+                self.ctx.caused_by(),
+                &name,
+            ));
         }
         let kind = ContextKind::from(def.def_kind());
         let vis = def.sig.vis();

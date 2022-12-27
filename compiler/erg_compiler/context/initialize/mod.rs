@@ -2035,7 +2035,8 @@ impl Context {
             vec![kw("iterable", poly("Iterable", vec![ty_tp(T.clone())]))],
             None,
             array_t(T.clone(), TyParam::erased(Nat)),
-        );
+        )
+        .quantify();
         let t_str = nd_func(vec![kw("object", Obj)], None, Str);
         let A = mono_q("A", Constraint::Uninited);
         let A = mono_q("A", subtypeof(poly("Add", vec![ty_tp(A)])));
