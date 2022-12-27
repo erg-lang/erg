@@ -339,7 +339,9 @@ impl HasLevel for Predicate {
             | Self::GreaterEqual { rhs, .. }
             | Self::LessEqual { rhs, .. }
             | Self::NotEqual { rhs, .. } => rhs.level(),
-            Self::And(_lhs, _rhs) | Self::Or(_lhs, _rhs) | Self::Not(_lhs, _rhs) => todo!(),
+            Self::And(lhs, rhs) | Self::Or(lhs, rhs) | Self::Not(lhs, rhs) => {
+                lhs.level().zip(rhs.level()).map(|(a, b)| a.min(b))
+            }
         }
     }
 
@@ -825,7 +827,11 @@ impl LimitedDisplay for RefinementType {
                 let (_, rhs) = enum_unwrap!(pred, Predicate::Equal { lhs, rhs });
                 write!(f, "{}, ", rhs)?;
             }
-            write!(f, "}}")
+            write!(f, "}}")?;
+            if cfg!(feature = "debug") {
+                write!(f, "(<: {})", self.t)?;
+            }
+            Ok(())
         } else {
             write!(f, "{{{}: ", self.var)?;
             self.t.limited_fmt(f, limit - 1)?;

@@ -248,6 +248,21 @@ impl Context {
                 let rhs = self.generalize_tp(rhs, variance);
                 Predicate::ne(lhs, rhs)
             }
+            Predicate::And(lhs, rhs) => {
+                let lhs = self.generalize_pred(*lhs, variance);
+                let rhs = self.generalize_pred(*rhs, variance);
+                Predicate::and(lhs, rhs)
+            }
+            Predicate::Or(lhs, rhs) => {
+                let lhs = self.generalize_pred(*lhs, variance);
+                let rhs = self.generalize_pred(*rhs, variance);
+                Predicate::or(lhs, rhs)
+            }
+            Predicate::Not(lhs, rhs) => {
+                let lhs = self.generalize_pred(*lhs, variance);
+                let rhs = self.generalize_pred(*rhs, variance);
+                Predicate::not(lhs, rhs)
+            }
             other => todo!("{other}"),
         }
     }

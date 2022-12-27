@@ -947,8 +947,13 @@ impl Context {
                         )?),
                         _ => unreachable!(),
                     };
-                let tv = named_free_var(lhs.inspect().clone(), self.level, constr);
-                tv_cache.push_or_init_tyvar(lhs.inspect(), &tv);
+                if constr.get_sub_sup().is_none() {
+                    let tp = TyParam::named_free_var(lhs.inspect().clone(), self.level, constr);
+                    tv_cache.push_or_init_typaram(lhs.inspect(), &tp);
+                } else {
+                    let tv = named_free_var(lhs.inspect().clone(), self.level, constr);
+                    tv_cache.push_or_init_tyvar(lhs.inspect(), &tv);
+                }
                 Ok(())
             }
             TypeBoundSpec::WithDefault { .. } => type_feature_error!(
