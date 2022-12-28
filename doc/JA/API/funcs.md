@@ -86,7 +86,7 @@ cycle("hello").take 3 # "hellohellohello"
 
 ### Class
 
-クラスを新しく生成する。`Inherit`とは違い、`Class`を通すとベース型からは独立し、メソッドは失われる。
+クラスを新しく生成する。`Inherit`とは違い、`Class`を通すと基底型(第一引数`Base`)からは独立し、メソッドは失われる。
 比較もできなくなるが、パターンマッチなどは行える。
 
 ```python
@@ -100,11 +100,17 @@ match jan:
     _ -> log "Other"
 ```
 
-第二引数のImplは実装するトレイトである。
-
 ### Inherit
 
-クラスを継承する。基底クラスのメソッドをそのまま使用できる。
+クラスを継承する。親クラス(`Super`)のメソッドをそのまま使用できる。第二引数`Layout`に新しいレイアウトを指定できる。
+この際、`Super.Base :> Layout`でなければならない。
+
+```python
+@Inheritable
+C = Class {i = Int}
+D = Inherit C, {i = Int; j = Int} # C.Layout == {i = Int} :> {i = Int; j = Int}
+E! = Inherit C, {i = Int!} # {i = Int} :> {i = Int!}
+```
 
 ### Trait
 

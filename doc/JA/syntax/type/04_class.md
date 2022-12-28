@@ -104,7 +104,7 @@ C.
 Ergではクラスメソッドを追加したりはできませんが、[パッチ](./07_patch.md)で拡張可能です。
 
 既存のクラスを継承することも出来ます([Inheritable](../29_decorator.md#inheritable)クラスの場合)。
-`Inherit`は継承を意味します。左辺の型を派生クラス、右辺の`Inherit`の引数型を基底クラスと言います。
+`Inherit`は継承を意味します。左辺の型をサブクラス、右辺の`Inherit`の引数型をスーパークラスと言います。
 
 ```python
 MyStr = Inherit Str
@@ -130,7 +130,7 @@ InheritableMyStr = Inherit Str
 MyStr3 = Inherit InheritableMyStr # OK
 ```
 
-`Inherit Object`と`Class()`は実用上ほぼ等価です。一般的には後者を使用します。
+`Inherit Obj`と`Class()`は実用上ほぼ等価です。一般的には後者を使用します。
 
 クラスは型とは同値判定の仕組みが異なります。
 型は構造に基づいて同値性が判定されます。
