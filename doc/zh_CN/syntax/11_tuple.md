@@ -1,6 +1,6 @@
 # 元组
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/11_tuple.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/11_tuple.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/11_tuple.md%26commit_hash%3D20aa4f02b994343ab9600317cebafa2b20676467)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/11_tuple.md&commit_hash=20aa4f02b994343ab9600317cebafa2b20676467)
 
 元组类似于数组，但可以保存不同类型的对象
 这样的集合称为不等集合。相比之下，同构集合包括数组、集合等
@@ -29,9 +29,12 @@ i, b, s = t
 
 元组可以保存不同类型的对象，因此它们不能像数组一样被迭代
 
-```python
+```python,compile_fail
 t: ({1}, {2}, {3}) = (1, 2, 3)
 (1, 2, 3).iter().map(x -> x + 1) # 类型错误: 类型 ({1}, {2}, {3}) 没有方法 `.iter()`
+```
+
+```python
 # 如果所有类型都相同，则可以像数组一样用`(T; n)`表示，但这仍然不允许迭代
 t: (Int; 3) = (1, 2, 3)
 assert (Int; 3) == (Int, Int, Int)

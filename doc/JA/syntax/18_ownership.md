@@ -1,6 +1,6 @@
 # 所有権システム
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/18_ownership.md%26commit_hash%3D00350f64a40b12f763a605bc16748d09379ab182)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/18_ownership.md&commit_hash=00350f64a40b12f763a605bc16748d09379ab182)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/18_ownership.md%26commit_hash%3D20aa4f02b994343ab9600317cebafa2b20676467)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/18_ownership.md&commit_hash=20aa4f02b994343ab9600317cebafa2b20676467)
 
 ErgはPythonをホスト言語にした言語であるため、メモリ管理の方法はPythonの処理系に依存しています。
 しかし、意味論的にはErgのメモリ管理はPythonのそれとは別物です。顕著な違いは、所有権システムと循環参照の禁止に現れています。
@@ -59,9 +59,7 @@ sum|T <: Add + HasUnit| i: Iterator T = ...
 
 x = [1, 2, 3].into [Int; !3]
 x.push!(4)
-i = x.iter() # TypeError: [Int; !4] has no method `iter`
-y = x.freeze()
-i = y.iter()
+i = x.iter()
 assert sum(i) == 10
 y # この後もyは触れられる
 ```

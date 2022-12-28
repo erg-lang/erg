@@ -1,6 +1,6 @@
 # セット
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/14_set.md%26commit_hash%3Db07c17708b9141bbce788d2e5b3ad4f365d342fa)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/14_set.md&commit_hash=b07c17708b9141bbce788d2e5b3ad4f365d342fa)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/14_set.md%26commit_hash%3De86a0987ed14a4de5da770372d4f3729c7691503)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/14_set.md&commit_hash=e86a0987ed14a4de5da770372d4f3729c7691503)
 
 セットは集合を表し、データ構造的には重複、順序のない配列です。
 
@@ -26,12 +26,15 @@ b: {Int; 3} = {0, 0, 0} # NG、重複が削除されて長さが変わる
 
 ```python,compile_fail
 d = {0.0, 1.0} # NG
+# Error[#1366]: File <stdin>, line 1, <module>::d
 #
-# 1│ d = {0.0, 1.0}
-#         ^^^^^^^^
-# TypeError: the type of _ is mismatched:
-# expected:  Eq(Float)
-# but found: {0.0, 1.0, }
+# 1 | d = {0.0, 1.0}
+#   :      --------
+#   :             |- expected: Eq
+#   :             |- but found: {0.0f, 1.0f, }
+#   :             `- Float has no equivalence relation defined. you should use l == R instead of l - r <= Float.EPSILON
+#
+# TypeError: the type of _ is mismatched
 ```
 
 セットは集合演算を行えます。

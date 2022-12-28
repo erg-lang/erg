@@ -1,6 +1,6 @@
 # Ergの型システム
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/01_type_system.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/01_type_system.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/01_type_system.md%26commit_hash%3Df4fb25b4004bdfa96d2149fac8c4e40b84e8a45f)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/01_type_system.md&commit_hash=f4fb25b4004bdfa96d2149fac8c4e40b84e8a45f)
 
 以下では、Ergの型システムを概略的に説明します。詳細については他の項で解説します。
 
@@ -221,7 +221,7 @@ add l: Add, r: Add =
 また、下の`A`, `B`は同じ型とはみなされません。しかし、型`O`は一致するとみなされます。
 
 ```python
-... |R1; R2; O; A <: Add(R1, O); B <: Add(R2, O)|
+... |R1; R2, O; A <: Add(R1, O); B <: Add(R2, O)|
 ```
 
 <p align='center'>

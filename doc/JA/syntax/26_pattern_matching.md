@@ -1,12 +1,12 @@
 # パターンマッチ、論駁可能性
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/26_pattern_matching.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/26_pattern_matching.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/26_pattern_matching.md%26commit_hash%3D20aa4f02b994343ab9600317cebafa2b20676467)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/26_pattern_matching.md&commit_hash=20aa4f02b994343ab9600317cebafa2b20676467)
 
 ## Ergで使用可能なパターン
 
 ### 変数パターン
 
-```python
+```python,check_ignore
 # 基本的な代入
 i = 1
 
@@ -26,7 +26,7 @@ j: {1, 2, 3} = 2
 
 ### リテラルパターン
 
-```python
+```python,check_ignore
 # もし`i`がコンパイル時に1と判断できない場合は、TypeErrorが発生する。
 # `_: {1} = i`を省略したもの
 1 = i
@@ -45,7 +45,7 @@ fib n: Nat = fib n-1 + fib n-2
 
 ### 定数パターン
 
-```python
+```python,check_ignore
 cond = False
 match! cond:
     True => print! "cond is True"
@@ -62,7 +62,7 @@ name = match num:
 
 ### 篩パターン
 
-```python
+```python,check_ignore
 # この２つは同じ
 Array(T, N: {N | N >= 3})
 Array(T, N | N >= 3)
@@ -73,7 +73,7 @@ f(1, 0) # TypeError: N (2nd parameter) must be 1 or more
 
 ### 破棄(ワイルドカード)パターン
 
-```python
+```python,check_ignore
 _ = 1
 _: Int = 1
 zero _ = 0
@@ -86,7 +86,7 @@ right(_, r) = r
 
 後述するタプル/配列/レコードパターンと組み合わせて使います。
 
-```python
+```python,check_ignore
 [i, ...j] = [1, 2, 3, 4]
 assert j == [2, 3, 4]
 first|T|(fst: T, ...rest: T) = fst
@@ -95,7 +95,7 @@ assert first(1, 2, 3) == 1
 
 ### タプルパターン
 
-```python
+```python,check_ignore
 (i, j) = (1, 2)
 ((k, l), _) = ((1, 2), (3, 4))
 # ネストしていないなら()を省略可能(1, 2は(1, 2)として扱われる)
@@ -106,7 +106,7 @@ f(x, y) = ...
 
 ### 配列パターン
 
-```python
+```python,check_ignore
 [i, j] = [1, 2]
 [[k, l], _] = [[1, 2], [3, 4]]
 
@@ -116,7 +116,7 @@ length [_, ...rest] = 1 + length rest
 
 #### レコードパターン
 
-```python
+```python,check_ignore
 record = {i = 1; j = 2; k = 3}
 {j; ...} = record # i, kが解放される
 
@@ -133,7 +133,7 @@ f {x: Int; y: Int} = ...
 
 ### データクラスパターン
 
-```python
+```python,check_ignore
 Point = Inherit {x = Int; y = Int}
 p = Point::{x = 1; y = 2}
 Point::{x; y} = p
@@ -156,7 +156,7 @@ List T.
 
 ※実際には単なる列挙型
 
-```python
+```python,check_ignore
 match x:
     i: {1, 2} -> "one or two: \{i}"
     _ -> "other"
@@ -166,7 +166,7 @@ match x:
 
 ※実際には単なる区間型
 
-```python
+```python,check_ignore
 # 0 < i < 1
 i: 0<..<1 = 0.5
 # 1 < j <= 2

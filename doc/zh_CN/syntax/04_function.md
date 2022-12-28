@@ -1,11 +1,14 @@
 # 功能
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/04_function.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/04_function.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/04_function.md%26commit_hash%3D96b113c47ec6ca7ad91a6b486d55758de00d557d)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/04_function.md&commit_hash=96b113c47ec6ca7ad91a6b486d55758de00d557d)
 
 函数是一个块，它接受一个"参数"，对其进行处理，并将其作为"返回值"返回。定义如下
 
 ```python
 add x, y = x + y
+```
+
+```python
 # 或者
 add(x, y) = x + y
 ```
@@ -25,11 +28,11 @@ add(1, 2)
 
 函数像`f x, y, ...`一样被调用，但是如果单行参数太多，可以使用`:`(冒号)来应用它们
 
-```python
+```python,check_ignore
 f some_long_name_variable_1 + some_long_name_variable_2, some_long_name_variable_3 * some_long_name_variable_4
 ```
 
-```python
+```python,check_ignore
 f some_long_name_variable_1 + some_long_name_variable_2:
     some_long_name_variable_3 * some_long_name_variable_4
 ```
@@ -53,6 +56,22 @@ result = if Bool.sample!():
 ```
 
 在 `:` 之后，除了注释之外，不得编写任何代码，并且必须始终在新行上
+此外，您不能在函数后立即使用 `:`。只有 `do`和`do!` 可以做到这一点
+
+```python,compile_fail
+# NG
+f:
+    x
+    y
+```
+
+```python,checker_ignore
+# Ok
+f(
+    x,
+    y
+)
+```
 
 ## 关键字参数
 
@@ -211,6 +230,29 @@ factorial(-1) == -1 * factorial(-2) == -1 * -2 * factorial(-3) == ...
 
 并且这种计算不会停止。递归函数必须仔细定义值的范围，否则您可能会陷入无限循环
 所以类型规范也有助于避免接受意外的值
+
+## High-order functions
+
+高阶函数是将函数作为参数或返回值的函数
+例如，一个以函数为参数的高阶函数可以写成如下
+
+```python
+arg_f = i -> log i
+higher_f(x: (Int -> NoneType)) = x 10
+higher_f arg_f # 10
+```
+
+当然，也可以将返回值作为一个函数。
+
+```python
+add(x): (Int -> Int) = y -> x + y
+add_ten = add(10) # y -> 10 + y
+add_hundred = add(100) # y -> 100 + y
+assert add_ten(1) == 11
+assert add_hundred(1) == 101
+```
+
+通过这种方式将函数作为参数和返回值，可以用函数定义更灵活的表达式
 
 ## 编译时函数
 
