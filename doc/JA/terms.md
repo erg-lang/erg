@@ -469,7 +469,7 @@ Erg標準APIのうち、.erファイル内で実装されていないAPI。
 
 * [高階カインド](../syntax/type/advanced/kind.md)
 * 高階型
-* 高階関数
+* [高階関数](../syntax/04_function.md)
 
 ### [公開変数]
 
