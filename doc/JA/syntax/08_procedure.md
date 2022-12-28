@@ -33,6 +33,44 @@ proc!(x: Int!) = y -> log x, y # OK
 func(x: Int) = y => print! x, y # NG
 ```
 
+## バインド
+
+プロシージャはスコープ外の可変変数を操作することができます。
+
+```python
+x = !0
+proc!() =
+    x.inc!()
+
+proc!()
+assert x == 1
+```
+
+このとき、`proc!`は以下のような型を持ちます。
+
+```python
+proc!: {|x: Int!|}() => ()
+```
+
+`{|x: Int!|}`の部分はバインド列と呼ばれ、そのプロシージャが操作する変数とその型を表します。
+バインド列は自動で導出されるため、明示的に書く必要はありません。
+
+注意として、通常のプロシージャは予め決められた外部変数のみを操作することができます。これはつまり、引数に渡された変数を書き換えることはできないということです。
+そのようなことがしたい場合は、プロシージャルメソッドを使う必要があります。プロシージャルメソッドは、`self`を書き換えることができます。
+
+```python
+C! N = Class {arr = [Int; N]!}
+C!.
+    new() = Self!(0)::__new__ {arr = ![]}
+C!(N).
+    push! ref! self, x = self.arr.push!(x) # inc!: {|self: C!(N) ~> C!(N+1)|}(self: RefMut(C!(N)), x: Int) => NoneType
+    pop! ref! self = self.arr.pop!() # pop!: {|self: C!(N) ~> C!(N-1)|}(self: RefMut(C!(N))) => Int
+
+c = C!.new()
+c.push!(1)
+assert c.pop!() == 1
+```
+
 <p align='center'>
     <a href='./07_side_effect.md'>Previous</a> | <a href='./09_builtin_procs.md'>Next</a>
 </p>
