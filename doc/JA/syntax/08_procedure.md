@@ -63,8 +63,10 @@ C! N = Class {arr = [Int; N]!}
 C!.
     new() = Self!(0)::__new__ {arr = ![]}
 C!(N).
-    push! ref! self, x = self.arr.push!(x) # inc!: {|self: C!(N) ~> C!(N+1)|}(self: RefMut(C!(N)), x: Int) => NoneType
-    pop! ref! self = self.arr.pop!() # pop!: {|self: C!(N) ~> C!(N-1)|}(self: RefMut(C!(N))) => Int
+    # push!: {|self: C!(N) ~> C!(N+1)|}(self: RefMut(C!(N)), x: Int) => NoneType
+    push! ref! self, x = self.arr.push!(x)
+    # pop!: {|self: C!(N) ~> C!(N-1)|}(self: RefMut(C!(N))) => Int
+    pop! ref! self = self.arr.pop!()
 
 c = C!.new()
 c.push!(1)
