@@ -1,6 +1,6 @@
 # 可見性
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/19_visibility.md%26commit_hash%3Db07c17708b9141bbce788d2e5b3ad4f365d342fa)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/19_visibility.md&commit_hash=b07c17708b9141bbce788d2e5b3ad4f365d342fa)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/19_visibility.md%26commit_hash%3D20aa4f02b994343ab9600317cebafa2b20676467)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/19_visibility.md&commit_hash=20aa4f02b994343ab9600317cebafa2b20676467)
 
 Erg 變量具有 __visibility__ 的概念
 到目前為止，我們看到的所有變量都稱為 __private variables__。這是一個外部不可見的變量
@@ -25,7 +25,7 @@ foo.x # AttributeError: 模塊 'foo' 沒有屬性 'x' ('x' 是私有的)
 .x = "this is a visible variable"
 ```
 
-```python
+```python,checker_ignore
 # bar.er
 foo = import "foo"
 assert foo.x == "this is a visible variable"
@@ -98,13 +98,15 @@ C.
 
 ```python
 # bar.er
-{Foo; ...} = import "foo"
+{Foo;} = import "foo"
 
 Foo::
     private self = pass
 Foo.
     public self = self::private()
+```
 
+```python,compile_fail
 .f() =
     foo = Foo.new()
     foo.public()
@@ -117,7 +119,7 @@ Foo.
 
 ```python
 # baz.er
-{Foo; ...} = import "foo"
+{Foo;} = import "foo"
 
 foo = Foo.new()
 foo.public() # 屬性錯誤: "Foo"沒有屬性"public"("public"在模塊"bar"中定義)
@@ -128,7 +130,7 @@ foo.public() # 屬性錯誤: "Foo"沒有屬性"public"("public"在模塊"bar"中
 
 ```python,compile_fail
 # bar.er
-{.Foo; ...} = import "foo"
+{.Foo;} = import "foo"
 
 .Foo::
     private self = pass # 錯誤
@@ -140,7 +142,7 @@ Foo.
 
 ```python
 # bar.er
-{Foo; ...} = import "foo"
+{Foo;} = import "foo"
 
 FooImpl = Patch Foo
 FooImpl :=:
@@ -151,8 +153,8 @@ Foo Impl.
 
 ```python
 # baz.er
-{Foo; ...} = import "foo"
-{FooImpl; ...} = import "bar"
+{Foo;} = import "foo"
+{FooImpl;} = import "bar"
 
 foo = Foo.new()
 foo.public()
@@ -163,7 +165,7 @@ foo.public()
 可變可見性不限于完全公共/私有
 您也可以有限制地發布
 
-```python
+```python,checker_ignore
 # foo.er
 .record = {
     .a = {
@@ -181,7 +183,7 @@ _ = .record.a.y # OK
 _ = .record.a.z # OK
 ```
 
-```python
+```python,checker_ignore
 foo = import "foo"
 _ = foo.record.a.x # 可見性錯誤
 _ = foo.record.a.y # 可見性錯誤

@@ -1,6 +1,6 @@
 # 基本
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/00_basic.md%26commit_hash%3D13f2d31aee9012f60b7a40d4b764921f1419cdfe)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/00_basic.md&commit_hash=13f2d31aee9012f60b7a40d4b764921f1419cdfe)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/00_basic.md%26commit_hash%3D20aa4f02b994343ab9600317cebafa2b20676467)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/00_basic.md&commit_hash=20aa4f02b994343ab9600317cebafa2b20676467)
 
 > __Warning__: 本文檔不完整。它未經校對(樣式、正確鏈接、誤譯等)。此外，Erg 的語法可能在版本 0.* 期間發生破壞性更改，并且文檔可能沒有相應更新。請事先了解這一點
 > 如果您在本文檔中發現任何錯誤，請報告至 [此處的表單](https://forms.gle/HtLYRfYzWCAaeTGb6) 或 [GitHub repo](https://github.com/erg-lang/erg/issues/new?assignees=&labels=bug&template=bug_report.yaml)。我們將不勝感激您的建議

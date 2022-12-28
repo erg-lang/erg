@@ -1,6 +1,6 @@
 # 宣言(Declaration)
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/03_declaration.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/03_declaration.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/03_declaration.md%26commit_hash%3D20aa4f02b994343ab9600317cebafa2b20676467)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/03_declaration.md&commit_hash=20aa4f02b994343ab9600317cebafa2b20676467)
 
 聲明是用于指定要使用的變量類型的語法
 可以在代碼中的任何地方進行聲明，但單獨的聲明并不引用變量。它們必須被初始化
@@ -28,20 +28,21 @@ i: Nat # 這不會通過(-1 不是 Nat 的元素)
 
 函數可以用兩種不同的方式聲明
 
-```python
+```python,checker_ignore
 f: (x: Int, y: Int) -> Int
 f: (Int, Int) -> Int
 ```
 
 如果顯式聲明參數名稱，如果在定義時名稱不同，則會導致類型錯誤。如果你想給參數名稱任意命名，你可以用第二種方式聲明它們。在這種情況下，類型檢查只會看到方法名稱及其類型
 
-```python
+```python,compile_fail
 T = Trait {
     .f = (x: Int, y: Int): Int
 }
 
-C = Class(U, Impl := T)
-C.f(a: Int, b: Int): Int = ... # 類型錯誤: `.f` 必須是 `(x: Int, y: Int) -> Int` 的類型，而不是 `(a: Int, b: Int) -> Int`
+C = Class()
+C|<: T|.
+    f(a: Int, b: Int): Int = ... # 類型錯誤: `.f` 必須是 `(x: Int, y: Int) -> Int` 的類型，而不是 `(a: Int, b: Int) -> Int`
 ```
 
 <p align='center'>

@@ -1,6 +1,6 @@
 # 錯誤處理系統
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/30_error_handling.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/30_error_handling.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/30_error_handling.md%26commit_hash%3D20aa4f02b994343ab9600317cebafa2b20676467)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/30_error_handling.md&commit_hash=20aa4f02b994343ab9600317cebafa2b20676467)
 
 主要使用Result類型
 在 Erg 中，如果您丟棄 Error 類型的對象(頂層不支持)，則會發生錯誤
@@ -20,7 +20,7 @@ Erg 沒有異常機制(Exception)。導入 Python 函數時
 `Result` 類型表示可能是錯誤的值。`Result` 的錯誤處理在幾個方面優于異常機制
 首先，從類型定義中可以看出子程序可能會報錯，實際使用時也很明顯
 
-```python
+```python,checker_ignore
 # Python
 try:
     x = foo().bar()
@@ -51,7 +51,7 @@ try!:
 ## 語境
 
 由于 `Error`/`Result` 類型本身不會產生副作用，不像異常，它不能有發送位置(Context)等信息，但是如果使用 `.context` 方法，可以將信息放在 `錯誤`對象。可以添加。`.context` 方法是一種使用 `Error` 對象本身并創建新的 `Error` 對象的方法。它們是可鏈接的，并且可以包含多個上下文
-```python
+```python,checker_ignore
 f() =
     todo() \
         .context "to be implemented in ver 1.2" \
@@ -72,7 +72,7 @@ f()
 `.stack` 是調用者對象的數組。每次 Error 對象被`return`(包括通過`?`)時，它都會將它的調用子例程推送到`.stack`
 如果它是 `?`ed 或 `.unwrap`ed 在一個不可能 `return` 的上下文中，它會因為回溯而恐慌
 
-```python
+```python,checker_ignore
 f x =
     ...
     y = foo.try_some(x)?
@@ -101,7 +101,7 @@ Erg 還有一種處理不可恢復錯誤的機制，稱為 __panicing__
 
 恐慌是通過 `panic` 功能完成的
 
-```python
+```python,checker_ignore
 panic "something went wrong!"
 ```
 

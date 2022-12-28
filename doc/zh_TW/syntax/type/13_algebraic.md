@@ -1,6 +1,6 @@
 # 代數類型
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/13_algebraic.md%26commit_hash%3Db713e6f5cf9570255ccf44d14166cb2a9984f55a)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/13_algebraic.md&commit_hash=b713e6f5cf9570255ccf44d14166cb2a9984f55a)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/13_algebraic.md%26commit_hash%3Dd56549f5288d6c6b2bced57605ad547383963f85)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/13_algebraic.md&commit_hash=d56549f5288d6c6b2bced57605ad547383963f85)
 
 代數類型是通過將類型視為代數來操作類型而生成的類型
 它們處理的操作包括Union、Intersection、Diff、Complement等
@@ -15,9 +15,10 @@
 IntOrStr = Int or Str
 assert dict.get("some key") in (Int or NoneType)
 
-# 隱式變為 `T != NoneType`
 Option T = T or NoneType
 ```
+請注意，聯合類型是可交換的，但不是關聯的。也就是說，`X or Y or Z`是`(X or Y) or Z`，而不是`X or (Y or Z)`
+允許這樣做會導致，例如，`Int 或 Option(Str)`、`Option(Int) 或 Str`和`Option(Int or Str)` 屬於同一類型
 
 ## 路口
 

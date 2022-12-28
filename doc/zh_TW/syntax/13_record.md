@@ -1,6 +1,6 @@
 # 記錄(Record)
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/13_record.md%26commit_hash%3D00350f64a40b12f763a605bc16748d09379ab182)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/13_record.md&commit_hash=00350f64a40b12f763a605bc16748d09379ab182)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/13_record.md%26commit_hash%3D96b113c47ec6ca7ad91a6b486d55758de00d557d)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/13_record.md&commit_hash96b113c47ec6ca7ad91a6b486d55758de00d557d)
 
 記錄是一個集合，它結合了通過鍵訪問的 Dict 和在編譯時檢查其訪問的元組的屬性
 如果您了解 JavaScript，請將其視為一種(更增強的)對象字面量表示法
@@ -22,11 +22,10 @@ john["name"] # 錯誤: john 不可訂閱
 一般來說，我們建議使用記錄。記錄具有在編譯時檢查元素是否存在以及能夠指定 __visibility_ 的優點
 指定可見性等同于在 Java 和其他語言中指定公共/私有。有關詳細信息，請參閱 [可見性](./19_visibility.md) 了解詳細信息
 
-```python
+```python,compile_fail
 a = {x = 1; .y = x + 1}
 a.x # 屬性錯誤: x 是私有的
 # 提示: 聲明為 `.x`
-assert a.y == 2
 ```
 
 對于熟悉 JavaScript 的人來說，上面的示例可能看起來很奇怪，但簡單地聲明 `x` 會使其無法從外部訪問
@@ -35,10 +34,10 @@ assert a.y == 2
 
 ```python
 anonymous = {
-    .name: Option! Str = !
+    .name: Option! Str = "Jane Doe
     .age = 20
 }
-anonymous.name.set! "John"
+anonymous.name.set! "John Doe"
 ```
 
 一個記錄也可以有方法

@@ -1,13 +1,13 @@
 # 裝飾器(修飾符)
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/29_decorator.md%26commit_hash%3Db07c17708b9141bbce788d2e5b3ad4f365d342fa)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/29_decorator.md&commit_hash=b07c17708b9141bbce788d2e5b3ad4f365d342fa)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/29_decorator.md%26commit_hash%3D20aa4f02b994343ab9600317cebafa2b20676467)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/29_decorator.md&commit_hash=20aa4f02b994343ab9600317cebafa2b20676467)
 
 裝飾器用于向類型或函數添加或演示特定狀態或行為
 裝飾器的語法如下
 
 ```python
 @deco
-X=...
+X = ...
 ```
 
 你可以有多個裝飾器，只要它們不沖突
@@ -15,7 +15,7 @@ X=...
 裝飾器不是一個特殊的對象，它只是一個單參數函數。裝飾器等價于下面的偽代碼
 
 ```python
-X=...
+X = ...
 X = deco(X)
 ```
 
@@ -31,7 +31,7 @@ f x =
 # 還可以防止代碼變成水平的
 @LongNameDeco1
 @LongNameDeco2
-C = Class...
+C = Class ...
 ```
 
 下面是一些常用的內置裝飾器
@@ -102,7 +102,7 @@ assert Odd.AddO == Even
 
 ```python
 @Attach X
-T = Trait...
+T = Trait ...
 assert X in T. attaches
 U = T.detach(X).attach(Y)
 assert X not in U. attaches
