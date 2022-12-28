@@ -160,6 +160,8 @@ Also, see [here](../terms.md) for terminology.
 
 ### H
 
+* [Hight-order&nbsp;function](04_function.md)
+
 ### I
 
 * [id](./09_builtin_procs.md#id)

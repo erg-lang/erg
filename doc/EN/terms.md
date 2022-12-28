@@ -131,6 +131,8 @@ Or the mutating operator.
 
 ## H
 
+### [High-order&nbsp;functions](/syntax/04_function.md)
+
 ## I
 
 ### [if]

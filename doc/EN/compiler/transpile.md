@@ -12,23 +12,12 @@ For namedtuple, see [here](https://docs.python.org/3/library/collections.html#co
 There is a similar function, dataclass, but dataclass has a slight performance drop due to auto-implementation of `__eq__` and `__hash__`.
 
 ```python
-Employee = Class {.name = Str; .id = Int}
-
 employee = Employee.new({.name = "John Smith"; .id = 100})
-
 assert employee.name == "John Smith"
 ```
 
 ```python
-from typing import NamedTuple
-
-class Employee(NamedTuple):
-    __records__ = ['name', 'id']
-    name: str
-    id: int
-
-employee = Employee('John Smith', 100)
-
+employee = NamedTuple(['name', 'id'])('John Smith', 100)
 assert employee.name == 'John Smith'
 ```
 
@@ -71,4 +60,20 @@ module::x = 1
 y::x = 2
 assert module::x == 2
 y = None
+```
+
+## Patch
+
+```python
+func b: Bool =
+    Invert = Patch Bool
+    Invert.
+        invert self = not self
+    b.invert()
+```
+
+```python
+def func(b):
+    def Invert::invert(self): return not self
+    return Invert::invert(b)
 ```
