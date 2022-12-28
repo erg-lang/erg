@@ -1702,11 +1702,11 @@ impl PyCodeGenerator {
                 self.write_instr(Opcode310::JUMP_ABSOLUTE);
                 self.write_arg(idx_for_iter / 2);
             }
-            Some(8) => {
+            Some(9 | 8 | 7) => {
                 self.write_instr(Opcode308::JUMP_ABSOLUTE);
                 self.write_arg(idx_for_iter);
             }
-            _ => todo!(),
+            _ => todo!("not supported Python version"),
         }
         let idx_end = self.lasti();
         self.calc_edit_jump(idx_for_iter + 1, idx_end - idx_for_iter - 2);
@@ -2172,8 +2172,8 @@ impl PyCodeGenerator {
             "with!" => match self.py_version.minor {
                 Some(11) => self.emit_with_instr_311(args),
                 Some(10) => self.emit_with_instr_310(args),
-                Some(8) => self.emit_with_instr_308(args),
-                _ => todo!(),
+                Some(9 | 8 | 7) => self.emit_with_instr_308(args),
+                _ => todo!("not supported Python version"),
             },
             // "pyimport" | "py" are here
             _ => {
@@ -3005,11 +3005,7 @@ impl PyCodeGenerator {
     }
 
     fn load_in_op(&mut self) {
-        let mod_name = if self.py_version.minor >= Some(10) {
-            Identifier::public("_erg_std_prelude")
-        } else {
-            Identifier::public("_erg_std_prelude_old")
-        };
+        let mod_name = Identifier::public("_erg_std_prelude");
         self.emit_global_import_items(
             mod_name,
             vec![(
@@ -3021,11 +3017,7 @@ impl PyCodeGenerator {
     }
 
     fn load_mutate_op(&mut self) {
-        let mod_name = if self.py_version.minor >= Some(10) {
-            Identifier::public("_erg_std_prelude")
-        } else {
-            Identifier::public("_erg_std_prelude_old")
-        };
+        let mod_name = Identifier::public("_erg_std_prelude");
         self.emit_global_import_items(
             mod_name,
             vec![(
@@ -3062,11 +3054,7 @@ impl PyCodeGenerator {
         self.emit_call_instr(1, Method);
         self.stack_dec();
         self.emit_pop_top();
-        let erg_std_mod = if self.py_version.minor >= Some(10) {
-            Identifier::public("_erg_std_prelude")
-        } else {
-            Identifier::public("_erg_std_prelude_old")
-        };
+        let erg_std_mod = Identifier::public("_erg_std_prelude");
         // escaping
         self.emit_global_import_items(
             erg_std_mod.clone(),

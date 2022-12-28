@@ -24,7 +24,7 @@ class Nat(Int):
 class NatMut(IntMut): # and Nat
     value: Nat
 
-    def __init__(self, n):
+    def __init__(self, n: Nat):
         self.value = n
     def __repr__(self):
         return self.value.__repr__()

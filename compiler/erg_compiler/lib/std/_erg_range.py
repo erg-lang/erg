@@ -1,7 +1,7 @@
 from _erg_nat import Nat
 from _erg_str import Str
 
-from collections.abc import Iterable, Sequence, Iterator, Container
+# from collections.abc import Iterable, Sequence, Iterator, Container
 
 class Range:
     def __init__(self, start, end):
@@ -15,6 +15,7 @@ class Range:
             return res
         else:
             raise IndexError("Index out of range")
+    # TODO: for Str, etc.
     def __len__(self):
         if self.start in self:
             if self.end in self:
@@ -33,9 +34,9 @@ class Range:
     def __iter__(self):
         return RangeIterator(rng=self)
 
-Sequence.register(Range)
-Container.register(Range)
-Iterable.register(Range)
+# Sequence.register(Range)
+# Container.register(Range)
+# Iterable.register(Range)
 
 # represents `start<..end`
 class LeftOpenRange(Range):
@@ -92,4 +93,4 @@ class RangeIterator:
                 return result
         raise StopIteration
 
-Iterator.register(RangeIterator)
+# Iterator.register(RangeIterator)
