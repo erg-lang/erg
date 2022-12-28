@@ -39,6 +39,8 @@ use Mutability::*;
 use VarKind::*;
 use Visibility::*;
 
+const NUM: &str = "Num";
+
 impl Context {
     fn register_builtin_decl(&mut self, name: &'static str, t: Type, vis: Visibility) {
         if cfg!(feature = "debug") {
@@ -530,7 +532,7 @@ impl Context {
         ord.register_builtin_decl("__cmp__", op_t, Public);
         // FIXME: poly trait
         /* Num */
-        let num = Self::builtin_mono_trait("Num", 2);
+        let num = Self::builtin_mono_trait(NUM, 2);
         /* vec![
             poly("Add", vec![]),
             poly("Sub", vec![]),
@@ -644,7 +646,7 @@ impl Context {
         );
         self.register_builtin_type(mono("Eq"), eq, vis, Const, None);
         self.register_builtin_type(mono("Ord"), ord, vis, Const, None);
-        self.register_builtin_type(mono("Num"), num, vis, Const, None);
+        self.register_builtin_type(mono(NUM), num, vis, Const, None);
         self.register_builtin_type(
             poly("Seq", vec![ty_tp(T.clone())]),
             seq,
@@ -730,7 +732,7 @@ impl Context {
         float.register_builtin_const("EPSILON", Public, ValueObj::Float(2.220446049250313e-16));
         float.register_builtin_py_impl("Real", Float, Const, Public, Some("real"));
         float.register_builtin_py_impl("Imag", Float, Const, Public, Some("imag"));
-        float.register_marker_trait(mono("Num"));
+        float.register_marker_trait(mono(NUM));
         float.register_marker_trait(mono("Ord"));
         let mut float_ord = Self::builtin_methods(Some(mono("Ord")), 2);
         float_ord.register_builtin_impl(
@@ -783,7 +785,7 @@ impl Context {
         ratio.register_superclass(Obj, &obj);
         ratio.register_builtin_py_impl("Real", Ratio, Const, Public, Some("real"));
         ratio.register_builtin_py_impl("Imag", Ratio, Const, Public, Some("imag"));
-        ratio.register_marker_trait(mono("Num"));
+        ratio.register_marker_trait(mono(NUM));
         ratio.register_marker_trait(mono("Ord"));
         let mut ratio_ord = Self::builtin_methods(Some(mono("Ord")), 2);
         ratio_ord.register_builtin_impl(
@@ -835,7 +837,7 @@ impl Context {
         /* Int */
         let mut int = Self::builtin_mono_class("Int", 2);
         int.register_superclass(Float, &float); // TODO: Float -> Ratio
-        int.register_marker_trait(mono("Num"));
+        int.register_marker_trait(mono(NUM));
         // class("Rational"),
         // class("Integral"),
         int.register_builtin_py_impl("abs", fn0_met(Int, Nat), Immutable, Public, Some("__abs__"));
@@ -899,7 +901,7 @@ impl Context {
             Public,
             Some("times"),
         );
-        nat.register_marker_trait(mono("Num"));
+        nat.register_marker_trait(mono(NUM));
         let mut nat_eq = Self::builtin_methods(Some(mono("Eq")), 2);
         nat_eq.register_builtin_impl("__eq__", fn1_met(Nat, Nat, Bool), Const, Public);
         nat.register_trait(Nat, nat_eq);
@@ -938,7 +940,7 @@ impl Context {
         // class("Integral"),
         bool_.register_builtin_impl("__and__", fn1_met(Bool, Bool, Bool), Const, Public);
         bool_.register_builtin_impl("__or__", fn1_met(Bool, Bool, Bool), Const, Public);
-        bool_.register_marker_trait(mono("Num"));
+        bool_.register_marker_trait(mono(NUM));
         let mut bool_ord = Self::builtin_methods(Some(mono("Ord")), 2);
         bool_ord.register_builtin_impl(
             "__cmp__",
@@ -1880,7 +1882,7 @@ impl Context {
         let T = mono_q("T", instanceof(Type));
         let U = mono_q("U", instanceof(Type));
         let Path = mono_q_tp("Path", instanceof(Str));
-        let t_abs = nd_func(vec![kw("n", mono("Num"))], None, Nat);
+        let t_abs = nd_func(vec![kw("n", mono(NUM))], None, Nat);
         let t_all = func(
             vec![kw("iterable", poly("Iterable", vec![ty_tp(Bool)]))],
             None,
@@ -2431,7 +2433,7 @@ impl Context {
         let M = mono_q("M", subtypeof(mono("Mutizable")));
         let op_t = func1(M.clone(), proj(M, "MutType!")).quantify();
         self.register_builtin_impl("__mutate__", op_t, Const, Private);
-        let N = mono_q("N", subtypeof(mono("Num")));
+        let N = mono_q("N", subtypeof(mono(NUM)));
         let op_t = func1(N.clone(), N).quantify();
         self.register_builtin_decl("__pos__", op_t.clone(), Private);
         self.register_builtin_decl("__neg__", op_t, Private);
