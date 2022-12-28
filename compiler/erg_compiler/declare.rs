@@ -32,6 +32,20 @@ impl ASTLowerer {
                 self.ctx.caused_by(),
             )));
         }
+        let opt_spec_t = if let Some(t_spec) = &sig.t_spec {
+            let mut dummy_tv_cache = TyVarCache::new(self.ctx.level, &self.ctx);
+            let t = self.ctx.instantiate_typespec(
+                t_spec,
+                None,
+                &mut dummy_tv_cache,
+                RegistrationMode::Normal,
+                false,
+            )?;
+            t.lift();
+            Some(self.ctx.generalize_t(t))
+        } else {
+            None
+        };
         let chunk = self.declare_chunk(body.block.remove(0))?;
         let py_name = if let hir::Expr::TypeAsc(tasc) = &chunk {
             enum_unwrap!(tasc.expr.as_ref(), hir::Expr::Accessor)
@@ -42,13 +56,17 @@ impl ASTLowerer {
         };
         let block = hir::Block::new(vec![chunk]);
         let found_body_t = block.ref_t();
-        let ident = match &sig.pat {
-            ast::VarPattern::Ident(ident) => ident,
-            _ => unreachable!(),
-        };
+        let ast::VarPattern::Ident(ident) = &sig.pat else { unreachable!() };
         let id = body.id;
-        self.ctx
-            .assign_var_sig(&sig, found_body_t, id, py_name.clone())?;
+        if let Some(spec_t) = opt_spec_t {
+            self.ctx.sub_unify(found_body_t, &spec_t, sig.loc(), None)?;
+        }
+        if let Some(py_name) = &py_name {
+            self.declare_instance(ident, found_body_t, py_name.clone())?;
+        } else {
+            self.ctx
+                .assign_var_sig(&sig, found_body_t, id, py_name.clone())?;
+        }
         let mut ident = hir::Identifier::bare(ident.dot.clone(), ident.name.clone());
         ident.vi.t = found_body_t.clone();
         ident.vi.py_name = py_name;
