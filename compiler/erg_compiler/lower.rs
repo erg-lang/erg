@@ -1069,6 +1069,7 @@ impl ASTLowerer {
             .get_builtins()
             .and_then(|ctx| ctx.get_var_info(&name))
             .is_some()
+            && def.sig.vis().is_private()
         {
             self.warns.push(LowerWarning::builtin_exists_warning(
                 self.cfg.input.clone(),
