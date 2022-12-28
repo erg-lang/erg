@@ -1,13 +1,13 @@
 # 装饰器(修饰符)
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/29_decorator.md%26commit_hash%3Db07c17708b9141bbce788d2e5b3ad4f365d342fa)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/29_decorator.md&commit_hash=b07c17708b9141bbce788d2e5b3ad4f365d342fa)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/29_decorator.md%26commit_hash%3D20aa4f02b994343ab9600317cebafa2b20676467)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/29_decorator.md&commit_hash=20aa4f02b994343ab9600317cebafa2b20676467)
 
 装饰器用于向类型或函数添加或演示特定状态或行为
 装饰器的语法如下
 
 ```python
 @deco
-X=...
+X = ...
 ```
 
 你可以有多个装饰器，只要它们不冲突
@@ -15,12 +15,12 @@ X=...
 装饰器不是一个特殊的对象，它只是一个单参数函数。装饰器等价于下面的伪代码
 
 ```python
-X=...
+X = ...
 X = deco(X)
 ```
 
 Erg 不允许重新分配变量，因此上面的代码不起作用
-对于简单的变量，它与`X = deco(...)` 相同，但对于即时块和子例程，你不能这样做，所以你需要一个装饰器
+对于简单的变量，它与`X = deco(...)`相同，但对于即时块和子例程，你不能这样做，所以你需要一个装饰器
 
 ```python
 @deco
@@ -31,7 +31,7 @@ f x =
 # 还可以防止代码变成水平的
 @LongNameDeco1
 @LongNameDeco2
-C = Class...
+C = Class ...
 ```
 
 下面是一些常用的内置装饰器
@@ -46,11 +46,11 @@ C = Class...
 
 ## 覆盖
 
-覆盖属性时使用。默认情况下，如果您尝试定义与基类相同的属性，Erg 将抛出错误
+覆盖属性时使用。默认情况下，如果您尝试定义与基类相同的属性，Erg将抛出错误
 
 ## 实现
 
-表示参数 trait 已实现
+表示参数trait已实现
 
 ```python
 Add = Trait {
@@ -70,8 +70,8 @@ C.
 
 ## 附
 
-指定默认情况下随 trait 附带的附件补丁
-这允许您重现与 Rust Trait相同的行为
+指定默认情况下随trait附带的附件补丁
+这允许您重现与Rust Trait相同的行为
 
 ```python
 # foo.er
@@ -98,7 +98,7 @@ assert Int. AddO == Int
 assert Odd.AddO == Even
 ```
 
-在内部，它只是使用 trait 的 .attach 方法附加的。可以使用 trait 的 `.detach` 方法消除冲突
+在内部，它只是使用trait的.attach方法附加的。可以使用trait的`.detach`方法消除冲突
 
 ```python
 @Attach X
@@ -115,7 +115,7 @@ assert Y in U. attaches
 
 ## 测试
 
-表示这是一个测试子例程。测试子程序使用 `erg test` 命令运行
+表示这是一个测试子例程。测试子程序使用`erg test`命令运行
 
 <p align='center'>
     <a href='./28_spread_syntax.md'>上一页</a> | <a href='./30_error_handling.md'>下一页</a>

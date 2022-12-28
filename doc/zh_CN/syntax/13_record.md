@@ -1,6 +1,6 @@
 # 记录(Record)
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/13_record.md%26commit_hash%3D00350f64a40b12f763a605bc16748d09379ab182)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/13_record.md&commit_hash=00350f64a40b12f763a605bc16748d09379ab182)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/13_record.md%26commit_hash%3D96b113c47ec6ca7ad91a6b486d55758de00d557d)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/13_record.md&commit_hash=96b113c47ec6ca7ad91a6b486d55758de00d557d)
 
 记录是一个集合，它结合了通过键访问的 Dict 和在编译时检查其访问的元组的属性
 如果您了解 JavaScript，请将其视为一种(更增强的)对象字面量表示法
@@ -22,7 +22,7 @@ john["name"] # 错误: john 不可订阅
 一般来说，我们建议使用记录。记录具有在编译时检查元素是否存在以及能够指定 __visibility_ 的优点
 指定可见性等同于在 Java 和其他语言中指定公共/私有。有关详细信息，请参阅 [可见性](./19_visibility.md) 了解详细信息
 
-```python
+```python,compile_fail
 a = {x = 1; .y = x + 1}
 a.x # 属性错误: x 是私有的
 # 提示: 声明为 `.x`
@@ -35,10 +35,10 @@ assert a.y == 2
 
 ```python
 anonymous = {
-    .name: Option! Str = !
+    .name: Option! Str = "Jane Doe"
     .age = 20
 }
-anonymous.name.set! "John"
+anonymous.name.set! "John Doe"
 ```
 
 一个记录也可以有方法
@@ -171,28 +171,28 @@ y =
 如果您尝试自己实现方法，则必须直接在实例中定义裸记录(由记录文字生成的记录)
 这是低效的，并且随着属性数量的增加，错误消息等变得难以查看和使用
 
-```python
+```python,checker_ignore
 john = {
     name = "John Smith"
     age = !20
     .greet! ref self = print! "Hello, my name is \{self::name} and I am \{self::age} years old."
     .inc_age! ref! self = self::age.update! x -> x + 1
 }
-john + 1
+print! john + 1
 # 类型错误: {name = Str; 没有实现 + 年龄=诠释； 。迎接！ =参考(自我)。() => 无； inc_age！ =参考！ () => 无}, 整数
 ```
 
 因此，在这种情况下，您可以继承一个记录类。这样的类称为数据类
 这在 [class](./type/04_class.md) 中有描述
 
-```python
+```python,checker_ignore
 Person = Inherit {name = Str; age = Nat}
 Person.
     greet! ref self = print! "Hello, my name is \{self::name} and I am \{self::age} years old."
     inc_age! ref! self = self::age.update! x -> x + 1
 
 john = Person.new {name = "John Smith"; age = 20}
-john + 1
+print! john + 1
 # 类型错误: Person、Int 没有实现 +
 ```
 

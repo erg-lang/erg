@@ -1,23 +1,23 @@
 # 错误处理系统
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/30_error_handling.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/30_error_handling.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/30_error_handling.md%26commit_hash%3D20aa4f02b994343ab9600317cebafa2b20676467)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/30_error_handling.md&commit_hash=20aa4f02b994343ab9600317cebafa2b20676467)
 
 主要使用Result类型
-在 Erg 中，如果您丢弃 Error 类型的对象(顶层不支持)，则会发生错误
+在Erg中，如果您丢弃Error类型的对象(顶层不支持)，则会发生错误
 
 ## 异常，与 Python 互操作
 
-Erg 没有异常机制(Exception)。导入 Python 函数时
+Erg没有异常机制(Exception)。导入Python函数时
 
-* 将返回值设置为 `T 或 Error` 类型
-* `T or Panic` 类型(可能导致运行时错误)
+* 将返回值设置为`T 或 Error`类型
+* `T or Panic`类型(可能导致运行时错误)
 
-有两个选项，`pyimport` 默认为后者。如果要作为前者导入，请使用
-在 `pyimport` `exception_type` 中指定 `Error` (`exception_type: {Error, Panic}`)
+有两个选项，`pyimport`默认为后者。如果要作为前者导入，请使用
+在`pyimport` `exception_type`中指定`Error`(`exception_type: {Error, Panic}`)
 
 ## 异常和结果类型
 
-`Result` 类型表示可能是错误的值。`Result` 的错误处理在几个方面优于异常机制
+`Result`类型表示可能是错误的值。`Result`的错误处理在几个方面优于异常机制
 首先，从类型定义中可以看出子程序可能会报错，实际使用时也很明显
 
 ```python
@@ -43,16 +43,16 @@ try!:
         print! e
 ```
 
-另一方面，在这个例子中，我们可以看到 `foo!` 和 `qux!` 会引发错误
-确切地说，`y` 也可能是 `Result` 类型，但您最终必须处理它才能使用里面的值
+另一方面，在这个例子中，我们可以看到`foo!`和`qux!`会引发错误
+确切地说，`y` 也可能是`Result`类型，但您最终必须处理它才能使用里面的值
 
 使用 `Result` 类型的好处不止于此。`Result` 类型也是线程安全的。这意味着错误信息可以(轻松)在并行执行之间传递
 
 ## 语境
 
-由于 `Error`/`Result` 类型本身不会产生副作用，不像异常，它不能有发送位置(Context)等信息，但是如果使用 `.context` 方法，可以将信息放在 `错误`对象。可以添加。`.context` 方法是一种使用 `Error` 对象本身并创建新的 `Error` 对象的方法。它们是可链接的，并且可以包含多个上下文
+由于`Error`/`Result`类型本身不会产生副作用，不像异常，它不能有发送位置(Context)等信息，但是如果使用`.context`方法，可以将信息放在`错误`对象。可以添加。`.context`方法是一种使用`Error`对象本身并创建新的 `Error` 对象的方法。它们是可链接的，并且可以包含多个上下文
 
-```python
+```python,checker_ignore
 f() =
     todo() \
         .context "to be implemented in ver 1.2" \
@@ -73,7 +73,7 @@ f()
 `.stack` 是调用者对象的数组。每次 Error 对象被`return`(包括通过`?`)时，它都会将它的调用子例程推送到`.stack`
 如果它是 `?`ed 或 `.unwrap`ed 在一个不可能 `return` 的上下文中，它会因为回溯而恐慌
 
-```python
+```python,checker_ignore
 f x =
     ...
     y = foo.try_some(x)?
@@ -102,7 +102,7 @@ Erg 还有一种处理不可恢复错误的机制，称为 __panicing__
 
 恐慌是通过 `panic` 功能完成的
 
-```python
+```python,checker_ignore
 panic "something went wrong!"
 ```
 

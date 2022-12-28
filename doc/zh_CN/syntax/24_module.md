@@ -1,11 +1,11 @@
 # 模块
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/24_module.md%26commit_hash%3D48107a2d1719892be50588de764991cba6db39b4)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/24_module.md&commit_hash=48107a2d1719892be50588de764991cba6db39b4)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/24_module.md%26commit_hash%3D20aa4f02b994343ab9600317cebafa2b20676467)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/24_module.md&commit_hash=20aa4f02b994343ab9600317cebafa2b20676467)
 
 
 Erg允许您将文件本身视为单个记录(Record)。这称为模块
 
-```python: foo.er
+```python,checker_ignore
 # foo.er
 .i = 1
 ```
@@ -25,7 +25,7 @@ assert foo.i == 1
 由于模块类型也是记录类型，因此可以进行解构赋值
 
 ```python
-{sin; cos; ...} = import "math"
+{sin; cos;} = import "math"
 ```
 
 ## 模块可见性
@@ -39,7 +39,7 @@ assert foo.i == 1
   └─ __init__.er
 ```
 
-现在 `bar` 目录被识别为一个模块。如果 `bar` 中的唯一文件是 `__init__.er`，则目录结构没有多大意义，但如果您想将多个模块捆绑到一个模块中，它会很有用。例如: 
+现在`bar`目录被识别为一个模块。如果`bar`中的唯一文件是`__init__.er`，则目录结构没有多大意义，但如果您想将多个模块捆绑到一个模块中，它会很有用。例如: 
 ```console
 └─┬ bar
   ├─ __init__.er
@@ -47,7 +47,7 @@ assert foo.i == 1
   └─ qux.er
 ```
 
-在 `bar` 目录之外，您可以像下面这样使用
+在`bar`目录之外，您可以像下面这样使用
 
 ```erg
 bar = import "bar"
@@ -55,7 +55,7 @@ bar.baz.p!()
 bar.qux.p!()
 ```
 
-`__init__.er` 不仅仅是一个将目录作为模块的标记，它还控制模块的可见性
+`__init__.er`不仅仅是一个将目录作为模块的标记，它还控制模块的可见性
 
 ```erg
 # __init__.er
@@ -98,7 +98,7 @@ print! bar.x
 .x = g!(1) # 模块错误：由过程调用创建的变量不能在循环引用模块中定义
 ```
 
-```python
+```python,checker_ignore
 # bar.er
 foo = import "foo"
 print! foo.x

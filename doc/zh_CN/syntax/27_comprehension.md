@@ -1,10 +1,10 @@
 # 推导式
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/27_comprehension.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/27_comprehension.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/27_comprehension.md%26commit_hash%3D44d7784aac3550ba97c8a1eaf20b9264b13d4134)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/27_comprehension.md&commit_hash=44d7784aac3550ba97c8a1eaf20b9264b13d4134)
 
-Array 和 `[expr | (name <- iterable)+ (predicate)*]`,
-set 和 `{expr | (name <- iterable)+ (predicate)*}`,
-你可以创建一个字典 `{key: value | (name <- iterable)+ (predicate)*}`.
+Array和`[expr | (name <- iterable)+ (predicate)*]`,
+set和`{expr | (name <- iterable)+ (predicate)*}`,
+你可以创建一个字典`{key: value | (name <- iterable)+ (predicate)*}`.
 
 由`|`分隔的子句的第一部分称为布局子句(位置子句)，第二部分称为绑定子句(绑定子句)，第三部分称为保护子句(条件子句)
 保护子句可以省略，但绑定子句不能省略，保护子句不能在绑定子句之前
@@ -29,8 +29,8 @@ assert {i % 2 | i <- 0..9} == {0, 1}
 assert {k: v | k <- ["a", "b"]; v <- [1, 2]} == {"a": 1, "b": 2}
 ```
 
-Erg推导式受到 Haskell 的启发，但有一些不同
-对于 Haskell 列表推导，变量的顺序会对结果产生影响，但在 Erg 中这并不重要
+Erg推导式受到Haskell的启发，但有一些不同
+对于Haskell列表推导，变量的顺序会对结果产生影响，但在Erg中这并不重要
 
 ``` haskell
 -- Haskell
@@ -43,7 +43,7 @@ Erg推导式受到 Haskell 的启发，但有一些不同
 assert [(i, j) | i <- 1..<3; j <- 3..<5] == [(i, j) | j <- 3..<5; i <- 1.. <3]
 ```
 
-该规范与 Python 的规范相同
+该规范与Python的规范相同
 
 ```python
 # Python

@@ -1,6 +1,6 @@
 # 类型的基本语法
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/02_basic.md%26commit_hash%3Da0c1380a6fa5236518ac4ff455edbd3af50b0560)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/02_basic.md&commit_hash=a0c1380a6fa5236518ac4ff455edbd3af50b0560)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/02_basic.md%26commit_hash%3Df4fb25b4004bdfa96d2149fac8c4e40b84e8a45f)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/02_basic.md&commit_hash=f4fb25b4004bdfa96d2149fac8c4e40b84e8a45f)
 
 ## 类型规范
 
@@ -142,7 +142,7 @@ Vector = Array Int
 这意味着应将具有不同用途的类型定义为单独的类型
 目的还在于防止在已经具有别名的类型之上添加别名
 
-```python
+```python,compile_warn
 Id = Int
 UserId = Int # 类型警告: 重复别名: Id 和 UserId
 
