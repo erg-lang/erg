@@ -421,8 +421,9 @@ impl Lexer /*<'a>*/ {
 
     /// The semantic correctness of the use of indent/dedent will be analyzed with `Parser`
     fn lex_indent_dedent(&mut self, spaces: String) -> Option<LexResult<Token>> {
+        let spaces_len = spaces.len();
         // same as the CPython's limit
-        if spaces.len() > 100 {
+        if spaces_len > 100 {
             let token = self.emit_token(Indent, &spaces);
             return Some(Err(LexError::syntax_error(
                 line!() as usize,
@@ -456,22 +457,22 @@ impl Lexer /*<'a>*/ {
         }
         let mut is_valid_dedent = false;
         let calc_indent_and_validate = |sum: usize, x: &usize| {
-            if sum + *x == spaces.len() {
+            if sum + *x == spaces_len || spaces_len == 0 {
                 is_valid_dedent = true;
             }
             sum + *x
         };
         let sum_indent = self.indent_stack.iter().fold(0, calc_indent_and_validate);
-        match sum_indent.cmp(&spaces.len()) {
+        match sum_indent.cmp(&spaces_len) {
             Ordering::Less => {
-                let indent_len = spaces.len() - sum_indent;
+                let indent_len = spaces_len - sum_indent;
                 self.col_token_starts += sum_indent;
                 let indent = self.emit_token(Indent, &" ".repeat(indent_len));
                 self.indent_stack.push(indent_len);
                 Some(Ok(indent))
             }
             Ordering::Greater => {
-                self.cursor -= spaces.len();
+                self.cursor -= spaces_len;
                 self.indent_stack.pop();
                 if is_valid_dedent {
                     let dedent = self.emit_token(Dedent, "");
@@ -495,7 +496,7 @@ impl Lexer /*<'a>*/ {
                 }
             }
             Ordering::Equal /* if indent_sum == space.len() */ => {
-                self.col_token_starts += spaces.len();
+                self.col_token_starts += spaces_len;
                 None
             }
         }
