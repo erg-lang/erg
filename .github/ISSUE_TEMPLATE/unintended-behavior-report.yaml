@@ -1,11 +1,11 @@
-name: 🐛 Bug report
+name: Unintended Behavior Report
 description: Create a report to help us improve
 labels:
-  - bug
+  - unintended-behavior
 body:
   - type: textarea
     attributes:
-      label: Describe the bug?
+      label: Describe the behavior?
     validations:
       required: true
 
@@ -39,11 +39,15 @@ body:
     validations:
       required: true
 
-  - type: input
+  - type: dropdown
     attributes:
       label: Python version
-    validations:
-      required: false
+      options:
+        - Python3.7.x
+        - Python3.8.x
+        - Python3.9.x
+        - Python3.10.x
+        - Python3.11.x
 
   - type: dropdown
     attributes:

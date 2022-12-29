@@ -1,0 +1,62 @@
+name: 🐛 Bug Report
+description: Create a report to help us improve
+labels:
+  - bug
+body:
+  - type: textarea
+    attributes:
+      label: Describe the bug?
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Reproducible code
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: Expected result
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: Actual result
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: Additional context
+    validations:
+      required: false
+
+  - type: input
+    attributes:
+      label: Erg version
+    validations:
+      required: true
+
+  - type: dropdown
+    attributes:
+      label: Python version
+      options:
+        - Python3.7.x
+        - Python3.8.x
+        - Python3.9.x
+        - Python3.10.x
+        - Python3.11.x
+
+  - type: dropdown
+    attributes:
+      label: OS
+      options:
+        - Windows 10
+        - Windows 11
+        - MacOS 12 (Monterey)
+        - MacOS 11 (Big Sur)
+        - Ubuntu
+        - Linux(other distro)
+        - Other (write in `Additional context`)
