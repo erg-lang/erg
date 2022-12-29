@@ -1179,6 +1179,8 @@ impl Context {
         )
         .quantify();
         array_.register_builtin_py_impl("concat", t.clone(), Immutable, Public, Some("__add__"));
+        let t_count = fn_met(arr_t.clone(), vec![kw("x", T.clone())], None, vec![], Nat).quantify();
+        array_.register_builtin_py_impl("count", t_count, Immutable, Public, Some("count"));
         // Array(T, N)|<: Add(Array(T, M))|.
         //     Output = Array(T, N + M)
         //     __add__: (self: Array(T, N), other: Array(T, M)) -> Array(T, N + M) = Array.concat
@@ -1581,6 +1583,95 @@ impl Context {
         )
         .quantify();
         array_mut_.register_builtin_py_impl("push!", t, Immutable, Public, Some("append"));
+        let t_extend = pr_met(
+            ref_mut(
+                array_mut_t.clone(),
+                Some(poly(
+                    "Array!",
+                    vec![ty_tp(T.clone()), TyParam::erased(mono("Nat!"))],
+                )),
+            ),
+            vec![kw("iterable", poly("Iterable", vec![ty_tp(T.clone())]))],
+            None,
+            vec![],
+            NoneType,
+        )
+        .quantify();
+        array_mut_.register_builtin_py_impl("extend!", t_extend, Immutable, Public, Some("extend"));
+        let t_insert = pr_met(
+            ref_mut(
+                array_mut_t.clone(),
+                Some(poly(
+                    "Array!",
+                    vec![ty_tp(T.clone()), N_MUT.clone() + value(1usize)],
+                )),
+            ),
+            vec![kw("index", Nat), kw("elem", T.clone())],
+            None,
+            vec![],
+            NoneType,
+        )
+        .quantify();
+        array_mut_.register_builtin_py_impl("insert!", t_insert, Immutable, Public, Some("insert"));
+        let t_remove = pr_met(
+            ref_mut(
+                array_mut_t.clone(),
+                Some(poly(
+                    "Array!",
+                    vec![ty_tp(T.clone()), N_MUT.clone() - value(1usize)],
+                )),
+            ),
+            vec![kw("x", T.clone())],
+            None,
+            vec![],
+            NoneType,
+        )
+        .quantify();
+        array_mut_.register_builtin_py_impl("remove!", t_remove, Immutable, Public, Some("remove"));
+        let t_pop = pr_met(
+            ref_mut(
+                array_mut_t.clone(),
+                Some(poly(
+                    "Array!",
+                    vec![ty_tp(T.clone()), N_MUT.clone() - value(1usize)],
+                )),
+            ),
+            vec![],
+            None,
+            vec![kw("index", Nat)],
+            T.clone(),
+        )
+        .quantify();
+        array_mut_.register_builtin_py_impl("pop!", t_pop, Immutable, Public, Some("pop"));
+        let t_clear = pr0_met(
+            ref_mut(
+                array_mut_t.clone(),
+                Some(poly("Array!", vec![ty_tp(T.clone()), value(0usize)])),
+            ),
+            NoneType,
+        )
+        .quantify();
+        array_mut_.register_builtin_py_impl("clear!", t_clear, Immutable, Public, Some("clear"));
+        let t_sort = pr_met(
+            ref_mut(array_mut_t.clone(), None),
+            vec![],
+            None,
+            vec![kw(
+                "key",
+                func(vec![kw("x", T.clone())], None, vec![], mono("Ord")),
+            )],
+            NoneType,
+        )
+        .quantify();
+        array_mut_.register_builtin_py_impl("sort!", t_sort, Immutable, Public, Some("sort"));
+        let t_reverse = pr0_met(ref_mut(array_mut_t.clone(), None), NoneType).quantify();
+        array_mut_.register_builtin_py_impl(
+            "reverse!",
+            t_reverse,
+            Immutable,
+            Public,
+            Some("reverse"),
+        );
         let t = pr_met(
             array_mut_t.clone(),
             vec![kw("func", nd_func(vec![anon(T.clone())], None, T.clone()))],
