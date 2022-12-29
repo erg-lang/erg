@@ -562,6 +562,15 @@ impl Context {
                     Box::new(self.deref_tyvar(mem::take(&mut subr.return_t), Covariant, loc)?);
                 Ok(Type::Subr(subr))
             }
+            Type::Quantified(subr)
+                if subr
+                    .return_t()
+                    .map(|ret| !ret.is_free_var())
+                    .unwrap_or(false) =>
+            {
+                let subr = self.deref_tyvar(*subr, variance, loc)?;
+                Ok(subr)
+            }
             Type::Ref(t) => {
                 let t = self.deref_tyvar(*t, variance, loc)?;
                 Ok(ref_(t))
@@ -857,25 +866,10 @@ impl Context {
                 Ok(())
             }
             hir::Expr::Def(def) => {
-                // It is not possible to further dereference the quantified type.
-                // TODO: However, it is possible that there are external type variables within the quantified type.
-                if !def.sig.ref_t().is_quantified() {
-                    match &mut def.sig {
-                        hir::Signature::Var(var) => {
-                            *var.ref_mut_t() =
-                                self.deref_tyvar(mem::take(var.ref_mut_t()), Covariant, var.loc())?;
-                        }
-                        hir::Signature::Subr(subr) => {
-                            *subr.ref_mut_t() = self.deref_tyvar(
-                                mem::take(subr.ref_mut_t()),
-                                Covariant,
-                                subr.loc(),
-                            )?;
-                        }
-                    }
-                    for chunk in def.body.block.iter_mut() {
-                        self.resolve_expr_t(chunk)?;
-                    }
+                *def.sig.ref_mut_t() =
+                    self.deref_tyvar(mem::take(def.sig.ref_mut_t()), Covariant, def.sig.loc())?;
+                for chunk in def.body.block.iter_mut() {
+                    self.resolve_expr_t(chunk)?;
                 }
                 Ok(())
             }
