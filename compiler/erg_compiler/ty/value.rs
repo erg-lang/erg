@@ -362,6 +362,13 @@ impl TypeObj {
         }
     }
 
+    pub fn typ_mut(&mut self) -> &mut Type {
+        match self {
+            TypeObj::Builtin(t) => t,
+            TypeObj::Generated(t) => t.typ_mut(),
+        }
+    }
+
     pub fn into_typ(self) -> Type {
         match self {
             TypeObj::Builtin(t) => t,

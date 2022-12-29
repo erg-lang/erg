@@ -94,7 +94,7 @@ impl Context {
     /// ```python
     /// generalize_t(?T) == 'T: Type
     /// generalize_t(?T(<: Nat) -> ?T) == |'T <: Nat| 'T -> 'T
-    /// generalize_t(?T(<: Eq(?T(<: Eq(?T(<: ...)))) -> ?T) == |'T <: Eq('T)| 'T -> 'T
+    /// generalize_t(?T(<: Add(?T(<: Eq(?T(<: ...)))) -> ?T) == |'T <: Add('T)| 'T -> 'T
     /// generalize_t(?T(<: TraitX) -> Int) == TraitX -> Int // 戻り値に現れないなら量化しない
     /// ```
     fn generalize_t_inner(&self, free_type: Type, variance: Variance) -> Type {
@@ -232,6 +232,11 @@ impl Context {
     fn generalize_pred(&self, pred: Predicate, variance: Variance) -> Predicate {
         match pred {
             Predicate::Const(_) => pred,
+            Predicate::Value(ValueObj::Type(mut typ)) => {
+                *typ.typ_mut() = self.generalize_t_inner(mem::take(typ.typ_mut()), variance);
+                Predicate::Value(ValueObj::Type(typ))
+            }
+            Predicate::Value(_) => pred,
             Predicate::Equal { lhs, rhs } => {
                 let rhs = self.generalize_tp(rhs, variance);
                 Predicate::eq(lhs, rhs)
@@ -263,7 +268,6 @@ impl Context {
                 let rhs = self.generalize_pred(*rhs, variance);
                 Predicate::not(lhs, rhs)
             }
-            other => todo!("{other}"),
         }
     }
 
