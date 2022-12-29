@@ -546,9 +546,6 @@ impl Context {
             }
             // ({I: Int | True} :> Int) == true, ({N: Nat | ...} :> Int) == false, ({I: Int | I >= 0} :> Int) == false
             (Refinement(l), r) => {
-                if l.preds.is_empty() {
-                    unreachable!()
-                }
                 if l.preds
                     .iter()
                     .any(|p| p.mentions(&l.var) && p.can_be_false())
