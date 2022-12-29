@@ -29,32 +29,32 @@ class NatMut(IntMut): # and Nat
     def __repr__(self):
         return self.value.__repr__()
     def __eq__(self, other):
-        if isinstance(other, Int):
+        if isinstance(other, int):
             return self.value == other
         else:
             return self.value == other.value
     def __ne__(self, other):
-        if isinstance(other, Int):
+        if isinstance(other, int):
             return self.value != other
         else:
             return self.value != other.value
     def __le__(self, other):
-        if isinstance(other, Int):
+        if isinstance(other, int):
             return self.value <= other
         else:
             return self.value <= other.value
     def __ge__(self, other):
-        if isinstance(other, Int):
+        if isinstance(other, int):
             return self.value >= other
         else:
             return self.value >= other.value
     def __lt__(self, other):
-        if isinstance(other, Int):
+        if isinstance(other, int):
             return self.value < other
         else:
             return self.value < other.value
     def __gt__(self, other):
-        if isinstance(other, Int):
+        if isinstance(other, int):
             return self.value > other
         else:
             return self.value > other.value
@@ -63,11 +63,21 @@ class NatMut(IntMut): # and Nat
             return NatMut(self.value + other)
         else:
             return NatMut(self.value + other.value)
+    def __radd__(self, other):
+        if isinstance(other, Nat):
+            return Nat(other + self.value)
+        else:
+            return Nat(other.value + self.value)
     def __mul__(self, other):
         if isinstance(other, Nat):
             return NatMut(self.value * other)
         else:
             return NatMut(self.value * other.value)
+    def __rmul__(self, other):
+        if isinstance(other, Nat):
+            return Nat(other * self.value)
+        else:
+            return Nat(other.value * self.value)
     def __pow__(self, other):
         if isinstance(other, Nat):
             return NatMut(self.value ** other)

@@ -29,3 +29,31 @@ not_zero!() = not counter2 == 0
 while! not_zero!, do!:
     print! "aaa"
     counter2.dec!()
+
+ii = 0 + 2 * 3 / 2 ** 2
+j = -+1
+
+k = !0
+if! ii >= 0:
+    do!:
+        i = 2
+        while! do!(k <= 2), do!:
+            print! k
+            for! [0, 1], i =>
+                print! i + k
+            k.inc!()
+
+        match! k:
+            0 => print! "zero"
+            _ => print! "\{k}"
+
+match! k:
+    0 => print! "zero"
+    _ => print! "\{k}"
+
+arrs = [[0, 1], [2, 3]]
+
+for! arrs, arr =>
+    print! arr
+    for! arr, elem =>
+        print! elem
