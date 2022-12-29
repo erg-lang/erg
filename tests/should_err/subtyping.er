@@ -22,3 +22,9 @@ for! zip([1], ["a"]), ((i: Str, s: Str),) =>
 for! zip([1], ["a"]), ((i, s),) =>
     k = i + "a" # ERR
     print! k
+
+for! zip([1+1], ["a"+"b"]), ((i, s),) => # i: Nat, s: Str
+    print! i + 1
+    print! s + "b"
+    print! s + 1 # ERR
+    print! i + "a" # ERR

@@ -1431,6 +1431,14 @@ impl Context {
             {
                 let (lsub, lsup) = lfv.get_subsup().unwrap();
                 let (rsub, rsup) = rfv.get_subsup().unwrap();
+                for (lps, rps) in lsub.typarams().iter().zip(rsub.typarams().iter()) {
+                    self.sub_unify_tp(lps, rps, None, loc, false)?;
+                }
+                // lsup: Add(?X(:> Int)), rsup: Add(?Y(:> Nat))
+                //   => lsup: Add(?X(:> Int)), rsup: Add((?X(:> Int)))
+                for (lps, rps) in lsup.typarams().iter().zip(rsup.typarams().iter()) {
+                    self.sub_unify_tp(lps, rps, None, loc, false)?;
+                }
                 let intersec = self.intersection(&lsup, &rsup);
                 let new_constraint = if intersec != Type::Never {
                     Constraint::new_sandwiched(self.union(&lsub, &rsub), intersec)
