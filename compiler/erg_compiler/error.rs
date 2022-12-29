@@ -16,7 +16,6 @@ use erg_common::{
 
 use erg_parser::error::{ParserRunnerError, ParserRunnerErrors};
 
-use crate::context::Context;
 use crate::hir::{Expr, Identifier};
 use crate::ty::{HasType, Predicate, Type};
 
@@ -1103,7 +1102,6 @@ passed keyword args:    {kw_args_len}"
         caused_by: String,
         hint: Option<String>,
     ) -> Self {
-        let hint = hint.or_else(|| Context::get_simple_type_mismatch_hint(trait_, class));
         Self::new(
             ErrorCore::new(
                 vec![SubMessage::ambiguous_new(loc, vec![], hint)],

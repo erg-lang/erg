@@ -57,7 +57,7 @@ impl Context {
                 &spec_t,
                 body_t,
                 self.get_candidates(body_t),
-                Self::get_simple_type_mismatch_hint(&spec_t, body_t),
+                self.get_simple_type_mismatch_hint(&spec_t, body_t),
             )));
         }
         Ok(())
@@ -254,7 +254,7 @@ impl Context {
                     &mono("LambdaFunc"),
                     t,
                     self.get_candidates(t),
-                    Self::get_simple_type_mismatch_hint(&mono("LambdaFunc"), t),
+                    self.get_simple_type_mismatch_hint(&mono("LambdaFunc"), t),
                 )));
             }
         }
@@ -931,6 +931,9 @@ impl Context {
         } else {
             (obj.loc(), obj.to_string())
         };
+        let other = self
+            .deref_tyvar(other.clone(), Variance::Covariant, loc)
+            .unwrap_or_else(|_| other.clone());
         TyCheckErrors::from(TyCheckError::type_mismatch_error(
             self.cfg.input.clone(),
             line!() as usize,
@@ -939,8 +942,8 @@ impl Context {
             &name,
             None,
             &mono("Callable"),
-            other,
-            self.get_candidates(other),
+            &other,
+            self.get_candidates(&other),
             hint,
         ))
     }
@@ -1263,7 +1266,7 @@ impl Context {
         passed_params: &mut Set<Str>,
     ) -> TyCheckResult<()> {
         let arg_t = arg.ref_t();
-        let param_t = &param.typ();
+        let param_t = param.typ();
         if let Some(name) = param.name() {
             if passed_params.contains(name) {
                 return Err(TyCheckErrors::from(TyCheckError::multiple_args_error(
@@ -1287,13 +1290,19 @@ impl Context {
                     callee.show_acc().unwrap_or_default()
                 };
                 let name = name + "::" + param.name().map(|s| readable_name(&s[..])).unwrap_or("");
-                let mut hint = Self::get_call_type_mismatch_hint(
+                let mut hint = self.get_call_type_mismatch_hint(
                     callee.ref_t(),
                     attr_name.as_ref().map(|i| &i.inspect()[..]),
                     nth,
                     param_t,
                     arg_t,
                 );
+                let param_t = self
+                    .deref_tyvar(param_t.clone(), Variance::Contravariant, arg.loc())
+                    .unwrap_or_else(|_| param_t.clone());
+                let arg_t = self
+                    .deref_tyvar(arg_t.clone(), Variance::Covariant, arg.loc())
+                    .unwrap_or_else(|_| arg_t.clone());
                 TyCheckErrors::new(
                     errs.into_iter()
                         .map(|e| {
@@ -1304,9 +1313,9 @@ impl Context {
                                 e.caused_by,
                                 &name[..],
                                 Some(nth),
-                                param_t,
-                                arg_t,
-                                self.get_candidates(arg_t),
+                                &param_t,
+                                &arg_t,
+                                self.get_candidates(&arg_t),
                                 std::mem::take(&mut hint),
                             )
                         })
@@ -1325,7 +1334,7 @@ impl Context {
         param: &ParamTy,
     ) -> TyCheckResult<()> {
         let arg_t = arg.ref_t();
-        let param_t = &param.typ();
+        let param_t = param.typ();
         self.sub_unify(arg_t, param_t, arg.loc(), param.name())
             .map_err(|errs| {
                 log!(err "semi-unification failed with {callee}\n{arg_t} !<: {param_t}");
@@ -1335,6 +1344,7 @@ impl Context {
                     callee.show_acc().unwrap_or_default()
                 };
                 let name = name + "::" + param.name().map(|s| readable_name(&s[..])).unwrap_or("");
+                let hint = self.get_simple_type_mismatch_hint(param_t, arg_t);
                 TyCheckErrors::new(
                     errs.into_iter()
                         .map(|e| {
@@ -1348,7 +1358,7 @@ impl Context {
                                 param_t,
                                 arg_t,
                                 self.get_candidates(arg_t),
-                                Self::get_simple_type_mismatch_hint(param_t, arg_t),
+                                hint.clone(),
                             )
                         })
                         .collect(),
@@ -1383,8 +1393,9 @@ impl Context {
             .chain(subr_ty.default_params.iter())
             .find(|pt| pt.name().as_ref() == Some(&kw_name))
         {
+            let param_t = pt.typ();
             passed_params.insert(kw_name.clone());
-            self.sub_unify(arg_t, pt.typ(), arg.loc(), Some(kw_name))
+            self.sub_unify(arg_t, param_t, arg.loc(), Some(kw_name))
                 .map_err(|errs| {
                     log!(err "semi-unification failed with {callee}\n{arg_t} !<: {}", pt.typ());
                     let name = if let Some(attr) = attr_name {
@@ -1393,6 +1404,13 @@ impl Context {
                         callee.show_acc().unwrap_or_default()
                     };
                     let name = name + "::" + readable_name(kw_name);
+                    let hint = self.get_simple_type_mismatch_hint(param_t, arg_t);
+                    let param_t = self
+                        .deref_tyvar(param_t.clone(), Variance::Contravariant, arg.loc())
+                        .unwrap_or_else(|_| param_t.clone());
+                    let arg_t = self
+                        .deref_tyvar(arg_t.clone(), Variance::Covariant, arg.loc())
+                        .unwrap_or_else(|_| arg_t.clone());
                     TyCheckErrors::new(
                         errs.into_iter()
                             .map(|e| {
@@ -1403,10 +1421,10 @@ impl Context {
                                     e.caused_by,
                                     &name[..],
                                     Some(nth),
-                                    pt.typ(),
-                                    arg_t,
-                                    self.get_candidates(arg_t),
-                                    Self::get_simple_type_mismatch_hint(pt.typ(), arg_t),
+                                    &param_t,
+                                    &arg_t,
+                                    self.get_candidates(&arg_t),
+                                    hint.clone(),
                                 )
                             })
                             .collect(),

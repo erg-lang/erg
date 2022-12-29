@@ -29,6 +29,7 @@ use crate::ty::{HasType, ParamTy, Type};
 
 use crate::context::{
     ClassDefType, Context, ContextKind, ContextProvider, RegistrationMode, TypeRelationInstance,
+    Variance,
 };
 use crate::error::{
     CompileError, CompileErrors, LowerError, LowerErrors, LowerResult, LowerWarning, LowerWarnings,
@@ -172,7 +173,7 @@ impl ASTLowerer {
                     expect,
                     found,
                     None, // self.ctx.get_candidates(found),
-                    Context::get_simple_type_mismatch_hint(expect, found),
+                    self.ctx.get_simple_type_mismatch_hint(expect, found),
                 )
             })
     }
@@ -330,8 +331,14 @@ impl ASTLowerer {
 
     fn elem_err(&self, l: &Type, r: &Type, elem: &hir::Expr) -> LowerErrors {
         let elem_disp_notype = elem.to_string_notype();
-        let l = Context::readable_type(l);
-        let r = Context::readable_type(r);
+        let l = self
+            .ctx
+            .deref_tyvar(l.clone(), Variance::Covariant, Location::Unknown)
+            .unwrap_or_else(|_| l.clone());
+        let r = self
+            .ctx
+            .deref_tyvar(r.clone(), Variance::Covariant, Location::Unknown)
+            .unwrap_or_else(|_| r.clone());
         LowerErrors::from(LowerError::syntax_error(
             self.cfg.input.clone(),
             line!() as usize,
@@ -1200,7 +1207,14 @@ impl ASTLowerer {
                                 sig.loc(),
                                 self.ctx.caused_by(),
                                 sig.ident.inspect(),
-                                &Context::readable_type(return_t),
+                                &self
+                                    .ctx
+                                    .deref_tyvar(
+                                        return_t.clone(),
+                                        Variance::Covariant,
+                                        Location::Unknown,
+                                    )
+                                    .unwrap_or_else(|_| return_t.clone()),
                             );
                             self.warns.push(warn);
                         }

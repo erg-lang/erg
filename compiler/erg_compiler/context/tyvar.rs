@@ -692,7 +692,7 @@ impl Context {
                 &trait_,
                 loc,
                 self.caused_by(),
-                None,
+                self.get_simple_type_mismatch_hint(&trait_, &class),
             )))
         } else {
             Ok(())
@@ -1422,7 +1422,7 @@ impl Context {
                 maybe_sup,
                 maybe_sub,
                 self.get_candidates(maybe_sub),
-                Self::get_simple_type_mismatch_hint(maybe_sup, maybe_sub),
+                self.get_simple_type_mismatch_hint(maybe_sup, maybe_sub),
             )));
         }
         match (maybe_sub, maybe_sup) {

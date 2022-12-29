@@ -1006,7 +1006,7 @@ impl Context {
                     &sup,
                     t_loc,
                     self.caused_by(),
-                    None,
+                    self.get_simple_type_mismatch_hint(&sup, &sub),
                 )));
             }
         }
@@ -1027,7 +1027,7 @@ impl Context {
                 &proj,
                 t_loc,
                 self.caused_by(),
-                Self::get_no_candidate_hint(&proj),
+                self.get_no_candidate_hint(&proj),
             )))
         }
     }
@@ -1360,7 +1360,7 @@ impl Context {
                     &sup,
                     t_loc,
                     self.caused_by(),
-                    None,
+                    self.get_simple_type_mismatch_hint(&sup, &sub),
                 )));
             }
         }
@@ -1381,7 +1381,7 @@ impl Context {
                 &proj,
                 t_loc,
                 self.caused_by(),
-                Self::get_no_candidate_hint(&proj),
+                self.get_no_candidate_hint(&proj),
             )))
         }
     }

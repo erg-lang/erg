@@ -1,3 +1,4 @@
+use erg_common::error::Location;
 use erg_common::style::{Attribute, Color, StyledStrings, THEME};
 use erg_common::{option_enum_unwrap, switch_lang};
 
@@ -5,7 +6,7 @@ use crate::ty::typaram::TyParam;
 use crate::ty::value::ValueObj;
 use crate::ty::{HasType, Predicate, SubrKind, Type};
 
-use crate::context::Context;
+use crate::context::{Context, Variance};
 
 const HINT: Color = THEME.colors.hint;
 const ERR: Color = THEME.colors.error;
@@ -22,19 +23,6 @@ enum Sequence {
 
 // TODO: these should not be in Context
 impl Context {
-    pub(crate) fn readable_type(typ: &Type) -> Type {
-        match typ {
-            Type::FreeVar(fv) if fv.constraint_is_sandwiched() => {
-                let (sub, sup) = fv.get_subsup().unwrap();
-                if sup == Type::Obj {
-                    return sub;
-                }
-                Type::FreeVar(fv.clone())
-            }
-            other => other.clone(),
-        }
-    }
-
     /// TODO: custom types
     fn get_verb_and_preposition(trait_: &Type) -> Option<(&str, &str, Sequence)> {
         match &trait_.qual_name()[..] {
@@ -49,6 +37,7 @@ impl Context {
     }
 
     pub(crate) fn get_call_type_mismatch_hint(
+        &self,
         callee_t: &Type,
         attr: Option<&str>,
         nth: usize,
@@ -80,10 +69,14 @@ impl Context {
                 });
             }
         }
-        Self::get_simple_type_mismatch_hint(expected, found)
+        self.get_simple_type_mismatch_hint(expected, found)
     }
 
-    pub(crate) fn get_simple_type_mismatch_hint(expected: &Type, found: &Type) -> Option<String> {
+    pub(crate) fn get_simple_type_mismatch_hint(
+        &self,
+        expected: &Type,
+        found: &Type,
+    ) -> Option<String> {
         let expected = if let Type::FreeVar(fv) = expected {
             if fv.is_linked() {
                 fv.crack().clone()
@@ -167,7 +160,13 @@ impl Context {
                     .map(|(t1, t2)| format!("cannot {verb} {t1} {preposition} {t2}"))
                     .or_else(|| {
                         expected.inner_ts().get(0).map(|expected_inner| {
-                            let expected_inner = Self::readable_type(expected_inner);
+                            let expected_inner = self
+                                .deref_tyvar(
+                                    expected_inner.clone(),
+                                    Variance::Covariant,
+                                    Location::Unknown,
+                                )
+                                .unwrap_or_else(|_| expected_inner.clone());
                             format!("cannot {verb} {found} {preposition} {expected_inner}")
                         })
                     })
@@ -175,14 +174,16 @@ impl Context {
         }
     }
 
-    pub(crate) fn get_no_candidate_hint(proj: &Type) -> Option<String> {
+    pub(crate) fn get_no_candidate_hint(&self, proj: &Type) -> Option<String> {
         match proj {
             Type::Proj { lhs, rhs: _ } => {
                 if let Type::FreeVar(fv) = lhs.as_ref() {
                     let (sub, sup) = fv.get_subsup()?;
                     let (verb, preposition, sequence) = Self::get_verb_and_preposition(&sup)?;
-                    let sup = option_enum_unwrap!(sup.typarams().get(0)?.clone(), TyParam::Type)?;
-                    let sup = Self::readable_type(&sup);
+                    let sup = *option_enum_unwrap!(sup.typarams().get(0)?.clone(), TyParam::Type)?;
+                    let sup = self
+                        .deref_tyvar(sup.clone(), Variance::Covariant, Location::Unknown)
+                        .unwrap_or_else(|_| sup.clone());
                     let (l, r) = if sequence == Sequence::Forward {
                         (sub, sup)
                     } else {
