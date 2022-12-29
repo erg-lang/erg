@@ -563,10 +563,7 @@ impl Context {
                 Ok(Type::Subr(subr))
             }
             Type::Quantified(subr)
-                if subr
-                    .return_t()
-                    .map(|ret| !ret.is_free_var())
-                    .unwrap_or(false) =>
+                if subr.return_t().map(|ret| !ret.has_qvar()).unwrap_or(false) =>
             {
                 let subr = self.deref_tyvar(*subr, variance, loc)?;
                 Ok(subr)
