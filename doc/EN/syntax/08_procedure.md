@@ -1,7 +1,7 @@
 # Procedures
 
-Procedures mean the functions that allow [side-effect](/07_side_effect.md).
-Please refer to [Function](/04_function.md) basically usage or definition.
+Procedures mean the functions that allow [side-effect](./07_side_effect.md).
+Please refer to [Function](./04_function.md) basically usage or definition.
 Add `!` to a function name to define it.
 
 ```python

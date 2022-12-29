@@ -2,8 +2,8 @@
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/08_procedure.md%26commit_hash%3D96b113c47ec6ca7ad91a6b486d55758de00d557d)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/08_procedure.md&commit_hash=96b113c47ec6ca7ad91a6b486d55758de00d557d)
 
-程序是指允许[副作用](/07_side_effect.md)的函数
-基本用法或定义请参考[Function](/04_function.md)
+程序是指允许[副作用](./07_side_effect.md)的函数
+基本用法或定义请参考[Function](./04_function.md)
 添加 `!` 到函数名来定义它
 
 ```python

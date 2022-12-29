@@ -164,7 +164,7 @@
 
 ### H
 
-* [High-order&nbsp;function](/04_function.md)
+* [High-order&nbsp;function](./04_function.md)
 
 ### I
 
