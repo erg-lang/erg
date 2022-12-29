@@ -843,6 +843,41 @@ impl Context {
         int.register_builtin_py_impl("abs", fn0_met(Int, Nat), Immutable, Public, Some("__abs__"));
         int.register_builtin_py_impl("succ", fn0_met(Int, Int), Immutable, Public, Some("succ"));
         int.register_builtin_py_impl("pred", fn0_met(Int, Int), Immutable, Public, Some("pred"));
+        let t_from_bytes = func(
+            vec![kw(
+                "bytes",
+                or(
+                    mono("Bytes"),
+                    array_t(Type::from(value(0)..=value(255)), TyParam::erased(Nat)),
+                ),
+            )],
+            None,
+            vec![kw(
+                "byteorder",
+                v_enum(set! {ValueObj::Str("big".into()), ValueObj::Str("little".into())}),
+            )],
+            Int,
+        );
+        int.register_builtin_py_impl(
+            "from_bytes",
+            t_from_bytes,
+            Const,
+            Public,
+            Some("from_bytes"),
+        );
+        let t_to_bytes = func(
+            vec![kw("self", Int)],
+            None,
+            vec![
+                kw("length", Nat),
+                kw(
+                    "byteorder",
+                    v_enum(set! {ValueObj::Str("big".into()), ValueObj::Str("little".into())}),
+                ),
+            ],
+            mono("Bytes"),
+        );
+        int.register_builtin_py_impl("to_bytes", t_to_bytes, Immutable, Public, Some("to_bytes"));
         let mut int_ord = Self::builtin_methods(Some(mono("Ord")), 2);
         int_ord.register_builtin_impl(
             "__partial_cmp__",
