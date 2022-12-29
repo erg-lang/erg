@@ -37,7 +37,8 @@ impl Context {
         match free {
             TyParam::Type(t) => TyParam::t(self.generalize_t_inner(*t, variance)),
             TyParam::FreeVar(v) if v.is_linked() => {
-                if let FreeKind::Linked(tp) = &mut *v.borrow_mut() {
+                let v_ref = unsafe { v.as_ptr().as_mut().unwrap() };
+                if let FreeKind::Linked(tp) = v_ref {
                     *tp = self.generalize_tp(tp.clone(), variance);
                 } else {
                     assume_unreachable!()
@@ -46,7 +47,7 @@ impl Context {
             }
             // TODO: Polymorphic generalization
             TyParam::FreeVar(fv) if fv.level() > Some(self.level) => {
-                self.generalize_constraint(&fv.crack_constraint(), variance);
+                fv.update_constraint(self.generalize_constraint(&fv.crack_constraint(), variance));
                 fv.generalize();
                 TyParam::FreeVar(fv)
             }
@@ -100,7 +101,8 @@ impl Context {
     fn generalize_t_inner(&self, free_type: Type, variance: Variance) -> Type {
         match free_type {
             FreeVar(v) if v.is_linked() => {
-                if let FreeKind::Linked(t) = &mut *v.borrow_mut() {
+                let v_ref = unsafe { v.as_ptr().as_mut().unwrap() };
+                if let FreeKind::Linked(t) = v_ref {
                     *t = self.generalize_t_inner(t.clone(), variance);
                 } else {
                     assume_unreachable!()
@@ -122,13 +124,17 @@ impl Context {
                         // |T :> Int| X -> T ==> X -> Int
                         l.clone()
                     } else {
-                        self.generalize_constraint(&fv.crack_constraint(), variance);
+                        fv.update_constraint(
+                            self.generalize_constraint(&fv.crack_constraint(), variance),
+                        );
                         fv.generalize();
                         Type::FreeVar(fv)
                     }
                 } else {
                     // ?S(: Str) => 'S
-                    self.generalize_constraint(&fv.crack_constraint(), variance);
+                    fv.update_constraint(
+                        self.generalize_constraint(&fv.crack_constraint(), variance),
+                    );
                     fv.generalize();
                     Type::FreeVar(fv)
                 }

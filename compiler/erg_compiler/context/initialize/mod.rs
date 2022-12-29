@@ -2154,9 +2154,14 @@ impl Context {
         let t_ord = nd_func(vec![kw("c", Str)], None, Nat);
         let t_panic = nd_func(vec![kw("err_message", Str)], None, Never);
         let M = mono_q("M", Constraint::Uninited);
-        let M = mono_q("M", instanceof(poly("Mul", vec![ty_tp(M)])));
+        let M = mono_q("M", subtypeof(poly("Mul", vec![ty_tp(M)])));
         // TODO: mod
-        let t_pow = nd_func(vec![kw("base", M.clone()), kw("exp", M.clone())], None, M).quantify();
+        let t_pow = nd_func(
+            vec![kw("base", M.clone()), kw("exp", M.clone())],
+            None,
+            proj(M, "Output"),
+        )
+        .quantify();
         let t_pyimport = nd_func(
             vec![anon(tp_enum(Str, set! {Path.clone()}))],
             None,

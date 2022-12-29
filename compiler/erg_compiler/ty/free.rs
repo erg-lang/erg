@@ -203,8 +203,7 @@ impl<T: CanbeFree> Free<T> {
             FreeKind::Unbound { constraint, .. } | FreeKind::NamedUnbound { constraint, .. } => {
                 Some(constraint.clone())
             }
-            FreeKind::Linked(t) => t.constraint(),
-            _ => None,
+            FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => t.constraint(),
         }
     }
 }

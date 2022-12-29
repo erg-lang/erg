@@ -318,20 +318,20 @@ impl CanbeFree for TyParam {
     }
 
     fn constraint(&self) -> Option<Constraint> {
-        if let TyParam::FreeVar(fv) = self {
-            fv.constraint()
-        } else {
-            None
+        match self {
+            TyParam::FreeVar(fv) => fv.constraint(),
+            TyParam::Type(t) => t.constraint(),
+            _ => None,
         }
     }
 
     fn update_constraint(&self, new_constraint: Constraint) {
         match self {
-            Self::Type(t) => {
-                t.update_constraint(new_constraint);
-            }
             Self::FreeVar(fv) => {
                 fv.update_constraint(new_constraint);
+            }
+            Self::Type(t) => {
+                t.update_constraint(new_constraint);
             }
             _ => {}
         }

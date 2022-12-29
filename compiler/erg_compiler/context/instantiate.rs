@@ -375,12 +375,12 @@ impl Context {
                 self.instantiate_simple_t(simple, opt_decl_t, tmp_tv_cache, not_found_is_qvar)
             }
             ast::PreDeclTypeSpec::Attr { namespace, t } => {
-                if let Ok(namespace) = Parser::validate_const_expr(namespace.as_ref().clone()) {
-                    if let Ok(namespace) =
-                        self.instantiate_const_expr_as_type(&namespace, None, tmp_tv_cache)
+                if let Ok(receiver) = Parser::validate_const_expr(namespace.as_ref().clone()) {
+                    if let Ok(receiver_t) =
+                        self.instantiate_const_expr_as_type(&receiver, None, tmp_tv_cache)
                     {
                         let rhs = t.ident.inspect();
-                        return Ok(proj(namespace, rhs));
+                        return Ok(proj(receiver_t, rhs));
                     }
                 }
                 let ctx = self.get_singular_ctx(namespace.as_ref(), &self.name)?;
@@ -663,6 +663,9 @@ impl Context {
 
     fn instantiate_tp_as_type(&self, tp: TyParam, loc: Location) -> TyCheckResult<Type> {
         match tp {
+            TyParam::FreeVar(fv) if fv.is_linked() => {
+                self.instantiate_tp_as_type(fv.crack().clone(), loc)
+            }
             TyParam::Type(t) => Ok(*t),
             TyParam::Value(ValueObj::Type(t)) => Ok(t.into_typ()),
             TyParam::Set(set) => {
@@ -1007,6 +1010,9 @@ impl Context {
         loc: Location,
     ) -> TyCheckResult<TyParam> {
         match quantified {
+            TyParam::FreeVar(fv) if fv.is_linked() => {
+                self.instantiate_tp(fv.crack().clone(), tmp_tv_cache, loc)
+            }
             TyParam::FreeVar(fv) if fv.is_generalized() => {
                 let (name, constr) = (fv.unbound_name().unwrap(), fv.constraint().unwrap());
                 if let Some(tp) = tmp_tv_cache.get_typaram(&name) {
@@ -1093,6 +1099,9 @@ impl Context {
         loc: Location,
     ) -> TyCheckResult<Type> {
         match unbound {
+            FreeVar(fv) if fv.is_linked() => {
+                self.instantiate_t_inner(fv.crack().clone(), tmp_tv_cache, loc)
+            }
             FreeVar(fv) if fv.is_generalized() => {
                 let (name, constr) = (fv.unbound_name().unwrap(), fv.constraint().unwrap());
                 if let Some(t) = tmp_tv_cache.get_tyvar(&name) {
