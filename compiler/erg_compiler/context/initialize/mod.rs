@@ -41,6 +41,17 @@ use Visibility::*;
 
 const NUM: &str = "Num";
 
+const NAME: &str = "__name__";
+const LICENSE: &str = "license";
+const CREDITS: &str = "credits";
+const COPYRIGHT: &str = "copyright";
+const TRUE: &str = "True";
+const FALSE: &str = "False";
+const NONE: &str = "None";
+const NOT_IMPLEMENTED: &str = "NotImplemented";
+const ELLIPSIS: &str = "Ellipsis";
+const SITEBUILTINS_PRINTER: &str = "_sitebuiltins._Printer";
+
 impl Context {
     fn register_builtin_decl(&mut self, name: &'static str, t: Type, vis: Visibility) {
         if cfg!(feature = "debug") {
@@ -421,39 +432,39 @@ impl Context {
             Private
         };
         // TODO: this is not a const, but a special property
-        self.register_builtin_py_impl("__name__", Str, Immutable, vis, Some("__name__"));
+        self.register_builtin_py_impl(NAME, Str, Immutable, vis, Some(NAME));
         self.register_builtin_py_impl(
-            "license",
-            mono("_sitebuiltins._Printer"),
+            LICENSE,
+            mono(SITEBUILTINS_PRINTER),
             Immutable,
             vis,
-            Some("license"),
+            Some(LICENSE),
         );
         self.register_builtin_py_impl(
-            "credits",
-            mono("_sitebuiltins._Printer"),
+            CREDITS,
+            mono(SITEBUILTINS_PRINTER),
             Immutable,
             vis,
-            Some("credits"),
+            Some(CREDITS),
         );
         self.register_builtin_py_impl(
-            "copyright",
-            mono("_sitebuiltins._Printer"),
+            COPYRIGHT,
+            mono(SITEBUILTINS_PRINTER),
             Immutable,
             vis,
-            Some("copyright"),
+            Some(COPYRIGHT),
         );
-        self.register_builtin_py_impl("True", Bool, Const, Private, Some("True"));
-        self.register_builtin_py_impl("False", Bool, Const, Private, Some("False"));
-        self.register_builtin_py_impl("None", NoneType, Const, Private, Some("None"));
+        self.register_builtin_py_impl(TRUE, Bool, Const, Private, Some(TRUE));
+        self.register_builtin_py_impl(FALSE, Bool, Const, Private, Some(FALSE));
+        self.register_builtin_py_impl(NONE, NoneType, Const, Private, Some(NONE));
         self.register_builtin_py_impl(
-            "NotImplemented",
+            NOT_IMPLEMENTED,
             NotImplementedType,
             Const,
             Private,
-            Some("NotImplemented"),
+            Some(NOT_IMPLEMENTED),
         );
-        self.register_builtin_py_impl("Ellipsis", Ellipsis, Const, Private, Some("Ellipsis"));
+        self.register_builtin_py_impl(ELLIPSIS, Ellipsis, Const, Private, Some(ELLIPSIS));
     }
 
     /// see std/prelude.er
