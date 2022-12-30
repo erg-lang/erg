@@ -8,6 +8,10 @@ where
     F: FnOnce() -> T + Send + 'static,
     T: Send + 'static,
 {
+    #[cfg(feature = "debug")]
+    unsafe {
+        backtrace_on_stack_overflow::enable()
+    };
     if cfg!(windows) || cfg!(feature = "large_thread") {
         const STACK_SIZE: usize = 4 * 1024 * 1024;
         let child = thread::Builder::new()
