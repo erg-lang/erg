@@ -1964,6 +1964,10 @@ impl Type {
         }
     }
 
+    pub fn has_uninited_qvars(&self) -> bool {
+        self.qvars().iter().any(|(_, c)| c.is_uninited())
+    }
+
     /// if the type is polymorphic
     pub fn has_qvar(&self) -> bool {
         match self {

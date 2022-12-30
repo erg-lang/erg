@@ -163,7 +163,7 @@ fn exec_with() -> Result<(), ()> {
 
 #[test]
 fn exec_addition_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/addition.er", 7)
+    expect_failure("tests/should_err/addition.er", 9)
 }
 
 #[test]

@@ -2,14 +2,14 @@ use std::fmt;
 use std::mem;
 use std::option::Option; // conflicting to Type::Option
 
-use erg_common::dict;
 use erg_common::dict::Dict;
 use erg_common::error::Location;
 #[allow(unused)]
 use erg_common::log;
+use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
-use erg_common::{assume_unreachable, enum_unwrap, set, try_map_mut};
+use erg_common::{assume_unreachable, dict, enum_unwrap, set, try_map_mut};
 
 use ast::{
     NonDefaultParamSignature, ParamTySpec, PreDeclTypeSpec, SimpleTypeSpec, TypeBoundSpec,
@@ -47,6 +47,7 @@ use RegistrationMode::*;
 #[derive(Debug, Clone)]
 pub struct TyVarCache {
     _level: usize,
+    pub(crate) already_appeared: Set<Str>,
     pub(crate) tyvar_instances: Dict<Str, Type>,
     pub(crate) typaram_instances: Dict<Str, TyParam>,
 }
@@ -65,6 +66,7 @@ impl TyVarCache {
     pub fn new(level: usize, _ctx: &Context) -> Self {
         Self {
             _level: level,
+            already_appeared: Set::new(),
             tyvar_instances: Dict::new(),
             typaram_instances: Dict::new(),
         }
@@ -109,6 +111,27 @@ impl TyVarCache {
         todo!()
     }
 
+    /// Some of the quantified types are circulating.
+    /// e.g.
+    /// ```erg
+    /// add: |T <: Add(T(<: Add(T(<: ...))))|(T, T) -> T.Output
+    /// ```
+    /// `T` in `Add` should be instantiated as `Constraint::Uninited`.
+    /// And with the outer `T`, the Compiler will overwrite the inner `T`'s constraint.
+    /// ```erg
+    /// T <: Add(?T(: Uninited))
+    /// ↓
+    /// ?T <: Add(?T(<: Add(?T(<: ...))))
+    /// ```
+    /// After the instantiation:
+    /// ```erg
+    /// add: (?T(<: Add(?T)), ?T(<: ...)) -> ?T(<: ...).Output
+    /// ```
+    /// Therefore, it is necessary to register the type variables that appear inside.
+    pub(crate) fn push_appeared(&mut self, name: Str) {
+        self.already_appeared.insert(name);
+    }
+
     pub(crate) fn push_or_init_tyvar(&mut self, name: &Str, tv: &Type) {
         if let Some(inst) = self.tyvar_instances.get(name) {
             // T<tv> <: Eq(T<inst>)
@@ -141,6 +164,10 @@ impl TyVarCache {
             // return;
         }
         self.typaram_instances.insert(name.clone(), tp.clone());
+    }
+
+    pub(crate) fn appeared(&self, name: &Str) -> bool {
+        self.already_appeared.contains(name)
     }
 
     pub(crate) fn get_tyvar(&self, name: &str) -> Option<&Type> {
@@ -1016,10 +1043,40 @@ impl Context {
             TyParam::FreeVar(fv) if fv.is_generalized() => {
                 let (name, constr) = (fv.unbound_name().unwrap(), fv.constraint().unwrap());
                 if let Some(tp) = tmp_tv_cache.get_typaram(&name) {
-                    Ok(tp.clone())
+                    let tp = tp.clone();
+                    if let TyParam::FreeVar(fv) = &tp {
+                        if fv
+                            .constraint()
+                            .map(|cons| cons.is_uninited())
+                            .unwrap_or(false)
+                        {
+                            let new_constr =
+                                tmp_tv_cache.instantiate_constraint(constr, self, loc)?;
+                            fv.update_constraint(new_constr);
+                        }
+                    }
+                    Ok(tp)
                 } else if let Some(t) = tmp_tv_cache.get_tyvar(&name) {
-                    Ok(TyParam::t(t.clone()))
+                    let t = t.clone();
+                    if let Type::FreeVar(fv) = &t {
+                        if fv
+                            .constraint()
+                            .map(|cons| cons.is_uninited())
+                            .unwrap_or(false)
+                        {
+                            let new_constr =
+                                tmp_tv_cache.instantiate_constraint(constr, self, loc)?;
+                            fv.update_constraint(new_constr);
+                        }
+                    }
+                    Ok(TyParam::t(t))
                 } else {
+                    if tmp_tv_cache.appeared(&name) {
+                        let tp =
+                            TyParam::named_free_var(name.clone(), self.level, Constraint::Uninited);
+                        tmp_tv_cache.push_or_init_typaram(&name, &tp);
+                        return Ok(tp);
+                    }
                     if let Some(tv_cache) = &self.tv_cache {
                         if let Some(tp) = tv_cache.get_typaram(&name) {
                             return Ok(tp.clone());
@@ -1027,6 +1084,7 @@ impl Context {
                             return Ok(TyParam::t(t.clone()));
                         }
                     }
+                    tmp_tv_cache.push_appeared(name.clone());
                     let constr = tmp_tv_cache.instantiate_constraint(constr, self, loc)?;
                     let tp = TyParam::named_free_var(name.clone(), self.level, constr);
                     tmp_tv_cache.push_or_init_typaram(&name, &tp);
@@ -1105,10 +1163,34 @@ impl Context {
             FreeVar(fv) if fv.is_generalized() => {
                 let (name, constr) = (fv.unbound_name().unwrap(), fv.constraint().unwrap());
                 if let Some(t) = tmp_tv_cache.get_tyvar(&name) {
-                    Ok(t.clone())
+                    let t = t.clone();
+                    if let Type::FreeVar(fv) = &t {
+                        if fv
+                            .constraint()
+                            .map(|cons| cons.is_uninited())
+                            .unwrap_or(false)
+                        {
+                            let new_constr =
+                                tmp_tv_cache.instantiate_constraint(constr, self, loc)?;
+                            fv.update_constraint(new_constr);
+                        }
+                    }
+                    Ok(t)
                 } else if let Some(tp) = tmp_tv_cache.get_typaram(&name) {
                     if let TyParam::Type(t) = tp {
-                        Ok(*t.clone())
+                        let t = *t.clone();
+                        if let Type::FreeVar(fv) = &t {
+                            if fv
+                                .constraint()
+                                .map(|cons| cons.is_uninited())
+                                .unwrap_or(false)
+                            {
+                                let new_constr =
+                                    tmp_tv_cache.instantiate_constraint(constr, self, loc)?;
+                                fv.update_constraint(new_constr);
+                            }
+                        }
+                        Ok(t)
                     } else {
                         todo!(
                             "typaram_insts: {}\ntyvar_insts:{}\n{tp}",
@@ -1117,6 +1199,11 @@ impl Context {
                         )
                     }
                 } else {
+                    if tmp_tv_cache.appeared(&name) {
+                        let tyvar = named_free_var(name.clone(), self.level, Constraint::Uninited);
+                        tmp_tv_cache.push_or_init_tyvar(&name, &tyvar);
+                        return Ok(tyvar);
+                    }
                     if let Some(tv_ctx) = &self.tv_cache {
                         if let Some(t) = tv_ctx.get_tyvar(&name) {
                             return Ok(t.clone());
@@ -1132,6 +1219,7 @@ impl Context {
                             }
                         }
                     }
+                    tmp_tv_cache.push_appeared(name.clone());
                     let constr = tmp_tv_cache.instantiate_constraint(constr, self, loc)?;
                     let tyvar = named_free_var(name.clone(), self.level, constr);
                     tmp_tv_cache.push_or_init_tyvar(&name, &tyvar);

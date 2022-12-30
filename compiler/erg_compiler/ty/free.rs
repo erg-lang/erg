@@ -2,10 +2,10 @@ use std::cell::{Ref, RefMut};
 use std::fmt;
 use std::mem;
 
-use erg_common::addr_eq;
 use erg_common::shared::Shared;
 use erg_common::traits::LimitedDisplay;
 use erg_common::Str;
+use erg_common::{addr, addr_eq};
 
 use super::typaram::TyParam;
 use super::Type;
@@ -207,7 +207,7 @@ impl<T: CanbeFree> Free<T> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub enum FreeKind<T> {
     Linked(T),
     UndoableLinked {
@@ -224,6 +224,32 @@ pub enum FreeKind<T> {
         lev: Level,
         constraint: Constraint,
     },
+}
+
+impl<T: PartialEq> PartialEq for FreeKind<T> {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (
+                Self::Linked(t1) | Self::UndoableLinked { t: t1, .. },
+                Self::Linked(t2) | Self::UndoableLinked { t: t2, .. },
+            ) => t1 == t2,
+            (Self::Unbound { .. }, Self::Unbound { .. }) => addr_eq!(self, other),
+            (Self::NamedUnbound { .. }, Self::NamedUnbound { .. }) => addr_eq!(self, other),
+            _ => false,
+        }
+    }
+}
+
+impl<T: Eq> Eq for FreeKind<T> {}
+
+use std::hash::{Hash, Hasher};
+impl<T: Hash> Hash for FreeKind<T> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            Self::Linked(t) | Self::UndoableLinked { t, .. } => t.hash(state),
+            Self::Unbound { .. } | Self::NamedUnbound { .. } => addr!(self).hash(state),
+        }
+    }
 }
 
 impl<T: LimitedDisplay> fmt::Display for FreeKind<T> {

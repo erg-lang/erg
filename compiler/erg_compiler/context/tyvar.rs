@@ -16,7 +16,6 @@ use crate::ty::typaram::TyParam;
 use crate::ty::value::ValueObj;
 use crate::ty::{HasType, Predicate, Type};
 
-// use crate::context::eval::SubstContext;
 use crate::context::{Context, Variance};
 use crate::error::{SingleTyCheckResult, TyCheckError, TyCheckErrors, TyCheckResult};
 use crate::{feature_error, hir, type_feature_error, unreachable_error};
@@ -29,21 +28,18 @@ use Variance::*;
 impl Context {
     pub const TOP_LEVEL: usize = 1;
 
-    fn _independentise(_t: Type, _ts: &[Type]) -> Type {
-        todo!()
-    }
-
-    fn generalize_tp(&self, free: TyParam, variance: Variance) -> TyParam {
+    fn generalize_tp(&self, free: TyParam, variance: Variance, uninit: bool) -> TyParam {
         match free {
-            TyParam::Type(t) => TyParam::t(self.generalize_t_inner(*t, variance)),
-            TyParam::FreeVar(v) if v.is_linked() => {
-                let v_ref = unsafe { v.as_ptr().as_mut().unwrap() };
-                if let FreeKind::Linked(tp) = v_ref {
-                    *tp = self.generalize_tp(tp.clone(), variance);
+            TyParam::Type(t) => TyParam::t(self.generalize_t_inner(*t, variance, uninit)),
+            TyParam::FreeVar(fv) if fv.is_generalized() => TyParam::FreeVar(fv),
+            TyParam::FreeVar(fv) if fv.is_linked() => {
+                let fv_mut = unsafe { fv.as_ptr().as_mut().unwrap() };
+                if let FreeKind::Linked(tp) = fv_mut {
+                    *tp = self.generalize_tp(tp.clone(), variance, uninit);
                 } else {
                     assume_unreachable!()
                 }
-                TyParam::FreeVar(v)
+                TyParam::FreeVar(fv)
             }
             // TODO: Polymorphic generalization
             TyParam::FreeVar(fv) if fv.level() > Some(self.level) => {
@@ -53,20 +49,20 @@ impl Context {
             }
             TyParam::Array(tps) => TyParam::Array(
                 tps.into_iter()
-                    .map(|tp| self.generalize_tp(tp, variance))
+                    .map(|tp| self.generalize_tp(tp, variance, uninit))
                     .collect(),
             ),
             TyParam::Tuple(tps) => TyParam::Tuple(
                 tps.into_iter()
-                    .map(|tp| self.generalize_tp(tp, variance))
+                    .map(|tp| self.generalize_tp(tp, variance, uninit))
                     .collect(),
             ),
             TyParam::Dict(tps) => TyParam::Dict(
                 tps.into_iter()
                     .map(|(k, v)| {
                         (
-                            self.generalize_tp(k, variance),
-                            self.generalize_tp(v, variance),
+                            self.generalize_tp(k, variance, uninit),
+                            self.generalize_tp(v, variance, uninit),
                         )
                     })
                     .collect(),
@@ -81,7 +77,7 @@ impl Context {
         if cfg!(feature = "debug") && free_type.has_qvar() {
             panic!("{free_type} has qvars")
         }
-        let maybe_unbound_t = self.generalize_t_inner(free_type, Covariant);
+        let maybe_unbound_t = self.generalize_t_inner(free_type, Covariant, false);
         if maybe_unbound_t.has_qvar() {
             // NOTE: `?T(<: TraitX) -> Int` should be `TraitX -> Int`
             // However, the current Erg cannot handle existential types, so it quantifies anyway
@@ -98,23 +94,32 @@ impl Context {
     /// generalize_t(?T(<: Add(?T(<: Eq(?T(<: ...)))) -> ?T) == |'T <: Add('T)| 'T -> 'T
     /// generalize_t(?T(<: TraitX) -> Int) == TraitX -> Int // 戻り値に現れないなら量化しない
     /// ```
-    fn generalize_t_inner(&self, free_type: Type, variance: Variance) -> Type {
+    fn generalize_t_inner(&self, free_type: Type, variance: Variance, uninit: bool) -> Type {
         match free_type {
-            FreeVar(v) if v.is_linked() => {
-                let v_ref = unsafe { v.as_ptr().as_mut().unwrap() };
-                if let FreeKind::Linked(t) = v_ref {
-                    *t = self.generalize_t_inner(t.clone(), variance);
+            FreeVar(fv) if fv.is_generalized() => Type::FreeVar(fv),
+            FreeVar(fv) if fv.is_linked() => {
+                let fv_mut = unsafe { fv.as_ptr().as_mut().unwrap() };
+                if let FreeKind::Linked(t) = fv_mut {
+                    *t = self.generalize_t_inner(t.clone(), variance, uninit);
                 } else {
                     assume_unreachable!()
                 }
-                Type::FreeVar(v)
+                Type::FreeVar(fv)
             }
             // TODO: Polymorphic generalization
             FreeVar(fv) if fv.level().unwrap() > self.level => {
+                if uninit {
+                    // use crate::ty::free::GENERIC_LEVEL;
+                    // return named_free_var(fv.unbound_name().unwrap(), GENERIC_LEVEL, Constraint::Uninited);
+                    fv.generalize();
+                    return Type::FreeVar(fv);
+                }
                 let constr = fv.constraint().unwrap();
                 if let Some((l, r)) = constr.get_sub_sup() {
                     // |Int <: T <: Int| T -> T ==> Int -> Int
-                    if self.same_type_of(l, r) {
+                    if l == r
+                    /*self.same_type_of(l, r)*/
+                    {
                         fv.forced_link(l);
                         FreeVar(fv)
                     } else if r != &Obj && self.is_class(r) && variance == Contravariant {
@@ -141,18 +146,27 @@ impl Context {
             }
             Subr(mut subr) => {
                 subr.non_default_params.iter_mut().for_each(|nd_param| {
-                    *nd_param.typ_mut() =
-                        self.generalize_t_inner(mem::take(nd_param.typ_mut()), Contravariant);
+                    *nd_param.typ_mut() = self.generalize_t_inner(
+                        mem::take(nd_param.typ_mut()),
+                        Contravariant,
+                        uninit,
+                    );
                 });
                 if let Some(var_args) = &mut subr.var_params {
-                    *var_args.typ_mut() =
-                        self.generalize_t_inner(mem::take(var_args.typ_mut()), Contravariant);
+                    *var_args.typ_mut() = self.generalize_t_inner(
+                        mem::take(var_args.typ_mut()),
+                        Contravariant,
+                        uninit,
+                    );
                 }
                 subr.default_params.iter_mut().for_each(|d_param| {
-                    *d_param.typ_mut() =
-                        self.generalize_t_inner(mem::take(d_param.typ_mut()), Contravariant);
+                    *d_param.typ_mut() = self.generalize_t_inner(
+                        mem::take(d_param.typ_mut()),
+                        Contravariant,
+                        uninit,
+                    );
                 });
-                let return_t = self.generalize_t_inner(*subr.return_t, Covariant);
+                let return_t = self.generalize_t_inner(*subr.return_t, Covariant, uninit);
                 subr_t(
                     subr.kind,
                     subr.non_default_params,
@@ -162,29 +176,29 @@ impl Context {
                 )
             }
             Callable { .. } => todo!(),
-            Ref(t) => ref_(self.generalize_t_inner(*t, variance)),
+            Ref(t) => ref_(self.generalize_t_inner(*t, variance, uninit)),
             RefMut { before, after } => {
-                let after = after.map(|aft| self.generalize_t_inner(*aft, variance));
-                ref_mut(self.generalize_t_inner(*before, variance), after)
+                let after = after.map(|aft| self.generalize_t_inner(*aft, variance, uninit));
+                ref_mut(self.generalize_t_inner(*before, variance, uninit), after)
             }
             Refinement(refine) => {
-                let t = self.generalize_t_inner(*refine.t, variance);
+                let t = self.generalize_t_inner(*refine.t, variance, uninit);
                 let preds = refine
                     .preds
                     .into_iter()
-                    .map(|pred| self.generalize_pred(pred, variance))
+                    .map(|pred| self.generalize_pred(pred, variance, uninit))
                     .collect();
                 refinement(refine.var, t, preds)
             }
             Poly { name, mut params } => {
                 let params = params
                     .iter_mut()
-                    .map(|p| self.generalize_tp(mem::take(p), variance))
+                    .map(|p| self.generalize_tp(mem::take(p), variance, uninit))
                     .collect::<Vec<_>>();
                 poly(name, params)
             }
             Proj { lhs, rhs } => {
-                let lhs = self.generalize_t_inner(*lhs, variance);
+                let lhs = self.generalize_t_inner(*lhs, variance, uninit);
                 proj(lhs, rhs)
             }
             ProjCall {
@@ -192,27 +206,27 @@ impl Context {
                 attr_name,
                 mut args,
             } => {
-                let lhs = self.generalize_tp(*lhs, variance);
+                let lhs = self.generalize_tp(*lhs, variance, uninit);
                 for arg in args.iter_mut() {
-                    *arg = self.generalize_tp(mem::take(arg), variance);
+                    *arg = self.generalize_tp(mem::take(arg), variance, uninit);
                 }
                 proj_call(lhs, attr_name, args)
             }
             And(l, r) => {
-                let l = self.generalize_t_inner(*l, variance);
-                let r = self.generalize_t_inner(*r, variance);
+                let l = self.generalize_t_inner(*l, variance, uninit);
+                let r = self.generalize_t_inner(*r, variance, uninit);
                 // not `self.intersection` because types are generalized
                 and(l, r)
             }
             Or(l, r) => {
-                let l = self.generalize_t_inner(*l, variance);
-                let r = self.generalize_t_inner(*r, variance);
+                let l = self.generalize_t_inner(*l, variance, uninit);
+                let r = self.generalize_t_inner(*r, variance, uninit);
                 // not `self.union` because types are generalized
                 or(l, r)
             }
             Not(l, r) => {
-                let l = self.generalize_t_inner(*l, variance);
-                let r = self.generalize_t_inner(*r, variance);
+                let l = self.generalize_t_inner(*l, variance, uninit);
+                let r = self.generalize_t_inner(*r, variance, uninit);
                 not(l, r)
             }
             // REVIEW: その他何でもそのまま通していいのか?
@@ -223,55 +237,56 @@ impl Context {
     fn generalize_constraint(&self, constraint: &Constraint, variance: Variance) -> Constraint {
         match constraint {
             Constraint::Sandwiched { sub, sup, .. } => {
-                let sub = self.generalize_t_inner(sub.clone(), variance);
-                let sup = self.generalize_t_inner(sup.clone(), variance);
+                let sub = self.generalize_t_inner(sub.clone(), variance, true);
+                let sup = self.generalize_t_inner(sup.clone(), variance, true);
                 Constraint::new_sandwiched(sub, sup)
             }
             Constraint::TypeOf(t) => {
-                let t = self.generalize_t_inner(t.clone(), variance);
+                let t = self.generalize_t_inner(t.clone(), variance, true);
                 Constraint::new_type_of(t)
             }
             Constraint::Uninited => unreachable!(),
         }
     }
 
-    fn generalize_pred(&self, pred: Predicate, variance: Variance) -> Predicate {
+    fn generalize_pred(&self, pred: Predicate, variance: Variance, uninit: bool) -> Predicate {
         match pred {
             Predicate::Const(_) => pred,
             Predicate::Value(ValueObj::Type(mut typ)) => {
-                *typ.typ_mut() = self.generalize_t_inner(mem::take(typ.typ_mut()), variance);
+                *typ.typ_mut() =
+                    self.generalize_t_inner(mem::take(typ.typ_mut()), variance, uninit);
                 Predicate::Value(ValueObj::Type(typ))
             }
             Predicate::Value(_) => pred,
             Predicate::Equal { lhs, rhs } => {
-                let rhs = self.generalize_tp(rhs, variance);
+                let rhs = self.generalize_tp(rhs, variance, uninit);
                 Predicate::eq(lhs, rhs)
             }
             Predicate::GreaterEqual { lhs, rhs } => {
-                let rhs = self.generalize_tp(rhs, variance);
+                let rhs = self.generalize_tp(rhs, variance, uninit);
                 Predicate::ge(lhs, rhs)
             }
             Predicate::LessEqual { lhs, rhs } => {
-                let rhs = self.generalize_tp(rhs, variance);
+                let rhs = self.generalize_tp(rhs, variance, uninit);
                 Predicate::le(lhs, rhs)
             }
             Predicate::NotEqual { lhs, rhs } => {
-                let rhs = self.generalize_tp(rhs, variance);
+                let rhs = self.generalize_tp(rhs, variance, uninit);
                 Predicate::ne(lhs, rhs)
             }
             Predicate::And(lhs, rhs) => {
-                let lhs = self.generalize_pred(*lhs, variance);
-                let rhs = self.generalize_pred(*rhs, variance);
+                let lhs = self.generalize_pred(*lhs, variance, uninit);
+                let rhs = self.generalize_pred(*rhs, variance, uninit);
                 Predicate::and(lhs, rhs)
             }
             Predicate::Or(lhs, rhs) => {
-                let lhs = self.generalize_pred(*lhs, variance);
-                let rhs = self.generalize_pred(*rhs, variance);
+                let lhs = self.generalize_pred(*lhs, variance, uninit);
+                let rhs = self.generalize_pred(*rhs, variance, uninit);
                 Predicate::or(lhs, rhs)
             }
             Predicate::Not(lhs, rhs) => {
-                let lhs = self.generalize_pred(*lhs, variance);
-                let rhs = self.generalize_pred(*rhs, variance);
+                let lhs = self.generalize_pred(*lhs, variance, uninit);
+                let rhs = self.generalize_pred(*rhs, variance, uninit);
                 Predicate::not(lhs, rhs)
             }
         }
@@ -517,16 +532,18 @@ impl Context {
             }
             Type::FreeVar(fv) if fv.is_unbound() => {
                 if self.level == 0 {
+                    #[allow(clippy::single_match)]
                     match &*fv.crack_constraint() {
                         Constraint::TypeOf(_) => {
-                            Err(TyCheckErrors::from(TyCheckError::dummy_infer_error(
+                            return Err(TyCheckErrors::from(TyCheckError::dummy_infer_error(
                                 self.cfg.input.clone(),
                                 fn_name!(),
                                 line!(),
-                            )))
+                            )));
                         }
-                        _ => unreachable!(),
+                        _ => {}
                     }
+                    Ok(Type::FreeVar(fv))
                 } else {
                     let new_constraint = fv.crack_constraint().clone();
                     let new_constraint = self.deref_constraint(new_constraint, variance, loc)?;
@@ -1509,7 +1526,7 @@ impl Context {
                                 todo!()
                             }
                         }
-                        _ => unreachable!(),
+                        Constraint::Uninited => unreachable!(),
                     },
                     _ => {}
                 }
@@ -1549,7 +1566,7 @@ impl Context {
                                 todo!()
                             }
                         }
-                        _ => unreachable!(),
+                        Constraint::Uninited => unreachable!(),
                     },
                     _ => {}
                 }
