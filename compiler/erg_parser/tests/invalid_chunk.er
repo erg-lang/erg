@@ -1,0 +1,97 @@
+a = 1 b = 1
+d = True {1}
+e = False {"a": 2}
+f = 0.1 (1)
+g = {x = 1} Class {name = Str; age = Nat}
+
+[1, 2, 3] {1}
+[1, 2, 3] {"c": 3}
+[1, 2, 3] (1)
+[1, 2, 3] {x = 1}
+
+{1, 2, 3} {1}
+{1, 2, 3} {"c": 3}
+{1, 2, 3} (1)
+{1, 2, 3} {x = 1}
+
+{x = 1} {1}
+{x = 1} {"c": 3}
+{x = 1} (1)
+{x = 1} {x = 1}
+
+{"a": 1, "b": 2} {1}
+{"a": 1, "b": 2} {"c": 3}
+{"a": 1, "b": 2} (1)
+{"a": 1, "b": 2} {x = 1; y = 1}
+
+{1, 2, 3} g = 1
+(1, 2, 3) {1}
+(1, 2, 3) {"c": 3}
+(1, 2, 3) {x = 1}
+
+Class {name = Str; age = Nat} z = 1
+
+# different error
+[1, 2, 3] e = 1
+{"a": 1, "b": 2} h = 1
+{x = 1} i = 1
+(1, 2, 3) j = 1
+
+h = 1 [0, 1]
+[1, 2, 3] [0, 1]
+{"a": 1, "b": 2} [0, 1]
+{x = 1} [0, 1]
+(1, 2, 3) [0, 1]
+
+# passed: index access, but invalid
+{x = 1} [0]
+(1, 2, 3) [0]
+Class {name = Str; age = Nat} [0]
+
+# passed: as args
+[2, 2, 3] Class {name = Str; age = Nat}
+{1, 2, 3} Class {name = Str; age = Nat}
+{"a": 1, "b": 2} Class {name = Str; age = Nat}
+(1, 2, 3) Class {name = Str; age = Nat}
+
+Class {name = Str; age = Nat} [1, 2, 2]
+Class {name = Str; age = Nat} {1, 2, 3}
+Class {name = Str; age = Nat} {"c": 3, "d": 4}
+Class {name = Str; age = Nat} (1, 2, 3)
+Class {name = Str; age = Nat} Class {x = Int; y = Int}
+
+block =
+    a = 1 b = 1
+    c = "Hello, world" [0] # is it possible to parse?
+    d = True {1}
+    e = False {"a": 2}
+    f = 0.1 (1)
+    g = {x = 1} Class {name = Str; age = Nat}
+
+    [1, 2, 3] {1}
+    [1, 2, 3] {"c": 3}
+    [1, 2, 3] (1)
+    [1, 2, 3] {x = 1}
+
+    {1, 2, 3} [1]
+    {1, 2, 3} {1}
+    {1, 2, 3} {"c": 3}
+    {1, 2, 3} (1)
+    {1, 2, 3} {x = 1}
+
+    {x = 1} {1}
+    {x = 1} {"c": 3}
+    {x = 1} (1)
+    {x = 1} {x = 1}
+
+    {"a": 1, "b": 2} {1}
+    {"a": 1, "b": 2} {"c": 3}
+    {"a": 1, "b": 2} (1)
+    {"a": 1, "b": 2} {x = 1; y = 1}
+
+    {1, 2, 3} g = 1
+    (1, 2, 3) {1}
+    (1, 2, 3) {"c": 3}
+    (1, 2, 3) {x = 1}
+
+    Class {name = Str; age = Nat} z = 1

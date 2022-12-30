@@ -1,55 +1,60 @@
 use erg_common::config::{ErgConfig, Input};
 use erg_common::error::MultiErrorDisplay;
 use erg_common::spawn::exec_new_thread;
-use erg_common::traits::Runnable;
+use erg_common::traits::{Runnable, Stream};
 
 use erg_parser::error::ParserRunnerErrors;
 use erg_parser::lex::Lexer;
 use erg_parser::ParserRunner;
 
 #[test]
-fn parse_str_literal() -> Result<(), ParserRunnerErrors> {
-    expect_failure("tests/failed_str_lit.er")
-}
-
-#[test]
-fn parse_dependent() -> Result<(), ParserRunnerErrors> {
+fn parse_dependent() -> Result<(), ()> {
     expect_success("tests/dependent.er")
 }
 
 #[test]
-fn parse_fib() -> Result<(), ParserRunnerErrors> {
+fn parse_fib() -> Result<(), ()> {
     expect_success("tests/fib.er")
 }
 
 #[test]
-fn parse_hello_world() -> Result<(), ParserRunnerErrors> {
+fn parse_hello_world() -> Result<(), ()> {
     expect_success("tests/hello_world.er")
 }
 
 #[test]
-fn parse_simple_if() -> Result<(), ParserRunnerErrors> {
+fn parse_simple_if() -> Result<(), ()> {
     expect_success("tests/simple_if.er")
 }
 
 #[test]
-fn parse_stack() -> Result<(), ParserRunnerErrors> {
-    expect_failure("tests/stack.er")
-}
-
-#[test]
-fn parse_stream() -> Result<(), ParserRunnerErrors> {
+fn parse_stream() -> Result<(), ()> {
     expect_success("tests/stream.er")
 }
 
 #[test]
-fn parse_test1_basic_syntax() -> Result<(), ParserRunnerErrors> {
+fn parse_test1_basic_syntax() -> Result<(), ()> {
     expect_success("tests/test1_basic_syntax.er")
 }
 
 #[test]
-fn parse_test2_advanced_syntax() -> Result<(), ParserRunnerErrors> {
+fn parse_test2_advanced_syntax() -> Result<(), ()> {
     expect_success("tests/test2_advanced_syntax.er")
+}
+
+#[test]
+fn parse_stack() -> Result<(), ()> {
+    expect_failure("tests/stack.er", 2)
+}
+
+#[test]
+fn parse_str_literal() -> Result<(), ()> {
+    expect_failure("tests/failed_str_lit.er", 2)
+}
+
+#[test]
+fn exec_invalid_chunk_prs_err() -> Result<(), ()> {
+    expect_failure("tests/invalid_chunk.er", 62)
 }
 
 fn _parse_test_from_code(file_path: &'static str) -> Result<(), ParserRunnerErrors> {
@@ -81,19 +86,27 @@ fn parse_test_from_code(file_path: &'static str) -> Result<(), ParserRunnerError
     exec_new_thread(move || _parse_test_from_code(file_path))
 }
 
-fn expect_success(file_path: &'static str) -> Result<(), ParserRunnerErrors> {
+fn expect_success(file_path: &'static str) -> Result<(), ()> {
     match parse_test_from_code(file_path) {
         Ok(_) => Ok(()),
-        Err(e) => {
-            e.fmt_all_stderr();
-            Err(e)
+        Err(errs) => {
+            errs.fmt_all_stderr();
+            Err(())
         }
     }
 }
 
-fn expect_failure(file_path: &'static str) -> Result<(), ParserRunnerErrors> {
+fn expect_failure(file_path: &'static str, errs_len: usize) -> Result<(), ()> {
     match parse_test_from_code(file_path) {
-        Ok(_) => Err(ParserRunnerErrors::empty()),
-        Err(_) => Ok(()),
+        Ok(_) => Err(()),
+        Err(errs) => {
+            errs.fmt_all_stderr();
+            if errs.len() == errs_len {
+                Ok(())
+            } else {
+                println!("err: error length is not {errs_len} but {}", errs.len());
+                Err(())
+            }
+        }
     }
 }
