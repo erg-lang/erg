@@ -313,6 +313,7 @@ pub struct Context {
     pub(crate) mod_cache: Option<SharedModuleCache>,
     pub(crate) py_mod_cache: Option<SharedModuleCache>,
     pub(crate) tv_cache: Option<TyVarCache>,
+    pub(crate) higher_order_caller: Vec<Str>,
     pub(crate) level: usize,
 }
 
@@ -495,6 +496,7 @@ impl Context {
             py_mod_cache,
             tv_cache: None,
             patches: Dict::default(),
+            higher_order_caller: vec![],
             level,
         }
     }
