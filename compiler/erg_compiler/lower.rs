@@ -798,14 +798,19 @@ impl ASTLowerer {
 
     pub(crate) fn lower_call(&mut self, call: ast::Call) -> LowerResult<hir::Call> {
         log!(info "entered {}({}{}(...))", fn_name!(), call.obj, fmt_option!(call.attr_name));
+        if let Some(name) = call.obj.get_name() {
+            self.ctx.higher_order_caller.push(name.clone());
+        }
         let mut errs = LowerErrors::empty();
         let opt_cast_to = if call.is_assert_cast() {
             if let Some(typ) = call.assert_cast_target_type() {
                 Some(Parser::expr_to_type_spec(typ.clone()).map_err(|e| {
+                    self.ctx.higher_order_caller.pop();
                     let e = LowerError::new(e.into(), self.input().clone(), self.ctx.caused_by());
                     LowerErrors::from(e)
                 })?)
             } else {
+                self.ctx.higher_order_caller.pop();
                 return Err(LowerErrors::from(LowerError::syntax_error(
                     self.input().clone(),
                     line!() as usize,
@@ -849,6 +854,7 @@ impl ASTLowerer {
         let mut obj = match self.lower_expr(*call.obj) {
             Ok(obj) => obj,
             Err(es) => {
+                self.ctx.higher_order_caller.pop();
                 errs.extend(es);
                 return Err(errs);
             }
@@ -863,6 +869,7 @@ impl ASTLowerer {
         ) {
             Ok(vi) => vi,
             Err(es) => {
+                self.ctx.higher_order_caller.pop();
                 errs.extend(es);
                 return Err(errs);
             }
@@ -879,6 +886,7 @@ impl ASTLowerer {
             None
         };
         let mut call = hir::Call::new(obj, attr_name, hir_args);
+        self.ctx.higher_order_caller.pop();
         match call.additional_operation() {
             Some(kind @ (OperationKind::Import | OperationKind::PyImport)) => {
                 let mod_name =
@@ -991,6 +999,11 @@ impl ASTLowerer {
     /// TODO: varargs
     fn lower_lambda(&mut self, lambda: ast::Lambda) -> LowerResult<hir::Lambda> {
         log!(info "entered {}({lambda})", fn_name!());
+        let in_statement = cfg!(feature = "py_compatible")
+            && matches!(
+                self.ctx.higher_order_caller.last().map(|s| &s[..]),
+                Some("if" | "while" | "for" | "with" | "try")
+            );
         let is_procedural = lambda.is_procedural();
         let id = get_hash(&lambda.sig);
         let name = format!("<lambda_{id}>");
@@ -1002,9 +1015,13 @@ impl ASTLowerer {
         let tv_cache = self
             .ctx
             .instantiate_ty_bounds(&lambda.sig.bounds, RegistrationMode::Normal)?;
-        self.ctx.grow(&name, kind, Private, Some(tv_cache));
+        if !in_statement {
+            self.ctx.grow(&name, kind, Private, Some(tv_cache));
+        }
         let params = self.lower_params(lambda.sig.params).map_err(|errs| {
-            self.pop_append_errs();
+            if !in_statement {
+                self.pop_append_errs();
+            }
             errs
         })?;
         if let Err(errs) = self.ctx.assign_params(&params, None) {
@@ -1014,7 +1031,9 @@ impl ASTLowerer {
             self.errs.extend(errs);
         }
         let body = self.lower_block(lambda.body).map_err(|errs| {
-            self.pop_append_errs();
+            if !in_statement {
+                self.pop_append_errs();
+            }
             errs
         })?;
         let (non_default_params, default_params): (Vec<_>, Vec<_>) = self
@@ -1032,7 +1051,9 @@ impl ASTLowerer {
             .into_iter()
             .map(|(name, vi)| ParamTy::kw(name.as_ref().unwrap().inspect().clone(), vi.t.clone()))
             .collect();
-        self.pop_append_errs();
+        if !in_statement {
+            self.pop_append_errs();
+        }
         let t = if is_procedural {
             proc(non_default_params, None, default_params, body.t())
         } else {
