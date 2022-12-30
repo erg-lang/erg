@@ -8,7 +8,7 @@ where
     F: FnOnce() -> T + Send + 'static,
     T: Send + 'static,
 {
-    #[cfg(feature = "debug")]
+    #[cfg(all(unix, feature = "debug"))]
     unsafe {
         backtrace_on_stack_overflow::enable()
     };
