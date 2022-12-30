@@ -1,5 +1,6 @@
 use std::cell::{Ref, RefMut};
 use std::fmt;
+use std::hash::{Hash, Hasher};
 use std::mem;
 
 use erg_common::shared::Shared;
@@ -207,7 +208,7 @@ impl<T: CanbeFree> Free<T> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FreeKind<T> {
     Linked(T),
     UndoableLinked {
@@ -226,23 +227,6 @@ pub enum FreeKind<T> {
     },
 }
 
-impl<T: PartialEq> PartialEq for FreeKind<T> {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (
-                Self::Linked(t1) | Self::UndoableLinked { t: t1, .. },
-                Self::Linked(t2) | Self::UndoableLinked { t: t2, .. },
-            ) => t1 == t2,
-            (Self::Unbound { .. }, Self::Unbound { .. }) => addr_eq!(self, other),
-            (Self::NamedUnbound { .. }, Self::NamedUnbound { .. }) => addr_eq!(self, other),
-            _ => false,
-        }
-    }
-}
-
-impl<T: Eq> Eq for FreeKind<T> {}
-
-use std::hash::{Hash, Hasher};
 impl<T: Hash> Hash for FreeKind<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
