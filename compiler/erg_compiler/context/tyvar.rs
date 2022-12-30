@@ -1036,32 +1036,34 @@ impl Context {
                 if lfv.is_unbound() && rfv.is_unbound() =>
             {
                 if lfv.level().unwrap() > rfv.level().unwrap() {
-                    lfv.link(maybe_sup);
-                } else {
+                    if !lfv.is_generalized() {
+                        lfv.link(maybe_sup);
+                    }
+                } else if !rfv.is_generalized() {
                     rfv.link(maybe_sub);
                 }
                 Ok(())
             }
-            (TyParam::FreeVar(fv), tp) => {
-                match &*fv.borrow() {
+            (TyParam::FreeVar(lfv), tp) => {
+                match &*lfv.borrow() {
                     FreeKind::Linked(l) | FreeKind::UndoableLinked { t: l, .. } => {
                         return self.sub_unify_tp(l, tp, _variance, loc, allow_divergence);
                     }
                     FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => {}
                 } // &fv is dropped
-                let fv_t = fv.constraint().unwrap().get_type().unwrap().clone(); // fvを参照しないよいにcloneする(あとでborrow_mutするため)
+                let fv_t = lfv.constraint().unwrap().get_type().unwrap().clone(); // lfvを参照しないよいにcloneする(あとでborrow_mutするため)
                 let tp_t = self.get_tp_t(tp)?;
                 if self.supertype_of(&fv_t, &tp_t) {
                     // 外部未連携型変数の場合、linkしないで制約を弱めるだけにする(see compiler/inference.md)
-                    if fv.level() < Some(self.level) {
+                    if lfv.level() < Some(self.level) {
                         let new_constraint = Constraint::new_subtype_of(tp_t);
-                        if self.is_sub_constraint_of(&fv.constraint().unwrap(), &new_constraint)
-                            || fv.constraint().unwrap().get_type() == Some(&Type)
+                        if self.is_sub_constraint_of(&lfv.constraint().unwrap(), &new_constraint)
+                            || lfv.constraint().unwrap().get_type() == Some(&Type)
                         {
-                            fv.update_constraint(new_constraint);
+                            lfv.update_constraint(new_constraint);
                         }
                     } else {
-                        fv.link(tp);
+                        lfv.link(tp);
                     }
                     Ok(())
                 } else if allow_divergence
@@ -1069,7 +1071,7 @@ impl Context {
                         || self.eq_tp(tp, &TyParam::value(NegInf)))
                     && self.subtype_of(&fv_t, &mono("Num"))
                 {
-                    fv.link(tp);
+                    lfv.link(tp);
                     Ok(())
                 } else {
                     Err(TyCheckErrors::from(TyCheckError::unreachable(
@@ -1079,26 +1081,26 @@ impl Context {
                     )))
                 }
             }
-            (tp, TyParam::FreeVar(fv)) => {
-                match &*fv.borrow() {
+            (tp, TyParam::FreeVar(rfv)) => {
+                match &*rfv.borrow() {
                     FreeKind::Linked(l) | FreeKind::UndoableLinked { t: l, .. } => {
                         return self.sub_unify_tp(l, tp, _variance, loc, allow_divergence);
                     }
                     FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => {}
                 } // &fv is dropped
-                let fv_t = fv.constraint().unwrap().get_type().unwrap().clone(); // fvを参照しないよいにcloneする(あとでborrow_mutするため)
+                let fv_t = rfv.constraint().unwrap().get_type().unwrap().clone(); // fvを参照しないよいにcloneする(あとでborrow_mutするため)
                 let tp_t = self.get_tp_t(tp)?;
                 if self.supertype_of(&fv_t, &tp_t) {
                     // 外部未連携型変数の場合、linkしないで制約を弱めるだけにする(see compiler/inference.md)
-                    if fv.level() < Some(self.level) {
+                    if rfv.level() < Some(self.level) {
                         let new_constraint = Constraint::new_subtype_of(tp_t);
-                        if self.is_sub_constraint_of(&fv.constraint().unwrap(), &new_constraint)
-                            || fv.constraint().unwrap().get_type() == Some(&Type)
+                        if self.is_sub_constraint_of(&rfv.constraint().unwrap(), &new_constraint)
+                            || rfv.constraint().unwrap().get_type() == Some(&Type)
                         {
-                            fv.update_constraint(new_constraint);
+                            rfv.update_constraint(new_constraint);
                         }
                     } else {
-                        fv.link(tp);
+                        rfv.link(tp);
                     }
                     Ok(())
                 } else if allow_divergence
@@ -1106,7 +1108,7 @@ impl Context {
                         || self.eq_tp(tp, &TyParam::value(NegInf)))
                     && self.subtype_of(&fv_t, &mono("Num"))
                 {
-                    fv.link(tp);
+                    rfv.link(tp);
                     Ok(())
                 } else {
                     Err(TyCheckErrors::from(TyCheckError::unreachable(
@@ -1201,10 +1203,6 @@ impl Context {
                 *l.borrow_mut() = r.clone();
                 Ok(())
             }
-            /*(TyParam::Value(ValueObj::Mut(l)), TyParam::Erased(_)) => {
-                *l.borrow_mut() = after.clone();
-                Ok(())
-            }*/
             (TyParam::Type(l), TyParam::Type(r)) => self.reunify(l, r, loc),
             (TyParam::UnaryOp { op: lop, val: lval }, TyParam::UnaryOp { op: rop, val: rval })
                 if lop == rop =>
@@ -1424,9 +1422,6 @@ impl Context {
         }
         self.occur(maybe_sub, maybe_sup, loc)?;
         let maybe_sub_is_sub = self.subtype_of(maybe_sub, maybe_sup);
-        if maybe_sub.has_no_unbound_var() && maybe_sup.has_no_unbound_var() && maybe_sub_is_sub {
-            return Ok(());
-        }
         if !maybe_sub_is_sub {
             log!(err "{maybe_sub} !<: {maybe_sup}");
             return Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
@@ -1441,6 +1436,8 @@ impl Context {
                 self.get_candidates(maybe_sub),
                 self.get_simple_type_mismatch_hint(maybe_sup, maybe_sub),
             )));
+        } else if maybe_sub.has_no_unbound_var() && maybe_sup.has_no_unbound_var() {
+            return Ok(());
         }
         match (maybe_sub, maybe_sup) {
             // lfv's sup can be shrunk (take min), rfv's sub can be expanded (take union)
@@ -1453,16 +1450,31 @@ impl Context {
             (Type::FreeVar(lfv), Type::FreeVar(rfv))
                 if lfv.constraint_is_sandwiched() && rfv.constraint_is_sandwiched() =>
             {
+                if lfv.is_generalized() || rfv.is_generalized() {
+                    return Ok(());
+                }
                 let (lsub, lsup) = lfv.get_subsup().unwrap();
                 let (rsub, rsup) = rfv.get_subsup().unwrap();
+                // ?T(<: Add(?T))
+                // ?U(:> {1, 2}, <: Add(?U)) ==> {1, 2}
+                rfv.forced_undoable_link(&rsub);
                 for (lps, rps) in lsub.typarams().iter().zip(rsub.typarams().iter()) {
-                    self.sub_unify_tp(lps, rps, None, loc, false)?;
+                    self.sub_unify_tp(lps, rps, None, loc, false)
+                        .map_err(|errs| {
+                            rfv.undo();
+                            errs
+                        })?;
                 }
                 // lsup: Add(?X(:> Int)), rsup: Add(?Y(:> Nat))
                 //   => lsup: Add(?X(:> Int)), rsup: Add((?X(:> Int)))
                 for (lps, rps) in lsup.typarams().iter().zip(rsup.typarams().iter()) {
-                    self.sub_unify_tp(lps, rps, None, loc, false)?;
+                    self.sub_unify_tp(lps, rps, None, loc, false)
+                        .map_err(|errs| {
+                            rfv.undo();
+                            errs
+                        })?;
                 }
+                rfv.undo();
                 let intersec = self.intersection(&lsup, &rsup);
                 let new_constraint = if intersec != Type::Never {
                     Constraint::new_sandwiched(self.union(&lsub, &rsub), intersec)

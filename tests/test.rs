@@ -22,6 +22,11 @@ fn exec_class() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_comment() -> Result<(), ()> {
+    expect_success("tests/should_ok/comment.er")
+}
+
+#[test]
 fn exec_control() -> Result<(), ()> {
     expect_success("examples/control.er")
 }
@@ -226,6 +231,6 @@ fn exec_multiline_invalid_next() -> Result<(), ()> {
 }
 
 #[test]
-fn exec_comment() -> Result<(), ()> {
-    expect_success("tests/should_ok/comment.er")
+fn exec_quantified_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/quantified.er", 2)
 }

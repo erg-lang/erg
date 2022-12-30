@@ -1121,22 +1121,35 @@ impl ASTLowerer {
             Ok(block) => {
                 let found_body_t = block.ref_t();
                 let outer = self.ctx.outer.as_ref().unwrap();
-                let opt_expect_body_vi = sig
+                let opt_expect_body_t = sig
                     .ident()
-                    .and_then(|ident| outer.get_current_scope_var(&ident.name));
+                    .and_then(|ident| outer.get_current_scope_var(&ident.name))
+                    .map(|vi| vi.t.clone())
+                    .or_else(|| {
+                        // discard pattern
+                        let sig_t = self
+                            .ctx
+                            .instantiate_var_sig_t(
+                                sig.t_spec.as_ref(),
+                                None,
+                                RegistrationMode::PreRegister,
+                            )
+                            .ok();
+                        sig_t
+                    });
                 let ident = match &sig.pat {
                     ast::VarPattern::Ident(ident) => ident,
                     ast::VarPattern::Discard(_) => ast::Identifier::UBAR,
                     _ => unreachable!(),
                 };
-                if let Some(expect_body_vi) = opt_expect_body_vi {
+                if let Some(expect_body_t) = opt_expect_body_t {
                     // TODO: expect_body_t is smaller for constants
                     // TODO: 定数の場合、expect_body_tのほうが小さくなってしまう
                     if !sig.is_const() {
                         if let Err(e) = self.var_result_t_check(
                             sig.loc(),
                             ident.inspect(),
-                            &expect_body_vi.t,
+                            &expect_body_t,
                             found_body_t,
                         ) {
                             self.errs.push(e);

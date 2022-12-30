@@ -38,31 +38,6 @@ use Visibility::*;
 use super::{ContextKind, MethodInfo};
 
 impl Context {
-    pub(crate) fn validate_var_sig_t(
-        &self,
-        ident: &ast::Identifier,
-        t_spec: Option<&ast::TypeSpec>,
-        body_t: &Type,
-        mode: RegistrationMode,
-    ) -> TyCheckResult<()> {
-        let spec_t = self.instantiate_var_sig_t(t_spec, None, mode)?;
-        if self.sub_unify(body_t, &spec_t, ident.loc(), None).is_err() {
-            return Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
-                self.cfg.input.clone(),
-                line!() as usize,
-                ident.loc(),
-                self.caused_by(),
-                ident.inspect(),
-                None,
-                &spec_t,
-                body_t,
-                self.get_candidates(body_t),
-                self.get_simple_type_mismatch_hint(&spec_t, body_t),
-            )));
-        }
-        Ok(())
-    }
-
     pub(crate) fn get_current_scope_var(&self, name: &VarName) -> Option<&VarInfo> {
         self.locals
             .get(name)

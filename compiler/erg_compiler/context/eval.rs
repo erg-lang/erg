@@ -1217,38 +1217,43 @@ impl Context {
             return Ok(()); // TODO: e.g. Sub(Int) / Eq and Sub(?T)
         }
         for (qtp, stp) in qtps.into_iter().zip(stps.into_iter()) {
-            match qtp {
-                TyParam::FreeVar(fv) if fv.is_generalized() => {
-                    if !stp.is_generalized() {
-                        fv.undoable_link(&stp);
-                    }
-                    // REVIEW: need to sub_unify_tp?
-                }
-                TyParam::Type(gt) if gt.is_generalized() => {
-                    let qt = enum_unwrap!(gt.as_ref(), Type::FreeVar);
-                    let st = enum_unwrap!(stp, TyParam::Type);
-                    if !st.is_generalized() {
-                        qt.undoable_link(&st);
-                    }
-                    self.sub_unify(&st, &gt, Location::Unknown, None)?;
-                }
-                TyParam::Type(qt) => {
-                    let st = enum_unwrap!(stp, TyParam::Type);
-                    let st = if st.typarams_len() != qt.typarams_len() {
-                        let st = enum_unwrap!(*st, Type::FreeVar);
-                        st.get_sub().unwrap()
-                    } else {
-                        *st
-                    };
-                    if !st.is_generalized() {
-                        self.substitute_typarams(&qt, &st)?;
-                    }
-                    self.sub_unify(&st, &qt, Location::Unknown, None)?;
-                }
-                _ => {}
-            }
+            self.substitute_typaram(qtp, stp)?;
         }
         Ok(())
+    }
+
+    fn substitute_typaram(&self, qtp: TyParam, stp: TyParam) -> EvalResult<()> {
+        match qtp {
+            TyParam::FreeVar(fv) if fv.is_generalized() => {
+                if !stp.is_generalized() {
+                    fv.undoable_link(&stp);
+                }
+                // REVIEW: need to sub_unify_tp?
+                Ok(())
+            }
+            TyParam::Type(gt) if gt.is_generalized() => {
+                let qt = enum_unwrap!(gt.as_ref(), Type::FreeVar);
+                let Ok(st) = Type::try_from(stp) else { todo!(); };
+                if !st.is_generalized() {
+                    qt.undoable_link(&st);
+                }
+                self.sub_unify(&st, &gt, Location::Unknown, None)
+            }
+            TyParam::Type(qt) => {
+                let Ok(st) = Type::try_from(stp) else { todo!(); };
+                let st = if st.typarams_len() != qt.typarams_len() {
+                    let st = enum_unwrap!(st, Type::FreeVar);
+                    st.get_sub().unwrap()
+                } else {
+                    st
+                };
+                if !st.is_generalized() {
+                    self.substitute_typarams(&qt, &st)?;
+                }
+                self.sub_unify(&st, &qt, Location::Unknown, None)
+            }
+            _ => Ok(()),
+        }
     }
 
     pub(crate) fn undo_substitute_typarams(substituted_q: &Type) {
