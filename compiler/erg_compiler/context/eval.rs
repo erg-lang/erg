@@ -63,36 +63,6 @@ pub fn type_from_token_kind(kind: TokenKind) -> Type {
     }
 }
 
-fn try_get_op_kind_from_token(kind: TokenKind) -> EvalResult<OpKind> {
-    match kind {
-        TokenKind::Plus => Ok(OpKind::Add),
-        TokenKind::Minus => Ok(OpKind::Sub),
-        TokenKind::Star => Ok(OpKind::Mul),
-        TokenKind::Slash => Ok(OpKind::Div),
-        TokenKind::FloorDiv => Ok(OpKind::FloorDiv),
-        TokenKind::Pow => Ok(OpKind::Pow),
-        TokenKind::Mod => Ok(OpKind::Mod),
-        TokenKind::DblEq => Ok(OpKind::Eq),
-        TokenKind::NotEq => Ok(OpKind::Ne),
-        TokenKind::Less => Ok(OpKind::Lt),
-        TokenKind::Gre => Ok(OpKind::Gt),
-        TokenKind::LessEq => Ok(OpKind::Le),
-        TokenKind::GreEq => Ok(OpKind::Ge),
-        TokenKind::AndOp => Ok(OpKind::And),
-        TokenKind::OrOp => Ok(OpKind::Or),
-        TokenKind::BitAnd => Ok(OpKind::BitAnd),
-        TokenKind::BitXor => Ok(OpKind::BitXor),
-        TokenKind::BitOr => Ok(OpKind::BitOr),
-        TokenKind::Shl => Ok(OpKind::Shl),
-        TokenKind::Shr => Ok(OpKind::Shr),
-        TokenKind::Mutate => Ok(OpKind::Mutate),
-        TokenKind::PrePlus => Ok(OpKind::Pos),
-        TokenKind::PreMinus => Ok(OpKind::Neg),
-        TokenKind::PreBitNot => Ok(OpKind::Invert),
-        _other => todo!("{_other}"),
-    }
-}
-
 fn op_to_name(op: OpKind) -> &'static str {
     match op {
         OpKind::Add => "__add__",
@@ -123,6 +93,41 @@ fn op_to_name(op: OpKind) -> &'static str {
 }
 
 impl Context {
+    fn try_get_op_kind_from_token(&self, token: &Token) -> EvalResult<OpKind> {
+        match token.kind {
+            TokenKind::Plus => Ok(OpKind::Add),
+            TokenKind::Minus => Ok(OpKind::Sub),
+            TokenKind::Star => Ok(OpKind::Mul),
+            TokenKind::Slash => Ok(OpKind::Div),
+            TokenKind::FloorDiv => Ok(OpKind::FloorDiv),
+            TokenKind::Pow => Ok(OpKind::Pow),
+            TokenKind::Mod => Ok(OpKind::Mod),
+            TokenKind::DblEq => Ok(OpKind::Eq),
+            TokenKind::NotEq => Ok(OpKind::Ne),
+            TokenKind::Less => Ok(OpKind::Lt),
+            TokenKind::Gre => Ok(OpKind::Gt),
+            TokenKind::LessEq => Ok(OpKind::Le),
+            TokenKind::GreEq => Ok(OpKind::Ge),
+            TokenKind::AndOp => Ok(OpKind::And),
+            TokenKind::OrOp => Ok(OpKind::Or),
+            TokenKind::BitAnd => Ok(OpKind::BitAnd),
+            TokenKind::BitXor => Ok(OpKind::BitXor),
+            TokenKind::BitOr => Ok(OpKind::BitOr),
+            TokenKind::Shl => Ok(OpKind::Shl),
+            TokenKind::Shr => Ok(OpKind::Shr),
+            TokenKind::Mutate => Ok(OpKind::Mutate),
+            TokenKind::PrePlus => Ok(OpKind::Pos),
+            TokenKind::PreMinus => Ok(OpKind::Neg),
+            TokenKind::PreBitNot => Ok(OpKind::Invert),
+            _other => Err(EvalErrors::from(EvalError::not_const_expr(
+                self.cfg.input.clone(),
+                line!() as usize,
+                token.loc(),
+                self.caused_by(),
+            ))),
+        }
+    }
+
     fn eval_const_acc(&self, acc: &Accessor) -> EvalResult<ValueObj> {
         match acc {
             Accessor::Ident(ident) => {
@@ -188,13 +193,13 @@ impl Context {
     fn eval_const_bin(&self, bin: &BinOp) -> EvalResult<ValueObj> {
         let lhs = self.eval_const_expr(&bin.args[0])?;
         let rhs = self.eval_const_expr(&bin.args[1])?;
-        let op = try_get_op_kind_from_token(bin.op.kind)?;
+        let op = self.try_get_op_kind_from_token(&bin.op)?;
         self.eval_bin(op, lhs, rhs)
     }
 
     fn eval_const_unary(&self, unary: &UnaryOp) -> EvalResult<ValueObj> {
         let val = self.eval_const_expr(&unary.args[0])?;
-        let op = try_get_op_kind_from_token(unary.op.kind)?;
+        let op = self.try_get_op_kind_from_token(&unary.op)?;
         self.eval_unary_val(op, val)
     }
 
@@ -1540,7 +1545,10 @@ impl Context {
             }
             (TyParam::Erased(t), _) => t.as_ref() == &self.get_tp_t(rhs).unwrap(),
             (_, TyParam::Erased(t)) => t.as_ref() == &self.get_tp_t(lhs).unwrap(),
-            (l, r) => todo!("l: {l}, r: {r}"),
+            (l, r) => {
+                log!(err "l: {l}, r: {r}");
+                false
+            }
         }
     }
 }
