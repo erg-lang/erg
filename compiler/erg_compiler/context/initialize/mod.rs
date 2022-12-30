@@ -1969,6 +1969,7 @@ impl Context {
         );
         self.register_builtin_type(mono("Proc"), proc, vis, Const, Some("Proc"));
         self.register_builtin_type(mono("Func"), func, vis, Const, Some("Func"));
+        self.register_builtin_type(range_t, range, vis, Const, Some("range"));
         if !self.cfg.python_compatible_mode {
             self.register_builtin_type(module_t, module, vis, Const, Some("ModuleType"));
             self.register_builtin_type(mono("Obj!"), obj_mut, vis, Const, Some("object"));
@@ -1978,7 +1979,6 @@ impl Context {
             self.register_builtin_type(mono("Ratio!"), ratio_mut, vis, Const, Some("Ratio"));
             self.register_builtin_type(mono("Bool!"), bool_mut, vis, Const, Some("Bool"));
             self.register_builtin_type(mono("Str!"), str_mut, vis, Const, Some("Str"));
-            self.register_builtin_type(range_t, range, vis, Const, Some("Range"));
             self.register_builtin_type(
                 mono("NamedProc"),
                 named_proc,
