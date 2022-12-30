@@ -222,7 +222,7 @@ impl Context {
         default_val_exists: bool,
         opt_decl_t: Option<&ParamTy>,
     ) -> TyCheckResult<()> {
-        let vis = if self.cfg.python_compatible_mode {
+        let vis = if cfg!(feature = "py_compatible") {
             Public
         } else {
             Private

@@ -1340,7 +1340,7 @@ impl ASTLowerer {
                 )));
             }
             let kind = ContextKind::MethodDefs(impl_trait.as_ref().map(|(t, _)| t.clone()));
-            let vis = if self.cfg.python_compatible_mode {
+            let vis = if cfg!(feature = "py_compatible") {
                 Public
             } else {
                 Private

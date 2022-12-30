@@ -68,7 +68,7 @@ impl Context {
         };
         let name = VarName::from_static(name);
         if self.decls.get(&name).is_some() {
-            panic!("already registered: {name}");
+            panic!("already registered: {} {name}", self.name);
         } else {
             self.decls.insert(
                 name,
@@ -96,7 +96,7 @@ impl Context {
         } else {
             None
         };
-        let name = if self.cfg.python_compatible_mode {
+        let name = if cfg!(feature = "py_compatible") {
             if let Some(py_name) = py_name {
                 VarName::from_static(py_name)
             } else {
@@ -105,21 +105,21 @@ impl Context {
         } else {
             VarName::from_static(name)
         };
-        if self.decls.get(&name).is_some() {
-            panic!("already registered: {name}");
+        let vi = VarInfo::new(
+            t,
+            Immutable,
+            vis,
+            Builtin,
+            None,
+            impl_of,
+            py_name.map(Str::ever),
+        );
+        if let Some(_vi) = self.decls.get(&name) {
+            if _vi != &vi {
+                panic!("already registered: {} {name}", self.name);
+            }
         } else {
-            self.decls.insert(
-                name,
-                VarInfo::new(
-                    t,
-                    Immutable,
-                    vis,
-                    Builtin,
-                    None,
-                    impl_of,
-                    py_name.map(Str::ever),
-                ),
-            );
+            self.decls.insert(name, vi);
         }
     }
 
@@ -143,13 +143,11 @@ impl Context {
             None
         };
         let name = VarName::from_static(name);
+        let vi = VarInfo::new(t, muty, vis, Builtin, None, impl_of, None);
         if self.locals.get(&name).is_some() {
-            panic!("already registered: {name}");
+            panic!("already registered: {} {name}", self.name);
         } else {
-            self.locals.insert(
-                name,
-                VarInfo::new(t, muty, vis, Builtin, None, impl_of, None),
-            );
+            self.locals.insert(name, vi);
         }
     }
 
@@ -173,7 +171,7 @@ impl Context {
         } else {
             None
         };
-        let name = if self.cfg.python_compatible_mode {
+        let name = if cfg!(feature = "py_compatible") {
             if let Some(py_name) = py_name {
                 VarName::from_static(py_name)
             } else {
@@ -182,19 +180,19 @@ impl Context {
         } else {
             VarName::from_static(name)
         };
-        if self.locals.get(&name).is_some() {
-            panic!("already registered: {name}");
+        let vi = VarInfo::new(t, muty, vis, Builtin, None, impl_of, py_name.map(Str::ever));
+        if let Some(_vi) = self.locals.get(&name) {
+            if _vi != &vi {
+                panic!("already registered: {} {name}", self.name);
+            }
         } else {
-            self.locals.insert(
-                name,
-                VarInfo::new(t, muty, vis, Builtin, None, impl_of, py_name.map(Str::ever)),
-            );
+            self.locals.insert(name, vi);
         }
     }
 
     fn register_builtin_const(&mut self, name: &str, vis: Visibility, obj: ValueObj) {
         if self.rec_get_const_obj(name).is_some() {
-            panic!("already registered: {name}");
+            panic!("already registered: {} {name}", self.name);
         } else {
             let impl_of = if let ContextKind::MethodDefs(Some(tr)) = &self.kind {
                 Some(tr.clone())
@@ -218,7 +216,7 @@ impl Context {
 
     fn register_const_param_defaults(&mut self, name: &'static str, params: Vec<ConstTemplate>) {
         if self.const_param_defaults.get(name).is_some() {
-            panic!("already registered: {name}");
+            panic!("already registered: {} {name}", self.name);
         } else {
             self.const_param_defaults.insert(Str::ever(name), params);
         }
@@ -340,7 +338,7 @@ impl Context {
                 ContextKind::Trait => Type::TraitType,
                 _ => Type::Type,
             };
-            if !self.cfg.python_compatible_mode {
+            if !cfg!(feature = "py_compatible") {
                 self.locals.insert(
                     name.clone(),
                     VarInfo::new(
@@ -426,7 +424,7 @@ impl Context {
     }
 
     fn init_builtin_consts(&mut self) {
-        let vis = if self.cfg.python_compatible_mode {
+        let vis = if cfg!(feature = "py_compatible") {
             Public
         } else {
             Private
@@ -473,7 +471,7 @@ impl Context {
     // 型境界はすべて各サブルーチンで定義する
     // push_subtype_boundなどはユーザー定義APIの型境界決定のために使用する
     fn init_builtin_traits(&mut self) {
-        let vis = if self.cfg.python_compatible_mode {
+        let vis = if cfg!(feature = "py_compatible") {
             Public
         } else {
             Private
@@ -700,7 +698,7 @@ impl Context {
     }
 
     fn init_builtin_classes(&mut self) {
-        let vis = if self.cfg.python_compatible_mode {
+        let vis = if cfg!(feature = "py_compatible") {
             Public
         } else {
             Private
@@ -1207,7 +1205,7 @@ impl Context {
         module.register_superclass(g_module_t.clone(), &generic_module);
         let mut py_module =
             Self::builtin_poly_class("PyModule", vec![PS::named_nd("Path", Str)], 2);
-        if !self.cfg.python_compatible_mode {
+        if !cfg!(feature = "py_compatible") {
             py_module.register_superclass(g_module_t.clone(), &generic_module);
         }
         /* Array */
@@ -1854,13 +1852,13 @@ impl Context {
         self.register_builtin_type(Nat, nat, vis, Const, Some("Nat"));
         self.register_builtin_type(Float, float, vis, Const, Some("float"));
         self.register_builtin_type(Ratio, ratio, vis, Const, Some("Ratio"));
-        let name = if self.cfg.python_compatible_mode {
+        let name = if cfg!(feature = "py_compatible") {
             "bool"
         } else {
             "Bool"
         };
         self.register_builtin_type(Bool, bool_, vis, Const, Some(name));
-        let name = if self.cfg.python_compatible_mode {
+        let name = if cfg!(feature = "py_compatible") {
             "str"
         } else {
             "Str"
@@ -1970,7 +1968,7 @@ impl Context {
         self.register_builtin_type(mono("Proc"), proc, vis, Const, Some("Proc"));
         self.register_builtin_type(mono("Func"), func, vis, Const, Some("Func"));
         self.register_builtin_type(range_t, range, vis, Const, Some("range"));
-        if !self.cfg.python_compatible_mode {
+        if !cfg!(feature = "py_compatible") {
             self.register_builtin_type(module_t, module, vis, Const, Some("ModuleType"));
             self.register_builtin_type(mono("Obj!"), obj_mut, vis, Const, Some("object"));
             self.register_builtin_type(mono("Int!"), int_mut, vis, Const, Some("int"));
@@ -2011,7 +2009,7 @@ impl Context {
     }
 
     fn init_builtin_funcs(&mut self) {
-        let vis = if self.cfg.python_compatible_mode {
+        let vis = if cfg!(feature = "py_compatible") {
             Public
         } else {
             Private
@@ -2260,13 +2258,13 @@ impl Context {
         self.register_builtin_py_impl("str", t_str, Immutable, vis, Some("str"));
         self.register_builtin_py_impl("sum", t_sum, Immutable, vis, Some("sum"));
         self.register_builtin_py_impl("zip", t_zip, Immutable, vis, Some("zip"));
-        let name = if self.cfg.python_compatible_mode {
+        let name = if cfg!(feature = "py_compatible") {
             "int"
         } else {
             "int__"
         };
         self.register_builtin_py_impl("int", t_int, Immutable, vis, Some(name));
-        if !self.cfg.python_compatible_mode {
+        if !cfg!(feature = "py_compatible") {
             self.register_builtin_py_impl("if", t_if, Immutable, vis, Some("if__"));
             self.register_builtin_py_impl("discard", t_discard, Immutable, vis, Some("discard__"));
             self.register_builtin_py_impl("import", t_import, Immutable, vis, Some("__import__"));
@@ -2306,7 +2304,7 @@ impl Context {
     }
 
     fn init_builtin_const_funcs(&mut self) {
-        let vis = if self.cfg.python_compatible_mode {
+        let vis = if cfg!(feature = "py_compatible") {
             Public
         } else {
             Private
@@ -2376,7 +2374,7 @@ impl Context {
     }
 
     fn init_builtin_procs(&mut self) {
-        let vis = if self.cfg.python_compatible_mode {
+        let vis = if cfg!(feature = "py_compatible") {
             Public
         } else {
             Private
@@ -2436,7 +2434,7 @@ impl Context {
             T.clone(),
         )
         .quantify();
-        let t_cond = if self.cfg.python_compatible_mode {
+        let t_cond = if cfg!(feature = "py_compatible") {
             Bool
         } else {
             // not Bool! type because `cond` may be the result of evaluation of a mutable object's method returns Bool.
@@ -2484,25 +2482,25 @@ impl Context {
         self.register_builtin_py_impl("locals!", t_locals, Immutable, vis, Some("locals"));
         self.register_builtin_py_impl("next!", t_next, Immutable, vis, Some("next"));
         self.register_builtin_py_impl("open!", t_open, Immutable, vis, Some("open"));
-        let name = if self.cfg.python_compatible_mode {
+        let name = if cfg!(feature = "py_compatible") {
             "if"
         } else {
             "if__"
         };
         self.register_builtin_py_impl("if!", t_if, Immutable, vis, Some(name));
-        let name = if self.cfg.python_compatible_mode {
+        let name = if cfg!(feature = "py_compatible") {
             "for"
         } else {
             "for__"
         };
         self.register_builtin_py_impl("for!", t_for, Immutable, vis, Some(name));
-        let name = if self.cfg.python_compatible_mode {
+        let name = if cfg!(feature = "py_compatible") {
             "while"
         } else {
             "while__"
         };
         self.register_builtin_py_impl("while!", t_while, Immutable, vis, Some(name));
-        let name = if self.cfg.python_compatible_mode {
+        let name = if cfg!(feature = "py_compatible") {
             "with"
         } else {
             "with__"
