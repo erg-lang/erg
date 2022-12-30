@@ -147,11 +147,32 @@ impl Parser {
         }
     }
 
+    fn next_line(&mut self) {
+        while let Some(t) = self.peek() {
+            match t.kind {
+                Newline => {
+                    self.skip();
+                    return;
+                }
+                EOF => return,
+                _ => {
+                    self.skip();
+                }
+            }
+        }
+    }
+
     fn skip_and_throw_syntax_err(&mut self, caused_by: &str) -> ParseError {
         let loc = self.peek().map(|t| t.loc()).unwrap_or_default();
         log!(err "error caused by: {caused_by}");
         self.next_expr();
         ParseError::simple_syntax_error(0, loc)
+    }
+
+    fn skip_and_throw_invalid_chunk_err(&mut self, caused_by: &str, loc: Location) -> ParseError {
+        log!(err "error caused by: {caused_by}");
+        self.next_line();
+        ParseError::invalid_chunk_error(line!() as usize, loc)
     }
 
     #[inline]
@@ -271,6 +292,13 @@ impl Parser {
                 Some(_) => {
                     if let Ok(expr) = self.try_reduce_chunk(true, false) {
                         chunks.push(expr);
+                        if !self.cur_is(EOF) && !self.cur_category_is(TC::Separator) {
+                            let err = self.skip_and_throw_invalid_chunk_err(
+                                "try_reduce_module",
+                                chunks.last().unwrap().loc(),
+                            );
+                            self.errs.push(err);
+                        }
                     }
                 }
                 None => {
@@ -287,6 +315,7 @@ impl Parser {
         Ok(chunks)
     }
 
+    // expect the block`= ; . -> =>`
     fn try_reduce_block(&mut self) -> ParseResult<Block> {
         debug_call_info!(self);
         let mut block = Block::with_capacity(2);
@@ -296,6 +325,14 @@ impl Parser {
                 .try_reduce_chunk(true, false)
                 .map_err(|_| self.stack_dec())?;
             block.push(chunk);
+            if !self.cur_is(Dedent) && !self.cur_category_is(TC::Separator) {
+                let err = self.skip_and_throw_invalid_chunk_err(
+                    "try_reduce_block",
+                    block.last().unwrap().loc(),
+                );
+                self.level -= 1;
+                self.errs.push(err);
+            }
             if block.last().unwrap().is_definition() {
                 let err = ParseError::simple_syntax_error(0, block.last().unwrap().loc());
                 self.level -= 1;
@@ -344,6 +381,14 @@ impl Parser {
                 Some(_) => {
                     if let Ok(expr) = self.try_reduce_chunk(true, false) {
                         block.push(expr);
+                        if !self.cur_is(Dedent) && !self.cur_category_is(TC::Separator) {
+                            let err = self.skip_and_throw_invalid_chunk_err(
+                                "try_reduce_block",
+                                block.last().unwrap().loc(),
+                            );
+                            self.level -= 1;
+                            self.errs.push(err);
+                        }
                     }
                 }
                 _ => switch_unreachable!(),
