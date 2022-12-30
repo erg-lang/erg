@@ -539,6 +539,8 @@ impl Context {
         }
     }
 
+    // Evaluate compile-time expression (just Expr on AST) instead of evaluating ConstExpr
+    // Return Err if it cannot be evaluated at compile time
     // ConstExprを評価するのではなく、コンパイル時関数の式(AST上ではただのExpr)を評価する
     // コンパイル時評価できないならNoneを返す
     pub(crate) fn eval_const_chunk(&mut self, expr: &Expr) -> EvalResult<ValueObj> {
@@ -794,6 +796,7 @@ impl Context {
         )
     }
 
+    /// Quantified variables, etc. are returned as is.
     /// 量化変数などはそのまま返す
     pub(crate) fn eval_tp(&self, p: TyParam) -> EvalResult<TyParam> {
         match p {
@@ -1489,6 +1492,7 @@ impl Context {
         }
     }
 
+    /// NOTE: If l and r are types, the Context is used to determine the type.
     /// NOTE: lとrが型の場合はContextの方で判定する
     pub(crate) fn shallow_eq_tp(&self, lhs: &TyParam, rhs: &TyParam) -> bool {
         match (lhs, rhs) {

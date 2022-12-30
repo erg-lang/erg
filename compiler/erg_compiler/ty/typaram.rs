@@ -122,8 +122,8 @@ impl fmt::Display for IntervalOp {
     }
 }
 
-/// 型引数
-/// データのみ、その評価結果は別に持つ
+/// type argument
+/// This is an expression, not a evaluation result
 /// * Literal: 1, "aa", True, None, ... (don't use container literals, they can only hold literals)
 /// * Type: Int, Add(?R, ?O), ...
 /// * Mono: I, N, ...

@@ -210,7 +210,10 @@ impl ContextKind {
     }
 }
 
-/// 記号表に登録されているモードを表す
+/// Indicates the mode registered in the Context
+/// Preregister: subroutine or constant expression, can be forward referenced
+/// Normal: Cannot be forward referenced
+/// 環境に登録されているモードを表す
 /// Preregister: サブルーチンまたは定数式、前方参照できる
 /// Normal: 前方参照できない
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

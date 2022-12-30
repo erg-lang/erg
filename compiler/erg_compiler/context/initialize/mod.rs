@@ -570,7 +570,7 @@ impl Context {
         let ty_params = vec![ty_tp(R.clone())];
         /* Num */
         let mut add = Self::builtin_poly_trait("Add", params.clone(), 2);
-        // Rについて共変(__add__の型とは関係ない)
+        // Covariant with `R` (independent of the type of __add__)
         add.register_superclass(poly("Output", vec![ty_tp(R.clone())]), &output);
         let Slf = mono_q("Self", subtypeof(poly("Add", ty_params.clone())));
         let op_t = fn1_met(Slf.clone(), R.clone(), proj(Slf, "Output")).quantify();
@@ -2213,7 +2213,8 @@ impl Context {
         self.register_builtin_py_impl("all", t_all, Immutable, vis, Some("all"));
         self.register_builtin_py_impl("any", t_any, Immutable, vis, Some("any"));
         self.register_builtin_py_impl("ascii", t_ascii, Immutable, vis, Some("ascii"));
-        self.register_builtin_impl("assert", t_assert, Const, vis); // assert casting に悪影響が出る可能性があるため、Constとしておく
+        // Leave as `Const`, as it may negatively affect assert casting.
+        self.register_builtin_impl("assert", t_assert, Const, vis);
         self.register_builtin_py_impl("bin", t_bin, Immutable, vis, Some("bin"));
         self.register_builtin_py_impl("bytes", t_bytes, Immutable, vis, Some("bytes"));
         self.register_builtin_py_impl("chr", t_chr, Immutable, vis, Some("chr"));
@@ -2571,7 +2572,7 @@ impl Context {
         self.register_builtin_impl("__in__", op_t.clone(), Const, Private);
         self.register_builtin_impl("__notin__", op_t, Const, Private);
         /* unary */
-        // TODO: Boolの+/-は警告を出したい
+        // TODO: +/- Bool would like to be warned
         let M = mono_q("M", subtypeof(mono("Mutizable")));
         let op_t = func1(M.clone(), proj(M, "MutType!")).quantify();
         self.register_builtin_impl("__mutate__", op_t, Const, Private);
@@ -2645,8 +2646,7 @@ impl Context {
     }
 
     pub(crate) fn init_builtins(cfg: ErgConfig, mod_cache: &SharedModuleCache) {
-        // TODO: capacityを正確に把握する
-        let mut ctx = Context::builtin_module("<builtins>", cfg, 40);
+        let mut ctx = Context::builtin_module("<builtins>", cfg, 100);
         ctx.init_builtin_consts();
         ctx.init_builtin_funcs();
         ctx.init_builtin_const_funcs();

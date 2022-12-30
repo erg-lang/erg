@@ -690,7 +690,7 @@ macro_rules! impl_no_type_display_for_enum {
     }
 }
 
-/// Pythonではis演算子に相当
+/// Equivalent to `is` in Python
 pub trait AddrEq {
     #[inline]
     fn addr_eq(&self, other: &Self) -> bool {

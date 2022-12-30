@@ -89,7 +89,7 @@ macro_rules! impl_display_for_enum_with_variant {
 }
 
 /// More languages will be added ...
-/// マクロはパラメータを展開しないので、format!のロスがなくなる
+/// Macros do not expand parameters, eliminating the cost of `format!`
 #[macro_export]
 macro_rules! switch_lang {
     (
@@ -107,8 +107,8 @@ macro_rules! switch_lang {
     }};
 }
 
-/// 2重のunwrapまでサポート
-/// :は制限を回避するためのdummy token
+/// Supports up to double unwrap
+/// `:` is a dummy token to bypass restrictions
 /// ```
 /// # use erg_common::enum_unwrap;
 /// use erg_common::Str;
@@ -283,8 +283,8 @@ macro_rules! caused_by {
     }};
 }
 
-/// 一度文字列をパースするので
-/// アドレスの比較をしたい場合はaddr_eq!またはAddrEq traitを使うこと
+/// Once the argument is parsed into String, so
+/// use `addr_eq!` or `AddrEq` trait if you want to compare addresses
 #[macro_export]
 macro_rules! addr {
     ($obj: expr) => {{

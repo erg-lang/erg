@@ -900,6 +900,7 @@ impl Context {
             })
     }
 
+    /// Propagate mutable dependent types changes
     /// 可変依存型の変更を伝搬させる
     fn propagate(&self, t: &Type, callee: &hir::Expr) -> TyCheckResult<()> {
         if let Type::Subr(subr) = t {
@@ -1578,6 +1579,8 @@ impl Context {
         None
     }
 
+    // Returns what kind of variance the type has for each parameter Type.
+    // Invariant for types not specified
     // selfが示す型が、各パラメータTypeに対してどのような変性Varianceを持つかを返す
     // 特に指定されない型に対してはInvariant
     // e.g. K(T, U) = Class(..., Impl: F(T) and Output(U) and Input(T))

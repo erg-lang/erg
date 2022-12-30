@@ -1070,10 +1070,12 @@ impl Context {
         }
     }
 
+    /// If lhs and rhs are in a subtype relation, return the smaller one
+    /// Return None if they are not related
     /// lhsとrhsが包含関係にあるとき小さいほうを返す
     /// 関係なければNoneを返す
     pub(crate) fn min<'t>(&self, lhs: &'t Type, rhs: &'t Type) -> Option<&'t Type> {
-        // 同じならどちらを返しても良い
+        // If they are the same, either one can be returned.
         match (self.supertype_of(lhs, rhs), self.subtype_of(lhs, rhs)) {
             (true, true) | (true, false) => Some(rhs),
             (false, true) => Some(lhs),
@@ -1082,7 +1084,7 @@ impl Context {
     }
 
     pub(crate) fn _max<'t>(&self, lhs: &'t Type, rhs: &'t Type) -> Option<&'t Type> {
-        // 同じならどちらを返しても良い
+        // If they are the same, either one can be returned.
         match (self.supertype_of(lhs, rhs), self.subtype_of(lhs, rhs)) {
             (true, true) | (true, false) => Some(lhs),
             (false, true) => Some(rhs),

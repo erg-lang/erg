@@ -18,8 +18,8 @@ pub const SEMVER: &str = env!("CARGO_PKG_VERSION");
 pub const GIT_HASH_SHORT: &str = env!("GIT_HASH_SHORT");
 pub const BUILD_DATE: &str = env!("BUILD_DATE");
 
-/// 入力はファイルからだけとは限らないので
-/// Inputで操作を一本化する
+/// Since input is not always only from files
+/// Unify operations with `Input`
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Input {
     File(PathBuf),
@@ -249,7 +249,7 @@ impl ErgConfig {
         }
     }
 
-    /// cloneのエイリアス(実際のcloneコストは低いので)
+    /// clone alias (since the actual clone cost is low)
     #[inline]
     pub fn copy(&self) -> Self {
         self.clone()
@@ -301,7 +301,7 @@ impl ErgConfig {
         let mut args = env::args();
         args.next(); // "ergc"
         let mut cfg = Self::default();
-        // ループ内でnextするのでforにしないこと
+        // not `for` because we need to consume the next argument
         while let Some(arg) = args.next() {
             match &arg[..] {
                 "--" => {

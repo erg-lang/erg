@@ -185,7 +185,6 @@ impl PyCodeGenerator {
         self.str_cache.get(s)
     }
 
-    /// 大抵の場合はモジュールのブロックが返る
     #[inline]
     fn toplevel_block(&self) -> &PyCodeGenUnit {
         self.units.first().unwrap()

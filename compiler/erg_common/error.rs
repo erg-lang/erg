@@ -16,7 +16,7 @@ use crate::style::THEME;
 use crate::traits::{Locational, Stream};
 use crate::{impl_display_from_debug, switch_lang};
 
-/// ErrorKindと言っているが、ErrorだけでなくWarning, Exceptionも含まれる
+/// This includes not only Error but also Warning, Exception
 /// Numbering of this is not specifically related to ErrFmt.errno().
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]

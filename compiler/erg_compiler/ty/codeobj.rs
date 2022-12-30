@@ -132,8 +132,6 @@ impl From<u8> for MakeFunctionFlags {
 }
 
 /// Implementation of `PyCodeObject`, see Include/cpython/code.h in CPython for details.
-///
-/// 各属性をErg側のObjに変換すると遅くなりそうなので、アクサスされたときのみ変換して提供する
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct CodeObj {
     pub argcount: u32,

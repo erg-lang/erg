@@ -896,6 +896,7 @@ impl Context {
                         Some("__call__".into()),
                     );
                     // 必要なら、ユーザーが独自に上書きする
+                    // users can override this if necessary
                     methods.register_auto_impl("new", new_t, Immutable, Public, None);
                     ctx.methods_list
                         .push((ClassDefType::Simple(gen.typ().clone()), methods));

@@ -1525,7 +1525,7 @@ impl Type {
     pub const NEVER: &'static Self = &Self::Never;
     pub const FAILURE: &'static Self = &Self::Failure;
 
-    /// 本来は型環境が必要
+    // TODO: this method should be defined in Context
     pub fn mutate(self) -> Self {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => {
@@ -2382,6 +2382,7 @@ impl Type {
     }
 }
 
+/// Opcode used when Erg implements its own processor
 /// バイトコード命令で、in-place型付けをするオブジェクト
 /// MaybeBigがついている場合、固定長でない可能性あり(実行時検査が必要)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

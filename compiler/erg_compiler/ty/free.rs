@@ -41,7 +41,6 @@ pub trait HasLevel {
     }
 }
 
-// REVIEW: TyBoundと微妙に役割が被っている
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Constraint {
     // : Type --> (:> Never, <: Obj)

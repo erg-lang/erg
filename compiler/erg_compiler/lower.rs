@@ -1167,7 +1167,7 @@ impl ASTLowerer {
         }
     }
 
-    // NOTE: 呼ばれている間はinner scopeなので注意
+    // NOTE: Note that this is in the inner scope while being called.
     fn lower_subr_def(
         &mut self,
         sig: ast::SubrSignature,

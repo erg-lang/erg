@@ -22,8 +22,7 @@ pub struct Set<T> {
     elems: FxHashSet<T>,
 }
 
-// Use fast_eq for faster comparisons
-// より高速な比較はfast_eqを使うこと
+// Use `fast_eq` for faster comparisons
 impl<T: Hash + Eq> PartialEq for Set<T> {
     fn eq(&self, other: &Set<T>) -> bool {
         if self.len() != other.len() {
