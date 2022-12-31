@@ -741,6 +741,28 @@ impl Context {
         float.register_builtin_const("EPSILON", Public, ValueObj::Float(2.220446049250313e-16));
         float.register_builtin_py_impl("Real", Float, Const, Public, Some("real"));
         float.register_builtin_py_impl("Imag", Float, Const, Public, Some("imag"));
+        float.register_builtin_py_impl(
+            "conjugate",
+            fn0_met(Float, Float),
+            Const,
+            Public,
+            Some("conjugate"),
+        );
+        float.register_builtin_py_impl(
+            "is_integer",
+            fn0_met(Float, Bool),
+            Const,
+            Public,
+            Some("is_integer"),
+        );
+        float.register_builtin_py_impl("hex", fn0_met(Float, Str), Const, Public, Some("hex"));
+        float.register_builtin_py_impl(
+            "fromhex",
+            nd_func(vec![kw("s", Str)], None, Float),
+            Const,
+            Public,
+            Some("fromhex"),
+        );
         float.register_marker_trait(mono(NUM));
         float.register_marker_trait(mono("Ord"));
         let mut float_ord = Self::builtin_methods(Some(mono("Ord")), 2);
@@ -852,6 +874,20 @@ impl Context {
         int.register_builtin_py_impl("abs", fn0_met(Int, Nat), Immutable, Public, Some("__abs__"));
         int.register_builtin_py_impl("succ", fn0_met(Int, Int), Immutable, Public, Some("succ"));
         int.register_builtin_py_impl("pred", fn0_met(Int, Int), Immutable, Public, Some("pred"));
+        int.register_builtin_py_impl(
+            "bit_length",
+            fn0_met(Int, Nat),
+            Immutable,
+            Public,
+            Some("bit_length"),
+        );
+        int.register_builtin_py_impl(
+            "bit_count",
+            fn0_met(Int, Nat),
+            Immutable,
+            Public,
+            Some("bit_count"),
+        );
         let t_from_bytes = func(
             vec![kw(
                 "bytes",
@@ -1090,6 +1126,11 @@ impl Context {
             Public,
             Some("__iter__"),
         );
+        str_iterable.register_builtin_const(
+            "Iterator",
+            vis,
+            ValueObj::builtin_t(mono("StrIterator")),
+        );
         str_.register_trait(Str, str_iterable);
         /* NoneType */
         let mut nonetype = Self::builtin_mono_class("NoneType", 10);
@@ -1288,12 +1329,10 @@ impl Context {
         array_.register_trait(arr_t.clone(), array_show);
         let mut array_iterable =
             Self::builtin_methods(Some(poly("Iterable", vec![ty_tp(T.clone())])), 2);
-        let t = fn0_met(
-            array_t(T.clone(), TyParam::erased(Nat)),
-            poly("ArrayIterator", vec![ty_tp(T.clone())]),
-        )
-        .quantify();
+        let array_iter = poly("ArrayIterator", vec![ty_tp(T.clone())]);
+        let t = fn0_met(array_t(T.clone(), TyParam::erased(Nat)), array_iter.clone()).quantify();
         array_iterable.register_builtin_py_impl("iter", t, Immutable, Public, Some("__iter__"));
+        array_iterable.register_builtin_const("Iterator", vis, ValueObj::builtin_t(array_iter));
         array_.register_trait(arr_t.clone(), array_iterable);
         /* Set */
         let mut set_ =
@@ -1430,11 +1469,15 @@ impl Context {
         /* Iterators */
         let mut str_iterator = Self::builtin_mono_class("StrIterator", 1);
         str_iterator.register_superclass(Obj, &obj);
+        str_iterator.register_marker_trait(poly("Iterable", vec![ty_tp(Str)]));
+        str_iterator.register_marker_trait(poly("Output", vec![ty_tp(Str)]));
         let mut array_iterator = Self::builtin_poly_class("ArrayIterator", vec![PS::t_nd("T")], 1);
         array_iterator.register_superclass(Obj, &obj);
+        array_iterator.register_marker_trait(poly("Iterable", vec![ty_tp(T.clone())]));
         array_iterator.register_marker_trait(poly("Output", vec![ty_tp(T.clone())]));
         let mut range_iterator = Self::builtin_poly_class("RangeIterator", vec![PS::t_nd("T")], 1);
         range_iterator.register_superclass(Obj, &obj);
+        range_iterator.register_marker_trait(poly("Iterable", vec![ty_tp(T.clone())]));
         range_iterator.register_marker_trait(poly("Output", vec![ty_tp(T.clone())]));
         /* Enumerate */
         let mut enumerate = Self::builtin_poly_class("Enumerate", vec![PS::t_nd("T")], 2);
@@ -1805,13 +1848,15 @@ impl Context {
         range.register_trait(range_t.clone(), range_eq);
         let mut range_iterable =
             Self::builtin_methods(Some(poly("Iterable", vec![ty_tp(T.clone())])), 2);
+        let range_iter = poly("RangeIterator", vec![ty_tp(T.clone())]);
         range_iterable.register_builtin_py_impl(
             "iter",
-            fn0_met(Str, mono("RangeIterator")),
+            fn0_met(range_t.clone(), range_iter.clone()).quantify(),
             Immutable,
             Public,
             Some("__iter__"),
         );
+        range_iterable.register_builtin_const("Iterator", vis, ValueObj::builtin_t(range_iter));
         range.register_trait(range_t.clone(), range_iterable);
         let range_getitem_t = fn1_kw_met(range_t.clone(), anon(T.clone()), T.clone()).quantify();
         let get_item = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
@@ -2105,6 +2150,8 @@ impl Context {
             None,
             Bool,
         );
+        let I = mono_q("I", subtypeof(poly("Iterable", vec![ty_tp(T.clone())])));
+        let t_iter = nd_func(vec![kw("object", I.clone())], None, proj(I, "Iterator")).quantify();
         let t_len = nd_func(
             vec![kw("s", poly("Seq", vec![TyParam::erased(Type)]))],
             None,
@@ -2204,7 +2251,7 @@ impl Context {
                 kw("iterable2", poly("Iterable", vec![ty_tp(U.clone())])),
             ],
             None,
-            poly("Zip", vec![ty_tp(T), ty_tp(U)]),
+            poly("Zip", vec![ty_tp(T.clone()), ty_tp(U.clone())]),
         )
         .quantify();
         self.register_builtin_py_impl("abs", t_abs, Immutable, vis, Some("abs"));
@@ -2235,6 +2282,7 @@ impl Context {
             vis,
             Some("issubclass"),
         );
+        self.register_builtin_py_impl("iter", t_iter, Immutable, vis, Some("iter"));
         self.register_builtin_py_impl("len", t_len, Immutable, vis, Some("len"));
         self.register_builtin_py_impl("map", t_map, Immutable, vis, Some("map"));
         self.register_builtin_py_impl("max", t_max, Immutable, vis, Some("max"));
@@ -2300,6 +2348,23 @@ impl Context {
                 poly("Range", vec![ty_tp(Int)]),
             );
             self.register_builtin_py_impl("range", t_range, Immutable, vis, Some("range"));
+            let t_list = func(
+                vec![],
+                None,
+                vec![kw("iterable", poly("Iterable", vec![ty_tp(T.clone())]))],
+                poly("Array", vec![ty_tp(T.clone()), TyParam::erased(Nat)]),
+            );
+            self.register_builtin_py_impl("list", t_list, Immutable, vis, Some("list"));
+            let t_dict = func(
+                vec![],
+                None,
+                vec![kw(
+                    "iterable",
+                    poly("Iterable", vec![ty_tp(tuple_t(vec![T.clone(), U.clone()]))]),
+                )],
+                dict! { T => U }.into(),
+            );
+            self.register_builtin_py_impl("dict", t_dict, Immutable, vis, Some("dict"));
         }
     }
 
