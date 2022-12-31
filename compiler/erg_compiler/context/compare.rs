@@ -31,22 +31,16 @@ use super::ContextKind;
 
 impl Context {
     fn register_cache(&self, sup: &Type, sub: &Type, result: bool) {
-        if sub.is_cachable() && sup.is_cachable() {
-            GLOBAL_TYPE_CACHE.register(SubtypePair::new(sub.clone(), sup.clone()), result);
-        }
+        GLOBAL_TYPE_CACHE.register(SubtypePair::new(sub.clone(), sup.clone()), result);
     }
 
     // TODO: is it impossible to avoid .clone()?
     fn inquire_cache(&self, sup: &Type, sub: &Type) -> Option<bool> {
-        if sub.is_cachable() && sup.is_cachable() {
-            let res = GLOBAL_TYPE_CACHE.get(&SubtypePair::new(sub.clone(), sup.clone()));
-            if res.is_some() {
-                log!(info "cache hit");
-            }
-            res
-        } else {
-            None
+        let res = GLOBAL_TYPE_CACHE.get(&SubtypePair::new(sub.clone(), sup.clone()));
+        if res.is_some() {
+            log!(info "cache hit");
         }
+        res
     }
 
     pub(crate) fn eq_tp(&self, lhs: &TyParam, rhs: &TyParam) -> bool {

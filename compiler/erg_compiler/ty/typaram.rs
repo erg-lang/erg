@@ -782,23 +782,6 @@ impl TyParam {
         }
     }
 
-    pub fn is_cachable(&self) -> bool {
-        match self {
-            Self::FreeVar(_) => false,
-            Self::Type(t) => t.is_cachable(),
-            Self::Proj { obj, .. } => obj.is_cachable(),
-            Self::Array(ts) => ts.iter().all(|t| t.is_cachable()),
-            Self::Tuple(ts) => ts.iter().all(|t| t.is_cachable()),
-            Self::Set(ts) => ts.iter().all(|t| t.is_cachable()),
-            Self::Dict(kv) => kv.iter().all(|(k, v)| k.is_cachable() && v.is_cachable()),
-            Self::UnaryOp { val, .. } => val.is_cachable(),
-            Self::BinOp { lhs, rhs, .. } => lhs.is_cachable() && rhs.is_cachable(),
-            Self::App { args, .. } => args.iter().all(|p| p.is_cachable()),
-            Self::Erased(t) => t.is_cachable(),
-            _ => true,
-        }
-    }
-
     pub fn is_unbound_var(&self) -> bool {
         matches!(self, Self::FreeVar(fv) if fv.is_unbound() || fv.crack().is_unbound_var())
     }

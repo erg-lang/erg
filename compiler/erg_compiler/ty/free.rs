@@ -3,10 +3,10 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::mem;
 
+use erg_common::addr_eq;
 use erg_common::shared::Shared;
 use erg_common::traits::LimitedDisplay;
 use erg_common::Str;
-use erg_common::{addr, addr_eq};
 
 use super::typaram::TyParam;
 use super::Type;
@@ -14,11 +14,14 @@ use super::Type;
 pub type Level = usize;
 pub type Id = usize;
 
-// HACK: see doc/compiler/inference.md for details
+/// HACK: see doc/compiler/inference.md for details
 pub const GENERIC_LEVEL: usize = usize::MAX;
+/// Recursion limit for `Constraint`'s `Hash` and `PartialEq` impls
+pub const REC_LIMIT: usize = 15;
 
 thread_local! {
     static UNBOUND_ID: Shared<usize> = Shared::new(0);
+    static TIMEOUT: Shared<usize> = Shared::new(REC_LIMIT);
 }
 
 pub trait HasLevel {
@@ -42,7 +45,7 @@ pub trait HasLevel {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Clone)]
 pub enum Constraint {
     // : Type --> (:> Never, <: Obj)
     // :> Sub --> (:> Sub, <: Obj)
@@ -57,7 +60,65 @@ pub enum Constraint {
     Uninited,
 }
 
+// HACK: `Constraint` may be cyclic, so need to limit the recursion depth
+impl Hash for Constraint {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        if TIMEOUT.with(|t| *t.borrow() == 0) {
+            return;
+        }
+        match self {
+            Self::Sandwiched { sub, sup } => {
+                TIMEOUT.with(|t| *t.borrow_mut() -= 1);
+                sub.hash(state);
+                sup.hash(state);
+            }
+            Self::TypeOf(t) => {
+                TIMEOUT.with(|t| *t.borrow_mut() -= 1);
+                t.hash(state);
+            }
+            Self::Uninited => {}
+        }
+        TIMEOUT.with(|t| *t.borrow_mut() = REC_LIMIT);
+    }
+}
+
+impl PartialEq for Constraint {
+    fn eq(&self, other: &Self) -> bool {
+        if TIMEOUT.with(|t| *t.borrow() == 0) {
+            return true; //addr_eq!(self, other);
+        }
+        let res = match (self, other) {
+            (
+                Self::Sandwiched { sub, sup },
+                Self::Sandwiched {
+                    sub: sub2,
+                    sup: sup2,
+                },
+            ) => {
+                TIMEOUT.with(|t| *t.borrow_mut() -= 1);
+                sub == sub2 && sup == sup2
+            }
+            (Self::TypeOf(t), Self::TypeOf(t2)) => {
+                TIMEOUT.with(|t| *t.borrow_mut() -= 1);
+                t == t2
+            }
+            (Self::Uninited, Self::Uninited) => true,
+            _ => false,
+        };
+        TIMEOUT.with(|t| *t.borrow_mut() = REC_LIMIT);
+        res
+    }
+}
+
+impl Eq for Constraint {}
+
 impl fmt::Display for Constraint {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.limited_fmt(f, 10)
+    }
+}
+
+impl fmt::Debug for Constraint {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.limited_fmt(f, 10)
     }
@@ -208,7 +269,7 @@ impl<T: CanbeFree> Free<T> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Eq)]
 pub enum FreeKind<T> {
     Linked(T),
     UndoableLinked {
@@ -231,7 +292,60 @@ impl<T: Hash> Hash for FreeKind<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
             Self::Linked(t) | Self::UndoableLinked { t, .. } => t.hash(state),
-            Self::Unbound { .. } | Self::NamedUnbound { .. } => addr!(self).hash(state),
+            Self::Unbound {
+                id,
+                lev,
+                constraint,
+            } => {
+                id.hash(state);
+                lev.hash(state);
+                constraint.hash(state);
+            }
+            Self::NamedUnbound {
+                name,
+                lev,
+                constraint,
+            } => {
+                name.hash(state);
+                lev.hash(state);
+                constraint.hash(state);
+            }
+        }
+    }
+}
+
+impl<T: PartialEq> PartialEq for FreeKind<T> {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (
+                Self::Linked(t1) | Self::UndoableLinked { t: t1, .. },
+                Self::Linked(t2) | Self::UndoableLinked { t: t2, .. },
+            ) => t1 == t2,
+            (
+                Self::Unbound {
+                    id: id1,
+                    lev: lev1,
+                    constraint: c1,
+                },
+                Self::Unbound {
+                    id: id2,
+                    lev: lev2,
+                    constraint: c2,
+                },
+            ) => id1 == id2 && lev1 == lev2 && c1 == c2,
+            (
+                Self::NamedUnbound {
+                    name: n1,
+                    lev: l1,
+                    constraint: c1,
+                },
+                Self::NamedUnbound {
+                    name: n2,
+                    lev: l2,
+                    constraint: c2,
+                },
+            ) => n1 == n2 && l1 == l2 && c1 == c2,
+            _ => false,
         }
     }
 }
@@ -656,3 +770,25 @@ impl Free<TyParam> {
 
 pub type FreeTyVar = Free<Type>;
 pub type FreeTyParam = Free<TyParam>;
+
+mod tests {
+    #![allow(unused_imports)]
+    use erg_common::enable_overflow_stacktrace;
+
+    use crate::ty::constructors::*;
+    use crate::ty::*;
+    use crate::*;
+
+    #[test]
+    fn cmp_freevar() {
+        enable_overflow_stacktrace!();
+        let t = named_free_var("T".into(), 1, Constraint::Uninited);
+        let Type::FreeVar(fv) = t.clone() else { unreachable!() };
+        let constraint = Constraint::new_subtype_of(poly("Add", vec![ty_tp(t.clone())]));
+        fv.update_constraint(constraint.clone());
+        let u = named_free_var("T".into(), 1, constraint);
+        println!("{t} {u}");
+        assert_eq!(t, t);
+        assert_eq!(t, u);
+    }
+}

@@ -487,19 +487,6 @@ impl Predicate {
         }
     }
 
-    pub fn is_cachable(&self) -> bool {
-        match self {
-            Self::Equal { rhs, .. }
-            | Self::GreaterEqual { rhs, .. }
-            | Self::LessEqual { rhs, .. }
-            | Self::NotEqual { rhs, .. } => rhs.is_cachable(),
-            Self::Or(lhs, rhs) | Self::And(lhs, rhs) | Self::Not(lhs, rhs) => {
-                lhs.is_cachable() && rhs.is_cachable()
-            }
-            _ => true,
-        }
-    }
-
     pub fn has_unbound_var(&self) -> bool {
         match self {
             Self::Value(_) => false,
@@ -2015,42 +2002,6 @@ impl Type {
 
     pub fn has_no_qvar(&self) -> bool {
         !self.has_qvar()
-    }
-
-    pub fn is_cachable(&self) -> bool {
-        match self {
-            Self::FreeVar(_) => false,
-            Self::Ref(t) => t.is_cachable(),
-            Self::RefMut { before, after } => {
-                before.is_cachable() && after.as_ref().map(|t| t.is_cachable()).unwrap_or(true)
-            }
-            Self::And(lhs, rhs) | Self::Not(lhs, rhs) | Self::Or(lhs, rhs) => {
-                lhs.is_cachable() && rhs.is_cachable()
-            }
-            Self::Callable { param_ts, return_t } => {
-                param_ts.iter().all(|t| t.is_cachable()) && return_t.is_cachable()
-            }
-            Self::Subr(subr) => {
-                subr.non_default_params
-                    .iter()
-                    .all(|pt| pt.typ().is_cachable())
-                    && subr
-                        .var_params
-                        .as_ref()
-                        .map(|pt| pt.typ().is_cachable())
-                        .unwrap_or(false)
-                    && subr.default_params.iter().all(|pt| pt.typ().is_cachable())
-                    && subr.return_t.is_cachable()
-            }
-            Self::Record(r) => r.values().all(|t| t.is_cachable()),
-            Self::Refinement(refine) => {
-                refine.t.is_cachable() && refine.preds.iter().all(|p| p.is_cachable())
-            }
-            Self::Quantified(quant) => quant.is_cachable(),
-            Self::Poly { params, .. } => params.iter().all(|p| p.is_cachable()),
-            Self::Proj { lhs, .. } => lhs.is_cachable(),
-            _ => true,
-        }
     }
 
     pub fn has_unbound_var(&self) -> bool {
