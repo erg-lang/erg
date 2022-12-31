@@ -793,46 +793,7 @@ impl Context {
                 //      Array(Str) <: Iterable(Str)
                 //      Zip(T, U) <: Iterable(Tuple([T, U]))
                 if ln != rn {
-                    if let Some((sub_def_t, sub_ctx)) = self.get_nominal_type_ctx(maybe_sub) {
-                        let mut tv_cache = TyVarCache::new(self.level, self);
-                        let _sub_def_instance =
-                            self.instantiate_t_inner(sub_def_t.clone(), &mut tv_cache, loc)?;
-                        // e.g.
-                        // maybe_sub: Zip(Int, Str)
-                        // sub_def_t: Zip(T, U) ==> Zip(Int, Str)
-                        // super_traits: [Iterable((T, U)), ...] ==> [Iterable((Int, Str)), ...]
-                        self.substitute_typarams(sub_def_t, maybe_sub)
-                            .map_err(|errs| {
-                                Self::undo_substitute_typarams(sub_def_t);
-                                errs
-                            })?;
-                        for sup_trait in sub_ctx.super_traits.iter() {
-                            let sub_trait_instance =
-                                self.instantiate_t_inner(sup_trait.clone(), &mut tv_cache, loc)?;
-                            if self.supertype_of(maybe_sup, sup_trait) {
-                                for (l_maybe_sub, r_maybe_sup) in
-                                    sub_trait_instance.typarams().iter().zip(rps.iter())
-                                {
-                                    self.sub_unify_tp(l_maybe_sub, r_maybe_sup, None, loc, false)
-                                        .map_err(|errs| {
-                                            Self::undo_substitute_typarams(sub_def_t);
-                                            errs
-                                        })?;
-                                }
-                                Self::undo_substitute_typarams(sub_def_t);
-                                return Ok(());
-                            }
-                        }
-                        Self::undo_substitute_typarams(sub_def_t);
-                    }
-                    Err(TyCheckErrors::from(TyCheckError::unification_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        maybe_sub,
-                        maybe_sup,
-                        loc,
-                        self.caused_by(),
-                    )))
+                    self.nominal_sub_unify(maybe_sub, maybe_sup, rps, loc)
                 } else {
                     for (l_maybe_sub, r_maybe_sup) in lps.iter().zip(rps.iter()) {
                         self.sub_unify_tp(l_maybe_sub, r_maybe_sup, None, loc, false)?;
@@ -840,6 +801,12 @@ impl Context {
                     Ok(())
                 }
             }
+            (
+                _,
+                Type::Poly {
+                    params: sup_params, ..
+                },
+            ) => self.nominal_sub_unify(maybe_sub, maybe_sup, sup_params, loc),
             // (X or Y) <: Z is valid when X <: Z and Y <: Z
             (Type::Or(l, r), _) => {
                 self.sub_unify(l, maybe_sup, loc, param_name)?;
@@ -886,11 +853,16 @@ impl Context {
                 let sup = sup.clone().into_refinement();
                 self.sub_unify(maybe_sub, &Type::Refinement(sup), loc, param_name)
             }
+            (sub, Type::Refinement(_)) => {
+                let sub = sub.clone().into_refinement();
+                self.sub_unify(&Type::Refinement(sub), maybe_sup, loc, param_name)
+            }
             (Type::Subr(_) | Type::Record(_), Type) => Ok(()),
             // REVIEW: correct?
             (Type::Poly { name, .. }, Type) if &name[..] == "Array" || &name[..] == "Tuple" => {
                 Ok(())
             }
+            (Type::Poly { .. }, _) => self.nominal_sub_unify(maybe_sub, maybe_sup, &[], loc),
             (Type::Subr(_), Mono(name)) if &name[..] == "GenericCallable" => Ok(()),
             _ => type_feature_error!(
                 self,
@@ -898,5 +870,55 @@ impl Context {
                 &format!("{maybe_sub} can be a subtype of {maybe_sup}, but failed to semi-unify")
             ),
         }
+    }
+
+    // TODO: Current implementation is inefficient because coercion is performed twice with `subtype_of` in `sub_unify`
+    fn nominal_sub_unify(
+        &self,
+        maybe_sub: &Type,
+        maybe_sup: &Type,
+        sup_params: &[TyParam],
+        loc: Location,
+    ) -> TyCheckResult<()> {
+        if let Some((sub_def_t, sub_ctx)) = self.get_nominal_type_ctx(maybe_sub) {
+            let mut tv_cache = TyVarCache::new(self.level, self);
+            let _sub_def_instance =
+                self.instantiate_t_inner(sub_def_t.clone(), &mut tv_cache, loc)?;
+            // e.g.
+            // maybe_sub: Zip(Int, Str)
+            // sub_def_t: Zip(T, U) ==> Zip(Int, Str)
+            // super_traits: [Iterable((T, U)), ...] ==> [Iterable((Int, Str)), ...]
+            self.substitute_typarams(sub_def_t, maybe_sub)
+                .map_err(|errs| {
+                    Self::undo_substitute_typarams(sub_def_t);
+                    errs
+                })?;
+            for sup_trait in sub_ctx.super_traits.iter() {
+                let sub_trait_instance =
+                    self.instantiate_t_inner(sup_trait.clone(), &mut tv_cache, loc)?;
+                if self.supertype_of(maybe_sup, sup_trait) {
+                    for (l_maybe_sub, r_maybe_sup) in
+                        sub_trait_instance.typarams().iter().zip(sup_params.iter())
+                    {
+                        self.sub_unify_tp(l_maybe_sub, r_maybe_sup, None, loc, false)
+                            .map_err(|errs| {
+                                Self::undo_substitute_typarams(sub_def_t);
+                                errs
+                            })?;
+                    }
+                    Self::undo_substitute_typarams(sub_def_t);
+                    return Ok(());
+                }
+            }
+            Self::undo_substitute_typarams(sub_def_t);
+        }
+        Err(TyCheckErrors::from(TyCheckError::unification_error(
+            self.cfg.input.clone(),
+            line!() as usize,
+            maybe_sub,
+            maybe_sup,
+            loc,
+            self.caused_by(),
+        )))
     }
 }
