@@ -3,10 +3,10 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::mem;
 
-use erg_common::addr_eq;
 use erg_common::shared::Shared;
 use erg_common::traits::LimitedDisplay;
 use erg_common::Str;
+use erg_common::{addr_eq, log};
 
 use super::typaram::TyParam;
 use super::Type;
@@ -247,7 +247,7 @@ impl Constraint {
 pub trait CanbeFree {
     fn unbound_name(&self) -> Option<Str>;
     fn constraint(&self) -> Option<Constraint>;
-    fn update_constraint(&self, constraint: Constraint);
+    fn update_constraint(&self, constraint: Constraint, in_instantiation: bool);
 }
 
 impl<T: CanbeFree> Free<T> {
@@ -737,16 +737,25 @@ impl<T: CanbeFree> Free<T> {
         self.constraint().map(|c| c.is_uninited()).unwrap_or(false)
     }
 
-    pub fn update_constraint(&self, new_constraint: Constraint) {
+    pub fn update_constraint(&self, new_constraint: Constraint, in_inst_or_gen: bool) {
         match unsafe { &mut *self.as_ptr() as &mut FreeKind<T> } {
-            FreeKind::Unbound { constraint, .. } | FreeKind::NamedUnbound { constraint, .. } => {
+            FreeKind::Unbound {
+                lev, constraint, ..
+            }
+            | FreeKind::NamedUnbound {
+                lev, constraint, ..
+            } => {
+                if !in_inst_or_gen && *lev == GENERIC_LEVEL {
+                    log!(err "cannot update the constraint of a generalized type variable");
+                    return;
+                }
                 if addr_eq!(*constraint, new_constraint) {
                     return;
                 }
                 *constraint = new_constraint;
             }
             FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => {
-                t.update_constraint(new_constraint);
+                t.update_constraint(new_constraint, in_inst_or_gen);
             }
         }
     }
@@ -785,7 +794,7 @@ mod tests {
         let t = named_free_var("T".into(), 1, Constraint::Uninited);
         let Type::FreeVar(fv) = t.clone() else { unreachable!() };
         let constraint = Constraint::new_subtype_of(poly("Add", vec![ty_tp(t.clone())]));
-        fv.update_constraint(constraint.clone());
+        fv.update_constraint(constraint.clone(), true);
         let u = named_free_var("T".into(), 1, constraint);
         println!("{t} {u}");
         assert_eq!(t, t);

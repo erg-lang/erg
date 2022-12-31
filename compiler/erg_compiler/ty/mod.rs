@@ -1261,9 +1261,9 @@ impl CanbeFree for Type {
         }
     }
 
-    fn update_constraint(&self, new_constraint: Constraint) {
+    fn update_constraint(&self, new_constraint: Constraint, in_instantiation: bool) {
         if let Self::FreeVar(fv) = self {
-            fv.update_constraint(new_constraint);
+            fv.update_constraint(new_constraint, in_instantiation);
         }
     }
 }

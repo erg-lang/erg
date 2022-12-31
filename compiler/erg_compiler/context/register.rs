@@ -1488,7 +1488,7 @@ impl Context {
                     }
                     Type::FreeVar(fv) => {
                         let new_constraint = Constraint::new_subtype_of(cast_to);
-                        fv.update_constraint(new_constraint);
+                        fv.update_constraint(new_constraint, false);
                     }
                     _ => {
                         *lhs.ref_mut_t() = cast_to;

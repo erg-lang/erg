@@ -1052,7 +1052,7 @@ impl Context {
                         {
                             let new_constr =
                                 tmp_tv_cache.instantiate_constraint(constr, self, loc)?;
-                            fv.update_constraint(new_constr);
+                            fv.update_constraint(new_constr, true);
                         }
                     }
                     Ok(tp)
@@ -1066,7 +1066,7 @@ impl Context {
                         {
                             let new_constr =
                                 tmp_tv_cache.instantiate_constraint(constr, self, loc)?;
-                            fv.update_constraint(new_constr);
+                            fv.update_constraint(new_constr, true);
                         }
                     }
                     Ok(TyParam::t(t))
@@ -1172,7 +1172,7 @@ impl Context {
                         {
                             let new_constr =
                                 tmp_tv_cache.instantiate_constraint(constr, self, loc)?;
-                            fv.update_constraint(new_constr);
+                            fv.update_constraint(new_constr, true);
                         }
                     }
                     Ok(t)
@@ -1187,7 +1187,7 @@ impl Context {
                             {
                                 let new_constr =
                                     tmp_tv_cache.instantiate_constraint(constr, self, loc)?;
-                                fv.update_constraint(new_constr);
+                                fv.update_constraint(new_constr, true);
                             }
                         }
                         Ok(t)
@@ -1311,7 +1311,7 @@ impl Context {
                 let sub = self.instantiate_t_inner(sub, tmp_tv_cache, loc)?;
                 let sup = self.instantiate_t_inner(sup, tmp_tv_cache, loc)?;
                 let new_constraint = Constraint::new_sandwiched(sub, sup);
-                fv.update_constraint(new_constraint);
+                fv.update_constraint(new_constraint, true);
                 Ok(FreeVar(fv))
             }
             And(l, r) => {

@@ -782,7 +782,7 @@ impl Context {
                 let t = fv.get_type().unwrap();
                 if op == OpKind::Mutate {
                     let constr = Constraint::new_type_of(t.mutate());
-                    fv.update_constraint(constr);
+                    fv.update_constraint(constr, false);
                     let tp = TyParam::FreeVar(fv);
                     Ok(tp)
                 } else {

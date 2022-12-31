@@ -325,13 +325,13 @@ impl CanbeFree for TyParam {
         }
     }
 
-    fn update_constraint(&self, new_constraint: Constraint) {
+    fn update_constraint(&self, new_constraint: Constraint, in_instantiation: bool) {
         match self {
             Self::FreeVar(fv) => {
-                fv.update_constraint(new_constraint);
+                fv.update_constraint(new_constraint, in_instantiation);
             }
             Self::Type(t) => {
-                t.update_constraint(new_constraint);
+                t.update_constraint(new_constraint, in_instantiation);
             }
             _ => {}
         }

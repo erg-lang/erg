@@ -5,13 +5,14 @@
 pub mod cache;
 pub mod compare;
 pub mod eval;
+pub mod generalize;
 pub mod hint;
 pub mod initialize;
 pub mod inquire;
 pub mod instantiate;
 pub mod register;
 pub mod test;
-pub mod tyvar;
+pub mod unify;
 
 use std::fmt;
 use std::mem;
