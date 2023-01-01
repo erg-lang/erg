@@ -93,7 +93,7 @@ const OP_MUL: &str = "__mul__";
 const OP_DIV: &str = "__div__";
 const OP_FLOOR_DIV: &str = "__floordiv__";
 
-const NAME: &str = "__name__";
+const FUNDAMENTAL_NAME: &str = "__name__";
 const FUNDAMENTAL_STR: &str = "__str__";
 const FUNDAMENTAL_ITER: &str = "__iter__";
 
@@ -492,7 +492,13 @@ impl Context {
             Private
         };
         // TODO: this is not a const, but a special property
-        self.register_builtin_py_impl(NAME, Str, Immutable, vis, Some(NAME));
+        self.register_builtin_py_impl(
+            FUNDAMENTAL_NAME,
+            Str,
+            Immutable,
+            vis,
+            Some(FUNDAMENTAL_NAME),
+        );
         self.register_builtin_py_impl(
             LICENSE,
             mono(SITEBUILTINS_PRINTER),
