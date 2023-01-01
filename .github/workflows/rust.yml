@@ -30,7 +30,7 @@ jobs:
         # HACK: The cause is unknown, but on windows, the exit code is 1 even if tests are successful.
         run: cargo test --features large_thread --features pre-commit --all --verbose
       - name: Run tests (Other OS)
-        if: matrix.os != 'Windows'
+        if: runner.os != 'Windows'
         run: cargo test --features large_thread --all --verbose
 
   build-check:
