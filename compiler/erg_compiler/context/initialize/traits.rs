@@ -34,7 +34,7 @@ impl Context {
         let mut mutable = Self::builtin_mono_trait(MUTABLE, 2);
         let Slf = mono_q(SELF, subtypeof(mono(IMMUTIZABLE)));
         let immut_t = proj(Slf.clone(), IMMUT_TYPE);
-        let f_t = func(vec![kw("old", immut_t.clone())], None, vec![], immut_t);
+        let f_t = func(vec![kw(KW_OLD, immut_t.clone())], None, vec![], immut_t);
         let t = pr1_met(ref_mut(Slf, None), f_t, NoneType).quantify();
         mutable.register_builtin_decl(PROC_UPDATE, t, Public);
         // REVIEW: Immutatable?
@@ -48,7 +48,7 @@ impl Context {
         /* Readable */
         let mut readable = Self::builtin_mono_trait(MUTABLE_READABLE, 2);
         let Slf = mono_q(SELF, subtypeof(mono(MUTABLE_READABLE)));
-        let t_read = pr_met(ref_mut(Slf, None), vec![], None, vec![kw("n", Int)], Str).quantify();
+        let t_read = pr_met(ref_mut(Slf, None), vec![], None, vec![kw(KW_N, Int)], Str).quantify();
         readable.register_builtin_py_decl(PROC_READ, t_read, Public, Some(FUNC_READ));
         /* Writable */
         let mut writable = Self::builtin_mono_trait(MUTABLE_WRITABLE, 2);
