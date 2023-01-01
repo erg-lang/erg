@@ -35,10 +35,11 @@ body:
     attributes:
       label: OS
       options:
-        - Windows 10
         - Windows 11
-        - MacOS 12 (Monterey)
-        - MacOS 11 (Big Sur)
+        - Windows 10
+        - macOS 13 (Ventura)
+        - macOS 12 (Monterey)
+        - macOS 11 (Big Sur)
         - Ubuntu
         - Linux(other distro)
         - Other (write in `Additional context`)
