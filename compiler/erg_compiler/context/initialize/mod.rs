@@ -44,7 +44,59 @@ use Visibility::*;
 
 const NUM: &str = "Num";
 
-const NAME: &str = "__name__";
+const UNPACK: &str = "Unpack";
+const INHERITABLE_TYPE: &str = "InheritableType";
+const NAMED: &str = "Named";
+const MUTABLE: &str = "Mutable";
+const SELF: &str = "Self";
+const IMMUTIZABLE: &str = "Immutizable";
+const IMMUT_TYPE: &str = "ImmutType";
+const PROC_UPDATE: &str = "update!";
+const MUTIZABLE: &str = "Mutizable";
+const MUTABLE_MUT_TYPE: &str = "MutType!";
+const PATH_LIKE: &str = "PathLike";
+const MUTABLE_READABLE: &str = "Readable!";
+const READABLE: &str = "Readable";
+const FUNC_READ: &str = "read";
+const PROC_READ: &str = "read!";
+const WRITABLE: &str = "Writable";
+const MUTABLE_WRITABLE: &str = "Writable!";
+const FUNC_WRITE: &str = "write";
+const PROC_WRITE: &str = "write!";
+const FILE_LIKE: &str = "FileLike";
+const MUTABLE_FILE_LIKE: &str = "FileLike!";
+const SHOW: &str = "Show";
+const INPUT: &str = "Input";
+const OUTPUT: &str = "Output";
+const IN: &str = "In";
+const EQ: &str = "Eq";
+const ORD: &str = "Ord";
+const TO_STR: &str = "to_str";
+const ORDERING: &str = "Ordering";
+const SEQ: &str = "Seq";
+const FUNC_LEN: &str = "len";
+const FUNC_GET: &str = "get";
+const ITERABLE: &str = "Iterable";
+const FUNC_ITER: &str = "iter";
+const ITER: &str = "Iter";
+const ADD: &str = "Add";
+const SUB: &str = "Sub";
+const MUL: &str = "Mul";
+const DIV: &str = "Div";
+const FLOOR_DIV: &str = "FloorDiv";
+const OP_IN: &str = "__in__";
+const OP_EQ: &str = "__eq__";
+const OP_CMP: &str = "__cmp__";
+const OP_ADD: &str = "__add__";
+const OP_SUB: &str = "__sub__";
+const OP_MUL: &str = "__mul__";
+const OP_DIV: &str = "__div__";
+const OP_FLOOR_DIV: &str = "__floordiv__";
+
+const FUNDAMENTAL_NAME: &str = "__name__";
+const FUNDAMENTAL_STR: &str = "__str__";
+const FUNDAMENTAL_ITER: &str = "__iter__";
+
 const LICENSE: &str = "license";
 const CREDITS: &str = "credits";
 const COPYRIGHT: &str = "copyright";
@@ -54,6 +106,13 @@ const NONE: &str = "None";
 const NOT_IMPLEMENTED: &str = "NotImplemented";
 const ELLIPSIS: &str = "Ellipsis";
 const SITEBUILTINS_PRINTER: &str = "_sitebuiltins._Printer";
+
+const TY_T: &str = "T";
+const TY_I: &str = "I";
+const TY_R: &str = "R";
+
+const KW_OLD: &str = "old";
+const KW_N: &str = "n";
 
 impl Context {
     fn register_builtin_decl(&mut self, name: &'static str, t: Type, vis: Visibility) {
@@ -433,7 +492,13 @@ impl Context {
             Private
         };
         // TODO: this is not a const, but a special property
-        self.register_builtin_py_impl(NAME, Str, Immutable, vis, Some(NAME));
+        self.register_builtin_py_impl(
+            FUNDAMENTAL_NAME,
+            Str,
+            Immutable,
+            vis,
+            Some(FUNDAMENTAL_NAME),
+        );
         self.register_builtin_py_impl(
             LICENSE,
             mono(SITEBUILTINS_PRINTER),
