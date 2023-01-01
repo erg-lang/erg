@@ -26,6 +26,7 @@ jobs:
         run: |
           rustup update stable
           cargo build --verbose
+          python -V
       - name: Run tests
         run: cargo test --features large_thread --verbose --all
       - uses: actions-rs/cargo@v1
