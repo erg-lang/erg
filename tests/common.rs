@@ -16,10 +16,11 @@ pub(crate) fn expect_success(file_path: &'static str) -> Result<(), ()> {
     match exec_vm(file_path) {
         Ok(0) => Ok(()),
         Ok(i) => {
-            println!("err: end with {i}");
+            println!("err: should succeed, but end with {i}");
             Err(())
         }
         Err(errs) => {
+            println!("err: should succeed, but got compile errors");
             errs.fmt_all_stderr();
             Err(())
         }
@@ -28,7 +29,10 @@ pub(crate) fn expect_success(file_path: &'static str) -> Result<(), ()> {
 
 pub(crate) fn expect_end_with(file_path: &'static str, code: i32) -> Result<(), ()> {
     match exec_vm(file_path) {
-        Ok(0) => Err(()),
+        Ok(0) => {
+            println!("err: should end with {code}, but end with 0");
+            Err(())
+        }
         Ok(i) => {
             if i == code {
                 Ok(())
@@ -38,6 +42,7 @@ pub(crate) fn expect_end_with(file_path: &'static str, code: i32) -> Result<(), 
             }
         }
         Err(errs) => {
+            println!("err: should end with {code}, but got compile errors");
             errs.fmt_all_stderr();
             Err(())
         }
@@ -46,14 +51,20 @@ pub(crate) fn expect_end_with(file_path: &'static str, code: i32) -> Result<(), 
 
 pub(crate) fn expect_failure(file_path: &'static str, errs_len: usize) -> Result<(), ()> {
     match exec_vm(file_path) {
-        Ok(0) => Err(()),
+        Ok(0) => {
+            println!("err: should fail, but end with 0");
+            Err(())
+        }
         Ok(_) => Ok(()),
         Err(errs) => {
             errs.fmt_all_stderr();
             if errs.len() == errs_len {
                 Ok(())
             } else {
-                println!("err: error length is not {errs_len} but {}", errs.len());
+                println!(
+                    "err: number of errors should be {errs_len}, but got {}",
+                    errs.len()
+                );
                 Err(())
             }
         }
@@ -70,14 +81,15 @@ fn _exec_vm(file_path: &'static str) -> Result<i32, CompileErrors> {
     } else {
         Some("python3")
     };
-    // cfg.target_version = Some(PythonVersion::new(3, Some(8), Some(10))); // your Python's version
-    // cfg.py_magic_num = Some(3413); // in (most) 3.8.x
-    // cfg.target_version = Some(PythonVersion::new(3, Some(9), Some(0)));
-    // cfg.py_magic_num = Some(3425); // in (most) 3.9.x
-    // cfg.target_version = Some(PythonVersion::new(3, Some(10), Some(6)));
-    // cfg.py_magic_num = Some(3439); // in (most) 3.10.x
-    cfg.target_version = Some(PythonVersion::new(3, Some(11), Some(0)));
-    cfg.py_magic_num = Some(3495); // in 3.11.0
+    let py_ver_minor = env!("PYTHON_VERSION_MINOR").parse::<u8>().unwrap();
+    let py_ver_micro = env!("PYTHON_VERSION_MICRO").parse::<u8>().unwrap();
+    let py_magic_num = env!("PYTHON_MAGIC_NUMBER").parse::<u32>().unwrap();
+    cfg.target_version = Some(PythonVersion::new(
+        3,
+        Some(py_ver_minor),
+        Some(py_ver_micro),
+    ));
+    cfg.py_magic_num = Some(py_magic_num);
     let mut vm = DummyVM::new(cfg);
     vm.exec()
 }
