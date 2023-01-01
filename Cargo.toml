@@ -3,6 +3,7 @@ name = "erg"
 description = "The Erg programming language"
 documentation = "https://docs.rs/erg"
 keywords = ["erg", "programming-language"]
+build = "build.rs"
 version.workspace = true
 authors.workspace = true
 license.workspace = true
@@ -62,6 +63,9 @@ erg_compiler = { version = "0.6.1-nightly.1", path = "./compiler/erg_compiler" }
 erg_common = { workspace = true }
 erg_parser = { workspace = true }
 erg_compiler = { workspace = true }
+
+[build-dependencies]
+erg_common = { workspace = true }
 
 [lib]
 path = "src/lib.rs"
