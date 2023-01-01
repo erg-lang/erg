@@ -111,6 +111,9 @@ const TY_T: &str = "T";
 const TY_I: &str = "I";
 const TY_R: &str = "R";
 
+const KW_OLD: &str = "old";
+const KW_N: &str = "n";
+
 impl Context {
     fn register_builtin_decl(&mut self, name: &'static str, t: Type, vis: Visibility) {
         if cfg!(feature = "debug") {
