@@ -50,6 +50,19 @@ fn run() {
         "read" => {
             Deserializer::run(cfg);
         }
+        "language-server" => {
+            #[cfg(feature = "els")]
+            {
+                use els::ErgLanguageServer;
+                let mut server = ErgLanguageServer::new(cfg);
+                server.run().unwrap();
+            }
+            #[cfg(not(feature = "els"))]
+            {
+                eprintln!("This version of the build does not support language server mode");
+                process::exit(1);
+            }
+        }
         other => {
             eprintln!("invalid mode: {other}");
             process::exit(1);

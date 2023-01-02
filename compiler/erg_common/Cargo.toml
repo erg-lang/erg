@@ -9,7 +9,6 @@ edition.workspace = true
 repository.workspace = true
 homepage.workspace = true
 
-
 [features]
 debug = ["dep:backtrace-on-stack-overflow"]
 japanese = []
@@ -18,6 +17,7 @@ traditional_chinese = []
 unicode = []
 pretty = []
 large_thread = []
+els = []
 
 [target.'cfg(unix)'.dependencies]
 libc = { version = "0.2", default-features = false }

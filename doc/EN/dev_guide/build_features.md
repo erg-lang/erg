@@ -31,3 +31,8 @@ Used to run tests in pre-commit. It's a bug workaround.
 ## large_thread
 
 Increase the thread stack size. Used for Windows execution and test execution.
+
+## els
+
+`--language-server` option becomes available.
+`erg --language-server` will start the Erg language server.

@@ -317,6 +317,9 @@ impl ErgConfig {
                 "--compile" | "--dump-as-pyc" => {
                     cfg.mode = "compile";
                 }
+                "--language-server" => {
+                    cfg.mode = "language-server";
+                }
                 "--no-std" => {
                     cfg.no_std = true;
                 }
@@ -341,6 +344,10 @@ impl ErgConfig {
                         process::exit(0);
                     }
                     cfg.mode = Box::leak(mode.into_boxed_str());
+                }
+                "--ping" => {
+                    println!("pong");
+                    process::exit(0);
                 }
                 "--ps1" => {
                     let ps1 = args
@@ -431,6 +438,14 @@ impl ErgConfig {
                     println!("Erg {}", env!("CARGO_PKG_VERSION"));
                     process::exit(0);
                 }
+                "--is-language-server-enabled" => {
+                    if cfg!(feature = "els") {
+                        process::exit(0);
+                    } else {
+                        // eprintln!("This version of the build does not support language server mode");
+                        process::exit(1);
+                    }
+                }
                 other if other.starts_with('-') => {
                     println!(
                         "\
@@ -457,7 +472,7 @@ USAGE:
                 }
             }
         }
-        if cfg.input == Input::REPL {
+        if cfg.input == Input::REPL && cfg.mode != "language-server" {
             use crate::tty::IsTty;
             let is_stdin_piped = !stdin().is_tty();
             let input = if is_stdin_piped {
