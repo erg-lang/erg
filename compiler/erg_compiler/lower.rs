@@ -28,8 +28,7 @@ use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{HasType, ParamTy, Type};
 
 use crate::context::{
-    ClassDefType, Context, ContextKind, ContextProvider, RegistrationMode, TypeRelationInstance,
-    Variance,
+    ClassDefType, Context, ContextKind, ContextProvider, RegistrationMode, TraitImpl, Variance,
 };
 use crate::error::{
     CompileError, CompileErrors, LowerError, LowerErrors, LowerResult, LowerWarning, LowerWarnings,
@@ -1550,11 +1549,11 @@ impl ASTLowerer {
     ) -> LowerResult<()> {
         // TODO: polymorphic trait
         if let Some(impls) = self.ctx.trait_impls.get_mut(&trait_.qual_name()) {
-            impls.insert(TypeRelationInstance::new(class.clone(), trait_.clone()));
+            impls.insert(TraitImpl::new(class.clone(), trait_.clone()));
         } else {
             self.ctx.trait_impls.insert(
                 trait_.qual_name(),
-                set! {TypeRelationInstance::new(class.clone(), trait_.clone())},
+                set! {TraitImpl::new(class.clone(), trait_.clone())},
             );
         }
         let trait_ctx = if let Some((_, trait_ctx)) = self.ctx.get_nominal_type_ctx(trait_) {

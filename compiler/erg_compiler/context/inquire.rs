@@ -24,7 +24,7 @@ use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{HasType, ParamTy, SubrKind, SubrType, Type};
 
 use crate::context::instantiate::ConstTemplate;
-use crate::context::{Context, RegistrationMode, TyVarCache, TypeRelationInstance, Variance};
+use crate::context::{Context, RegistrationMode, TraitImpl, TyVarCache, Variance};
 use crate::error::{
     binop_to_dname, readable_name, unaryop_to_dname, SingleTyCheckResult, TyCheckError,
     TyCheckErrors, TyCheckResult,
@@ -1932,7 +1932,7 @@ impl Context {
         None
     }
 
-    pub(crate) fn get_trait_impls(&self, t: &Type) -> Set<TypeRelationInstance> {
+    pub(crate) fn get_trait_impls(&self, t: &Type) -> Set<TraitImpl> {
         match t {
             // And(Add, Sub) == intersection({Int <: Add(Int), Bool <: Add(Bool) ...}, {Int <: Sub(Int), ...})
             // == {Int <: Add(Int) and Sub(Int), ...}
@@ -1947,7 +1947,7 @@ impl Context {
                     let lti = l_impls.iter().find(|ti| &ti.sub_type == base).unwrap();
                     let rti = r_impls.iter().find(|ti| &ti.sub_type == base).unwrap();
                     let sup_trait = self.intersection(&lti.sup_trait, &rti.sup_trait);
-                    isec.insert(TypeRelationInstance::new(lti.sub_type.clone(), sup_trait));
+                    isec.insert(TraitImpl::new(lti.sub_type.clone(), sup_trait));
                 }
                 isec
             }
@@ -1961,7 +1961,7 @@ impl Context {
         }
     }
 
-    pub(crate) fn get_simple_trait_impls(&self, t: &Type) -> Set<TypeRelationInstance> {
+    pub(crate) fn get_simple_trait_impls(&self, t: &Type) -> Set<TraitImpl> {
         let current = if let Some(impls) = self.trait_impls.get(&t.qual_name()) {
             impls.clone()
         } else {

@@ -53,22 +53,18 @@ pub trait ContextProvider {
 const BUILTINS: &Str = &Str::ever("<builtins>");
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct TypeRelationInstance {
+pub struct TraitImpl {
     pub sub_type: Type,
     pub sup_trait: Type,
 }
 
-impl std::fmt::Display for TypeRelationInstance {
+impl std::fmt::Display for TraitImpl {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "TypeRelationInstance{{{} <: {}}}",
-            self.sub_type, self.sup_trait
-        )
+        write!(f, "TraitImpl{{{} <: {}}}", self.sub_type, self.sup_trait)
     }
 }
 
-impl TypeRelationInstance {
+impl TraitImpl {
     pub const fn new(sub_type: Type, sup_trait: Type) -> Self {
         Self {
             sub_type,
@@ -171,7 +167,7 @@ pub enum ContextKind {
     StructuralTrait,
     Patch(Type),
     StructuralPatch(Type),
-    GluePatch(TypeRelationInstance), // TODO: deprecate (integrate into Patch)
+    GluePatch(TraitImpl), // TODO: deprecate (integrate into Patch)
     Module,
     Instant,
     Dummy,
@@ -285,7 +281,7 @@ pub struct Context {
     /// K: name of a trait, V: (type, monomorphised trait that the type implements)
     /// K: トレイトの名前, V: (型, その型が実装する単相化トレイト)
     /// e.g. { "Named": [(Type, Named), (Func, Named), ...], "Add": [(Nat, Add(Nat)), (Int, Add(Int)), ...], ... }
-    pub(crate) trait_impls: Dict<Str, Set<TypeRelationInstance>>,
+    pub(crate) trait_impls: Dict<Str, Set<TraitImpl>>,
     /// stores declared names (not initialized)
     pub(crate) decls: Dict<VarName, VarInfo>,
     /// for error reporting
@@ -780,7 +776,7 @@ impl Context {
         Self::poly(
             name.into(),
             cfg,
-            ContextKind::GluePatch(TypeRelationInstance::new(base, impls)),
+            ContextKind::GluePatch(TraitImpl::new(base, impls)),
             params,
             None,
             mod_cache,

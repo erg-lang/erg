@@ -33,9 +33,7 @@ use erg_parser::ast::VarName;
 
 use crate::context::initialize::const_func::*;
 use crate::context::instantiate::ConstTemplate;
-use crate::context::{
-    ClassDefType, Context, ContextKind, MethodInfo, ParamSpec, TypeRelationInstance,
-};
+use crate::context::{ClassDefType, Context, ContextKind, MethodInfo, ParamSpec, TraitImpl};
 use crate::mod_cache::SharedModuleCache;
 use crate::varinfo::{Mutability, VarInfo, VarKind};
 use Mutability::*;
@@ -349,11 +347,11 @@ impl Context {
                 .insert(name.clone(), ValueObj::builtin_t(t.clone()));
             for impl_trait in ctx.super_traits.iter() {
                 if let Some(impls) = self.trait_impls.get_mut(&impl_trait.qual_name()) {
-                    impls.insert(TypeRelationInstance::new(t.clone(), impl_trait.clone()));
+                    impls.insert(TraitImpl::new(t.clone(), impl_trait.clone()));
                 } else {
                     self.trait_impls.insert(
                         impl_trait.qual_name(),
-                        set![TypeRelationInstance::new(t.clone(), impl_trait.clone())],
+                        set![TraitImpl::new(t.clone(), impl_trait.clone())],
                     );
                 }
             }
@@ -418,11 +416,11 @@ impl Context {
                 .insert(name.clone(), ValueObj::builtin_t(t.clone()));
             for impl_trait in ctx.super_traits.iter() {
                 if let Some(impls) = self.trait_impls.get_mut(&impl_trait.qual_name()) {
-                    impls.insert(TypeRelationInstance::new(t.clone(), impl_trait.clone()));
+                    impls.insert(TraitImpl::new(t.clone(), impl_trait.clone()));
                 } else {
                     self.trait_impls.insert(
                         impl_trait.qual_name(),
-                        set![TypeRelationInstance::new(t.clone(), impl_trait.clone())],
+                        set![TraitImpl::new(t.clone(), impl_trait.clone())],
                     );
                 }
             }

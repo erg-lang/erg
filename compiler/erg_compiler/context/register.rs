@@ -22,8 +22,7 @@ use crate::ty::{HasType, ParamTy, SubrType, Type};
 
 use crate::build_hir::HIRBuilder;
 use crate::context::{
-    ClassDefType, Context, ContextKind, DefaultInfo, MethodInfo, RegistrationMode,
-    TypeRelationInstance,
+    ClassDefType, Context, ContextKind, DefaultInfo, MethodInfo, RegistrationMode, TraitImpl,
 };
 use crate::error::readable_name;
 use crate::error::{
@@ -1120,11 +1119,11 @@ impl Context {
                 .insert(name.clone(), ValueObj::Type(TypeObj::Generated(gen)));
             for impl_trait in ctx.super_traits.iter() {
                 if let Some(impls) = self.trait_impls.get_mut(&impl_trait.qual_name()) {
-                    impls.insert(TypeRelationInstance::new(t.clone(), impl_trait.clone()));
+                    impls.insert(TraitImpl::new(t.clone(), impl_trait.clone()));
                 } else {
                     self.trait_impls.insert(
                         impl_trait.qual_name(),
-                        set![TypeRelationInstance::new(t.clone(), impl_trait.clone())],
+                        set![TraitImpl::new(t.clone(), impl_trait.clone())],
                     );
                 }
             }
@@ -1186,11 +1185,11 @@ impl Context {
                 .insert(name.clone(), ValueObj::Type(TypeObj::Generated(gen)));
             for impl_trait in ctx.super_traits.iter() {
                 if let Some(impls) = self.trait_impls.get_mut(&impl_trait.qual_name()) {
-                    impls.insert(TypeRelationInstance::new(t.clone(), impl_trait.clone()));
+                    impls.insert(TraitImpl::new(t.clone(), impl_trait.clone()));
                 } else {
                     self.trait_impls.insert(
                         impl_trait.qual_name(),
-                        set![TypeRelationInstance::new(t.clone(), impl_trait.clone())],
+                        set![TraitImpl::new(t.clone(), impl_trait.clone())],
                     );
                 }
             }
