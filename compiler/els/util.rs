@@ -8,7 +8,7 @@ use erg_compiler::erg_parser::token::{Token, TokenKind};
 
 use lsp_types::{Position, Range, Url};
 
-use crate::ELSResult;
+use crate::server::ELSResult;
 
 pub fn loc_to_range(loc: erg_common::error::Location) -> Option<Range> {
     let start = Position::new(loc.ln_begin()? as u32 - 1, loc.col_begin()? as u32);

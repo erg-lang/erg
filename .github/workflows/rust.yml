@@ -43,7 +43,7 @@ jobs:
       - uses: actions/checkout@v2
       - uses: Swatinem/rust-cache@v2
       - run: rustup update stable
-      - run: cargo build --all --all-targets --verbose --release
+      - run: cargo build --all --all-targets --verbose
 
   lint:
     runs-on: ubuntu-latest
