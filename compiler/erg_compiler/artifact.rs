@@ -2,7 +2,7 @@ use std::fmt;
 
 use erg_common::traits::{Runnable, Stream};
 
-use crate::context::Context;
+use crate::context::ModuleContext;
 use crate::error::CompileErrors;
 use crate::hir::HIR;
 
@@ -84,8 +84,8 @@ pub trait Buildable<T = HIR> {
         src: String,
         mode: &str,
     ) -> Result<CompleteArtifact<T>, IncompleteArtifact<T>>;
-    fn pop_context(&mut self) -> Option<Context>;
-    fn get_context(&self) -> Option<&Context>;
+    fn pop_context(&mut self) -> Option<ModuleContext>;
+    fn get_context(&self) -> Option<&ModuleContext>;
 }
 
 pub trait BuildRunnable<T = HIR>: Buildable<T> + Runnable {}

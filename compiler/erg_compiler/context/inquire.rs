@@ -38,6 +38,18 @@ use Visibility::*;
 use super::{ContextKind, MethodInfo};
 
 impl Context {
+    pub(crate) fn get_ctx_from_path(&self, path: &Path) -> Option<&Context> {
+        self.mod_cache
+            .as_ref()
+            .and_then(|cache| cache.ref_ctx(path))
+            .or_else(|| {
+                self.py_mod_cache
+                    .as_ref()
+                    .and_then(|cache| cache.ref_ctx(path))
+            })
+            .map(|mod_ctx| &mod_ctx.context)
+    }
+
     pub(crate) fn get_current_scope_var(&self, name: &VarName) -> Option<&VarInfo> {
         self.locals
             .get(name)
@@ -1797,16 +1809,7 @@ impl Context {
                 for p in namespaces.into_iter() {
                     path = self.push_path(path, Path::new(p));
                 }
-                if let Some(ctx) = self
-                    .mod_cache
-                    .as_ref()
-                    .and_then(|cache| cache.ref_ctx(path.as_path()))
-                    .or_else(|| {
-                        self.py_mod_cache
-                            .as_ref()
-                            .and_then(|cache| cache.ref_ctx(path.as_path()))
-                    })
-                {
+                if let Some(ctx) = self.get_ctx_from_path(path.as_path()) {
                     if let Some((t, ctx)) = ctx.rec_get_mono_type(type_name) {
                         return Some((t, ctx));
                     }
@@ -1827,16 +1830,7 @@ impl Context {
                 for p in namespaces.into_iter() {
                     path = self.push_path(path, Path::new(p));
                 }
-                if let Some(ctx) = self
-                    .mod_cache
-                    .as_ref()
-                    .and_then(|cache| cache.ref_ctx(path.as_path()))
-                    .or_else(|| {
-                        self.py_mod_cache
-                            .as_ref()
-                            .and_then(|cache| cache.ref_ctx(path.as_path()))
-                    })
-                {
+                if let Some(ctx) = self.get_ctx_from_path(path.as_path()) {
                     if let Some((t, ctx)) = ctx.rec_get_poly_type(type_name) {
                         return Some((t, ctx));
                     }
@@ -2048,14 +2042,7 @@ impl Context {
             let path =
                 option_enum_unwrap!(t.typarams().remove(0), TyParam::Value:(ValueObj::Str:(_)))?;
             let path = Self::resolve_path(&self.cfg, Path::new(&path[..]))?;
-            self.mod_cache
-                .as_ref()
-                .and_then(|cache| cache.ref_ctx(&path))
-                .or_else(|| {
-                    self.py_mod_cache
-                        .as_ref()
-                        .and_then(|cache| cache.ref_ctx(&path))
-                })
+            self.get_ctx_from_path(path.as_path())
         } else {
             None
         }

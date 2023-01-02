@@ -33,7 +33,9 @@ use erg_parser::ast::VarName;
 
 use crate::context::initialize::const_func::*;
 use crate::context::instantiate::ConstTemplate;
-use crate::context::{ClassDefType, Context, ContextKind, MethodInfo, ParamSpec, TraitImpl};
+use crate::context::{
+    ClassDefType, Context, ContextKind, MethodInfo, ModuleContext, ParamSpec, TraitImpl,
+};
 use crate::mod_cache::SharedModuleCache;
 use crate::varinfo::{Mutability, VarInfo, VarKind};
 use Mutability::*;
@@ -541,7 +543,8 @@ impl Context {
         ctx.init_builtin_traits();
         ctx.init_builtin_classes();
         ctx.init_builtin_patches();
-        mod_cache.register(PathBuf::from("<builtins>"), None, ctx);
+        let module = ModuleContext::new(ctx, dict! {});
+        mod_cache.register(PathBuf::from("<builtins>"), None, module);
     }
 
     pub fn new_module<S: Into<Str>>(

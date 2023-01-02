@@ -13,7 +13,7 @@ use erg_common::traits::{Locational, Stream};
 
 use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::build_hir::HIRBuilder;
-use erg_compiler::context::Context;
+use erg_compiler::context::{Context, ModuleContext};
 use erg_compiler::erg_parser::ast::VarName;
 use erg_compiler::erg_parser::lex::Lexer;
 use erg_compiler::erg_parser::token::{Token, TokenCategory, TokenKind};
@@ -43,7 +43,7 @@ pub type ErgLanguageServer = Server<HIRBuilder>;
 pub struct Server<Checker: BuildRunnable = HIRBuilder> {
     cfg: ErgConfig,
     client_capas: ClientCapabilities,
-    context: Option<Context>,
+    module: Option<ModuleContext>,
     hir: Option<HIR>, // TODO: should be ModuleCache
     input: StdinLock<'static>,
     output: StdoutLock<'static>,
@@ -57,7 +57,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         Self {
             cfg,
             client_capas: ClientCapabilities::default(),
-            context: None,
+            module: None,
             hir: None,
             input,
             output,
@@ -307,7 +307,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 }
             }
         }
-        self.context = checker.pop_context();
+        self.module = checker.pop_context();
         Ok(())
     }
 
@@ -384,7 +384,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         self.send_log(format!("AccessKind: {acc:?}"))?;
         let mut result = vec![];
         let context = if acc.is_local() {
-            self.context.as_ref().unwrap()
+            &self.module.as_ref().unwrap().context
         } else if let Some(ctx) = self.get_receiver_ctx(uri, pos)? {
             ctx
         } else {
@@ -458,9 +458,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
             self.send_log(format!("not symbol: {token}"))?;
             Ok(None)
         } else if let Some((name, vi)) = self
-            .context
+            .module
             .as_ref()
-            .and_then(|ctx| ctx.get_var_info(token.inspect()))
+            .and_then(|module| module.context.get_var_info(token.inspect()))
         {
             Ok(Some((name.clone(), vi.clone())))
         } else {
@@ -617,18 +617,18 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 let var_name = token.inspect();
                 self.send_log(format!("name: {var_name}"))?;
                 let ctx = self
-                    .context
+                    .module
                     .as_ref()
-                    .and_then(|ctx| ctx.get_receiver_ctx(var_name))
+                    .and_then(|module| module.context.get_receiver_ctx(var_name))
                     .or_else(|| {
                         let opt_t = self.hir.as_ref().and_then(|hir| {
                             let visitor = HIRVisitor::new(hir, !cfg!(feature = "py_compatible"));
                             visitor.visit_hir_t(&token)
                         });
                         opt_t.and_then(|t| {
-                            self.context
+                            self.module
                                 .as_ref()
-                                .and_then(|ctx| ctx.get_receiver_ctx(&t.to_string()))
+                                .and_then(|module| module.context.get_receiver_ctx(&t.to_string()))
                         })
                     });
                 Ok(ctx)
@@ -641,9 +641,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
                     let t_name = typ.qual_name();
                     self.send_log(format!("type: {t_name}"))?;
                     let ctx = self
-                        .context
+                        .module
                         .as_ref()
-                        .and_then(|ctx| ctx.get_receiver_ctx(&t_name));
+                        .and_then(|module| module.context.get_receiver_ctx(&t_name));
                     Ok(ctx)
                 } else {
                     Ok(None)

@@ -374,14 +374,6 @@ impl ContextProvider for Context {
             if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
                 return parent.get_var_info(name);
             }
-            /*Err(TyCheckError::no_var_error(
-                self.cfg.input.clone(),
-                line!() as usize,
-                Location::Unknown,
-                self.caused_by(),
-                name,
-                self.get_similar_name(name),
-            ))*/
             None
         }
     }
@@ -891,6 +883,7 @@ impl Context {
             self.mod_cache
                 .as_ref()
                 .map(|cache| cache.ref_ctx(Path::new("<builtins>")).unwrap())
+                .map(|mod_ctx| &mod_ctx.context)
         } else {
             None
         }
@@ -1003,5 +996,20 @@ impl Context {
             .iter()
             .chain(self.methods_list.iter().flat_map(|(_, ctx)| ctx.dir()))
             .collect()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ModuleContext {
+    pub context: Context,
+    pub scope: Dict<Str, Context>,
+}
+
+impl ModuleContext {
+    pub const fn new(toplevel: Context, scope: Dict<Str, Context>) -> Self {
+        Self {
+            context: toplevel,
+            scope,
+        }
     }
 }

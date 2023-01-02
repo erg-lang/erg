@@ -15,7 +15,7 @@ use crate::artifact::{
 };
 use crate::build_hir::HIRBuilder;
 use crate::codegen::PyCodeGenerator;
-use crate::context::{Context, ContextProvider};
+use crate::context::{Context, ContextProvider, ModuleContext};
 use crate::desugar_hir::HIRDesugarer;
 use crate::error::{CompileError, CompileErrors};
 use crate::hir::{
@@ -189,10 +189,10 @@ impl Buildable<PyScript> for Transpiler {
         self.transpile(src, mode)
             .map_err(|err| IncompleteArtifact::new(None, err.errors, err.warns))
     }
-    fn pop_context(&mut self) -> Option<Context> {
+    fn pop_context(&mut self) -> Option<ModuleContext> {
         self.builder.pop_context()
     }
-    fn get_context(&self) -> Option<&Context> {
+    fn get_context(&self) -> Option<&ModuleContext> {
         self.builder.get_context()
     }
 }
@@ -225,7 +225,7 @@ impl Transpiler {
         Ok(CompleteArtifact::new(desugared, artifact.warns))
     }
 
-    pub fn pop_mod_ctx(&mut self) -> Option<Context> {
+    pub fn pop_mod_ctx(&mut self) -> Option<ModuleContext> {
         self.builder.pop_mod_ctx()
     }
 

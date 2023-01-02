@@ -7,7 +7,7 @@ use erg_parser::ast::{VarName, AST};
 use erg_parser::build_ast::ASTBuilder;
 
 use crate::artifact::{BuildRunnable, Buildable, CompleteArtifact, IncompleteArtifact};
-use crate::context::{Context, ContextProvider};
+use crate::context::{Context, ContextProvider, ModuleContext};
 use crate::effectcheck::SideEffectChecker;
 use crate::error::{CompileError, CompileErrors};
 use crate::lower::ASTLowerer;
@@ -80,11 +80,11 @@ impl Buildable for HIRBuilder {
     fn build(&mut self, src: String, mode: &str) -> Result<CompleteArtifact, IncompleteArtifact> {
         self.build(src, mode)
     }
-    fn pop_context(&mut self) -> Option<Context> {
+    fn pop_context(&mut self) -> Option<ModuleContext> {
         self.pop_mod_ctx()
     }
-    fn get_context(&self) -> Option<&Context> {
-        Some(&self.lowerer.ctx)
+    fn get_context(&self) -> Option<&ModuleContext> {
+        Some(&self.lowerer.module)
     }
 }
 
@@ -123,11 +123,11 @@ impl HIRBuilder {
         let hir = effect_checker
             .check(artifact.object)
             .map_err(|(hir, errs)| {
-                self.lowerer.ctx.clear_invalid_vars();
+                self.lowerer.module.context.clear_invalid_vars();
                 IncompleteArtifact::new(Some(hir), errs, artifact.warns.clone())
             })?;
         let hir = self.ownership_checker.check(hir).map_err(|(hir, errs)| {
-            self.lowerer.ctx.clear_invalid_vars();
+            self.lowerer.module.context.clear_invalid_vars();
             IncompleteArtifact::new(Some(hir), errs, artifact.warns.clone())
         })?;
         Ok(CompleteArtifact::new(hir, artifact.warns))
@@ -145,7 +145,7 @@ impl HIRBuilder {
         self.check(ast, mode)
     }
 
-    pub fn pop_mod_ctx(&mut self) -> Option<Context> {
+    pub fn pop_mod_ctx(&mut self) -> Option<ModuleContext> {
         self.lowerer.pop_mod_ctx()
     }
 
