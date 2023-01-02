@@ -343,6 +343,11 @@ impl ContextProvider for Context {
         let mut vars: Vec<_> = self
             .locals
             .iter()
+            .chain(
+                self.params
+                    .iter()
+                    .filter_map(|(k, v)| k.as_ref().map(|k| (k, v))),
+            )
             .chain(self.methods_list.iter().flat_map(|(_, ctx)| ctx.dir()))
             .collect();
         for sup in self.super_classes.iter() {

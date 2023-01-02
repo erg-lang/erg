@@ -502,12 +502,8 @@ impl Identifier {
     }
 
     /// show dot + name (no qual_name & type)
-    pub fn to_string_without_type(&self) -> String {
-        if self.dot.is_some() {
-            format!(".{}", self.name)
-        } else {
-            format!("::{}", self.name)
-        }
+    pub fn to_string_notype(&self) -> String {
+        NoTypeDisplay::to_string_notype(self)
     }
 
     pub fn is_procedural(&self) -> bool {
@@ -1843,6 +1839,10 @@ impl Lambda {
 
     pub fn is_procedural(&self) -> bool {
         self.op.is(TokenKind::ProcArrow)
+    }
+
+    pub fn name_to_string(&self) -> String {
+        format!("::<lambda_{}>", self.id)
     }
 }
 

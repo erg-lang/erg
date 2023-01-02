@@ -905,8 +905,8 @@ impl ScriptGenerator {
             let Expr::Def(mut def) = chunk else { todo!() };
             let name = format!(
                 "{}{}",
-                demangle(&patch_def.sig.ident().to_string_without_type()),
-                demangle(&def.sig.ident().to_string_without_type()),
+                demangle(&patch_def.sig.ident().to_string_notype()),
+                demangle(&def.sig.ident().to_string_notype()),
             );
             def.sig.ident_mut().name = VarName::from_str(Str::from(name));
             code += &"    ".repeat(self.level);

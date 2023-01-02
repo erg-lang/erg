@@ -1,7 +1,11 @@
 use erg_common::traits::{Locational, Stream};
+use erg_common::Str;
 use erg_compiler::erg_parser::token::Token;
 use erg_compiler::hir::*;
 use erg_compiler::ty::{HasType, Type};
+use lsp_types::Position;
+
+use crate::util;
 
 pub struct HIRVisitor<'a> {
     hir: &'a HIR,
@@ -11,6 +15,101 @@ pub struct HIRVisitor<'a> {
 impl<'a> HIRVisitor<'a> {
     pub fn new(hir: &'a HIR, strict_cmp: bool) -> Self {
         Self { hir, strict_cmp }
+    }
+
+    pub(crate) fn get_namespace(&self, pos: Position) -> Vec<Str> {
+        // TODO: other than <module>
+        let namespace = vec![Str::ever("<module>")];
+        if let Some(ns) = self.visit_exprs_ns(namespace.clone(), self.hir.module.iter(), pos) {
+            ns
+        } else {
+            namespace
+        }
+    }
+
+    fn visit_expr_ns(&self, cur_ns: Vec<Str>, chunk: &Expr, pos: Position) -> Option<Vec<Str>> {
+        if !util::pos_in_loc(chunk, pos) {
+            return None;
+        }
+        match chunk {
+            Expr::Lit(_)
+            | Expr::Accessor(_)
+            | Expr::BinOp(_)
+            | Expr::UnaryOp(_)
+            | Expr::Array(_)
+            | Expr::Dict(_)
+            | Expr::Set(_)
+            | Expr::Tuple(_)
+            | Expr::Import(_) => None,
+            Expr::PatchDef(_) | Expr::Record(_) | Expr::ReDef(_) => None,
+            Expr::Call(call) => self.visit_call_ns(cur_ns, call, pos),
+            Expr::ClassDef(class_def) => self.visit_class_def_ns(cur_ns, class_def, pos),
+            Expr::Def(def) => self.visit_def_ns(cur_ns, def, pos),
+            // Expr::PatchDef(patch_def) => self.visit_patchdef_ns(cur_ns, patch_def, pos),
+            Expr::Lambda(lambda) => self.visit_lambda_ns(cur_ns, lambda, pos),
+            Expr::TypeAsc(type_asc) => self.visit_expr_ns(cur_ns, &type_asc.expr, pos),
+            Expr::Dummy(dummy) => self.visit_dummy_ns(cur_ns, dummy, pos),
+            Expr::Compound(block) | Expr::Code(block) => self.visit_block_ns(cur_ns, block, pos),
+        }
+    }
+
+    fn visit_exprs_ns<'s, I: Iterator<Item = &'s Expr>>(
+        &self,
+        cur_ns: Vec<Str>,
+        exprs: I,
+        pos: Position,
+    ) -> Option<Vec<Str>> {
+        let mut namespaces = vec![];
+        for expr in exprs {
+            if let Some(ns) = self.visit_expr_ns(cur_ns.clone(), expr, pos) {
+                namespaces.push(ns);
+            }
+        }
+        namespaces.into_iter().max_by(|l, r| l.len().cmp(&r.len()))
+    }
+
+    fn visit_call_ns(&self, cur_ns: Vec<Str>, call: &Call, pos: Position) -> Option<Vec<Str>> {
+        self.visit_exprs_ns(cur_ns, call.args.pos_args.iter().map(|arg| &arg.expr), pos)
+    }
+
+    fn visit_class_def_ns(
+        &self,
+        cur_ns: Vec<Str>,
+        class_def: &ClassDef,
+        pos: Position,
+    ) -> Option<Vec<Str>> {
+        self.visit_exprs_ns(cur_ns, class_def.methods.iter(), pos)
+    }
+
+    fn visit_def_ns(&self, mut cur_ns: Vec<Str>, def: &Def, pos: Position) -> Option<Vec<Str>> {
+        let ns = def.sig.ident().to_string_notype();
+        cur_ns.push(Str::from(ns));
+        match self.visit_block_ns(cur_ns.clone(), &def.body.block, pos) {
+            Some(ns) => Some(ns),
+            None => Some(cur_ns),
+        }
+    }
+
+    fn visit_lambda_ns(
+        &self,
+        mut cur_ns: Vec<Str>,
+        lambda: &Lambda,
+        pos: Position,
+    ) -> Option<Vec<Str>> {
+        let ns = lambda.name_to_string();
+        cur_ns.push(Str::from(ns));
+        match self.visit_block_ns(cur_ns.clone(), &lambda.body, pos) {
+            Some(ns) => Some(ns),
+            None => Some(cur_ns),
+        }
+    }
+
+    fn visit_block_ns(&self, cur_ns: Vec<Str>, block: &Block, pos: Position) -> Option<Vec<Str>> {
+        self.visit_exprs_ns(cur_ns, block.iter(), pos)
+    }
+
+    fn visit_dummy_ns(&self, cur_ns: Vec<Str>, dummy: &Dummy, pos: Position) -> Option<Vec<Str>> {
+        self.visit_exprs_ns(cur_ns, dummy.iter(), pos)
     }
 
     /// Returns the smallest expression containing `token`. Literals, accessors, containers, etc. are returned.
@@ -187,175 +286,5 @@ impl<'a> HIRVisitor<'a> {
             Tuple::Normal(tuple) => self.visit_args_t(&tuple.elems, token),
             // _ => None, // todo!(),
         }
-    }
-}
-
-#[allow(unused)]
-/// Returns the smallest expression containing `token`. Literals, accessors, containers, etc. are returned.
-pub(crate) fn visit_hir<'h>(hir: &'h HIR, token: &Token) -> Option<&'h Expr> {
-    for chunk in hir.module.iter() {
-        if let Some(expr) = visit_expr(chunk, token) {
-            return Some(expr);
-        }
-    }
-    None
-}
-
-fn visit_expr<'e>(expr: &'e Expr, token: &Token) -> Option<&'e Expr> {
-    if expr.col_end() < token.col_begin() {
-        return None;
-    }
-    match expr {
-        Expr::Lit(lit) => {
-            if lit.token.deep_eq(token) {
-                Some(expr)
-            } else {
-                None
-            }
-        }
-        Expr::Accessor(acc) => visit_acc(expr, acc, token),
-        Expr::BinOp(bin) => visit_bin(bin, token),
-        Expr::UnaryOp(unary) => visit_expr(&unary.expr, token),
-        Expr::Call(call) => visit_call(call, token),
-        Expr::ClassDef(class_def) => visit_class_def(class_def, token),
-        Expr::Def(def) => visit_block(&def.body.block, token),
-        Expr::PatchDef(patch_def) => visit_patchdef(patch_def, token),
-        Expr::Lambda(lambda) => visit_block(&lambda.body, token),
-        Expr::Array(arr) => visit_array(arr, token),
-        Expr::Dict(dict) => visit_dict(dict, token),
-        Expr::Record(record) => visit_record(record, token),
-        Expr::Set(set) => visit_set(set, token),
-        Expr::Tuple(tuple) => visit_tuple(tuple, token),
-        Expr::TypeAsc(type_asc) => visit_expr(&type_asc.expr, token),
-        Expr::Dummy(dummy) => visit_dummy(dummy, token),
-        Expr::Compound(block) | Expr::Code(block) => visit_block(block, token),
-        Expr::ReDef(redef) => visit_redef(expr, redef, token),
-        Expr::Import(_) => None,
-    }
-}
-
-fn visit_acc<'a>(expr: &'a Expr, acc: &'a Accessor, token: &Token) -> Option<&'a Expr> {
-    match acc {
-        Accessor::Ident(ident) => {
-            if ident.name.token().deep_eq(token) {
-                Some(expr)
-            } else {
-                None
-            }
-        }
-        Accessor::Attr(attr) => {
-            if attr.ident.name.token().deep_eq(token) {
-                Some(expr)
-            } else {
-                visit_expr(&attr.obj, token)
-            }
-        }
-    }
-}
-
-fn visit_bin<'b>(bin: &'b BinOp, token: &Token) -> Option<&'b Expr> {
-    visit_expr(&bin.lhs, token).or_else(|| visit_expr(&bin.rhs, token))
-}
-
-fn visit_call<'c>(call: &'c Call, token: &Token) -> Option<&'c Expr> {
-    visit_expr(&call.obj, token).or_else(|| visit_args(&call.args, token))
-}
-
-fn visit_args<'a>(args: &'a Args, token: &Token) -> Option<&'a Expr> {
-    for arg in args.pos_args.iter() {
-        if let Some(expr) = visit_expr(&arg.expr, token) {
-            return Some(expr);
-        }
-    }
-    if let Some(var) = &args.var_args {
-        if let Some(expr) = visit_expr(&var.expr, token) {
-            return Some(expr);
-        }
-    }
-    for arg in args.kw_args.iter() {
-        if let Some(expr) = visit_expr(&arg.expr, token) {
-            return Some(expr);
-        }
-    }
-    None
-}
-
-fn visit_class_def<'c>(class_def: &'c ClassDef, token: &Token) -> Option<&'c Expr> {
-    class_def
-        .require_or_sup
-        .as_ref()
-        .and_then(|req_sup| visit_expr(req_sup, token))
-        .or_else(|| visit_block(&class_def.methods, token))
-}
-
-fn visit_block<'b>(block: &'b Block, token: &Token) -> Option<&'b Expr> {
-    for chunk in block.iter() {
-        if let Some(expr) = visit_expr(chunk, token) {
-            return Some(expr);
-        }
-    }
-    None
-}
-
-fn visit_redef<'r>(expr: &'r Expr, redef: &'r ReDef, token: &Token) -> Option<&'r Expr> {
-    visit_acc(expr, &redef.attr, token).or_else(|| visit_block(&redef.block, token))
-}
-
-fn visit_dummy<'d>(dummy: &'d Dummy, token: &Token) -> Option<&'d Expr> {
-    for chunk in dummy.iter() {
-        if let Some(expr) = visit_expr(chunk, token) {
-            return Some(expr);
-        }
-    }
-    None
-}
-
-fn visit_patchdef<'p>(patch_def: &'p PatchDef, token: &Token) -> Option<&'p Expr> {
-    visit_expr(&patch_def.base, token).or_else(|| visit_block(&patch_def.methods, token))
-}
-
-fn visit_array<'a>(arr: &'a Array, token: &Token) -> Option<&'a Expr> {
-    match arr {
-        Array::Normal(arr) => visit_args(&arr.elems, token),
-        _ => None, // todo!(),
-    }
-}
-
-fn visit_dict<'d>(dict: &'d Dict, token: &Token) -> Option<&'d Expr> {
-    match dict {
-        Dict::Normal(dict) => {
-            for kv in &dict.kvs {
-                if let Some(expr) = visit_expr(&kv.key, token) {
-                    return Some(expr);
-                } else if let Some(expr) = visit_expr(&kv.value, token) {
-                    return Some(expr);
-                }
-            }
-            None
-        }
-        _ => None, // todo!(),
-    }
-}
-
-fn visit_record<'r>(record: &'r Record, token: &Token) -> Option<&'r Expr> {
-    for field in record.attrs.iter() {
-        if let Some(expr) = visit_block(&field.body.block, token) {
-            return Some(expr);
-        }
-    }
-    None
-}
-
-fn visit_set<'s>(set: &'s Set, token: &Token) -> Option<&'s Expr> {
-    match set {
-        Set::Normal(set) => visit_args(&set.elems, token),
-        _ => None, // todo!(),
-    }
-}
-
-fn visit_tuple<'t>(tuple: &'t Tuple, token: &Token) -> Option<&'t Expr> {
-    match tuple {
-        Tuple::Normal(tuple) => visit_args(&tuple.elems, token),
-        // _ => None, // todo!(),
     }
 }

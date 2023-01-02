@@ -275,10 +275,11 @@ impl ASTLowerer {
 
     fn pop_append_errs(&mut self) {
         match self.module.context.check_decls_and_pop() {
-            Ok(ctx) => {
+            Ok(ctx) if cfg!(feature = "els") && !ctx.dir().is_empty() => {
                 self.module.scope.insert(ctx.name.clone(), ctx);
             }
             Err(errs) => self.errs.extend(errs),
+            _ => {}
         }
     }
 

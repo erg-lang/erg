@@ -1194,8 +1194,8 @@ impl PyCodeGenerator {
             let name = format!(
                 "{}{}{}",
                 namespace,
-                patch_def.sig.ident().to_string_without_type(),
-                def.sig.ident().to_string_without_type()
+                patch_def.sig.ident().to_string_notype(),
+                def.sig.ident().to_string_notype()
             );
             def.sig.ident_mut().name = VarName::from_str(Str::from(name));
             def.sig.ident_mut().dot = None;

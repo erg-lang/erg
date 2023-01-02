@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::fs::File;
 use std::io::{self, BufReader};
 use std::io::{stdin, stdout, BufRead, Read, StdinLock, StdoutLock, Write};
@@ -15,7 +16,6 @@ use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::build_hir::HIRBuilder;
 use erg_compiler::context::{Context, ModuleContext};
 use erg_compiler::erg_parser::ast::VarName;
-use erg_compiler::erg_parser::lex::Lexer;
 use erg_compiler::erg_parser::token::{Token, TokenCategory, TokenKind};
 use erg_compiler::error::CompileErrors;
 use erg_compiler::hir::HIR;
@@ -33,10 +33,46 @@ use lsp_types::{
 
 use crate::hir_visitor::HIRVisitor;
 use crate::message::{ErrorMessage, LogMessage};
+use crate::util;
 
-type ELSResult<T> = Result<T, Box<dyn std::error::Error>>;
+pub type ELSResult<T> = Result<T, Box<dyn std::error::Error>>;
 
 pub type ErgLanguageServer = Server<HIRBuilder>;
+
+thread_local! {
+    static INPUT: RefCell<StdinLock<'static>> = RefCell::new(stdin().lock());
+    static OUTPUT: RefCell<StdoutLock<'static>> = RefCell::new(stdout().lock());
+}
+
+fn send_stdout<T: ?Sized + Serialize>(message: &T) -> ELSResult<()> {
+    let msg = serde_json::to_string(message)?;
+    OUTPUT.with(|out| {
+        write!(
+            out.borrow_mut(),
+            "Content-Length: {}\r\n\r\n{}",
+            msg.len(),
+            msg
+        )?;
+        out.borrow_mut().flush()?;
+        Ok(())
+    })
+}
+
+fn read_line() -> io::Result<String> {
+    let mut line = String::new();
+    INPUT.with(|input| {
+        input.borrow_mut().read_line(&mut line)?;
+        Ok(line)
+    })
+}
+
+fn read_exact(len: usize) -> io::Result<Vec<u8>> {
+    let mut buf = vec![0; len];
+    INPUT.with(|input| {
+        input.borrow_mut().read_exact(&mut buf)?;
+        Ok(buf)
+    })
+}
 
 /// A Language Server, which can be used any object implementing `BuildRunnable` internally by passing it as a generic parameter.
 #[derive(Debug)]
@@ -45,22 +81,16 @@ pub struct Server<Checker: BuildRunnable = HIRBuilder> {
     client_capas: ClientCapabilities,
     module: Option<ModuleContext>,
     hir: Option<HIR>, // TODO: should be ModuleCache
-    input: StdinLock<'static>,
-    output: StdoutLock<'static>,
     _checker: std::marker::PhantomData<Checker>,
 }
 
 impl<Checker: BuildRunnable> Server<Checker> {
     pub fn new(cfg: ErgConfig) -> Self {
-        let input = stdin().lock();
-        let output = stdout().lock();
         Self {
             cfg,
             client_capas: ClientCapabilities::default(),
             module: None,
             hir: None,
-            input,
-            output,
             _checker: std::marker::PhantomData,
         }
     }
@@ -73,29 +103,26 @@ impl<Checker: BuildRunnable> Server<Checker> {
         // Ok(())
     }
 
-    fn send<T: ?Sized + Serialize>(&mut self, message: &T) -> ELSResult<()> {
-        let msg = serde_json::to_string(message)?;
-        write!(self.output, "Content-Length: {}\r\n\r\n{}", msg.len(), msg)?;
-        self.output.flush()?;
-        Ok(())
+    fn send<T: ?Sized + Serialize>(message: &T) -> ELSResult<()> {
+        send_stdout(message)
     }
 
-    fn send_log<S: Into<String>>(&mut self, msg: S) -> ELSResult<()> {
-        self.send(&LogMessage::new(msg))
+    pub(crate) fn send_log<S: Into<String>>(msg: S) -> ELSResult<()> {
+        Self::send(&LogMessage::new(msg))
     }
 
-    fn send_error<S: Into<String>>(&mut self, id: Option<i64>, code: i64, msg: S) -> ELSResult<()> {
-        self.send(&ErrorMessage::new(
+    fn send_error<S: Into<String>>(id: Option<i64>, code: i64, msg: S) -> ELSResult<()> {
+        Self::send(&ErrorMessage::new(
             id,
             json!({ "code": code, "message": msg.into() }),
         ))
     }
 
-    fn send_invalid_req_error(&mut self) -> ELSResult<()> {
-        self.send_error(None, -32601, "received an invalid request")
+    fn send_invalid_req_error() -> ELSResult<()> {
+        Self::send_error(None, -32601, "received an invalid request")
     }
 
-    fn send_diagnostics(&mut self, uri: Url, diagnostics: Vec<Diagnostic>) -> ELSResult<()> {
+    fn send_diagnostics(&self, uri: Url, diagnostics: Vec<Diagnostic>) -> ELSResult<()> {
         let params = PublishDiagnosticsParams::new(uri, diagnostics, None);
         if self
             .client_capas
@@ -104,24 +131,24 @@ impl<Checker: BuildRunnable> Server<Checker> {
             .map(|doc| doc.publish_diagnostics.is_some())
             .unwrap_or(false)
         {
-            self.send(&json!({
+            Self::send(&json!({
                 "jsonrpc": "2.0",
                 "method": "textDocument/publishDiagnostics",
                 "params": params,
             }))?;
         } else {
-            self.send_log("the client does not support diagnostics")?;
+            Self::send_log("the client does not support diagnostics")?;
         }
         Ok(())
     }
 
     #[allow(clippy::field_reassign_with_default)]
     fn init(&mut self, msg: &Value, id: i64) -> ELSResult<()> {
-        self.send_log("initializing ELS")?;
+        Self::send_log("initializing ELS")?;
         // #[allow(clippy::collapsible_if)]
         if msg.get("params").is_some() && msg["params"].get("capabilities").is_some() {
             self.client_capas = ClientCapabilities::deserialize(&msg["params"]["capabilities"])?;
-            // self.send_log(format!("set client capabilities: {:?}", self.client_capas))?;
+            // Self::send_log(format!("set client capabilities: {:?}", self.client_capas))?;
         }
         let mut result = InitializeResult::default();
         result.capabilities = ServerCapabilities::default();
@@ -133,21 +160,21 @@ impl<Checker: BuildRunnable> Server<Checker> {
         result.capabilities.definition_provider = Some(OneOf::Left(true));
         result.capabilities.hover_provider = Some(HoverProviderCapability::Simple(true));
         result.capabilities.inlay_hint_provider = Some(OneOf::Left(true));
-        self.send(&json!({
+        Self::send(&json!({
             "jsonrpc": "2.0",
             "id": id,
             "result": result,
         }))
     }
 
-    fn exit(&mut self) -> ELSResult<()> {
-        self.send_log("exiting ELS")?;
+    fn exit(&self) -> ELSResult<()> {
+        Self::send_log("exiting ELS")?;
         std::process::exit(0);
     }
 
-    fn shutdown(&mut self, id: i64) -> ELSResult<()> {
-        self.send_log("shutting down ELS")?;
-        self.send(&json!({
+    fn shutdown(&self, id: i64) -> ELSResult<()> {
+        Self::send_log("shutting down ELS")?;
+        Self::send(&json!({
             "jsonrpc": "2.0",
             "id": id,
             "result": json!(null),
@@ -155,12 +182,11 @@ impl<Checker: BuildRunnable> Server<Checker> {
     }
 
     /// Copied and modified from RLS, https://github.com/rust-lang/rls/blob/master/rls/src/server/io.rs
-    fn read_message(&mut self) -> Result<String, io::Error> {
+    fn read_message(&self) -> Result<String, io::Error> {
         // Read in the "Content-Length: xx" part.
         let mut size: Option<usize> = None;
         loop {
-            let mut buffer = String::new();
-            self.input.read_line(&mut buffer)?;
+            let buffer = read_line()?;
 
             // End of input.
             if buffer.is_empty() {
@@ -215,8 +241,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             }
         };
 
-        let mut content = vec![0; size];
-        self.input.read_exact(&mut content)?;
+        let content = read_exact(size)?;
 
         String::from_utf8(content).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
     }
@@ -232,7 +257,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 Ok(())
             }
             (None, Some(notification)) => self.handle_notification(&msg, notification),
-            _ => self.send_invalid_req_error(),
+            _ => Self::send_invalid_req_error(),
         }
     }
 
@@ -243,34 +268,34 @@ impl<Checker: BuildRunnable> Server<Checker> {
             "textDocument/completion" => self.show_completion(msg),
             "textDocument/definition" => self.show_definition(msg),
             "textDocument/hover" => self.show_hover(msg),
-            other => self.send_error(Some(id), -32600, format!("{other} is not supported")),
+            other => Self::send_error(Some(id), -32600, format!("{other} is not supported")),
         }
     }
 
     fn handle_notification(&mut self, msg: &Value, method: &str) -> ELSResult<()> {
         match method {
-            "initialized" => self.send_log("successfully bound"),
+            "initialized" => Self::send_log("successfully bound"),
             "exit" => self.exit(),
             "textDocument/didOpen" => {
                 let uri = Url::parse(msg["params"]["textDocument"]["uri"].as_str().unwrap())?;
-                self.send_log(format!("{method}: {uri}"))?;
+                Self::send_log(format!("{method}: {uri}"))?;
                 self.check_file(uri, msg["params"]["textDocument"]["text"].as_str().unwrap())
             }
             "textDocument/didSave" => {
                 let uri = Url::parse(msg["params"]["textDocument"]["uri"].as_str().unwrap())?;
-                self.send_log(format!("{method}: {uri}"))?;
+                Self::send_log(format!("{method}: {uri}"))?;
                 let path = uri.to_file_path().unwrap();
                 let mut code = String::new();
                 File::open(path)?.read_to_string(&mut code)?;
                 self.check_file(uri, &code)
             }
             // "textDocument/didChange"
-            _ => self.send_log(format!("received notification: {}", method)),
+            _ => Self::send_log(format!("received notification: {}", method)),
         }
     }
 
     fn check_file<S: Into<String>>(&mut self, uri: Url, code: S) -> ELSResult<()> {
-        self.send_log(format!("checking {uri}"))?;
+        Self::send_log(format!("checking {uri}"))?;
         let path = uri.to_file_path().unwrap();
         let mode = if path.to_string_lossy().ends_with(".d.er") {
             "declare"
@@ -281,28 +306,28 @@ impl<Checker: BuildRunnable> Server<Checker> {
         match checker.build(code.into(), mode) {
             Ok(artifact) => {
                 self.hir = Some(artifact.object);
-                self.send_log(format!("checking {uri} passed"))?;
+                Self::send_log(format!("checking {uri} passed"))?;
                 let uri_and_diags = self.make_uri_and_diags(uri.clone(), artifact.warns);
                 // clear previous diagnostics
                 if uri_and_diags.is_empty() {
                     self.send_diagnostics(uri, vec![])?;
                 }
                 for (uri, diags) in uri_and_diags.into_iter() {
-                    self.send_log(format!("{uri}, warns: {}", diags.len()))?;
+                    Self::send_log(format!("{uri}, warns: {}", diags.len()))?;
                     self.send_diagnostics(uri, diags)?;
                 }
             }
             Err(mut artifact) => {
                 self.hir = artifact.object;
-                self.send_log(format!("found errors: {}", artifact.errors.len()))?;
-                self.send_log(format!("found warns: {}", artifact.warns.len()))?;
+                Self::send_log(format!("found errors: {}", artifact.errors.len()))?;
+                Self::send_log(format!("found warns: {}", artifact.warns.len()))?;
                 artifact.errors.extend(artifact.warns);
                 let uri_and_diags = self.make_uri_and_diags(uri.clone(), artifact.errors);
                 if uri_and_diags.is_empty() {
                     self.send_diagnostics(uri, vec![])?;
                 }
                 for (uri, diags) in uri_and_diags.into_iter() {
-                    self.send_log(format!("{uri}, errs & warns: {}", diags.len()))?;
+                    Self::send_log(format!("{uri}, errs & warns: {}", diags.len()))?;
                     self.send_diagnostics(uri, diags)?;
                 }
             }
@@ -367,34 +392,62 @@ impl<Checker: BuildRunnable> Server<Checker> {
         uri_and_diags
     }
 
+    fn get_visitor(&self) -> Option<HIRVisitor> {
+        self.hir
+            .as_ref()
+            .map(|hir| HIRVisitor::new(hir, !cfg!(feature = "py_compatible")))
+    }
+
+    fn get_local_ctx(&self, pos: Position) -> Vec<&Context> {
+        // Self::send_log(format!("scope: {:?}\n", self.module.as_ref().unwrap().scope.keys())).unwrap();
+        let mut ctxs = vec![];
+        if let Some(visitor) = self.get_visitor() {
+            let ns = visitor.get_namespace(pos);
+            for i in 1..ns.len() {
+                let ns = ns[..=ns.len() - i].join("");
+                if let Some(ctx) = self.module.as_ref().unwrap().scope.get(&ns[..]) {
+                    ctxs.push(ctx);
+                }
+            }
+        }
+        ctxs.push(&self.module.as_ref().unwrap().context);
+        ctxs
+    }
+
     fn show_completion(&mut self, msg: &Value) -> ELSResult<()> {
-        self.send_log(format!("completion requested: {msg}"))?;
+        Self::send_log(format!("completion requested: {msg}"))?;
         let params = CompletionParams::deserialize(&msg["params"])?;
         let uri = params.text_document_position.text_document.uri;
         let pos = params.text_document_position.position;
         let trigger = params
             .context
             .as_ref()
-            .and_then(|ctx| ctx.trigger_character.as_ref().map(|s| &s[..]));
-        let acc = match trigger {
+            .and_then(|comp_ctx| comp_ctx.trigger_character.as_ref().map(|s| &s[..]));
+        let acc_kind = match trigger {
             Some(".") => AccessKind::Attr,
             Some(":") => AccessKind::Attr, // or type ascription
             _ => AccessKind::Name,
         };
-        self.send_log(format!("AccessKind: {acc:?}"))?;
-        let mut result = vec![];
-        let context = if acc.is_local() {
-            &self.module.as_ref().unwrap().context
+        Self::send_log(format!("AccessKind: {acc_kind:?}"))?;
+        let mut result: Vec<CompletionItem> = vec![];
+        let contexts = if acc_kind.is_local() {
+            self.get_local_ctx(pos)
         } else if let Some(ctx) = self.get_receiver_ctx(uri, pos)? {
-            ctx
+            vec![ctx]
         } else {
-            self.send(
+            Self::send(
                 &json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": result }),
             )?;
             return Ok(());
         };
-        for (name, vi) in context.dir().into_iter() {
-            if &context.name[..] != "<module>" && vi.vis.is_private() {
+        for (name, vi) in contexts.into_iter().flat_map(|ctx| ctx.dir()) {
+            if acc_kind.is_attr() && vi.vis.is_private() {
+                continue;
+            }
+            if result
+                .iter()
+                .any(|item| item.label[..] == name.inspect()[..])
+            {
                 continue;
             }
             let mut item = CompletionItem::new_simple(name.to_string(), vi.t.to_string());
@@ -414,32 +467,34 @@ impl<Checker: BuildRunnable> Server<Checker> {
             };
             result.push(item);
         }
-        self.send_log(format!("completion items: {}", result.len()))?;
-        self.send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": result }))
+        Self::send_log(format!("completion items: {}", result.len()))?;
+        Self::send(
+            &json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": result }),
+        )
     }
 
     fn show_definition(&mut self, msg: &Value) -> ELSResult<()> {
-        self.send_log(format!("definition requested: {msg}"))?;
+        Self::send_log(format!("definition requested: {msg}"))?;
         let params = GotoDefinitionParams::deserialize(&msg["params"])?;
         let uri = params.text_document_position_params.text_document.uri;
         let pos = params.text_document_position_params.position;
-        let result = if let Some(token) = Self::get_token(uri.clone(), pos)? {
-            let prev = self.get_token_relatively(uri.clone(), pos, -1)?;
+        let result = if let Some(token) = util::get_token(uri.clone(), pos)? {
+            let prev = util::get_token_relatively(uri.clone(), pos, -1)?;
             // TODO: check attribute
             if prev
                 .map(|t| t.is(TokenKind::Dot) || t.is(TokenKind::DblColon))
                 .unwrap_or(false)
             {
-                self.send_log("attribute")?;
+                Self::send_log("attribute")?;
                 GotoDefinitionResponse::Array(vec![])
             } else if let Some((name, _vi)) = self.get_definition(&token)? {
-                match Self::loc_to_range(name.loc()) {
+                match util::loc_to_range(name.loc()) {
                     Some(range) => {
-                        self.send_log("found")?;
+                        Self::send_log("found")?;
                         GotoDefinitionResponse::Array(vec![lsp_types::Location::new(uri, range)])
                     }
                     None => {
-                        self.send_log("not found (maybe builtin)")?;
+                        Self::send_log("not found (maybe builtin)")?;
                         GotoDefinitionResponse::Array(vec![])
                     }
                 }
@@ -447,15 +502,17 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 GotoDefinitionResponse::Array(vec![])
             }
         } else {
-            self.send_log("lex error occurred")?;
+            Self::send_log("lex error occurred")?;
             GotoDefinitionResponse::Array(vec![])
         };
-        self.send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": result }))
+        Self::send(
+            &json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": result }),
+        )
     }
 
     fn get_definition(&mut self, token: &Token) -> ELSResult<Option<(VarName, VarInfo)>> {
         if !token.category_is(TokenCategory::Symbol) {
-            self.send_log(format!("not symbol: {token}"))?;
+            Self::send_log(format!("not symbol: {token}"))?;
             Ok(None)
         } else if let Some((name, vi)) = self
             .module
@@ -464,13 +521,13 @@ impl<Checker: BuildRunnable> Server<Checker> {
         {
             Ok(Some((name.clone(), vi.clone())))
         } else {
-            self.send_log("not found")?;
+            Self::send_log("not found")?;
             Ok(None)
         }
     }
 
     fn show_hover(&mut self, msg: &Value) -> ELSResult<()> {
-        self.send_log(format!("hover requested : {msg}"))?;
+        Self::send_log(format!("hover requested : {msg}"))?;
         let lang = if cfg!(feature = "py_compatible") {
             "python"
         } else {
@@ -480,11 +537,11 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let uri = params.text_document_position_params.text_document.uri;
         let pos = params.text_document_position_params.position;
         let mut contents = vec![];
-        let opt_tok = Self::get_token(uri.clone(), pos)?;
+        let opt_tok = util::get_token(uri.clone(), pos)?;
         let opt_token = if let Some(token) = opt_tok {
             match token.category() {
-                TokenCategory::StrInterpRight => self.get_token_relatively(uri.clone(), pos, -1)?,
-                TokenCategory::StrInterpLeft => self.get_token_relatively(uri.clone(), pos, 1)?,
+                TokenCategory::StrInterpRight => util::get_token_relatively(uri.clone(), pos, -1)?,
+                TokenCategory::StrInterpLeft => util::get_token_relatively(uri.clone(), pos, 1)?,
                 // TODO: StrInterpMid
                 _ => Some(token),
             }
@@ -509,8 +566,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 }
                 // not found or not symbol, etc.
                 None => {
-                    if let Some(hir) = &self.hir {
-                        let visitor = HIRVisitor::new(hir, !cfg!(feature = "py_compatible"));
+                    if let Some(visitor) = self.get_visitor() {
                         if let Some(typ) = visitor.visit_hir_t(&token) {
                             let typ = MarkedString::from_language_code(
                                 lang.into(),
@@ -522,88 +578,12 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 }
             }
         } else {
-            self.send_log("lex error")?;
+            Self::send_log("lex error")?;
         }
         let result = json!({ "contents": HoverContents::Array(contents) });
-        self.send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": result }))
-    }
-
-    fn loc_to_range(loc: erg_common::error::Location) -> Option<Range> {
-        let start = Position::new(loc.ln_begin()? as u32 - 1, loc.col_begin()? as u32);
-        let end = Position::new(loc.ln_end()? as u32 - 1, loc.col_end()? as u32);
-        Some(Range::new(start, end))
-    }
-
-    fn pos_in_loc<L: Locational>(loc: &L, pos: Position) -> bool {
-        (loc.ln_begin().unwrap_or(0)..=loc.ln_end().unwrap_or(0)).contains(&(pos.line as usize + 1))
-            && (loc.col_begin().unwrap_or(0)..=loc.col_end().unwrap_or(0))
-                .contains(&(pos.character as usize))
-    }
-
-    fn get_token(uri: Url, pos: Position) -> ELSResult<Option<Token>> {
-        // FIXME: detect change
-        let mut timeout = 300;
-        let path = uri.to_file_path().unwrap();
-        loop {
-            let mut code = String::new();
-            File::open(path.as_path())?.read_to_string(&mut code)?;
-            if let Ok(tokens) = Lexer::from_str(code).lex() {
-                let mut token = None;
-                for tok in tokens.into_iter() {
-                    if Self::pos_in_loc(&tok, pos) {
-                        token = Some(tok);
-                        break;
-                    }
-                }
-                if token.is_some() {
-                    return Ok(token);
-                }
-            }
-            std::thread::sleep(std::time::Duration::from_millis(10));
-            timeout -= 1;
-            if timeout == 0 {
-                return Ok(None);
-            }
-        }
-    }
-
-    /// plus_minus: 0 => same as get_token
-    fn get_token_relatively(
-        &mut self,
-        uri: Url,
-        pos: Position,
-        plus_minus: isize,
-    ) -> ELSResult<Option<Token>> {
-        // FIXME: detect change
-        let mut timeout = 300;
-        let path = uri.to_file_path().unwrap();
-        loop {
-            let mut code = String::new();
-            File::open(path.as_path())?.read_to_string(&mut code)?;
-            if let Ok(tokens) = Lexer::from_str(code).lex() {
-                let mut found_index = None;
-                for (i, tok) in tokens.iter().enumerate() {
-                    if Self::pos_in_loc(tok, pos) {
-                        found_index = Some(i);
-                        break;
-                    }
-                }
-                if let Some(idx) = found_index {
-                    if let Some(token) =
-                        tokens.into_iter().nth((idx as isize + plus_minus) as usize)
-                    {
-                        if !token.is(TokenKind::Newline) {
-                            return Ok(Some(token));
-                        }
-                    }
-                }
-            }
-            std::thread::sleep(std::time::Duration::from_millis(10));
-            timeout -= 1;
-            if timeout == 0 {
-                return Ok(None);
-            }
-        }
+        Self::send(
+            &json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": result }),
+        )
     }
 
     fn get_receiver_ctx(
@@ -611,20 +591,19 @@ impl<Checker: BuildRunnable> Server<Checker> {
         uri: Url,
         attr_marker_pos: Position,
     ) -> ELSResult<Option<&Context>> {
-        let maybe_token = self.get_token_relatively(uri, attr_marker_pos, -1)?;
+        let maybe_token = util::get_token_relatively(uri, attr_marker_pos, -1)?;
         if let Some(token) = maybe_token {
             if token.is(TokenKind::Symbol) {
                 let var_name = token.inspect();
-                self.send_log(format!("name: {var_name}"))?;
+                Self::send_log(format!("name: {var_name}"))?;
                 let ctx = self
                     .module
                     .as_ref()
                     .and_then(|module| module.context.get_receiver_ctx(var_name))
                     .or_else(|| {
-                        let opt_t = self.hir.as_ref().and_then(|hir| {
-                            let visitor = HIRVisitor::new(hir, !cfg!(feature = "py_compatible"));
-                            visitor.visit_hir_t(&token)
-                        });
+                        let opt_t = self
+                            .get_visitor()
+                            .and_then(|visitor| visitor.visit_hir_t(&token));
                         opt_t.and_then(|t| {
                             self.module
                                 .as_ref()
@@ -633,13 +612,13 @@ impl<Checker: BuildRunnable> Server<Checker> {
                     });
                 Ok(ctx)
             } else {
-                self.send_log(format!("non-name token: {token}"))?;
-                if let Some(typ) = self.hir.as_ref().and_then(|hir| {
-                    let visitor = HIRVisitor::new(hir, !cfg!(feature = "py_compatible"));
-                    visitor.visit_hir_t(&token)
-                }) {
+                Self::send_log(format!("non-name token: {token}"))?;
+                if let Some(typ) = self
+                    .get_visitor()
+                    .and_then(|visitor| visitor.visit_hir_t(&token))
+                {
                     let t_name = typ.qual_name();
-                    self.send_log(format!("type: {t_name}"))?;
+                    Self::send_log(format!("type: {t_name}"))?;
                     let ctx = self
                         .module
                         .as_ref()
@@ -650,7 +629,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 }
             }
         } else {
-            self.send_log("token not found")?;
+            Self::send_log("token not found")?;
             Ok(None)
         }
     }
