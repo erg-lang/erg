@@ -35,6 +35,7 @@ large_thread = [
     "erg_parser/large_thread",
 ]
 py_compatible = []
+els = ["erg_common/els"]
 
 [dependencies]
 erg_common = { workspace = true, path = "../erg_common" }

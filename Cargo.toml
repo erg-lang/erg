@@ -58,7 +58,7 @@ large_thread = [
     "els/large_thread",
 ]
 py_compatible = ["erg_compiler/py_compatible", "els/py_compatible"]
-els = ["erg_common/els", "dep:els"]
+els = ["erg_common/els", "erg_compiler/els", "dep:els"]
 
 [workspace.dependencies]
 erg_common = { version = "0.6.1-nightly.1", path = "./compiler/erg_common" }
