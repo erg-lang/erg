@@ -3,6 +3,7 @@ use std::fmt;
 
 pub mod cache;
 pub mod config;
+pub mod consts;
 pub mod datetime;
 pub mod dict;
 pub mod env;

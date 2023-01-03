@@ -18,6 +18,7 @@ unicode = []
 pretty = []
 large_thread = []
 els = []
+py_compatible = []
 
 [target.'cfg(unix)'.dependencies]
 libc = { version = "0.2", default-features = false }

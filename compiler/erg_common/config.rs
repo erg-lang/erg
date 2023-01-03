@@ -14,10 +14,6 @@ use crate::serialize::{get_magic_num_from_bytes, get_ver_from_magic_num};
 use crate::stdin::GLOBAL_STDIN;
 use crate::{power_assert, read_file};
 
-pub const SEMVER: &str = env!("CARGO_PKG_VERSION");
-pub const GIT_HASH_SHORT: &str = env!("GIT_HASH_SHORT");
-pub const BUILD_DATE: &str = env!("BUILD_DATE");
-
 /// Since input is not always only from files
 /// Unify operations with `Input`
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -438,13 +434,26 @@ impl ErgConfig {
                     println!("Erg {}", env!("CARGO_PKG_VERSION"));
                     process::exit(0);
                 }
-                "--is-language-server-enabled" => {
-                    if cfg!(feature = "els") {
-                        process::exit(0);
-                    } else {
-                        // eprintln!("This version of the build does not support language server mode");
-                        process::exit(1);
-                    }
+                "--build-features" => {
+                    #[cfg(feature = "debug")]
+                    print!("debug ");
+                    #[cfg(feature = "els")]
+                    print!("els ");
+                    #[cfg(feature = "py_compatible")]
+                    print!("py_compatible ");
+                    #[cfg(feature = "japanese")]
+                    print!("japanese ");
+                    #[cfg(feature = "simplified_chinese")]
+                    print!("simplified_chinese ");
+                    #[cfg(feature = "traditional_chinese")]
+                    print!("traditional_chinese ");
+                    #[cfg(feature = "unicode")]
+                    print!("unicode ");
+                    #[cfg(feature = "pretty")]
+                    print!("pretty ");
+                    #[cfg(feature = "large_thread")]
+                    print!("large_thread");
+                    process::exit(0);
                 }
                 other if other.starts_with('-') => {
                     println!(

@@ -34,7 +34,7 @@ large_thread = [
     "erg_common/large_thread",
     "erg_parser/large_thread",
 ]
-py_compatible = []
+py_compatible = ["erg_common/py_compatible"]
 els = ["erg_common/els"]
 
 [dependencies]

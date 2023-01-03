@@ -7,7 +7,8 @@ use std::mem;
 use std::process;
 use std::slice::{Iter, IterMut};
 
-use crate::config::{ErgConfig, Input, BUILD_DATE, GIT_HASH_SHORT, SEMVER};
+use crate::config::{ErgConfig, Input};
+use crate::consts::{BUILD_DATE, GIT_HASH_SHORT, SEMVER};
 use crate::error::{ErrorDisplay, ErrorKind, Location, MultiErrorDisplay};
 use crate::{addr_eq, chomp, log, switch_unreachable};
 
