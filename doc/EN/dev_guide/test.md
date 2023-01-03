@@ -9,12 +9,6 @@ cargo test --features large_thread
 ```
 
 Since cargo takes a small thread for running tests, we use the `large_thread` flag to avoid stack overflows.
-We expect the tests to run on CPython 3.11.0. Other versions will __always__ fail.
-
-https://github.com/erg-lang/erg/blob/5e0858808c56fe9491af37f2baa4fd094086a26e/tests/common.rs#L75-L76
-
-This is because the Python version used for execution is specified here.
-It is possible to automatically adjust this according to the environment, but it reduces execution efficiency.
 
 ## Placement of tests
 

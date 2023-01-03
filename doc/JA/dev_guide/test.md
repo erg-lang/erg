@@ -9,12 +9,6 @@ cargo test --features large_thread
 ```
 
 cargoはテスト実行用のスレッドを小さく取るため、`large_thread`フラグを付けてスタックオーバーフローを回避します。
-テストはCPython 3.11.0で実行されることを想定しています。他のバージョンでは __必ず__ 失敗します。
-
-https://github.com/erg-lang/erg/blob/5e0858808c56fe9491af37f2baa4fd094086a26e/tests/common.rs#L75-L76
-
-この箇所で実行に使うPythonのバージョンを指定しているためです。
-これを環境に合わせて自動で調整することは出来ますが、実行効率が悪化するためベタ打ちにしています。
 
 ## テストの配置場所
 
