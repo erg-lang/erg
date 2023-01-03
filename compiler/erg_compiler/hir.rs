@@ -2079,7 +2079,7 @@ impl NoTypeDisplay for ClassDef {
 }
 
 impl_display_from_nested!(ClassDef);
-impl_locational!(ClassDef, sig);
+impl_locational!(ClassDef, sig, methods);
 
 impl HasType for ClassDef {
     #[inline]

@@ -400,6 +400,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let mut ctxs = vec![];
         if let Some(visitor) = self.get_visitor(uri) {
             let ns = visitor.get_namespace(pos);
+            Self::send_log(format!("ns: {ns:?}")).unwrap();
             for i in 1..ns.len() {
                 let ns = ns[..=ns.len() - i].join("");
                 if let Some(ctx) = self.module.as_ref().unwrap().scope.get(&ns[..]) {
@@ -437,10 +438,15 @@ impl<Checker: BuildRunnable> Server<Checker> {
             if acc_kind.is_attr() && vi.vis.is_private() {
                 continue;
             }
+            // don't show overriden items
             if result
                 .iter()
                 .any(|item| item.label[..] == name.inspect()[..])
             {
+                continue;
+            }
+            // don't show future defined items
+            if name.ln_begin().unwrap_or(0) > pos.line as usize + 1 {
                 continue;
             }
             let mut item = CompletionItem::new_simple(name.to_string(), vi.t.to_string());

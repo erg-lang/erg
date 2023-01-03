@@ -87,10 +87,12 @@ impl<'a> HIRVisitor<'a> {
 
     fn visit_class_def_ns(
         &self,
-        cur_ns: Vec<Str>,
+        mut cur_ns: Vec<Str>,
         class_def: &ClassDef,
         pos: Position,
     ) -> Option<Vec<Str>> {
+        let ns = class_def.sig.ident().to_string_notype();
+        cur_ns.push(Str::from(ns));
         self.visit_exprs_ns(cur_ns, class_def.methods.iter(), pos)
     }
 
