@@ -1,6 +1,6 @@
 # 基本事項
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/00_basic.md%26commit_hash%3D20aa4f02b994343ab9600317cebafa2b20676467)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/00_basic.md&commit_hash=20aa4f02b994343ab9600317cebafa2b20676467)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/00_basic.md%26commit_hash%3Dd0a980e7401b15c8d2adc870e42952b8552973f1)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/00_basic.md&commit_hash=d0a980e7401b15c8d2adc870e42952b8552973f1)
 
 > __Warning__: 本ドキュメントは未完成です。校正(文体、正しいリンクが張られているか、など)がなされていません。また、Ergの文法はバージョン0.*の間に破壊的変更が加えられる可能性があり、それに伴うドキュメントの更新が追いついていない可能性があります。予めご了承ください。
 > また、本ドキュメントの誤りを見つけた場合は、[こちらのフォーム](https://forms.gle/HtLYRfYzWCAaeTGb6)または[GitHubリポジトリ](https://github.com/erg-lang/erg/issues/new?assignees=&labels=bug&template=bug_report.yaml)から修正の提案をしていただけると幸いです。
@@ -98,7 +98,7 @@ i = (x = 1; x + 1) # SyntaxError:  cannot use `;` in parentheses
 
 ## インデント
 
-ErgはPythonと同じくインデントを使ってブロックを表します。ブロックの開始を示すトリガーとなる演算子(特殊形式)は、`=`, `->`, `=>`, `do`, `do!`の5種類です(その他に、演算子ではありませんが`:`と`|`もインデントを生成します)。それぞれの意味は後述します。
+ErgはPythonと同じくインデントを使ってブロックを表します。ブロックの開始を示すトリガーとなる演算子(特殊形式)は、`=`, `->`, `=>`の3種類です(その他に、演算子ではありませんが`:`と`|`もインデントを生成します)。それぞれの意味は後述します。
 
 ```python
 f x, y =
