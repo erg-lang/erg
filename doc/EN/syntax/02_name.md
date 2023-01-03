@@ -113,12 +113,12 @@ You can delete an variable by using the `Del` function. All other variables that
 ```python,checker_ignore
 x = 1
 y = 2
-Z = 3
+z = 3
 f a = x + a
 
 assert f(2) == 3
 Del x
-Del y, Z
+Del y, z
 
 f(2) # NameError: f is not defined (deleted in line 6)
 ```
