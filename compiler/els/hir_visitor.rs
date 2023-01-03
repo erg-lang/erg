@@ -3,18 +3,23 @@ use erg_common::Str;
 use erg_compiler::erg_parser::token::Token;
 use erg_compiler::hir::*;
 use erg_compiler::ty::{HasType, Type};
-use lsp_types::Position;
+use lsp_types::{Position, Url};
 
 use crate::util;
 
 pub struct HIRVisitor<'a> {
     hir: &'a HIR,
+    uri: Url,
     strict_cmp: bool,
 }
 
 impl<'a> HIRVisitor<'a> {
-    pub fn new(hir: &'a HIR, strict_cmp: bool) -> Self {
-        Self { hir, strict_cmp }
+    pub fn new(hir: &'a HIR, uri: Url, strict_cmp: bool) -> Self {
+        Self {
+            hir,
+            uri,
+            strict_cmp,
+        }
     }
 
     pub(crate) fn get_namespace(&self, pos: Position) -> Vec<Str> {
@@ -27,8 +32,16 @@ impl<'a> HIRVisitor<'a> {
         }
     }
 
+    fn is_new_final_line(&self, chunk: &Expr, pos: Position) -> bool {
+        let ln_end = chunk.ln_end().unwrap_or(0);
+        let line = util::get_line_from_uri(&self.uri, ln_end).unwrap();
+        let indent_len = line.len() - line.trim_start_matches(' ').len();
+        let cond = ln_end == pos.line as usize && pos.character as usize == indent_len + 1;
+        matches!(chunk, Expr::Call(_) | Expr::Lambda(_) | Expr::Def(_) | Expr::ClassDef(_) if cond)
+    }
+
     fn visit_expr_ns(&self, cur_ns: Vec<Str>, chunk: &Expr, pos: Position) -> Option<Vec<Str>> {
-        if !util::pos_in_loc(chunk, pos) {
+        if !(util::pos_in_loc(chunk, pos) || self.is_new_final_line(chunk, pos)) {
             return None;
         }
         match chunk {

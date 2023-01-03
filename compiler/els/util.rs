@@ -91,3 +91,16 @@ pub fn get_token_relatively(
         }
     }
 }
+
+pub fn get_code_from_uri(uri: &Url) -> ELSResult<String> {
+    let path = uri.to_file_path().unwrap();
+    let mut code = String::new();
+    File::open(path.as_path())?.read_to_string(&mut code)?;
+    Ok(code)
+}
+
+pub fn get_line_from_uri(uri: &Url, line: usize) -> ELSResult<String> {
+    let code = get_code_from_uri(uri)?;
+    let line = code.lines().nth(line.saturating_sub(1)).unwrap_or("");
+    Ok(line.to_string())
+}

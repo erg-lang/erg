@@ -1,6 +1,5 @@
 use std::cell::RefCell;
-use std::fs::File;
-use std::io::{self, BufReader};
+use std::io;
 use std::io::{stdin, stdout, BufRead, Read, StdinLock, StdoutLock, Write};
 use std::str::FromStr;
 
@@ -284,9 +283,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             "textDocument/didSave" => {
                 let uri = Url::parse(msg["params"]["textDocument"]["uri"].as_str().unwrap())?;
                 Self::send_log(format!("{method}: {uri}"))?;
-                let path = uri.to_file_path().unwrap();
-                let mut code = String::new();
-                File::open(path)?.read_to_string(&mut code)?;
+                let code = util::get_code_from_uri(&uri)?;
                 self.check_file(uri, &code)
             }
             // "textDocument/didChange"
@@ -392,16 +389,16 @@ impl<Checker: BuildRunnable> Server<Checker> {
         uri_and_diags
     }
 
-    fn get_visitor(&self) -> Option<HIRVisitor> {
+    fn get_visitor(&self, uri: &Url) -> Option<HIRVisitor> {
         self.hir
             .as_ref()
-            .map(|hir| HIRVisitor::new(hir, !cfg!(feature = "py_compatible")))
+            .map(|hir| HIRVisitor::new(hir, uri.clone(), !cfg!(feature = "py_compatible")))
     }
 
-    fn get_local_ctx(&self, pos: Position) -> Vec<&Context> {
+    fn get_local_ctx(&self, uri: &Url, pos: Position) -> Vec<&Context> {
         // Self::send_log(format!("scope: {:?}\n", self.module.as_ref().unwrap().scope.keys())).unwrap();
         let mut ctxs = vec![];
-        if let Some(visitor) = self.get_visitor() {
+        if let Some(visitor) = self.get_visitor(uri) {
             let ns = visitor.get_namespace(pos);
             for i in 1..ns.len() {
                 let ns = ns[..=ns.len() - i].join("");
@@ -431,7 +428,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         Self::send_log(format!("AccessKind: {acc_kind:?}"))?;
         let mut result: Vec<CompletionItem> = vec![];
         let contexts = if acc_kind.is_local() {
-            self.get_local_ctx(pos)
+            self.get_local_ctx(&uri, pos)
         } else if let Some(ctx) = self.get_receiver_ctx(uri, pos)? {
             vec![ctx]
         } else {
@@ -552,11 +549,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             match self.get_definition(&token)? {
                 Some((name, vi)) => {
                     if let Some(line) = name.ln_begin() {
-                        let path = uri.to_file_path().unwrap();
-                        let code_block = BufReader::new(File::open(path)?)
-                            .lines()
-                            .nth(line - 1)
-                            .unwrap_or_else(|| Ok(String::new()))?;
+                        let code_block = util::get_line_from_uri(&uri, line)?;
                         let definition = MarkedString::from_language_code(lang.into(), code_block);
                         contents.push(definition);
                     }
@@ -566,7 +559,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 }
                 // not found or not symbol, etc.
                 None => {
-                    if let Some(visitor) = self.get_visitor() {
+                    if let Some(visitor) = self.get_visitor(&uri) {
                         if let Some(typ) = visitor.visit_hir_t(&token) {
                             let typ = MarkedString::from_language_code(
                                 lang.into(),
@@ -591,7 +584,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         uri: Url,
         attr_marker_pos: Position,
     ) -> ELSResult<Option<&Context>> {
-        let maybe_token = util::get_token_relatively(uri, attr_marker_pos, -1)?;
+        let maybe_token = util::get_token_relatively(uri.clone(), attr_marker_pos, -1)?;
         if let Some(token) = maybe_token {
             if token.is(TokenKind::Symbol) {
                 let var_name = token.inspect();
@@ -602,7 +595,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                     .and_then(|module| module.context.get_receiver_ctx(var_name))
                     .or_else(|| {
                         let opt_t = self
-                            .get_visitor()
+                            .get_visitor(&uri)
                             .and_then(|visitor| visitor.visit_hir_t(&token));
                         opt_t.and_then(|t| {
                             self.module
@@ -614,7 +607,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             } else {
                 Self::send_log(format!("non-name token: {token}"))?;
                 if let Some(typ) = self
-                    .get_visitor()
+                    .get_visitor(&uri)
                     .and_then(|visitor| visitor.visit_hir_t(&token))
                 {
                     let t_name = typ.qual_name();

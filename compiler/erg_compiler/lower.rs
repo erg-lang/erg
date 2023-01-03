@@ -1319,7 +1319,13 @@ impl ASTLowerer {
                             ast::DefId(0),
                             &Type::Failure,
                         )?;
-                        Err(errs)
+                        self.errs.extend(errs);
+                        let ident = hir::Identifier::bare(sig.ident.dot, sig.ident.name);
+                        let sig = hir::SubrSignature::new(ident, params);
+                        let block =
+                            hir::Block::new(vec![hir::Expr::Dummy(hir::Dummy::new(vec![]))]);
+                        let body = hir::DefBody::new(body.op, block, body.id);
+                        Ok(hir::Def::new(hir::Signature::Subr(sig), body))
                     }
                 }
             }
@@ -2117,7 +2123,13 @@ impl ASTLowerer {
         log!(info "entered {}", fn_name!());
         let mut hir_block = Vec::with_capacity(ast_block.len());
         for chunk in ast_block.into_iter() {
-            let chunk = self.lower_chunk(chunk)?;
+            let chunk = match self.lower_chunk(chunk) {
+                Ok(chunk) => chunk,
+                Err(errs) => {
+                    self.errs.extend(errs);
+                    hir::Expr::Dummy(hir::Dummy::new(vec![]))
+                }
+            };
             hir_block.push(chunk);
         }
         Ok(hir::Block::new(hir_block))
