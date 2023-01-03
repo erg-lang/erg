@@ -933,7 +933,7 @@ impl ASTLowerer {
                         line!() as usize,
                         other.loc(),
                         self.module.context.caused_by(),
-                        "".to_owned(),
+                        "invalid syntax".to_owned(),
                         None,
                     )))
                 }

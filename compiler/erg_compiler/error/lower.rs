@@ -430,16 +430,37 @@ impl LowerError {
         )
     }
 
-    pub fn del_error(input: Input, errno: usize, ident: &Identifier, caused_by: String) -> Self {
+    pub fn del_error(
+        input: Input,
+        errno: usize,
+        ident: &Identifier,
+        is_const: bool,
+        caused_by: String,
+    ) -> Self {
+        let prefix = if is_const {
+            switch_lang!(
+                "japanese" => "定数",
+                "simplified_chinese" => "定数",
+                "traditional_chinese" => "定數",
+                "english" => "constant",
+            )
+        } else {
+            switch_lang!(
+                "japanese" => "組み込み変数",
+                "simplified_chinese" => "内置变量",
+                "traditional_chinese" => "内置變量",
+                "english" => "built-in variable",
+            )
+        };
         let name = StyledString::new(readable_name(ident.inspect()), Some(WARN), Some(ATTR));
         Self::new(
             ErrorCore::new(
                 vec![SubMessage::only_loc(ident.loc())],
                 switch_lang!(
-                    "japanese" => format!("{name}は削除できません"),
-                    "simplified_chinese" => format!("{name}不能删除"),
-                    "traditional_chinese" => format!("{name}不能刪除"),
-                    "english" => format!("{name} cannot be deleted"),
+                    "japanese" => format!("{prefix}{name}は削除できません"),
+                    "simplified_chinese" => format!("{prefix}{name}不能删除"),
+                    "traditional_chinese" => format!("{prefix}{name}不能刪除"),
+                    "english" => format!("{prefix} {name} cannot be deleted"),
                 ),
                 errno,
                 NameError,

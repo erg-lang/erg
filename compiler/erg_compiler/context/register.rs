@@ -1419,17 +1419,18 @@ impl Context {
     }
 
     pub fn del(&mut self, ident: &hir::Identifier) -> CompileResult<()> {
-        if self.rec_get_const_obj(ident.inspect()).is_some()
-            || self
-                .get_builtins()
-                .unwrap()
-                .get_local_kv(ident.inspect())
-                .is_some()
-        {
+        let is_const = self.rec_get_const_obj(ident.inspect()).is_some();
+        let is_builtin = self
+            .get_builtins()
+            .unwrap()
+            .get_local_kv(ident.inspect())
+            .is_some();
+        if is_const || is_builtin {
             Err(TyCheckErrors::from(TyCheckError::del_error(
                 self.cfg.input.clone(),
                 line!() as usize,
                 ident,
+                is_const,
                 self.caused_by(),
             )))
         } else if self.locals.get(ident.inspect()).is_some() {
