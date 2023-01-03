@@ -2,15 +2,18 @@
 
 ELS is a language server for the [Erg](https://github.com/erg-lang/erg) programming language.
 
-## Features currently implemented
+## Features
 
-- Code completion
-  - Variable completion
-  - Method/attribute completion
-- Diagnostics
-- Hover
-- Jump to definition
-- Syntax highlighting (by [vscode-erg](https://github.com/erg-lang/vscode-erg))
+- [x] Syntax highlighting (by [vscode-erg](https://github.com/erg-lang/vscode-erg))
+- [x] Code completion
+  - [x] Variable completion
+  - [x] Method/attribute completion
+- [x] Diagnostics
+- [x] Hover
+- [x] Jump to definition
+- [ ] Jump to references
+- [ ] Inlay hints
+- [ ] Renaming
 
 ## Installation
 

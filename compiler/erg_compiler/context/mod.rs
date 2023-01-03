@@ -365,11 +365,11 @@ impl ContextProvider for Context {
 
     fn get_receiver_ctx(&self, receiver_name: &str) -> Option<&Context> {
         self.get_mod(receiver_name)
+            .or_else(|| self.rec_get_type(receiver_name).map(|(_, ctx)| ctx))
             .or_else(|| {
                 let (_, vi) = self.get_var_info(receiver_name)?;
                 self.get_nominal_type_ctx(&vi.t).map(|(_, ctx)| ctx)
             })
-            .or_else(|| self.rec_get_type(receiver_name).map(|(_, ctx)| ctx))
     }
 
     fn get_var_info(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
@@ -391,6 +391,20 @@ impl Context {
 
     pub fn get_receiver_ctx(&self, receiver_name: &str) -> Option<&Context> {
         ContextProvider::get_receiver_ctx(self, receiver_name)
+    }
+
+    pub fn get_receiver_ctxs(&self, receiver_name: &str) -> Vec<&Context> {
+        let mut ctxs = vec![];
+        if let Some(receiver_ctx) = self.get_receiver_ctx(receiver_name) {
+            ctxs.push(receiver_ctx);
+            ctxs.extend(
+                receiver_ctx
+                    .super_classes
+                    .iter()
+                    .flat_map(|t| self.get_nominal_type_ctx(t).map(|(_, ctx)| ctx)),
+            );
+        }
+        ctxs
     }
 
     pub fn get_var_info(&self, name: &str) -> Option<(&VarName, &VarInfo)> {

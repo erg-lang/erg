@@ -429,14 +429,10 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let mut result: Vec<CompletionItem> = vec![];
         let contexts = if acc_kind.is_local() {
             self.get_local_ctx(&uri, pos)
-        } else if let Some(ctx) = self.get_receiver_ctx(uri, pos)? {
-            vec![ctx]
         } else {
-            Self::send(
-                &json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": result }),
-            )?;
-            return Ok(());
+            self.get_receiver_ctxs(uri, pos)?
         };
+        // Self::send_log(format!("contexts: {:?}", contexts.iter().map(|ctx| &ctx.name).collect::<Vec<_>>())).unwrap();
         for (name, vi) in contexts.into_iter().flat_map(|ctx| ctx.dir()) {
             if acc_kind.is_attr() && vi.vis.is_private() {
                 continue;
@@ -579,31 +575,16 @@ impl<Checker: BuildRunnable> Server<Checker> {
         )
     }
 
-    fn get_receiver_ctx(
-        &mut self,
-        uri: Url,
-        attr_marker_pos: Position,
-    ) -> ELSResult<Option<&Context>> {
+    fn get_receiver_ctxs(&self, uri: Url, attr_marker_pos: Position) -> ELSResult<Vec<&Context>> {
+        let Some(module) = self.module.as_ref() else {
+            return Ok(vec![]);
+        };
         let maybe_token = util::get_token_relatively(uri.clone(), attr_marker_pos, -1)?;
         if let Some(token) = maybe_token {
             if token.is(TokenKind::Symbol) {
                 let var_name = token.inspect();
-                Self::send_log(format!("name: {var_name}"))?;
-                let ctx = self
-                    .module
-                    .as_ref()
-                    .and_then(|module| module.context.get_receiver_ctx(var_name))
-                    .or_else(|| {
-                        let opt_t = self
-                            .get_visitor(&uri)
-                            .and_then(|visitor| visitor.visit_hir_t(&token));
-                        opt_t.and_then(|t| {
-                            self.module
-                                .as_ref()
-                                .and_then(|module| module.context.get_receiver_ctx(&t.to_string()))
-                        })
-                    });
-                Ok(ctx)
+                Self::send_log(format!("{} name: {var_name}", line!()))?;
+                Ok(module.context.get_receiver_ctxs(var_name))
             } else {
                 Self::send_log(format!("non-name token: {token}"))?;
                 if let Some(typ) = self
@@ -612,18 +593,14 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 {
                     let t_name = typ.qual_name();
                     Self::send_log(format!("type: {t_name}"))?;
-                    let ctx = self
-                        .module
-                        .as_ref()
-                        .and_then(|module| module.context.get_receiver_ctx(&t_name));
-                    Ok(ctx)
+                    Ok(module.context.get_receiver_ctxs(&t_name))
                 } else {
-                    Ok(None)
+                    Ok(vec![])
                 }
             }
         } else {
             Self::send_log("token not found")?;
-            Ok(None)
+            Ok(vec![])
         }
     }
 }
