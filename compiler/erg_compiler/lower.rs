@@ -342,16 +342,8 @@ impl ASTLowerer {
 
     fn elem_err(&self, l: &Type, r: &Type, elem: &hir::Expr) -> LowerErrors {
         let elem_disp_notype = elem.to_string_notype();
-        let l = self
-            .module
-            .context
-            .deref_tyvar(l.clone(), Variance::Covariant, Location::Unknown)
-            .unwrap_or_else(|_| l.clone());
-        let r = self
-            .module
-            .context
-            .deref_tyvar(r.clone(), Variance::Covariant, Location::Unknown)
-            .unwrap_or_else(|_| r.clone());
+        let l = self.module.context.readable_type(l.clone(), false);
+        let r = self.module.context.readable_type(r.clone(), false);
         LowerErrors::from(LowerError::syntax_error(
             self.cfg.input.clone(),
             line!() as usize,

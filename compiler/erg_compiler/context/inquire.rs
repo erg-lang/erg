@@ -942,9 +942,7 @@ impl Context {
         } else {
             (obj.loc(), obj.to_string())
         };
-        let other = self
-            .deref_tyvar(other.clone(), Variance::Covariant, loc)
-            .unwrap_or_else(|_| other.clone());
+        let other = self.readable_type(other.clone(), false);
         TyCheckErrors::from(TyCheckError::type_mismatch_error(
             self.cfg.input.clone(),
             line!() as usize,
@@ -1416,12 +1414,8 @@ impl Context {
                     };
                     let name = name + "::" + readable_name(kw_name);
                     let hint = self.get_simple_type_mismatch_hint(param_t, arg_t);
-                    let param_t = self
-                        .deref_tyvar(param_t.clone(), Variance::Contravariant, arg.loc())
-                        .unwrap_or_else(|_| param_t.clone());
-                    let arg_t = self
-                        .deref_tyvar(arg_t.clone(), Variance::Covariant, arg.loc())
-                        .unwrap_or_else(|_| arg_t.clone());
+                    let param_t = self.readable_type(param_t.clone(), true);
+                    let arg_t = self.readable_type(arg_t.clone(), false);
                     TyCheckErrors::new(
                         errs.into_iter()
                             .map(|e| {

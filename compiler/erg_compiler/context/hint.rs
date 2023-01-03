@@ -1,4 +1,3 @@
-use erg_common::error::Location;
 use erg_common::style::{Attribute, Color, StyledStrings, THEME};
 use erg_common::{option_enum_unwrap, switch_lang};
 
@@ -6,7 +5,7 @@ use crate::ty::typaram::TyParam;
 use crate::ty::value::ValueObj;
 use crate::ty::{HasType, Predicate, SubrKind, Type};
 
-use crate::context::{Context, Variance};
+use crate::context::Context;
 
 const HINT: Color = THEME.colors.hint;
 const ERR: Color = THEME.colors.error;
@@ -160,13 +159,7 @@ impl Context {
                     .map(|(t1, t2)| format!("cannot {verb} {t1} {preposition} {t2}"))
                     .or_else(|| {
                         expected.inner_ts().get(0).map(|expected_inner| {
-                            let expected_inner = self
-                                .deref_tyvar(
-                                    expected_inner.clone(),
-                                    Variance::Covariant,
-                                    Location::Unknown,
-                                )
-                                .unwrap_or_else(|_| expected_inner.clone());
+                            let expected_inner = self.readable_type(expected_inner.clone(), false);
                             format!("cannot {verb} {found} {preposition} {expected_inner}")
                         })
                     })
@@ -181,9 +174,7 @@ impl Context {
                     let (sub, sup) = fv.get_subsup()?;
                     let (verb, preposition, sequence) = Self::get_verb_and_preposition(&sup)?;
                     let sup = *option_enum_unwrap!(sup.typarams().get(0)?.clone(), TyParam::Type)?;
-                    let sup = self
-                        .deref_tyvar(sup.clone(), Variance::Covariant, Location::Unknown)
-                        .unwrap_or_else(|_| sup.clone());
+                    let sup = self.readable_type(sup, false);
                     let (l, r) = if sequence == Sequence::Forward {
                         (sub, sup)
                     } else {

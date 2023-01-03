@@ -449,7 +449,16 @@ impl<Checker: BuildRunnable> Server<Checker> {
             if name.ln_begin().unwrap_or(0) > pos.line as usize + 1 {
                 continue;
             }
-            let mut item = CompletionItem::new_simple(name.to_string(), vi.t.to_string());
+            let readable_t = self
+                .module
+                .as_ref()
+                .map(|module| {
+                    module
+                        .context
+                        .readable_type(vi.t.clone(), vi.kind.is_parameter())
+                })
+                .unwrap_or_else(|| vi.t.clone());
+            let mut item = CompletionItem::new_simple(name.to_string(), readable_t.to_string());
             item.kind = match &vi.t {
                 Type::Subr(subr) if subr.self_t().is_some() => Some(CompletionItemKind::METHOD),
                 Type::Quantified(quant) if quant.self_t().is_some() => {

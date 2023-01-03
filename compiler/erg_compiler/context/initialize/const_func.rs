@@ -2,7 +2,7 @@ use std::mem;
 
 use erg_common::enum_unwrap;
 
-use crate::context::{Context, Variance};
+use crate::context::Context;
 use crate::feature_error;
 use crate::ty::constructors::{and, mono};
 use crate::ty::value::{EvalValueError, EvalValueResult, GenTypeObj, TypeObj, ValueObj};
@@ -256,9 +256,7 @@ pub fn __dict_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<V
         Ok(v.clone())
     } else {
         let index = if let ValueObj::Type(t) = &index {
-            let derefed = ctx
-                .deref_tyvar(t.typ().clone(), Variance::Covariant, Location::Unknown)
-                .unwrap_or_else(|_| t.typ().clone());
+            let derefed = ctx.readable_type(t.typ().clone(), false);
             ValueObj::builtin_t(derefed)
         } else {
             index

@@ -654,6 +654,16 @@ impl Context {
         }
     }
 
+    pub fn readable_type(&self, t: Type, is_parameter: bool) -> Type {
+        let variance = if is_parameter {
+            Contravariant
+        } else {
+            Covariant
+        };
+        self.deref_tyvar(t.clone(), variance, Location::Unknown)
+            .unwrap_or(t)
+    }
+
     pub(crate) fn trait_impl_exists(&self, class: &Type, trait_: &Type) -> bool {
         if class.is_monomorphic() {
             self.mono_class_trait_impl_exist(class, trait_)
