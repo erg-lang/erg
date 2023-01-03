@@ -419,7 +419,7 @@ impl Context {
         ))
     }
 
-    pub(crate) fn rec_get_attr_info(
+    pub(crate) fn get_attr_info(
         &self,
         obj: &hir::Expr,
         ident: &Identifier,
@@ -477,9 +477,8 @@ impl Context {
                 }
             }
         }
-        // TODO: dependent type widening
-        if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
-            parent.rec_get_attr_info(obj, ident, input, namespace)
+        if let Some(builtins) = self.get_builtins() {
+            builtins.get_attr_info(obj, ident, input, namespace)
         } else {
             Err(TyCheckError::no_attr_error(
                 input.clone(),
@@ -512,8 +511,8 @@ impl Context {
                         return Err(e);
                     }
                 }
-                // methods
-                if self.name == ctx.name {
+                // if self is a methods context
+                if self.name.starts_with(&ctx.name[..]) {
                     match self.rec_get_var_info(ident, AccessKind::Attr, input, namespace) {
                         Ok(t) => {
                             return Ok(t);
@@ -549,7 +548,7 @@ impl Context {
                         return Err(e);
                     }
                 }
-                if self.name == ctx.name {
+                if self.name.starts_with(&ctx.name[..]) {
                     match self.rec_get_var_info(ident, AccessKind::Attr, input, namespace) {
                         Ok(t) => {
                             return Ok(t);
@@ -680,114 +679,135 @@ impl Context {
             });
         }
         if let Some(attr_name) = attr_name.as_ref() {
-            for ctx in self
-                .get_nominal_super_type_ctxs(obj.ref_t())
-                .ok_or_else(|| {
-                    TyCheckError::type_not_found(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        obj.loc(),
-                        self.caused_by(),
-                        obj.ref_t(),
-                    )
-                })?
-            {
-                if let Some(vi) = ctx
-                    .locals
-                    .get(attr_name.inspect())
-                    .or_else(|| ctx.decls.get(attr_name.inspect()))
-                {
-                    self.validate_visibility(attr_name, vi, input, namespace)?;
-                    return Ok(vi.clone());
-                }
-                for (_, methods_ctx) in ctx.methods_list.iter() {
-                    if let Some(vi) = methods_ctx
-                        .locals
-                        .get(attr_name.inspect())
-                        .or_else(|| methods_ctx.decls.get(attr_name.inspect()))
-                    {
-                        self.validate_visibility(attr_name, vi, input, namespace)?;
-                        return Ok(vi.clone());
-                    }
-                }
-            }
-            if let Ok(singular_ctx) = self.get_singular_ctx_by_hir_expr(obj, namespace) {
-                if let Some(vi) = singular_ctx
-                    .locals
-                    .get(attr_name.inspect())
-                    .or_else(|| singular_ctx.decls.get(attr_name.inspect()))
-                {
-                    self.validate_visibility(attr_name, vi, input, namespace)?;
-                    return Ok(vi.clone());
-                }
-                for (_, method_ctx) in singular_ctx.methods_list.iter() {
-                    if let Some(vi) = method_ctx
-                        .locals
-                        .get(attr_name.inspect())
-                        .or_else(|| method_ctx.decls.get(attr_name.inspect()))
-                    {
-                        self.validate_visibility(attr_name, vi, input, namespace)?;
-                        return Ok(vi.clone());
-                    }
-                }
-                return Err(TyCheckError::singular_no_attr_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    attr_name.loc(),
-                    namespace.into(),
-                    obj.qual_name().unwrap_or("?"),
-                    obj.ref_t(),
-                    attr_name.inspect(),
-                    self.get_similar_attr_from_singular(obj, attr_name.inspect()),
-                ));
-            }
-            match self.get_method_type_by_name(attr_name) {
-                Ok(method) => {
-                    self.sub_unify(obj.ref_t(), &method.definition_type, obj.loc(), None)
-                        // HACK: change this func's return type to TyCheckResult<Type>
-                        .map_err(|mut errs| errs.remove(0))?;
-                    return Ok(method.method_type.clone());
-                }
-                Err(err) if err.core.kind == ErrorKind::TypeError => {
-                    return Err(err);
-                }
-                _ => {}
-            }
-            for patch in self.find_patches_of(obj.ref_t()) {
-                if let Some(vi) = patch
-                    .locals
-                    .get(attr_name.inspect())
-                    .or_else(|| patch.decls.get(attr_name.inspect()))
-                {
-                    self.validate_visibility(attr_name, vi, input, namespace)?;
-                    return Ok(vi.clone());
-                }
-                for (_, methods_ctx) in patch.methods_list.iter() {
-                    if let Some(vi) = methods_ctx
-                        .locals
-                        .get(attr_name.inspect())
-                        .or_else(|| methods_ctx.decls.get(attr_name.inspect()))
-                    {
-                        self.validate_visibility(attr_name, vi, input, namespace)?;
-                        return Ok(vi.clone());
-                    }
-                }
-            }
-            Err(TyCheckError::no_attr_error(
-                self.cfg.input.clone(),
-                line!() as usize,
-                attr_name.loc(),
-                namespace.into(),
-                obj.ref_t(),
-                attr_name.inspect(),
-                self.get_similar_attr(obj.ref_t(), attr_name.inspect()),
-            ))
+            self.search_method_info(obj, attr_name, input, namespace)
         } else {
             Ok(VarInfo {
                 t: obj.t(),
                 ..VarInfo::default()
             })
         }
+    }
+
+    fn search_method_info(
+        &self,
+        obj: &hir::Expr,
+        attr_name: &Identifier,
+        input: &Input,
+        namespace: &Str,
+    ) -> SingleTyCheckResult<VarInfo> {
+        for ctx in self
+            .get_nominal_super_type_ctxs(obj.ref_t())
+            .ok_or_else(|| {
+                TyCheckError::type_not_found(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    obj.loc(),
+                    self.caused_by(),
+                    obj.ref_t(),
+                )
+            })?
+        {
+            if let Some(vi) = ctx
+                .locals
+                .get(attr_name.inspect())
+                .or_else(|| ctx.decls.get(attr_name.inspect()))
+            {
+                self.validate_visibility(attr_name, vi, input, namespace)?;
+                return Ok(vi.clone());
+            }
+            for (_, methods_ctx) in ctx.methods_list.iter() {
+                if let Some(vi) = methods_ctx
+                    .locals
+                    .get(attr_name.inspect())
+                    .or_else(|| methods_ctx.decls.get(attr_name.inspect()))
+                {
+                    self.validate_visibility(attr_name, vi, input, namespace)?;
+                    return Ok(vi.clone());
+                }
+            }
+            if self.name.starts_with(&ctx.name[..]) {
+                match self.rec_get_var_info(attr_name, AccessKind::Attr, input, namespace) {
+                    Ok(t) => {
+                        return Ok(t);
+                    }
+                    Err(e) if e.core.kind == ErrorKind::NameError => {}
+                    Err(e) => {
+                        return Err(e);
+                    }
+                }
+            }
+        }
+        if let Ok(singular_ctx) = self.get_singular_ctx_by_hir_expr(obj, namespace) {
+            if let Some(vi) = singular_ctx
+                .locals
+                .get(attr_name.inspect())
+                .or_else(|| singular_ctx.decls.get(attr_name.inspect()))
+            {
+                self.validate_visibility(attr_name, vi, input, namespace)?;
+                return Ok(vi.clone());
+            }
+            for (_, method_ctx) in singular_ctx.methods_list.iter() {
+                if let Some(vi) = method_ctx
+                    .locals
+                    .get(attr_name.inspect())
+                    .or_else(|| method_ctx.decls.get(attr_name.inspect()))
+                {
+                    self.validate_visibility(attr_name, vi, input, namespace)?;
+                    return Ok(vi.clone());
+                }
+            }
+            return Err(TyCheckError::singular_no_attr_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                attr_name.loc(),
+                namespace.into(),
+                obj.qual_name().unwrap_or("?"),
+                obj.ref_t(),
+                attr_name.inspect(),
+                self.get_similar_attr_from_singular(obj, attr_name.inspect()),
+            ));
+        }
+        match self.get_method_type_by_name(attr_name) {
+            Ok(method) => {
+                self.sub_unify(obj.ref_t(), &method.definition_type, obj.loc(), None)
+                    // HACK: change this func's return type to TyCheckResult<Type>
+                    .map_err(|mut errs| errs.remove(0))?;
+                return Ok(method.method_type.clone());
+            }
+            Err(err) if err.core.kind == ErrorKind::TypeError => {
+                return Err(err);
+            }
+            _ => {}
+        }
+        for patch in self.find_patches_of(obj.ref_t()) {
+            if let Some(vi) = patch
+                .locals
+                .get(attr_name.inspect())
+                .or_else(|| patch.decls.get(attr_name.inspect()))
+            {
+                self.validate_visibility(attr_name, vi, input, namespace)?;
+                return Ok(vi.clone());
+            }
+            for (_, methods_ctx) in patch.methods_list.iter() {
+                if let Some(vi) = methods_ctx
+                    .locals
+                    .get(attr_name.inspect())
+                    .or_else(|| methods_ctx.decls.get(attr_name.inspect()))
+                {
+                    self.validate_visibility(attr_name, vi, input, namespace)?;
+                    return Ok(vi.clone());
+                }
+            }
+        }
+        Err(TyCheckError::no_attr_error(
+            self.cfg.input.clone(),
+            line!() as usize,
+            attr_name.loc(),
+            namespace.into(),
+            obj.ref_t(),
+            attr_name.inspect(),
+            self.get_similar_attr(obj.ref_t(), attr_name.inspect()),
+        ))
     }
 
     fn validate_visibility(

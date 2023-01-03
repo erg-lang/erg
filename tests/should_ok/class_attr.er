@@ -19,6 +19,7 @@ D.
         _ = self.ddd
         _ = self.f
         _ = self.g
+        _ = do self.g()
         None
 
 d = D.new({.x = 1})

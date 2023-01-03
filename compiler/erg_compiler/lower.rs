@@ -275,7 +275,7 @@ impl ASTLowerer {
 
     fn pop_append_errs(&mut self) {
         match self.module.context.check_decls_and_pop() {
-            Ok(ctx) if cfg!(feature = "els") && !ctx.dir().is_empty() => {
+            Ok(ctx) if self.cfg.mode == "language-server" && !ctx.dir().is_empty() => {
                 self.module.scope.insert(ctx.name.clone(), ctx);
             }
             Err(errs) => self.errs.extend(errs),
@@ -733,7 +733,7 @@ impl ASTLowerer {
             }
             ast::Accessor::Attr(attr) => {
                 let obj = self.lower_expr(*attr.obj)?;
-                let vi = self.module.context.rec_get_attr_info(
+                let vi = self.module.context.get_attr_info(
                     &obj,
                     &attr.ident,
                     &self.cfg.input,

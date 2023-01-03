@@ -772,9 +772,14 @@ impl Context {
         match expr {
             hir::Expr::Lit(_) => Ok(()),
             hir::Expr::Accessor(acc) => {
+                let variance = if acc.var_info().kind.is_parameter() {
+                    Contravariant
+                } else {
+                    Covariant
+                };
                 let loc = acc.loc();
                 let t = acc.ref_mut_t();
-                *t = self.deref_tyvar(mem::take(t), Covariant, loc)?;
+                *t = self.deref_tyvar(mem::take(t), variance, loc)?;
                 if let hir::Accessor::Attr(attr) = acc {
                     self.resolve_expr_t(&mut attr.obj)?;
                 }

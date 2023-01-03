@@ -601,6 +601,13 @@ impl Accessor {
         Self::Attr(Attribute::new(obj, ident))
     }
 
+    pub fn var_info(&self) -> &VarInfo {
+        match self {
+            Self::Ident(ident) => &ident.vi,
+            Self::Attr(attr) => &attr.ident.vi,
+        }
+    }
+
     pub fn show(&self) -> String {
         match self {
             Self::Ident(ident) => readable_name(ident.inspect()).to_string(),
