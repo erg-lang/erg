@@ -512,6 +512,18 @@ impl Context {
                         return Err(e);
                     }
                 }
+                // methods
+                if self.name == ctx.name {
+                    match self.rec_get_var_info(ident, AccessKind::Attr, input, namespace) {
+                        Ok(t) => {
+                            return Ok(t);
+                        }
+                        Err(e) if e.core.kind == ErrorKind::NameError => {}
+                        Err(e) => {
+                            return Err(e);
+                        }
+                    }
+                }
             }
         }
         let coerced = self
@@ -535,6 +547,17 @@ impl Context {
                     Err(e) if e.core.kind == ErrorKind::NameError => {}
                     Err(e) => {
                         return Err(e);
+                    }
+                }
+                if self.name == ctx.name {
+                    match self.rec_get_var_info(ident, AccessKind::Attr, input, namespace) {
+                        Ok(t) => {
+                            return Ok(t);
+                        }
+                        Err(e) if e.core.kind == ErrorKind::NameError => {}
+                        Err(e) => {
+                            return Err(e);
+                        }
                     }
                 }
             }

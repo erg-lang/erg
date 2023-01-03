@@ -315,7 +315,8 @@ impl Context {
                 None,
                 vec![kw("iterable", poly("Iterable", vec![ty_tp(T.clone())]))],
                 poly("Array", vec![ty_tp(T.clone()), TyParam::erased(Nat)]),
-            );
+            )
+            .quantify();
             self.register_builtin_py_impl("list", t_list, Immutable, vis, Some("list"));
             let t_dict = func(
                 vec![],
@@ -325,7 +326,8 @@ impl Context {
                     poly("Iterable", vec![ty_tp(tuple_t(vec![T.clone(), U.clone()]))]),
                 )],
                 dict! { T => U }.into(),
-            );
+            )
+            .quantify();
             self.register_builtin_py_impl("dict", t_dict, Immutable, vis, Some("dict"));
         }
     }

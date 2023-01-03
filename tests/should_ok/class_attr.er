@@ -1,0 +1,25 @@
+@Inheritable
+C = Class {.x = Int}
+C::
+    aaa = 1
+C.
+    bbb = 1
+    f self = None
+
+D = Inherit C
+D::
+    ccc = 1
+D.
+    ddd = 1
+    g self =
+        _ = self.x
+        # _ = self::aaa # outer class privates cannot be accessed
+        _ = self.bbb
+        _ = self::ccc
+        _ = self.ddd
+        _ = self.f
+        _ = self.g
+        None
+
+d = D.new({.x = 1})
+print! d.bbb, d.ddd, d.g()
