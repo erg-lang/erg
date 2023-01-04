@@ -11,8 +11,8 @@ use lsp_types::{Position, Range, Url};
 use crate::server::ELSResult;
 
 pub fn loc_to_range(loc: erg_common::error::Location) -> Option<Range> {
-    let start = Position::new(loc.ln_begin()? as u32 - 1, loc.col_begin()? as u32);
-    let end = Position::new(loc.ln_end()? as u32 - 1, loc.col_end()? as u32);
+    let start = Position::new(loc.ln_begin()? - 1, loc.col_begin()?);
+    let end = Position::new(loc.ln_end()? - 1, loc.col_end()?);
     Some(Range::new(start, end))
 }
 
@@ -22,8 +22,7 @@ pub fn pos_in_loc<L: Locational>(loc: &L, pos: Position) -> bool {
     let in_lines = (ln_begin..=ln_end).contains(&(pos.line + 1));
     if ln_begin == ln_end {
         in_lines
-            && (loc.col_begin().unwrap_or(0)..=loc.col_end().unwrap_or(0))
-                .contains(&(pos.character as u16))
+            && (loc.col_begin().unwrap_or(0)..=loc.col_end().unwrap_or(0)).contains(&pos.character)
     } else {
         in_lines
     }
