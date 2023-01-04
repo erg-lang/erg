@@ -13,7 +13,7 @@ use erg_common::vis::Visibility;
 use erg_common::{enum_unwrap, fmt_option, fn_name, log, switch_lang, Str};
 
 use erg_parser::ast;
-use erg_parser::ast::{OperationKind, AST};
+use erg_parser::ast::{OperationKind, VarName, AST};
 use erg_parser::build_ast::ASTBuilder;
 use erg_parser::token::{Token, TokenKind};
 use erg_parser::Parser;
@@ -124,7 +124,6 @@ impl Runnable for ASTLowerer {
     }
 }
 
-use erg_parser::ast::VarName;
 impl ContextProvider for ASTLowerer {
     fn dir(&self) -> Vec<(&VarName, &VarInfo)> {
         self.module.context.dir()
@@ -156,6 +155,43 @@ impl ASTLowerer {
         }
     }
 
+    fn pop_append_errs(&mut self) {
+        match self.module.context.check_decls_and_pop() {
+            Ok(ctx) if self.cfg.mode == "language-server" && !ctx.dir().is_empty() => {
+                self.module.scope.insert(ctx.name.clone(), ctx);
+            }
+            Err(errs) => self.errs.extend(errs),
+            _ => {}
+        }
+    }
+
+    pub fn pop_mod_ctx(&mut self) -> Option<ModuleContext> {
+        let opt_module = self.module.context.pop_mod();
+        opt_module.map(|module| ModuleContext::new(module, mem::take(&mut self.module.scope)))
+    }
+
+    pub fn pop_mod_ctx_or_default(&mut self) -> ModuleContext {
+        std::mem::take(&mut self.module)
+    }
+
+    pub fn get_mod_ctx(&self) -> &ModuleContext {
+        &self.module
+    }
+
+    pub fn dir(&self) -> Vec<(&VarName, &VarInfo)> {
+        ContextProvider::dir(self)
+    }
+
+    pub fn get_receiver_ctx(&self, receiver_name: &str) -> Option<&Context> {
+        ContextProvider::get_receiver_ctx(self, receiver_name)
+    }
+
+    pub fn get_var_info(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
+        ContextProvider::get_var_info(self, name)
+    }
+}
+
+impl ASTLowerer {
     fn var_result_t_check(
         &self,
         loc: Location,
@@ -271,41 +307,6 @@ impl ASTLowerer {
         } else {
             Err(warns)
         }
-    }
-
-    fn pop_append_errs(&mut self) {
-        match self.module.context.check_decls_and_pop() {
-            Ok(ctx) if self.cfg.mode == "language-server" && !ctx.dir().is_empty() => {
-                self.module.scope.insert(ctx.name.clone(), ctx);
-            }
-            Err(errs) => self.errs.extend(errs),
-            _ => {}
-        }
-    }
-
-    pub fn pop_mod_ctx(&mut self) -> Option<ModuleContext> {
-        let opt_module = self.module.context.pop_mod();
-        opt_module.map(|module| ModuleContext::new(module, mem::take(&mut self.module.scope)))
-    }
-
-    pub fn pop_mod_ctx_or_default(&mut self) -> Context {
-        std::mem::take(&mut self.module.context)
-    }
-
-    pub fn get_mod_ctx(&self) -> &Context {
-        &self.module.context
-    }
-
-    pub fn dir(&self) -> Vec<(&VarName, &VarInfo)> {
-        ContextProvider::dir(self)
-    }
-
-    pub fn get_receiver_ctx(&self, receiver_name: &str) -> Option<&Context> {
-        ContextProvider::get_receiver_ctx(self, receiver_name)
-    }
-
-    pub fn get_var_info(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
-        ContextProvider::get_var_info(self, name)
     }
 }
 

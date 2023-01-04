@@ -1018,7 +1018,7 @@ impl Context {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ModuleContext {
     pub context: Context,
     pub scope: Dict<Str, Context>,
