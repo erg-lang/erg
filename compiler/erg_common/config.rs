@@ -453,6 +453,7 @@ impl ErgConfig {
                     print!("pretty ");
                     #[cfg(feature = "large_thread")]
                     print!("large_thread");
+                    println!();
                     process::exit(0);
                 }
                 other if other.starts_with('-') => {
