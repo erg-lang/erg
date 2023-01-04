@@ -720,6 +720,7 @@ mod test {
                 None,
                 None,
                 None,
+                Location::Unknown,
             ),
         );
         let candidates = &[Type::Nat, Type::Inf, Type::Bool];

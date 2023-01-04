@@ -14,6 +14,7 @@ use std::path::PathBuf;
 
 use erg_common::config::ErgConfig;
 use erg_common::dict;
+use erg_common::error::Location;
 // use erg_common::error::Location;
 #[allow(unused_imports)]
 use erg_common::log;
@@ -132,10 +133,17 @@ impl Context {
         if self.decls.get(&name).is_some() {
             panic!("already registered: {} {name}", self.name);
         } else {
-            self.decls.insert(
-                name,
-                VarInfo::new(t, Immutable, vis, Builtin, None, impl_of, None),
+            let vi = VarInfo::new(
+                t,
+                Immutable,
+                vis,
+                Builtin,
+                None,
+                impl_of,
+                None,
+                Location::Unknown,
             );
+            self.decls.insert(name, vi);
         }
     }
 
@@ -175,6 +183,7 @@ impl Context {
             None,
             impl_of,
             py_name.map(Str::ever),
+            Location::Unknown,
         );
         if let Some(_vi) = self.decls.get(&name) {
             if _vi != &vi {
@@ -205,7 +214,16 @@ impl Context {
             None
         };
         let name = VarName::from_static(name);
-        let vi = VarInfo::new(t, muty, vis, Builtin, None, impl_of, None);
+        let vi = VarInfo::new(
+            t,
+            muty,
+            vis,
+            Builtin,
+            None,
+            impl_of,
+            None,
+            Location::Unknown,
+        );
         if self.locals.get(&name).is_some() {
             panic!("already registered: {} {name}", self.name);
         } else {
@@ -242,7 +260,16 @@ impl Context {
         } else {
             VarName::from_static(name)
         };
-        let vi = VarInfo::new(t, muty, vis, Builtin, None, impl_of, py_name.map(Str::ever));
+        let vi = VarInfo::new(
+            t,
+            muty,
+            vis,
+            Builtin,
+            None,
+            impl_of,
+            py_name.map(Str::ever),
+            Location::Unknown,
+        );
         if let Some(_vi) = self.locals.get(&name) {
             if _vi != &vi {
                 panic!("already registered: {} {name}", self.name);
@@ -270,6 +297,7 @@ impl Context {
                 None,
                 impl_of,
                 None,
+                Location::Unknown,
             );
             self.consts.insert(VarName::from_str(Str::rc(name)), obj);
             self.locals.insert(VarName::from_str(Str::rc(name)), vi);
@@ -343,6 +371,7 @@ impl Context {
                     None,
                     None,
                     py_name.map(Str::ever),
+                    Location::Unknown,
                 ),
             );
             self.consts
@@ -411,6 +440,7 @@ impl Context {
                         None,
                         None,
                         py_name.map(Str::ever),
+                        Location::Unknown,
                     ),
                 );
             }
@@ -461,10 +491,17 @@ impl Context {
             panic!("{} has already been registered", name);
         } else {
             let name = VarName::from_static(name);
-            self.locals.insert(
-                name.clone(),
-                VarInfo::new(Patch, muty, vis, Builtin, None, None, None),
+            let vi = VarInfo::new(
+                Patch,
+                muty,
+                vis,
+                Builtin,
+                None,
+                None,
+                None,
+                Location::Unknown,
             );
+            self.locals.insert(name.clone(), vi);
             for method_name in ctx.locals.keys() {
                 if let Some(patches) = self.method_impl_patches.get_mut(method_name) {
                     patches.push(name.clone());

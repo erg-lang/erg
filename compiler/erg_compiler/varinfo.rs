@@ -1,5 +1,6 @@
 use std::fmt;
 
+use erg_common::error::Location;
 use erg_common::set::Set;
 use erg_common::vis::Visibility;
 use erg_common::Str;
@@ -79,6 +80,7 @@ pub struct VarInfo {
     pub comptime_decos: Option<Set<Str>>,
     pub impl_of: Option<Type>,
     pub py_name: Option<Str>,
+    pub defined_in: Location,
 }
 
 impl fmt::Display for VarInfo {
@@ -128,9 +130,11 @@ impl VarInfo {
             None,
             None,
             None,
+            Location::Unknown,
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub const fn new(
         t: Type,
         muty: Mutability,
@@ -139,6 +143,7 @@ impl VarInfo {
         comptime_decos: Option<Set<Str>>,
         impl_of: Option<Type>,
         py_name: Option<Str>,
+        defined_in: Location,
     ) -> Self {
         Self {
             t,
@@ -148,6 +153,7 @@ impl VarInfo {
             comptime_decos,
             impl_of,
             py_name,
+            defined_in,
         }
     }
 

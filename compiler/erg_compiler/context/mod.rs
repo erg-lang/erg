@@ -21,6 +21,7 @@ use std::path::Path;
 
 use erg_common::config::ErgConfig;
 use erg_common::dict::Dict;
+use erg_common::error::Location;
 use erg_common::impl_display_from_debug;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
@@ -128,31 +129,38 @@ pub struct ParamSpec {
     // TODO: `:` or `<:`
     pub(crate) t: Type,
     pub default_info: DefaultInfo,
+    loc: Location,
 }
 
 impl ParamSpec {
-    pub const fn new(name: Option<&'static str>, t: Type, default: DefaultInfo) -> Self {
+    pub const fn new(
+        name: Option<&'static str>,
+        t: Type,
+        default: DefaultInfo,
+        loc: Location,
+    ) -> Self {
         Self {
             name,
             t,
             default_info: default,
+            loc,
         }
     }
 
     pub const fn named(name: &'static str, t: Type, default: DefaultInfo) -> Self {
-        Self::new(Some(name), t, default)
+        Self::new(Some(name), t, default, Location::Unknown)
     }
 
     pub const fn named_nd(name: &'static str, t: Type) -> Self {
-        Self::new(Some(name), t, DefaultInfo::NonDefault)
+        Self::new(Some(name), t, DefaultInfo::NonDefault, Location::Unknown)
     }
 
     pub const fn t(name: &'static str, default: DefaultInfo) -> Self {
-        Self::new(Some(name), Type, default)
+        Self::new(Some(name), Type, default, Location::Unknown)
     }
 
     pub const fn t_nd(name: &'static str) -> Self {
-        Self::new(Some(name), Type, DefaultInfo::NonDefault)
+        Self::new(Some(name), Type, DefaultInfo::NonDefault, Location::Unknown)
     }
 }
 
@@ -373,7 +381,7 @@ impl ContextProvider for Context {
     }
 
     fn get_var_info(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
-        if let Some(info) = self.get_local_kv(name) {
+        if let Some(info) = self.get_var_kv(name) {
             Some(info)
         } else {
             if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
@@ -469,12 +477,12 @@ impl Context {
             if let Some(name) = param.name {
                 let kind = VarKind::parameter(id, param.default_info);
                 let muty = Mutability::from(name);
-                let vi = VarInfo::new(param.t, muty, Private, kind, None, None, None);
+                let vi = VarInfo::new(param.t, muty, Private, kind, None, None, None, param.loc);
                 params_.push((Some(VarName::new(Token::static_symbol(name))), vi));
             } else {
                 let kind = VarKind::parameter(id, param.default_info);
                 let muty = Mutability::Immutable;
-                let vi = VarInfo::new(param.t, muty, Private, kind, None, None, None);
+                let vi = VarInfo::new(param.t, muty, Private, kind, None, None, None, param.loc);
                 params_.push((None, vi));
             }
         }

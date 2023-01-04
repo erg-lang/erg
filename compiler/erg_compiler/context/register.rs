@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use erg_common::env::erg_pystd_path;
+use erg_common::error::Location;
 use erg_common::levenshtein::get_similar_name;
 use erg_common::python_util::BUILTIN_PYTHON_MODS;
 use erg_common::set::Set;
@@ -95,7 +96,16 @@ impl Context {
                 ident.name.inspect(),
             )))
         } else {
-            let vi = VarInfo::new(sig_t, muty, vis, kind, None, self.impl_of(), py_name);
+            let vi = VarInfo::new(
+                sig_t,
+                muty,
+                vis,
+                kind,
+                None,
+                self.impl_of(),
+                py_name,
+                ident.name.loc(),
+            );
             self.future_defined_locals.insert(ident.name.clone(), vi);
             Ok(())
         }
@@ -139,6 +149,7 @@ impl Context {
             Some(comptime_decos),
             self.impl_of(),
             py_name,
+            sig.ident.name.loc(),
         );
         if let Some(_decl) = self.decls.remove(name) {
             Err(TyCheckErrors::from(TyCheckError::duplicate_decl_error(
@@ -184,6 +195,7 @@ impl Context {
                     None,
                     self.impl_of(),
                     py_name,
+                    ident.name.loc(),
                 )
             });
             self.locals.insert(ident.name.clone(), vi);
@@ -208,6 +220,7 @@ impl Context {
             None,
             self.impl_of(),
             py_name,
+            ident.name.loc(),
         );
         log!(info "Registered {}::{}: {}", self.name, ident.name, vi);
         self.locals.insert(ident.name.clone(), vi);
@@ -229,7 +242,7 @@ impl Context {
         match &sig.pat {
             // Literal patterns will be desugared to discard patterns
             ast::ParamPattern::Lit(_) => unreachable!(),
-            ast::ParamPattern::Discard(_token) => {
+            ast::ParamPattern::Discard(token) => {
                 let spec_t = self.instantiate_param_sig_t(
                     sig,
                     opt_decl_t,
@@ -238,7 +251,7 @@ impl Context {
                 )?;
                 let def_id = DefId(get_hash(&(&self.name, "_")));
                 let kind = VarKind::parameter(def_id, DefaultInfo::NonDefault);
-                let vi = VarInfo::new(spec_t, Immutable, vis, kind, None, None, None);
+                let vi = VarInfo::new(spec_t, Immutable, vis, kind, None, None, None, token.loc());
                 self.params.push((Some(VarName::from_static("_")), vi));
                 Ok(())
             }
@@ -274,7 +287,7 @@ impl Context {
                     let def_id = DefId(get_hash(&(&self.name, name)));
                     let kind = VarKind::parameter(def_id, default);
                     let muty = Mutability::from(&name.inspect()[..]);
-                    let vi = VarInfo::new(spec_t, muty, vis, kind, None, None, None);
+                    let vi = VarInfo::new(spec_t, muty, vis, kind, None, None, None, name.loc());
                     self.params.push((Some(name.clone()), vi));
                     Ok(())
                 }
@@ -312,7 +325,7 @@ impl Context {
                     let kind = VarKind::parameter(DefId(get_hash(&(&self.name, name))), default);
                     self.params.push((
                         Some(name.clone()),
-                        VarInfo::new(spec_t, Immutable, vis, kind, None, None, None),
+                        VarInfo::new(spec_t, Immutable, vis, kind, None, None, None, name.loc()),
                     ));
                     Ok(())
                 }
@@ -350,7 +363,7 @@ impl Context {
                     let kind = VarKind::parameter(DefId(get_hash(&(&self.name, name))), default);
                     self.params.push((
                         Some(name.clone()),
-                        VarInfo::new(spec_t, Immutable, vis, kind, None, None, None),
+                        VarInfo::new(spec_t, Immutable, vis, kind, None, None, None, name.loc()),
                     ));
                     Ok(())
                 }
@@ -530,6 +543,7 @@ impl Context {
             Some(comptime_decos),
             self.impl_of(),
             py_name,
+            name.loc(),
         );
         let t = vi.t.clone();
         log!(info "Registered {}::{name}: {t}", self.name);
@@ -579,6 +593,7 @@ impl Context {
             Some(comptime_decos),
             self.impl_of(),
             None,
+            name.loc(),
         );
         log!(info "Registered {}::{name}: {}", self.name, &vi.t);
         self.locals.insert(name.clone(), vi);
@@ -717,10 +732,17 @@ impl Context {
         if self.locals.get(&name).is_some() {
             panic!("already registered: {name}");
         } else {
-            self.locals.insert(
-                name,
-                VarInfo::new(t, muty, vis, VarKind::Auto, None, self.impl_of(), py_name),
+            let vi = VarInfo::new(
+                t,
+                muty,
+                vis,
+                VarKind::Auto,
+                None,
+                self.impl_of(),
+                py_name,
+                Location::Unknown,
             );
+            self.locals.insert(name, vi);
         }
     }
 
@@ -747,6 +769,7 @@ impl Context {
                     None,
                     self.impl_of(),
                     py_name,
+                    Location::Unknown,
                 ),
             );
         }
@@ -763,10 +786,17 @@ impl Context {
         if self.decls.get(&name).is_some() {
             panic!("already registered: {name}");
         } else {
-            self.decls.insert(
-                name,
-                VarInfo::new(t, Immutable, vis, VarKind::Declared, None, impl_of, py_name),
+            let vi = VarInfo::new(
+                t,
+                Immutable,
+                vis,
+                VarKind::Declared,
+                None,
+                impl_of,
+                py_name,
+                name.loc(),
             );
+            self.decls.insert(name, vi);
         }
     }
 
@@ -783,10 +813,17 @@ impl Context {
             panic!("already registered: {name}");
         } else {
             let id = DefId(get_hash(&(&self.name, &name)));
-            self.locals.insert(
-                name,
-                VarInfo::new(t, muty, vis, VarKind::Defined(id), None, impl_of, py_name),
+            let vi = VarInfo::new(
+                t,
+                muty,
+                vis,
+                VarKind::Defined(id),
+                None,
+                impl_of,
+                py_name,
+                name.loc(),
             );
+            self.locals.insert(name, vi);
         }
     }
 
@@ -839,6 +876,7 @@ impl Context {
                         None,
                         self.impl_of(),
                         None,
+                        Location::Unknown,
                     );
                     self.decls.insert(ident.name.clone(), vi);
                     self.consts.insert(ident.name.clone(), other);
@@ -977,6 +1015,7 @@ impl Context {
                             None,
                             self.impl_of(),
                             None,
+                            Location::Unknown,
                         );
                         ctx.decls
                             .insert(VarName::from_str(field.symbol.clone()), vi);
@@ -1016,6 +1055,7 @@ impl Context {
                                 None,
                                 self.impl_of(),
                                 None,
+                                Location::Unknown,
                             );
                             ctx.decls
                                 .insert(VarName::from_str(field.symbol.clone()), vi);
@@ -1073,6 +1113,7 @@ impl Context {
                     None,
                     self.impl_of(),
                     None,
+                    name.loc(),
                 ),
             );
             self.consts
@@ -1108,6 +1149,7 @@ impl Context {
                     None,
                     self.impl_of(),
                     None,
+                    name.loc(),
                 ),
             );
             self.consts
@@ -1174,6 +1216,7 @@ impl Context {
                     None,
                     self.impl_of(),
                     None,
+                    name.loc(),
                 ),
             );
             self.consts
@@ -1418,7 +1461,7 @@ impl Context {
         let is_builtin = self
             .get_builtins()
             .unwrap()
-            .get_local_kv(ident.inspect())
+            .get_var_kv(ident.inspect())
             .is_some();
         if is_const || is_builtin {
             Err(TyCheckErrors::from(TyCheckError::del_error(

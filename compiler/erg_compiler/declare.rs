@@ -169,7 +169,16 @@ impl ASTLowerer {
                 let muty = Mutability::from(&ident.inspect()[..]);
                 let vis = ident.vis();
                 let py_name = Str::rc(ident.inspect().trim_end_matches('!'));
-                let vi = VarInfo::new(t, muty, vis, VarKind::Declared, None, None, Some(py_name));
+                let vi = VarInfo::new(
+                    t,
+                    muty,
+                    vis,
+                    VarKind::Declared,
+                    None,
+                    None,
+                    Some(py_name),
+                    ident.loc(),
+                );
                 let ident = hir::Identifier::new(ident.dot, ident.name, None, vi);
                 Ok(hir::Expr::Accessor(hir::Accessor::Ident(ident)).type_asc(tasc.t_spec))
             }
@@ -200,7 +209,16 @@ impl ASTLowerer {
                 let muty = Mutability::from(&attr.ident.inspect()[..]);
                 let vis = attr.ident.vis();
                 let py_name = Str::rc(attr.ident.inspect().trim_end_matches('!'));
-                let vi = VarInfo::new(t, muty, vis, VarKind::Declared, None, None, Some(py_name));
+                let vi = VarInfo::new(
+                    t,
+                    muty,
+                    vis,
+                    VarKind::Declared,
+                    None,
+                    None,
+                    Some(py_name),
+                    attr.ident.loc(),
+                );
                 let ident = hir::Identifier::new(attr.ident.dot, attr.ident.name, None, vi);
                 let attr = obj.attr_expr(ident);
                 Ok(attr.type_asc(tasc.t_spec))
@@ -233,6 +251,7 @@ impl ASTLowerer {
                 None,
                 None,
                 Some(py_name.clone()),
+                ident.loc(),
             );
             self.module.context.decls.insert(ident.name.clone(), vi);
         }

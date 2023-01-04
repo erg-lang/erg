@@ -137,7 +137,7 @@ impl<'a> HIRVisitor<'a> {
         None
     }
 
-    fn cmp_return_expr_t<T: HasType>(&self, expr: &T, l: &Token, r: &Token) -> Option<Type> {
+    fn return_expr_t_if_same<T: HasType>(&self, expr: &T, l: &Token, r: &Token) -> Option<Type> {
         if self.strict_cmp {
             if l.deep_eq(r) {
                 Some(expr.t())
@@ -156,7 +156,7 @@ impl<'a> HIRVisitor<'a> {
             return None;
         }
         match expr {
-            Expr::Lit(lit) => self.cmp_return_expr_t(expr, &lit.token, token),
+            Expr::Lit(lit) => self.return_expr_t_if_same(expr, &lit.token, token),
             Expr::Accessor(acc) => self.visit_acc_t(expr, acc, token),
             Expr::BinOp(bin) => self.visit_bin_t(bin, token),
             Expr::UnaryOp(unary) => self.visit_expr_t(&unary.expr, token),
@@ -180,9 +180,9 @@ impl<'a> HIRVisitor<'a> {
 
     fn visit_acc_t(&self, expr: &Expr, acc: &Accessor, token: &Token) -> Option<Type> {
         match acc {
-            Accessor::Ident(ident) => self.cmp_return_expr_t(expr, ident.name.token(), token),
+            Accessor::Ident(ident) => self.return_expr_t_if_same(expr, ident.name.token(), token),
             Accessor::Attr(attr) => self
-                .cmp_return_expr_t(expr, attr.ident.name.token(), token)
+                .return_expr_t_if_same(expr, attr.ident.name.token(), token)
                 .or_else(|| self.visit_expr_t(&attr.obj, token)),
         }
     }
@@ -194,7 +194,7 @@ impl<'a> HIRVisitor<'a> {
 
     fn visit_call_t(&self, call: &Call, token: &Token) -> Option<Type> {
         if let Some(attr) = &call.attr_name {
-            if let Some(t) = self.cmp_return_expr_t(attr, attr.name.token(), token) {
+            if let Some(t) = self.return_expr_t_if_same(attr, attr.name.token(), token) {
                 return Some(t);
             }
         }

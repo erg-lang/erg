@@ -90,8 +90,10 @@ impl Context {
             })
     }
 
-    pub(crate) fn get_local_kv(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
-        self.locals.get_key_value(name)
+    pub(crate) fn get_var_kv(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
+        self.locals
+            .get_key_value(name)
+            .or_else(|| self.get_outer().and_then(|ctx| ctx.get_var_kv(name)))
     }
 
     pub(crate) fn get_singular_ctx_by_hir_expr(
@@ -600,6 +602,7 @@ impl Context {
                         None,
                         None,
                         None,
+                        Location::Unknown,
                     );
                     Ok(vi)
                 } else {
@@ -630,6 +633,7 @@ impl Context {
                                     None,
                                     None,
                                     None,
+                                    Location::Unknown,
                                 )
                             })
                             .ok_or_else(|| {

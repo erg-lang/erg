@@ -20,6 +20,7 @@ use erg_parser::Parser;
 
 use crate::artifact::{CompleteArtifact, IncompleteArtifact};
 use crate::context::instantiate::TyVarCache;
+use crate::index::ModuleIndex;
 use crate::ty::constructors::{
     array_mut, array_t, free_var, func, mono, poly, proc, set_mut, set_t, ty_tp,
 };
@@ -50,6 +51,7 @@ use Visibility::*;
 pub struct ASTLowerer {
     cfg: ErgConfig,
     pub(crate) module: ModuleContext,
+    pub(crate) index: ModuleIndex,
     pub(crate) errs: LowerErrors,
     pub(crate) warns: LowerWarnings,
 }
@@ -147,8 +149,10 @@ impl ASTLowerer {
     ) -> Self {
         let toplevel = Context::new_module(mod_name, cfg.clone(), mod_cache, py_mod_cache);
         let module = ModuleContext::new(toplevel, dict! {});
+        let index = ModuleIndex::new();
         Self {
             module,
+            index,
             cfg,
             errs: LowerErrors::empty(),
             warns: LowerWarnings::empty(),
@@ -740,6 +744,7 @@ impl ASTLowerer {
                     &self.cfg.input,
                     &self.module.context.name,
                 )?;
+                self.index.add_ref(vi.defined_in, attr.ident.name.loc());
                 let ident = hir::Identifier::new(attr.ident.dot, attr.ident.name, None, vi);
                 let acc = hir::Accessor::Attr(hir::Attribute::new(obj, ident));
                 Ok(acc)
@@ -756,7 +761,7 @@ impl ASTLowerer {
         }
     }
 
-    fn lower_ident(&self, ident: ast::Identifier) -> LowerResult<hir::Identifier> {
+    fn lower_ident(&mut self, ident: ast::Identifier) -> LowerResult<hir::Identifier> {
         // `match` is a special form, typing is magic
         let (vi, __name__) = if ident.vis().is_private()
             && (&ident.inspect()[..] == "match" || &ident.inspect()[..] == "match!")
@@ -783,6 +788,7 @@ impl ASTLowerer {
                     .map(|ctx| ctx.name.clone()),
             )
         };
+        self.index.add_ref(vi.defined_in, ident.name.loc());
         let ident = hir::Identifier::new(ident.dot, ident.name, __name__, vi);
         Ok(ident)
     }
@@ -1082,6 +1088,7 @@ impl ASTLowerer {
             .partition(|(_, v)| !v.kind.has_default());
         let non_default_params = non_default_params
             .into_iter()
+            // necessary when `py_compatible` feature is enabled
             .filter(|(name, _)| {
                 params
                     .non_defaults
@@ -1753,7 +1760,7 @@ impl ASTLowerer {
                             Type::Record(attrs) => {
                                 for (field, decl_t) in attrs.iter() {
                                     if let Some((name, vi)) =
-                                        self.module.context.get_local_kv(&field.symbol)
+                                        self.module.context.get_var_kv(&field.symbol)
                                     {
                                         let def_t = &vi.t;
                                         //    A(<: Add(R)), R -> A.Output
@@ -1805,7 +1812,7 @@ impl ASTLowerer {
                             let (_, ctx) = self.module.context.get_nominal_type_ctx(_typ).unwrap();
                             for (decl_name, decl_vi) in ctx.decls.iter() {
                                 if let Some((name, vi)) =
-                                    self.module.context.get_local_kv(decl_name.inspect())
+                                    self.module.context.get_var_kv(decl_name.inspect())
                                 {
                                     let def_t = &vi.t;
                                     let replaced_decl_t =
@@ -1891,7 +1898,7 @@ impl ASTLowerer {
                 // TODO: 特殊化なら同じ名前でもOK
                 // TODO: 定義のメソッドもエラー表示
                 if let Some((_already_defined_name, already_defined_vi)) =
-                    already_defined_methods.get_local_kv(newly_defined_name.inspect())
+                    already_defined_methods.get_var_kv(newly_defined_name.inspect())
                 {
                     if already_defined_vi.kind != VarKind::Auto
                         && already_defined_vi.impl_of == vi.impl_of
@@ -1931,7 +1938,7 @@ impl ASTLowerer {
                 // TODO: 特殊化なら同じ名前でもOK
                 // TODO: 定義のメソッドもエラー表示
                 if let Some((_already_defined_name, already_defined_vi)) =
-                    already_defined_methods.get_local_kv(newly_defined_name.inspect())
+                    already_defined_methods.get_var_kv(newly_defined_name.inspect())
                 {
                     if already_defined_vi.kind != VarKind::Auto
                         && already_defined_vi.impl_of == vi.impl_of
