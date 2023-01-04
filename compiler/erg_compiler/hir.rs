@@ -1630,6 +1630,10 @@ impl DefaultParamSignature {
     pub const fn inspect(&self) -> Option<&Str> {
         self.sig.pat.inspect()
     }
+
+    pub const fn name(&self) -> Option<&VarName> {
+        self.sig.name()
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

@@ -236,14 +236,10 @@ impl Context {
                     &mut TyVarCache::new(self.level, self),
                     Normal,
                 )?;
-                let kind = VarKind::parameter(
-                    DefId(get_hash(&(&self.name, "_"))),
-                    DefaultInfo::NonDefault,
-                );
-                self.params.push((
-                    Some(VarName::from_static("_")),
-                    VarInfo::new(spec_t, Immutable, vis, kind, None, None, None),
-                ));
+                let def_id = DefId(get_hash(&(&self.name, "_")));
+                let kind = VarKind::parameter(def_id, DefaultInfo::NonDefault);
+                let vi = VarInfo::new(spec_t, Immutable, vis, kind, None, None, None);
+                self.params.push((Some(VarName::from_static("_")), vi));
                 Ok(())
             }
             ast::ParamPattern::VarName(name) => {
@@ -275,12 +271,11 @@ impl Context {
                     } else {
                         DefaultInfo::NonDefault
                     };
-                    let kind = VarKind::parameter(DefId(get_hash(&(&self.name, name))), default);
+                    let def_id = DefId(get_hash(&(&self.name, name)));
+                    let kind = VarKind::parameter(def_id, default);
                     let muty = Mutability::from(&name.inspect()[..]);
-                    self.params.push((
-                        Some(name.clone()),
-                        VarInfo::new(spec_t, muty, vis, kind, None, None, None),
-                    ));
+                    let vi = VarInfo::new(spec_t, muty, vis, kind, None, None, None);
+                    self.params.push((Some(name.clone()), vi));
                     Ok(())
                 }
             }

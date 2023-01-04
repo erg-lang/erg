@@ -2995,6 +2995,13 @@ impl ParamPattern {
             _ => false,
         }
     }
+
+    pub const fn name(&self) -> Option<&VarName> {
+        match self {
+            Self::VarName(n) | Self::Ref(n) | Self::RefMut(n) => Some(n),
+            _ => None,
+        }
+    }
 }
 
 /// Once the default_value is set to Some, all subsequent values must be Some
@@ -3029,6 +3036,10 @@ impl NonDefaultParamSignature {
 
     pub const fn inspect(&self) -> Option<&Str> {
         self.pat.inspect()
+    }
+
+    pub const fn name(&self) -> Option<&VarName> {
+        self.pat.name()
     }
 }
 

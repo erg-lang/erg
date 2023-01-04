@@ -1082,15 +1082,39 @@ impl ASTLowerer {
             .partition(|(_, v)| !v.kind.has_default());
         let non_default_params = non_default_params
             .into_iter()
+            .filter(|(name, _)| {
+                params
+                    .non_defaults
+                    .iter()
+                    .any(|nd| nd.name() == name.as_ref())
+            })
             .map(|(name, vi)| {
                 ParamTy::pos(name.as_ref().map(|n| n.inspect().clone()), vi.t.clone())
             })
             .collect();
         let default_params = default_params
             .into_iter()
+            .filter(|(name, _)| params.defaults.iter().any(|d| d.name() == name.as_ref()))
             .map(|(name, vi)| ParamTy::kw(name.as_ref().unwrap().inspect().clone(), vi.t.clone()))
             .collect();
-        if !in_statement {
+        if in_statement {
+            // For example, `i` in `for i in ...` is a parameter,
+            // but should be treated as a local variable in the later analysis, so move it to locals
+            for nd_param in params.non_defaults.iter() {
+                if let Some(idx) = self
+                    .module
+                    .context
+                    .params
+                    .iter()
+                    .position(|(name, _)| name.as_ref() == nd_param.name())
+                {
+                    let (name, vi) = self.module.context.params.remove(idx);
+                    if let Some(name) = name {
+                        self.module.context.locals.insert(name, vi);
+                    }
+                }
+            }
+        } else {
             self.pop_append_errs();
         }
         let t = if is_procedural {
