@@ -71,6 +71,7 @@ impl ASTLowerer {
                 .context
                 .assign_var_sig(&sig, found_body_t, id, py_name.clone())?;
         }
+        // FIXME: Identifier::new should be used
         let mut ident = hir::Identifier::bare(ident.dot.clone(), ident.name.clone());
         ident.vi.t = found_body_t.clone();
         ident.vi.py_name = py_name;
@@ -177,7 +178,7 @@ impl ASTLowerer {
                     None,
                     None,
                     Some(py_name),
-                    ident.loc(),
+                    self.module.context.absolutize(ident.loc()),
                 );
                 let ident = hir::Identifier::new(ident.dot, ident.name, None, vi);
                 Ok(hir::Expr::Accessor(hir::Accessor::Ident(ident)).type_asc(tasc.t_spec))
@@ -217,7 +218,7 @@ impl ASTLowerer {
                     None,
                     None,
                     Some(py_name),
-                    attr.ident.loc(),
+                    self.module.context.absolutize(attr.ident.loc()),
                 );
                 let ident = hir::Identifier::new(attr.ident.dot, attr.ident.name, None, vi);
                 let attr = obj.attr_expr(ident);
@@ -251,7 +252,7 @@ impl ASTLowerer {
                 None,
                 None,
                 Some(py_name.clone()),
-                ident.loc(),
+                self.module.context.absolutize(ident.loc()),
             );
             self.module.context.decls.insert(ident.name.clone(), vi);
         }

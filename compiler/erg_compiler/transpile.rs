@@ -18,6 +18,7 @@ use crate::codegen::PyCodeGenerator;
 use crate::context::{Context, ContextProvider, ModuleContext};
 use crate::desugar_hir::HIRDesugarer;
 use crate::error::{CompileError, CompileErrors};
+use crate::global::SharedCompilerResource;
 use crate::hir::{
     Accessor, Args, Array, BinOp, Block, Call, ClassDef, Def, Dict, Expr, Identifier, Lambda,
     Literal, Params, PatchDef, ReDef, Record, Set, Signature, Tuple, UnaryOp, HIR,
@@ -105,17 +106,11 @@ impl Runnable for Transpiler {
     const NAME: &'static str = "Erg transpiler";
 
     fn new(cfg: ErgConfig) -> Self {
-        let mod_cache = SharedModuleCache::new(cfg.copy());
-        let py_mod_cache = SharedModuleCache::new(cfg.copy());
+        let shared = SharedCompilerResource::new(cfg.copy());
         Self {
-            builder: HIRBuilder::new_with_cache(
-                cfg.copy(),
-                "<module>",
-                mod_cache.clone(),
-                py_mod_cache,
-            ),
+            mod_cache: shared.mod_cache.clone(),
+            builder: HIRBuilder::new_with_cache(cfg.copy(), "<module>", shared),
             script_generator: ScriptGenerator::new(),
-            mod_cache,
             cfg,
         }
     }

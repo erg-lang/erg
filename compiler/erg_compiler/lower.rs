@@ -20,7 +20,7 @@ use erg_parser::Parser;
 
 use crate::artifact::{CompleteArtifact, IncompleteArtifact};
 use crate::context::instantiate::TyVarCache;
-use crate::index::ModuleIndex;
+use crate::global::SharedCompilerResource;
 use crate::ty::constructors::{
     array_mut, array_t, free_var, func, mono, poly, proc, set_mut, set_t, ty_tp,
 };
@@ -39,7 +39,6 @@ use crate::error::{
 };
 use crate::hir;
 use crate::hir::HIR;
-use crate::mod_cache::SharedModuleCache;
 use crate::reorder::Reorderer;
 use crate::varinfo::{VarInfo, VarKind};
 use crate::AccessKind;
@@ -51,7 +50,6 @@ use Visibility::*;
 pub struct ASTLowerer {
     cfg: ErgConfig,
     pub(crate) module: ModuleContext,
-    pub(crate) index: ModuleIndex,
     pub(crate) errs: LowerErrors,
     pub(crate) warns: LowerWarnings,
 }
@@ -61,8 +59,7 @@ impl Default for ASTLowerer {
         Self::new_with_cache(
             ErgConfig::default(),
             Str::ever("<module>"),
-            SharedModuleCache::new(ErgConfig::default()),
-            SharedModuleCache::new(ErgConfig::default()),
+            SharedCompilerResource::default(),
         )
     }
 }
@@ -85,8 +82,7 @@ impl Runnable for ASTLowerer {
         Self::new_with_cache(
             cfg.copy(),
             Str::ever("<module>"),
-            SharedModuleCache::new(cfg.copy()),
-            SharedModuleCache::new(cfg),
+            SharedCompilerResource::new(cfg),
         )
     }
 
@@ -144,15 +140,12 @@ impl ASTLowerer {
     pub fn new_with_cache<S: Into<Str>>(
         cfg: ErgConfig,
         mod_name: S,
-        mod_cache: SharedModuleCache,
-        py_mod_cache: SharedModuleCache,
+        shared: SharedCompilerResource,
     ) -> Self {
-        let toplevel = Context::new_module(mod_name, cfg.clone(), mod_cache, py_mod_cache);
+        let toplevel = Context::new_module(mod_name, cfg.clone(), shared);
         let module = ModuleContext::new(toplevel, dict! {});
-        let index = ModuleIndex::new();
         Self {
             module,
-            index,
             cfg,
             errs: LowerErrors::empty(),
             warns: LowerWarnings::empty(),
@@ -744,7 +737,10 @@ impl ASTLowerer {
                     &self.cfg.input,
                     &self.module.context.name,
                 )?;
-                self.index.add_ref(vi.defined_in, attr.ident.name.loc());
+                self.module.context.index().unwrap().add_ref(
+                    vi.def_loc.clone(),
+                    self.module.context.absolutize(attr.ident.name.loc()),
+                );
                 let ident = hir::Identifier::new(attr.ident.dot, attr.ident.name, None, vi);
                 let acc = hir::Accessor::Attr(hir::Attribute::new(obj, ident));
                 Ok(acc)
@@ -788,7 +784,10 @@ impl ASTLowerer {
                     .map(|ctx| ctx.name.clone()),
             )
         };
-        self.index.add_ref(vi.defined_in, ident.name.loc());
+        self.module.context.index().unwrap().add_ref(
+            vi.def_loc.clone(),
+            self.module.context.absolutize(ident.name.loc()),
+        );
         let ident = hir::Identifier::new(ident.dot, ident.name, __name__, vi);
         Ok(ident)
     }
@@ -910,6 +909,10 @@ impl ASTLowerer {
             }
         };
         let attr_name = if let Some(attr_name) = call.attr_name {
+            self.module.context.index().unwrap().add_ref(
+                vi.def_loc.clone(),
+                self.module.context.absolutize(attr_name.name.loc()),
+            );
             Some(hir::Identifier::new(
                 attr_name.dot,
                 attr_name.name,
@@ -1254,14 +1257,13 @@ impl ASTLowerer {
                         }
                     }
                 }
-                self.module.context.outer.as_mut().unwrap().assign_var_sig(
+                let vi = self.module.context.outer.as_mut().unwrap().assign_var_sig(
                     &sig,
                     found_body_t,
                     body.id,
                     None,
                 )?;
-                let mut ident = hir::Identifier::bare(ident.dot.clone(), ident.name.clone());
-                ident.vi.t = found_body_t.clone();
+                let ident = hir::Identifier::new(ident.dot.clone(), ident.name.clone(), None, vi);
                 let sig = hir::VarSignature::new(ident);
                 let body = hir::DefBody::new(body.op, block, body.id);
                 Ok(hir::Def::new(hir::Signature::Var(sig), body))
@@ -1306,12 +1308,12 @@ impl ASTLowerer {
                 match self.lower_block(body.block) {
                     Ok(block) => {
                         let found_body_t = block.ref_t();
-                        let t = self.module.context.outer.as_mut().unwrap().assign_subr(
+                        let vi = self.module.context.outer.as_mut().unwrap().assign_subr(
                             &sig,
                             body.id,
                             found_body_t,
                         )?;
-                        let return_t = t.return_t().unwrap();
+                        let return_t = vi.t.return_t().unwrap();
                         if return_t.union_types().is_some() && sig.return_t_spec.is_none() {
                             let warn = LowerWarning::union_return_type_warning(
                                 self.input().clone(),
@@ -1331,20 +1333,19 @@ impl ASTLowerer {
                             );
                             self.warns.push(warn);
                         }
-                        let mut ident = hir::Identifier::bare(sig.ident.dot, sig.ident.name);
-                        ident.vi.t = t;
+                        let ident = hir::Identifier::new(sig.ident.dot, sig.ident.name, None, vi);
                         let sig = hir::SubrSignature::new(ident, params);
                         let body = hir::DefBody::new(body.op, block, body.id);
                         Ok(hir::Def::new(hir::Signature::Subr(sig), body))
                     }
                     Err(errs) => {
-                        self.module.context.outer.as_mut().unwrap().assign_subr(
+                        let vi = self.module.context.outer.as_mut().unwrap().assign_subr(
                             &sig,
                             ast::DefId(0),
                             &Type::Failure,
                         )?;
                         self.errs.extend(errs);
-                        let ident = hir::Identifier::bare(sig.ident.dot, sig.ident.name);
+                        let ident = hir::Identifier::new(sig.ident.dot, sig.ident.name, None, vi);
                         let sig = hir::SubrSignature::new(ident, params);
                         let block =
                             hir::Block::new(vec![hir::Expr::Dummy(hir::Dummy::new(vec![]))]);

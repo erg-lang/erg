@@ -517,7 +517,7 @@ mod test {
         error::*,
         hir::Identifier,
         ty::{Predicate, Type},
-        varinfo::VarInfo,
+        varinfo::{AbsLocation, VarInfo},
     };
     use erg_common::{config::Input, error::Location};
     use erg_parser::ast::VarName;
@@ -720,7 +720,7 @@ mod test {
                 None,
                 None,
                 None,
-                Location::Unknown,
+                AbsLocation::unknown(),
             ),
         );
         let candidates = &[Type::Nat, Type::Inf, Type::Bool];

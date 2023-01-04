@@ -14,14 +14,13 @@ use std::path::PathBuf;
 
 use erg_common::config::ErgConfig;
 use erg_common::dict;
-use erg_common::error::Location;
-// use erg_common::error::Location;
 #[allow(unused_imports)]
 use erg_common::log;
 use erg_common::vis::Visibility;
 use erg_common::Str;
 use erg_common::{set, unique_in_place};
 
+use crate::global::SharedCompilerResource;
 use crate::ty::free::Constraint;
 use crate::ty::value::ValueObj;
 use crate::ty::Type;
@@ -38,7 +37,7 @@ use crate::context::{
     ClassDefType, Context, ContextKind, MethodInfo, ModuleContext, ParamSpec, TraitImpl,
 };
 use crate::mod_cache::SharedModuleCache;
-use crate::varinfo::{Mutability, VarInfo, VarKind};
+use crate::varinfo::{AbsLocation, Mutability, VarInfo, VarKind};
 use Mutability::*;
 use VarKind::*;
 use Visibility::*;
@@ -141,7 +140,7 @@ impl Context {
                 None,
                 impl_of,
                 None,
-                Location::Unknown,
+                AbsLocation::unknown(),
             );
             self.decls.insert(name, vi);
         }
@@ -183,7 +182,7 @@ impl Context {
             None,
             impl_of,
             py_name.map(Str::ever),
-            Location::Unknown,
+            AbsLocation::unknown(),
         );
         if let Some(_vi) = self.decls.get(&name) {
             if _vi != &vi {
@@ -222,7 +221,7 @@ impl Context {
             None,
             impl_of,
             None,
-            Location::Unknown,
+            AbsLocation::unknown(),
         );
         if self.locals.get(&name).is_some() {
             panic!("already registered: {} {name}", self.name);
@@ -268,7 +267,7 @@ impl Context {
             None,
             impl_of,
             py_name.map(Str::ever),
-            Location::Unknown,
+            AbsLocation::unknown(),
         );
         if let Some(_vi) = self.locals.get(&name) {
             if _vi != &vi {
@@ -297,7 +296,7 @@ impl Context {
                 None,
                 impl_of,
                 None,
-                Location::Unknown,
+                AbsLocation::unknown(),
             );
             self.consts.insert(VarName::from_str(Str::rc(name)), obj);
             self.locals.insert(VarName::from_str(Str::rc(name)), vi);
@@ -371,7 +370,7 @@ impl Context {
                     None,
                     None,
                     py_name.map(Str::ever),
-                    Location::Unknown,
+                    AbsLocation::unknown(),
                 ),
             );
             self.consts
@@ -440,7 +439,7 @@ impl Context {
                         None,
                         None,
                         py_name.map(Str::ever),
-                        Location::Unknown,
+                        AbsLocation::unknown(),
                     ),
                 );
             }
@@ -499,7 +498,7 @@ impl Context {
                 None,
                 None,
                 None,
-                Location::Unknown,
+                AbsLocation::unknown(),
             );
             self.locals.insert(name.clone(), vi);
             for method_name in ctx.locals.keys() {
@@ -587,8 +586,7 @@ impl Context {
     pub fn new_module<S: Into<Str>>(
         name: S,
         cfg: ErgConfig,
-        mod_cache: SharedModuleCache,
-        py_mod_cache: SharedModuleCache,
+        shared: SharedCompilerResource,
     ) -> Self {
         Context::new(
             name.into(),
@@ -596,8 +594,7 @@ impl Context {
             ContextKind::Module,
             vec![],
             None,
-            Some(mod_cache),
-            Some(py_mod_cache),
+            Some(shared),
             Context::TOP_LEVEL,
         )
     }

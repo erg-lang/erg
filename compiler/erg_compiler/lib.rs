@@ -13,6 +13,7 @@ pub mod declare;
 pub mod desugar_hir;
 pub mod effectcheck;
 pub mod error;
+pub mod global;
 pub mod hir;
 pub mod link;
 pub mod linter;

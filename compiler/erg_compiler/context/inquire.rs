@@ -29,7 +29,7 @@ use crate::error::{
     binop_to_dname, readable_name, unaryop_to_dname, SingleTyCheckResult, TyCheckError,
     TyCheckErrors, TyCheckResult,
 };
-use crate::varinfo::{Mutability, VarInfo, VarKind};
+use crate::varinfo::{AbsLocation, Mutability, VarInfo, VarKind};
 use crate::AccessKind;
 use crate::{feature_error, hir};
 use RegistrationMode::*;
@@ -39,14 +39,9 @@ use super::{ContextKind, MethodInfo};
 
 impl Context {
     pub(crate) fn get_ctx_from_path(&self, path: &Path) -> Option<&Context> {
-        self.mod_cache
-            .as_ref()
+        self.mod_cache()
             .and_then(|cache| cache.ref_ctx(path))
-            .or_else(|| {
-                self.py_mod_cache
-                    .as_ref()
-                    .and_then(|cache| cache.ref_ctx(path))
-            })
+            .or_else(|| self.py_mod_cache().and_then(|cache| cache.ref_ctx(path)))
             .map(|mod_ctx| &mod_ctx.context)
     }
 
@@ -602,7 +597,7 @@ impl Context {
                         None,
                         None,
                         None,
-                        Location::Unknown,
+                        AbsLocation::unknown(),
                     );
                     Ok(vi)
                 } else {
@@ -633,7 +628,7 @@ impl Context {
                                     None,
                                     None,
                                     None,
-                                    Location::Unknown,
+                                    AbsLocation::unknown(),
                                 )
                             })
                             .ok_or_else(|| {

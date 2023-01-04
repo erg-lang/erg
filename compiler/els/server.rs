@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::io;
 use std::io::{stdin, stdout, BufRead, Read, StdinLock, StdoutLock, Write};
 use std::str::FromStr;
@@ -18,16 +19,17 @@ use erg_compiler::erg_parser::ast::VarName;
 use erg_compiler::erg_parser::token::{Token, TokenCategory, TokenKind};
 use erg_compiler::error::CompileErrors;
 use erg_compiler::hir::HIR;
+use erg_compiler::index::SharedModuleIndex;
 use erg_compiler::ty::Type;
-use erg_compiler::varinfo::VarInfo;
+use erg_compiler::varinfo::{AbsLocation, VarInfo, VarKind};
 use erg_compiler::AccessKind;
 
 use lsp_types::{
     ClientCapabilities, CompletionItem, CompletionItemKind, CompletionOptions, CompletionParams,
     Diagnostic, DiagnosticSeverity, GotoDefinitionParams, GotoDefinitionResponse, HoverContents,
     HoverParams, HoverProviderCapability, InitializeResult, MarkedString, OneOf, Position,
-    PublishDiagnosticsParams, Range, ServerCapabilities, TextDocumentSyncCapability,
-    TextDocumentSyncKind, Url,
+    PublishDiagnosticsParams, Range, RenameParams, ServerCapabilities, TextDocumentSyncCapability,
+    TextDocumentSyncKind, TextEdit, Url, WorkspaceEdit,
 };
 
 use crate::hir_visitor::HIRVisitor;
@@ -156,6 +158,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let mut comp_options = CompletionOptions::default();
         comp_options.trigger_characters = Some(vec![".".to_string(), ":".to_string()]);
         result.capabilities.completion_provider = Some(comp_options);
+        result.capabilities.rename_provider = Some(OneOf::Left(true));
         result.capabilities.definition_provider = Some(OneOf::Left(true));
         result.capabilities.hover_provider = Some(HoverProviderCapability::Simple(true));
         result.capabilities.inlay_hint_provider = Some(OneOf::Left(true));
@@ -267,6 +270,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             "textDocument/completion" => self.show_completion(msg),
             "textDocument/definition" => self.show_definition(msg),
             "textDocument/hover" => self.show_hover(msg),
+            "textDocument/rename" => self.rename(msg),
             other => Self::send_error(Some(id), -32600, format!("{other} is not supported")),
         }
     }
@@ -587,6 +591,63 @@ impl<Checker: BuildRunnable> Server<Checker> {
         )
     }
 
+    fn rename(&self, msg: &Value) -> ELSResult<()> {
+        let params = RenameParams::deserialize(&msg["params"])?;
+        Self::send_log(format!("rename request: {params:?}"))?;
+        let uri = params.text_document_position.text_document.uri;
+        let pos = params.text_document_position.position;
+        if let Some(tok) = util::get_token(uri.clone(), pos)? {
+            Self::send_log(format!("token: {tok}"))?;
+            if let Some(visitor) = self.get_visitor(&uri) {
+                if let Some(vi) = visitor.visit_hir_info(&tok) {
+                    Self::send_log(format!("vi: {vi}"))?;
+                    if vi.def_loc.loc.is_unknown() {
+                        let error_reason = match vi.kind {
+                            VarKind::Builtin => "this is a builtin variable and cannot be renamed",
+                            VarKind::FixedAuto => {
+                                "this is a fixed auto variable and cannot be renamed"
+                            }
+                            _ => "this name cannot be renamed",
+                        };
+                        return Self::send_error(msg["id"].as_i64(), 0, error_reason);
+                    }
+                    let mut changes: HashMap<Url, Vec<TextEdit>> = HashMap::new();
+                    Self::commit_change(&mut changes, &vi.def_loc, params.new_name.clone());
+                    if let Some(referrers) = self.get_index().get_refs(&vi.def_loc) {
+                        Self::send_log(format!("referrers: {referrers:?}"))?;
+                        for referrer in referrers {
+                            Self::commit_change(&mut changes, referrer, params.new_name.clone());
+                        }
+                    }
+                    let edit = WorkspaceEdit::new(changes);
+                    Self::send(
+                        &json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": edit }),
+                    )?;
+                    return Ok(());
+                }
+            }
+        }
+        Self::send(
+            &json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": Value::Null }),
+        )
+    }
+
+    fn commit_change(
+        changes: &mut HashMap<Url, Vec<TextEdit>>,
+        abs_loc: &AbsLocation,
+        new_name: String,
+    ) {
+        if let Some(path) = &abs_loc.module {
+            let uri = Url::from_file_path(path).unwrap();
+            let edit = TextEdit::new(util::loc_to_range(abs_loc.loc).unwrap(), new_name);
+            if let Some(edits) = changes.get_mut(&uri) {
+                edits.push(edit);
+            } else {
+                changes.insert(uri, vec![edit]);
+            }
+        }
+    }
+
     fn get_receiver_ctxs(&self, uri: Url, attr_marker_pos: Position) -> ELSResult<Vec<&Context>> {
         let Some(module) = self.module.as_ref() else {
             return Ok(vec![]);
@@ -614,5 +675,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
             Self::send_log("token not found")?;
             Ok(vec![])
         }
+    }
+
+    fn get_index(&self) -> &SharedModuleIndex {
+        self.module.as_ref().unwrap().context.index().unwrap()
     }
 }
