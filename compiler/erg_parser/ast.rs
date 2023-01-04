@@ -88,7 +88,7 @@ impl Literal {
         Self { token }
     }
 
-    pub fn nat(n: usize, line: usize) -> Self {
+    pub fn nat(n: usize, line: u32) -> Self {
         let token = Token::new(TokenKind::NatLit, Str::from(n.to_string()), line, 0);
         Self { token }
     }
@@ -2348,7 +2348,7 @@ impl VarName {
         Self(Token::from_str(TokenKind::Symbol, &symbol))
     }
 
-    pub fn from_str_and_line(symbol: Str, line: usize) -> Self {
+    pub fn from_str_and_line(symbol: Str, line: u32) -> Self {
         Self(Token::new(TokenKind::Symbol, symbol, line, 0))
     }
 
@@ -2460,11 +2460,11 @@ impl Identifier {
         Self::new(None, VarName::from_str(name))
     }
 
-    pub fn private_with_line(name: Str, line: usize) -> Self {
+    pub fn private_with_line(name: Str, line: u32) -> Self {
         Self::new(None, VarName::from_str_and_line(name, line))
     }
 
-    pub fn public_with_line(dot: Token, name: Str, line: usize) -> Self {
+    pub fn public_with_line(dot: Token, name: Str, line: u32) -> Self {
         Self::new(Some(dot), VarName::from_str_and_line(name, line))
     }
 
@@ -3726,7 +3726,7 @@ impl Expr {
         }
     }
 
-    pub fn local(name: &str, lineno: usize, col_begin: usize) -> Self {
+    pub fn local(name: &str, lineno: u32, col_begin: u32) -> Self {
         Self::Accessor(Accessor::local(Token::new(
             TokenKind::Symbol,
             Str::rc(name),

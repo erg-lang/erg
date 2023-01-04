@@ -411,11 +411,7 @@ impl Desugarer {
         todo!()
     }
 
-    fn gen_buf_name_and_sig(
-        &mut self,
-        line: usize,
-        t_spec: Option<TypeSpec>,
-    ) -> (String, Signature) {
+    fn gen_buf_name_and_sig(&mut self, line: u32, t_spec: Option<TypeSpec>) -> (String, Signature) {
         let buf_name = fresh_varname();
         let buf_sig = Signature::Var(VarSignature::new(
             VarPattern::Ident(Identifier::private_with_line(Str::rc(&buf_name), line)),
@@ -424,7 +420,7 @@ impl Desugarer {
         (buf_name, buf_sig)
     }
 
-    fn gen_buf_nd_param(&mut self, line: usize) -> (String, ParamPattern) {
+    fn gen_buf_nd_param(&mut self, line: u32) -> (String, ParamPattern) {
         let buf_name = fresh_varname();
         let pat = ParamPattern::VarName(VarName::from_str_and_line(Str::rc(&buf_name), line));
         (buf_name, pat)

@@ -190,7 +190,7 @@ impl LowerError {
         loc: Location,
         caused_by: String,
         name: &str,
-        defined_line: usize,
+        defined_line: u32,
         similar_name: Option<&str>,
     ) -> Self {
         let name = readable_name(name);
@@ -228,7 +228,7 @@ impl LowerError {
         loc: Location,
         caused_by: String,
         name: &str,
-        del_line: usize,
+        del_line: u32,
         similar_name: Option<&str>,
     ) -> Self {
         let name = readable_name(name);

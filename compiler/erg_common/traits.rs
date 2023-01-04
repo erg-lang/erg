@@ -518,7 +518,7 @@ pub trait Runnable: Sized + Default {
 pub trait Locational {
     fn loc(&self) -> Location;
 
-    fn ln_begin(&self) -> Option<usize> {
+    fn ln_begin(&self) -> Option<u32> {
         match self.loc() {
             Location::Range { ln_begin, .. } | Location::LineRange(ln_begin, _) => Some(ln_begin),
             Location::Line(lineno) => Some(lineno),
@@ -526,7 +526,7 @@ pub trait Locational {
         }
     }
 
-    fn ln_end(&self) -> Option<usize> {
+    fn ln_end(&self) -> Option<u32> {
         match self.loc() {
             Location::Range { ln_end, .. } | Location::LineRange(_, ln_end) => Some(ln_end),
             Location::Line(lineno) => Some(lineno),
@@ -534,14 +534,14 @@ pub trait Locational {
         }
     }
 
-    fn col_begin(&self) -> Option<usize> {
+    fn col_begin(&self) -> Option<u32> {
         match self.loc() {
             Location::Range { col_begin, .. } => Some(col_begin),
             _ => None,
         }
     }
 
-    fn col_end(&self) -> Option<usize> {
+    fn col_end(&self) -> Option<u32> {
         match self.loc() {
             Location::Range { col_end, .. } => Some(col_end),
             _ => None,

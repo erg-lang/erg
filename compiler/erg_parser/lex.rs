@@ -102,9 +102,9 @@ pub struct Lexer /*<'a>*/ {
     /// to determine the type of operators, etc.
     prev_token: Token,
     /// 0-origin, but Token.lineno will 1-origin
-    lineno_token_starts: usize,
+    lineno_token_starts: u32,
     /// 0-origin, indicates the column number in which the token appears
-    col_token_starts: usize,
+    col_token_starts: u32,
     interpol_stack: Vec<Interpolation>,
 }
 
@@ -167,7 +167,7 @@ impl Lexer /*<'a>*/ {
             self.col_token_starts,
         );
         self.prev_token = token.clone();
-        self.col_token_starts += cont_len;
+        self.col_token_starts += cont_len as u32;
         token
     }
 
@@ -414,7 +414,7 @@ impl Lexer /*<'a>*/ {
         } else if self.prev_token.is(Newline) || self.prev_token.is(Dedent) {
             self.lex_indent_dedent(spaces)
         } else {
-            self.col_token_starts += spaces.len();
+            self.col_token_starts += spaces.len() as u32;
             None
         }
     }
@@ -466,7 +466,7 @@ impl Lexer /*<'a>*/ {
         match sum_indent.cmp(&spaces_len) {
             Ordering::Less => {
                 let indent_len = spaces_len - sum_indent;
-                self.col_token_starts += sum_indent;
+                self.col_token_starts += sum_indent as u32;
                 let indent = self.emit_token(Indent, &" ".repeat(indent_len));
                 self.indent_stack.push(indent_len);
                 Some(Ok(indent))
@@ -496,7 +496,7 @@ impl Lexer /*<'a>*/ {
                 }
             }
             Ordering::Equal /* if indent_sum == space.len() */ => {
-                self.col_token_starts += spaces_len;
+                self.col_token_starts += spaces_len as u32;
                 None
             }
         }

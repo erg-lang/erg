@@ -318,9 +318,9 @@ pub struct Token {
     pub content: Str,
     /// 1 origin
     // TODO: 複数行文字列リテラルもあるのでタプルにするのが妥当?
-    pub lineno: usize,
+    pub lineno: u32,
     /// a pointer from which the token starts (0 origin)
-    pub col_begin: usize,
+    pub col_begin: u32,
 }
 
 pub const COLON: Token = Token::dummy(TokenKind::Colon, ":");
@@ -369,14 +369,14 @@ impl Locational for Token {
                 self.lineno,
                 self.col_begin,
                 self.lineno,
-                self.col_begin + self.content.len(),
+                self.col_begin + self.content.len() as u32,
             )
         }
     }
 
     #[inline]
-    fn col_end(&self) -> Option<usize> {
-        Some(self.col_begin + self.content.len())
+    fn col_end(&self) -> Option<u32> {
+        Some(self.col_begin + self.content.len() as u32)
     }
 }
 
@@ -398,7 +398,7 @@ impl Token {
     }
 
     #[inline]
-    pub fn new<S: Into<Str>>(kind: TokenKind, cont: S, lineno: usize, col_begin: usize) -> Self {
+    pub fn new<S: Into<Str>>(kind: TokenKind, cont: S, lineno: u32, col_begin: u32) -> Self {
         Token {
             kind,
             content: cont.into(),
@@ -423,11 +423,11 @@ impl Token {
     }
 
     #[inline]
-    pub fn symbol_with_line(cont: &str, line: usize) -> Self {
+    pub fn symbol_with_line(cont: &str, lineno: u32) -> Self {
         Token {
             kind: TokenKind::Symbol,
             content: Str::rc(cont),
-            lineno: line,
+            lineno,
             col_begin: 0,
         }
     }

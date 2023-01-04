@@ -36,7 +36,7 @@ impl<'a> HIRVisitor<'a> {
         let ln_end = chunk.ln_end().unwrap_or(0);
         let line = util::get_line_from_uri(&self.uri, ln_end).unwrap();
         let indent_len = line.len() - line.trim_start_matches(' ').len();
-        let cond = ln_end == pos.line as usize && pos.character as usize == indent_len + 1;
+        let cond = ln_end == pos.line && pos.character as usize == indent_len + 1;
         matches!(chunk, Expr::Call(_) | Expr::Lambda(_) | Expr::Def(_) | Expr::ClassDef(_) if cond)
     }
 

@@ -85,7 +85,7 @@ pub struct PyCodeGenUnit {
     pub(crate) py_version: PythonVersion,
     pub(crate) codeobj: CodeObj,
     pub(crate) stack_len: u32, // the maximum stack size
-    pub(crate) prev_lineno: usize,
+    pub(crate) prev_lineno: u32,
     pub(crate) lasti: usize,
     pub(crate) prev_lasti: usize,
     pub(crate) _refs: Vec<ValueObj>, // ref-counted objects
@@ -116,12 +116,12 @@ impl PyCodeGenUnit {
         params: Vec<Str>,
         filename: S,
         name: T,
-        firstlineno: usize,
+        firstlineno: u32,
     ) -> Self {
         Self {
             id,
             py_version,
-            codeobj: CodeObj::empty(params, filename, name, firstlineno as u32),
+            codeobj: CodeObj::empty(params, filename, name, firstlineno),
             stack_len: 0,
             prev_lineno: firstlineno,
             lasti: 0,

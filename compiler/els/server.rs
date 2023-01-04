@@ -359,13 +359,10 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 }
             }
             let start = Position::new(
-                loc.ln_begin().unwrap_or(1) as u32 - 1,
-                loc.col_begin().unwrap_or(0) as u32,
+                loc.ln_begin().unwrap_or(1) - 1,
+                loc.col_begin().unwrap_or(0),
             );
-            let end = Position::new(
-                loc.ln_end().unwrap_or(1) as u32 - 1,
-                loc.col_end().unwrap_or(0) as u32,
-            );
+            let end = Position::new(loc.ln_end().unwrap_or(1) - 1, loc.col_end().unwrap_or(0));
             let severity = if err.core.kind.is_warning() {
                 DiagnosticSeverity::WARNING
             } else {
@@ -446,7 +443,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 continue;
             }
             // don't show future defined items
-            if name.ln_begin().unwrap_or(0) > pos.line as usize + 1 {
+            if name.ln_begin().unwrap_or(0) > pos.line + 1 {
                 continue;
             }
             let readable_t = self

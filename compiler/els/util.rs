@@ -19,11 +19,11 @@ pub fn loc_to_range(loc: erg_common::error::Location) -> Option<Range> {
 pub fn pos_in_loc<L: Locational>(loc: &L, pos: Position) -> bool {
     let ln_begin = loc.ln_begin().unwrap_or(0);
     let ln_end = loc.ln_end().unwrap_or(0);
-    let in_lines = (ln_begin..=ln_end).contains(&(pos.line as usize + 1));
+    let in_lines = (ln_begin..=ln_end).contains(&(pos.line + 1));
     if ln_begin == ln_end {
         in_lines
             && (loc.col_begin().unwrap_or(0)..=loc.col_end().unwrap_or(0))
-                .contains(&(pos.character as usize))
+                .contains(&(pos.character as u16))
     } else {
         in_lines
     }
@@ -99,8 +99,11 @@ pub fn get_code_from_uri(uri: &Url) -> ELSResult<String> {
     Ok(code)
 }
 
-pub fn get_line_from_uri(uri: &Url, line: usize) -> ELSResult<String> {
+pub fn get_line_from_uri(uri: &Url, line: u32) -> ELSResult<String> {
     let code = get_code_from_uri(uri)?;
-    let line = code.lines().nth(line.saturating_sub(1)).unwrap_or("");
+    let line = code
+        .lines()
+        .nth(line.saturating_sub(1) as usize)
+        .unwrap_or("");
     Ok(line.to_string())
 }

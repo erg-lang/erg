@@ -470,11 +470,11 @@ impl Identifier {
         Self::bare(None, VarName::from_static(name))
     }
 
-    pub fn private_with_line(name: Str, line: usize) -> Self {
+    pub fn private_with_line(name: Str, line: u32) -> Self {
         Self::bare(None, VarName::from_str_and_line(name, line))
     }
 
-    pub fn public_with_line(dot: Token, name: Str, line: usize) -> Self {
+    pub fn public_with_line(dot: Token, name: Str, line: u32) -> Self {
         Self::bare(Some(dot), VarName::from_str_and_line(name, line))
     }
 
@@ -581,11 +581,11 @@ impl_locational_for_enum!(Accessor; Ident, Attr);
 impl_t_for_enum!(Accessor; Ident, Attr);
 
 impl Accessor {
-    pub fn private_with_line(name: Str, line: usize) -> Self {
+    pub fn private_with_line(name: Str, line: u32) -> Self {
         Self::Ident(Identifier::private_with_line(name, line))
     }
 
-    pub fn public_with_line(name: Str, line: usize) -> Self {
+    pub fn public_with_line(name: Str, line: u32) -> Self {
         Self::Ident(Identifier::public_with_line(DOT, name, line))
     }
 
