@@ -14,6 +14,9 @@ if %~dp0 == C:%homepath%\GitHub\erg\ (
     echo publish erg_compiler ...
     cargo publish
     rem timeout 12
+    cd ../els
+    echo publish els ...
+    cargo publish
     cd ../../
     cargo publish
     echo completed
