@@ -15,8 +15,8 @@
     </a>
 </p>
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3D54dbd1ec22756e0f8aae5ccf0c41aeb9d34876da)
-](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=54dbd1ec22756e0f8aae5ccf0c41aeb9d34876da)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3D5fb430d289da3890c8b1db68b5614f41e6b0bc69)
+](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=5fb430d289da3890c8b1db68b5614f41e6b0bc69)
 
 ## Erg可以推荐给以下人员&colon;
 
@@ -169,34 +169,6 @@
 cargo install erg
 ```
 
-通过启用`--features`标志，你可以改变显示错误信息的语言
-
-* 日语
-
-```sh
-cargo install erg --features japanese
-```
-
-* 中文(简体)
-
-```sh
-cargo install erg --features simplified_chinese
-```
-
-* 中文(繁体)
-
-```sh
-cargo install erg --features traditional_chinese
-```
-
-还有更多的语言将被加入（我们正在寻找翻译者。请加入[翻译项目](./doc/EN/dev_guide/i18n_messages.md)）
-
-* 调试模式（针对贡献者）
-
-```sh
-cargo install erg --features debug
-```
-
 ### 从源代码构建
 
 从源代码构建需要 Rust 工具链
@@ -223,6 +195,43 @@ nix-build
 git clone https://github.com/erg-lang/erg.git
 cd erg
 nix build
+```
+
+### Flags
+
+通过启用`--features`标志，你可以自定义构建和安装
+
+#### 设置错误语言
+
+* 日语
+
+```sh
+cargo install erg --features japanese
+```
+
+* 中文(简体)
+
+```sh
+cargo install erg --features simplified_chinese
+```
+
+* 中文(繁体)
+
+```sh
+cargo install erg --features traditional_chinese
+```
+
+还有更多的语言将被加入（我们正在寻找翻译者。请加入[翻译项目](./doc/EN/dev_guide/i18n_messages.md)）
+
+#### 安装和构建ELS（Erg语言服务器）
+```sh
+cargo install erg --features els
+```
+
+#### 设置成调试模式（针对贡献者）
+
+```sh
+cargo install erg --features debug
 ```
 
 ## 贡献
