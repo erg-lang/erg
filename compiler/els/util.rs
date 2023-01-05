@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::io::Read;
 
-use erg_common::traits::{Locational, Stream};
+use erg_common::traits::{DequeStream, Locational};
 
 use erg_compiler::erg_parser::lex::Lexer;
 use erg_compiler::erg_parser::token::{Token, TokenKind};
