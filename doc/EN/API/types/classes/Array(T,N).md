@@ -1,6 +1,6 @@
-# ArrayWithLen T: Type, N: Nat
+# Array T: Type, N: Nat
 
-`[T; N]` is syntactic sugar. There is also an [`Array` type](./Array.md) that omits the length.
+`[T; N]` is syntactic sugar. `N` can be emitted (`[T; _]`).
 
 ## methods
 
@@ -23,7 +23,7 @@ assert ["a", "b", "c", "d", "e"].values_at([0, 1, 3]) == ["a", "b", "d"]
    assert all(False for _in[])
    ```
 
-## methods of ArrayWithLen T, N | T <: Eq
+## methods of Array T, N | T <: Eq
 
 * freq self -> [{T: Nat}]
    Returns the frequency of occurrence of an object.

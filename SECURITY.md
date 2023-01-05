@@ -9,4 +9,4 @@ Security updates are only made through version updates.
 | Version | Supported          |
 | ------- | ------------------ |
 | latest  | ✅ |
-| other   | ❎ |
+| other   | ❌ |

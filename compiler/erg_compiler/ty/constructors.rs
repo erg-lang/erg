@@ -363,7 +363,9 @@ pub fn mono<S: Into<Str>>(name: S) -> Type {
         match &name[..] {
             "Obj" | "Int" | "Nat" | "Ratio" | "Float" | "Bool" | "Str" | "NoneType" | "Code"
             | "Frame" | "Error" | "Inf" | "NegInf" | "Type" | "ClassType" | "TraitType"
-            | "Patch" | "NotImplemented" | "Ellipsis" | "Never" => todo!("{name}"),
+            | "Patch" | "NotImplemented" | "Ellipsis" | "Never" => {
+                unreachable!("built-in type: {name}")
+            }
             _ => {}
         }
     }
@@ -395,7 +397,7 @@ pub fn proj_call<S: Into<Str>>(lhs: TyParam, attr_name: S, args: Vec<TyParam>) -
     }
 }
 
-/// ```rust
+/// ```erg
 /// {I: Int | I >= 0}
 /// => Refinement{
 ///     layout: TyParam::MonoQ "I",

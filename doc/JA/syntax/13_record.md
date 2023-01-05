@@ -1,6 +1,6 @@
 # レコード
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/13_record.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/13_record.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/13_record.md%26commit_hash%3D96b113c47ec6ca7ad91a6b486d55758de00d557d)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/13_record.md&commit_hash=96b113c47ec6ca7ad91a6b486d55758de00d557d)
 
 レコードは、キーでアクセスするDictとコンパイル時にアクセスが検査されるタプルの性質を併せ持つコレクションです。
 JavaScriptをやったことがある方ならば、オブジェクトリテラル記法の(より強化された)ようなものと考えてください。
@@ -22,11 +22,11 @@ JavaScriptのオブジェクトリテラルとの相違点は、文字列でア�
 一般的にはレコードの使用を推奨します。レコードには、コンパイル時に要素が存在するかチェックされる、 __可視性(visibility)__ を指定できるなどのメリットがあります。
 可視性の指定は、Java言語などでみられるpublic/privateの指定に相当します。詳しくは[可視性](./19_visibility.md)を参照してください。
 
-```python
+```python,compile_fail
 a = {x = 1; .y = x + 1}
+assert a.y == 2
 a.x # AttributeError: x is private
 # Hint: declare as `.x`.
-assert a.y == 2
 ```
 
 上の例はJavaScriptに習熟している人間からすると奇妙かもしれませんが、単に`x`と宣言すると外部からアクセスできず、`.`をつけると`.`でアクセスできるというわけです。
@@ -35,10 +35,10 @@ assert a.y == 2
 
 ```python
 anonymous = {
-    .name: Option! Str = !None
+    .name: Option! Str = "Jane Doe"
     .age = 20
 }
-anonymous.name.set! "John"
+anonymous.name.set! "John Doe"
 ```
 
 レコードはメソッドも持てます。
@@ -171,28 +171,28 @@ y =
 素のレコード(レコードリテラルで生成されたレコード)は、これ単体でメソッドを実装しようとすると、直接インスタンスに定義する必要があります。
 これは効率が悪く、さらに属性の数が増えていくとエラー表示などが見にくくなり使いにくいです。
 
-```python
+```python,compile_fail
 john = {
     name = "John Smith"
     age = !20
     .greet! ref self = print! "Hello, my name is \{self::name} and I am \{self::age} years old."
     .inc_age! ref! self = self::age.update! x -> x + 1
 }
-john + 1
+print! john + 1
 # TypeError: + is not implemented for {name = Str; age = Int; .greet! = Ref(Self).() => None; inc_age! = Ref!(Self).() => None}, Int
 ```
 
 そこで、このような場合はレコードクラスを継承します。このようなクラスをデータクラスと呼びます。
 これについては[クラス](./type/04_class.md)の項で詳しく説明します。
 
-```python
+```python,checker_ignore
 Person = Inherit {name = Str; age = Nat}
 Person.
     greet! ref self = print! "Hello, my name is \{self::name} and I am \{self::age} years old."
     inc_age! ref! self = self::age.update! x -> x + 1
 
 john = Person.new {name = "John Smith"; age = 20}
-john + 1
+print! john + 1
 # TypeError: + is not implemented for Person, Int
 ```
 

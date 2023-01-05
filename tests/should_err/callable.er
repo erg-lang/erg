@@ -1,0 +1,13 @@
+print! 1 2 # ERR
+
+f = 1
+print! f 2 # ERR
+
+f2 x: Int = x
+print! f2(1) 2 # ERR
+
+f3 x = x
+print! f3(1) 2 # ERR
+
+f4 x = (y) => x
+print! f4(1) 2 # OK

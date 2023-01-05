@@ -1,7 +1,7 @@
 //! provides type-comparison
 use std::option::Option; // conflicting to Type::Option
 
-use erg_common::error::MultiErrorDisplay;
+use erg_common::error::{Location, MultiErrorDisplay};
 
 use crate::ty::constructors::{and, or, poly};
 use crate::ty::free::{Constraint, FreeKind};
@@ -17,7 +17,7 @@ use TyParamOrdering::*;
 use Type::*;
 
 use crate::context::cache::{SubtypePair, GLOBAL_TYPE_CACHE};
-use crate::context::{Context, Variance};
+use crate::context::{Context, TyVarCache, Variance};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Credibility {
@@ -31,22 +31,16 @@ use super::ContextKind;
 
 impl Context {
     fn register_cache(&self, sup: &Type, sub: &Type, result: bool) {
-        if sub.is_cachable() && sup.is_cachable() {
-            GLOBAL_TYPE_CACHE.register(SubtypePair::new(sub.clone(), sup.clone()), result);
-        }
+        GLOBAL_TYPE_CACHE.register(SubtypePair::new(sub.clone(), sup.clone()), result);
     }
 
     // TODO: is it impossible to avoid .clone()?
     fn inquire_cache(&self, sup: &Type, sub: &Type) -> Option<bool> {
-        if sub.is_cachable() && sup.is_cachable() {
-            let res = GLOBAL_TYPE_CACHE.get(&SubtypePair::new(sub.clone(), sup.clone()));
-            if res.is_some() {
-                log!(info "cache hit");
-            }
-            res
-        } else {
-            None
+        let res = GLOBAL_TYPE_CACHE.get(&SubtypePair::new(sub.clone(), sup.clone()));
+        if res.is_some() {
+            log!(info "cache hit");
         }
+        res
     }
 
     pub(crate) fn eq_tp(&self, lhs: &TyParam, rhs: &TyParam) -> bool {
@@ -403,15 +397,16 @@ impl Context {
                             let res = self.supertype_of(&sup, rhs);
                             lfv.undo();
                             res
-                        } else {
+                        } else if let Some(lfvt) = lfv.get_type() {
                             // e.g. lfv: ?L(: Int) is unreachable
                             // but
                             // ?L(: Array(Type, 3)) :> Array(Int, 3)
                             //   => Array(Type, 3) :> Array(Typeof(Int), 3)
                             //   => true
-                            let lfvt = lfv.get_type().unwrap();
                             let rhs_meta = self.meta_type(rhs);
                             self.supertype_of(&lfvt, &rhs_meta)
+                        } else {
+                            unreachable!("{lfv} / {rhs}");
                         }
                     }
                 }
@@ -428,7 +423,7 @@ impl Context {
                         rfv.undo();
                         res
                     } else {
-                        todo!("{lhs} / {rhs}");
+                        unreachable!("{lhs} / {rhs}");
                     }
                 }
             },
@@ -546,9 +541,6 @@ impl Context {
             }
             // ({I: Int | True} :> Int) == true, ({N: Nat | ...} :> Int) == false, ({I: Int | I >= 0} :> Int) == false
             (Refinement(l), r) => {
-                if l.preds.is_empty() {
-                    unreachable!()
-                }
                 if l.preds
                     .iter()
                     .any(|p| p.mentions(&l.var) && p.can_be_false())
@@ -557,8 +549,28 @@ impl Context {
                 }
                 self.supertype_of(&l.t, r)
             }
-            (Quantified(q), r) => self.supertype_of(q, r),
-            (l, Quantified(q)) => self.structural_supertype_of(l, q),
+            (Quantified(quant), r) => {
+                if quant.has_uninited_qvars() {
+                    let mut tmp_tv_cache = TyVarCache::new(self.level, self);
+                    let inst = self
+                        .instantiate_t_inner(*quant.clone(), &mut tmp_tv_cache, Location::Unknown)
+                        .unwrap();
+                    self.supertype_of(&inst, r)
+                } else {
+                    self.supertype_of(quant, r)
+                }
+            }
+            (l, Quantified(quant)) => {
+                if quant.has_uninited_qvars() {
+                    let mut tmp_tv_cache = TyVarCache::new(self.level, self);
+                    let inst = self
+                        .instantiate_t_inner(*quant.clone(), &mut tmp_tv_cache, Location::Unknown)
+                        .unwrap();
+                    self.supertype_of(l, &inst)
+                } else {
+                    self.supertype_of(l, quant)
+                }
+            }
             // Int or Str :> Str or Int == (Int :> Str && Str :> Int) || (Int :> Int && Str :> Str) == true
             (Or(l_1, l_2), Or(r_1, r_2)) => {
                 (self.supertype_of(l_1, r_1) && self.supertype_of(l_2, r_2))
@@ -1073,10 +1085,12 @@ impl Context {
         }
     }
 
+    /// If lhs and rhs are in a subtype relation, return the smaller one
+    /// Return None if they are not related
     /// lhsとrhsが包含関係にあるとき小さいほうを返す
     /// 関係なければNoneを返す
     pub(crate) fn min<'t>(&self, lhs: &'t Type, rhs: &'t Type) -> Option<&'t Type> {
-        // 同じならどちらを返しても良い
+        // If they are the same, either one can be returned.
         match (self.supertype_of(lhs, rhs), self.subtype_of(lhs, rhs)) {
             (true, true) | (true, false) => Some(rhs),
             (false, true) => Some(lhs),
@@ -1085,7 +1099,7 @@ impl Context {
     }
 
     pub(crate) fn _max<'t>(&self, lhs: &'t Type, rhs: &'t Type) -> Option<&'t Type> {
-        // 同じならどちらを返しても良い
+        // If they are the same, either one can be returned.
         match (self.supertype_of(lhs, rhs), self.subtype_of(lhs, rhs)) {
             (true, true) | (true, false) => Some(lhs),
             (false, true) => Some(rhs),

@@ -1,6 +1,6 @@
 # 変数
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/02_name.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/02_name.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/02_name.md%26commit_hash%3D14b0c449efc9e9da3e10a09c912a960ecfaf1c9d)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/02_name.md&commit_hash=14b0c449efc9e9da3e10a09c912a960ecfaf1c9d)
 
 変数は代数の一種です。Ergにおける代数―紛れがなければ単に変数と呼ばれることもあります―とは、オブジェクトを名前付けしてコード中の別の場所から利用できるようにする機能を指します。
 
@@ -23,9 +23,12 @@ n: Nat = 1
 
 他の言語とは違い、多重代入はできないので注意してください。
 
-```python
+```python,compile_fail
 # NG
 l1 = l2 = [1, 2, 3] # SyntaxError: multiple assignment not allowed
+```
+
+```python
 # OK
 l1 = [1, 2, 3]
 l2 = l1.clone()
@@ -53,7 +56,7 @@ assert x == 0
 
 以下は一見すると可能なように思えますが、やはりできません。これは技術的な制約ではなく、設計判断です。
 
-```python
+```python,compile_fail
 x = 0
 if x.is_zero(), do:
     x = x + 1 # NameError: cannot define variables refer to variables with the same name
@@ -66,7 +69,7 @@ assert x == 0
 定数も代数の一種です。識別子を大文字で始めると定数として扱われます。一度定義したら変わらないので、定数と呼ばれます。
 `N`の部分を定数名(または、識別子)と呼びます。その他は変数と同じです。
 
-```python
+```python,compile_fail
 N = 0
 if True, do:
     N = 1 # AssignError: constants cannot be shadowed
@@ -99,6 +102,9 @@ match! x:
 
 ```python
 X = 1 # OK
+```
+
+```python,compile_fail
 X = !1 # TypeError: cannot define Int! object as a constant
 ```
 
@@ -109,12 +115,12 @@ X = !1 # TypeError: cannot define Int! object as a constant
 ```python
 x = 1
 y = 2
-Z = 3
+z = 3
 f a = x + a
 
 assert f(2) == 3
 Del x # xを直接参照しているためfも削除される
-Del y, Z
+Del y, z
 
 f(2) # NameError: f is not defined (deleted in line 6)
 ```

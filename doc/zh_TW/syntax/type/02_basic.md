@@ -1,10 +1,10 @@
 # 類型的基本語法
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/02_basic.md%26commit_hash%3Da0c1380a6fa5236518ac4ff455edbd3af50b0560)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/02_basic.md&commit_hash=a0c1380a6fa5236518ac4ff455edbd3af50b0560)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/02_basic.md%26commit_hash%3Df4fb25b4004bdfa96d2149fac8c4e40b84e8a45f)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/02_basic.md&commit_hash=f4fb25b4004bdfa96d2149fac8c4e40b84e8a45f)
 
 ## 類型規范
 
-在 Erg 中，可以在 `:` 之后指定變量的類型，如下所示。這可以與作業同時完成
+在Erg中，可以在`:`之后指定變量的類型，如下所示。這可以與作業同時完成
 
 ```python
 i: Int # 將變量 i 聲明為 Int 類型
@@ -28,7 +28,7 @@ f x, y: Array Int = ...
 T X, Y: Array Int = ...
 ```
 
-請注意，在上述情況下，`x, y` 都是 `Array Int`
+請注意，在上述情況下，`x, y`都是`Array Int`
 
 ```python
 # 大寫變量的值必須是常量表達式
@@ -142,7 +142,7 @@ Vector = Array Int
 這意味著應將具有不同用途的類型定義為單獨的類型
 目的還在于防止在已經具有別名的類型之上添加別名
 
-```python
+```python,compile_warn
 Id = Int
 UserId = Int # 類型警告: 重復別名: Id 和 UserId
 

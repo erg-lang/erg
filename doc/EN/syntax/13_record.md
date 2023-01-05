@@ -33,10 +33,10 @@ You can also explicitly specify the type of an attribute.
 
 ```python
 anonymous = {
-    .name: Option! Str = !""
+    .name: Option! Str = "Jane Doe"
     .age = 20
 }
-anonymous.name.set! "John"
+anonymous.name.set! "John Doe"
 ```
 
 A record can also have the method.

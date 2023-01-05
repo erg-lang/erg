@@ -1,6 +1,6 @@
 # クラス
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/04_class.md%26commit_hash%3Da9d45b743cc655543e0d7f586426499091cead3d)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/04_class.md&commit_hash=a9d45b743cc655543e0d7f586426499091cead3d)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/04_class.md%26commit_hash%3D7078f95cecc961a65befb15929af06ae2331c934)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/04_class.md&commit_hash=7078f95cecc961a65befb15929af06ae2331c934)
 
 Ergにおけるクラスは、大まかには自身の要素(インスタンス)を生成できる型と言えます。
 以下は単純なクラスの例です。
@@ -104,7 +104,7 @@ C.
 Ergではクラスメソッドを追加したりはできませんが、[パッチ](./07_patch.md)で拡張可能です。
 
 既存のクラスを継承することも出来ます([Inheritable](../29_decorator.md#inheritable)クラスの場合)。
-`Inherit`は継承を意味します。左辺の型を派生クラス、右辺の`Inherit`の引数型を基底クラスと言います。
+`Inherit`は継承を意味します。左辺の型をサブクラス、右辺の`Inherit`の引数型をスーパークラスと言います。
 
 ```python
 MyStr = Inherit Str
@@ -130,7 +130,7 @@ InheritableMyStr = Inherit Str
 MyStr3 = Inherit InheritableMyStr # OK
 ```
 
-`Inherit Object`と`Class()`は実用上ほぼ等価です。一般的には後者を使用します。
+`Inherit Obj`と`Class()`は実用上ほぼ等価です。一般的には後者を使用します。
 
 クラスは型とは同値判定の仕組みが異なります。
 型は構造に基づいて同値性が判定されます。

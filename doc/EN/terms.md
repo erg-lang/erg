@@ -15,7 +15,7 @@ Or the mutating operator.
 
 ### &
 
-### &prime; (single quote)
+### ' (single quote)
 
 ### &lpar;&rpar;
 
@@ -123,6 +123,9 @@ Or the mutating operator.
 
 ### [Erg]
 
+Statically typed programming language published in 2022 and is the subject of this document. The developers often pronounce it [`/ɝ́rug/`](https://translate.google.com/?sl=ja&tl=en&text=%E3%82%A8%E3%83%AB%E3%82%B0)). The name comes from the unit of energy in the CGS system of units.
+It was designed as a statically typed language that can take advantage of the assets of Python. It is mainly influenced by Rust and Haskell.
+
 ## F
 
 ### [for]
@@ -130,6 +133,12 @@ Or the mutating operator.
 ## G
 
 ## H
+
+### Haskell
+
+A statically typed programming language introduced in 1990. Erg is influenced by Haskell in its syntax.
+
+### [High-order&nbsp;functions](./syntax/04_function.md)
 
 ## I
 
@@ -161,6 +170,10 @@ Or the mutating operator.
 
 ### Never
 
+### Nim
+
+A statically typed programming language designed by Andreas Rumpf. Mainly transpiled into C. Erg's language features such as procedure and variable array were influenced by Nim (procedure were originally the Pascal feature).
+
 ### None
 
 ### [Not]
@@ -185,9 +198,19 @@ Or the mutating operator.
 
 ### [Python]
 
+A programming language designed by Guido van Rossum. Erg leverages the assets of Python.
+
 ## Q
 
 ## R
+
+### Ruby
+
+A programming language designed by Yukihiro Matsumoto/Matz. Like Erg, it was designed as a pure object-oriented programming language. Although not so much influenced by the syntax, Erg was named in accordance with Matz's naming philosophy.
+
+### Rust
+
+A statically typed programming language designed by Graydon Hoare. It is a system programming language with a strong type system that combines a high level of abstraction and high execution performance. Erg is implemented using Rust and is also strongly influenced by it.
 
 ### ref
 

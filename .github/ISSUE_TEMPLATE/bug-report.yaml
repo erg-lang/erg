@@ -1,4 +1,4 @@
-name: 🐛 Bug report
+name: 🐛 Bug Report
 description: Create a report to help us improve
 labels:
   - bug
@@ -39,20 +39,25 @@ body:
     validations:
       required: true
 
-  - type: input
+  - type: dropdown
     attributes:
       label: Python version
-    validations:
-      required: false
+      options:
+        - Python3.7.x
+        - Python3.8.x
+        - Python3.9.x
+        - Python3.10.x
+        - Python3.11.x
 
   - type: dropdown
     attributes:
       label: OS
       options:
-        - Windows 10
         - Windows 11
-        - MacOS 12 (Monterey)
-        - MacOS 11 (Big Sur)
+        - Windows 10
+        - macOS 13 (Ventura)
+        - macOS 12 (Monterey)
+        - macOS 11 (Big Sur)
         - Ubuntu
         - Linux(other distro)
         - Other (write in `Additional context`)

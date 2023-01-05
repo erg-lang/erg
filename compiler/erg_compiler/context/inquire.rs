@@ -24,12 +24,12 @@ use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{HasType, ParamTy, SubrKind, SubrType, Type};
 
 use crate::context::instantiate::ConstTemplate;
-use crate::context::{Context, RegistrationMode, TyVarCache, TypeRelationInstance, Variance};
+use crate::context::{Context, RegistrationMode, TraitImpl, TyVarCache, Variance};
 use crate::error::{
     binop_to_dname, readable_name, unaryop_to_dname, SingleTyCheckResult, TyCheckError,
     TyCheckErrors, TyCheckResult,
 };
-use crate::varinfo::{Mutability, VarInfo, VarKind};
+use crate::varinfo::{AbsLocation, Mutability, VarInfo, VarKind};
 use crate::AccessKind;
 use crate::{feature_error, hir};
 use RegistrationMode::*;
@@ -38,44 +38,21 @@ use Visibility::*;
 use super::{ContextKind, MethodInfo};
 
 impl Context {
-    pub(crate) fn validate_var_sig_t(
-        &self,
-        ident: &ast::Identifier,
-        t_spec: Option<&ast::TypeSpec>,
-        body_t: &Type,
-        mode: RegistrationMode,
-    ) -> TyCheckResult<()> {
-        let spec_t = self.instantiate_var_sig_t(t_spec, None, mode)?;
-        if self.sub_unify(body_t, &spec_t, ident.loc(), None).is_err() {
-            return Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
-                self.cfg.input.clone(),
-                line!() as usize,
-                ident.loc(),
-                self.caused_by(),
-                ident.inspect(),
-                None,
-                &spec_t,
-                body_t,
-                self.get_candidates(body_t),
-                Self::get_simple_type_mismatch_hint(&spec_t, body_t),
-            )));
-        }
-        Ok(())
+    pub(crate) fn get_ctx_from_path(&self, path: &Path) -> Option<&Context> {
+        self.mod_cache()
+            .and_then(|cache| cache.ref_ctx(path))
+            .or_else(|| self.py_mod_cache().and_then(|cache| cache.ref_ctx(path)))
+            .map(|mod_ctx| &mod_ctx.context)
     }
 
-    pub(crate) fn get_current_scope_var(&self, name: &str) -> Option<&VarInfo> {
+    pub(crate) fn get_current_scope_var(&self, name: &VarName) -> Option<&VarInfo> {
         self.locals
             .get(name)
             .or_else(|| self.decls.get(name))
             .or_else(|| {
                 self.params
                     .iter()
-                    .find(|(opt_name, _)| {
-                        opt_name
-                            .as_ref()
-                            .map(|n| &n.inspect()[..] == name)
-                            .unwrap_or(false)
-                    })
+                    .find(|(opt_name, _)| opt_name.as_ref().map(|n| n == name).unwrap_or(false))
                     .map(|(_, vi)| vi)
             })
             .or_else(|| {
@@ -88,19 +65,14 @@ impl Context {
             })
     }
 
-    pub(crate) fn get_mut_current_scope_var(&mut self, name: &str) -> Option<&mut VarInfo> {
+    pub(crate) fn get_mut_current_scope_var(&mut self, name: &VarName) -> Option<&mut VarInfo> {
         self.locals
             .get_mut(name)
             .or_else(|| self.decls.get_mut(name))
             .or_else(|| {
                 self.params
                     .iter_mut()
-                    .find(|(opt_name, _)| {
-                        opt_name
-                            .as_ref()
-                            .map(|n| &n.inspect()[..] == name)
-                            .unwrap_or(false)
-                    })
+                    .find(|(opt_name, _)| opt_name.as_ref().map(|n| n == name).unwrap_or(false))
                     .map(|(_, vi)| vi)
             })
             .or_else(|| {
@@ -113,8 +85,10 @@ impl Context {
             })
     }
 
-    pub(crate) fn get_local_kv(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
-        self.locals.get_key_value(name)
+    pub(crate) fn get_var_kv(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
+        self.locals
+            .get_key_value(name)
+            .or_else(|| self.get_outer().and_then(|ctx| ctx.get_var_kv(name)))
     }
 
     pub(crate) fn get_singular_ctx_by_hir_expr(
@@ -264,7 +238,7 @@ impl Context {
                     &mono("LambdaFunc"),
                     t,
                     self.get_candidates(t),
-                    Self::get_simple_type_mismatch_hint(&mono("LambdaFunc"), t),
+                    self.get_simple_type_mismatch_hint(&mono("LambdaFunc"), t),
                 )));
             }
         }
@@ -348,7 +322,7 @@ impl Context {
         input: &Input,
         namespace: &Str,
     ) -> SingleTyCheckResult<VarInfo> {
-        if let Some(vi) = self.get_current_scope_var(&ident.inspect()[..]) {
+        if let Some(vi) = self.get_current_scope_var(&ident.name) {
             match self.validate_visibility(ident, vi, input, namespace) {
                 Ok(()) => {
                     return Ok(vi.clone());
@@ -383,50 +357,13 @@ impl Context {
                 self.get_similar_name(ident.inspect()),
             ));
         }
-        if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
-            match parent.rec_get_var_info(ident, acc_kind, input, namespace) {
-                Ok(vi) => Ok(vi),
-                Err(err) if err.core.kind == ErrorKind::DummyError => {
-                    Err(TyCheckError::no_var_error(
-                        input.clone(),
-                        line!() as usize,
-                        ident.loc(),
-                        namespace.into(),
-                        ident.inspect(),
-                        self.get_similar_name(ident.inspect()),
-                    ))
-                }
-                Err(err) => Err(err),
+        if acc_kind.is_local() {
+            if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
+                return match parent.rec_get_var_info(ident, acc_kind, input, namespace) {
+                    Ok(vi) => Ok(vi),
+                    Err(err) => Err(err),
+                };
             }
-        } else {
-            Err(TyCheckError::dummy(
-                self.cfg.input.clone(),
-                line!() as usize,
-            ))
-        }
-    }
-
-    pub(crate) fn rec_get_decl_info(
-        &self,
-        ident: &Identifier,
-        acc_kind: AccessKind,
-        input: &Input,
-        namespace: &Str,
-    ) -> SingleTyCheckResult<VarInfo> {
-        if let Some(vi) = self.decls.get(&ident.inspect()[..]) {
-            match self.validate_visibility(ident, vi, input, namespace) {
-                Ok(()) => {
-                    return Ok(vi.clone());
-                }
-                Err(err) => {
-                    if !acc_kind.is_local() {
-                        return Err(err);
-                    }
-                }
-            }
-        }
-        if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
-            return parent.rec_get_decl_info(ident, acc_kind, input, namespace);
         }
         Err(TyCheckError::no_var_error(
             input.clone(),
@@ -438,7 +375,45 @@ impl Context {
         ))
     }
 
-    pub(crate) fn rec_get_attr_info(
+    pub(crate) fn rec_get_decl_info(
+        &self,
+        ident: &Identifier,
+        acc_kind: AccessKind,
+        input: &Input,
+        namespace: &Str,
+    ) -> SingleTyCheckResult<VarInfo> {
+        if let Some(vi) = self
+            .decls
+            .get(&ident.inspect()[..])
+            .or_else(|| self.future_defined_locals.get(&ident.inspect()[..]))
+        {
+            match self.validate_visibility(ident, vi, input, namespace) {
+                Ok(()) => {
+                    return Ok(vi.clone());
+                }
+                Err(err) => {
+                    if !acc_kind.is_local() {
+                        return Err(err);
+                    }
+                }
+            }
+        }
+        if acc_kind.is_local() {
+            if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
+                return parent.rec_get_decl_info(ident, acc_kind, input, namespace);
+            }
+        }
+        Err(TyCheckError::no_var_error(
+            input.clone(),
+            line!() as usize,
+            ident.loc(),
+            namespace.into(),
+            ident.inspect(),
+            self.get_similar_name(ident.inspect()),
+        ))
+    }
+
+    pub(crate) fn get_attr_info(
         &self,
         obj: &hir::Expr,
         ident: &Identifier,
@@ -451,7 +426,7 @@ impl Context {
             Ok(vi) => {
                 return Ok(vi);
             }
-            Err(e) if e.core.kind == ErrorKind::DummyError => {}
+            Err(e) if e.core.kind == ErrorKind::AttributeError => {}
             Err(e) => {
                 return Err(e);
             }
@@ -471,7 +446,7 @@ impl Context {
             Ok(vi) => {
                 return Ok(vi);
             }
-            Err(e) if e.core.kind == ErrorKind::DummyError => {}
+            Err(e) if e.core.kind == ErrorKind::AttributeError => {}
             Err(e) => {
                 return Err(e);
             }
@@ -496,20 +471,15 @@ impl Context {
                 }
             }
         }
-        // TODO: dependent type widening
-        if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
-            parent.rec_get_attr_info(obj, ident, input, namespace)
-        } else {
-            Err(TyCheckError::no_attr_error(
-                input.clone(),
-                line!() as usize,
-                name.loc(),
-                namespace.into(),
-                &self_t,
-                name.inspect(),
-                self.get_similar_attr(&self_t, name.inspect()),
-            ))
-        }
+        Err(TyCheckError::no_attr_error(
+            input.clone(),
+            line!() as usize,
+            name.loc(),
+            namespace.into(),
+            &self_t,
+            name.inspect(),
+            self.get_similar_attr(&self_t, name.inspect()),
+        ))
     }
 
     fn get_attr_from_nominal_t(
@@ -523,12 +493,24 @@ impl Context {
         if let Some(sups) = self.get_nominal_super_type_ctxs(&self_t) {
             for ctx in sups {
                 match ctx.rec_get_var_info(ident, AccessKind::Attr, input, namespace) {
-                    Ok(t) => {
-                        return Ok(t);
+                    Ok(vi) => {
+                        return Ok(vi);
                     }
                     Err(e) if e.core.kind == ErrorKind::NameError => {}
                     Err(e) => {
                         return Err(e);
+                    }
+                }
+                // if self is a methods context
+                if let Some(ctx) = self.get_same_name_context(&ctx.name) {
+                    match ctx.rec_get_var_info(ident, AccessKind::Method, input, namespace) {
+                        Ok(vi) => {
+                            return Ok(vi);
+                        }
+                        Err(e) if e.core.kind == ErrorKind::NameError => {}
+                        Err(e) => {
+                            return Err(e);
+                        }
                     }
                 }
             }
@@ -547,18 +529,37 @@ impl Context {
                 )
             })? {
                 match ctx.rec_get_var_info(ident, AccessKind::Attr, input, namespace) {
-                    Ok(t) => {
-                        self.coerce(obj.ref_t());
-                        return Ok(t);
+                    Ok(vi) => {
+                        obj.ref_t().coerce();
+                        return Ok(vi);
                     }
                     Err(e) if e.core.kind == ErrorKind::NameError => {}
                     Err(e) => {
                         return Err(e);
                     }
                 }
+                if let Some(ctx) = self.get_same_name_context(&ctx.name) {
+                    match ctx.rec_get_var_info(ident, AccessKind::Method, input, namespace) {
+                        Ok(vi) => {
+                            return Ok(vi);
+                        }
+                        Err(e) if e.core.kind == ErrorKind::NameError => {}
+                        Err(e) => {
+                            return Err(e);
+                        }
+                    }
+                }
             }
         }
-        Err(TyCheckError::dummy(input.clone(), line!() as usize))
+        Err(TyCheckError::no_attr_error(
+            self.cfg.input.clone(),
+            line!() as usize,
+            ident.loc(),
+            namespace.into(),
+            &self_t,
+            ident.inspect(),
+            self.get_similar_attr(&self_t, ident.inspect()),
+        ))
     }
 
     /// get type from given attributive type (Record).
@@ -597,6 +598,7 @@ impl Context {
                         None,
                         None,
                         None,
+                        AbsLocation::unknown(),
                     );
                     Ok(vi)
                 } else {
@@ -627,27 +629,51 @@ impl Context {
                                     None,
                                     None,
                                     None,
+                                    AbsLocation::unknown(),
                                 )
                             })
                             .ok_or_else(|| {
-                                TyCheckError::dummy(self.cfg.input.clone(), line!() as usize)
+                                TyCheckError::no_attr_error(
+                                    self.cfg.input.clone(),
+                                    line!() as usize,
+                                    ident.loc(),
+                                    namespace.into(),
+                                    t,
+                                    ident.inspect(),
+                                    self.get_similar_attr(t, ident.inspect()),
+                                )
                             }),
                         ValueObj::Type(TypeObj::Builtin(_t)) => {
                             // FIXME:
-                            Err(TyCheckError::dummy(
+                            Err(TyCheckError::no_attr_error(
                                 self.cfg.input.clone(),
                                 line!() as usize,
+                                ident.loc(),
+                                namespace.into(),
+                                _t,
+                                ident.inspect(),
+                                self.get_similar_attr(_t, ident.inspect()),
                             ))
                         }
-                        _other => Err(TyCheckError::dummy(
+                        _other => Err(TyCheckError::no_attr_error(
                             self.cfg.input.clone(),
                             line!() as usize,
+                            ident.loc(),
+                            namespace.into(),
+                            t,
+                            ident.inspect(),
+                            self.get_similar_attr(t, ident.inspect()),
                         )),
                     }
                 } else {
-                    Err(TyCheckError::dummy(
+                    Err(TyCheckError::no_attr_error(
                         self.cfg.input.clone(),
                         line!() as usize,
+                        ident.loc(),
+                        namespace.into(),
+                        t,
+                        ident.inspect(),
+                        self.get_similar_attr(t, ident.inspect()),
                     ))
                 }
             }
@@ -676,114 +702,143 @@ impl Context {
             });
         }
         if let Some(attr_name) = attr_name.as_ref() {
-            for ctx in self
-                .get_nominal_super_type_ctxs(obj.ref_t())
-                .ok_or_else(|| {
-                    TyCheckError::type_not_found(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        obj.loc(),
-                        self.caused_by(),
-                        obj.ref_t(),
-                    )
-                })?
-            {
-                if let Some(vi) = ctx
-                    .locals
-                    .get(attr_name.inspect())
-                    .or_else(|| ctx.decls.get(attr_name.inspect()))
-                {
-                    self.validate_visibility(attr_name, vi, input, namespace)?;
-                    return Ok(vi.clone());
-                }
-                for (_, methods_ctx) in ctx.methods_list.iter() {
-                    if let Some(vi) = methods_ctx
-                        .locals
-                        .get(attr_name.inspect())
-                        .or_else(|| methods_ctx.decls.get(attr_name.inspect()))
-                    {
-                        self.validate_visibility(attr_name, vi, input, namespace)?;
-                        return Ok(vi.clone());
-                    }
-                }
-            }
-            if let Ok(singular_ctx) = self.get_singular_ctx_by_hir_expr(obj, namespace) {
-                if let Some(vi) = singular_ctx
-                    .locals
-                    .get(attr_name.inspect())
-                    .or_else(|| singular_ctx.decls.get(attr_name.inspect()))
-                {
-                    self.validate_visibility(attr_name, vi, input, namespace)?;
-                    return Ok(vi.clone());
-                }
-                for (_, method_ctx) in singular_ctx.methods_list.iter() {
-                    if let Some(vi) = method_ctx
-                        .locals
-                        .get(attr_name.inspect())
-                        .or_else(|| method_ctx.decls.get(attr_name.inspect()))
-                    {
-                        self.validate_visibility(attr_name, vi, input, namespace)?;
-                        return Ok(vi.clone());
-                    }
-                }
-                return Err(TyCheckError::singular_no_attr_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    attr_name.loc(),
-                    namespace.into(),
-                    obj.qual_name().unwrap_or("?"),
-                    obj.ref_t(),
-                    attr_name.inspect(),
-                    self.get_similar_attr_from_singular(obj, attr_name.inspect()),
-                ));
-            }
-            match self.get_method_type_by_name(attr_name) {
-                Ok(method) => {
-                    self.sub_unify(obj.ref_t(), &method.definition_type, obj.loc(), None)
-                        // HACK: change this func's return type to TyCheckResult<Type>
-                        .map_err(|mut errs| errs.remove(0))?;
-                    return Ok(method.method_type.clone());
-                }
-                Err(err) if err.core.kind == ErrorKind::TypeError => {
-                    return Err(err);
-                }
-                _ => {}
-            }
-            for patch in self.find_patches_of(obj.ref_t()) {
-                if let Some(vi) = patch
-                    .locals
-                    .get(attr_name.inspect())
-                    .or_else(|| patch.decls.get(attr_name.inspect()))
-                {
-                    self.validate_visibility(attr_name, vi, input, namespace)?;
-                    return Ok(vi.clone());
-                }
-                for (_, methods_ctx) in patch.methods_list.iter() {
-                    if let Some(vi) = methods_ctx
-                        .locals
-                        .get(attr_name.inspect())
-                        .or_else(|| methods_ctx.decls.get(attr_name.inspect()))
-                    {
-                        self.validate_visibility(attr_name, vi, input, namespace)?;
-                        return Ok(vi.clone());
-                    }
-                }
-            }
-            Err(TyCheckError::no_attr_error(
-                self.cfg.input.clone(),
-                line!() as usize,
-                attr_name.loc(),
-                namespace.into(),
-                obj.ref_t(),
-                attr_name.inspect(),
-                self.get_similar_attr(obj.ref_t(), attr_name.inspect()),
-            ))
+            self.search_method_info(obj, attr_name, input, namespace)
         } else {
             Ok(VarInfo {
                 t: obj.t(),
                 ..VarInfo::default()
             })
         }
+    }
+
+    pub(crate) fn get_same_name_context(&self, name: &str) -> Option<&Context> {
+        if &self.name[..] == name {
+            Some(self)
+        } else {
+            self.get_outer().and_then(|p| p.get_same_name_context(name))
+        }
+    }
+
+    fn search_method_info(
+        &self,
+        obj: &hir::Expr,
+        attr_name: &Identifier,
+        input: &Input,
+        namespace: &Str,
+    ) -> SingleTyCheckResult<VarInfo> {
+        for ctx in self
+            .get_nominal_super_type_ctxs(obj.ref_t())
+            .ok_or_else(|| {
+                TyCheckError::type_not_found(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    obj.loc(),
+                    self.caused_by(),
+                    obj.ref_t(),
+                )
+            })?
+        {
+            if let Some(vi) = ctx
+                .locals
+                .get(attr_name.inspect())
+                .or_else(|| ctx.decls.get(attr_name.inspect()))
+            {
+                self.validate_visibility(attr_name, vi, input, namespace)?;
+                return Ok(vi.clone());
+            }
+            for (_, methods_ctx) in ctx.methods_list.iter() {
+                if let Some(vi) = methods_ctx
+                    .locals
+                    .get(attr_name.inspect())
+                    .or_else(|| methods_ctx.decls.get(attr_name.inspect()))
+                {
+                    self.validate_visibility(attr_name, vi, input, namespace)?;
+                    return Ok(vi.clone());
+                }
+            }
+            if let Some(ctx) = self.get_same_name_context(&ctx.name) {
+                match ctx.rec_get_var_info(attr_name, AccessKind::Method, input, namespace) {
+                    Ok(t) => {
+                        return Ok(t);
+                    }
+                    Err(e) if e.core.kind == ErrorKind::NameError => {}
+                    Err(e) => {
+                        return Err(e);
+                    }
+                }
+            }
+        }
+        if let Ok(singular_ctx) = self.get_singular_ctx_by_hir_expr(obj, namespace) {
+            if let Some(vi) = singular_ctx
+                .locals
+                .get(attr_name.inspect())
+                .or_else(|| singular_ctx.decls.get(attr_name.inspect()))
+            {
+                self.validate_visibility(attr_name, vi, input, namespace)?;
+                return Ok(vi.clone());
+            }
+            for (_, method_ctx) in singular_ctx.methods_list.iter() {
+                if let Some(vi) = method_ctx
+                    .locals
+                    .get(attr_name.inspect())
+                    .or_else(|| method_ctx.decls.get(attr_name.inspect()))
+                {
+                    self.validate_visibility(attr_name, vi, input, namespace)?;
+                    return Ok(vi.clone());
+                }
+            }
+            return Err(TyCheckError::singular_no_attr_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                attr_name.loc(),
+                namespace.into(),
+                obj.qual_name().unwrap_or("?"),
+                obj.ref_t(),
+                attr_name.inspect(),
+                self.get_similar_attr_from_singular(obj, attr_name.inspect()),
+            ));
+        }
+        match self.get_method_type_by_name(attr_name) {
+            Ok(method) => {
+                self.sub_unify(obj.ref_t(), &method.definition_type, obj.loc(), None)
+                    // HACK: change this func's return type to TyCheckResult<Type>
+                    .map_err(|mut errs| errs.remove(0))?;
+                return Ok(method.method_type.clone());
+            }
+            Err(err) if err.core.kind == ErrorKind::TypeError => {
+                return Err(err);
+            }
+            _ => {}
+        }
+        for patch in self.find_patches_of(obj.ref_t()) {
+            if let Some(vi) = patch
+                .locals
+                .get(attr_name.inspect())
+                .or_else(|| patch.decls.get(attr_name.inspect()))
+            {
+                self.validate_visibility(attr_name, vi, input, namespace)?;
+                return Ok(vi.clone());
+            }
+            for (_, methods_ctx) in patch.methods_list.iter() {
+                if let Some(vi) = methods_ctx
+                    .locals
+                    .get(attr_name.inspect())
+                    .or_else(|| methods_ctx.decls.get(attr_name.inspect()))
+                {
+                    self.validate_visibility(attr_name, vi, input, namespace)?;
+                    return Ok(vi.clone());
+                }
+            }
+        }
+        Err(TyCheckError::no_attr_error(
+            self.cfg.input.clone(),
+            line!() as usize,
+            attr_name.loc(),
+            namespace.into(),
+            obj.ref_t(),
+            attr_name.inspect(),
+            self.get_similar_attr(obj.ref_t(), attr_name.inspect()),
+        ))
     }
 
     fn validate_visibility(
@@ -851,7 +906,8 @@ impl Context {
     ) -> TyCheckResult<VarInfo> {
         erg_common::debug_power_assert!(args.len() == 2);
         let cont = binop_to_dname(op.inspect());
-        let symbol = Token::from_str(op.kind, cont);
+        // not a `Token::from_str(op.kind, cont)` because ops are defined as symbols
+        let symbol = Token::symbol(cont);
         let t = self.rec_get_var_info(
             &Identifier::new(None, VarName::new(symbol.clone())),
             AccessKind::Name,
@@ -883,7 +939,7 @@ impl Context {
     ) -> TyCheckResult<VarInfo> {
         erg_common::debug_power_assert!(args.len() == 1);
         let cont = unaryop_to_dname(op.inspect());
-        let symbol = Token::from_str(op.kind, cont);
+        let symbol = Token::symbol(cont);
         let vi = self.rec_get_var_info(
             &Identifier::new(None, VarName::new(symbol.clone())),
             AccessKind::Name,
@@ -905,6 +961,7 @@ impl Context {
             })
     }
 
+    /// Propagate mutable dependent types changes
     /// 可変依存型の変更を伝搬させる
     fn propagate(&self, t: &Type, callee: &hir::Expr) -> TyCheckResult<()> {
         if let Type::Subr(subr) = t {
@@ -919,6 +976,36 @@ impl Context {
             }
         }
         Ok(())
+    }
+
+    fn not_callable_error(
+        &self,
+        obj: &hir::Expr,
+        attr_name: &Option<Identifier>,
+        other: &Type,
+        hint: Option<String>,
+    ) -> TyCheckErrors {
+        let (loc, name) = if let Some(attr_name) = attr_name {
+            (
+                Location::concat(obj, attr_name),
+                (obj.to_string() + &attr_name.to_string()),
+            )
+        } else {
+            (obj.loc(), obj.to_string())
+        };
+        let other = self.readable_type(other.clone(), false);
+        TyCheckErrors::from(TyCheckError::type_mismatch_error(
+            self.cfg.input.clone(),
+            line!() as usize,
+            loc,
+            self.caused_by(),
+            &name,
+            None,
+            &mono("Callable"),
+            &other,
+            self.get_candidates(&other),
+            hint,
+        ))
     }
 
     /// if `obj` has `__call__` method, then the return value is `Some(call_instance)`
@@ -944,6 +1031,11 @@ impl Context {
                 self.substitute_call(obj, attr_name, &fv.crack(), pos_args, kw_args)
             }
             Type::FreeVar(fv) => {
+                if let Some(sub) = fv.get_sub() {
+                    if !self.subtype_of(&sub, &mono("GenericCallable")) {
+                        return Err(self.not_callable_error(obj, attr_name, instance, None));
+                    }
+                }
                 if let Some(attr_name) = attr_name {
                     feature_error!(TyCheckErrors, TyCheckError, self, attr_name.loc(), "")
                 } else {
@@ -1119,6 +1211,9 @@ impl Context {
                     }
                 }
                 if errs.is_empty() {
+                    /*if subr.has_qvar() {
+                        panic!("{subr} has qvar");
+                    }*/
                     Ok(None)
                 } else {
                     Err(errs)
@@ -1126,7 +1221,9 @@ impl Context {
             }
             other => {
                 if let Ok(typ_ctx) = self.get_singular_ctx_by_hir_expr(obj, &self.name) {
-                    if let Some(call_vi) = typ_ctx.get_current_scope_var("__call__") {
+                    if let Some(call_vi) =
+                        typ_ctx.get_current_scope_var(&VarName::from_static("__call__"))
+                    {
                         let mut dummy = TyVarCache::new(self.level, self);
                         let instance =
                             self.instantiate_t_inner(call_vi.t.clone(), &mut dummy, obj.loc())?;
@@ -1144,33 +1241,7 @@ impl Context {
                 } else {
                     None
                 };
-                if let Some(attr_name) = attr_name {
-                    Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        Location::concat(obj, attr_name),
-                        self.caused_by(),
-                        &(obj.to_string() + &attr_name.to_string()),
-                        None,
-                        &mono("Callable"),
-                        other,
-                        self.get_candidates(other),
-                        hint,
-                    )))
-                } else {
-                    Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        obj.loc(),
-                        self.caused_by(),
-                        &obj.to_string(),
-                        None,
-                        &mono("Callable"),
-                        other,
-                        self.get_candidates(other),
-                        hint,
-                    )))
-                }
+                Err(self.not_callable_error(obj, attr_name, other, hint))
             }
         }
     }
@@ -1255,7 +1326,7 @@ impl Context {
         passed_params: &mut Set<Str>,
     ) -> TyCheckResult<()> {
         let arg_t = arg.ref_t();
-        let param_t = &param.typ();
+        let param_t = param.typ();
         if let Some(name) = param.name() {
             if passed_params.contains(name) {
                 return Err(TyCheckErrors::from(TyCheckError::multiple_args_error(
@@ -1279,13 +1350,19 @@ impl Context {
                     callee.show_acc().unwrap_or_default()
                 };
                 let name = name + "::" + param.name().map(|s| readable_name(&s[..])).unwrap_or("");
-                let mut hint = Self::get_call_type_mismatch_hint(
+                let mut hint = self.get_call_type_mismatch_hint(
                     callee.ref_t(),
                     attr_name.as_ref().map(|i| &i.inspect()[..]),
                     nth,
                     param_t,
                     arg_t,
                 );
+                let param_t = self
+                    .deref_tyvar(param_t.clone(), Variance::Contravariant, arg.loc())
+                    .unwrap_or_else(|_| param_t.clone());
+                let arg_t = self
+                    .deref_tyvar(arg_t.clone(), Variance::Covariant, arg.loc())
+                    .unwrap_or_else(|_| arg_t.clone());
                 TyCheckErrors::new(
                     errs.into_iter()
                         .map(|e| {
@@ -1296,9 +1373,9 @@ impl Context {
                                 e.caused_by,
                                 &name[..],
                                 Some(nth),
-                                param_t,
-                                arg_t,
-                                self.get_candidates(arg_t),
+                                &param_t,
+                                &arg_t,
+                                self.get_candidates(&arg_t),
                                 std::mem::take(&mut hint),
                             )
                         })
@@ -1317,7 +1394,7 @@ impl Context {
         param: &ParamTy,
     ) -> TyCheckResult<()> {
         let arg_t = arg.ref_t();
-        let param_t = &param.typ();
+        let param_t = param.typ();
         self.sub_unify(arg_t, param_t, arg.loc(), param.name())
             .map_err(|errs| {
                 log!(err "semi-unification failed with {callee}\n{arg_t} !<: {param_t}");
@@ -1327,6 +1404,7 @@ impl Context {
                     callee.show_acc().unwrap_or_default()
                 };
                 let name = name + "::" + param.name().map(|s| readable_name(&s[..])).unwrap_or("");
+                let hint = self.get_simple_type_mismatch_hint(param_t, arg_t);
                 TyCheckErrors::new(
                     errs.into_iter()
                         .map(|e| {
@@ -1340,7 +1418,7 @@ impl Context {
                                 param_t,
                                 arg_t,
                                 self.get_candidates(arg_t),
-                                Self::get_simple_type_mismatch_hint(param_t, arg_t),
+                                hint.clone(),
                             )
                         })
                         .collect(),
@@ -1375,8 +1453,9 @@ impl Context {
             .chain(subr_ty.default_params.iter())
             .find(|pt| pt.name().as_ref() == Some(&kw_name))
         {
+            let param_t = pt.typ();
             passed_params.insert(kw_name.clone());
-            self.sub_unify(arg_t, pt.typ(), arg.loc(), Some(kw_name))
+            self.sub_unify(arg_t, param_t, arg.loc(), Some(kw_name))
                 .map_err(|errs| {
                     log!(err "semi-unification failed with {callee}\n{arg_t} !<: {}", pt.typ());
                     let name = if let Some(attr) = attr_name {
@@ -1385,6 +1464,9 @@ impl Context {
                         callee.show_acc().unwrap_or_default()
                     };
                     let name = name + "::" + readable_name(kw_name);
+                    let hint = self.get_simple_type_mismatch_hint(param_t, arg_t);
+                    let param_t = self.readable_type(param_t.clone(), true);
+                    let arg_t = self.readable_type(arg_t.clone(), false);
                     TyCheckErrors::new(
                         errs.into_iter()
                             .map(|e| {
@@ -1395,10 +1477,10 @@ impl Context {
                                     e.caused_by,
                                     &name[..],
                                     Some(nth),
-                                    pt.typ(),
-                                    arg_t,
-                                    self.get_candidates(arg_t),
-                                    Self::get_simple_type_mismatch_hint(pt.typ(), arg_t),
+                                    &param_t,
+                                    &arg_t,
+                                    self.get_candidates(&arg_t),
+                                    hint.clone(),
                                 )
                             })
                             .collect(),
@@ -1552,17 +1634,22 @@ impl Context {
         None
     }
 
+    // Returns what kind of variance the type has for each parameter Type.
+    // Invariant for types not specified
     // selfが示す型が、各パラメータTypeに対してどのような変性Varianceを持つかを返す
     // 特に指定されない型に対してはInvariant
     // e.g. K(T, U) = Class(..., Impl: F(T) and Output(U) and Input(T))
     // -> K.variance() == vec![Contravariant, Covariant]
     // TODO: support keyword arguments
     pub(crate) fn type_params_variance(&self) -> Vec<Variance> {
+        let match_tp_name = |tp: &TyParam, name: &VarName| -> bool {
+            tp.qual_name().as_ref() == Some(name.inspect())
+        };
         let in_inout = |t: &Type, name: &VarName| {
             (&t.qual_name()[..] == "Input" || &t.qual_name()[..] == "Output")
                 && t.typarams()
                     .first()
-                    .map(|inner| inner.qual_name().as_ref() == Some(name.inspect()))
+                    .map(|inner| match_tp_name(inner, name))
                     .unwrap_or(false)
         };
         self.params
@@ -1570,13 +1657,13 @@ impl Context {
             .map(|(opt_name, _)| {
                 if let Some(name) = opt_name {
                     // トレイトの変性を調べるときはsuper_classesも見る必要がある
-                    if let Some(t) = self
+                    if let Some(variance_trait) = self
                         .super_traits
                         .iter()
                         .chain(self.super_classes.iter())
                         .find(|t| in_inout(t, name))
                     {
-                        match &t.qual_name()[..] {
+                        match &variance_trait.qual_name()[..] {
                             "Output" => Variance::Covariant,
                             "Input" => Variance::Contravariant,
                             _ => unreachable!(),
@@ -1790,16 +1877,7 @@ impl Context {
                 for p in namespaces.into_iter() {
                     path = self.push_path(path, Path::new(p));
                 }
-                if let Some(ctx) = self
-                    .mod_cache
-                    .as_ref()
-                    .and_then(|cache| cache.ref_ctx(path.as_path()))
-                    .or_else(|| {
-                        self.py_mod_cache
-                            .as_ref()
-                            .and_then(|cache| cache.ref_ctx(path.as_path()))
-                    })
-                {
+                if let Some(ctx) = self.get_ctx_from_path(path.as_path()) {
                     if let Some((t, ctx)) = ctx.rec_get_mono_type(type_name) {
                         return Some((t, ctx));
                     }
@@ -1820,16 +1898,7 @@ impl Context {
                 for p in namespaces.into_iter() {
                     path = self.push_path(path, Path::new(p));
                 }
-                if let Some(ctx) = self
-                    .mod_cache
-                    .as_ref()
-                    .and_then(|cache| cache.ref_ctx(path.as_path()))
-                    .or_else(|| {
-                        self.py_mod_cache
-                            .as_ref()
-                            .and_then(|cache| cache.ref_ctx(path.as_path()))
-                    })
-                {
+                if let Some(ctx) = self.get_ctx_from_path(path.as_path()) {
                     if let Some((t, ctx)) = ctx.rec_get_poly_type(type_name) {
                         return Some((t, ctx));
                     }
@@ -1925,7 +1994,7 @@ impl Context {
         None
     }
 
-    pub(crate) fn get_trait_impls(&self, t: &Type) -> Set<TypeRelationInstance> {
+    pub(crate) fn get_trait_impls(&self, t: &Type) -> Set<TraitImpl> {
         match t {
             // And(Add, Sub) == intersection({Int <: Add(Int), Bool <: Add(Bool) ...}, {Int <: Sub(Int), ...})
             // == {Int <: Add(Int) and Sub(Int), ...}
@@ -1940,7 +2009,7 @@ impl Context {
                     let lti = l_impls.iter().find(|ti| &ti.sub_type == base).unwrap();
                     let rti = r_impls.iter().find(|ti| &ti.sub_type == base).unwrap();
                     let sup_trait = self.intersection(&lti.sup_trait, &rti.sup_trait);
-                    isec.insert(TypeRelationInstance::new(lti.sub_type.clone(), sup_trait));
+                    isec.insert(TraitImpl::new(lti.sub_type.clone(), sup_trait));
                 }
                 isec
             }
@@ -1954,7 +2023,7 @@ impl Context {
         }
     }
 
-    pub(crate) fn get_simple_trait_impls(&self, t: &Type) -> Set<TypeRelationInstance> {
+    pub(crate) fn get_simple_trait_impls(&self, t: &Type) -> Set<TraitImpl> {
         let current = if let Some(impls) = self.trait_impls.get(&t.qual_name()) {
             impls.clone()
         } else {
@@ -2041,14 +2110,7 @@ impl Context {
             let path =
                 option_enum_unwrap!(t.typarams().remove(0), TyParam::Value:(ValueObj::Str:(_)))?;
             let path = Self::resolve_path(&self.cfg, Path::new(&path[..]))?;
-            self.mod_cache
-                .as_ref()
-                .and_then(|cache| cache.ref_ctx(&path))
-                .or_else(|| {
-                    self.py_mod_cache
-                        .as_ref()
-                        .and_then(|cache| cache.ref_ctx(&path))
-                })
+            self.get_ctx_from_path(path.as_path())
         } else {
             None
         }
@@ -2227,19 +2289,20 @@ impl Context {
     }
 
     fn get_gen_t_require_attr_t<'a>(&'a self, gen: &'a GenTypeObj, attr: &str) -> Option<&'a Type> {
-        match gen.require_or_sup().unwrap().typ() {
-            Type::Record(rec) => {
+        match gen.require_or_sup().map(|req_sup| req_sup.typ()) {
+            Some(Type::Record(rec)) => {
                 if let Some(t) = rec.get(attr) {
                     return Some(t);
                 }
             }
-            other => {
+            Some(other) => {
                 let obj = self.rec_get_const_obj(&other.local_name());
                 let obj = enum_unwrap!(obj, Some:(ValueObj::Type:(TypeObj::Generated:(_))));
                 if let Some(t) = self.get_gen_t_require_attr_t(obj, attr) {
                     return Some(t);
                 }
             }
+            None => {}
         }
         if let Some(additional) = gen.additional() {
             if let Type::Record(gen) = additional.typ() {

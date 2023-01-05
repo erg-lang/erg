@@ -2,6 +2,7 @@
 //!
 //! コマンドオプション(パーサー)を定義する
 use std::env;
+use std::fmt;
 use std::fs::File;
 use std::io::{stdin, BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
@@ -14,12 +15,64 @@ use crate::serialize::{get_magic_num_from_bytes, get_ver_from_magic_num};
 use crate::stdin::GLOBAL_STDIN;
 use crate::{power_assert, read_file};
 
-pub const SEMVER: &str = env!("CARGO_PKG_VERSION");
-pub const GIT_HASH_SHORT: &str = env!("GIT_HASH_SHORT");
-pub const BUILD_DATE: &str = env!("BUILD_DATE");
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ErgMode {
+    Lex,
+    Parse,
+    Desugar,
+    TypeCheck,
+    FullCheck,
+    Compile,
+    Transpile,
+    Execute,
+    LanguageServer,
+    Read,
+}
 
-/// 入力はファイルからだけとは限らないので
-/// Inputで操作を一本化する
+impl TryFrom<&str> for ErgMode {
+    type Error = ();
+    fn try_from(s: &str) -> Result<Self, ()> {
+        match s {
+            "lex" | "lexer" => Ok(Self::Lex),
+            "parse" | "parser" => Ok(Self::Parse),
+            "desugar" | "desugarer" => Ok(Self::Desugar),
+            "typecheck" | "lower" => Ok(Self::TypeCheck),
+            "fullcheck" | "check" | "checker" => Ok(Self::FullCheck),
+            "compile" | "compiler" => Ok(Self::Compile),
+            "transpile" | "transpiler" => Ok(Self::Transpile),
+            "execute" => Ok(Self::Execute),
+            "language-server" => Ok(Self::LanguageServer),
+            "byteread" | "read" | "reader" => Ok(Self::Read),
+            _ => Err(()),
+        }
+    }
+}
+
+impl From<ErgMode> for &str {
+    fn from(mode: ErgMode) -> Self {
+        match mode {
+            ErgMode::Lex => "lex",
+            ErgMode::Parse => "parse",
+            ErgMode::Desugar => "desugar",
+            ErgMode::TypeCheck => "typecheck",
+            ErgMode::FullCheck => "fullcheck",
+            ErgMode::Compile => "compile",
+            ErgMode::Transpile => "transpile",
+            ErgMode::Execute => "execute",
+            ErgMode::LanguageServer => "language-server",
+            ErgMode::Read => "read",
+        }
+    }
+}
+
+impl fmt::Display for ErgMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", <&str>::from(*self))
+    }
+}
+
+/// Since input is not always only from files
+/// Unify operations with `Input`
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Input {
     File(PathBuf),
@@ -38,7 +91,7 @@ impl Input {
 
     pub fn enclosed_name(&self) -> &str {
         match self {
-            Self::File(filename) => filename.to_str().unwrap_or("???"),
+            Self::File(filename) => filename.to_str().unwrap_or("_"),
             Self::REPL | Self::Pipe(_) => "<stdin>",
             Self::Str(_) => "<string>",
             Self::Dummy => "<dummy>",
@@ -47,7 +100,16 @@ impl Input {
 
     pub fn full_path(&self) -> &str {
         match self {
-            Self::File(filename) => filename.to_str().unwrap_or("???"),
+            Self::File(filename) => filename.to_str().unwrap_or("_"),
+            Self::REPL | Self::Pipe(_) => "stdin",
+            Self::Str(_) => "string",
+            Self::Dummy => "dummy",
+        }
+    }
+
+    pub fn file_stem(&self) -> &str {
+        match self {
+            Self::File(filename) => filename.file_stem().and_then(|f| f.to_str()).unwrap_or("_"),
             Self::REPL | Self::Pipe(_) => "stdin",
             Self::Str(_) => "string",
             Self::Dummy => "dummy",
@@ -56,10 +118,7 @@ impl Input {
 
     pub fn filename(&self) -> &str {
         match self {
-            Self::File(filename) => filename
-                .file_name()
-                .and_then(|f| f.to_str())
-                .unwrap_or("???"),
+            Self::File(filename) => filename.file_name().and_then(|f| f.to_str()).unwrap_or("_"),
             Self::REPL | Self::Pipe(_) => "stdin",
             Self::Str(_) => "string",
             Self::Dummy => "dummy",
@@ -188,8 +247,7 @@ impl Input {
 
 #[derive(Debug, Clone)]
 pub struct ErgConfig {
-    /// options: lex | parse | compile | exec
-    pub mode: &'static str,
+    pub mode: ErgMode,
     /// optimization level.
     /// * 0: no optimization
     /// * 1 (default): e.g. constant folding, dead code elimination
@@ -201,7 +259,6 @@ pub struct ErgConfig {
     pub py_command: Option<&'static str>,
     pub target_version: Option<PythonVersion>,
     pub py_server_timeout: u64,
-    pub python_compatible_mode: bool,
     pub quiet_repl: bool,
     pub show_type: bool,
     pub input: Input,
@@ -222,14 +279,13 @@ impl Default for ErgConfig {
     #[inline]
     fn default() -> Self {
         Self {
-            mode: "exec",
+            mode: ErgMode::Execute,
             opt_level: 1,
             no_std: false,
             py_magic_num: None,
             py_command: None,
             target_version: None,
             py_server_timeout: 10,
-            python_compatible_mode: false,
             quiet_repl: false,
             show_type: false,
             input: Input::REPL,
@@ -252,7 +308,7 @@ impl ErgConfig {
         }
     }
 
-    /// cloneのエイリアス(実際のcloneコストは低いので)
+    /// clone alias (since the actual clone cost is low)
     #[inline]
     pub fn copy(&self) -> Self {
         self.clone()
@@ -263,6 +319,32 @@ impl ErgConfig {
             format!("{output}/{}", self.input.filename())
         } else {
             self.input.full_path().to_string()
+        }
+    }
+
+    pub fn dump_filename(&self) -> String {
+        if let Some(output) = &self.output_dir {
+            format!("{output}/{}", self.input.filename())
+        } else {
+            self.input.filename().to_string()
+        }
+    }
+
+    pub fn dump_pyc_path(&self) -> String {
+        let dump_path = self.dump_path();
+        if dump_path.ends_with(".er") {
+            dump_path.replace(".er", ".pyc")
+        } else {
+            dump_path + ".pyc"
+        }
+    }
+
+    pub fn dump_pyc_filename(&self) -> String {
+        let dump_filename = self.dump_filename();
+        if dump_filename.ends_with(".er") {
+            dump_filename.replace(".er", ".pyc")
+        } else {
+            dump_filename + ".pyc"
         }
     }
 
@@ -278,7 +360,7 @@ impl ErgConfig {
         let mut args = env::args();
         args.next(); // "ergc"
         let mut cfg = Self::default();
-        // ループ内でnextするのでforにしないこと
+        // not `for` because we need to consume the next argument
         while let Some(arg) = args.next() {
             match &arg[..] {
                 "--" => {
@@ -291,10 +373,13 @@ impl ErgConfig {
                     cfg.input = Input::Str(args.next().expect("the value of `-c` is not passed"));
                 }
                 "--check" => {
-                    cfg.mode = "check";
+                    cfg.mode = ErgMode::FullCheck;
                 }
                 "--compile" | "--dump-as-pyc" => {
-                    cfg.mode = "compile";
+                    cfg.mode = ErgMode::Compile;
+                }
+                "--language-server" => {
+                    cfg.mode = ErgMode::LanguageServer;
                 }
                 "--no-std" => {
                     cfg.no_std = true;
@@ -319,7 +404,14 @@ impl ErgConfig {
                         println!("{}", mode_message());
                         process::exit(0);
                     }
-                    cfg.mode = Box::leak(mode.into_boxed_str());
+                    cfg.mode = ErgMode::try_from(&mode[..]).unwrap_or_else(|_| {
+                        eprintln!("invalid mode: {mode}");
+                        process::exit(1);
+                    });
+                }
+                "--ping" => {
+                    println!("pong");
+                    process::exit(0);
                 }
                 "--ps1" => {
                     let ps1 = args
@@ -385,9 +477,6 @@ impl ErgConfig {
                         .parse::<u64>()
                         .expect("the value of `--py-server-timeout` is not a number");
                 }
-                "--pylyzer-mode" if cfg!(feature = "debug") => {
-                    cfg.python_compatible_mode = true;
-                }
                 "--quiet-startup" | "--quiet-repl" => {
                     cfg.quiet_repl = true;
                 }
@@ -413,8 +502,30 @@ impl ErgConfig {
                     println!("Erg {}", env!("CARGO_PKG_VERSION"));
                     process::exit(0);
                 }
+                "--build-features" => {
+                    #[cfg(feature = "debug")]
+                    print!("debug ");
+                    #[cfg(feature = "els")]
+                    print!("els ");
+                    #[cfg(feature = "py_compatible")]
+                    print!("py_compatible ");
+                    #[cfg(feature = "japanese")]
+                    print!("japanese ");
+                    #[cfg(feature = "simplified_chinese")]
+                    print!("simplified_chinese ");
+                    #[cfg(feature = "traditional_chinese")]
+                    print!("traditional_chinese ");
+                    #[cfg(feature = "unicode")]
+                    print!("unicode ");
+                    #[cfg(feature = "pretty")]
+                    print!("pretty ");
+                    #[cfg(feature = "large_thread")]
+                    print!("large_thread");
+                    println!();
+                    process::exit(0);
+                }
                 other if other.starts_with('-') => {
-                    println!(
+                    eprintln!(
                         "\
 invalid option: {other}
 
@@ -439,7 +550,7 @@ USAGE:
                 }
             }
         }
-        if cfg.input == Input::REPL {
+        if cfg.input == Input::REPL && cfg.mode != ErgMode::LanguageServer {
             use crate::tty::IsTty;
             let is_stdin_piped = !stdin().is_tty();
             let input = if is_stdin_piped {

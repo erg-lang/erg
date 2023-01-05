@@ -1,6 +1,6 @@
 # 索引
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/indexes.md%26commit_hash%3Dd8472ec748aac5371571da81a161255fe60679b7)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/indexes.md&commit_hash=d8472ec748aac5371571da81a161255fe60679b7)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/indexes.md%26commit_hash%3D96b113c47ec6ca7ad91a6b486d55758de00d557d)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/indexes.md&commit_hash=96b113c47ec6ca7ad91a6b486d55758de00d557d)
 
 この索引にないAPIについては[こちら](../API/index.md)を参照してください。
 
@@ -79,7 +79,6 @@
 * [Add]
 * [alias](type/02_basic.md)
 * [Aliasing](./type/02_basic.md)
-* [For&nbsp;all&nbsp;types](./type/15_quantified.md)
 * [algebraic&nbsp;type](./type/13_algebraic.md)
 * [And]
 * [and]
@@ -152,6 +151,7 @@
 * [Float&sbsp;Object](./01_literal.md)
 * [for](./05_builtin_funcs.md)
 * [For-All&nbsp;Patch](./type/07_patch.md)
+* [For&nbsp;all&nbsp;types](./type/15_quantified.md)
 * [freeze](./18_ownership.md)
 * [Function](./04_function.md)
 * [Function&nbsp;definition&nbsp;with&nbsp;multiple patterns](./04_function.md)
@@ -163,6 +163,8 @@
 * [Glue&nbsp;Patch](./type/07_patch.md)
 
 ### H
+
+* [High-order&nbsp;function](./04_function.md)
 
 ### I
 

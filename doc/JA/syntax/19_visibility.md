@@ -1,6 +1,6 @@
 # 可視性
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/19_visibility.md%26commit_hash%3Db07c17708b9141bbce788d2e5b3ad4f365d342fa)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/19_visibility.md&commit_hash=b07c17708b9141bbce788d2e5b3ad4f365d342fa)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/19_visibility.md%26commit_hash%3D20aa4f02b994343ab9600317cebafa2b20676467)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/19_visibility.md&commit_hash=20aa4f02b994343ab9600317cebafa2b20676467)
 
 Ergの変数には __可視性__ という概念が存在します。
 今まで見てきた変数は全て __プライベート変数(非公開変数)__ と呼ばれます。これは、外部から不可視の変数です。
@@ -25,7 +25,7 @@ foo.x # AttributeError: Module 'foo' has no attribute 'x' ('x' is private)
 .x = "this is a visible variable"
 ```
 
-```python
+```python,checker_ignore
 # bar.er
 foo = import "foo"
 assert foo.x == "this is a visible variable"
@@ -94,17 +94,20 @@ C.
 ```python
 # foo.er
 .Foo = Class()
+.Bar = Class()
 ```
 
 ```python
 # bar.er
-{Foo; ...} = import "foo"
+{Foo;} = import "foo"
 
 Foo::
     private self = pass
 Foo.
     public self = self::private()
+```
 
+```python,compile_fail
 .f() =
     foo = Foo.new()
     foo.public()
@@ -117,7 +120,7 @@ Foo.
 
 ```python
 # baz.er
-{Foo; ...} = import "foo"
+{Foo;} = import "foo"
 
 foo = Foo.new()
 foo.public() # AttributeError: 'Foo' has no attribute 'public' ('public' is defined in module 'bar')
@@ -128,7 +131,7 @@ foo.public() # AttributeError: 'Foo' has no attribute 'public' ('public' is defi
 
 ```python,compile_fail
 # bar.er
-{.Foo; ...} = import "foo"
+{.Foo;} = import "foo"
 
 .Foo::
     private self = pass # Error
@@ -140,7 +143,7 @@ foo.public() # AttributeError: 'Foo' has no attribute 'public' ('public' is defi
 
 ```python
 # bar.er
-{Foo; ...} = import "foo"
+{Foo;} = import "foo"
 
 FooImpl = Patch Foo
 FooImpl :=:
@@ -151,8 +154,8 @@ FooImpl.
 
 ```python
 # baz.er
-{Foo; ...} = import "foo"
-{FooImpl; ...} = import "bar"
+{Foo;} = import "foo"
+{FooImpl;} = import "bar"
 
 foo = Foo.new()
 foo.public()

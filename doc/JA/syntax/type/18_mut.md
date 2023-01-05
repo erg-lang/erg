@@ -1,6 +1,6 @@
 # 可変型
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/18_mut.md%26commit_hash%3D00682a94603fed2b531898200a79f2b4a64d5aae)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/18_mut.md&commit_hash=00682a94603fed2b531898200a79f2b4a64d5aae)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/18_mut.md%26commit_hash%3D60dfd8580acb1a06dec36895295f92e823931a59)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/18_mut.md&commit_hash=60dfd8580acb1a06dec36895295f92e823931a59)
 
 > __Warning__: この項の情報は古く、一部に間違いを含みます。
 
@@ -52,113 +52,38 @@ K! T: Type = Class ...
 
 標準ライブラリでは、可変型`(...)!`型は不変型`(...)`型を基底としている場合が多いです。しかし`T!`型と`T`型に言語上特別な関連はなく、そのように構成しなくても構いません[<sup id="f1">1</sup>](#1)。
 
-注意として、オブジェクトの可変性にはいくつかの種類があります。
-以下では組み込みのコレクション型について、その不変/可変型の意味を確認します。
-
-```python
-# 配列型
-## 不変型(immutable types)
-[T; N]     # 可変操作は実行できない
-## 可変型(mutable types)
-[T!; N]    # 中身を1つずつ変更できる
-[T; !N]    # 可変長、中身は変更不能だが要素の追加・削除で実質変更できる
-[!T; N]    # 中身は不変オブジェクトだが、型を変えたものに差し替え可能できる(型を変えないという操作で実質差し替えできる)
-[!T; !N]   # 型、長さを変更できる
-[T!; !N]   # 中身、長さを変更でき
-[!T!; N]   # 中身、型を変更できる
-[!T!; !N]  # ありとあらゆる可変操作を実行できる
-```
-
-もちろんこれら全てを暗記し、使いこなす必要はありません。
-可変配列型については、可変にしたい部分に`!`を付けるだけであり、実用上は`[T; N]`, `[T!; N]`, `[T; !N]`, `[T!; !N]`の4つでほとんどのケースをカバーできます。
-
-これらの配列型は糖衣構文であり、実際の型は以下の通りです。
-
-```python
-# 実際は4種類の型
-[T; N] = Array(T, N)
-[T; !N] = Array!(T, !N)
-[!T; N] = ArrayWithMutType!(!T, N)
-[!T; !N] = ArrayWithMutTypeAndLength!(!T, !N)
-[T!; !N] = Array!(T!, !N)
-[!T!; N] = ArrayWithMutType!(!T!, N)
-[!T!; !N] = ArrayWithMutTypeAndLength!(!T!, !N)
-```
-
-なお、型を変更可能とはこのような意味です。
-
-```python
-a = [1, 2, 3].into [!Nat; 3]
-a.map!(_ -> "a")
-a: [!Str; 3]
-```
-
-他のコレクション型についても同様です。
-
-```python
-# タプル型
-## 不変型(immutable types)
-(T, U) # 要素数不変、中身を変更できない
-## 可変型(mutable types)
-(T!, U) # 要素数不変、最初の要素は変更できる
-(T, U)! # 要素数不変、中身を変更できる
-...
-```
-
-```python
-# セット型
-## 不変型(immutable types)
-{T; N}        # 不変要素数、中身を変更できない
-## 可変型(mutable types)
-{T!; N}       # 不変要素数、中身を(1つずつ)変更できる
-{T; N}!       # 可変要素数、中身は変更できないが、要素の追加削除で実質的に中の型を変更できる
-{T!; N}!      # 可変要素数、中身も変更できる
-...
-```
-
-```python
-# 辞書型
-## 不変型(immutable types)
-{K: V}          # 不変長、中身を変更できない
-## 可変型(mutable types)
-{K: V!}         # 不変長、値を(1つずつ)変更できる
-{K: V}!         # 可変長、中身を変更できないが、要素の追加削除で実質的に中の型も変更できる
-...
-```
-
-```python
-# レコード型
-## 不変型(immutable types)
-{x = Int; y = Str}           # 中身を変更できない
-## 可変型(mutable types)
-{x = Int!; y = Str}          # xの値を変更できる
-{x = Int; y = Str}!          # {x = Int; y = Str}のインスタンスならば何でも差し替えられる
-...
-```
-
 `T = (...)`のとき単に`T! = (...)!`となる型`(...)`を単純構造型と呼びます。単純構造型は(意味論上)内部構造を持たない型ともいえます。
-配列、タプル、セット、辞書、レコード型は全て単純構造型ではありませんが、Int型や篩型は単純構造型です。
-
-```python
-# 篩型
-## 列挙型
-{1, 2, 3}    # 1, 2, 3のうちどれか、変更できない
-{1, 2, 3}!   # 1, 2, 3のうちどれか、変更できる
-## 区間型
-1..12  # 1~12のうちどれか、変更できない
-1..12! # 1~12のうちどれか、変更できる
-## 篩型(一般形)
-{I: Int | I % 2 == 0}  # 偶数型、変更できない
-{I: Int! | I % 2 == 0} # 偶数型、変更できる
-{I: Int | I % 2 == 0}! # 上と全く同じ型、だが上の記法が推奨される
-```
+配列、タプル、セット、辞書、レコード型は単純構造型ではありませんが、Int型やStr型は単純構造型です。
 
 以上の説明から、可変型とは自身が可変であるものだけでなく、内部に持つ型が可変であるものも含まれるということになります。
 `{x: Int!}`や`[Int!; 3]`などの型は、内部のオブジェクトが可変であり、インスタンス自身が可変なわけではない内部可変型です。
 
-内部構造を持ち型構築子自体に`!`がついている型`K!(T, U)`の場合、`*self`はオブジェクト全体を変えうるものです。また、局所的な変更も可能です。
-ただし、変更権限はなるべく局所的に抑えることが望ましいので、変更されうるのが`T`のみの場合`K(T!, U)`とした方が良いでしょう。
-また内部構造を持たない型`T!`の場合、このインスタンスは単に入れ替え可能な`T`のボックスです。メソッドによって型を変更することはできません。
+## Cell! T
+
+Intや配列などの不変型に対しては、既に可変型が定義されています。しかし、このような可変型はどのようにして定義されたのでしょうか？例えば、`{x = Int; y = Int}`型に対しては`{x = Int!; y = Int!}`型などが対応する可変型です。
+しかし`Int!`型はどうやって`Int`型から作られたのでしょうか？あるいは`Int!`型はどのようにして`Int`型と関係付けられているのでしょうか？
+
+それらに対する答えが`Cell!`型です。`Cell! T`型は`T`型オブジェクトを格納する箱のような型です。
+
+```python
+IntOrStr = Inr or Str
+IntOrStr! = Cell! IntOrStr
+x = IntOrStr!.new 1
+assert x is! 1 # `Int or Str` cannot compare with `Int` directly, so use `is!` (this compares object IDs) instead of `==`.
+x.set! "a"
+assert x is! "a"
+```
+
+`Cell! T`型の重要な性質として、`T`型の部分型になるというものがあります。これより、`Cell! T`型のオブジェクトは`T`型のメソッドを全て使うことができます。
+
+```python
+# definition of `Int!`
+Int! = Cell! Int
+...
+
+i = !1
+assert i == 1 # `i` is casted to `Int`
+```
 
 ---
 

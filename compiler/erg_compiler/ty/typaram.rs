@@ -122,8 +122,8 @@ impl fmt::Display for IntervalOp {
     }
 }
 
-/// 型引数
-/// データのみ、その評価結果は別に持つ
+/// type argument
+/// This is an expression, not a evaluation result
 /// * Literal: 1, "aa", True, None, ... (don't use container literals, they can only hold literals)
 /// * Type: Int, Add(?R, ?O), ...
 /// * Mono: I, N, ...
@@ -310,28 +310,28 @@ impl LimitedDisplay for TyParam {
 
 impl CanbeFree for TyParam {
     fn unbound_name(&self) -> Option<Str> {
-        if let TyParam::FreeVar(fv) = self {
-            fv.unbound_name()
-        } else {
-            None
+        match self {
+            TyParam::FreeVar(fv) => fv.unbound_name(),
+            TyParam::Type(t) => t.unbound_name(),
+            _ => None,
         }
     }
 
     fn constraint(&self) -> Option<Constraint> {
-        if let TyParam::FreeVar(fv) = self {
-            fv.constraint()
-        } else {
-            None
+        match self {
+            TyParam::FreeVar(fv) => fv.constraint(),
+            TyParam::Type(t) => t.constraint(),
+            _ => None,
         }
     }
 
-    fn update_constraint(&self, new_constraint: Constraint) {
+    fn update_constraint(&self, new_constraint: Constraint, in_instantiation: bool) {
         match self {
-            Self::Type(t) => {
-                t.update_constraint(new_constraint);
-            }
             Self::FreeVar(fv) => {
-                fv.update_constraint(new_constraint);
+                fv.update_constraint(new_constraint, in_instantiation);
+            }
+            Self::Type(t) => {
+                t.update_constraint(new_constraint, in_instantiation);
             }
             _ => {}
         }
@@ -705,6 +705,16 @@ impl TyParam {
         }
     }
 
+    pub fn coerce(&self) {
+        match self {
+            TyParam::FreeVar(fv) if fv.is_linked() => {
+                fv.crack().coerce();
+            }
+            TyParam::Type(t) => t.coerce(),
+            _ => {}
+        }
+    }
+
     pub fn qvars(&self) -> Set<(Str, Constraint)> {
         match self {
             Self::FreeVar(fv) if !fv.constraint_is_uninited() => {
@@ -751,20 +761,24 @@ impl TyParam {
         }
     }
 
-    pub fn is_cachable(&self) -> bool {
+    pub fn contains_var(&self, name: &str) -> bool {
         match self {
-            Self::FreeVar(_) => false,
-            Self::Type(t) => t.is_cachable(),
-            Self::Proj { obj, .. } => obj.is_cachable(),
-            Self::Array(ts) => ts.iter().all(|t| t.is_cachable()),
-            Self::Tuple(ts) => ts.iter().all(|t| t.is_cachable()),
-            Self::Set(ts) => ts.iter().all(|t| t.is_cachable()),
-            Self::Dict(kv) => kv.iter().all(|(k, v)| k.is_cachable() && v.is_cachable()),
-            Self::UnaryOp { val, .. } => val.is_cachable(),
-            Self::BinOp { lhs, rhs, .. } => lhs.is_cachable() && rhs.is_cachable(),
-            Self::App { args, .. } => args.iter().all(|p| p.is_cachable()),
-            Self::Erased(t) => t.is_cachable(),
-            _ => true,
+            Self::FreeVar(fv) if fv.is_unbound() => {
+                fv.unbound_name().as_ref().map(|s| &s[..]) == Some(name)
+            }
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains_var(name),
+            Self::Type(t) => t.contains_tvar(name),
+            Self::Erased(t) => t.contains_tvar(name),
+            Self::Proj { obj, .. } => obj.contains_var(name),
+            Self::Array(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.contains_var(name)),
+            Self::Set(ts) => ts.iter().any(|t| t.contains_var(name)),
+            Self::Dict(ts) => ts
+                .iter()
+                .any(|(k, v)| k.contains_var(name) || v.contains_var(name)),
+            Self::UnaryOp { val, .. } => val.contains_var(name),
+            Self::BinOp { lhs, rhs, .. } => lhs.contains_var(name) || rhs.contains_var(name),
+            Self::App { args, .. } => args.iter().any(|p| p.contains_var(name)),
+            _ => false,
         }
     }
 

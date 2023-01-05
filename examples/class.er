@@ -1,3 +1,7 @@
+Empty = Class()
+empty = Empty.new()
+print! empty
+
 # Inheritance is prohibited by default. Remove this decorator and check for errors.
 @Inheritable
 Point2D = Class {x = Int; y = Int}

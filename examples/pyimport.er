@@ -1,5 +1,5 @@
 _glob = pyimport "glob"
-_importlib = pyimport "importlib"
+importlib = pyimport "importlib"
 _io = pyimport "io"
 math = pyimport "math"
 _os = pyimport "os"
@@ -12,6 +12,7 @@ sys = pyimport "sys"
 urllib = pyimport "urllib"
 
 print! math.pi
+print! importlib.util.MAGIC_NUMBER
 print! urllib.request.urlopen!("https://example.com")
 discard sub.run! ["echo", "hello"], shell := True
 sys.exit 111

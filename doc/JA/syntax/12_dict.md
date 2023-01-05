@@ -1,6 +1,6 @@
 # 辞書
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/12_dict.md%26commit_hash%3Da0c1380a6fa5236518ac4ff455edbd3af50b0560)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/12_dict.md&commit_hash=a0c1380a6fa5236518ac4ff455edbd3af50b0560)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/12_dict.md%26commit_hash%3De86a0987ed14a4de5da770372d4f3729c7691503)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/12_dict.md&commit_hash=e86a0987ed14a4de5da770372d4f3729c7691503)
 
 Dictはキーと値のペアを持つコレクションです。
 
@@ -23,7 +23,7 @@ l = {0.0: "a", 1.0: "b"} # TypeError: Float is not Hashable
 Dictに順番は関係ありません。また、重複する要素を持つことも出来ません。この点でDictは[Set](./14_set.md)と似ています。
 Dictは値付きのSetと言うこともできるでしょう。
 
-```python
+```python,compile_fail
 {"Alice": 145, "Bob": 214, "Charlie": 301} == {"Alice": 145, "Charlie": 301, "Bob": 214}
 ```
 

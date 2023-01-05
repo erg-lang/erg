@@ -162,26 +162,12 @@ impl Characters {
         (self.vbreak, self.vbar)
     }
 
-    // "`- "
-    #[cfg(not(feature = "unicode"))]
+    // "`- " or `╰─ `
     pub fn left_bottom_line(&self) -> String {
         format!("{}{} ", self.lbot, self.line)
     }
 
-    // `╰─ `
-    #[cfg(feature = "unicode")]
-    pub fn left_bottom_line(&self) -> String {
-        format!("{}{} ", self.lbot, self.line)
-    }
-
-    // "|- "
-    #[cfg(not(feature = "unicode"))]
-    pub fn left_cross(&self) -> String {
-        format!("{}{} ", self.vbar, self.line)
-    }
-
-    // "│─ "
-    #[cfg(feature = "unicode")]
+    // "|- " or "│─ "
     pub fn left_cross(&self) -> String {
         format!("{}{} ", self.vbar, self.line)
     }
@@ -332,6 +318,7 @@ impl StyledString {
     ///
     /// # Example
     /// ```
+    /// # use erg_common::style::StyledString;
     /// let s = String::from("Hello, world");
     /// StyledString::new(s, None, None);
     /// let s = "Hello, world";
@@ -431,7 +418,7 @@ impl StyledStrings {
     ///
     /// ```
     pub fn push_str(&mut self, s: &str) {
-        if self.is_same_color(Color::Gray) {
+        if self.color_is(Color::Gray) {
             self.texts.last_mut().unwrap().text.push_str(s);
         } else {
             self.texts.push(StyledString::new(s, None, None));
@@ -452,7 +439,7 @@ impl StyledStrings {
     /// println!("{}", texts);
     /// ```
     pub fn push_str_with_color<'a, S: Into<Cow<'a, str>>>(&mut self, s: S, color: Color) {
-        if self.is_same_color(color) {
+        if self.color_is(color) {
             let text = s.into();
             self.texts.last_mut().unwrap().text.push_str(&text);
         } else {
@@ -479,7 +466,7 @@ impl StyledStrings {
         color: Color,
         attr: Attribute,
     ) {
-        if self.is_same_color(color) && self.is_same_attribute(attr) {
+        if self.color_is(color) && self.attr_is(attr) {
             let text = s.into();
             self.texts.last_mut().unwrap().text.push_str(&text);
         } else {
@@ -496,14 +483,14 @@ impl StyledStrings {
         self.texts.iter().all(|s| s.is_empty())
     }
 
-    fn is_same_color(&self, color: Color) -> bool {
+    fn color_is(&self, color: Color) -> bool {
         if let Some(text) = self.texts.last() {
             return text.color == Some(color);
         }
         false
     }
 
-    fn is_same_attribute(&self, attr: Attribute) -> bool {
+    fn attr_is(&self, attr: Attribute) -> bool {
         if let Some(text) = self.texts.last() {
             if let Some(text_attr) = text.attribute {
                 return text_attr == attr;

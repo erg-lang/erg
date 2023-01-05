@@ -27,16 +27,16 @@ Below is an example test.
 ```python
 VMs =...
     ...
-    # [[
+    #[[
     execute commands.
-    ```python
+    ```erg
     # VM in standard configuration
     {vm1; ...} = import "tests/mock"
 
     assert vm1.exec!("i = 0") == None
     assert vm1.exec!("i").try_into(Int)? == 0
     ```
-    ]]# 
+    ]]#
     .exec! ref self, src =
         ...
     ...

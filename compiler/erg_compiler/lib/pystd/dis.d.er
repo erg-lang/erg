@@ -1,2 +1,9 @@
 .dis!: (x: Code or ClassType or TraitType or Proc or Str or Bytes or NoneType := NoneType) => NoneType
-.code_info: (x: Code or ClassType or TraitType or Proc or Str or Bytes or NoneType := NoneType) -> Str
+.code_info: (x: Code or ClassType or TraitType or GenericCallable or Str or Bytes) -> Str
+.show_code!: (x: Code or ClassType or TraitType or GenericCallable or Str or Bytes) => NoneType
+
+.ByteCode: ClassType
+.ByteCode.__call__: (x: GenericCallable or ClassType or TraitType or Str or Code) => .ByteCode
+
+.Instruction: ClassType
+.Positions: ClassType

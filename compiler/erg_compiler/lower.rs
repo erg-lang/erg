@@ -1,24 +1,26 @@
 //! implements `ASTLowerer`.
 //!
 //! ASTLowerer(ASTからHIRへの変換器)を実装
+use std::mem;
 
-use erg_common::config::ErgConfig;
+use erg_common::config::{ErgConfig, ErgMode};
 use erg_common::dict;
 use erg_common::error::{Location, MultiErrorDisplay};
 use erg_common::set;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, NoTypeDisplay, Runnable, Stream};
 use erg_common::vis::Visibility;
-use erg_common::{enum_unwrap, fmt_option, fn_name, get_hash, log, switch_lang, Str};
+use erg_common::{enum_unwrap, fmt_option, fn_name, log, switch_lang, Str};
 
 use erg_parser::ast;
-use erg_parser::ast::{OperationKind, AST};
+use erg_parser::ast::{OperationKind, VarName, AST};
 use erg_parser::build_ast::ASTBuilder;
 use erg_parser::token::{Token, TokenKind};
 use erg_parser::Parser;
 
 use crate::artifact::{CompleteArtifact, IncompleteArtifact};
 use crate::context::instantiate::TyVarCache;
+use crate::global::SharedCompilerResource;
 use crate::ty::constructors::{
     array_mut, array_t, free_var, func, mono, poly, proc, set_mut, set_t, ty_tp,
 };
@@ -28,7 +30,8 @@ use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{HasType, ParamTy, Type};
 
 use crate::context::{
-    ClassDefType, Context, ContextKind, ContextProvider, RegistrationMode, TypeRelationInstance,
+    ClassDefType, Context, ContextKind, ContextProvider, ModuleContext, RegistrationMode,
+    TraitImpl, Variance,
 };
 use crate::error::{
     CompileError, CompileErrors, LowerError, LowerErrors, LowerResult, LowerWarning, LowerWarnings,
@@ -36,7 +39,6 @@ use crate::error::{
 };
 use crate::hir;
 use crate::hir::HIR;
-use crate::mod_cache::SharedModuleCache;
 use crate::reorder::Reorderer;
 use crate::varinfo::{VarInfo, VarKind};
 use crate::AccessKind;
@@ -47,7 +49,7 @@ use Visibility::*;
 #[derive(Debug)]
 pub struct ASTLowerer {
     cfg: ErgConfig,
-    pub(crate) ctx: Context,
+    pub(crate) module: ModuleContext,
     pub(crate) errs: LowerErrors,
     pub(crate) warns: LowerWarnings,
 }
@@ -57,8 +59,7 @@ impl Default for ASTLowerer {
         Self::new_with_cache(
             ErgConfig::default(),
             Str::ever("<module>"),
-            SharedModuleCache::new(ErgConfig::default()),
-            SharedModuleCache::new(ErgConfig::default()),
+            SharedCompilerResource::default(),
         )
     }
 }
@@ -81,8 +82,7 @@ impl Runnable for ASTLowerer {
         Self::new_with_cache(
             cfg.copy(),
             Str::ever("<module>"),
-            SharedModuleCache::new(cfg.copy()),
-            SharedModuleCache::new(cfg),
+            SharedCompilerResource::new(cfg),
         )
     }
 
@@ -90,7 +90,7 @@ impl Runnable for ASTLowerer {
     fn finish(&mut self) {}
 
     fn initialize(&mut self) {
-        self.ctx.initialize();
+        self.module.context.initialize();
         self.errs.clear();
         self.warns.clear();
     }
@@ -122,18 +122,17 @@ impl Runnable for ASTLowerer {
     }
 }
 
-use erg_parser::ast::VarName;
 impl ContextProvider for ASTLowerer {
     fn dir(&self) -> Vec<(&VarName, &VarInfo)> {
-        self.ctx.dir()
+        self.module.context.dir()
     }
 
     fn get_receiver_ctx(&self, receiver_name: &str) -> Option<&Context> {
-        self.ctx.get_receiver_ctx(receiver_name)
+        self.module.context.get_receiver_ctx(receiver_name)
     }
 
     fn get_var_info(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
-        self.ctx.get_var_info(name)
+        self.module.context.get_var_info(name)
     }
 }
 
@@ -141,17 +140,55 @@ impl ASTLowerer {
     pub fn new_with_cache<S: Into<Str>>(
         cfg: ErgConfig,
         mod_name: S,
-        mod_cache: SharedModuleCache,
-        py_mod_cache: SharedModuleCache,
+        shared: SharedCompilerResource,
     ) -> Self {
+        let toplevel = Context::new_module(mod_name, cfg.clone(), shared);
+        let module = ModuleContext::new(toplevel, dict! {});
         Self {
-            ctx: Context::new_module(mod_name, cfg.clone(), mod_cache, py_mod_cache),
+            module,
             cfg,
             errs: LowerErrors::empty(),
             warns: LowerWarnings::empty(),
         }
     }
 
+    fn pop_append_errs(&mut self) {
+        match self.module.context.check_decls_and_pop() {
+            Ok(ctx) if self.cfg.mode == ErgMode::LanguageServer && !ctx.dir().is_empty() => {
+                self.module.scope.insert(ctx.name.clone(), ctx);
+            }
+            Err(errs) => self.errs.extend(errs),
+            _ => {}
+        }
+    }
+
+    pub fn pop_mod_ctx(&mut self) -> Option<ModuleContext> {
+        let opt_module = self.module.context.pop_mod();
+        opt_module.map(|module| ModuleContext::new(module, mem::take(&mut self.module.scope)))
+    }
+
+    pub fn pop_mod_ctx_or_default(&mut self) -> ModuleContext {
+        std::mem::take(&mut self.module)
+    }
+
+    pub fn get_mod_ctx(&self) -> &ModuleContext {
+        &self.module
+    }
+
+    pub fn dir(&self) -> Vec<(&VarName, &VarInfo)> {
+        ContextProvider::dir(self)
+    }
+
+    pub fn get_receiver_ctx(&self, receiver_name: &str) -> Option<&Context> {
+        ContextProvider::get_receiver_ctx(self, receiver_name)
+    }
+
+    pub fn get_var_info(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
+        ContextProvider::get_var_info(self, name)
+    }
+}
+
+impl ASTLowerer {
     fn var_result_t_check(
         &self,
         loc: Location,
@@ -159,20 +196,23 @@ impl ASTLowerer {
         expect: &Type,
         found: &Type,
     ) -> SingleLowerResult<()> {
-        self.ctx
+        self.module
+            .context
             .sub_unify(found, expect, loc, Some(name))
             .map_err(|_| {
                 LowerError::type_mismatch_error(
                     self.cfg.input.clone(),
                     line!() as usize,
                     loc,
-                    self.ctx.caused_by(),
+                    self.module.context.caused_by(),
                     name,
                     None,
                     expect,
                     found,
-                    self.ctx.get_candidates(found),
-                    Context::get_simple_type_mismatch_hint(expect, found),
+                    None, // self.ctx.get_candidates(found),
+                    self.module
+                        .context
+                        .get_simple_type_mismatch_hint(expect, found),
                 )
             })
     }
@@ -187,7 +227,7 @@ impl ASTLowerer {
                 self.cfg.input.clone(),
                 line!() as usize,
                 expr,
-                String::from(&self.ctx.name[..]),
+                String::from(&self.module.context.name[..]),
             )))
         } else {
             self.block_use_check(expr, mode)
@@ -266,35 +306,12 @@ impl ASTLowerer {
         }
     }
 
-    fn pop_append_errs(&mut self) {
-        if let Err(mut errs) = self.ctx.check_decls_and_pop() {
-            self.errs.append(&mut errs);
-        }
+    #[cfg(feature = "els")]
+    fn inc_ref<L: Locational>(&self, vi: &VarInfo, name: &L) {
+        self.module.context.inc_ref(vi, name);
     }
-
-    pub fn pop_mod_ctx(&mut self) -> Option<Context> {
-        self.ctx.pop_mod()
-    }
-
-    pub fn pop_mod_ctx_or_default(&mut self) -> Context {
-        std::mem::take(&mut self.ctx)
-    }
-
-    pub fn get_mod_ctx(&self) -> &Context {
-        &self.ctx
-    }
-
-    pub fn dir(&self) -> Vec<(&VarName, &VarInfo)> {
-        ContextProvider::dir(self)
-    }
-
-    pub fn get_receiver_ctx(&self, receiver_name: &str) -> Option<&Context> {
-        ContextProvider::get_receiver_ctx(self, receiver_name)
-    }
-
-    pub fn get_var_info(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
-        ContextProvider::get_var_info(self, name)
-    }
+    #[cfg(not(feature = "els"))]
+    fn inc_ref<L: Locational>(&self, _vi: &VarInfo, _name: &L) {}
 }
 
 impl ASTLowerer {
@@ -305,7 +322,7 @@ impl ASTLowerer {
                 self.cfg.input.clone(),
                 line!() as usize,
                 loc,
-                self.ctx.caused_by(),
+                self.module.context.caused_by(),
             )
         })?;
         Ok(lit)
@@ -321,7 +338,7 @@ impl ASTLowerer {
             other => feature_error!(
                 LowerErrors,
                 LowerError,
-                self.ctx,
+                self.module.context,
                 other.loc(),
                 "array comprehension"
             ),
@@ -330,13 +347,13 @@ impl ASTLowerer {
 
     fn elem_err(&self, l: &Type, r: &Type, elem: &hir::Expr) -> LowerErrors {
         let elem_disp_notype = elem.to_string_notype();
-        let l = Context::readable_type(l);
-        let r = Context::readable_type(r);
+        let l = self.module.context.readable_type(l.clone(), false);
+        let r = self.module.context.readable_type(r.clone(), false);
         LowerErrors::from(LowerError::syntax_error(
             self.cfg.input.clone(),
             line!() as usize,
             elem.loc(),
-            String::from(&self.ctx.name[..]),
+            String::from(&self.module.context.name[..]),
             switch_lang!(
                 "japanese" => "配列の要素は全て同じ型である必要があります",
                 "simplified_chinese" => "数组元素必须全部是相同类型",
@@ -360,7 +377,7 @@ impl ASTLowerer {
         let mut union = Type::Never;
         for elem in elems {
             let elem = self.lower_expr(elem.expr)?;
-            union = self.ctx.union(&union, elem.ref_t());
+            union = self.module.context.union(&union, elem.ref_t());
             if let Some((l, r)) = union.union_types() {
                 match (l.is_unbound_var(), r.is_unbound_var()) {
                     (false, false) => {
@@ -375,7 +392,10 @@ impl ASTLowerer {
             new_array.push(elem);
         }
         let elem_t = if union == Type::Never {
-            free_var(self.ctx.level, Constraint::new_type_of(Type::Type))
+            free_var(
+                self.module.context.level,
+                Constraint::new_type_of(Type::Type),
+            )
         } else {
             union
         };
@@ -400,7 +420,7 @@ impl ASTLowerer {
     }
 
     fn gen_array_with_length_type(&self, elem: &hir::Expr, len: &ast::Expr) -> Type {
-        let maybe_len = self.ctx.eval_const_expr(len);
+        let maybe_len = self.module.context.eval_const_expr(len);
         match maybe_len {
             Ok(v @ ValueObj::Nat(_)) => {
                 if elem.ref_t().is_mut_type() {
@@ -467,11 +487,13 @@ impl ASTLowerer {
         log!(info "entered {}({record})", fn_name!());
         let mut hir_record =
             hir::Record::new(record.l_brace, record.r_brace, hir::RecordAttrs::empty());
-        self.ctx.grow("<record>", ContextKind::Dummy, Private, None);
+        self.module
+            .context
+            .grow("<record>", ContextKind::Dummy, Private, None);
         for attr in record.attrs.into_iter() {
-            let attr = self.lower_def(attr).map_err(|e| {
+            let attr = self.lower_def(attr).map_err(|errs| {
                 self.pop_append_errs();
-                e
+                errs
             })?;
             hir_record.push(attr);
         }
@@ -494,13 +516,13 @@ impl ASTLowerer {
         let mut new_set = vec![];
         for elem in elems {
             let elem = self.lower_expr(elem.expr)?;
-            union = self.ctx.union(&union, elem.ref_t());
+            union = self.module.context.union(&union, elem.ref_t());
             if union.is_intersection_type() {
                 return Err(LowerErrors::from(LowerError::syntax_error(
                     self.cfg.input.clone(),
                     line!() as usize,
                     elem.loc(),
-                    String::from(&self.ctx.name[..]),
+                    String::from(&self.module.context.name[..]),
                     switch_lang!(
                         "japanese" => "集合の要素は全て同じ型である必要があります",
                         "simplified_chinese" => "集合元素必须全部是相同类型",
@@ -522,7 +544,10 @@ impl ASTLowerer {
             new_set.push(elem);
         }
         let elem_t = if union == Type::Never {
-            free_var(self.ctx.level, Constraint::new_type_of(Type::Type))
+            free_var(
+                self.module.context.level,
+                Constraint::new_type_of(Type::Type),
+            )
         } else {
             union
         };
@@ -547,7 +572,11 @@ impl ASTLowerer {
         */
         let elems = hir::Args::values(new_set, None);
         // check if elem_t is Eq
-        if let Err(errs) = self.ctx.sub_unify(&elem_t, &mono("Eq"), elems.loc(), None) {
+        if let Err(errs) = self
+            .module
+            .context
+            .sub_unify(&elem_t, &mono("Eq"), elems.loc(), None)
+        {
             self.errs.extend(errs);
         }
         Ok(hir::NormalSet::new(set.l_brace, set.r_brace, elem_t, elems))
@@ -567,7 +596,7 @@ impl ASTLowerer {
     }
 
     fn gen_set_with_length_type(&mut self, elem: &hir::Expr, len: &ast::Expr) -> Type {
-        let maybe_len = self.ctx.eval_const_expr(len);
+        let maybe_len = self.module.context.eval_const_expr(len);
         match maybe_len {
             Ok(v @ ValueObj::Nat(_)) => {
                 if elem.ref_t().is_mut_type() {
@@ -575,7 +604,7 @@ impl ASTLowerer {
                         "SetWithMutType!",
                         vec![TyParam::t(elem.t()), TyParam::Value(v)],
                     )
-                } else if self.ctx.subtype_of(&elem.t(), &Type::Type) {
+                } else if self.module.context.subtype_of(&elem.t(), &Type::Type) {
                     poly("SetType", vec![TyParam::t(elem.t()), TyParam::Value(v)])
                 } else {
                     set_t(elem.t(), TyParam::Value(v))
@@ -612,7 +641,7 @@ impl ASTLowerer {
             other => feature_error!(
                 LowerErrors,
                 LowerError,
-                self.ctx,
+                self.module.context,
                 other.loc(),
                 "dict comprehension"
             ),
@@ -633,7 +662,7 @@ impl ASTLowerer {
                     self.cfg.input.clone(),
                     line!() as usize,
                     loc,
-                    String::from(&self.ctx.name[..]),
+                    String::from(&self.module.context.name[..]),
                     switch_lang!(
                         "japanese" => "Dictの値は全て同じ型である必要があります",
                         "simplified_chinese" => "Dict的值必须是同一类型",
@@ -657,14 +686,14 @@ impl ASTLowerer {
         for key_t in union.keys() {
             let loc = Location::concat(&dict.l_brace, &dict.r_brace);
             // check if key_t is Eq
-            if let Err(errs) = self.ctx.sub_unify(key_t, &mono("Eq"), loc, None) {
+            if let Err(errs) = self.module.context.sub_unify(key_t, &mono("Eq"), loc, None) {
                 self.errs.extend(errs);
             }
         }
         let kv_ts = if union.is_empty() {
             dict! {
-                ty_tp(free_var(self.ctx.level, Constraint::new_type_of(Type::Type))) =>
-                    ty_tp(free_var(self.ctx.level, Constraint::new_type_of(Type::Type)))
+                ty_tp(free_var(self.module.context.level, Constraint::new_type_of(Type::Type))) =>
+                    ty_tp(free_var(self.module.context.level, Constraint::new_type_of(Type::Type)))
             }
         } else {
             union
@@ -709,12 +738,13 @@ impl ASTLowerer {
             }
             ast::Accessor::Attr(attr) => {
                 let obj = self.lower_expr(*attr.obj)?;
-                let vi = self.ctx.rec_get_attr_info(
+                let vi = self.module.context.get_attr_info(
                     &obj,
                     &attr.ident,
                     &self.cfg.input,
-                    &self.ctx.name,
+                    &self.module.context.name,
                 )?;
+                self.inc_ref(&vi, &attr.ident.name);
                 let ident = hir::Identifier::new(attr.ident.dot, attr.ident.name, None, vi);
                 let acc = hir::Accessor::Attr(hir::Attribute::new(obj, ident));
                 Ok(acc)
@@ -722,16 +752,16 @@ impl ASTLowerer {
             ast::Accessor::TypeApp(t_app) => feature_error!(
                 LowerErrors,
                 LowerError,
-                self.ctx,
+                self.module.context,
                 t_app.loc(),
                 "type application"
             ),
             // TupleAttr, Subscr are desugared
-            _ => unreachable_error!(LowerErrors, LowerError, self.ctx),
+            _ => unreachable_error!(LowerErrors, LowerError, self.module.context),
         }
     }
 
-    fn lower_ident(&self, ident: ast::Identifier) -> LowerResult<hir::Identifier> {
+    fn lower_ident(&mut self, ident: ast::Identifier) -> LowerResult<hir::Identifier> {
         // `match` is a special form, typing is magic
         let (vi, __name__) = if ident.vis().is_private()
             && (&ident.inspect()[..] == "match" || &ident.inspect()[..] == "match!")
@@ -745,18 +775,20 @@ impl ASTLowerer {
             )
         } else {
             (
-                self.ctx.rec_get_var_info(
+                self.module.context.rec_get_var_info(
                     &ident,
                     AccessKind::Name,
                     &self.cfg.input,
-                    &self.ctx.name,
+                    &self.module.context.name,
                 )?,
-                self.ctx
-                    .get_singular_ctx_by_ident(&ident, &self.ctx.name)
+                self.module
+                    .context
+                    .get_singular_ctx_by_ident(&ident, &self.module.context.name)
                     .ok()
                     .map(|ctx| ctx.name.clone()),
             )
         };
+        self.inc_ref(&vi, &ident.name);
         let ident = hir::Identifier::new(ident.dot, ident.name, __name__, vi);
         Ok(ident)
     }
@@ -767,9 +799,12 @@ impl ASTLowerer {
         let lhs = hir::PosArg::new(self.lower_expr(*args.next().unwrap())?);
         let rhs = hir::PosArg::new(self.lower_expr(*args.next().unwrap())?);
         let args = [lhs, rhs];
-        let t = self
-            .ctx
-            .get_binop_t(&bin.op, &args, &self.cfg.input, &self.ctx.name)?;
+        let t = self.module.context.get_binop_t(
+            &bin.op,
+            &args,
+            &self.cfg.input,
+            &self.module.context.name,
+        )?;
         let mut args = args.into_iter();
         let lhs = args.next().unwrap().expr;
         let rhs = args.next().unwrap().expr;
@@ -781,9 +816,12 @@ impl ASTLowerer {
         let mut args = unary.args.into_iter();
         let arg = hir::PosArg::new(self.lower_expr(*args.next().unwrap())?);
         let args = [arg];
-        let t = self
-            .ctx
-            .get_unaryop_t(&unary.op, &args, &self.cfg.input, &self.ctx.name)?;
+        let t = self.module.context.get_unaryop_t(
+            &unary.op,
+            &args,
+            &self.cfg.input,
+            &self.module.context.name,
+        )?;
         let mut args = args.into_iter();
         let expr = args.next().unwrap().expr;
         Ok(hir::UnaryOp::new(unary.op, expr, t))
@@ -791,19 +829,28 @@ impl ASTLowerer {
 
     pub(crate) fn lower_call(&mut self, call: ast::Call) -> LowerResult<hir::Call> {
         log!(info "entered {}({}{}(...))", fn_name!(), call.obj, fmt_option!(call.attr_name));
+        if let Some(name) = call.obj.get_name() {
+            self.module.context.higher_order_caller.push(name.clone());
+        }
         let mut errs = LowerErrors::empty();
         let opt_cast_to = if call.is_assert_cast() {
             if let Some(typ) = call.assert_cast_target_type() {
                 Some(Parser::expr_to_type_spec(typ.clone()).map_err(|e| {
-                    let e = LowerError::new(e.into(), self.input().clone(), self.ctx.caused_by());
+                    self.module.context.higher_order_caller.pop();
+                    let e = LowerError::new(
+                        e.into(),
+                        self.input().clone(),
+                        self.module.context.caused_by(),
+                    );
                     LowerErrors::from(e)
                 })?)
             } else {
+                self.module.context.higher_order_caller.pop();
                 return Err(LowerErrors::from(LowerError::syntax_error(
                     self.input().clone(),
                     line!() as usize,
                     call.args.loc(),
-                    self.ctx.caused_by(),
+                    self.module.context.caused_by(),
                     "invalid assert casting type".to_owned(),
                     None,
                 )));
@@ -821,41 +868,49 @@ impl ASTLowerer {
         for arg in pos_args.into_iter() {
             match self.lower_expr(arg.expr) {
                 Ok(expr) => hir_args.pos_args.push(hir::PosArg::new(expr)),
-                Err(es) => errs.extend(es),
+                Err(es) => {
+                    errs.extend(es);
+                    hir_args.push_pos(hir::PosArg::new(hir::Expr::Dummy(hir::Dummy::empty())));
+                }
             }
         }
         for arg in kw_args.into_iter() {
             match self.lower_expr(arg.expr) {
                 Ok(expr) => hir_args.push_kw(hir::KwArg::new(arg.keyword, expr)),
-                Err(es) => errs.extend(es),
+                Err(es) => {
+                    errs.extend(es);
+                    hir_args.push_kw(hir::KwArg::new(
+                        arg.keyword,
+                        hir::Expr::Dummy(hir::Dummy::empty()),
+                    ));
+                }
             }
         }
         let mut obj = match self.lower_expr(*call.obj) {
             Ok(obj) => obj,
             Err(es) => {
+                self.module.context.higher_order_caller.pop();
                 errs.extend(es);
                 return Err(errs);
             }
         };
-        // Calling get_call_t with incorrect arguments does not provide meaningful information
-        if !errs.is_empty() {
-            return Err(errs);
-        }
-        let vi = match self.ctx.get_call_t(
+        let vi = match self.module.context.get_call_t(
             &obj,
             &call.attr_name,
             &hir_args.pos_args,
             &hir_args.kw_args,
             &self.cfg.input,
-            &self.ctx.name,
+            &self.module.context.name,
         ) {
             Ok(vi) => vi,
             Err(es) => {
+                self.module.context.higher_order_caller.pop();
                 errs.extend(es);
                 return Err(errs);
             }
         };
         let attr_name = if let Some(attr_name) = call.attr_name {
+            self.inc_ref(&vi, &attr_name.name);
             Some(hir::Identifier::new(
                 attr_name.dot,
                 attr_name.name,
@@ -867,25 +922,26 @@ impl ASTLowerer {
             None
         };
         let mut call = hir::Call::new(obj, attr_name, hir_args);
+        self.module.context.higher_order_caller.pop();
         match call.additional_operation() {
             Some(kind @ (OperationKind::Import | OperationKind::PyImport)) => {
                 let mod_name =
                     enum_unwrap!(call.args.get_left_or_key("Path").unwrap(), hir::Expr::Lit);
-                if let Err(errs) = self.ctx.import_mod(kind, mod_name) {
+                if let Err(errs) = self.module.context.import_mod(kind, mod_name) {
                     self.errs.extend(errs);
                 };
             }
             Some(OperationKind::Del) => match call.args.get_left_or_key("obj").unwrap() {
                 hir::Expr::Accessor(hir::Accessor::Ident(ident)) => {
-                    self.ctx.del(ident)?;
+                    self.module.context.del(ident)?;
                 }
                 other => {
                     return Err(LowerErrors::from(LowerError::syntax_error(
                         self.input().clone(),
                         line!() as usize,
                         other.loc(),
-                        self.ctx.caused_by(),
-                        "".to_owned(),
+                        self.module.context.caused_by(),
+                        "invalid syntax".to_owned(),
                         None,
                     )))
                 }
@@ -898,14 +954,19 @@ impl ASTLowerer {
                     Type::FreeVar(fv) if fv.is_unbound() => {
                         fv.get_sub().unwrap().return_t().unwrap().clone()
                     }
-                    other => todo!("{other:?}"),
+                    other => {
+                        log!(err "todo: {other}");
+                        return unreachable_error!(LowerErrors, LowerError, self.module.context);
+                    }
                 };
                 let arg_t = call.args.get(0).unwrap().ref_t();
-                self.ctx.sub_unify(arg_t, &ret_t, call.loc(), None)?;
+                self.module
+                    .context
+                    .sub_unify(arg_t, &ret_t, call.loc(), None)?;
             }
             _ => {
                 if let Some(type_spec) = opt_cast_to {
-                    self.ctx.cast(type_spec, &mut call)?;
+                    self.module.context.cast(type_spec, &mut call)?;
                 }
             }
         }
@@ -935,13 +996,13 @@ impl ASTLowerer {
                 pack.connector.col_begin,
             )),
         );
-        let vi = self.ctx.get_call_t(
+        let vi = self.module.context.get_call_t(
             &class,
             &Some(attr_name.clone()),
             &args,
             &[],
             &self.cfg.input,
-            &self.ctx.name,
+            &self.module.context.name,
         )?;
         let args = hir::Args::new(args, None, vec![], None);
         let attr_name = hir::Identifier::new(attr_name.dot, attr_name.name, None, vi);
@@ -976,8 +1037,17 @@ impl ASTLowerer {
     /// TODO: varargs
     fn lower_lambda(&mut self, lambda: ast::Lambda) -> LowerResult<hir::Lambda> {
         log!(info "entered {}({lambda})", fn_name!());
+        let in_statement = cfg!(feature = "py_compatible")
+            && matches!(
+                self.module
+                    .context
+                    .higher_order_caller
+                    .last()
+                    .map(|s| &s[..]),
+                Some("if" | "while" | "for" | "with" | "try")
+            );
         let is_procedural = lambda.is_procedural();
-        let id = get_hash(&lambda.sig);
+        let id = lambda.id.0;
         let name = format!("<lambda_{id}>");
         let kind = if is_procedural {
             ContextKind::Proc
@@ -985,39 +1055,76 @@ impl ASTLowerer {
             ContextKind::Func
         };
         let tv_cache = self
-            .ctx
+            .module
+            .context
             .instantiate_ty_bounds(&lambda.sig.bounds, RegistrationMode::Normal)?;
-        self.ctx.grow(&name, kind, Private, Some(tv_cache));
+        if !in_statement {
+            self.module
+                .context
+                .grow(&name, kind, Private, Some(tv_cache));
+        }
         let params = self.lower_params(lambda.sig.params).map_err(|errs| {
-            self.pop_append_errs();
+            if !in_statement {
+                self.pop_append_errs();
+            }
             errs
         })?;
-        if let Err(errs) = self.ctx.assign_params(&params, None) {
+        if let Err(errs) = self.module.context.assign_params(&params, None) {
             self.errs.extend(errs);
         }
-        if let Err(errs) = self.ctx.preregister(&lambda.body) {
+        if let Err(errs) = self.module.context.preregister(&lambda.body) {
             self.errs.extend(errs);
         }
-        let body = self.lower_block(lambda.body).map_err(|e| {
-            self.pop_append_errs();
-            e
+        let body = self.lower_block(lambda.body).map_err(|errs| {
+            if !in_statement {
+                self.pop_append_errs();
+            }
+            errs
         })?;
         let (non_default_params, default_params): (Vec<_>, Vec<_>) = self
-            .ctx
+            .module
+            .context
             .params
             .iter()
             .partition(|(_, v)| !v.kind.has_default());
         let non_default_params = non_default_params
             .into_iter()
+            // necessary when `py_compatible` feature is enabled
+            .filter(|(name, _)| {
+                params
+                    .non_defaults
+                    .iter()
+                    .any(|nd| nd.name() == name.as_ref())
+            })
             .map(|(name, vi)| {
                 ParamTy::pos(name.as_ref().map(|n| n.inspect().clone()), vi.t.clone())
             })
             .collect();
         let default_params = default_params
             .into_iter()
+            .filter(|(name, _)| params.defaults.iter().any(|d| d.name() == name.as_ref()))
             .map(|(name, vi)| ParamTy::kw(name.as_ref().unwrap().inspect().clone(), vi.t.clone()))
             .collect();
-        self.pop_append_errs();
+        if in_statement {
+            // For example, `i` in `for i in ...` is a parameter,
+            // but should be treated as a local variable in the later analysis, so move it to locals
+            for nd_param in params.non_defaults.iter() {
+                if let Some(idx) = self
+                    .module
+                    .context
+                    .params
+                    .iter()
+                    .position(|(name, _)| name.as_ref() == nd_param.name())
+                {
+                    let (name, vi) = self.module.context.params.remove(idx);
+                    if let Some(name) = name {
+                        self.module.context.locals.insert(name, vi);
+                    }
+                }
+            }
+        } else {
+            self.pop_append_errs();
+        }
         let t = if is_procedural {
             proc(non_default_params, None, default_params, body.t())
         } else {
@@ -1029,13 +1136,16 @@ impl ASTLowerer {
 
     fn lower_def(&mut self, def: ast::Def) -> LowerResult<hir::Def> {
         log!(info "entered {}({})", fn_name!(), def.sig);
-        if def.def_kind().is_class_or_trait() && self.ctx.kind != ContextKind::Module {
-            self.ctx.decls.remove(def.sig.ident().unwrap().inspect());
+        if def.def_kind().is_class_or_trait() && self.module.context.kind != ContextKind::Module {
+            self.module
+                .context
+                .decls
+                .remove(def.sig.ident().unwrap().inspect());
             return Err(LowerErrors::from(LowerError::inner_typedef_error(
                 self.cfg.input.clone(),
                 line!() as usize,
                 def.loc(),
-                self.ctx.caused_by(),
+                self.module.context.caused_by(),
             )));
         }
         let name = if let Some(name) = def.sig.name_as_str() {
@@ -1044,7 +1154,8 @@ impl ASTLowerer {
             Str::ever("<lambda>")
         };
         if self
-            .ctx
+            .module
+            .context
             .registered_info(&name, def.sig.is_const())
             .is_some()
             && def.sig.vis().is_private()
@@ -1053,29 +1164,45 @@ impl ASTLowerer {
                 self.cfg.input.clone(),
                 line!() as usize,
                 def.sig.loc(),
-                self.ctx.caused_by(),
+                self.module.context.caused_by(),
                 &name,
             )));
+        } else if self
+            .module
+            .context
+            .get_builtins()
+            .and_then(|ctx| ctx.get_var_info(&name))
+            .is_some()
+            && def.sig.vis().is_private()
+        {
+            self.warns.push(LowerWarning::builtin_exists_warning(
+                self.cfg.input.clone(),
+                line!() as usize,
+                def.sig.loc(),
+                self.module.context.caused_by(),
+                &name,
+            ));
         }
         let kind = ContextKind::from(def.def_kind());
         let vis = def.sig.vis();
         let res = match def.sig {
             ast::Signature::Subr(sig) => {
                 let tv_cache = self
-                    .ctx
+                    .module
+                    .context
                     .instantiate_ty_bounds(&sig.bounds, RegistrationMode::Normal)?;
-                self.ctx.grow(&name, kind, vis, Some(tv_cache));
+                self.module.context.grow(&name, kind, vis, Some(tv_cache));
                 self.lower_subr_def(sig, def.body)
             }
             ast::Signature::Var(sig) => {
-                self.ctx.grow(&name, kind, vis, None);
+                self.module.context.grow(&name, kind, vis, None);
                 self.lower_var_def(sig, def.body)
             }
         };
         // TODO: Context上の関数に型境界情報を追加
         self.pop_append_errs();
         // remove from decls regardless of success or failure to lower
-        self.ctx.decls.remove(&name);
+        self.module.context.decls.remove(&name);
         res
     }
 
@@ -1085,16 +1212,30 @@ impl ASTLowerer {
         body: ast::DefBody,
     ) -> LowerResult<hir::Def> {
         log!(info "entered {}({sig})", fn_name!());
-        if let Err(errs) = self.ctx.preregister(&body.block) {
+        if let Err(errs) = self.module.context.preregister(&body.block) {
             self.errs.extend(errs);
         }
         match self.lower_block(body.block) {
             Ok(block) => {
                 let found_body_t = block.ref_t();
-                let outer = self.ctx.outer.as_ref().unwrap();
+                let outer = self.module.context.outer.as_ref().unwrap();
                 let opt_expect_body_t = sig
-                    .inspect()
-                    .and_then(|name| outer.get_current_scope_var(name).map(|vi| vi.t.clone()));
+                    .ident()
+                    .and_then(|ident| outer.get_current_scope_var(&ident.name))
+                    .map(|vi| vi.t.clone())
+                    .or_else(|| {
+                        // discard pattern
+                        let sig_t = self
+                            .module
+                            .context
+                            .instantiate_var_sig_t(
+                                sig.t_spec.as_ref(),
+                                None,
+                                RegistrationMode::PreRegister,
+                            )
+                            .ok();
+                        sig_t
+                    });
                 let ident = match &sig.pat {
                     ast::VarPattern::Ident(ident) => ident,
                     ast::VarPattern::Discard(_) => ast::Identifier::UBAR,
@@ -1114,20 +1255,19 @@ impl ASTLowerer {
                         }
                     }
                 }
-                self.ctx.outer.as_mut().unwrap().assign_var_sig(
+                let vi = self.module.context.outer.as_mut().unwrap().assign_var_sig(
                     &sig,
                     found_body_t,
                     body.id,
                     None,
                 )?;
-                let mut ident = hir::Identifier::bare(ident.dot.clone(), ident.name.clone());
-                ident.vi.t = found_body_t.clone();
+                let ident = hir::Identifier::new(ident.dot.clone(), ident.name.clone(), None, vi);
                 let sig = hir::VarSignature::new(ident);
                 let body = hir::DefBody::new(body.op, block, body.id);
                 Ok(hir::Def::new(hir::Signature::Var(sig), body))
             }
             Err(errs) => {
-                self.ctx.outer.as_mut().unwrap().assign_var_sig(
+                self.module.context.outer.as_mut().unwrap().assign_var_sig(
                     &sig,
                     &Type::Failure,
                     ast::DefId(0),
@@ -1138,79 +1278,94 @@ impl ASTLowerer {
         }
     }
 
-    // NOTE: 呼ばれている間はinner scopeなので注意
+    // NOTE: Note that this is in the inner scope while being called.
     fn lower_subr_def(
         &mut self,
         sig: ast::SubrSignature,
         body: ast::DefBody,
     ) -> LowerResult<hir::Def> {
         log!(info "entered {}({sig})", fn_name!());
-        let t = self
-            .ctx
+        let registered_t = self
+            .module
+            .context
             .outer
             .as_ref()
             .unwrap()
-            .get_current_scope_var(sig.ident.inspect())
+            .get_current_scope_var(&sig.ident.name)
             .map(|vi| vi.t.clone())
             .unwrap_or(Type::Failure);
-        match t {
+        match registered_t {
             Type::Subr(subr_t) => {
                 let params = self.lower_params(sig.params.clone())?;
-                if let Err(errs) = self.ctx.assign_params(&params, Some(subr_t)) {
+                if let Err(errs) = self.module.context.assign_params(&params, Some(subr_t)) {
                     self.errs.extend(errs);
                 }
-                if let Err(errs) = self.ctx.preregister(&body.block) {
+                if let Err(errs) = self.module.context.preregister(&body.block) {
                     self.errs.extend(errs);
                 }
                 match self.lower_block(body.block) {
                     Ok(block) => {
                         let found_body_t = block.ref_t();
-                        let t = self.ctx.outer.as_mut().unwrap().assign_subr(
+                        let vi = self.module.context.outer.as_mut().unwrap().assign_subr(
                             &sig,
                             body.id,
                             found_body_t,
                         )?;
-                        let return_t = t.return_t().unwrap();
+                        let return_t = vi.t.return_t().unwrap();
                         if return_t.union_types().is_some() && sig.return_t_spec.is_none() {
                             let warn = LowerWarning::union_return_type_warning(
                                 self.input().clone(),
                                 line!() as usize,
                                 sig.loc(),
-                                self.ctx.caused_by(),
+                                self.module.context.caused_by(),
                                 sig.ident.inspect(),
-                                &Context::readable_type(return_t),
+                                &self
+                                    .module
+                                    .context
+                                    .deref_tyvar(
+                                        return_t.clone(),
+                                        Variance::Covariant,
+                                        Location::Unknown,
+                                    )
+                                    .unwrap_or_else(|_| return_t.clone()),
                             );
                             self.warns.push(warn);
                         }
-                        let mut ident = hir::Identifier::bare(sig.ident.dot, sig.ident.name);
-                        ident.vi.t = t;
+                        let ident = hir::Identifier::new(sig.ident.dot, sig.ident.name, None, vi);
                         let sig = hir::SubrSignature::new(ident, params);
                         let body = hir::DefBody::new(body.op, block, body.id);
                         Ok(hir::Def::new(hir::Signature::Subr(sig), body))
                     }
                     Err(errs) => {
-                        self.ctx.outer.as_mut().unwrap().assign_subr(
+                        let vi = self.module.context.outer.as_mut().unwrap().assign_subr(
                             &sig,
                             ast::DefId(0),
                             &Type::Failure,
                         )?;
-                        Err(errs)
+                        self.errs.extend(errs);
+                        let ident = hir::Identifier::new(sig.ident.dot, sig.ident.name, None, vi);
+                        let sig = hir::SubrSignature::new(ident, params);
+                        let block =
+                            hir::Block::new(vec![hir::Expr::Dummy(hir::Dummy::new(vec![]))]);
+                        let body = hir::DefBody::new(body.op, block, body.id);
+                        Ok(hir::Def::new(hir::Signature::Subr(sig), body))
                     }
                 }
             }
             Type::Failure => {
                 let params = self.lower_params(sig.params)?;
-                if let Err(errs) = self.ctx.assign_params(&params, None) {
+                if let Err(errs) = self.module.context.assign_params(&params, None) {
                     self.errs.extend(errs);
                 }
-                if let Err(errs) = self.ctx.preregister(&body.block) {
+                if let Err(errs) = self.module.context.preregister(&body.block) {
                     self.errs.extend(errs);
                 }
-                self.ctx.outer.as_mut().unwrap().fake_subr_assign(
-                    &sig.ident,
-                    &sig.decorators,
-                    Type::Failure,
-                )?;
+                self.module
+                    .context
+                    .outer
+                    .as_mut()
+                    .unwrap()
+                    .fake_subr_assign(&sig.ident, &sig.decorators, Type::Failure)?;
                 let block = self.lower_block(body.block)?;
                 let ident = hir::Identifier::bare(sig.ident.dot, sig.ident.name);
                 let sig = hir::SubrSignature::new(ident, params);
@@ -1225,14 +1380,15 @@ impl ASTLowerer {
         log!(info "entered {}({class_def})", fn_name!());
         let mut hir_def = self.lower_def(class_def.def)?;
         let mut hir_methods = hir::Block::empty();
-        let mut dummy_tv_cache = TyVarCache::new(self.ctx.level, &self.ctx);
+        let mut dummy_tv_cache = TyVarCache::new(self.module.context.level, &self.module.context);
         for mut methods in class_def.methods_list.into_iter() {
+            self.inc_ref(&hir_def.sig.ident().vi, &methods.class);
             let (class, impl_trait) = match &methods.class {
                 ast::TypeSpec::TypeApp { spec, args } => {
                     let (impl_trait, loc) = match &args.args.pos_args().first().unwrap().expr {
                         // TODO: check `tasc.op`
                         ast::Expr::TypeAsc(tasc) => (
-                            self.ctx.instantiate_typespec(
+                            self.module.context.instantiate_typespec(
                                 &tasc.t_spec,
                                 None,
                                 &mut dummy_tv_cache,
@@ -1244,7 +1400,7 @@ impl ASTLowerer {
                         _ => return unreachable_error!(LowerErrors, LowerError, self),
                     };
                     (
-                        self.ctx.instantiate_typespec(
+                        self.module.context.instantiate_typespec(
                             spec,
                             None,
                             &mut dummy_tv_cache,
@@ -1255,7 +1411,7 @@ impl ASTLowerer {
                     )
                 }
                 other => (
-                    self.ctx.instantiate_typespec(
+                    self.module.context.instantiate_typespec(
                         other,
                         None,
                         &mut dummy_tv_cache,
@@ -1269,13 +1425,13 @@ impl ASTLowerer {
             if let Some((trait_, trait_loc)) = &impl_trait {
                 self.register_trait_impl(&class, trait_, *trait_loc)?;
             }
-            if let Some((_, class_root)) = self.ctx.get_nominal_type_ctx(&class) {
+            if let Some((_, class_root)) = self.module.context.get_nominal_type_ctx(&class) {
                 if !class_root.kind.is_class() {
                     return Err(LowerErrors::from(LowerError::method_definition_error(
                         self.cfg.input.clone(),
                         line!() as usize,
                         methods.loc(),
-                        self.ctx.caused_by(),
+                        self.module.context.caused_by(),
                         &class.qual_name(),
                         None,
                     )));
@@ -1285,18 +1441,20 @@ impl ASTLowerer {
                     self.cfg.input.clone(),
                     line!() as usize,
                     methods.class.loc(),
-                    self.ctx.caused_by(),
+                    self.module.context.caused_by(),
                     &class.qual_name(),
-                    self.ctx.get_similar_name(&class.local_name()),
+                    self.module.context.get_similar_name(&class.local_name()),
                 )));
             }
             let kind = ContextKind::MethodDefs(impl_trait.as_ref().map(|(t, _)| t.clone()));
-            let vis = if self.cfg.python_compatible_mode {
+            let vis = if cfg!(feature = "py_compatible") {
                 Public
             } else {
                 Private
             };
-            self.ctx.grow(&class.local_name(), kind, vis, None);
+            self.module
+                .context
+                .grow(&class.local_name(), kind, vis, None);
             for attr in methods.attrs.iter_mut() {
                 match attr {
                     ast::ClassAttr::Def(def) => {
@@ -1308,7 +1466,7 @@ impl ASTLowerer {
                                 def.sig.col_begin().unwrap_or(0),
                             ));
                         }
-                        self.ctx.preregister_def(def).map_err(|errs| {
+                        self.module.context.preregister_def(def).map_err(|errs| {
                             self.pop_append_errs();
                             errs
                         })?;
@@ -1326,14 +1484,18 @@ impl ASTLowerer {
                             self.errs.extend(errs);
                         }
                     },
-                    ast::ClassAttr::Decl(decl) => {
-                        let decl = self.lower_type_asc(decl)?;
-                        hir_methods.push(hir::Expr::TypeAsc(decl));
-                    }
+                    ast::ClassAttr::Decl(decl) => match self.lower_type_asc(decl) {
+                        Ok(decl) => {
+                            hir_methods.push(hir::Expr::TypeAsc(decl));
+                        }
+                        Err(errs) => {
+                            self.errs.extend(errs);
+                        }
+                    },
                 }
             }
-            if let Err(mut errs) = self.ctx.check_decls() {
-                self.errs.append(&mut errs);
+            if let Err(errs) = self.module.context.check_decls() {
+                self.errs.extend(errs);
             }
             if let Some((trait_, _)) = &impl_trait {
                 self.check_override(&class, Some(trait_));
@@ -1346,31 +1508,31 @@ impl ASTLowerer {
             self.check_collision_and_push(class);
         }
         let class = mono(hir_def.sig.ident().inspect());
-        let Some((_, class_ctx)) = self.ctx.get_nominal_type_ctx(&class) else {
+        let Some((_, class_ctx)) = self.module.context.get_nominal_type_ctx(&class) else {
             return Err(LowerErrors::from(LowerError::type_not_found(
                 self.cfg.input.clone(),
                 line!() as usize,
                 hir_def.sig.loc(),
-                self.ctx.caused_by(),
+                self.module.context.caused_by(),
                 &class,
             )));
         };
-        let type_obj = enum_unwrap!(self.ctx.rec_get_const_obj(hir_def.sig.ident().inspect()).unwrap(), ValueObj::Type:(TypeObj::Generated:(_)));
-        let sup_type = enum_unwrap!(&hir_def.body.block.first().unwrap(), hir::Expr::Call)
+        let type_obj = enum_unwrap!(self.module.context.rec_get_const_obj(hir_def.sig.ident().inspect()).unwrap(), ValueObj::Type:(TypeObj::Generated:(_)));
+        if let Some(sup_type) = enum_unwrap!(&hir_def.body.block.first().unwrap(), hir::Expr::Call)
             .args
             .get_left_or_key("Super")
-            .unwrap();
-        Self::check_inheritable(&self.cfg, &mut self.errs, type_obj, sup_type, &hir_def.sig);
-        // vi.t.non_default_params().unwrap()[0].typ().clone()
+        {
+            Self::check_inheritable(&self.cfg, &mut self.errs, type_obj, sup_type, &hir_def.sig);
+        }
         let (__new__, need_to_gen_new) = if let (Some(dunder_new_vi), Some(new_vi)) = (
-            class_ctx.get_current_scope_var("__new__"),
-            class_ctx.get_current_scope_var("new"),
+            class_ctx.get_current_scope_var(&VarName::from_static("__new__")),
+            class_ctx.get_current_scope_var(&VarName::from_static("new")),
         ) {
             (dunder_new_vi.t.clone(), new_vi.kind == VarKind::Auto)
         } else {
             return unreachable_error!(LowerErrors, LowerError, self);
         };
-        let require_or_sup = self.get_require_or_sup_or_base(hir_def.body.block.remove(0));
+        let require_or_sup = Self::get_require_or_sup_or_base(hir_def.body.block.remove(0));
         Ok(hir::ClassDef::new(
             type_obj.clone(),
             hir_def.sig,
@@ -1390,8 +1552,9 @@ impl ASTLowerer {
                     .get_left_or_key("Base")
                     .unwrap();
             let spec = Parser::expr_to_type_spec(base_t_expr.clone()).unwrap();
-            let mut dummy_tv_cache = TyVarCache::new(self.ctx.level, &self.ctx);
-            self.ctx.instantiate_typespec(
+            let mut dummy_tv_cache =
+                TyVarCache::new(self.module.context.level, &self.module.context);
+            self.module.context.instantiate_typespec(
                 &spec,
                 None,
                 &mut dummy_tv_cache,
@@ -1400,11 +1563,12 @@ impl ASTLowerer {
             )?
         };
         let mut hir_def = self.lower_def(class_def.def)?;
-        let base = self.get_require_or_sup_or_base(hir_def.body.block.remove(0));
+        let base = Self::get_require_or_sup_or_base(hir_def.body.block.remove(0)).unwrap();
         let mut hir_methods = hir::Block::empty();
         for mut methods in class_def.methods_list.into_iter() {
             let kind = ContextKind::PatchMethodDefs(base_t.clone());
-            self.ctx
+            self.module
+                .context
                 .grow(hir_def.sig.ident().inspect(), kind, hir_def.sig.vis(), None);
             for attr in methods.attrs.iter_mut() {
                 match attr {
@@ -1417,7 +1581,7 @@ impl ASTLowerer {
                                 def.sig.col_begin().unwrap(),
                             ));
                         }
-                        self.ctx.preregister_def(def).map_err(|errs| {
+                        self.module.context.preregister_def(def).map_err(|errs| {
                             self.pop_append_errs();
                             errs
                         })?;
@@ -1435,24 +1599,28 @@ impl ASTLowerer {
                             self.errs.extend(errs);
                         }
                     },
-                    ast::ClassAttr::Decl(decl) => {
-                        let decl = self.lower_type_asc(decl)?;
-                        hir_methods.push(hir::Expr::TypeAsc(decl));
-                    }
+                    ast::ClassAttr::Decl(decl) => match self.lower_type_asc(decl) {
+                        Ok(decl) => {
+                            hir_methods.push(hir::Expr::TypeAsc(decl));
+                        }
+                        Err(errs) => {
+                            self.errs.extend(errs);
+                        }
+                    },
                 }
             }
-            if let Err(mut errs) = self.ctx.check_decls() {
-                self.errs.append(&mut errs);
+            if let Err(errs) = self.module.context.check_decls() {
+                self.errs.extend(errs);
             }
             self.push_patch();
         }
         Ok(hir::PatchDef::new(hir_def.sig, base, hir_methods))
     }
 
-    fn lower_attr_def(&mut self, attr_def: ast::AttrDef) -> LowerResult<hir::AttrDef> {
-        log!(info "entered {}({attr_def})", fn_name!());
-        let attr = self.lower_acc(attr_def.attr)?;
-        let expr = self.lower_expr(*attr_def.expr)?;
+    fn lower_redef(&mut self, redef: ast::ReDef) -> LowerResult<hir::ReDef> {
+        log!(info "entered {}({redef})", fn_name!());
+        let attr = self.lower_acc(redef.attr)?;
+        let expr = self.lower_expr(*redef.expr)?;
         if let Err(err) = self.var_result_t_check(
             attr.loc(),
             &Str::from(attr.show()),
@@ -1461,7 +1629,7 @@ impl ASTLowerer {
         ) {
             self.errs.push(err);
         }
-        Ok(hir::AttrDef::new(attr, hir::Block::new(vec![expr])))
+        Ok(hir::ReDef::new(attr, hir::Block::new(vec![expr])))
     }
 
     fn register_trait_impl(
@@ -1471,33 +1639,34 @@ impl ASTLowerer {
         trait_loc: Location,
     ) -> LowerResult<()> {
         // TODO: polymorphic trait
-        if let Some(impls) = self.ctx.trait_impls.get_mut(&trait_.qual_name()) {
-            impls.insert(TypeRelationInstance::new(class.clone(), trait_.clone()));
+        if let Some(impls) = self.module.context.trait_impls.get_mut(&trait_.qual_name()) {
+            impls.insert(TraitImpl::new(class.clone(), trait_.clone()));
         } else {
-            self.ctx.trait_impls.insert(
+            self.module.context.trait_impls.insert(
                 trait_.qual_name(),
-                set! {TypeRelationInstance::new(class.clone(), trait_.clone())},
+                set! {TraitImpl::new(class.clone(), trait_.clone())},
             );
         }
-        let trait_ctx = if let Some((_, trait_ctx)) = self.ctx.get_nominal_type_ctx(trait_) {
-            trait_ctx.clone()
-        } else {
-            // TODO: maybe parameters are wrong
-            return Err(LowerErrors::from(LowerError::no_var_error(
-                self.cfg.input.clone(),
-                line!() as usize,
-                trait_loc,
-                self.ctx.caused_by(),
-                &trait_.local_name(),
-                None,
-            )));
-        };
-        let Some((_, class_ctx)) = self.ctx.get_mut_nominal_type_ctx(class) else {
+        let trait_ctx =
+            if let Some((_, trait_ctx)) = self.module.context.get_nominal_type_ctx(trait_) {
+                trait_ctx.clone()
+            } else {
+                // TODO: maybe parameters are wrong
+                return Err(LowerErrors::from(LowerError::no_var_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    trait_loc,
+                    self.module.context.caused_by(),
+                    &trait_.local_name(),
+                    None,
+                )));
+            };
+        let Some((_, class_ctx)) = self.module.context.get_mut_nominal_type_ctx(class) else {
             return Err(LowerErrors::from(LowerError::type_not_found(
                 self.cfg.input.clone(),
                 line!() as usize,
                 trait_loc,
-                self.ctx.caused_by(),
+                self.module.context.caused_by(),
                 class,
             )));
         };
@@ -1537,16 +1706,17 @@ impl ASTLowerer {
     }
 
     fn check_override(&mut self, class: &Type, impl_trait: Option<&Type>) {
-        if let Some(sups) = self.ctx.get_nominal_super_type_ctxs(class) {
+        if let Some(sups) = self.module.context.get_nominal_super_type_ctxs(class) {
             // exclude the first one because it is the class itself
             for sup in sups.into_iter().skip(1) {
-                for (method_name, vi) in self.ctx.locals.iter().chain(
-                    self.ctx
+                for (method_name, vi) in self.module.context.locals.iter().chain(
+                    self.module
+                        .context
                         .methods_list
                         .iter()
                         .flat_map(|(_, c)| c.locals.iter()),
                 ) {
-                    if let Some(sup_vi) = sup.get_current_scope_var(method_name.inspect()) {
+                    if let Some(sup_vi) = sup.get_current_scope_var(method_name) {
                         // must `@Override`
                         if let Some(decos) = &vi.comptime_decos {
                             if decos.contains("Override") {
@@ -1562,7 +1732,7 @@ impl ASTLowerer {
                             method_name.inspect(),
                             method_name.loc(),
                             &mono(&sup.name), // TODO: get super type
-                            self.ctx.caused_by(),
+                            self.module.context.caused_by(),
                         ));
                     }
                 }
@@ -1578,14 +1748,20 @@ impl ASTLowerer {
         class: &Type,
     ) -> SingleLowerResult<()> {
         if let Some((impl_trait, loc)) = impl_trait {
-            let mut unverified_names = self.ctx.locals.keys().collect::<Set<_>>();
-            if let Some(trait_obj) = self.ctx.rec_get_const_obj(&impl_trait.local_name()) {
+            let mut unverified_names = self.module.context.locals.keys().collect::<Set<_>>();
+            if let Some(trait_obj) = self
+                .module
+                .context
+                .rec_get_const_obj(&impl_trait.local_name())
+            {
                 if let ValueObj::Type(typ) = trait_obj {
                     match typ {
                         TypeObj::Generated(gen) => match gen.require_or_sup().unwrap().typ() {
                             Type::Record(attrs) => {
                                 for (field, decl_t) in attrs.iter() {
-                                    if let Some((name, vi)) = self.ctx.get_local_kv(&field.symbol) {
+                                    if let Some((name, vi)) =
+                                        self.module.context.get_var_kv(&field.symbol)
+                                    {
                                         let def_t = &vi.t;
                                         //    A(<: Add(R)), R -> A.Output
                                         // => A(<: Int), R -> A.Output
@@ -1593,12 +1769,16 @@ impl ASTLowerer {
                                             decl_t.clone().replace(&impl_trait, class);
                                         unverified_names.remove(name);
                                         // def_t must be subtype of decl_t
-                                        if !self.ctx.supertype_of(&replaced_decl_t, def_t) {
+                                        if !self
+                                            .module
+                                            .context
+                                            .supertype_of(&replaced_decl_t, def_t)
+                                        {
                                             self.errs.push(LowerError::trait_member_type_error(
                                                 self.cfg.input.clone(),
                                                 line!() as usize,
                                                 name.loc(),
-                                                self.ctx.caused_by(),
+                                                self.module.context.caused_by(),
                                                 name.inspect(),
                                                 &impl_trait,
                                                 decl_t,
@@ -1610,7 +1790,7 @@ impl ASTLowerer {
                                         self.errs.push(LowerError::trait_member_not_defined_error(
                                             self.cfg.input.clone(),
                                             line!() as usize,
-                                            self.ctx.caused_by(),
+                                            self.module.context.caused_by(),
                                             &field.symbol,
                                             &impl_trait,
                                             class,
@@ -1622,27 +1802,28 @@ impl ASTLowerer {
                             other => {
                                 return feature_error!(
                                     LowerError,
-                                    self.ctx,
+                                    self.module.context,
                                     Location::Unknown,
                                     &format!("Impl {other}")
                                 );
                             }
                         },
                         TypeObj::Builtin(_typ) => {
-                            let (_, ctx) = self.ctx.get_nominal_type_ctx(_typ).unwrap();
+                            let (_, ctx) = self.module.context.get_nominal_type_ctx(_typ).unwrap();
                             for (decl_name, decl_vi) in ctx.decls.iter() {
-                                if let Some((name, vi)) = self.ctx.get_local_kv(decl_name.inspect())
+                                if let Some((name, vi)) =
+                                    self.module.context.get_var_kv(decl_name.inspect())
                                 {
                                     let def_t = &vi.t;
                                     let replaced_decl_t =
                                         decl_vi.t.clone().replace(&impl_trait, class);
                                     unverified_names.remove(name);
-                                    if !self.ctx.supertype_of(&replaced_decl_t, def_t) {
+                                    if !self.module.context.supertype_of(&replaced_decl_t, def_t) {
                                         self.errs.push(LowerError::trait_member_type_error(
                                             self.cfg.input.clone(),
                                             line!() as usize,
                                             name.loc(),
-                                            self.ctx.caused_by(),
+                                            self.module.context.caused_by(),
                                             name.inspect(),
                                             &impl_trait,
                                             &decl_vi.t,
@@ -1654,7 +1835,7 @@ impl ASTLowerer {
                                     self.errs.push(LowerError::trait_member_not_defined_error(
                                         self.cfg.input.clone(),
                                         line!() as usize,
-                                        self.ctx.caused_by(),
+                                        self.module.context.caused_by(),
                                         decl_name.inspect(),
                                         &impl_trait,
                                         class,
@@ -1669,7 +1850,7 @@ impl ASTLowerer {
                         self.cfg.input.clone(),
                         line!() as usize,
                         loc,
-                        self.ctx.caused_by(),
+                        self.module.context.caused_by(),
                         &impl_trait.qual_name(),
                         None,
                         &Type::TraitType,
@@ -1683,16 +1864,18 @@ impl ASTLowerer {
                     self.cfg.input.clone(),
                     line!() as usize,
                     loc,
-                    self.ctx.caused_by(),
+                    self.module.context.caused_by(),
                     &impl_trait.qual_name(),
-                    self.ctx.get_similar_name(&impl_trait.local_name()),
+                    self.module
+                        .context
+                        .get_similar_name(&impl_trait.local_name()),
                 ));
             }
             for unverified in unverified_names {
                 self.errs.push(LowerError::trait_member_not_defined_error(
                     self.cfg.input.clone(),
                     line!() as usize,
-                    self.ctx.caused_by(),
+                    self.module.context.caused_by(),
                     unverified.inspect(),
                     &impl_trait,
                     class,
@@ -1704,9 +1887,10 @@ impl ASTLowerer {
     }
 
     fn check_collision_and_push(&mut self, class: Type) {
-        let methods = self.ctx.pop();
+        let methods = self.module.context.pop();
         let (_, class_root) = self
-            .ctx
+            .module
+            .context
             .get_mut_nominal_type_ctx(&class)
             .unwrap_or_else(|| todo!("{class} not found"));
         for (newly_defined_name, vi) in methods.locals.clone().into_iter() {
@@ -1714,7 +1898,7 @@ impl ASTLowerer {
                 // TODO: 特殊化なら同じ名前でもOK
                 // TODO: 定義のメソッドもエラー表示
                 if let Some((_already_defined_name, already_defined_vi)) =
-                    already_defined_methods.get_local_kv(newly_defined_name.inspect())
+                    already_defined_methods.get_var_kv(newly_defined_name.inspect())
                 {
                     if already_defined_vi.kind != VarKind::Auto
                         && already_defined_vi.impl_of == vi.impl_of
@@ -1740,11 +1924,12 @@ impl ASTLowerer {
     }
 
     fn push_patch(&mut self) {
-        let methods = self.ctx.pop();
+        let methods = self.module.context.pop();
         let ContextKind::PatchMethodDefs(base) = &methods.kind else { unreachable!() };
         let patch_name = *methods.name.split_with(&["::", "."]).last().unwrap();
         let patch_root = self
-            .ctx
+            .module
+            .context
             .patches
             .get_mut(patch_name)
             .unwrap_or_else(|| todo!("{} not found", methods.name));
@@ -1753,7 +1938,7 @@ impl ASTLowerer {
                 // TODO: 特殊化なら同じ名前でもOK
                 // TODO: 定義のメソッドもエラー表示
                 if let Some((_already_defined_name, already_defined_vi)) =
-                    already_defined_methods.get_local_kv(newly_defined_name.inspect())
+                    already_defined_methods.get_var_kv(newly_defined_name.inspect())
                 {
                     if already_defined_vi.kind != VarKind::Auto
                         && already_defined_vi.impl_of == vi.impl_of
@@ -1778,17 +1963,16 @@ impl ASTLowerer {
             .push((ClassDefType::Simple(base.clone()), methods));
     }
 
-    #[allow(clippy::only_used_in_recursion)]
-    fn get_require_or_sup_or_base(&self, expr: hir::Expr) -> hir::Expr {
+    fn get_require_or_sup_or_base(expr: hir::Expr) -> Option<hir::Expr> {
         match expr {
-            acc @ hir::Expr::Accessor(_) => acc,
+            acc @ hir::Expr::Accessor(_) => Some(acc),
             hir::Expr::Call(mut call) => match call.obj.show_acc().as_ref().map(|s| &s[..]) {
-                Some("Class") => call.args.remove_left_or_key("Requirement").unwrap(),
-                Some("Inherit") => call.args.remove_left_or_key("Super").unwrap(),
+                Some("Class") => call.args.remove_left_or_key("Requirement"),
+                Some("Inherit") => call.args.remove_left_or_key("Super"),
                 Some("Inheritable") => {
-                    self.get_require_or_sup_or_base(call.args.remove_left_or_key("Class").unwrap())
+                    Self::get_require_or_sup_or_base(call.args.remove_left_or_key("Class").unwrap())
                 }
-                Some("Patch") => call.args.remove_left_or_key("Base").unwrap(),
+                Some("Patch") => call.args.remove_left_or_key("Base"),
                 _ => todo!(),
             },
             other => todo!("{other}"),
@@ -1798,8 +1982,8 @@ impl ASTLowerer {
     fn lower_type_asc(&mut self, tasc: ast::TypeAscription) -> LowerResult<hir::TypeAscription> {
         log!(info "entered {}({tasc})", fn_name!());
         let is_instance_ascription = tasc.is_instance_ascription();
-        let mut dummy_tv_cache = TyVarCache::new(self.ctx.level, &self.ctx);
-        let t = self.ctx.instantiate_typespec(
+        let mut dummy_tv_cache = TyVarCache::new(self.module.context.level, &self.module.context);
+        let spec_t = self.module.context.instantiate_typespec(
             &tasc.t_spec,
             None,
             &mut dummy_tv_cache,
@@ -1809,30 +1993,111 @@ impl ASTLowerer {
         let loc = tasc.loc();
         let expr = self.lower_expr(*tasc.expr)?;
         if is_instance_ascription {
-            self.ctx.sub_unify(
+            self.module.context.sub_unify(
                 expr.ref_t(),
-                &t,
+                &spec_t,
                 expr.loc(),
                 Some(&Str::from(expr.to_string())),
             )?;
         } else {
+            // if subtype ascription
             let ctx = self
-                .ctx
-                .get_singular_ctx_by_hir_expr(&expr, &self.ctx.name)?;
+                .module
+                .context
+                .get_singular_ctx_by_hir_expr(&expr, &self.module.context.name)?;
             // REVIEW: need to use subtype_of?
-            if ctx.super_traits.iter().all(|trait_| trait_ != &t)
-                && ctx.super_classes.iter().all(|class| class != &t)
+            if ctx.super_traits.iter().all(|trait_| trait_ != &spec_t)
+                && ctx.super_classes.iter().all(|class| class != &spec_t)
             {
                 return Err(LowerErrors::from(LowerError::subtyping_error(
                     self.cfg.input.clone(),
                     line!() as usize,
                     expr.ref_t(), // FIXME:
-                    &t,
+                    &spec_t,
                     loc,
-                    self.ctx.caused_by(),
+                    self.module.context.caused_by(),
                 )));
             }
         }
+        Ok(expr.type_asc(tasc.t_spec))
+    }
+
+    fn lower_decl(&mut self, tasc: ast::TypeAscription) -> LowerResult<hir::TypeAscription> {
+        log!(info "entered {}({tasc})", fn_name!());
+        let is_instance_ascription = tasc.is_instance_ascription();
+        let mut dummy_tv_cache = TyVarCache::new(self.module.context.level, &self.module.context);
+        let spec_t = self.module.context.instantiate_typespec(
+            &tasc.t_spec,
+            None,
+            &mut dummy_tv_cache,
+            RegistrationMode::Normal,
+            false,
+        )?;
+        let loc = tasc.loc();
+        let ast::Expr::Accessor(ast::Accessor::Ident(ident)) = *tasc.expr else {
+            return Err(LowerErrors::from(LowerError::syntax_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                tasc.expr.loc(),
+                self.module.context.caused_by(),
+                switch_lang!(
+                    "japanese" => "無効な型宣言です".to_string(),
+                    "simplified_chinese" => "无效的类型声明".to_string(),
+                    "traditional_chinese" => "無效的型宣告".to_string(),
+                    "english" => "Invalid type declaration".to_string(),
+                ),
+                None,
+            )));
+        };
+        let ident_vi = self
+            .module
+            .context
+            .rec_get_decl_info(
+                &ident,
+                AccessKind::Name,
+                &self.cfg.input,
+                &self.module.context.name,
+            )
+            .or_else(|_e| {
+                self.module.context.rec_get_var_info(
+                    &ident,
+                    AccessKind::Name,
+                    &self.cfg.input,
+                    &self.module.context.name,
+                )
+            })?;
+        if is_instance_ascription {
+            self.module
+                .context
+                .sub_unify(&ident_vi.t, &spec_t, loc, Some(ident.inspect()))?;
+        } else {
+            // if subtype ascription
+            let ctx = self
+                .module
+                .context
+                .get_singular_ctx_by_ident(&ident, &self.module.context.name)?;
+            // REVIEW: need to use subtype_of?
+            if ctx.super_traits.iter().all(|trait_| trait_ != &spec_t)
+                && ctx.super_classes.iter().all(|class| class != &spec_t)
+            {
+                return Err(LowerErrors::from(LowerError::subtyping_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    &ident_vi.t,
+                    &spec_t,
+                    loc,
+                    self.module.context.caused_by(),
+                )));
+            }
+        }
+        let qual_name = self
+            .module
+            .context
+            .get_singular_ctx_by_ident(&ident, &self.module.context.name)
+            .ok()
+            .map(|ctx| ctx.name.clone());
+        let ident = hir::Identifier::new(ident.dot, ident.name, qual_name, ident_vi);
+        let expr = hir::Expr::Accessor(hir::Accessor::Ident(ident));
         Ok(expr.type_asc(tasc.t_spec))
     }
 
@@ -1853,14 +2118,28 @@ impl ASTLowerer {
             ast::Expr::Call(call) => Ok(hir::Expr::Call(self.lower_call(call)?)),
             ast::Expr::DataPack(pack) => Ok(hir::Expr::Call(self.lower_pack(pack)?)),
             ast::Expr::Lambda(lambda) => Ok(hir::Expr::Lambda(self.lower_lambda(lambda)?)),
-            ast::Expr::Def(def) => Ok(hir::Expr::Def(self.lower_def(def)?)),
-            ast::Expr::ClassDef(defs) => Ok(hir::Expr::ClassDef(self.lower_class_def(defs)?)),
-            ast::Expr::PatchDef(defs) => Ok(hir::Expr::PatchDef(self.lower_patch_def(defs)?)),
-            ast::Expr::AttrDef(adef) => Ok(hir::Expr::AttrDef(self.lower_attr_def(adef)?)),
             ast::Expr::TypeAsc(tasc) => Ok(hir::Expr::TypeAsc(self.lower_type_asc(tasc)?)),
             // Checking is also performed for expressions in Dummy. However, it has no meaning in code generation
             ast::Expr::Dummy(dummy) => Ok(hir::Expr::Dummy(self.lower_dummy(dummy)?)),
-            other => todo!("{other}"),
+            other => {
+                log!(err "unreachable: {other}");
+                unreachable_error!(LowerErrors, LowerError, self.module.context)
+            }
+        }
+    }
+
+    /// The meaning of TypeAscription changes between chunk and expr.
+    /// For example, `x: Int`, as expr, is `x` itself,
+    /// but as chunk, it declares that `x` is of type `Int`, and is valid even before `x` is defined.
+    fn lower_chunk(&mut self, chunk: ast::Expr) -> LowerResult<hir::Expr> {
+        log!(info "entered {}", fn_name!());
+        match chunk {
+            ast::Expr::Def(def) => Ok(hir::Expr::Def(self.lower_def(def)?)),
+            ast::Expr::ClassDef(defs) => Ok(hir::Expr::ClassDef(self.lower_class_def(defs)?)),
+            ast::Expr::PatchDef(defs) => Ok(hir::Expr::PatchDef(self.lower_patch_def(defs)?)),
+            ast::Expr::ReDef(redef) => Ok(hir::Expr::ReDef(self.lower_redef(redef)?)),
+            ast::Expr::TypeAsc(tasc) => Ok(hir::Expr::TypeAsc(self.lower_decl(tasc)?)),
+            other => self.lower_expr(other),
         }
     }
 
@@ -1868,7 +2147,13 @@ impl ASTLowerer {
         log!(info "entered {}", fn_name!());
         let mut hir_block = Vec::with_capacity(ast_block.len());
         for chunk in ast_block.into_iter() {
-            let chunk = self.lower_expr(chunk)?;
+            let chunk = match self.lower_chunk(chunk) {
+                Ok(chunk) => chunk,
+                Err(errs) => {
+                    self.errs.extend(errs);
+                    hir::Expr::Dummy(hir::Dummy::new(vec![]))
+                }
+            };
             hir_block.push(chunk);
         }
         Ok(hir::Block::new(hir_block))
@@ -1878,14 +2163,14 @@ impl ASTLowerer {
         log!(info "entered {}", fn_name!());
         let mut hir_dummy = Vec::with_capacity(ast_dummy.len());
         for chunk in ast_dummy.into_iter() {
-            let chunk = self.lower_expr(chunk)?;
+            let chunk = self.lower_chunk(chunk)?;
             hir_dummy.push(chunk);
         }
         Ok(hir::Dummy::new(hir_dummy))
     }
 
     fn return_incomplete_artifact(&mut self, hir: HIR) -> IncompleteArtifact {
-        self.ctx.clear_invalid_vars();
+        self.module.context.clear_invalid_vars();
         IncompleteArtifact::new(
             Some(hir),
             LowerErrors::from(self.errs.take_all()),
@@ -1916,11 +2201,11 @@ impl ASTLowerer {
             }
         }
         let mut module = hir::Module::with_capacity(ast.module.len());
-        if let Err(errs) = self.ctx.preregister(ast.module.block()) {
+        if let Err(errs) = self.module.context.preregister(ast.module.block()) {
             self.errs.extend(errs);
         }
         for chunk in ast.module.into_iter() {
-            match self.lower_expr(chunk) {
+            match self.lower_chunk(chunk) {
                 Ok(chunk) => {
                     module.push(chunk);
                 }
@@ -1929,13 +2214,13 @@ impl ASTLowerer {
                 }
             }
         }
-        self.ctx.clear_invalid_vars();
-        self.ctx.check_decls().unwrap_or_else(|mut errs| {
-            self.errs.append(&mut errs);
+        self.module.context.clear_invalid_vars();
+        self.module.context.check_decls().unwrap_or_else(|errs| {
+            self.errs.extend(errs);
         });
         let hir = HIR::new(ast.name, module);
         log!(info "HIR (not resolved, current errs: {}):\n{hir}", self.errs.len());
-        let hir = match self.ctx.resolve(hir) {
+        let hir = match self.module.context.resolve(hir) {
             Ok(hir) => {
                 log!(info "HIR (resolved):\n{hir}");
                 hir

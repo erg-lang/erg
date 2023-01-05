@@ -1,6 +1,6 @@
 # 模塊
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/24_module.md%26commit_hash%3D48107a2d1719892be50588de764991cba6db39b4)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/24_module.md&commit_hash=48107a2d1719892be50588de764991cba6db39b4)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/24_module.md%26commit_hash%3D20aa4f02b994343ab9600317cebafa2b20676467)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/24_module.md&commit_hash=20aa4f02b994343ab9600317cebafa2b20676467)
 
 
 Erg允許您將文件本身視為單個記錄(Record)。這稱為模塊
@@ -15,7 +15,7 @@ Erg允許您將文件本身視為單個記錄(Record)。這稱為模塊
 foo = {.i = 1}
 ```
 
-```python: bar.er
+```python,checker_ignore
 # bar.er
 foo = import "foo"
 print! foo # <module 'foo'>
@@ -92,7 +92,7 @@ print! foo.f 1
 但是，由過程調用創建的變量不能在循環引用模塊中定義
 這是因為 Erg 根據依賴關系重新排列定義的順序
 
-```python
+```python,checker_ignore
 # foo.er
 bar = import "bar"
 print! bar.x

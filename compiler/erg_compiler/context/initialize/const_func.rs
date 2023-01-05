@@ -19,33 +19,30 @@ const CLASS_ERR: StyledStr = StyledStr::new("Class", Some(ERR), None);
 const REQ_ERR: StyledStr = StyledStr::new("Requirement", Some(ERR), None);
 const REQ_WARN: StyledStr = StyledStr::new("Requirement", Some(WARN), None);
 
-/// Requirement: Type, Impl := Type -> ClassType
+/// Requirement := Type or NoneType, Impl := Type -> ClassType
 pub fn class_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
-    let require = args.remove_left_or_key("Requirement").ok_or_else(|| {
-        ErrorCore::new(
-            vec![SubMessage::only_loc(Location::Unknown)],
-            format!("{REQ_ERR} is not passed"),
-            line!() as usize,
-            ErrorKind::TypeError,
-            Location::Unknown,
-        )
-    })?;
-    let Some(require) = require.as_type() else {
-        let require = StyledString::new(format!("{}", require), Some(ERR), None);
-        return Err(ErrorCore::new(
-            vec![SubMessage::only_loc(Location::Unknown)],
-            format!(
-                "non-type object {require} is passed to {REQ_WARN}",
-            ),
-            line!() as usize,
-            ErrorKind::TypeError,
-            Location::Unknown,
-        ).into());
-    };
+    let require = args.remove_left_or_key("Requirement");
     let impls = args.remove_left_or_key("Impl");
     let impls = impls.map(|v| v.as_type().unwrap());
     let t = mono(ctx.name.clone());
-    Ok(ValueObj::gen_t(GenTypeObj::class(t, require, impls)))
+    match require {
+        Some(value) => {
+            if let Some(require) = value.as_type() {
+                Ok(ValueObj::gen_t(GenTypeObj::class(t, Some(require), impls)))
+            } else {
+                let require = StyledString::new(format!("{value}"), Some(ERR), None);
+                Err(ErrorCore::new(
+                    vec![SubMessage::only_loc(Location::Unknown)],
+                    format!("non-type object {require} is passed to {REQ_WARN}",),
+                    line!() as usize,
+                    ErrorKind::TypeError,
+                    Location::Unknown,
+                )
+                .into())
+            }
+        }
+        None => Ok(ValueObj::gen_t(GenTypeObj::class(t, None, impls))),
+    }
 }
 
 /// Super: ClassType, Impl := Type, Additional := Type -> ClassType
@@ -258,6 +255,12 @@ pub fn __dict_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<V
     }) {
         Ok(v.clone())
     } else {
+        let index = if let ValueObj::Type(t) = &index {
+            let derefed = ctx.readable_type(t.typ().clone(), false);
+            ValueObj::builtin_t(derefed)
+        } else {
+            index
+        };
         Err(ErrorCore::new(
             vec![SubMessage::only_loc(Location::Unknown)],
             format!("{slf} has no key {index}"),

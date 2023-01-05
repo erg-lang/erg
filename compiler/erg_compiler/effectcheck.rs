@@ -4,9 +4,10 @@
 
 use erg_common::config::ErgConfig;
 use erg_common::log;
-use erg_common::traits::Stream;
+use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Visibility;
 use erg_common::Str;
+use erg_parser::token::TokenKind;
 use Visibility::*;
 
 use crate::ty::HasType;
@@ -95,7 +96,9 @@ impl SideEffectChecker {
                     self.check_def(def);
                 }
                 Expr::ClassDef(class_def) => {
-                    self.check_expr(class_def.require_or_sup.as_ref());
+                    if let Some(req_sup) = &class_def.require_or_sup {
+                        self.check_expr(req_sup);
+                    }
                     // TODO: grow
                     for def in class_def.methods.iter() {
                         self.check_expr(def);
@@ -191,7 +194,7 @@ impl SideEffectChecker {
                     self.path_stack.pop();
                     self.block_stack.pop();
                 }
-                Expr::AttrDef(_)
+                Expr::ReDef(_)
                 | Expr::Code(_)
                 | Expr::Compound(_)
                 | Expr::Import(_)
@@ -235,6 +238,44 @@ impl SideEffectChecker {
                 self.block_stack.push(ConstInstant);
             }
         }
+        if let Signature::Subr(sig) = &def.sig {
+            let t = sig.ident.ref_t();
+            for (nd_param, nd_type) in sig
+                .params
+                .non_defaults
+                .iter()
+                .zip(t.non_default_params().unwrap())
+            {
+                if nd_type.typ().is_procedure() && !nd_param.inspect().unwrap().ends_with('!') {
+                    self.errs.push(EffectError::proc_assign_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        nd_param.pat.loc(),
+                        self.full_path(),
+                    ));
+                }
+            }
+            if let Some((var_arg, va_type)) = sig.params.var_args.as_ref().zip(t.var_args()) {
+                if va_type.typ().is_procedure() && !var_arg.inspect().unwrap().ends_with('!') {
+                    self.errs.push(EffectError::proc_assign_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        var_arg.pat.loc(),
+                        self.full_path(),
+                    ));
+                }
+            }
+            for (d_param, d_type) in sig.params.defaults.iter().zip(t.default_params().unwrap()) {
+                if d_type.typ().is_procedure() && !d_param.inspect().unwrap().ends_with('!') {
+                    self.errs.push(EffectError::proc_assign_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        d_param.sig.pat.loc(),
+                        self.full_path(),
+                    ));
+                }
+            }
+        }
         let last_idx = def.body.block.len() - 1;
         for (i, chunk) in def.body.block.iter().enumerate() {
             self.check_expr(chunk);
@@ -247,7 +288,7 @@ impl SideEffectChecker {
                 self.errs.push(EffectError::proc_assign_error(
                     self.cfg.input.clone(),
                     line!() as usize,
-                    &def.sig,
+                    def.sig.loc(),
                     self.full_path(),
                 ));
             }
@@ -284,7 +325,9 @@ impl SideEffectChecker {
                 self.check_def(def);
             }
             Expr::ClassDef(class_def) => {
-                self.check_expr(class_def.require_or_sup.as_ref());
+                if let Some(req_sup) = &class_def.require_or_sup {
+                    self.check_expr(req_sup);
+                }
                 for def in class_def.methods.iter() {
                     self.check_expr(def);
                 }
@@ -377,6 +420,16 @@ impl SideEffectChecker {
             Expr::BinOp(bin) => {
                 self.check_expr(&bin.lhs);
                 self.check_expr(&bin.rhs);
+                if (bin.op.kind == TokenKind::IsOp || bin.op.kind == TokenKind::IsNotOp)
+                    && !self.in_context_effects_allowed()
+                {
+                    self.errs.push(EffectError::has_effect(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        expr,
+                        self.full_path(),
+                    ));
+                }
             }
             Expr::Lambda(lambda) => {
                 let is_proc = lambda.is_procedural();
@@ -404,7 +457,7 @@ impl SideEffectChecker {
                     ));
                 }
             }
-            Expr::AttrDef(_)
+            Expr::ReDef(_)
             | Expr::Code(_)
             | Expr::Compound(_)
             | Expr::Import(_)

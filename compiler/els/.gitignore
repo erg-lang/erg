@@ -1,0 +1,4 @@
+/target
+/node_modules
+src/default_setting.json
+*.pyz

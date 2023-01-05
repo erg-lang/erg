@@ -47,5 +47,8 @@ jobs:
           bin: erg
           target: ${{ matrix.target }}
           include: compiler/erg_compiler/lib
+          features: els
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # static linking to libc
+          RUSTFLAGS: ${{ (matrix.target == 'x86_64-unknown-linux-gnu' && '-C target-feature=+crt-static') || '' }}

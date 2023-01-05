@@ -1,14 +1,5 @@
-use std::path::PathBuf;
-
-use erg_common::config::ErgConfig;
-use erg_common::error::MultiErrorDisplay;
-use erg_common::python_util::PythonVersion;
-use erg_common::spawn::exec_new_thread;
-use erg_common::traits::{Runnable, Stream};
-
-use erg_compiler::error::CompileErrors;
-
-use erg::DummyVM;
+mod common;
+use common::{expect_end_with, expect_failure, expect_success};
 
 #[test]
 fn exec_addition_ok() -> Result<(), ()> {
@@ -28,6 +19,16 @@ fn exec_assert_cast() -> Result<(), ()> {
 #[test]
 fn exec_class() -> Result<(), ()> {
     expect_success("examples/class.er")
+}
+
+#[test]
+fn exec_class_attr() -> Result<(), ()> {
+    expect_success("tests/should_ok/class_attr.er")
+}
+
+#[test]
+fn exec_comment() -> Result<(), ()> {
+    expect_success("tests/should_ok/comment.er")
 }
 
 #[test]
@@ -91,8 +92,18 @@ fn exec_interpolation() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_long() -> Result<(), ()> {
+    expect_success("tests/should_ok/long.er")
+}
+
+#[test]
 fn exec_mut() -> Result<(), ()> {
     expect_success("examples/mut.er")
+}
+
+#[test]
+fn exec_mut_array() -> Result<(), ()> {
+    expect_success("tests/should_ok/mut_array.er")
 }
 
 #[test]
@@ -162,7 +173,7 @@ fn exec_with() -> Result<(), ()> {
 
 #[test]
 fn exec_addition_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/addition.er", 7)
+    expect_failure("tests/should_err/addition.er", 9)
 }
 
 #[test]
@@ -211,69 +222,20 @@ fn exec_side_effect() -> Result<(), ()> {
 
 #[test]
 fn exec_subtyping() -> Result<(), ()> {
-    expect_failure("tests/should_err/subtyping.er", 2)
+    expect_failure("tests/should_err/subtyping.er", 6)
 }
 
-fn expect_success(file_path: &'static str) -> Result<(), ()> {
-    match exec_vm(file_path) {
-        Ok(0) => Ok(()),
-        Ok(i) => {
-            println!("err: end with {i}");
-            Err(())
-        }
-        Err(errs) => {
-            errs.fmt_all_stderr();
-            Err(())
-        }
-    }
+#[test]
+fn exec_callable() -> Result<(), ()> {
+    expect_failure("tests/should_err/callable.er", 4)
 }
 
-fn expect_end_with(file_path: &'static str, code: i32) -> Result<(), ()> {
-    match exec_vm(file_path) {
-        Ok(0) => Err(()),
-        Ok(i) => {
-            if i == code {
-                Ok(())
-            } else {
-                println!("err: end with {i}");
-                Err(())
-            }
-        }
-        Err(errs) => {
-            errs.fmt_all_stderr();
-            Err(())
-        }
-    }
+#[test]
+fn exec_multiline_invalid_next() -> Result<(), ()> {
+    expect_failure("tests/should_err/multi_line_invalid_nest.er", 1)
 }
 
-fn expect_failure(file_path: &'static str, errs_len: usize) -> Result<(), ()> {
-    match exec_vm(file_path) {
-        Ok(0) => Err(()),
-        Ok(_) => Ok(()),
-        Err(errs) => {
-            errs.fmt_all_stderr();
-            if errs.len() == errs_len {
-                Ok(())
-            } else {
-                println!("err: error length is not {errs_len} but {}", errs.len());
-                Err(())
-            }
-        }
-    }
-}
-
-fn _exec_vm(file_path: &'static str) -> Result<i32, CompileErrors> {
-    let mut cfg = ErgConfig::with_main_path(PathBuf::from(file_path));
-    // cfg.py_command = Some("python3");
-    // cfg.target_version = Some(PythonVersion::new(3, Some(10), Some(8)));
-    // cfg.py_magic_num = Some(3439);
-    cfg.py_command = Some("python");
-    cfg.target_version = Some(PythonVersion::new(3, Some(11), Some(0)));
-    cfg.py_magic_num = Some(3495);
-    let mut vm = DummyVM::new(cfg);
-    vm.exec()
-}
-
-fn exec_vm(file_path: &'static str) -> Result<i32, CompileErrors> {
-    exec_new_thread(move || _exec_vm(file_path))
+#[test]
+fn exec_quantified_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/quantified.er", 2)
 }

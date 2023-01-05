@@ -88,7 +88,7 @@ impl Literal {
         Self { token }
     }
 
-    pub fn nat(n: usize, line: usize) -> Self {
+    pub fn nat(n: usize, line: u32) -> Self {
         let token = Token::new(TokenKind::NatLit, Str::from(n.to_string()), line, 0);
         Self { token }
     }
@@ -1185,6 +1185,7 @@ pub struct Dummy(Vec<Expr>);
 
 impl NestedDisplay for Dummy {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
+        writeln!(f, "Dummy:")?;
         fmt_lines(self.0.iter(), f, level)
     }
 }
@@ -1203,46 +1204,12 @@ impl Locational for Dummy {
 
 impl_stream_for_wrapper!(Dummy, Expr);
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct ConstLocal {
-    pub symbol: Token,
-}
-
-impl NestedDisplay for ConstLocal {
-    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "{}", self.symbol.content)
-    }
-}
-
-impl_display_from_nested!(ConstLocal);
-impl_locational!(ConstLocal, symbol);
-
-impl ConstLocal {
-    pub const fn new(symbol: Token) -> Self {
-        Self { symbol }
-    }
-
-    pub fn dummy(name: &'static str) -> Self {
-        Self::new(Token::from_str(TokenKind::Symbol, name))
-    }
-
-    // &strにするとクローンしたいときにアロケーションコストがかかるので&Strのままで
-    pub const fn inspect(&self) -> &Str {
-        &self.symbol.content
-    }
-
-    pub fn downcast(self) -> Identifier {
-        Identifier::new(None, VarName::new(self.symbol))
-    }
-}
-
-/// type variables
-pub type ConstVar = ConstLocal;
+pub type ConstIdentifier = Identifier;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstAttribute {
     pub obj: Box<ConstExpr>,
-    pub name: ConstLocal,
+    pub name: ConstIdentifier,
 }
 
 impl NestedDisplay for ConstAttribute {
@@ -1259,7 +1226,7 @@ impl_display_from_nested!(ConstAttribute);
 impl_locational!(ConstAttribute, obj, name);
 
 impl ConstAttribute {
-    pub fn new(expr: ConstExpr, name: ConstLocal) -> Self {
+    pub fn new(expr: ConstExpr, name: ConstIdentifier) -> Self {
         Self {
             obj: Box::new(expr),
             name,
@@ -1267,7 +1234,7 @@ impl ConstAttribute {
     }
 
     pub fn downcast(self) -> Attribute {
-        Attribute::new(self.obj.downcast(), self.name.downcast())
+        Attribute::new(self.obj.downcast(), self.name)
     }
 }
 
@@ -1329,8 +1296,8 @@ impl ConstSubscript {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum ConstAccessor {
-    Local(ConstLocal),
-    SelfDot(ConstLocal),
+    Local(ConstIdentifier),
+    SelfDot(ConstIdentifier),
     Attr(ConstAttribute),
     TupleAttr(ConstTupleAttribute),
     Subscr(ConstSubscript),
@@ -1342,14 +1309,10 @@ impl_locational_for_enum!(ConstAccessor; Local, SelfDot, Attr, TupleAttr, Subscr
 
 impl ConstAccessor {
     pub const fn local(symbol: Token) -> Self {
-        Self::Local(ConstLocal::new(symbol))
+        Self::Local(ConstIdentifier::new(None, VarName::new(symbol)))
     }
 
-    pub const fn dot_self(attr: Token) -> Self {
-        Self::SelfDot(ConstLocal::new(attr))
-    }
-
-    pub fn attr(obj: ConstExpr, name: ConstLocal) -> Self {
+    pub fn attr(obj: ConstExpr, name: ConstIdentifier) -> Self {
         Self::Attr(ConstAttribute::new(obj, name))
     }
 
@@ -1359,7 +1322,7 @@ impl ConstAccessor {
 
     pub fn downcast(self) -> Accessor {
         match self {
-            Self::Local(local) => Accessor::Ident(local.downcast()),
+            Self::Local(local) => Accessor::Ident(local),
             Self::Attr(attr) => Accessor::Attr(attr.downcast()),
             // Self::TupleAttr(attr) => Accessor::TupleAttr(attr.downcast()),
             // Self::Subscr(subscr) => Accessor::Subscr(subscr.downcast()),
@@ -1368,7 +1331,6 @@ impl ConstAccessor {
     }
 }
 
-/// DictはキーつきArray(型としては別物)
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstArray {
     pub l_sqbr: Token,
@@ -1388,7 +1350,7 @@ impl NestedDisplay for ConstArray {
 }
 
 impl_display_from_nested!(ConstArray);
-impl_locational!(ConstArray, l_sqbr, r_sqbr);
+impl_locational!(ConstArray, l_sqbr, elems, r_sqbr);
 
 impl ConstArray {
     pub fn new(l_sqbr: Token, r_sqbr: Token, elems: ConstArgs, guard: Option<ConstExpr>) -> Self {
@@ -1410,15 +1372,70 @@ impl ConstArray {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ConstSet {
+    pub l_brace: Token,
+    pub r_brace: Token,
+    pub elems: ConstArgs,
+}
+
+impl NestedDisplay for ConstSet {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(f, "{{{}}}", self.elems)
+    }
+}
+
+impl_display_from_nested!(ConstSet);
+impl_locational!(ConstSet, l_brace, elems, r_brace);
+
+impl ConstSet {
+    pub fn new(l_brace: Token, r_brace: Token, elems: ConstArgs) -> Self {
+        Self {
+            l_brace,
+            r_brace,
+            elems,
+        }
+    }
+
+    pub fn downcast(self) -> Set {
+        Set::Normal(NormalSet::new(
+            self.l_brace,
+            self.r_brace,
+            self.elems.downcast(),
+        ))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ConstKeyValue {
+    pub key: ConstExpr,
+    pub value: ConstExpr,
+}
+
+impl NestedDisplay for ConstKeyValue {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(f, "{}: {}", self.key, self.value)
+    }
+}
+
+impl_display_from_nested!(ConstKeyValue);
+impl_locational!(ConstKeyValue, key, value);
+
+impl ConstKeyValue {
+    pub const fn new(key: ConstExpr, value: ConstExpr) -> Self {
+        Self { key, value }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstDict {
     l_brace: Token,
     r_brace: Token,
-    pub attrs: ConstArgs,
+    pub kvs: Vec<ConstKeyValue>,
 }
 
 impl NestedDisplay for ConstDict {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "{{{}}}", self.attrs)
+        write!(f, "{{{}}}", fmt_vec(&self.kvs))
     }
 }
 
@@ -1426,17 +1443,41 @@ impl_display_from_nested!(ConstDict);
 impl_locational!(ConstDict, l_brace, r_brace);
 
 impl ConstDict {
-    pub const fn new(l_brace: Token, r_brace: Token, attrs: ConstArgs) -> Self {
+    pub const fn new(l_brace: Token, r_brace: Token, kvs: Vec<ConstKeyValue>) -> Self {
         Self {
             l_brace,
             r_brace,
-            attrs,
+            kvs,
         }
     }
 
     /*pub fn downcast(self) -> Dict {
         Dict::Normal(NormalDict::new(self.l_brace, self.r_brace, self.attrs.downcast()))
     }*/
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ConstTuple {
+    pub elems: ConstArgs,
+}
+
+impl NestedDisplay for ConstTuple {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(f, "({})", self.elems)
+    }
+}
+
+impl_display_from_nested!(ConstTuple);
+impl_locational!(ConstTuple, elems);
+
+impl ConstTuple {
+    pub const fn new(elems: ConstArgs) -> Self {
+        Self { elems }
+    }
+
+    pub fn downcast(self) -> Tuple {
+        Tuple::Normal(NormalTuple::new(self.elems.downcast()))
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -1541,15 +1582,16 @@ pub enum ConstExpr {
     Accessor(ConstAccessor),
     App(ConstApp),
     Array(ConstArray),
-    Set(Set),
+    Set(ConstSet),
     Dict(ConstDict),
+    Tuple(ConstTuple),
     BinOp(ConstBinOp),
     UnaryOp(ConstUnaryOp),
 }
 
-impl_nested_display_for_chunk_enum!(ConstExpr; Lit, Accessor, App, Array, Dict, BinOp, UnaryOp, Erased, Set);
+impl_nested_display_for_chunk_enum!(ConstExpr; Lit, Accessor, App, Array, Set, Dict, Tuple, BinOp, UnaryOp, Erased, Set);
 impl_display_from_nested!(ConstExpr);
-impl_locational_for_enum!(ConstExpr; Lit, Accessor, App, Array, Dict, BinOp, UnaryOp, Erased, Set);
+impl_locational_for_enum!(ConstExpr; Lit, Accessor, App, Array, Set Dict, Tuple, BinOp, UnaryOp, Erased, Set);
 
 impl ConstExpr {
     pub fn need_to_be_closed(&self) -> bool {
@@ -2268,7 +2310,7 @@ impl VarName {
         Self(Token::from_str(TokenKind::Symbol, &symbol))
     }
 
-    pub fn from_str_and_line(symbol: Str, line: usize) -> Self {
+    pub fn from_str_and_line(symbol: Str, line: u32) -> Self {
         Self(Token::new(TokenKind::Symbol, symbol, line, 0))
     }
 
@@ -2380,11 +2422,11 @@ impl Identifier {
         Self::new(None, VarName::from_str(name))
     }
 
-    pub fn private_with_line(name: Str, line: usize) -> Self {
+    pub fn private_with_line(name: Str, line: u32) -> Self {
         Self::new(None, VarName::from_str_and_line(name, line))
     }
 
-    pub fn public_with_line(dot: Token, name: Str, line: usize) -> Self {
+    pub fn public_with_line(dot: Token, name: Str, line: u32) -> Self {
         Self::new(Some(dot), VarName::from_str_and_line(name, line))
     }
 
@@ -2915,6 +2957,13 @@ impl ParamPattern {
             _ => false,
         }
     }
+
+    pub const fn name(&self) -> Option<&VarName> {
+        match self {
+            Self::VarName(n) | Self::Ref(n) | Self::RefMut(n) => Some(n),
+            _ => None,
+        }
+    }
 }
 
 /// Once the default_value is set to Some, all subsequent values must be Some
@@ -2949,6 +2998,10 @@ impl NonDefaultParamSignature {
 
     pub const fn inspect(&self) -> Option<&Str> {
         self.pat.inspect()
+    }
+
+    pub const fn name(&self) -> Option<&VarName> {
+        self.pat.name()
     }
 }
 
@@ -3457,12 +3510,12 @@ impl Def {
 
 /// This is not necessary for Erg syntax, but necessary for mapping ASTs in Python
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct AttrDef {
+pub struct ReDef {
     pub attr: Accessor,
     pub expr: Box<Expr>,
 }
 
-impl NestedDisplay for AttrDef {
+impl NestedDisplay for ReDef {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
         self.attr.fmt_nest(f, level)?;
         writeln!(f, " = ")?;
@@ -3470,10 +3523,10 @@ impl NestedDisplay for AttrDef {
     }
 }
 
-impl_display_from_nested!(AttrDef);
-impl_locational!(AttrDef, attr, expr);
+impl_display_from_nested!(ReDef);
+impl_locational!(ReDef, attr, expr);
 
-impl AttrDef {
+impl ReDef {
     pub fn new(attr: Accessor, expr: Expr) -> Self {
         Self {
             attr,
@@ -3592,14 +3645,14 @@ pub enum Expr {
     Methods(Methods),
     ClassDef(ClassDef),
     PatchDef(PatchDef),
-    AttrDef(AttrDef),
+    ReDef(ReDef),
     /// for mapping to Python AST
     Dummy(Dummy),
 }
 
-impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAsc, Def, Methods, ClassDef, PatchDef, AttrDef, Dummy);
+impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAsc, Def, Methods, ClassDef, PatchDef, ReDef, Dummy);
 impl_display_from_nested!(Expr);
-impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAsc, Def, Methods, ClassDef, PatchDef, AttrDef, Dummy);
+impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAsc, Def, Methods, ClassDef, PatchDef, ReDef, Dummy);
 
 impl Expr {
     pub fn is_match_call(&self) -> bool {
@@ -3635,7 +3688,7 @@ impl Expr {
         }
     }
 
-    pub fn local(name: &str, lineno: usize, col_begin: usize) -> Self {
+    pub fn local(name: &str, lineno: u32, col_begin: u32) -> Self {
         Self::Accessor(Accessor::local(Token::new(
             TokenKind::Symbol,
             Str::rc(name),

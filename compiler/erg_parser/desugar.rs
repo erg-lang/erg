@@ -9,14 +9,14 @@ use erg_common::Str;
 use erg_common::{enum_unwrap, get_hash, log, set};
 
 use crate::ast::{
-    Accessor, Args, Array, ArrayComprehension, ArrayTypeSpec, ArrayWithLength, AttrDef, BinOp,
-    Block, Call, ClassAttr, ClassAttrs, ClassDef, ConstExpr, DataPack, Def, DefBody, DefId, Dict,
-    Dummy, Expr, Identifier, KeyValue, KwArg, Lambda, LambdaSignature, Literal, Methods,
-    MixedRecord, Module, NonDefaultParamSignature, NormalArray, NormalDict, NormalRecord,
-    NormalSet, NormalTuple, ParamPattern, ParamRecordAttr, Params, PatchDef, PosArg, Record,
-    RecordAttrOrIdent, RecordAttrs, Set as astSet, SetWithLength, Signature, SubrSignature, Tuple,
-    TupleTypeSpec, TypeAppArgs, TypeBoundSpecs, TypeSpec, TypeSpecWithOp, UnaryOp, VarName,
-    VarPattern, VarRecordAttr, VarSignature,
+    Accessor, Args, Array, ArrayComprehension, ArrayTypeSpec, ArrayWithLength, BinOp, Block, Call,
+    ClassAttr, ClassAttrs, ClassDef, ConstExpr, DataPack, Def, DefBody, DefId, Dict, Dummy, Expr,
+    Identifier, KeyValue, KwArg, Lambda, LambdaSignature, Literal, Methods, MixedRecord, Module,
+    NonDefaultParamSignature, NormalArray, NormalDict, NormalRecord, NormalSet, NormalTuple,
+    ParamPattern, ParamRecordAttr, Params, PatchDef, PosArg, ReDef, Record, RecordAttrOrIdent,
+    RecordAttrs, Set as astSet, SetWithLength, Signature, SubrSignature, Tuple, TupleTypeSpec,
+    TypeAppArgs, TypeBoundSpecs, TypeSpec, TypeSpecWithOp, UnaryOp, VarName, VarPattern,
+    VarRecordAttr, VarSignature,
 };
 use crate::token::{Token, TokenKind, COLON, DOT};
 
@@ -43,7 +43,7 @@ impl Desugarer {
     pub fn desugar(&mut self, module: Module) -> Module {
         log!(info "the desugaring process has started.");
         let module = self.desugar_multiple_pattern_def(module);
-        let module = self.desugar_pattern(module);
+        let module = self.desugar_pattern_in_module(module);
         let module = Self::desugar_shortened_record(module);
         let module = Self::desugar_acc(module);
         log!(info "AST (desugared):\n{module}");
@@ -254,10 +254,10 @@ impl Desugarer {
                     .collect();
                 Expr::PatchDef(PatchDef::new(def, methods))
             }
-            Expr::AttrDef(adef) => {
-                let expr = desugar(*adef.expr);
-                let attr = Self::perform_desugar_acc(desugar, adef.attr);
-                Expr::AttrDef(AttrDef::new(attr, expr))
+            Expr::ReDef(redef) => {
+                let expr = desugar(*redef.expr);
+                let attr = Self::perform_desugar_acc(desugar, redef.attr);
+                Expr::ReDef(ReDef::new(attr, expr))
             }
             Expr::Lambda(lambda) => {
                 let mut chunks = vec![];
@@ -305,9 +305,9 @@ impl Desugarer {
 
     /// `fib 0 = 0; fib 1 = 1; fib n = fib(n-1) + fib(n-2)`
     /// -> `fib n = match n, (0 -> 0), (1 -> 1), n -> fib(n-1) + fib(n-2)`
-    fn desugar_multiple_pattern_def(&self, mut module: Module) -> Module {
+    fn desugar_multiple_pattern_def(&self, module: Module) -> Module {
         let mut new = Module::with_capacity(module.len());
-        while let Some(chunk) = module.lpop() {
+        for chunk in module.into_iter() {
             match chunk {
                 Expr::Def(def) if def.is_subr() => {
                     if let Some(Expr::Def(previous)) = new.last() {
@@ -411,11 +411,7 @@ impl Desugarer {
         todo!()
     }
 
-    fn gen_buf_name_and_sig(
-        &mut self,
-        line: usize,
-        t_spec: Option<TypeSpec>,
-    ) -> (String, Signature) {
+    fn gen_buf_name_and_sig(&mut self, line: u32, t_spec: Option<TypeSpec>) -> (String, Signature) {
         let buf_name = fresh_varname();
         let buf_sig = Signature::Var(VarSignature::new(
             VarPattern::Ident(Identifier::private_with_line(Str::rc(&buf_name), line)),
@@ -424,7 +420,7 @@ impl Desugarer {
         (buf_name, buf_sig)
     }
 
-    fn gen_buf_nd_param(&mut self, line: usize) -> (String, ParamPattern) {
+    fn gen_buf_nd_param(&mut self, line: u32) -> (String, ParamPattern) {
         let buf_name = fresh_varname();
         let pat = ParamPattern::VarName(VarName::from_str_and_line(Str::rc(&buf_name), line));
         (buf_name, pat)
@@ -437,10 +433,19 @@ impl Desugarer {
                 for param in non_defaults {
                     self.desugar_nd_param(param, &mut lambda.body);
                 }
+                lambda.body = self.desugar_pattern_in_block(lambda.body);
                 Expr::Lambda(lambda)
             }
             expr => Self::perform_desugar(|ex| self.rec_desugar_lambda_pattern(ex), expr),
         }
+    }
+
+    fn desugar_pattern_in_module(&mut self, module: Module) -> Module {
+        Module::new(self.desugar_pattern(module.into_iter()))
+    }
+
+    fn desugar_pattern_in_block(&mut self, block: Block) -> Block {
+        Block::new(self.desugar_pattern(block.into_iter()))
     }
 
     // TODO: nested function pattern
@@ -449,9 +454,12 @@ impl Desugarer {
     /// `[i, [j, k]] = l` -> `i = l[0]; j = l[1][0]; k = l[1][1]`
     /// `(i, j) = t` -> `i = t.0; j = t.1`
     /// `{i; j} = s` -> `i = s.i; j = s.j`
-    fn desugar_pattern(&mut self, mut module: Module) -> Module {
-        let mut new = Module::with_capacity(module.len());
-        while let Some(chunk) = module.lpop() {
+    fn desugar_pattern<I>(&mut self, chunks: I) -> Vec<Expr>
+    where
+        I: IntoIterator<Item = Expr> + ExactSizeIterator,
+    {
+        let mut new = Vec::with_capacity(chunks.len());
+        for chunk in chunks.into_iter() {
             match chunk {
                 Expr::Def(Def {
                     sig: Signature::Var(v),
@@ -465,6 +473,7 @@ impl Desugarer {
                             .into_iter()
                             .map(|ex| self.rec_desugar_lambda_pattern(ex))
                             .collect();
+                        let block = self.desugar_pattern_in_block(block);
                         let buf_def = Def::new(buf_sig, DefBody::new(body.op, block, body.id));
                         new.push(Expr::Def(buf_def));
                         for (n, elem) in tup.elems.iter().enumerate() {
@@ -484,6 +493,7 @@ impl Desugarer {
                             .into_iter()
                             .map(|ex| self.rec_desugar_lambda_pattern(ex))
                             .collect();
+                        let block = self.desugar_pattern_in_block(block);
                         let buf_def = Def::new(buf_sig, DefBody::new(body.op, block, body.id));
                         new.push(Expr::Def(buf_def));
                         for (n, elem) in arr.elems.iter().enumerate() {
@@ -503,6 +513,7 @@ impl Desugarer {
                             .into_iter()
                             .map(|ex| self.rec_desugar_lambda_pattern(ex))
                             .collect();
+                        let block = self.desugar_pattern_in_block(block);
                         let buf_def = Def::new(buf_sig, DefBody::new(body.op, block, body.id));
                         new.push(Expr::Def(buf_def));
                         for VarRecordAttr { lhs, rhs } in rec.attrs.iter() {
@@ -524,6 +535,7 @@ impl Desugarer {
                             .into_iter()
                             .map(|ex| self.rec_desugar_lambda_pattern(ex))
                             .collect();
+                        let block = self.desugar_pattern_in_block(block);
                         let buf_def = Def::new(buf_sig, DefBody::new(body.op, block, body.id));
                         new.push(Expr::Def(buf_def));
                         for VarRecordAttr { lhs, rhs } in pack.args.attrs.iter() {
@@ -541,6 +553,7 @@ impl Desugarer {
                             .into_iter()
                             .map(|ex| self.rec_desugar_lambda_pattern(ex))
                             .collect();
+                        let block = self.desugar_pattern_in_block(block);
                         let body = DefBody::new(body.op, block, body.id);
                         let def = Def::new(Signature::Var(v), body);
                         new.push(Expr::Def(def));
@@ -559,6 +572,7 @@ impl Desugarer {
                         .into_iter()
                         .map(|ex| self.rec_desugar_lambda_pattern(ex))
                         .collect();
+                    let block = self.desugar_pattern_in_block(block);
                     let body = DefBody::new(body.op, block, body.id);
                     let def = Def::new(Signature::Subr(subr), body);
                     new.push(Expr::Def(def));
@@ -573,7 +587,7 @@ impl Desugarer {
 
     fn desugar_nested_var_pattern(
         &mut self,
-        new_module: &mut Module,
+        new_module: &mut Vec<Expr>,
         sig: &VarSignature,
         buf_name: &str,
         buf_index: BufIndex,

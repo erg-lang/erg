@@ -15,8 +15,8 @@
     </a>
 </p>
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3D6558d5ca162c97da7baa29d659f0f425fa8fdd3d)
-](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=6558d5ca162c97da7baa29d659f0f425fa8fdd3d)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3Ddc7feca6ad1533e791b5fc1fd036636860f03d07)
+](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=dc7feca6ad1533e791b5fc1fd036636860f03d07)
 
 ## Erg可以推荐给以下人员&colon;
 
@@ -159,7 +159,7 @@
 
 ## 要求
 
-[Python3](https://www.python.org/) 解释器是必需的。如果计算机上已安装它，则无需进行任何设置
+[Python3 (3.7~3.11)](https://www.python.org/) 解释器是必需的。如果计算机上已安装它，则无需进行任何设置
 
 ## 安装
 
@@ -167,34 +167,6 @@
 
 ```sh
 cargo install erg
-```
-
-通过启用`--features`标志，你可以改变显示错误信息的语言
-
-* 日语
-
-```sh
-cargo install erg --features japanese
-```
-
-* 中文(简体)
-
-```sh
-cargo install erg --features simplified_chinese
-```
-
-* 中文(繁体)
-
-```sh
-cargo install erg --features traditional_chinese
-```
-
-还有更多的语言将被加入（我们正在寻找翻译者。请加入[翻译项目](./doc/EN/dev_guide/i18n_messages.md)）
-
-* 调试模式（针对贡献者）
-
-```sh
-cargo install erg --features debug
 ```
 
 ### 从源代码构建
@@ -224,6 +196,25 @@ git clone https://github.com/erg-lang/erg.git
 cd erg
 nix build
 ```
+
+### Flags
+
+通过启用`--features`标志，你可以自定义构建和安装
+
+- 你可以通过`--features {language}`来设置错误信息语言
+```
+--features japanese
+--features simplified_chinese
+--features traditional_chinese
+```
+
+还有更多的语言将被加入（我们正在寻找翻译者。请加入[翻译项目](./doc/EN/dev_guide/i18n_messages.md)）
+
+- 安装和构建ELS（Erg语言服务器）
+  - `--features els`
+- 设置成调试模式（针对贡献者）
+  - `--features debug`
+- 查看 [这里](https://github.com/erg-lang/erg/blob/main/.cargo/config.toml) 了解更多Flags和简写
 
 ## 贡献
 

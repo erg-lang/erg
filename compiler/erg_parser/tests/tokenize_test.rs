@@ -13,6 +13,7 @@ const FILE1: &str = "tests/test1_basic_syntax.er";
 const FILE2: &str = "tests/test2_advanced_syntax.er";
 const FILE3: &str = "tests/test3_literal_syntax.er";
 const FILE4: &str = "tests/multi_line_str_literal.er";
+const FILE5: &str = "tests/for.er";
 
 #[test]
 fn test_lexer_for_basic() -> ParseResult<()> {
@@ -37,10 +38,9 @@ fn test_lexer_for_basic() -> ParseResult<()> {
         (Comma, ","),
         (UBar, "_"),
         (Comma, ","),
-        (EllipsisLit, "..."),
         (Symbol, "b"),
         (Equal, "="),
-        (Symbol, "five_elem_tuple"),
+        (Symbol, "tuple"),
         (Newline, newline),
         (Symbol, "f"),
         (Symbol, "x"),
@@ -87,12 +87,12 @@ fn test_lexer_for_basic() -> ParseResult<()> {
         (StrLit, "\"\""),
         (Newline, newline),
         (Dedent, ""),
-        (Newline, newline),
-        (Newline, newline),
         (Symbol, "Hello"),
         (Equal, "="),
         (Symbol, "S2c"),
         (StrLit, "\"hello\""),
+        (Newline, newline),
+        (NoneLit, "None"),
         (Newline, newline),
         (Dedent, ""),
         (Dedent, ""),
@@ -154,7 +154,7 @@ fn test_lexer_for_advanced() -> ParseResult<()> {
         (Colon, ":"),
         (Symbol, "Nat"),
         (RParen, ")"),
-        (FuncArrow, "->"),
+        (Colon, ":"),
         (Symbol, "Nat"),
         (Equal, "="),
         (Symbol, "fib"),
@@ -204,8 +204,7 @@ fn test_lexer_for_advanced() -> ParseResult<()> {
         (Newline, newline),
         (LBrace, "{"),
         (Symbol, "pi"),
-        (Comma, ","),
-        (EllipsisLit, "..."),
+        (Semi, ";"),
         (RBrace, "}"),
         (Equal, "="),
         (Symbol, "import"),
@@ -312,7 +311,7 @@ fn test_lexer_for_literals() -> ParseResult<()> {
 fn test_lexer_for_multi_line_str_literal() -> ParseResult<()> {
     let mut lexer = Lexer::new(Input::File(FILE4.into()));
     let newline = "\n";
-    let token_array = vec![
+    let token_array = [
         (Newline, newline),
         (Newline, newline),
         (Symbol, "single_a"),
@@ -391,6 +390,56 @@ line break\"\"\"",
         (Newline, newline),
         (Symbol, "print!"),
         (Symbol, "quotation_marks"),
+        (EOF, ""),
+    ];
+    let mut tok: Token;
+    for (id, i) in token_array.into_iter().enumerate() {
+        print!("{id:>03}: ");
+        tok = lexer.next().unwrap().unwrap();
+        assert_eq!(tok, Token::from_str(i.0, i.1));
+        println!("{tok}");
+    }
+    Ok(())
+}
+
+#[test]
+fn for_loop() -> ParseResult<()> {
+    let mut lexer = Lexer::new(Input::File(FILE5.into()));
+    let newline = "\n";
+    let token_array = [
+        (Symbol, "for!"),
+        (NatLit, "0"),
+        (Closed, ".."),
+        (NatLit, "1"),
+        (Comma, ","),
+        (Symbol, "i"),
+        (ProcArrow, "=>"),
+        (Newline, newline),
+        (Indent, "    "),
+        (Symbol, "for!"),
+        (NatLit, "0"),
+        (Closed, ".."),
+        (NatLit, "1"),
+        (Comma, ","),
+        (Symbol, "j"),
+        (ProcArrow, "=>"),
+        (Newline, newline),
+        (Indent, "    "),
+        (Symbol, "for!"),
+        (NatLit, "0"),
+        (Closed, ".."),
+        (NatLit, "1"),
+        (Comma, ","),
+        (Symbol, "k"),
+        (ProcArrow, "=>"),
+        (Newline, newline),
+        (Newline, newline),
+        (Indent, "    "),
+        (Symbol, "print!"),
+        (StrLit, "\"hi\""),
+        (Dedent, ""),
+        (Dedent, ""),
+        (Dedent, ""),
         (EOF, ""),
     ];
     let mut tok: Token;

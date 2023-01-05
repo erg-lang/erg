@@ -3,6 +3,7 @@ use std::fmt;
 
 pub mod cache;
 pub mod config;
+pub mod consts;
 pub mod datetime;
 pub mod dict;
 pub mod env;
@@ -91,7 +92,7 @@ pub fn fmt_indent(s: String, depth: usize) -> String {
     s.split('\n').map(|s| indent.clone() + s).collect()
 }
 
-/// 複数のオブジェクトからなるハッシュを得たい場合はタプルか配列で渡す
+/// If you want to get a hash consisting of multiple objects, pass it as a tuple or array
 pub fn get_hash<T: std::hash::Hash>(t: &T) -> usize {
     let mut s = fxhash::FxHasher::default();
     t.hash(&mut s);

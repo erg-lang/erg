@@ -111,23 +111,28 @@ impl OwnershipChecker {
                 if let Signature::Subr(subr) = &def.sig {
                     let (nd_params, var_params, d_params, _) = subr.params.ref_deconstruct();
                     for param in nd_params {
-                        let ParamPattern::VarName(name) = &param.pat else { unreachable!() };
-                        self.define_param(name);
+                        if let ParamPattern::VarName(name) = &param.pat {
+                            self.define_param(name);
+                        }
                     }
                     if let Some(var) = var_params {
-                        let ParamPattern::VarName(name) = &var.pat else { unreachable!() };
-                        self.define_param(name);
+                        if let ParamPattern::VarName(name) = &var.pat {
+                            self.define_param(name);
+                        }
                     }
                     for param in d_params {
-                        let ParamPattern::VarName(name) = &param.sig.pat else { unreachable!() };
-                        self.define_param(name);
+                        if let ParamPattern::VarName(name) = &param.sig.pat {
+                            self.define_param(name);
+                        }
                     }
                 }
                 self.check_block(&def.body.block);
                 self.path_stack.pop();
             }
             Expr::ClassDef(class_def) => {
-                self.check_expr(&class_def.require_or_sup, Ownership::Owned, false);
+                if let Some(req_sup) = &class_def.require_or_sup {
+                    self.check_expr(req_sup, Ownership::Owned, false);
+                }
                 for def in class_def.methods.iter() {
                     self.check_expr(def, Ownership::Owned, true);
                 }

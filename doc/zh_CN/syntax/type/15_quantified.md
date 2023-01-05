@@ -1,6 +1,6 @@
 # 类型变量，量化类型
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/15_quantified.md%26commit_hash%3D00682a94603fed2b531898200a79f2b4a64d5aae)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/15_quantified.md&commit_hash=00682a94603fed2b531898200a79f2b4a64d5aae)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/15_quantified.md%26commit_hash%3D44d7784aac3550ba97c8a1eaf20b9264b13d4134)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/15_quantified.md&commit_hash=44d7784aac3550ba97c8a1eaf20b9264b13d4134)
 
 类型变量是用于例如指定子程序参数类型的变量，它的类型是任意的(不是单态的)
 首先，作为引入类型变量的动机，考虑 `id` 函数，它按原样返回输入
@@ -195,7 +195,7 @@ K(0).
     foo(self, x): Nat = ...
 ```
 
-## 所有对称类型
+## For-all类型
 
 上一节中定义的 `id` 函数是一个可以是任何类型的函数。那么 `id` 函数本身的类型是什么?
 

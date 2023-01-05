@@ -470,11 +470,11 @@ impl Identifier {
         Self::bare(None, VarName::from_static(name))
     }
 
-    pub fn private_with_line(name: Str, line: usize) -> Self {
+    pub fn private_with_line(name: Str, line: u32) -> Self {
         Self::bare(None, VarName::from_str_and_line(name, line))
     }
 
-    pub fn public_with_line(dot: Token, name: Str, line: usize) -> Self {
+    pub fn public_with_line(dot: Token, name: Str, line: u32) -> Self {
         Self::bare(Some(dot), VarName::from_str_and_line(name, line))
     }
 
@@ -502,12 +502,8 @@ impl Identifier {
     }
 
     /// show dot + name (no qual_name & type)
-    pub fn to_string_without_type(&self) -> String {
-        if self.dot.is_some() {
-            format!(".{}", self.name)
-        } else {
-            format!("::{}", self.name)
-        }
+    pub fn to_string_notype(&self) -> String {
+        NoTypeDisplay::to_string_notype(self)
     }
 
     pub fn is_procedural(&self) -> bool {
@@ -585,11 +581,11 @@ impl_locational_for_enum!(Accessor; Ident, Attr);
 impl_t_for_enum!(Accessor; Ident, Attr);
 
 impl Accessor {
-    pub fn private_with_line(name: Str, line: usize) -> Self {
+    pub fn private_with_line(name: Str, line: u32) -> Self {
         Self::Ident(Identifier::private_with_line(name, line))
     }
 
-    pub fn public_with_line(name: Str, line: usize) -> Self {
+    pub fn public_with_line(name: Str, line: u32) -> Self {
         Self::Ident(Identifier::public_with_line(DOT, name, line))
     }
 
@@ -603,6 +599,13 @@ impl Accessor {
 
     pub fn attr(obj: Expr, ident: Identifier) -> Self {
         Self::Attr(Attribute::new(obj, ident))
+    }
+
+    pub fn var_info(&self) -> &VarInfo {
+        match self {
+            Self::Ident(ident) => &ident.vi,
+            Self::Attr(attr) => &attr.ident.vi,
+        }
     }
 
     pub fn show(&self) -> String {
@@ -793,7 +796,7 @@ impl_t_for_enum!(Array; Normal, Comprehension, WithLength);
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NormalTuple {
     pub elems: Args,
-    t: Type,
+    pub(crate) t: Type,
 }
 
 impl NestedDisplay for NormalTuple {
@@ -1131,7 +1134,7 @@ pub struct Record {
     l_brace: Token,
     r_brace: Token,
     pub attrs: RecordAttrs,
-    t: Type,
+    pub(crate) t: Type,
 }
 
 impl NestedDisplay for Record {
@@ -1517,6 +1520,7 @@ impl HasType for Dummy {
 
 impl NestedDisplay for Dummy {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
+        writeln!(f, "Dummy:")?;
         fmt_lines(self.0.iter(), f, level)
     }
 }
@@ -1625,6 +1629,10 @@ impl DefaultParamSignature {
 
     pub const fn inspect(&self) -> Option<&Str> {
         self.sig.pat.inspect()
+    }
+
+    pub const fn name(&self) -> Option<&VarName> {
+        self.sig.name()
     }
 }
 
@@ -1843,6 +1851,10 @@ impl Lambda {
     pub fn is_procedural(&self) -> bool {
         self.op.is(TokenKind::ProcArrow)
     }
+
+    pub fn name_to_string(&self) -> String {
+        format!("::<lambda_{}>", self.id)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -2055,7 +2067,7 @@ impl Methods {
 pub struct ClassDef {
     pub obj: GenTypeObj,
     pub sig: Signature,
-    pub require_or_sup: Box<Expr>,
+    pub require_or_sup: Option<Box<Expr>>,
     /// The type of `new` that is automatically defined if not defined
     pub need_to_gen_new: bool,
     pub __new__: Type,
@@ -2078,7 +2090,7 @@ impl NoTypeDisplay for ClassDef {
 }
 
 impl_display_from_nested!(ClassDef);
-impl_locational!(ClassDef, sig);
+impl_locational!(ClassDef, sig, methods);
 
 impl HasType for ClassDef {
     #[inline]
@@ -2103,7 +2115,7 @@ impl ClassDef {
     pub fn new(
         obj: GenTypeObj,
         sig: Signature,
-        require_or_sup: Expr,
+        require_or_sup: Option<Expr>,
         need_to_gen_new: bool,
         __new__: Type,
         methods: Block,
@@ -2111,7 +2123,7 @@ impl ClassDef {
         Self {
             obj,
             sig,
-            require_or_sup: Box::new(require_or_sup),
+            require_or_sup: require_or_sup.map(Box::new),
             need_to_gen_new,
             __new__,
             methods,
@@ -2180,12 +2192,12 @@ impl PatchDef {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct AttrDef {
+pub struct ReDef {
     pub attr: Accessor,
     pub block: Block,
 }
 
-impl NestedDisplay for AttrDef {
+impl NestedDisplay for ReDef {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
         self.attr.fmt_nest(f, level)?;
         writeln!(f, " = ")?;
@@ -2193,7 +2205,7 @@ impl NestedDisplay for AttrDef {
     }
 }
 
-impl NoTypeDisplay for AttrDef {
+impl NoTypeDisplay for ReDef {
     fn to_string_notype(&self) -> String {
         format!(
             "{} = {}",
@@ -2203,10 +2215,10 @@ impl NoTypeDisplay for AttrDef {
     }
 }
 
-impl_display_from_nested!(AttrDef);
-impl_locational!(AttrDef, attr, block);
+impl_display_from_nested!(ReDef);
+impl_locational!(ReDef, attr, block);
 
-impl HasType for AttrDef {
+impl HasType for ReDef {
     #[inline]
     fn ref_t(&self) -> &Type {
         Type::NONE
@@ -2225,7 +2237,7 @@ impl HasType for AttrDef {
     }
 }
 
-impl AttrDef {
+impl ReDef {
     pub const fn new(attr: Accessor, block: Block) -> Self {
         Self { attr, block }
     }
@@ -2296,7 +2308,7 @@ pub enum Expr {
     Def(Def),
     ClassDef(ClassDef),
     PatchDef(PatchDef),
-    AttrDef(AttrDef),
+    ReDef(ReDef),
     TypeAsc(TypeAscription),
     Code(Block),     // code object
     Compound(Block), // compound statement
@@ -2304,11 +2316,11 @@ pub enum Expr {
     Dummy(Dummy), // for mapping to Python AST
 }
 
-impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, AttrDef, Code, Compound, TypeAsc, Set, Import, Dummy);
-impl_no_type_display_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, AttrDef, Code, Compound, TypeAsc, Set, Import, Dummy);
+impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, ReDef, Code, Compound, TypeAsc, Set, Import, Dummy);
+impl_no_type_display_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, ReDef, Code, Compound, TypeAsc, Set, Import, Dummy);
 impl_display_from_nested!(Expr);
-impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, AttrDef, Code, Compound, TypeAsc, Set, Import, Dummy);
-impl_t_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, AttrDef, Code, Compound, TypeAsc, Set, Import, Dummy);
+impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, ReDef, Code, Compound, TypeAsc, Set, Import, Dummy);
+impl_t_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, ReDef, Code, Compound, TypeAsc, Set, Import, Dummy);
 
 impl Default for Expr {
     fn default() -> Self {

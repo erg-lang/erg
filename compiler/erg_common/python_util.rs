@@ -624,9 +624,9 @@ impl std::str::FromStr for PythonVersion {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut iter = s.split('.');
-        let major = iter.next().unwrap().parse::<u8>().unwrap_or(3);
-        let minor = iter.next().and_then(|i| i.parse::<u8>().ok());
-        let micro = iter.next().and_then(|i| i.parse::<u8>().ok());
+        let major = iter.next().and_then(|i| i.parse().ok()).unwrap_or(3);
+        let minor = iter.next().and_then(|i| i.parse().ok());
+        let micro = iter.next().and_then(|i| i.parse().ok());
         Ok(Self::new(major, minor, micro))
     }
 }
@@ -652,9 +652,9 @@ pub fn get_python_version(py_command: &str) -> PythonVersion {
     };
     let s_version = String::from_utf8(out.stdout).unwrap();
     let mut iter = s_version.split(' ');
-    let major = iter.next().unwrap().parse().unwrap();
-    let minor = iter.next().and_then(|i| i.parse::<u8>().ok());
-    let micro = iter.next().and_then(|i| i.trim_end().parse::<u8>().ok());
+    let major = iter.next().and_then(|i| i.parse().ok()).unwrap_or(3);
+    let minor = iter.next().and_then(|i| i.parse().ok());
+    let micro = iter.next().and_then(|i| i.trim_end().parse().ok());
     PythonVersion {
         major,
         minor,

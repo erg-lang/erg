@@ -1,6 +1,6 @@
 # 修補
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/07_patch.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/07_patch.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/07_patch.md%26commit_hash%3Dbade70ef91c040f40cb181399ad7056527d9a1c5)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/07_patch.md&commit_hash=bade70ef91c040f40cb181399ad7056527d9a1c5)
 
 Erg 不允許修改現有類型和類
 這意味著，不可能在類中定義額外的方法，也不能執行特化(一種語言特性，單態化多態聲明的類型并定義專用方法，如在 C++ 中)
@@ -36,7 +36,7 @@ StrangeInt.
 # 覆蓋方法必須被賦予覆蓋裝飾器
     # 另外，你需要覆蓋所有依賴于 Int.`_+_` 的 Int 方法
     @Override
-    `_+_` = Super.`_-_` # OverrideError: Int.`_+_` 被 ... ````` 引用，所以這些方法也必須被覆蓋
+    `_+_` = Super.`_-_` # OverrideError: Int.`_+_` 被 ... 引用，所以這些方法也必須被覆蓋
 ```
 
 ## 選擇修補程序

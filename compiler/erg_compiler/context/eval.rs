@@ -56,40 +56,10 @@ pub fn type_from_token_kind(kind: TokenKind) -> Type {
         StrLit => Type::Str,
         BoolLit => Type::Bool,
         NoneLit => Type::NoneType,
-        NoImplLit => Type::NotImplemented,
+        NoImplLit => Type::NotImplementedType,
         EllipsisLit => Type::Ellipsis,
         InfLit => Type::Inf,
         other => panic!("this has not type: {other}"),
-    }
-}
-
-fn try_get_op_kind_from_token(kind: TokenKind) -> EvalResult<OpKind> {
-    match kind {
-        TokenKind::Plus => Ok(OpKind::Add),
-        TokenKind::Minus => Ok(OpKind::Sub),
-        TokenKind::Star => Ok(OpKind::Mul),
-        TokenKind::Slash => Ok(OpKind::Div),
-        TokenKind::FloorDiv => Ok(OpKind::FloorDiv),
-        TokenKind::Pow => Ok(OpKind::Pow),
-        TokenKind::Mod => Ok(OpKind::Mod),
-        TokenKind::DblEq => Ok(OpKind::Eq),
-        TokenKind::NotEq => Ok(OpKind::Ne),
-        TokenKind::Less => Ok(OpKind::Lt),
-        TokenKind::Gre => Ok(OpKind::Gt),
-        TokenKind::LessEq => Ok(OpKind::Le),
-        TokenKind::GreEq => Ok(OpKind::Ge),
-        TokenKind::AndOp => Ok(OpKind::And),
-        TokenKind::OrOp => Ok(OpKind::Or),
-        TokenKind::BitAnd => Ok(OpKind::BitAnd),
-        TokenKind::BitXor => Ok(OpKind::BitXor),
-        TokenKind::BitOr => Ok(OpKind::BitOr),
-        TokenKind::Shl => Ok(OpKind::Shl),
-        TokenKind::Shr => Ok(OpKind::Shr),
-        TokenKind::Mutate => Ok(OpKind::Mutate),
-        TokenKind::PrePlus => Ok(OpKind::Pos),
-        TokenKind::PreMinus => Ok(OpKind::Neg),
-        TokenKind::PreBitNot => Ok(OpKind::Invert),
-        _other => todo!("{_other}"),
     }
 }
 
@@ -123,6 +93,41 @@ fn op_to_name(op: OpKind) -> &'static str {
 }
 
 impl Context {
+    fn try_get_op_kind_from_token(&self, token: &Token) -> EvalResult<OpKind> {
+        match token.kind {
+            TokenKind::Plus => Ok(OpKind::Add),
+            TokenKind::Minus => Ok(OpKind::Sub),
+            TokenKind::Star => Ok(OpKind::Mul),
+            TokenKind::Slash => Ok(OpKind::Div),
+            TokenKind::FloorDiv => Ok(OpKind::FloorDiv),
+            TokenKind::Pow => Ok(OpKind::Pow),
+            TokenKind::Mod => Ok(OpKind::Mod),
+            TokenKind::DblEq => Ok(OpKind::Eq),
+            TokenKind::NotEq => Ok(OpKind::Ne),
+            TokenKind::Less => Ok(OpKind::Lt),
+            TokenKind::Gre => Ok(OpKind::Gt),
+            TokenKind::LessEq => Ok(OpKind::Le),
+            TokenKind::GreEq => Ok(OpKind::Ge),
+            TokenKind::AndOp => Ok(OpKind::And),
+            TokenKind::OrOp => Ok(OpKind::Or),
+            TokenKind::BitAnd => Ok(OpKind::BitAnd),
+            TokenKind::BitXor => Ok(OpKind::BitXor),
+            TokenKind::BitOr => Ok(OpKind::BitOr),
+            TokenKind::Shl => Ok(OpKind::Shl),
+            TokenKind::Shr => Ok(OpKind::Shr),
+            TokenKind::Mutate => Ok(OpKind::Mutate),
+            TokenKind::PrePlus => Ok(OpKind::Pos),
+            TokenKind::PreMinus => Ok(OpKind::Neg),
+            TokenKind::PreBitNot => Ok(OpKind::Invert),
+            _other => Err(EvalErrors::from(EvalError::not_const_expr(
+                self.cfg.input.clone(),
+                line!() as usize,
+                token.loc(),
+                self.caused_by(),
+            ))),
+        }
+    }
+
     fn eval_const_acc(&self, acc: &Accessor) -> EvalResult<ValueObj> {
         match acc {
             Accessor::Ident(ident) => {
@@ -188,13 +193,13 @@ impl Context {
     fn eval_const_bin(&self, bin: &BinOp) -> EvalResult<ValueObj> {
         let lhs = self.eval_const_expr(&bin.args[0])?;
         let rhs = self.eval_const_expr(&bin.args[1])?;
-        let op = try_get_op_kind_from_token(bin.op.kind)?;
+        let op = self.try_get_op_kind_from_token(&bin.op)?;
         self.eval_bin(op, lhs, rhs)
     }
 
     fn eval_const_unary(&self, unary: &UnaryOp) -> EvalResult<ValueObj> {
         let val = self.eval_const_expr(&unary.args[0])?;
-        let op = try_get_op_kind_from_token(unary.op.kind)?;
+        let op = self.try_get_op_kind_from_token(&unary.op)?;
         self.eval_unary_val(op, val)
     }
 
@@ -413,8 +418,7 @@ impl Context {
             Str::ever("<unnamed record>"),
             self.cfg.clone(),
             2,
-            self.mod_cache.clone(),
-            self.py_mod_cache.clone(),
+            self.shared.clone(),
             self.clone(),
         );
         for attr in record.attrs.iter() {
@@ -480,8 +484,7 @@ impl Context {
             Str::ever("<lambda>"),
             self.cfg.clone(),
             0,
-            self.mod_cache.clone(),
-            self.py_mod_cache.clone(),
+            self.shared.clone(),
             self.clone(),
         );
         let return_t = v_enum(set! {lambda_ctx.eval_const_block(&lambda.body)?});
@@ -539,6 +542,8 @@ impl Context {
         }
     }
 
+    // Evaluate compile-time expression (just Expr on AST) instead of evaluating ConstExpr
+    // Return Err if it cannot be evaluated at compile time
     // ConstExprを評価するのではなく、コンパイル時関数の式(AST上ではただのExpr)を評価する
     // コンパイル時評価できないならNoneを返す
     pub(crate) fn eval_const_chunk(&mut self, expr: &Expr) -> EvalResult<ValueObj> {
@@ -775,7 +780,7 @@ impl Context {
                 let t = fv.get_type().unwrap();
                 if op == OpKind::Mutate {
                     let constr = Constraint::new_type_of(t.mutate());
-                    fv.update_constraint(constr);
+                    fv.update_constraint(constr, false);
                     let tp = TyParam::FreeVar(fv);
                     Ok(tp)
                 } else {
@@ -794,6 +799,7 @@ impl Context {
         )
     }
 
+    /// Quantified variables, etc. are returned as is.
     /// 量化変数などはそのまま返す
     pub(crate) fn eval_tp(&self, p: TyParam) -> EvalResult<TyParam> {
         match p {
@@ -944,9 +950,9 @@ impl Context {
             return Ok(proj(lhs, rhs));
         }
         // in Methods
-        if self.name == sub.qual_name() {
+        if let Some(ctx) = self.get_same_name_context(&sub.qual_name()) {
             if let Some(t) =
-                self.validate_and_project(&sub, opt_sup.as_ref(), &rhs, self, level, t_loc)
+                ctx.validate_and_project(&sub, opt_sup.as_ref(), &rhs, self, level, t_loc)
             {
                 return Ok(t);
             }
@@ -989,6 +995,16 @@ impl Context {
         if lhs.is_unbound_var() {
             let (sub, sup) = enum_unwrap!(&lhs, Type::FreeVar).get_subsup().unwrap();
             if self.is_trait(&sup) && !self.trait_impl_exists(&sub, &sup) {
+                let sub = if cfg!(feature = "debug") {
+                    sub
+                } else {
+                    self.deref_tyvar(sub, Variance::Covariant, t_loc)?
+                };
+                let sup = if cfg!(feature = "debug") {
+                    sup
+                } else {
+                    self.deref_tyvar(sup, Variance::Covariant, t_loc)?
+                };
                 return Err(EvalErrors::from(EvalError::no_trait_impl_error(
                     self.cfg.input.clone(),
                     line!() as usize,
@@ -996,7 +1012,7 @@ impl Context {
                     &sup,
                     t_loc,
                     self.caused_by(),
-                    None,
+                    self.get_simple_type_mismatch_hint(&sup, &sub),
                 )));
             }
         }
@@ -1006,7 +1022,7 @@ impl Context {
         if lhs != coerced {
             let proj = proj(coerced, rhs);
             self.eval_t_params(proj, level, t_loc).map(|t| {
-                self.coerce(&lhs);
+                lhs.coerce();
                 t
             })
         } else {
@@ -1017,7 +1033,7 @@ impl Context {
                 &proj,
                 t_loc,
                 self.caused_by(),
-                Self::get_no_candidate_hint(&proj),
+                self.get_no_candidate_hint(&proj),
             )))
         }
     }
@@ -1108,22 +1124,36 @@ impl Context {
                 if let Some(sup) = opt_sup {
                     if let Some(quant_sup) = methods.impl_of() {
                         // T -> Int, M -> 2
-                        self.substitute_typarams(&quant_sup, sup);
+                        self.substitute_typarams(&quant_sup, sup)
+                            .map_err(|errs| {
+                                Self::undo_substitute_typarams(&quant_sup);
+                                errs
+                            })
+                            .ok()?;
                     }
                 }
                 // T -> Int, N -> 4
-                self.substitute_typarams(quant_sub, sub);
+                self.substitute_typarams(quant_sub, sub)
+                    .map_err(|errs| {
+                        Self::undo_substitute_typarams(quant_sub);
+                        errs
+                    })
+                    .ok()?;
                 // [T; M+N] -> [Int; 4+2] -> [Int; 6]
                 let res = self.eval_t_params(projected_t, level, t_loc).ok();
                 if let Some(t) = res {
                     let mut tv_cache = TyVarCache::new(self.level, self);
                     let t = self.detach(t, &mut tv_cache);
                     // Int -> T, 2 -> M, 4 -> N
-                    self.undo_substitute_typarams(quant_sub);
+                    Self::undo_substitute_typarams(quant_sub);
                     if let Some(quant_sup) = methods.impl_of() {
-                        self.undo_substitute_typarams(&quant_sup);
+                        Self::undo_substitute_typarams(&quant_sup);
                     }
                     return Some(t);
+                }
+                Self::undo_substitute_typarams(quant_sub);
+                if let Some(quant_sup) = methods.impl_of() {
+                    Self::undo_substitute_typarams(&quant_sup);
                 }
             } else {
                 todo!()
@@ -1179,50 +1209,58 @@ impl Context {
         }
     }
 
-    #[allow(clippy::only_used_in_recursion)]
     /// e.g. qt: Array(T, N), st: Array(Int, 3)
-    pub(crate) fn substitute_typarams(&self, qt: &Type, st: &Type) {
+    ///
+    /// use `undo_substitute_typarams` after executing this method
+    pub(crate) fn substitute_typarams(&self, qt: &Type, st: &Type) -> EvalResult<()> {
         let qtps = qt.typarams();
         let stps = st.typarams();
         if qtps.len() != stps.len() {
             log!(err "{} {}", erg_common::fmt_vec(&qtps), erg_common::fmt_vec(&stps));
-            return; // TODO: e.g. Sub(Int) / Eq and Sub(?T)
+            return Ok(()); // TODO: e.g. Sub(Int) / Eq and Sub(?T)
         }
         for (qtp, stp) in qtps.into_iter().zip(stps.into_iter()) {
-            match qtp {
-                TyParam::FreeVar(fv) if fv.is_generalized() => {
-                    if !stp.is_generalized() {
-                        fv.undoable_link(&stp);
-                    }
+            self.substitute_typaram(qtp, stp)?;
+        }
+        Ok(())
+    }
+
+    fn substitute_typaram(&self, qtp: TyParam, stp: TyParam) -> EvalResult<()> {
+        match qtp {
+            TyParam::FreeVar(fv) if fv.is_generalized() => {
+                if !stp.is_generalized() {
+                    fv.undoable_link(&stp);
                 }
-                TyParam::Type(t) if t.is_generalized() => {
-                    let qt = enum_unwrap!(t.as_ref(), Type::FreeVar);
-                    let st = enum_unwrap!(stp, TyParam::Type);
-                    if !st.is_generalized() {
-                        qt.undoable_link(&st);
-                    }
-                }
-                TyParam::Type(qt) => {
-                    let st = enum_unwrap!(stp, TyParam::Type);
-                    let st = if st.typarams_len() != qt.typarams_len() {
-                        let st = enum_unwrap!(*st, Type::FreeVar);
-                        st.get_sub().unwrap()
-                    } else {
-                        *st
-                    };
-                    if !st.is_generalized() {
-                        self.substitute_typarams(&qt, &st);
-                    }
-                    self.sub_unify(&st, &qt, Location::Unknown, None).unwrap();
-                }
-                _ => {}
+                // REVIEW: need to sub_unify_tp?
+                Ok(())
             }
+            TyParam::Type(gt) if gt.is_generalized() => {
+                let qt = enum_unwrap!(gt.as_ref(), Type::FreeVar);
+                let Ok(st) = Type::try_from(stp) else { todo!(); };
+                if !st.is_generalized() {
+                    qt.undoable_link(&st);
+                }
+                self.sub_unify(&st, &gt, Location::Unknown, None)
+            }
+            TyParam::Type(qt) => {
+                let Ok(st) = Type::try_from(stp) else { todo!(); };
+                let st = if st.typarams_len() != qt.typarams_len() {
+                    let st = enum_unwrap!(st, Type::FreeVar);
+                    st.get_sub().unwrap()
+                } else {
+                    st
+                };
+                if !st.is_generalized() {
+                    self.substitute_typarams(&qt, &st)?;
+                }
+                self.sub_unify(&st, &qt, Location::Unknown, None)
+            }
+            _ => Ok(()),
         }
     }
 
-    #[allow(clippy::only_used_in_recursion)]
-    pub(crate) fn undo_substitute_typarams(&self, substituted: &Type) {
-        for tp in substituted.typarams().into_iter() {
+    pub(crate) fn undo_substitute_typarams(substituted_q: &Type) {
+        for tp in substituted_q.typarams().into_iter() {
             match tp {
                 TyParam::FreeVar(fv) if fv.is_undoable_linked() => fv.undo(),
                 TyParam::Type(t) if t.is_free_var() => {
@@ -1232,7 +1270,7 @@ impl Context {
                     }
                 }
                 TyParam::Type(t) => {
-                    self.undo_substitute_typarams(&t);
+                    Self::undo_substitute_typarams(&t);
                 }
                 _ => {}
             }
@@ -1316,6 +1354,16 @@ impl Context {
         if lhs.is_unbound_var() {
             let (sub, sup) = enum_unwrap!(&lhs, TyParam::FreeVar).get_subsup().unwrap();
             if self.is_trait(&sup) && !self.trait_impl_exists(&sub, &sup) {
+                let sub = if cfg!(feature = "debug") {
+                    sub
+                } else {
+                    self.deref_tyvar(sub, Variance::Covariant, t_loc)?
+                };
+                let sup = if cfg!(feature = "debug") {
+                    sup
+                } else {
+                    self.deref_tyvar(sup, Variance::Covariant, t_loc)?
+                };
                 return Err(EvalErrors::from(EvalError::no_trait_impl_error(
                     self.cfg.input.clone(),
                     line!() as usize,
@@ -1323,7 +1371,7 @@ impl Context {
                     &sup,
                     t_loc,
                     self.caused_by(),
-                    None,
+                    self.get_simple_type_mismatch_hint(&sup, &sub),
                 )));
             }
         }
@@ -1333,7 +1381,7 @@ impl Context {
         if lhs != coerced {
             let proj = proj_call(coerced, attr_name, args);
             self.eval_t_params(proj, level, t_loc).map(|t| {
-                self.coerce_tp(&lhs);
+                lhs.coerce();
                 t
             })
         } else {
@@ -1344,7 +1392,7 @@ impl Context {
                 &proj,
                 t_loc,
                 self.caused_by(),
-                Self::get_no_candidate_hint(&proj),
+                self.get_no_candidate_hint(&proj),
             )))
         }
     }
@@ -1452,6 +1500,7 @@ impl Context {
         }
     }
 
+    /// NOTE: If l and r are types, the Context is used to determine the type.
     /// NOTE: lとrが型の場合はContextの方で判定する
     pub(crate) fn shallow_eq_tp(&self, lhs: &TyParam, rhs: &TyParam) -> bool {
         match (lhs, rhs) {
@@ -1494,7 +1543,10 @@ impl Context {
             }
             (TyParam::Erased(t), _) => t.as_ref() == &self.get_tp_t(rhs).unwrap(),
             (_, TyParam::Erased(t)) => t.as_ref() == &self.get_tp_t(lhs).unwrap(),
-            (l, r) => todo!("l: {l}, r: {r}"),
+            (l, r) => {
+                log!(err "l: {l}, r: {r}");
+                false
+            }
         }
     }
 }

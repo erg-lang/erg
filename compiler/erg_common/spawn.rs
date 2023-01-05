@@ -1,4 +1,16 @@
+#[cfg(all(unix, feature = "debug"))]
+pub use backtrace_on_stack_overflow;
 use std::thread;
+
+#[macro_export]
+macro_rules! enable_overflow_stacktrace {
+    () => {
+        #[cfg(all(unix, feature = "debug"))]
+        unsafe {
+            $crate::spawn::backtrace_on_stack_overflow::enable()
+        };
+    };
+}
 
 /// Execute a function in a new thread on Windows, otherwise just run it.
 ///
@@ -8,7 +20,8 @@ where
     F: FnOnce() -> T + Send + 'static,
     T: Send + 'static,
 {
-    if cfg!(windows) {
+    enable_overflow_stacktrace!();
+    if cfg!(windows) || cfg!(feature = "large_thread") {
         const STACK_SIZE: usize = 4 * 1024 * 1024;
         let child = thread::Builder::new()
             .stack_size(STACK_SIZE)

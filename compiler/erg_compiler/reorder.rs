@@ -28,10 +28,10 @@ impl Reorderer {
         }
     }
 
-    pub fn reorder(mut self, mut ast: AST) -> Result<AST, TyCheckErrors> {
+    pub fn reorder(mut self, ast: AST) -> Result<AST, TyCheckErrors> {
         log!(info "the reordering process has started.");
         let mut new = vec![];
-        while let Some(chunk) = ast.module.lpop() {
+        for chunk in ast.module.into_iter() {
             match chunk {
                 Expr::Def(def) => {
                     match def.body.block.first().unwrap() {

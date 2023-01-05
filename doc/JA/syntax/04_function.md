@@ -1,6 +1,6 @@
 # 関数
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/04_function.md%26commit_hash%3D00c05ab6686062ea6707a326c840d910a55e6dc4)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/04_function.md&commit_hash=00c05ab6686062ea6707a326c840d910a55e6dc4)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/04_function.md%26commit_hash%3D96b113c47ec6ca7ad91a6b486d55758de00d557d)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/04_function.md&commit_hash=96b113c47ec6ca7ad91a6b486d55758de00d557d)
 
 関数は「引数」を受け取ってそれを加工し、「戻り値」として返すブロックです。以下のように定義します。
 
@@ -25,11 +25,11 @@ add(1, 2)
 
 関数は`f x, y, ...`のように呼び出しますが、__実引数__ が多く一行では長くなりすぎる場合は`:`(コロン)を使った適用も可能です。
 
-```python
+```python,checker_ignore
 f some_long_name_variable_1 + some_long_name_variable_2, some_long_name_variable_3 * some_long_name_variable_4
 ```
 
-```python
+```python,checker_ignore
 f some_long_name_variable_1 + some_long_name_variable_2:
     some_long_name_variable_3 * some_long_name_variable_4
 ```
@@ -49,12 +49,14 @@ result = if Bool.sample!():
 この場合、`:`の後はコメント以外のコードを書いてはならず、必ず改行しなくてはなりません。
 また、関数の直後に`:`を使うことはできません。これができるのは`do`と`do!`のみです。
 
-```python
+```python,compile_fail
 # NG
 f:
     x
     y
+```
 
+```python,checker_ignore
 # Ok
 f(
     x,
@@ -64,10 +66,10 @@ f(
 
 ## キーワード引数
 
-引数の数が多い関数を定義されていると、引数を渡す順番を間違える危険性があります。
+仮引数の数が多い関数を定義されていると、実引数を渡す際に順番を間違える危険性があります。
 そのような場合はキーワード引数を使用して呼び出すと安全です。
 
-```python
+```python,checker_ignore
 f x, y, z, w, v, u: Int = ...
 ```
 
@@ -81,7 +83,7 @@ f u := 6, v := 5, w := 4, x := 1, y := 2, z := 3
 
 ## デフォルト引数
 
-ある引数が大抵の場合決まりきっており省略できるようにしたい場合、デフォルト引数を使うと良いでしょう。
+ある仮引数が大抵の場合決まりきっており省略できるようにしたい場合、デフォルト引数を使うと良いでしょう。
 
 デフォルト引数は`:=`(default-assign operator)で指定します。`base`が指定されなかったら`math.E`を`base`に代入します。
 
@@ -110,25 +112,25 @@ f [x, y] := [1, 2] = ...
 
 しかしデフォルト引数内では、後述するプロシージャを呼び出したり、可変オブジェクトを代入したりすることができません。
 
-```python
+```python,compile_fail
 f x := p! 1 = ... # NG
 ```
 
 また、定義したばかりの引数はデフォルト引数に渡す値として使えません。
 
-```python
+```python,compile_fail
 f x := 1, y := x = ... # NG
 ```
 
 ## 可変長引数
 
-引数をログ(記録)として出力する`log`関数は、任意の個数の引数を受け取ることができます。
+実引数をログ(記録)として出力する`log`関数は、任意の個数の引数を受け取ることができます。
 
 ```python
 log "Hello", "World", "!" # Hello World !
 ```
 
-このような関数を定義したいときは、引数に`...`を付けます。このようにすると、引数を可変長の配列として受け取ることができます。
+このような関数を定義したいときは、仮引数に`...`を付けます。このようにすると、引数を可変長の配列として受け取ることができます。
 
 ```python
 f x: ...Int =
@@ -221,6 +223,29 @@ factorial(-1) == -1 * factorial(-2) == -1 * -2 * factorial(-3) == ...
 
 となって、この計算は停止しません。再帰関数は慎重に値の範囲を定義しないと無限ループに陥ってしまう可能性があります。
 型指定は想定しない値の受け入れを防ぐのにも役立つというわけです。
+
+## 高階関数
+
+高階関数は引数や返り値に関数を取る関数のことを指します。
+例えば引数に関数を取る高階関数は以下のように記述できます。
+
+```python
+arg_f = i -> log i
+higher_f(x: (Int -> NoneType)) = x 10
+higher_f arg_f # 10
+```
+
+もちろん、関数を返り値にすることもできます。
+
+```python
+add(x): (Int -> Int) = y -> x + y
+add_ten = add(10) # y -> 10 + y
+add_hundred = add(100) # y -> 100 + y
+assert add_ten(1) == 11
+assert add_hundred(1) == 101
+```
+
+このようにして関数を引数や返り値にとることで、より柔軟な表現を関数で定義することができます。
 
 ## コンパイル時関数
 

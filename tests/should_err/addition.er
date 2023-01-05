@@ -15,4 +15,22 @@ print! add_r 1, 2
 print! add_r 1, "a" # ERR
 print! add_r "a", 1 # ERR
 
-invalid_add x: Int, y: Str = x + y
+invalid_add x: Int, y: Str = x + y # ERR
+
+C = Class()
+C|C <: Add(C)|.
+    Output = C
+    __add__ self, other = self
+D = Class()
+D|D <: Add(C)|.
+    Output = D
+    __add__ self, other = self
+
+same_add: |T <: Add(T)|(x: T, y: T) -> T.Output
+same_add x, y = x + y
+
+print! add(D.new(), C.new())
+print! add(C.new(), D.new()) # ERR
+print! same_add(1, 2.1)
+print! same_add(C.new(), C.new())
+print! same_add(D.new(), C.new()) # ERR
