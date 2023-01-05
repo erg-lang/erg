@@ -15,7 +15,6 @@ use erg_common::traits::{Locational, Stream};
 use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::build_hir::HIRBuilder;
 use erg_compiler::context::{Context, ModuleContext};
-use erg_compiler::erg_parser::ast::VarName;
 use erg_compiler::erg_parser::token::{Token, TokenCategory, TokenKind};
 use erg_compiler::error::CompileErrors;
 use erg_compiler::hir::HIR;
@@ -345,7 +344,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let mut uri_and_diags: Vec<(Url, Vec<Diagnostic>)> = vec![];
         for err in errors.into_iter() {
             let loc = err.core.get_loc_with_fallback();
-            let uri = if let Input::File(path) = err.input {
+            let err_uri = if let Input::File(path) = err.input {
                 Url::from_file_path(path).unwrap()
             } else {
                 uri.clone()
@@ -381,10 +380,10 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 None,
                 None,
             );
-            if let Some((_, diags)) = uri_and_diags.iter_mut().find(|x| x.0 == uri) {
+            if let Some((_, diags)) = uri_and_diags.iter_mut().find(|x| x.0 == err_uri) {
                 diags.push(diag);
             } else {
-                uri_and_diags.push((uri, vec![diag]));
+                uri_and_diags.push((err_uri, vec![diag]));
             }
         }
         uri_and_diags
@@ -488,21 +487,16 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let uri = params.text_document_position_params.text_document.uri;
         let pos = params.text_document_position_params.position;
         let result = if let Some(token) = util::get_token(uri.clone(), pos)? {
-            let prev = util::get_token_relatively(uri.clone(), pos, -1)?;
-            // TODO: check attribute
-            if prev
-                .map(|t| t.is(TokenKind::Dot) || t.is(TokenKind::DblColon))
-                .unwrap_or(false)
-            {
-                Self::send_log("attribute")?;
-                GotoDefinitionResponse::Array(vec![])
-            } else if let Some((name, _vi)) = self.get_definition(&token)? {
-                match util::loc_to_range(name.loc()) {
-                    Some(range) => {
+            if let Some(vi) = self.get_definition(&uri, &token)? {
+                match (vi.def_loc.module, util::loc_to_range(vi.def_loc.loc)) {
+                    (Some(path), Some(range)) => {
+                        let def_uri = Url::from_file_path(path).unwrap();
                         Self::send_log("found")?;
-                        GotoDefinitionResponse::Array(vec![lsp_types::Location::new(uri, range)])
+                        GotoDefinitionResponse::Array(vec![lsp_types::Location::new(
+                            def_uri, range,
+                        )])
                     }
-                    None => {
+                    _ => {
                         Self::send_log("not found (maybe builtin)")?;
                         GotoDefinitionResponse::Array(vec![])
                     }
@@ -519,16 +513,12 @@ impl<Checker: BuildRunnable> Server<Checker> {
         )
     }
 
-    fn get_definition(&mut self, token: &Token) -> ELSResult<Option<(VarName, VarInfo)>> {
+    fn get_definition(&mut self, uri: &Url, token: &Token) -> ELSResult<Option<VarInfo>> {
         if !token.category_is(TokenCategory::Symbol) {
             Self::send_log(format!("not symbol: {token}"))?;
             Ok(None)
-        } else if let Some((name, vi)) = self
-            .module
-            .as_ref()
-            .and_then(|module| module.context.get_var_info(token.inspect()))
-        {
-            Ok(Some((name.clone(), vi.clone())))
+        } else if let Some(visitor) = self.get_visitor(uri) {
+            Ok(visitor.visit_hir_info(token))
         } else {
             Self::send_log("not found")?;
             Ok(None)
@@ -558,15 +548,21 @@ impl<Checker: BuildRunnable> Server<Checker> {
             None
         };
         if let Some(token) = opt_token {
-            match self.get_definition(&token)? {
-                Some((name, vi)) => {
-                    if let Some(line) = name.ln_begin() {
-                        let code_block = util::get_line_from_uri(&uri, line)?;
+            match self.get_definition(&uri, &token)? {
+                Some(vi) => {
+                    if let Some(line) = vi.def_loc.loc.ln_begin() {
+                        let mut code_block = format!("# {uri}, line {line}\n");
+                        code_block += util::get_line_from_uri(&uri, line)?.trim_start();
+                        if code_block.ends_with(&['=', '>']) {
+                            code_block += " ...";
+                        }
                         let definition = MarkedString::from_language_code(lang.into(), code_block);
                         contents.push(definition);
                     }
-                    let typ =
-                        MarkedString::from_language_code(lang.into(), format!("{name}: {}", vi.t));
+                    let typ = MarkedString::from_language_code(
+                        lang.into(),
+                        format!("{}: {}", token.content, vi.t),
+                    );
                     contents.push(typ);
                 }
                 // not found or not symbol, etc.
@@ -638,12 +634,12 @@ impl<Checker: BuildRunnable> Server<Checker> {
         new_name: String,
     ) {
         if let Some(path) = &abs_loc.module {
-            let uri = Url::from_file_path(path).unwrap();
+            let def_uri = Url::from_file_path(path).unwrap();
             let edit = TextEdit::new(util::loc_to_range(abs_loc.loc).unwrap(), new_name);
-            if let Some(edits) = changes.get_mut(&uri) {
+            if let Some(edits) = changes.get_mut(&def_uri) {
                 edits.push(edit);
             } else {
-                changes.insert(uri, vec![edit]);
+                changes.insert(def_uri, vec![edit]);
             }
         }
     }
