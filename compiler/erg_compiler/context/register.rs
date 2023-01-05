@@ -12,8 +12,8 @@ use erg_common::vis::Visibility;
 use erg_common::{enum_unwrap, get_hash, log, set};
 use erg_common::{fn_name, Str};
 
-use ast::{Decorator, DefId, Identifier, OperationKind, VarName};
-use erg_parser::ast;
+use ast::{Decorator, DefId, Identifier, OperationKind, SimpleTypeSpec, VarName};
+use erg_parser::ast::{self, ConstIdentifier};
 
 use crate::ty::constructors::{free_var, func, func0, func1, proc, ref_, ref_mut, v_enum};
 use crate::ty::free::{Constraint, FreeKind, HasLevel};
@@ -1574,4 +1574,41 @@ impl Context {
         }
         Ok(())
     }
+
+    #[cfg(feature = "els")]
+    pub(crate) fn inc_ref_simple_typespec(&self, simple: &SimpleTypeSpec) {
+        if let Ok(vi) = self.rec_get_var_info(
+            &simple.ident,
+            crate::compile::AccessKind::Name,
+            &self.cfg.input,
+            &self.name,
+        ) {
+            self.inc_ref(&vi, &simple.ident.name);
+        }
+    }
+    #[cfg(not(feature = "els"))]
+    pub(crate) fn inc_ref_simple_typespec(&self, _simple: &SimpleTypeSpec) {}
+
+    #[cfg(feature = "els")]
+    pub(crate) fn inc_ref_const_local(&self, local: &ConstIdentifier) {
+        if let Ok(vi) = self.rec_get_var_info(
+            local,
+            crate::compile::AccessKind::Name,
+            &self.cfg.input,
+            &self.name,
+        ) {
+            self.inc_ref(&vi, &local.name);
+        }
+    }
+    #[cfg(not(feature = "els"))]
+    pub(crate) fn inc_ref_const_local(&self, _local: &ConstIdentifier) {}
+
+    #[cfg(feature = "els")]
+    pub fn inc_ref<L: Locational>(&self, vi: &VarInfo, name: &L) {
+        self.index()
+            .unwrap()
+            .add_ref(vi.def_loc.clone(), self.absolutize(name.loc()));
+    }
+    #[cfg(not(feature = "els"))]
+    pub fn inc_ref<L: Locational>(&self, _vi: &VarInfo, _name: &L) {}
 }

@@ -307,14 +307,11 @@ impl ASTLowerer {
     }
 
     #[cfg(feature = "els")]
-    fn add_ref(&self, vi: &VarInfo, name: &VarName) {
-        self.module.context.index().unwrap().add_ref(
-            vi.def_loc.clone(),
-            self.module.context.absolutize(name.loc()),
-        );
+    fn inc_ref<L: Locational>(&self, vi: &VarInfo, name: &L) {
+        self.module.context.inc_ref(vi, name);
     }
     #[cfg(not(feature = "els"))]
-    fn add_ref(&self, _vi: &VarInfo, _name: &VarName) {}
+    fn inc_ref<L: Locational>(&self, _vi: &VarInfo, _name: &L) {}
 }
 
 impl ASTLowerer {
@@ -747,7 +744,7 @@ impl ASTLowerer {
                     &self.cfg.input,
                     &self.module.context.name,
                 )?;
-                self.add_ref(&vi, &attr.ident.name);
+                self.inc_ref(&vi, &attr.ident.name);
                 let ident = hir::Identifier::new(attr.ident.dot, attr.ident.name, None, vi);
                 let acc = hir::Accessor::Attr(hir::Attribute::new(obj, ident));
                 Ok(acc)
@@ -791,7 +788,7 @@ impl ASTLowerer {
                     .map(|ctx| ctx.name.clone()),
             )
         };
-        self.add_ref(&vi, &ident.name);
+        self.inc_ref(&vi, &ident.name);
         let ident = hir::Identifier::new(ident.dot, ident.name, __name__, vi);
         Ok(ident)
     }
@@ -913,7 +910,7 @@ impl ASTLowerer {
             }
         };
         let attr_name = if let Some(attr_name) = call.attr_name {
-            self.add_ref(&vi, &attr_name.name);
+            self.inc_ref(&vi, &attr_name.name);
             Some(hir::Identifier::new(
                 attr_name.dot,
                 attr_name.name,
@@ -1385,6 +1382,7 @@ impl ASTLowerer {
         let mut hir_methods = hir::Block::empty();
         let mut dummy_tv_cache = TyVarCache::new(self.module.context.level, &self.module.context);
         for mut methods in class_def.methods_list.into_iter() {
+            self.inc_ref(&hir_def.sig.ident().vi, &methods.class);
             let (class, impl_trait) = match &methods.class {
                 ast::TypeSpec::TypeApp { spec, args } => {
                     let (impl_trait, loc) = match &args.args.pos_args().first().unwrap().expr {

@@ -216,8 +216,8 @@ impl Context {
         mode: RegistrationMode,
     ) -> TyCheckResult<Type> {
         let mut tmp_tv_cache = TyVarCache::new(self.level, self);
-        let spec_t = if let Some(s) = t_spec {
-            self.instantiate_typespec(s, None, &mut tmp_tv_cache, mode, false)?
+        let spec_t = if let Some(t_spec) = t_spec {
+            self.instantiate_typespec(t_spec, None, &mut tmp_tv_cache, mode, false)?
         } else {
             free_var(self.level, Constraint::new_type_of(Type))
         };
@@ -300,12 +300,17 @@ impl Context {
                 }
             }
         }
-        let spec_return_t = if let Some(s) = sig.return_t_spec.as_ref() {
+        let spec_return_t = if let Some(t_spec) = sig.return_t_spec.as_ref() {
             let opt_decl_t = opt_decl_sig_t
                 .as_ref()
                 .map(|subr| ParamTy::anonymous(subr.return_t.as_ref().clone()));
-            match self.instantiate_typespec(s, opt_decl_t.as_ref(), &mut tmp_tv_cache, mode, false)
-            {
+            match self.instantiate_typespec(
+                t_spec,
+                opt_decl_t.as_ref(),
+                &mut tmp_tv_cache,
+                mode,
+                false,
+            ) {
                 Ok(ty) => ty,
                 Err(es) => {
                     errs.extend(es);
@@ -436,6 +441,7 @@ impl Context {
         tmp_tv_cache: &mut TyVarCache,
         not_found_is_qvar: bool,
     ) -> TyCheckResult<Type> {
+        self.inc_ref_simple_typespec(simple);
         match &simple.ident.inspect()[..] {
             "_" | "Obj" => Ok(Type::Obj),
             "Nat" => Ok(Type::Nat),
@@ -571,7 +577,9 @@ impl Context {
                         self.instantiate_const_expr(&arg.expr, Some((ctx, i)), tmp_tv_cache);
                     let params = params.or_else(|e| {
                         if not_found_is_qvar {
-                            let name = Str::from(arg.expr.to_string());
+                            let name = arg.expr.to_string();
+                            // FIXME: handle `::` as a right way
+                            let name = Str::rc(name.trim_start_matches("::"));
                             let tp = TyParam::named_free_var(
                                 name.clone(),
                                 self.level,
@@ -599,8 +607,9 @@ impl Context {
     ) -> TyCheckResult<TyParam> {
         match expr {
             ast::ConstExpr::Lit(lit) => Ok(TyParam::Value(self.eval_lit(lit)?)),
-            ast::ConstExpr::Accessor(ast::ConstAccessor::Local(name)) => {
-                if &name.inspect()[..] == "_" {
+            ast::ConstExpr::Accessor(ast::ConstAccessor::Local(local)) => {
+                self.inc_ref_const_local(local);
+                if &local.inspect()[..] == "_" {
                     let t = if let Some((ctx, i)) = erased_idx {
                         ctx.params[i].1.t.clone()
                     } else {
@@ -608,28 +617,28 @@ impl Context {
                     };
                     return Ok(TyParam::erased(t));
                 }
-                if let Some(tp) = tmp_tv_cache.get_typaram(name.inspect()) {
+                if let Some(tp) = tmp_tv_cache.get_typaram(local.inspect()) {
                     return Ok(tp.clone());
-                } else if let Some(t) = tmp_tv_cache.get_tyvar(name.inspect()) {
+                } else if let Some(t) = tmp_tv_cache.get_tyvar(local.inspect()) {
                     return Ok(TyParam::t(t.clone()));
                 }
                 if let Some(tv_ctx) = &self.tv_cache {
-                    if let Some(t) = tv_ctx.get_tyvar(name.inspect()) {
+                    if let Some(t) = tv_ctx.get_tyvar(local.inspect()) {
                         return Ok(TyParam::t(t.clone()));
-                    } else if let Some(tp) = tv_ctx.get_typaram(name.inspect()) {
+                    } else if let Some(tp) = tv_ctx.get_typaram(local.inspect()) {
                         return Ok(tp.clone());
                     }
                 }
-                if let Some(value) = self.rec_get_const_obj(name.inspect()) {
+                if let Some(value) = self.rec_get_const_obj(local.inspect()) {
                     return Ok(TyParam::Value(value.clone()));
                 }
                 Err(TyCheckErrors::from(TyCheckError::no_var_error(
                     self.cfg.input.clone(),
                     line!() as usize,
-                    name.loc(),
+                    local.loc(),
                     self.caused_by(),
-                    name.inspect(),
-                    self.get_similar_name(name.inspect()),
+                    local.inspect(),
+                    self.get_similar_name(local.inspect()),
                 )))
             }
             ast::ConstExpr::Array(array) => {

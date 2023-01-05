@@ -12,7 +12,6 @@ impl Parser {
         match expr {
             Expr::Lit(l) => Ok(ConstExpr::Lit(l)),
             Expr::Accessor(Accessor::Ident(local)) => {
-                let local = ConstLocal::new(local.name.into_token());
                 Ok(ConstExpr::Accessor(ConstAccessor::Local(local)))
             }
             Expr::Array(array) => match array {
