@@ -123,7 +123,7 @@ Or the mutating operator.
 
 ### [Erg]
 
-Statically typed programming language published in 2022 and is the subject of this document. The developers pronounce it `/ɝ́rug/`("エルグ" in Japanese[(Google Translate)](https://translate.google.com/?sl=ja&tl=en&text=%E3%82%A8%E3%83%AB%E3%82%B0)). The name comes from the unit of energy in the CGS system of units.
+Statically typed programming language published in 2022 and is the subject of this document. The developers often pronounce it [`/ɝ́rug/`](https://translate.google.com/?sl=ja&tl=en&text=%E3%82%A8%E3%83%AB%E3%82%B0)). The name comes from the unit of energy in the CGS system of units.
 It was designed as a statically typed language that can take advantage of the assets of Python. It is mainly influenced by Rust and Haskell.
 
 ## F
