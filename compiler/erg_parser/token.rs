@@ -1,14 +1,15 @@
 //! defines `Token` (The minimum unit in the Erg source code that serves as input to the parser).
 //!
 //! Token(パーサーへの入力となる、Ergソースコードにおける最小単位)を定義する
+use std::collections::VecDeque;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 
 use erg_common::error::Location;
-use erg_common::impl_displayable_stream_for_wrapper;
+use erg_common::impl_displayable_deque_stream_for_wrapper;
 use erg_common::opcode311::BinOpCode;
 use erg_common::str::Str;
-use erg_common::traits::{Locational, Stream};
+use erg_common::traits::{DequeStream, Locational};
 // use erg_common::ty::Type;
 // use erg_common::typaram::OpKind;
 // use erg_common::value::ValueObj;
@@ -474,6 +475,6 @@ impl Token {
 }
 
 #[derive(Debug, Clone)]
-pub struct TokenStream(Vec<Token>);
+pub struct TokenStream(VecDeque<Token>);
 
-impl_displayable_stream_for_wrapper!(TokenStream, Token);
+impl_displayable_deque_stream_for_wrapper!(TokenStream, Token);

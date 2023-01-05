@@ -11,6 +11,7 @@ use erg_common::error::Location;
 use erg_common::option_enum_unwrap;
 use erg_common::set::Set as HashSet;
 use erg_common::str::Str;
+use erg_common::traits::DequeStream;
 use erg_common::traits::Runnable;
 use erg_common::traits::{Locational, Stream};
 use erg_common::{
@@ -96,8 +97,8 @@ impl Parser {
     }
 
     #[inline]
-    pub(crate) fn peek(&self) -> Option<&Token> {
-        self.tokens.get(0)
+    pub fn peek(&self) -> Option<&Token> {
+        self.tokens.first()
     }
 
     #[inline]
@@ -107,12 +108,12 @@ impl Parser {
 
     #[inline]
     fn skip(&mut self) {
-        self.tokens.remove(0);
+        self.tokens.pop_front();
     }
 
     #[inline]
     fn lpop(&mut self) -> Token {
-        self.tokens.remove(0)
+        self.tokens.pop_front().unwrap()
     }
 
     fn cur_category_is(&self, category: TokenCategory) -> bool {
