@@ -71,6 +71,7 @@ impl ASTLowerer {
                 .context
                 .assign_var_sig(&sig, found_body_t, id, py_name.clone())?;
         }
+        // FIXME: Identifier::new should be used
         let mut ident = hir::Identifier::bare(ident.dot.clone(), ident.name.clone());
         ident.vi.t = found_body_t.clone();
         ident.vi.py_name = py_name;
@@ -169,7 +170,16 @@ impl ASTLowerer {
                 let muty = Mutability::from(&ident.inspect()[..]);
                 let vis = ident.vis();
                 let py_name = Str::rc(ident.inspect().trim_end_matches('!'));
-                let vi = VarInfo::new(t, muty, vis, VarKind::Declared, None, None, Some(py_name));
+                let vi = VarInfo::new(
+                    t,
+                    muty,
+                    vis,
+                    VarKind::Declared,
+                    None,
+                    None,
+                    Some(py_name),
+                    self.module.context.absolutize(ident.loc()),
+                );
                 let ident = hir::Identifier::new(ident.dot, ident.name, None, vi);
                 Ok(hir::Expr::Accessor(hir::Accessor::Ident(ident)).type_asc(tasc.t_spec))
             }
@@ -200,7 +210,16 @@ impl ASTLowerer {
                 let muty = Mutability::from(&attr.ident.inspect()[..]);
                 let vis = attr.ident.vis();
                 let py_name = Str::rc(attr.ident.inspect().trim_end_matches('!'));
-                let vi = VarInfo::new(t, muty, vis, VarKind::Declared, None, None, Some(py_name));
+                let vi = VarInfo::new(
+                    t,
+                    muty,
+                    vis,
+                    VarKind::Declared,
+                    None,
+                    None,
+                    Some(py_name),
+                    self.module.context.absolutize(attr.ident.loc()),
+                );
                 let ident = hir::Identifier::new(attr.ident.dot, attr.ident.name, None, vi);
                 let attr = obj.attr_expr(ident);
                 Ok(attr.type_asc(tasc.t_spec))
@@ -233,6 +252,7 @@ impl ASTLowerer {
                 None,
                 None,
                 Some(py_name.clone()),
+                self.module.context.absolutize(ident.loc()),
             );
             self.module.context.decls.insert(ident.name.clone(), vi);
         }

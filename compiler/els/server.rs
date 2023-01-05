@@ -1,33 +1,36 @@
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::io;
 use std::io::{stdin, stdout, BufRead, Read, StdinLock, StdoutLock, Write};
 use std::str::FromStr;
 
+use erg_compiler::global::SharedCompilerResource;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_json::Value;
 
 use erg_common::config::{ErgConfig, Input};
+use erg_common::dict::Dict;
 use erg_common::style::*;
 use erg_common::traits::{Locational, Stream};
 
 use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::build_hir::HIRBuilder;
 use erg_compiler::context::{Context, ModuleContext};
-use erg_compiler::erg_parser::ast::VarName;
 use erg_compiler::erg_parser::token::{Token, TokenCategory, TokenKind};
 use erg_compiler::error::CompileErrors;
 use erg_compiler::hir::HIR;
+use erg_compiler::index::SharedModuleIndex;
 use erg_compiler::ty::Type;
-use erg_compiler::varinfo::VarInfo;
+use erg_compiler::varinfo::{AbsLocation, VarInfo, VarKind};
 use erg_compiler::AccessKind;
 
 use lsp_types::{
     ClientCapabilities, CompletionItem, CompletionItemKind, CompletionOptions, CompletionParams,
     Diagnostic, DiagnosticSeverity, GotoDefinitionParams, GotoDefinitionResponse, HoverContents,
     HoverParams, HoverProviderCapability, InitializeResult, MarkedString, OneOf, Position,
-    PublishDiagnosticsParams, Range, ServerCapabilities, TextDocumentSyncCapability,
-    TextDocumentSyncKind, Url,
+    PublishDiagnosticsParams, Range, ReferenceParams, RenameParams, ServerCapabilities,
+    TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, Url, WorkspaceEdit,
 };
 
 use crate::hir_visitor::HIRVisitor;
@@ -78,8 +81,8 @@ fn read_exact(len: usize) -> io::Result<Vec<u8>> {
 pub struct Server<Checker: BuildRunnable = HIRBuilder> {
     cfg: ErgConfig,
     client_capas: ClientCapabilities,
-    module: Option<ModuleContext>,
-    hir: Option<HIR>, // TODO: should be ModuleCache
+    modules: Dict<Url, ModuleContext>,
+    hirs: Dict<Url, Option<HIR>>,
     _checker: std::marker::PhantomData<Checker>,
 }
 
@@ -88,8 +91,8 @@ impl<Checker: BuildRunnable> Server<Checker> {
         Self {
             cfg,
             client_capas: ClientCapabilities::default(),
-            module: None,
-            hir: None,
+            modules: Dict::new(),
+            hirs: Dict::new(),
             _checker: std::marker::PhantomData,
         }
     }
@@ -156,6 +159,8 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let mut comp_options = CompletionOptions::default();
         comp_options.trigger_characters = Some(vec![".".to_string(), ":".to_string()]);
         result.capabilities.completion_provider = Some(comp_options);
+        result.capabilities.rename_provider = Some(OneOf::Left(true));
+        result.capabilities.references_provider = Some(OneOf::Left(true));
         result.capabilities.definition_provider = Some(OneOf::Left(true));
         result.capabilities.hover_provider = Some(HoverProviderCapability::Simple(true));
         result.capabilities.inlay_hint_provider = Some(OneOf::Left(true));
@@ -267,6 +272,8 @@ impl<Checker: BuildRunnable> Server<Checker> {
             "textDocument/completion" => self.show_completion(msg),
             "textDocument/definition" => self.show_definition(msg),
             "textDocument/hover" => self.show_hover(msg),
+            "textDocument/rename" => self.rename(msg),
+            "textDocument/references" => self.show_references(msg),
             other => Self::send_error(Some(id), -32600, format!("{other} is not supported")),
         }
     }
@@ -284,6 +291,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 let uri = Url::parse(msg["params"]["textDocument"]["uri"].as_str().unwrap())?;
                 Self::send_log(format!("{method}: {uri}"))?;
                 let code = util::get_code_from_uri(&uri)?;
+                if let Some(shared) = self.get_shared() {
+                    shared.clear_all();
+                }
                 self.check_file(uri, &code)
             }
             // "textDocument/didChange"
@@ -299,15 +309,19 @@ impl<Checker: BuildRunnable> Server<Checker> {
         } else {
             "exec"
         };
-        let mut checker = Checker::new(self.cfg.inherit(path));
+        let mut checker = if let Some(shared) = self.get_shared() {
+            Checker::inherit(self.cfg.inherit(path), shared.clone())
+        } else {
+            Checker::new(self.cfg.inherit(path))
+        };
         match checker.build(code.into(), mode) {
             Ok(artifact) => {
-                self.hir = Some(artifact.object);
+                self.hirs.insert(uri.clone(), Some(artifact.object));
                 Self::send_log(format!("checking {uri} passed"))?;
                 let uri_and_diags = self.make_uri_and_diags(uri.clone(), artifact.warns);
                 // clear previous diagnostics
                 if uri_and_diags.is_empty() {
-                    self.send_diagnostics(uri, vec![])?;
+                    self.send_diagnostics(uri.clone(), vec![])?;
                 }
                 for (uri, diags) in uri_and_diags.into_iter() {
                     Self::send_log(format!("{uri}, warns: {}", diags.len()))?;
@@ -315,13 +329,13 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 }
             }
             Err(mut artifact) => {
-                self.hir = artifact.object;
+                self.hirs.insert(uri.clone(), artifact.object);
                 Self::send_log(format!("found errors: {}", artifact.errors.len()))?;
                 Self::send_log(format!("found warns: {}", artifact.warns.len()))?;
                 artifact.errors.extend(artifact.warns);
                 let uri_and_diags = self.make_uri_and_diags(uri.clone(), artifact.errors);
                 if uri_and_diags.is_empty() {
-                    self.send_diagnostics(uri, vec![])?;
+                    self.send_diagnostics(uri.clone(), vec![])?;
                 }
                 for (uri, diags) in uri_and_diags.into_iter() {
                     Self::send_log(format!("{uri}, errs & warns: {}", diags.len()))?;
@@ -329,7 +343,14 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 }
             }
         }
-        self.module = checker.pop_context();
+        if let Some(module) = checker.pop_context() {
+            Self::send_log(format!("{uri}: {}", module.context.name))?;
+            self.modules.insert(uri, module);
+        }
+        Self::send_log(format!(
+            "indexes: {:?}",
+            self.modules.keys().collect::<Vec<_>>()
+        ))?;
         Ok(())
     }
 
@@ -341,7 +362,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let mut uri_and_diags: Vec<(Url, Vec<Diagnostic>)> = vec![];
         for err in errors.into_iter() {
             let loc = err.core.get_loc_with_fallback();
-            let uri = if let Input::File(path) = err.input {
+            let err_uri = if let Input::File(path) = err.input {
                 Url::from_file_path(path).unwrap()
             } else {
                 uri.clone()
@@ -377,17 +398,19 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 None,
                 None,
             );
-            if let Some((_, diags)) = uri_and_diags.iter_mut().find(|x| x.0 == uri) {
+            if let Some((_, diags)) = uri_and_diags.iter_mut().find(|x| x.0 == err_uri) {
                 diags.push(diag);
             } else {
-                uri_and_diags.push((uri, vec![diag]));
+                uri_and_diags.push((err_uri, vec![diag]));
             }
         }
         uri_and_diags
     }
 
     fn get_visitor(&self, uri: &Url) -> Option<HIRVisitor> {
-        self.hir
+        self.hirs
+            .get(uri)
+            .unwrap()
             .as_ref()
             .map(|hir| HIRVisitor::new(hir, uri.clone(), !cfg!(feature = "py_compatible")))
     }
@@ -400,13 +423,42 @@ impl<Checker: BuildRunnable> Server<Checker> {
             Self::send_log(format!("ns: {ns:?}")).unwrap();
             for i in 1..ns.len() {
                 let ns = ns[..=ns.len() - i].join("");
-                if let Some(ctx) = self.module.as_ref().unwrap().scope.get(&ns[..]) {
+                if let Some(ctx) = self.modules.get(uri).unwrap().scope.get(&ns[..]) {
                     ctxs.push(ctx);
                 }
             }
         }
-        ctxs.push(&self.module.as_ref().unwrap().context);
+        ctxs.push(&self.modules.get(uri).unwrap().context);
         ctxs
+    }
+
+    fn get_receiver_ctxs(&self, uri: &Url, attr_marker_pos: Position) -> ELSResult<Vec<&Context>> {
+        let Some(module) = self.modules.get(uri) else {
+            return Ok(vec![]);
+        };
+        let maybe_token = util::get_token_relatively(uri.clone(), attr_marker_pos, -1)?;
+        if let Some(token) = maybe_token {
+            if token.is(TokenKind::Symbol) {
+                let var_name = token.inspect();
+                Self::send_log(format!("{} name: {var_name}", line!()))?;
+                Ok(module.context.get_receiver_ctxs(var_name))
+            } else {
+                Self::send_log(format!("non-name token: {token}"))?;
+                if let Some(typ) = self
+                    .get_visitor(uri)
+                    .and_then(|visitor| visitor.visit_hir_t(&token))
+                {
+                    let t_name = typ.qual_name();
+                    Self::send_log(format!("type: {t_name}"))?;
+                    Ok(module.context.get_receiver_ctxs(&t_name))
+                } else {
+                    Ok(vec![])
+                }
+            }
+        } else {
+            Self::send_log("token not found")?;
+            Ok(vec![])
+        }
     }
 
     fn show_completion(&mut self, msg: &Value) -> ELSResult<()> {
@@ -428,7 +480,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let contexts = if acc_kind.is_local() {
             self.get_local_ctx(&uri, pos)
         } else {
-            self.get_receiver_ctxs(uri, pos)?
+            self.get_receiver_ctxs(&uri, pos)?
         };
         // Self::send_log(format!("contexts: {:?}", contexts.iter().map(|ctx| &ctx.name).collect::<Vec<_>>())).unwrap();
         for (name, vi) in contexts.into_iter().flat_map(|ctx| ctx.dir()) {
@@ -447,8 +499,8 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 continue;
             }
             let readable_t = self
-                .module
-                .as_ref()
+                .modules
+                .get(&uri)
                 .map(|module| {
                     module
                         .context
@@ -484,21 +536,16 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let uri = params.text_document_position_params.text_document.uri;
         let pos = params.text_document_position_params.position;
         let result = if let Some(token) = util::get_token(uri.clone(), pos)? {
-            let prev = util::get_token_relatively(uri.clone(), pos, -1)?;
-            // TODO: check attribute
-            if prev
-                .map(|t| t.is(TokenKind::Dot) || t.is(TokenKind::DblColon))
-                .unwrap_or(false)
-            {
-                Self::send_log("attribute")?;
-                GotoDefinitionResponse::Array(vec![])
-            } else if let Some((name, _vi)) = self.get_definition(&token)? {
-                match util::loc_to_range(name.loc()) {
-                    Some(range) => {
+            if let Some(vi) = self.get_definition(&uri, &token)? {
+                match (vi.def_loc.module, util::loc_to_range(vi.def_loc.loc)) {
+                    (Some(path), Some(range)) => {
+                        let def_uri = Url::from_file_path(path).unwrap();
                         Self::send_log("found")?;
-                        GotoDefinitionResponse::Array(vec![lsp_types::Location::new(uri, range)])
+                        GotoDefinitionResponse::Array(vec![lsp_types::Location::new(
+                            def_uri, range,
+                        )])
                     }
-                    None => {
+                    _ => {
                         Self::send_log("not found (maybe builtin)")?;
                         GotoDefinitionResponse::Array(vec![])
                     }
@@ -515,16 +562,12 @@ impl<Checker: BuildRunnable> Server<Checker> {
         )
     }
 
-    fn get_definition(&mut self, token: &Token) -> ELSResult<Option<(VarName, VarInfo)>> {
+    fn get_definition(&mut self, uri: &Url, token: &Token) -> ELSResult<Option<VarInfo>> {
         if !token.category_is(TokenCategory::Symbol) {
             Self::send_log(format!("not symbol: {token}"))?;
             Ok(None)
-        } else if let Some((name, vi)) = self
-            .module
-            .as_ref()
-            .and_then(|module| module.context.get_var_info(token.inspect()))
-        {
-            Ok(Some((name.clone(), vi.clone())))
+        } else if let Some(visitor) = self.get_visitor(uri) {
+            Ok(visitor.visit_hir_info(token))
         } else {
             Self::send_log("not found")?;
             Ok(None)
@@ -554,15 +597,21 @@ impl<Checker: BuildRunnable> Server<Checker> {
             None
         };
         if let Some(token) = opt_token {
-            match self.get_definition(&token)? {
-                Some((name, vi)) => {
-                    if let Some(line) = name.ln_begin() {
-                        let code_block = util::get_line_from_uri(&uri, line)?;
+            match self.get_definition(&uri, &token)? {
+                Some(vi) => {
+                    if let Some(line) = vi.def_loc.loc.ln_begin() {
+                        let mut code_block = format!("# {uri}, line {line}\n");
+                        code_block += util::get_line_from_uri(&uri, line)?.trim_start();
+                        if code_block.ends_with(&['=', '>']) {
+                            code_block += " ...";
+                        }
                         let definition = MarkedString::from_language_code(lang.into(), code_block);
                         contents.push(definition);
                     }
-                    let typ =
-                        MarkedString::from_language_code(lang.into(), format!("{name}: {}", vi.t));
+                    let typ = MarkedString::from_language_code(
+                        lang.into(),
+                        format!("{}: {}", token.content, vi.t),
+                    );
                     contents.push(typ);
                 }
                 // not found or not symbol, etc.
@@ -587,32 +636,114 @@ impl<Checker: BuildRunnable> Server<Checker> {
         )
     }
 
-    fn get_receiver_ctxs(&self, uri: Url, attr_marker_pos: Position) -> ELSResult<Vec<&Context>> {
-        let Some(module) = self.module.as_ref() else {
-            return Ok(vec![]);
-        };
-        let maybe_token = util::get_token_relatively(uri.clone(), attr_marker_pos, -1)?;
-        if let Some(token) = maybe_token {
-            if token.is(TokenKind::Symbol) {
-                let var_name = token.inspect();
-                Self::send_log(format!("{} name: {var_name}", line!()))?;
-                Ok(module.context.get_receiver_ctxs(var_name))
-            } else {
-                Self::send_log(format!("non-name token: {token}"))?;
-                if let Some(typ) = self
-                    .get_visitor(&uri)
-                    .and_then(|visitor| visitor.visit_hir_t(&token))
-                {
-                    let t_name = typ.qual_name();
-                    Self::send_log(format!("type: {t_name}"))?;
-                    Ok(module.context.get_receiver_ctxs(&t_name))
-                } else {
-                    Ok(vec![])
+    fn rename(&mut self, msg: &Value) -> ELSResult<()> {
+        let params = RenameParams::deserialize(&msg["params"])?;
+        Self::send_log(format!("rename request: {params:?}"))?;
+        let uri = params.text_document_position.text_document.uri;
+        let pos = params.text_document_position.position;
+        if let Some(tok) = util::get_token(uri.clone(), pos)? {
+            // Self::send_log(format!("token: {tok}"))?;
+            if let Some(visitor) = self.get_visitor(&uri) {
+                if let Some(vi) = visitor.visit_hir_info(&tok) {
+                    // Self::send_log(format!("vi: {vi}"))?;
+                    if vi.def_loc.loc.is_unknown() {
+                        let error_reason = match vi.kind {
+                            VarKind::Builtin => "this is a builtin variable and cannot be renamed",
+                            VarKind::FixedAuto => {
+                                "this is a fixed auto variable and cannot be renamed"
+                            }
+                            _ => "this name cannot be renamed",
+                        };
+                        return Self::send_error(msg["id"].as_i64(), 0, error_reason);
+                    }
+                    let mut changes: HashMap<Url, Vec<TextEdit>> = HashMap::new();
+                    Self::commit_change(&mut changes, &vi.def_loc, params.new_name.clone());
+                    if let Some(referrers) = self.get_index().get_refs(&vi.def_loc) {
+                        // Self::send_log(format!("referrers: {referrers:?}"))?;
+                        for referrer in referrers {
+                            Self::commit_change(&mut changes, referrer, params.new_name.clone());
+                        }
+                    }
+                    let edit = WorkspaceEdit::new(changes);
+                    Self::send(
+                        &json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": edit }),
+                    )?;
+                    if let Some(shared) = self.get_shared() {
+                        shared.clear_all();
+                    }
+                    let code = util::get_code_from_uri(&uri)?;
+                    self.check_file(uri, code)?;
+                    return Ok(());
                 }
             }
-        } else {
-            Self::send_log("token not found")?;
-            Ok(vec![])
         }
+        Self::send(
+            &json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": Value::Null }),
+        )
+    }
+
+    fn commit_change(
+        changes: &mut HashMap<Url, Vec<TextEdit>>,
+        abs_loc: &AbsLocation,
+        new_name: String,
+    ) {
+        if let Some(path) = &abs_loc.module {
+            let def_uri = Url::from_file_path(path).unwrap();
+            let edit = TextEdit::new(util::loc_to_range(abs_loc.loc).unwrap(), new_name);
+            if let Some(edits) = changes.get_mut(&def_uri) {
+                edits.push(edit);
+            } else {
+                changes.insert(def_uri, vec![edit]);
+            }
+        }
+    }
+
+    fn show_references(&self, msg: &Value) -> ELSResult<()> {
+        let params = ReferenceParams::deserialize(&msg["params"])?;
+        let uri = params.text_document_position.text_document.uri;
+        let pos = params.text_document_position.position;
+        if let Some(tok) = util::get_token(uri.clone(), pos)? {
+            // Self::send_log(format!("token: {tok}"))?;
+            if let Some(visitor) = self.get_visitor(&uri) {
+                if let Some(vi) = visitor.visit_hir_info(&tok) {
+                    let mut refs = vec![];
+                    if let Some(referrers) = self.get_index().get_refs(&vi.def_loc) {
+                        // Self::send_log(format!("referrers: {referrers:?}"))?;
+                        for referrer in referrers {
+                            if let (Some(path), Some(range)) =
+                                (&referrer.module, util::loc_to_range(referrer.loc))
+                            {
+                                let ref_uri = Url::from_file_path(path).unwrap();
+                                refs.push(lsp_types::Location::new(ref_uri, range));
+                            }
+                        }
+                    }
+                    Self::send(
+                        &json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": refs }),
+                    )?;
+                    return Ok(());
+                }
+            }
+        }
+        Self::send(
+            &json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": Value::Null }),
+        )
+    }
+
+    fn get_index(&self) -> &SharedModuleIndex {
+        self.modules
+            .values()
+            .next()
+            .unwrap()
+            .context
+            .index()
+            .unwrap()
+    }
+
+    fn get_shared(&self) -> Option<&SharedCompilerResource> {
+        self.modules
+            .values()
+            .next()
+            .and_then(|module| module.context.shared())
     }
 }

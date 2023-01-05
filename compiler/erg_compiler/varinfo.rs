@@ -1,5 +1,7 @@
 use std::fmt;
+use std::path::PathBuf;
 
+use erg_common::error::Location;
 use erg_common::set::Set;
 use erg_common::vis::Visibility;
 use erg_common::Str;
@@ -69,6 +71,32 @@ impl VarKind {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct AbsLocation {
+    pub module: Option<PathBuf>,
+    pub loc: Location,
+}
+
+impl fmt::Display for AbsLocation {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if let Some(module) = &self.module {
+            write!(f, "{}:{:?}", module.display(), self.loc)
+        } else {
+            write!(f, "{:?}", self.loc)
+        }
+    }
+}
+
+impl AbsLocation {
+    pub const fn new(module: Option<PathBuf>, loc: Location) -> Self {
+        Self { module, loc }
+    }
+
+    pub const fn unknown() -> Self {
+        Self::new(None, Location::Unknown)
+    }
+}
+
 /// Has information about the type, variability, visibility, and where the variable was defined (or declared, generated)
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct VarInfo {
@@ -79,6 +107,7 @@ pub struct VarInfo {
     pub comptime_decos: Option<Set<Str>>,
     pub impl_of: Option<Type>,
     pub py_name: Option<Str>,
+    pub def_loc: AbsLocation,
 }
 
 impl fmt::Display for VarInfo {
@@ -128,9 +157,11 @@ impl VarInfo {
             None,
             None,
             None,
+            AbsLocation::unknown(),
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub const fn new(
         t: Type,
         muty: Mutability,
@@ -139,6 +170,7 @@ impl VarInfo {
         comptime_decos: Option<Set<Str>>,
         impl_of: Option<Type>,
         py_name: Option<Str>,
+        def_loc: AbsLocation,
     ) -> Self {
         Self {
             t,
@@ -148,6 +180,7 @@ impl VarInfo {
             comptime_decos,
             impl_of,
             py_name,
+            def_loc,
         }
     }
 

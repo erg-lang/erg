@@ -18,12 +18,12 @@ use crate::codegen::PyCodeGenerator;
 use crate::context::{Context, ContextProvider, ModuleContext};
 use crate::desugar_hir::HIRDesugarer;
 use crate::error::{CompileError, CompileErrors};
+use crate::global::SharedCompilerResource;
 use crate::hir::{
     Accessor, Args, Array, BinOp, Block, Call, ClassDef, Def, Dict, Expr, Identifier, Lambda,
     Literal, Params, PatchDef, ReDef, Record, Set, Signature, Tuple, UnaryOp, HIR,
 };
 use crate::link::Linker;
-use crate::mod_cache::SharedModuleCache;
 use crate::ty::value::ValueObj;
 use crate::ty::Type;
 use crate::varinfo::VarInfo;
@@ -95,7 +95,7 @@ pub struct PyScript {
 pub struct Transpiler {
     pub cfg: ErgConfig,
     builder: HIRBuilder,
-    mod_cache: SharedModuleCache,
+    shared: SharedCompilerResource,
     script_generator: ScriptGenerator,
 }
 
@@ -105,17 +105,11 @@ impl Runnable for Transpiler {
     const NAME: &'static str = "Erg transpiler";
 
     fn new(cfg: ErgConfig) -> Self {
-        let mod_cache = SharedModuleCache::new(cfg.copy());
-        let py_mod_cache = SharedModuleCache::new(cfg.copy());
+        let shared = SharedCompilerResource::new(cfg.copy());
         Self {
-            builder: HIRBuilder::new_with_cache(
-                cfg.copy(),
-                "<module>",
-                mod_cache.clone(),
-                py_mod_cache,
-            ),
+            shared: shared.clone(),
+            builder: HIRBuilder::new_with_cache(cfg.copy(), "<module>", shared),
             script_generator: ScriptGenerator::new(),
-            mod_cache,
             cfg,
         }
     }
@@ -181,6 +175,15 @@ impl ContextProvider for Transpiler {
 }
 
 impl Buildable<PyScript> for Transpiler {
+    fn inherit(cfg: ErgConfig, shared: SharedCompilerResource) -> Self {
+        let mod_name = Str::rc(cfg.input.file_stem());
+        Self {
+            shared: shared.clone(),
+            builder: HIRBuilder::new_with_cache(cfg.copy(), mod_name, shared),
+            script_generator: ScriptGenerator::new(),
+            cfg,
+        }
+    }
     fn build(
         &mut self,
         src: String,
@@ -219,7 +222,7 @@ impl Transpiler {
         mode: &str,
     ) -> Result<CompleteArtifact, ErrorArtifact> {
         let artifact = self.builder.build(src, mode)?;
-        let linker = Linker::new(&self.cfg, &self.mod_cache);
+        let linker = Linker::new(&self.cfg, &self.shared.mod_cache);
         let hir = linker.link(artifact.object);
         let desugared = HIRDesugarer::desugar(hir);
         Ok(CompleteArtifact::new(desugared, artifact.warns))

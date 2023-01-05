@@ -29,7 +29,7 @@ use crate::error::{
     binop_to_dname, readable_name, unaryop_to_dname, SingleTyCheckResult, TyCheckError,
     TyCheckErrors, TyCheckResult,
 };
-use crate::varinfo::{Mutability, VarInfo, VarKind};
+use crate::varinfo::{AbsLocation, Mutability, VarInfo, VarKind};
 use crate::AccessKind;
 use crate::{feature_error, hir};
 use RegistrationMode::*;
@@ -39,14 +39,9 @@ use super::{ContextKind, MethodInfo};
 
 impl Context {
     pub(crate) fn get_ctx_from_path(&self, path: &Path) -> Option<&Context> {
-        self.mod_cache
-            .as_ref()
+        self.mod_cache()
             .and_then(|cache| cache.ref_ctx(path))
-            .or_else(|| {
-                self.py_mod_cache
-                    .as_ref()
-                    .and_then(|cache| cache.ref_ctx(path))
-            })
+            .or_else(|| self.py_mod_cache().and_then(|cache| cache.ref_ctx(path)))
             .map(|mod_ctx| &mod_ctx.context)
     }
 
@@ -90,8 +85,10 @@ impl Context {
             })
     }
 
-    pub(crate) fn get_local_kv(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
-        self.locals.get_key_value(name)
+    pub(crate) fn get_var_kv(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
+        self.locals
+            .get_key_value(name)
+            .or_else(|| self.get_outer().and_then(|ctx| ctx.get_var_kv(name)))
     }
 
     pub(crate) fn get_singular_ctx_by_hir_expr(
@@ -360,27 +357,22 @@ impl Context {
                 self.get_similar_name(ident.inspect()),
             ));
         }
-        if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
-            match parent.rec_get_var_info(ident, acc_kind, input, namespace) {
-                Ok(vi) => Ok(vi),
-                Err(err) if err.core.kind == ErrorKind::DummyError => {
-                    Err(TyCheckError::no_var_error(
-                        input.clone(),
-                        line!() as usize,
-                        ident.loc(),
-                        namespace.into(),
-                        ident.inspect(),
-                        self.get_similar_name(ident.inspect()),
-                    ))
-                }
-                Err(err) => Err(err),
+        if acc_kind.is_local() {
+            if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
+                return match parent.rec_get_var_info(ident, acc_kind, input, namespace) {
+                    Ok(vi) => Ok(vi),
+                    Err(err) => Err(err),
+                };
             }
-        } else {
-            Err(TyCheckError::dummy(
-                self.cfg.input.clone(),
-                line!() as usize,
-            ))
         }
+        Err(TyCheckError::no_var_error(
+            input.clone(),
+            line!() as usize,
+            ident.loc(),
+            namespace.into(),
+            ident.inspect(),
+            self.get_similar_name(ident.inspect()),
+        ))
     }
 
     pub(crate) fn rec_get_decl_info(
@@ -406,8 +398,10 @@ impl Context {
                 }
             }
         }
-        if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
-            return parent.rec_get_decl_info(ident, acc_kind, input, namespace);
+        if acc_kind.is_local() {
+            if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
+                return parent.rec_get_decl_info(ident, acc_kind, input, namespace);
+            }
         }
         Err(TyCheckError::no_var_error(
             input.clone(),
@@ -432,7 +426,7 @@ impl Context {
             Ok(vi) => {
                 return Ok(vi);
             }
-            Err(e) if e.core.kind == ErrorKind::DummyError => {}
+            Err(e) if e.core.kind == ErrorKind::AttributeError => {}
             Err(e) => {
                 return Err(e);
             }
@@ -452,7 +446,7 @@ impl Context {
             Ok(vi) => {
                 return Ok(vi);
             }
-            Err(e) if e.core.kind == ErrorKind::DummyError => {}
+            Err(e) if e.core.kind == ErrorKind::AttributeError => {}
             Err(e) => {
                 return Err(e);
             }
@@ -477,19 +471,15 @@ impl Context {
                 }
             }
         }
-        if let Some(builtins) = self.get_builtins() {
-            builtins.get_attr_info(obj, ident, input, namespace)
-        } else {
-            Err(TyCheckError::no_attr_error(
-                input.clone(),
-                line!() as usize,
-                name.loc(),
-                namespace.into(),
-                &self_t,
-                name.inspect(),
-                self.get_similar_attr(&self_t, name.inspect()),
-            ))
-        }
+        Err(TyCheckError::no_attr_error(
+            input.clone(),
+            line!() as usize,
+            name.loc(),
+            namespace.into(),
+            &self_t,
+            name.inspect(),
+            self.get_similar_attr(&self_t, name.inspect()),
+        ))
     }
 
     fn get_attr_from_nominal_t(
@@ -503,8 +493,8 @@ impl Context {
         if let Some(sups) = self.get_nominal_super_type_ctxs(&self_t) {
             for ctx in sups {
                 match ctx.rec_get_var_info(ident, AccessKind::Attr, input, namespace) {
-                    Ok(t) => {
-                        return Ok(t);
+                    Ok(vi) => {
+                        return Ok(vi);
                     }
                     Err(e) if e.core.kind == ErrorKind::NameError => {}
                     Err(e) => {
@@ -512,10 +502,10 @@ impl Context {
                     }
                 }
                 // if self is a methods context
-                if self.name.starts_with(&ctx.name[..]) {
-                    match self.rec_get_var_info(ident, AccessKind::Attr, input, namespace) {
-                        Ok(t) => {
-                            return Ok(t);
+                if let Some(ctx) = self.get_same_name_context(&ctx.name) {
+                    match ctx.rec_get_var_info(ident, AccessKind::Method, input, namespace) {
+                        Ok(vi) => {
+                            return Ok(vi);
                         }
                         Err(e) if e.core.kind == ErrorKind::NameError => {}
                         Err(e) => {
@@ -539,19 +529,19 @@ impl Context {
                 )
             })? {
                 match ctx.rec_get_var_info(ident, AccessKind::Attr, input, namespace) {
-                    Ok(t) => {
+                    Ok(vi) => {
                         obj.ref_t().coerce();
-                        return Ok(t);
+                        return Ok(vi);
                     }
                     Err(e) if e.core.kind == ErrorKind::NameError => {}
                     Err(e) => {
                         return Err(e);
                     }
                 }
-                if self.name.starts_with(&ctx.name[..]) {
-                    match self.rec_get_var_info(ident, AccessKind::Attr, input, namespace) {
-                        Ok(t) => {
-                            return Ok(t);
+                if let Some(ctx) = self.get_same_name_context(&ctx.name) {
+                    match ctx.rec_get_var_info(ident, AccessKind::Method, input, namespace) {
+                        Ok(vi) => {
+                            return Ok(vi);
                         }
                         Err(e) if e.core.kind == ErrorKind::NameError => {}
                         Err(e) => {
@@ -561,7 +551,15 @@ impl Context {
                 }
             }
         }
-        Err(TyCheckError::dummy(input.clone(), line!() as usize))
+        Err(TyCheckError::no_attr_error(
+            self.cfg.input.clone(),
+            line!() as usize,
+            ident.loc(),
+            namespace.into(),
+            &self_t,
+            ident.inspect(),
+            self.get_similar_attr(&self_t, ident.inspect()),
+        ))
     }
 
     /// get type from given attributive type (Record).
@@ -600,6 +598,7 @@ impl Context {
                         None,
                         None,
                         None,
+                        AbsLocation::unknown(),
                     );
                     Ok(vi)
                 } else {
@@ -630,27 +629,51 @@ impl Context {
                                     None,
                                     None,
                                     None,
+                                    AbsLocation::unknown(),
                                 )
                             })
                             .ok_or_else(|| {
-                                TyCheckError::dummy(self.cfg.input.clone(), line!() as usize)
+                                TyCheckError::no_attr_error(
+                                    self.cfg.input.clone(),
+                                    line!() as usize,
+                                    ident.loc(),
+                                    namespace.into(),
+                                    t,
+                                    ident.inspect(),
+                                    self.get_similar_attr(t, ident.inspect()),
+                                )
                             }),
                         ValueObj::Type(TypeObj::Builtin(_t)) => {
                             // FIXME:
-                            Err(TyCheckError::dummy(
+                            Err(TyCheckError::no_attr_error(
                                 self.cfg.input.clone(),
                                 line!() as usize,
+                                ident.loc(),
+                                namespace.into(),
+                                _t,
+                                ident.inspect(),
+                                self.get_similar_attr(_t, ident.inspect()),
                             ))
                         }
-                        _other => Err(TyCheckError::dummy(
+                        _other => Err(TyCheckError::no_attr_error(
                             self.cfg.input.clone(),
                             line!() as usize,
+                            ident.loc(),
+                            namespace.into(),
+                            t,
+                            ident.inspect(),
+                            self.get_similar_attr(t, ident.inspect()),
                         )),
                     }
                 } else {
-                    Err(TyCheckError::dummy(
+                    Err(TyCheckError::no_attr_error(
                         self.cfg.input.clone(),
                         line!() as usize,
+                        ident.loc(),
+                        namespace.into(),
+                        t,
+                        ident.inspect(),
+                        self.get_similar_attr(t, ident.inspect()),
                     ))
                 }
             }
@@ -685,6 +708,14 @@ impl Context {
                 t: obj.t(),
                 ..VarInfo::default()
             })
+        }
+    }
+
+    pub(crate) fn get_same_name_context(&self, name: &str) -> Option<&Context> {
+        if &self.name[..] == name {
+            Some(self)
+        } else {
+            self.get_outer().and_then(|p| p.get_same_name_context(name))
         }
     }
 
@@ -725,8 +756,8 @@ impl Context {
                     return Ok(vi.clone());
                 }
             }
-            if self.name.starts_with(&ctx.name[..]) {
-                match self.rec_get_var_info(attr_name, AccessKind::Attr, input, namespace) {
+            if let Some(ctx) = self.get_same_name_context(&ctx.name) {
+                match ctx.rec_get_var_info(attr_name, AccessKind::Method, input, namespace) {
                     Ok(t) => {
                         return Ok(t);
                     }
