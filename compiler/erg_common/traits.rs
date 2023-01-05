@@ -404,7 +404,7 @@ pub trait Runnable: Sized + Default {
     }
     fn start_message(&self) -> String {
         format!(
-            "{} {SEMVER} (tags/?:{GIT_HASH_SHORT}, {BUILD_DATE}) on {ARCH}/{OS}\n",
+            "{} {SEMVER} ({GIT_HASH_SHORT}, {BUILD_DATE}) on {ARCH}/{OS}\n",
             Self::NAME
         )
     }
