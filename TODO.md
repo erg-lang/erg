@@ -57,8 +57,7 @@
     * [ ] Polymorphic type definition
   * [ ] Patch definition
     * [ ] Glue Patch definition
-  * [ ] Range object
-    * [x] Right-open range object (only for Int)
+  * [x] Range object
   * [ ] Decorator
   * [ ] Comprehension
     * [ ] Array
@@ -68,7 +67,7 @@
   * [x] Pipeline operator
   * [ ] ? operator
   * [x] Multi-line string
-  * [ ] String interpolation
+  * [x] String interpolation
   * [x] Multi-line comment
 * [ ] Complete the type inference system
   * [x] Type variable
@@ -108,7 +107,6 @@
   * [ ] Compile-time operator
   * [ ] Compile-time function
 * [x] Maintain unit tests
-* [ ] Implement a Python parser
 * [ ] Make code readable
   * [ ] Add docs comments to every functions/methods
   * [ ] Replace `Parser` (to more elegant & efficient one)
