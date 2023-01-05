@@ -201,39 +201,17 @@ nix build
 
 By enabling the `--features` flag, you can customize the installation and build.
 
-#### Set the language of the error message
-
-* Japanese
-
-```sh
-cargo install erg --features japanese
+ - You can change the language of the error message by using  `--features {language}`
+```sh 
+--features japanese
+--features simplified_chinese
+--features traditional_chinese
 ```
-
-* Chinese (Simplified)
-
-```sh
-cargo install erg --features simplified_chinese
-```
-
-* Chinese (Traditional)
-
-```sh
-cargo install erg --features traditional_chinese
-```
-
-And more languages will be added (we are looking for translators. Please join the [Translation Project](./doc/EN/dev_guide/i18n_messages.md)).
-
-#### Install and build ELS (Erg Language Server)
-
-```sh
-cargo install erg --features els
-```
-
-#### Set to debugging mode (for contributors)
-
-```sh
-cargo install erg --features debug
-```
+ - Install and build ELS (Erg Language Server)
+   - `--features els`
+ - Debugging mode (for contributors)
+   - `--features debug`
+ - See [here](https://github.com/erg-lang/erg/blob/main/.cargo/config.toml) for more flags and abbreviations.
 
 ## Contribution
 
