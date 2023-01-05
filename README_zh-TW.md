@@ -15,8 +15,8 @@
     </a>
 </p>
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3D54dbd1ec22756e0f8aae5ccf0c41aeb9d34876da)
-](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=54dbd1ec22756e0f8aae5ccf0c41aeb9d34876da)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3D5fb430d289da3890c8b1db68b5614f41e6b0bc69)
+](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=5fb430d289da3890c8b1db68b5614f41e6b0bc69)
 
 ## Erg可以推薦給以下人員&colon;
 
@@ -26,7 +26,7 @@
 * 希望有一個實用的通用語言，有依賴/反射類型
 * 想要一種像Scala一樣的語言，既面向對象，又使用函數式編程
 
-## 特徵
+## 特征
 
 > 某些功能尚未實現。有關實施情況請查看 [TODO.md](./TODO.md) 了解實施情況
 
@@ -87,7 +87,7 @@
 3. 函數式 & 面向對象
 
     Erg是一種純面向對象的語言，一切都是對象。類型，函數和運算符都是對象。另一方面，Erg也是一種函數式語言
-    Erg要求在引起副作用或改變內部狀態的代碼上放置某些種類的標記，這可以使代碼的複雜性局部化，這將大大改善代碼的可維護性
+    Erg要求在引起副作用或改變內部狀態的代碼上放置某些種類的標記，這可以使代碼的復雜性局部化，這將大大改善代碼的可維護性
 
     ```python
     # 函數式風格（不可變），與Python中的`sorted(list)`相同
@@ -107,7 +107,7 @@
     # 語法錯誤: 不能在函數中調用程序性方法
     # 提示: 只有可變類型的方法才能改變對象的狀態
 
-    # 使用大量副作用的代碼是多餘的，所以你自然會寫純代碼
+    # 使用大量副作用的代碼是多余的，所以你自然會寫純代碼
     Counter! = Inherit Int!
     Counter!.
         new i: Int = Self!::__new__ !i
@@ -169,34 +169,6 @@
 cargo install erg
 ```
 
-通過啟用`--features`標誌，你可以改變顯示錯誤信息的語言
-
-* 日語
-
-```sh
-cargo install erg --features japanese
-```
-
-* 中文(簡體)
-
-```sh
-cargo install erg --features simplified_chinese
-```
-
-* 中文(繁體)
-
-```sh
-cargo install erg --features traditional_chinese
-```
-
-還有更多的語言將被加入（我們正在尋找翻譯者。請加入[翻譯項目](./doc/EN/dev_guide/i18n_messages.md)）
-
-* 調試模式（針對貢獻者）
-
-```sh
-cargo install erg --features debug
-```
-
 ### 從源代碼構建
 
 從源代碼構建需要 Rust 工具鏈
@@ -223,6 +195,43 @@ nix-build
 git clone https://github.com/erg-lang/erg.git
 cd erg
 nix build
+```
+
+### Flags
+
+通過啟用`--features`標誌，你可以自定義構建和安裝
+
+#### 設置錯誤語言
+
+* 日語
+
+```sh
+cargo install erg --features japanese
+```
+
+* 中文(簡體)
+
+```sh
+cargo install erg --features simplified_chinese
+```
+
+* 中文(繁體)
+
+```sh
+cargo install erg --features traditional_chinese
+```
+
+還有更多的語言將被加入（我們正在尋找翻譯者。請加入[翻譯項目](./doc/EN/dev_guide/i18n_messages.md)）
+
+#### 安裝和構建ELS（Erg語言服務器）
+```sh
+cargo install erg --features els
+```
+
+#### 設置成調試模式（針對貢獻者）
+
+```sh
+cargo install erg --features debug
 ```
 
 ## 貢獻
