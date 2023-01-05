@@ -218,29 +218,25 @@ impl LexError {
         )
     }
 
-    pub fn invalid_mutable_symbol(errno: usize, lit: &str, loc: Location) -> LexError {
-        let mut expect = StyledStrings::default();
-        let expect = switch_lang!(
-                "japanese" => {
-                    expect.push_str("期待された構文: ");
-                    expect.push_str_with_color(&format!("!{}", lit), HINT);
-                    expect
-                },
-                "simplified_chinese" => {
-                    expect.push_str("预期语法: ");
-                    expect.push_str_with_color(&format!("!{}", lit), HINT);
-                    expect
-                },
-                "traditional_chinese" => {
-                    expect.push_str("預期語法: ");
-                    expect.push_str_with_color(&format!("!{}", lit), HINT);
-                    expect
-                },
-                "english" => {
-                    expect.push_str("expected: ");
-                    expect.push_str_with_color(&format!("!{}", lit), HINT);
-                    expect
-                },
+    pub fn failed_to_convert_error(
+        errno: usize,
+        loc: Location,
+        from: &str,
+        to: &str,
+    ) -> ParseError {
+        Self::new(ErrorCore::new(
+            vec![SubMessage::only_loc(loc)],
+            switch_lang!(
+                "japanese" => format!("{}から{}に変換するのに失敗しました", from, to),
+                "simplified_chinese" => format!("无法将{}转换为{}", from, to),
+                "traditional_chinese" => format!("無法將{}轉換為{}", from, to),
+                "english" => format!("failed to convert {} to {}",from, to),
+            ),
+            errno,
+            SyntaxError,
+            loc,
+        ))
+    }
         )
         .to_string();
         let mut found = StyledStrings::default();

@@ -66,9 +66,14 @@ impl Parser {
                 Ok(sig)
             }
             other => {
-                self.level -= 1;
-                let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
+                let err = ParseError::failed_to_convert_error(
+                    line!() as usize,
+                    other.loc(),
+                    "rhs",
+                    "signature",
+                );
                 self.errs.push(err);
+                self.level -= 1;
                 Err(())
             }
         }
@@ -87,9 +92,14 @@ impl Parser {
                 Ok(VarSignature::new(pat, None))
             }
             other => {
-                self.level -= 1;
-                let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
+                let err = ParseError::failed_to_convert_error(
+                    line!() as usize,
+                    other.loc(),
+                    "accessor",
+                    "variable signature",
+                );
                 self.errs.push(err);
+                self.level -= 1;
                 Err(())
             }
         }
@@ -109,9 +119,14 @@ impl Parser {
                             vars.push(v);
                         }
                         Signature::Subr(subr) => {
-                            self.level -= 1;
-                            let err = ParseError::simple_syntax_error(line!() as usize, subr.loc());
+                            let err = ParseError::failed_to_convert_error(
+                                line!() as usize,
+                                subr.loc(),
+                                "array",
+                                "array pattern",
+                            );
                             self.errs.push(err);
+                            self.level -= 1;
                             return Err(());
                         }
                     }
@@ -121,19 +136,19 @@ impl Parser {
                 Ok(pat)
             }
             Array::Comprehension(arr) => {
-                self.level -= 1;
                 let err = ParseError::simple_syntax_error(line!() as usize, arr.loc());
                 self.errs.push(err);
+                self.level -= 1;
                 Err(())
             }
             Array::WithLength(arr) => {
-                self.level -= 1;
                 let err = ParseError::feature_error(
                     line!() as usize,
                     arr.loc(),
                     "array-with-length pattern",
                 );
                 self.errs.push(err);
+                self.level -= 1;
                 Err(())
             }
         }
@@ -177,7 +192,7 @@ impl Parser {
                     .collect::<ParseResult<Vec<_>>>()
                     .map_err(|_| self.stack_dec())?;
                 let attrs = VarRecordAttrs::new(pats);
-                self.stack_dec();
+                self.level -= 1;
                 Ok(VarRecordPattern::new(rec.l_brace, attrs, rec.r_brace))
             }
         }
@@ -211,10 +226,14 @@ impl Parser {
                             vars.push(var);
                         }
                         other => {
-                            self.level -= 1;
-                            let err =
-                                ParseError::simple_syntax_error(line!() as usize, other.loc());
+                            let err = ParseError::failed_to_convert_error(
+                                line!() as usize,
+                                other.loc(),
+                                "Tuple",
+                                "Tuple pattern",
+                            );
                             self.errs.push(err);
+                            self.level -= 1;
                             return Err(());
                         }
                     }
@@ -258,9 +277,14 @@ impl Parser {
                 .convert_accessor_to_ident(acc)
                 .map_err(|_| self.stack_dec())?,
             other => {
-                self.level -= 1;
-                let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
+                let err = ParseError::failed_to_convert_error(
+                    line!() as usize,
+                    other.loc(),
+                    "call",
+                    "subroutine signature",
+                );
                 self.errs.push(err);
+                self.level -= 1;
                 return Err(());
             }
         };
@@ -293,9 +317,14 @@ impl Parser {
                 (ident, bounds)
             }
             other => {
-                self.level -= 1;
-                let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
+                let err = ParseError::failed_to_convert_error(
+                    line!() as usize,
+                    other.loc(),
+                    "accessor",
+                    "indemnifier",
+                );
                 self.errs.push(err);
+                self.level -= 1;
                 return Err(());
             }
         };
@@ -336,7 +365,12 @@ impl Parser {
                 Ok(bound)
             }
             other => {
-                let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
+                let err = ParseError::failed_to_convert_error(
+                    line!() as usize,
+                    other.loc(),
+                    "type argument",
+                    "bound",
+                );
                 self.errs.push(err);
                 Err(())
             }
@@ -458,16 +492,21 @@ impl Parser {
                 }
                 // TODO: Spread
                 _other => {
-                    self.level -= 1;
                     let err = ParseError::simple_syntax_error(line!() as usize, unary.loc());
                     self.errs.push(err);
+                    self.level -= 1;
                     Err(())
                 }
             },
             other => {
-                self.level -= 1;
-                let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
+                let err = ParseError::failed_to_convert_error(
+                    line!() as usize,
+                    other.loc(),
+                    "right hand side",
+                    "parameter",
+                );
                 self.errs.push(err);
+                self.level -= 1;
                 Err(())
             }
         }
@@ -498,9 +537,9 @@ impl Parser {
                 Ok(ParamArrayPattern::new(arr.l_sqbr, params, arr.r_sqbr))
             }
             other => {
-                self.level -= 1;
                 let err = ParseError::feature_error(line!() as usize, other.loc(), "?");
                 self.errs.push(err);
+                self.level -= 1;
                 Err(())
             }
         }
@@ -638,9 +677,14 @@ impl Parser {
                 Ok(sig)
             }
             other => {
-                self.level -= 1;
-                let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
+                let err = ParseError::failed_to_convert_error(
+                    line!() as usize,
+                    other.loc(),
+                    "right hand side",
+                    "lambda signature",
+                );
                 self.errs.push(err);
+                self.level -= 1;
                 Err(())
             }
         }
@@ -662,9 +706,14 @@ impl Parser {
                 Ok(NonDefaultParamSignature::new(pat, None))
             }
             other => {
-                self.level -= 1;
-                let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
+                let err = ParseError::failed_to_convert_error(
+                    line!() as usize,
+                    other.loc(),
+                    "accessor",
+                    "parameter signature",
+                );
                 self.errs.push(err);
+                self.level -= 1;
                 Err(())
             }
         }
