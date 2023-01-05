@@ -169,34 +169,6 @@ A [Python3 (3.7~3.11)](https://www.python.org/) interpreter is required. If it i
 cargo install erg
 ```
 
-By enabling the `--features` flag, you can change the language in which error messages are displayed.
-
-* Japanese
-
-```sh
-cargo install erg --features japanese
-```
-
-* Chinese (Simplified)
-
-```sh
-cargo install erg --features simplified_chinese
-```
-
-* Chinese (Traditional)
-
-```sh
-cargo install erg --features traditional_chinese
-```
-
-And more languages will be added (we are looking for translators. Please join the [Translation Project](./doc/EN/dev_guide/i18n_messages.md)).
-
-* Debugging mode (for contributors)
-
-```sh
-cargo install erg --features debug
-```
-
 ### Building from source
 
 Building from source code requires the Rust toolchain.
@@ -223,6 +195,44 @@ If you've been enabled [Nix Flakes](https://nixos.wiki/wiki/Flakes).
 git clone https://github.com/erg-lang/erg.git
 cd erg
 nix build
+```
+
+### Flags
+
+By enabling the `--features` flag, you can customize the installation and build.
+
+#### Set the language of the error message
+
+* Japanese
+
+```sh
+cargo install erg --features japanese
+```
+
+* Chinese (Simplified)
+
+```sh
+cargo install erg --features simplified_chinese
+```
+
+* Chinese (Traditional)
+
+```sh
+cargo install erg --features traditional_chinese
+```
+
+And more languages will be added (we are looking for translators. Please join the [Translation Project](./doc/EN/dev_guide/i18n_messages.md)).
+
+#### Install and build ELS (Erg Language Server)
+
+```sh
+cargo install erg --features els
+```
+
+#### Set to debugging mode (for contributors)
+
+```sh
+cargo install erg --features debug
 ```
 
 ## Contribution
