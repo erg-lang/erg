@@ -27,8 +27,8 @@ use lsp_types::{
     ClientCapabilities, CompletionItem, CompletionItemKind, CompletionOptions, CompletionParams,
     Diagnostic, DiagnosticSeverity, GotoDefinitionParams, GotoDefinitionResponse, HoverContents,
     HoverParams, HoverProviderCapability, InitializeResult, MarkedString, OneOf, Position,
-    PublishDiagnosticsParams, Range, RenameParams, ServerCapabilities, TextDocumentSyncCapability,
-    TextDocumentSyncKind, TextEdit, Url, WorkspaceEdit,
+    PublishDiagnosticsParams, Range, ReferenceParams, RenameParams, ServerCapabilities,
+    TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, Url, WorkspaceEdit,
 };
 
 use crate::hir_visitor::HIRVisitor;
@@ -158,6 +158,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         comp_options.trigger_characters = Some(vec![".".to_string(), ":".to_string()]);
         result.capabilities.completion_provider = Some(comp_options);
         result.capabilities.rename_provider = Some(OneOf::Left(true));
+        result.capabilities.references_provider = Some(OneOf::Left(true));
         result.capabilities.definition_provider = Some(OneOf::Left(true));
         result.capabilities.hover_provider = Some(HoverProviderCapability::Simple(true));
         result.capabilities.inlay_hint_provider = Some(OneOf::Left(true));
@@ -270,6 +271,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             "textDocument/definition" => self.show_definition(msg),
             "textDocument/hover" => self.show_hover(msg),
             "textDocument/rename" => self.rename(msg),
+            "textDocument/references" => self.show_references(msg),
             other => Self::send_error(Some(id), -32600, format!("{other} is not supported")),
         }
     }
@@ -410,6 +412,35 @@ impl<Checker: BuildRunnable> Server<Checker> {
         }
         ctxs.push(&self.module.as_ref().unwrap().context);
         ctxs
+    }
+
+    fn get_receiver_ctxs(&self, uri: Url, attr_marker_pos: Position) -> ELSResult<Vec<&Context>> {
+        let Some(module) = self.module.as_ref() else {
+            return Ok(vec![]);
+        };
+        let maybe_token = util::get_token_relatively(uri.clone(), attr_marker_pos, -1)?;
+        if let Some(token) = maybe_token {
+            if token.is(TokenKind::Symbol) {
+                let var_name = token.inspect();
+                Self::send_log(format!("{} name: {var_name}", line!()))?;
+                Ok(module.context.get_receiver_ctxs(var_name))
+            } else {
+                Self::send_log(format!("non-name token: {token}"))?;
+                if let Some(typ) = self
+                    .get_visitor(&uri)
+                    .and_then(|visitor| visitor.visit_hir_t(&token))
+                {
+                    let t_name = typ.qual_name();
+                    Self::send_log(format!("type: {t_name}"))?;
+                    Ok(module.context.get_receiver_ctxs(&t_name))
+                } else {
+                    Ok(vec![])
+                }
+            }
+        } else {
+            Self::send_log("token not found")?;
+            Ok(vec![])
+        }
     }
 
     fn show_completion(&mut self, msg: &Value) -> ELSResult<()> {
@@ -644,33 +675,36 @@ impl<Checker: BuildRunnable> Server<Checker> {
         }
     }
 
-    fn get_receiver_ctxs(&self, uri: Url, attr_marker_pos: Position) -> ELSResult<Vec<&Context>> {
-        let Some(module) = self.module.as_ref() else {
-            return Ok(vec![]);
-        };
-        let maybe_token = util::get_token_relatively(uri.clone(), attr_marker_pos, -1)?;
-        if let Some(token) = maybe_token {
-            if token.is(TokenKind::Symbol) {
-                let var_name = token.inspect();
-                Self::send_log(format!("{} name: {var_name}", line!()))?;
-                Ok(module.context.get_receiver_ctxs(var_name))
-            } else {
-                Self::send_log(format!("non-name token: {token}"))?;
-                if let Some(typ) = self
-                    .get_visitor(&uri)
-                    .and_then(|visitor| visitor.visit_hir_t(&token))
-                {
-                    let t_name = typ.qual_name();
-                    Self::send_log(format!("type: {t_name}"))?;
-                    Ok(module.context.get_receiver_ctxs(&t_name))
-                } else {
-                    Ok(vec![])
+    fn show_references(&self, msg: &Value) -> ELSResult<()> {
+        let params = ReferenceParams::deserialize(&msg["params"])?;
+        let uri = params.text_document_position.text_document.uri;
+        let pos = params.text_document_position.position;
+        if let Some(tok) = util::get_token(uri.clone(), pos)? {
+            // Self::send_log(format!("token: {tok}"))?;
+            if let Some(visitor) = self.get_visitor(&uri) {
+                if let Some(vi) = visitor.visit_hir_info(&tok) {
+                    let mut refs = vec![];
+                    if let Some(referrers) = self.get_index().get_refs(&vi.def_loc) {
+                        // Self::send_log(format!("referrers: {referrers:?}"))?;
+                        for referrer in referrers {
+                            if let (Some(path), Some(range)) =
+                                (&referrer.module, util::loc_to_range(referrer.loc))
+                            {
+                                let ref_uri = Url::from_file_path(path).unwrap();
+                                refs.push(lsp_types::Location::new(ref_uri, range));
+                            }
+                        }
+                    }
+                    Self::send(
+                        &json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": refs }),
+                    )?;
+                    return Ok(());
                 }
             }
-        } else {
-            Self::send_log("token not found")?;
-            Ok(vec![])
         }
+        Self::send(
+            &json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": Value::Null }),
+        )
     }
 
     fn get_index(&self) -> &SharedModuleIndex {
