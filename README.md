@@ -207,6 +207,7 @@ By enabling the `--features` flag, you can customize the installation and build.
 --features simplified_chinese
 --features traditional_chinese
 ```
+And more languages will be added (we are looking for translators. Please join the [Translation Project](./doc/EN/dev_guide/i18n_messages.md)).
  - Install and build ELS (Erg Language Server)
    - `--features els`
  - Debugging mode (for contributors)
