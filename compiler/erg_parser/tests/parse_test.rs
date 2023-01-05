@@ -89,10 +89,7 @@ fn parse_test_from_code(file_path: &'static str) -> Result<(), ParserRunnerError
 fn expect_success(file_path: &'static str) -> Result<(), ()> {
     match parse_test_from_code(file_path) {
         Ok(_) => Ok(()),
-        Err(errs) => {
-            errs.fmt_all_stderr();
-            Err(())
-        }
+        Err(_) => Err(()),
     }
 }
 
