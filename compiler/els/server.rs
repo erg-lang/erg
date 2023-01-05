@@ -4,11 +4,13 @@ use std::io;
 use std::io::{stdin, stdout, BufRead, Read, StdinLock, StdoutLock, Write};
 use std::str::FromStr;
 
+use erg_compiler::global::SharedCompilerResource;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_json::Value;
 
 use erg_common::config::{ErgConfig, Input};
+use erg_common::dict::Dict;
 use erg_common::style::*;
 use erg_common::traits::{Locational, Stream};
 
@@ -79,8 +81,8 @@ fn read_exact(len: usize) -> io::Result<Vec<u8>> {
 pub struct Server<Checker: BuildRunnable = HIRBuilder> {
     cfg: ErgConfig,
     client_capas: ClientCapabilities,
-    module: Option<ModuleContext>,
-    hir: Option<HIR>, // TODO: should be ModuleCache
+    modules: Dict<Url, ModuleContext>,
+    hirs: Dict<Url, Option<HIR>>,
     _checker: std::marker::PhantomData<Checker>,
 }
 
@@ -89,8 +91,8 @@ impl<Checker: BuildRunnable> Server<Checker> {
         Self {
             cfg,
             client_capas: ClientCapabilities::default(),
-            module: None,
-            hir: None,
+            modules: Dict::new(),
+            hirs: Dict::new(),
             _checker: std::marker::PhantomData,
         }
     }
@@ -289,6 +291,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 let uri = Url::parse(msg["params"]["textDocument"]["uri"].as_str().unwrap())?;
                 Self::send_log(format!("{method}: {uri}"))?;
                 let code = util::get_code_from_uri(&uri)?;
+                if let Some(shared) = self.get_shared() {
+                    shared.clear_all();
+                }
                 self.check_file(uri, &code)
             }
             // "textDocument/didChange"
@@ -304,15 +309,19 @@ impl<Checker: BuildRunnable> Server<Checker> {
         } else {
             "exec"
         };
-        let mut checker = Checker::new(self.cfg.inherit(path));
+        let mut checker = if let Some(shared) = self.get_shared() {
+            Checker::inherit(self.cfg.inherit(path), shared.clone())
+        } else {
+            Checker::new(self.cfg.inherit(path))
+        };
         match checker.build(code.into(), mode) {
             Ok(artifact) => {
-                self.hir = Some(artifact.object);
+                self.hirs.insert(uri.clone(), Some(artifact.object));
                 Self::send_log(format!("checking {uri} passed"))?;
                 let uri_and_diags = self.make_uri_and_diags(uri.clone(), artifact.warns);
                 // clear previous diagnostics
                 if uri_and_diags.is_empty() {
-                    self.send_diagnostics(uri, vec![])?;
+                    self.send_diagnostics(uri.clone(), vec![])?;
                 }
                 for (uri, diags) in uri_and_diags.into_iter() {
                     Self::send_log(format!("{uri}, warns: {}", diags.len()))?;
@@ -320,13 +329,13 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 }
             }
             Err(mut artifact) => {
-                self.hir = artifact.object;
+                self.hirs.insert(uri.clone(), artifact.object);
                 Self::send_log(format!("found errors: {}", artifact.errors.len()))?;
                 Self::send_log(format!("found warns: {}", artifact.warns.len()))?;
                 artifact.errors.extend(artifact.warns);
                 let uri_and_diags = self.make_uri_and_diags(uri.clone(), artifact.errors);
                 if uri_and_diags.is_empty() {
-                    self.send_diagnostics(uri, vec![])?;
+                    self.send_diagnostics(uri.clone(), vec![])?;
                 }
                 for (uri, diags) in uri_and_diags.into_iter() {
                     Self::send_log(format!("{uri}, errs & warns: {}", diags.len()))?;
@@ -334,7 +343,14 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 }
             }
         }
-        self.module = checker.pop_context();
+        if let Some(module) = checker.pop_context() {
+            Self::send_log(format!("{uri}: {}", module.context.name))?;
+            self.modules.insert(uri, module);
+        }
+        Self::send_log(format!(
+            "indexes: {:?}",
+            self.modules.keys().collect::<Vec<_>>()
+        ))?;
         Ok(())
     }
 
@@ -392,7 +408,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
     }
 
     fn get_visitor(&self, uri: &Url) -> Option<HIRVisitor> {
-        self.hir
+        self.hirs
+            .get(uri)
+            .unwrap()
             .as_ref()
             .map(|hir| HIRVisitor::new(hir, uri.clone(), !cfg!(feature = "py_compatible")))
     }
@@ -405,17 +423,17 @@ impl<Checker: BuildRunnable> Server<Checker> {
             Self::send_log(format!("ns: {ns:?}")).unwrap();
             for i in 1..ns.len() {
                 let ns = ns[..=ns.len() - i].join("");
-                if let Some(ctx) = self.module.as_ref().unwrap().scope.get(&ns[..]) {
+                if let Some(ctx) = self.modules.get(uri).unwrap().scope.get(&ns[..]) {
                     ctxs.push(ctx);
                 }
             }
         }
-        ctxs.push(&self.module.as_ref().unwrap().context);
+        ctxs.push(&self.modules.get(uri).unwrap().context);
         ctxs
     }
 
-    fn get_receiver_ctxs(&self, uri: Url, attr_marker_pos: Position) -> ELSResult<Vec<&Context>> {
-        let Some(module) = self.module.as_ref() else {
+    fn get_receiver_ctxs(&self, uri: &Url, attr_marker_pos: Position) -> ELSResult<Vec<&Context>> {
+        let Some(module) = self.modules.get(uri) else {
             return Ok(vec![]);
         };
         let maybe_token = util::get_token_relatively(uri.clone(), attr_marker_pos, -1)?;
@@ -427,7 +445,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             } else {
                 Self::send_log(format!("non-name token: {token}"))?;
                 if let Some(typ) = self
-                    .get_visitor(&uri)
+                    .get_visitor(uri)
                     .and_then(|visitor| visitor.visit_hir_t(&token))
                 {
                     let t_name = typ.qual_name();
@@ -462,7 +480,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let contexts = if acc_kind.is_local() {
             self.get_local_ctx(&uri, pos)
         } else {
-            self.get_receiver_ctxs(uri, pos)?
+            self.get_receiver_ctxs(&uri, pos)?
         };
         // Self::send_log(format!("contexts: {:?}", contexts.iter().map(|ctx| &ctx.name).collect::<Vec<_>>())).unwrap();
         for (name, vi) in contexts.into_iter().flat_map(|ctx| ctx.dir()) {
@@ -481,8 +499,8 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 continue;
             }
             let readable_t = self
-                .module
-                .as_ref()
+                .modules
+                .get(&uri)
                 .map(|module| {
                     module
                         .context
@@ -618,7 +636,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         )
     }
 
-    fn rename(&self, msg: &Value) -> ELSResult<()> {
+    fn rename(&mut self, msg: &Value) -> ELSResult<()> {
         let params = RenameParams::deserialize(&msg["params"])?;
         Self::send_log(format!("rename request: {params:?}"))?;
         let uri = params.text_document_position.text_document.uri;
@@ -650,6 +668,11 @@ impl<Checker: BuildRunnable> Server<Checker> {
                     Self::send(
                         &json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": edit }),
                     )?;
+                    if let Some(shared) = self.get_shared() {
+                        shared.clear_all();
+                    }
+                    let code = util::get_code_from_uri(&uri)?;
+                    self.check_file(uri, code)?;
                     return Ok(());
                 }
             }
@@ -708,6 +731,19 @@ impl<Checker: BuildRunnable> Server<Checker> {
     }
 
     fn get_index(&self) -> &SharedModuleIndex {
-        self.module.as_ref().unwrap().context.index().unwrap()
+        self.modules
+            .values()
+            .next()
+            .unwrap()
+            .context
+            .index()
+            .unwrap()
+    }
+
+    fn get_shared(&self) -> Option<&SharedCompilerResource> {
+        self.modules
+            .values()
+            .next()
+            .and_then(|module| module.context.shared())
     }
 }

@@ -51,4 +51,8 @@ impl SharedModuleIndex {
     pub fn values(&self) -> Values<AbsLocation, Vec<AbsLocation>> {
         unsafe { self.0.as_ptr().as_ref().unwrap().attrs.values() }
     }
+
+    pub fn initialize(&self) {
+        self.0.borrow_mut().attrs.clear();
+    }
 }

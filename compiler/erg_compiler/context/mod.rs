@@ -974,6 +974,10 @@ impl Context {
     pub fn index(&self) -> Option<&crate::index::SharedModuleIndex> {
         self.shared.as_ref().map(|shared| &shared.index)
     }
+
+    pub fn shared(&self) -> Option<&SharedCompilerResource> {
+        self.shared.as_ref()
+    }
 }
 
 #[derive(Debug, Clone, Default)]

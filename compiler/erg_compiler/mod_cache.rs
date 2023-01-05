@@ -203,15 +203,17 @@ impl SharedModuleCache {
         self.0.borrow().get_similar_name(name)
     }
 
-    pub fn initialize(&mut self) {
+    pub fn keys(&self) -> impl Iterator<Item = PathBuf> {
+        let ref_ = unsafe { self.0.as_ptr().as_ref().unwrap() };
+        ref_.cache.keys().cloned()
+    }
+
+    pub fn initialize(&self) {
         let builtin_path = PathBuf::from("<builtins>");
         let builtin = self.remove(&builtin_path).unwrap();
-        for path in self.0.borrow().cache.keys() {
-            self.remove(path);
-        }
-        /*for path in self.0.borrow().cache.keys().cloned() {
+        for path in self.keys() {
             self.remove(&path);
-        }*/
+        }
         self.register(builtin_path, None, Rc::try_unwrap(builtin.module).unwrap());
     }
 }

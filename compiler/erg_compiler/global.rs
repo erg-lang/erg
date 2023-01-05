@@ -6,10 +6,10 @@ use crate::mod_cache::SharedModuleCache;
 
 #[derive(Debug, Clone, Default)]
 pub struct SharedCompilerResource {
-    pub(crate) mod_cache: SharedModuleCache,
-    pub(crate) py_mod_cache: SharedModuleCache,
+    pub mod_cache: SharedModuleCache,
+    pub py_mod_cache: SharedModuleCache,
     #[cfg(feature = "els")]
-    pub(crate) index: SharedModuleIndex,
+    pub index: SharedModuleIndex,
 }
 
 impl SharedCompilerResource {
@@ -20,5 +20,12 @@ impl SharedCompilerResource {
             #[cfg(feature = "els")]
             index: SharedModuleIndex::new(),
         }
+    }
+
+    pub fn clear_all(&self) {
+        self.mod_cache.initialize();
+        self.py_mod_cache.initialize();
+        #[cfg(feature = "els")]
+        self.index.initialize();
     }
 }

@@ -50,6 +50,15 @@ impl Input {
         }
     }
 
+    pub fn file_stem(&self) -> &str {
+        match self {
+            Self::File(filename) => filename.file_stem().and_then(|f| f.to_str()).unwrap_or("_"),
+            Self::REPL | Self::Pipe(_) => "stdin",
+            Self::Str(_) => "string",
+            Self::Dummy => "dummy",
+        }
+    }
+
     pub fn filename(&self) -> &str {
         match self {
             Self::File(filename) => filename.file_name().and_then(|f| f.to_str()).unwrap_or("_"),
