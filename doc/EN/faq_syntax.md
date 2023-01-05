@@ -67,7 +67,7 @@ read_file!() =
 
 # Capturing like exceptions is also possible with the try procedure
 try!:
-    do!
+    do!:
         s = read_file!()?
         print!s
     e =>

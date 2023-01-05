@@ -1,0 +1,45 @@
+name: Code Issue
+description: Improve the Erg code base
+labels:
+  - code-issue
+body:
+  - type: textarea
+    attributes:
+      label: Describe the code issue?
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Additional context
+    validations:
+      required: false
+
+  - type: input
+    attributes:
+      label: Erg version
+    validations:
+      required: true
+
+  - type: dropdown
+    attributes:
+      label: Python version
+      options:
+        - Python3.7.x
+        - Python3.8.x
+        - Python3.9.x
+        - Python3.10.x
+        - Python3.11.x
+
+  - type: dropdown
+    attributes:
+      label: OS
+      options:
+        - Windows 11
+        - Windows 10
+        - macOS 13 (Ventura)
+        - macOS 12 (Monterey)
+        - macOS 11 (Big Sur)
+        - Ubuntu
+        - Linux(other distro)
+        - Other (write in `Additional context`)

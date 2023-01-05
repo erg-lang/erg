@@ -4,9 +4,11 @@
 #![allow(clippy::derive_hash_xor_eq)]
 #![allow(clippy::large_enum_variant)]
 pub mod codeobj;
+pub mod const_subr;
 pub mod constructors;
 pub mod deserialize;
 pub mod free;
+pub mod predicate;
 pub mod typaram;
 pub mod value;
 
@@ -24,19 +26,16 @@ use erg_common::traits::LimitedDisplay;
 use erg_common::vis::Field;
 use erg_common::{enum_unwrap, fmt_option, fmt_set_split_with, set, Str};
 
-use erg_parser::ast::{Block, Params};
 use erg_parser::token::TokenKind;
 
-use self::constructors::{int_interval, mono, subr_t};
-use self::free::{
-    CanbeFree, Constraint, Free, FreeKind, FreeTyVar, HasLevel, Level, GENERIC_LEVEL,
-};
-use self::typaram::{IntervalOp, TyParam};
-use self::value::value_set::*;
-use self::value::ValueObj::{Inf, NegInf};
-use self::value::{EvalValueResult, ValueObj};
-
-use crate::context::Context;
+pub use const_subr::*;
+use constructors::{int_interval, mono};
+use free::{CanbeFree, Constraint, Free, FreeKind, FreeTyVar, HasLevel, Level, GENERIC_LEVEL};
+pub use predicate::Predicate;
+use typaram::{IntervalOp, TyParam};
+use value::value_set::*;
+use value::ValueObj;
+use value::ValueObj::{Inf, NegInf};
 
 /// cloneのコストがあるためなるべく.ref_tを使うようにすること
 /// いくつかの構造体は直接Typeを保持していないので、その場合は.tを使う
@@ -134,441 +133,6 @@ macro_rules! impl_t_for_enum {
                     $($Enum::$Variant(v) => v.signature_mut_t(),)*
                 }
             }
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct UserConstSubr {
-    name: Str,
-    params: Params,
-    block: Block,
-    sig_t: Type,
-}
-
-impl UserConstSubr {
-    pub const fn new(name: Str, params: Params, block: Block, sig_t: Type) -> Self {
-        Self {
-            name,
-            params,
-            block,
-            sig_t,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ValueArgs {
-    pub pos_args: Vec<ValueObj>,
-    pub kw_args: Dict<Str, ValueObj>,
-}
-
-impl ValueArgs {
-    pub const fn new(pos_args: Vec<ValueObj>, kw_args: Dict<Str, ValueObj>) -> Self {
-        ValueArgs { pos_args, kw_args }
-    }
-
-    pub fn remove_left_or_key(&mut self, key: &str) -> Option<ValueObj> {
-        if !self.pos_args.is_empty() {
-            Some(self.pos_args.remove(0))
-        } else {
-            self.kw_args.remove(key)
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct BuiltinConstSubr {
-    name: &'static str,
-    subr: fn(ValueArgs, &Context) -> EvalValueResult<ValueObj>,
-    sig_t: Type,
-    as_type: Option<Type>,
-}
-
-impl std::fmt::Debug for BuiltinConstSubr {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("BuiltinConstSubr")
-            .field("name", &self.name)
-            .field("sig_t", &self.sig_t)
-            .field("as_type", &self.as_type)
-            .finish()
-    }
-}
-
-impl PartialEq for BuiltinConstSubr {
-    fn eq(&self, other: &Self) -> bool {
-        self.name == other.name
-    }
-}
-
-impl Eq for BuiltinConstSubr {}
-
-impl std::hash::Hash for BuiltinConstSubr {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.name.hash(state);
-    }
-}
-
-impl fmt::Display for BuiltinConstSubr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "<built-in const subroutine '{}'>", self.name)
-    }
-}
-
-impl BuiltinConstSubr {
-    pub const fn new(
-        name: &'static str,
-        subr: fn(ValueArgs, &Context) -> EvalValueResult<ValueObj>,
-        sig_t: Type,
-        as_type: Option<Type>,
-    ) -> Self {
-        Self {
-            name,
-            subr,
-            sig_t,
-            as_type,
-        }
-    }
-
-    pub fn call(&self, args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
-        (self.subr)(args, ctx)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum ConstSubr {
-    User(UserConstSubr),
-    Builtin(BuiltinConstSubr),
-}
-
-impl fmt::Display for ConstSubr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ConstSubr::User(subr) => {
-                write!(f, "<user-defined const subroutine '{}'>", subr.name)
-            }
-            ConstSubr::Builtin(subr) => write!(f, "{subr}"),
-        }
-    }
-}
-
-impl ConstSubr {
-    pub fn sig_t(&self) -> &Type {
-        match self {
-            ConstSubr::User(user) => &user.sig_t,
-            ConstSubr::Builtin(builtin) => &builtin.sig_t,
-        }
-    }
-
-    /// ConstSubr{sig_t: Int -> {Int}, ..}.as_type() == Int -> Int
-    pub fn as_type(&self) -> Option<Type> {
-        match self {
-            ConstSubr::User(user) => {
-                let Type::Subr(subr) = &user.sig_t else { return None };
-                if let Type::Refinement(refine) = subr.return_t.as_ref() {
-                    if refine.preds.len() == 1 {
-                        let pred = refine.preds.iter().next().unwrap().clone();
-                        if let Predicate::Equal { rhs, .. } = pred {
-                            let return_t = Type::try_from(rhs).ok()?;
-                            let var_params = subr.var_params.as_ref().map(|t| t.as_ref());
-                            return Some(subr_t(
-                                subr.kind,
-                                subr.non_default_params.clone(),
-                                var_params.cloned(),
-                                subr.default_params.clone(),
-                                return_t,
-                            ));
-                        }
-                    }
-                }
-                None
-            }
-            ConstSubr::Builtin(builtin) => builtin.as_type.clone(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Predicate {
-    Value(ValueObj), // True/False
-    Const(Str),
-    /// i == 0 => Eq{ lhs: "i", rhs: 0 }
-    Equal {
-        lhs: Str,
-        rhs: TyParam,
-    },
-    /// i > 0 => i >= 0+ε => GreaterEqual{ lhs: "i", rhs: 0+ε }
-    GreaterEqual {
-        lhs: Str,
-        rhs: TyParam,
-    },
-    LessEqual {
-        lhs: Str,
-        rhs: TyParam,
-    },
-    NotEqual {
-        lhs: Str,
-        rhs: TyParam,
-    },
-    Or(Box<Predicate>, Box<Predicate>),
-    And(Box<Predicate>, Box<Predicate>),
-    Not(Box<Predicate>, Box<Predicate>),
-}
-
-impl fmt::Display for Predicate {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Value(v) => write!(f, "{v}"),
-            Self::Const(c) => write!(f, "{c}"),
-            Self::Equal { lhs, rhs } => write!(f, "{lhs} == {rhs}"),
-            Self::GreaterEqual { lhs, rhs } => write!(f, "{lhs} >= {rhs}"),
-            Self::LessEqual { lhs, rhs } => write!(f, "{lhs} <= {rhs}"),
-            Self::NotEqual { lhs, rhs } => write!(f, "{lhs} != {rhs}"),
-            Self::Or(l, r) => write!(f, "({l}) or ({r})"),
-            Self::And(l, r) => write!(f, "({l}) and ({r})"),
-            Self::Not(l, r) => write!(f, "({l}) not ({r})"),
-        }
-    }
-}
-
-impl HasLevel for Predicate {
-    fn level(&self) -> Option<usize> {
-        match self {
-            Self::Value(_) | Self::Const(_) => None,
-            Self::Equal { rhs, .. }
-            | Self::GreaterEqual { rhs, .. }
-            | Self::LessEqual { rhs, .. }
-            | Self::NotEqual { rhs, .. } => rhs.level(),
-            Self::And(_lhs, _rhs) | Self::Or(_lhs, _rhs) | Self::Not(_lhs, _rhs) => todo!(),
-        }
-    }
-
-    fn set_level(&self, level: usize) {
-        match self {
-            Self::Value(_) | Self::Const(_) => {}
-            Self::Equal { rhs, .. }
-            | Self::GreaterEqual { rhs, .. }
-            | Self::LessEqual { rhs, .. }
-            | Self::NotEqual { rhs, .. } => {
-                rhs.set_level(level);
-            }
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) | Self::Not(lhs, rhs) => {
-                lhs.set_level(level);
-                rhs.set_level(level);
-            }
-        }
-    }
-}
-
-impl Predicate {
-    pub const fn eq(lhs: Str, rhs: TyParam) -> Self {
-        Self::Equal { lhs, rhs }
-    }
-    pub const fn ne(lhs: Str, rhs: TyParam) -> Self {
-        Self::NotEqual { lhs, rhs }
-    }
-    /// >=
-    pub const fn ge(lhs: Str, rhs: TyParam) -> Self {
-        Self::GreaterEqual { lhs, rhs }
-    }
-    /// <=
-    pub const fn le(lhs: Str, rhs: TyParam) -> Self {
-        Self::LessEqual { lhs, rhs }
-    }
-
-    pub fn and(lhs: Predicate, rhs: Predicate) -> Self {
-        Self::And(Box::new(lhs), Box::new(rhs))
-    }
-
-    pub fn or(lhs: Predicate, rhs: Predicate) -> Self {
-        Self::Or(Box::new(lhs), Box::new(rhs))
-    }
-
-    pub fn not(lhs: Predicate, rhs: Predicate) -> Self {
-        Self::Not(Box::new(lhs), Box::new(rhs))
-    }
-
-    pub fn is_equal(&self) -> bool {
-        matches!(self, Self::Equal { .. })
-    }
-
-    pub fn subject(&self) -> Option<&str> {
-        match self {
-            Self::Equal { lhs, .. }
-            | Self::LessEqual { lhs, .. }
-            | Self::GreaterEqual { lhs, .. }
-            | Self::NotEqual { lhs, .. } => Some(&lhs[..]),
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) | Self::Not(lhs, rhs) => {
-                let l = lhs.subject();
-                let r = rhs.subject();
-                if l != r {
-                    todo!()
-                } else {
-                    l
-                }
-            }
-            _ => None,
-        }
-    }
-
-    pub fn change_subject_name(self, name: Str) -> Self {
-        match self {
-            Self::Equal { rhs, .. } => Self::eq(name, rhs),
-            Self::GreaterEqual { rhs, .. } => Self::ge(name, rhs),
-            Self::LessEqual { rhs, .. } => Self::le(name, rhs),
-            Self::NotEqual { rhs, .. } => Self::ne(name, rhs),
-            Self::And(lhs, rhs) => Self::and(
-                lhs.change_subject_name(name.clone()),
-                rhs.change_subject_name(name),
-            ),
-            Self::Or(lhs, rhs) => Self::or(
-                lhs.change_subject_name(name.clone()),
-                rhs.change_subject_name(name),
-            ),
-            Self::Not(lhs, rhs) => Self::not(
-                lhs.change_subject_name(name.clone()),
-                rhs.change_subject_name(name),
-            ),
-            _ => self,
-        }
-    }
-
-    pub fn mentions(&self, name: &str) -> bool {
-        match self {
-            Self::Const(n) => &n[..] == name,
-            Self::Equal { lhs, .. }
-            | Self::LessEqual { lhs, .. }
-            | Self::GreaterEqual { lhs, .. }
-            | Self::NotEqual { lhs, .. } => &lhs[..] == name,
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) | Self::Not(lhs, rhs) => {
-                lhs.mentions(name) || rhs.mentions(name)
-            }
-            _ => false,
-        }
-    }
-
-    pub fn can_be_false(&self) -> bool {
-        match self {
-            Self::Value(l) => matches!(l, ValueObj::Bool(false)),
-            Self::Const(_) => todo!(),
-            Self::Or(lhs, rhs) => lhs.can_be_false() || rhs.can_be_false(),
-            Self::And(lhs, rhs) => lhs.can_be_false() && rhs.can_be_false(),
-            Self::Not(lhs, rhs) => lhs.can_be_false() && !rhs.can_be_false(),
-            _ => true,
-        }
-    }
-
-    pub fn qvars(&self) -> Set<(Str, Constraint)> {
-        match self {
-            Self::Value(_) | Self::Const(_) => set! {},
-            Self::Equal { rhs, .. }
-            | Self::GreaterEqual { rhs, .. }
-            | Self::LessEqual { rhs, .. }
-            | Self::NotEqual { rhs, .. } => rhs.qvars(),
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) | Self::Not(lhs, rhs) => {
-                lhs.qvars().concat(rhs.qvars())
-            }
-        }
-    }
-
-    pub fn has_qvar(&self) -> bool {
-        match self {
-            Self::Value(_) => false,
-            Self::Const(_) => false,
-            Self::Equal { rhs, .. }
-            | Self::GreaterEqual { rhs, .. }
-            | Self::LessEqual { rhs, .. }
-            | Self::NotEqual { rhs, .. } => rhs.has_qvar(),
-            Self::Or(lhs, rhs) | Self::And(lhs, rhs) | Self::Not(lhs, rhs) => {
-                lhs.has_qvar() || rhs.has_qvar()
-            }
-        }
-    }
-
-    pub fn is_cachable(&self) -> bool {
-        match self {
-            Self::Equal { rhs, .. }
-            | Self::GreaterEqual { rhs, .. }
-            | Self::LessEqual { rhs, .. }
-            | Self::NotEqual { rhs, .. } => rhs.is_cachable(),
-            Self::Or(lhs, rhs) | Self::And(lhs, rhs) | Self::Not(lhs, rhs) => {
-                lhs.is_cachable() && rhs.is_cachable()
-            }
-            _ => true,
-        }
-    }
-
-    pub fn has_unbound_var(&self) -> bool {
-        match self {
-            Self::Value(_) => false,
-            Self::Const(_) => false,
-            Self::Equal { rhs, .. }
-            | Self::GreaterEqual { rhs, .. }
-            | Self::LessEqual { rhs, .. }
-            | Self::NotEqual { rhs, .. } => rhs.has_unbound_var(),
-            Self::Or(lhs, rhs) | Self::And(lhs, rhs) | Self::Not(lhs, rhs) => {
-                lhs.has_unbound_var() || rhs.has_unbound_var()
-            }
-        }
-    }
-
-    pub fn min_max<'a>(
-        &'a self,
-        min: Option<&'a TyParam>,
-        max: Option<&'a TyParam>,
-    ) -> (Option<&'a TyParam>, Option<&'a TyParam>) {
-        match self {
-            Predicate::Equal { rhs: _, .. } => todo!(),
-            // {I | I <= 1; I <= 2}
-            Predicate::LessEqual { rhs, .. } => (
-                min,
-                max.map(|l: &TyParam| match l.cheap_cmp(rhs) {
-                    Some(c) if c.is_ge() => l,
-                    Some(_) => rhs,
-                    _ => l,
-                })
-                .or(Some(rhs)),
-            ),
-            // {I | I >= 1; I >= 2}
-            Predicate::GreaterEqual { rhs, .. } => (
-                min.map(|l: &TyParam| match l.cheap_cmp(rhs) {
-                    Some(c) if c.is_le() => l,
-                    Some(_) => rhs,
-                    _ => l,
-                })
-                .or(Some(rhs)),
-                max,
-            ),
-            Predicate::And(_l, _r) => todo!(),
-            _ => todo!(),
-        }
-    }
-
-    pub fn typarams(&self) -> Vec<&TyParam> {
-        match self {
-            Self::Value(_) | Self::Const(_) => vec![],
-            Self::Equal { rhs, .. }
-            | Self::GreaterEqual { rhs, .. }
-            | Self::LessEqual { rhs, .. }
-            | Self::NotEqual { rhs, .. } => vec![rhs],
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) | Self::Not(lhs, rhs) => {
-                lhs.typarams().into_iter().chain(rhs.typarams()).collect()
-            }
-        }
-    }
-
-    pub fn typarams_mut(&mut self) -> Vec<&mut TyParam> {
-        match self {
-            Self::Value(_) | Self::Const(_) => vec![],
-            Self::Equal { rhs, .. }
-            | Self::GreaterEqual { rhs, .. }
-            | Self::LessEqual { rhs, .. }
-            | Self::NotEqual { rhs, .. } => vec![rhs],
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) | Self::Not(lhs, rhs) => lhs
-                .typarams_mut()
-                .into_iter()
-                .chain(rhs.typarams_mut())
-                .collect(),
         }
     }
 }
@@ -790,7 +354,7 @@ pub enum RefineKind {
 }
 
 /// e.g.
-/// ```
+/// ```erg
 /// {I: Int | I >= 0}
 /// {_: StrWithLen N | N >= 0}
 /// {T: (Int, Int) | T.0 >= 0, T.1 >= 0}
@@ -825,7 +389,11 @@ impl LimitedDisplay for RefinementType {
                 let (_, rhs) = enum_unwrap!(pred, Predicate::Equal { lhs, rhs });
                 write!(f, "{}, ", rhs)?;
             }
-            write!(f, "}}")
+            write!(f, "}}")?;
+            if cfg!(feature = "debug") {
+                write!(f, "(<: {})", self.t)?;
+            }
+            Ok(())
         } else {
             write!(f, "{{{}: ", self.var)?;
             self.t.limited_fmt(f, limit - 1)?;
@@ -978,7 +546,7 @@ pub enum Type {
     ClassType,
     TraitType,
     Patch,
-    NotImplemented,
+    NotImplementedType,
     Ellipsis,  // これはクラスのほうで型推論用のマーカーではない
     Never,     // {}
     Mono(Str), // the name is fully qualified (e.g. <module>::C, foo.D)
@@ -1047,7 +615,7 @@ impl PartialEq for Type {
             | (Self::ClassType, Self::ClassType)
             | (Self::TraitType, Self::TraitType)
             | (Self::Patch, Self::Patch)
-            | (Self::NotImplemented, Self::NotImplemented)
+            | (Self::NotImplementedType, Self::NotImplementedType)
             | (Self::Ellipsis, Self::Ellipsis)
             | (Self::Never, Self::Never) => true,
             (Self::Mono(l), Self::Mono(r)) => l == r,
@@ -1268,9 +836,9 @@ impl CanbeFree for Type {
         }
     }
 
-    fn update_constraint(&self, new_constraint: Constraint) {
+    fn update_constraint(&self, new_constraint: Constraint, in_instantiation: bool) {
         if let Self::FreeVar(fv) = self {
-            fv.update_constraint(new_constraint);
+            fv.update_constraint(new_constraint, in_instantiation);
         }
     }
 }
@@ -1512,14 +1080,14 @@ impl HasLevel for Type {
 impl Type {
     pub const OBJ: &'static Self = &Self::Obj;
     pub const NONE: &'static Self = &Self::NoneType;
-    pub const NOT_IMPLEMENTED: &'static Self = &Self::NotImplemented;
+    pub const NOT_IMPLEMENTED: &'static Self = &Self::NotImplementedType;
     pub const ELLIPSIS: &'static Self = &Self::Ellipsis;
     pub const INF: &'static Self = &Self::Inf;
     pub const NEG_INF: &'static Self = &Self::NegInf;
     pub const NEVER: &'static Self = &Self::Never;
     pub const FAILURE: &'static Self = &Self::Failure;
 
-    /// 本来は型環境が必要
+    // TODO: this method should be defined in Context
     pub fn mutate(self) -> Self {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => {
@@ -1562,7 +1130,7 @@ impl Type {
             | Self::ClassType
             | Self::TraitType
             | Self::Patch
-            | Self::NotImplemented
+            | Self::NotImplementedType
             | Self::Ellipsis
             | Self::Never => true,
             _ => false,
@@ -1682,17 +1250,7 @@ impl Type {
                         .map(|(sub, sup)| sub.contains_tvar(name) || sup.contains_tvar(name))
                         .unwrap_or(false)
             }
-            Self::Poly { params, .. } => {
-                for param in params.iter() {
-                    match param {
-                        TyParam::Type(t) if t.contains_tvar(name) => {
-                            return true;
-                        }
-                        _ => {}
-                    }
-                }
-                false
-            }
+            Self::Poly { params, .. } => params.iter().any(|tp| tp.contains_var(name)),
             Self::Subr(subr) => subr.contains_tvar(name),
             // TODO: preds
             Self::Refinement(refine) => refine.t.contains_tvar(name),
@@ -1783,7 +1341,7 @@ impl Type {
             Self::Refinement(refine) => refine.t.qual_name(),
             Self::Quantified(_) => Str::ever("Quantified"),
             Self::Ellipsis => Str::ever("Ellipsis"),
-            Self::NotImplemented => Str::ever("NotImplemented"),
+            Self::NotImplementedType => Str::ever("NotImplemented"),
             Self::Never => Str::ever("Never"),
             Self::FreeVar(fv) => match &*fv.borrow() {
                 FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => t.qual_name(),
@@ -1908,6 +1466,29 @@ impl Type {
         }
     }
 
+    /// Fix type variables at their lower bound
+    /// ```erg
+    /// i: ?T(:> Int)
+    /// assert i.Real == 1
+    /// i: (Int)
+    /// ```
+    pub fn coerce(&self) {
+        match self {
+            Type::FreeVar(fv) if fv.is_linked() => {
+                Self::coerce(&fv.crack());
+            }
+            Type::FreeVar(fv) if fv.is_unbound() => {
+                let (sub, _sup) = fv.get_subsup().unwrap();
+                fv.link(&sub);
+            }
+            Type::And(l, r) | Type::Or(l, r) | Type::Not(l, r) => {
+                Self::coerce(l);
+                Self::coerce(r);
+            }
+            _ => {}
+        }
+    }
+
     pub fn qvars(&self) -> Set<(Str, Constraint)> {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.forced_as_ref().linked().unwrap().qvars(),
@@ -1943,6 +1524,10 @@ impl Type {
                 .concat(args.iter().fold(set! {}, |acc, tp| acc.concat(tp.qvars()))),
             _ => set! {},
         }
+    }
+
+    pub fn has_uninited_qvars(&self) -> bool {
+        self.qvars().iter().any(|(_, c)| c.is_uninited())
     }
 
     /// if the type is polymorphic
@@ -1992,42 +1577,6 @@ impl Type {
 
     pub fn has_no_qvar(&self) -> bool {
         !self.has_qvar()
-    }
-
-    pub fn is_cachable(&self) -> bool {
-        match self {
-            Self::FreeVar(_) => false,
-            Self::Ref(t) => t.is_cachable(),
-            Self::RefMut { before, after } => {
-                before.is_cachable() && after.as_ref().map(|t| t.is_cachable()).unwrap_or(true)
-            }
-            Self::And(lhs, rhs) | Self::Not(lhs, rhs) | Self::Or(lhs, rhs) => {
-                lhs.is_cachable() && rhs.is_cachable()
-            }
-            Self::Callable { param_ts, return_t } => {
-                param_ts.iter().all(|t| t.is_cachable()) && return_t.is_cachable()
-            }
-            Self::Subr(subr) => {
-                subr.non_default_params
-                    .iter()
-                    .all(|pt| pt.typ().is_cachable())
-                    && subr
-                        .var_params
-                        .as_ref()
-                        .map(|pt| pt.typ().is_cachable())
-                        .unwrap_or(false)
-                    && subr.default_params.iter().all(|pt| pt.typ().is_cachable())
-                    && subr.return_t.is_cachable()
-            }
-            Self::Record(r) => r.values().all(|t| t.is_cachable()),
-            Self::Refinement(refine) => {
-                refine.t.is_cachable() && refine.preds.iter().all(|p| p.is_cachable())
-            }
-            Self::Quantified(quant) => quant.is_cachable(),
-            Self::Poly { params, .. } => params.iter().all(|p| p.is_cachable()),
-            Self::Proj { lhs, .. } => lhs.is_cachable(),
-            _ => true,
-        }
     }
 
     pub fn has_unbound_var(&self) -> bool {
@@ -2127,6 +1676,7 @@ impl Type {
                 vec![TyParam::t(*lhs.clone()), TyParam::t(*rhs.clone())]
             }
             Self::Subr(subr) => subr.typarams(),
+            Self::Quantified(quant) => quant.typarams(),
             Self::Callable { param_ts: _, .. } => todo!(),
             Self::Poly { params, .. } => params.clone(),
             _ => vec![],
@@ -2156,6 +1706,7 @@ impl Type {
             Self::Subr(SubrType {
                 non_default_params, ..
             }) => Some(non_default_params),
+            Self::Quantified(quant) => quant.non_default_params(),
             Self::Callable { param_ts: _, .. } => todo!(),
             _ => None,
         }
@@ -2172,6 +1723,7 @@ impl Type {
                 var_params: var_args,
                 ..
             }) => var_args.as_deref(),
+            Self::Quantified(quant) => quant.var_args(),
             Self::Callable { param_ts: _, .. } => todo!(),
             _ => None,
         }
@@ -2185,6 +1737,7 @@ impl Type {
                 .and_then(|t| t.default_params()),
             Self::Refinement(refine) => refine.t.default_params(),
             Self::Subr(SubrType { default_params, .. }) => Some(default_params),
+            Self::Quantified(quant) => quant.default_params(),
             _ => None,
         }
     }
@@ -2221,7 +1774,12 @@ impl Type {
             Self::Subr(SubrType { return_t, .. }) | Self::Callable { return_t, .. } => {
                 Some(return_t)
             }
-            // Self::Quantified(quant) => quant.unbound_callable.mut_return_t(),
+            Self::Quantified(quant) => {
+                if quant.return_t().unwrap().is_generalized() {
+                    log!(err "quantified return type (recursive function type inference)");
+                }
+                quant.mut_return_t()
+            }
             _ => None,
         }
     }
@@ -2354,6 +1912,7 @@ impl Type {
     }
 }
 
+/// Opcode used when Erg implements its own processor
 /// バイトコード命令で、in-place型付けをするオブジェクト
 /// MaybeBigがついている場合、固定長でない可能性あり(実行時検査が必要)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

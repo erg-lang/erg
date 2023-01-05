@@ -68,4 +68,5 @@
 - [與 Python 集成](./32_integration_with_Python.md)
 - [包系統](./33_package_system.md)
 - [生成器](./34_generator.md)
+- [快速浏览](./quick_tour.md)
 - [索引](./indexes.md)

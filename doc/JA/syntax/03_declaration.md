@@ -1,6 +1,6 @@
 # 宣言
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/03_declaration.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/03_declaration.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/03_declaration.md%26commit_hash%3D20aa4f02b994343ab9600317cebafa2b20676467)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/03_declaration.md&commit_hash=20aa4f02b994343ab9600317cebafa2b20676467)
 
 宣言は、使用する変数の型を指定する構文です。
 宣言はコード中のどこでも可能ですが、宣言しただけでその変数を参照することはできません。必ず初期化する必要があります。
@@ -29,20 +29,21 @@ i: Nat # これは通らない(-1はNatの要素ではないため)
 
 関数は以下の2種類の方法で宣言が可能です。
 
-```python
+```python,checker_ignore
 f: (x: Int, y: Int) -> Int
 f: (Int, Int) -> Int
 ```
 
 引数名を明示して宣言した場合、定義時に名前が違うと型エラーとなります。引数名の任意性を与えたい場合は2番目の方法で宣言すると良いでしょう。その場合、型検査で見られるのはメソッド名とその型のみです。キーワード指定による呼び出しはできなくなります。
 
-```python
+```python,compile_fail
 T = Trait {
     .f = (x: Int, y: Int): Int
 }
 
-C = Class(U, Impl := T)
-C.f(a: Int, b: Int): Int = ... # TypeError: `.f` must be type of `(x: Int, y: Int) -> Int`, not `(a: Int, b: Int) -> Int`
+C = Class()
+C|<: T|.
+    f(a: Int, b: Int): Int = ... # TypeError: `.f` must be type of `(x: Int, y: Int) -> Int`, not `(a: Int, b: Int) -> Int`
 ```
 
 <p align='center'>

@@ -9,17 +9,20 @@ edition.workspace = true
 repository.workspace = true
 homepage.workspace = true
 
-
 [features]
-debug = []
+debug = ["dep:backtrace-on-stack-overflow"]
 japanese = []
 simplified_chinese = []
 traditional_chinese = []
 unicode = []
 pretty = []
+large_thread = []
+els = []
+py_compatible = []
 
 [target.'cfg(unix)'.dependencies]
 libc = { version = "0.2", default-features = false }
+backtrace-on-stack-overflow = { version = "0.2.0", optional = true }
 [target.'cfg(target_os = "hermit")'.dependencies]
 hermit-abi = "0.1.6"
 [target.'cfg(windows)'.dependencies.winapi]

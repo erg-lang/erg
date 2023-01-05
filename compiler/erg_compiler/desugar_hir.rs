@@ -1,7 +1,7 @@
 use erg_common::log;
 use erg_common::traits::Stream;
 
-use crate::hir::{Accessor, AttrDef, Block, Expr, HIR};
+use crate::hir::{Accessor, Block, Expr, ReDef, HIR};
 
 /// Desugares HIR to make it more like Python semantics.
 pub struct HIRDesugarer {}
@@ -45,8 +45,8 @@ impl HIRDesugarer {
                         .map(|expr| match expr {
                             Expr::Def(def) => {
                                 let acc = class.clone().attr(def.sig.into_ident());
-                                let attr_def = AttrDef::new(acc, def.body.block);
-                                Expr::AttrDef(attr_def)
+                                let redef = ReDef::new(acc, def.body.block);
+                                Expr::ReDef(redef)
                             }
                             _ => expr,
                         })

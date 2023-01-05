@@ -117,7 +117,7 @@ i = (x = 1; x + 1) # SyntaxError: cannot use `;` in parentheses
 
 ## Indentation
 
-Erg, like Python, uses indentation to represent blocks. There are five operators (special forms) that trigger the start of a block: `=`, `->`, `=>`, `do`, and `do!` (In addition, `:` and `|`, although not operators, also produce indentation). The meanings of each are described later.
+Erg, like Python, uses indentation to represent blocks. There are three operators (special forms) that trigger the start of a block: `=`, `->`, and `=>` (In addition, `:` and `|`, although not operators, also produce indentation). The meanings of each are described later.
 
 ```python
 f x, y =

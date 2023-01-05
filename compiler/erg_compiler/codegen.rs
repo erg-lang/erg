@@ -18,6 +18,7 @@ use erg_common::opcode311::{BinOpCode, Opcode311};
 use erg_common::option_enum_unwrap;
 use erg_common::python_util::{env_python_version, PythonVersion};
 use erg_common::traits::{Locational, Stream};
+use erg_common::vis::Visibility;
 use erg_common::Str;
 use erg_common::{
     debug_power_assert, enum_unwrap, fn_name, fn_name_full, impl_stream_for_wrapper, log,
@@ -36,8 +37,8 @@ use erg_parser::token::{Token, TokenKind};
 use crate::compile::{AccessKind, Name, StoreLoadKind};
 use crate::error::CompileError;
 use crate::hir::{
-    Accessor, Args, Array, AttrDef, BinOp, Block, Call, ClassDef, Def, DefBody, Expr, Identifier,
-    Lambda, Literal, Params, PatchDef, PosArg, Record, Signature, SubrSignature, Tuple, UnaryOp,
+    Accessor, Args, Array, BinOp, Block, Call, ClassDef, Def, DefBody, Expr, Identifier, Lambda,
+    Literal, Params, PatchDef, PosArg, ReDef, Record, Signature, SubrSignature, Tuple, UnaryOp,
     VarSignature, HIR,
 };
 use crate::ty::value::ValueObj;
@@ -59,19 +60,22 @@ fn debind(ident: &Identifier) -> Option<Str> {
     }
 }
 
-fn escape_name(ident: Identifier) -> Str {
+fn escape_name(name: &str, vis: Visibility) -> Str {
+    let name = name.replace('!', "__erg_proc__");
+    let name = name.replace('$', "__erg_shared__");
+    if vis.is_private() {
+        Str::from("::".to_string() + &name)
+    } else {
+        Str::from(name)
+    }
+}
+
+fn escape_ident(ident: Identifier) -> Str {
     let vis = ident.vis();
     if let Some(py_name) = ident.vi.py_name {
         py_name
     } else {
-        let name = ident.name.into_token().content.to_string();
-        let name = name.replace('!', "__erg_proc__");
-        let name = name.replace('$', "__erg_shared__");
-        if vis.is_private() {
-            Str::from("::".to_string() + &name)
-        } else {
-            Str::from(name)
-        }
+        escape_name(ident.inspect(), vis)
     }
 }
 
@@ -81,7 +85,7 @@ pub struct PyCodeGenUnit {
     pub(crate) py_version: PythonVersion,
     pub(crate) codeobj: CodeObj,
     pub(crate) stack_len: u32, // the maximum stack size
-    pub(crate) prev_lineno: usize,
+    pub(crate) prev_lineno: u32,
     pub(crate) lasti: usize,
     pub(crate) prev_lasti: usize,
     pub(crate) _refs: Vec<ValueObj>, // ref-counted objects
@@ -112,12 +116,12 @@ impl PyCodeGenUnit {
         params: Vec<Str>,
         filename: S,
         name: T,
-        firstlineno: usize,
+        firstlineno: u32,
     ) -> Self {
         Self {
             id,
             py_version,
-            codeobj: CodeObj::empty(params, filename, name, firstlineno as u32),
+            codeobj: CodeObj::empty(params, filename, name, firstlineno),
             stack_len: 0,
             prev_lineno: firstlineno,
             lasti: 0,
@@ -181,7 +185,6 @@ impl PyCodeGenerator {
         self.str_cache.get(s)
     }
 
-    /// 大抵の場合はモジュールのブロックが返る
     #[inline]
     fn toplevel_block(&self) -> &PyCodeGenUnit {
         self.units.first().unwrap()
@@ -245,7 +248,12 @@ impl PyCodeGenerator {
         self.emit_push_null();
         self.emit_load_name_instr(Identifier::public("exit"));
         self.emit_load_const(1);
-        self.emit_precall_and_call(1);
+        if self.py_version.minor >= Some(11) {
+            self.emit_precall_and_call(1);
+        } else {
+            self.write_instr(Opcode310::CALL_FUNCTION);
+            self.write_arg(1);
+        }
         self.stack_dec();
     }
 
@@ -319,6 +327,7 @@ impl PyCodeGenerator {
 
     #[inline]
     fn edit_code(&mut self, idx: usize, arg: usize) {
+        log!(err "editing: {idx} {arg}");
         match u8::try_from(arg) {
             Ok(u8code) => {
                 *self.mut_cur_block_codeobj().code.get_mut(idx).unwrap() = u8code;
@@ -344,25 +353,15 @@ impl PyCodeGenerator {
     // [..., EXTENDED_ARG 0, EXTENDED_ARG 0, EXTENDED_ARG 1, JUMP_ABSOLUTE 14]
     #[inline]
     fn extend_arg(&mut self, before_instr: usize, bytes: &[u8]) {
-        self.mut_cur_block_codeobj()
-            .code
-            .insert(before_instr, bytes[2]);
-        self.mut_cur_block_codeobj()
-            .code
-            .insert(before_instr, CommonOpcode::EXTENDED_ARG as u8);
-        self.mut_cur_block_codeobj()
-            .code
-            .insert(before_instr, bytes[1]);
-        self.mut_cur_block_codeobj()
-            .code
-            .insert(before_instr, CommonOpcode::EXTENDED_ARG as u8);
-        self.mut_cur_block_codeobj()
-            .code
-            .insert(before_instr, bytes[0]);
-        self.mut_cur_block_codeobj()
-            .code
-            .insert(before_instr, CommonOpcode::EXTENDED_ARG as u8);
-        self.mut_cur_block().lasti += 6;
+        for byte in bytes.iter().rev().skip(1) {
+            self.mut_cur_block_codeobj()
+                .code
+                .insert(before_instr, *byte);
+            self.mut_cur_block_codeobj()
+                .code
+                .insert(before_instr, CommonOpcode::EXTENDED_ARG as u8);
+            self.mut_cur_block().lasti += 2;
+        }
     }
 
     fn write_instr<C: Into<u8>>(&mut self, code: C) {
@@ -378,16 +377,40 @@ impl PyCodeGenerator {
                 self.mut_cur_block().lasti += 1;
                 // log!(info "wrote: {}", code);
             }
-            Err(_) => {
-                let delta = self.jump_delta(code);
-                let shift_bytes = 6;
-                let arg = code + delta + shift_bytes;
-                let bytes = u32::try_from(arg).unwrap().to_be_bytes();
-                let before_instr = self.lasti().saturating_sub(1);
-                self.mut_cur_block_codeobj().code.push(bytes[3]);
-                self.mut_cur_block().lasti += 1;
-                self.extend_arg(before_instr, &bytes);
-            }
+            Err(_) => match u16::try_from(code) {
+                Ok(_) => {
+                    let delta =
+                        if CommonOpcode::is_jump_op(*self.cur_block_codeobj().code.last().unwrap())
+                        {
+                            let shift_bytes = 2;
+                            self.jump_delta(code) + shift_bytes
+                        } else {
+                            0
+                        };
+                    let arg = code + delta;
+                    let bytes = u16::try_from(arg).unwrap().to_be_bytes(); // [u8; 2]
+                    let before_instr = self.lasti().saturating_sub(1);
+                    self.mut_cur_block_codeobj().code.push(bytes[1]);
+                    self.mut_cur_block().lasti += 1;
+                    self.extend_arg(before_instr, &bytes);
+                }
+                Err(_) => {
+                    let delta =
+                        if CommonOpcode::is_jump_op(*self.cur_block_codeobj().code.last().unwrap())
+                        {
+                            let shift_bytes = 6;
+                            self.jump_delta(code) + shift_bytes
+                        } else {
+                            0
+                        };
+                    let arg = code + delta;
+                    let bytes = u32::try_from(arg).unwrap().to_be_bytes(); // [u8; 4]
+                    let before_instr = self.lasti().saturating_sub(1);
+                    self.mut_cur_block_codeobj().code.push(bytes[3]);
+                    self.mut_cur_block().lasti += 1;
+                    self.extend_arg(before_instr, &bytes);
+                }
+            },
         }
     }
 
@@ -637,7 +660,7 @@ impl PyCodeGenerator {
 
     fn emit_load_name_instr(&mut self, ident: Identifier) {
         log!(info "entered {}({ident})", fn_name!());
-        let escaped = escape_name(ident);
+        let escaped = escape_ident(ident);
         match &escaped[..] {
             "if__" | "for__" | "while__" | "with__" | "discard__" => {
                 self.load_control();
@@ -651,14 +674,6 @@ impl PyCodeGenerator {
             .local_search(&escaped, Name)
             .unwrap_or_else(|| self.register_name(escaped));
         let instr = self.select_load_instr(name.kind, Name);
-        /*let null_idx = self.cur_block_codeobj().code.len() - 2;
-        if instr == LOAD_GLOBAL
-            && self.cur_block_codeobj().code.get(null_idx) == Some(&(Opcode311::PUSH_NULL as u8))
-        {
-            self.mut_cur_block_codeobj().code.pop();
-            self.mut_cur_block_codeobj().code.pop();
-            self.mut_cur_block().lasti -= 2;
-        }*/
         self.write_instr(instr);
         self.write_arg(name.idx);
         self.stack_inc();
@@ -670,7 +685,7 @@ impl PyCodeGenerator {
 
     fn emit_load_global_instr(&mut self, ident: Identifier) {
         log!(info "entered {} ({ident})", fn_name!());
-        let escaped = escape_name(ident);
+        let escaped = escape_ident(ident);
         let name = self
             .local_search(&escaped, Name)
             .unwrap_or_else(|| self.register_name(escaped));
@@ -682,7 +697,7 @@ impl PyCodeGenerator {
 
     fn emit_import_name_instr(&mut self, ident: Identifier, items_len: usize) {
         log!(info "entered {}({ident})", fn_name!());
-        let escaped = escape_name(ident);
+        let escaped = escape_ident(ident);
         let name = self
             .local_search(&escaped, Name)
             .unwrap_or_else(|| self.register_name(escaped));
@@ -694,7 +709,7 @@ impl PyCodeGenerator {
 
     fn emit_import_from_instr(&mut self, ident: Identifier) {
         log!(info "entered {}", fn_name!());
-        let escaped = escape_name(ident);
+        let escaped = escape_ident(ident);
         let name = self
             .local_search(&escaped, Name)
             .unwrap_or_else(|| self.register_name(escaped));
@@ -707,7 +722,7 @@ impl PyCodeGenerator {
         log!(info "entered {}", fn_name!());
         self.emit_load_const(0i32); // escaping to call access `Nat` before importing `Nat`
         self.emit_load_const([Str::ever("*")]);
-        let escaped = escape_name(ident);
+        let escaped = escape_ident(ident);
         let name = self
             .local_search(&escaped, Name)
             .unwrap_or_else(|| self.register_name(escaped));
@@ -747,7 +762,7 @@ impl PyCodeGenerator {
 
     fn emit_load_attr_instr(&mut self, ident: Identifier) {
         log!(info "entered {} ({ident})", fn_name!());
-        let escaped = escape_name(ident);
+        let escaped = escape_ident(ident);
         let name = self
             .local_search(&escaped, Attr)
             .unwrap_or_else(|| self.register_attr(escaped));
@@ -764,7 +779,7 @@ impl PyCodeGenerator {
         if &ident.inspect()[..] == "__new__" {
             log!("{:?}", ident.vi);
         }
-        let escaped = escape_name(ident);
+        let escaped = escape_ident(ident);
         let name = self
             .local_search(&escaped, Method)
             .unwrap_or_else(|| self.register_method(escaped));
@@ -779,7 +794,7 @@ impl PyCodeGenerator {
 
     fn emit_store_instr(&mut self, ident: Identifier, acc_kind: AccessKind) {
         log!(info "entered {} ({ident})", fn_name!());
-        let escaped = escape_name(ident);
+        let escaped = escape_ident(ident);
         let name = self.local_search(&escaped, acc_kind).unwrap_or_else(|| {
             if acc_kind.is_local() {
                 self.register_name(escaped)
@@ -803,7 +818,7 @@ impl PyCodeGenerator {
     // Ergの組み込みオブジェクトをimportするときなどに使う、通常は使わない
     fn emit_store_global_instr(&mut self, ident: Identifier) {
         log!(info "entered {} ({ident})", fn_name!());
-        let escaped = escape_name(ident);
+        let escaped = escape_ident(ident);
         let name = self
             .local_search(&escaped, Name)
             .unwrap_or_else(|| self.register_name(escaped));
@@ -874,7 +889,14 @@ impl PyCodeGenerator {
                     .iter()
                     .map(|p| p.inspect().map(|s| &s[..]).unwrap_or("_")),
             )
-            .map(|s| format!("::{s}"))
+            .enumerate()
+            .map(|(i, s)| {
+                if s == "_" {
+                    format!("_{i}")
+                } else {
+                    escape_name(s, Visibility::Private).to_string()
+                }
+            })
             .map(|s| self.get_cached(&s))
             .collect()
     }
@@ -955,10 +977,6 @@ impl PyCodeGenerator {
             let idx = self.register_const(kws);
             self.write_instr(Opcode311::KW_NAMES);
             self.write_arg(idx);
-            /*self.write_instr(Opcode311::PRECALL);
-            self.write_arg(argc);
-            self.write_instr(Opcode311::CALL);
-            self.write_arg(argc);*/
             self.emit_precall_and_call(argc);
         } else {
             self.emit_load_const(kws);
@@ -1141,7 +1159,7 @@ impl PyCodeGenerator {
         log!(info "entered {} ({})", fn_name!(), class_def.sig);
         self.emit_push_null();
         let ident = class_def.sig.ident().clone();
-        let require_or_sup = class_def.require_or_sup.clone();
+        let require_or_sup = class_def.require_or_sup.clone().map(|x| *x);
         let obj = class_def.obj.clone();
         self.write_instr(LOAD_BUILD_CLASS);
         self.write_arg(0);
@@ -1157,7 +1175,7 @@ impl PyCodeGenerator {
         self.write_arg(0);
         self.emit_load_const(ident.inspect().clone());
         // LOAD subclasses
-        let subclasses_len = self.emit_require_type(obj, *require_or_sup);
+        let subclasses_len = self.emit_require_type(obj, require_or_sup);
         self.emit_call_instr(2 + subclasses_len, Name);
         self.stack_dec_n((1 + 2 + subclasses_len) - 1);
         self.emit_store_instr(ident, Name);
@@ -1176,8 +1194,8 @@ impl PyCodeGenerator {
             let name = format!(
                 "{}{}{}",
                 namespace,
-                patch_def.sig.ident().to_string_without_type(),
-                def.sig.ident().to_string_without_type()
+                patch_def.sig.ident().to_string_notype(),
+                def.sig.ident().to_string_notype()
             );
             def.sig.ident_mut().name = VarName::from_str(Str::from(name));
             def.sig.ident_mut().dot = None;
@@ -1189,22 +1207,22 @@ impl PyCodeGenerator {
     // fn emit_poly_type_def(&mut self, sig: SubrSignature, body: DefBody) {}
 
     /// Y = Inherit X => class Y(X): ...
-    fn emit_require_type(&mut self, obj: GenTypeObj, require_or_sup: Expr) -> usize {
-        log!(info "entered {} ({obj}, {require_or_sup})", fn_name!());
+    fn emit_require_type(&mut self, obj: GenTypeObj, require_or_sup: Option<Expr>) -> usize {
+        log!(info "entered {} ({obj}, {require_or_sup:?})", fn_name!());
         match obj {
             GenTypeObj::Class(_) => 0,
             GenTypeObj::Subclass(_) => {
-                self.emit_expr(require_or_sup);
+                self.emit_expr(require_or_sup.unwrap());
                 1 // TODO: not always 1
             }
             _ => todo!(),
         }
     }
 
-    fn emit_attr_def(&mut self, attr_def: AttrDef) {
-        log!(info "entered {} ({attr_def})", fn_name!());
-        self.emit_frameless_block(attr_def.block, vec![]);
-        self.store_acc(attr_def.attr);
+    fn emit_redef(&mut self, redef: ReDef) {
+        log!(info "entered {} ({redef})", fn_name!());
+        self.emit_frameless_block(redef.block, vec![]);
+        self.store_acc(redef.attr);
     }
 
     fn emit_var_def(&mut self, sig: VarSignature, mut body: DefBody) {
@@ -1408,6 +1426,7 @@ impl PyCodeGenerator {
             TokenKind::Mod => Opcode310::BINARY_MODULO,
             TokenKind::AndOp => Opcode310::BINARY_AND,
             TokenKind::OrOp => Opcode310::BINARY_OR,
+            TokenKind::IsOp | TokenKind::IsNotOp => Opcode310::IS_OP,
             TokenKind::Less
             | TokenKind::LessEq
             | TokenKind::DblEq
@@ -1437,6 +1456,8 @@ impl PyCodeGenerator {
             TokenKind::NotEq => 3,
             TokenKind::Gre => 4,
             TokenKind::GreEq => 5,
+            TokenKind::IsOp => 0,
+            TokenKind::IsNotOp => 1,
             TokenKind::LeftOpen
             | TokenKind::RightOpen
             | TokenKind::Closed
@@ -1470,6 +1491,7 @@ impl PyCodeGenerator {
             | TokenKind::Mod
             | TokenKind::AndOp
             | TokenKind::OrOp => Opcode311::BINARY_OP,
+            TokenKind::IsOp | TokenKind::IsNotOp => Opcode311::IS_OP,
             TokenKind::Less
             | TokenKind::LessEq
             | TokenKind::DblEq
@@ -1514,6 +1536,8 @@ impl PyCodeGenerator {
             TokenKind::NotEq => 3,
             TokenKind::Gre => 4,
             TokenKind::GreEq => 5,
+            TokenKind::IsOp => 0,
+            TokenKind::IsNotOp => 1,
             TokenKind::LeftOpen
             | TokenKind::RightOpen
             | TokenKind::Closed
@@ -1554,7 +1578,7 @@ impl PyCodeGenerator {
     fn emit_del_instr(&mut self, mut args: Args) {
         let ident = enum_unwrap!(args.remove_left_or_key("obj").unwrap(), Expr::Accessor:(Accessor::Ident:(_)));
         log!(info "entered {} ({ident})", fn_name!());
-        let escaped = escape_name(ident);
+        let escaped = escape_ident(ident);
         let name = self
             .local_search(&escaped, Name)
             .unwrap_or_else(|| self.register_name(escaped));
@@ -1677,11 +1701,11 @@ impl PyCodeGenerator {
                 self.write_instr(Opcode310::JUMP_ABSOLUTE);
                 self.write_arg(idx_for_iter / 2);
             }
-            Some(8) => {
+            Some(9 | 8 | 7) => {
                 self.write_instr(Opcode308::JUMP_ABSOLUTE);
                 self.write_arg(idx_for_iter);
             }
-            _ => todo!(),
+            _ => todo!("not supported Python version"),
         }
         let idx_end = self.lasti();
         self.calc_edit_jump(idx_for_iter + 1, idx_end - idx_for_iter - 2);
@@ -1790,7 +1814,11 @@ impl PyCodeGenerator {
         if let Some(t_spec) = param.t_spec.map(|spec| spec.t_spec) {
             // If it's the last arm, there's no need to inspect it
             if !is_last_arm {
-                self.emit_match_guard(t_spec, &mut pop_jump_points);
+                if self.py_version.minor >= Some(11) {
+                    self.emit_match_guard_311(t_spec, &mut pop_jump_points);
+                } else {
+                    self.emit_match_guard_310(t_spec, &mut pop_jump_points);
+                }
             }
         }
         match param.pat {
@@ -1806,7 +1834,7 @@ impl PyCodeGenerator {
         pop_jump_points
     }
 
-    fn emit_match_guard(&mut self, t_spec: TypeSpec, pop_jump_points: &mut Vec<usize>) {
+    fn emit_match_guard_311(&mut self, t_spec: TypeSpec, pop_jump_points: &mut Vec<usize>) {
         log!(info "entered {} ({t_spec})", fn_name!());
         match t_spec {
             TypeSpec::Enum(enum_t) => {
@@ -1868,7 +1896,7 @@ impl PyCodeGenerator {
                     self.write_instr(Opcode311::BINARY_SUBSCR);
                     self.write_arg(0);
                     self.stack_dec();
-                    self.emit_match_guard(t_spec, pop_jump_points);
+                    self.emit_match_guard_311(t_spec, pop_jump_points);
                 }
             }
             // TODO: consider ordering (e.g. both [1, 2] and [2, 1] is type of [{1, 2}; 2])
@@ -1882,7 +1910,91 @@ impl PyCodeGenerator {
                     self.write_instr(Opcode311::BINARY_SUBSCR);
                     self.write_arg(0);
                     self.stack_dec();
-                    self.emit_match_guard(*arr.ty.clone(), pop_jump_points);
+                    self.emit_match_guard_311(*arr.ty.clone(), pop_jump_points);
+                }
+            }
+            /*TypeSpec::Interval { op, lhs, rhs } => {
+                let binop = BinOp::new(op, lhs.downcast(), rhs.downcast(), VarInfo::default());
+                self.emit_binop(binop);
+            }*/
+            // TODO:
+            TypeSpec::Infer(_) => unreachable!(),
+            // TODO:
+            other => log!(err "{other}"),
+        }
+    }
+
+    fn emit_match_guard_310(&mut self, t_spec: TypeSpec, pop_jump_points: &mut Vec<usize>) {
+        log!(info "entered {} ({t_spec})", fn_name!());
+        match t_spec {
+            TypeSpec::Enum(enum_t) => {
+                let elems = ValueObj::vec_from_const_args(enum_t);
+                self.emit_load_const(elems);
+                self.write_instr(Opcode310::CONTAINS_OP);
+                self.write_arg(0);
+                self.stack_dec();
+                pop_jump_points.push(self.lasti());
+                // in 3.11, POP_JUMP_IF_FALSE is replaced with POP_JUMP_FORWARD_IF_FALSE
+                // but the numbers are the same, only the way the jumping points are calculated is different.
+                self.write_instr(Opcode310::POP_JUMP_IF_FALSE); // jump to the next case
+                self.write_arg(0);
+                // self.stack_dec();
+            }
+            TypeSpec::PreDeclTy(PreDeclTypeSpec::Simple(simple)) if simple.args.is_empty() => {
+                // arg
+                // ↓ LOAD_NAME(in_operator)
+                // arg in_operator
+                // ↓ ROT 2
+                // in_operator arg
+                // ↓ LOAD_NAME(typ)
+                // in_operator arg typ
+                self.emit_load_name_instr(Identifier::private("#in_operator"));
+                self.rot2();
+                // TODO: DOT/not
+                let mut typ = Identifier::bare(Some(DOT), simple.ident.name);
+                // TODO:
+                typ.vi.py_name = match &typ.name.inspect()[..] {
+                    "Int" => Some("int".into()),
+                    "Float" => Some("float".into()),
+                    _ => None,
+                };
+                self.emit_load_name_instr(typ);
+                self.write_instr(Opcode310::CALL_FUNCTION);
+                self.write_arg(2);
+                self.stack_dec();
+                pop_jump_points.push(self.lasti());
+                // in 3.11, POP_JUMP_IF_FALSE is replaced with POP_JUMP_FORWARD_IF_FALSE
+                // but the numbers are the same, only the way the jumping points are calculated is different.
+                self.write_instr(Opcode310::POP_JUMP_IF_FALSE); // jump to the next case
+                self.write_arg(0);
+                self.stack_dec();
+            }
+            // _: (Int, Str)
+            TypeSpec::Tuple(tup) => {
+                let len = tup.tys.len();
+                for (i, t_spec) in tup.tys.into_iter().enumerate() {
+                    if i != 0 && i != len - 1 {
+                        self.dup_top();
+                    }
+                    self.emit_load_const(i);
+                    self.write_instr(Opcode310::BINARY_SUBSCR);
+                    self.write_arg(0);
+                    self.stack_dec();
+                    self.emit_match_guard_310(t_spec, pop_jump_points);
+                }
+            }
+            // TODO: consider ordering (e.g. both [1, 2] and [2, 1] is type of [{1, 2}; 2])
+            TypeSpec::Array(arr) => {
+                let ValueObj::Nat(len) = ValueObj::from_const_expr(arr.len) else { todo!() };
+                for i in 0..=(len - 1) {
+                    if i != 0 && i != len - 1 {
+                        self.dup_top();
+                    }
+                    self.emit_load_const(i);
+                    self.write_instr(Opcode310::BINARY_SUBSCR);
+                    self.write_arg(0);
+                    self.stack_dec();
+                    self.emit_match_guard_310(*arr.ty.clone(), pop_jump_points);
                 }
             }
             /*TypeSpec::Interval { op, lhs, rhs } => {
@@ -2059,8 +2171,8 @@ impl PyCodeGenerator {
             "with!" => match self.py_version.minor {
                 Some(11) => self.emit_with_instr_311(args),
                 Some(10) => self.emit_with_instr_310(args),
-                Some(8) => self.emit_with_instr_308(args),
-                _ => todo!(),
+                Some(9 | 8 | 7) => self.emit_with_instr_308(args),
+                _ => todo!("not supported Python version"),
             },
             // "pyimport" | "py" are here
             _ => {
@@ -2144,7 +2256,7 @@ impl PyCodeGenerator {
             let kw = if is_py_api {
                 arg.keyword.content
             } else {
-                Str::from(format!("::{}", arg.keyword.content))
+                escape_name(&arg.keyword.content, Visibility::Private)
             };
             kws.push(ValueObj::Str(kw));
             self.emit_expr(arg.expr);
@@ -2332,6 +2444,69 @@ impl PyCodeGenerator {
         debug_assert_eq!(self.stack_len(), init_stack_len + 1);
     }
 
+    // TODO: tuple comprehension
+    // TODO: tuples can be const
+    fn emit_tuple(&mut self, tuple: Tuple) {
+        match tuple {
+            Tuple::Normal(mut tup) => {
+                let len = tup.elems.len();
+                while let Some(arg) = tup.elems.try_remove_pos(0) {
+                    self.emit_expr(arg.expr);
+                }
+                self.write_instr(BUILD_TUPLE);
+                self.write_arg(len);
+                if len == 0 {
+                    self.stack_inc();
+                } else {
+                    self.stack_dec_n(len - 1);
+                }
+            }
+        }
+    }
+
+    fn emit_set(&mut self, set: crate::hir::Set) {
+        match set {
+            crate::hir::Set::Normal(mut set) => {
+                let len = set.elems.len();
+                while let Some(arg) = set.elems.try_remove_pos(0) {
+                    self.emit_expr(arg.expr);
+                }
+                self.write_instr(BUILD_SET);
+                self.write_arg(len);
+                if len == 0 {
+                    self.stack_inc();
+                } else {
+                    self.stack_dec_n(len - 1);
+                }
+            }
+            crate::hir::Set::WithLength(st) => {
+                self.emit_expr(*st.elem);
+                self.write_instr(BUILD_SET);
+                self.write_arg(1);
+            }
+        }
+    }
+
+    fn emit_dict(&mut self, dict: crate::hir::Dict) {
+        match dict {
+            crate::hir::Dict::Normal(dic) => {
+                let len = dic.kvs.len();
+                for kv in dic.kvs.into_iter() {
+                    self.emit_expr(kv.key);
+                    self.emit_expr(kv.value);
+                }
+                self.write_instr(BUILD_MAP);
+                self.write_arg(len);
+                if len == 0 {
+                    self.stack_inc();
+                } else {
+                    self.stack_dec_n(2 * len - 1);
+                }
+            }
+            other => todo!("{other}"),
+        }
+    }
+
     #[allow(clippy::identity_op)]
     fn emit_record(&mut self, rec: Record) {
         log!(info "entered {} ({rec})", fn_name!());
@@ -2398,8 +2573,30 @@ impl PyCodeGenerator {
         self.stack_dec();
     }
 
-    fn emit_expr(&mut self, expr: Expr) {
-        log!(info "entered {} ({expr})", fn_name!());
+    fn emit_compound(&mut self, chunks: Block) {
+        let is_module_loading_chunks = chunks
+            .get(2)
+            .map(|chunk| {
+                option_enum_unwrap!(chunk, Expr::Call)
+                    .map(|call| call.obj.show_acc().as_ref().map(|s| &s[..]) == Some("exec"))
+                    .unwrap_or(false)
+            })
+            .unwrap_or(false);
+        if !self.module_type_loaded && is_module_loading_chunks {
+            self.load_module_type();
+            self.module_type_loaded = true;
+        }
+        let init_stack_len = self.stack_len();
+        for chunk in chunks.into_iter() {
+            self.emit_chunk(chunk);
+            if self.stack_len() == init_stack_len + 1 {
+                self.emit_pop_top();
+            }
+        }
+        self.cancel_if_pop_top();
+    }
+
+    fn push_lnotab(&mut self, expr: &Expr) {
         if expr.ln_begin().unwrap_or_else(|| panic!("{expr}")) > self.cur_block().prev_lineno {
             let sd = self.lasti() - self.cur_block().prev_lasti;
             let ld = expr.ln_begin().unwrap() - self.cur_block().prev_lineno;
@@ -2431,104 +2628,62 @@ impl PyCodeGenerator {
                 self.crash("codegen failed: invalid bytecode format");
             }
         }
+    }
+
+    fn emit_chunk(&mut self, chunk: Expr) {
+        log!(info "entered {} ({chunk})", fn_name!());
+        self.push_lnotab(&chunk);
+        match chunk {
+            Expr::Lit(lit) => self.emit_load_const(lit.value),
+            Expr::Accessor(acc) => self.emit_acc(acc),
+            Expr::Def(def) => self.emit_def(def),
+            Expr::ClassDef(class) => self.emit_class_def(class),
+            Expr::PatchDef(patch) => self.emit_patch_def(patch),
+            Expr::ReDef(attr) => self.emit_redef(attr),
+            Expr::Lambda(lambda) => self.emit_lambda(lambda),
+            Expr::UnaryOp(unary) => self.emit_unaryop(unary),
+            Expr::BinOp(bin) => self.emit_binop(bin),
+            Expr::Call(call) => self.emit_call(call),
+            Expr::Array(arr) => self.emit_array(arr),
+            Expr::Tuple(tup) => self.emit_tuple(tup),
+            Expr::Set(set) => self.emit_set(set),
+            Expr::Dict(dict) => self.emit_dict(dict),
+            Expr::Record(rec) => self.emit_record(rec),
+            Expr::Code(code) => {
+                let code = self.emit_block(code, None, vec![]);
+                self.emit_load_const(code);
+            }
+            Expr::Compound(chunks) => self.emit_compound(chunks),
+            Expr::Import(acc) => self.emit_import(acc),
+            Expr::Dummy(_) | Expr::TypeAsc(_) => {}
+        }
+    }
+
+    fn emit_expr(&mut self, expr: Expr) {
+        log!(info "entered {} ({expr})", fn_name!());
+        self.push_lnotab(&expr);
         match expr {
             Expr::Lit(lit) => self.emit_load_const(lit.value),
             Expr::Accessor(acc) => self.emit_acc(acc),
             Expr::Def(def) => self.emit_def(def),
             Expr::ClassDef(class) => self.emit_class_def(class),
             Expr::PatchDef(patch) => self.emit_patch_def(patch),
-            Expr::AttrDef(attr) => self.emit_attr_def(attr),
+            Expr::ReDef(attr) => self.emit_redef(attr),
             Expr::Lambda(lambda) => self.emit_lambda(lambda),
             Expr::UnaryOp(unary) => self.emit_unaryop(unary),
             Expr::BinOp(bin) => self.emit_binop(bin),
             Expr::Call(call) => self.emit_call(call),
             Expr::Array(arr) => self.emit_array(arr),
-            // TODO: tuple comprehension
-            // TODO: tuples can be const
-            Expr::Tuple(tup) => match tup {
-                Tuple::Normal(mut tup) => {
-                    let len = tup.elems.len();
-                    while let Some(arg) = tup.elems.try_remove_pos(0) {
-                        self.emit_expr(arg.expr);
-                    }
-                    self.write_instr(BUILD_TUPLE);
-                    self.write_arg(len);
-                    if len == 0 {
-                        self.stack_inc();
-                    } else {
-                        self.stack_dec_n(len - 1);
-                    }
-                }
-            },
-            Expr::Set(set) => match set {
-                crate::hir::Set::Normal(mut set) => {
-                    let len = set.elems.len();
-                    while let Some(arg) = set.elems.try_remove_pos(0) {
-                        self.emit_expr(arg.expr);
-                    }
-                    self.write_instr(BUILD_SET);
-                    self.write_arg(len);
-                    if len == 0 {
-                        self.stack_inc();
-                    } else {
-                        self.stack_dec_n(len - 1);
-                    }
-                }
-                crate::hir::Set::WithLength(st) => {
-                    self.emit_expr(*st.elem);
-                    self.write_instr(BUILD_SET);
-                    self.write_arg(1);
-                }
-            },
-            Expr::Dict(dict) => match dict {
-                crate::hir::Dict::Normal(dic) => {
-                    let len = dic.kvs.len();
-                    for kv in dic.kvs.into_iter() {
-                        self.emit_expr(kv.key);
-                        self.emit_expr(kv.value);
-                    }
-                    self.write_instr(BUILD_MAP);
-                    self.write_arg(len);
-                    if len == 0 {
-                        self.stack_inc();
-                    } else {
-                        self.stack_dec_n(2 * len - 1);
-                    }
-                }
-                other => todo!("{other}"),
-            },
+            Expr::Tuple(tup) => self.emit_tuple(tup),
+            Expr::Set(set) => self.emit_set(set),
+            Expr::Dict(dict) => self.emit_dict(dict),
             Expr::Record(rec) => self.emit_record(rec),
             Expr::Code(code) => {
                 let code = self.emit_block(code, None, vec![]);
                 self.emit_load_const(code);
             }
-            Expr::Compound(chunks) => {
-                let is_module_loading_chunks = chunks
-                    .get(2)
-                    .map(|chunk| {
-                        option_enum_unwrap!(chunk, Expr::Call)
-                            .map(|call| {
-                                call.obj.show_acc().as_ref().map(|s| &s[..]) == Some("exec")
-                            })
-                            .unwrap_or(false)
-                    })
-                    .unwrap_or(false);
-                if !self.module_type_loaded && is_module_loading_chunks {
-                    self.load_module_type();
-                    self.module_type_loaded = true;
-                }
-                let init_stack_len = self.stack_len();
-                for expr in chunks.into_iter() {
-                    self.emit_expr(expr);
-                    if self.stack_len() == init_stack_len + 1 {
-                        self.emit_pop_top();
-                    }
-                }
-                self.cancel_if_pop_top();
-            }
-            Expr::TypeAsc(tasc) => {
-                self.emit_expr(*tasc.expr);
-            }
+            Expr::Compound(chunks) => self.emit_compound(chunks),
+            Expr::TypeAsc(tasc) => self.emit_expr(*tasc.expr),
             Expr::Import(acc) => self.emit_import(acc),
             Expr::Dummy(_) => {}
         }
@@ -2542,8 +2697,8 @@ impl PyCodeGenerator {
             self.emit_store_instr(Identifier::public_with_line(DOT, param, line), Name);
         }
         let init_stack_len = self.stack_len();
-        for expr in block.into_iter() {
-            self.emit_expr(expr);
+        for chunk in block.into_iter() {
+            self.emit_chunk(chunk);
             if self.stack_len() > init_stack_len {
                 self.emit_pop_top();
             }
@@ -2558,8 +2713,8 @@ impl PyCodeGenerator {
             self.emit_store_instr(Identifier::public_with_line(DOT, param, line), Name);
         }
         let init_stack_len = self.stack_len();
-        for expr in block.into_iter() {
-            self.emit_expr(expr);
+        for chunk in block.into_iter() {
+            self.emit_chunk(chunk);
             // __exit__, __enter__() are on the stack
             if self.stack_len() > init_stack_len {
                 self.emit_pop_top();
@@ -2635,25 +2790,38 @@ impl PyCodeGenerator {
 
     fn emit_init_method(&mut self, sig: &Signature, __new__: Type) {
         log!(info "entered {}", fn_name!());
+        let new_first_param = __new__.non_default_params().unwrap().first();
         let line = sig.ln_begin().unwrap();
         let class_name = sig.ident().inspect();
         let mut ident = Identifier::public_with_line(DOT, Str::ever("__init__"), line);
         ident.vi.t = __new__.clone();
-        let param_name = fresh_varname();
-        let param = VarName::from_str_and_line(Str::from(param_name.clone()), line);
-        let param = NonDefaultParamSignature::new(ParamPattern::VarName(param), None);
         let self_param = VarName::from_str_and_line(Str::ever("self"), line);
         let self_param = NonDefaultParamSignature::new(ParamPattern::VarName(self_param), None);
-        let params = Params::new(vec![self_param, param], None, vec![], None);
+        let (param_name, params) = if let Some(new_first_param) = new_first_param {
+            let param_name = new_first_param
+                .name()
+                .map(|s| s.to_string())
+                .unwrap_or_else(fresh_varname);
+            let param = VarName::from_str_and_line(Str::from(param_name.clone()), line);
+            let param = NonDefaultParamSignature::new(ParamPattern::VarName(param), None);
+            let params = Params::new(vec![self_param, param], None, vec![], None);
+            (param_name, params)
+        } else {
+            (
+                "_".into(),
+                Params::new(vec![self_param], None, vec![], None),
+            )
+        };
         let subr_sig = SubrSignature::new(ident, params);
         let mut attrs = vec![];
-        match __new__.non_default_params().unwrap()[0].typ() {
+        match new_first_param.map(|pt| pt.typ()) {
             // namedtupleは仕様上::xなどの名前を使えない
             // {x = Int; y = Int}
-            // => self::x = %x.x; self::y = %x.y
+            //   => self::x = %x.x; self::y = %x.y
             // {.x = Int; .y = Int}
-            // => self.x = %x.x; self.y = %x.y
-            Type::Record(rec) => {
+            //   => self.x = %x.x; self.y = %x.y
+            // () => pass
+            Some(Type::Record(rec)) => {
                 for field in rec.keys() {
                     let obj =
                         Expr::Accessor(Accessor::private_with_line(Str::from(&param_name), line));
@@ -2671,13 +2839,18 @@ impl PyCodeGenerator {
                         dot,
                         VarName::from_str(field.symbol.clone()),
                     ));
-                    let attr_def = AttrDef::new(attr, Block::new(vec![expr]));
-                    attrs.push(Expr::AttrDef(attr_def));
+                    let redef = ReDef::new(attr, Block::new(vec![expr]));
+                    attrs.push(Expr::ReDef(redef));
                 }
                 let none = Token::new(TokenKind::NoneLit, "None", line, 0);
-                attrs.push(Expr::Lit(Literal::try_from(none).unwrap()));
+                attrs.push(Expr::Lit(Literal::new(ValueObj::None, none)));
             }
-            other => todo!("{other}"),
+            Some(other) => todo!("{other}"),
+            None => {
+                let none = Token::new(TokenKind::NoneLit, "None", line, 0);
+                let none = Expr::Lit(Literal::new(ValueObj::None, none));
+                attrs.push(none);
+            }
         }
         let block = Block::new(attrs);
         let body = DefBody::new(EQUAL, block, DefId(0));
@@ -2694,24 +2867,37 @@ impl PyCodeGenerator {
         let class_ident = sig.ident();
         let line = sig.ln_begin().unwrap();
         let mut ident = Identifier::public_with_line(DOT, Str::ever("new"), line);
-        ident.vi.t = __new__;
-        let param_name = fresh_varname();
-        let param = VarName::from_str_and_line(Str::from(param_name.clone()), line);
-        let param = NonDefaultParamSignature::new(ParamPattern::VarName(param), None);
-        let sig = SubrSignature::new(ident, Params::new(vec![param], None, vec![], None));
-        let arg = PosArg::new(Expr::Accessor(Accessor::private_with_line(
-            Str::from(param_name),
-            line,
-        )));
         let class = Expr::Accessor(Accessor::Ident(class_ident.clone()));
         let mut new_ident =
             Identifier::bare(None, VarName::from_str_and_line(Str::ever("__new__"), line));
         new_ident.vi.py_name = Some(Str::ever("__call__"));
         let class_new = class.attr_expr(new_ident);
-        let call = class_new.call_expr(Args::new(vec![arg], None, vec![], None));
-        let block = Block::new(vec![call]);
-        let body = DefBody::new(EQUAL, block, DefId(0));
-        self.emit_subr_def(Some(class_ident.inspect()), sig, body);
+        ident.vi.t = __new__;
+        if let Some(new_first_param) = ident.vi.t.non_default_params().unwrap().first() {
+            let param_name = new_first_param
+                .name()
+                .map(|s| s.to_string())
+                .unwrap_or_else(fresh_varname);
+            let param = VarName::from_str_and_line(Str::from(param_name.clone()), line);
+            let param = NonDefaultParamSignature::new(ParamPattern::VarName(param), None);
+            let params = Params::new(vec![param], None, vec![], None);
+            let sig = SubrSignature::new(ident, params);
+            let arg = PosArg::new(Expr::Accessor(Accessor::private_with_line(
+                Str::from(param_name),
+                line,
+            )));
+            let call = class_new.call_expr(Args::new(vec![arg], None, vec![], None));
+            let block = Block::new(vec![call]);
+            let body = DefBody::new(EQUAL, block, DefId(0));
+            self.emit_subr_def(Some(class_ident.inspect()), sig, body);
+        } else {
+            let params = Params::new(vec![], None, vec![], None);
+            let sig = SubrSignature::new(ident, params);
+            let call = class_new.call_expr(Args::new(vec![], None, vec![], None));
+            let block = Block::new(vec![call]);
+            let body = DefBody::new(EQUAL, block, DefId(0));
+            self.emit_subr_def(Some(class_ident.inspect()), sig, body);
+        }
     }
 
     fn emit_block(&mut self, block: Block, opt_name: Option<Str>, params: Vec<Str>) -> CodeObj {
@@ -2745,8 +2931,8 @@ impl PyCodeGenerator {
             0
         };
         let init_stack_len = self.stack_len();
-        for expr in block.into_iter() {
-            self.emit_expr(expr);
+        for chunk in block.into_iter() {
+            self.emit_chunk(chunk);
             // NOTE: 各行のトップレベルでは0個または1個のオブジェクトが残っている
             // Pythonの場合使わなかったオブジェクトはそのまま捨てられるが、Ergではdiscardを使う必要がある
             // TODO: discard
@@ -2779,8 +2965,11 @@ impl PyCodeGenerator {
         let freevars_len = self.cur_block_codeobj().freevars.len();
         if freevars_len > 0 {
             self.mut_cur_block_codeobj().flags += CodeObjFlags::Nested as u32;
-            self.edit_code(idx_copy_free_vars + 1, freevars_len);
+            if self.py_version.minor >= Some(11) {
+                self.edit_code(idx_copy_free_vars + 1, freevars_len);
+            }
         } else if self.py_version.minor >= Some(11) {
+            // cancel copying
             let code = self.cur_block_codeobj().code.get(idx_copy_free_vars);
             debug_assert_eq!(code, Some(&(Opcode311::COPY_FREE_VARS as u8)));
             self.edit_code(idx_copy_free_vars, CommonOpcode::NOP as usize);
@@ -2815,11 +3004,7 @@ impl PyCodeGenerator {
     }
 
     fn load_in_op(&mut self) {
-        let mod_name = if self.py_version.minor >= Some(10) {
-            Identifier::public("_erg_std_prelude")
-        } else {
-            Identifier::public("_erg_std_prelude_old")
-        };
+        let mod_name = Identifier::public("_erg_std_prelude");
         self.emit_global_import_items(
             mod_name,
             vec![(
@@ -2831,11 +3016,7 @@ impl PyCodeGenerator {
     }
 
     fn load_mutate_op(&mut self) {
-        let mod_name = if self.py_version.minor >= Some(10) {
-            Identifier::public("_erg_std_prelude")
-        } else {
-            Identifier::public("_erg_std_prelude_old")
-        };
+        let mod_name = Identifier::public("_erg_std_prelude");
         self.emit_global_import_items(
             mod_name,
             vec![(
@@ -2872,11 +3053,7 @@ impl PyCodeGenerator {
         self.emit_call_instr(1, Method);
         self.stack_dec();
         self.emit_pop_top();
-        let erg_std_mod = if self.py_version.minor >= Some(10) {
-            Identifier::public("_erg_std_prelude")
-        } else {
-            Identifier::public("_erg_std_prelude_old")
-        };
+        let erg_std_mod = Identifier::public("_erg_std_prelude");
         // escaping
         self.emit_global_import_items(
             erg_std_mod.clone(),
@@ -2942,8 +3119,8 @@ impl PyCodeGenerator {
         if !self.cfg.no_std && !self.prelude_loaded {
             self.load_prelude();
         }
-        for expr in hir.module.into_iter() {
-            self.emit_expr(expr);
+        for chunk in hir.module.into_iter() {
+            self.emit_chunk(chunk);
             // TODO: discard
             if self.stack_len() == 1 {
                 self.emit_pop_top();

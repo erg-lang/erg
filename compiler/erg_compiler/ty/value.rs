@@ -14,11 +14,10 @@ use erg_common::error::{ErrorCore, ErrorKind, Location};
 use erg_common::fresh::fresh_varname;
 use erg_common::python_util::PythonVersion;
 use erg_common::serialize::*;
-use erg_common::set;
 use erg_common::set::Set;
 use erg_common::shared::Shared;
 use erg_common::vis::Field;
-use erg_common::{dict, fmt_iter, impl_display_from_debug, switch_lang};
+use erg_common::{dict, fmt_iter, impl_display_from_debug, log, set, switch_lang};
 use erg_common::{RcArray, Str};
 use erg_parser::ast::{ConstArgs, ConstExpr};
 
@@ -62,15 +61,15 @@ pub type EvalValueResult<T> = Result<T, EvalValueError>;
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ClassTypeObj {
     pub t: Type,
-    pub require: Box<TypeObj>,
+    pub require: Option<Box<TypeObj>>,
     pub impls: Option<Box<TypeObj>>,
 }
 
 impl ClassTypeObj {
-    pub fn new(t: Type, require: TypeObj, impls: Option<TypeObj>) -> Self {
+    pub fn new(t: Type, require: Option<TypeObj>, impls: Option<TypeObj>) -> Self {
         Self {
             t,
-            require: Box::new(require),
+            require: require.map(Box::new),
             impls: impls.map(Box::new),
         }
     }
@@ -201,7 +200,7 @@ impl fmt::Display for GenTypeObj {
 }
 
 impl GenTypeObj {
-    pub fn class(t: Type, require: TypeObj, impls: Option<TypeObj>) -> Self {
+    pub fn class(t: Type, require: Option<TypeObj>, impls: Option<TypeObj>) -> Self {
         GenTypeObj::Class(ClassTypeObj::new(t, require, impls))
     }
 
@@ -241,7 +240,7 @@ impl GenTypeObj {
 
     pub fn require_or_sup(&self) -> Option<&TypeObj> {
         match self {
-            Self::Class(class) => Some(class.require.as_ref()),
+            Self::Class(class) => class.require.as_ref().map(AsRef::as_ref),
             Self::Subclass(subclass) => Some(subclass.sup.as_ref()),
             Self::Trait(trait_) => Some(trait_.require.as_ref()),
             Self::Subtrait(subtrait) => Some(subtrait.sup.as_ref()),
@@ -360,6 +359,13 @@ impl TypeObj {
         match self {
             TypeObj::Builtin(t) => t,
             TypeObj::Generated(t) => t.typ(),
+        }
+    }
+
+    pub fn typ_mut(&mut self) -> &mut Type {
+        match self {
+            TypeObj::Builtin(t) => t,
+            TypeObj::Generated(t) => t.typ_mut(),
         }
     }
 
@@ -765,7 +771,7 @@ impl ValueObj {
             Type::Bool => Some(Self::Bool(&content[..] == "True")),
             Type::NoneType => Some(Self::None),
             Type::Ellipsis => Some(Self::Ellipsis),
-            Type::NotImplemented => Some(Self::NotImplemented),
+            Type::NotImplementedType => Some(Self::NotImplemented),
             Type::Inf => Some(Self::Inf),
             Type::NegInf => Some(Self::NegInf),
             _ => todo!("{t} {content}"),
@@ -881,7 +887,7 @@ impl ValueObj {
             },
             Self::None => Type::NoneType,
             Self::Ellipsis => Type::Ellipsis,
-            Self::NotImplemented => Type::NotImplemented,
+            Self::NotImplemented => Type::NotImplementedType,
             Self::Inf => Type::Inf,
             Self::NegInf => Type::NegInf,
             Self::Mut(m) => match &*m.borrow() {
@@ -903,10 +909,18 @@ impl ValueObj {
                         TyParam::value(arr.len()).mutate(),
                     ],
                 ),
-                Self::Dict(_dict) => todo!(),
-                Self::Code(_) => Type::Code,
-                Self::None => Type::NoneType,
-                other => panic!("{other} object cannot be mutated"),
+                Self::Dict(dict) => poly(
+                    "Dict!",
+                    vec![TyParam::Dict(
+                        dict.iter()
+                            .map(|(k, v)| (TyParam::value(k.clone()), TyParam::value(v.clone())))
+                            .collect(),
+                    )],
+                ),
+                other => {
+                    log!(err "{other} object cannot be mutated");
+                    other.class()
+                }
             },
             Self::Illegal => Type::Failure,
         }
@@ -914,9 +928,9 @@ impl ValueObj {
 
     pub fn try_cmp(&self, other: &Self) -> Option<Ordering> {
         match (self, other) {
-            (l, r) if l.is_num() && r.is_num() => f64::try_from(l)
-                .unwrap()
-                .partial_cmp(&f64::try_from(r).unwrap()),
+            (l, r) if l.is_num() && r.is_num() => {
+                f64::try_from(l).ok()?.partial_cmp(&f64::try_from(r).ok()?)
+            }
             (Self::Inf, n) | (n, Self::NegInf) if n.is_num() => Some(Ordering::Greater),
             (n, Self::Inf) | (Self::NegInf, n) if n.is_num() => Some(Ordering::Less),
             (Self::NegInf, Self::Inf) => Some(Ordering::Less),
@@ -1229,7 +1243,10 @@ impl ValueObj {
     pub fn try_get_attr(&self, attr: &Field) -> Option<Self> {
         match self {
             Self::Type(typ) => match typ {
-                TypeObj::Builtin(builtin) => todo!("{builtin}{attr}"),
+                TypeObj::Builtin(builtin) => {
+                    log!(err "TODO: {builtin}{attr}");
+                    None
+                }
                 TypeObj::Generated(gen) => match gen.typ() {
                     Type::Record(rec) => {
                         let t = rec.get(attr)?;

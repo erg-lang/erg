@@ -1,5 +1,5 @@
 use erg_common::style::{Attribute, Color, StyledStrings, THEME};
-use erg_common::{enum_unwrap, switch_lang};
+use erg_common::{option_enum_unwrap, switch_lang};
 
 use crate::ty::typaram::TyParam;
 use crate::ty::value::ValueObj;
@@ -22,19 +22,6 @@ enum Sequence {
 
 // TODO: these should not be in Context
 impl Context {
-    pub(crate) fn readable_type(typ: &Type) -> Type {
-        match typ {
-            Type::FreeVar(fv) if fv.constraint_is_sandwiched() => {
-                let (sub, sup) = fv.get_subsup().unwrap();
-                if sup == Type::Obj {
-                    return sub;
-                }
-                Type::FreeVar(fv.clone())
-            }
-            other => other.clone(),
-        }
-    }
-
     /// TODO: custom types
     fn get_verb_and_preposition(trait_: &Type) -> Option<(&str, &str, Sequence)> {
         match &trait_.qual_name()[..] {
@@ -49,6 +36,7 @@ impl Context {
     }
 
     pub(crate) fn get_call_type_mismatch_hint(
+        &self,
         callee_t: &Type,
         attr: Option<&str>,
         nth: usize,
@@ -56,7 +44,7 @@ impl Context {
         found: &Type,
     ) -> Option<String> {
         if &callee_t.qual_name()[..] == "Array" && attr == Some("__getitem__") && nth == 1 {
-            let len = &callee_t.typarams()[1];
+            let len = &callee_t.typarams().get(1).cloned()?;
             let (_, _, preds) = found.clone().deconstruct_refinement().ok()?;
             if let Predicate::Equal {
                 lhs: _,
@@ -80,15 +68,19 @@ impl Context {
                 });
             }
         }
-        Self::get_simple_type_mismatch_hint(expected, found)
+        self.get_simple_type_mismatch_hint(expected, found)
     }
 
-    pub(crate) fn get_simple_type_mismatch_hint(expected: &Type, found: &Type) -> Option<String> {
+    pub(crate) fn get_simple_type_mismatch_hint(
+        &self,
+        expected: &Type,
+        found: &Type,
+    ) -> Option<String> {
         let expected = if let Type::FreeVar(fv) = expected {
             if fv.is_linked() {
                 fv.crack().clone()
             } else {
-                let (_sub, sup) = fv.get_subsup().unwrap();
+                let (_sub, sup) = fv.get_subsup()?;
                 sup
             }
         } else {
@@ -166,23 +158,23 @@ impl Context {
                     .union_types()
                     .map(|(t1, t2)| format!("cannot {verb} {t1} {preposition} {t2}"))
                     .or_else(|| {
-                        let expected_inner = Self::readable_type(&expected.inner_ts()[0]);
-                        Some(format!(
-                            "cannot {verb} {found} {preposition} {expected_inner}"
-                        ))
+                        expected.inner_ts().get(0).map(|expected_inner| {
+                            let expected_inner = self.readable_type(expected_inner.clone(), false);
+                            format!("cannot {verb} {found} {preposition} {expected_inner}")
+                        })
                     })
             }
         }
     }
 
-    pub(crate) fn get_no_candidate_hint(proj: &Type) -> Option<String> {
+    pub(crate) fn get_no_candidate_hint(&self, proj: &Type) -> Option<String> {
         match proj {
             Type::Proj { lhs, rhs: _ } => {
                 if let Type::FreeVar(fv) = lhs.as_ref() {
                     let (sub, sup) = fv.get_subsup()?;
                     let (verb, preposition, sequence) = Self::get_verb_and_preposition(&sup)?;
-                    let sup = enum_unwrap!(sup.typarams().remove(0), TyParam::Type);
-                    let sup = Self::readable_type(&sup);
+                    let sup = *option_enum_unwrap!(sup.typarams().get(0)?.clone(), TyParam::Type)?;
+                    let sup = self.readable_type(sup, false);
                     let (l, r) = if sequence == Sequence::Forward {
                         (sub, sup)
                     } else {

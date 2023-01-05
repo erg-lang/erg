@@ -1,6 +1,6 @@
 # タプル
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/11_tuple.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/11_tuple.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/11_tuple.md%26commit_hash%3D20aa4f02b994343ab9600317cebafa2b20676467)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/11_tuple.md&commit_hash=20aa4f02b994343ab9600317cebafa2b20676467)
 
 タプルは配列と似ていますが、違う型のオブジェクトを保持できます。
 このようなコレクションを非等質なコレクションと呼びます。対して等質なコレクションには配列、セットなどがあります。
@@ -29,9 +29,12 @@ i, b, s = t
 
 タプルは違う型のオブジェクトを保持できますが、そのかわり配列のようなイテレーションができなくなります。
 
-```python
+```python,compile_fail
 t: ({1}, {2}, {3}) = (1, 2, 3)
 (1, 2, 3).iter().map(x -> x + 1) # TypeError: type ({1}, {2}, {3}) has no method `.iter()`
+```
+
+```python
 # すべて同じ型の場合配列と同じように`(T; n)`で表せるが、これでもイテレーションは出来ない
 t: (Int; 3) = (1, 2, 3)
 assert (Int; 3) == (Int, Int, Int)

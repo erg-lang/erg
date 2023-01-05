@@ -1,10 +1,10 @@
 # モジュール
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/24_module.md%26commit_hash%3D48107a2d1719892be50588de764991cba6db39b4)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/24_module.md&commit_hash=48107a2d1719892be50588de764991cba6db39b4)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/24_module.md%26commit_hash%3D20aa4f02b994343ab9600317cebafa2b20676467)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/24_module.md&commit_hash=20aa4f02b994343ab9600317cebafa2b20676467)
 
 Ergでは、ファイル自体を1つのレコードとみなすことができます。これをモジュールと呼びます。
 
-```python: foo.er
+```python,checker_ignore
 # foo.er
 .i = 1
 ```
@@ -14,7 +14,7 @@ Ergでは、ファイル自体を1つのレコードとみなすことができ�
 foo = {.i = 1}
 ```
 
-```python: bar.er
+```python,checker_ignore
 # bar.er
 foo = import "foo"
 print! foo # <module 'foo'>
@@ -51,7 +51,7 @@ assert foo.i == 1
 
 `bar`ディレクトリの外側からは以下のようにして使用できます。
 
-```erg
+```python
 bar = import "bar"
 
 bar.baz.p!()
@@ -60,7 +60,7 @@ bar.qux.p!()
 
 `__init__.er`は単にディレクトリをモジュールとして機能させるだけのマーカーではなく、モジュールの可視性を制御する役割も持ちます。
 
-```erg
+```python
 # __init__.er
 
 # `./`はカレントディレクトリを指す。なくても良い
@@ -98,7 +98,7 @@ print! foo.f 1
 しかし、手続き呼び出しによって作られた変数は、循環参照モジュールで定義することはできません。
 これは、Ergが依存関係に従って定義の順番を並べ替えるからです。
 
-```python
+```python,compile_fail
 # foo.er
 bar = import "bar"
 

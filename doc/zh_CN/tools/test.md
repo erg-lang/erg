@@ -1,6 +1,6 @@
 # 测试子命令
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/tools/test.md%26commit_hash%3Da162001c6fb8938240cd0006b256969cce1298a6)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/tools/test.md&commit_hash=a162001c6fb8938240cd0006b256969cce1298a6)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/tools/test.md%26commit_hash%3D14b0c449efc9e9da3e10a09c912a960ecfaf1c9d)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/tools/test.md&commit_hash=14b0c449efc9e9da3e10a09c912a960ecfaf1c9d)
 
 erg 命令有一个名为 test 的子命令，它支持测试的实现和执行
 
@@ -29,16 +29,16 @@ test_1_plus_n(n: Nat) =
 ```python
 VMs =...
     ...
-    # [[
+    #[[
     execute commands.
-    ```python
+    ```erg
     # 标准配置的虚拟机
     {vm1; ...} = import "tests/mock"
 
     assert vm1.exec!("i = 0") == None
     assert vm1.exec!("i").try_into(Int)? == 0
     ```
-    ]]# 
+    ]]#
     .exec! ref self, src =
         ...
     ...

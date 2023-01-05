@@ -16,7 +16,7 @@ use crate::style::THEME;
 use crate::traits::{Locational, Stream};
 use crate::{impl_display_from_debug, switch_lang};
 
-/// ErrorKindと言っているが、ErrorだけでなくWarning, Exceptionも含まれる
+/// This includes not only Error but also Warning, Exception
 /// Numbering of this is not specifically related to ErrFmt.errno().
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
@@ -244,17 +244,17 @@ pub enum Location {
     /// ```
     ///
     Range {
-        ln_begin: usize,
-        col_begin: usize,
-        ln_end: usize,
-        col_end: usize,
+        ln_begin: u32,
+        col_begin: u32,
+        ln_end: u32,
+        col_end: u32,
     },
     /// Used for loss of location information when desugared.
     /// If there are guaranteed to be multiple rows
-    LineRange(usize, usize),
+    LineRange(u32, u32),
     /// Used when Location information is lost when desugared
     /// If it is guaranteed to be a single line
-    Line(usize),
+    Line(u32),
     /// Used by default in case of loss of Location information
     #[default]
     Unknown,
@@ -270,7 +270,7 @@ impl Location {
         }
     }
 
-    pub const fn range(ln_begin: usize, col_begin: usize, ln_end: usize, col_end: usize) -> Self {
+    pub const fn range(ln_begin: u32, col_begin: u32, ln_end: u32, col_end: u32) -> Self {
         Self::Range {
             ln_begin,
             col_begin,
@@ -291,7 +291,7 @@ impl Location {
         }
     }
 
-    pub const fn ln_begin(&self) -> Option<usize> {
+    pub const fn ln_begin(&self) -> Option<u32> {
         match self {
             Self::Range { ln_begin, .. } | Self::LineRange(ln_begin, _) | Self::Line(ln_begin) => {
                 Some(*ln_begin)
@@ -300,7 +300,7 @@ impl Location {
         }
     }
 
-    pub const fn ln_end(&self) -> Option<usize> {
+    pub const fn ln_end(&self) -> Option<u32> {
         match self {
             Self::Range { ln_end, .. } | Self::LineRange(ln_end, _) | Self::Line(ln_end) => {
                 Some(*ln_end)
@@ -309,14 +309,14 @@ impl Location {
         }
     }
 
-    pub const fn col_begin(&self) -> Option<usize> {
+    pub const fn col_begin(&self) -> Option<u32> {
         match self {
             Self::Range { col_begin, .. } => Some(*col_begin),
             _ => None,
         }
     }
 
-    pub const fn col_end(&self) -> Option<usize> {
+    pub const fn col_end(&self) -> Option<u32> {
         match self {
             Self::Range { col_end, .. } => Some(*col_end),
             _ => None,
@@ -414,26 +414,28 @@ impl SubMessage {
     /// `msg` is Vec\<String\> instead of Option\<String\> because it can be used when there are multiple `msg`s as well as multiple lines.
     /// # Example
     /// ```
+    /// # use erg_common::error::{Location, SubMessage};
+    /// # use erg_common::style::{Color, StyledString};
+    /// let loc = Location::Line(1);
     /// let msg = SubMessage::ambiguous_new(loc, vec![], None); // this code same as only_loc()
     ///
-    /// let hint = Some("hint message here".to_string())
+    /// let hint = Some("hint message here".to_string());
     /// let msg = SubMessage::ambiguous_new(loc, vec![], hint);
     /// /* example
     ///    -------
     ///          `- hint message here
     /// */
     ///
-    /// let hint = Some("hint here".to_string())
-    /// let first = StyledString::new("1th message", Color::Red, None);
-    /// let second = StyledString::new("2th message", Color::White, None);
-    ///      :
-    /// let nth = StyledString::new("nth message", Color::Green, None);
+    /// let hint = Some("hint here".to_string());
+    /// let first = StyledString::new("1th message", Some(Color::Red), None);
+    /// let second = StyledString::new("2th message", Some(Color::White), None);
+    /// let nth = StyledString::new("nth message", Some(Color::Green), None);
     /// let msg = SubMessage::ambiguous_new(
     ///     loc,
     ///     vec![
     ///         first.to_string(),
     ///         second.to_string(),
-    ///         ...,
+    ///         // ...,
     ///         nth.to_string(),
     ///     ],
     ///     hint);
@@ -457,6 +459,8 @@ impl SubMessage {
     /// In this case, error position is just modified
     /// # Example
     /// ```
+    /// # use erg_common::error::{Location, SubMessage};
+    /// let loc = Location::Line(1);
     /// let sub_msg = SubMessage::only_loc(loc);
     /// ```
     pub fn only_loc(loc: Location) -> Self {
@@ -497,10 +501,10 @@ impl SubMessage {
                 col_end,
             } => format_context(
                 e,
-                ln_begin,
-                ln_end,
-                col_begin,
-                col_end,
+                ln_begin as usize,
+                ln_end as usize,
+                col_begin as usize,
+                col_end as usize,
                 err_color,
                 gutter_color,
                 chars,
@@ -515,7 +519,7 @@ impl SubMessage {
                 let codes = if input.is_repl() {
                     vec![input.reread()]
                 } else {
-                    input.reread_lines(ln_begin, ln_end)
+                    input.reread_lines(ln_begin as usize, ln_end as usize)
                 };
                 let mark = mark.to_string();
                 for (i, lineno) in (ln_begin..=ln_end).enumerate() {
@@ -547,7 +551,9 @@ impl SubMessage {
                 let code = if input.is_repl() {
                     input.reread()
                 } else {
-                    input.reread_lines(lineno, lineno).remove(0)
+                    input
+                        .reread_lines(lineno as usize, lineno as usize)
+                        .remove(0)
                 };
                 let mut cxt = StyledStrings::default();
                 cxt.push_str_with_color(&format!(" {lineno} {} ", vbar), gutter_color);
@@ -620,16 +626,16 @@ impl ErrorCore {
 
     pub fn dummy(errno: usize) -> Self {
         Self::new(
-            vec![SubMessage::only_loc(Location::Line(errno))],
+            vec![SubMessage::only_loc(Location::Unknown)],
             "<dummy>",
             errno,
             DummyError,
-            Location::Line(errno),
+            Location::Unknown,
         )
     }
 
     pub fn unreachable(fn_name: &str, line: u32) -> Self {
-        Self::bug(line as usize, Location::Line(line as usize), fn_name, line)
+        Self::bug(line as usize, Location::Line(line), fn_name, line)
     }
 
     pub fn bug(errno: usize, loc: Location, fn_name: &str, line: u32) -> Self {

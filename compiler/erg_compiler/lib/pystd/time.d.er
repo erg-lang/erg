@@ -1,2 +1,15 @@
 .sleep!: Float => NoneType
 .time!: () => Float
+
+.StructTime = 'struct_time': ClassType
+.StructTime.tm_year: Nat
+.StructTime.tm_mon: Nat
+.StructTime.tm_mday: Nat
+.StructTime.tm_hour: Nat
+.StructTime.tm_min: Nat
+.StructTime.tm_sec: Nat
+.StructTime.tm_wday: Nat
+.StructTime.tm_yday: Nat
+.StructTime.tm_isdst: Nat
+.StructTime.tm_zone: Str
+.StructTime.tm_gmtoff: Nat

@@ -15,15 +15,15 @@ use crate::artifact::{
 };
 use crate::build_hir::HIRBuilder;
 use crate::codegen::PyCodeGenerator;
-use crate::context::{Context, ContextProvider};
+use crate::context::{Context, ContextProvider, ModuleContext};
 use crate::desugar_hir::HIRDesugarer;
 use crate::error::{CompileError, CompileErrors};
+use crate::global::SharedCompilerResource;
 use crate::hir::{
-    Accessor, Args, Array, AttrDef, BinOp, Block, Call, ClassDef, Def, Dict, Expr, Identifier,
-    Lambda, Literal, Params, PatchDef, Record, Set, Signature, Tuple, UnaryOp, HIR,
+    Accessor, Args, Array, BinOp, Block, Call, ClassDef, Def, Dict, Expr, Identifier, Lambda,
+    Literal, Params, PatchDef, ReDef, Record, Set, Signature, Tuple, UnaryOp, HIR,
 };
 use crate::link::Linker;
-use crate::mod_cache::SharedModuleCache;
 use crate::ty::value::ValueObj;
 use crate::ty::Type;
 use crate::varinfo::VarInfo;
@@ -95,7 +95,7 @@ pub struct PyScript {
 pub struct Transpiler {
     pub cfg: ErgConfig,
     builder: HIRBuilder,
-    mod_cache: SharedModuleCache,
+    shared: SharedCompilerResource,
     script_generator: ScriptGenerator,
 }
 
@@ -105,17 +105,11 @@ impl Runnable for Transpiler {
     const NAME: &'static str = "Erg transpiler";
 
     fn new(cfg: ErgConfig) -> Self {
-        let mod_cache = SharedModuleCache::new(cfg.copy());
-        let py_mod_cache = SharedModuleCache::new(cfg.copy());
+        let shared = SharedCompilerResource::new(cfg.copy());
         Self {
-            builder: HIRBuilder::new_with_cache(
-                cfg.copy(),
-                "<module>",
-                mod_cache.clone(),
-                py_mod_cache,
-            ),
+            shared: shared.clone(),
+            builder: HIRBuilder::new_with_cache(cfg.copy(), "<module>", shared),
             script_generator: ScriptGenerator::new(),
-            mod_cache,
             cfg,
         }
     }
@@ -181,6 +175,15 @@ impl ContextProvider for Transpiler {
 }
 
 impl Buildable<PyScript> for Transpiler {
+    fn inherit(cfg: ErgConfig, shared: SharedCompilerResource) -> Self {
+        let mod_name = Str::rc(cfg.input.file_stem());
+        Self {
+            shared: shared.clone(),
+            builder: HIRBuilder::new_with_cache(cfg.copy(), mod_name, shared),
+            script_generator: ScriptGenerator::new(),
+            cfg,
+        }
+    }
     fn build(
         &mut self,
         src: String,
@@ -189,10 +192,10 @@ impl Buildable<PyScript> for Transpiler {
         self.transpile(src, mode)
             .map_err(|err| IncompleteArtifact::new(None, err.errors, err.warns))
     }
-    fn pop_context(&mut self) -> Option<Context> {
+    fn pop_context(&mut self) -> Option<ModuleContext> {
         self.builder.pop_context()
     }
-    fn get_context(&self) -> Option<&Context> {
+    fn get_context(&self) -> Option<&ModuleContext> {
         self.builder.get_context()
     }
 }
@@ -219,13 +222,13 @@ impl Transpiler {
         mode: &str,
     ) -> Result<CompleteArtifact, ErrorArtifact> {
         let artifact = self.builder.build(src, mode)?;
-        let linker = Linker::new(&self.cfg, &self.mod_cache);
+        let linker = Linker::new(&self.cfg, &self.shared.mod_cache);
         let hir = linker.link(artifact.object);
         let desugared = HIRDesugarer::desugar(hir);
         Ok(CompleteArtifact::new(desugared, artifact.warns))
     }
 
-    pub fn pop_mod_ctx(&mut self) -> Option<Context> {
+    pub fn pop_mod_ctx(&mut self) -> Option<ModuleContext> {
         self.builder.pop_mod_ctx()
     }
 
@@ -415,7 +418,7 @@ impl ScriptGenerator {
             Expr::Lambda(lambda) => self.transpile_lambda(lambda),
             Expr::ClassDef(classdef) => self.transpile_classdef(classdef),
             Expr::PatchDef(patchdef) => self.transpile_patchdef(patchdef),
-            Expr::AttrDef(adef) => self.transpile_attrdef(adef),
+            Expr::ReDef(redef) => self.transpile_attrdef(redef),
             // TODO:
             Expr::Compound(comp) => {
                 let mut code = "".to_string();
@@ -905,8 +908,8 @@ impl ScriptGenerator {
             let Expr::Def(mut def) = chunk else { todo!() };
             let name = format!(
                 "{}{}",
-                demangle(&patch_def.sig.ident().to_string_without_type()),
-                demangle(&def.sig.ident().to_string_without_type()),
+                demangle(&patch_def.sig.ident().to_string_notype()),
+                demangle(&def.sig.ident().to_string_notype()),
             );
             def.sig.ident_mut().name = VarName::from_str(Str::from(name));
             code += &"    ".repeat(self.level);
@@ -916,17 +919,17 @@ impl ScriptGenerator {
         code
     }
 
-    fn transpile_attrdef(&mut self, mut adef: AttrDef) -> String {
-        let mut code = format!("{} = ", self.transpile_expr(Expr::Accessor(adef.attr)));
-        if adef.block.len() > 1 {
+    fn transpile_attrdef(&mut self, mut redef: ReDef) -> String {
+        let mut code = format!("{} = ", self.transpile_expr(Expr::Accessor(redef.attr)));
+        if redef.block.len() > 1 {
             let name = format!("instant_block_{}__", self.fresh_var_n);
             self.fresh_var_n += 1;
             let mut code = format!("def {name}():\n");
-            code += &self.transpile_block(adef.block, Return);
+            code += &self.transpile_block(redef.block, Return);
             self.prelude += &code;
             format!("{name}()")
         } else {
-            let expr = adef.block.remove(0);
+            let expr = redef.block.remove(0);
             code += &self.transpile_expr(expr);
             code
         }

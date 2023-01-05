@@ -7,7 +7,7 @@ use erg_common::config::Input;
 use erg_common::error::{
     ErrorCore, ErrorDisplay, ErrorKind::*, Location, MultiErrorDisplay, SubMessage,
 };
-use erg_common::style::{Attribute, Color, StyledStr, StyledString, THEME};
+use erg_common::style::{Attribute, Color, StyledStr, StyledString, StyledStrings, THEME};
 use erg_common::traits::Stream;
 use erg_common::{impl_display_and_error, impl_stream_for_wrapper, switch_lang};
 
@@ -152,6 +152,132 @@ impl LexError {
             ),
             errno,
             NameError,
+            loc,
+        ))
+    }
+
+    pub fn invalid_chunk_error(errno: usize, loc: Location) -> LexError {
+        let msg = switch_lang!(
+            "japanese" => "無効な構文です",
+            "simplified_chinese" => "无效的语法",
+            "traditional_chinese" => "無效的語法",
+            "english" => "invalid syntax",
+        );
+        let hint = switch_lang!(
+            "japanese" => "`;`を追加するか改行をしてください",
+            "simplified_chinese" => "`;`或应添加换行符",
+            "traditional_chinese" => "`;`或應添加換行",
+            "english" => "`;` or newline should be added",
+        )
+        .to_string();
+        Self::syntax_error(errno, loc, msg, Some(hint))
+    }
+
+    pub fn invalid_arg_decl_error(errno: usize, loc: Location) -> LexError {
+        let msg = switch_lang!(
+            "japanese" => "連続する要素の宣言が異なります",
+            "simplified_chinese" => "应该添加`;`或换行符",
+            "traditional_chinese" => "應該添加`;`或換行符",
+            "english" => "declaration of sequential elements is invalid",
+        );
+        let hint = switch_lang!(
+            "japanese" => "`,`を追加するか改行をしてください",
+            "simplified_chinese" => "应该添加`,`或换行符",
+            "traditional_chinese" => "應該添加`,`或換行符",
+            "english" => "`,` or newline should be added",
+        )
+        .to_string();
+        Self::syntax_error(errno, loc, msg, Some(hint))
+    }
+
+    pub fn invalid_definition_of_last_block(errno: usize, loc: Location) -> LexError {
+        Self::syntax_error(
+            errno,
+            loc,
+            switch_lang!(
+                "japanese" => "ブロックの終端で変数を定義することは出来ません",
+                "simplified_chinese" => "无法在块的末尾定义变量",
+                "traditional_chinese" => "無法在塊的末尾定義變量",
+                "english" => "cannot define a variable at the end of a block",
+            ),
+            None,
+        )
+    }
+
+    pub fn failed_to_analyze_block(errno: usize, loc: Location) -> LexError {
+        Self::syntax_error(
+            errno,
+            loc,
+            switch_lang!(
+                "japanese" => "ブロックの解析に失敗しました",
+                "simplified_chinese" => "无法解析块",
+                "traditional_chinese" => "無法解析塊",
+                "english" => "failed to parse a block",
+            ),
+            None,
+        )
+    }
+
+    pub fn invalid_mutable_symbol(errno: usize, lit: &str, loc: Location) -> LexError {
+        let mut expect = StyledStrings::default();
+        let expect = switch_lang!(
+                "japanese" => {
+                    expect.push_str("期待された構文: ");
+                    expect.push_str_with_color(&format!("!{}", lit), HINT);
+                    expect
+                },
+                "simplified_chinese" => {
+                    expect.push_str("预期语法: ");
+                    expect.push_str_with_color(&format!("!{}", lit), HINT);
+                    expect
+                },
+                "traditional_chinese" => {
+                    expect.push_str("預期語法: ");
+                    expect.push_str_with_color(&format!("!{}", lit), HINT);
+                    expect
+                },
+                "english" => {
+                    expect.push_str("expected: ");
+                    expect.push_str_with_color(&format!("!{}", lit), HINT);
+                    expect
+                },
+        )
+        .to_string();
+        let mut found = StyledStrings::default();
+        let found = switch_lang!(
+                "japanese" => {
+                    found.push_str("見つかった構文: ");
+                    found.push_str_with_color(&format!("{}!", lit), ERR);
+                    found
+                },
+                "simplified_chinese" => {
+                    found.push_str("找到语法: ");
+                    found.push_str_with_color(&format!("{}!", lit), ERR);
+                    found
+                },
+                "traditional_chinese" => {
+                    found.push_str("找到語法: ");
+                    found.push_str_with_color(&format!("{}!", lit), ERR);
+                    found
+                },
+                "english" => {
+                    found.push_str("but found: ");
+                    found.push_str_with_color(&format!("{}!", lit), ERR);
+                    found
+                },
+        )
+        .to_string();
+        let main_msg = switch_lang!(
+            "japanese" => "無効な可変シンボルです",
+            "simplified_chinese" => "无效的可变符号",
+            "traditional_chinese" => "無效的可變符號",
+            "english" => "invalid mutable symbol",
+        );
+        Self::new(ErrorCore::new(
+            vec![SubMessage::ambiguous_new(loc, vec![expect, found], None)],
+            main_msg,
+            errno,
+            SyntaxError,
             loc,
         ))
     }

@@ -1,24 +1,26 @@
 [package]
 name = "erg"
-version = "0.6.0-beta.2"
 description = "The Erg programming language"
-authors = ["erg-lang team <moderation.erglang@gmail.com>"]
-license = "MIT OR Apache-2.0"
-edition = "2021"
-repository = "https://github.com/erg-lang/erg"
 documentation = "https://docs.rs/erg"
-homepage = "https://erg-lang.org/"
 keywords = ["erg", "programming-language"]
+build = "build.rs"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+repository.workspace = true
+homepage.workspace = true
 
 [workspace]
 members = [
     "compiler/erg_common",
     "compiler/erg_compiler",
     "compiler/erg_parser",
+    "compiler/els",
 ]
 
 [workspace.package]
-version = "0.6.0-beta.2"
+version = "0.6.2-nightly.0"
 authors = ["erg-lang team <moderation.erglang@gmail.com>"]
 license = "MIT OR Apache-2.0"
 edition = "2021"
@@ -27,30 +29,51 @@ homepage = "https://erg-lang.org/"
 
 [features]
 # when "debug" feature is turned on, that of the following crates will also be turned on.
-debug = ["erg_common/debug", "erg_parser/debug", "erg_compiler/debug"]
+debug = ["erg_common/debug", "erg_parser/debug", "erg_compiler/debug", "els/debug"]
 japanese = [
     "erg_common/japanese",
     "erg_parser/japanese",
     "erg_compiler/japanese",
+    "els/japanese",
 ]
 simplified_chinese = [
     "erg_common/simplified_chinese",
     "erg_parser/simplified_chinese",
     "erg_compiler/simplified_chinese",
+    "els/simplified_chinese",
 ]
 traditional_chinese = [
     "erg_common/traditional_chinese",
     "erg_parser/traditional_chinese",
     "erg_compiler/traditional_chinese",
+    "els/traditional_chinese",
 ]
-unicode = ["erg_common/unicode", "erg_parser/unicode", "erg_compiler/unicode"]
-pretty = ["erg_common/pretty", "erg_parser/pretty", "erg_compiler/unicode"]
+unicode = ["erg_common/unicode", "erg_parser/unicode", "erg_compiler/unicode", "els/unicode"]
+pretty = ["erg_common/pretty", "erg_parser/pretty", "erg_compiler/pretty", "els/pretty"]
 pre-commit = []
+large_thread = [
+    "erg_common/large_thread",
+    "erg_parser/large_thread",
+    "erg_compiler/large_thread",
+    "els/large_thread",
+]
+py_compatible = ["erg_compiler/py_compatible", "els/py_compatible"]
+els = ["erg_common/els", "erg_compiler/els", "dep:els"]
+
+[workspace.dependencies]
+erg_common = { version = "0.6.2-nightly.0", path = "./compiler/erg_common" }
+erg_parser = { version = "0.6.2-nightly.0", path = "./compiler/erg_parser" }
+erg_compiler = { version = "0.6.2-nightly.0", path = "./compiler/erg_compiler" }
+els = { version = "0.1.14-nightly.0", path = "./compiler/els" }
 
 [dependencies]
-erg_common = { version = "0.6.0-beta.2", path = "./compiler/erg_common" }
-erg_parser = { version = "0.6.0-beta.2", path = "./compiler/erg_parser" }
-erg_compiler = { version = "0.6.0-beta.2", path = "./compiler/erg_compiler" }
+erg_common = { workspace = true }
+erg_parser = { workspace = true }
+erg_compiler = { workspace = true }
+els = { workspace = true, optional = true }
+
+[build-dependencies]
+erg_common = { workspace = true }
 
 [lib]
 path = "src/lib.rs"

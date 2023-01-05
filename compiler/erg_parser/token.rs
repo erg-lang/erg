@@ -1,14 +1,15 @@
 //! defines `Token` (The minimum unit in the Erg source code that serves as input to the parser).
 //!
 //! Token(パーサーへの入力となる、Ergソースコードにおける最小単位)を定義する
+use std::collections::VecDeque;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 
 use erg_common::error::Location;
-use erg_common::impl_displayable_stream_for_wrapper;
+use erg_common::impl_displayable_deque_stream_for_wrapper;
 use erg_common::opcode311::BinOpCode;
 use erg_common::str::Str;
-use erg_common::traits::{Locational, Stream};
+use erg_common::traits::{DequeStream, Locational};
 // use erg_common::ty::Type;
 // use erg_common::typaram::OpKind;
 // use erg_common::value::ValueObj;
@@ -98,9 +99,9 @@ pub enum TokenKind {
     NotInOp,
     /// `sub` (subtype of)
     SubOp,
-    /// `is`
+    /// `is!`
     IsOp,
-    /// `isnot`
+    /// `isnot!`
     IsNotOp,
     /// `and`
     AndOp,
@@ -318,9 +319,9 @@ pub struct Token {
     pub content: Str,
     /// 1 origin
     // TODO: 複数行文字列リテラルもあるのでタプルにするのが妥当?
-    pub lineno: usize,
+    pub lineno: u32,
     /// a pointer from which the token starts (0 origin)
-    pub col_begin: usize,
+    pub col_begin: u32,
 }
 
 pub const COLON: Token = Token::dummy(TokenKind::Colon, ":");
@@ -369,14 +370,14 @@ impl Locational for Token {
                 self.lineno,
                 self.col_begin,
                 self.lineno,
-                self.col_begin + self.content.len(),
+                self.col_begin + self.content.len() as u32,
             )
         }
     }
 
     #[inline]
-    fn col_end(&self) -> Option<usize> {
-        Some(self.col_begin + self.content.len())
+    fn col_end(&self) -> Option<u32> {
+        Some(self.col_begin + self.content.len() as u32)
     }
 }
 
@@ -398,7 +399,7 @@ impl Token {
     }
 
     #[inline]
-    pub fn new<S: Into<Str>>(kind: TokenKind, cont: S, lineno: usize, col_begin: usize) -> Self {
+    pub fn new<S: Into<Str>>(kind: TokenKind, cont: S, lineno: u32, col_begin: u32) -> Self {
         Token {
             kind,
             content: cont.into(),
@@ -423,11 +424,11 @@ impl Token {
     }
 
     #[inline]
-    pub fn symbol_with_line(cont: &str, line: usize) -> Self {
+    pub fn symbol_with_line(cont: &str, lineno: u32) -> Self {
         Token {
             kind: TokenKind::Symbol,
             content: Str::rc(cont),
-            lineno: line,
+            lineno,
             col_begin: 0,
         }
     }
@@ -474,6 +475,6 @@ impl Token {
 }
 
 #[derive(Debug, Clone)]
-pub struct TokenStream(Vec<Token>);
+pub struct TokenStream(VecDeque<Token>);
 
-impl_displayable_stream_for_wrapper!(TokenStream, Token);
+impl_displayable_deque_stream_for_wrapper!(TokenStream, Token);

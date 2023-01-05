@@ -2,4 +2,4 @@ v = ![]
 for! 0..<10, i =>
     v.push! i
 
-log v.sum()
+log sum v

@@ -5,21 +5,24 @@
 pub mod cache;
 pub mod compare;
 pub mod eval;
+pub mod generalize;
 pub mod hint;
 pub mod initialize;
 pub mod inquire;
 pub mod instantiate;
 pub mod register;
 pub mod test;
-pub mod tyvar;
+pub mod unify;
 
 use std::fmt;
 use std::mem;
 use std::option::Option; // conflicting to Type::Option
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use erg_common::config::ErgConfig;
+use erg_common::config::Input;
 use erg_common::dict::Dict;
+use erg_common::error::Location;
 use erg_common::impl_display_from_debug;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
@@ -27,7 +30,7 @@ use erg_common::vis::Visibility;
 use erg_common::Str;
 use erg_common::{fn_name, get_hash, log};
 
-use crate::ty::typaram::TyParam;
+use crate::global::SharedCompilerResource;
 use crate::ty::value::ValueObj;
 use crate::ty::{Predicate, Type};
 use erg_parser::ast::DefKind;
@@ -40,7 +43,7 @@ use erg_parser::token::Token;
 use crate::context::instantiate::{ConstTemplate, TyVarCache};
 use crate::error::{TyCheckError, TyCheckErrors};
 use crate::mod_cache::SharedModuleCache;
-use crate::varinfo::{Mutability, VarInfo, VarKind};
+use crate::varinfo::{AbsLocation, Mutability, VarInfo, VarKind};
 use Visibility::*;
 
 /// For implementing LSP or other IDE features
@@ -53,22 +56,18 @@ pub trait ContextProvider {
 const BUILTINS: &Str = &Str::ever("<builtins>");
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct TypeRelationInstance {
+pub struct TraitImpl {
     pub sub_type: Type,
     pub sup_trait: Type,
 }
 
-impl std::fmt::Display for TypeRelationInstance {
+impl std::fmt::Display for TraitImpl {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "TypeRelationInstance{{{} <: {}}}",
-            self.sub_type, self.sup_trait
-        )
+        write!(f, "TraitImpl{{{} <: {}}}", self.sub_type, self.sup_trait)
     }
 }
 
-impl TypeRelationInstance {
+impl TraitImpl {
     pub const fn new(sub_type: Type, sup_trait: Type) -> Self {
         Self {
             sub_type,
@@ -97,72 +96,6 @@ impl std::fmt::Display for ClassDefType {
 impl ClassDefType {
     pub const fn impl_trait(class: Type, impl_trait: Type) -> Self {
         ClassDefType::ImplTrait { class, impl_trait }
-    }
-}
-
-/// ```
-/// # use erg_common::ty::{Type, TyParam};
-/// # use erg_compiler::context::TyParamIdx;
-///
-/// let r = Type::mono_q("R");
-/// let o = Type::mono_q("O");
-/// let search_from = Type::poly("Add", vec![TyParam::t(r.clone()), TyParam::t(o.clone())]);
-/// assert_eq!(TyParamIdx::search(&search_from, &o), Some(TyParamIdx::Nth(1)));
-/// let i = Type::mono_q("I");
-/// let f = Type::poly("F", vec![TyParam::t(o.clone()), TyParam::t(i.clone())]);
-/// let search_from = Type::poly("Add", vec![TyParam::t(r), TyParam::t(f)]);
-/// assert_eq!(TyParamIdx::search(&search_from, &o), Some(TyParamIdx::nested(1, TyParamIdx::Nth(0))));
-/// ```
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum TyParamIdx {
-    Nth(usize),
-    Nested { idx: usize, inner: Box<TyParamIdx> },
-}
-
-impl TyParamIdx {
-    pub fn search(search_from: &Type, target: &Type) -> Option<Self> {
-        match search_from {
-            Type::Poly { params, .. } => {
-                for (i, tp) in params.iter().enumerate() {
-                    match tp {
-                        TyParam::Type(t) if t.as_ref() == target => return Some(Self::Nth(i)),
-                        TyParam::Type(t) if t.is_monomorphic() => {}
-                        TyParam::Type(inner) => {
-                            if let Some(inner) = Self::search(inner, target) {
-                                return Some(Self::nested(i, inner));
-                            }
-                        }
-                        other => todo!("{other:?}"),
-                    }
-                }
-                None
-            }
-            _ => todo!(),
-        }
-    }
-
-    /// ```python
-    /// Nested(Nth(1), 0).select(F(X, G(Y, Z))) == Y
-    /// ```
-    pub fn select(self, from: &Type) -> Type {
-        match self {
-            Self::Nth(n) => {
-                let tps = from.typarams();
-                let tp = tps.get(n).unwrap();
-                match tp {
-                    TyParam::Type(t) => *t.clone(),
-                    _ => todo!(),
-                }
-            }
-            Self::Nested { .. } => todo!(),
-        }
-    }
-
-    pub fn nested(idx: usize, inner: Self) -> Self {
-        Self::Nested {
-            idx,
-            inner: Box::new(inner),
-        }
     }
 }
 
@@ -198,31 +131,48 @@ pub struct ParamSpec {
     // TODO: `:` or `<:`
     pub(crate) t: Type,
     pub default_info: DefaultInfo,
+    loc: AbsLocation,
 }
 
 impl ParamSpec {
-    pub const fn new(name: Option<&'static str>, t: Type, default: DefaultInfo) -> Self {
+    pub const fn new(
+        name: Option<&'static str>,
+        t: Type,
+        default: DefaultInfo,
+        loc: AbsLocation,
+    ) -> Self {
         Self {
             name,
             t,
             default_info: default,
+            loc,
         }
     }
 
     pub const fn named(name: &'static str, t: Type, default: DefaultInfo) -> Self {
-        Self::new(Some(name), t, default)
+        Self::new(Some(name), t, default, AbsLocation::unknown())
     }
 
     pub const fn named_nd(name: &'static str, t: Type) -> Self {
-        Self::new(Some(name), t, DefaultInfo::NonDefault)
+        Self::new(
+            Some(name),
+            t,
+            DefaultInfo::NonDefault,
+            AbsLocation::unknown(),
+        )
     }
 
     pub const fn t(name: &'static str, default: DefaultInfo) -> Self {
-        Self::new(Some(name), Type, default)
+        Self::new(Some(name), Type, default, AbsLocation::unknown())
     }
 
     pub const fn t_nd(name: &'static str) -> Self {
-        Self::new(Some(name), Type, DefaultInfo::NonDefault)
+        Self::new(
+            Some(name),
+            Type,
+            DefaultInfo::NonDefault,
+            AbsLocation::unknown(),
+        )
     }
 }
 
@@ -237,7 +187,7 @@ pub enum ContextKind {
     StructuralTrait,
     Patch(Type),
     StructuralPatch(Type),
-    GluePatch(TypeRelationInstance), // TODO: deprecate (integrate into Patch)
+    GluePatch(TraitImpl), // TODO: deprecate (integrate into Patch)
     Module,
     Instant,
     Dummy,
@@ -277,7 +227,10 @@ impl ContextKind {
     }
 }
 
-/// 記号表に登録されているモードを表す
+/// Indicates the mode registered in the Context
+/// Preregister: subroutine or constant expression, can be forward referenced
+/// Normal: Cannot be forward referenced
+/// 環境に登録されているモードを表す
 /// Preregister: サブルーチンまたは定数式、前方参照できる
 /// Normal: 前方参照できない
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -348,7 +301,7 @@ pub struct Context {
     /// K: name of a trait, V: (type, monomorphised trait that the type implements)
     /// K: トレイトの名前, V: (型, その型が実装する単相化トレイト)
     /// e.g. { "Named": [(Type, Named), (Func, Named), ...], "Add": [(Nat, Add(Nat)), (Int, Add(Int)), ...], ... }
-    pub(crate) trait_impls: Dict<Str, Set<TypeRelationInstance>>,
+    pub(crate) trait_impls: Dict<Str, Set<TraitImpl>>,
     /// stores declared names (not initialized)
     pub(crate) decls: Dict<VarName, VarInfo>,
     /// for error reporting
@@ -374,9 +327,9 @@ pub struct Context {
     // patches can be accessed like normal records
     // but when used as a fallback to a type, values are traversed instead of accessing by keys
     pub(crate) patches: Dict<VarName, Context>,
-    pub(crate) mod_cache: Option<SharedModuleCache>,
-    pub(crate) py_mod_cache: Option<SharedModuleCache>,
+    pub(crate) shared: Option<SharedCompilerResource>,
     pub(crate) tv_cache: Option<TyVarCache>,
+    pub(crate) higher_order_caller: Vec<Str>,
     pub(crate) level: usize,
 }
 
@@ -409,6 +362,11 @@ impl ContextProvider for Context {
         let mut vars: Vec<_> = self
             .locals
             .iter()
+            .chain(
+                self.params
+                    .iter()
+                    .filter_map(|(k, v)| k.as_ref().map(|k| (k, v))),
+            )
             .chain(self.methods_list.iter().flat_map(|(_, ctx)| ctx.dir()))
             .collect();
         for sup in self.super_classes.iter() {
@@ -426,30 +384,18 @@ impl ContextProvider for Context {
 
     fn get_receiver_ctx(&self, receiver_name: &str) -> Option<&Context> {
         self.get_mod(receiver_name)
+            .or_else(|| self.rec_get_type(receiver_name).map(|(_, ctx)| ctx))
             .or_else(|| {
                 let (_, vi) = self.get_var_info(receiver_name)?;
                 self.get_nominal_type_ctx(&vi.t).map(|(_, ctx)| ctx)
             })
-            .or_else(|| self.rec_get_type(receiver_name).map(|(_, ctx)| ctx))
     }
 
     fn get_var_info(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
-        if let Some(info) = self.get_local_kv(name) {
-            Some(info)
-        } else {
-            if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
-                return parent.get_var_info(name);
-            }
-            /*Err(TyCheckError::no_var_error(
-                self.cfg.input.clone(),
-                line!() as usize,
-                Location::Unknown,
-                self.caused_by(),
-                name,
-                self.get_similar_name(name),
-            ))*/
-            None
-        }
+        self.get_var_kv(name).or_else(|| {
+            self.get_builtins()
+                .and_then(|builtin| builtin.get_var_kv(name))
+        })
     }
 }
 
@@ -460,6 +406,20 @@ impl Context {
 
     pub fn get_receiver_ctx(&self, receiver_name: &str) -> Option<&Context> {
         ContextProvider::get_receiver_ctx(self, receiver_name)
+    }
+
+    pub fn get_receiver_ctxs(&self, receiver_name: &str) -> Vec<&Context> {
+        let mut ctxs = vec![];
+        if let Some(receiver_ctx) = self.get_receiver_ctx(receiver_name) {
+            ctxs.push(receiver_ctx);
+            ctxs.extend(
+                receiver_ctx
+                    .super_classes
+                    .iter()
+                    .flat_map(|t| self.get_nominal_type_ctx(t).map(|(_, ctx)| ctx)),
+            );
+        }
+        ctxs
     }
 
     pub fn get_var_info(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
@@ -476,21 +436,10 @@ impl Context {
         kind: ContextKind,
         params: Vec<ParamSpec>,
         outer: Option<Context>,
-        mod_cache: Option<SharedModuleCache>,
-        py_mod_cache: Option<SharedModuleCache>,
+        shared: Option<SharedCompilerResource>,
         level: usize,
     ) -> Self {
-        Self::with_capacity(
-            name,
-            cfg,
-            kind,
-            params,
-            outer,
-            mod_cache,
-            py_mod_cache,
-            0,
-            level,
-        )
+        Self::with_capacity(name, cfg, kind, params, outer, shared, 0, level)
     }
 
     pub fn default_with_name(name: &'static str) -> Self {
@@ -499,7 +448,6 @@ impl Context {
             ErgConfig::default(),
             ContextKind::Dummy,
             vec![],
-            None,
             None,
             None,
             Self::TOP_LEVEL,
@@ -513,8 +461,7 @@ impl Context {
         kind: ContextKind,
         params: Vec<ParamSpec>,
         outer: Option<Context>,
-        mod_cache: Option<SharedModuleCache>,
-        py_mod_cache: Option<SharedModuleCache>,
+        shared: Option<SharedCompilerResource>,
         capacity: usize,
         level: usize,
     ) -> Self {
@@ -524,12 +471,12 @@ impl Context {
             if let Some(name) = param.name {
                 let kind = VarKind::parameter(id, param.default_info);
                 let muty = Mutability::from(name);
-                let vi = VarInfo::new(param.t, muty, Private, kind, None, None, None);
+                let vi = VarInfo::new(param.t, muty, Private, kind, None, None, None, param.loc);
                 params_.push((Some(VarName::new(Token::static_symbol(name))), vi));
             } else {
                 let kind = VarKind::parameter(id, param.default_info);
                 let muty = Mutability::Immutable;
-                let vi = VarInfo::new(param.t, muty, Private, kind, None, None, None);
+                let vi = VarInfo::new(param.t, muty, Private, kind, None, None, None, param.loc);
                 params_.push((None, vi));
             }
         }
@@ -555,10 +502,10 @@ impl Context {
             consts: Dict::default(),
             mono_types: Dict::default(),
             poly_types: Dict::default(),
-            mod_cache,
-            py_mod_cache,
+            shared,
             tv_cache: None,
             patches: Dict::default(),
+            higher_order_caller: vec![],
             level,
         }
     }
@@ -569,20 +516,10 @@ impl Context {
         cfg: ErgConfig,
         kind: ContextKind,
         outer: Option<Context>,
-        mod_cache: Option<SharedModuleCache>,
-        py_mod_cache: Option<SharedModuleCache>,
+        shared: Option<SharedCompilerResource>,
         level: usize,
     ) -> Self {
-        Self::new(
-            name,
-            cfg,
-            kind,
-            vec![],
-            outer,
-            mod_cache,
-            py_mod_cache,
-            level,
-        )
+        Self::new(name, cfg, kind, vec![], outer, shared, level)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -593,30 +530,18 @@ impl Context {
         kind: ContextKind,
         params: Vec<ParamSpec>,
         outer: Option<Context>,
-        mod_cache: Option<SharedModuleCache>,
-        py_mod_cache: Option<SharedModuleCache>,
+        shared: Option<SharedCompilerResource>,
         capacity: usize,
         level: usize,
     ) -> Self {
-        Self::with_capacity(
-            name,
-            cfg,
-            kind,
-            params,
-            outer,
-            mod_cache,
-            py_mod_cache,
-            capacity,
-            level,
-        )
+        Self::with_capacity(name, cfg, kind, params, outer, shared, capacity, level)
     }
 
     pub fn poly_trait<S: Into<Str>>(
         name: S,
         params: Vec<ParamSpec>,
         cfg: ErgConfig,
-        mod_cache: Option<SharedModuleCache>,
-        py_mod_cache: Option<SharedModuleCache>,
+        shared: Option<SharedCompilerResource>,
         capacity: usize,
         level: usize,
     ) -> Self {
@@ -627,8 +552,7 @@ impl Context {
             ContextKind::Trait,
             params,
             None,
-            mod_cache,
-            py_mod_cache,
+            shared,
             capacity,
             level,
         )
@@ -645,7 +569,6 @@ impl Context {
             params,
             ErgConfig::default(),
             None,
-            None,
             capacity,
             Self::TOP_LEVEL,
         )
@@ -655,8 +578,7 @@ impl Context {
         name: S,
         params: Vec<ParamSpec>,
         cfg: ErgConfig,
-        mod_cache: Option<SharedModuleCache>,
-        py_mod_cache: Option<SharedModuleCache>,
+        shared: Option<SharedCompilerResource>,
         capacity: usize,
         level: usize,
     ) -> Self {
@@ -667,8 +589,7 @@ impl Context {
             ContextKind::Class,
             params,
             None,
-            mod_cache,
-            py_mod_cache,
+            shared,
             capacity,
             level,
         )
@@ -685,7 +606,6 @@ impl Context {
             params,
             ErgConfig::default(),
             None,
-            None,
             capacity,
             Self::TOP_LEVEL,
         )
@@ -697,8 +617,7 @@ impl Context {
         base: Type,
         params: Vec<ParamSpec>,
         cfg: ErgConfig,
-        mod_cache: Option<SharedModuleCache>,
-        py_mod_cache: Option<SharedModuleCache>,
+        shared: Option<SharedCompilerResource>,
         capacity: usize,
         level: usize,
     ) -> Self {
@@ -709,8 +628,7 @@ impl Context {
             ContextKind::Patch(base),
             params,
             None,
-            mod_cache,
-            py_mod_cache,
+            shared,
             capacity,
             level,
         )
@@ -720,48 +638,32 @@ impl Context {
     pub fn mono_trait<S: Into<Str>>(
         name: S,
         cfg: ErgConfig,
-        mod_cache: Option<SharedModuleCache>,
-        py_mod_cache: Option<SharedModuleCache>,
+        shared: Option<SharedCompilerResource>,
         capacity: usize,
         level: usize,
     ) -> Self {
-        Self::poly_trait(name, vec![], cfg, mod_cache, py_mod_cache, capacity, level)
+        Self::poly_trait(name, vec![], cfg, shared, capacity, level)
     }
 
     #[inline]
     pub fn builtin_mono_trait<S: Into<Str>>(name: S, capacity: usize) -> Self {
-        Self::mono_trait(
-            name,
-            ErgConfig::default(),
-            None,
-            None,
-            capacity,
-            Self::TOP_LEVEL,
-        )
+        Self::mono_trait(name, ErgConfig::default(), None, capacity, Self::TOP_LEVEL)
     }
 
     #[inline]
     pub fn mono_class<S: Into<Str>>(
         name: S,
         cfg: ErgConfig,
-        mod_cache: Option<SharedModuleCache>,
-        py_mod_cache: Option<SharedModuleCache>,
+        shared: Option<SharedCompilerResource>,
         capacity: usize,
         level: usize,
     ) -> Self {
-        Self::poly_class(name, vec![], cfg, mod_cache, py_mod_cache, capacity, level)
+        Self::poly_class(name, vec![], cfg, shared, capacity, level)
     }
 
     #[inline]
     pub fn builtin_mono_class<S: Into<Str>>(name: S, capacity: usize) -> Self {
-        Self::mono_class(
-            name,
-            ErgConfig::default(),
-            None,
-            None,
-            capacity,
-            Self::TOP_LEVEL,
-        )
+        Self::mono_class(name, ErgConfig::default(), None, capacity, Self::TOP_LEVEL)
     }
 
     #[inline]
@@ -769,29 +671,18 @@ impl Context {
         name: S,
         base: Type,
         cfg: ErgConfig,
-        mod_cache: Option<SharedModuleCache>,
-        py_mod_cache: Option<SharedModuleCache>,
+        shared: Option<SharedCompilerResource>,
         capacity: usize,
         level: usize,
     ) -> Self {
-        Self::poly_patch(
-            name,
-            base,
-            vec![],
-            cfg,
-            mod_cache,
-            py_mod_cache,
-            capacity,
-            level,
-        )
+        Self::poly_patch(name, base, vec![], cfg, shared, capacity, level)
     }
 
     #[inline]
     pub fn methods(
         impl_trait: Option<Type>,
         cfg: ErgConfig,
-        mod_cache: Option<SharedModuleCache>,
-        py_mod_cache: Option<SharedModuleCache>,
+        shared: Option<SharedCompilerResource>,
         capacity: usize,
         level: usize,
     ) -> Self {
@@ -806,8 +697,7 @@ impl Context {
             ContextKind::MethodDefs(impl_trait),
             vec![],
             None,
-            mod_cache,
-            py_mod_cache,
+            shared,
             capacity,
             level,
         )
@@ -818,7 +708,6 @@ impl Context {
         Self::methods(
             impl_trait,
             ErgConfig::default(),
-            None,
             None,
             capacity,
             Self::TOP_LEVEL,
@@ -833,19 +722,17 @@ impl Context {
         impls: Type,
         params: Vec<ParamSpec>,
         cfg: ErgConfig,
-        mod_cache: Option<SharedModuleCache>,
-        py_mod_cache: Option<SharedModuleCache>,
+        shared: Option<SharedCompilerResource>,
         capacity: usize,
         level: usize,
     ) -> Self {
         Self::poly(
             name.into(),
             cfg,
-            ContextKind::GluePatch(TypeRelationInstance::new(base, impls)),
+            ContextKind::GluePatch(TraitImpl::new(base, impls)),
             params,
             None,
-            mod_cache,
-            py_mod_cache,
+            shared,
             capacity,
             level,
         )
@@ -866,7 +753,6 @@ impl Context {
             params,
             ErgConfig::default(),
             None,
-            None,
             capacity,
             Self::TOP_LEVEL,
         )
@@ -876,8 +762,7 @@ impl Context {
     pub fn module(
         name: Str,
         cfg: ErgConfig,
-        mod_cache: Option<SharedModuleCache>,
-        py_mod_cache: Option<SharedModuleCache>,
+        shared: Option<SharedCompilerResource>,
         capacity: usize,
     ) -> Self {
         Self::with_capacity(
@@ -886,8 +771,7 @@ impl Context {
             ContextKind::Module,
             vec![],
             None,
-            mod_cache,
-            py_mod_cache,
+            shared,
             capacity,
             Self::TOP_LEVEL,
         )
@@ -895,7 +779,7 @@ impl Context {
 
     #[inline]
     pub fn builtin_module<S: Into<Str>>(name: S, cfg: ErgConfig, capacity: usize) -> Self {
-        Self::module(name.into(), cfg, None, None, capacity)
+        Self::module(name.into(), cfg, None, capacity)
     }
 
     #[inline]
@@ -903,8 +787,7 @@ impl Context {
         name: Str,
         cfg: ErgConfig,
         capacity: usize,
-        mod_cache: Option<SharedModuleCache>,
-        py_mod_cache: Option<SharedModuleCache>,
+        shared: Option<SharedCompilerResource>,
         outer: Context,
     ) -> Self {
         Self::with_capacity(
@@ -913,11 +796,22 @@ impl Context {
             ContextKind::Instant,
             vec![],
             Some(outer),
-            mod_cache,
-            py_mod_cache,
+            shared,
             capacity,
             Self::TOP_LEVEL,
         )
+    }
+
+    pub(crate) fn module_path(&self) -> Option<&PathBuf> {
+        if let Input::File(path) = &self.cfg.input {
+            Some(path)
+        } else {
+            None
+        }
+    }
+
+    pub(crate) fn absolutize(&self, loc: Location) -> AbsLocation {
+        AbsLocation::new(self.module_path().cloned(), loc)
     }
 
     #[inline]
@@ -953,9 +847,10 @@ impl Context {
     pub(crate) fn get_builtins(&self) -> Option<&Context> {
         // builtins中で定義した型等はmod_cacheがNoneになっている
         if self.kind != ContextKind::Module || &self.path()[..] != "<builtins>" {
-            self.mod_cache
+            self.shared
                 .as_ref()
-                .map(|cache| cache.ref_ctx(Path::new("<builtins>")).unwrap())
+                .map(|shared| shared.mod_cache.ref_ctx(Path::new("<builtins>")).unwrap())
+                .map(|mod_ctx| &mod_ctx.context)
         } else {
             None
         }
@@ -964,12 +859,11 @@ impl Context {
     /// This method is intended to be called __only__ in the top-level module.
     /// `.cfg` is not initialized and is used around.
     pub fn initialize(&mut self) {
-        let mut mod_cache = mem::take(&mut self.mod_cache);
-        if let Some(mod_cache) = &mut mod_cache {
+        let mut shared = mem::take(&mut self.shared);
+        if let Some(mod_cache) = shared.as_mut().map(|s| &mut s.mod_cache) {
             mod_cache.initialize();
         }
-        let mut py_mod_cache = mem::take(&mut self.py_mod_cache);
-        if let Some(py_mod_cache) = &mut py_mod_cache {
+        if let Some(py_mod_cache) = shared.as_mut().map(|s| &mut s.py_mod_cache) {
             py_mod_cache.initialize();
         }
         *self = Self::new(
@@ -978,8 +872,7 @@ impl Context {
             self.kind.clone(),
             vec![],
             None,
-            mod_cache,
-            py_mod_cache,
+            shared,
             self.level,
         );
     }
@@ -999,8 +892,7 @@ impl Context {
         log!(info "{}: current namespace: {name}", fn_name!());
         self.outer = Some(Box::new(mem::take(self)));
         self.cfg = self.get_outer().unwrap().cfg.clone();
-        self.mod_cache = self.get_outer().unwrap().mod_cache.clone();
-        self.py_mod_cache = self.get_outer().unwrap().py_mod_cache.clone();
+        self.shared = self.get_outer().unwrap().shared.clone();
         self.tv_cache = tv_cache;
         self.name = name.into();
         self.kind = kind;
@@ -1024,6 +916,7 @@ impl Context {
         }
     }
 
+    /// unlike `pop`, `outer` must be `None`.
     pub fn pop_mod(&mut self) -> Option<Context> {
         if self.outer.is_some() {
             log!(err "not in the top-level context");
@@ -1036,7 +929,10 @@ impl Context {
     }
 
     pub(crate) fn check_decls_and_pop(&mut self) -> Result<Context, TyCheckErrors> {
-        self.check_decls()?;
+        self.check_decls().map_err(|errs| {
+            self.pop();
+            errs
+        })?;
         Ok(self.pop())
     }
 
@@ -1064,5 +960,37 @@ impl Context {
             .iter()
             .chain(self.methods_list.iter().flat_map(|(_, ctx)| ctx.dir()))
             .collect()
+    }
+
+    pub(crate) fn mod_cache(&self) -> Option<&SharedModuleCache> {
+        self.shared.as_ref().map(|shared| &shared.mod_cache)
+    }
+
+    pub(crate) fn py_mod_cache(&self) -> Option<&SharedModuleCache> {
+        self.shared.as_ref().map(|shared| &shared.py_mod_cache)
+    }
+
+    #[cfg(feature = "els")]
+    pub fn index(&self) -> Option<&crate::index::SharedModuleIndex> {
+        self.shared.as_ref().map(|shared| &shared.index)
+    }
+
+    pub fn shared(&self) -> Option<&SharedCompilerResource> {
+        self.shared.as_ref()
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ModuleContext {
+    pub context: Context,
+    pub scope: Dict<Str, Context>,
+}
+
+impl ModuleContext {
+    pub const fn new(toplevel: Context, scope: Dict<Str, Context>) -> Self {
+        Self {
+            context: toplevel,
+            scope,
+        }
     }
 }

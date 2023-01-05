@@ -16,9 +16,9 @@ Since `1..7` can be rewritten as `{1, 2, 3, 4, 5, 6, 7}`, so when element is fin
 Binary! = Class {0, 1}!.
     invert! ref! self =
         if! self == 0:
-            do!
+            do!:
                 self.set! 1
-            do!
+            do!:
                 self.set! 0
 
 b = Binary!.new !0

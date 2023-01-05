@@ -132,8 +132,6 @@ impl From<u8> for MakeFunctionFlags {
 }
 
 /// Implementation of `PyCodeObject`, see Include/cpython/code.h in CPython for details.
-///
-/// 各属性をErg側のObjに変換すると遅くなりそうなので、アクサスされたときのみ変換して提供する
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct CodeObj {
     pub argcount: u32,
@@ -313,7 +311,7 @@ impl CodeObj {
     pub fn into_bytes(self, python_ver: PythonVersion) -> Vec<u8> {
         let mut bytes = vec![DataTypePrefix::Code as u8];
         bytes.append(&mut self.argcount.to_le_bytes().to_vec());
-        if python_ver.minor >= Some(10) {
+        if python_ver.minor >= Some(8) {
             bytes.append(&mut self.posonlyargcount.to_le_bytes().to_vec());
         }
         bytes.append(&mut self.kwonlyargcount.to_le_bytes().to_vec());

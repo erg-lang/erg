@@ -22,8 +22,7 @@ pub struct Set<T> {
     elems: FxHashSet<T>,
 }
 
-// Use fast_eq for faster comparisons
-// より高速な比較はfast_eqを使うこと
+// Use `fast_eq` for faster comparisons
 impl<T: Hash + Eq> PartialEq for Set<T> {
     fn eq(&self, other: &Set<T>) -> bool {
         if self.len() != other.len() {
@@ -189,6 +188,10 @@ impl<T: Hash + Eq + Clone> Set<T> {
         }
     }
 
+    pub fn union_iter<'a>(&'a self, other: &'a Set<T>) -> impl Iterator<Item = &'a T> {
+        self.elems.union(&other.elems)
+    }
+
     /// ```
     /// # use erg_common::set;
     /// assert_eq!(set!{1, 2, 3}.intersection(&set!{2, 3, 4}), set!{2, 3});
@@ -199,6 +202,21 @@ impl<T: Hash + Eq + Clone> Set<T> {
         Self {
             elems: u.into_iter().cloned().collect(),
         }
+    }
+
+    pub fn intersec_iter<'a>(&'a self, other: &'a Set<T>) -> impl Iterator<Item = &'a T> {
+        self.elems.intersection(&other.elems)
+    }
+
+    pub fn difference(&self, other: &Set<T>) -> Set<T> {
+        let u = self.elems.difference(&other.elems);
+        Self {
+            elems: u.into_iter().cloned().collect(),
+        }
+    }
+
+    pub fn diff_iter<'a>(&'a self, other: &'a Set<T>) -> impl Iterator<Item = &'a T> {
+        self.elems.difference(&other.elems)
     }
 }
 

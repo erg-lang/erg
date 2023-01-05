@@ -1,6 +1,6 @@
 # エラーハンドリングシステム
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/30_error_handling.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/30_error_handling.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/30_error_handling.md%26commit_hash%3D20aa4f02b994343ab9600317cebafa2b20676467)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/30_error_handling.md&commit_hash=20aa4f02b994343ab9600317cebafa2b20676467)
 
 主にResult型を使用します。
 ErgではError型オブジェクトを捨てる(トップレベルで対応しない)とエラーが発生します。
@@ -20,7 +20,7 @@ Ergは例外機構(Exception)を持ちません。Pythonの関数をインポー
 `Result`型はエラーかもしれない値を表現します。`Result`によるエラーハンドリングはいくつかの点で例外機構よりも優れています。
 まず第一に、サブルーチンがエラーを出すかもしれないと型定義から分かり、実際に使用するときも一目瞭然です。
 
-```python
+```python,checker_ignore
 # Python
 try:
     x = foo().bar()
@@ -52,7 +52,7 @@ try!:
 
 `Error`/`Result`型単体では副作用が発生しないので、例外と違い送出場所などの情報(Context、文脈)を持てませんが、`.context`メソッドを使えば`Error`オブジェクトに情報を付加できます。`.context`メソッドは`Error`オブジェクト自身を消費して新しい`Error`オブジェクトを作るタイプのメソッドです。チェイン可能であり、複数のコンテクストを保持できます。
 
-```python
+```python,checker_ignore
 f() =
     todo() \
         .context "to be implemented in ver 1.2" \
@@ -73,7 +73,7 @@ f()
 `.stack`は呼び出し元オブジェクトの配列です。Errorオブジェクトは`return`(`?`によるものも含む)されるたびにその呼出元サブルーチンを`.stack`に積んでいきます。
 そして`return`ができないコンテクストで`?`されるなり`.unwrap`されるなりすると、トレースバックを表示しながらパニックします。
 
-```python
+```python,checker_ignore
 f x =
     ...
     y = foo.try_some(x)?
@@ -102,7 +102,7 @@ Ergには回復不能なエラーへの対処として __パニッキング__ �
 
 パニックは`panic`関数で行います。
 
-```python
+```python,checker_ignore
 panic "something went wrong!"
 ```
 

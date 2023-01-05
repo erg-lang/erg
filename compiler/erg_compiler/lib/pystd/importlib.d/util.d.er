@@ -1,0 +1,5 @@
+machinery = pyimport "machinery"
+
+.MAGIC_NUMBER: Bytes
+
+.find_spec: (name: Str) -> machinery.ModuleSpec or NoneType

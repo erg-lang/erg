@@ -76,20 +76,16 @@ impl DeserializeError {
             fn_name!(),
             switch_lang!(
                 "japanese" => format!(
-                    "{}型オブジェクトを予期しましたが、 読み込んだオブジェクトは{}型です",
-                    expect, found
+                    "{expect}型オブジェクトを予期しましたが、 読み込んだオブジェクトは{found}型です",
                 ),
                 "simplified_chinese" => format!(
-                    "期望一个{}对象，但反序列化的对象是{}",
-                    expect, found
+                    "期望一个{expect}对象，但反序列化的对象是{found}",
                 ),
                 "traditional_chinese" => format!(
-                    "期望一個{}對象，但反序列化的對像是{}",
-                    expect, found
+                    "期望一個{expect}對象，但反序列化的對像是{found}",
                 ),
                 "english" => format!(
-                    "expect a {} object, but the deserialized object is {}",
-                    expect, found
+                    "expect a {expect} object, but the deserialized object is {found}",
                 ),
             ),
         )

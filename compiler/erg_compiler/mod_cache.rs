@@ -10,7 +10,7 @@ use erg_common::levenshtein::get_similar_name;
 use erg_common::shared::Shared;
 use erg_common::Str;
 
-use crate::context::Context;
+use crate::context::{Context, ModuleContext};
 use crate::hir::HIR;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -32,7 +32,7 @@ impl ModId {
 pub struct ModuleEntry {
     id: ModId, // builtin == 0, __main__ == 1
     pub hir: Option<HIR>,
-    ctx: Rc<Context>,
+    module: Rc<ModuleContext>,
 }
 
 impl fmt::Display for ModuleEntry {
@@ -40,25 +40,25 @@ impl fmt::Display for ModuleEntry {
         write!(
             f,
             "ModuleEntry(id = {}, name = {})",
-            self.id.0, self.ctx.name
+            self.id.0, self.module.context.name
         )
     }
 }
 
 impl ModuleEntry {
-    pub fn new(id: ModId, hir: Option<HIR>, ctx: Context) -> Self {
+    pub fn new(id: ModId, hir: Option<HIR>, ctx: ModuleContext) -> Self {
         Self {
             id,
             hir,
-            ctx: Rc::new(ctx),
+            module: Rc::new(ctx),
         }
     }
 
-    pub fn builtin(ctx: Context) -> Self {
+    pub fn builtin(ctx: ModuleContext) -> Self {
         Self {
             id: ModId::builtin(),
             hir: None,
-            ctx: Rc::new(ctx),
+            module: Rc::new(ctx),
         }
     }
 }
@@ -104,7 +104,7 @@ impl ModuleCache {
         self.cache.get_mut(path)
     }
 
-    pub fn register(&mut self, path: PathBuf, hir: Option<HIR>, ctx: Context) {
+    pub fn register(&mut self, path: PathBuf, hir: Option<HIR>, ctx: ModuleContext) {
         self.last_id += 1;
         let id = ModId::new(self.last_id);
         let entry = ModuleEntry::new(id, hir, ctx);
@@ -169,22 +169,22 @@ impl SharedModuleCache {
         ref_.get_mut(path)
     }
 
-    pub fn get_ctx<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<Rc<Context>>
+    pub fn get_ctx<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<Rc<ModuleContext>>
     where
         PathBuf: Borrow<Q>,
     {
-        self.0.borrow().get(path).map(|entry| entry.ctx.clone())
+        self.0.borrow().get(path).map(|entry| entry.module.clone())
     }
 
-    pub fn ref_ctx<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<&Context>
+    pub fn ref_ctx<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<&ModuleContext>
     where
         PathBuf: Borrow<Q>,
     {
         let ref_ = unsafe { self.0.as_ptr().as_ref().unwrap() };
-        ref_.get(path).map(|entry| entry.ctx.as_ref())
+        ref_.get(path).map(|entry| entry.module.as_ref())
     }
 
-    pub fn register(&self, path: PathBuf, hir: Option<HIR>, ctx: Context) {
+    pub fn register(&self, path: PathBuf, hir: Option<HIR>, ctx: ModuleContext) {
         self.0.borrow_mut().register(path, hir, ctx);
     }
 
@@ -203,15 +203,17 @@ impl SharedModuleCache {
         self.0.borrow().get_similar_name(name)
     }
 
-    pub fn initialize(&mut self) {
+    pub fn keys(&self) -> impl Iterator<Item = PathBuf> {
+        let ref_ = unsafe { self.0.as_ptr().as_ref().unwrap() };
+        ref_.cache.keys().cloned()
+    }
+
+    pub fn initialize(&self) {
         let builtin_path = PathBuf::from("<builtins>");
         let builtin = self.remove(&builtin_path).unwrap();
-        for path in self.0.borrow().cache.keys() {
-            self.remove(path);
-        }
-        /*for path in self.0.borrow().cache.keys().cloned() {
+        for path in self.keys() {
             self.remove(&path);
-        }*/
-        self.register(builtin_path, None, Rc::try_unwrap(builtin.ctx).unwrap());
+        }
+        self.register(builtin_path, None, Rc::try_unwrap(builtin.module).unwrap());
     }
 }

@@ -84,7 +84,7 @@ f u := 6, v := 5, w:= 4, x := 1, y := 2, z := 3
 
 Default parameters are used when some parameters are mostly fixed and you want to be able to omit them.
 
-Default parameters are specified by `:=`(walrus operator). If `base` is not specified, assign `math.E` to `base`.
+Default parameters are specified by `:=`(default-assign operator). If `base` is not specified, assign `math.E` to `base`.
 
 ```python
 math_log x: Ratio, base := math.E = ...
@@ -222,6 +222,29 @@ factorial(-1) == -1 * factorial(-2) == -1 * -2 * factorial(-3) == ...
 
 and this computation does not stop. Recursive functions must carefully define the range of values or you may end up in an infinite loop.
 So the type specification also helps to avoid accepting unexpected values.
+
+## High-order functions
+
+A higher-order function is a function that takes a function as its parameter or return value.
+For example, a higher-order function that takes a function as its parameter can be written as follows
+
+```python
+arg_f = i -> log i
+higher_f(x: (Int -> NoneType)) = x 10
+higher_f arg_f # 10
+```
+
+Of coursers, it is possible to take return value  as a function.
+
+```python
+add(x): (Int -> Int) = y -> x + y
+add_ten = add(10) # y -> 10 + y
+add_hundred = add(100) # y -> 100 + y
+assert add_ten(1) == 11
+assert add_hundred(1) == 101
+```
+
+By taking functions as parameters and return values in this way, more flexible expressions can be defined with functions.
 
 ## Compile-time functions
 

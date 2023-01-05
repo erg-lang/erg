@@ -3,7 +3,7 @@ extern crate erg_parser;
 
 use std::process;
 
-use erg_common::config::ErgConfig;
+use erg_common::config::{ErgConfig, ErgMode::*};
 use erg_common::spawn::exec_new_thread;
 use erg_common::traits::Runnable;
 
@@ -14,17 +14,17 @@ use erg_parser::ParserRunner;
 fn run() {
     let cfg = ErgConfig::parse();
     match cfg.mode {
-        "lex" => {
+        Lex => {
             LexerRunner::run(cfg);
         }
-        "parse" => {
+        Parse => {
             ParserRunner::run(cfg);
         }
-        "desugar" | "exec" => {
+        Desugar | Execute => {
             ASTBuilder::run(cfg);
         }
         other => {
-            println!("invalid mode: {other}");
+            eprintln!("invalid mode: {other}");
             process::exit(1);
         }
     }

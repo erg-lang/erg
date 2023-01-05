@@ -37,13 +37,12 @@ impl<'a> Linker<'a> {
             self.replace_import(chunk);
         }
         for chunk in main.module.iter_mut() {
-            self.resolve_pymod_path(chunk);
+            Self::resolve_pymod_path(chunk);
         }
         log!(info "linked: {main}");
         main
     }
 
-    #[allow(clippy::only_used_in_recursion)]
     /// ```erg
     /// urllib = pyimport "urllib"
     /// urllib.request.urlopen! "https://example.com"
@@ -54,50 +53,53 @@ impl<'a> Linker<'a> {
     /// import urllib.request
     /// urllib.request.urlopen("https://example.com")
     /// ```
-    fn resolve_pymod_path(&self, expr: &mut Expr) {
+    fn resolve_pymod_path(expr: &mut Expr) {
         match expr {
             Expr::Lit(_) => {}
             Expr::Accessor(acc) => {
-                if matches!(acc, Accessor::Attr(_)) && acc.ref_t().is_py_module() {
-                    let import = Expr::Import(acc.clone());
-                    *expr = Expr::Compound(Block::new(vec![import, mem::take(expr)]));
+                if let Accessor::Attr(attr) = acc {
+                    Self::resolve_pymod_path(&mut attr.obj);
+                    if acc.ref_t().is_py_module() {
+                        let import = Expr::Import(acc.clone());
+                        *expr = Expr::Compound(Block::new(vec![import, mem::take(expr)]));
+                    }
                 }
             }
             Expr::Array(array) => match array {
                 Array::Normal(arr) => {
                     for elem in arr.elems.pos_args.iter_mut() {
-                        self.resolve_pymod_path(&mut elem.expr);
+                        Self::resolve_pymod_path(&mut elem.expr);
                     }
                 }
                 Array::WithLength(arr) => {
-                    self.resolve_pymod_path(&mut arr.elem);
-                    self.resolve_pymod_path(&mut arr.len);
+                    Self::resolve_pymod_path(&mut arr.elem);
+                    Self::resolve_pymod_path(&mut arr.len);
                 }
                 _ => todo!(),
             },
             Expr::Tuple(tuple) => match tuple {
                 Tuple::Normal(tup) => {
                     for elem in tup.elems.pos_args.iter_mut() {
-                        self.resolve_pymod_path(&mut elem.expr);
+                        Self::resolve_pymod_path(&mut elem.expr);
                     }
                 }
             },
             Expr::Set(set) => match set {
                 Set::Normal(st) => {
                     for elem in st.elems.pos_args.iter_mut() {
-                        self.resolve_pymod_path(&mut elem.expr);
+                        Self::resolve_pymod_path(&mut elem.expr);
                     }
                 }
                 Set::WithLength(st) => {
-                    self.resolve_pymod_path(&mut st.elem);
-                    self.resolve_pymod_path(&mut st.len);
+                    Self::resolve_pymod_path(&mut st.elem);
+                    Self::resolve_pymod_path(&mut st.len);
                 }
             },
             Expr::Dict(dict) => match dict {
                 Dict::Normal(dic) => {
                     for elem in dic.kvs.iter_mut() {
-                        self.resolve_pymod_path(&mut elem.key);
-                        self.resolve_pymod_path(&mut elem.value);
+                        Self::resolve_pymod_path(&mut elem.key);
+                        Self::resolve_pymod_path(&mut elem.value);
                     }
                 }
                 other => todo!("{other}"),
@@ -105,56 +107,56 @@ impl<'a> Linker<'a> {
             Expr::Record(record) => {
                 for attr in record.attrs.iter_mut() {
                     for chunk in attr.body.block.iter_mut() {
-                        self.resolve_pymod_path(chunk);
+                        Self::resolve_pymod_path(chunk);
                     }
                 }
             }
             Expr::BinOp(binop) => {
-                self.resolve_pymod_path(&mut binop.lhs);
-                self.resolve_pymod_path(&mut binop.rhs);
+                Self::resolve_pymod_path(&mut binop.lhs);
+                Self::resolve_pymod_path(&mut binop.rhs);
             }
             Expr::UnaryOp(unaryop) => {
-                self.resolve_pymod_path(&mut unaryop.expr);
+                Self::resolve_pymod_path(&mut unaryop.expr);
             }
             Expr::Call(call) => {
-                self.resolve_pymod_path(&mut call.obj);
+                Self::resolve_pymod_path(&mut call.obj);
                 for arg in call.args.pos_args.iter_mut() {
-                    self.resolve_pymod_path(&mut arg.expr);
+                    Self::resolve_pymod_path(&mut arg.expr);
                 }
                 for arg in call.args.kw_args.iter_mut() {
-                    self.resolve_pymod_path(&mut arg.expr);
+                    Self::resolve_pymod_path(&mut arg.expr);
                 }
             }
             Expr::Def(def) => {
                 for chunk in def.body.block.iter_mut() {
-                    self.resolve_pymod_path(chunk);
+                    Self::resolve_pymod_path(chunk);
                 }
             }
             Expr::Lambda(lambda) => {
                 for chunk in lambda.body.iter_mut() {
-                    self.resolve_pymod_path(chunk);
+                    Self::resolve_pymod_path(chunk);
                 }
             }
             Expr::ClassDef(class_def) => {
                 for def in class_def.methods.iter_mut() {
-                    self.resolve_pymod_path(def);
+                    Self::resolve_pymod_path(def);
                 }
             }
             Expr::PatchDef(patch_def) => {
                 for def in patch_def.methods.iter_mut() {
-                    self.resolve_pymod_path(def);
+                    Self::resolve_pymod_path(def);
                 }
             }
-            Expr::AttrDef(attr_def) => {
+            Expr::ReDef(redef) => {
                 // REVIEW:
-                for chunk in attr_def.block.iter_mut() {
-                    self.resolve_pymod_path(chunk);
+                for chunk in redef.block.iter_mut() {
+                    Self::resolve_pymod_path(chunk);
                 }
             }
-            Expr::TypeAsc(tasc) => self.resolve_pymod_path(&mut tasc.expr),
+            Expr::TypeAsc(tasc) => Self::resolve_pymod_path(&mut tasc.expr),
             Expr::Code(chunks) | Expr::Compound(chunks) => {
                 for chunk in chunks.iter_mut() {
-                    self.resolve_pymod_path(chunk);
+                    Self::resolve_pymod_path(chunk);
                 }
             }
             Expr::Import(_) => unreachable!(),
@@ -267,9 +269,9 @@ impl<'a> Linker<'a> {
                     self.replace_import(def);
                 }
             }
-            Expr::AttrDef(attr_def) => {
+            Expr::ReDef(redef) => {
                 // REVIEW:
-                for chunk in attr_def.block.iter_mut() {
+                for chunk in redef.block.iter_mut() {
                     self.replace_import(chunk);
                 }
             }

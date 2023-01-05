@@ -40,8 +40,8 @@ pub const fn get_ver_from_magic_num(magic_num: u32) -> PythonVersion {
 pub fn get_timestamp_bytes() -> [u8; 4] {
     let secs = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs() as u32;
+        .map(|dur| dur.as_secs() as u32)
+        .unwrap_or(0);
     secs.to_le_bytes()
 }
 

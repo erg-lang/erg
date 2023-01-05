@@ -1,6 +1,6 @@
 # 基本
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/00_basic.md%26commit_hash%3D13f2d31aee9012f60b7a40d4b764921f1419cdfe)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/00_basic.md&commit_hash=13f2d31aee9012f60b7a40d4b764921f1419cdfe)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/00_basic.md%26commit_hash%3Dd0a980e7401b15c8d2adc870e42952b8552973f1)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/00_basic.md&commit_hash=d0a980e7401b15c8d2adc870e42952b8552973f1)
 
 > __Warning__: 本文檔不完整。它未經校對(樣式、正確鏈接、誤譯等)。此外，Erg 的語法可能在版本 0.* 期間發生破壞性更改，并且文檔可能沒有相應更新。請事先了解這一點
 > 如果您在本文檔中發現任何錯誤，請報告至 [此處的表單](https://forms.gle/HtLYRfYzWCAaeTGb6) 或 [GitHub repo](https://github.com/erg-lang/erg/issues/new?assignees=&labels=bug&template=bug_report.yaml)。我們將不勝感激您的建議
@@ -112,7 +112,7 @@ i = (x = 1; x + 1) # 語法錯誤: 不能在括號中使用 `;`
 
 ## 縮進
 
-Erg 和 Python 一樣，使用縮進來表示塊。有五個運算符(特殊形式)觸發塊的開始: `=`、`->`、`=>`、`do` 和 `do!`(此外，`:` 和 `|` ，雖然不是運算符，但也會產生縮進)。每個的含義將在后面描述
+Erg 和 Python 一樣，使用縮進來表示塊。有三個運算符(特殊形式)觸發塊的開始: `=`、`->` 和 `=>`(此外，`:` 和 `|` ，雖然不是運算符，但也會產生縮進)。每個的含義將在后面描述
 
 ```python
 f x, y =

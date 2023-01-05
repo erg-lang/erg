@@ -22,15 +22,27 @@ traditional_chinese = [
     "erg_common/traditional_chinese",
     "erg_parser/traditional_chinese",
 ]
-unicode = ["erg_common/unicode"]
-pretty = ["erg_common/pretty"]
+unicode = [
+    "erg_common/unicode",
+    "erg_parser/unicode",
+]
+pretty = [
+    "erg_common/pretty",
+    "erg_parser/pretty"
+]
+large_thread = [
+    "erg_common/large_thread",
+    "erg_parser/large_thread",
+]
+py_compatible = ["erg_common/py_compatible"]
+els = ["erg_common/els"]
 
 [dependencies]
-erg_common = { version = "0.6.0-beta.2", path = "../erg_common" }
-erg_parser = { version = "0.6.0-beta.2", path = "../erg_parser" }
+erg_common = { workspace = true, path = "../erg_common" }
+erg_parser = { workspace = true, path = "../erg_parser" }
 
 [build-dependencies]
-erg_common = { version = "0.6.0-beta.2", path = "../erg_common" }
+erg_common = { workspace = true, path = "../erg_common" }
 
 [lib]
 path = "lib.rs"

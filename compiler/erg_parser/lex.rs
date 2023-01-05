@@ -6,6 +6,7 @@ use unicode_xid::UnicodeXID;
 use erg_common::cache::CacheSet;
 use erg_common::config::ErgConfig;
 use erg_common::config::Input;
+use erg_common::traits::DequeStream;
 use erg_common::traits::{Locational, Runnable, Stream};
 use erg_common::{debug_power_assert, fn_name_full, normalize_newline, switch_lang};
 
@@ -102,9 +103,9 @@ pub struct Lexer /*<'a>*/ {
     /// to determine the type of operators, etc.
     prev_token: Token,
     /// 0-origin, but Token.lineno will 1-origin
-    lineno_token_starts: usize,
+    lineno_token_starts: u32,
     /// 0-origin, indicates the column number in which the token appears
-    col_token_starts: usize,
+    col_token_starts: u32,
     interpol_stack: Vec<Interpolation>,
 }
 
@@ -167,7 +168,7 @@ impl Lexer /*<'a>*/ {
             self.col_token_starts,
         );
         self.prev_token = token.clone();
-        self.col_token_starts += cont_len;
+        self.col_token_starts += cont_len as u32;
         token
     }
 
@@ -236,7 +237,7 @@ impl Lexer /*<'a>*/ {
     }
 
     // +, -, * etc. may be pre/bin
-    // and, or, is, isnot, in, notin, as, dot, cross may be bin/function
+    // and, or, is!, isnot!, in, notin, as, dot, cross may be bin/function
     const fn is_bin_position(&self) -> Option<bool> {
         match self.prev_token.category() {
             // unary: `[ +`, `= +`, `+ +`, `, +`, `:: +`
@@ -297,7 +298,7 @@ impl Lexer /*<'a>*/ {
             if Self::is_bidi(self.peek_cur_ch().unwrap()) {
                 let comment = self.emit_token(Illegal, &s);
                 return Err(LexError::syntax_error(
-                    0,
+                    line!() as usize,
                     comment.loc(),
                     switch_lang!(
                         "japanese" => "不正なユニコード文字(双方向オーバーライド)がコメント中に使用されています",
@@ -316,57 +317,62 @@ impl Lexer /*<'a>*/ {
     fn lex_multi_line_comment(&mut self) -> LexResult<()> {
         let mut s = "".to_string();
         let mut nest_level = 0;
-        loop {
-            match self.peek_cur_ch() {
-                Some(c) => {
-                    if let Some(next_c) = self.peek_next_ch() {
-                        match (c, next_c) {
-                            ('#', '[') => nest_level += 1,
-                            (']', '#') => {
-                                nest_level -= 1;
-                                if nest_level == 0 {
-                                    return Ok(());
-                                }
-                            }
-                            _ => {}
+        while let Some(c) = self.peek_cur_ch() {
+            if let Some(next_c) = self.peek_next_ch() {
+                match (c, next_c) {
+                    ('#', '[') => nest_level += 1,
+                    (']', '#') => {
+                        nest_level -= 1;
+                        if nest_level == 0 {
+                            self.consume(); // ]
+                            self.consume(); // #
+                            return Ok(());
                         }
-                        if c == '\n' {
-                            self.lineno_token_starts += 1;
-                            self.col_token_starts = 0;
-                        }
-                        s.push(self.consume().unwrap());
                     }
-                    if Self::is_bidi(self.peek_cur_ch().unwrap()) {
-                        let comment = self.emit_token(Illegal, &s);
-                        return Err(LexError::syntax_error(
-                            0,
-                            comment.loc(),
-                            switch_lang!(
-                                "japanese" => "不正なユニコード文字(双方向オーバーライド)がコメント中に使用されています",
-                                "simplified_chinese" => "注释中使用了非法的unicode字符（双向覆盖）",
-                                "traditional_chinese" => "註釋中使用了非法的unicode字符（雙向覆蓋）",
-                                "english" => "invalid unicode character (bi-directional override) in comments",
-                            ),
-                            None,
-                        ));
-                    }
+                    _ => {}
                 }
-                None => {
-                    let comment = self.emit_token(Illegal, &s);
-                    return Err(LexError::syntax_error(
-                        0,
-                        comment.loc(),
-                        switch_lang!(
-                        "japanese" => "複数行コメントが]#で閉じられていません",
-                        "simplified_chinese" => "未用]#号结束的多处评论",
-                        "traditional_chinese" => "多條評論未用]#關閉",
-                        "english" => "Multi-comment is not closed with ]#",
-                        ),
-                        None,
-                    ));
+                if c == '\n' {
+                    self.lineno_token_starts += 1;
+                    self.col_token_starts = 0;
+                    s.clear();
+                    self.consume();
+                    continue;
                 }
             }
+            if Self::is_bidi(c) {
+                let comment = self.emit_token(Illegal, &s);
+                return Err(LexError::syntax_error(
+                    line!() as usize,
+                    comment.loc(),
+                    switch_lang!(
+                        "japanese" => "不正なユニコード文字(双方向オーバーライド)がコメント中に使用されています",
+                        "simplified_chinese" => "注释中使用了非法的unicode字符（双向覆盖）",
+                        "traditional_chinese" => "註釋中使用了非法的unicode字符（雙向覆蓋）",
+                        "english" => "invalid unicode character (bi-directional override) in comments",
+                    ),
+                    None,
+                ));
+            }
+            s.push(self.consume().unwrap());
         }
+        let comment = self.emit_token(Illegal, &s);
+        let hint = switch_lang!(
+            "japanese" => format!("`]#`の数があと{}個必要です", nest_level),
+            "simplified_chinese" => format!("需要{}个`]#`", nest_level),
+            "traditional_chinese" => format!("需要{}個`]#`", nest_level),
+            "english" => format!("{} `]#`(s) are needed", nest_level),
+        );
+        Err(LexError::syntax_error(
+            line!() as usize,
+            comment.loc(),
+            switch_lang!(
+            "japanese" => "複数行コメントが]#で閉じられていません",
+            "simplified_chinese" => "未用]#号结束的多处评论",
+            "traditional_chinese" => "多條評論未用]#關閉",
+            "english" => "multi-comment is not closed with ]#",
+            ),
+            Some(hint),
+        ))
     }
 
     fn lex_space_indent_dedent(&mut self) -> Option<LexResult<Token>> {
@@ -396,7 +402,7 @@ impl Lexer /*<'a>*/ {
         if !spaces.is_empty() && self.prev_token.is(BOF) {
             let space = self.emit_token(Illegal, &spaces);
             Some(Err(LexError::syntax_error(
-                0,
+                line!() as usize,
                 space.loc(),
                 switch_lang!(
                     "japanese" => "インデントが不正です",
@@ -409,18 +415,19 @@ impl Lexer /*<'a>*/ {
         } else if self.prev_token.is(Newline) || self.prev_token.is(Dedent) {
             self.lex_indent_dedent(spaces)
         } else {
-            self.col_token_starts += spaces.len();
+            self.col_token_starts += spaces.len() as u32;
             None
         }
     }
 
     /// The semantic correctness of the use of indent/dedent will be analyzed with `Parser`
     fn lex_indent_dedent(&mut self, spaces: String) -> Option<LexResult<Token>> {
+        let spaces_len = spaces.len();
         // same as the CPython's limit
-        if spaces.len() > 100 {
+        if spaces_len > 100 {
             let token = self.emit_token(Indent, &spaces);
             return Some(Err(LexError::syntax_error(
-                0,
+                line!() as usize,
                 token.loc(),
                 switch_lang!(
                     "japanese" => "インデントが深すぎます",
@@ -445,29 +452,28 @@ impl Lexer /*<'a>*/ {
                 if let Err(e) = self.lex_multi_line_comment() {
                     return Some(Err(e));
                 }
-            }
-            if let Err(e) = self.lex_comment() {
+            } else if let Err(e) = self.lex_comment() {
                 return Some(Err(e));
             }
         }
         let mut is_valid_dedent = false;
         let calc_indent_and_validate = |sum: usize, x: &usize| {
-            if sum + *x == spaces.len() {
+            if sum + *x == spaces_len || spaces_len == 0 {
                 is_valid_dedent = true;
             }
             sum + *x
         };
         let sum_indent = self.indent_stack.iter().fold(0, calc_indent_and_validate);
-        match sum_indent.cmp(&spaces.len()) {
+        match sum_indent.cmp(&spaces_len) {
             Ordering::Less => {
-                let indent_len = spaces.len() - sum_indent;
-                self.col_token_starts += sum_indent;
+                let indent_len = spaces_len - sum_indent;
+                self.col_token_starts += sum_indent as u32;
                 let indent = self.emit_token(Indent, &" ".repeat(indent_len));
                 self.indent_stack.push(indent_len);
                 Some(Ok(indent))
             }
             Ordering::Greater => {
-                self.cursor -= spaces.len();
+                self.cursor -= spaces_len;
                 self.indent_stack.pop();
                 if is_valid_dedent {
                     let dedent = self.emit_token(Dedent, "");
@@ -478,7 +484,7 @@ impl Lexer /*<'a>*/ {
                         Some("unnecessary spaces after linebreak".into())
                     } else { None };
                     Some(Err(LexError::syntax_error(
-                        0,
+                        line!() as usize,
                         invalid_dedent.loc(),
                         switch_lang!(
                             "japanese" => "インデントが不正です",
@@ -491,7 +497,7 @@ impl Lexer /*<'a>*/ {
                 }
             }
             Ordering::Equal /* if indent_sum == space.len() */ => {
-                self.col_token_starts += spaces.len();
+                self.col_token_starts += spaces_len as u32;
                 None
             }
         }
@@ -514,7 +520,7 @@ impl Lexer /*<'a>*/ {
         } else {
             let token = self.emit_token(RatioLit, &num);
             Err(LexError::syntax_error(
-                0,
+                line!() as usize,
                 token.loc(),
                 switch_lang!(
                     "japanese" => format!("`{}`は無効な十進数リテラルです", &token.content),
@@ -644,8 +650,8 @@ impl Lexer /*<'a>*/ {
             "or" => OrOp,
             "in" => InOp,
             "notin" => NotInOp,
-            "is" => IsOp,
-            "isnot" => IsNotOp,
+            "is!" => IsOp,
+            "isnot!" => IsNotOp,
             "dot" => DotOp,
             "cross" => CrossOp,
             "ref" => RefOp,
@@ -686,7 +692,7 @@ impl Lexer /*<'a>*/ {
 
     fn invalid_escape_error(ch: char, token: Token) -> LexError {
         LexError::syntax_error(
-            0,
+            line!() as usize,
             token.loc(),
             switch_lang!(
                 "japanese" => format!("不正なエスケープシーケンスです: \\{}", ch),
@@ -724,7 +730,7 @@ impl Lexer /*<'a>*/ {
 
     fn unclosed_interpol_error(token: Token) -> LexError {
         LexError::syntax_error(
-            0,
+            line!() as usize,
             token.loc(),
             switch_lang!(
                 "japanese" => "文字列内の補間が閉じられていません",
@@ -739,7 +745,7 @@ impl Lexer /*<'a>*/ {
     fn invalid_unicode_character(&mut self, s: &str) -> LexError {
         let token = self.emit_token(Illegal, s);
         LexError::syntax_error(
-            0,
+            line!() as usize,
             token.loc(),
             switch_lang!(
                 "japanese" => "不正なユニコード文字(双方向オーバーライド)が文字列中に使用されています",
@@ -1027,7 +1033,7 @@ impl Lexer /*<'a>*/ {
         }
         let token = self.emit_token(Illegal, &s);
         Err(LexError::syntax_error(
-            0,
+            line!() as usize,
             token.loc(),
             switch_lang!(
                 "japanese" => "raw識別子が'によって閉じられていません",
@@ -1056,8 +1062,7 @@ impl Iterator for Lexer /*<'a>*/ {
                 if let Err(e) = self.lex_multi_line_comment() {
                     return Some(Err(e));
                 }
-            }
-            if let Err(e) = self.lex_comment() {
+            } else if let Err(e) = self.lex_comment() {
                 return Some(Err(e));
             }
         }
@@ -1089,7 +1094,7 @@ impl Iterator for Lexer /*<'a>*/ {
                     } else {
                         let token = self.emit_token(Illegal, "<.");
                         Some(Err(LexError::syntax_error(
-                            0,
+                            line!() as usize,
                             token.loc(),
                             switch_lang!(
                                 "japanese" => "<.という演算子はありません",
@@ -1294,7 +1299,7 @@ impl Iterator for Lexer /*<'a>*/ {
             Some('\t') => {
                 let token = self.emit_token(Illegal, "\t");
                 Some(Err(LexError::syntax_error(
-                    0,
+                    line!() as usize,
                     token.loc(),
                     switch_lang!(
                         "japanese" => "タブ文字は使用できません",
@@ -1323,7 +1328,7 @@ impl Iterator for Lexer /*<'a>*/ {
                     (None, _) => {
                         let token = self.emit_token(Illegal, "\"");
                         Some(Err(LexError::syntax_error(
-                            0,
+                            line!() as usize,
                             token.loc(),
                             switch_lang!(
                                 "japanese" => "文字列が\"によって閉じられていません",
@@ -1361,7 +1366,7 @@ impl Iterator for Lexer /*<'a>*/ {
                     None => {
                         let token = self.emit_token(Illegal, "'");
                         Some(Err(LexError::syntax_error(
-                            0,
+                            line!() as usize,
                             token.loc(),
                             switch_lang!(
                                 "japanese" => "raw識別子が'によって閉じられていません",
@@ -1406,7 +1411,7 @@ impl Iterator for Lexer /*<'a>*/ {
                                 None
                             };
                             return Some(Err(LexError::syntax_error(
-                                0,
+                                line!() as usize,
                                 token.loc(),
                                 switch_lang!(
                                     "japanese" => format!("`{}`はユーザー定義できません", &token.content),
@@ -1422,7 +1427,7 @@ impl Iterator for Lexer /*<'a>*/ {
                 }
                 let token = self.emit_token(Illegal, &op);
                 Some(Err(LexError::syntax_error(
-                    0,
+                    line!() as usize,
                     token.loc(),
                     switch_lang!(
                         "japanese" => format!("バッククォート(`)が閉じられていません"),
@@ -1441,7 +1446,7 @@ impl Iterator for Lexer /*<'a>*/ {
             Some(invalid) => {
                 let token = self.emit_token(Illegal, &invalid.to_string());
                 Some(Err(LexError::syntax_error(
-                    0,
+                    line!() as usize,
                     token.loc(),
                     switch_lang!(
                         "japanese" => format!("この文字は使用できません: '{invalid}'"),

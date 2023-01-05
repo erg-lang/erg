@@ -16,6 +16,7 @@ use crate::build_hir::HIRBuilder;
 use crate::codegen::PyCodeGenerator;
 use crate::desugar_hir::HIRDesugarer;
 use crate::error::{CompileError, CompileErrors, CompileWarnings};
+use crate::global::SharedCompilerResource;
 use crate::hir::Expr;
 use crate::link::Linker;
 use crate::mod_cache::SharedModuleCache;
@@ -108,17 +109,11 @@ impl Runnable for Compiler {
     const NAME: &'static str = "Erg compiler";
 
     fn new(cfg: ErgConfig) -> Self {
-        let mod_cache = SharedModuleCache::new(cfg.copy());
-        let py_mod_cache = SharedModuleCache::new(cfg.copy());
+        let shared = SharedCompilerResource::new(cfg.copy());
         Self {
-            builder: HIRBuilder::new_with_cache(
-                cfg.copy(),
-                "<module>",
-                mod_cache.clone(),
-                py_mod_cache,
-            ),
+            mod_cache: shared.mod_cache.clone(),
+            builder: HIRBuilder::new_with_cache(cfg.copy(), "<module>", shared),
             code_generator: PyCodeGenerator::new(cfg.copy()),
-            mod_cache,
             cfg,
         }
     }
@@ -147,7 +142,7 @@ impl Runnable for Compiler {
     }
 
     fn exec(&mut self) -> Result<i32, Self::Errs> {
-        let path = self.cfg.dump_path().replace(".er", ".pyc");
+        let path = self.cfg.dump_pyc_path();
         let warns = self
             .compile_and_dump_as_pyc(path, self.input().read(), "exec")
             .map_err(|eart| {

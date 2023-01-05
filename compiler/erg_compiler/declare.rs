@@ -29,9 +29,24 @@ impl ASTLowerer {
                 self.cfg().input.clone(),
                 line!() as usize,
                 body.block.loc(),
-                self.ctx.caused_by(),
+                self.module.context.caused_by(),
             )));
         }
+        let opt_spec_t = if let Some(t_spec) = &sig.t_spec {
+            let mut dummy_tv_cache =
+                TyVarCache::new(self.module.context.level, &self.module.context);
+            let t = self.module.context.instantiate_typespec(
+                t_spec,
+                None,
+                &mut dummy_tv_cache,
+                RegistrationMode::Normal,
+                false,
+            )?;
+            t.lift();
+            Some(self.module.context.generalize_t(t))
+        } else {
+            None
+        };
         let chunk = self.declare_chunk(body.block.remove(0))?;
         let py_name = if let hir::Expr::TypeAsc(tasc) = &chunk {
             enum_unwrap!(tasc.expr.as_ref(), hir::Expr::Accessor)
@@ -42,13 +57,21 @@ impl ASTLowerer {
         };
         let block = hir::Block::new(vec![chunk]);
         let found_body_t = block.ref_t();
-        let ident = match &sig.pat {
-            ast::VarPattern::Ident(ident) => ident,
-            _ => unreachable!(),
-        };
+        let ast::VarPattern::Ident(ident) = &sig.pat else { unreachable!() };
         let id = body.id;
-        self.ctx
-            .assign_var_sig(&sig, found_body_t, id, py_name.clone())?;
+        if let Some(spec_t) = opt_spec_t {
+            self.module
+                .context
+                .sub_unify(found_body_t, &spec_t, sig.loc(), None)?;
+        }
+        if let Some(py_name) = &py_name {
+            self.declare_instance(ident, found_body_t, py_name.clone())?;
+        } else {
+            self.module
+                .context
+                .assign_var_sig(&sig, found_body_t, id, py_name.clone())?;
+        }
+        // FIXME: Identifier::new should be used
         let mut ident = hir::Identifier::bare(ident.dot.clone(), ident.name.clone());
         ident.vi.t = found_body_t.clone();
         ident.vi.py_name = py_name;
@@ -66,7 +89,8 @@ impl ASTLowerer {
             Str::ever("<lambda>")
         };
         if self
-            .ctx
+            .module
+            .context
             .registered_info(&name, def.sig.is_const())
             .is_some()
             && def.sig.vis().is_private()
@@ -75,7 +99,7 @@ impl ASTLowerer {
                 self.cfg().input.clone(),
                 line!() as usize,
                 def.sig.loc(),
-                self.ctx.caused_by(),
+                self.module.context.caused_by(),
                 &name,
             )));
         }
@@ -86,7 +110,7 @@ impl ASTLowerer {
                     self.cfg().input.clone(),
                     line!() as usize,
                     sig.loc(),
-                    self.ctx.caused_by(),
+                    self.module.context.caused_by(),
                 )));
             }
             ast::Signature::Var(sig) => self.declare_var(sig, def.body),
@@ -114,7 +138,7 @@ impl ASTLowerer {
                 self.cfg().input.clone(),
                 line!() as usize,
                 other.loc(),
-                self.ctx.caused_by(),
+                self.module.context.caused_by(),
             ))),
         }
     }
@@ -122,14 +146,14 @@ impl ASTLowerer {
     fn declare_ident(&mut self, tasc: ast::TypeAscription) -> LowerResult<hir::TypeAscription> {
         log!(info "entered {}({})", fn_name!(), tasc);
         let is_instance_ascription = tasc.is_instance_ascription();
-        let mut dummy_tv_cache = TyVarCache::new(self.ctx.level, &self.ctx);
+        let mut dummy_tv_cache = TyVarCache::new(self.module.context.level, &self.module.context);
         match *tasc.expr {
             ast::Expr::Accessor(ast::Accessor::Ident(mut ident)) => {
-                if self.cfg().python_compatible_mode {
+                if cfg!(feature = "py_compatible") {
                     ident.trim_end_proc_mark();
                 }
                 let py_name = Str::rc(ident.inspect().trim_end_matches('!'));
-                let t = self.ctx.instantiate_typespec(
+                let t = self.module.context.instantiate_typespec(
                     &tasc.t_spec,
                     None,
                     &mut dummy_tv_cache,
@@ -137,7 +161,7 @@ impl ASTLowerer {
                     false,
                 )?;
                 t.lift();
-                let t = self.ctx.generalize_t(t);
+                let t = self.module.context.generalize_t(t);
                 if is_instance_ascription {
                     self.declare_instance(&ident, &t, py_name)?;
                 } else {
@@ -146,25 +170,35 @@ impl ASTLowerer {
                 let muty = Mutability::from(&ident.inspect()[..]);
                 let vis = ident.vis();
                 let py_name = Str::rc(ident.inspect().trim_end_matches('!'));
-                let vi = VarInfo::new(t, muty, vis, VarKind::Declared, None, None, Some(py_name));
+                let vi = VarInfo::new(
+                    t,
+                    muty,
+                    vis,
+                    VarKind::Declared,
+                    None,
+                    None,
+                    Some(py_name),
+                    self.module.context.absolutize(ident.loc()),
+                );
                 let ident = hir::Identifier::new(ident.dot, ident.name, None, vi);
                 Ok(hir::Expr::Accessor(hir::Accessor::Ident(ident)).type_asc(tasc.t_spec))
             }
             ast::Expr::Accessor(ast::Accessor::Attr(mut attr)) => {
-                if self.cfg().python_compatible_mode {
+                if cfg!(feature = "py_compatible") {
                     attr.ident.trim_end_proc_mark();
                 }
                 let py_name = Str::rc(attr.ident.inspect().trim_end_matches('!'));
-                let t = self.ctx.instantiate_typespec(
+                let t = self.module.context.instantiate_typespec(
                     &tasc.t_spec,
                     None,
                     &mut dummy_tv_cache,
                     RegistrationMode::Normal,
                     false,
                 )?;
-                let namespace = self.ctx.name.clone();
+                let namespace = self.module.context.name.clone();
                 let ctx = self
-                    .ctx
+                    .module
+                    .context
                     .get_mut_singular_ctx(attr.obj.as_ref(), &namespace)?;
                 ctx.assign_var_sig(
                     &ast::VarSignature::new(ast::VarPattern::Ident(attr.ident.clone()), None),
@@ -176,7 +210,16 @@ impl ASTLowerer {
                 let muty = Mutability::from(&attr.ident.inspect()[..]);
                 let vis = attr.ident.vis();
                 let py_name = Str::rc(attr.ident.inspect().trim_end_matches('!'));
-                let vi = VarInfo::new(t, muty, vis, VarKind::Declared, None, None, Some(py_name));
+                let vi = VarInfo::new(
+                    t,
+                    muty,
+                    vis,
+                    VarKind::Declared,
+                    None,
+                    None,
+                    Some(py_name),
+                    self.module.context.absolutize(attr.ident.loc()),
+                );
                 let ident = hir::Identifier::new(attr.ident.dot, attr.ident.name, None, vi);
                 let attr = obj.attr_expr(ident);
                 Ok(attr.type_asc(tasc.t_spec))
@@ -185,7 +228,7 @@ impl ASTLowerer {
                 self.cfg().input.clone(),
                 line!() as usize,
                 other.loc(),
-                self.ctx.caused_by(),
+                self.module.context.caused_by(),
             ))),
         }
     }
@@ -209,10 +252,11 @@ impl ASTLowerer {
                 None,
                 None,
                 Some(py_name.clone()),
+                self.module.context.absolutize(ident.loc()),
             );
-            self.ctx.decls.insert(ident.name.clone(), vi);
+            self.module.context.decls.insert(ident.name.clone(), vi);
         }
-        self.ctx.assign_var_sig(
+        self.module.context.assign_var_sig(
             &ast::VarSignature::new(ast::VarPattern::Ident(ident.clone()), None),
             t,
             ast::DefId(0),
@@ -221,19 +265,19 @@ impl ASTLowerer {
         match t {
             Type::ClassType => {
                 let ty_obj = GenTypeObj::class(
-                    mono(format!("{}{ident}", self.ctx.path())),
-                    TypeObj::Builtin(Type::Uninited),
+                    mono(format!("{}{ident}", self.module.context.path())),
+                    Some(TypeObj::Builtin(Type::Uninited)),
                     None,
                 );
-                self.ctx.register_gen_type(ident, ty_obj);
+                self.module.context.register_gen_type(ident, ty_obj);
             }
             Type::TraitType => {
                 let ty_obj = GenTypeObj::trait_(
-                    mono(format!("{}{ident}", self.ctx.path())),
+                    mono(format!("{}{ident}", self.module.context.path())),
                     TypeObj::Builtin(Type::Uninited),
                     None,
                 );
-                self.ctx.register_gen_type(ident, ty_obj);
+                self.module.context.register_gen_type(ident, ty_obj);
             }
             _ => {}
         }
@@ -244,7 +288,7 @@ impl ASTLowerer {
         if ident.is_raw() {
             return Ok(());
         }
-        if let Some((_, ctx)) = self.ctx.get_mut_type(ident.inspect()) {
+        if let Some((_, ctx)) = self.module.context.get_mut_type(ident.inspect()) {
             ctx.register_marker_trait(trait_.clone());
             Ok(())
         } else {
@@ -252,9 +296,9 @@ impl ASTLowerer {
                 self.cfg().input.clone(),
                 line!() as usize,
                 ident.loc(),
-                self.ctx.caused_by(),
+                self.module.context.caused_by(),
                 ident.inspect(),
-                self.ctx.get_similar_name(ident.inspect()),
+                self.module.context.get_similar_name(ident.inspect()),
             )))
         }
     }
@@ -279,7 +323,7 @@ impl ASTLowerer {
                 self.cfg().input.clone(),
                 line!() as usize,
                 other.loc(),
-                self.ctx.caused_by(),
+                self.module.context.caused_by(),
             ))),
         }
     }

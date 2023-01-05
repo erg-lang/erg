@@ -7,11 +7,11 @@ use erg_parser::ast::{VarName, AST};
 use erg_parser::build_ast::ASTBuilder;
 
 use crate::artifact::{BuildRunnable, Buildable, CompleteArtifact, IncompleteArtifact};
-use crate::context::{Context, ContextProvider};
+use crate::context::{Context, ContextProvider, ModuleContext};
 use crate::effectcheck::SideEffectChecker;
 use crate::error::{CompileError, CompileErrors};
+use crate::global::SharedCompilerResource;
 use crate::lower::ASTLowerer;
-use crate::mod_cache::SharedModuleCache;
 use crate::ownercheck::OwnershipChecker;
 use crate::varinfo::VarInfo;
 
@@ -31,8 +31,7 @@ impl Runnable for HIRBuilder {
         HIRBuilder::new_with_cache(
             cfg.copy(),
             Str::ever("<module>"),
-            SharedModuleCache::new(cfg.copy()),
-            SharedModuleCache::new(cfg),
+            SharedCompilerResource::new(cfg),
         )
     }
 
@@ -77,14 +76,18 @@ impl Runnable for HIRBuilder {
 }
 
 impl Buildable for HIRBuilder {
+    fn inherit(cfg: ErgConfig, shared: SharedCompilerResource) -> Self {
+        let mod_name = Str::rc(cfg.input.file_stem());
+        Self::new_with_cache(cfg, mod_name, shared)
+    }
     fn build(&mut self, src: String, mode: &str) -> Result<CompleteArtifact, IncompleteArtifact> {
         self.build(src, mode)
     }
-    fn pop_context(&mut self) -> Option<Context> {
+    fn pop_context(&mut self) -> Option<ModuleContext> {
         self.pop_mod_ctx()
     }
-    fn get_context(&self) -> Option<&Context> {
-        Some(&self.lowerer.ctx)
+    fn get_context(&self) -> Option<&ModuleContext> {
+        Some(&self.lowerer.module)
     }
 }
 
@@ -108,11 +111,10 @@ impl HIRBuilder {
     pub fn new_with_cache<S: Into<Str>>(
         cfg: ErgConfig,
         mod_name: S,
-        mod_cache: SharedModuleCache,
-        py_mod_cache: SharedModuleCache,
+        shared: SharedCompilerResource,
     ) -> Self {
         Self {
-            lowerer: ASTLowerer::new_with_cache(cfg.copy(), mod_name, mod_cache, py_mod_cache),
+            lowerer: ASTLowerer::new_with_cache(cfg.copy(), mod_name, shared),
             ownership_checker: OwnershipChecker::new(cfg),
         }
     }
@@ -123,11 +125,11 @@ impl HIRBuilder {
         let hir = effect_checker
             .check(artifact.object)
             .map_err(|(hir, errs)| {
-                self.lowerer.ctx.clear_invalid_vars();
+                self.lowerer.module.context.clear_invalid_vars();
                 IncompleteArtifact::new(Some(hir), errs, artifact.warns.clone())
             })?;
         let hir = self.ownership_checker.check(hir).map_err(|(hir, errs)| {
-            self.lowerer.ctx.clear_invalid_vars();
+            self.lowerer.module.context.clear_invalid_vars();
             IncompleteArtifact::new(Some(hir), errs, artifact.warns.clone())
         })?;
         Ok(CompleteArtifact::new(hir, artifact.warns))
@@ -145,7 +147,7 @@ impl HIRBuilder {
         self.check(ast, mode)
     }
 
-    pub fn pop_mod_ctx(&mut self) -> Option<Context> {
+    pub fn pop_mod_ctx(&mut self) -> Option<ModuleContext> {
         self.lowerer.pop_mod_ctx()
     }
 
