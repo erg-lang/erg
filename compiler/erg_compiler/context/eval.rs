@@ -950,9 +950,9 @@ impl Context {
             return Ok(proj(lhs, rhs));
         }
         // in Methods
-        if self.name == sub.qual_name() {
+        if let Some(ctx) = self.get_same_name_context(&sub.qual_name()) {
             if let Some(t) =
-                self.validate_and_project(&sub, opt_sup.as_ref(), &rhs, self, level, t_loc)
+                ctx.validate_and_project(&sub, opt_sup.as_ref(), &rhs, self, level, t_loc)
             {
                 return Ok(t);
             }

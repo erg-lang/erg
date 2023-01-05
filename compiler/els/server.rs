@@ -597,10 +597,10 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let uri = params.text_document_position.text_document.uri;
         let pos = params.text_document_position.position;
         if let Some(tok) = util::get_token(uri.clone(), pos)? {
-            Self::send_log(format!("token: {tok}"))?;
+            // Self::send_log(format!("token: {tok}"))?;
             if let Some(visitor) = self.get_visitor(&uri) {
                 if let Some(vi) = visitor.visit_hir_info(&tok) {
-                    Self::send_log(format!("vi: {vi}"))?;
+                    // Self::send_log(format!("vi: {vi}"))?;
                     if vi.def_loc.loc.is_unknown() {
                         let error_reason = match vi.kind {
                             VarKind::Builtin => "this is a builtin variable and cannot be renamed",
@@ -614,7 +614,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                     let mut changes: HashMap<Url, Vec<TextEdit>> = HashMap::new();
                     Self::commit_change(&mut changes, &vi.def_loc, params.new_name.clone());
                     if let Some(referrers) = self.get_index().get_refs(&vi.def_loc) {
-                        Self::send_log(format!("referrers: {referrers:?}"))?;
+                        // Self::send_log(format!("referrers: {referrers:?}"))?;
                         for referrer in referrers {
                             Self::commit_change(&mut changes, referrer, params.new_name.clone());
                         }

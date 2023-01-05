@@ -42,7 +42,6 @@ use erg_parser::token::Token;
 
 use crate::context::instantiate::{ConstTemplate, TyVarCache};
 use crate::error::{TyCheckError, TyCheckErrors};
-use crate::index::SharedModuleIndex;
 use crate::mod_cache::SharedModuleCache;
 use crate::varinfo::{AbsLocation, Mutability, VarInfo, VarKind};
 use Visibility::*;
@@ -971,7 +970,8 @@ impl Context {
         self.shared.as_ref().map(|shared| &shared.py_mod_cache)
     }
 
-    pub fn index(&self) -> Option<&SharedModuleIndex> {
+    #[cfg(feature = "els")]
+    pub fn index(&self) -> Option<&crate::index::SharedModuleIndex> {
         self.shared.as_ref().map(|shared| &shared.index)
     }
 }

@@ -305,6 +305,16 @@ impl ASTLowerer {
             Err(warns)
         }
     }
+
+    #[cfg(feature = "els")]
+    fn add_ref(&self, vi: &VarInfo, name: &VarName) {
+        self.module.context.index().unwrap().add_ref(
+            vi.def_loc.clone(),
+            self.module.context.absolutize(name.loc()),
+        );
+    }
+    #[cfg(not(feature = "els"))]
+    fn add_ref(&self, _vi: &VarInfo, _name: &VarName) {}
 }
 
 impl ASTLowerer {
@@ -737,10 +747,7 @@ impl ASTLowerer {
                     &self.cfg.input,
                     &self.module.context.name,
                 )?;
-                self.module.context.index().unwrap().add_ref(
-                    vi.def_loc.clone(),
-                    self.module.context.absolutize(attr.ident.name.loc()),
-                );
+                self.add_ref(&vi, &attr.ident.name);
                 let ident = hir::Identifier::new(attr.ident.dot, attr.ident.name, None, vi);
                 let acc = hir::Accessor::Attr(hir::Attribute::new(obj, ident));
                 Ok(acc)
@@ -784,10 +791,7 @@ impl ASTLowerer {
                     .map(|ctx| ctx.name.clone()),
             )
         };
-        self.module.context.index().unwrap().add_ref(
-            vi.def_loc.clone(),
-            self.module.context.absolutize(ident.name.loc()),
-        );
+        self.add_ref(&vi, &ident.name);
         let ident = hir::Identifier::new(ident.dot, ident.name, __name__, vi);
         Ok(ident)
     }
@@ -909,10 +913,7 @@ impl ASTLowerer {
             }
         };
         let attr_name = if let Some(attr_name) = call.attr_name {
-            self.module.context.index().unwrap().add_ref(
-                vi.def_loc.clone(),
-                self.module.context.absolutize(attr_name.name.loc()),
-            );
+            self.add_ref(&vi, &attr_name.name);
             Some(hir::Identifier::new(
                 attr_name.dot,
                 attr_name.name,
