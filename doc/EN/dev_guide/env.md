@@ -18,4 +18,4 @@ The checks may fail on the first run even if there are no bugs, in which case yo
 
 * Editor: Visual Studio Code
 * VSCode extensions: Rust-analyzer, GitLens, Git Graph, GitHub Pull Requests and Issues, Markdown All in One, markdownlint
-* OS: Windows 10/11 | Ubuntu 20.04/22.04 | Mac OS Monterey
+* OS: Windows 10/11 | Ubuntu 20.04/22.04 | macOS Monterey/Ventura
