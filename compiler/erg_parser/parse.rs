@@ -2201,6 +2201,8 @@ impl Parser {
                                 arg.loc(),
                                 switch_lang!(
                                     "japanese" => "非デフォルト引数はデフォルト引数の後に指定できません",
+                                    "simplified_chinese" => "默认实参后面跟着非默认实参",
+                                    "traditional_chinese" => "默認實參後面跟著非默認實參",
                                     "english" => "non-default argument follows default argument",
                                 ),
                                 None,
@@ -2309,6 +2311,8 @@ impl Parser {
                         expr.loc(),
                         switch_lang!(
                             "japanese" => "文字列補間の終わりが見つかりませんでした",
+                            "simplified_chinese" => "未找到字符串插值结束",
+                            "traditional_chinese" => "未找到字符串插值結束",
                             "english" => "end of string interpolation not found",
                         ),
                         None,
@@ -2340,6 +2344,8 @@ impl Parser {
                 loc,
                 switch_lang!(
                     "japanese" => "パイプ演算子の後には関数・メソッド・サブルーチン呼び出しのみが使用できます。",
+                    "simplified_chinese" => "流操作符后只能调用函数、方法或子程序",
+                    "traditional_chinese" => "流操作符後只能調用函數、方法或子程序",
                     "english" => "Only a call of function, method or subroutine is available after stream operator.",
                 ),
                 None,

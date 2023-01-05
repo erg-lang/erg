@@ -664,8 +664,8 @@ passed keyword args:    {kw_args_len}"
         let mut sub_type = StyledStrings::default();
         switch_lang!(
             "japanese" => sub_type.push_str("部分型: "),
-            "simplified_chinese" => sub_type.push_str("部分类型: "),
-            "simplified_chinese" =>sub_type.push_str("部分類型:"),
+            "simplified_chinese" => sub_type.push_str("子类型: "),
+            "simplified_chinese" =>sub_type.push_str("子類型:"),
             "english" => sub_type.push_str("subtype: "),
         );
         sub_type.push_str_with_color_and_attribute(format!("{}", sub_t), HINT, ATTR);
@@ -673,8 +673,8 @@ passed keyword args:    {kw_args_len}"
         let mut sup_type = StyledStrings::default();
         switch_lang!(
             "japanese" => sup_type.push_str("汎化型: "),
-            "simplified_chinese" => sup_type.push_str("超类型: "),
-            "simplified_chinese" => sup_type.push_str("超類型: "),
+            "simplified_chinese" => sup_type.push_str("父类型: "),
+            "simplified_chinese" => sup_type.push_str("父類型: "),
             "english" =>sup_type.push_str("supertype: "),
         );
         sup_type.push_str_with_color_and_attribute(format!("{}", sup_t), ERR, ATTR);
@@ -995,37 +995,37 @@ passed keyword args:    {kw_args_len}"
     ) -> Self {
         let hint = Some(
             switch_lang!(
-             "japanese" => {
-                 let mut s = StyledStrings::default();
-                 s.push_str("多相関数の場合は");
-                 s.push_str_with_color_and_attribute("f|T := Int|", ACCENT, ATTR);
-                 s.push_str(", \n型属性の場合は");
-                 s.push_str_with_color_and_attribute("f|T := Trait|.X", ACCENT, ATTR);
-                 s
-             },
-             "simplified_chinese" => {
-                 let mut s = StyledStrings::default();
-                 s.push_str("如果是多态函数，请使用");
-                 s.push_str_with_color_and_attribute("f|T := Int|", ACCENT, ATTR);
-                 s.push_str("，\n如果是类型属性，请使用");
-                 s.push_str_with_color_and_attribute("f|T := Trait|.X", ACCENT, ATTR);
-                 s
+            "japanese" => {
+                let mut s = StyledStrings::default();
+                s.push_str("多相関数の場合は");
+                s.push_str_with_color_and_attribute("f|T := Int|", ACCENT, ATTR);
+                s.push_str(", \n型属性の場合は");
+                s.push_str_with_color_and_attribute("f|T := Trait|.X", ACCENT, ATTR);
+                s
+            },
+            "simplified_chinese" => {
+                let mut s = StyledStrings::default();
+                s.push_str("如果是多态函数，请使用");
+                s.push_str_with_color_and_attribute("f|T := Int|", ACCENT, ATTR);
+                s.push_str("，\n如果是类型属性，请使用");
+                s.push_str_with_color_and_attribute("f|T := Trait|.X", ACCENT, ATTR);
+                s
             },
             "traditional_chinese" => {
-                 let mut s = StyledStrings::default();
-                 s.push_str("如果是多型函數，請使用");
-                 s.push_str_with_color_and_attribute("f|T := Int|", ACCENT, ATTR);
-                 s.push_str("，\n如果是類型屬性，請使用");
-                 s.push_str_with_color_and_attribute("f|T := Trait|.X", ACCENT, ATTR);
-                 s
+                let mut s = StyledStrings::default();
+                s.push_str("如果是多型函數，請使用");
+                s.push_str_with_color_and_attribute("f|T := Int|", ACCENT, ATTR);
+                s.push_str("，\n如果是類型屬性，請使用");
+                s.push_str_with_color_and_attribute("f|T := Trait|.X", ACCENT, ATTR);
+                s
             },
             "english" => {
-                 let mut s = StyledStrings::default();
-                 s.push_str("if it is a polymorphic function, like ");
-                 s.push_str_with_color_and_attribute("f|T := Int|", ACCENT, ATTR);
-                 s.push_str("\nif it is a type attribute, like ");
-                 s.push_str_with_color_and_attribute("f|T := Trait|.X ", ACCENT, ATTR);
-                 s
+                let mut s = StyledStrings::default();
+                s.push_str("if it is a polymorphic function, like ");
+                s.push_str_with_color_and_attribute("f|T := Int|", ACCENT, ATTR);
+                s.push_str("\nif it is a type attribute, like ");
+                s.push_str_with_color_and_attribute("f|T := Trait|.X ", ACCENT, ATTR);
+                s
             },
                     )
             .to_string(),
