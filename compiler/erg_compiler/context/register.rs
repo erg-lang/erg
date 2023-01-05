@@ -3,6 +3,8 @@ use std::option::Option;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
+#[cfg(feature = "els")]
+use erg_common::config::ErgMode;
 use erg_common::env::erg_pystd_path;
 use erg_common::levenshtein::get_similar_name;
 use erg_common::python_util::BUILTIN_PYTHON_MODS;
@@ -1577,13 +1579,15 @@ impl Context {
 
     #[cfg(feature = "els")]
     pub(crate) fn inc_ref_simple_typespec(&self, simple: &SimpleTypeSpec) {
-        if let Ok(vi) = self.rec_get_var_info(
-            &simple.ident,
-            crate::compile::AccessKind::Name,
-            &self.cfg.input,
-            &self.name,
-        ) {
-            self.inc_ref(&vi, &simple.ident.name);
+        if self.cfg.mode == ErgMode::LanguageServer {
+            if let Ok(vi) = self.rec_get_var_info(
+                &simple.ident,
+                crate::compile::AccessKind::Name,
+                &self.cfg.input,
+                &self.name,
+            ) {
+                self.inc_ref(&vi, &simple.ident.name);
+            }
         }
     }
     #[cfg(not(feature = "els"))]
@@ -1591,13 +1595,15 @@ impl Context {
 
     #[cfg(feature = "els")]
     pub(crate) fn inc_ref_const_local(&self, local: &ConstIdentifier) {
-        if let Ok(vi) = self.rec_get_var_info(
-            local,
-            crate::compile::AccessKind::Name,
-            &self.cfg.input,
-            &self.name,
-        ) {
-            self.inc_ref(&vi, &local.name);
+        if self.cfg.mode == ErgMode::LanguageServer {
+            if let Ok(vi) = self.rec_get_var_info(
+                local,
+                crate::compile::AccessKind::Name,
+                &self.cfg.input,
+                &self.name,
+            ) {
+                self.inc_ref(&vi, &local.name);
+            }
         }
     }
     #[cfg(not(feature = "els"))]
@@ -1605,9 +1611,11 @@ impl Context {
 
     #[cfg(feature = "els")]
     pub fn inc_ref<L: Locational>(&self, vi: &VarInfo, name: &L) {
-        self.index()
-            .unwrap()
-            .add_ref(vi.def_loc.clone(), self.absolutize(name.loc()));
+        if self.cfg.mode == ErgMode::LanguageServer {
+            self.index()
+                .unwrap()
+                .add_ref(vi.def_loc.clone(), self.absolutize(name.loc()));
+        }
     }
     #[cfg(not(feature = "els"))]
     pub fn inc_ref<L: Locational>(&self, _vi: &VarInfo, _name: &L) {}

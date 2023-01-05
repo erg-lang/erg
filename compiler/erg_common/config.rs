@@ -2,6 +2,7 @@
 //!
 //! コマンドオプション(パーサー)を定義する
 use std::env;
+use std::fmt;
 use std::fs::File;
 use std::io::{stdin, BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
@@ -13,6 +14,62 @@ use crate::python_util::{detect_magic_number, get_python_version, PythonVersion}
 use crate::serialize::{get_magic_num_from_bytes, get_ver_from_magic_num};
 use crate::stdin::GLOBAL_STDIN;
 use crate::{power_assert, read_file};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ErgMode {
+    Lex,
+    Parse,
+    Desugar,
+    TypeCheck,
+    FullCheck,
+    Compile,
+    Transpile,
+    Execute,
+    LanguageServer,
+    Read,
+}
+
+impl TryFrom<&str> for ErgMode {
+    type Error = ();
+    fn try_from(s: &str) -> Result<Self, ()> {
+        match s {
+            "lex" | "lexer" => Ok(Self::Lex),
+            "parse" | "parser" => Ok(Self::Parse),
+            "desugar" | "desugarer" => Ok(Self::Desugar),
+            "typecheck" | "lower" => Ok(Self::TypeCheck),
+            "fullcheck" | "check" | "checker" => Ok(Self::FullCheck),
+            "compile" | "compiler" => Ok(Self::Compile),
+            "transpile" | "transpiler" => Ok(Self::Transpile),
+            "execute" => Ok(Self::Execute),
+            "language-server" => Ok(Self::LanguageServer),
+            "byteread" | "read" | "reader" => Ok(Self::Read),
+            _ => Err(()),
+        }
+    }
+}
+
+impl From<ErgMode> for &str {
+    fn from(mode: ErgMode) -> Self {
+        match mode {
+            ErgMode::Lex => "lex",
+            ErgMode::Parse => "parse",
+            ErgMode::Desugar => "desugar",
+            ErgMode::TypeCheck => "typecheck",
+            ErgMode::FullCheck => "fullcheck",
+            ErgMode::Compile => "compile",
+            ErgMode::Transpile => "transpile",
+            ErgMode::Execute => "execute",
+            ErgMode::LanguageServer => "language-server",
+            ErgMode::Read => "read",
+        }
+    }
+}
+
+impl fmt::Display for ErgMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", <&str>::from(*self))
+    }
+}
 
 /// Since input is not always only from files
 /// Unify operations with `Input`
@@ -190,8 +247,7 @@ impl Input {
 
 #[derive(Debug, Clone)]
 pub struct ErgConfig {
-    /// options: lex | parse | compile | exec
-    pub mode: &'static str,
+    pub mode: ErgMode,
     /// optimization level.
     /// * 0: no optimization
     /// * 1 (default): e.g. constant folding, dead code elimination
@@ -223,7 +279,7 @@ impl Default for ErgConfig {
     #[inline]
     fn default() -> Self {
         Self {
-            mode: "exec",
+            mode: ErgMode::Execute,
             opt_level: 1,
             no_std: false,
             py_magic_num: None,
@@ -317,13 +373,13 @@ impl ErgConfig {
                     cfg.input = Input::Str(args.next().expect("the value of `-c` is not passed"));
                 }
                 "--check" => {
-                    cfg.mode = "check";
+                    cfg.mode = ErgMode::FullCheck;
                 }
                 "--compile" | "--dump-as-pyc" => {
-                    cfg.mode = "compile";
+                    cfg.mode = ErgMode::Compile;
                 }
                 "--language-server" => {
-                    cfg.mode = "language-server";
+                    cfg.mode = ErgMode::LanguageServer;
                 }
                 "--no-std" => {
                     cfg.no_std = true;
@@ -348,7 +404,10 @@ impl ErgConfig {
                         println!("{}", mode_message());
                         process::exit(0);
                     }
-                    cfg.mode = Box::leak(mode.into_boxed_str());
+                    cfg.mode = ErgMode::try_from(&mode[..]).unwrap_or_else(|_| {
+                        eprintln!("invalid mode: {mode}");
+                        process::exit(1);
+                    });
                 }
                 "--ping" => {
                     println!("pong");
@@ -466,7 +525,7 @@ impl ErgConfig {
                     process::exit(0);
                 }
                 other if other.starts_with('-') => {
-                    println!(
+                    eprintln!(
                         "\
 invalid option: {other}
 
@@ -491,7 +550,7 @@ USAGE:
                 }
             }
         }
-        if cfg.input == Input::REPL && cfg.mode != "language-server" {
+        if cfg.input == Input::REPL && cfg.mode != ErgMode::LanguageServer {
             use crate::tty::IsTty;
             let is_stdin_piped = !stdin().is_tty();
             let input = if is_stdin_piped {

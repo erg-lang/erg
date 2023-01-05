@@ -3,7 +3,7 @@
 //! ASTLowerer(ASTからHIRへの変換器)を実装
 use std::mem;
 
-use erg_common::config::ErgConfig;
+use erg_common::config::{ErgConfig, ErgMode};
 use erg_common::dict;
 use erg_common::error::{Location, MultiErrorDisplay};
 use erg_common::set;
@@ -154,7 +154,7 @@ impl ASTLowerer {
 
     fn pop_append_errs(&mut self) {
         match self.module.context.check_decls_and_pop() {
-            Ok(ctx) if self.cfg.mode == "language-server" && !ctx.dir().is_empty() => {
+            Ok(ctx) if self.cfg.mode == ErgMode::LanguageServer && !ctx.dir().is_empty() => {
                 self.module.scope.insert(ctx.name.clone(), ctx);
             }
             Err(errs) => self.errs.extend(errs),
