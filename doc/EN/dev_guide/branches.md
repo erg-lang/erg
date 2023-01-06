@@ -2,7 +2,7 @@
 
 ## main
 
-* main development branch
+* main development branch (trunk-based development)
 * The following conditions must be met
 
 * Compile succeeds

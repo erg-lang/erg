@@ -1,6 +1,8 @@
 //! defines common traits used in the compiler.
 //!
 //! コンパイラ等で汎用的に使われるトレイトを定義する
+use std::collections::vec_deque;
+use std::collections::VecDeque;
 use std::env::consts::{ARCH, OS};
 use std::io::{stdout, BufWriter, Write};
 use std::mem;
@@ -11,6 +13,128 @@ use crate::config::{ErgConfig, Input};
 use crate::consts::{BUILD_DATE, GIT_HASH_SHORT, SEMVER};
 use crate::error::{ErrorDisplay, ErrorKind, Location, MultiErrorDisplay};
 use crate::{addr_eq, chomp, log, switch_unreachable};
+
+pub trait DequeStream<T>: Sized {
+    fn payload(self) -> VecDeque<T>;
+    fn ref_payload(&self) -> &VecDeque<T>;
+    fn ref_mut_payload(&mut self) -> &mut VecDeque<T>;
+
+    #[inline]
+    fn is_empty(&self) -> bool {
+        self.ref_payload().is_empty()
+    }
+
+    #[inline]
+    fn insert(&mut self, idx: usize, elem: T) {
+        self.ref_mut_payload().insert(idx, elem);
+    }
+
+    #[inline]
+    fn push(&mut self, elem: T) {
+        self.ref_mut_payload().push_back(elem);
+    }
+
+    fn pop_front(&mut self) -> Option<T> {
+        self.ref_mut_payload().pop_front()
+    }
+
+    #[inline]
+    fn get(&self, idx: usize) -> Option<&T> {
+        self.ref_payload().get(idx)
+    }
+
+    #[inline]
+    fn first(&self) -> Option<&T> {
+        self.ref_payload().front()
+    }
+
+    #[inline]
+    fn last(&self) -> Option<&T> {
+        self.ref_payload().back()
+    }
+
+    #[inline]
+    fn iter(&self) -> vec_deque::Iter<'_, T> {
+        self.ref_payload().iter()
+    }
+}
+
+#[macro_export]
+macro_rules! impl_displayable_deque_stream_for_wrapper {
+    ($Strc: ident, $Inner: ident) => {
+        impl $Strc {
+            pub const fn new(v: VecDeque<$Inner>) -> $Strc {
+                $Strc(v)
+            }
+            pub fn empty() -> $Strc {
+                $Strc(VecDeque::new())
+            }
+            #[inline]
+            pub fn with_capacity(capacity: usize) -> $Strc {
+                $Strc(VecDeque::with_capacity(capacity))
+            }
+        }
+
+        impl Default for $Strc {
+            #[inline]
+            fn default() -> $Strc {
+                $Strc::with_capacity(0)
+            }
+        }
+
+        impl std::ops::Index<usize> for $Strc {
+            type Output = $Inner;
+            fn index(&self, idx: usize) -> &Self::Output {
+                erg_common::traits::DequeStream::get(self, idx).unwrap()
+            }
+        }
+
+        impl From<$Strc> for VecDeque<$Inner> {
+            fn from(item: $Strc) -> VecDeque<$Inner> {
+                item.payload()
+            }
+        }
+
+        impl std::fmt::Display for $Strc {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
+                write!(
+                    f,
+                    "[{}]",
+                    erg_common::fmt_iter(self.iter()).replace("\n", "\\n")
+                )
+            }
+        }
+
+        impl IntoIterator for $Strc {
+            type Item = $Inner;
+            type IntoIter = std::collections::vec_deque::IntoIter<Self::Item>;
+            fn into_iter(self) -> Self::IntoIter {
+                self.payload().into_iter()
+            }
+        }
+
+        impl FromIterator<$Inner> for $Strc {
+            fn from_iter<I: IntoIterator<Item = $Inner>>(iter: I) -> Self {
+                $Strc(iter.into_iter().collect())
+            }
+        }
+
+        impl $crate::traits::DequeStream<$Inner> for $Strc {
+            #[inline]
+            fn payload(self) -> VecDeque<$Inner> {
+                self.0
+            }
+            #[inline]
+            fn ref_payload(&self) -> &VecDeque<$Inner> {
+                &self.0
+            }
+            #[inline]
+            fn ref_mut_payload(&mut self) -> &mut VecDeque<$Inner> {
+                &mut self.0
+            }
+        }
+    };
+}
 
 pub trait Stream<T>: Sized {
     fn payload(self) -> Vec<T>;
@@ -404,7 +528,7 @@ pub trait Runnable: Sized + Default {
     }
     fn start_message(&self) -> String {
         format!(
-            "{} {SEMVER} (tags/?:{GIT_HASH_SHORT}, {BUILD_DATE}) on {ARCH}/{OS}\n",
+            "{} {SEMVER} ({GIT_HASH_SHORT}, {BUILD_DATE}) on {ARCH}/{OS}\n",
             Self::NAME
         )
     }

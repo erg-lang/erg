@@ -2,7 +2,7 @@
 name = "els"
 description = "An Erg compiler frontend for IDEs, implements LSP."
 documentation = "http://docs.rs/els"
-version = "0.1.13"
+version = "0.1.14-nightly.0"
 authors.workspace = true
 license.workspace = true
 edition.workspace = true
@@ -20,8 +20,8 @@ large_thread = ["erg_common/large_thread", "erg_compiler/large_thread"]
 py_compatible = ["erg_compiler/py_compatible"]
 
 [dependencies]
-erg_common = { workspace = true, path = "../erg_common" }
-erg_compiler = { workspace = true, path = "../erg_compiler" }
+erg_common = { workspace = true, path = "../erg_common", features = ["els"] }
+erg_compiler = { workspace = true, path = "../erg_compiler", features = ["els"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.85"
 lsp-types = { version = "0.93.2", features = ["proposed"] }

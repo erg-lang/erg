@@ -1,9 +1,11 @@
 use std::fmt;
 
+use erg_common::config::ErgConfig;
 use erg_common::traits::{Runnable, Stream};
 
 use crate::context::ModuleContext;
 use crate::error::CompileErrors;
+use crate::global::SharedCompilerResource;
 use crate::hir::HIR;
 
 #[derive(Debug)]
@@ -79,6 +81,9 @@ impl ErrorArtifact {
 }
 
 pub trait Buildable<T = HIR> {
+    fn inherit(cfg: ErgConfig, shared: SharedCompilerResource) -> Self
+    where
+        Self: Sized;
     fn build(
         &mut self,
         src: String,

@@ -10,8 +10,8 @@ use crate::artifact::{BuildRunnable, Buildable, CompleteArtifact, IncompleteArti
 use crate::context::{Context, ContextProvider, ModuleContext};
 use crate::effectcheck::SideEffectChecker;
 use crate::error::{CompileError, CompileErrors};
+use crate::global::SharedCompilerResource;
 use crate::lower::ASTLowerer;
-use crate::mod_cache::SharedModuleCache;
 use crate::ownercheck::OwnershipChecker;
 use crate::varinfo::VarInfo;
 
@@ -31,8 +31,7 @@ impl Runnable for HIRBuilder {
         HIRBuilder::new_with_cache(
             cfg.copy(),
             Str::ever("<module>"),
-            SharedModuleCache::new(cfg.copy()),
-            SharedModuleCache::new(cfg),
+            SharedCompilerResource::new(cfg),
         )
     }
 
@@ -77,6 +76,10 @@ impl Runnable for HIRBuilder {
 }
 
 impl Buildable for HIRBuilder {
+    fn inherit(cfg: ErgConfig, shared: SharedCompilerResource) -> Self {
+        let mod_name = Str::rc(cfg.input.file_stem());
+        Self::new_with_cache(cfg, mod_name, shared)
+    }
     fn build(&mut self, src: String, mode: &str) -> Result<CompleteArtifact, IncompleteArtifact> {
         self.build(src, mode)
     }
@@ -108,11 +111,10 @@ impl HIRBuilder {
     pub fn new_with_cache<S: Into<Str>>(
         cfg: ErgConfig,
         mod_name: S,
-        mod_cache: SharedModuleCache,
-        py_mod_cache: SharedModuleCache,
+        shared: SharedCompilerResource,
     ) -> Self {
         Self {
-            lowerer: ASTLowerer::new_with_cache(cfg.copy(), mod_name, mod_cache, py_mod_cache),
+            lowerer: ASTLowerer::new_with_cache(cfg.copy(), mod_name, shared),
             ownership_checker: OwnershipChecker::new(cfg),
         }
     }

@@ -418,8 +418,7 @@ impl Context {
             Str::ever("<unnamed record>"),
             self.cfg.clone(),
             2,
-            self.mod_cache.clone(),
-            self.py_mod_cache.clone(),
+            self.shared.clone(),
             self.clone(),
         );
         for attr in record.attrs.iter() {
@@ -485,8 +484,7 @@ impl Context {
             Str::ever("<lambda>"),
             self.cfg.clone(),
             0,
-            self.mod_cache.clone(),
-            self.py_mod_cache.clone(),
+            self.shared.clone(),
             self.clone(),
         );
         let return_t = v_enum(set! {lambda_ctx.eval_const_block(&lambda.body)?});
@@ -952,9 +950,9 @@ impl Context {
             return Ok(proj(lhs, rhs));
         }
         // in Methods
-        if self.name == sub.qual_name() {
+        if let Some(ctx) = self.get_same_name_context(&sub.qual_name()) {
             if let Some(t) =
-                self.validate_and_project(&sub, opt_sup.as_ref(), &rhs, self, level, t_loc)
+                ctx.validate_and_project(&sub, opt_sup.as_ref(), &rhs, self, level, t_loc)
             {
                 return Ok(t);
             }

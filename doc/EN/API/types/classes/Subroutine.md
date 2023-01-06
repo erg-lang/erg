@@ -10,10 +10,10 @@ Interrupts a subroutine and returns the specified value. Useful for quickly esca
 
 ```python
 f x =
-     for 0..10, i ->
-         if i == 5:
-             do
-                 f::return i
-             do
-                 log i
+    for 0..10, i ->
+        if i == 5:
+            do:
+                f::return i
+            do:
+                log i
 ```

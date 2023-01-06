@@ -2,9 +2,7 @@ extern crate erg;
 extern crate erg_compiler;
 extern crate erg_parser;
 
-use std::process;
-
-use erg_common::config::ErgConfig;
+use erg_common::config::{ErgConfig, ErgMode::*};
 use erg_common::spawn::exec_new_thread;
 use erg_common::traits::Runnable;
 
@@ -23,34 +21,34 @@ use erg::DummyVM;
 fn run() {
     let cfg = ErgConfig::parse();
     match cfg.mode {
-        "lex" => {
+        Lex => {
             LexerRunner::run(cfg);
         }
-        "parse" => {
+        Parse => {
             ParserRunner::run(cfg);
         }
-        "desugar" => {
+        Desugar => {
             ASTBuilder::run(cfg);
         }
-        "lower" => {
+        TypeCheck => {
             ASTLowerer::run(cfg);
         }
-        "check" => {
+        FullCheck => {
             HIRBuilder::run(cfg);
         }
-        "compile" => {
+        Compile => {
             Compiler::run(cfg);
         }
-        "transpile" => {
+        Transpile => {
             Transpiler::run(cfg);
         }
-        "exec" => {
+        Execute => {
             DummyVM::run(cfg);
         }
-        "read" => {
+        Read => {
             Deserializer::run(cfg);
         }
-        "language-server" => {
+        LanguageServer => {
             #[cfg(feature = "els")]
             {
                 use els::ErgLanguageServer;
@@ -60,12 +58,8 @@ fn run() {
             #[cfg(not(feature = "els"))]
             {
                 eprintln!("This version of the build does not support language server mode");
-                process::exit(1);
+                std::process::exit(1);
             }
-        }
-        other => {
-            eprintln!("invalid mode: {other}");
-            process::exit(1);
         }
     }
 }

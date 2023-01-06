@@ -1204,46 +1204,12 @@ impl Locational for Dummy {
 
 impl_stream_for_wrapper!(Dummy, Expr);
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct ConstLocal {
-    pub symbol: Token,
-}
-
-impl NestedDisplay for ConstLocal {
-    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "{}", self.symbol.content)
-    }
-}
-
-impl_display_from_nested!(ConstLocal);
-impl_locational!(ConstLocal, symbol);
-
-impl ConstLocal {
-    pub const fn new(symbol: Token) -> Self {
-        Self { symbol }
-    }
-
-    pub fn dummy(name: &'static str) -> Self {
-        Self::new(Token::from_str(TokenKind::Symbol, name))
-    }
-
-    // &strにするとクローンしたいときにアロケーションコストがかかるので&Strのままで
-    pub const fn inspect(&self) -> &Str {
-        &self.symbol.content
-    }
-
-    pub fn downcast(self) -> Identifier {
-        Identifier::new(None, VarName::new(self.symbol))
-    }
-}
-
-/// type variables
-pub type ConstVar = ConstLocal;
+pub type ConstIdentifier = Identifier;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstAttribute {
     pub obj: Box<ConstExpr>,
-    pub name: ConstLocal,
+    pub name: ConstIdentifier,
 }
 
 impl NestedDisplay for ConstAttribute {
@@ -1260,7 +1226,7 @@ impl_display_from_nested!(ConstAttribute);
 impl_locational!(ConstAttribute, obj, name);
 
 impl ConstAttribute {
-    pub fn new(expr: ConstExpr, name: ConstLocal) -> Self {
+    pub fn new(expr: ConstExpr, name: ConstIdentifier) -> Self {
         Self {
             obj: Box::new(expr),
             name,
@@ -1268,7 +1234,7 @@ impl ConstAttribute {
     }
 
     pub fn downcast(self) -> Attribute {
-        Attribute::new(self.obj.downcast(), self.name.downcast())
+        Attribute::new(self.obj.downcast(), self.name)
     }
 }
 
@@ -1330,8 +1296,8 @@ impl ConstSubscript {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum ConstAccessor {
-    Local(ConstLocal),
-    SelfDot(ConstLocal),
+    Local(ConstIdentifier),
+    SelfDot(ConstIdentifier),
     Attr(ConstAttribute),
     TupleAttr(ConstTupleAttribute),
     Subscr(ConstSubscript),
@@ -1343,14 +1309,10 @@ impl_locational_for_enum!(ConstAccessor; Local, SelfDot, Attr, TupleAttr, Subscr
 
 impl ConstAccessor {
     pub const fn local(symbol: Token) -> Self {
-        Self::Local(ConstLocal::new(symbol))
+        Self::Local(ConstIdentifier::new(None, VarName::new(symbol)))
     }
 
-    pub const fn dot_self(attr: Token) -> Self {
-        Self::SelfDot(ConstLocal::new(attr))
-    }
-
-    pub fn attr(obj: ConstExpr, name: ConstLocal) -> Self {
+    pub fn attr(obj: ConstExpr, name: ConstIdentifier) -> Self {
         Self::Attr(ConstAttribute::new(obj, name))
     }
 
@@ -1360,7 +1322,7 @@ impl ConstAccessor {
 
     pub fn downcast(self) -> Accessor {
         match self {
-            Self::Local(local) => Accessor::Ident(local.downcast()),
+            Self::Local(local) => Accessor::Ident(local),
             Self::Attr(attr) => Accessor::Attr(attr.downcast()),
             // Self::TupleAttr(attr) => Accessor::TupleAttr(attr.downcast()),
             // Self::Subscr(subscr) => Accessor::Subscr(subscr.downcast()),
