@@ -27,3 +27,24 @@ print! Point2D.zero
 # print! Point2D::one # cannot access private variables
 q = Point3D.new 1, 2, 3
 print! q, q.norm()
+
+# Newtype notation
+# Shorthand of `IorS = Class {base = Int or Str}`
+IorS = Class(Int or Str)
+IorS.
+    is_int self =
+        # self: IorS
+        # self::base: Int or Str
+        match self::base:
+            (i: Int) -> True
+            _ -> False
+    is_str self =
+        match self::base:
+            (s: Str) -> True
+            _ -> False
+
+# `.new` is of type `Int or Str -> IorS`, not `{base = Int or Str} -> IorS`
+x = IorS.new 1
+print! x
+assert x.is_int()
+assert not x.is_str()

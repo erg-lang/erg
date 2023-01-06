@@ -26,7 +26,19 @@ Note that the following definition without line breaks will result in a syntax e
 Person.new name, age = ... # SyntaxError: cannot define attributes directly on an object
 ```
 
-> __Warning__: This is a recently added specification and may not be followed in subsequent documents. If you find it, please report it.
+## Newtype notation
+
+You can define a class `C` by `C = Class T` for a non-record type `T`. This is a short-hand notation, which is equivalent to `C = Class {base = T}`.
+This is to simplify the definition of the so-called "new type pattern".
+Also, the constructor `__new__`/`new` can be passed directly to a `T` type object without wrapping it in a record.
+
+```python
+Id = Class {base = Int}
+i = Id.new {base = 1}
+# ↓
+Id = Class Int
+i = Id.new 1
+```
 
 ## Instance and class attributes
 
