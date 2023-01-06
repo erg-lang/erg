@@ -1384,7 +1384,6 @@ impl ASTLowerer {
         let mut hir_methods = hir::Block::empty();
         let mut dummy_tv_cache = TyVarCache::new(self.module.context.level, &self.module.context);
         for mut methods in class_def.methods_list.into_iter() {
-            self.inc_ref(&hir_def.sig.ident().vi, &methods.class);
             let (class, impl_trait) = match &methods.class {
                 ast::TypeSpec::TypeApp { spec, args } => {
                     let (impl_trait, loc) = match &args.args.pos_args().first().unwrap().expr {
