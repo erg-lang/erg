@@ -108,6 +108,11 @@ pub fn get_line_from_uri(uri: &Url, line: u32) -> ELSResult<String> {
     Ok(line.to_string())
 }
 
+pub fn get_metadata_from_uri(uri: &Url) -> ELSResult<std::fs::Metadata> {
+    let path = uri.to_file_path().unwrap();
+    Ok(std::fs::metadata(path)?)
+}
+
 pub fn get_line_from_path(path: &Path, line: u32) -> ELSResult<String> {
     let mut code = String::new();
     File::open(path)?.read_to_string(&mut code)?;
@@ -116,4 +121,12 @@ pub fn get_line_from_path(path: &Path, line: u32) -> ELSResult<String> {
         .nth(line.saturating_sub(1) as usize)
         .unwrap_or("");
     Ok(line.to_string())
+}
+
+pub fn parse_and_normalize_url(uri: &str) -> ELSResult<Url> {
+    Ok(Url::parse(&uri.replace("c%3A", "C:").to_lowercase())?)
+}
+
+pub fn normalize_url(url: Url) -> Url {
+    Url::parse(&url.as_str().replace("c%3A", "C:").to_lowercase()).unwrap()
 }

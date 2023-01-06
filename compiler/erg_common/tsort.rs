@@ -1,22 +1,27 @@
 use crate::dict::Dict;
+use crate::set;
 use crate::set::Set;
 
 use std::hash::Hash;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Node<T, U> {
-    id: T,
+pub struct Node<T: Eq + Hash, U> {
+    pub id: T,
     pub data: U,
-    depends_on: Vec<T>,
+    depends_on: Set<T>,
 }
 
-impl<T, U> Node<T, U> {
-    pub const fn new(id: T, data: U, depends_on: Vec<T>) -> Self {
+impl<T: Eq + Hash, U> Node<T, U> {
+    pub const fn new(id: T, data: U, depends_on: Set<T>) -> Self {
         Node {
             id,
             data,
             depends_on,
         }
+    }
+
+    pub fn push_dep(&mut self, dep: T) {
+        self.depends_on.insert(dep);
     }
 }
 
@@ -37,7 +42,7 @@ fn _reorder_by_idx<T>(mut v: Vec<T>, idx: Vec<usize>) -> Vec<T> {
     v
 }
 
-fn reorder_by_key<T: Eq, U>(mut g: Graph<T, U>, idx: Vec<T>) -> Graph<T, U> {
+fn reorder_by_key<T: Eq + Hash, U>(mut g: Graph<T, U>, idx: Vec<T>) -> Graph<T, U> {
     g.sort_by_key(|node| idx.iter().position(|k| k == &node.id).unwrap());
     g
 }
@@ -81,11 +86,11 @@ fn _test() -> Result<(), ()> {
     let idx = vec![3, 2, 4, 1, 0];
     assert_eq!(vec!["a", "b", "c", "d", "e"], _reorder_by_idx(v, idx));
 
-    let en_0 = Node::new("even n", (), vec!["odd n (decl)", "odd 0"]);
-    let o0_1 = Node::new("odd 0", (), vec![]);
-    let on_2 = Node::new("odd n", (), vec!["even 0", "even n"]);
-    let e0_3 = Node::new("even 0", (), vec![]);
-    let ond_4 = Node::new("odd n (decl)", (), vec![]);
+    let en_0 = Node::new("even n", (), set!["odd n (decl)", "odd 0"]);
+    let o0_1 = Node::new("odd 0", (), set![]);
+    let on_2 = Node::new("odd n", (), set!["even 0", "even n"]);
+    let e0_3 = Node::new("even 0", (), set![]);
+    let ond_4 = Node::new("odd n (decl)", (), set![]);
     let sorted = vec![
         ond_4.clone(),
         o0_1.clone(),
