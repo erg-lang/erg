@@ -41,7 +41,7 @@ OPTIONS
     --verbose 0|1|2                      指定细致程度
     --opt-level/-o 0|1|2|3               指定优化级别
     --python-version/-p (uint 32 number) Python 版本
-    --py-server-timeout (uint 64 number) Python REPL 服务器超时
+    --py-server-timeout (uint 64 number) 指定等待 REPL 输出的秒数
     --dump-as-pyc                        转储为 .pyc 文件
     --mode lex|parse|compile|exec        执行模式 (更多信息见`--mode --help`)
 
@@ -64,7 +64,7 @@ OPTIONS
     --verbose 0|1|2                      指定細緻程度
     --opt-level/-o 0|1|2|3               指定優化級別
     --python-version/-p (uint 32 number) Python 版本
-    --py-server-timeout (uint 64 number) Python REPL 服務器超時
+    --py-server-timeout (uint 64 number) 指定等待 REPL 輸出的秒數
     --dump-as-pyc                        轉儲為 .pyc 文件
     --mode lex|parse|compile|exec        執行模式 (更多信息見`--mode --help`)
 
