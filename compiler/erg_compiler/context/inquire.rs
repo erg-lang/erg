@@ -9,8 +9,8 @@ use erg_common::levenshtein::get_similar_name;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, NoTypeDisplay, Stream};
 use erg_common::vis::Visibility;
-use erg_common::{enum_unwrap, fmt_option, fmt_slice, log, set, switch_lang};
-use erg_common::{option_enum_unwrap, Str};
+use erg_common::Str;
+use erg_common::{fmt_option, fmt_slice, log, option_enum_unwrap, set, switch_lang};
 use Type::*;
 
 use ast::VarName;
@@ -294,13 +294,23 @@ impl Context {
             .skip(1)
             .map(|a| ParamTy::anonymous(a.expr.ref_t().clone()))
             .collect::<Vec<_>>();
-        let mut return_t = branch_ts[0]
-            .typ()
-            .return_t()
-            .unwrap_or_else(|| todo!("{}", branch_ts[0]))
-            .clone();
+        let Some(mut return_t) = branch_ts.get(0).and_then(|branch| {
+            branch.typ()
+                .return_t()
+                .cloned()
+        }) else {
+            return Err(TyCheckErrors::from(TyCheckError::args_missing_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                pos_args[0].loc(),
+                "match",
+                self.caused_by(),
+                vec![Str::ever("obj")],
+            )));
+        };
         for arg_t in branch_ts.iter().skip(1) {
-            return_t = self.union(&return_t, arg_t.typ().return_t().unwrap());
+            // TODO: handle unwrap errors
+            return_t = self.union(&return_t, arg_t.typ().return_t().unwrap_or(&Type::Never));
         }
         let param_ty = ParamTy::anonymous(match_target_expr_t.clone());
         let param_ts = [vec![param_ty], branch_ts.to_vec()].concat();
@@ -917,7 +927,9 @@ impl Context {
         let op = hir::Expr::Accessor(hir::Accessor::private(symbol, t));
         self.get_call_t(&op, &None, args, &[], input, namespace)
             .map_err(|errs| {
-                let op_ident = enum_unwrap!(op, hir::Expr::Accessor:(hir::Accessor::Ident:(_)));
+                let Some(op_ident ) = option_enum_unwrap!(op, hir::Expr::Accessor:(hir::Accessor::Ident:(_))) else {
+                    return errs;
+                };
                 let vi = op_ident.vi.clone();
                 let lhs = args[0].expr.clone();
                 let rhs = args[1].expr.clone();
@@ -949,7 +961,9 @@ impl Context {
         let op = hir::Expr::Accessor(hir::Accessor::private(symbol, vi));
         self.get_call_t(&op, &None, args, &[], input, namespace)
             .map_err(|errs| {
-                let op_ident = enum_unwrap!(op, hir::Expr::Accessor:(hir::Accessor::Ident:(_)));
+                let Some(op_ident) = option_enum_unwrap!(op, hir::Expr::Accessor:(hir::Accessor::Ident:(_))) else {
+                    return errs;
+                };
                 let vi = op_ident.vi.clone();
                 let expr = args[0].expr.clone();
                 let unary = hir::UnaryOp::new(op_ident.name.into_token(), expr, vi);
@@ -2297,7 +2311,7 @@ impl Context {
             }
             Some(other) => {
                 let obj = self.rec_get_const_obj(&other.local_name());
-                let obj = enum_unwrap!(obj, Some:(ValueObj::Type:(TypeObj::Generated:(_))));
+                let obj = option_enum_unwrap!(obj, Some:(ValueObj::Type:(TypeObj::Generated:(_))))?;
                 if let Some(t) = self.get_gen_t_require_attr_t(obj, attr) {
                     return Some(t);
                 }

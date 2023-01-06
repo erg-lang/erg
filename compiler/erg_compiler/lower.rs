@@ -10,7 +10,7 @@ use erg_common::set;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, NoTypeDisplay, Runnable, Stream};
 use erg_common::vis::Visibility;
-use erg_common::{enum_unwrap, fmt_option, fn_name, log, switch_lang, Str};
+use erg_common::{fmt_option, fn_name, log, option_enum_unwrap, switch_lang, Str};
 
 use erg_parser::ast;
 use erg_parser::ast::{OperationKind, VarName, AST};
@@ -925,8 +925,10 @@ impl ASTLowerer {
         self.module.context.higher_order_caller.pop();
         match call.additional_operation() {
             Some(kind @ (OperationKind::Import | OperationKind::PyImport)) => {
-                let mod_name =
-                    enum_unwrap!(call.args.get_left_or_key("Path").unwrap(), hir::Expr::Lit);
+                let Some(mod_name) =
+                    option_enum_unwrap!(call.args.get_left_or_key("Path").unwrap(), hir::Expr::Lit) else {
+                        return unreachable_error!(LowerErrors, LowerError, self);
+                    };
                 if let Err(errs) = self.module.context.import_mod(kind, mod_name) {
                     self.errs.extend(errs);
                 };
@@ -1517,11 +1519,16 @@ impl ASTLowerer {
                 &class,
             )));
         };
-        let type_obj = enum_unwrap!(self.module.context.rec_get_const_obj(hir_def.sig.ident().inspect()).unwrap(), ValueObj::Type:(TypeObj::Generated:(_)));
-        if let Some(sup_type) = enum_unwrap!(&hir_def.body.block.first().unwrap(), hir::Expr::Call)
-            .args
-            .get_left_or_key("Super")
-        {
+        let Some(class_type) = self.module.context.rec_get_const_obj(hir_def.sig.ident().inspect()) else {
+            return unreachable_error!(LowerErrors, LowerError, self);
+        };
+        let Some(type_obj) = option_enum_unwrap!(class_type, ValueObj::Type:(TypeObj::Generated:(_))) else {
+            return unreachable_error!(LowerErrors, LowerError, self);
+        };
+        let Some(call) = option_enum_unwrap!(&hir_def.body.block.first().unwrap(), hir::Expr::Call) else {
+            return unreachable_error!(LowerErrors, LowerError, self);
+        };
+        if let Some(sup_type) = call.args.get_left_or_key("Super") {
             Self::check_inheritable(&self.cfg, &mut self.errs, type_obj, sup_type, &hir_def.sig);
         }
         let (__new__, need_to_gen_new) = if let (Some(dunder_new_vi), Some(new_vi)) = (
@@ -1546,11 +1553,10 @@ impl ASTLowerer {
     fn lower_patch_def(&mut self, class_def: ast::PatchDef) -> LowerResult<hir::PatchDef> {
         log!(info "entered {}({class_def})", fn_name!());
         let base_t = {
-            let base_t_expr =
-                enum_unwrap!(class_def.def.body.block.get(0).unwrap(), ast::Expr::Call)
-                    .args
-                    .get_left_or_key("Base")
-                    .unwrap();
+            let Some(call) = option_enum_unwrap!(class_def.def.body.block.get(0).unwrap(), ast::Expr::Call) else {
+                return unreachable_error!(LowerErrors, LowerError, self);
+            };
+            let base_t_expr = call.args.get_left_or_key("Base").unwrap();
             let spec = Parser::expr_to_type_spec(base_t_expr.clone()).unwrap();
             let mut dummy_tv_cache =
                 TyVarCache::new(self.module.context.level, &self.module.context);

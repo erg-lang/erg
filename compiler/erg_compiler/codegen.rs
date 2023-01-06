@@ -2842,16 +2842,20 @@ impl PyCodeGenerator {
                     let redef = ReDef::new(attr, Block::new(vec![expr]));
                     attrs.push(Expr::ReDef(redef));
                 }
-                let none = Token::new(TokenKind::NoneLit, "None", line, 0);
-                attrs.push(Expr::Lit(Literal::new(ValueObj::None, none)));
             }
-            Some(other) => todo!("{other}"),
-            None => {
-                let none = Token::new(TokenKind::NoneLit, "None", line, 0);
-                let none = Expr::Lit(Literal::new(ValueObj::None, none));
-                attrs.push(none);
+            // self::base = %x
+            Some(_) => {
+                let expr =
+                    Expr::Accessor(Accessor::private_with_line(Str::from(&param_name), line));
+                let obj = Expr::Accessor(Accessor::private_with_line(Str::ever("self"), line));
+                let attr = obj.attr(Identifier::private_with_line(Str::ever("base"), line));
+                let redef = ReDef::new(attr, Block::new(vec![expr]));
+                attrs.push(Expr::ReDef(redef));
             }
+            None => {}
         }
+        let none = Token::new(TokenKind::NoneLit, "None", line, 0);
+        attrs.push(Expr::Lit(Literal::new(ValueObj::None, none)));
         let block = Block::new(attrs);
         let body = DefBody::new(EQUAL, block, DefId(0));
         self.emit_subr_def(Some(class_name), subr_sig, body);
