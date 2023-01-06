@@ -1,4 +1,4 @@
-# error handling system
+# Error handling system
 
 Mainly use Result type.
 In Erg, an error occurs if you throw away an Error type object (not supported at the top level).
