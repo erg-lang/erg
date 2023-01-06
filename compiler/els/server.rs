@@ -603,7 +603,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             match self.get_definition(&uri, &token)? {
                 Some(vi) => {
                     if let Some(line) = vi.def_loc.loc.ln_begin() {
-                        let file_path = uri.to_file_path().unwrap();
+                        let file_path = vi.def_loc.module.unwrap();
                         let mut code_block = if cfg!(not(windows)) {
                             let relative = file_path
                                 .strip_prefix(&self.home)
@@ -612,9 +612,8 @@ impl<Checker: BuildRunnable> Server<Checker> {
                         } else {
                             // windows' file paths are case-insensitive, so we need to normalize them
                             let lower = file_path.as_os_str().to_ascii_lowercase();
-                            let relative = lower
-                                .to_str()
-                                .unwrap()
+                            let verbatim_removed = lower.to_str().unwrap().replace("\\\\?\\", "");
+                            let relative = verbatim_removed
                                 .strip_prefix(
                                     self.home.as_os_str().to_ascii_lowercase().to_str().unwrap(),
                                 )
@@ -622,7 +621,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                                 .trim_start_matches(['\\', '/']);
                             format!("# {}, line {line}\n", relative)
                         };
-                        code_block += util::get_line_from_uri(&uri, line)?.trim_start();
+                        code_block += util::get_line_from_path(&file_path, line)?.trim_start();
                         if code_block.ends_with(&['=', '>']) {
                             code_block += " ...";
                         }
