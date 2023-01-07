@@ -6,14 +6,15 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::time::SystemTime;
 
+use erg_common::env::erg_path;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_json::Value;
 
 use erg_common::config::ErgConfig;
 use erg_common::dict::Dict;
-use erg_common::style::*;
 use erg_common::traits::{Locational, Stream};
+use erg_common::{normalize_path, style::*};
 
 use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::build_hir::HIRBuilder;
@@ -88,6 +89,7 @@ fn read_exact(len: usize) -> io::Result<Vec<u8>> {
 pub struct Server<Checker: BuildRunnable = HIRBuilder> {
     cfg: ErgConfig,
     home: PathBuf,
+    erg_path: PathBuf,
     client_capas: ClientCapabilities,
     modules: Dict<Url, ModuleContext>,
     hirs: Dict<Url, Option<HIR>>,
@@ -98,7 +100,8 @@ impl<Checker: BuildRunnable> Server<Checker> {
     pub fn new(cfg: ErgConfig) -> Self {
         Self {
             cfg,
-            home: std::env::current_dir().unwrap(),
+            home: normalize_path(std::env::current_dir().unwrap()),
+            erg_path: normalize_path(erg_path()),
             client_capas: ClientCapabilities::default(),
             modules: Dict::new(),
             hirs: Dict::new(),
@@ -612,6 +615,8 @@ impl<Checker: BuildRunnable> Server<Checker> {
                             let relative = file_path
                                 .strip_prefix(&self.home)
                                 .unwrap_or(file_path.as_path());
+                            let relative =
+                                relative.strip_prefix(&self.erg_path).unwrap_or(relative);
                             format!("# {}, line {line}\n", relative.display())
                         } else {
                             // windows' file paths are case-insensitive, so we need to normalize them
@@ -623,6 +628,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
                                 )
                                 .unwrap_or_else(|| file_path.as_path().to_str().unwrap())
                                 .trim_start_matches(['\\', '/']);
+                            let relative = relative
+                                .strip_prefix(self.erg_path.to_str().unwrap())
+                                .unwrap_or(relative);
                             format!("# {}, line {line}\n", relative)
                         };
                         code_block += util::get_line_from_path(&file_path, line)?.trim_start();
@@ -670,12 +678,19 @@ impl<Checker: BuildRunnable> Server<Checker> {
             if let Some(visitor) = self.get_visitor(&uri) {
                 if let Some(vi) = visitor.visit_hir_info(&tok) {
                     // Self::send_log(format!("vi: {vi}"))?;
-                    if vi.def_loc.loc.is_unknown() {
+                    let is_std = vi
+                        .def_loc
+                        .module
+                        .as_ref()
+                        .map(|path| path.starts_with(&self.erg_path))
+                        .unwrap_or(false);
+                    if vi.def_loc.loc.is_unknown() || is_std {
                         let error_reason = match vi.kind {
                             VarKind::Builtin => "this is a builtin variable and cannot be renamed",
                             VarKind::FixedAuto => {
                                 "this is a fixed auto variable and cannot be renamed"
                             }
+                            _ if is_std => "this is a standard library API and cannot be renamed",
                             _ => "this name cannot be renamed",
                         };
                         return Self::send_error(msg["id"].as_i64(), 0, error_reason);
@@ -688,7 +703,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                             Self::commit_change(&mut changes, referrer, params.new_name.clone());
                         }
                     }
-                    let dependencies = self.get_dependencies();
+                    let dependencies = self.get_dependencies(&uri);
                     for uri in changes.keys() {
                         self.clear_cache(uri);
                     }
@@ -752,11 +767,15 @@ impl<Checker: BuildRunnable> Server<Checker> {
         })
     }
 
-    fn get_dependencies(&self) -> Vec<Url> {
+    fn get_dependencies(&self, uri: &Url) -> Vec<Url> {
         let graph = &self.get_shared().unwrap().graph;
         graph.sort().unwrap();
         graph
             .iter()
+            .filter(|node| {
+                let path = uri.to_file_path().unwrap();
+                node.id == path || node.depends_on(&path)
+            })
             .map(|node| util::normalize_url(Url::from_file_path(&node.id).unwrap()))
             .collect()
     }
