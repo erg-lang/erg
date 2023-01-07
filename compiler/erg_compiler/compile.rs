@@ -94,12 +94,18 @@ impl AccessKind {
 }
 
 /// Generates a `CodeObj` from an String or other File inputs.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Compiler {
     pub cfg: ErgConfig,
     builder: HIRBuilder,
     mod_cache: SharedModuleCache,
     code_generator: PyCodeGenerator,
+}
+
+impl Default for Compiler {
+    fn default() -> Self {
+        Self::new(ErgConfig::default())
+    }
 }
 
 impl Runnable for Compiler {

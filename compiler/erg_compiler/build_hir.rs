@@ -16,10 +16,16 @@ use crate::ownercheck::OwnershipChecker;
 use crate::varinfo::VarInfo;
 
 /// Summarize lowering, side-effect checking, and ownership checking
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct HIRBuilder {
     lowerer: ASTLowerer,
     ownership_checker: OwnershipChecker,
+}
+
+impl Default for HIRBuilder {
+    fn default() -> Self {
+        HIRBuilder::new(ErgConfig::default())
+    }
 }
 
 impl Runnable for HIRBuilder {
