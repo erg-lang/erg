@@ -1,4 +1,4 @@
-# 子程序簽名
+# 子程序
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/22_subroutine.md%26commit_hash%3D20aa4f02b994343ab9600317cebafa2b20676467)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/22_subroutine.md&commit_hash=20aa4f02b994343ab9600317cebafa2b20676467)
 
@@ -30,7 +30,7 @@ some_proc!: (T, U) => V
 
 在下文中，假設類型 `T!` 采用類型參數 `N: Nat`。要在外部指定它，請使用類型變量
 
-```python,checker_ignore
+```python
 K!: Nat -> Type
 # ~> 表示應用前后類型參數的狀態(此時self必須是變量引用)
 K!(N).some_method!: (Ref!(K! N ~> N+X), X: Nat) => ()

@@ -1,4 +1,4 @@
-# 类型变量，量化类型
+# 类型变量
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/15_quantified.md%26commit_hash%3D44d7784aac3550ba97c8a1eaf20b9264b13d4134)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/15_quantified.md&commit_hash=44d7784aac3550ba97c8a1eaf20b9264b13d4134)
 
@@ -222,7 +222,7 @@ assert (|T: Type| T -> T) == (|U: Type| U -> U)
 类型变量在左侧定义并在右侧使用的类型，例如 `OpenFn T: Type = T -> T`，称为 __open 通用类型__
 相反，在右侧定义和使用类型变量的类型，例如 `ClosedFn = |T: Type| T -> T`，被称为 __封闭的通用类型__
 
-开放通用类型是所有同构"真"类型的超类型。相反，封闭的通用类型是所有同构真类型的子类型
+开放通用类型是所有同构"真"类型的父类型。相反，封闭的通用类型是所有同构真类型的子类型
 
 ```python
 (|T: Type| T -> T) < (Int -> Int) < (T -> T)

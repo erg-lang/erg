@@ -18,22 +18,24 @@ const SUP_WARN: StyledStr = StyledStr::new("Super", Some(WARN), None);
 const CLASS_ERR: StyledStr = StyledStr::new("Class", Some(ERR), None);
 const REQ_ERR: StyledStr = StyledStr::new("Requirement", Some(ERR), None);
 const REQ_WARN: StyledStr = StyledStr::new("Requirement", Some(WARN), None);
+const BASE_ERR: StyledStr = StyledStr::new("Base", Some(ERR), None);
+const BASE_WARN: StyledStr = StyledStr::new("Base", Some(WARN), None);
 
-/// Requirement := Type or NoneType, Impl := Type -> ClassType
+/// Base := Type or NoneType, Impl := Type -> ClassType
 pub fn class_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
-    let require = args.remove_left_or_key("Requirement");
+    let base = args.remove_left_or_key("Base");
     let impls = args.remove_left_or_key("Impl");
     let impls = impls.map(|v| v.as_type().unwrap());
     let t = mono(ctx.name.clone());
-    match require {
+    match base {
         Some(value) => {
-            if let Some(require) = value.as_type() {
-                Ok(ValueObj::gen_t(GenTypeObj::class(t, Some(require), impls)))
+            if let Some(base) = value.as_type() {
+                Ok(ValueObj::gen_t(GenTypeObj::class(t, Some(base), impls)))
             } else {
-                let require = StyledString::new(format!("{value}"), Some(ERR), None);
+                let base = StyledString::new(format!("{value}"), Some(ERR), None);
                 Err(ErrorCore::new(
                     vec![SubMessage::only_loc(Location::Unknown)],
-                    format!("non-type object {require} is passed to {REQ_WARN}",),
+                    format!("non-type object {base} is passed to {BASE_WARN}",),
                     line!() as usize,
                     ErrorKind::TypeError,
                     Location::Unknown,
@@ -117,9 +119,9 @@ pub fn inheritable_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<
     }
 }
 
-/// Requirement: Type, Impl := Type -> TraitType
+/// Base: Type, Impl := Type -> TraitType
 pub fn trait_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
-    let require = args.remove_left_or_key("Requirement").ok_or_else(|| {
+    let req = args.remove_left_or_key("Requirement").ok_or_else(|| {
         ErrorCore::new(
             vec![SubMessage::only_loc(Location::Unknown)],
             format!("{REQ_ERR} is not passed"),
@@ -128,12 +130,12 @@ pub fn trait_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueOb
             Location::Unknown,
         )
     })?;
-    let Some(require) = require.as_type() else {
-        let require = StyledString::new(format!("{require}"), Some(ERR), None);
+    let Some(req) = req.as_type() else {
+        let req = StyledString::new(format!("{req}"), Some(ERR), None);
         return Err(ErrorCore::new(
             vec![SubMessage::only_loc(Location::Unknown)],
             format!(
-                "non-type object {require} is passed to {REQ_WARN}",
+                "non-type object {req} is passed to {REQ_WARN}",
             ),
             line!() as usize,
             ErrorKind::TypeError,
@@ -143,7 +145,7 @@ pub fn trait_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueOb
     let impls = args.remove_left_or_key("Impl");
     let impls = impls.map(|v| v.as_type().unwrap());
     let t = mono(ctx.name.clone());
-    Ok(ValueObj::gen_t(GenTypeObj::trait_(t, require, impls)))
+    Ok(ValueObj::gen_t(GenTypeObj::trait_(t, req, impls)))
 }
 
 /// Base: Type, Impl := Type -> Patch
@@ -151,7 +153,7 @@ pub fn patch_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueOb
     let base = args.remove_left_or_key("Base").ok_or_else(|| {
         ErrorCore::new(
             vec![SubMessage::only_loc(Location::Unknown)],
-            format!("{REQ_ERR} is not passed"),
+            format!("{BASE_ERR} is not passed"),
             line!() as usize,
             ErrorKind::KeyError,
             Location::Unknown,
@@ -162,7 +164,7 @@ pub fn patch_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueOb
         return Err(ErrorCore::new(
             vec![SubMessage::only_loc(Location::Unknown)],
             format!(
-                "non-type object {base} is passed to {REQ_WARN}",
+                "non-type object {base} is passed to {BASE_WARN}",
             ),
             line!() as usize,
             ErrorKind::TypeError,

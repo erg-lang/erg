@@ -1687,7 +1687,7 @@ impl ASTLowerer {
         sup_class: &hir::Expr,
         sub_sig: &hir::Signature,
     ) {
-        if let TypeObj::Generated(gen) = type_obj.require_or_sup().unwrap() {
+        if let TypeObj::Generated(gen) = type_obj.base_or_sup().unwrap() {
             if let Some(impls) = gen.impls() {
                 if !impls.contains_intersec(&mono("InheritableType")) {
                     errs.push(LowerError::inheritance_error(
@@ -1761,7 +1761,7 @@ impl ASTLowerer {
             {
                 if let ValueObj::Type(typ) = trait_obj {
                     match typ {
-                        TypeObj::Generated(gen) => match gen.require_or_sup().unwrap().typ() {
+                        TypeObj::Generated(gen) => match gen.base_or_sup().unwrap().typ() {
                             Type::Record(attrs) => {
                                 for (field, decl_t) in attrs.iter() {
                                     if let Some((name, vi)) =

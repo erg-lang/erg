@@ -13,6 +13,6 @@ urllib = pyimport "urllib"
 
 print! math.pi
 print! importlib.util.MAGIC_NUMBER
-print! urllib.request.urlopen!("https://example.com")
+_ = importlib.util.find_spec "os"
 discard sub.run! ["echo", "hello"], shell := True
 sys.exit 111

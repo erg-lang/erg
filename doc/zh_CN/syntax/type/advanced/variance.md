@@ -1,4 +1,4 @@
-# 变性(逆变与协变 Variance)
+# 变性(逆变与协变)
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/variance.md%26commit_hash%3Df4fb25b4004bdfa96d2149fac8c4e40b84e8a45f)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/variance.md&commit_hash=f4fb25b4004bdfa96d2149fac8c4e40b84e8a45f)
 
@@ -55,7 +55,7 @@ Erg 有另一个修改。它是不变的
 |B :> T| K(B)
 ```
 
-在类型变量列表中，执行类型变量的__variant说明__。在上述变体规范中，类型变量"A"被声明为"T"类型的任何子类，"B"类型被声明为"T"类型的任何超类
+在类型变量列表中，执行类型变量的__variant说明__。在上述变体规范中，类型变量"A"被声明为"T"类型的任何子类，"B"类型被声明为"T"类型的任何父类
 在这种情况下，`T` 也称为 `A` 的上部类型和 `B` 的下部类型
 
 突变规范也可以重叠

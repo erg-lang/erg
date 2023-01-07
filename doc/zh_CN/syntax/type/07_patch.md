@@ -1,4 +1,4 @@
-# 修补
+# 补丁
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/07_patch.md%26commit_hash%3Dbade70ef91c040f40cb181399ad7056527d9a1c5)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/07_patch.md&commit_hash=bade70ef91c040f40cb181399ad7056527d9a1c5)
 
@@ -132,7 +132,7 @@ NumStrRev = Patch NumericStr, Impl := Reverse
 NumStrRev.
     ...
 # 重复修补程序错误: 数值Str已与"反向"关联`
-# 提示: 'Str'(NumericStr'的超类)通过'StrReverse'与'Reverse'关联
+# 提示: 'Str'(NumericStr'的父类)通过'StrReverse'与'Reverse'关联
 ```
 
 ## 附录: 与 Rust Trait的关系
