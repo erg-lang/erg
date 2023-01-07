@@ -1,4 +1,4 @@
-# module
+# Module
 
 Erg allows you to think of the file itself as a single record. This is called a module.
 

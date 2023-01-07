@@ -1,4 +1,4 @@
-# pipeline operator
+# Pipeline operator
 
 Pipeline operators are used like this:
 

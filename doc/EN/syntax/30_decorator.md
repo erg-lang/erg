@@ -1,4 +1,4 @@
-# decorator (modifier)
+# Decorator (modifier)
 
 Decorators are used to add or demonstrate a particular state or behavior to a type or function.
 The syntax of the decorator is as follows.

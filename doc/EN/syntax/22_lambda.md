@@ -1,4 +1,4 @@
-# anonymous function
+# Anonymous function
 
 Anonymous functions are a syntax for creating function objects on the fly without naming them.
 
