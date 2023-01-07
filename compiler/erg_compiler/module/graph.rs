@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use erg_common::shared::Shared;
-use erg_common::tsort::{tsort, Graph, Node};
+use erg_common::tsort::{tsort, Graph, Node, TopoSortError};
 use erg_common::{normalize_path, set};
 
 #[derive(Debug, Clone, Default)]
@@ -50,12 +50,12 @@ impl ModuleGraph {
     }
 
     #[allow(clippy::result_unit_err)]
-    pub fn sorted(self) -> Result<Self, ()> {
+    pub fn sorted(self) -> Result<Self, TopoSortError> {
         tsort(self.0).map(Self)
     }
 
     #[allow(clippy::result_unit_err)]
-    pub fn sort(&mut self) -> Result<(), ()> {
+    pub fn sort(&mut self) -> Result<(), TopoSortError> {
         *self = std::mem::take(self).sorted()?;
         Ok(())
     }
@@ -103,7 +103,7 @@ impl SharedModuleGraph {
     }
 
     #[allow(clippy::result_unit_err)]
-    pub fn sort(&self) -> Result<(), ()> {
+    pub fn sort(&self) -> Result<(), TopoSortError> {
         self.0.borrow_mut().sort()
     }
 

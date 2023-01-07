@@ -1,8 +1,22 @@
+//! Topological sort
 use crate::dict::Dict;
-use crate::set;
 use crate::set::Set;
 
 use std::hash::Hash;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TopoSortError {
+    CyclicReference,
+    KeyNotFound,
+}
+
+impl std::fmt::Display for TopoSortError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self:?}")
+    }
+}
+
+impl std::error::Error for TopoSortError {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Node<T: Eq + Hash, U> {
@@ -56,12 +70,15 @@ fn dfs<T: Eq + Hash + Clone, U>(
     v: T,
     used: &mut Set<T>,
     idx: &mut Vec<T>,
-) -> Result<(), ()> {
+) -> Result<(), TopoSortError> {
     used.insert(v.clone());
-    for node_id in g.iter().find(|n| n.id == v).unwrap().depends_on.iter() {
+    let Some(vertex) = g.iter().find(|n| n.id == v) else {
+        return Err(TopoSortError::KeyNotFound);
+    };
+    for node_id in vertex.depends_on.iter() {
         // detecting cycles
         if used.contains(node_id) && !idx.contains(node_id) {
-            return Err(());
+            return Err(TopoSortError::CyclicReference);
         }
         if !used.contains(node_id) {
             dfs(g, node_id.clone(), used, idx)?;
@@ -73,7 +90,7 @@ fn dfs<T: Eq + Hash + Clone, U>(
 
 /// perform topological sort on a graph
 #[allow(clippy::result_unit_err)]
-pub fn tsort<T: Eq + Hash + Clone, U>(g: Graph<T, U>) -> Result<Graph<T, U>, ()> {
+pub fn tsort<T: Eq + Hash + Clone, U>(g: Graph<T, U>) -> Result<Graph<T, U>, TopoSortError> {
     let n = g.len();
     let mut idx = Vec::with_capacity(n);
     let mut used = Set::new();
@@ -85,24 +102,52 @@ pub fn tsort<T: Eq + Hash + Clone, U>(g: Graph<T, U>) -> Result<Graph<T, U>, ()>
     Ok(reorder_by_key(g, idx))
 }
 
-fn _test() -> Result<(), ()> {
-    let v = vec!["e", "d", "b", "a", "c"];
-    let idx = vec![3, 2, 4, 1, 0];
-    assert_eq!(vec!["a", "b", "c", "d", "e"], _reorder_by_idx(v, idx));
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::set;
 
-    let en_0 = Node::new("even n", (), set!["odd n (decl)", "odd 0"]);
-    let o0_1 = Node::new("odd 0", (), set![]);
-    let on_2 = Node::new("odd n", (), set!["even 0", "even n"]);
-    let e0_3 = Node::new("even 0", (), set![]);
-    let ond_4 = Node::new("odd n (decl)", (), set![]);
-    let sorted = vec![
-        ond_4.clone(),
-        o0_1.clone(),
-        en_0.clone(),
-        e0_3.clone(),
-        on_2.clone(),
-    ];
-    let dag = vec![en_0, o0_1, on_2, e0_3, ond_4];
-    assert_eq!(sorted, tsort(dag)?);
-    Ok(())
+    #[test]
+    fn test_tsort() -> Result<(), TopoSortError> {
+        let v = vec!["e", "d", "b", "a", "c"];
+        let idx = vec![3, 2, 4, 1, 0];
+        assert_eq!(vec!["a", "b", "c", "d", "e"], _reorder_by_idx(v, idx));
+
+        // this is invalid, cause a cyclic reference exists
+        // ```
+        // odd 0 = False
+        // odd n = even n - 1
+        // even 0 = True
+        // even n = odd n - 1
+        // ```
+        let even = Node::new("even n", (), set!["odd n", "True"]);
+        let odd = Node::new("odd n", (), set!["even n", "False"]);
+        let tru = Node::new("True", (), set![]);
+        let fls = Node::new("False", (), set![]);
+        let dag = vec![even, odd, tru.clone(), fls.clone()];
+        assert!(tsort(dag).is_err());
+
+        // this is valid, cause declaration exists
+        // ```
+        // odd: Nat -> Bool
+        // odd 0 = False
+        // odd n = even n - 1
+        // even 0 = True
+        // even n = odd n - 1 # this refers the declaration, not the definition
+        // ```
+        let even = Node::new("even n", (), set!["odd n (decl)", "True"]);
+        let odd = Node::new("odd n", (), set!["even n", "False"]);
+        let odd_decl = Node::new("odd n (decl)", (), set![]);
+        let dag = vec![
+            even,
+            odd.clone(),
+            odd_decl.clone(),
+            fls.clone(),
+            tru.clone(),
+        ];
+        let sorted = tsort(dag)?;
+        assert!(sorted[0] == odd_decl || sorted[0] == fls || sorted[0] == tru);
+        assert_eq!(sorted[4], odd);
+        Ok(())
+    }
 }
