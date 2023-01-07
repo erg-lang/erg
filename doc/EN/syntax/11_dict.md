@@ -73,5 +73,5 @@ x = "a"
 ```
 
 <p align='center'>
-    <a href='./12_tuple.md'>Previous</a> | <a href='./14_record.md'>Next</a>
+    <a href='./10_array.md'>Previous</a> | <a href='./12_container_ownership.md'>Next</a>
 </p>
