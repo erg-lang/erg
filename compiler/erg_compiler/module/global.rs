@@ -1,8 +1,8 @@
 use erg_common::config::ErgConfig;
 
+use super::cache::SharedModuleCache;
 #[cfg(feature = "els")]
-use crate::index::SharedModuleIndex;
-use crate::mod_cache::SharedModuleCache;
+use super::index::SharedModuleIndex;
 
 #[derive(Debug, Clone, Default)]
 pub struct SharedCompilerResource {

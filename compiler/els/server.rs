@@ -6,7 +6,6 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::time::SystemTime;
 
-use erg_compiler::global::SharedCompilerResource;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_json::Value;
@@ -22,7 +21,7 @@ use erg_compiler::context::{Context, ModuleContext};
 use erg_compiler::erg_parser::token::{Token, TokenCategory, TokenKind};
 use erg_compiler::error::CompileErrors;
 use erg_compiler::hir::HIR;
-use erg_compiler::index::SharedModuleIndex;
+use erg_compiler::module::{SharedCompilerResource, SharedModuleIndex};
 use erg_compiler::ty::Type;
 use erg_compiler::varinfo::{AbsLocation, VarInfo, VarKind};
 use erg_compiler::AccessKind;

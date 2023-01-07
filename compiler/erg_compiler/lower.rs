@@ -20,7 +20,7 @@ use erg_parser::Parser;
 
 use crate::artifact::{CompleteArtifact, IncompleteArtifact};
 use crate::context::instantiate::TyVarCache;
-use crate::global::SharedCompilerResource;
+use crate::module::SharedCompilerResource;
 use crate::ty::constructors::{
     array_mut, array_t, free_var, func, mono, poly, proc, set_mut, set_t, ty_tp,
 };
