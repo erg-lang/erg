@@ -93,3 +93,7 @@ Int -> Int
 |T: Type|(x: T) -> T
 |T: Type|(x: T := NoneType) -> T # |T: Type|(x: T := X, y: T := Y) -> T (X != Y) is invalid
 ```
+
+<p align='center'>
+    <a href='./19_bound.md'>上一頁</a> | 下一頁
+</p>
