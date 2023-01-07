@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 
+use erg_common::normalize_path;
 use erg_common::traits::{DequeStream, Locational};
 
 use erg_compiler::erg_parser::lex::Lexer;
@@ -129,4 +130,8 @@ pub fn parse_and_normalize_url(uri: &str) -> ELSResult<Url> {
 
 pub fn normalize_url(url: Url) -> Url {
     Url::parse(&url.as_str().replace("c%3A", "C:").to_lowercase()).unwrap()
+}
+
+pub fn uri_to_path(uri: &Url) -> std::path::PathBuf {
+    normalize_path(uri.to_file_path().unwrap())
 }

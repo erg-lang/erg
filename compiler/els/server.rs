@@ -317,7 +317,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
 
     fn check_file<S: Into<String>>(&mut self, uri: Url, code: S) -> ELSResult<()> {
         Self::send_log(format!("checking {uri}"))?;
-        let path = uri.to_file_path().unwrap();
+        let path = util::uri_to_path(&uri);
         let mode = if path.to_string_lossy().ends_with(".d.er") {
             "declare"
         } else {
@@ -425,8 +425,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
 
     fn get_visitor(&self, uri: &Url) -> Option<HIRVisitor> {
         self.hirs
-            .get(uri)
-            .unwrap()
+            .get(uri)?
             .as_ref()
             .map(|hir| HIRVisitor::new(hir, uri.clone(), !cfg!(feature = "py_compatible")))
     }
@@ -777,7 +776,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
     /// self is __included__
     fn dependencies_of(&self, uri: &Url) -> Vec<Url> {
         let graph = &self.get_shared().unwrap().graph;
-        let path = uri.to_file_path().unwrap();
+        let path = util::uri_to_path(uri);
         graph.sort().unwrap();
         let self_node = graph.get_node(&path).unwrap();
         graph
@@ -790,7 +789,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
     /// self is __not included__
     pub fn dependents_of(&self, uri: &Url) -> Vec<Url> {
         let graph = &self.get_shared().unwrap().graph;
-        let path = uri.to_file_path().unwrap();
+        let path = util::uri_to_path(uri);
         graph
             .iter()
             .filter(|node| node.depends_on(&path))
@@ -852,7 +851,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         self.hirs.remove(uri);
         if let Some(module) = self.modules.remove(uri) {
             if let Some(shared) = module.context.shared() {
-                shared.mod_cache.remove(&uri.to_file_path().unwrap());
+                shared.mod_cache.remove(&util::uri_to_path(uri));
             }
         }
     }

@@ -207,7 +207,8 @@ impl Input {
         };
         dir.push(path);
         dir.set_extension("er");
-        dir.canonicalize()
+        let path = dir
+            .canonicalize()
             .or_else(|_| {
                 dir.pop();
                 dir.push(path);
@@ -232,7 +233,8 @@ impl Input {
                 dir.push(path);
                 dir.set_extension("d.er"); // __pycache__/{path}.d.er
                 dir.canonicalize()
-            })
+            })?;
+        Ok(normalize_path(path))
     }
 
     pub fn local_py_resolve(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
@@ -244,12 +246,13 @@ impl Input {
         };
         dir.push(path);
         dir.set_extension("py");
-        dir.canonicalize().or_else(|_| {
+        let path = dir.canonicalize().or_else(|_| {
             dir.pop();
             dir.push(path);
             dir.push("__init__.py"); // {path}/__init__.er
             dir.canonicalize()
-        })
+        })?;
+        Ok(normalize_path(path))
     }
 }
 
