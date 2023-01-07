@@ -20,5 +20,5 @@ GeneralizedOdd = {I | U; I <: Div(Nat, U); I % 2 == 0}
 ```
 
 <p align='center'>
-    <a href='./18_mut.md'>Previous</a> | Next
+    <a href='./18_mut.md'>Previous</a> | <a href='./20_compound.md'>Next</a>
 </p>
