@@ -1,6 +1,8 @@
 use std::env::var;
 use std::path::PathBuf;
 
+use crate::normalize_path;
+
 fn _erg_path() -> PathBuf {
     let path = var("ERG_PATH").unwrap_or_else(|_| env!("CARGO_ERG_PATH").to_string());
     PathBuf::from(path)
@@ -30,10 +32,10 @@ fn _erg_external_lib_path() -> PathBuf {
 }
 
 thread_local! {
-    pub static ERG_PATH: PathBuf = _erg_path();
-    pub static ERG_STD_PATH: PathBuf = _erg_std_path();
-    pub static ERG_PYSTD_PATH: PathBuf = _erg_pystd_path();
-    pub static ERG_EXTERNAL_LIB_PATH: PathBuf = _erg_external_lib_path();
+    pub static ERG_PATH: PathBuf = normalize_path(_erg_path());
+    pub static ERG_STD_PATH: PathBuf = normalize_path(_erg_std_path());
+    pub static ERG_PYSTD_PATH: PathBuf = normalize_path(_erg_pystd_path());
+    pub static ERG_EXTERNAL_LIB_PATH: PathBuf = normalize_path(_erg_external_lib_path());
 }
 
 pub fn erg_path() -> PathBuf {

@@ -1075,7 +1075,11 @@ impl Desugarer {
         match acc {
             // x[y] => x.__getitem__(y)
             Accessor::Subscr(subscr) => {
-                let args = Args::new(vec![PosArg::new(*subscr.index)], vec![], None);
+                let args = Args::new(
+                    vec![PosArg::new(Self::rec_desugar_acc(*subscr.index))],
+                    vec![],
+                    None,
+                );
                 let line = subscr.obj.ln_begin().unwrap();
                 let call = Call::new(
                     Self::rec_desugar_acc(*subscr.obj),
