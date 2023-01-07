@@ -1,4 +1,4 @@
-# Operator
+# operator
 
 Operators are symbols that represent operations. Operands are things to the (left) right of an operator.
 
