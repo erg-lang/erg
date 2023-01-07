@@ -728,14 +728,14 @@ impl Context {
             Public,
         );
         generic_dict.register_trait(g_dict_t.clone(), generic_dict_eq);
-        let D = mono_q_tp("D", instanceof(mono(GENERIC_DICT)));
+        let D = mono_q_tp(TY_D, instanceof(mono(GENERIC_DICT)));
         // .get: _: T -> T or None
         let dict_get_t = fn1_met(g_dict_t.clone(), T.clone(), or(T.clone(), NoneType)).quantify();
         generic_dict.register_builtin_impl(FUNC_GET, dict_get_t, Immutable, Public);
         let dict_t = poly(DICT, vec![D.clone()]);
         let mut dict_ =
             // TODO: D <: GenericDict
-            Self::builtin_poly_class(DICT, vec![PS::named_nd("D", mono(GENERIC_DICT))], 10);
+            Self::builtin_poly_class(DICT, vec![PS::named_nd(TY_D, mono(GENERIC_DICT))], 10);
         dict_.register_superclass(g_dict_t.clone(), &generic_dict);
         dict_.register_marker_trait(poly(OUTPUT, vec![D.clone()]));
         // __getitem__: _: T -> D[T]
@@ -774,11 +774,14 @@ impl Context {
             Public,
         );
         generic_tuple.register_trait(mono(GENERIC_TUPLE), tuple_eq);
-        let Ts = mono_q_tp("Ts", instanceof(array_t(Type, N.clone())));
+        let Ts = mono_q_tp(TY_TS, instanceof(array_t(Type, N.clone())));
         // Ts <: GenericArray
         let _tuple_t = poly(TUPLE, vec![Ts.clone()]);
-        let mut tuple_ =
-            Self::builtin_poly_class(TUPLE, vec![PS::named_nd("Ts", array_t(Type, N.clone()))], 2);
+        let mut tuple_ = Self::builtin_poly_class(
+            TUPLE,
+            vec![PS::named_nd(TY_TS, array_t(Type, N.clone()))],
+            2,
+        );
         tuple_.register_superclass(mono(GENERIC_TUPLE), &generic_tuple);
         tuple_.register_marker_trait(poly(OUTPUT, vec![Ts.clone()]));
         // __Tuple_getitem__: (self: Tuple(Ts), _: {N}) -> Ts[N]

@@ -274,7 +274,9 @@ const NOT_IMPLEMENTED: &str = "NotImplemented";
 const ELLIPSIS: &str = "Ellipsis";
 const SITEBUILTINS_PRINTER: &str = "_sitebuiltins._Printer";
 
+const TY_D: &str = "D";
 const TY_T: &str = "T";
+const TY_TS: &str = "Ts";
 const TY_I: &str = "I";
 const TY_R: &str = "R";
 const TY_U: &str = "U";
