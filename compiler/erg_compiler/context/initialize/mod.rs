@@ -286,6 +286,23 @@ const TY_M: &str = "M";
 
 const KW_OLD: &str = "old";
 const KW_N: &str = "n";
+const KW_S: &str = "s";
+const KW_SELF: &str = "self";
+const KW_LENGTH: &str = "length";
+const KW_PROC: &str = "proc!";
+const KW_PAT: &str = "pat";
+const KW_INTO: &str = "into";
+const KW_ENCODING: &str = "encoding";
+const KW_ERRORS: &str = "errors";
+const KW_ARGS: &str = "args";
+const KW_IDX: &str = "idx";
+const KW_RHS: &str = "rhs";
+const KW_X: &str = "x";
+const KW_ELEM: &str = "elem";
+const KW_FUNC: &str = "func";
+const KW_ITERABLE: &str = "iterable";
+const KW_INDEX: &str = "index";
+const KW_KEY: &str = "key";
 
 impl Context {
     fn register_builtin_decl(&mut self, name: &'static str, t: Type, vis: Visibility) {
