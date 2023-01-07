@@ -1,4 +1,4 @@
-# 功能
+# 函數
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/04_function.md%26commit_hash%3D96b113c47ec6ca7ad91a6b486d55758de00d557d)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/04_function.md&commit_hash=96b113c47ec6ca7ad91a6b486d55758de00d557d)
 
@@ -28,11 +28,11 @@ add(1, 2)
 
 函數像`f x, y, ...`一樣被調用，但是如果單行參數太多，可以使用`:`(冒號)來應用它們
 
-```python,checker_ignore
+```python,check_ignore
 f some_long_name_variable_1 + some_long_name_variable_2, some_long_name_variable_3 * some_long_name_variable_4
 ```
 
-```python,checker_ignore
+```python,check_ignore
 f some_long_name_variable_1 + some_long_name_variable_2:
     some_long_name_variable_3 * some_long_name_variable_4
 ```
@@ -55,8 +55,8 @@ result = if Bool.sample!():
         0
 ```
 
-`:`之後，除註釋外不得寫入任何代碼，並且必須始終換行
-此外，您不能在函數後立即使用`:`。只有`do`和`do!`可以做到這一點
+在 `:` 之后，除了注釋之外，不得編寫任何代碼，并且必須始終在新行上
+此外，您不能在函數后立即使用 `:`。只有 `do`和`do!` 可以做到這一點
 
 ```python,compile_fail
 # NG
@@ -88,7 +88,7 @@ f x, y, z, w, v, u: Int = ...
 f u := 6, v := 5, w := 4, x := 1, y := 2, z := 3
 ```
 
-## 定義默認参数
+## 定義默認參數
 
 當某些參數大部分是固定的并且您希望能夠省略它們時，使用默認參數
 
@@ -231,9 +231,9 @@ factorial(-1) == -1 * factorial(-2) == -1 * -2 * factorial(-3) == ...
 并且這種計算不會停止。遞歸函數必須仔細定義值的范圍，否則您可能會陷入無限循環
 所以類型規范也有助于避免接受意外的值
 
-## 高階函數
+## High-order functions
 
-高階函數是將函數作為參數或返回值的函
+高階函數是將函數作為參數或返回值的函數
 例如，一個以函數為參數的高階函數可以寫成如下
 
 ```python
@@ -242,7 +242,7 @@ higher_f(x: (Int -> NoneType)) = x 10
 higher_f arg_f # 10
 ```
 
-當然，也可以將返回值作為一個函數
+當然，也可以將返回值作為一個函數。
 
 ```python
 add(x): (Int -> Int) = y -> x + y

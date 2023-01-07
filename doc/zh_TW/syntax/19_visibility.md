@@ -25,7 +25,7 @@ foo.x # AttributeError: 模塊 'foo' 沒有屬性 'x' ('x' 是私有的)
 .x = "this is a visible variable"
 ```
 
-```python,checker_ignore
+```python
 # bar.er
 foo = import "foo"
 assert foo.x == "this is a visible variable"
@@ -91,7 +91,7 @@ C.
 
 在一個模塊中定義的類實際上可以定義來自外部模塊的方法
 
-```python
+```python,compile_fail
 # foo.er
 .Foo = Class()
 ```
@@ -104,9 +104,7 @@ Foo::
     private self = pass
 Foo.
     public self = self::private()
-```
 
-```python,compile_fail
 .f() =
     foo = Foo.new()
     foo.public()

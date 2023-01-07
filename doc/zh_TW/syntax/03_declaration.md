@@ -28,7 +28,7 @@ i: Nat # 這不會通過(-1 不是 Nat 的元素)
 
 函數可以用兩種不同的方式聲明
 
-```python,checker_ignore
+```python,check_ignore
 f: (x: Int, y: Int) -> Int
 f: (Int, Int) -> Int
 ```
@@ -42,7 +42,7 @@ T = Trait {
 
 C = Class()
 C|<: T|.
-    f(a: Int, b: Int): Int = ... # 類型錯誤: `.f` 必須是 `(x: Int, y: Int) -> Int` 的類型，而不是 `(a: Int, b: Int) -> Int`
+    f(a: Int, b: Int): Int = ... # TypeError: `.f` must be type of `(x: Int, y: Int) -> Int`, not `(a: Int, b: Int) -> Int`
 ```
 
 <p align='center'>

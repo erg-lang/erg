@@ -1,4 +1,4 @@
-# 副作用和程序
+# 副作用
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/07_side_effect.md%26commit_hash%3D20aa4f02b994343ab9600317cebafa2b20676467)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/07_side_effect.md&commit_hash=20aa4f02b994343ab9600317cebafa2b20676467)
 
@@ -42,7 +42,7 @@ n # 值錯誤: n 被 .into 移動(第 2 行)
 
 但是請注意，可以從可變引用創建(不可變/可變)引用。這允許在程序方法中遞歸和 `print!` 的`self`
 
-```python,checker_ignore
+```python
 T -> T # OK (move)
 T -> Ref T # OK (move)
 T => Ref! T # OK (only once)
@@ -72,7 +72,7 @@ assert nan(1) ! = nan(1)
 
 還有一些對象，例如類，等價確定本身是不可能的
 
-```python,checker_ignore
+```python
 T = Structural {i = Int}
 U = Structural {i = Int}
 assert T == U
