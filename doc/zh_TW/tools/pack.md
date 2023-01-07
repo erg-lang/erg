@@ -61,7 +61,7 @@ successors = [] # 替代包(當一個包被棄用時)
 
 ## 語義版本控制
 
-Erg 包是基于 [語義版本控制](https://semver.org/lang/zh-TW/) 進行版本控制的
+Erg 包是基于 [語義版本控制](https://semver.org/lang/zh-CN/) 進行版本控制的
 語義版本控制大致以"x.y.z"格式指定(x、y、z 是大于或等于 0 的整數)
 每個數字的含義如下
 

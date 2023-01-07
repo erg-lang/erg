@@ -56,5 +56,5 @@ print! Typeof l[1..2] # Ref [Int; 4]
 ```
 
 <p align='center'>
-    <a href='./09_builtin_procs.md'>Previous</a> | <a href='./11_tuple.md'>Next</a>
+    <a href='./09_builtin_procs.md'>Previous</a> | <a href='./11_dict.md'>Next</a>
 </p>
