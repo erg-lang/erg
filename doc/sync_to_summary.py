@@ -56,7 +56,7 @@ def get_title(file_path):
 
 
 def get_summary(
-    base_path, dir_relative_path: str, depth: int, current_text: str
+    base_path: str, dir_relative_path: str, depth: int, current_text: str
 ) -> str:
     path = f"{base_path}{dir_relative_path}"
     dir_list = sorted(os.listdir(path))
