@@ -21,7 +21,7 @@ impl ModuleGraph {
         Self(Graph::new())
     }
 
-    pub fn _get_node(&self, path: &Path) -> Option<&Node<PathBuf, ()>> {
+    pub fn get_node(&self, path: &Path) -> Option<&Node<PathBuf, ()>> {
         self.0.iter().find(|n| n.id == path)
     }
 
@@ -80,6 +80,12 @@ impl IntoIterator for SharedModuleGraph {
 impl SharedModuleGraph {
     pub fn new() -> Self {
         Self(Shared::new(ModuleGraph::new()))
+    }
+
+    /// SAFETY: don't hold this reference before sorting
+    pub fn get_node(&self, path: &Path) -> Option<&Node<PathBuf, ()>> {
+        let ref_graph = unsafe { self.0.as_ptr().as_ref().unwrap() };
+        ref_graph.get_node(path)
     }
 
     pub fn add_node_if_none(&self, path: &Path) {

@@ -359,7 +359,13 @@ impl<Checker: BuildRunnable> Server<Checker> {
         }
         if let Some(module) = checker.pop_context() {
             Self::send_log(format!("{uri}: {}", module.context.name))?;
-            self.modules.insert(uri, module);
+            self.modules.insert(uri.clone(), module);
+        }
+        let dependents = self.dependents_of(&uri);
+        for dep in dependents {
+            // _log!("dep: {dep}");
+            let code = util::get_code_from_uri(&dep)?;
+            self.check_file(dep, code)?;
         }
         Ok(())
     }
@@ -703,7 +709,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                             Self::commit_change(&mut changes, referrer, params.new_name.clone());
                         }
                     }
-                    let dependencies = self.get_dependencies(&uri);
+                    let dependencies = self.dependencies_of(&uri);
                     for uri in changes.keys() {
                         self.clear_cache(uri);
                     }
@@ -719,6 +725,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                         }
                         std::thread::sleep(std::time::Duration::from_millis(50));
                     }
+                    // recheck dependencies and finally the file itself
                     for dep in dependencies {
                         let code = util::get_code_from_uri(&dep)?;
                         self.check_file(dep, code)?;
@@ -767,20 +774,21 @@ impl<Checker: BuildRunnable> Server<Checker> {
         })
     }
 
-    fn get_dependencies(&self, uri: &Url) -> Vec<Url> {
+    /// self is __included__
+    fn dependencies_of(&self, uri: &Url) -> Vec<Url> {
         let graph = &self.get_shared().unwrap().graph;
+        let path = uri.to_file_path().unwrap();
         graph.sort().unwrap();
+        let self_node = graph.get_node(&path).unwrap();
         graph
             .iter()
-            .filter(|node| {
-                let path = uri.to_file_path().unwrap();
-                node.id == path || node.depends_on(&path)
-            })
+            .filter(|node| node.id == path || self_node.depends_on(&node.id))
             .map(|node| util::normalize_url(Url::from_file_path(&node.id).unwrap()))
             .collect()
     }
 
-    pub fn _get_dependents(&self, uri: &Url) -> Vec<Url> {
+    /// self is __not included__
+    pub fn dependents_of(&self, uri: &Url) -> Vec<Url> {
         let graph = &self.get_shared().unwrap().graph;
         let path = uri.to_file_path().unwrap();
         graph
