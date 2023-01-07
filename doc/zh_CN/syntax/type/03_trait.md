@@ -1,4 +1,4 @@
-# trait
+# Trait
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/03_trait.md%26commit_hash%3D7078f95cecc961a65befb15929af06ae2331c934)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/03_trait.md&commit_hash=7078f95cecc961a65befb15929af06ae2331c934)
 
@@ -49,7 +49,7 @@ assert points.iter().map(x -> x.norm()).collect(Array) == [5, 25].
 
 ## Trait包含
 
-`Subsume` 允许您将包含某个Trait的Trait定义为超类型。这称为Trait的 __subsumption__
+`Subsume` 允许您将包含某个Trait的Trait定义为父类型。这称为Trait的 __subsumption__
 在下面的示例中，`BinAddSub` 包含 `BinAdd` 和 `BinSub`
 这对应于类中的继承，但与继承不同的是，可以使用"和"组合多个基类型。也允许被 `not` 部分排除的Trait
 

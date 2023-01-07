@@ -1,4 +1,4 @@
-# 下標(索引訪問)
+# 下標
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/container_ownership.md%26commit_hash%3D20aa4f02b994343ab9600317cebafa2b20676467)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/container_ownership.md&commit_hash=20aa4f02b994343ab9600317cebafa2b20676467)
 
@@ -23,7 +23,7 @@ C.steal(self) =
 
 ```python,compile_fail
 C. get(ref self) =
-    self::i # 類型錯誤: `self::i` 是 `Int!`(需要所有權)但 `get` 不擁有 `self`
+    self::i # 類型錯誤:`self::i`是`Int!`(需要所有權)但`get`不擁有`self`
 ```
 
 ```python
@@ -49,5 +49,5 @@ a = [!1, !2]
 i = a[0]
 i.inc!()
 assert a[1] == 2
-a[0] # 所有權錯誤: `a[0]` 被移動到 `i`
+a[0] # 所有權錯誤:`a[0]`被移動到`i`
 ```

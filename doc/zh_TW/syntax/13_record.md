@@ -1,6 +1,6 @@
 # 記錄(Record)
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/13_record.md%26commit_hash%3D96b113c47ec6ca7ad91a6b486d55758de00d557d)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/13_record.md&commit_hash96b113c47ec6ca7ad91a6b486d55758de00d557d)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/13_record.md%26commit_hash%3D96b113c47ec6ca7ad91a6b486d55758de00d557d)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/13_record.md&commit_hash=96b113c47ec6ca7ad91a6b486d55758de00d557d)
 
 記錄是一個集合，它結合了通過鍵訪問的 Dict 和在編譯時檢查其訪問的元組的屬性
 如果您了解 JavaScript，請將其視為一種(更增強的)對象字面量表示法
@@ -26,6 +26,7 @@ john["name"] # 錯誤: john 不可訂閱
 a = {x = 1; .y = x + 1}
 a.x # 屬性錯誤: x 是私有的
 # 提示: 聲明為 `.x`
+assert a.y == 2
 ```
 
 對于熟悉 JavaScript 的人來說，上面的示例可能看起來很奇怪，但簡單地聲明 `x` 會使其無法從外部訪問
@@ -34,7 +35,7 @@ a.x # 屬性錯誤: x 是私有的
 
 ```python
 anonymous = {
-    .name: Option! Str = "Jane Doe
+    .name: Option! Str = "Jane Doe"
     .age = 20
 }
 anonymous.name.set! "John Doe"
@@ -170,28 +171,28 @@ y =
 如果您嘗試自己實現方法，則必須直接在實例中定義裸記錄(由記錄文字生成的記錄)
 這是低效的，并且隨著屬性數量的增加，錯誤消息等變得難以查看和使用
 
-```python
+```python,checker_ignore
 john = {
     name = "John Smith"
     age = !20
     .greet! ref self = print! "Hello, my name is \{self::name} and I am \{self::age} years old."
     .inc_age! ref! self = self::age.update! x -> x + 1
 }
-john + 1
+print! john + 1
 # 類型錯誤: {name = Str; 沒有實現 + 年齡=詮釋； 。迎接！ =參考(自我)。() => 無； inc_age！ =參考！ () => 無}, 整數
 ```
 
 因此，在這種情況下，您可以繼承一個記錄類。這樣的類稱為數據類
 這在 [class](./type/04_class.md) 中有描述
 
-```python
+```python,checker_ignore
 Person = Inherit {name = Str; age = Nat}
 Person.
     greet! ref self = print! "Hello, my name is \{self::name} and I am \{self::age} years old."
     inc_age! ref! self = self::age.update! x -> x + 1
 
 john = Person.new {name = "John Smith"; age = 20}
-john + 1
+print! john + 1
 # 類型錯誤: Person、Int 沒有實現 +
 ```
 

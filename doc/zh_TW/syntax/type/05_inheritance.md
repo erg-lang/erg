@@ -135,6 +135,7 @@ Int = Class ... , Impl := Add() and ...
 ## 多重繼承
 
 Erg 不允許普通類之間的交集、差異和互補
+
 ```python
 Int and Str # 類型錯誤: 無法合并類
 ```
