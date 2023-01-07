@@ -5,8 +5,8 @@ use erg_common::traits::{Runnable, Stream};
 
 use crate::context::ModuleContext;
 use crate::error::CompileErrors;
-use crate::global::SharedCompilerResource;
 use crate::hir::HIR;
+use crate::module::SharedCompilerResource;
 
 #[derive(Debug)]
 pub struct CompleteArtifact<Inner = HIR> {

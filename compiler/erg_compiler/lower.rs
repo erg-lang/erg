@@ -20,7 +20,7 @@ use erg_parser::Parser;
 
 use crate::artifact::{CompleteArtifact, IncompleteArtifact};
 use crate::context::instantiate::TyVarCache;
-use crate::global::SharedCompilerResource;
+use crate::module::SharedCompilerResource;
 use crate::ty::constructors::{
     array_mut, array_t, free_var, func, mono, poly, proc, set_mut, set_t, ty_tp,
 };
@@ -2186,6 +2186,10 @@ impl ASTLowerer {
     pub fn lower(&mut self, ast: AST, mode: &str) -> Result<CompleteArtifact, IncompleteArtifact> {
         log!(info "the AST lowering process has started.");
         log!(info "the type-checking process has started.");
+        if let Some(path) = self.cfg.input.path() {
+            let graph = &self.module.context.shared.as_ref().unwrap().graph;
+            graph.add_node_if_none(path);
+        }
         let ast = Reorderer::new(self.cfg.clone())
             .reorder(ast)
             .map_err(|errs| {

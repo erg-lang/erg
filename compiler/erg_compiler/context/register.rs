@@ -1313,6 +1313,10 @@ impl Context {
                 return Err(err);
             }
         };
+        if let Some(referrer) = self.cfg.input.path() {
+            let graph = &self.shared.as_ref().unwrap().graph;
+            graph.inc_ref(referrer, path.clone());
+        }
         if mod_cache.get(&path).is_some() {
             return Ok(path);
         }

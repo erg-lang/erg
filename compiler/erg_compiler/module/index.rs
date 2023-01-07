@@ -1,4 +1,5 @@
 use std::collections::hash_map::{Keys, Values};
+use std::fmt;
 
 use erg_common::dict::Dict;
 use erg_common::set;
@@ -10,6 +11,12 @@ use crate::varinfo::AbsLocation;
 #[derive(Debug, Clone, Default)]
 pub struct ModuleIndex {
     attrs: Dict<AbsLocation, Set<AbsLocation>>,
+}
+
+impl fmt::Display for ModuleIndex {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.attrs.fmt(f)
+    }
 }
 
 impl ModuleIndex {
@@ -33,6 +40,12 @@ impl ModuleIndex {
 #[derive(Debug, Clone, Default)]
 pub struct SharedModuleIndex(Shared<ModuleIndex>);
 
+impl fmt::Display for SharedModuleIndex {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.borrow().fmt(f)
+    }
+}
+
 impl SharedModuleIndex {
     pub fn new() -> Self {
         Self(Shared::new(ModuleIndex::new()))
@@ -46,11 +59,11 @@ impl SharedModuleIndex {
         unsafe { self.0.as_ptr().as_ref().unwrap().get_refs(referee) }
     }
 
-    pub fn keys(&self) -> Keys<AbsLocation, Set<AbsLocation>> {
+    pub fn referees(&self) -> Keys<AbsLocation, Set<AbsLocation>> {
         unsafe { self.0.as_ptr().as_ref().unwrap().attrs.keys() }
     }
 
-    pub fn values(&self) -> Values<AbsLocation, Set<AbsLocation>> {
+    pub fn referrers(&self) -> Values<AbsLocation, Set<AbsLocation>> {
         unsafe { self.0.as_ptr().as_ref().unwrap().attrs.values() }
     }
 
