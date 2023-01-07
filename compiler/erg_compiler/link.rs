@@ -17,7 +17,7 @@ use crate::ty::HasType;
 use erg_common::fresh::fresh_varname;
 
 use crate::hir::*;
-use crate::mod_cache::SharedModuleCache;
+use crate::module::SharedModuleCache;
 
 /// Link code using the module cache.
 /// Erg links all non-Python modules into a single pyc file.

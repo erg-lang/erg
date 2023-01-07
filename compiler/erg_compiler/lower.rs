@@ -20,7 +20,7 @@ use erg_parser::Parser;
 
 use crate::artifact::{CompleteArtifact, IncompleteArtifact};
 use crate::context::instantiate::TyVarCache;
-use crate::global::SharedCompilerResource;
+use crate::module::SharedCompilerResource;
 use crate::ty::constructors::{
     array_mut, array_t, free_var, func, mono, poly, proc, set_mut, set_t, ty_tp,
 };
@@ -1687,7 +1687,7 @@ impl ASTLowerer {
         sup_class: &hir::Expr,
         sub_sig: &hir::Signature,
     ) {
-        if let TypeObj::Generated(gen) = type_obj.require_or_sup().unwrap() {
+        if let TypeObj::Generated(gen) = type_obj.base_or_sup().unwrap() {
             if let Some(impls) = gen.impls() {
                 if !impls.contains_intersec(&mono("InheritableType")) {
                     errs.push(LowerError::inheritance_error(
@@ -1761,7 +1761,7 @@ impl ASTLowerer {
             {
                 if let ValueObj::Type(typ) = trait_obj {
                     match typ {
-                        TypeObj::Generated(gen) => match gen.require_or_sup().unwrap().typ() {
+                        TypeObj::Generated(gen) => match gen.base_or_sup().unwrap().typ() {
                             Type::Record(attrs) => {
                                 for (field, decl_t) in attrs.iter() {
                                     if let Some((name, vi)) =
@@ -2186,6 +2186,10 @@ impl ASTLowerer {
     pub fn lower(&mut self, ast: AST, mode: &str) -> Result<CompleteArtifact, IncompleteArtifact> {
         log!(info "the AST lowering process has started.");
         log!(info "the type-checking process has started.");
+        if let Some(path) = self.cfg.input.path() {
+            let graph = &self.module.context.shared.as_ref().unwrap().graph;
+            graph.add_node_if_none(path);
+        }
         let ast = Reorderer::new(self.cfg.clone())
             .reorder(ast)
             .map_err(|errs| {

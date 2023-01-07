@@ -931,8 +931,20 @@ impl Context {
                     );
                     let mut methods =
                         Self::methods(None, self.cfg.clone(), self.shared.clone(), 2, self.level);
-                    let new_t = if let Some(require) = gen.require_or_sup() {
-                        func1(require.typ().clone(), gen.typ().clone())
+                    let new_t = if let Some(base) = gen.base_or_sup() {
+                        match base {
+                            TypeObj::Builtin(Type::Record(_)) => {}
+                            other => {
+                                methods.register_fixed_auto_impl(
+                                    "base",
+                                    other.typ().clone(),
+                                    Immutable,
+                                    Private,
+                                    None,
+                                );
+                            }
+                        }
+                        func1(base.typ().clone(), gen.typ().clone())
                     } else {
                         func0(gen.typ().clone())
                     };
@@ -955,7 +967,7 @@ impl Context {
             }
             GenTypeObj::Subclass(_) => {
                 if gen.typ().is_monomorphic() {
-                    let super_classes = vec![gen.require_or_sup().unwrap().typ().clone()];
+                    let super_classes = vec![gen.base_or_sup().unwrap().typ().clone()];
                     // let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
                     let mut ctx = Self::mono_class(
                         gen.typ().qual_name(),
@@ -973,12 +985,12 @@ impl Context {
                     let mut methods =
                         Self::methods(None, self.cfg.clone(), self.shared.clone(), 2, self.level);
                     if let Some(sup) =
-                        self.rec_get_const_obj(&gen.require_or_sup().unwrap().typ().local_name())
+                        self.rec_get_const_obj(&gen.base_or_sup().unwrap().typ().local_name())
                     {
                         let sup = enum_unwrap!(sup, ValueObj::Type);
                         let param_t = match sup {
                             TypeObj::Builtin(t) => t,
-                            TypeObj::Generated(t) => t.require_or_sup().unwrap().typ(),
+                            TypeObj::Generated(t) => t.base_or_sup().unwrap().typ(),
                         };
                         // `Super.Requirement := {x = Int}` and `Self.Additional := {y = Int}`
                         // => `Self.Requirement := {x = Int; y = Int}`
@@ -1016,8 +1028,8 @@ impl Context {
                         2,
                         self.level,
                     );
-                    let require = enum_unwrap!(gen.require_or_sup().unwrap(), TypeObj::Builtin:(Type::Record:(_)));
-                    for (field, t) in require.iter() {
+                    let req = enum_unwrap!(gen.base_or_sup().unwrap(), TypeObj::Builtin:(Type::Record:(_)));
+                    for (field, t) in req.iter() {
                         let muty = if field.is_const() {
                             Mutability::Const
                         } else {
@@ -1043,7 +1055,7 @@ impl Context {
             }
             GenTypeObj::Subtrait(_) => {
                 if gen.typ().is_monomorphic() {
-                    let super_classes = vec![gen.require_or_sup().unwrap().typ().clone()];
+                    let super_classes = vec![gen.base_or_sup().unwrap().typ().clone()];
                     // let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
                     let mut ctx = Self::mono_trait(
                         gen.typ().qual_name(),
@@ -1090,7 +1102,7 @@ impl Context {
             }
             GenTypeObj::Patch(_) => {
                 if gen.typ().is_monomorphic() {
-                    let base = enum_unwrap!(gen.require_or_sup().unwrap(), TypeObj::Builtin);
+                    let base = enum_unwrap!(gen.base_or_sup().unwrap(), TypeObj::Builtin);
                     let ctx = Self::mono_patch(
                         gen.typ().qual_name(),
                         base.clone(),
@@ -1301,6 +1313,10 @@ impl Context {
                 return Err(err);
             }
         };
+        if let Some(referrer) = self.cfg.input.path() {
+            let graph = &self.shared.as_ref().unwrap().graph;
+            graph.inc_ref(referrer, path.clone());
+        }
         if mod_cache.get(&path).is_some() {
             return Ok(path);
         }

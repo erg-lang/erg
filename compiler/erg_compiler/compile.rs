@@ -16,10 +16,9 @@ use crate::build_hir::HIRBuilder;
 use crate::codegen::PyCodeGenerator;
 use crate::desugar_hir::HIRDesugarer;
 use crate::error::{CompileError, CompileErrors, CompileWarnings};
-use crate::global::SharedCompilerResource;
 use crate::hir::Expr;
 use crate::link::Linker;
-use crate::mod_cache::SharedModuleCache;
+use crate::module::{SharedCompilerResource, SharedModuleCache};
 
 /// * registered as global -> Global
 /// * defined in the toplevel scope (and called in the inner scope) -> Global

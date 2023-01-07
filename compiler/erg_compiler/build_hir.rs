@@ -10,8 +10,8 @@ use crate::artifact::{BuildRunnable, Buildable, CompleteArtifact, IncompleteArti
 use crate::context::{Context, ContextProvider, ModuleContext};
 use crate::effectcheck::SideEffectChecker;
 use crate::error::{CompileError, CompileErrors};
-use crate::global::SharedCompilerResource;
 use crate::lower::ASTLowerer;
+use crate::module::SharedCompilerResource;
 use crate::ownercheck::OwnershipChecker;
 use crate::varinfo::VarInfo;
 

@@ -119,10 +119,6 @@ impl ASTLowerer {
         res
     }
 
-    fn declare_class_def(&mut self, _class_def: ast::ClassDef) -> LowerResult<hir::ClassDef> {
-        todo!()
-    }
-
     fn fake_lower_obj(&self, obj: ast::Expr) -> LowerResult<hir::Expr> {
         match obj {
             ast::Expr::Accessor(ast::Accessor::Ident(ident)) => {
@@ -307,9 +303,6 @@ impl ASTLowerer {
         log!(info "entered {}", fn_name!());
         match expr {
             ast::Expr::Def(def) => Ok(hir::Expr::Def(self.declare_def(def)?)),
-            ast::Expr::ClassDef(class_def) => {
-                Ok(hir::Expr::ClassDef(self.declare_class_def(class_def)?))
-            }
             ast::Expr::TypeAsc(tasc) => Ok(hir::Expr::TypeAsc(self.declare_ident(tasc)?)),
             ast::Expr::Call(call)
                 if call

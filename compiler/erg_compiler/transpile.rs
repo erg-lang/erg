@@ -18,12 +18,12 @@ use crate::codegen::PyCodeGenerator;
 use crate::context::{Context, ContextProvider, ModuleContext};
 use crate::desugar_hir::HIRDesugarer;
 use crate::error::{CompileError, CompileErrors};
-use crate::global::SharedCompilerResource;
 use crate::hir::{
     Accessor, Args, Array, BinOp, Block, Call, ClassDef, Def, Dict, Expr, Identifier, Lambda,
     Literal, Params, PatchDef, ReDef, Record, Set, Signature, Tuple, UnaryOp, HIR,
 };
 use crate::link::Linker;
+use crate::module::SharedCompilerResource;
 use crate::ty::value::ValueObj;
 use crate::ty::Type;
 use crate::varinfo::VarInfo;

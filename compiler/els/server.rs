@@ -4,16 +4,17 @@ use std::io;
 use std::io::{stdin, stdout, BufRead, Read, StdinLock, StdoutLock, Write};
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::time::SystemTime;
 
-use erg_compiler::global::SharedCompilerResource;
+use erg_common::env::erg_path;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_json::Value;
 
-use erg_common::config::{ErgConfig, Input};
+use erg_common::config::ErgConfig;
 use erg_common::dict::Dict;
-use erg_common::style::*;
 use erg_common::traits::{Locational, Stream};
+use erg_common::{normalize_path, style::*};
 
 use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::build_hir::HIRBuilder;
@@ -21,7 +22,7 @@ use erg_compiler::context::{Context, ModuleContext};
 use erg_compiler::erg_parser::token::{Token, TokenCategory, TokenKind};
 use erg_compiler::error::CompileErrors;
 use erg_compiler::hir::HIR;
-use erg_compiler::index::SharedModuleIndex;
+use erg_compiler::module::{SharedCompilerResource, SharedModuleIndex};
 use erg_compiler::ty::Type;
 use erg_compiler::varinfo::{AbsLocation, VarInfo, VarKind};
 use erg_compiler::AccessKind;
@@ -41,6 +42,12 @@ use crate::util;
 pub type ELSResult<T> = Result<T, Box<dyn std::error::Error>>;
 
 pub type ErgLanguageServer = Server<HIRBuilder>;
+
+macro_rules! _log {
+    ($($arg:tt)*) => {
+        Self::send_log(format!($($arg)*)).unwrap();
+    };
+}
 
 thread_local! {
     static INPUT: RefCell<StdinLock<'static>> = RefCell::new(stdin().lock());
@@ -82,6 +89,7 @@ fn read_exact(len: usize) -> io::Result<Vec<u8>> {
 pub struct Server<Checker: BuildRunnable = HIRBuilder> {
     cfg: ErgConfig,
     home: PathBuf,
+    erg_path: PathBuf,
     client_capas: ClientCapabilities,
     modules: Dict<Url, ModuleContext>,
     hirs: Dict<Url, Option<HIR>>,
@@ -92,7 +100,8 @@ impl<Checker: BuildRunnable> Server<Checker> {
     pub fn new(cfg: ErgConfig) -> Self {
         Self {
             cfg,
-            home: std::env::current_dir().unwrap(),
+            home: normalize_path(std::env::current_dir().unwrap()),
+            erg_path: normalize_path(erg_path()),
             client_capas: ClientCapabilities::default(),
             modules: Dict::new(),
             hirs: Dict::new(),
@@ -286,17 +295,19 @@ impl<Checker: BuildRunnable> Server<Checker> {
             "initialized" => Self::send_log("successfully bound"),
             "exit" => self.exit(),
             "textDocument/didOpen" => {
-                let uri = Url::parse(msg["params"]["textDocument"]["uri"].as_str().unwrap())?;
+                let uri = util::parse_and_normalize_url(
+                    msg["params"]["textDocument"]["uri"].as_str().unwrap(),
+                )?;
                 Self::send_log(format!("{method}: {uri}"))?;
                 self.check_file(uri, msg["params"]["textDocument"]["text"].as_str().unwrap())
             }
             "textDocument/didSave" => {
-                let uri = Url::parse(msg["params"]["textDocument"]["uri"].as_str().unwrap())?;
+                let uri = util::parse_and_normalize_url(
+                    msg["params"]["textDocument"]["uri"].as_str().unwrap(),
+                )?;
                 Self::send_log(format!("{method}: {uri}"))?;
                 let code = util::get_code_from_uri(&uri)?;
-                if let Some(shared) = self.get_shared() {
-                    shared.clear_all();
-                }
+                self.clear_cache(&uri);
                 self.check_file(uri, &code)
             }
             // "textDocument/didChange"
@@ -306,7 +317,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
 
     fn check_file<S: Into<String>>(&mut self, uri: Url, code: S) -> ELSResult<()> {
         Self::send_log(format!("checking {uri}"))?;
-        let path = uri.to_file_path().unwrap();
+        let path = util::uri_to_path(&uri);
         let mode = if path.to_string_lossy().ends_with(".d.er") {
             "declare"
         } else {
@@ -348,12 +359,14 @@ impl<Checker: BuildRunnable> Server<Checker> {
         }
         if let Some(module) = checker.pop_context() {
             Self::send_log(format!("{uri}: {}", module.context.name))?;
-            self.modules.insert(uri, module);
+            self.modules.insert(uri.clone(), module);
         }
-        Self::send_log(format!(
-            "indexes: {:?}",
-            self.modules.keys().collect::<Vec<_>>()
-        ))?;
+        let dependents = self.dependents_of(&uri);
+        for dep in dependents {
+            // _log!("dep: {dep}");
+            let code = util::get_code_from_uri(&dep)?;
+            self.check_file(dep, code)?;
+        }
         Ok(())
     }
 
@@ -365,8 +378,8 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let mut uri_and_diags: Vec<(Url, Vec<Diagnostic>)> = vec![];
         for err in errors.into_iter() {
             let loc = err.core.get_loc_with_fallback();
-            let err_uri = if let Input::File(path) = err.input {
-                Url::from_file_path(path).unwrap()
+            let err_uri = if let Some(path) = err.input.path() {
+                util::normalize_url(Url::from_file_path(path).unwrap())
             } else {
                 uri.clone()
             };
@@ -412,8 +425,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
 
     fn get_visitor(&self, uri: &Url) -> Option<HIRVisitor> {
         self.hirs
-            .get(uri)
-            .unwrap()
+            .get(uri)?
             .as_ref()
             .map(|hir| HIRVisitor::new(hir, uri.clone(), !cfg!(feature = "py_compatible")))
     }
@@ -467,7 +479,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
     fn show_completion(&mut self, msg: &Value) -> ELSResult<()> {
         Self::send_log(format!("completion requested: {msg}"))?;
         let params = CompletionParams::deserialize(&msg["params"])?;
-        let uri = params.text_document_position.text_document.uri;
+        let uri = util::normalize_url(params.text_document_position.text_document.uri);
         let pos = params.text_document_position.position;
         let trigger = params
             .context
@@ -536,13 +548,13 @@ impl<Checker: BuildRunnable> Server<Checker> {
     fn show_definition(&mut self, msg: &Value) -> ELSResult<()> {
         Self::send_log(format!("definition requested: {msg}"))?;
         let params = GotoDefinitionParams::deserialize(&msg["params"])?;
-        let uri = params.text_document_position_params.text_document.uri;
+        let uri = util::normalize_url(params.text_document_position_params.text_document.uri);
         let pos = params.text_document_position_params.position;
         let result = if let Some(token) = util::get_token(uri.clone(), pos)? {
             if let Some(vi) = self.get_definition(&uri, &token)? {
                 match (vi.def_loc.module, util::loc_to_range(vi.def_loc.loc)) {
                     (Some(path), Some(range)) => {
-                        let def_uri = Url::from_file_path(path).unwrap();
+                        let def_uri = util::normalize_url(Url::from_file_path(path).unwrap());
                         Self::send_log("found")?;
                         GotoDefinitionResponse::Array(vec![lsp_types::Location::new(
                             def_uri, range,
@@ -585,7 +597,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             "erg"
         };
         let params = HoverParams::deserialize(&msg["params"])?;
-        let uri = params.text_document_position_params.text_document.uri;
+        let uri = util::normalize_url(params.text_document_position_params.text_document.uri);
         let pos = params.text_document_position_params.position;
         let mut contents = vec![];
         let opt_tok = util::get_token(uri.clone(), pos)?;
@@ -608,6 +620,8 @@ impl<Checker: BuildRunnable> Server<Checker> {
                             let relative = file_path
                                 .strip_prefix(&self.home)
                                 .unwrap_or(file_path.as_path());
+                            let relative =
+                                relative.strip_prefix(&self.erg_path).unwrap_or(relative);
                             format!("# {}, line {line}\n", relative.display())
                         } else {
                             // windows' file paths are case-insensitive, so we need to normalize them
@@ -619,6 +633,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
                                 )
                                 .unwrap_or_else(|| file_path.as_path().to_str().unwrap())
                                 .trim_start_matches(['\\', '/']);
+                            let relative = relative
+                                .strip_prefix(self.erg_path.to_str().unwrap())
+                                .unwrap_or(relative);
                             format!("# {}, line {line}\n", relative)
                         };
                         code_block += util::get_line_from_path(&file_path, line)?.trim_start();
@@ -659,19 +676,26 @@ impl<Checker: BuildRunnable> Server<Checker> {
     fn rename(&mut self, msg: &Value) -> ELSResult<()> {
         let params = RenameParams::deserialize(&msg["params"])?;
         Self::send_log(format!("rename request: {params:?}"))?;
-        let uri = params.text_document_position.text_document.uri;
+        let uri = util::normalize_url(params.text_document_position.text_document.uri);
         let pos = params.text_document_position.position;
         if let Some(tok) = util::get_token(uri.clone(), pos)? {
             // Self::send_log(format!("token: {tok}"))?;
             if let Some(visitor) = self.get_visitor(&uri) {
                 if let Some(vi) = visitor.visit_hir_info(&tok) {
                     // Self::send_log(format!("vi: {vi}"))?;
-                    if vi.def_loc.loc.is_unknown() {
+                    let is_std = vi
+                        .def_loc
+                        .module
+                        .as_ref()
+                        .map(|path| path.starts_with(&self.erg_path))
+                        .unwrap_or(false);
+                    if vi.def_loc.loc.is_unknown() || is_std {
                         let error_reason = match vi.kind {
                             VarKind::Builtin => "this is a builtin variable and cannot be renamed",
                             VarKind::FixedAuto => {
                                 "this is a fixed auto variable and cannot be renamed"
                             }
+                            _ if is_std => "this is a standard library API and cannot be renamed",
                             _ => "this name cannot be renamed",
                         };
                         return Self::send_error(msg["id"].as_i64(), 0, error_reason);
@@ -684,15 +708,28 @@ impl<Checker: BuildRunnable> Server<Checker> {
                             Self::commit_change(&mut changes, referrer, params.new_name.clone());
                         }
                     }
+                    let dependencies = self.dependencies_of(&uri);
+                    for uri in changes.keys() {
+                        self.clear_cache(uri);
+                    }
+                    let timestamps = self.get_timestamps(changes.keys());
                     let edit = WorkspaceEdit::new(changes);
                     Self::send(
                         &json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": edit }),
                     )?;
-                    if let Some(shared) = self.get_shared() {
-                        shared.clear_all();
+                    for _ in 0..20 {
+                        Self::send_log("waiting for file to be modified...")?;
+                        if self.all_changed(&timestamps) {
+                            break;
+                        }
+                        std::thread::sleep(std::time::Duration::from_millis(50));
                     }
-                    let code = util::get_code_from_uri(&uri)?;
-                    self.check_file(uri, code)?;
+                    // recheck dependencies and finally the file itself
+                    for dep in dependencies {
+                        let code = util::get_code_from_uri(&dep)?;
+                        self.check_file(dep, code)?;
+                    }
+                    // dependents are checked after changes are committed
                     return Ok(());
                 }
             }
@@ -708,7 +745,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         new_name: String,
     ) {
         if let Some(path) = &abs_loc.module {
-            let def_uri = Url::from_file_path(path).unwrap();
+            let def_uri = util::normalize_url(Url::from_file_path(path).unwrap());
             let edit = TextEdit::new(util::loc_to_range(abs_loc.loc).unwrap(), new_name);
             if let Some(edits) = changes.get_mut(&def_uri) {
                 edits.push(edit);
@@ -718,9 +755,51 @@ impl<Checker: BuildRunnable> Server<Checker> {
         }
     }
 
+    fn get_timestamps<'a, I: Iterator<Item = &'a Url>>(&self, urls: I) -> Dict<Url, SystemTime> {
+        urls.map(|url| {
+            let timestamp = util::get_metadata_from_uri(url)
+                .and_then(|md| Ok(md.modified()?))
+                .unwrap();
+            (url.clone(), timestamp)
+        })
+        .collect()
+    }
+
+    fn all_changed(&self, timestamps: &Dict<Url, SystemTime>) -> bool {
+        timestamps.iter().all(|(url, timestamp)| {
+            util::get_metadata_from_uri(url)
+                .and_then(|md| Ok(md.modified()? != *timestamp))
+                .unwrap_or(false)
+        })
+    }
+
+    /// self is __included__
+    fn dependencies_of(&self, uri: &Url) -> Vec<Url> {
+        let graph = &self.get_shared().unwrap().graph;
+        let path = util::uri_to_path(uri);
+        graph.sort().unwrap();
+        let self_node = graph.get_node(&path).unwrap();
+        graph
+            .iter()
+            .filter(|node| node.id == path || self_node.depends_on(&node.id))
+            .map(|node| util::normalize_url(Url::from_file_path(&node.id).unwrap()))
+            .collect()
+    }
+
+    /// self is __not included__
+    pub fn dependents_of(&self, uri: &Url) -> Vec<Url> {
+        let graph = &self.get_shared().unwrap().graph;
+        let path = util::uri_to_path(uri);
+        graph
+            .iter()
+            .filter(|node| node.depends_on(&path))
+            .map(|node| util::normalize_url(Url::from_file_path(&node.id).unwrap()))
+            .collect()
+    }
+
     fn show_references(&self, msg: &Value) -> ELSResult<()> {
         let params = ReferenceParams::deserialize(&msg["params"])?;
-        let uri = params.text_document_position.text_document.uri;
+        let uri = util::normalize_url(params.text_document_position.text_document.uri);
         let pos = params.text_document_position.position;
         if let Some(tok) = util::get_token(uri.clone(), pos)? {
             // Self::send_log(format!("token: {tok}"))?;
@@ -733,7 +812,8 @@ impl<Checker: BuildRunnable> Server<Checker> {
                             if let (Some(path), Some(range)) =
                                 (&referrer.module, util::loc_to_range(referrer.loc))
                             {
-                                let ref_uri = Url::from_file_path(path).unwrap();
+                                let ref_uri =
+                                    util::normalize_url(Url::from_file_path(path).unwrap());
                                 refs.push(lsp_types::Location::new(ref_uri, range));
                             }
                         }
@@ -765,5 +845,14 @@ impl<Checker: BuildRunnable> Server<Checker> {
             .values()
             .next()
             .and_then(|module| module.context.shared())
+    }
+
+    fn clear_cache(&mut self, uri: &Url) {
+        self.hirs.remove(uri);
+        if let Some(module) = self.modules.remove(uri) {
+            if let Some(shared) = module.context.shared() {
+                shared.mod_cache.remove(&util::uri_to_path(uri));
+            }
+        }
     }
 }
