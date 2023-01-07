@@ -10,6 +10,7 @@ use std::process;
 use std::str::FromStr;
 
 use crate::help_messages::{command_message, mode_message};
+use crate::normalize_path;
 use crate::python_util::{detect_magic_number, get_python_version, PythonVersion};
 use crate::serialize::{get_magic_num_from_bytes, get_ver_from_magic_num};
 use crate::stdin::GLOBAL_STDIN;
@@ -87,6 +88,13 @@ pub enum Input {
 impl Input {
     pub fn is_repl(&self) -> bool {
         matches!(self, Input::REPL)
+    }
+
+    pub fn path(&self) -> Option<&Path> {
+        match self {
+            Input::File(path) => Some(path),
+            _ => None,
+        }
     }
 
     pub fn enclosed_name(&self) -> &str {
@@ -301,6 +309,7 @@ impl Default for ErgConfig {
 
 impl ErgConfig {
     pub fn with_main_path(path: PathBuf) -> Self {
+        let path = normalize_path(path);
         Self {
             module: "<module>",
             input: Input::File(path),
@@ -349,6 +358,7 @@ impl ErgConfig {
     }
 
     pub fn inherit(&self, path: PathBuf) -> Self {
+        let path = normalize_path(path);
         Self {
             module: Box::leak(path.to_str().unwrap().to_string().into_boxed_str()),
             input: Input::File(path),
@@ -537,10 +547,10 @@ USAGE:
                     process::exit(2);
                 }
                 _ => {
-                    cfg.input = Input::File(
-                        PathBuf::from_str(&arg[..])
-                            .unwrap_or_else(|_| panic!("invalid file path: {}", arg)),
-                    );
+                    let path = PathBuf::from_str(&arg[..])
+                        .unwrap_or_else(|_| panic!("invalid file path: {}", arg));
+                    let path = normalize_path(path);
+                    cfg.input = Input::File(path);
                     if let Some("--") = args.next().as_ref().map(|s| &s[..]) {
                         for arg in args {
                             cfg.runtime_args.push(Box::leak(arg.into_boxed_str()));

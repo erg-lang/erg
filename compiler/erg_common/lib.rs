@@ -1,5 +1,6 @@
 //! provides utilities for parser, compiler, and vm crate.
 use std::fmt;
+use std::path::PathBuf;
 
 pub mod cache;
 pub mod config;
@@ -145,4 +146,15 @@ where
 pub fn unique_in_place<T: Eq + std::hash::Hash + Clone>(v: &mut Vec<T>) {
     let mut uniques = Set::new();
     v.retain(|e| uniques.insert(e.clone()));
+}
+
+#[cfg(windows)]
+pub fn normalize_path(path: PathBuf) -> PathBuf {
+    let verbatim_replaced = path.to_str().unwrap().replace("\\\\?\\", "");
+    let lower = verbatim_replaced.to_lowercase();
+    PathBuf::from(lower)
+}
+#[cfg(not(windows))]
+pub fn normalize_path(path: PathBuf) -> PathBuf {
+    path
 }

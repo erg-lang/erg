@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_json::Value;
 
-use erg_common::config::{ErgConfig, Input};
+use erg_common::config::ErgConfig;
 use erg_common::dict::Dict;
 use erg_common::style::*;
 use erg_common::traits::{Locational, Stream};
@@ -41,6 +41,12 @@ use crate::util;
 pub type ELSResult<T> = Result<T, Box<dyn std::error::Error>>;
 
 pub type ErgLanguageServer = Server<HIRBuilder>;
+
+macro_rules! _log {
+    ($($arg:tt)*) => {
+        Self::send_log(format!($($arg)*)).unwrap();
+    };
+}
 
 thread_local! {
     static INPUT: RefCell<StdinLock<'static>> = RefCell::new(stdin().lock());
@@ -363,7 +369,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let mut uri_and_diags: Vec<(Url, Vec<Diagnostic>)> = vec![];
         for err in errors.into_iter() {
             let loc = err.core.get_loc_with_fallback();
-            let err_uri = if let Input::File(path) = err.input {
+            let err_uri = if let Some(path) = err.input.path() {
                 util::normalize_url(Url::from_file_path(path).unwrap())
             } else {
                 uri.clone()
@@ -702,6 +708,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                         let code = util::get_code_from_uri(&dep)?;
                         self.check_file(dep, code)?;
                     }
+                    // dependents are checked after changes are committed
                     return Ok(());
                 }
             }
@@ -745,11 +752,23 @@ impl<Checker: BuildRunnable> Server<Checker> {
         })
     }
 
-    fn get_dependencies(&self) -> impl Iterator<Item = Url> {
-        self.get_index()
-            .module_graph()
-            .into_iter()
-            .map(|node| util::normalize_url(Url::from_file_path(node.id).unwrap()))
+    fn get_dependencies(&self) -> Vec<Url> {
+        let graph = &self.get_shared().unwrap().graph;
+        graph.sort().unwrap();
+        graph
+            .iter()
+            .map(|node| util::normalize_url(Url::from_file_path(&node.id).unwrap()))
+            .collect()
+    }
+
+    pub fn _get_dependents(&self, uri: &Url) -> Vec<Url> {
+        let graph = &self.get_shared().unwrap().graph;
+        let path = uri.to_file_path().unwrap();
+        graph
+            .iter()
+            .filter(|node| node.depends_on(&path))
+            .map(|node| util::normalize_url(Url::from_file_path(&node.id).unwrap()))
+            .collect()
     }
 
     fn show_references(&self, msg: &Value) -> ELSResult<()> {

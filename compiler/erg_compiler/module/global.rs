@@ -1,6 +1,7 @@
 use erg_common::config::ErgConfig;
 
 use super::cache::SharedModuleCache;
+use super::graph::SharedModuleGraph;
 #[cfg(feature = "els")]
 use super::index::SharedModuleIndex;
 
@@ -10,6 +11,7 @@ pub struct SharedCompilerResource {
     pub py_mod_cache: SharedModuleCache,
     #[cfg(feature = "els")]
     pub index: SharedModuleIndex,
+    pub graph: SharedModuleGraph,
 }
 
 impl SharedCompilerResource {
@@ -19,6 +21,7 @@ impl SharedCompilerResource {
             py_mod_cache: SharedModuleCache::new(cfg),
             #[cfg(feature = "els")]
             index: SharedModuleIndex::new(),
+            graph: SharedModuleGraph::new(),
         }
     }
 
@@ -27,5 +30,6 @@ impl SharedCompilerResource {
         self.py_mod_cache.initialize();
         #[cfg(feature = "els")]
         self.index.initialize();
+        self.graph.initialize();
     }
 }

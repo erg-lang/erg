@@ -23,6 +23,10 @@ impl<T: Eq + Hash, U> Node<T, U> {
     pub fn push_dep(&mut self, dep: T) {
         self.depends_on.insert(dep);
     }
+
+    pub fn depends_on(&self, dep: &T) -> bool {
+        self.depends_on.contains(dep)
+    }
 }
 
 pub type Graph<T, U> = Vec<Node<T, U>>;
