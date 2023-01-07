@@ -101,7 +101,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         Self {
             cfg,
             home: normalize_path(std::env::current_dir().unwrap()),
-            erg_path: normalize_path(erg_path()),
+            erg_path: erg_path(), // already normalized
             client_capas: ClientCapabilities::default(),
             modules: Dict::new(),
             hirs: Dict::new(),
