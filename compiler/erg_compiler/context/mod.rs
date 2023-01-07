@@ -30,20 +30,17 @@ use erg_common::vis::Visibility;
 use erg_common::Str;
 use erg_common::{fn_name, get_hash, log};
 
-use crate::global::SharedCompilerResource;
-use crate::ty::value::ValueObj;
-use crate::ty::{Predicate, Type};
-use erg_parser::ast::DefKind;
-use Type::*;
-
-use ast::{DefId, VarName};
+use ast::{DefId, DefKind, VarName};
 use erg_parser::ast;
 use erg_parser::token::Token;
 
 use crate::context::instantiate::{ConstTemplate, TyVarCache};
 use crate::error::{TyCheckError, TyCheckErrors};
-use crate::mod_cache::SharedModuleCache;
+use crate::module::{SharedCompilerResource, SharedModuleCache};
+use crate::ty::value::ValueObj;
+use crate::ty::{Predicate, Type};
 use crate::varinfo::{AbsLocation, Mutability, VarInfo, VarKind};
+use Type::*;
 use Visibility::*;
 
 /// For implementing LSP or other IDE features
@@ -971,7 +968,7 @@ impl Context {
     }
 
     #[cfg(feature = "els")]
-    pub fn index(&self) -> Option<&crate::index::SharedModuleIndex> {
+    pub fn index(&self) -> Option<&crate::module::SharedModuleIndex> {
         self.shared.as_ref().map(|shared| &shared.index)
     }
 

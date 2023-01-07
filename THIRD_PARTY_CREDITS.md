@@ -1,6 +1,6 @@
 # Dependent crate license credit
 
-Licenses for dependent crate in this crate (`erg`) are reproduced below.
+Licenses for dependent crate in this crate (`erg`, ps: excluding `els`) are reproduced below.
 
 ## Note
 

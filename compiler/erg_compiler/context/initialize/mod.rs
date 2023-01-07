@@ -14,20 +14,12 @@ use std::path::PathBuf;
 
 use erg_common::config::ErgConfig;
 use erg_common::dict;
+use erg_common::fresh::fresh_varname;
 #[allow(unused_imports)]
 use erg_common::log;
 use erg_common::vis::Visibility;
 use erg_common::Str;
 use erg_common::{set, unique_in_place};
-
-use crate::global::SharedCompilerResource;
-use crate::ty::free::Constraint;
-use crate::ty::value::ValueObj;
-use crate::ty::Type;
-use crate::ty::{constructors::*, BuiltinConstSubr, ConstSubr, Predicate};
-use erg_common::fresh::fresh_varname;
-use ParamSpec as PS;
-use Type::*;
 
 use erg_parser::ast::VarName;
 
@@ -36,9 +28,15 @@ use crate::context::instantiate::ConstTemplate;
 use crate::context::{
     ClassDefType, Context, ContextKind, MethodInfo, ModuleContext, ParamSpec, TraitImpl,
 };
-use crate::mod_cache::SharedModuleCache;
+use crate::module::{SharedCompilerResource, SharedModuleCache};
+use crate::ty::free::Constraint;
+use crate::ty::value::ValueObj;
+use crate::ty::Type;
+use crate::ty::{constructors::*, BuiltinConstSubr, ConstSubr, Predicate};
 use crate::varinfo::{AbsLocation, Mutability, VarInfo, VarKind};
 use Mutability::*;
+use ParamSpec as PS;
+use Type::*;
 use VarKind::*;
 use Visibility::*;
 

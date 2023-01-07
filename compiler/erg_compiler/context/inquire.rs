@@ -10,7 +10,9 @@ use erg_common::set::Set;
 use erg_common::traits::{Locational, NoTypeDisplay, Stream};
 use erg_common::vis::Visibility;
 use erg_common::Str;
-use erg_common::{fmt_option, fmt_slice, log, option_enum_unwrap, set, switch_lang};
+use erg_common::{
+    fmt_option, fmt_slice, log, normalize_path, option_enum_unwrap, set, switch_lang,
+};
 use Type::*;
 
 use ast::VarName;
@@ -2069,13 +2071,13 @@ impl Context {
             .join(format!("{}.er", path.display()))
             .canonicalize()
         {
-            Some(path)
+            Some(normalize_path(path))
         } else if let Ok(path) = erg_std_path()
             .join(format!("{}", path.display()))
             .join("__init__.er")
             .canonicalize()
         {
-            Some(path)
+            Some(normalize_path(path))
         } else {
             None
         }
@@ -2088,13 +2090,13 @@ impl Context {
             .join(format!("{}.d.er", path.display()))
             .canonicalize()
         {
-            Some(path)
+            Some(normalize_path(path))
         } else if let Ok(path) = erg_pystd_path()
             .join(format!("{}.d", path.display()))
             .join("__init__.d.er")
             .canonicalize()
         {
-            Some(path)
+            Some(normalize_path(path))
         } else {
             None
         }
@@ -2103,15 +2105,15 @@ impl Context {
     pub(crate) fn push_path(&self, mut path: PathBuf, add: &Path) -> PathBuf {
         path.pop(); // __init__.d.er
         if let Ok(path) = path.join(add).canonicalize() {
-            path
+            normalize_path(path)
         } else if let Ok(path) = path.join(format!("{}.d.er", add.display())).canonicalize() {
-            path
+            normalize_path(path)
         } else if let Ok(path) = path
             .join(format!("{}.d", add.display()))
             .join("__init__.d.er")
             .canonicalize()
         {
-            path
+            normalize_path(path)
         } else {
             todo!("{} {}", path.display(), add.display())
         }
@@ -2303,7 +2305,7 @@ impl Context {
     }
 
     fn get_gen_t_require_attr_t<'a>(&'a self, gen: &'a GenTypeObj, attr: &str) -> Option<&'a Type> {
-        match gen.require_or_sup().map(|req_sup| req_sup.typ()) {
+        match gen.base_or_sup().map(|req_sup| req_sup.typ()) {
             Some(Type::Record(rec)) => {
                 if let Some(t) = rec.get(attr) {
                     return Some(t);
