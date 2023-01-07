@@ -1,5 +1,6 @@
 use std::fs::File;
 use std::io::Read;
+use std::path::Path;
 
 use erg_common::traits::{DequeStream, Locational};
 
@@ -100,6 +101,16 @@ pub fn get_code_from_uri(uri: &Url) -> ELSResult<String> {
 
 pub fn get_line_from_uri(uri: &Url, line: u32) -> ELSResult<String> {
     let code = get_code_from_uri(uri)?;
+    let line = code
+        .lines()
+        .nth(line.saturating_sub(1) as usize)
+        .unwrap_or("");
+    Ok(line.to_string())
+}
+
+pub fn get_line_from_path(path: &Path, line: u32) -> ELSResult<String> {
+    let mut code = String::new();
+    File::open(path)?.read_to_string(&mut code)?;
     let line = code
         .lines()
         .nth(line.saturating_sub(1) as usize)

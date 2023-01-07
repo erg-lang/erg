@@ -1,4 +1,4 @@
-# 變性(逆變與協變 Variance)
+# 變性(逆變與協變)
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/variance.md%26commit_hash%3Df4fb25b4004bdfa96d2149fac8c4e40b84e8a45f)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/variance.md&commit_hash=f4fb25b4004bdfa96d2149fac8c4e40b84e8a45f)
 
@@ -55,7 +55,7 @@ Erg 有另一個修改。它是不變的
 |B :> T| K(B)
 ```
 
-在類型變量列表中，執行類型變量的__variant說明__。在上述變體規范中，類型變量"A"被聲明為"T"類型的任何子類，"B"類型被聲明為"T"類型的任何超類
+在類型變量列表中，執行類型變量的__variant說明__。在上述變體規范中，類型變量"A"被聲明為"T"類型的任何子類，"B"類型被聲明為"T"類型的任何父類
 在這種情況下，`T` 也稱為 `A` 的上部類型和 `B` 的下部類型
 
 突變規范也可以重疊

@@ -72,8 +72,8 @@ f x:
 像`:`和`=`一樣，運算的結果是不確定的
 
 ```python
-_ = x: Int # 語法錯誤: 
-print!(x: Int) # 語法錯誤: 
+_ = x: Int # 語法錯誤:
+print!(x: Int) # 語法錯誤:
 ```
 
 ## `.`(obj, attr)
@@ -85,7 +85,7 @@ print!(x: Int) # 語法錯誤:
 
 執行`c(obj)`。`x + y |>.foo()` 與 `(x + y).foo()` 相同
 
-### (x: Option T)`?` -> T | T 
+### (x: Option T)`?` -> T
 
 后綴運算符。如果出現錯誤，請立即調用 `x.unwrap()` 和 `return`
 
@@ -101,7 +101,7 @@ match [1, 2, 3]:
 # (1, 2, 3)
 ```
 
-## del(x: ...T) -> NoneType | T
+## del(x: ...T) -> NoneType
 
 刪除變量"x"。但是，無法刪除內置對象
 
@@ -168,10 +168,10 @@ assert {x; ...yz} == {x = 1; y = 2; z = 3}
 
 用戶不能直接使用的運算符
 
-### ref(x: T) -> Ref T | T
+### ref(x: T) -> Ref T
 
 返回對對象的不可變引用
 
-### ref!(x: T!) -> Ref!T! | T!
+### ref!(x: T!) -> Ref! T!
 
 返回對可變對象的可變引用。

@@ -64,11 +64,11 @@ unit = ()
 (): ()
 ```
 
-Unit是所有图元的超级类。
+Unit是所有圖元的超級類
 
 ```python
-() :> (Int; 0)
-() :> (Str; 0)
+() > (Int; 0)
+() > (Str; 0)
 () :> (Int, Str)
 ...
 ```
@@ -76,7 +76,7 @@ Unit是所有图元的超级类。
 該對象的用途是用于沒有參數和沒有返回值的過程等。Erg 子例程必須有參數和返回值。但是，在某些情況下，例如過程，可能沒有有意義的參數或返回值，只有副作用。在這種情況下，我們將單位用作"無意義的正式值"
 
 ```python
-p!() =
+p!() =.
     # `print!` does not return a meaningful value
     print! "Hello, world!"
 p!: () => () # The parameter part is part of the syntax, not a tuple

@@ -3,7 +3,7 @@
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/API/types/traits/Num.md%26commit_hash%3D14710744ed4c3aa29a43953366c67162bc157f7d)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/API/types/traits/Num.md&commit_hash=14710744ed4c3aa29a43953366c67162bc157f7d)
 
 
-`A<: B`表示類型A是類型B的子類型聲明。此外, 類型A此時稱為子類型, 類型B稱為廣義類型(超類型)。此外, 如果`A<: B`, 則類型為A的所有表達式都具有類型B的屬性。這稱為包含(subsumption)
+`A<: B`表示類型A是類型B的子類型聲明。此外, 類型A此時稱為子類型, 類型B稱為廣義類型(父類型)。此外, 如果`A<: B`, 則類型為A的所有表達式都具有類型B的屬性。這稱為包含(subsumption)
 
 Erg內置數字類型的類型關系如下:
 
@@ -28,8 +28,8 @@ True
 如果未指定類型, 則推斷它們以便它們向上轉換為相同類型
 一般來說, 向下轉換是不安全的，轉換方法也很重要
 
-以后不能重新定義類之間的轉換。只有在定義類時通過繼承指定超類時, 它才有資格進行強制轉換
-此外，Trait不能被部分類型化, 除非它們在類定義時基本上“實現”。但是，這只能通過 [patch](../../../syntax/type/07_patch.md) 來完成
+以后不能重新定義類之間的轉換。只有在定義類時通過繼承指定父類時, 它才有資格進行強制轉換
+此外，Trait不能被部分類型化, 除非它們在類定義時基本上`實現`。但是，這只能通過 [patch](../../../syntax/type/07_patch.md) 來完成
 
 如果協變復合文字(例如數組文字)處于包含關系中, 則可以進行強制轉換
 但是請注意，具有非退化的類型不能在 Erg 中強制轉換，即使它們處于包含關系中(有關詳細信息，請參閱 [degenerate](../../../syntax/type/advanced/variance.md))
@@ -41,7 +41,7 @@ Num R = Add(R) and Sub(R) and Mul(R) and Eq
 Num = Num Self
 ```
 
-## 父類(超類)
+## 父類
 
 `Add`, `Sub`, `Mul` 和 `Eq`
 

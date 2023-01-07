@@ -14,7 +14,7 @@ cargo test --features large_thread
 
 ## 放置测试
 
-根据实现的特性来安排它们。将解析器测试放置在“erg_parser/tests”下，将编译器(类型检查器等)测试放置在“erg_compiler/tests”下，将用户可以直接使用的语言特性测试放置在“erg/tests”下(然而，这些测试目前正在开发中，不一定按照这种惯例安排)
+根据实现的特性来安排它们。将解析器测试放置在`erg_parser/tests`下，将编译器(类型检查器等)测试放置在`erg_compiler/tests`下，将用户可以直接使用的语言特性测试放置在`erg/tests`下(然而，这些测试目前正在开发中，不一定按照这种惯例安排)
 
 ## 如何编写测试
 

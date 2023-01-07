@@ -17,7 +17,7 @@ Erg 在 `Int` 的 MRO 中有 `Int`、`Object`。它来自 Python(Python 中的`i
 
 ~
 
-整数显然应该在其超类型中包含实数、复数甚至整数，但这一事实并没有出现在 Python 兼容层中
+整数显然应该在其父类型中包含实数、复数甚至整数，但这一事实并没有出现在 Python 兼容层中
 然而，`1 in Complex` 和 `1 in Num` 在 Erg 中实际上是 `True`
 至于`Complex`，即使是与`Int`没有继承关系的类，也被判断为类型兼容。这到底是怎么回事?
 

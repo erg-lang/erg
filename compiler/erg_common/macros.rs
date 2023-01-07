@@ -140,6 +140,9 @@ macro_rules! option_enum_unwrap {
     ($ex: expr, $Enum: path :( $Cons: path :(_) ) $(,)*) => {{
         if let $Enum($Cons(res)) = $ex { Some(res) } else { None }
     }};
+    ($ex: expr, $Enum: path :( $Cons: path :( $Cons2: path :(_) ) ) $(,)*) => {{
+        if let $Enum($Cons($Cons2(res))) = $ex { Some(res) } else { None }
+    }};
     ($ex: expr, $Enum: path {$($fields: ident $(,)*)*}) => {{
         if let $Enum{$($fields,)*} = $ex { Some(($($fields,)*)) } else { None }
     }};
