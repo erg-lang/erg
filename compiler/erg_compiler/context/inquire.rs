@@ -2303,7 +2303,7 @@ impl Context {
     }
 
     fn get_gen_t_require_attr_t<'a>(&'a self, gen: &'a GenTypeObj, attr: &str) -> Option<&'a Type> {
-        match gen.require_or_sup().map(|req_sup| req_sup.typ()) {
+        match gen.base_or_sup().map(|req_sup| req_sup.typ()) {
             Some(Type::Record(rec)) => {
                 if let Some(t) = rec.get(attr) {
                     return Some(t);

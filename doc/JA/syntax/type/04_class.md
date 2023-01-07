@@ -28,7 +28,18 @@ print! classof(john) # Person
 Person.new name, age = ... # SyntaxError: cannot define attributes directly on an object
 ```
 
-> __Warning__: これは最近追加された仕様なので、以降のドキュメントでは守られていない場合があります。見つけた場合は報告してください。
+## 省略記法
+
+レコードでない型`T`に対し`C = Class T`とすると、これは`C = Class {base = T}`と同じ意味になります。これはいわゆるnew typeパターンの定義を簡略化するためのものです。
+また、コンストラクタ`__new__`/`new`もレコードで包まず`T`型オブジェクトを直接渡せます。
+
+```python
+Id = Class {base = Int}
+i = Id.new {base = 1}
+# ↓
+Id = Class Int
+i = Id.new 1
+```
 
 ## インスタンス属性、クラス属性
 
