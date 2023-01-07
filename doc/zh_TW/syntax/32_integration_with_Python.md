@@ -21,7 +21,7 @@ erg --compile foo.er
 import foo
 
 print(foo.public)
-print(foo.private) # 屬性錯誤: 
+print(foo.private) # 屬性錯誤:
 ```
 
 ## 從 Python 導入

@@ -1,4 +1,4 @@
-# 裝飾器(修飾符)
+# 裝飾器
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/29_decorator.md%26commit_hash%3Dfba8b193ce4270cb8c9236c4ed7bb8b2497af3fd)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/29_decorator.md&commit_hash=fba8b193ce4270cb8c9236c4ed7bb8b2497af3fd)
 
@@ -20,7 +20,7 @@ X = deco(X)
 ```
 
 Erg 不允許重新分配變量，因此上面的代碼不起作用
-對于簡單的變量，它與`X = deco(...)` 相同，但對于即時塊和子例程，你不能這樣做，所以你需要一個裝飾器
+對于簡單的變量，它與`X = deco(...)`相同，但對于即時塊和子例程，你不能這樣做，所以你需要一個裝飾器
 
 ```python
 @deco
@@ -46,11 +46,11 @@ C = Class ...
 
 ## 覆蓋
 
-覆蓋屬性時使用。默認情況下，如果您嘗試定義與基類相同的屬性，Erg 將拋出錯誤
+覆蓋屬性時使用。默認情況下，如果您嘗試定義與基類相同的屬性，Erg將拋出錯誤
 
 ## 實現
 
-表示參數 trait 已實現
+表示參數trait已實現
 
 ```python
 Add = Trait {
@@ -70,8 +70,8 @@ C.
 
 ## 附
 
-指定默認情況下隨 trait 附帶的附件補丁
-這允許您重現與 Rust Trait相同的行為
+指定默認情況下隨trait附帶的附件補丁
+這允許您重現與Rust Trait相同的行為
 
 ```python
 # foo.er
@@ -98,11 +98,11 @@ assert Int. AddO == Int
 assert Odd.AddO == Even
 ```
 
-在內部，它只是使用 trait 的 .attach 方法附加的。可以使用 trait 的 `.detach` 方法消除沖突
+在內部，它只是使用trait的.attach方法附加的。可以使用trait的`.detach`方法消除沖突
 
 ```python
 @Attach X
-T = Trait ...
+T = Trait...
 assert X in T. attaches
 U = T.detach(X).attach(Y)
 assert X not in U. attaches
@@ -115,7 +115,7 @@ assert Y in U. attaches
 
 ## 測試
 
-表示這是一個測試子例程。測試子程序使用 `erg test` 命令運行
+表示這是一個測試子例程。測試子程序使用`erg test`命令運行
 
 <p align='center'>
     <a href='./28_spread_syntax.md'>上一頁</a> | <a href='./30_error_handling.md'>下一頁</a>

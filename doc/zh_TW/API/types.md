@@ -43,7 +43,7 @@ Trait 類相當于 Python 中的 ABC(抽象基類，trait)
 
 ### 類型
 
-* `__父類__`: 超類型(`__mro__` 是一個數組，但這個是一個 Set)
+* `__父類__`: 父類型(`__mro__` 是一個數組，但這個是一個 Set)
 * `__basicsize__`:
 * `__dictoffset__`: Evm 不支持
 * `__flags__`:

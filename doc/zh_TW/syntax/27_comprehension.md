@@ -2,9 +2,9 @@
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/27_comprehension.md%26commit_hash%3D44d7784aac3550ba97c8a1eaf20b9264b13d4134)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/27_comprehension.md&commit_hash=44d7784aac3550ba97c8a1eaf20b9264b13d4134)
 
-Array 和 `[expr | (name <- iterable)+ (predicate)*]`,
-set 和 `{expr | (name <- iterable)+ (predicate)*}`,
-你可以創建一個字典 `{key: value | (name <- iterable)+ (predicate)*}`.
+Array和`[expr | (name <- iterable)+ (predicate)*]`,
+set和`{expr | (name <- iterable)+ (predicate)*}`,
+你可以創建一個字典`{key: value | (name <- iterable)+ (predicate)*}`.
 
 由`|`分隔的子句的第一部分稱為布局子句(位置子句)，第二部分稱為綁定子句(綁定子句)，第三部分稱為保護子句(條件子句)
 保護子句可以省略，但綁定子句不能省略，保護子句不能在綁定子句之前
@@ -29,8 +29,8 @@ assert {i % 2 | i <- 0..9} == {0, 1}
 assert {k: v | k <- ["a", "b"]; v <- [1, 2]} == {"a": 1, "b": 2}
 ```
 
-Erg推導式受到 Haskell 的啟發，但有一些不同
-對于 Haskell 列表推導，變量的順序會對結果產生影響，但在 Erg 中這并不重要
+Erg推導式受到Haskell的啟發，但有一些不同
+對于Haskell列表推導，變量的順序會對結果產生影響，但在Erg中這并不重要
 
 ``` haskell
 -- Haskell
@@ -43,7 +43,7 @@ Erg推導式受到 Haskell 的啟發，但有一些不同
 assert [(i, j) | i <- 1..<3; j <- 3..<5] == [(i, j) | j <- 3..<5; i <- 1.. <3]
 ```
 
-該規范與 Python 的規范相同
+該規范與Python的規范相同
 
 ```python
 # Python

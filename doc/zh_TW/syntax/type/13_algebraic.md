@@ -17,8 +17,9 @@ assert dict.get("some key") in (Int or NoneType)
 
 Option T = T or NoneType
 ```
+
 請注意，聯合類型是可交換的，但不是關聯的。也就是說，`X or Y or Z`是`(X or Y) or Z`，而不是`X or (Y or Z)`
-允許這樣做會導致，例如，`Int 或 Option(Str)`、`Option(Int) 或 Str`和`Option(Int or Str)` 屬於同一類型
+允許這樣做會導致，例如，`Int 或 Option(Str)`、`Option(Int) 或 Str`和`Option(Int or Str)` 屬于同一類型
 
 ## 路口
 

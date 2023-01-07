@@ -5,7 +5,7 @@
 
 Erg允許您將文件本身視為單個記錄(Record)。這稱為模塊
 
-```python: foo.er
+```python,checker_ignore
 # foo.er
 .i = 1
 ```
@@ -15,7 +15,7 @@ Erg允許您將文件本身視為單個記錄(Record)。這稱為模塊
 foo = {.i = 1}
 ```
 
-```python,checker_ignore
+```python: bar.er
 # bar.er
 foo = import "foo"
 print! foo # <module 'foo'>
@@ -25,7 +25,7 @@ assert foo.i == 1
 由于模塊類型也是記錄類型，因此可以進行解構賦值
 
 ```python
-{sin; cos; ...} = import "math"
+{sin; cos;} = import "math"
 ```
 
 ## 模塊可見性
@@ -39,8 +39,7 @@ assert foo.i == 1
   └─ __init__.er
 ```
 
-現在 `bar` 目錄被識別為一個模塊。如果 `bar` 中的唯一文件是 `__init__.er`，則目錄結構沒有多大意義，但如果您想將多個模塊捆綁到一個模塊中，它會很有用。例如:
-
+現在`bar`目錄被識別為一個模塊。如果`bar`中的唯一文件是`__init__.er`，則目錄結構沒有多大意義，但如果您想將多個模塊捆綁到一個模塊中，它會很有用。例如: 
 ```console
 └─┬ bar
   ├─ __init__.er
@@ -48,7 +47,7 @@ assert foo.i == 1
   └─ qux.er
 ```
 
-在 `bar` 目錄之外，您可以像下面這樣使用
+在`bar`目錄之外，您可以像下面這樣使用
 
 ```erg
 bar = import "bar"
@@ -56,7 +55,7 @@ bar.baz.p!()
 bar.qux.p!()
 ```
 
-`__init__.er` 不僅僅是一個將目錄作為模塊的標記，它還控制模塊的可見性
+`__init__.er`不僅僅是一個將目錄作為模塊的標記，它還控制模塊的可見性
 
 ```erg
 # __init__.er
@@ -92,14 +91,14 @@ print! foo.f 1
 但是，由過程調用創建的變量不能在循環引用模塊中定義
 這是因為 Erg 根據依賴關系重新排列定義的順序
 
-```python,checker_ignore
+```python
 # foo.er
 bar = import "bar"
 print! bar.x
 .x = g!(1) # 模塊錯誤：由過程調用創建的變量不能在循環引用模塊中定義
 ```
 
-```python
+```python,checker_ignore
 # bar.er
 foo = import "foo"
 print! foo.x

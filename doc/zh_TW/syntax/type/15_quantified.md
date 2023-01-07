@@ -1,4 +1,4 @@
-# 類型變量，量化類型
+# 類型變量
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/15_quantified.md%26commit_hash%3D44d7784aac3550ba97c8a1eaf20b9264b13d4134)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/15_quantified.md&commit_hash=44d7784aac3550ba97c8a1eaf20b9264b13d4134)
 
@@ -222,7 +222,7 @@ assert (|T: Type| T -> T) == (|U: Type| U -> U)
 類型變量在左側定義并在右側使用的類型，例如 `OpenFn T: Type = T -> T`，稱為 __open 通用類型__
 相反，在右側定義和使用類型變量的類型，例如 `ClosedFn = |T: Type| T -> T`，被稱為 __封閉的通用類型__
 
-開放通用類型是所有同構"真"類型的超類型。相反，封閉的通用類型是所有同構真類型的子類型
+開放通用類型是所有同構"真"類型的父類型。相反，封閉的通用類型是所有同構真類型的子類型
 
 ```python
 (|T: Type| T -> T) < (Int -> Int) < (T -> T)
