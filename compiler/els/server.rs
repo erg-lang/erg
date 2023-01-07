@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io;
 use std::io::{stdin, stdout, BufRead, Read, StdinLock, StdoutLock, Write};
+use std::path::PathBuf;
 use std::str::FromStr;
 
 use erg_compiler::global::SharedCompilerResource;
@@ -80,6 +81,7 @@ fn read_exact(len: usize) -> io::Result<Vec<u8>> {
 #[derive(Debug)]
 pub struct Server<Checker: BuildRunnable = HIRBuilder> {
     cfg: ErgConfig,
+    home: PathBuf,
     client_capas: ClientCapabilities,
     modules: Dict<Url, ModuleContext>,
     hirs: Dict<Url, Option<HIR>>,
@@ -90,6 +92,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
     pub fn new(cfg: ErgConfig) -> Self {
         Self {
             cfg,
+            home: std::env::current_dir().unwrap(),
             client_capas: ClientCapabilities::default(),
             modules: Dict::new(),
             hirs: Dict::new(),
@@ -600,8 +603,25 @@ impl<Checker: BuildRunnable> Server<Checker> {
             match self.get_definition(&uri, &token)? {
                 Some(vi) => {
                     if let Some(line) = vi.def_loc.loc.ln_begin() {
-                        let mut code_block = format!("# {uri}, line {line}\n");
-                        code_block += util::get_line_from_uri(&uri, line)?.trim_start();
+                        let file_path = vi.def_loc.module.unwrap();
+                        let mut code_block = if cfg!(not(windows)) {
+                            let relative = file_path
+                                .strip_prefix(&self.home)
+                                .unwrap_or(file_path.as_path());
+                            format!("# {}, line {line}\n", relative.display())
+                        } else {
+                            // windows' file paths are case-insensitive, so we need to normalize them
+                            let lower = file_path.as_os_str().to_ascii_lowercase();
+                            let verbatim_removed = lower.to_str().unwrap().replace("\\\\?\\", "");
+                            let relative = verbatim_removed
+                                .strip_prefix(
+                                    self.home.as_os_str().to_ascii_lowercase().to_str().unwrap(),
+                                )
+                                .unwrap_or_else(|| file_path.as_path().to_str().unwrap())
+                                .trim_start_matches(['\\', '/']);
+                            format!("# {}, line {line}\n", relative)
+                        };
+                        code_block += util::get_line_from_path(&file_path, line)?.trim_start();
                         if code_block.ends_with(&['=', '>']) {
                             code_block += " ...";
                         }

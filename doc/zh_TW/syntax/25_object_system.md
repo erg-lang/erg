@@ -49,7 +49,7 @@ assert record.method() == 3
 
 ## 可調用
 
-一個實現`.__call__`的對象。它也是 `Subroutine` 的超類
+一個實現`.__call__`的對象。它也是 `Subroutine` 的父類
 
 ## 類型
 

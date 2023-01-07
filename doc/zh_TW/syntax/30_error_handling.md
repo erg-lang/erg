@@ -3,24 +3,24 @@
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/30_error_handling.md%26commit_hash%3D20aa4f02b994343ab9600317cebafa2b20676467)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/30_error_handling.md&commit_hash=20aa4f02b994343ab9600317cebafa2b20676467)
 
 主要使用Result類型
-在 Erg 中，如果您丟棄 Error 類型的對象(頂層不支持)，則會發生錯誤
+在Erg中，如果您丟棄Error類型的對象(頂層不支持)，則會發生錯誤
 
 ## 異常，與 Python 互操作
 
-Erg 沒有異常機制(Exception)。導入 Python 函數時
+Erg沒有異常機制(Exception)。導入Python函數時
 
-* 將返回值設置為 `T 或 Error` 類型
-* `T or Panic` 類型(可能導致運行時錯誤)
+* 將返回值設置為`T 或 Error`類型
+* `T or Panic`類型(可能導致運行時錯誤)
 
-有兩個選項，`pyimport` 默認為后者。如果要作為前者導入，請使用
-在 `pyimport` `exception_type` 中指定 `Error` (`exception_type: {Error, Panic}`)
+有兩個選項，`pyimport`默認為后者。如果要作為前者導入，請使用
+在`pyimport` `exception_type`中指定`Error`(`exception_type: {Error, Panic}`)
 
 ## 異常和結果類型
 
-`Result` 類型表示可能是錯誤的值。`Result` 的錯誤處理在幾個方面優于異常機制
+`Result`類型表示可能是錯誤的值。`Result`的錯誤處理在幾個方面優于異常機制
 首先，從類型定義中可以看出子程序可能會報錯，實際使用時也很明顯
 
-```python,checker_ignore
+```python
 # Python
 try:
     x = foo().bar()
@@ -43,14 +43,15 @@ try!:
         print! e
 ```
 
-另一方面，在這個例子中，我們可以看到 `foo!` 和 `qux!` 會引發錯誤
-確切地說，`y` 也可能是 `Result` 類型，但您最終必須處理它才能使用里面的值
+另一方面，在這個例子中，我們可以看到`foo!`和`qux!`會引發錯誤
+確切地說，`y` 也可能是`Result`類型，但您最終必須處理它才能使用里面的值
 
 使用 `Result` 類型的好處不止于此。`Result` 類型也是線程安全的。這意味著錯誤信息可以(輕松)在并行執行之間傳遞
 
 ## 語境
 
-由于 `Error`/`Result` 類型本身不會產生副作用，不像異常，它不能有發送位置(Context)等信息，但是如果使用 `.context` 方法，可以將信息放在 `錯誤`對象。可以添加。`.context` 方法是一種使用 `Error` 對象本身并創建新的 `Error` 對象的方法。它們是可鏈接的，并且可以包含多個上下文
+由于`Error`/`Result`類型本身不會產生副作用，不像異常，它不能有發送位置(Context)等信息，但是如果使用`.context`方法，可以將信息放在`錯誤`對象。可以添加。`.context`方法是一種使用`Error`對象本身并創建新的 `Error` 對象的方法。它們是可鏈接的，并且可以包含多個上下文
+
 ```python,checker_ignore
 f() =
     todo() \

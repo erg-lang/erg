@@ -62,7 +62,7 @@ assert $p3 == 1
 ```python
 $vip_area = SharedCell!.new([].into [VIPMember; !_])
 $normal_area: SharedCell!([NormalMember; !_]) = $vip_area.mirror!() # 类型错误: 预期 SharedCell！([NormalMember；！_])，但得到 SharedCell！([VIPMember;!_])
-# 提示: SharedCell!(T) 是非变体的，这意味着它不能有超类型或子类型
+# 提示: SharedCell!(T) 是非变体的，这意味着它不能有父类型或子类型
 ```
 
 但是，下面的代码没有问题。在最后一行，它是 `VIPMember` 参数已被类型转换
