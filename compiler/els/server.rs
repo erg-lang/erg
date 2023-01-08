@@ -698,6 +698,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
                     contents.push(MarkedString::from_markdown(code_block));
                     break;
                 } else if prev_token == var_token {
+                    if def_pos.line == 0 {
+                        break;
+                    }
                     // multi pattern definition / declaration
                     def_pos.line -= 1;
                 } else {
