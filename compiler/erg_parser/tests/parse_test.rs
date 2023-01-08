@@ -8,6 +8,11 @@ use erg_parser::lex::Lexer;
 use erg_parser::ParserRunner;
 
 #[test]
+fn parse_containers() -> Result<(), ()> {
+    expect_success("tests/containers.er")
+}
+
+#[test]
 fn parse_dependent() -> Result<(), ()> {
     expect_success("tests/dependent.er")
 }

@@ -101,6 +101,10 @@ impl Parser {
         self.tokens.first()
     }
 
+    pub fn peek_kind(&self) -> Option<TokenKind> {
+        self.peek().map(|tok| tok.kind)
+    }
+
     #[inline]
     fn nth(&self, idx: usize) -> Option<&Token> {
         self.tokens.get(idx)
@@ -284,11 +288,11 @@ impl Parser {
         debug_call_info!(self);
         let mut chunks = Module::empty();
         loop {
-            match self.peek() {
-                Some(t) if t.category_is(TC::Separator) => {
+            match self.peek_kind() {
+                Some(Newline | Semi) => {
                     self.skip();
                 }
-                Some(t) if t.is(EOF) => {
+                Some(EOF) => {
                     break;
                 }
                 Some(_) => {
@@ -296,7 +300,7 @@ impl Parser {
                         chunks.push(expr);
                         if !self.cur_is(EOF) && !self.cur_category_is(TC::Separator) {
                             let err = self.skip_and_throw_invalid_chunk_err(
-                                "try_reduce_module",
+                                caused_by!(),
                                 chunks.last().unwrap().loc(),
                             );
                             self.errs.push(err);
@@ -328,10 +332,8 @@ impl Parser {
                 .map_err(|_| self.stack_dec())?;
             block.push(chunk);
             if !self.cur_is(Dedent) && !self.cur_category_is(TC::Separator) {
-                let err = self.skip_and_throw_invalid_chunk_err(
-                    "try_reduce_block",
-                    block.last().unwrap().loc(),
-                );
+                let err = self
+                    .skip_and_throw_invalid_chunk_err(caused_by!(), block.last().unwrap().loc());
                 self.level -= 1;
                 self.errs.push(err);
             }
@@ -346,7 +348,7 @@ impl Parser {
             }
         }
         if !self.cur_is(Newline) {
-            let err = self.skip_and_throw_syntax_err("try_reduce_block");
+            let err = self.skip_and_throw_syntax_err(caused_by!());
             self.level -= 1;
             self.errs.push(err);
             return Err(());
@@ -355,29 +357,29 @@ impl Parser {
             self.skip();
         }
         if !self.cur_is(Indent) {
-            let err = self.skip_and_throw_syntax_err("try_reduce_block");
+            let err = self.skip_and_throw_syntax_err(caused_by!());
             self.level -= 1;
             self.errs.push(err);
             return Err(());
         }
         self.skip(); // Indent
         loop {
-            match self.peek() {
-                Some(t) if t.is(Newline) && self.nth_is(1, Dedent) => {
+            match self.peek_kind() {
+                Some(Newline) if self.nth_is(1, Dedent) => {
                     let nl = self.lpop();
                     self.skip();
                     self.restore(nl);
                     break;
                 }
                 // last line dedent without newline
-                Some(t) if t.is(Dedent) => {
+                Some(Dedent) => {
                     self.skip();
                     break;
                 }
-                Some(t) if t.category_is(TC::Separator) => {
+                Some(Newline | Semi) => {
                     self.skip();
                 }
-                Some(t) if t.is(EOF) => {
+                Some(EOF) => {
                     break;
                 }
                 Some(_) => {
@@ -385,7 +387,7 @@ impl Parser {
                         block.push(expr);
                         if !self.cur_is(Dedent) && !self.cur_category_is(TC::Separator) {
                             let err = self.skip_and_throw_invalid_chunk_err(
-                                "try_reduce_block",
+                                caused_by!(),
                                 block.last().unwrap().loc(),
                             );
                             self.level -= 1;
@@ -471,9 +473,9 @@ impl Parser {
 
     fn try_reduce_acc_lhs(&mut self) -> ParseResult<Accessor> {
         debug_call_info!(self);
-        let acc = match self.peek() {
-            Some(t) if t.is(Symbol) || t.is(UBar) => Accessor::local(self.lpop()),
-            Some(t) if t.is(Dot) => {
+        let acc = match self.peek_kind() {
+            Some(Symbol | UBar) => Accessor::local(self.lpop()),
+            Some(Dot) => {
                 let dot = self.lpop();
                 let maybe_symbol = self.lpop();
                 if maybe_symbol.is(Symbol) {
@@ -506,8 +508,8 @@ impl Parser {
         }
         let first = self.try_reduce_elem().map_err(|_| self.stack_dec())?;
         let mut elems = Args::new(vec![first], vec![], None);
-        match self.peek() {
-            Some(semi) if semi.is(Semi) => {
+        match self.peek_kind() {
+            Some(Semi) => {
                 self.lpop();
                 let len = self
                     .try_reduce_expr(false, false, false, false)
@@ -515,14 +517,18 @@ impl Parser {
                 self.level -= 1;
                 return Ok(ArrayInner::WithLength(elems.remove_pos(0), len));
             }
-            Some(vbar) if vbar.is(VBar) => {
-                let err = ParseError::feature_error(line!() as usize, vbar.loc(), "comprehension");
+            Some(VBar) => {
+                let err = ParseError::feature_error(
+                    line!() as usize,
+                    self.peek().unwrap().loc(),
+                    "comprehension",
+                );
                 self.lpop();
                 self.errs.push(err);
                 self.level -= 1;
                 return Err(());
             }
-            Some(t) if t.category_is(TC::REnclosure) || t.is(Comma) => {}
+            Some(RParen | RSqBr | RBrace | Dedent | Comma) => {}
             Some(_) => {
                 let elem = self.try_reduce_elem().map_err(|_| self.stack_dec())?;
                 elems.push_pos(elem);
@@ -535,8 +541,8 @@ impl Parser {
             }
         }
         loop {
-            match self.peek() {
-                Some(comma) if comma.is(Comma) => {
+            match self.peek_kind() {
+                Some(Comma) => {
                     self.skip();
                     if self.cur_is(Comma) {
                         self.level -= 1;
@@ -546,7 +552,7 @@ impl Parser {
                     }
                     elems.push_pos(self.try_reduce_elem().map_err(|_| self.stack_dec())?);
                 }
-                Some(t) if t.category_is(TC::REnclosure) => {
+                Some(RParen | RSqBr | RBrace | Dedent) => {
                     break;
                 }
                 _ => {
@@ -618,13 +624,23 @@ impl Parser {
         if self.cur_is(LParen) {
             lp = Some(self.lpop());
         }
-        if self.cur_is(RParen) {
-            rp = Some(self.lpop());
-            self.level -= 1;
-            return Ok(Args::new(vec![], vec![], Some((lp.unwrap(), rp.unwrap()))));
-        } else if self.cur_category_is(TC::REnclosure) {
-            self.level -= 1;
-            return Ok(Args::new(vec![], vec![], None));
+        match self.peek_kind() {
+            Some(RParen) => {
+                rp = Some(self.lpop());
+                self.level -= 1;
+                return Ok(Args::new(vec![], vec![], Some((lp.unwrap(), rp.unwrap()))));
+            }
+            Some(RBrace | RSqBr | Dedent) => {
+                self.level -= 1;
+                return Ok(Args::new(vec![], vec![], None));
+            }
+            Some(Newline) => {
+                self.skip();
+                if self.cur_is(Indent) {
+                    self.skip();
+                }
+            }
+            _ => {}
         }
         let mut args = match self
             .try_reduce_arg(in_type_args)
@@ -635,15 +651,15 @@ impl Parser {
         };
         let mut colon_style = false;
         loop {
-            match self.peek() {
-                Some(t) if t.is(Colon) && colon_style => {
+            match self.peek_kind() {
+                Some(Colon) if colon_style => {
                     self.skip();
                     self.level -= 1;
                     let err = self.skip_and_throw_syntax_err(caused_by!());
                     self.errs.push(err);
                     return Err(());
                 }
-                Some(t) if t.is(Colon) => {
+                Some(Colon) => {
                     self.skip();
                     colon_style = true;
                     while self.cur_is(Newline) {
@@ -657,7 +673,7 @@ impl Parser {
                     }
                     self.skip();
                 }
-                Some(t) if t.is(Comma) => {
+                Some(Comma) => {
                     self.skip();
                     if colon_style || self.cur_is(Comma) {
                         self.level -= 1;
@@ -684,7 +700,7 @@ impl Parser {
                         }
                     }
                 }
-                Some(t) if t.is(RParen) => {
+                Some(RParen) => {
                     if let Some(lp) = lp {
                         let rp = self.lpop();
                         let (pos_args, kw_args, _) = args.deconstruct();
@@ -696,7 +712,7 @@ impl Parser {
                     }
                     break;
                 }
-                Some(t) if t.is(Newline) => {
+                Some(Newline) => {
                     if !colon_style {
                         break;
                     }
@@ -738,8 +754,8 @@ impl Parser {
 
     fn try_reduce_arg(&mut self, in_type_args: bool) -> ParseResult<PosOrKwArg> {
         debug_call_info!(self);
-        match self.peek() {
-            Some(t) if t.is(Symbol) => {
+        match self.peek_kind() {
+            Some(Symbol) => {
                 if self.nth_is(1, Walrus) {
                     let acc = self.try_reduce_acc_lhs().map_err(|_| self.stack_dec())?;
                     debug_power_assert!(self.cur_is(Walrus));
@@ -825,16 +841,6 @@ impl Parser {
                             .push(ParseError::simple_syntax_error(0, acc.loc()));
                         return Err(());
                     };
-                    /*let t_spec = if self.cur_is(Colon) {
-                        self.skip();
-                        let expr = self.try_reduce_expr(false).map_err(|_| self.stack_dec())?;
-                        let t_spec = self
-                            .convert_rhs_to_type_spec(expr)
-                            .map_err(|_| self.stack_dec())?;
-                        Some(t_spec)
-                    } else {
-                        None
-                    };*/
                     let expr = self
                         .try_reduce_expr(false, in_type_args, false, false)
                         .map_err(|_| self.stack_dec())?;
@@ -1978,11 +1984,11 @@ impl Parser {
         debug_call_info!(self);
         let mut attrs = vec![first_attr];
         loop {
-            match self.peek() {
-                Some(t) if t.category_is(TC::Separator) => {
+            match self.peek_kind() {
+                Some(Newline | Semi) => {
                     self.skip();
                 }
-                Some(t) if t.is(Dedent) => {
+                Some(Dedent) => {
                     self.skip();
                     if self.cur_is(RBrace) {
                         let r_brace = self.lpop();
@@ -1997,7 +2003,7 @@ impl Parser {
                         return Err(());
                     }
                 }
-                Some(t) if t.is(RBrace) => {
+                Some(RBrace) => {
                     let r_brace = self.lpop();
                     self.stack_dec();
                     return Ok(Record::new_mixed(l_brace, r_brace, attrs));
@@ -2057,18 +2063,25 @@ impl Parser {
             .map_err(|_| self.stack_dec())?;
         let mut kvs = vec![KeyValue::new(first_key, value)];
         loop {
-            match self.peek() {
-                Some(t) if t.is(Comma) => {
+            match self.peek_kind() {
+                Some(Comma) => {
                     self.skip();
-                    if self.cur_is(Comma) {
-                        self.level -= 1;
-                        let err = self.skip_and_throw_syntax_err(caused_by!());
-                        self.errs.push(err);
-                        return Err(());
-                    } else if self.cur_is(RBrace) {
-                        let dict = NormalDict::new(l_brace, self.lpop(), kvs);
-                        self.level -= 1;
-                        return Ok(dict);
+                    match self.peek_kind() {
+                        Some(Comma) => {
+                            self.level -= 1;
+                            let err = self.skip_and_throw_syntax_err(caused_by!());
+                            self.errs.push(err);
+                            return Err(());
+                        }
+                        Some(RBrace) => {
+                            let dict = NormalDict::new(l_brace, self.lpop(), kvs);
+                            self.level -= 1;
+                            return Ok(dict);
+                        }
+                        Some(Newline) => {
+                            self.skip();
+                        }
+                        _ => {}
                     }
                     let key = self
                         .try_reduce_expr(false, false, true, false)
@@ -2086,7 +2099,10 @@ impl Parser {
                         return Err(());
                     }
                 }
-                Some(t) if t.is(RBrace) => {
+                Some(Newline | Indent | Dedent) => {
+                    self.skip();
+                }
+                Some(RBrace) => {
                     let dict = NormalDict::new(l_brace, self.lpop(), kvs);
                     self.level -= 1;
                     return Ok(dict);
@@ -2116,18 +2132,25 @@ impl Parser {
         }
         let mut args = Args::new(vec![PosArg::new(first_elem)], vec![], None);
         loop {
-            match self.peek() {
-                Some(t) if t.is(Comma) => {
+            match self.peek_kind() {
+                Some(Comma) => {
                     self.skip();
-                    if self.cur_is(Comma) {
-                        self.level -= 1;
-                        let err = self.skip_and_throw_syntax_err(caused_by!());
-                        self.errs.push(err);
-                        return Err(());
-                    } else if self.cur_is(RBrace) {
-                        let set = Set::Normal(NormalSet::new(l_brace, self.lpop(), args));
-                        self.level -= 1;
-                        return Ok(set);
+                    match self.peek_kind() {
+                        Some(Comma) => {
+                            self.level -= 1;
+                            let err = self.skip_and_throw_syntax_err(caused_by!());
+                            self.errs.push(err);
+                            return Err(());
+                        }
+                        Some(RBrace) => {
+                            let set = Set::Normal(NormalSet::new(l_brace, self.lpop(), args));
+                            self.level -= 1;
+                            return Ok(set);
+                        }
+                        Some(Newline | Indent | Dedent) => {
+                            self.skip();
+                        }
+                        _ => {}
                     }
                     match self.try_reduce_arg(false).map_err(|_| self.stack_dec())? {
                         PosOrKwArg::Pos(arg) => match arg.expr {
@@ -2149,7 +2172,10 @@ impl Parser {
                         }
                     }
                 }
-                Some(t) if t.is(RBrace) => {
+                Some(Newline | Indent | Dedent) => {
+                    self.skip();
+                }
+                Some(RBrace) => {
                     let set = Set::Normal(NormalSet::new(l_brace, self.lpop(), args));
                     self.level -= 1;
                     return Ok(set);
@@ -2172,9 +2198,10 @@ impl Parser {
             PosOrKwArg::Pos(pos) => Args::new(vec![pos], vec![], None),
             PosOrKwArg::Kw(kw) => Args::new(vec![], vec![kw], None),
         };
+        #[allow(clippy::while_let_loop)]
         loop {
-            match self.peek() {
-                Some(t) if t.is(Comma) => {
+            match self.peek_kind() {
+                Some(Comma) => {
                     self.skip();
                     while self.cur_is(Newline) && line_break {
                         self.skip();
@@ -2353,7 +2380,7 @@ impl Parser {
             )
         }
 
-        if matches!(self.peek(), Some(t) if t.is(Dot)) {
+        if matches!(self.peek_kind(), Some(Dot)) {
             // obj |> .method(...)
             let vis = self.lpop();
             match self.lpop() {
