@@ -85,6 +85,33 @@ Everything from `#[` to `]#` is a comment.
 ]#
 ```
 
+### Documentation Comments
+
+`'''...'''` is a documentation comment. Note that unlike Python, it is defined outside of any class or function.
+
+```python
+'''
+PI is a constant that is the ratio of the circumference of a circle to its diameter.
+'''
+PI = 3.141592653589793
+'''
+This function returns twice the given number.
+'''
+twice x = x * 2
+
+print! twice.__doc__
+# This function returns twice the given number.
+
+'''
+Documentation comments for the entire class
+'''
+C = Class {x = Int}
+    '''
+    Method documentation comments
+    '''
+    .method self = ...
+```
+
 ## Expressions, separators
 
 A script is a series of expressions. An expression is something that can be calculated or evaluated, and in Erg almost everything is an expression.
