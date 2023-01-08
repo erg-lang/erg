@@ -3,6 +3,7 @@
 //! パーサーを実装する
 //!
 use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::mem;
 
 use erg_common::config::ErgConfig;
@@ -35,7 +36,7 @@ macro_rules! debug_call_info {
         log!(
             c GREEN,
             "\n{} ({}) entered {}, cur: {}",
-            " ".repeat($self.level),
+            "･".repeat(($self.level as f32 / 4.0).floor() as usize),
             $self.level,
             fn_name!(),
             $self.peek().unwrap()
@@ -70,6 +71,22 @@ pub enum BraceContainer {
 }
 
 impl_locational_for_enum!(BraceContainer; Set, Dict, Record);
+
+impl std::fmt::Display for BraceContainer {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BraceContainer::Set(_) => {
+                write!(f, "{{Set Type}}",)
+            }
+            BraceContainer::Dict(_) => {
+                write!(f, "{{Dict: Type}}")
+            }
+            BraceContainer::Record(_) => {
+                write!(f, "{{Record = Type}}",)
+            }
+        }
+    }
+}
 
 /// Perform recursive descent parsing.
 ///
@@ -168,13 +185,58 @@ impl Parser {
         let loc = self.peek().map(|t| t.loc()).unwrap_or_default();
         log!(err "error caused by: {caused_by}");
         self.next_expr();
-        ParseError::simple_syntax_error(0, loc)
+        ParseError::simple_syntax_error(line!() as usize, loc)
+    }
+
+    fn skip_and_throw_invalid_unclosed_err(
+        &mut self,
+        caused_by: &str,
+        closer: &str,
+        loc: Location,
+    ) -> ParseError {
+        log!(err "error caused by: {caused_by}");
+        self.next_expr();
+        ParseError::unclosed_error(line!() as usize, closer, loc)
     }
 
     fn skip_and_throw_invalid_chunk_err(&mut self, caused_by: &str, loc: Location) -> ParseError {
         log!(err "error caused by: {caused_by}");
         self.next_line();
         ParseError::invalid_chunk_error(line!() as usize, loc)
+    }
+
+    fn skip_and_throw_invalid_expression(
+        &mut self,
+        errno: usize,
+        loc: Location,
+        caused_by: &str,
+        main_msg: &str,
+        hint: Option<String>,
+    ) -> ParseError {
+        log!(err "error caused by: {caused_by}");
+        self.next_expr();
+        ParseError::syntax_error(errno, loc, main_msg, hint)
+    }
+
+    fn get_stream_op_syntax_error(
+        &mut self,
+        errno: usize,
+        loc: Location,
+        caused_by: &str,
+    ) -> ParseError {
+        log!(err "error caused by: {caused_by}");
+        self.next_expr();
+        ParseError::syntax_error(
+            errno,
+            loc,
+            switch_lang!(
+                "japanese" => "パイプ演算子の後には関数・メソッド・サブルーチンのみ呼び出しができます",
+                "simplified_chinese" => "流操作符后只能调用函数、方法或子程序",
+                "traditional_chinese" => "流操作符後只能調用函數、方法或子程序",
+                "english" => "Only a call of function, method or subroutine is available after stream operator",
+            ),
+            None,
+        )
     }
 
     #[inline]
@@ -278,7 +340,6 @@ impl Parser {
     }
 
     /// Reduce to the largest unit of syntax, the module (this is called only once)
-    /// 構文の最大単位であるモジュールに還元する(これが呼ばれるのは一度きり)
     #[inline]
     fn try_reduce_module(&mut self) -> ParseResult<Module> {
         debug_call_info!(self);
@@ -293,14 +354,12 @@ impl Parser {
                 }
                 Some(_) => {
                     if let Ok(expr) = self.try_reduce_chunk(true, false) {
-                        chunks.push(expr);
                         if !self.cur_is(EOF) && !self.cur_category_is(TC::Separator) {
-                            let err = self.skip_and_throw_invalid_chunk_err(
-                                "try_reduce_module",
-                                chunks.last().unwrap().loc(),
-                            );
+                            let err = self
+                                .skip_and_throw_invalid_chunk_err("try_reduce_module", expr.loc());
                             self.errs.push(err);
                         }
+                        chunks.push(expr);
                     }
                 }
                 None => {
@@ -336,9 +395,12 @@ impl Parser {
                 self.errs.push(err);
             }
             if block.last().unwrap().is_definition() {
-                let err = ParseError::simple_syntax_error(0, block.last().unwrap().loc());
-                self.level -= 1;
+                let err = ParseError::invalid_definition_of_last_block(
+                    line!() as usize,
+                    block.last().unwrap().loc(),
+                );
                 self.errs.push(err);
+                self.level -= 1;
                 return Err(());
             } else {
                 self.level -= 1;
@@ -347,20 +409,24 @@ impl Parser {
         }
         if !self.cur_is(Newline) {
             let err = self.skip_and_throw_syntax_err("try_reduce_block");
-            self.level -= 1;
             self.errs.push(err);
+            self.level -= 1;
             return Err(());
         }
         while self.cur_is(Newline) {
             self.skip();
         }
         if !self.cur_is(Indent) {
-            let err = self.skip_and_throw_syntax_err("try_reduce_block");
-            self.level -= 1;
+            let loc = self.peek().map(|t| t.loc()).unwrap_or_default();
+            let err = ParseError::no_indention(line!() as usize, loc);
             self.errs.push(err);
+            let caused_by = caused_by!();
+            log!(err "error caused by: {caused_by}");
+            self.next_expr();
+            self.level -= 1;
             return Err(());
         }
-        self.skip(); // Indent
+        self.skip();
         loop {
             match self.peek() {
                 Some(t) if t.is(Newline) && self.nth_is(1, Dedent) => {
@@ -382,18 +448,24 @@ impl Parser {
                 }
                 Some(_) => {
                     if let Ok(expr) = self.try_reduce_chunk(true, false) {
-                        block.push(expr);
                         if !self.cur_is(Dedent) && !self.cur_category_is(TC::Separator) {
-                            let err = self.skip_and_throw_invalid_chunk_err(
-                                "try_reduce_block",
-                                block.last().unwrap().loc(),
-                            );
+                            let err = self
+                                .skip_and_throw_invalid_chunk_err("try_reduce_block", expr.loc());
                             self.level -= 1;
                             self.errs.push(err);
                         }
+                        block.push(expr);
                     }
                 }
-                _ => switch_unreachable!(),
+                None => {
+                    let err =
+                        ParseError::invalid_none_match(0, Location::Unknown, file!(), line!());
+                    self.errs.push(err);
+                    let caused_by = caused_by!();
+                    log!(err "error caused by: {caused_by}");
+                    self.level -= 1;
+                    return Err(());
+                }
             }
         }
         if block.is_empty() {
@@ -407,7 +479,8 @@ impl Parser {
             self.errs.push(err);
             Err(())
         } else if block.last().unwrap().is_definition() {
-            let err = ParseError::invalid_chunk_error(line!() as usize, block.loc());
+            let err =
+                ParseError::invalid_chunk_error(line!() as usize, block.last().unwrap().loc());
             self.level -= 1;
             self.errs.push(err);
             Err(())
@@ -423,7 +496,7 @@ impl Parser {
         if self.cur_is(TokenKind::AtSign) {
             self.lpop();
             let expr = self
-                .try_reduce_expr(false, false, false, false)
+                .try_reduce_bin_lhs(false, false)
                 .map_err(|_| self.stack_dec())?;
             self.level -= 1;
             Ok(Some(Decorator::new(expr)))
@@ -442,9 +515,13 @@ impl Parser {
             if self.cur_is(Newline) {
                 self.skip();
             } else {
-                self.level -= 1;
-                let err = self.skip_and_throw_syntax_err(caused_by!());
+                let err =
+                    ParseError::invalid_syntax_after_at_sign(line!() as usize, self.lpop().loc());
                 self.errs.push(err);
+                let caused_by = caused_by!();
+                log!(err "error caused by: {caused_by}");
+                self.next_expr();
+                self.level -= 1;
                 return Err(());
             }
         }
@@ -479,16 +556,24 @@ impl Parser {
                 if maybe_symbol.is(Symbol) {
                     Accessor::public(dot, maybe_symbol)
                 } else {
-                    self.level -= 1;
                     let err = self.skip_and_throw_syntax_err(caused_by!());
                     self.errs.push(err);
+                    self.level -= 1;
                     return Err(());
                 }
             }
-            _ => {
-                self.level -= 1;
-                let err = self.skip_and_throw_syntax_err(caused_by!());
+            Some(other) => {
+                let err = ParseError::expect_method_error(line!() as usize, other.loc());
                 self.errs.push(err);
+                self.level -= 1;
+                return Err(());
+            }
+            None => {
+                let err = ParseError::invalid_none_match(0, Location::Unknown, file!(), line!());
+                self.errs.push(err);
+                let caused_by = caused_by!();
+                log!(err "error caused by: {caused_by}");
+                self.level -= 1;
                 return Err(());
             }
         };
@@ -528,20 +613,25 @@ impl Parser {
                 elems.push_pos(elem);
             }
             None => {
-                self.level -= 1;
-                let err = self.skip_and_throw_syntax_err(caused_by!());
+                let err = ParseError::invalid_none_match(0, Location::Unknown, file!(), line!());
                 self.errs.push(err);
+                let caused_by = caused_by!();
+                log!(err "error caused by: {caused_by}");
+                self.level -= 1;
                 return Err(());
             }
         }
         loop {
             match self.peek() {
                 Some(comma) if comma.is(Comma) => {
-                    self.skip();
+                    let tk = self.lpop();
                     if self.cur_is(Comma) {
-                        self.level -= 1;
-                        let err = self.skip_and_throw_syntax_err(caused_by!());
+                        let err = ParseError::invalid_seq_elems_error(line!() as usize, tk.loc());
                         self.errs.push(err);
+                        let caused_by = caused_by!();
+                        log!(err "error caused by: {caused_by}");
+                        self.next_expr();
+                        self.level -= 1;
                         return Err(());
                     }
                     elems.push_pos(self.try_reduce_elem().map_err(|_| self.stack_dec())?);
@@ -549,11 +639,23 @@ impl Parser {
                 Some(t) if t.category_is(TC::REnclosure) => {
                     break;
                 }
-                _ => {
-                    self.skip();
-                    self.level -= 1;
-                    let err = self.skip_and_throw_syntax_err(caused_by!());
+                Some(_other) => {
+                    let err = self.skip_and_throw_invalid_unclosed_err(
+                        caused_by!(),
+                        "]",
+                        self.peek().map(|t| t.loc()).unwrap_or_default(),
+                    );
                     self.errs.push(err);
+                    self.level -= 1;
+                    return Err(());
+                }
+                None => {
+                    let err =
+                        ParseError::invalid_none_match(0, Location::Unknown, file!(), line!());
+                    self.errs.push(err);
+                    let caused_by = caused_by!();
+                    log!(err "error caused by: {caused_by}");
+                    self.level -= 1;
                     return Err(());
                 }
             }
@@ -572,7 +674,14 @@ impl Parser {
                 self.level -= 1;
                 Ok(PosArg::new(expr))
             }
-            None => switch_unreachable!(),
+            None => {
+                let err = ParseError::invalid_none_match(0, Location::Unknown, file!(), line!());
+                self.errs.push(err);
+                let caused_by = caused_by!();
+                log!(err "error caused by: {caused_by}");
+                self.level -= 1;
+                Err(())
+            }
         }
     }
 
@@ -638,9 +747,9 @@ impl Parser {
             match self.peek() {
                 Some(t) if t.is(Colon) && colon_style => {
                     self.skip();
-                    self.level -= 1;
                     let err = self.skip_and_throw_syntax_err(caused_by!());
                     self.errs.push(err);
+                    self.level -= 1;
                     return Err(());
                 }
                 Some(t) if t.is(Colon) => {
@@ -650,9 +759,13 @@ impl Parser {
                         self.skip();
                     }
                     if !self.cur_is(Indent) {
-                        let err = self.skip_and_throw_syntax_err("try_reduce_block");
-                        self.level -= 1;
+                        self.next_expr();
+                        let loc = self.peek().map(|t| t.loc()).unwrap_or_default();
+                        let err = ParseError::no_indention(line!() as usize, loc);
                         self.errs.push(err);
+                        let caused_by = caused_by!();
+                        log!(err "error caused by: {caused_by}");
+                        self.level -= 1;
                         return Err(());
                     }
                     self.skip();
@@ -660,9 +773,9 @@ impl Parser {
                 Some(t) if t.is(Comma) => {
                     self.skip();
                     if colon_style || self.cur_is(Comma) {
-                        self.level -= 1;
                         let err = self.skip_and_throw_syntax_err(caused_by!());
                         self.errs.push(err);
+                        self.level -= 1;
                         return Err(());
                     }
                     if !args.kw_is_empty() {
@@ -727,6 +840,15 @@ impl Parser {
                         }
                     }
                 }
+                None => {
+                    let err =
+                        ParseError::invalid_none_match(0, Location::Unknown, file!(), line!());
+                    self.errs.push(err);
+                    let caused_by = caused_by!();
+                    log!(err "error caused by: {caused_by}");
+                    self.level -= 1;
+                    return Err(());
+                }
                 _ => {
                     break;
                 }
@@ -747,10 +869,20 @@ impl Parser {
                     let kw = if let Accessor::Ident(n) = acc {
                         n.name.into_token()
                     } else {
+                        let main_msg = switch_lang!(
+                            "japanese" => "キーワードが期待されています",
+                            "english" => "expect keyword",
+                        );
+                        let err = ParseError::invalid_keyword_error(
+                            line!() as usize,
+                            acc.loc(),
+                            main_msg,
+                        );
+                        self.errs.push(err);
+                        let caused_by = caused_by!();
+                        log!(err "error caused by: {caused_by}");
                         self.next_expr();
                         self.level -= 1;
-                        let err = ParseError::simple_syntax_error(0, acc.loc());
-                        self.errs.push(err);
                         return Err(());
                     };
                     let expr = self
@@ -771,18 +903,26 @@ impl Parser {
                                     let t_spec = TypeSpecWithOp::new(tasc.op, tasc.t_spec);
                                     (n.name.into_token(), Some(t_spec))
                                 } else {
+                                    let err = ParseError::invalid_seq_elems_error(
+                                        line!() as usize,
+                                        tasc.loc(),
+                                    );
+                                    self.errs.push(err);
+                                    let caused_by = caused_by!();
+                                    log!(err "error caused by: {caused_by}");
                                     self.next_expr();
                                     self.level -= 1;
-                                    let err = ParseError::simple_syntax_error(0, tasc.loc());
-                                    self.errs.push(err);
                                     return Err(());
                                 }
                             }
                             _ => {
+                                let err =
+                                    ParseError::simple_syntax_error(line!() as usize, expr.loc());
+                                self.errs.push(err);
+                                let caused_by = caused_by!();
+                                log!(err "error caused by: {caused_by}");
                                 self.next_expr();
                                 self.level -= 1;
-                                let err = ParseError::simple_syntax_error(0, expr.loc());
-                                self.errs.push(err);
                                 return Err(());
                             }
                         };
@@ -797,6 +937,7 @@ impl Parser {
                     }
                 }
             }
+            // positional argument
             Some(_) => {
                 let expr = self
                     .try_reduce_expr(false, in_type_args, false, false)
@@ -819,22 +960,14 @@ impl Parser {
                     let keyword = if let Accessor::Ident(n) = acc {
                         n.name.into_token()
                     } else {
+                        let err = ParseError::expect_keyword(line!() as usize, acc.loc());
+                        self.errs.push(err);
+                        let caused_by = caused_by!();
+                        log!(err "error caused by: {caused_by}");
                         self.next_expr();
                         self.level -= 1;
-                        self.errs
-                            .push(ParseError::simple_syntax_error(0, acc.loc()));
                         return Err(());
                     };
-                    /*let t_spec = if self.cur_is(Colon) {
-                        self.skip();
-                        let expr = self.try_reduce_expr(false).map_err(|_| self.stack_dec())?;
-                        let t_spec = self
-                            .convert_rhs_to_type_spec(expr)
-                            .map_err(|_| self.stack_dec())?;
-                        Some(t_spec)
-                    } else {
-                        None
-                    };*/
                     let expr = self
                         .try_reduce_expr(false, in_type_args, false, false)
                         .map_err(|_| self.stack_dec())?;
@@ -842,18 +975,27 @@ impl Parser {
                     Ok(KwArg::new(keyword, None, expr))
                 } else {
                     let loc = t.loc();
+                    let err = ParseError::expect_default_parameter(line!() as usize, loc);
+                    self.errs.push(err);
                     self.level -= 1;
-                    self.errs.push(ParseError::simple_syntax_error(0, loc));
                     Err(())
                 }
             }
             Some(other) => {
                 let loc = other.loc();
+                let err = ParseError::expect_keyword(line!() as usize, loc);
+                self.errs.push(err);
                 self.level -= 1;
-                self.errs.push(ParseError::simple_syntax_error(0, loc));
                 Err(())
             }
-            None => switch_unreachable!(),
+            None => {
+                let err = ParseError::invalid_none_match(0, Location::Unknown, file!(), line!());
+                self.errs.push(err);
+                let caused_by = caused_by!();
+                log!(err "error caused by: {caused_by}");
+                self.level -= 1;
+                Err(())
+            }
         }
     }
 
@@ -863,7 +1005,8 @@ impl Parser {
             self.skip();
         } else {
             self.level -= 1;
-            let err = self.skip_and_throw_syntax_err(caused_by!());
+            let mut err = ParseError::no_indention(line!() as usize, self.peek().unwrap().loc());
+            err.set_hint("Class indent");
             self.errs.push(err);
             return Err(());
         }
@@ -876,11 +1019,19 @@ impl Parser {
         let first = match first {
             Expr::Def(def) => ClassAttr::Def(def),
             Expr::TypeAsc(tasc) => ClassAttr::Decl(tasc),
-            _ => {
-                // self.restore();
-                self.level -= 1;
-                let err = self.skip_and_throw_syntax_err(caused_by!());
+            other => {
+                let err = self.skip_and_throw_invalid_expression(
+                    line!() as usize,
+                    other.loc(),
+                    caused_by!(),
+                    switch_lang!(
+                        "japanese" => "クラスを定義するのに失敗しました",
+                        "english" => "failed to define Class",
+                    ),
+                    None,
+                );
                 self.errs.push(err);
+                self.level -= 1;
                 return Err(());
             }
         };
@@ -908,15 +1059,29 @@ impl Parser {
                             attrs.push(ClassAttr::Decl(tasc));
                         }
                         other => {
-                            self.errs
-                                .push(ParseError::simple_syntax_error(0, other.loc()));
+                            let err = self.skip_and_throw_invalid_expression(
+                                line!() as usize,
+                                other.loc(),
+                                caused_by!(),
+                                switch_lang!(
+                                    "japanese" => "クラスを定義するのに失敗しました",
+                                    "english" => "failed to define Class",
+                                ),
+                                None,
+                            );
+                            self.errs.push(err);
                         }
                     }
                 }
-                _ => {
-                    self.level -= 1;
-                    let err = self.skip_and_throw_syntax_err(caused_by!());
+                None => {
+                    let err = ParseError::compiler_bug(
+                        line!() as usize,
+                        Location::Unknown,
+                        file!(),
+                        line!(),
+                    );
                     self.errs.push(err);
+                    self.level -= 1;
                     return Err(());
                 }
             }
@@ -1058,9 +1223,9 @@ impl Parser {
                     match self.lpop() {
                         symbol if symbol.is(Symbol) => {
                             let Some(ExprOrOp::Expr(obj)) = stack.pop() else {
-                                self.level -= 1;
                                 let err = self.skip_and_throw_syntax_err(caused_by!());
                                 self.errs.push(err);
+                                self.level -= 1;
                                 return Err(());
                             };
                             if let Some(args) = self
@@ -1097,20 +1262,23 @@ impl Parser {
                                     let pack = DataPack::new(maybe_class, vis, args);
                                     stack.push(ExprOrOp::Expr(Expr::DataPack(pack)));
                                 }
-                                BraceContainer::Dict(_) | BraceContainer::Set(_) => {
-                                    // self.restore(other);
-                                    self.level -= 1;
-                                    let err = self.skip_and_throw_syntax_err(caused_by!());
+                                other => {
+                                    let err = ParseError::invalid_data_class_container(
+                                        line!() as usize,
+                                        other.loc(),
+                                        &other.to_string(),
+                                    );
                                     self.errs.push(err);
+                                    self.level -= 1;
                                     return Err(());
                                 }
                             }
                         }
                         other => {
                             self.restore(other);
-                            self.level -= 1;
                             let err = self.skip_and_throw_syntax_err(caused_by!());
                             self.errs.push(err);
+                            self.level -= 1;
                             return Err(());
                         }
                     }
@@ -1120,9 +1288,9 @@ impl Parser {
                     match self.lpop() {
                         symbol if symbol.is(Symbol) => {
                             let Some(ExprOrOp::Expr(obj)) = stack.pop() else {
-                                self.level -= 1;
                                 let err = self.skip_and_throw_syntax_err(caused_by!());
                                 self.errs.push(err);
+                                self.level -= 1;
                                 return Err(());
                             };
                             if let Some(args) = self
@@ -1147,18 +1315,18 @@ impl Parser {
                         }
                         other => {
                             self.restore(other);
-                            self.level -= 1;
                             let err = self.skip_and_throw_syntax_err(caused_by!());
                             self.errs.push(err);
+                            self.level -= 1;
                             return Err(());
                         }
                     }
                 }
                 Some(t) if t.is(LSqBr) => {
                     let Some(ExprOrOp::Expr(obj)) = stack.pop() else {
-                        self.level -= 1;
                         let err = self.skip_and_throw_syntax_err(caused_by!());
                         self.errs.push(err);
+                        self.level -= 1;
                         return Err(());
                     };
                     self.skip();
@@ -1167,10 +1335,12 @@ impl Parser {
                         .map_err(|_| self.stack_dec())?;
                     let r_sqbr = self.lpop();
                     if !r_sqbr.is(RSqBr) {
-                        self.restore(r_sqbr);
-                        self.level -= 1;
-                        let err = self.skip_and_throw_syntax_err(caused_by!());
+                        let err = ParseError::expect_accessor(line!() as usize, r_sqbr.loc());
                         self.errs.push(err);
+                        let caused_by = caused_by!();
+                        log!(err "error caused by: {caused_by}");
+                        self.next_expr();
+                        self.level -= 1;
                         return Err(());
                     }
                     let acc = Accessor::subscr(obj, index, r_sqbr);
@@ -1195,9 +1365,9 @@ impl Parser {
                     .try_reduce_stream_operator(&mut stack)
                     .map_err(|_| self.stack_dec())?,
                 Some(t) if t.category_is(TC::Reserved) => {
-                    self.level -= 1;
                     let err = self.skip_and_throw_syntax_err(caused_by!());
                     self.errs.push(err);
+                    self.level -= 1;
                     return Err(());
                 }
                 _ => {
@@ -1230,9 +1400,9 @@ impl Parser {
                 Ok(expr)
             }
             Some(ExprOrOp::Op(op)) => {
-                self.level -= 1;
                 self.errs
                     .push(ParseError::compiler_bug(0, op.loc(), fn_name!(), line!()));
+                self.level -= 1;
                 Err(())
             }
             _ => switch_unreachable!(),
@@ -1329,9 +1499,9 @@ impl Parser {
                     match self.lpop() {
                         symbol if symbol.is(Symbol) => {
                             let Some(ExprOrOp::Expr(obj)) = stack.pop() else {
-                                self.level -= 1;
                                 let err = self.skip_and_throw_syntax_err(caused_by!());
                                 self.errs.push(err);
+                                self.level -= 1;
                                 return Err(());
                             };
                             if let Some(args) = self
@@ -1349,30 +1519,32 @@ impl Parser {
                         }
                         other => {
                             self.restore(other);
-                            self.level -= 1;
                             let err = self.skip_and_throw_syntax_err(caused_by!());
                             self.errs.push(err);
+                            self.level -= 1;
                             return Err(());
                         }
                     }
                 }
                 Some(t) if t.is(LSqBr) => {
                     let Some(ExprOrOp::Expr(obj)) = stack.pop() else {
-                        self.level -= 1;
                         let err = self.skip_and_throw_syntax_err(caused_by!());
                         self.errs.push(err);
+                        self.level -= 1;
                         return Err(());
                     };
-                    self.skip();
+                    self.skip(); // l_sqbr
                     let index = self
                         .try_reduce_expr(false, false, in_brace, false)
                         .map_err(|_| self.stack_dec())?;
                     let r_sqbr = self.lpop();
                     if !r_sqbr.is(RSqBr) {
-                        self.restore(r_sqbr);
-                        self.level -= 1;
-                        let err = self.skip_and_throw_syntax_err(caused_by!());
+                        let err = ParseError::expect_accessor(line!() as usize, index.loc());
                         self.errs.push(err);
+                        let caused_by = caused_by!();
+                        log!(err "error caused by: {caused_by}");
+                        self.next_line();
+                        self.level -= 1;
                         return Err(());
                     }
                     let acc = Accessor::subscr(obj, index, r_sqbr);
@@ -1397,9 +1569,9 @@ impl Parser {
                     .try_reduce_stream_operator(&mut stack)
                     .map_err(|_| self.stack_dec())?,
                 Some(t) if t.category_is(TC::Reserved) => {
-                    self.level -= 1;
                     let err = self.skip_and_throw_syntax_err(caused_by!());
                     self.errs.push(err);
+                    self.level -= 1;
                     return Err(());
                 }
                 _ => {
@@ -1432,9 +1604,9 @@ impl Parser {
                 Ok(expr)
             }
             Some(ExprOrOp::Op(op)) => {
-                self.level -= 1;
                 self.errs
                     .push(ParseError::compiler_bug(0, op.loc(), fn_name!(), line!()));
+                self.level -= 1;
                 Err(())
             }
             _ => switch_unreachable!(),
@@ -1458,16 +1630,16 @@ impl Parser {
                         Some(TypeSpecWithOp::new(tasc.op, tasc.t_spec)),
                     )
                 } else {
-                    self.level -= 1;
                     let err = ParseError::simple_syntax_error(line!() as usize, tasc.loc());
                     self.errs.push(err);
+                    self.level -= 1;
                     return Err(());
                 }
             }
             other => {
-                self.level -= 1;
                 let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
                 self.errs.push(err);
+                self.level -= 1;
                 return Err(());
             }
         };
@@ -1497,13 +1669,22 @@ impl Parser {
                 let lit = self.try_reduce_lit().map_err(|_| self.stack_dec())?;
                 if let Some(tk) = self.peek() {
                     if tk.is(Mutate) {
-                        self.level -= 1;
-                        let err = ParseError::invalid_mutable_symbol(
+                        self.skip();
+                        let main_msg = switch_lang!(
+                            "japanese" => "不正な可変定義です",
+                            "english" => "invalid mutate declaration",
+                        );
+                        let lit_loc = lit.loc();
+                        let lit = lit.token.inspect();
+                        let err = ParseError::invalid_token_error(
                             line!() as usize,
-                            &lit.token.inspect()[..],
-                            lit.loc(),
+                            lit_loc,
+                            main_msg,
+                            &format!("!{}", lit),
+                            &format!("{}!", lit),
                         );
                         self.errs.push(err);
+                        self.level -= 1;
                         return Err(());
                     }
                 }
@@ -1522,15 +1703,16 @@ impl Parser {
                 let expr = self.try_reduce_chunk(false, in_brace)?;
                 let Some(mut def) = option_enum_unwrap!(expr, Expr::Def) else {
                     // self.restore(other);
-                    self.level -= 1;
                     let err = self.skip_and_throw_syntax_err(caused_by!());
                     self.errs.push(err);
+                    self.level -= 1;
                     return Err(());
                 };
                 match def.sig {
                     Signature::Subr(mut subr) => {
                         subr.decorators = decos;
                         let expr = Expr::Def(Def::new(Signature::Subr(subr), def.body));
+                        self.level -= 1;
                         Ok(expr)
                     }
                     Signature::Var(var) => {
@@ -1544,6 +1726,7 @@ impl Parser {
                         }
                         def.body.block.push(last);
                         let expr = Expr::Def(Def::new(Signature::Var(var), def.body));
+                        self.level -= 1;
                         Ok(expr)
                     }
                 }
@@ -1632,30 +1815,43 @@ impl Parser {
                 if !self.cur_category_is(TC::LambdaOp) {
                     let err = self.skip_and_throw_syntax_err(caused_by!());
                     self.errs.push(err);
+                    self.level -= 1;
                     return Err(());
                 }
                 let sig = LambdaSignature::new(params, None, bounds);
                 let op = self.lpop();
                 let block = self.try_reduce_block().map_err(|_| self.stack_dec())?;
                 self.counter.inc();
-                self.level -= 1;
                 let lambda = Lambda::new(sig, op, block, self.counter);
+                self.level -= 1;
                 Ok(Expr::Lambda(lambda))
             }
             Some(t) if t.is(UBar) => {
                 let token = self.lpop();
-                self.level -= 1;
                 self.errs.push(ParseError::feature_error(
                     line!() as usize,
                     token.loc(),
                     "discard pattern",
                 ));
+                self.level -= 1;
                 Err(())
             }
-            _other => {
+            Some(dedent) if dedent.is(Dedent) => {
+                self.next_expr();
                 self.level -= 1;
-                let err = self.skip_and_throw_syntax_err(caused_by!());
+                Err(())
+            }
+            Some(_) => {
+                self.skip_and_throw_syntax_err(caused_by!());
+                self.level -= 1;
+                Err(())
+            }
+            None => {
+                let err = ParseError::invalid_none_match(0, Location::Unknown, file!(), line!());
                 self.errs.push(err);
+                let caused_by = caused_by!();
+                log!(err "error caused by: {caused_by}");
+                self.level -= 1;
                 Err(())
             }
         }
@@ -1695,35 +1891,58 @@ impl Parser {
                         self.lpop()
                     } else {
                         self.level -= 1;
-                        // TODO: error report: RSqBr not found
-                        let err = self.skip_and_throw_syntax_err(caused_by!());
+                        let err = self.skip_and_throw_invalid_unclosed_err(
+                            caused_by!(),
+                            "]",
+                            self.peek().map(|t| t.loc()).unwrap_or_default(),
+                        );
                         self.errs.push(err);
+                        self.level -= 1;
                         return Err(());
                     };
                     obj = Expr::Accessor(Accessor::subscr(obj, index, r_sqbr));
                 }
                 Some(t) if t.is(Dot) && obj.col_end() == t.col_begin() => {
                     let vis = self.lpop();
-                    let token = self.lpop();
-                    match token.kind {
-                        Symbol => {
-                            let ident = Identifier::new(Some(vis), VarName::new(token));
+                    match self.peek() {
+                        Some(t) if t.is(Symbol) => {
+                            let ident = Identifier::new(Some(vis), VarName::new(self.lpop()));
                             obj = obj.attr_expr(ident);
                         }
-                        NatLit => {
-                            let index = Literal::from(token);
+                        Some(t) if t.is(NatLit) => {
+                            let index = Literal::from(self.lpop());
                             obj = obj.tuple_attr_expr(index);
                         }
-                        Newline => {
-                            self.restore(token);
+                        Some(t) if t.is(Newline) => {
                             self.restore(vis);
                             break;
                         }
-                        _ => {
-                            self.restore(token);
-                            self.level -= 1;
-                            let err = self.skip_and_throw_syntax_err(caused_by!());
+                        Some(lit) if lit.category_is(TC::Literal) => {
+                            let err =
+                                ParseError::invalid_accessor_token(line!() as usize, lit.loc());
                             self.errs.push(err);
+                            self.level -= 1;
+                            return Err(());
+                        }
+                        Some(other) => {
+                            let err = ParseError::invalid_acc_chain(
+                                line!() as usize,
+                                other.loc(),
+                                &other.inspect()[..],
+                            );
+                            self.errs.push(err);
+                            self.level -= 1;
+                            return Err(());
+                        }
+                        None => {
+                            let err = ParseError::invalid_none_match(
+                                0,
+                                Location::Unknown,
+                                file!(),
+                                line!(),
+                            );
+                            self.errs.push(err);
+                            self.level -= 1;
                             return Err(());
                         }
                     }
@@ -1754,12 +1973,13 @@ impl Parser {
                                     obj = Expr::DataPack(DataPack::new(obj, vis, args));
                                 }
                                 other => {
-                                    self.level -= 1;
-                                    let err = ParseError::simple_syntax_error(
+                                    let err = ParseError::invalid_data_class_container(
                                         line!() as usize,
                                         other.loc(),
+                                        &other.to_string(),
                                     );
                                     self.errs.push(err);
+                                    self.level -= 1;
                                     return Err(());
                                 }
                             }
@@ -1772,9 +1992,9 @@ impl Parser {
                         }
                         _ => {
                             self.restore(token);
-                            self.level -= 1;
                             let err = self.skip_and_throw_syntax_err(caused_by!());
                             self.errs.push(err);
+                            self.level -= 1;
                             return Err(());
                         }
                     }
@@ -1821,9 +2041,12 @@ impl Parser {
         let inner = self.try_reduce_elems().map_err(|_| self.stack_dec())?;
         let r_sqbr = self.lpop();
         if !r_sqbr.is(RSqBr) {
+            self.errs.push(ParseError::unclosed_error(
+                line!() as usize,
+                "]",
+                r_sqbr.loc(),
+            ));
             self.level -= 1;
-            self.errs
-                .push(ParseError::simple_syntax_error(0, r_sqbr.loc()));
             return Err(());
         }
         let arr = match inner {
@@ -1847,12 +2070,12 @@ impl Parser {
                 Array::WithLength(ArrayWithLength::new(l_sqbr, r_sqbr, elem, len))
             }
             ArrayInner::Comprehension { .. } => {
-                self.level -= 1;
                 self.errs.push(ParseError::feature_error(
                     line!() as usize,
                     Location::concat(&l_sqbr, &r_sqbr),
                     "array comprehension",
                 ));
+                self.level -= 1;
                 return Err(());
             }
         };
@@ -1870,36 +2093,36 @@ impl Parser {
             if self.cur_is(Indent) {
                 self.skip();
             } else {
-                self.level -= 1;
                 let err = self.skip_and_throw_syntax_err(caused_by!());
                 self.errs.push(err);
+                self.level -= 1;
                 return Err(());
             }
         }
 
         // Empty brace literals
-        if let Some(first) = self.peek() {
-            if first.is(RBrace) {
+        match self.peek() {
+            Some(first) if first.is(RBrace) => {
                 let r_brace = self.lpop();
                 let arg = Args::empty();
                 let set = NormalSet::new(l_brace, r_brace, arg);
                 return Ok(BraceContainer::Set(Set::Normal(set)));
             }
-            if first.is(Equal) {
-                let _eq = self.lpop();
+            Some(first) if first.is(Equal) => {
+                let eq = self.lpop();
                 if let Some(t) = self.peek() {
                     if t.is(RBrace) {
                         let r_brace = self.lpop();
                         return Ok(BraceContainer::Record(Record::empty(l_brace, r_brace)));
                     }
                 }
-                self.level -= 1;
-                let err = self.skip_and_throw_syntax_err(caused_by!());
+                let err = self.skip_and_throw_invalid_unclosed_err(caused_by!(), "}", eq.loc());
                 self.errs.push(err);
+                self.level -= 1;
                 return Err(());
             }
-            if first.is(Colon) {
-                let _colon = self.lpop();
+            Some(first) if first.is(Colon) => {
+                let colon = self.lpop();
                 if let Some(t) = self.peek() {
                     if t.is(RBrace) {
                         let r_brace = self.lpop();
@@ -1907,11 +2130,12 @@ impl Parser {
                         return Ok(BraceContainer::Dict(Dict::Normal(dict)));
                     }
                 }
-                self.level -= 1;
-                let err = self.skip_and_throw_syntax_err(caused_by!());
+                let err = self.skip_and_throw_invalid_unclosed_err(caused_by!(), "}", colon.loc());
                 self.errs.push(err);
+                self.level -= 1;
                 return Err(());
             }
+            _ => {}
         }
 
         let first = self
@@ -1935,9 +2159,13 @@ impl Parser {
                 let ident = match acc {
                     Accessor::Ident(ident) => ident,
                     other => {
-                        self.level -= 1;
-                        let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
+                        let err =
+                            ParseError::invalid_record_element_err(line!() as usize, other.loc());
                         self.errs.push(err);
+                        let caused_by = caused_by!();
+                        log!(err "error caused by: {caused_by}");
+                        self.next_expr();
+                        self.level -= 1;
                         return Err(());
                     }
                 };
@@ -1948,7 +2176,6 @@ impl Parser {
                 self.level -= 1;
                 Ok(BraceContainer::Record(record))
             }
-            // Dict
             other if self.cur_is(Colon) => {
                 let dict = self
                     .try_reduce_normal_dict(l_brace, other)
@@ -1957,6 +2184,16 @@ impl Parser {
                 Ok(BraceContainer::Dict(Dict::Normal(dict)))
             }
             other => {
+                match self.peek() {
+                    Some(r_brace) if r_brace.is(RBrace) => {
+                        let arg = Args::new(vec![PosArg::new(other)], vec![], None);
+                        let r_brace = self.lpop();
+                        return Ok(BraceContainer::Set(Set::Normal(NormalSet::new(
+                            l_brace, r_brace, arg,
+                        ))));
+                    }
+                    _ => {}
+                }
                 let set = self
                     .try_reduce_set(l_brace, other)
                     .map_err(|_| self.stack_dec())?;
@@ -1989,11 +2226,13 @@ impl Parser {
                         self.stack_dec();
                         return Ok(Record::new_mixed(l_brace, r_brace, attrs));
                     } else {
-                        // TODO: not closed
-                        // self.restore(other);
-                        self.stack_dec();
-                        let err = self.skip_and_throw_syntax_err(caused_by!());
+                        let err =
+                            ParseError::unclosed_error(line!() as usize, "}", self.lpop().loc());
                         self.errs.push(err);
+                        let caused_by = caused_by!();
+                        log!(err "error caused by: {caused_by}");
+                        self.next_expr();
+                        self.level -= 1;
                         return Err(());
                     }
                 }
@@ -2014,30 +2253,39 @@ impl Parser {
                             let ident = match acc {
                                 Accessor::Ident(ident) => ident,
                                 other => {
-                                    self.stack_dec();
-                                    let err = ParseError::simple_syntax_error(
+                                    let err = ParseError::invalid_record_element_err(
                                         line!() as usize,
                                         other.loc(),
                                     );
                                     self.errs.push(err);
+                                    self.level -= 1;
                                     return Err(());
                                 }
                             };
                             attrs.push(RecordAttrOrIdent::Ident(ident));
                         }
-                        _ => {
-                            self.stack_dec();
-                            let err = self.skip_and_throw_syntax_err(caused_by!());
+                        other => {
+                            let err = ParseError::invalid_record_element_err(
+                                line!() as usize,
+                                other.loc(),
+                            );
                             self.errs.push(err);
+                            let caused_by = caused_by!();
+                            log!(err "error caused by: {caused_by}");
+                            self.next_expr();
+                            self.level -= 1;
                             return Err(());
                         }
                     }
                 }
-                _ => {
-                    //  self.restore(other);
-                    self.level -= 1;
-                    let err = self.skip_and_throw_syntax_err(caused_by!());
+                None => {
+                    let err =
+                        ParseError::invalid_none_match(0, Location::Unknown, file!(), line!());
                     self.errs.push(err);
+                    let caused_by = caused_by!();
+                    log!(err "error caused by: {caused_by}");
+                    self.next_expr();
+                    self.level -= 1;
                     return Err(());
                 }
             }
@@ -2061,9 +2309,15 @@ impl Parser {
                 Some(t) if t.is(Comma) => {
                     self.skip();
                     if self.cur_is(Comma) {
-                        self.level -= 1;
-                        let err = self.skip_and_throw_syntax_err(caused_by!());
+                        let err = ParseError::invalid_seq_elems_error(
+                            line!() as usize,
+                            self.peek().map(|t| t.loc()).unwrap_or_default(),
+                        );
                         self.errs.push(err);
+                        let caused_by = caused_by!();
+                        log!(err "error caused by: {caused_by}");
+                        self.next_expr();
+                        self.level -= 1;
                         return Err(());
                     } else if self.cur_is(RBrace) {
                         let dict = NormalDict::new(l_brace, self.lpop(), kvs);
@@ -2080,9 +2334,13 @@ impl Parser {
                             .map_err(|_| self.stack_dec())?;
                         kvs.push(KeyValue::new(key, value));
                     } else {
-                        self.level -= 1;
-                        let err = self.skip_and_throw_syntax_err(caused_by!());
+                        let err =
+                            ParseError::failed_to_found_dict_value(line!() as usize, key.loc());
                         self.errs.push(err);
+                        let caused_by = caused_by!();
+                        log!(err "error caused by: {caused_by}");
+                        self.next_expr();
+                        self.level -= 1;
                         return Err(());
                     }
                 }
@@ -2091,11 +2349,16 @@ impl Parser {
                     self.level -= 1;
                     return Ok(dict);
                 }
-                _ => {
-                    break;
+                Some(other) => {
+                    let err = ParseError::unclosed_error(line!() as usize, "}", other.loc());
+                    self.errs.push(err);
+                    self.level -= 1;
+                    return Err(());
                 }
+                _ => break,
             }
         }
+        self.level -= 1;
         Err(())
     }
 
@@ -2107,6 +2370,15 @@ impl Parser {
                 .try_reduce_expr(false, false, false, false)
                 .map_err(|_| self.stack_dec())?;
             let r_brace = self.lpop();
+            if !r_brace.is(RBrace) {
+                let err = ParseError::unclosed_error(line!() as usize, "}", len.loc());
+                self.errs.push(err);
+                let caused_by = caused_by!();
+                log!(err "error caused by: {caused_by}");
+                self.next_expr();
+                self.level -= 1;
+                return Err(());
+            }
             return Ok(Set::WithLength(SetWithLength::new(
                 l_brace,
                 r_brace,
@@ -2120,9 +2392,15 @@ impl Parser {
                 Some(t) if t.is(Comma) => {
                     self.skip();
                     if self.cur_is(Comma) {
-                        self.level -= 1;
-                        let err = self.skip_and_throw_syntax_err(caused_by!());
+                        let err = ParseError::invalid_seq_elems_error(
+                            line!() as usize,
+                            self.lpop().loc(), // comma
+                        );
                         self.errs.push(err);
+                        let caused_by = caused_by!();
+                        log!(err "error caused by: {caused_by}");
+                        self.next_expr();
+                        self.level -= 1;
                         return Err(());
                     } else if self.cur_is(RBrace) {
                         let set = Set::Normal(NormalSet::new(l_brace, self.lpop(), args));
@@ -2142,9 +2420,18 @@ impl Parser {
                             }
                         },
                         PosOrKwArg::Kw(arg) => {
-                            self.level -= 1;
-                            let err = ParseError::simple_syntax_error(line!() as usize, arg.loc());
+                            // Tuple cannot declare keyword argument as elements
+                            let main_msg = switch_lang!(
+                                "japanese" => "タプル型の要素ではタイプを宣言することはできません",
+                                "english" => "cannot declare type specified by Tuple Type element",
+                            );
+                            let err = ParseError::invalid_keyword_error(
+                                line!() as usize,
+                                arg.loc(),
+                                main_msg,
+                            );
                             self.errs.push(err);
+                            self.level -= 1;
                             return Err(());
                         }
                     }
@@ -2154,12 +2441,26 @@ impl Parser {
                     self.level -= 1;
                     return Ok(set);
                 }
-                _ => {
-                    break;
+                Some(_other) => {
+                    let err = ParseError::unclosed_error(line!() as usize, "}", args.loc());
+                    self.errs.push(err);
+                    let caused_by = caused_by!();
+                    log!(err "error caused by: {caused_by}");
+                    self.next_expr();
+                    self.level -= 1;
+                    return Err(());
+                }
+                None => {
+                    let err =
+                        ParseError::invalid_none_match(0, Location::Unknown, file!(), line!());
+                    self.errs.push(err);
+                    let caused_by = caused_by!();
+                    log!(err "error caused by: {caused_by}");
+                    self.level -= 1;
+                    return Err(());
                 }
             }
         }
-        Err(())
     }
 
     fn try_reduce_nonempty_tuple(
@@ -2180,9 +2481,15 @@ impl Parser {
                         self.skip();
                     }
                     if self.cur_is(Comma) {
-                        self.level -= 1;
-                        let err = self.skip_and_throw_syntax_err(caused_by!());
+                        let err = ParseError::invalid_seq_elems_error(
+                            line!() as usize,
+                            self.lpop().loc(),
+                        );
                         self.errs.push(err);
+                        let caused_by = caused_by!();
+                        log!(err "error caused by: {caused_by}");
+                        self.next_expr();
+                        self.level -= 1;
                         return Err(());
                     } else if self.cur_is(Dedent) || self.cur_is(RParen) {
                         break;
@@ -2209,6 +2516,7 @@ impl Parser {
                                 None,
                             );
                             self.errs.push(err);
+                            self.level -= 1;
                             return Err(());
                         }
                         // e.g. (x, y:=1) -> ...
@@ -2218,8 +2526,17 @@ impl Parser {
                         }
                     }
                 }
-                _ => {
+                Some(_other) => {
                     break;
+                }
+                None => {
+                    let err =
+                        ParseError::invalid_none_match(0, Location::Unknown, file!(), line!());
+                    self.errs.push(err);
+                    let caused_by = caused_by!();
+                    log!(err "error caused by: {caused_by}");
+                    self.level -= 1;
+                    return Err(());
                 }
             }
         }
@@ -2234,9 +2551,25 @@ impl Parser {
         self.level -= 1;
         match self.peek() {
             Some(t) if t.category_is(TC::Literal) => Ok(Literal::from(self.lpop())),
-            _ => {
-                let err = self.skip_and_throw_syntax_err(caused_by!());
+            Some(other) => {
+                let err = ParseError::unexpected_token_error(
+                    line!() as usize,
+                    other.loc(),
+                    &other.inspect()[..],
+                );
                 self.errs.push(err);
+                let caused_by = caused_by!();
+                log!(err "error caused by: {caused_by}");
+                self.next_expr();
+                self.level -= 1;
+                Err(())
+            }
+            None => {
+                let err = ParseError::invalid_none_match(0, Location::Unknown, file!(), line!());
+                self.errs.push(err);
+                let caused_by = caused_by!();
+                log!(err "error caused by: {caused_by}");
+                self.level -= 1;
                 Err(())
             }
         }
@@ -2306,19 +2639,19 @@ impl Parser {
                     }
                 }
                 None => {
-                    self.level -= 1;
                     let err = ParseError::syntax_error(
                         line!() as usize,
                         expr.loc(),
                         switch_lang!(
                             "japanese" => "文字列補間の終わりが見つかりませんでした",
-                            "simplified_chinese" => "未找到字符串插值结束",
-                            "traditional_chinese" => "未找到字符串插值結束",
+                            "simplified_chinese" => "未找到字符串插值的结尾",
+                            "traditional_chinese" => "未找到字符串插值的結尾",
                             "english" => "end of string interpolation not found",
                         ),
                         None,
                     );
                     self.errs.push(err);
+                    self.level -= 1;
                     return Err(());
                 }
             }
@@ -2333,43 +2666,30 @@ impl Parser {
             collect_last_binop_on_stack(stack);
         }
         if stack.len() == 2 {
-            self.errs
-                .push(ParseError::compiler_bug(0, op.loc(), fn_name!(), line!()));
-            self.stack_dec();
+            let err = ParseError::compiler_bug(0, op.loc(), fn_name!(), line!());
+            self.errs.push(err);
+            self.level -= 1;
             return Err(());
-        }
-
-        fn get_stream_op_syntax_error(loc: Location) -> ParseError {
-            ParseError::syntax_error(
-                0,
-                loc,
-                switch_lang!(
-                    "japanese" => "パイプ演算子の後には関数・メソッド・サブルーチン呼び出しのみが使用できます。",
-                    "simplified_chinese" => "流操作符后只能调用函数、方法或子程序",
-                    "traditional_chinese" => "流操作符後只能調用函數、方法或子程序",
-                    "english" => "Only a call of function, method or subroutine is available after stream operator.",
-                ),
-                None,
-            )
         }
 
         if matches!(self.peek(), Some(t) if t.is(Dot)) {
             // obj |> .method(...)
             let vis = self.lpop();
-            match self.lpop() {
-                symbol if symbol.is(Symbol) => {
+            match self.peek() {
+                Some(symbol) if symbol.is(Symbol) => {
                     let Some(ExprOrOp::Expr(obj)) = stack.pop() else {
-                        self.level -= 1;
                         let err = self.skip_and_throw_syntax_err(caused_by!());
                         self.errs.push(err);
+                        self.level -= 1;
                         return Err(());
                     };
+                    self.skip();
                     if let Some(args) = self
                         .opt_reduce_args(false)
                         .transpose()
                         .map_err(|_| self.stack_dec())?
                     {
-                        let ident = Identifier::new(Some(vis), VarName::new(symbol));
+                        let ident = Identifier::new(Some(vis), VarName::new(self.lpop()));
                         let mut call = Expr::Call(Call::new(obj, Some(ident), args));
                         while let Some(res) = self.opt_reduce_args(false) {
                             let args = res.map_err(|_| self.stack_dec())?;
@@ -2377,16 +2697,27 @@ impl Parser {
                         }
                         stack.push(ExprOrOp::Expr(call));
                     } else {
-                        self.errs.push(get_stream_op_syntax_error(obj.loc()));
-                        self.stack_dec();
+                        let err = self.get_stream_op_syntax_error(
+                            line!() as usize,
+                            obj.loc(),
+                            caused_by!(),
+                        );
+                        self.errs.push(err);
+                        self.level -= 1;
                         return Err(());
                     }
                 }
-                other => {
-                    self.restore(other);
-                    self.level -= 1;
-                    let err = self.skip_and_throw_syntax_err(caused_by!());
+                Some(other) => {
+                    let err = ParseError::expect_method_error(line!() as usize, other.loc());
                     self.errs.push(err);
+                    self.level -= 1;
+                    return Err(());
+                }
+                None => {
+                    let err =
+                        ParseError::invalid_none_match(0, Location::Unknown, fn_name!(), line!());
+                    self.errs.push(err);
+                    self.level -= 1;
                     return Err(());
                 }
             }
@@ -2395,14 +2726,15 @@ impl Parser {
                 .try_reduce_call_or_acc(false)
                 .map_err(|_| self.stack_dec())?;
             let Expr::Call(mut call) = expect_call else {
-                self.errs.push(get_stream_op_syntax_error(expect_call.loc()));
-                self.stack_dec();
+                let err = self.get_stream_op_syntax_error(line!() as usize, expect_call.loc(), caused_by!());
+                self.errs.push(err);
+                self.level -= 1;
                 return Err(());
             };
             let ExprOrOp::Expr(first_arg) = stack.pop().unwrap() else {
                 self.errs
-                    .push(ParseError::compiler_bug(0, call.loc(), fn_name!(), line!()));
-                self.stack_dec();
+                    .push(ParseError::compiler_bug(line!() as usize, call.loc(), fn_name!(), line!()));
+                self.level -= 1;
                 return Err(());
             };
             call.args.insert_pos(0, PosArg::new(first_arg));
