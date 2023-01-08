@@ -222,7 +222,11 @@ impl ASTLowerer {
     /// NG: exec `1 + 2`
     /// OK: exec `None`
     fn use_check(&self, expr: &hir::Expr, mode: &str) -> LowerResult<()> {
-        if mode != "eval" && !expr.ref_t().is_nonelike() && !expr.is_type_asc() {
+        if mode != "eval"
+            && !expr.ref_t().is_nonelike()
+            && !expr.is_type_asc()
+            && !expr.is_doc_comment()
+        {
             Err(LowerWarnings::from(LowerWarning::unused_expr_warning(
                 self.cfg.input.clone(),
                 line!() as usize,

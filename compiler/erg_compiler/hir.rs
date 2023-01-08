@@ -77,6 +77,11 @@ impl Literal {
     pub fn is(&self, kind: TokenKind) -> bool {
         self.token.is(kind)
     }
+
+    #[inline]
+    pub fn is_doc_comment(&self) -> bool {
+        self.token.is(TokenKind::DocComment)
+    }
 }
 
 impl Literal {
@@ -2368,6 +2373,13 @@ impl Expr {
 
     pub fn is_type_asc(&self) -> bool {
         matches!(self, Expr::TypeAsc(_))
+    }
+
+    pub fn is_doc_comment(&self) -> bool {
+        match self {
+            Expr::Lit(lit) => lit.is_doc_comment(),
+            _ => false,
+        }
     }
 
     pub fn call(self, args: Args) -> Call {

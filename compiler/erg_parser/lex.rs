@@ -812,9 +812,9 @@ impl Lexer /*<'a>*/ {
         Err(Self::unclosed_string_error(token, "\"", line!() as usize))
     }
 
-    const QUOTES: &str = "\"\"\"";
+    const DOUBLE_QUOTES: &str = "\"\"\"";
     fn lex_multi_line_str(&mut self) -> LexResult<Token> {
-        let mut s = Self::QUOTES.to_string();
+        let mut s = Self::DOUBLE_QUOTES.to_string();
         while let Some(c) = self.peek_cur_ch() {
             if c == '"' {
                 let c = self.consume().unwrap();
@@ -824,7 +824,7 @@ impl Lexer /*<'a>*/ {
                     let token = self.emit_token(Illegal, &s);
                     return Err(Self::unclosed_string_error(
                         token,
-                        Self::QUOTES,
+                        Self::DOUBLE_QUOTES,
                         line!() as usize,
                     ));
                 }
@@ -833,14 +833,14 @@ impl Lexer /*<'a>*/ {
                     let token = self.emit_token(Illegal, &s);
                     return Err(Self::unclosed_string_error(
                         token,
-                        Self::QUOTES,
+                        Self::DOUBLE_QUOTES,
                         line!() as usize,
                     ));
                 }
                 if next_c.unwrap() == '"' && aft_next_c.unwrap() == '"' {
                     self.consume().unwrap();
                     self.consume().unwrap();
-                    s.push_str(Self::QUOTES);
+                    s.push_str(Self::DOUBLE_QUOTES);
                     let token = self.emit_token(StrLit, &s);
                     return Ok(token);
                 }
@@ -894,7 +894,7 @@ impl Lexer /*<'a>*/ {
         if self.interpol_stack.len() == 1 {
             Err(Self::unclosed_string_error(
                 token,
-                Self::QUOTES,
+                Self::DOUBLE_QUOTES,
                 line!() as usize,
             ))
         } else {
@@ -939,7 +939,7 @@ impl Lexer /*<'a>*/ {
                                 let token = self.emit_token(Illegal, &s);
                                 return Err(Self::unclosed_string_error(
                                     token,
-                                    Self::QUOTES,
+                                    Self::DOUBLE_QUOTES,
                                     line!() as usize,
                                 ));
                             }
@@ -949,7 +949,7 @@ impl Lexer /*<'a>*/ {
                                 let token = self.emit_token(Illegal, &s);
                                 return Err(Self::unclosed_string_error(
                                     token,
-                                    Self::QUOTES,
+                                    Self::DOUBLE_QUOTES,
                                     line!() as usize,
                                 ));
                             }
@@ -957,7 +957,7 @@ impl Lexer /*<'a>*/ {
                                 self.interpol_stack.pop();
                                 self.consume().unwrap();
                                 self.consume().unwrap();
-                                s.push_str(Self::QUOTES);
+                                s.push_str(Self::DOUBLE_QUOTES);
                                 let token = self.emit_token(StrInterpRight, &s);
                                 return Ok(token);
                             }
@@ -1042,6 +1042,40 @@ impl Lexer /*<'a>*/ {
                 "english" => "raw identifier is not closed by '",
             ),
             None,
+        ))
+    }
+
+    const SINGLE_QUOTES: &'static str = "\'\'\'";
+    // TODO: interpolation
+    fn lex_doc_comment(&mut self) -> LexResult<Token> {
+        let mut s = Self::SINGLE_QUOTES.to_string();
+        while let Some(c) = self.peek_cur_ch() {
+            match c {
+                '\'' => {
+                    s.push(self.consume().unwrap());
+                    if self.peek_cur_ch() == Some('\'') {
+                        s.push(self.consume().unwrap());
+                        if self.peek_cur_ch() == Some('\'') {
+                            s.push(self.consume().unwrap());
+                            let token = self.emit_token(DocComment, &s);
+                            return Ok(token);
+                        }
+                    }
+                }
+                _ => {
+                    let c = self.consume().unwrap();
+                    s.push(c);
+                    if Self::is_bidi(c) {
+                        return Err(self.invalid_unicode_character(&s));
+                    }
+                }
+            }
+        }
+        let token = self.emit_token(Illegal, &s);
+        Err(Self::unclosed_string_error(
+            token,
+            Self::SINGLE_QUOTES,
+            line!() as usize,
         ))
     }
 }
@@ -1359,11 +1393,11 @@ impl Iterator for Lexer /*<'a>*/ {
                     }
                 }
             }
-            // TODO:
             Some('\'') => {
                 let c = self.peek_cur_ch();
-                match c {
-                    None => {
+                let next_c = self.peek_next_ch();
+                match (c, next_c) {
+                    (None, _) => {
                         let token = self.emit_token(Illegal, "'");
                         Some(Err(LexError::syntax_error(
                             line!() as usize,
@@ -1377,7 +1411,8 @@ impl Iterator for Lexer /*<'a>*/ {
                             None,
                         )))
                     }
-                    Some(c) => {
+                    (Some('\''), Some('\'')) => Some(self.lex_doc_comment()),
+                    (Some(c), _) => {
                         if c == '\'' {
                             self.consume(); // consume second '\''
                             let token = self.emit_token(Illegal, "\"\"");

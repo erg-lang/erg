@@ -764,7 +764,9 @@ impl ValueObj {
                 if &content[..] == "\"\"" {
                     Some(Self::Str(Str::from("")))
                 } else {
-                    let replaced = content.trim_start_matches('\"').trim_end_matches('\"');
+                    let replaced = content
+                        .trim_start_matches(['\"', '\''])
+                        .trim_end_matches(['\"', '\'']);
                     Some(Self::Str(Str::rc(replaced)))
                 }
             }

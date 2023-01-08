@@ -97,6 +97,11 @@ impl Literal {
     pub fn is(&self, kind: TokenKind) -> bool {
         self.token.is(kind)
     }
+
+    #[inline]
+    pub fn is_doc_comment(&self) -> bool {
+        self.token.is(TokenKind::DocComment)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

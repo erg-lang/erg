@@ -53,13 +53,13 @@ pub fn type_from_token_kind(kind: TokenKind) -> Type {
         NatLit => Type::Nat,
         IntLit => Type::Int,
         RatioLit => Type::Ratio,
-        StrLit => Type::Str,
+        StrLit | DocComment => Type::Str,
         BoolLit => Type::Bool,
         NoneLit => Type::NoneType,
         NoImplLit => Type::NotImplementedType,
         EllipsisLit => Type::Ellipsis,
         InfLit => Type::Inf,
-        other => panic!("this has not type: {other}"),
+        other => panic!("this has no type: {other}"),
     }
 }
 
