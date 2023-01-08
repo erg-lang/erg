@@ -13,8 +13,9 @@ use serde_json::Value;
 
 use erg_common::config::ErgConfig;
 use erg_common::dict::Dict;
+use erg_common::normalize_path;
+use erg_common::style::*;
 use erg_common::traits::{Locational, Stream};
-use erg_common::{normalize_path, style::*};
 
 use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::build_hir::HIRBuilder;
@@ -461,7 +462,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 Self::send_log(format!("non-name token: {token}"))?;
                 if let Some(typ) = self
                     .get_visitor(uri)
-                    .and_then(|visitor| visitor.visit_hir_t(&token))
+                    .and_then(|visitor| visitor.get_t(&token))
                 {
                     let t_name = typ.qual_name();
                     Self::send_log(format!("type: {t_name}"))?;
@@ -582,7 +583,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             Self::send_log(format!("not symbol: {token}"))?;
             Ok(None)
         } else if let Some(visitor) = self.get_visitor(uri) {
-            Ok(visitor.visit_hir_info(token))
+            Ok(visitor.get_info(token))
         } else {
             Self::send_log("not found")?;
             Ok(None)
@@ -615,7 +616,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             match self.get_definition(&uri, &token)? {
                 Some(vi) => {
                     if let Some(line) = vi.def_loc.loc.ln_begin() {
-                        let file_path = vi.def_loc.module.unwrap();
+                        let file_path = vi.def_loc.module.as_ref().unwrap();
                         let mut code_block = if cfg!(not(windows)) {
                             let relative = file_path
                                 .strip_prefix(&self.home)
@@ -638,9 +639,12 @@ impl<Checker: BuildRunnable> Server<Checker> {
                                 .unwrap_or(relative);
                             format!("# {}, line {line}\n", relative)
                         };
-                        code_block += util::get_line_from_path(&file_path, line)?.trim_start();
-                        if code_block.ends_with(&['=', '>']) {
-                            code_block += " ...";
+                        // display the definition line
+                        if vi.kind.is_defined() {
+                            code_block += util::get_line_from_path(file_path, line)?.trim_start();
+                            if code_block.ends_with(&['=', '>']) {
+                                code_block += " ...";
+                            }
                         }
                         let definition = MarkedString::from_language_code(lang.into(), code_block);
                         contents.push(definition);
@@ -650,11 +654,12 @@ impl<Checker: BuildRunnable> Server<Checker> {
                         format!("{}: {}", token.content, vi.t),
                     );
                     contents.push(typ);
+                    self.show_doc_comment(token, &mut contents, &vi.def_loc)?;
                 }
                 // not found or not symbol, etc.
                 None => {
                     if let Some(visitor) = self.get_visitor(&uri) {
-                        if let Some(typ) = visitor.visit_hir_t(&token) {
+                        if let Some(typ) = visitor.get_t(&token) {
                             let typ = MarkedString::from_language_code(
                                 lang.into(),
                                 format!("{}: {typ}", token.content),
@@ -673,6 +678,36 @@ impl<Checker: BuildRunnable> Server<Checker> {
         )
     }
 
+    fn show_doc_comment(
+        &self,
+        var_token: Token,
+        contents: &mut Vec<MarkedString>,
+        def_loc: &AbsLocation,
+    ) -> ELSResult<()> {
+        if let Some(module) = def_loc.module.as_ref() {
+            let mut def_pos = util::loc_to_range(def_loc.loc).unwrap().start;
+            def_pos.line = def_pos.line.saturating_sub(1);
+            let def_uri = util::normalize_url(Url::from_file_path(module).unwrap());
+            while let Some(prev_token) = util::get_token(def_uri.clone(), def_pos)? {
+                if prev_token.is(TokenKind::DocComment) {
+                    let code_block = prev_token
+                        .content
+                        .trim_start_matches("'''\n")
+                        .trim_end_matches("'''")
+                        .to_string();
+                    contents.push(MarkedString::from_markdown(code_block));
+                    break;
+                } else if prev_token == var_token {
+                    // multi pattern definition / declaration
+                    def_pos.line -= 1;
+                } else {
+                    break;
+                }
+            }
+        }
+        Ok(())
+    }
+
     fn rename(&mut self, msg: &Value) -> ELSResult<()> {
         let params = RenameParams::deserialize(&msg["params"])?;
         Self::send_log(format!("rename request: {params:?}"))?;
@@ -681,7 +716,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         if let Some(tok) = util::get_token(uri.clone(), pos)? {
             // Self::send_log(format!("token: {tok}"))?;
             if let Some(visitor) = self.get_visitor(&uri) {
-                if let Some(vi) = visitor.visit_hir_info(&tok) {
+                if let Some(vi) = visitor.get_info(&tok) {
                     // Self::send_log(format!("vi: {vi}"))?;
                     let is_std = vi
                         .def_loc
@@ -804,7 +839,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         if let Some(tok) = util::get_token(uri.clone(), pos)? {
             // Self::send_log(format!("token: {tok}"))?;
             if let Some(visitor) = self.get_visitor(&uri) {
-                if let Some(vi) = visitor.visit_hir_info(&tok) {
+                if let Some(vi) = visitor.get_info(&tok) {
                     let mut refs = vec![];
                     if let Some(referrers) = self.get_index().get_refs(&vi.def_loc) {
                         // Self::send_log(format!("referrers: {referrers:?}"))?;

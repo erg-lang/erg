@@ -319,7 +319,7 @@ impl ASTLowerer {
 }
 
 impl ASTLowerer {
-    fn lower_literal(&self, lit: ast::Literal) -> LowerResult<hir::Literal> {
+    pub(crate) fn lower_literal(&self, lit: ast::Literal) -> LowerResult<hir::Literal> {
         let loc = lit.loc();
         let lit = hir::Literal::try_from(lit.token).map_err(|_| {
             LowerError::invalid_literal(
