@@ -1376,24 +1376,17 @@ impl Iterator for Lexer /*<'a>*/ {
                             None,
                         )))
                     }
-                    (Some(c), None) => {
-                        if c == '"' {
-                            self.consume(); // consume second '"'
-                            let token = self.emit_token(StrLit, "\"\"");
-                            Some(Ok(token))
-                        } else {
-                            Some(self.lex_single_str())
-                        }
+                    (Some('"'), Some('"')) => {
+                        self.consume(); // consume second '"'
+                        self.consume(); // consume third '"'
+                        Some(self.lex_multi_line_str(Quote::Double))
                     }
-                    (Some(c), Some(next_c)) => {
-                        if c == '"' && next_c == '"' {
-                            self.consume(); // consume second '"'
-                            self.consume(); // consume third '"'
-                            Some(self.lex_multi_line_str(Quote::Double))
-                        } else {
-                            Some(self.lex_single_str())
-                        }
+                    (Some('"'), None) => {
+                        self.consume(); // consume second '"'
+                        let token = self.emit_token(StrLit, "\"\"");
+                        Some(Ok(token))
                     }
+                    _ => Some(self.lex_single_str()),
                 }
             }
             Some('\'') => {
@@ -1414,16 +1407,17 @@ impl Iterator for Lexer /*<'a>*/ {
                             None,
                         )))
                     }
-                    (Some('\''), Some('\'')) => Some(self.lex_multi_line_str(Quote::Single)),
-                    (Some(c), _) => {
-                        if c == '\'' {
-                            self.consume(); // consume second '\''
-                            let token = self.emit_token(Illegal, "''");
-                            Some(Err(LexError::simple_syntax_error(0, token.loc())))
-                        } else {
-                            Some(self.lex_raw_ident())
-                        }
+                    (Some('\''), Some('\'')) => {
+                        self.consume(); // consume second '
+                        self.consume(); // consume third '
+                        Some(self.lex_multi_line_str(Quote::Single))
                     }
+                    (Some('\''), _) => {
+                        self.consume(); // consume second '\''
+                        let token = self.emit_token(Illegal, "''");
+                        Some(Err(LexError::simple_syntax_error(0, token.loc())))
+                    }
+                    _ => Some(self.lex_raw_ident()),
                 }
             }
             // Symbolized operators (シンボル化された演算子)
