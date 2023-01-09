@@ -107,7 +107,6 @@ fn expect_failure(file_path: &'static str, errs_len: usize) -> Result<(), ()> {
     match parse_test_from_code(file_path) {
         Ok(_) => Err(()),
         Err(errs) => {
-            errs.fmt_all_stderr();
             if errs.len() == errs_len {
                 Ok(())
             } else {
