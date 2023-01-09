@@ -183,7 +183,7 @@ impl Parser {
 
     #[inline]
     fn restore(&mut self, token: Token) {
-        self.tokens.insert(0, token);
+        self.tokens.push_front(token);
     }
 
     pub(crate) fn stack_dec(&mut self) {
