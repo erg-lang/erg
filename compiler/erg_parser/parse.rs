@@ -71,6 +71,30 @@ pub enum BraceContainer {
 
 impl_locational_for_enum!(BraceContainer; Set, Dict, Record);
 
+pub enum ArgsStyle {
+    SingleCommaWithParen,
+    SingleCommaNoParen,
+    MultiComma, // with parentheses
+    Colon,      // with no parentheses
+}
+
+impl ArgsStyle {
+    pub const fn needs_parens(&self) -> bool {
+        match self {
+            Self::SingleCommaWithParen | Self::MultiComma => true,
+            Self::SingleCommaNoParen | Self::Colon => false,
+        }
+    }
+
+    pub const fn is_colon(&self) -> bool {
+        matches!(self, Self::Colon)
+    }
+
+    pub const fn is_multi_comma(&self) -> bool {
+        matches!(self, Self::MultiComma)
+    }
+}
+
 /// Perform recursive descent parsing.
 ///
 /// `level` is raised by 1 by `debug_call_info!` in each analysis method and lowered by 1 when leaving (`.map_err` is called to lower the level).
@@ -624,6 +648,11 @@ impl Parser {
         if self.cur_is(LParen) {
             lp = Some(self.lpop());
         }
+        let mut style = if lp.is_some() {
+            ArgsStyle::SingleCommaWithParen
+        } else {
+            ArgsStyle::SingleCommaNoParen
+        };
         match self.peek_kind() {
             Some(RParen) => {
                 rp = Some(self.lpop());
@@ -634,11 +663,12 @@ impl Parser {
                 self.level -= 1;
                 return Ok(Args::new(vec![], vec![], None));
             }
-            Some(Newline) => {
+            Some(Newline) if style.needs_parens() => {
                 self.skip();
                 if self.cur_is(Indent) {
                     self.skip();
                 }
+                style = ArgsStyle::MultiComma;
             }
             _ => {}
         }
@@ -649,10 +679,9 @@ impl Parser {
             PosOrKwArg::Pos(arg) => Args::new(vec![arg], vec![], None),
             PosOrKwArg::Kw(arg) => Args::new(vec![], vec![arg], None),
         };
-        let mut colon_style = false;
         loop {
             match self.peek_kind() {
-                Some(Colon) if colon_style => {
+                Some(Colon) if style.is_colon() || lp.is_some() => {
                     self.skip();
                     self.level -= 1;
                     let err = self.skip_and_throw_syntax_err(caused_by!());
@@ -661,12 +690,12 @@ impl Parser {
                 }
                 Some(Colon) => {
                     self.skip();
-                    colon_style = true;
+                    style = ArgsStyle::Colon;
                     while self.cur_is(Newline) {
                         self.skip();
                     }
                     if !self.cur_is(Indent) {
-                        let err = self.skip_and_throw_syntax_err("try_reduce_block");
+                        let err = self.skip_and_throw_syntax_err(caused_by!());
                         self.level -= 1;
                         self.errs.push(err);
                         return Err(());
@@ -675,11 +704,25 @@ impl Parser {
                 }
                 Some(Comma) => {
                     self.skip();
-                    if colon_style || self.cur_is(Comma) {
+                    if style.is_colon() || self.cur_is(Comma) {
                         self.level -= 1;
                         let err = self.skip_and_throw_syntax_err(caused_by!());
                         self.errs.push(err);
                         return Err(());
+                    }
+                    if style.is_multi_comma() {
+                        while self.cur_is(Newline) {
+                            self.skip();
+                        }
+                        if self.cur_is(Dedent) {
+                            self.skip();
+                        }
+                    }
+                    if style.needs_parens() && self.cur_is(RParen) {
+                        let rp = self.lpop();
+                        let (pos_args, kw_args, _) = args.deconstruct();
+                        args = Args::new(pos_args, kw_args, Some((lp.unwrap(), rp)));
+                        break;
                     }
                     if !args.kw_is_empty() {
                         args.push_kw(
@@ -713,7 +756,22 @@ impl Parser {
                     break;
                 }
                 Some(Newline) => {
-                    if !colon_style {
+                    if !style.is_colon() {
+                        if style.is_multi_comma() {
+                            self.skip();
+                            while self.cur_is(Dedent) {
+                                self.skip();
+                            }
+                            let rp = self.lpop();
+                            if !rp.is(RParen) {
+                                let err = self.skip_and_throw_syntax_err(caused_by!());
+                                self.errs.push(err);
+                                self.level -= 1;
+                                return Err(());
+                            }
+                            let (pos_args, kw_args, _) = args.deconstruct();
+                            args = Args::new(pos_args, kw_args, Some((lp.unwrap(), rp)));
+                        }
                         break;
                     }
                     let last = self.lpop();
@@ -723,7 +781,11 @@ impl Parser {
                         break;
                     }
                 }
-                Some(_) if colon_style => {
+                Some(Dedent) if style.is_colon() => {
+                    self.skip();
+                    break;
+                }
+                Some(_) if style.is_colon() => {
                     if !args.kw_is_empty() {
                         args.push_kw(
                             self.try_reduce_kw_arg(in_type_args)
