@@ -27,6 +27,7 @@ impl Context {
     // occur(X -> ?T, ?T) ==> Error
     // occur(?T, ?T -> X) ==> Error
     // occur(?T, Option(?T)) ==> Error
+    // occur(?T, ?T.Output) ==> Error
     fn occur(&self, maybe_sub: &Type, maybe_sup: &Type, loc: Location) -> TyCheckResult<()> {
         match (maybe_sub, maybe_sup) {
             (Type::FreeVar(sub), Type::FreeVar(sup)) => {
@@ -90,6 +91,30 @@ impl Context {
                     }
                 }) {
                     self.occur(maybe_sub, param, loc)?;
+                }
+                Ok(())
+            }
+            (Type::Proj { lhs, .. }, rhs) => self.occur(lhs, rhs, loc),
+            (Type::ProjCall { lhs, args, .. }, rhs) => {
+                if let TyParam::Type(t) = lhs.as_ref() {
+                    self.occur(t, rhs, loc)?;
+                }
+                for arg in args.iter() {
+                    if let TyParam::Type(t) = arg {
+                        self.occur(t, rhs, loc)?;
+                    }
+                }
+                Ok(())
+            }
+            (lhs, Type::Proj { lhs: rhs, .. }) => self.occur(lhs, rhs, loc),
+            (lhs, Type::ProjCall { lhs: rhs, args, .. }) => {
+                if let TyParam::Type(t) = rhs.as_ref() {
+                    self.occur(lhs, t, loc)?;
+                }
+                for arg in args.iter() {
+                    if let TyParam::Type(t) = arg {
+                        self.occur(lhs, t, loc)?;
+                    }
                 }
                 Ok(())
             }
