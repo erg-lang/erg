@@ -642,8 +642,14 @@ impl<Checker: BuildRunnable> Server<Checker> {
                         // display the definition line
                         if vi.kind.is_defined() {
                             code_block += util::get_line_from_path(file_path, line)?.trim_start();
-                            if code_block.ends_with(&['=', '>']) {
-                                code_block += " ...";
+                            match code_block.chars().last() {
+                                Some('=' | '>') => {
+                                    code_block += " ...";
+                                }
+                                Some('(') => {
+                                    code_block += "...) = ...";
+                                }
+                                _ => {}
                             }
                         }
                         let definition = MarkedString::from_language_code(lang.into(), code_block);
@@ -692,7 +698,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 if prev_token.is(TokenKind::DocComment) {
                     let code_block = prev_token
                         .content
-                        .trim_start_matches("'''\n")
+                        .trim_start_matches("'''")
                         .trim_end_matches("'''")
                         .to_string();
                     contents.push(MarkedString::from_markdown(code_block));
