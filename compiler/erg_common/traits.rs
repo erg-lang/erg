@@ -25,13 +25,13 @@ pub trait DequeStream<T>: Sized {
     }
 
     #[inline]
-    fn insert(&mut self, idx: usize, elem: T) {
-        self.ref_mut_payload().insert(idx, elem);
+    fn push(&mut self, elem: T) {
+        self.ref_mut_payload().push_back(elem);
     }
 
     #[inline]
-    fn push(&mut self, elem: T) {
-        self.ref_mut_payload().push_back(elem);
+    fn push_front(&mut self, elem: T) {
+        self.ref_mut_payload().push_front(elem);
     }
 
     fn pop_front(&mut self) -> Option<T> {
