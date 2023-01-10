@@ -868,14 +868,6 @@ impl Context {
             }
             (Refinement(l), Refinement(r)) => Type::Refinement(self.union_refinement(l, r)),
             (t, Type::Never) | (Type::Never, t) => t.clone(),
-            // ?T or {"b"} cannot be {I: (?T or Str) | I == "b"} because ?T may be {"a"} etc.
-            // (if so, {I: ?T or Str | I == "b"} == {I: {"a"} or Str | I == "b"} == {I: Str | I == "b"})
-            (other, Refinement(refine)) | (Refinement(refine), other)
-                if !other.is_unbound_var() =>
-            {
-                let other = other.clone().into_refinement();
-                Type::Refinement(self.union_refinement(&other, refine))
-            }
             // Array({1, 2}, 2), Array({3, 4}, 2) ==> Array({1, 2, 3, 4}, 2)
             (
                 Type::Poly {
