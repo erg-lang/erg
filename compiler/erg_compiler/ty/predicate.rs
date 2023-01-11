@@ -33,7 +33,7 @@ pub enum Predicate {
     },
     Or(Box<Predicate>, Box<Predicate>),
     And(Box<Predicate>, Box<Predicate>),
-    Not(Box<Predicate>, Box<Predicate>),
+    Not(Box<Predicate>),
 }
 
 impl fmt::Display for Predicate {
@@ -47,7 +47,7 @@ impl fmt::Display for Predicate {
             Self::NotEqual { lhs, rhs } => write!(f, "{lhs} != {rhs}"),
             Self::Or(l, r) => write!(f, "({l}) or ({r})"),
             Self::And(l, r) => write!(f, "({l}) and ({r})"),
-            Self::Not(l, r) => write!(f, "({l}) not ({r})"),
+            Self::Not(pred) => write!(f, "not({pred})"),
         }
     }
 }
@@ -60,9 +60,10 @@ impl HasLevel for Predicate {
             | Self::GreaterEqual { rhs, .. }
             | Self::LessEqual { rhs, .. }
             | Self::NotEqual { rhs, .. } => rhs.level(),
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) | Self::Not(lhs, rhs) => {
+            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => {
                 lhs.level().zip(rhs.level()).map(|(a, b)| a.min(b))
             }
+            Self::Not(pred) => pred.level(),
         }
     }
 
@@ -75,9 +76,12 @@ impl HasLevel for Predicate {
             | Self::NotEqual { rhs, .. } => {
                 rhs.set_level(level);
             }
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) | Self::Not(lhs, rhs) => {
+            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => {
                 lhs.set_level(level);
                 rhs.set_level(level);
+            }
+            Self::Not(pred) => {
+                pred.set_level(level);
             }
         }
     }
@@ -94,9 +98,20 @@ impl Predicate {
     pub const fn ge(lhs: Str, rhs: TyParam) -> Self {
         Self::GreaterEqual { lhs, rhs }
     }
+
+    /// > (>= and !=)
+    pub fn gt(lhs: Str, rhs: TyParam) -> Self {
+        Self::and(Self::ge(lhs.clone(), rhs.clone()), Self::ne(lhs, rhs))
+    }
+
     /// <=
     pub const fn le(lhs: Str, rhs: TyParam) -> Self {
         Self::LessEqual { lhs, rhs }
+    }
+
+    // < (<= and !=)
+    pub fn lt(lhs: Str, rhs: TyParam) -> Self {
+        Self::and(Self::le(lhs.clone(), rhs.clone()), Self::ne(lhs, rhs))
     }
 
     pub fn and(lhs: Predicate, rhs: Predicate) -> Self {
@@ -107,8 +122,8 @@ impl Predicate {
         Self::Or(Box::new(lhs), Box::new(rhs))
     }
 
-    pub fn not(lhs: Predicate, rhs: Predicate) -> Self {
-        Self::Not(Box::new(lhs), Box::new(rhs))
+    pub fn not(pred: Predicate) -> Self {
+        Self::Not(Box::new(pred))
     }
 
     pub fn is_equal(&self) -> bool {
@@ -121,7 +136,7 @@ impl Predicate {
             | Self::LessEqual { lhs, .. }
             | Self::GreaterEqual { lhs, .. }
             | Self::NotEqual { lhs, .. } => Some(&lhs[..]),
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) | Self::Not(lhs, rhs) => {
+            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => {
                 let l = lhs.subject();
                 let r = rhs.subject();
                 if l != r {
@@ -130,6 +145,7 @@ impl Predicate {
                     l
                 }
             }
+            Self::Not(pred) => pred.subject(),
             _ => None,
         }
     }
@@ -148,10 +164,7 @@ impl Predicate {
                 lhs.change_subject_name(name.clone()),
                 rhs.change_subject_name(name),
             ),
-            Self::Not(lhs, rhs) => Self::not(
-                lhs.change_subject_name(name.clone()),
-                rhs.change_subject_name(name),
-            ),
+            Self::Not(pred) => Self::not(pred.change_subject_name(name.clone())),
             _ => self,
         }
     }
@@ -163,9 +176,8 @@ impl Predicate {
             | Self::LessEqual { lhs, .. }
             | Self::GreaterEqual { lhs, .. }
             | Self::NotEqual { lhs, .. } => &lhs[..] == name,
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) | Self::Not(lhs, rhs) => {
-                lhs.mentions(name) || rhs.mentions(name)
-            }
+            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => lhs.mentions(name) || rhs.mentions(name),
+            Self::Not(pred) => pred.mentions(name),
             _ => false,
         }
     }
@@ -176,7 +188,7 @@ impl Predicate {
             Self::Const(_) => todo!(),
             Self::Or(lhs, rhs) => lhs.can_be_false() || rhs.can_be_false(),
             Self::And(lhs, rhs) => lhs.can_be_false() && rhs.can_be_false(),
-            Self::Not(lhs, rhs) => lhs.can_be_false() && !rhs.can_be_false(),
+            Self::Not(pred) => !pred.can_be_false(),
             _ => true,
         }
     }
@@ -188,9 +200,8 @@ impl Predicate {
             | Self::GreaterEqual { rhs, .. }
             | Self::LessEqual { rhs, .. }
             | Self::NotEqual { rhs, .. } => rhs.qvars(),
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) | Self::Not(lhs, rhs) => {
-                lhs.qvars().concat(rhs.qvars())
-            }
+            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => lhs.qvars().concat(rhs.qvars()),
+            Self::Not(pred) => pred.qvars(),
         }
     }
 
@@ -202,9 +213,8 @@ impl Predicate {
             | Self::GreaterEqual { rhs, .. }
             | Self::LessEqual { rhs, .. }
             | Self::NotEqual { rhs, .. } => rhs.has_qvar(),
-            Self::Or(lhs, rhs) | Self::And(lhs, rhs) | Self::Not(lhs, rhs) => {
-                lhs.has_qvar() || rhs.has_qvar()
-            }
+            Self::Or(lhs, rhs) | Self::And(lhs, rhs) => lhs.has_qvar() || rhs.has_qvar(),
+            Self::Not(pred) => pred.has_qvar(),
         }
     }
 
@@ -216,9 +226,10 @@ impl Predicate {
             | Self::GreaterEqual { rhs, .. }
             | Self::LessEqual { rhs, .. }
             | Self::NotEqual { rhs, .. } => rhs.has_unbound_var(),
-            Self::Or(lhs, rhs) | Self::And(lhs, rhs) | Self::Not(lhs, rhs) => {
+            Self::Or(lhs, rhs) | Self::And(lhs, rhs) => {
                 lhs.has_unbound_var() || rhs.has_unbound_var()
             }
+            Self::Not(pred) => pred.has_unbound_var(),
         }
     }
 
@@ -261,9 +272,10 @@ impl Predicate {
             | Self::GreaterEqual { rhs, .. }
             | Self::LessEqual { rhs, .. }
             | Self::NotEqual { rhs, .. } => vec![rhs],
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) | Self::Not(lhs, rhs) => {
+            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => {
                 lhs.typarams().into_iter().chain(rhs.typarams()).collect()
             }
+            Self::Not(pred) => pred.typarams(),
         }
     }
 
@@ -274,11 +286,24 @@ impl Predicate {
             | Self::GreaterEqual { rhs, .. }
             | Self::LessEqual { rhs, .. }
             | Self::NotEqual { rhs, .. } => vec![rhs],
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) | Self::Not(lhs, rhs) => lhs
+            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => lhs
                 .typarams_mut()
                 .into_iter()
                 .chain(rhs.typarams_mut())
                 .collect(),
+            Self::Not(pred) => pred.typarams_mut(),
+        }
+    }
+
+    pub fn invert(self) -> Self {
+        match self {
+            Self::Value(ValueObj::Bool(b)) => Self::Value(ValueObj::Bool(!b)),
+            Self::Equal { lhs, rhs } => Self::ne(lhs, rhs),
+            Self::GreaterEqual { lhs, rhs } => Self::lt(lhs, rhs),
+            Self::LessEqual { lhs, rhs } => Self::gt(lhs, rhs),
+            Self::NotEqual { lhs, rhs } => Self::eq(lhs, rhs),
+            Self::Not(pred) => *pred,
+            other => Self::not(other),
         }
     }
 }

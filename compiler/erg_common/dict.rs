@@ -211,4 +211,12 @@ impl<K: Hash + Eq, V> Dict<K, V> {
         self.merge(other);
         self
     }
+
+    #[inline]
+    pub fn diff(mut self, other: Self) -> Self {
+        for (k, _) in other.dict {
+            self.dict.remove(&k);
+        }
+        self
+    }
 }

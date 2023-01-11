@@ -787,10 +787,13 @@ impl Context {
                     not_found_is_qvar,
                 )?,
             )),
-            TypeSpec::Not(lhs, rhs) => Ok(not(
-                self.instantiate_typespec(lhs, opt_decl_t, tmp_tv_cache, mode, not_found_is_qvar)?,
-                self.instantiate_typespec(rhs, opt_decl_t, tmp_tv_cache, mode, not_found_is_qvar)?,
-            )),
+            TypeSpec::Not(ty) => Ok(self.complement(&self.instantiate_typespec(
+                ty,
+                opt_decl_t,
+                tmp_tv_cache,
+                mode,
+                not_found_is_qvar,
+            )?)),
             TypeSpec::Array(arr) => {
                 let elem_t = self.instantiate_typespec(
                     &arr.ty,
@@ -1333,10 +1336,9 @@ impl Context {
                 let r = self.instantiate_t_inner(*r, tmp_tv_cache, loc)?;
                 Ok(self.union(&l, &r))
             }
-            Not(l, r) => {
-                let l = self.instantiate_t_inner(*l, tmp_tv_cache, loc)?;
-                let r = self.instantiate_t_inner(*r, tmp_tv_cache, loc)?;
-                Ok(not(l, r))
+            Not(ty) => {
+                let ty = self.instantiate_t_inner(*ty, tmp_tv_cache, loc)?;
+                Ok(self.complement(&ty))
             }
             other if other.is_monomorphic() => Ok(other),
             other => type_feature_error!(self, loc, &format!("instantiating type {other}")),

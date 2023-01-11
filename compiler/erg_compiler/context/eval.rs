@@ -18,10 +18,9 @@ use erg_parser::ast::Set as AstSet;
 use erg_parser::ast::*;
 use erg_parser::token::{Token, TokenKind};
 
-use crate::ty::constructors::dict_t;
-use crate::ty::constructors::proj_call;
 use crate::ty::constructors::{
-    array_t, mono, not, poly, proj, ref_, ref_mut, refinement, subr_t, tuple_t, v_enum,
+    array_t, dict_t, mono, poly, proj, proj_call, ref_, ref_mut, refinement, subr_t, tuple_t,
+    v_enum,
 };
 use crate::ty::free::{Constraint, HasLevel};
 use crate::ty::typaram::{OpKind, TyParam};
@@ -82,6 +81,7 @@ fn op_to_name(op: OpKind) -> &'static str {
         OpKind::Ge => "__ge__",
         OpKind::And => "__and__",
         OpKind::Or => "__or__",
+        OpKind::Not => "__not__",
         OpKind::Invert => "__invert__",
         OpKind::BitAnd => "__bitand__",
         OpKind::BitOr => "__bitor__",
@@ -707,6 +707,14 @@ impl Context {
         }
     }
 
+    fn eval_not_type(&self, ty: TypeObj) -> ValueObj {
+        match ty {
+            TypeObj::Builtin(l) => ValueObj::builtin_t(self.complement(&l)),
+            // FIXME:
+            _ => ValueObj::Illegal,
+        }
+    }
+
     pub(crate) fn eval_bin_tp(
         &self,
         op: OpKind,
@@ -766,6 +774,15 @@ impl Context {
                 fn_name!(),
                 line!(),
             ))),
+            Not => match val {
+                ValueObj::Bool(b) => Ok(ValueObj::Bool(!b)),
+                ValueObj::Type(lhs) => Ok(self.eval_not_type(lhs)),
+                _ => Err(EvalErrors::from(EvalError::unreachable(
+                    self.cfg.input.clone(),
+                    fn_name!(),
+                    line!(),
+                ))),
+            },
             Mutate => Ok(ValueObj::Mut(Shared::new(val))),
             _other => unreachable_error!(self),
         }
@@ -916,10 +933,9 @@ impl Context {
                 let r = self.eval_t_params(*r, level, t_loc)?;
                 Ok(self.union(&l, &r))
             }
-            Type::Not(l, r) => {
-                let l = self.eval_t_params(*l, level, t_loc)?;
-                let r = self.eval_t_params(*r, level, t_loc)?;
-                Ok(not(l, r))
+            Type::Not(ty) => {
+                let ty = self.eval_t_params(*ty, level, t_loc)?;
+                Ok(self.complement(&ty))
             }
             other if other.is_monomorphic() => Ok(other),
             _other => feature_error!(self, t_loc, "???"),
@@ -1406,7 +1422,7 @@ impl Context {
             Predicate::GreaterEqual { lhs, rhs } => Ok(Predicate::ge(lhs, self.eval_tp(rhs)?)),
             Predicate::And(l, r) => Ok(Predicate::and(self.eval_pred(*l)?, self.eval_pred(*r)?)),
             Predicate::Or(l, r) => Ok(Predicate::or(self.eval_pred(*l)?, self.eval_pred(*r)?)),
-            Predicate::Not(l, r) => Ok(Predicate::not(self.eval_pred(*l)?, self.eval_pred(*r)?)),
+            Predicate::Not(pred) => Ok(Predicate::not(self.eval_pred(*pred)?)),
         }
     }
 

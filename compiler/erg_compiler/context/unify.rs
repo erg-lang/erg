@@ -349,9 +349,7 @@ impl Context {
             | (Pred::NotEqual { rhs, .. }, Pred::NotEqual { rhs: rhs2, .. }) => {
                 self.sub_unify_tp(rhs, rhs2, None, loc, false)
             }
-            (Pred::And(l1, r1), Pred::And(l2, r2))
-            | (Pred::Or(l1, r1), Pred::Or(l2, r2))
-            | (Pred::Not(l1, r1), Pred::Not(l2, r2)) => {
+            (Pred::And(l1, r1), Pred::And(l2, r2)) | (Pred::Or(l1, r1), Pred::Or(l2, r2)) => {
                 match (
                     self.sub_unify_pred(l1, l2, loc),
                     self.sub_unify_pred(r1, r2, loc),
@@ -360,6 +358,7 @@ impl Context {
                     (Ok(()), Err(e)) | (Err(e), Ok(())) | (Err(e), Err(_)) => Err(e),
                 }
             }
+            (Pred::Not(l), Pred::Not(r)) => self.sub_unify_pred(r, l, loc),
             // unify({I >= 0}, {I >= ?M and I <= ?N}): ?M => 0, ?N => Inf
             (Pred::GreaterEqual { rhs, .. }, Pred::And(l, r))
             | (Predicate::And(l, r), Pred::GreaterEqual { rhs, .. }) => {

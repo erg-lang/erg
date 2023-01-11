@@ -2054,7 +2054,7 @@ pub enum TypeSpec {
     Record(Vec<(Identifier, TypeSpec)>),
     // Option(),
     And(Box<TypeSpec>, Box<TypeSpec>),
-    Not(Box<TypeSpec>, Box<TypeSpec>),
+    Not(Box<TypeSpec>),
     Or(Box<TypeSpec>, Box<TypeSpec>),
     Enum(ConstArgs),
     Interval {
@@ -2076,7 +2076,7 @@ impl fmt::Display for TypeSpec {
             Self::Infer(_) => write!(f, "?"),
             Self::PreDeclTy(ty) => write!(f, "{ty}"),
             Self::And(lhs, rhs) => write!(f, "{lhs} and {rhs}"),
-            Self::Not(lhs, rhs) => write!(f, "{lhs} not {rhs}"),
+            Self::Not(ty) => write!(f, "not {ty}"),
             Self::Or(lhs, rhs) => write!(f, "{lhs} or {rhs}"),
             Self::Array(arr) => write!(f, "{arr}"),
             Self::SetWithLen(set) => write!(f, "{set}"),
@@ -2114,9 +2114,10 @@ impl Locational for TypeSpec {
         match self {
             Self::Infer(t) => t.loc(),
             Self::PreDeclTy(sig) => sig.loc(),
-            Self::And(lhs, rhs) | Self::Not(lhs, rhs) | Self::Or(lhs, rhs) => {
+            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => {
                 Location::concat(lhs.as_ref(), rhs.as_ref())
             }
+            Self::Not(ty) => ty.loc(),
             Self::Array(arr) => arr.loc(),
             Self::SetWithLen(set) => set.loc(),
             Self::Tuple(tup) => tup.loc(),
@@ -2135,8 +2136,8 @@ impl TypeSpec {
         Self::And(Box::new(lhs), Box::new(rhs))
     }
 
-    pub fn not(lhs: TypeSpec, rhs: TypeSpec) -> Self {
-        Self::Not(Box::new(lhs), Box::new(rhs))
+    pub fn not(lhs: TypeSpec) -> Self {
+        Self::Not(Box::new(lhs))
     }
 
     pub fn or(lhs: TypeSpec, rhs: TypeSpec) -> Self {
