@@ -2136,6 +2136,7 @@ impl TypeSpec {
         Self::And(Box::new(lhs), Box::new(rhs))
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn not(lhs: TypeSpec) -> Self {
         Self::Not(Box::new(lhs))
     }

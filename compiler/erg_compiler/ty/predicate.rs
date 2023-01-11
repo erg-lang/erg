@@ -122,6 +122,7 @@ impl Predicate {
         Self::Or(Box::new(lhs), Box::new(rhs))
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn not(pred: Predicate) -> Self {
         Self::Not(Box::new(pred))
     }
@@ -164,7 +165,7 @@ impl Predicate {
                 lhs.change_subject_name(name.clone()),
                 rhs.change_subject_name(name),
             ),
-            Self::Not(pred) => Self::not(pred.change_subject_name(name.clone())),
+            Self::Not(pred) => Self::not(pred.change_subject_name(name)),
             _ => self,
         }
     }

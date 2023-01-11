@@ -967,6 +967,7 @@ impl Context {
     }
 
     /// returns complement (not A)
+    #[allow(clippy::only_used_in_recursion)]
     pub(crate) fn complement(&self, ty: &Type) -> Type {
         match ty {
             FreeVar(fv) if fv.is_linked() => self.complement(&fv.crack()),
