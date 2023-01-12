@@ -1,5 +1,11 @@
+mod completion;
+mod definition;
+mod diagnostics;
 mod hir_visitor;
+mod hover;
 mod message;
+mod references;
+mod rename;
 mod server;
 mod util;
 pub use server::*;
