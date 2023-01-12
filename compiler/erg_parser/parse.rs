@@ -35,7 +35,21 @@ macro_rules! debug_call_info {
         log!(
             c GREEN,
             "\n{} ({}) entered {}, cur: {}",
-            " ".repeat($self.level),
+            "･".repeat(($self.level as f32 / 4.0).floor() as usize),
+            $self.level,
+            fn_name!(),
+            $self.peek().unwrap()
+        );
+    };
+}
+
+macro_rules! debug_exit_info {
+    ($self: ident) => {
+        $self.level -= 1;
+        log!(
+            c GREEN,
+            "\n{} ({}) exit {}, cur: {}",
+            "･".repeat(($self.level as f32 / 4.0).floor() as usize),
             $self.level,
             fn_name!(),
             $self.peek().unwrap()
@@ -210,8 +224,16 @@ impl Parser {
         self.tokens.push_front(token);
     }
 
-    pub(crate) fn stack_dec(&mut self) {
+    pub(crate) fn stack_dec(&mut self, fn_name: &str) {
         self.level -= 1;
+        log!(
+            c GREEN,
+            "\n{} ({}) exit {}, cur: {}",
+            "･".repeat((self.level as f32 / 4.0).floor() as usize),
+            self.level,
+            fn_name,
+            self.peek().unwrap()
+        );
     }
 }
 
