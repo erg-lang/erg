@@ -221,13 +221,13 @@ impl Context {
         self.register_builtin_py_impl("any", t_any, Immutable, vis, Some("any"));
         self.register_builtin_py_impl("ascii", t_ascii, Immutable, vis, Some("ascii"));
         // Leave as `Const`, as it may negatively affect assert casting.
-        self.register_builtin_impl("assert", t_assert, Const, vis);
+        self.register_builtin_erg_impl("assert", t_assert, Const, vis);
         self.register_builtin_py_impl("bin", t_bin, Immutable, vis, Some("bin"));
         self.register_builtin_py_impl("bytes", t_bytes, Immutable, vis, Some("bytes"));
         self.register_builtin_py_impl("chr", t_chr, Immutable, vis, Some("chr"));
         self.register_builtin_py_impl("classof", t_classof, Immutable, vis, Some("type"));
         self.register_builtin_py_impl("compile", t_compile, Immutable, vis, Some("compile"));
-        self.register_builtin_impl("cond", t_cond, Immutable, vis);
+        self.register_builtin_erg_impl("cond", t_cond, Immutable, vis);
         self.register_builtin_py_impl("enumerate", t_enumerate, Immutable, vis, Some("enumerate"));
         self.register_builtin_py_impl("exit", t_exit, Immutable, vis, Some("exit"));
         self.register_builtin_py_impl(
@@ -391,7 +391,7 @@ impl Context {
         self.register_builtin_const("Inheritable", vis, ValueObj::Subr(inheritable));
         // TODO: register Del function object
         let t_del = nd_func(vec![kw("obj", Obj)], None, NoneType);
-        self.register_builtin_impl("Del", t_del, Immutable, vis);
+        self.register_builtin_erg_impl("Del", t_del, Immutable, vis);
         let patch_t = func(
             vec![kw("Requirement", Type)],
             None,
@@ -413,64 +413,64 @@ impl Context {
             proj(L, "Output"),
         )
         .quantify();
-        self.register_builtin_impl("__add__", op_t, Const, Private);
+        self.register_builtin_erg_impl("__add__", op_t, Const, Private);
         let L = mono_q("L", subtypeof(poly("Sub", params.clone())));
         let op_t = bin_op(L.clone(), R.clone(), proj(L, "Output")).quantify();
-        self.register_builtin_impl("__sub__", op_t, Const, Private);
+        self.register_builtin_erg_impl("__sub__", op_t, Const, Private);
         let L = mono_q("L", subtypeof(poly("Mul", params.clone())));
         let op_t = bin_op(L.clone(), R.clone(), proj(L, "Output")).quantify();
-        self.register_builtin_impl("__mul__", op_t, Const, Private);
+        self.register_builtin_erg_impl("__mul__", op_t, Const, Private);
         let L = mono_q("L", subtypeof(poly("Div", params.clone())));
         let op_t = bin_op(L.clone(), R.clone(), proj(L, "Output")).quantify();
-        self.register_builtin_impl("__div__", op_t, Const, Private);
+        self.register_builtin_erg_impl("__div__", op_t, Const, Private);
         let L = mono_q("L", subtypeof(poly("FloorDiv", params)));
         let op_t = bin_op(L.clone(), R, proj(L, "Output")).quantify();
-        self.register_builtin_impl("__floordiv__", op_t, Const, Private);
+        self.register_builtin_erg_impl("__floordiv__", op_t, Const, Private);
         let P = mono_q("P", Constraint::Uninited);
         let P = mono_q("P", subtypeof(poly("Mul", vec![ty_tp(P)])));
         let op_t = bin_op(P.clone(), P.clone(), proj(P, "PowOutput")).quantify();
         // TODO: add bound: M == M.Output
-        self.register_builtin_impl("__pow__", op_t, Const, Private);
+        self.register_builtin_erg_impl("__pow__", op_t, Const, Private);
         let M = mono_q("M", Constraint::Uninited);
         let M = mono_q("M", subtypeof(poly("Div", vec![ty_tp(M)])));
         let op_t = bin_op(M.clone(), M.clone(), proj(M, "ModOutput")).quantify();
-        self.register_builtin_impl("__mod__", op_t, Const, Private);
+        self.register_builtin_erg_impl("__mod__", op_t, Const, Private);
         let op_t = nd_proc(vec![kw("lhs", Obj), kw("rhs", Obj)], None, Bool);
-        self.register_builtin_impl("__is__!", op_t.clone(), Const, Private);
-        self.register_builtin_impl("__isnot__!", op_t, Const, Private);
+        self.register_builtin_erg_impl("__is__!", op_t.clone(), Const, Private);
+        self.register_builtin_erg_impl("__isnot__!", op_t, Const, Private);
         let E = mono_q("E", subtypeof(mono("Eq")));
         let op_t = bin_op(E.clone(), E, Bool).quantify();
-        self.register_builtin_impl("__eq__", op_t.clone(), Const, Private);
-        self.register_builtin_impl("__ne__", op_t, Const, Private);
+        self.register_builtin_erg_impl("__eq__", op_t.clone(), Const, Private);
+        self.register_builtin_erg_impl("__ne__", op_t, Const, Private);
         let O = mono_q("O", subtypeof(mono("Ord")));
         let op_t = bin_op(O.clone(), O.clone(), Bool).quantify();
-        self.register_builtin_impl("__lt__", op_t.clone(), Const, Private);
-        self.register_builtin_impl("__le__", op_t.clone(), Const, Private);
-        self.register_builtin_impl("__gt__", op_t.clone(), Const, Private);
-        self.register_builtin_impl("__ge__", op_t, Const, Private);
+        self.register_builtin_erg_impl("__lt__", op_t.clone(), Const, Private);
+        self.register_builtin_erg_impl("__le__", op_t.clone(), Const, Private);
+        self.register_builtin_erg_impl("__gt__", op_t.clone(), Const, Private);
+        self.register_builtin_erg_impl("__ge__", op_t, Const, Private);
         let BT = mono_q("BT", subtypeof(or(Bool, Type)));
         let op_t = bin_op(BT.clone(), BT.clone(), BT).quantify();
-        self.register_builtin_impl("__and__", op_t.clone(), Const, Private);
-        self.register_builtin_impl("__or__", op_t, Const, Private);
+        self.register_builtin_erg_impl("__and__", op_t.clone(), Const, Private);
+        self.register_builtin_erg_impl("__or__", op_t, Const, Private);
         let op_t = bin_op(O.clone(), O.clone(), range(O)).quantify();
-        self.register_builtin_decl("__rng__", op_t.clone(), Private);
-        self.register_builtin_decl("__lorng__", op_t.clone(), Private);
-        self.register_builtin_decl("__rorng__", op_t.clone(), Private);
-        self.register_builtin_decl("__orng__", op_t, Private);
+        self.register_builtin_erg_decl("__rng__", op_t.clone(), Private);
+        self.register_builtin_erg_decl("__lorng__", op_t.clone(), Private);
+        self.register_builtin_erg_decl("__rorng__", op_t.clone(), Private);
+        self.register_builtin_erg_decl("__orng__", op_t, Private);
         // TODO: use existential type: |T: Type| (T, In(T)) -> Bool
         let T = mono_q("T", instanceof(Type));
         let I = mono_q("I", subtypeof(poly("In", vec![ty_tp(T.clone())])));
         let op_t = bin_op(I, T, Bool).quantify();
-        self.register_builtin_impl("__in__", op_t.clone(), Const, Private);
-        self.register_builtin_impl("__notin__", op_t, Const, Private);
+        self.register_builtin_erg_impl("__in__", op_t.clone(), Const, Private);
+        self.register_builtin_erg_impl("__notin__", op_t, Const, Private);
         /* unary */
         // TODO: +/- Bool would like to be warned
         let M = mono_q("M", subtypeof(mono("Mutizable")));
         let op_t = func1(M.clone(), proj(M, "MutType!")).quantify();
-        self.register_builtin_impl("__mutate__", op_t, Const, Private);
+        self.register_builtin_erg_impl("__mutate__", op_t, Const, Private);
         let N = mono_q("N", subtypeof(mono(NUM)));
         let op_t = func1(N.clone(), N).quantify();
-        self.register_builtin_decl("__pos__", op_t.clone(), Private);
-        self.register_builtin_decl("__neg__", op_t, Private);
+        self.register_builtin_erg_decl("__pos__", op_t.clone(), Private);
+        self.register_builtin_erg_decl("__neg__", op_t, Private);
     }
 }

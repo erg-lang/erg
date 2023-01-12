@@ -14,6 +14,8 @@ use std::path::PathBuf;
 
 use erg_common::config::ErgConfig;
 use erg_common::dict;
+use erg_common::env::erg_pystd_path;
+use erg_common::error::Location;
 use erg_common::fresh::fresh_varname;
 #[allow(unused_imports)]
 use erg_common::log;
@@ -304,8 +306,18 @@ const KW_ITERABLE: &str = "iterable";
 const KW_INDEX: &str = "index";
 const KW_KEY: &str = "key";
 
+pub fn builtins_path() -> PathBuf {
+    erg_pystd_path().join("builtins.d.er")
+}
+
 impl Context {
-    fn register_builtin_decl(&mut self, name: &'static str, t: Type, vis: Visibility) {
+    fn register_builtin_decl(
+        &mut self,
+        name: &'static str,
+        t: Type,
+        vis: Visibility,
+        py_name: Option<&'static str>,
+    ) {
         if cfg!(feature = "debug") {
             if let Type::Subr(subr) = &t {
                 if subr.has_qvar() {
@@ -329,11 +341,15 @@ impl Context {
                 Builtin,
                 None,
                 impl_of,
-                None,
+                py_name.map(Str::ever),
                 AbsLocation::unknown(),
             );
             self.decls.insert(name, vi);
         }
+    }
+
+    fn register_builtin_erg_decl(&mut self, name: &'static str, t: Type, vis: Visibility) {
+        self.register_builtin_decl(name, t, vis, None);
     }
 
     fn register_builtin_py_decl(
@@ -343,90 +359,17 @@ impl Context {
         vis: Visibility,
         py_name: Option<&'static str>,
     ) {
-        if cfg!(feature = "debug") {
-            if let Type::Subr(subr) = &t {
-                if subr.has_qvar() {
-                    panic!("not quantified subr: {subr}");
-                }
-            }
-        }
-        let impl_of = if let ContextKind::MethodDefs(Some(tr)) = &self.kind {
-            Some(tr.clone())
-        } else {
-            None
-        };
-        let name = if cfg!(feature = "py_compatible") {
-            if let Some(py_name) = py_name {
-                VarName::from_static(py_name)
-            } else {
-                VarName::from_static(name)
-            }
-        } else {
-            VarName::from_static(name)
-        };
-        let vi = VarInfo::new(
-            t,
-            Immutable,
-            vis,
-            Builtin,
-            None,
-            impl_of,
-            py_name.map(Str::ever),
-            AbsLocation::unknown(),
-        );
-        if let Some(_vi) = self.decls.get(&name) {
-            if _vi != &vi {
-                panic!("already registered: {} {name}", self.name);
-            }
-        } else {
-            self.decls.insert(name, vi);
-        }
+        self.register_builtin_decl(name, t, vis, py_name);
     }
 
     fn register_builtin_impl(
         &mut self,
-        name: &'static str,
-        t: Type,
-        muty: Mutability,
-        vis: Visibility,
-    ) {
-        if cfg!(feature = "debug") {
-            if let Type::Subr(subr) = &t {
-                if subr.has_qvar() {
-                    panic!("not quantified subr: {subr}");
-                }
-            }
-        }
-        let impl_of = if let ContextKind::MethodDefs(Some(tr)) = &self.kind {
-            Some(tr.clone())
-        } else {
-            None
-        };
-        let name = VarName::from_static(name);
-        let vi = VarInfo::new(
-            t,
-            muty,
-            vis,
-            Builtin,
-            None,
-            impl_of,
-            None,
-            AbsLocation::unknown(),
-        );
-        if self.locals.get(&name).is_some() {
-            panic!("already registered: {} {name}", self.name);
-        } else {
-            self.locals.insert(name, vi);
-        }
-    }
-
-    fn register_builtin_py_impl(
-        &mut self,
-        name: &'static str,
+        name: VarName,
         t: Type,
         muty: Mutability,
         vis: Visibility,
         py_name: Option<&'static str>,
+        loc: AbsLocation,
     ) {
         if cfg!(feature = "debug") {
             if let Type::Subr(subr) = &t {
@@ -439,15 +382,6 @@ impl Context {
             Some(tr.clone())
         } else {
             None
-        };
-        let name = if cfg!(feature = "py_compatible") {
-            if let Some(py_name) = py_name {
-                VarName::from_static(py_name)
-            } else {
-                VarName::from_static(name)
-            }
-        } else {
-            VarName::from_static(name)
         };
         let vi = VarInfo::new(
             t,
@@ -457,7 +391,7 @@ impl Context {
             None,
             impl_of,
             py_name.map(Str::ever),
-            AbsLocation::unknown(),
+            loc,
         );
         if let Some(_vi) = self.locals.get(&name) {
             if _vi != &vi {
@@ -466,6 +400,65 @@ impl Context {
         } else {
             self.locals.insert(name, vi);
         }
+    }
+
+    fn register_builtin_erg_impl(
+        &mut self,
+        name: &'static str,
+        t: Type,
+        muty: Mutability,
+        vis: Visibility,
+    ) {
+        let name = VarName::from_static(name);
+        self.register_builtin_impl(name, t, muty, vis, None, AbsLocation::unknown());
+    }
+
+    // TODO: replace with `register_builtins`
+    fn register_builtin_py_impl(
+        &mut self,
+        name: &'static str,
+        t: Type,
+        muty: Mutability,
+        vis: Visibility,
+        py_name: Option<&'static str>,
+    ) {
+        let name = if cfg!(feature = "py_compatible") {
+            if let Some(py_name) = py_name {
+                VarName::from_static(py_name)
+            } else {
+                VarName::from_static(name)
+            }
+        } else {
+            VarName::from_static(name)
+        };
+        self.register_builtin_impl(name, t, muty, vis, py_name, AbsLocation::unknown());
+    }
+
+    pub(crate) fn register_py_builtin(
+        &mut self,
+        name: &'static str,
+        t: Type,
+        py_name: Option<&'static str>,
+        lineno: u32,
+    ) {
+        let name = if cfg!(feature = "py_compatible") {
+            if let Some(py_name) = py_name {
+                VarName::from_static(py_name)
+            } else {
+                VarName::from_static(name)
+            }
+        } else {
+            VarName::from_static(name)
+        };
+        let vis = if cfg!(feature = "py_compatible") {
+            Public
+        } else {
+            Private
+        };
+        let muty = Immutable;
+        let loc = Location::range(lineno, 0, lineno, name.inspect().len() as u32);
+        let abs_loc = AbsLocation::new(Some(builtins_path()), loc);
+        self.register_builtin_impl(name, t, muty, vis, py_name, abs_loc);
     }
 
     fn register_builtin_const(&mut self, name: &str, vis: Visibility, obj: ValueObj) {

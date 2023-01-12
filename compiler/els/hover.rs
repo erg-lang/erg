@@ -2,6 +2,7 @@ use serde::Deserialize;
 use serde_json::json;
 use serde_json::Value;
 
+use erg_common::lang::LanguageCode;
 use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::erg_parser::token::{Token, TokenCategory, TokenKind};
 use erg_compiler::varinfo::AbsLocation;
@@ -123,8 +124,19 @@ impl<Checker: BuildRunnable> Server<Checker> {
                         .trim_start_matches("'''")
                         .trim_end_matches("'''")
                         .to_string();
-                    contents.push(MarkedString::from_markdown(code_block));
-                    break;
+                    // TODO: support other languages
+                    let lang = if code_block.starts_with("japanese\n") {
+                        LanguageCode::Japanese
+                    } else {
+                        LanguageCode::English
+                    };
+                    if lang.matches_feature() {
+                        let code_block = code_block.trim_start_matches(lang.as_str()).to_string();
+                        contents.push(MarkedString::from_markdown(code_block));
+                        break;
+                    } else {
+                        def_pos.line -= 1;
+                    }
                 } else if prev_token == var_token {
                     if def_pos.line == 0 {
                         break;

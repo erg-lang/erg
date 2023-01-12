@@ -36,14 +36,14 @@ impl Context {
         let immut_t = proj(Slf.clone(), IMMUT_TYPE);
         let f_t = func(vec![kw(KW_OLD, immut_t.clone())], None, vec![], immut_t);
         let t = pr1_met(ref_mut(Slf, None), f_t, NoneType).quantify();
-        mutable.register_builtin_decl(PROC_UPDATE, t, Public);
+        mutable.register_builtin_erg_decl(PROC_UPDATE, t, Public);
         // REVIEW: Immutatable?
         let mut immutizable = Self::builtin_mono_trait(IMMUTIZABLE, 2);
         immutizable.register_superclass(mono(MUTABLE), &mutable);
-        immutizable.register_builtin_decl(IMMUT_TYPE, Type, Public);
+        immutizable.register_builtin_erg_decl(IMMUT_TYPE, Type, Public);
         // REVIEW: Mutatable?
         let mut mutizable = Self::builtin_mono_trait(MUTIZABLE, 2);
-        mutizable.register_builtin_decl(MUTABLE_MUT_TYPE, Type, Public);
+        mutizable.register_builtin_erg_decl(MUTABLE_MUT_TYPE, Type, Public);
         let pathlike = Self::builtin_mono_trait(PATH_LIKE, 2);
         /* Readable */
         let mut readable = Self::builtin_mono_trait(MUTABLE_READABLE, 2);
@@ -75,7 +75,7 @@ impl Context {
         let I = mono_q(TY_I, subtypeof(poly(IN, vec![ty_tp(T.clone())])));
         in_.register_superclass(poly(INPUT, vec![ty_tp(T.clone())]), &input);
         let op_t = fn1_met(T.clone(), I, Bool).quantify();
-        in_.register_builtin_decl(OP_IN, op_t, Public);
+        in_.register_builtin_erg_decl(OP_IN, op_t, Public);
         /* Eq */
         // Erg does not have a trait equivalent to `PartialEq` in Rust
         // This means, Erg's `Float` cannot be compared with other `Float`
@@ -84,13 +84,13 @@ impl Context {
         let Slf = mono_q(SELF, subtypeof(mono(EQ)));
         // __eq__: |Self <: Eq| (self: Self, other: Self) -> Bool
         let op_t = fn1_met(Slf.clone(), Slf, Bool).quantify();
-        eq.register_builtin_decl(OP_EQ, op_t, Public);
+        eq.register_builtin_erg_decl(OP_EQ, op_t, Public);
         /* Ord */
         let mut ord = Self::builtin_mono_trait(ORD, 2);
         ord.register_superclass(mono(EQ), &eq);
         let Slf = mono_q(SELF, subtypeof(mono(ORD)));
         let op_t = fn1_met(Slf.clone(), Slf, or(mono(ORDERING), NoneType)).quantify();
-        ord.register_builtin_decl(OP_CMP, op_t, Public);
+        ord.register_builtin_erg_decl(OP_CMP, op_t, Public);
         // FIXME: poly trait
         /* Num */
         let num = Self::builtin_mono_trait(NUM, 2);
@@ -104,17 +104,17 @@ impl Context {
         seq.register_superclass(poly(OUTPUT, vec![ty_tp(T.clone())]), &output);
         let Slf = mono_q(SELF, subtypeof(poly(SEQ, vec![TyParam::erased(Type)])));
         let t = fn0_met(Slf.clone(), Nat).quantify();
-        seq.register_builtin_decl(FUNC_LEN, t, Public);
+        seq.register_builtin_erg_decl(FUNC_LEN, t, Public);
         let t = fn1_met(Slf, Nat, T.clone()).quantify();
         // Seq.get: |Self <: Seq(T)| Self.(Nat) -> T
-        seq.register_builtin_decl(FUNC_GET, t, Public);
+        seq.register_builtin_erg_decl(FUNC_GET, t, Public);
         /* Iterable */
         let mut iterable = Self::builtin_poly_trait(ITERABLE, vec![PS::t(TY_T, NonDefault)], 2);
         iterable.register_superclass(poly(OUTPUT, vec![ty_tp(T.clone())]), &output);
         let Slf = mono_q(SELF, subtypeof(poly(ITERABLE, vec![ty_tp(T.clone())])));
         let t = fn0_met(Slf.clone(), proj(Slf, ITER)).quantify();
         iterable.register_builtin_py_decl(FUNC_ITER, t, Public, Some(FUNDAMENTAL_ITER));
-        iterable.register_builtin_decl(ITER, Type, Public);
+        iterable.register_builtin_erg_decl(ITER, Type, Public);
         let R = mono_q(TY_R, instanceof(Type));
         let params = vec![PS::t(TY_R, WithDefault)];
         let ty_params = vec![ty_tp(R.clone())];
@@ -124,36 +124,36 @@ impl Context {
         add.register_superclass(poly(OUTPUT, vec![ty_tp(R.clone())]), &output);
         let Slf = mono_q(SELF, subtypeof(poly(ADD, ty_params.clone())));
         let op_t = fn1_met(Slf.clone(), R.clone(), proj(Slf, OUTPUT)).quantify();
-        add.register_builtin_decl(OP_ADD, op_t, Public);
-        add.register_builtin_decl(OUTPUT, Type, Public);
+        add.register_builtin_erg_decl(OP_ADD, op_t, Public);
+        add.register_builtin_erg_decl(OUTPUT, Type, Public);
         /* Sub */
         let mut sub = Self::builtin_poly_trait(SUB, params.clone(), 2);
         sub.register_superclass(poly(OUTPUT, vec![ty_tp(R.clone())]), &output);
         let Slf = mono_q(SELF, subtypeof(poly(SUB, ty_params.clone())));
         let op_t = fn1_met(Slf.clone(), R.clone(), proj(Slf, OUTPUT)).quantify();
-        sub.register_builtin_decl(OP_SUB, op_t, Public);
-        sub.register_builtin_decl(OUTPUT, Type, Public);
+        sub.register_builtin_erg_decl(OP_SUB, op_t, Public);
+        sub.register_builtin_erg_decl(OUTPUT, Type, Public);
         /* Mul */
         let mut mul = Self::builtin_poly_trait(MUL, params.clone(), 2);
         mul.register_superclass(poly(OUTPUT, vec![ty_tp(R.clone())]), &output);
         let Slf = mono_q(SELF, subtypeof(poly(MUL, ty_params.clone())));
         let op_t = fn1_met(Slf.clone(), R.clone(), proj(Slf, OUTPUT)).quantify();
-        mul.register_builtin_decl(OP_MUL, op_t, Public);
-        mul.register_builtin_decl(OUTPUT, Type, Public);
+        mul.register_builtin_erg_decl(OP_MUL, op_t, Public);
+        mul.register_builtin_erg_decl(OUTPUT, Type, Public);
         /* Div */
         let mut div = Self::builtin_poly_trait(DIV, params.clone(), 2);
         div.register_superclass(poly(OUTPUT, vec![ty_tp(R.clone())]), &output);
         let Slf = mono_q(SELF, subtypeof(poly(DIV, ty_params.clone())));
         let op_t = fn1_met(Slf.clone(), R.clone(), proj(Slf, OUTPUT)).quantify();
-        div.register_builtin_decl(OP_DIV, op_t, Public);
-        div.register_builtin_decl(OUTPUT, Type, Public);
+        div.register_builtin_erg_decl(OP_DIV, op_t, Public);
+        div.register_builtin_erg_decl(OUTPUT, Type, Public);
         /* FloorDiv */
         let mut floor_div = Self::builtin_poly_trait(FLOOR_DIV, params, 2);
         floor_div.register_superclass(poly(OUTPUT, vec![ty_tp(R.clone())]), &output);
         let Slf = mono_q(SELF, subtypeof(poly(FLOOR_DIV, ty_params.clone())));
         let op_t = fn1_met(Slf.clone(), R, proj(Slf.clone(), OUTPUT)).quantify();
-        floor_div.register_builtin_decl(OP_FLOOR_DIV, op_t, Public);
-        floor_div.register_builtin_decl(OUTPUT, Type, Public);
+        floor_div.register_builtin_erg_decl(OP_FLOOR_DIV, op_t, Public);
+        floor_div.register_builtin_erg_decl(OUTPUT, Type, Public);
         self.register_builtin_type(mono(UNPACK), unpack, vis, Const, None);
         self.register_builtin_type(
             mono(INHERITABLE_TYPE),
