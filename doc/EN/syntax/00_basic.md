@@ -112,6 +112,21 @@ C = Class {x = Int}
     .method self = ...
 ```
 
+You can specify the language of the document by writing the language code immediately after the `'''`. The [Erg Language Server](https://github.com/erg-lang/erg/tree/main/compiler/els) will then display documents in the Markdown format for each language version (The default language is English).
+See [here](https://github.com/erg-lang/erg/blob/main/doc/JA/dev_guide/i18n_messages.md) for registered language codes.
+
+```python
+'''
+Answer to the Ultimate Question of Life, the Universe, and Everything.
+cf. https://www.google.co.jp/search?q=answer+to+life+the+universe+and+everything
+'''
+'''japanese
+生命、宇宙、そして全てについての究極の謎への答え
+参照: https://www.google.co.jp/search?q=answer+to+life+the+universe+and+everything
+'''
+ANSWER = 42
+```
+
 ## Expressions, separators
 
 A script is a series of expressions. An expression is something that can be calculated or evaluated, and in Erg almost everything is an expression.

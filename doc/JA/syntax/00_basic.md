@@ -89,6 +89,21 @@ C = Class {x = Int}
     .method self = ...
 ```
 
+`'''`の直後に言語コードを記述することで、ドキュメントの言語を指定することが出来ます。すると[Erg Language Server](https://github.com/erg-lang/erg/tree/main/compiler/els)は各言語バージョンに合わせたドキュメントをMarkdown形式で表示します(デフォルトの言語は英語です)。
+登録されている言語コードについては[こちら](https://github.com/erg-lang/erg/blob/main/doc/JA/dev_guide/i18n_messages.md)を参照してください。
+
+```python
+'''
+Answer to the Ultimate Question of Life, the Universe, and Everything.
+cf. https://www.google.co.jp/search?q=answer+to+life+the+universe+and+everything
+'''
+'''japanese
+生命、宇宙、そして全てについての究極の謎への答え
+参照: https://www.google.co.jp/search?q=answer+to+life+the+universe+and+everything
+'''
+ANSWER = 42
+```
+
 ## 式、セパレータ
 
 スクリプトは、式(expression)の連なりです。式とは計算・評価ができるもので、Ergではほとんどすべてのものが式です。
