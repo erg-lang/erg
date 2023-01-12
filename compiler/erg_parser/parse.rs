@@ -35,7 +35,21 @@ macro_rules! debug_call_info {
         log!(
             c GREEN,
             "\n{} ({}) entered {}, cur: {}",
-            " ".repeat($self.level),
+            "･".repeat(($self.level as f32 / 4.0).floor() as usize),
+            $self.level,
+            fn_name!(),
+            $self.peek().unwrap()
+        );
+    };
+}
+
+macro_rules! debug_exit_info {
+    ($self: ident) => {
+        $self.level -= 1;
+        log!(
+            c GREEN,
+            "\n{} ({}) exit {}, cur: {}",
+            "･".repeat(($self.level as f32 / 4.0).floor() as usize),
             $self.level,
             fn_name!(),
             $self.peek().unwrap()
@@ -210,8 +224,16 @@ impl Parser {
         self.tokens.push_front(token);
     }
 
-    pub(crate) fn stack_dec(&mut self) {
+    pub(crate) fn stack_dec(&mut self, fn_name: &str) {
         self.level -= 1;
+        log!(
+            c GREEN,
+            "\n{} ({}) exit {}, cur: {}",
+            "･".repeat((self.level as f32 / 4.0).floor() as usize),
+            self.level,
+            fn_name,
+            self.peek().unwrap()
+        );
     }
 }
 
@@ -333,7 +355,7 @@ impl Parser {
                 }
                 None => {
                     if !self.errs.is_empty() {
-                        self.level -= 1;
+                        debug_exit_info!(self);
                         return Err(());
                     } else {
                         switch_unreachable!()
@@ -341,7 +363,7 @@ impl Parser {
                 }
             }
         }
-        self.level -= 1;
+        debug_exit_info!(self);
         Ok(chunks)
     }
 
@@ -353,28 +375,28 @@ impl Parser {
         if !self.cur_is(Newline) {
             let chunk = self
                 .try_reduce_chunk(true, false)
-                .map_err(|_| self.stack_dec())?;
+                .map_err(|_| self.stack_dec(fn_name!()))?;
             block.push(chunk);
             if !self.cur_is(Dedent) && !self.cur_category_is(TC::Separator) {
                 let err = self
                     .skip_and_throw_invalid_chunk_err(caused_by!(), block.last().unwrap().loc());
-                self.level -= 1;
+                debug_exit_info!(self);
                 self.errs.push(err);
             }
             if block.last().unwrap().is_definition() {
                 let err = ParseError::simple_syntax_error(0, block.last().unwrap().loc());
-                self.level -= 1;
                 self.errs.push(err);
+                debug_exit_info!(self);
                 return Err(());
             } else {
-                self.level -= 1;
+                debug_exit_info!(self);
                 return Ok(block);
             }
         }
         if !self.cur_is(Newline) {
             let err = self.skip_and_throw_syntax_err(caused_by!());
-            self.level -= 1;
             self.errs.push(err);
+            debug_exit_info!(self);
             return Err(());
         }
         while self.cur_is(Newline) {
@@ -382,8 +404,8 @@ impl Parser {
         }
         if !self.cur_is(Indent) {
             let err = self.skip_and_throw_syntax_err(caused_by!());
-            self.level -= 1;
             self.errs.push(err);
+            debug_exit_info!(self);
             return Err(());
         }
         self.skip(); // Indent
@@ -414,7 +436,7 @@ impl Parser {
                                 caused_by!(),
                                 block.last().unwrap().loc(),
                             );
-                            self.level -= 1;
+                            debug_exit_info!(self);
                             self.errs.push(err);
                         }
                     }
@@ -429,16 +451,16 @@ impl Parser {
                 Location::Unknown
             };
             let err = ParseError::failed_to_analyze_block(line!() as usize, loc);
-            self.level -= 1;
             self.errs.push(err);
+            debug_exit_info!(self);
             Err(())
         } else if block.last().unwrap().is_definition() {
             let err = ParseError::invalid_chunk_error(line!() as usize, block.loc());
-            self.level -= 1;
             self.errs.push(err);
+            debug_exit_info!(self);
             Err(())
         } else {
-            self.level -= 1;
+            debug_exit_info!(self);
             Ok(block)
         }
     }
@@ -450,11 +472,11 @@ impl Parser {
             self.lpop();
             let expr = self
                 .try_reduce_expr(false, false, false, false)
-                .map_err(|_| self.stack_dec())?;
-            self.level -= 1;
+                .map_err(|_| self.stack_dec(fn_name!()))?;
+            debug_exit_info!(self);
             Ok(Some(Decorator::new(expr)))
         } else {
-            self.level -= 1;
+            debug_exit_info!(self);
             Ok(None)
         }
     }
@@ -463,18 +485,21 @@ impl Parser {
     fn opt_reduce_decorators(&mut self) -> ParseResult<HashSet<Decorator>> {
         debug_call_info!(self);
         let mut decs = set![];
-        while let Some(deco) = self.opt_reduce_decorator().map_err(|_| self.stack_dec())? {
+        while let Some(deco) = self
+            .opt_reduce_decorator()
+            .map_err(|_| self.stack_dec(fn_name!()))?
+        {
             decs.insert(deco);
             if self.cur_is(Newline) {
                 self.skip();
             } else {
-                self.level -= 1;
                 let err = self.skip_and_throw_syntax_err(caused_by!());
                 self.errs.push(err);
+                debug_exit_info!(self);
                 return Err(());
             }
         }
-        self.level -= 1;
+        debug_exit_info!(self);
         Ok(decs)
     }
 
@@ -482,15 +507,17 @@ impl Parser {
         debug_call_info!(self);
         assert!(self.cur_is(VBar));
         let l_vbar = self.lpop();
-        let args = self.try_reduce_args(true).map_err(|_| self.stack_dec())?;
+        let args = self
+            .try_reduce_args(true)
+            .map_err(|_| self.stack_dec(fn_name!()))?;
         if self.cur_is(VBar) {
             let r_vbar = self.lpop();
-            self.level -= 1;
+            debug_exit_info!(self);
             Ok(TypeAppArgs::new(l_vbar, args, r_vbar))
         } else {
-            self.level -= 1;
             let err = self.skip_and_throw_syntax_err(caused_by!());
             self.errs.push(err);
+            debug_exit_info!(self);
             Err(())
         }
     }
@@ -505,20 +532,20 @@ impl Parser {
                 if maybe_symbol.is(Symbol) {
                     Accessor::public(dot, maybe_symbol)
                 } else {
-                    self.level -= 1;
                     let err = self.skip_and_throw_syntax_err(caused_by!());
                     self.errs.push(err);
+                    debug_exit_info!(self);
                     return Err(());
                 }
             }
             _ => {
-                self.level -= 1;
                 let err = self.skip_and_throw_syntax_err(caused_by!());
                 self.errs.push(err);
+                debug_exit_info!(self);
                 return Err(());
             }
         };
-        self.level -= 1;
+        debug_exit_info!(self);
         Ok(acc)
     }
 
@@ -527,18 +554,20 @@ impl Parser {
         debug_call_info!(self);
         if self.cur_category_is(TC::REnclosure) {
             let args = Args::new(vec![], vec![], None);
-            self.level -= 1;
+            debug_exit_info!(self);
             return Ok(ArrayInner::Normal(args));
         }
-        let first = self.try_reduce_elem().map_err(|_| self.stack_dec())?;
+        let first = self
+            .try_reduce_elem()
+            .map_err(|_| self.stack_dec(fn_name!()))?;
         let mut elems = Args::new(vec![first], vec![], None);
         match self.peek_kind() {
             Some(Semi) => {
                 self.lpop();
                 let len = self
                     .try_reduce_expr(false, false, false, false)
-                    .map_err(|_| self.stack_dec())?;
-                self.level -= 1;
+                    .map_err(|_| self.stack_dec(fn_name!()))?;
+                debug_exit_info!(self);
                 return Ok(ArrayInner::WithLength(elems.remove_pos(0), len));
             }
             Some(VBar) => {
@@ -549,18 +578,20 @@ impl Parser {
                 );
                 self.lpop();
                 self.errs.push(err);
-                self.level -= 1;
+                debug_exit_info!(self);
                 return Err(());
             }
             Some(RParen | RSqBr | RBrace | Dedent | Comma) => {}
             Some(_) => {
-                let elem = self.try_reduce_elem().map_err(|_| self.stack_dec())?;
+                let elem = self
+                    .try_reduce_elem()
+                    .map_err(|_| self.stack_dec(fn_name!()))?;
                 elems.push_pos(elem);
             }
             None => {
-                self.level -= 1;
                 let err = self.skip_and_throw_syntax_err(caused_by!());
                 self.errs.push(err);
+                debug_exit_info!(self);
                 return Err(());
             }
         }
@@ -569,26 +600,29 @@ impl Parser {
                 Some(Comma) => {
                     self.skip();
                     if self.cur_is(Comma) {
-                        self.level -= 1;
                         let err = self.skip_and_throw_syntax_err(caused_by!());
                         self.errs.push(err);
+                        debug_exit_info!(self);
                         return Err(());
                     }
-                    elems.push_pos(self.try_reduce_elem().map_err(|_| self.stack_dec())?);
+                    elems.push_pos(
+                        self.try_reduce_elem()
+                            .map_err(|_| self.stack_dec(fn_name!()))?,
+                    );
                 }
                 Some(RParen | RSqBr | RBrace | Dedent) => {
                     break;
                 }
                 _ => {
                     self.skip();
-                    self.level -= 1;
                     let err = self.skip_and_throw_syntax_err(caused_by!());
                     self.errs.push(err);
+                    debug_exit_info!(self);
                     return Err(());
                 }
             }
         }
-        self.level -= 1;
+        debug_exit_info!(self);
         Ok(ArrayInner::Normal(elems))
     }
 
@@ -598,8 +632,8 @@ impl Parser {
             Some(_) => {
                 let expr = self
                     .try_reduce_expr(false, false, false, false)
-                    .map_err(|_| self.stack_dec())?;
-                self.level -= 1;
+                    .map_err(|_| self.stack_dec(fn_name!()))?;
+                debug_exit_info!(self);
                 Ok(PosArg::new(expr))
             }
             None => switch_unreachable!(),
@@ -656,11 +690,11 @@ impl Parser {
         match self.peek_kind() {
             Some(RParen) => {
                 rp = Some(self.lpop());
-                self.level -= 1;
+                debug_exit_info!(self);
                 return Ok(Args::new(vec![], vec![], Some((lp.unwrap(), rp.unwrap()))));
             }
             Some(RBrace | RSqBr | Dedent) => {
-                self.level -= 1;
+                debug_exit_info!(self);
                 return Ok(Args::new(vec![], vec![], None));
             }
             Some(Newline) if style.needs_parens() => {
@@ -674,7 +708,7 @@ impl Parser {
         }
         let mut args = match self
             .try_reduce_arg(in_type_args)
-            .map_err(|_| self.stack_dec())?
+            .map_err(|_| self.stack_dec(fn_name!()))?
         {
             PosOrKwArg::Pos(arg) => Args::new(vec![arg], vec![], None),
             PosOrKwArg::Kw(arg) => Args::new(vec![], vec![arg], None),
@@ -683,9 +717,9 @@ impl Parser {
             match self.peek_kind() {
                 Some(Colon) if style.is_colon() || lp.is_some() => {
                     self.skip();
-                    self.level -= 1;
                     let err = self.skip_and_throw_syntax_err(caused_by!());
                     self.errs.push(err);
+                    debug_exit_info!(self);
                     return Err(());
                 }
                 Some(Colon) => {
@@ -696,8 +730,8 @@ impl Parser {
                     }
                     if !self.cur_is(Indent) {
                         let err = self.skip_and_throw_syntax_err(caused_by!());
-                        self.level -= 1;
                         self.errs.push(err);
+                        debug_exit_info!(self);
                         return Err(());
                     }
                     self.skip();
@@ -705,9 +739,9 @@ impl Parser {
                 Some(Comma) => {
                     self.skip();
                     if style.is_colon() || self.cur_is(Comma) {
-                        self.level -= 1;
                         let err = self.skip_and_throw_syntax_err(caused_by!());
                         self.errs.push(err);
+                        debug_exit_info!(self);
                         return Err(());
                     }
                     if style.is_multi_comma() {
@@ -727,12 +761,12 @@ impl Parser {
                     if !args.kw_is_empty() {
                         args.push_kw(
                             self.try_reduce_kw_arg(in_type_args)
-                                .map_err(|_| self.stack_dec())?,
+                                .map_err(|_| self.stack_dec(fn_name!()))?,
                         );
                     } else {
                         match self
                             .try_reduce_arg(in_type_args)
-                            .map_err(|_| self.stack_dec())?
+                            .map_err(|_| self.stack_dec(fn_name!()))?
                         {
                             PosOrKwArg::Pos(arg) => {
                                 args.push_pos(arg);
@@ -766,7 +800,7 @@ impl Parser {
                             if !rp.is(RParen) {
                                 let err = self.skip_and_throw_syntax_err(caused_by!());
                                 self.errs.push(err);
-                                self.level -= 1;
+                                debug_exit_info!(self);
                                 return Err(());
                             }
                             let (pos_args, kw_args, _) = args.deconstruct();
@@ -789,12 +823,12 @@ impl Parser {
                     if !args.kw_is_empty() {
                         args.push_kw(
                             self.try_reduce_kw_arg(in_type_args)
-                                .map_err(|_| self.stack_dec())?,
+                                .map_err(|_| self.stack_dec(fn_name!()))?,
                         );
                     } else {
                         match self
                             .try_reduce_arg(in_type_args)
-                            .map_err(|_| self.stack_dec())?
+                            .map_err(|_| self.stack_dec(fn_name!()))?
                         {
                             PosOrKwArg::Pos(arg) => {
                                 args.push_pos(arg);
@@ -810,7 +844,7 @@ impl Parser {
                 }
             }
         }
-        self.level -= 1;
+        debug_exit_info!(self);
         Ok(args)
     }
 
@@ -819,27 +853,29 @@ impl Parser {
         match self.peek_kind() {
             Some(Symbol) => {
                 if self.nth_is(1, Walrus) {
-                    let acc = self.try_reduce_acc_lhs().map_err(|_| self.stack_dec())?;
+                    let acc = self
+                        .try_reduce_acc_lhs()
+                        .map_err(|_| self.stack_dec(fn_name!()))?;
                     debug_power_assert!(self.cur_is(Walrus));
                     self.skip();
                     let kw = if let Accessor::Ident(n) = acc {
                         n.name.into_token()
                     } else {
-                        self.next_expr();
-                        self.level -= 1;
                         let err = ParseError::simple_syntax_error(0, acc.loc());
                         self.errs.push(err);
+                        self.next_expr();
+                        debug_exit_info!(self);
                         return Err(());
                     };
                     let expr = self
                         .try_reduce_expr(false, in_type_args, false, false)
-                        .map_err(|_| self.stack_dec())?;
-                    self.level -= 1;
+                        .map_err(|_| self.stack_dec(fn_name!()))?;
+                    debug_exit_info!(self);
                     Ok(PosOrKwArg::Kw(KwArg::new(kw, None, expr)))
                 } else {
                     let expr = self
                         .try_reduce_expr(false, in_type_args, false, false)
-                        .map_err(|_| self.stack_dec())?;
+                        .map_err(|_| self.stack_dec(fn_name!()))?;
                     if self.cur_is(Walrus) {
                         self.skip();
                         let (kw, t_spec) = match expr {
@@ -849,28 +885,28 @@ impl Parser {
                                     let t_spec = TypeSpecWithOp::new(tasc.op, tasc.t_spec);
                                     (n.name.into_token(), Some(t_spec))
                                 } else {
-                                    self.next_expr();
-                                    self.level -= 1;
                                     let err = ParseError::simple_syntax_error(0, tasc.loc());
                                     self.errs.push(err);
+                                    self.next_expr();
+                                    debug_exit_info!(self);
                                     return Err(());
                                 }
                             }
                             _ => {
-                                self.next_expr();
-                                self.level -= 1;
                                 let err = ParseError::simple_syntax_error(0, expr.loc());
                                 self.errs.push(err);
+                                self.next_expr();
+                                debug_exit_info!(self);
                                 return Err(());
                             }
                         };
                         let expr = self
                             .try_reduce_expr(false, in_type_args, false, false)
-                            .map_err(|_| self.stack_dec())?;
-                        self.level -= 1;
+                            .map_err(|_| self.stack_dec(fn_name!()))?;
+                        debug_exit_info!(self);
                         Ok(PosOrKwArg::Kw(KwArg::new(kw, t_spec, expr)))
                     } else {
-                        self.level -= 1;
+                        debug_exit_info!(self);
                         Ok(PosOrKwArg::Pos(PosArg::new(expr)))
                     }
                 }
@@ -878,8 +914,8 @@ impl Parser {
             Some(_) => {
                 let expr = self
                     .try_reduce_expr(false, in_type_args, false, false)
-                    .map_err(|_| self.stack_dec())?;
-                self.level -= 1;
+                    .map_err(|_| self.stack_dec(fn_name!()))?;
+                debug_exit_info!(self);
                 Ok(PosOrKwArg::Pos(PosArg::new(expr)))
             }
             None => switch_unreachable!(),
@@ -891,34 +927,36 @@ impl Parser {
         match self.peek() {
             Some(t) if t.is(Symbol) => {
                 if self.nth_is(1, Walrus) {
-                    let acc = self.try_reduce_acc_lhs().map_err(|_| self.stack_dec())?;
+                    let acc = self
+                        .try_reduce_acc_lhs()
+                        .map_err(|_| self.stack_dec(fn_name!()))?;
                     debug_power_assert!(self.cur_is(Walrus));
                     self.skip();
                     let keyword = if let Accessor::Ident(n) = acc {
                         n.name.into_token()
                     } else {
-                        self.next_expr();
-                        self.level -= 1;
                         self.errs
                             .push(ParseError::simple_syntax_error(0, acc.loc()));
+                        self.next_expr();
+                        debug_exit_info!(self);
                         return Err(());
                     };
                     let expr = self
                         .try_reduce_expr(false, in_type_args, false, false)
-                        .map_err(|_| self.stack_dec())?;
-                    self.level -= 1;
+                        .map_err(|_| self.stack_dec(fn_name!()))?;
+                    debug_exit_info!(self);
                     Ok(KwArg::new(keyword, None, expr))
                 } else {
                     let loc = t.loc();
-                    self.level -= 1;
                     self.errs.push(ParseError::simple_syntax_error(0, loc));
+                    debug_exit_info!(self);
                     Err(())
                 }
             }
             Some(other) => {
                 let loc = other.loc();
-                self.level -= 1;
                 self.errs.push(ParseError::simple_syntax_error(0, loc));
+                debug_exit_info!(self);
                 Err(())
             }
             None => switch_unreachable!(),
@@ -930,9 +968,9 @@ impl Parser {
         if self.cur_is(Indent) {
             self.skip();
         } else {
-            self.level -= 1;
             let err = self.skip_and_throw_syntax_err(caused_by!());
             self.errs.push(err);
+            debug_exit_info!(self);
             return Err(());
         }
         while self.cur_is(Newline) {
@@ -940,15 +978,15 @@ impl Parser {
         }
         let first = self
             .try_reduce_chunk(false, false)
-            .map_err(|_| self.stack_dec())?;
+            .map_err(|_| self.stack_dec(fn_name!()))?;
         let first = match first {
             Expr::Def(def) => ClassAttr::Def(def),
             Expr::TypeAsc(tasc) => ClassAttr::Decl(tasc),
             _ => {
                 // self.restore();
-                self.level -= 1;
                 let err = self.skip_and_throw_syntax_err(caused_by!());
                 self.errs.push(err);
+                debug_exit_info!(self);
                 return Err(());
             }
         };
@@ -967,7 +1005,7 @@ impl Parser {
                 Some(_) => {
                     let def = self
                         .try_reduce_chunk(false, false)
-                        .map_err(|_| self.stack_dec())?;
+                        .map_err(|_| self.stack_dec(fn_name!()))?;
                     match def {
                         Expr::Def(def) => {
                             attrs.push(ClassAttr::Def(def));
@@ -982,16 +1020,16 @@ impl Parser {
                     }
                 }
                 _ => {
-                    self.level -= 1;
                     let err = self.skip_and_throw_syntax_err(caused_by!());
                     self.errs.push(err);
+                    debug_exit_info!(self);
                     return Err(());
                 }
             }
         }
         let attrs = ClassAttrs::from(attrs);
         let class = Self::expr_to_type_spec(class).map_err(|e| self.errs.push(e))?;
-        self.level -= 1;
+        debug_exit_info!(self);
         Ok(Methods::new(class, vis, attrs))
     }
 
@@ -1006,16 +1044,18 @@ impl Parser {
         };
         if self.cur_is(Colon) {
             self.lpop();
-            let body = self.try_reduce_block().map_err(|_| self.stack_dec())?;
+            let body = self
+                .try_reduce_block()
+                .map_err(|_| self.stack_dec(fn_name!()))?;
             self.counter.inc();
-            self.level -= 1;
+            debug_exit_info!(self);
             Ok(Lambda::new(sig, op, body, self.counter))
         } else {
             let expr = self
                 .try_reduce_expr(false, false, false, false)
-                .map_err(|_| self.stack_dec())?;
+                .map_err(|_| self.stack_dec(fn_name!()))?;
             let block = Block::new(vec![expr]);
-            self.level -= 1;
+            debug_exit_info!(self);
             Ok(Lambda::new(sig, op, block, self.counter))
         }
     }
@@ -1026,12 +1066,14 @@ impl Parser {
         let mut stack = Vec::<ExprOrOp>::new();
         stack.push(ExprOrOp::Expr(
             self.try_reduce_bin_lhs(false, in_brace)
-                .map_err(|_| self.stack_dec())?,
+                .map_err(|_| self.stack_dec(fn_name!()))?,
         ));
         loop {
             match self.peek() {
                 Some(arg) if arg.is(Symbol) || arg.category_is(TC::Literal) => {
-                    let args = self.try_reduce_args(false).map_err(|_| self.stack_dec())?;
+                    let args = self
+                        .try_reduce_args(false)
+                        .map_err(|_| self.stack_dec(fn_name!()))?;
                     let obj = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                     stack.push(ExprOrOp::Expr(obj.call_expr(args)));
                 }
@@ -1039,19 +1081,22 @@ impl Parser {
                     let op = self.lpop();
                     let is_multiline_block = self.cur_is(Newline);
                     let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
-                    let sig = self.convert_rhs_to_sig(lhs).map_err(|_| self.stack_dec())?;
+                    let sig = self
+                        .convert_rhs_to_sig(lhs)
+                        .map_err(|_| self.stack_dec(fn_name!()))?;
                     self.counter.inc();
                     let block = if is_multiline_block {
-                        self.try_reduce_block().map_err(|_| self.stack_dec())?
+                        self.try_reduce_block()
+                            .map_err(|_| self.stack_dec(fn_name!()))?
                     } else {
                         // precedence: `=` < `,`
                         let expr = self
                             .try_reduce_expr(true, false, false, false)
-                            .map_err(|_| self.stack_dec())?;
+                            .map_err(|_| self.stack_dec(fn_name!()))?;
                         Block::new(vec![expr])
                     };
                     let body = DefBody::new(op, block, self.counter);
-                    self.level -= 1;
+                    debug_exit_info!(self);
                     return Ok(Expr::Def(Def::new(sig, body)));
                 }
                 Some(op) if op.category_is(TC::LambdaOp) => {
@@ -1060,15 +1105,16 @@ impl Parser {
                     let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                     let sig = self
                         .convert_rhs_to_lambda_sig(lhs)
-                        .map_err(|_| self.stack_dec())?;
+                        .map_err(|_| self.stack_dec(fn_name!()))?;
                     self.counter.inc();
                     let block = if is_multiline_block {
-                        self.try_reduce_block().map_err(|_| self.stack_dec())?
+                        self.try_reduce_block()
+                            .map_err(|_| self.stack_dec(fn_name!()))?
                     } else {
                         // precedence: `->` > `,`
                         let expr = self
                             .try_reduce_expr(false, false, false, false)
-                            .map_err(|_| self.stack_dec())?;
+                            .map_err(|_| self.stack_dec(fn_name!()))?;
                         Block::new(vec![expr])
                     };
                     stack.push(ExprOrOp::Expr(Expr::Lambda(Lambda::new(
@@ -1094,7 +1140,7 @@ impl Parser {
                     let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                     let t_spec = self
                         .try_reduce_expr(false, false, false, false)
-                        .map_err(|_| self.stack_dec())?;
+                        .map_err(|_| self.stack_dec(fn_name!()))?;
                     let t_spec = Self::expr_to_type_spec(t_spec).map_err(|e| self.errs.push(e))?;
                     let expr = lhs.type_asc_expr(op, t_spec);
                     stack.push(ExprOrOp::Expr(expr));
@@ -1118,7 +1164,7 @@ impl Parser {
                     stack.push(ExprOrOp::Op(self.lpop()));
                     stack.push(ExprOrOp::Expr(
                         self.try_reduce_bin_lhs(false, in_brace)
-                            .map_err(|_| self.stack_dec())?,
+                            .map_err(|_| self.stack_dec(fn_name!()))?,
                     ));
                 }
                 Some(t) if t.is(DblColon) => {
@@ -1126,15 +1172,15 @@ impl Parser {
                     match self.lpop() {
                         symbol if symbol.is(Symbol) => {
                             let Some(ExprOrOp::Expr(obj)) = stack.pop() else {
-                                self.level -= 1;
                                 let err = self.skip_and_throw_syntax_err(caused_by!());
                                 self.errs.push(err);
+                                debug_exit_info!(self);
                                 return Err(());
                             };
                             if let Some(args) = self
                                 .opt_reduce_args(false)
                                 .transpose()
-                                .map_err(|_| self.stack_dec())?
+                                .map_err(|_| self.stack_dec(fn_name!()))?
                             {
                                 let ident = Identifier::new(None, VarName::new(symbol));
                                 let call = Call::new(obj, Some(ident), args);
@@ -1148,10 +1194,10 @@ impl Parser {
                             let maybe_class = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                             let defs = self
                                 .try_reduce_method_defs(maybe_class, vis)
-                                .map_err(|_| self.stack_dec())?;
+                                .map_err(|_| self.stack_dec(fn_name!()))?;
                             let expr = Expr::Methods(defs);
                             assert_eq!(stack.len(), 0);
-                            self.level -= 1;
+                            debug_exit_info!(self);
                             return Ok(expr);
                         }
                         l_brace if l_brace.is(LBrace) => {
@@ -1159,7 +1205,7 @@ impl Parser {
                             self.restore(l_brace);
                             let container = self
                                 .try_reduce_brace_container()
-                                .map_err(|_| self.stack_dec())?;
+                                .map_err(|_| self.stack_dec(fn_name!()))?;
                             match container {
                                 BraceContainer::Record(args) => {
                                     let pack = DataPack::new(maybe_class, vis, args);
@@ -1167,18 +1213,18 @@ impl Parser {
                                 }
                                 BraceContainer::Dict(_) | BraceContainer::Set(_) => {
                                     // self.restore(other);
-                                    self.level -= 1;
                                     let err = self.skip_and_throw_syntax_err(caused_by!());
                                     self.errs.push(err);
+                                    debug_exit_info!(self);
                                     return Err(());
                                 }
                             }
                         }
                         other => {
                             self.restore(other);
-                            self.level -= 1;
                             let err = self.skip_and_throw_syntax_err(caused_by!());
                             self.errs.push(err);
+                            debug_exit_info!(self);
                             return Err(());
                         }
                     }
@@ -1188,15 +1234,15 @@ impl Parser {
                     match self.lpop() {
                         symbol if symbol.is(Symbol) => {
                             let Some(ExprOrOp::Expr(obj)) = stack.pop() else {
-                                self.level -= 1;
                                 let err = self.skip_and_throw_syntax_err(caused_by!());
                                 self.errs.push(err);
+                                debug_exit_info!(self);
                                 return Err(());
                             };
                             if let Some(args) = self
                                 .opt_reduce_args(false)
                                 .transpose()
-                                .map_err(|_| self.stack_dec())?
+                                .map_err(|_| self.stack_dec(fn_name!()))?
                             {
                                 let ident = Identifier::new(Some(vis), VarName::new(symbol));
                                 let call = Expr::Call(Call::new(obj, Some(ident), args));
@@ -1210,35 +1256,36 @@ impl Parser {
                             let maybe_class = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                             let defs = self
                                 .try_reduce_method_defs(maybe_class, vis)
-                                .map_err(|_| self.stack_dec())?;
+                                .map_err(|_| self.stack_dec(fn_name!()))?;
+                            debug_exit_info!(self);
                             return Ok(Expr::Methods(defs));
                         }
                         other => {
                             self.restore(other);
-                            self.level -= 1;
                             let err = self.skip_and_throw_syntax_err(caused_by!());
                             self.errs.push(err);
+                            debug_exit_info!(self);
                             return Err(());
                         }
                     }
                 }
                 Some(t) if t.is(LSqBr) => {
                     let Some(ExprOrOp::Expr(obj)) = stack.pop() else {
-                        self.level -= 1;
                         let err = self.skip_and_throw_syntax_err(caused_by!());
                         self.errs.push(err);
+                        debug_exit_info!(self);
                         return Err(());
                     };
                     self.skip();
                     let index = self
                         .try_reduce_expr(false, false, in_brace, false)
-                        .map_err(|_| self.stack_dec())?;
+                        .map_err(|_| self.stack_dec(fn_name!()))?;
                     let r_sqbr = self.lpop();
                     if !r_sqbr.is(RSqBr) {
                         self.restore(r_sqbr);
-                        self.level -= 1;
                         let err = self.skip_and_throw_syntax_err(caused_by!());
                         self.errs.push(err);
+                        debug_exit_info!(self);
                         return Err(());
                     }
                     let acc = Accessor::subscr(obj, index, r_sqbr);
@@ -1250,22 +1297,22 @@ impl Parser {
                     ));
                     let tup = self
                         .try_reduce_nonempty_tuple(first_elem, false)
-                        .map_err(|_| self.stack_dec())?;
+                        .map_err(|_| self.stack_dec(fn_name!()))?;
                     stack.push(ExprOrOp::Expr(Expr::Tuple(tup)));
                 }
                 Some(t) if t.is(Walrus) && winding => {
                     let tuple = self
                         .try_reduce_default_parameters(&mut stack, in_brace)
-                        .map_err(|_| self.stack_dec())?;
+                        .map_err(|_| self.stack_dec(fn_name!()))?;
                     stack.push(ExprOrOp::Expr(Expr::Tuple(tuple)));
                 }
                 Some(t) if t.is(Pipe) => self
                     .try_reduce_stream_operator(&mut stack)
-                    .map_err(|_| self.stack_dec())?,
+                    .map_err(|_| self.stack_dec(fn_name!()))?,
                 Some(t) if t.category_is(TC::Reserved) => {
-                    self.level -= 1;
                     let err = self.skip_and_throw_syntax_err(caused_by!());
                     self.errs.push(err);
+                    debug_exit_info!(self);
                     return Err(());
                 }
                 _ => {
@@ -1283,7 +1330,7 @@ impl Parser {
         }
         match stack.pop() {
             Some(ExprOrOp::Expr(expr)) if stack.is_empty() => {
-                self.level -= 1;
+                debug_exit_info!(self);
                 Ok(expr)
             }
             Some(ExprOrOp::Expr(expr)) => {
@@ -1294,13 +1341,13 @@ impl Parser {
                 };
                 self.warns
                     .push(ParseError::compiler_bug(0, loc, fn_name!(), line!()));
-                self.level -= 1;
+                debug_exit_info!(self);
                 Ok(expr)
             }
             Some(ExprOrOp::Op(op)) => {
-                self.level -= 1;
                 self.errs
                     .push(ParseError::compiler_bug(0, op.loc(), fn_name!(), line!()));
+                debug_exit_info!(self);
                 Err(())
             }
             _ => switch_unreachable!(),
@@ -1321,7 +1368,7 @@ impl Parser {
         let mut stack = Vec::<ExprOrOp>::new();
         stack.push(ExprOrOp::Expr(
             self.try_reduce_bin_lhs(in_type_args, in_brace)
-                .map_err(|_| self.stack_dec())?,
+                .map_err(|_| self.stack_dec(fn_name!()))?,
         ));
         loop {
             match self.peek() {
@@ -1331,14 +1378,15 @@ impl Parser {
                     let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                     let sig = self
                         .convert_rhs_to_lambda_sig(lhs)
-                        .map_err(|_| self.stack_dec())?;
+                        .map_err(|_| self.stack_dec(fn_name!()))?;
                     self.counter.inc();
                     let block = if is_multiline_block {
-                        self.try_reduce_block().map_err(|_| self.stack_dec())?
+                        self.try_reduce_block()
+                            .map_err(|_| self.stack_dec(fn_name!()))?
                     } else {
                         let expr = self
                             .try_reduce_expr(false, false, false, false)
-                            .map_err(|_| self.stack_dec())?;
+                            .map_err(|_| self.stack_dec(fn_name!()))?;
                         Block::new(vec![expr])
                     };
                     stack.push(ExprOrOp::Expr(Expr::Lambda(Lambda::new(
@@ -1361,7 +1409,7 @@ impl Parser {
                     let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                     let t_spec = self
                         .try_reduce_expr(false, in_type_args, in_brace, false)
-                        .map_err(|_| self.stack_dec())?;
+                        .map_err(|_| self.stack_dec(fn_name!()))?;
                     let t_spec = Self::expr_to_type_spec(t_spec).map_err(|e| self.errs.push(e))?;
                     let expr = lhs.type_asc_expr(op, t_spec);
                     stack.push(ExprOrOp::Expr(expr));
@@ -1389,7 +1437,7 @@ impl Parser {
                     stack.push(ExprOrOp::Op(self.lpop()));
                     stack.push(ExprOrOp::Expr(
                         self.try_reduce_bin_lhs(in_type_args, in_brace)
-                            .map_err(|_| self.stack_dec())?,
+                            .map_err(|_| self.stack_dec(fn_name!()))?,
                     ));
                 }
                 Some(t) if t.is(Dot) => {
@@ -1397,15 +1445,15 @@ impl Parser {
                     match self.lpop() {
                         symbol if symbol.is(Symbol) => {
                             let Some(ExprOrOp::Expr(obj)) = stack.pop() else {
-                                self.level -= 1;
                                 let err = self.skip_and_throw_syntax_err(caused_by!());
                                 self.errs.push(err);
+                                debug_exit_info!(self);
                                 return Err(());
                             };
                             if let Some(args) = self
                                 .opt_reduce_args(in_type_args)
                                 .transpose()
-                                .map_err(|_| self.stack_dec())?
+                                .map_err(|_| self.stack_dec(fn_name!()))?
                             {
                                 let ident = Identifier::new(Some(vis), VarName::new(symbol));
                                 let call = Call::new(obj, Some(ident), args);
@@ -1417,30 +1465,30 @@ impl Parser {
                         }
                         other => {
                             self.restore(other);
-                            self.level -= 1;
                             let err = self.skip_and_throw_syntax_err(caused_by!());
                             self.errs.push(err);
+                            debug_exit_info!(self);
                             return Err(());
                         }
                     }
                 }
                 Some(t) if t.is(LSqBr) => {
                     let Some(ExprOrOp::Expr(obj)) = stack.pop() else {
-                        self.level -= 1;
                         let err = self.skip_and_throw_syntax_err(caused_by!());
                         self.errs.push(err);
+                        debug_exit_info!(self);
                         return Err(());
                     };
                     self.skip();
                     let index = self
                         .try_reduce_expr(false, false, in_brace, false)
-                        .map_err(|_| self.stack_dec())?;
+                        .map_err(|_| self.stack_dec(fn_name!()))?;
                     let r_sqbr = self.lpop();
                     if !r_sqbr.is(RSqBr) {
                         self.restore(r_sqbr);
-                        self.level -= 1;
                         let err = self.skip_and_throw_syntax_err(caused_by!());
                         self.errs.push(err);
+                        debug_exit_info!(self);
                         return Err(());
                     }
                     let acc = Accessor::subscr(obj, index, r_sqbr);
@@ -1452,22 +1500,22 @@ impl Parser {
                     ));
                     let tup = self
                         .try_reduce_nonempty_tuple(first_elem, line_break)
-                        .map_err(|_| self.stack_dec())?;
+                        .map_err(|_| self.stack_dec(fn_name!()))?;
                     stack.push(ExprOrOp::Expr(Expr::Tuple(tup)));
                 }
                 Some(t) if t.is(Walrus) && winding => {
                     let tuple = self
                         .try_reduce_default_parameters(&mut stack, in_brace)
-                        .map_err(|_| self.stack_dec())?;
+                        .map_err(|_| self.stack_dec(fn_name!()))?;
                     stack.push(ExprOrOp::Expr(Expr::Tuple(tuple)));
                 }
                 Some(t) if t.is(Pipe) => self
                     .try_reduce_stream_operator(&mut stack)
-                    .map_err(|_| self.stack_dec())?,
+                    .map_err(|_| self.stack_dec(fn_name!()))?,
                 Some(t) if t.category_is(TC::Reserved) => {
-                    self.level -= 1;
                     let err = self.skip_and_throw_syntax_err(caused_by!());
                     self.errs.push(err);
+                    debug_exit_info!(self);
                     return Err(());
                 }
                 _ => {
@@ -1485,7 +1533,7 @@ impl Parser {
         }
         match stack.pop() {
             Some(ExprOrOp::Expr(expr)) if stack.is_empty() => {
-                self.level -= 1;
+                debug_exit_info!(self);
                 Ok(expr)
             }
             Some(ExprOrOp::Expr(expr)) => {
@@ -1496,13 +1544,13 @@ impl Parser {
                 };
                 self.warns
                     .push(ParseError::compiler_bug(0, loc, fn_name!(), line!()));
-                self.level -= 1;
+                debug_exit_info!(self);
                 Ok(expr)
             }
             Some(ExprOrOp::Op(op)) => {
-                self.level -= 1;
                 self.errs
                     .push(ParseError::compiler_bug(0, op.loc(), fn_name!(), line!()));
+                debug_exit_info!(self);
                 Err(())
             }
             _ => switch_unreachable!(),
@@ -1526,28 +1574,28 @@ impl Parser {
                         Some(TypeSpecWithOp::new(tasc.op, tasc.t_spec)),
                     )
                 } else {
-                    self.level -= 1;
                     let err = ParseError::simple_syntax_error(line!() as usize, tasc.loc());
                     self.errs.push(err);
+                    debug_exit_info!(self);
                     return Err(());
                 }
             }
             other => {
-                self.level -= 1;
                 let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
                 self.errs.push(err);
+                debug_exit_info!(self);
                 return Err(());
             }
         };
         self.skip(); // :=
         let rhs = self
             .try_reduce_expr(false, false, in_brace, false)
-            .map_err(|_| self.stack_dec())?;
+            .map_err(|_| self.stack_dec(fn_name!()))?;
         let first_elem = PosOrKwArg::Kw(KwArg::new(keyword, t_spec, rhs));
         let tuple = self
             .try_reduce_nonempty_tuple(first_elem, false)
-            .map_err(|_| self.stack_dec())?;
-        self.level -= 1;
+            .map_err(|_| self.stack_dec(fn_name!()))?;
+        debug_exit_info!(self);
         Ok(tuple)
     }
 
@@ -1557,32 +1605,36 @@ impl Parser {
         debug_call_info!(self);
         match self.peek() {
             Some(t) if &t.inspect()[..] == "do" || &t.inspect()[..] == "do!" => {
-                let lambda = self.try_reduce_do_block().map_err(|_| self.stack_dec())?;
-                self.level -= 1;
+                let lambda = self
+                    .try_reduce_do_block()
+                    .map_err(|_| self.stack_dec(fn_name!()))?;
+                debug_exit_info!(self);
                 Ok(Expr::Lambda(lambda))
             }
             Some(t) if t.category_is(TC::Literal) => {
-                let lit = self.try_reduce_lit().map_err(|_| self.stack_dec())?;
+                let lit = self
+                    .try_reduce_lit()
+                    .map_err(|_| self.stack_dec(fn_name!()))?;
                 if let Some(tk) = self.peek() {
                     if tk.is(Mutate) {
-                        self.level -= 1;
                         let err = ParseError::invalid_mutable_symbol(
                             line!() as usize,
                             &lit.token.inspect()[..],
                             lit.loc(),
                         );
                         self.errs.push(err);
+                        debug_exit_info!(self);
                         return Err(());
                     }
                 }
-                self.level -= 1;
+                debug_exit_info!(self);
                 Ok(Expr::Lit(lit))
             }
             Some(t) if t.is(StrInterpLeft) => {
                 let str_interp = self
                     .try_reduce_string_interpolation()
-                    .map_err(|_| self.stack_dec())?;
-                self.level -= 1;
+                    .map_err(|_| self.stack_dec(fn_name!()))?;
+                debug_exit_info!(self);
                 Ok(str_interp)
             }
             Some(t) if t.is(AtSign) => {
@@ -1590,15 +1642,16 @@ impl Parser {
                 let expr = self.try_reduce_chunk(false, in_brace)?;
                 let Some(mut def) = option_enum_unwrap!(expr, Expr::Def) else {
                     // self.restore(other);
-                    self.level -= 1;
                     let err = self.skip_and_throw_syntax_err(caused_by!());
                     self.errs.push(err);
+                    debug_exit_info!(self);
                     return Err(());
                 };
                 match def.sig {
                     Signature::Subr(mut subr) => {
                         subr.decorators = decos;
                         let expr = Expr::Def(Def::new(Signature::Subr(subr), def.body));
+                        debug_exit_info!(self);
                         Ok(expr)
                     }
                     Signature::Var(var) => {
@@ -1612,6 +1665,7 @@ impl Parser {
                         }
                         def.body.block.push(last);
                         let expr = Expr::Def(Def::new(Signature::Var(var), def.body));
+                        debug_exit_info!(self);
                         Ok(expr)
                     }
                 }
@@ -1619,13 +1673,15 @@ impl Parser {
             Some(t) if t.is(Symbol) || t.is(Dot) || t.is(UBar) => {
                 let call_or_acc = self
                     .try_reduce_call_or_acc(in_type_args)
-                    .map_err(|_| self.stack_dec())?;
-                self.level -= 1;
+                    .map_err(|_| self.stack_dec(fn_name!()))?;
+                debug_exit_info!(self);
                 Ok(call_or_acc)
             }
             Some(t) if t.category_is(TC::UnaryOp) => {
-                let unaryop = self.try_reduce_unary().map_err(|_| self.stack_dec())?;
-                self.level -= 1;
+                let unaryop = self
+                    .try_reduce_unary()
+                    .map_err(|_| self.stack_dec(fn_name!()))?;
+                debug_exit_info!(self);
                 Ok(Expr::UnaryOp(unaryop))
             }
             Some(t) if t.is(LParen) => {
@@ -1643,12 +1699,12 @@ impl Parser {
                     let rparen = self.lpop();
                     let args = Args::new(vec![], vec![], Some((lparen, rparen)));
                     let unit = Tuple::Normal(NormalTuple::new(args));
-                    self.level -= 1;
+                    debug_exit_info!(self);
                     return Ok(Expr::Tuple(unit));
                 }
                 let mut expr = self
                     .try_reduce_expr(true, false, false, line_break)
-                    .map_err(|_| self.stack_dec())?;
+                    .map_err(|_| self.stack_dec(fn_name!()))?;
                 while self.cur_is(Newline) {
                     self.skip();
                 }
@@ -1659,29 +1715,31 @@ impl Parser {
                 if let Expr::Tuple(Tuple::Normal(tup)) = &mut expr {
                     tup.elems.paren = Some((lparen, rparen));
                 }
-                self.level -= 1;
+                debug_exit_info!(self);
                 Ok(expr)
             }
             Some(t) if t.is(LSqBr) => {
-                let array = self.try_reduce_array().map_err(|_| self.stack_dec())?;
-                self.level -= 1;
+                let array = self
+                    .try_reduce_array()
+                    .map_err(|_| self.stack_dec(fn_name!()))?;
+                debug_exit_info!(self);
                 Ok(Expr::Array(array))
             }
             Some(t) if t.is(LBrace) => {
                 match self
                     .try_reduce_brace_container()
-                    .map_err(|_| self.stack_dec())?
+                    .map_err(|_| self.stack_dec(fn_name!()))?
                 {
                     BraceContainer::Dict(dic) => {
-                        self.level -= 1;
+                        debug_exit_info!(self);
                         Ok(Expr::Dict(dic))
                     }
                     BraceContainer::Record(rec) => {
-                        self.level -= 1;
+                        debug_exit_info!(self);
                         Ok(Expr::Record(rec))
                     }
                     BraceContainer::Set(set) => {
-                        self.level -= 1;
+                        debug_exit_info!(self);
                         Ok(Expr::Set(set))
                     }
                 }
@@ -1689,41 +1747,46 @@ impl Parser {
             Some(t) if t.is(VBar) => {
                 let type_args = self
                     .try_reduce_type_app_args()
-                    .map_err(|_| self.stack_dec())?;
+                    .map_err(|_| self.stack_dec(fn_name!()))?;
                 let bounds = self
                     .convert_type_args_to_bounds(type_args)
-                    .map_err(|_| self.stack_dec())?;
-                let args = self.try_reduce_args(false).map_err(|_| self.stack_dec())?;
+                    .map_err(|_| self.stack_dec(fn_name!()))?;
+                let args = self
+                    .try_reduce_args(false)
+                    .map_err(|_| self.stack_dec(fn_name!()))?;
                 let params = self
                     .convert_args_to_params(args)
-                    .map_err(|_| self.stack_dec())?;
+                    .map_err(|_| self.stack_dec(fn_name!()))?;
                 if !self.cur_category_is(TC::LambdaOp) {
                     let err = self.skip_and_throw_syntax_err(caused_by!());
                     self.errs.push(err);
+                    debug_exit_info!(self);
                     return Err(());
                 }
                 let sig = LambdaSignature::new(params, None, bounds);
                 let op = self.lpop();
-                let block = self.try_reduce_block().map_err(|_| self.stack_dec())?;
+                let block = self
+                    .try_reduce_block()
+                    .map_err(|_| self.stack_dec(fn_name!()))?;
                 self.counter.inc();
-                self.level -= 1;
                 let lambda = Lambda::new(sig, op, block, self.counter);
+                debug_exit_info!(self);
                 Ok(Expr::Lambda(lambda))
             }
             Some(t) if t.is(UBar) => {
                 let token = self.lpop();
-                self.level -= 1;
                 self.errs.push(ParseError::feature_error(
                     line!() as usize,
                     token.loc(),
                     "discard pattern",
                 ));
+                debug_exit_info!(self);
                 Err(())
             }
             _other => {
-                self.level -= 1;
                 let err = self.skip_and_throw_syntax_err(caused_by!());
                 self.errs.push(err);
+                debug_exit_info!(self);
                 Err(())
             }
         }
@@ -1732,10 +1795,12 @@ impl Parser {
     #[inline]
     fn try_reduce_call_or_acc(&mut self, in_type_args: bool) -> ParseResult<Expr> {
         debug_call_info!(self);
-        let acc = self.try_reduce_acc_lhs().map_err(|_| self.stack_dec())?;
+        let acc = self
+            .try_reduce_acc_lhs()
+            .map_err(|_| self.stack_dec(fn_name!()))?;
         let mut call_or_acc = self.try_reduce_acc_chain(acc, in_type_args)?;
         while let Some(res) = self.opt_reduce_args(in_type_args) {
-            let args = res.map_err(|_| self.stack_dec())?;
+            let args = res.map_err(|_| self.stack_dec(fn_name!()))?;
             let (receiver, attr_name) = match call_or_acc {
                 Expr::Accessor(Accessor::Attr(attr)) => (*attr.obj, Some(attr.ident)),
                 other => (other, None),
@@ -1743,7 +1808,7 @@ impl Parser {
             let call = Call::new(receiver, attr_name, args);
             call_or_acc = Expr::Call(call);
         }
-        self.level -= 1;
+        debug_exit_info!(self);
         Ok(call_or_acc)
     }
 
@@ -1758,14 +1823,14 @@ impl Parser {
                     let _l_sqbr = self.lpop();
                     let index = self
                         .try_reduce_expr(true, false, false, false)
-                        .map_err(|_| self.stack_dec())?;
+                        .map_err(|_| self.stack_dec(fn_name!()))?;
                     let r_sqbr = if self.cur_is(RSqBr) {
                         self.lpop()
                     } else {
-                        self.level -= 1;
                         // TODO: error report: RSqBr not found
                         let err = self.skip_and_throw_syntax_err(caused_by!());
                         self.errs.push(err);
+                        debug_exit_info!(self);
                         return Err(());
                     };
                     obj = Expr::Accessor(Accessor::subscr(obj, index, r_sqbr));
@@ -1789,9 +1854,9 @@ impl Parser {
                         }
                         _ => {
                             self.restore(token);
-                            self.level -= 1;
                             let err = self.skip_and_throw_syntax_err(caused_by!());
                             self.errs.push(err);
+                            debug_exit_info!(self);
                             return Err(());
                         }
                     }
@@ -1816,18 +1881,18 @@ impl Parser {
                             self.restore(token);
                             let args = self
                                 .try_reduce_brace_container()
-                                .map_err(|_| self.stack_dec())?;
+                                .map_err(|_| self.stack_dec(fn_name!()))?;
                             match args {
                                 BraceContainer::Record(args) => {
                                     obj = Expr::DataPack(DataPack::new(obj, vis, args));
                                 }
                                 other => {
-                                    self.level -= 1;
                                     let err = ParseError::simple_syntax_error(
                                         line!() as usize,
                                         other.loc(),
                                     );
                                     self.errs.push(err);
+                                    debug_exit_info!(self);
                                     return Err(());
                                 }
                             }
@@ -1840,15 +1905,17 @@ impl Parser {
                         }
                         _ => {
                             self.restore(token);
-                            self.level -= 1;
                             let err = self.skip_and_throw_syntax_err(caused_by!());
                             self.errs.push(err);
+                            debug_exit_info!(self);
                             return Err(());
                         }
                     }
                 }
                 Some(t) if t.is(LParen) && obj.col_end() == t.col_begin() => {
-                    let args = self.try_reduce_args(false).map_err(|_| self.stack_dec())?;
+                    let args = self
+                        .try_reduce_args(false)
+                        .map_err(|_| self.stack_dec(fn_name!()))?;
                     let (receiver, attr_name) = match obj {
                         Expr::Accessor(Accessor::Attr(attr)) => (*attr.obj, Some(attr.ident)),
                         other => (other, None),
@@ -1859,7 +1926,7 @@ impl Parser {
                 Some(t) if t.is(VBar) && !in_type_args => {
                     let type_args = self
                         .try_reduce_type_app_args()
-                        .map_err(|_| self.stack_dec())?;
+                        .map_err(|_| self.stack_dec(fn_name!()))?;
                     obj = Expr::Accessor(Accessor::TypeApp(TypeApp::new(obj, type_args)));
                 }
                 _ => {
@@ -1867,7 +1934,7 @@ impl Parser {
                 }
             }
         }
-        self.level -= 1;
+        debug_exit_info!(self);
         Ok(obj)
     }
 
@@ -1877,8 +1944,8 @@ impl Parser {
         let op = self.lpop();
         let expr = self
             .try_reduce_expr(false, false, false, false)
-            .map_err(|_| self.stack_dec())?;
-        self.level -= 1;
+            .map_err(|_| self.stack_dec(fn_name!()))?;
+        debug_exit_info!(self);
         Ok(UnaryOp::new(op, expr))
     }
 
@@ -1886,12 +1953,14 @@ impl Parser {
     fn try_reduce_array(&mut self) -> ParseResult<Array> {
         debug_call_info!(self);
         let l_sqbr = self.lpop();
-        let inner = self.try_reduce_elems().map_err(|_| self.stack_dec())?;
+        let inner = self
+            .try_reduce_elems()
+            .map_err(|_| self.stack_dec(fn_name!()))?;
         let r_sqbr = self.lpop();
         if !r_sqbr.is(RSqBr) {
-            self.level -= 1;
             self.errs
                 .push(ParseError::simple_syntax_error(0, r_sqbr.loc()));
+            debug_exit_info!(self);
             return Err(());
         }
         let arr = match inner {
@@ -1915,16 +1984,16 @@ impl Parser {
                 Array::WithLength(ArrayWithLength::new(l_sqbr, r_sqbr, elem, len))
             }
             ArrayInner::Comprehension { .. } => {
-                self.level -= 1;
                 self.errs.push(ParseError::feature_error(
                     line!() as usize,
                     Location::concat(&l_sqbr, &r_sqbr),
                     "array comprehension",
                 ));
+                debug_exit_info!(self);
                 return Err(());
             }
         };
-        self.level -= 1;
+        debug_exit_info!(self);
         Ok(arr)
     }
 
@@ -1938,9 +2007,9 @@ impl Parser {
             if self.cur_is(Indent) {
                 self.skip();
             } else {
-                self.level -= 1;
                 let err = self.skip_and_throw_syntax_err(caused_by!());
                 self.errs.push(err);
+                debug_exit_info!(self);
                 return Err(());
             }
         }
@@ -1951,6 +2020,7 @@ impl Parser {
                 let r_brace = self.lpop();
                 let arg = Args::empty();
                 let set = NormalSet::new(l_brace, r_brace, arg);
+                debug_exit_info!(self);
                 return Ok(BraceContainer::Set(Set::Normal(set)));
             }
             if first.is(Equal) {
@@ -1958,12 +2028,13 @@ impl Parser {
                 if let Some(t) = self.peek() {
                     if t.is(RBrace) {
                         let r_brace = self.lpop();
+                        debug_exit_info!(self);
                         return Ok(BraceContainer::Record(Record::empty(l_brace, r_brace)));
                     }
                 }
-                self.level -= 1;
                 let err = self.skip_and_throw_syntax_err(caused_by!());
                 self.errs.push(err);
+                debug_exit_info!(self);
                 return Err(());
             }
             if first.is(Colon) {
@@ -1972,26 +2043,27 @@ impl Parser {
                     if t.is(RBrace) {
                         let r_brace = self.lpop();
                         let dict = NormalDict::new(l_brace, r_brace, vec![]);
+                        debug_exit_info!(self);
                         return Ok(BraceContainer::Dict(Dict::Normal(dict)));
                     }
                 }
-                self.level -= 1;
                 let err = self.skip_and_throw_syntax_err(caused_by!());
                 self.errs.push(err);
+                debug_exit_info!(self);
                 return Err(());
             }
         }
 
         let first = self
             .try_reduce_chunk(false, true)
-            .map_err(|_| self.stack_dec())?;
+            .map_err(|_| self.stack_dec(fn_name!()))?;
         match first {
             Expr::Def(def) => {
                 let attr = RecordAttrOrIdent::Attr(def);
                 let record = self
                     .try_reduce_record(l_brace, attr)
-                    .map_err(|_| self.stack_dec())?;
-                self.level -= 1;
+                    .map_err(|_| self.stack_dec(fn_name!()))?;
+                debug_exit_info!(self);
                 Ok(BraceContainer::Record(record))
             }
             // TODO: {X; Y} will conflict with Set
@@ -2003,32 +2075,32 @@ impl Parser {
                 let ident = match acc {
                     Accessor::Ident(ident) => ident,
                     other => {
-                        self.level -= 1;
                         let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
                         self.errs.push(err);
+                        debug_exit_info!(self);
                         return Err(());
                     }
                 };
                 let attr = RecordAttrOrIdent::Ident(ident);
                 let record = self
                     .try_reduce_record(l_brace, attr)
-                    .map_err(|_| self.stack_dec())?;
-                self.level -= 1;
+                    .map_err(|_| self.stack_dec(fn_name!()))?;
+                debug_exit_info!(self);
                 Ok(BraceContainer::Record(record))
             }
             // Dict
             other if self.cur_is(Colon) => {
                 let dict = self
                     .try_reduce_normal_dict(l_brace, other)
-                    .map_err(|_| self.stack_dec())?;
-                self.level -= 1;
+                    .map_err(|_| self.stack_dec(fn_name!()))?;
+                debug_exit_info!(self);
                 Ok(BraceContainer::Dict(Dict::Normal(dict)))
             }
             other => {
                 let set = self
                     .try_reduce_set(l_brace, other)
-                    .map_err(|_| self.stack_dec())?;
-                self.level -= 1;
+                    .map_err(|_| self.stack_dec(fn_name!()))?;
+                debug_exit_info!(self);
                 Ok(BraceContainer::Set(set))
             }
         }
@@ -2054,26 +2126,26 @@ impl Parser {
                     self.skip();
                     if self.cur_is(RBrace) {
                         let r_brace = self.lpop();
-                        self.stack_dec();
+                        debug_exit_info!(self);
                         return Ok(Record::new_mixed(l_brace, r_brace, attrs));
                     } else {
                         // TODO: not closed
                         // self.restore(other);
-                        self.stack_dec();
                         let err = self.skip_and_throw_syntax_err(caused_by!());
                         self.errs.push(err);
+                        debug_exit_info!(self);
                         return Err(());
                     }
                 }
                 Some(RBrace) => {
                     let r_brace = self.lpop();
-                    self.stack_dec();
+                    debug_exit_info!(self);
                     return Ok(Record::new_mixed(l_brace, r_brace, attrs));
                 }
                 Some(_) => {
                     let next = self
                         .try_reduce_chunk(false, false)
-                        .map_err(|_| self.stack_dec())?;
+                        .map_err(|_| self.stack_dec(fn_name!()))?;
                     match next {
                         Expr::Def(def) => {
                             attrs.push(RecordAttrOrIdent::Attr(def));
@@ -2082,30 +2154,30 @@ impl Parser {
                             let ident = match acc {
                                 Accessor::Ident(ident) => ident,
                                 other => {
-                                    self.stack_dec();
                                     let err = ParseError::simple_syntax_error(
                                         line!() as usize,
                                         other.loc(),
                                     );
                                     self.errs.push(err);
+                                    debug_exit_info!(self);
                                     return Err(());
                                 }
                             };
                             attrs.push(RecordAttrOrIdent::Ident(ident));
                         }
                         _ => {
-                            self.stack_dec();
                             let err = self.skip_and_throw_syntax_err(caused_by!());
                             self.errs.push(err);
+                            debug_exit_info!(self);
                             return Err(());
                         }
                     }
                 }
                 _ => {
                     //  self.restore(other);
-                    self.level -= 1;
                     let err = self.skip_and_throw_syntax_err(caused_by!());
                     self.errs.push(err);
+                    debug_exit_info!(self);
                     return Err(());
                 }
             }
@@ -2122,7 +2194,7 @@ impl Parser {
         self.skip();
         let value = self
             .try_reduce_chunk(false, false)
-            .map_err(|_| self.stack_dec())?;
+            .map_err(|_| self.stack_dec(fn_name!()))?;
         let mut kvs = vec![KeyValue::new(first_key, value)];
         loop {
             match self.peek_kind() {
@@ -2130,14 +2202,14 @@ impl Parser {
                     self.skip();
                     match self.peek_kind() {
                         Some(Comma) => {
-                            self.level -= 1;
                             let err = self.skip_and_throw_syntax_err(caused_by!());
                             self.errs.push(err);
+                            debug_exit_info!(self);
                             return Err(());
                         }
                         Some(RBrace) => {
                             let dict = NormalDict::new(l_brace, self.lpop(), kvs);
-                            self.level -= 1;
+                            debug_exit_info!(self);
                             return Ok(dict);
                         }
                         Some(Newline) => {
@@ -2147,17 +2219,17 @@ impl Parser {
                     }
                     let key = self
                         .try_reduce_expr(false, false, true, false)
-                        .map_err(|_| self.stack_dec())?;
+                        .map_err(|_| self.stack_dec(fn_name!()))?;
                     if self.cur_is(Colon) {
                         self.skip();
                         let value = self
                             .try_reduce_chunk(false, false)
-                            .map_err(|_| self.stack_dec())?;
+                            .map_err(|_| self.stack_dec(fn_name!()))?;
                         kvs.push(KeyValue::new(key, value));
                     } else {
-                        self.level -= 1;
                         let err = self.skip_and_throw_syntax_err(caused_by!());
                         self.errs.push(err);
+                        debug_exit_info!(self);
                         return Err(());
                     }
                 }
@@ -2166,7 +2238,7 @@ impl Parser {
                 }
                 Some(RBrace) => {
                     let dict = NormalDict::new(l_brace, self.lpop(), kvs);
-                    self.level -= 1;
+                    debug_exit_info!(self);
                     return Ok(dict);
                 }
                 _ => {
@@ -2174,6 +2246,7 @@ impl Parser {
                 }
             }
         }
+        debug_exit_info!(self);
         Err(())
     }
 
@@ -2183,8 +2256,9 @@ impl Parser {
             self.skip();
             let len = self
                 .try_reduce_expr(false, false, false, false)
-                .map_err(|_| self.stack_dec())?;
+                .map_err(|_| self.stack_dec(fn_name!()))?;
             let r_brace = self.lpop();
+            debug_exit_info!(self);
             return Ok(Set::WithLength(SetWithLength::new(
                 l_brace,
                 r_brace,
@@ -2199,14 +2273,14 @@ impl Parser {
                     self.skip();
                     match self.peek_kind() {
                         Some(Comma) => {
-                            self.level -= 1;
                             let err = self.skip_and_throw_syntax_err(caused_by!());
                             self.errs.push(err);
+                            debug_exit_info!(self);
                             return Err(());
                         }
                         Some(RBrace) => {
                             let set = Set::Normal(NormalSet::new(l_brace, self.lpop(), args));
-                            self.level -= 1;
+                            debug_exit_info!(self);
                             return Ok(set);
                         }
                         Some(Newline | Indent | Dedent) => {
@@ -2214,7 +2288,10 @@ impl Parser {
                         }
                         _ => {}
                     }
-                    match self.try_reduce_arg(false).map_err(|_| self.stack_dec())? {
+                    match self
+                        .try_reduce_arg(false)
+                        .map_err(|_| self.stack_dec(fn_name!()))?
+                    {
                         PosOrKwArg::Pos(arg) => match arg.expr {
                             Expr::Set(Set::Normal(set)) if set.elems.paren.is_none() => {
                                 args.extend_pos(set.elems.into_iters().0);
@@ -2227,9 +2304,9 @@ impl Parser {
                             }
                         },
                         PosOrKwArg::Kw(arg) => {
-                            self.level -= 1;
                             let err = ParseError::simple_syntax_error(line!() as usize, arg.loc());
                             self.errs.push(err);
+                            debug_exit_info!(self);
                             return Err(());
                         }
                     }
@@ -2239,7 +2316,7 @@ impl Parser {
                 }
                 Some(RBrace) => {
                     let set = Set::Normal(NormalSet::new(l_brace, self.lpop(), args));
-                    self.level -= 1;
+                    debug_exit_info!(self);
                     return Ok(set);
                 }
                 _ => {
@@ -2247,6 +2324,7 @@ impl Parser {
                 }
             }
         }
+        debug_exit_info!(self);
         Err(())
     }
 
@@ -2269,14 +2347,17 @@ impl Parser {
                         self.skip();
                     }
                     if self.cur_is(Comma) {
-                        self.level -= 1;
                         let err = self.skip_and_throw_syntax_err(caused_by!());
                         self.errs.push(err);
+                        debug_exit_info!(self);
                         return Err(());
                     } else if self.cur_is(Dedent) || self.cur_is(RParen) {
                         break;
                     }
-                    match self.try_reduce_arg(false).map_err(|_| self.stack_dec())? {
+                    match self
+                        .try_reduce_arg(false)
+                        .map_err(|_| self.stack_dec(fn_name!()))?
+                    {
                         PosOrKwArg::Pos(arg) if args.kw_is_empty() => match arg.expr {
                             Expr::Tuple(Tuple::Normal(tup)) if tup.elems.paren.is_none() => {
                                 args.extend_pos(tup.elems.into_iters().0);
@@ -2298,6 +2379,7 @@ impl Parser {
                                 None,
                             );
                             self.errs.push(err);
+                            debug_exit_info!(self);
                             return Err(());
                         }
                         // e.g. (x, y:=1) -> ...
@@ -2313,14 +2395,14 @@ impl Parser {
             }
         }
         let tup = Tuple::Normal(NormalTuple::new(args));
-        self.level -= 1;
+        debug_exit_info!(self);
         Ok(tup)
     }
 
     #[inline]
     fn try_reduce_lit(&mut self) -> ParseResult<Literal> {
         debug_call_info!(self);
-        self.level -= 1;
+        debug_exit_info!(self);
         match self.peek() {
             Some(t) if t.category_is(TC::Literal) => Ok(Literal::from(self.lpop())),
             _ => {
@@ -2354,7 +2436,7 @@ impl Parser {
                         right.col_begin().unwrap(),
                     );
                     expr = Expr::BinOp(BinOp::new(op, expr, right));
-                    self.level -= 1;
+                    debug_exit_info!(self);
                     return Ok(expr);
                 }
                 Some(_) => {
@@ -2395,7 +2477,6 @@ impl Parser {
                     }
                 }
                 None => {
-                    self.level -= 1;
                     let err = ParseError::syntax_error(
                         line!() as usize,
                         expr.loc(),
@@ -2408,6 +2489,7 @@ impl Parser {
                         None,
                     );
                     self.errs.push(err);
+                    debug_exit_info!(self);
                     return Err(());
                 }
             }
@@ -2424,7 +2506,8 @@ impl Parser {
         if stack.len() == 2 {
             self.errs
                 .push(ParseError::compiler_bug(0, op.loc(), fn_name!(), line!()));
-            self.stack_dec();
+            debug_exit_info!(self);
+            debug_exit_info!(self);
             return Err(());
         }
 
@@ -2448,56 +2531,57 @@ impl Parser {
             match self.lpop() {
                 symbol if symbol.is(Symbol) => {
                     let Some(ExprOrOp::Expr(obj)) = stack.pop() else {
-                        self.level -= 1;
                         let err = self.skip_and_throw_syntax_err(caused_by!());
                         self.errs.push(err);
+                        debug_exit_info!(self);
                         return Err(());
                     };
                     if let Some(args) = self
                         .opt_reduce_args(false)
                         .transpose()
-                        .map_err(|_| self.stack_dec())?
+                        .map_err(|_| self.stack_dec(fn_name!()))?
                     {
                         let ident = Identifier::new(Some(vis), VarName::new(symbol));
                         let mut call = Expr::Call(Call::new(obj, Some(ident), args));
                         while let Some(res) = self.opt_reduce_args(false) {
-                            let args = res.map_err(|_| self.stack_dec())?;
+                            let args = res.map_err(|_| self.stack_dec(fn_name!()))?;
                             call = call.call_expr(args);
                         }
                         stack.push(ExprOrOp::Expr(call));
                     } else {
                         self.errs.push(get_stream_op_syntax_error(obj.loc()));
-                        self.stack_dec();
+                        debug_exit_info!(self);
+                        debug_exit_info!(self);
                         return Err(());
                     }
                 }
                 other => {
                     self.restore(other);
-                    self.level -= 1;
                     let err = self.skip_and_throw_syntax_err(caused_by!());
                     self.errs.push(err);
+                    debug_exit_info!(self);
                     return Err(());
                 }
             }
         } else {
             let expect_call = self
                 .try_reduce_call_or_acc(false)
-                .map_err(|_| self.stack_dec())?;
+                .map_err(|_| self.stack_dec(fn_name!()))?;
             let Expr::Call(mut call) = expect_call else {
                 self.errs.push(get_stream_op_syntax_error(expect_call.loc()));
-                self.stack_dec();
+                debug_exit_info!(self);
                 return Err(());
             };
             let ExprOrOp::Expr(first_arg) = stack.pop().unwrap() else {
                 self.errs
                     .push(ParseError::compiler_bug(0, call.loc(), fn_name!(), line!()));
-                self.stack_dec();
+                debug_exit_info!(self);
                 return Err(());
             };
             call.args.insert_pos(0, PosArg::new(first_arg));
             stack.push(ExprOrOp::Expr(Expr::Call(call)));
         }
-        self.stack_dec();
+        debug_exit_info!(self);
         Ok(())
     }
 }
