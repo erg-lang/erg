@@ -6,6 +6,7 @@ mod hover;
 mod message;
 mod references;
 mod rename;
+mod semantic;
 mod server;
 mod util;
 

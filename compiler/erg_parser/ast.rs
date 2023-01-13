@@ -3345,6 +3345,13 @@ impl Signature {
         }
     }
 
+    pub fn params(self) -> Option<Params> {
+        match self {
+            Self::Var(_) => None,
+            Self::Subr(subr) => Some(subr.params),
+        }
+    }
+
     pub fn t_spec(&self) -> Option<&TypeSpec> {
         match self {
             Self::Var(v) => v.t_spec.as_ref(),
@@ -3357,6 +3364,10 @@ impl Signature {
             Self::Var(var) => var.is_const(),
             Self::Subr(subr) => subr.is_const(),
         }
+    }
+
+    pub const fn is_subr(&self) -> bool {
+        matches!(self, Self::Subr(_))
     }
 
     pub const fn vis(&self) -> Visibility {

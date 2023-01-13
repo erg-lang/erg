@@ -23,6 +23,7 @@ use erg_compiler::module::{SharedCompilerResource, SharedModuleIndex};
 use lsp_types::{
     ClientCapabilities, CompletionOptions, HoverProviderCapability, InitializeResult, OneOf,
     Position, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, Url,
+    SemanticTokensServerCapabilities, SemanticTokensOptions, SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokenType
 };
 
 use crate::hir_visitor::HIRVisitor;
@@ -127,6 +128,28 @@ impl<Checker: BuildRunnable> Server<Checker> {
         result.capabilities.definition_provider = Some(OneOf::Left(true));
         result.capabilities.hover_provider = Some(HoverProviderCapability::Simple(true));
         result.capabilities.inlay_hint_provider = Some(OneOf::Left(true));
+        let mut sema_options = SemanticTokensOptions::default();
+        sema_options.range = Some(true);
+        sema_options.full = Some(SemanticTokensFullOptions::Bool(true));
+        sema_options.legend = SemanticTokensLegend {
+            token_types: vec![
+                SemanticTokenType::NAMESPACE,
+                SemanticTokenType::TYPE,
+                SemanticTokenType::CLASS,
+                SemanticTokenType::INTERFACE,
+                SemanticTokenType::TYPE_PARAMETER,
+                SemanticTokenType::PARAMETER,
+                SemanticTokenType::VARIABLE,
+                SemanticTokenType::PROPERTY,
+                SemanticTokenType::FUNCTION,
+                SemanticTokenType::METHOD,
+                SemanticTokenType::STRING,
+                SemanticTokenType::NUMBER,
+                SemanticTokenType::OPERATOR,
+            ],
+            token_modifiers: vec![],
+        };
+        result.capabilities.semantic_tokens_provider = Some(SemanticTokensServerCapabilities::SemanticTokensOptions(sema_options));
         Self::send(&json!({
             "jsonrpc": "2.0",
             "id": id,
@@ -237,6 +260,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             "textDocument/hover" => self.show_hover(msg),
             "textDocument/rename" => self.rename(msg),
             "textDocument/references" => self.show_references(msg),
+            "textDocument/semanticTokens/full" => self.get_semantic_tokens_full(msg),
             other => Self::send_error(Some(id), -32600, format!("{other} is not supported")),
         }
     }
