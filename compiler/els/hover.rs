@@ -12,6 +12,30 @@ use lsp_types::{HoverContents, HoverParams, MarkedString, Url};
 use crate::server::{ELSResult, Server};
 use crate::util;
 
+macro_rules! next {
+    ($def_pos: ident, $default_code_block: ident, $contents: ident, $prev_token: ident, $token: ident) => {
+        if $def_pos.line == 0 {
+            if !$default_code_block.is_empty() {
+                $contents.push(MarkedString::from_markdown($default_code_block));
+            }
+            break;
+        }
+        $prev_token = $token;
+        $def_pos.line -= 1;
+        continue;
+    };
+    ($def_pos: ident, $default_code_block: ident, $contents: ident) => {
+        if $def_pos.line == 0 {
+            if !$default_code_block.is_empty() {
+                $contents.push(MarkedString::from_markdown($default_code_block));
+            }
+            break;
+        }
+        $def_pos.line -= 1;
+        continue;
+    };
+}
+
 impl<Checker: BuildRunnable> Server<Checker> {
     pub(crate) fn show_hover(&mut self, msg: &Value) -> ELSResult<()> {
         Self::send_log(format!("hover requested : {msg}"))?;
@@ -117,9 +141,18 @@ impl<Checker: BuildRunnable> Server<Checker> {
             let mut def_pos = util::loc_to_range(def_loc.loc).unwrap().start;
             def_pos.line = def_pos.line.saturating_sub(1);
             let def_uri = util::normalize_url(Url::from_file_path(module).unwrap());
-            while let Some(prev_token) = util::get_token(def_uri.clone(), def_pos)? {
-                if prev_token.is(TokenKind::DocComment) {
-                    let code_block = prev_token
+            let mut default_code_block = "".to_string();
+            let stream = util::get_token_stream(def_uri)?;
+            let mut prev_token = Token::DUMMY;
+            loop {
+                let Some(token) = util::get_token_from_stream(&stream, def_pos)? else {
+                    next!(def_pos, default_code_block, contents);
+                };
+                if token.deep_eq(&prev_token) {
+                    next!(def_pos, default_code_block, contents, prev_token, token);
+                }
+                if token.is(TokenKind::DocComment) {
+                    let code_block = token
                         .content
                         .trim_start_matches("'''")
                         .trim_end_matches("'''")
@@ -135,15 +168,20 @@ impl<Checker: BuildRunnable> Server<Checker> {
                         contents.push(MarkedString::from_markdown(code_block));
                         break;
                     } else {
-                        def_pos.line -= 1;
+                        if lang.is_en() {
+                            default_code_block = code_block;
+                        }
+                        next!(def_pos, default_code_block, contents, prev_token, token);
                     }
-                } else if prev_token == var_token {
-                    if def_pos.line == 0 {
-                        break;
-                    }
-                    // multi pattern definition / declaration
-                    def_pos.line -= 1;
+                } else if token == var_token {
+                    next!(def_pos, default_code_block, contents, prev_token, token);
                 } else {
+                    if token.category_is(TokenCategory::Separator) {
+                        next!(def_pos, default_code_block, contents, prev_token, token);
+                    }
+                    if !default_code_block.is_empty() {
+                        contents.push(MarkedString::from_markdown(default_code_block));
+                    }
                     break;
                 }
             }

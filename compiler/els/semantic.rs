@@ -6,14 +6,16 @@ use serde_json::Value;
 
 use erg_common::dict::Dict;
 use erg_common::error::Location;
-use erg_common::traits::{Runnable, Locational};
+use erg_common::traits::{Locational, Runnable};
 
-use erg_compiler::erg_parser::ast::{Accessor, Args, AST, BinOp, Block, Call, ClassDef, Expr, Def, DefKind, Params, UnaryOp};
-use erg_compiler::ASTBuilder;
 use erg_compiler::artifact::BuildRunnable;
+use erg_compiler::erg_parser::ast::{
+    Accessor, Args, BinOp, Block, Call, ClassDef, Def, DefKind, Expr, Params, UnaryOp, AST,
+};
 use erg_compiler::erg_parser::token::TokenKind;
+use erg_compiler::ASTBuilder;
 
-use lsp_types::{SemanticTokens, SemanticTokensParams, SemanticTokenType};
+use lsp_types::{SemanticTokenType, SemanticTokens, SemanticTokensParams};
 
 use crate::server::{ELSResult, Server};
 use crate::util;
@@ -104,12 +106,14 @@ impl ASTSemanticState {
             Expr::Lit(lit) => {
                 let typ = match lit.token.kind {
                     TokenKind::StrLit => SemanticTokenType::STRING,
-                    TokenKind::NatLit | TokenKind::IntLit | TokenKind::RatioLit => SemanticTokenType::NUMBER,
+                    TokenKind::NatLit | TokenKind::IntLit | TokenKind::RatioLit => {
+                        SemanticTokenType::NUMBER
+                    }
                     _ => SemanticTokenType::VARIABLE,
                 };
                 let token = Self::gen_token(lit.loc(), typ);
                 vec![token]
-            },
+            }
             Expr::Def(def) => self.gen_from_def(def),
             Expr::Lambda(lambda) => self.gen_from_block(Some(lambda.sig.params), lambda.body),
             Expr::ClassDef(classdef) => self.gen_from_classdef(classdef),
@@ -122,7 +126,11 @@ impl ASTSemanticState {
     }
 
     fn gen_from_def(&mut self, def: Def) -> Vec<SemanticToken> {
-        let name = def.sig.ident().map(|id| id.name.to_string()).unwrap_or_else(|| "_".to_string());
+        let name = def
+            .sig
+            .ident()
+            .map(|id| id.name.to_string())
+            .unwrap_or_else(|| "_".to_string());
         let typ = match def.def_kind() {
             DefKind::Class => SemanticTokenType::CLASS,
             DefKind::Trait => SemanticTokenType::INTERFACE,
@@ -158,10 +166,13 @@ impl ASTSemanticState {
             }
             Accessor::Attr(attr) => {
                 let mut tokens = self.gen_from_expr(*attr.obj);
-                tokens.push(Self::gen_token(attr.ident.name.loc(), SemanticTokenType::PROPERTY));
+                tokens.push(Self::gen_token(
+                    attr.ident.name.loc(),
+                    SemanticTokenType::PROPERTY,
+                ));
                 tokens
             }
-            _ => vec![]
+            _ => vec![],
         }
     }
 
@@ -226,7 +237,7 @@ impl ASTSemanticState {
 
 impl<Checker: BuildRunnable> Server<Checker> {
     pub(crate) fn get_semantic_tokens_full(&mut self, msg: &Value) -> ELSResult<()> {
-        Self::send_log(format!("definition requested: {msg}"))?;
+        Self::send_log(format!("full semantic tokens request: {msg}"))?;
         let params = SemanticTokensParams::deserialize(&msg["params"])?;
         let uri = util::normalize_url(params.text_document.uri);
         let path = util::uri_to_path(&uri);
@@ -236,7 +247,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             Ok(ast) => {
                 let mut state = ASTSemanticState::new();
                 json!(state.enumerate_tokens(ast))
-            },
+            }
             Err(_) => json!(null),
         };
         Self::send(

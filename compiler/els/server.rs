@@ -22,8 +22,9 @@ use erg_compiler::module::{SharedCompilerResource, SharedModuleIndex};
 
 use lsp_types::{
     ClientCapabilities, CompletionOptions, HoverProviderCapability, InitializeResult, OneOf,
-    Position, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, Url,
-    SemanticTokensServerCapabilities, SemanticTokensOptions, SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokenType
+    Position, SemanticTokenType, SemanticTokensFullOptions, SemanticTokensLegend,
+    SemanticTokensOptions, SemanticTokensServerCapabilities, ServerCapabilities,
+    TextDocumentSyncCapability, TextDocumentSyncKind, Url,
 };
 
 use crate::hir_visitor::HIRVisitor;
@@ -149,7 +150,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
             ],
             token_modifiers: vec![],
         };
-        result.capabilities.semantic_tokens_provider = Some(SemanticTokensServerCapabilities::SemanticTokensOptions(sema_options));
+        result.capabilities.semantic_tokens_provider = Some(
+            SemanticTokensServerCapabilities::SemanticTokensOptions(sema_options),
+        );
         Self::send(&json!({
             "jsonrpc": "2.0",
             "id": id,
