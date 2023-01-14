@@ -30,9 +30,9 @@ impl ModId {
 
 #[derive(Debug, Clone)]
 pub struct ModuleEntry {
-    id: ModId, // builtin == 0, __main__ == 1
+    pub id: ModId, // builtin == 0, __main__ == 1
     pub hir: Option<HIR>,
-    module: Rc<ModuleContext>,
+    pub module: Rc<ModuleContext>,
 }
 
 impl fmt::Display for ModuleEntry {
@@ -60,6 +60,10 @@ impl ModuleEntry {
             hir: None,
             module: Rc::new(ctx),
         }
+    }
+
+    pub fn cfg(&self) -> &ErgConfig {
+        &self.module.context.cfg
     }
 }
 

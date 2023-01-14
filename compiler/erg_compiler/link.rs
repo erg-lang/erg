@@ -304,14 +304,14 @@ impl<'a> Linker<'a> {
         let path = Path::new(&path[..]);
         let path = Context::resolve_real_path(self.cfg, path).unwrap();
         // In the case of REPL, entries cannot be used up
-        let hir = if self.cfg.input.is_repl() {
+        let hir_cfg = if self.cfg.input.is_repl() {
             self.mod_cache
                 .get(path.as_path())
-                .and_then(|entry| entry.hir.clone())
+                .and_then(|entry| entry.hir.clone().map(|hir| (hir, entry.cfg().clone())))
         } else {
             self.mod_cache
                 .remove(path.as_path())
-                .and_then(|entry| entry.hir)
+                .and_then(|entry| entry.hir.map(|hir| (hir, entry.module.context.cfg.clone())))
         };
         let mod_name = enum_unwrap!(expr, Expr::Call)
             .args
@@ -319,7 +319,9 @@ impl<'a> Linker<'a> {
             .unwrap();
         // let sig = option_enum_unwrap!(&def.sig, Signature::Var)
         //    .unwrap_or_else(|| todo!("module subroutines are not allowed"));
-        if let Some(hir) = hir {
+        if let Some((hir, cfg)) = hir_cfg {
+            let linker = Linker::new(&cfg, self.mod_cache);
+            let hir = linker.link(hir);
             let code = Expr::Code(Block::new(Vec::from(hir.module)));
             let module_type =
                 Expr::Accessor(Accessor::private_with_line(Str::ever("#ModuleType"), line));
