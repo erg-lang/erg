@@ -1,0 +1,37 @@
+.pi: Float
+.tau: Float
+.e: Float
+.sin: Float -> Float
+.cos: Float -> Float
+.tan: Float -> Float
+.asin: Float -> Float
+.acos: Float -> Float
+.atan: Float -> Float
+.sinh: Float -> Float
+.cosh: Float -> Float
+.tanh: Float -> Float
+.asinh: Float -> Float
+.acosh: Float -> Float
+.atanh: Float -> Float
+.sqrt: Float -> Float
+.exp: Float -> Float
+.log: Float -> Float
+.log2: Float -> Float
+.log10: Float -> Float
+.floor: Float -> Int
+.ceil: Float -> Int
+.comb: (n: Int, k: Int) -> Int
+.copysign: (x: Float, y: Float) -> Float
+.trunc: Float -> Int
+.fabs: (x: Float) -> Float
+.factorial: (n: Nat) -> Nat
+.fmod: (x: Float, y: Float) -> Float
+.frexp: (x: Float) -> (Float, Int)
+.fsum: (iterable: Iterable Float) -> Float
+.isclose: (a: Float, b: Float, rel_tol := Float, abs_tol := Float) -> Bool
+.isfinite: (x: Float) -> Bool
+.isinf: (x: Float) -> Bool
+.isnan: (x: Float) -> Bool
+.isqrt: (n: Nat) -> Nat
+.perm: (n: Nat, k := Nat) -> Nat
+.prod: |T <: Mul(T)|(iterable: Iterable(T), start := T) -> T.Output

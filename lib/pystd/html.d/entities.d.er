@@ -1,0 +1,4 @@
+.html5: {Str: Str}
+.entitydefs: {Str: Str}
+.name2codepoint: {Str: Nat}
+.codepoint2name: {Nat: Str}

@@ -1,0 +1,4 @@
+.cache: |T <: Proc|(user_function: T) -> T
+.lru_cache: |T <: Proc|(user_function: T) -> T
+.total_ordering: (cls: ClassType) -> ClassType
+.reduce: |T: Type|(function!: T => T, iterable: Iterable(T), initializer := T or NoneType) -> T

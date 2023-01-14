@@ -1,0 +1,27 @@
+# e.g. `nightly.0`
+.Identifier = Class { .name = Str; .num = Nat }
+.Identifier|.Identifier <: Eq|.
+    __eq__ self, other: .Identifier =
+        self.name == other.name and self.num == other.num
+
+.Version = Class { .major = Nat; .minor = Nat; .patch = Nat; .pre = .Identifier or NoneType }
+.Version.
+    new major, minor, patch, pre := None =
+        .Version::__new__ { .major = major; .minor = minor; .patch = patch; .pre = pre }
+#[
+    greater self, other: .Version =
+        match [self.major > other.major, self.major >= other.major, self.minor > other.minor, self.minor >= other.minor, self.patch > other.patch]:
+            [True, _, _, _, _] -> True
+            [_, True, True, _, _] -> True
+            [_, True, _, True, True] -> True
+            _ -> False
+]#
+.Version|.Version <: Eq|.
+    __eq__ self, other: .Version =
+        self.major == other.major and self.minor == other.minor and self.patch == other.patch and self.pre == other.pre
+
+if! __name__ == "__main__", do!:
+    v = .Version.new(0, 0, 1)
+    assert v.minor == 0
+    assert v.pre == None
+    assert v != .Version.new(0, 0, 2)

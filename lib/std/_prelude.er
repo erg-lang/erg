@@ -1,0 +1,92 @@
+@Attach NeImpl
+Eq(R := Self) = Trait {
+    .`==` = (self: Self, R) -> Bool
+}
+
+NeImpl R = Patch Eq R
+NeImpl(R).
+    `!=`(self, other: R): Bool = not(self == other)
+
+@Attach EqImpl, LeImpl, LtImpl, GeImpl, GtImpl
+PartialOrd(R := Self) = Trait {
+    .cmp = (self: Self, R) -> Option Ordering
+}
+Ord = Subsume PartialOrd()
+
+EqForOrd R = Patch Ord
+EqForOrd(R)|<: Eq()|.
+    `==`(self, other: R): Bool = self.cmp(other) == Ordering.Equal
+
+LeForOrd = Patch Ord
+LeForOrd.
+    `<=`(self, other: Self): Bool = self.cmp(other) == Ordering.Less or self == other
+LtForOrd = Patch Ord
+LtForOrd.
+    `<`(self, other: Self): Bool = self.cmp(other) == Ordering.Less
+GeForOrd = Patch Ord
+GeForOrd.
+    `>=`(self, other: Self): Bool = self.cmp(other) == Ordering.Greater or self == other
+GtForOrd = Patch Ord
+GtForOrd.
+    `>`(self, other: Self): Bool = self.cmp(other) == Ordering.Greater
+
+Add(R := Self) = Trait {
+    .Output = Type
+    .`_+_` = (self: Self, R) -> Self.Output
+}
+Sub(R := Self) = Trait {
+    .Output = Type
+    .`-` = (self: Self, R) -> Self.Output
+}
+Mul(R := Self) = Trait {
+    .Output = Type
+    .`*` = (self: Self, R) -> Self.Output
+}
+Div(R := Self) = Trait {
+    .Output = Type
+    .`/` = (self: Self, R) -> Self.Output or Panic
+}
+Num = Add and Sub and Mul
+
+Seq T = Trait {
+    .__len__ = (self: Ref(Self)) -> Nat
+    .get = (self: Ref(Self), Nat) -> T
+}
+
+AddForInt = Patch Int
+AddForInt|<: Add(Int)|.
+    AddO = Int
+    `_+_`(self: Self, other: Int): Int = magic("Add.`_+_`")
+
+# TODO: Mul and Div
+NumForInterval M, N, O, P: Int = Patch M..N
+NumForInterval(M, N, O, P)|<: Add(O..P)|.
+    Output = M+O..N+P
+    __add__(self: Self, other: O..P) = magic("NumForInterval.`_+_`")
+NumForInterval(M, N, O, P)|<: Sub(O..P)|.
+    Output = M-P..N-O
+    __sub__(self: Self, other: O..P) = magic("NumForInterval.`_-_`")
+
+Read = Trait {
+    .read = (self: Ref(Self),) -> Str
+}
+Read! = Trait {
+    .read! = (self: Ref!(Self),) => Str
+}
+Write! = Trait {
+    .write! = (self: Ref!(Self), Str) => ()
+}
+
+discard _x = None
+
+discard 1
+
+# if: |T, U|(Bool, T, U) -> T or U
+cond|T: Type|(c: Bool, then: T, else: T): T =
+    if c:
+        do then
+        do else
+
+assert cond(False, 1, 2) == 2
+# assert cond(True, 1, 3) == "a"
+# assert "a" == cond(True, 1, 3)

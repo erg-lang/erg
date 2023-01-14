@@ -1,0 +1,44 @@
+.Any: Type
+.LiteralString: Type
+.Never: Type
+.NoReturn: Type
+.Self: Type
+.TypeAlias: Type
+.Tuple: (...Type) -> Type
+.Union: (...Type) -> Type
+.Optional: (Type) -> Type
+.Callable: (...Type) -> Type
+.Concatenate: (...Type) -> Type
+.Type: (Type) -> Type
+.Literal: (...Obj) -> Type
+.ClassVar: (Type) -> Type
+.Final: (Type) -> Type
+.Required: (Type) -> Type
+.NotRequired: (Type) -> Type
+.Annotated: (Type, ...Obj) -> Type
+.TypeGuard: (Type) -> Type
+.Generic: (Type) -> Type
+.TypeVar: (Str) -> Type
+.TypeVarTuple: (Str) -> Type
+.Unpack: (Type) -> Type
+.ParamSpec: (Str) -> Type
+.AnyStr: Type
+.Protocol: (Type := NoneType) -> Type
+.NamedTuple: Type
+.NewType: (Str, Type) -> Type
+.TypedDict: (Str, Type) -> Type
+.Dict: (Type, Type) -> Type
+.List: (Type) -> Type
+.Set: (Type) -> Type
+.FrozenSet: (Type) -> Type
+.OrderedDict: (Type, Type) -> Type
+.ChainMap: (Type, Type) -> Type
+.Counter: (Type, Int) -> Type
+.Deque: (Type) -> Type
+.IO: Type
+.TextIO: Type
+.BinaryIO: Type
+.Pattern: Type
+.Match: Type
+.Text: Type
+.Sequence: (Type) -> Type

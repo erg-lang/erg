@@ -1,0 +1,9 @@
+.dirname!: (path: PathLike,) => Str
+.exists!: (path: PathLike,) => Bool
+.lexists!: (path: PathLike,) => Bool
+.expanduser!: (path: PathLike,) => Str
+.expandvars!: (path: PathLike,) => Str
+.isfile!: (path: PathLike,) => Bool
+.isdir!: (path: PathLike,) => Bool
+.islink!: (path: PathLike,) => Bool
+.ismount!: (path: PathLike,) => Bool

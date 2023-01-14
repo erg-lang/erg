@@ -1,0 +1,20 @@
+io = pyimport "io"
+
+.argv: [Str; _]
+.byteorder: Str
+.builtin_module_names: [Str; _]
+.copyright: Str
+.executable: Str
+.path: Array!(Str, _)
+.platform: Str
+.prefix: Str
+.ps1: Str!
+.ps2: Str!
+.stderr: io.TextIOWrapper!
+.stdin: io.TextIOWrapper!
+.stdout: io.TextIOWrapper!
+.version: Str
+
+.exit: Int -> Never
+.getdefaultencoding!: () => Str
+.setrecursionlimit!: Int => NoneType

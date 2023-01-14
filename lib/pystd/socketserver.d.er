@@ -1,0 +1,17 @@
+.TCPServer: ClassType
+.UDPServer: ClassType
+.UnixStreamServer: ClassType
+.UnixDatagramServer: ClassType
+
+.ForkingMixIn: ClassType
+.ThreadingMixIn: ClassType
+
+.ForkingTCPServer: ClassType
+.ForkingUDPServer: ClassType
+.ThreadingTCPServer: ClassType
+.ThreadingUDPServer: ClassType
+
+.BaseServer: ClassType
+.BaseRequestHandler: ClassType
+.StreamRequestHandler: ClassType
+.DatagramRequestHandler: ClassType

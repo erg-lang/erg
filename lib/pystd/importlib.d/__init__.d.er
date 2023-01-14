@@ -1,0 +1,6 @@
+.util = pyimport "util"
+.machinery = pyimport "machinery"
+
+.__import__: |S: Str|(name: {S}, globals := {Str: Obj}) -> Module S
+.import_module: |S: Str|(name: {S}, package := Str or NoneType) -> Module S
+.reload!: (GenericModule, ) => NoneType

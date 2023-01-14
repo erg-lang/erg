@@ -1,0 +1,44 @@
+'''
+Planck constant [J s]
+'''
+.h = 6.62607015e-34
+'''
+Dirac constant (ħ = h/2π) [J s]
+'''
+.ħ = 1.054571817e-34
+'''
+Velocity of light [m s^-1]
+'''
+.c = 2.99792458e+8
+'''
+Electric constant [F m^-1]
+'''
+.ε_0 = 8.8541878128e-12
+'''
+Magnetic constrant [N A^-2]
+'''
+.μ_0 = 1.25663706212e-6
+'''
+Standard gravity [m s^-2]
+'''
+.g = 9.80665
+'''
+Gravitational constant [m^3 kg^-1 s^-2]
+'''
+.G = 6.67430e-11
+'''
+Fine structure constant [dimensionless]
+'''
+.α = 7.2973525693e-3
+'''
+Bolzmann constant [J K^-1]
+'''
+.k_B = 1.380649e-23
+'''
+Avogadro constant [mol^-1]
+'''
+.N_A = 6.02214076e+23
+'''
+Rydberg constant [m^-1]
+'''
+.R_inf = 10973731.568160

@@ -1,0 +1,22 @@
+.lt: |T <: Ord|(T, T) -> Bool
+.le: |T <: Ord|(T, T) -> Bool
+.eq: |T <: Eq|(T, T) -> Bool
+.ne: |T <: Eq|(T, T) -> Bool
+.ge: |T <: Ord|(T, T) -> Bool
+.gt: |T <: Ord|(T, T) -> Bool
+.__lt__: |T <: Ord|(T, T) -> Bool
+.__le__: |T <: Ord|(T, T) -> Bool
+.__eq__: |T <: Eq|(T, T) -> Bool
+.__ne__: |T <: Eq|(T, T) -> Bool
+.__ge__: |T <: Ord|(T, T) -> Bool
+.__gt__: |T <: Ord|(T, T) -> Bool
+.not_: |T <: Bool|(T) -> Bool
+.__not__: |T <: Bool|(T) -> Bool
+.truth: Obj -> Bool
+.is_: (Obj, Obj) -> Bool
+.is_not: (Obj, Obj) -> Bool
+.abs: Num -> Nat
+.__abs__: Num -> Nat
+.__add__: |T: Type, A <: Add(T)| (A, T) -> A.Output
+.and_: (Int, Int) -> Bool
+.__and__: (Int, Int) -> Bool

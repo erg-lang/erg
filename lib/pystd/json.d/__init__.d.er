@@ -1,0 +1,7 @@
+.dump: (obj: Obj, fp: FileLike!) -> Str
+.dumps: (obj: Obj,) -> Str
+.load: (fp: File!,) -> Obj
+.loads: (s: Str,) -> Obj
+
+.JsonDecoder: ClassType
+.JsonEncoder: ClassType

@@ -1,0 +1,21 @@
+.path = pyimport "path"
+# .PathLike: ClassType
+
+.name: Str
+
+.chdir!: (path: PathLike, ) => NoneType
+.getcwd!: () => Str
+.getenv!: (key: Str, default: Str or NoneType := NoneType) => Str
+.listdir!: (path := PathLike,) => [Str; _]
+.mkdir!: (path: PathLike, mode := Nat) => NoneType
+.putenv!: (key: Str, value: Str) => NoneType
+.remove!: (path: PathLike,) => NoneType
+.removedirs!: (path: PathLike,) => NoneType
+.rename!: (src: PathLike, dst: PathLike) => NoneType
+.rmdir!: (path: PathLike,) => NoneType
+
+# posix = pyimport "posix"
+# .uname!: () => posix.UnameResult
+
+.getrandom!: (size: Nat) => Bytes
+.urandom!: (size: Nat) => Bytes
