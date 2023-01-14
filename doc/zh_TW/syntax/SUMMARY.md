@@ -1,7 +1,7 @@
 # Summary
 
 <!--
-This file is generated automatically. If you want to edit this, edit `doc/syn_to_summary.py`
+This file is generated automatically. If you want to edit this, edit `doc/sync_to_summary.py`
 This file is for generating The Erg Book. Do not add badges, etc.
 -->
 
