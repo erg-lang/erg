@@ -3,6 +3,7 @@ use erg_common::{fn_name, log, option_enum_unwrap, set};
 
 use crate::ast::*;
 use crate::debug_call_info;
+use crate::debug_exit_info;
 use crate::error::{ParseError, ParseResult};
 use crate::token::TokenKind;
 use crate::Parser;
@@ -16,14 +17,14 @@ impl Parser {
                 let var = self
                     .convert_accessor_to_var_sig(accessor)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
-                self.level -= 1;
+                debug_exit_info!(self);
                 Ok(Signature::Var(var))
             }
             Expr::Call(call) => {
                 let subr = self
                     .convert_call_to_subr_sig(call)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
-                self.level -= 1;
+                debug_exit_info!(self);
                 Ok(Signature::Subr(subr))
             }
             Expr::Array(array) => {
@@ -31,7 +32,7 @@ impl Parser {
                     .convert_array_to_array_pat(array)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
                 let var = VarSignature::new(VarPattern::Array(array_pat), None);
-                self.level -= 1;
+                debug_exit_info!(self);
                 Ok(Signature::Var(var))
             }
             Expr::Record(record) => {
@@ -39,7 +40,7 @@ impl Parser {
                     .convert_record_to_record_pat(record)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
                 let var = VarSignature::new(VarPattern::Record(record_pat), None);
-                self.level -= 1;
+                debug_exit_info!(self);
                 Ok(Signature::Var(var))
             }
             Expr::DataPack(pack) => {
@@ -47,7 +48,7 @@ impl Parser {
                     .convert_data_pack_to_data_pack_pat(pack)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
                 let var = VarSignature::new(VarPattern::DataPack(data_pack), None);
-                self.level -= 1;
+                debug_exit_info!(self);
                 Ok(Signature::Var(var))
             }
             Expr::Tuple(tuple) => {
@@ -55,18 +56,18 @@ impl Parser {
                     .convert_tuple_to_tuple_pat(tuple)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
                 let var = VarSignature::new(VarPattern::Tuple(tuple_pat), None);
-                self.level -= 1;
+                debug_exit_info!(self);
                 Ok(Signature::Var(var))
             }
             Expr::TypeAsc(tasc) => {
                 let sig = self
                     .convert_type_asc_to_sig(tasc)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
-                self.level -= 1;
+                debug_exit_info!(self);
                 Ok(sig)
             }
             other => {
-                self.level -= 1;
+                debug_exit_info!(self);
                 let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
                 self.errs.push(err);
                 Err(())
@@ -83,13 +84,13 @@ impl Parser {
                 } else {
                     VarPattern::Ident(ident)
                 };
-                self.level -= 1;
+                debug_exit_info!(self);
                 Ok(VarSignature::new(pat, None))
             }
             other => {
-                self.level -= 1;
                 let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
                 self.errs.push(err);
+                debug_exit_info!(self);
                 Err(())
             }
         }
@@ -109,43 +110,45 @@ impl Parser {
                             vars.push(v);
                         }
                         Signature::Subr(subr) => {
-                            self.level -= 1;
                             let err = ParseError::simple_syntax_error(line!() as usize, subr.loc());
                             self.errs.push(err);
+                            debug_exit_info!(self);
                             return Err(());
                         }
                     }
                 }
                 let pat = VarArrayPattern::new(arr.l_sqbr, vars, arr.r_sqbr);
-                self.level -= 1;
+                debug_exit_info!(self);
                 Ok(pat)
             }
             Array::Comprehension(arr) => {
-                self.level -= 1;
                 let err = ParseError::simple_syntax_error(line!() as usize, arr.loc());
                 self.errs.push(err);
+                debug_exit_info!(self);
                 Err(())
             }
             Array::WithLength(arr) => {
-                self.level -= 1;
                 let err = ParseError::feature_error(
                     line!() as usize,
                     arr.loc(),
                     "array-with-length pattern",
                 );
                 self.errs.push(err);
+                debug_exit_info!(self);
                 Err(())
             }
         }
     }
 
     fn convert_def_to_var_record_attr(&mut self, mut attr: Def) -> ParseResult<VarRecordAttr> {
+        debug_call_info!(self);
         let lhs = option_enum_unwrap!(attr.sig, Signature::Var).unwrap_or_else(|| todo!());
         let lhs = option_enum_unwrap!(lhs.pat, VarPattern::Ident).unwrap_or_else(|| todo!());
         assert_eq!(attr.body.block.len(), 1);
         let rhs = option_enum_unwrap!(attr.body.block.remove(0), Expr::Accessor)
             .unwrap_or_else(|| todo!());
         let rhs = self.convert_accessor_to_var_sig(rhs)?;
+        debug_exit_info!(self);
         Ok(VarRecordAttr::new(lhs, rhs))
     }
 
@@ -160,7 +163,7 @@ impl Parser {
                     .collect::<ParseResult<Vec<_>>>()
                     .map_err(|_| self.stack_dec(fn_name!()))?;
                 let attrs = VarRecordAttrs::new(pats);
-                self.stack_dec(fn_name!());
+                debug_exit_info!(self);
                 Ok(VarRecordPattern::new(rec.l_brace, attrs, rec.r_brace))
             }
             Record::Mixed(rec) => {
@@ -177,7 +180,7 @@ impl Parser {
                     .collect::<ParseResult<Vec<_>>>()
                     .map_err(|_| self.stack_dec(fn_name!()))?;
                 let attrs = VarRecordAttrs::new(pats);
-                self.stack_dec(fn_name!());
+                debug_exit_info!(self);
                 Ok(VarRecordPattern::new(rec.l_brace, attrs, rec.r_brace))
             }
         }
@@ -192,7 +195,7 @@ impl Parser {
         let args = self
             .convert_record_to_record_pat(pack.args)
             .map_err(|_| self.stack_dec(fn_name!()))?;
-        self.level -= 1;
+        debug_exit_info!(self);
         Ok(VarDataPackPattern::new(class, args))
     }
 
@@ -211,16 +214,16 @@ impl Parser {
                             vars.push(var);
                         }
                         other => {
-                            self.level -= 1;
                             let err =
                                 ParseError::simple_syntax_error(line!() as usize, other.loc());
                             self.errs.push(err);
+                            debug_exit_info!(self);
                             return Err(());
                         }
                     }
                 }
                 let tuple = VarTuplePattern::new(paren, vars);
-                self.level -= 1;
+                debug_exit_info!(self);
                 Ok(tuple)
             }
         }
@@ -247,7 +250,7 @@ impl Parser {
                 Signature::Subr(subr)
             }
         };
-        self.level -= 1;
+        debug_exit_info!(self);
         Ok(sig)
     }
 
@@ -258,9 +261,9 @@ impl Parser {
                 .convert_accessor_to_ident(acc)
                 .map_err(|_| self.stack_dec(fn_name!()))?,
             other => {
-                self.level -= 1;
                 let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
                 self.errs.push(err);
+                debug_exit_info!(self);
                 return Err(());
             }
         };
@@ -268,7 +271,7 @@ impl Parser {
             .convert_args_to_params(call.args)
             .map_err(|_| self.stack_dec(fn_name!()))?;
         let sig = SubrSignature::new(set! {}, ident, bounds, params, None);
-        self.level -= 1;
+        debug_exit_info!(self);
         Ok(sig)
     }
 
@@ -293,13 +296,13 @@ impl Parser {
                 (ident, bounds)
             }
             other => {
-                self.level -= 1;
                 let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
                 self.errs.push(err);
+                debug_exit_info!(self);
                 return Err(());
             }
         };
-        self.level -= 1;
+        debug_exit_info!(self);
         Ok((ident, bounds))
     }
 
@@ -317,7 +320,7 @@ impl Parser {
             bounds.push(bound);
         }
         let bounds = TypeBoundSpecs::new(bounds);
-        self.level -= 1;
+        debug_exit_info!(self);
         Ok(bounds)
     }
 
@@ -360,7 +363,7 @@ impl Parser {
                 .map_err(|_| self.stack_dec(fn_name!()))?;
             params.defaults.push(d_param);
         }
-        self.level -= 1;
+        debug_exit_info!(self);
         Ok(params)
     }
 
@@ -373,7 +376,7 @@ impl Parser {
         let param = self
             .convert_rhs_to_param(arg.expr, allow_self)
             .map_err(|_| self.stack_dec(fn_name!()))?;
-        self.level -= 1;
+        debug_exit_info!(self);
         Ok(param)
     }
 
@@ -386,21 +389,21 @@ impl Parser {
         match expr {
             Expr::Accessor(Accessor::Ident(ident)) => {
                 if &ident.inspect()[..] == "self" && !allow_self {
-                    self.level -= 1;
                     let err = ParseError::simple_syntax_error(line!() as usize, ident.loc());
                     self.errs.push(err);
+                    debug_exit_info!(self);
                     return Err(());
                 }
                 // FIXME deny: public
                 let pat = ParamPattern::VarName(ident.name);
                 let param = NonDefaultParamSignature::new(pat, None);
-                self.level -= 1;
+                debug_exit_info!(self);
                 Ok(param)
             }
             Expr::Lit(lit) => {
                 let pat = ParamPattern::Lit(lit);
                 let param = NonDefaultParamSignature::new(pat, None);
-                self.level -= 1;
+                debug_exit_info!(self);
                 Ok(param)
             }
             Expr::Array(array) => {
@@ -409,7 +412,7 @@ impl Parser {
                     .map_err(|_| self.stack_dec(fn_name!()))?;
                 let pat = ParamPattern::Array(array_pat);
                 let param = NonDefaultParamSignature::new(pat, None);
-                self.level -= 1;
+                debug_exit_info!(self);
                 Ok(param)
             }
             Expr::Record(record) => {
@@ -418,7 +421,7 @@ impl Parser {
                     .map_err(|_| self.stack_dec(fn_name!()))?;
                 let pat = ParamPattern::Record(record_pat);
                 let param = NonDefaultParamSignature::new(pat, None);
-                self.level -= 1;
+                debug_exit_info!(self);
                 Ok(param)
             }
             Expr::Tuple(tuple) => {
@@ -427,14 +430,14 @@ impl Parser {
                     .map_err(|_| self.stack_dec(fn_name!()))?;
                 let pat = ParamPattern::Tuple(tuple_pat);
                 let param = NonDefaultParamSignature::new(pat, None);
-                self.level -= 1;
+                debug_exit_info!(self);
                 Ok(param)
             }
             Expr::TypeAsc(tasc) => {
                 let param = self
                     .convert_type_asc_to_param_pattern(tasc, allow_self)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
-                self.level -= 1;
+                debug_exit_info!(self);
                 Ok(param)
             }
             Expr::UnaryOp(unary) => match unary.op.kind {
@@ -444,7 +447,7 @@ impl Parser {
                         .unwrap_or_else(|| todo!());
                     let pat = ParamPattern::Ref(var.name);
                     let param = NonDefaultParamSignature::new(pat, None);
-                    self.level -= 1;
+                    debug_exit_info!(self);
                     Ok(param)
                 }
                 TokenKind::RefMutOp => {
@@ -453,21 +456,21 @@ impl Parser {
                         .unwrap_or_else(|| todo!());
                     let pat = ParamPattern::RefMut(var.name);
                     let param = NonDefaultParamSignature::new(pat, None);
-                    self.level -= 1;
+                    debug_exit_info!(self);
                     Ok(param)
                 }
                 // TODO: Spread
                 _other => {
-                    self.level -= 1;
                     let err = ParseError::simple_syntax_error(line!() as usize, unary.loc());
                     self.errs.push(err);
+                    debug_exit_info!(self);
                     Err(())
                 }
             },
             other => {
-                self.level -= 1;
                 let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
                 self.errs.push(err);
+                debug_exit_info!(self);
                 Err(())
             }
         }
@@ -481,7 +484,7 @@ impl Parser {
         let pat = ParamPattern::VarName(VarName::new(arg.keyword));
         let sig = NonDefaultParamSignature::new(pat, arg.t_spec);
         let param = DefaultParamSignature::new(sig, arg.expr);
-        self.level -= 1;
+        debug_exit_info!(self);
         Ok(param)
     }
 
@@ -494,13 +497,13 @@ impl Parser {
                     params.push(self.convert_pos_arg_to_non_default_param(arg, false)?);
                 }
                 let params = Params::new(params, None, vec![], None);
-                self.level -= 1;
+                debug_exit_info!(self);
                 Ok(ParamArrayPattern::new(arr.l_sqbr, params, arr.r_sqbr))
             }
             other => {
-                self.level -= 1;
                 let err = ParseError::feature_error(line!() as usize, other.loc(), "?");
                 self.errs.push(err);
+                debug_exit_info!(self);
                 Err(())
             }
         }
@@ -568,7 +571,7 @@ impl Parser {
                     params.push(self.convert_pos_arg_to_non_default_param(arg, false)?);
                 }
                 let params = Params::new(params, None, vec![], parens);
-                self.level -= 1;
+                debug_exit_info!(self);
                 Ok(ParamTuplePattern::new(params))
             }
         }
@@ -585,7 +588,7 @@ impl Parser {
             .map_err(|_| self.stack_dec(fn_name!()))?;
         let t_spec = TypeSpecWithOp::new(tasc.op, tasc.t_spec);
         let param = NonDefaultParamSignature::new(param.pat, Some(t_spec));
-        self.level -= 1;
+        debug_exit_info!(self);
         Ok(param)
     }
 
@@ -602,14 +605,14 @@ impl Parser {
                     .convert_accessor_to_param_sig(accessor)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
                 let params = Params::new(vec![param], None, vec![], None);
-                self.level -= 1;
+                debug_exit_info!(self);
                 Ok(LambdaSignature::new(params, None, TypeBoundSpecs::empty()))
             }
             Expr::Tuple(tuple) => {
                 let params = self
                     .convert_tuple_to_params(tuple)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
-                self.level -= 1;
+                debug_exit_info!(self);
                 Ok(LambdaSignature::new(params, None, TypeBoundSpecs::empty()))
             }
             Expr::Array(array) => {
@@ -618,7 +621,7 @@ impl Parser {
                     .map_err(|_| self.stack_dec(fn_name!()))?;
                 let param = NonDefaultParamSignature::new(ParamPattern::Array(arr), None);
                 let params = Params::new(vec![param], None, vec![], None);
-                self.level -= 1;
+                debug_exit_info!(self);
                 Ok(LambdaSignature::new(params, None, TypeBoundSpecs::empty()))
             }
             Expr::Record(record) => {
@@ -627,20 +630,20 @@ impl Parser {
                     .map_err(|_| self.stack_dec(fn_name!()))?;
                 let param = NonDefaultParamSignature::new(ParamPattern::Record(rec), None);
                 let params = Params::new(vec![param], None, vec![], None);
-                self.level -= 1;
+                debug_exit_info!(self);
                 Ok(LambdaSignature::new(params, None, TypeBoundSpecs::empty()))
             }
             Expr::TypeAsc(tasc) => {
                 let sig = self
                     .convert_type_asc_to_lambda_sig(tasc)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
-                self.level -= 1;
+                debug_exit_info!(self);
                 Ok(sig)
             }
             other => {
-                self.level -= 1;
                 let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
                 self.errs.push(err);
+                debug_exit_info!(self);
                 Err(())
             }
         }
@@ -658,13 +661,13 @@ impl Parser {
                 } else {
                     ParamPattern::VarName(ident.name)
                 };
-                self.level -= 1;
+                debug_exit_info!(self);
                 Ok(NonDefaultParamSignature::new(pat, None))
             }
             other => {
-                self.level -= 1;
                 let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
                 self.errs.push(err);
+                debug_exit_info!(self);
                 Err(())
             }
         }
@@ -688,7 +691,7 @@ impl Parser {
                         .map_err(|_| self.stack_dec(fn_name!()))?;
                     params.defaults.push(param);
                 }
-                self.level -= 1;
+                debug_exit_info!(self);
                 Ok(params)
             }
         }
@@ -702,7 +705,7 @@ impl Parser {
         let sig = self
             .convert_rhs_to_param(Expr::TypeAsc(tasc), true)
             .map_err(|_| self.stack_dec(fn_name!()))?;
-        self.level -= 1;
+        debug_exit_info!(self);
         Ok(LambdaSignature::new(
             Params::new(vec![sig], None, vec![], None),
             None,
