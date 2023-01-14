@@ -246,6 +246,11 @@ impl Parser {
         }
     }
 
+    fn unexpected_none(&self, caused_by: &str) -> ParseError {
+        log!(err "error caused by: {caused_by}");
+        ParseError::invalid_none_match(0, Location::Unknown, file!(), line!())
+    }
+
     fn skip_and_throw_syntax_err(&mut self, caused_by: &str) -> ParseError {
         let loc = self.peek().map(|t| t.loc()).unwrap_or_default();
         log!(err "error caused by: {caused_by}");
@@ -397,6 +402,7 @@ impl Parser {
                 None => {
                     if !self.errs.is_empty() {
                         debug_exit_info!(self);
+                        self.errs.push(self.unexpected_none(caused_by!()));
                         return Err(());
                     } else {
                         switch_unreachable!()
@@ -471,7 +477,11 @@ impl Parser {
                         }
                     }
                 }
-                _ => switch_unreachable!(),
+                None => {
+                    self.errs.push(self.unexpected_none(caused_by!()));
+                    debug_exit_info!(self);
+                    return Err(());
+                }
             }
         }
         if block.is_empty() {
@@ -626,6 +636,11 @@ impl Parser {
                 debug_exit_info!(self);
                 return Err(());
             }
+            None => {
+                self.errs.push(self.unexpected_none(caused_by!()));
+                debug_exit_info!(self);
+                return Err(());
+            }
         };
         debug_exit_info!(self);
         Ok(acc)
@@ -671,8 +686,7 @@ impl Parser {
                 elems.push_pos(elem);
             }
             None => {
-                let err = self.skip_and_throw_syntax_err(caused_by!());
-                self.errs.push(err);
+                self.errs.push(self.unexpected_none(caused_by!()));
                 debug_exit_info!(self);
                 return Err(());
             }
@@ -702,6 +716,11 @@ impl Parser {
                     debug_exit_info!(self);
                     return Err(());
                 }
+                None => {
+                    self.errs.push(self.unexpected_none(caused_by!()));
+                    debug_exit_info!(self);
+                    return Err(());
+                }
             }
         }
         debug_exit_info!(self);
@@ -718,7 +737,11 @@ impl Parser {
                 debug_exit_info!(self);
                 Ok(PosArg::new(expr))
             }
-            None => switch_unreachable!(),
+            None => {
+                self.errs.push(self.unexpected_none(caused_by!()));
+                debug_exit_info!(self);
+                Err(())
+            }
         }
     }
 
@@ -913,6 +936,11 @@ impl Parser {
                         }
                     }
                 }
+                None => {
+                    self.errs.push(self.unexpected_none(caused_by!()));
+                    debug_exit_info!(self);
+                    return Err(());
+                }
                 _ => {
                     break;
                 }
@@ -999,7 +1027,11 @@ impl Parser {
                 debug_exit_info!(self);
                 Ok(ArgKind::Pos(PosArg::new(expr)))
             }
-            None => switch_unreachable!(),
+            None => {
+                self.errs.push(self.unexpected_none(caused_by!()));
+                debug_exit_info!(self);
+                Err(())
+            }
         }
     }
 
@@ -1040,7 +1072,11 @@ impl Parser {
                 debug_exit_info!(self);
                 Err(())
             }
-            None => switch_unreachable!(),
+            None => {
+                self.errs.push(self.unexpected_none(caused_by!()));
+                debug_exit_info!(self);
+                Err(())
+            }
         }
     }
 
@@ -1096,14 +1132,22 @@ impl Parser {
                             attrs.push(ClassAttr::Doc(lit));
                         }
                         other => {
-                            self.errs
-                                .push(ParseError::simple_syntax_error(0, other.loc()));
+                    match self.peek() {
+                        Some(t) if !t.is(Dedent) && !t.category_is(TC::Separator) => {
+                            let err = self.skip_and_throw_invalid_chunk_err(caused_by!(), t.loc());
+                            self.errs.push(err);
+                            debug_exit_info!(self);
+                            return Err(());
+                        }
+                        Some(_) => {}
+                        None => {
+                            self.errs.push(self.unexpected_none(caused_by!()));
+                            debug_exit_info!(self);
+                            return Err(());
                         }
                     }
-                }
-                _ => {
-                    let err = self.skip_and_throw_syntax_err(caused_by!());
-                    self.errs.push(err);
+                None => {
+                    self.errs.push(self.unexpected_none(caused_by!()));
                     debug_exit_info!(self);
                     return Err(());
                 }
@@ -1875,6 +1919,11 @@ impl Parser {
                 debug_exit_info!(self);
                 Err(())
             }
+            None => {
+                self.errs.push(self.unexpected_none(caused_by!()));
+                debug_exit_info!(self);
+                Err(())
+            }
         }
     }
 
@@ -1931,6 +1980,11 @@ impl Parser {
                             self.restore(token);
                             let err = self.skip_and_throw_syntax_err(caused_by!());
                             self.errs.push(err);
+                            debug_exit_info!(self);
+                            return Err(());
+                        }
+                        None => {
+                            self.errs.push(self.unexpected_none(caused_by!()));
                             debug_exit_info!(self);
                             return Err(());
                         }
@@ -2231,10 +2285,8 @@ impl Parser {
                         }
                     }
                 }
-                _ => {
-                    //  self.restore(other);
-                    let err = self.skip_and_throw_syntax_err(caused_by!());
-                    self.errs.push(err);
+                None => {
+                    self.errs.push(self.unexpected_none(caused_by!()));
                     debug_exit_info!(self);
                     return Err(());
                 }
@@ -2376,8 +2428,10 @@ impl Parser {
                     debug_exit_info!(self);
                     return Ok(set);
                 }
-                _ => {
-                    break;
+                None => {
+                    self.errs.push(self.unexpected_none(caused_by!()));
+                    debug_exit_info!(self);
+                    return Err(());
                 }
             }
         }
@@ -2455,6 +2509,11 @@ impl Parser {
                 _ => {
                     break;
                 }
+                None => {
+                    self.errs.push(self.unexpected_none(caused_by!()));
+                    debug_exit_info!(self);
+                    return Err(());
+                }
             }
         }
         let tup = Tuple::Normal(NormalTuple::new(args));
@@ -2471,6 +2530,9 @@ impl Parser {
             _ => {
                 let err = self.skip_and_throw_syntax_err(caused_by!());
                 self.errs.push(err);
+            None => {
+                self.errs.push(self.unexpected_none(caused_by!()));
+                debug_exit_info!(self);
                 Err(())
             }
         }
@@ -2536,18 +2598,7 @@ impl Parser {
                     }
                 }
                 None => {
-                    let err = ParseError::syntax_error(
-                        line!() as usize,
-                        expr.loc(),
-                        switch_lang!(
-                            "japanese" => "文字列補間の終わりが見つかりませんでした",
-                            "simplified_chinese" => "未找到字符串插值结束",
-                            "traditional_chinese" => "未找到字符串插值結束",
-                            "english" => "end of string interpolation not found",
-                        ),
-                        None,
-                    );
-                    self.errs.push(err);
+                    self.errs.push(self.unexpected_none(caused_by!()));
                     debug_exit_info!(self);
                     return Err(());
                 }
@@ -2619,6 +2670,11 @@ impl Parser {
                     self.restore(other);
                     let err = self.skip_and_throw_syntax_err(caused_by!());
                     self.errs.push(err);
+                    debug_exit_info!(self);
+                    return Err(());
+                }
+                None => {
+                    self.errs.push(self.unexpected_none(caused_by!()));
                     debug_exit_info!(self);
                     return Err(());
                 }

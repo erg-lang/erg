@@ -72,6 +72,13 @@ impl LexError {
         );
         Self::new(ErrorCore::new(
             vec![SubMessage::only_loc(loc)],
+
+    pub fn invalid_none_match(errno: usize, loc: Location, fn_name: &str, line: u32) -> Self {
+        let mut err = Self::new(ErrorCore::bug(errno, loc, fn_name, line));
+        err.set_hint("None is got");
+        err
+    }
+
             switch_lang!(
                 "japanese" => format!("これはErg compilerのバグです、開発者に報告して下さい ({URL})\n{fn_name}:{line}より発生"),
                 "simplified_chinese" => format!("这是Erg编译器的一个错误，请报告给{URL}\n原因来自: {fn_name}:{line}"),
