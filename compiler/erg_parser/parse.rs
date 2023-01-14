@@ -43,6 +43,7 @@ macro_rules! debug_call_info {
     };
 }
 
+#[macro_export]
 macro_rules! debug_exit_info {
     ($self: ident) => {
         $self.level -= 1;
