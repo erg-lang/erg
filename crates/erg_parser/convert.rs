@@ -67,9 +67,14 @@ impl Parser {
                 Ok(sig)
             }
             other => {
-                debug_exit_info!(self);
-                let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
+                let err = ParseError::invalid_convert_error(
+                    line!() as usize,
+                    other.loc(),
+                    "rhs",
+                    "signature",
+                );
                 self.errs.push(err);
+                debug_exit_info!(self);
                 Err(())
             }
         }
@@ -88,7 +93,12 @@ impl Parser {
                 Ok(VarSignature::new(pat, None))
             }
             other => {
-                let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
+                let err = ParseError::invalid_convert_error(
+                    line!() as usize,
+                    other.loc(),
+                    "accessor",
+                    "variable signature",
+                );
                 self.errs.push(err);
                 debug_exit_info!(self);
                 Err(())
@@ -110,7 +120,12 @@ impl Parser {
                             vars.push(v);
                         }
                         Signature::Subr(subr) => {
-                            let err = ParseError::simple_syntax_error(line!() as usize, subr.loc());
+                            let err = ParseError::invalid_convert_error(
+                                line!() as usize,
+                                subr.loc(),
+                                "array",
+                                "array pattern",
+                            );
                             self.errs.push(err);
                             debug_exit_info!(self);
                             return Err(());
@@ -221,8 +236,12 @@ impl Parser {
                             vars.push(var);
                         }
                         other => {
-                            let err =
-                                ParseError::simple_syntax_error(line!() as usize, other.loc());
+                            let err = ParseError::invalid_convert_error(
+                                line!() as usize,
+                                other.loc(),
+                                "Tuple",
+                                "Tuple pattern",
+                            );
                             self.errs.push(err);
                             debug_exit_info!(self);
                             return Err(());
@@ -268,7 +287,12 @@ impl Parser {
                 .convert_accessor_to_ident(acc)
                 .map_err(|_| self.stack_dec(fn_name!()))?,
             other => {
-                let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
+                let err = ParseError::invalid_convert_error(
+                    line!() as usize,
+                    other.loc(),
+                    "call",
+                    "subroutine signature",
+                );
                 self.errs.push(err);
                 debug_exit_info!(self);
                 return Err(());
@@ -305,7 +329,12 @@ impl Parser {
                 (ident, bounds)
             }
             other => {
-                let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
+                let err = ParseError::invalid_convert_error(
+                    line!() as usize,
+                    other.loc(),
+                    "accessor",
+                    "indemnifier",
+                );
                 self.errs.push(err);
                 debug_exit_info!(self);
                 return Err(());
@@ -356,7 +385,12 @@ impl Parser {
                 Ok(bound)
             }
             other => {
-                let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
+                let err = ParseError::invalid_convert_error(
+                    line!() as usize,
+                    other.loc(),
+                    "type argument",
+                    "bound",
+                );
                 self.errs.push(err);
                 Err(())
             }
@@ -499,7 +533,12 @@ impl Parser {
                 }
             },
             other => {
-                let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
+                let err = ParseError::invalid_convert_error(
+                    line!() as usize,
+                    other.loc(),
+                    "right hand side",
+                    "parameter",
+                );
                 self.errs.push(err);
                 debug_exit_info!(self);
                 Err(())
@@ -712,7 +751,12 @@ impl Parser {
                 }
             },
             other => {
-                let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
+                let err = ParseError::invalid_convert_error(
+                    line!() as usize,
+                    other.loc(),
+                    "right hand side",
+                    "lambda signature",
+                );
                 self.errs.push(err);
                 debug_exit_info!(self);
                 Err(())
@@ -736,7 +780,12 @@ impl Parser {
                 Ok(NonDefaultParamSignature::new(pat, None))
             }
             other => {
-                let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
+                let err = ParseError::invalid_convert_error(
+                    line!() as usize,
+                    other.loc(),
+                    "accessor",
+                    "parameter signature",
+                );
                 self.errs.push(err);
                 debug_exit_info!(self);
                 Err(())

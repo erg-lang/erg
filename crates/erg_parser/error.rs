@@ -164,6 +164,20 @@ impl LexError {
         ))
     }
 
+    pub fn invalid_convert_error(errno: usize, loc: Location, from: &str, to: &str) -> ParseError {
+        Self::syntax_error(
+            errno,
+            loc,
+            switch_lang!(
+                "japanese" => format!("{}から{}に変換するのに失敗しました", from, to),
+                "simplified_chinese" => format!("无法将{}转换为{}", from, to),
+                "traditional_chinese" => format!("無法將{}轉換為{}", from, to),
+                "english" => format!("failed to convert {} to {}",from, to),
+            ),
+            None,
+        )
+    }
+
     pub fn no_var_error(
         errno: usize,
         loc: Location,
