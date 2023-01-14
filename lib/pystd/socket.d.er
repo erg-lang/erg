@@ -1,2 +1,0 @@
-.Socket!: ClassType
-.Socket!.new: (family := Int, type := Int, proto := Int, fileno: Int or NoneType := NoneType) -> .Socket!

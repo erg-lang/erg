@@ -1,3 +1,0 @@
-.HTTPResponse: ClassType
-.HTTPResponse <: FileLike!
-.HTTPResponse.read!: (self: RefMut(.HTTPResponse),) => Bytes

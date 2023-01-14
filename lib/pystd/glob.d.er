@@ -1,6 +1,0 @@
-.IGlob = '_iglob': ClassType
-.IGlob <: Iterable(Str)
-
-.glob!: (pathname: Str, recursive := Bool) => [Str; _]
-.iglob!: (pathname: Str, recursive := Bool) => .IGlob
-.escape: (pathname: Str) -> Str

@@ -1,3 +1,0 @@
-.copy: |T: Type|(x: T) -> T
-.deepcopy: |T: Type|(x: T) -> T
-.Error: ClassType

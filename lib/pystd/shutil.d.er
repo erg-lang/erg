@@ -1,6 +1,0 @@
-.copyfile!: (src: PathLike, dst: PathLike,) => NoneType
-.copy!: (src: PathLike, dst: PathLike,) => NoneType
-.copytree!: (src: PathLike, dst: PathLike,) => NoneType
-.rmtree!: (path: PathLike,) => NoneType
-.move!: (src: PathLike, dst: PathLike) => NoneType
-.which!: (cmd: Str,) => Str or NoneType
