@@ -13,6 +13,7 @@ pub mod error;
 pub mod fresh;
 pub mod fxhash;
 pub mod help_messages;
+pub mod lang;
 pub mod levenshtein;
 pub mod macros;
 pub mod opcode;

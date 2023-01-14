@@ -97,6 +97,11 @@ impl Literal {
     pub fn is(&self, kind: TokenKind) -> bool {
         self.token.is(kind)
     }
+
+    #[inline]
+    pub fn is_doc_comment(&self) -> bool {
+        self.token.is(TokenKind::DocComment)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -2049,7 +2054,7 @@ pub enum TypeSpec {
     Record(Vec<(Identifier, TypeSpec)>),
     // Option(),
     And(Box<TypeSpec>, Box<TypeSpec>),
-    Not(Box<TypeSpec>, Box<TypeSpec>),
+    Not(Box<TypeSpec>),
     Or(Box<TypeSpec>, Box<TypeSpec>),
     Enum(ConstArgs),
     Interval {
@@ -2071,7 +2076,7 @@ impl fmt::Display for TypeSpec {
             Self::Infer(_) => write!(f, "?"),
             Self::PreDeclTy(ty) => write!(f, "{ty}"),
             Self::And(lhs, rhs) => write!(f, "{lhs} and {rhs}"),
-            Self::Not(lhs, rhs) => write!(f, "{lhs} not {rhs}"),
+            Self::Not(ty) => write!(f, "not {ty}"),
             Self::Or(lhs, rhs) => write!(f, "{lhs} or {rhs}"),
             Self::Array(arr) => write!(f, "{arr}"),
             Self::SetWithLen(set) => write!(f, "{set}"),
@@ -2109,9 +2114,10 @@ impl Locational for TypeSpec {
         match self {
             Self::Infer(t) => t.loc(),
             Self::PreDeclTy(sig) => sig.loc(),
-            Self::And(lhs, rhs) | Self::Not(lhs, rhs) | Self::Or(lhs, rhs) => {
+            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => {
                 Location::concat(lhs.as_ref(), rhs.as_ref())
             }
+            Self::Not(ty) => ty.loc(),
             Self::Array(arr) => arr.loc(),
             Self::SetWithLen(set) => set.loc(),
             Self::Tuple(tup) => tup.loc(),
@@ -2130,8 +2136,9 @@ impl TypeSpec {
         Self::And(Box::new(lhs), Box::new(rhs))
     }
 
-    pub fn not(lhs: TypeSpec, rhs: TypeSpec) -> Self {
-        Self::Not(Box::new(lhs), Box::new(rhs))
+    #[allow(clippy::should_implement_trait)]
+    pub fn not(lhs: TypeSpec) -> Self {
+        Self::Not(Box::new(lhs))
     }
 
     pub fn or(lhs: TypeSpec, rhs: TypeSpec) -> Self {
@@ -3338,6 +3345,13 @@ impl Signature {
         }
     }
 
+    pub fn params(self) -> Option<Params> {
+        match self {
+            Self::Var(_) => None,
+            Self::Subr(subr) => Some(subr.params),
+        }
+    }
+
     pub fn t_spec(&self) -> Option<&TypeSpec> {
         match self {
             Self::Var(v) => v.t_spec.as_ref(),
@@ -3350,6 +3364,10 @@ impl Signature {
             Self::Var(var) => var.is_const(),
             Self::Subr(subr) => subr.is_const(),
         }
+    }
+
+    pub const fn is_subr(&self) -> bool {
+        matches!(self, Self::Subr(_))
     }
 
     pub const fn vis(&self) -> Visibility {

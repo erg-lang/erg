@@ -9,10 +9,18 @@ use erg_common::error::{
 };
 use erg_common::style::{Attribute, Color, StyledStr, StyledString, StyledStrings, THEME};
 use erg_common::traits::Stream;
-use erg_common::{impl_display_and_error, impl_stream_for_wrapper, switch_lang};
+use erg_common::{fmt_iter, impl_display_and_error, impl_stream_for_wrapper, switch_lang};
 
 #[derive(Debug)]
 pub struct LexError(Box<ErrorCore>); // ErrorCore is large, so use Box
+
+impl fmt::Display for LexError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "LexError({})", self.0)
+    }
+}
+
+impl std::error::Error for LexError {}
 
 impl From<ErrorCore> for LexError {
     fn from(core: ErrorCore) -> Self {
@@ -30,6 +38,14 @@ impl From<LexError> for ErrorCore {
 pub struct LexErrors(Vec<LexError>);
 
 impl_stream_for_wrapper!(LexErrors, LexError);
+
+impl fmt::Display for LexErrors {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "LexErrors({})", fmt_iter(self.0.iter()))
+    }
+}
+
+impl std::error::Error for LexErrors {}
 
 const ERR: Color = THEME.colors.error;
 const HINT: Color = THEME.colors.hint;

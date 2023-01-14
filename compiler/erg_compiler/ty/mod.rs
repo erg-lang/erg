@@ -427,6 +427,14 @@ impl RefinementType {
     pub fn deconstruct(self) -> (Str, Type, Set<Predicate>) {
         (self.var, *self.t, self.preds)
     }
+
+    pub fn invert(self) -> Self {
+        Self::new(
+            self.var,
+            *self.t,
+            self.preds.into_iter().map(|p| p.invert()).collect(),
+        )
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -573,8 +581,8 @@ pub enum Type {
     // e.g. |T: Type| T -> T
     Quantified(Box<Type>),
     And(Box<Type>, Box<Type>),
-    Not(Box<Type>, Box<Type>),
     Or(Box<Type>, Box<Type>),
+    Not(Box<Type>),
     Poly {
         name: Str,
         params: Vec<TyParam>,
@@ -655,9 +663,10 @@ impl PartialEq for Type {
             }
             (Self::Refinement(l), Self::Refinement(r)) => l == r,
             (Self::Quantified(l), Self::Quantified(r)) => l == r,
-            (Self::And(ll, lr), Self::And(rl, rr))
-            | (Self::Not(ll, lr), Self::Not(rl, rr))
-            | (Self::Or(ll, lr), Self::Or(rl, rr)) => ll == rl && lr == rr,
+            (Self::And(ll, lr), Self::And(rl, rr)) | (Self::Or(ll, lr), Self::Or(rl, rr)) => {
+                ll == rl && lr == rr
+            }
+            (Self::Not(l), Self::Not(r)) => l == r,
             (
                 Self::Poly {
                     name: ln,
@@ -773,10 +782,9 @@ impl LimitedDisplay for Type {
                 write!(f, " and ")?;
                 rhs.limited_fmt(f, limit - 1)
             }
-            Self::Not(lhs, rhs) => {
-                lhs.limited_fmt(f, limit - 1)?;
-                write!(f, " not ")?;
-                rhs.limited_fmt(f, limit - 1)
+            Self::Not(ty) => {
+                write!(f, "not ")?;
+                ty.limited_fmt(f, limit - 1)
             }
             Self::Or(lhs, rhs) => {
                 write!(f, "(")?;
@@ -970,7 +978,7 @@ impl HasLevel for Type {
                     .filter_map(|o| *o)
                     .min()
             }
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) | Self::Not(lhs, rhs) => {
+            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => {
                 let l = lhs
                     .level()
                     .unwrap_or(GENERIC_LEVEL)
@@ -981,6 +989,7 @@ impl HasLevel for Type {
                     Some(l)
                 }
             }
+            Self::Not(ty) => ty.level(),
             Self::Record(attrs) => attrs.values().filter_map(|t| t.level()).min(),
             Self::Poly { params, .. } => params.iter().filter_map(|p| p.level()).min(),
             Self::Proj { lhs, .. } => lhs.level(),
@@ -1046,10 +1055,11 @@ impl HasLevel for Type {
                 }
                 subr.return_t.set_level(level);
             }
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) | Self::Not(lhs, rhs) => {
+            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => {
                 lhs.set_level(level);
                 rhs.set_level(level);
             }
+            Self::Not(ty) => ty.set_level(level),
             Self::Record(attrs) => {
                 for t in attrs.values() {
                     t.set_level(level);
@@ -1322,7 +1332,7 @@ impl Type {
             Self::NegInf => Str::ever("NegInf"),
             Self::Mono(name) => name.clone(),
             Self::And(_, _) => Str::ever("And"),
-            Self::Not(_, _) => Str::ever("Not"),
+            Self::Not(_) => Str::ever("Not"),
             Self::Or(_, _) => Str::ever("Or"),
             Self::Ref(_) => Str::ever("Ref"),
             Self::RefMut { .. } => Str::ever("RefMut"),
@@ -1481,10 +1491,11 @@ impl Type {
                 let (sub, _sup) = fv.get_subsup().unwrap();
                 fv.link(&sub);
             }
-            Type::And(l, r) | Type::Or(l, r) | Type::Not(l, r) => {
+            Type::And(l, r) | Type::Or(l, r) => {
                 Self::coerce(l);
                 Self::coerce(r);
             }
+            Type::Not(l) => l.coerce(),
             _ => {}
         }
     }
@@ -1495,13 +1506,12 @@ impl Type {
             Self::FreeVar(fv) if !fv.constraint_is_uninited() => set! {
                 (fv.unbound_name().unwrap(), fv.constraint().unwrap())
             },
-            Self::Ref(t) => t.qvars(),
+            Self::Ref(ty) => ty.qvars(),
             Self::RefMut { before, after } => before
                 .qvars()
                 .concat(after.as_ref().map(|t| t.qvars()).unwrap_or_else(|| set! {})),
-            Self::And(lhs, rhs) | Self::Not(lhs, rhs) | Self::Or(lhs, rhs) => {
-                lhs.qvars().concat(rhs.qvars())
-            }
+            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => lhs.qvars().concat(rhs.qvars()),
+            Self::Not(ty) => ty.qvars(),
             Self::Callable { param_ts, return_t } => param_ts
                 .iter()
                 .fold(set! {}, |acc, t| acc.concat(t.qvars()))
@@ -1550,13 +1560,12 @@ impl Type {
                     fv.crack().has_qvar()
                 }
             }
-            Self::Ref(t) => t.has_qvar(),
+            Self::Ref(ty) => ty.has_qvar(),
             Self::RefMut { before, after } => {
                 before.has_qvar() || after.as_ref().map(|t| t.has_qvar()).unwrap_or(false)
             }
-            Self::And(lhs, rhs) | Self::Not(lhs, rhs) | Self::Or(lhs, rhs) => {
-                lhs.has_qvar() || rhs.has_qvar()
-            }
+            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => lhs.has_qvar() || rhs.has_qvar(),
+            Self::Not(ty) => ty.has_qvar(),
             Self::Callable { param_ts, return_t } => {
                 param_ts.iter().any(|t| t.has_qvar()) || return_t.has_qvar()
             }
@@ -1593,9 +1602,10 @@ impl Type {
                 before.has_unbound_var()
                     || after.as_ref().map(|t| t.has_unbound_var()).unwrap_or(false)
             }
-            Self::And(lhs, rhs) | Self::Not(lhs, rhs) | Self::Or(lhs, rhs) => {
+            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => {
                 lhs.has_unbound_var() || rhs.has_unbound_var()
             }
+            Self::Not(ty) => ty.has_unbound_var(),
             Self::Callable { param_ts, return_t } => {
                 param_ts.iter().any(|t| t.has_unbound_var()) || return_t.has_unbound_var()
             }
@@ -1635,7 +1645,8 @@ impl Type {
             Self::Refinement(refine) => refine.t.typarams_len(),
             // REVIEW:
             Self::Ref(_) | Self::RefMut { .. } => Some(1),
-            Self::And(_, _) | Self::Or(_, _) | Self::Not(_, _) => Some(2),
+            Self::And(_, _) | Self::Or(_, _) => Some(2),
+            Self::Not(_) => Some(1),
             Self::Subr(subr) => Some(
                 subr.non_default_params.len()
                     + subr.var_params.as_ref().map(|_| 1).unwrap_or(0)
@@ -1672,9 +1683,10 @@ impl Type {
             Self::FreeVar(_unbound) => vec![],
             Self::Refinement(refine) => refine.t.typarams(),
             Self::Ref(t) | Self::RefMut { before: t, .. } => vec![TyParam::t(*t.clone())],
-            Self::And(lhs, rhs) | Self::Not(lhs, rhs) | Self::Or(lhs, rhs) => {
+            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => {
                 vec![TyParam::t(*lhs.clone()), TyParam::t(*rhs.clone())]
             }
+            Self::Not(t) => vec![TyParam::t(*t.clone())],
             Self::Subr(subr) => subr.typarams(),
             Self::Quantified(quant) => quant.typarams(),
             Self::Callable { param_ts: _, .. } => todo!(),
@@ -1829,11 +1841,7 @@ impl Type {
                 let r = r.derefine();
                 Self::Or(Box::new(l), Box::new(r))
             }
-            Self::Not(l, r) => {
-                let l = l.derefine();
-                let r = r.derefine();
-                Self::Not(Box::new(l), Box::new(r))
-            }
+            Self::Not(ty) => Self::Not(Box::new(ty.derefine())),
             other => other.clone(),
         }
     }
@@ -1902,11 +1910,7 @@ impl Type {
                 let r = r.replace(target, to);
                 Self::Or(Box::new(l), Box::new(r))
             }
-            Self::Not(l, r) => {
-                let l = l.replace(target, to);
-                let r = r.replace(target, to);
-                Self::Not(Box::new(l), Box::new(r))
-            }
+            Self::Not(ty) => Self::Not(Box::new(ty.replace(target, to))),
             other => other,
         }
     }

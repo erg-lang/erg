@@ -222,11 +222,7 @@ impl Context {
                 // not `self.union` because types are generalized
                 or(l, r)
             }
-            Not(l, r) => {
-                let l = self.generalize_t_inner(*l, variance, uninit);
-                let r = self.generalize_t_inner(*r, variance, uninit);
-                not(l, r)
-            }
+            Not(l) => not(self.generalize_t_inner(*l, variance, uninit)),
             // REVIEW: その他何でもそのまま通していいのか?
             other => other,
         }
@@ -282,10 +278,9 @@ impl Context {
                 let rhs = self.generalize_pred(*rhs, variance, uninit);
                 Predicate::or(lhs, rhs)
             }
-            Predicate::Not(lhs, rhs) => {
-                let lhs = self.generalize_pred(*lhs, variance, uninit);
-                let rhs = self.generalize_pred(*rhs, variance, uninit);
-                Predicate::not(lhs, rhs)
+            Predicate::Not(pred) => {
+                let pred = self.generalize_pred(*pred, variance, uninit);
+                Predicate::not(pred)
             }
         }
     }
@@ -628,11 +623,9 @@ impl Context {
                 let r = self.deref_tyvar(*r, variance, loc)?;
                 Ok(self.union(&l, &r))
             }
-            Type::Not(l, r) => {
-                let l = self.deref_tyvar(*l, variance, loc)?;
-                let r = self.deref_tyvar(*r, variance, loc)?;
-                // TODO: complement
-                Ok(not(l, r))
+            Type::Not(ty) => {
+                let ty = self.deref_tyvar(*ty, variance, loc)?;
+                Ok(self.complement(&ty))
             }
             Type::Proj { lhs, rhs } => {
                 let lhs = self.deref_tyvar(*lhs, variance, loc)?;

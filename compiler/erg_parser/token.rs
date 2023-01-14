@@ -37,6 +37,7 @@ pub enum TokenKind {
     NoImplLit,
     EllipsisLit,
     InfLit,
+    DocComment,
     /// `+` (unary)
     PrePlus,
     /// `-` (unary)
@@ -224,7 +225,7 @@ impl TokenKind {
         match self {
             Symbol => TokenCategory::Symbol,
             NatLit | IntLit | RatioLit | StrLit | BoolLit | NoneLit | EllipsisLit | NoImplLit
-            | InfLit => TokenCategory::Literal,
+            | InfLit | DocComment => TokenCategory::Literal,
             StrInterpLeft => TokenCategory::StrInterpLeft,
             StrInterpMid => TokenCategory::StrInterpMid,
             StrInterpRight => TokenCategory::StrInterpRight,

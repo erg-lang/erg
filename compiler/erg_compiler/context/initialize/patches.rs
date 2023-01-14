@@ -38,7 +38,7 @@ impl Context {
         )
         .quantify();
         let mut interval_add = Self::builtin_methods(Some(impls), 2);
-        interval_add.register_builtin_impl("__add__", op_t, Const, Public);
+        interval_add.register_builtin_erg_impl("__add__", op_t, Const, Public);
         interval_add.register_builtin_const(
             "Output",
             Public,
@@ -53,7 +53,7 @@ impl Context {
             Type::from(m.clone() - p.clone()..=n.clone() - o.clone()),
         )
         .quantify();
-        interval_sub.register_builtin_impl("__sub__", op_t, Const, Public);
+        interval_sub.register_builtin_erg_impl("__sub__", op_t, Const, Public);
         interval_sub.register_builtin_const(
             "Output",
             Public,
@@ -73,7 +73,7 @@ impl Context {
             Self::builtin_poly_glue_patch("OptionEq", base.clone(), impls.clone(), params, 1);
         let mut option_eq_impl = Self::builtin_methods(Some(impls), 1);
         let op_t = fn1_met(base.clone(), base.clone(), Bool).quantify();
-        option_eq_impl.register_builtin_impl("__eq__", op_t, Const, Public);
+        option_eq_impl.register_builtin_erg_impl("__eq__", op_t, Const, Public);
         option_eq.register_trait(base, option_eq_impl);
         self.register_builtin_patch("OptionEq", option_eq, Private, Const);
     }

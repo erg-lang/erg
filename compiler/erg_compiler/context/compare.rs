@@ -3,7 +3,7 @@ use std::option::Option; // conflicting to Type::Option
 
 use erg_common::error::{Location, MultiErrorDisplay};
 
-use crate::ty::constructors::{and, or, poly};
+use crate::ty::constructors::{and, not, or, poly};
 use crate::ty::free::{Constraint, FreeKind};
 use crate::ty::typaram::{OpKind, TyParam, TyParamOrdering};
 use crate::ty::value::ValueObj;
@@ -576,6 +576,8 @@ impl Context {
                 (self.supertype_of(l_1, r_1) && self.supertype_of(l_2, r_2))
                     || (self.supertype_of(l_1, r_2) && self.supertype_of(l_2, r_1))
             }
+            // not Nat :> not Int == true
+            (Not(l), Not(r)) => self.subtype_of(l, r),
             // (Int or Str) :> Nat == Int :> Nat || Str :> Nat == true
             // (Num or Show) :> Show == Num :> Show || Show :> Num == true
             (Or(l_or, r_or), rhs) => self.supertype_of(l_or, rhs) || self.supertype_of(r_or, rhs),
@@ -593,8 +595,6 @@ impl Context {
             (lhs, And(l_and, r_and)) => {
                 self.supertype_of(lhs, l_and) || self.supertype_of(lhs, r_and)
             }
-            (_lhs, Not(_, _)) => todo!(),
-            (Not(_, _), _rhs) => todo!(),
             // RefMut are invariant
             (Ref(l), Ref(r)) => self.supertype_of(l, r),
             // TはすべてのRef(T)のメソッドを持つので、Ref(T)のサブタイプ
@@ -863,19 +863,11 @@ impl Context {
             }
         }
         match (lhs, rhs) {
-            (FreeVar(lfv), FreeVar(rfv)) if lfv.is_linked() && rfv.is_linked() => {
-                self.union(&lfv.crack(), &rfv.crack())
+            (FreeVar(fv), other) | (other, FreeVar(fv)) if fv.is_linked() => {
+                self.union(&fv.crack(), other)
             }
             (Refinement(l), Refinement(r)) => Type::Refinement(self.union_refinement(l, r)),
             (t, Type::Never) | (Type::Never, t) => t.clone(),
-            // ?T or {"b"} cannot be {I: (?T or Str) | I == "b"} because ?T may be {"a"} etc.
-            // (if so, {I: ?T or Str | I == "b"} == {I: {"a"} or Str | I == "b"} == {I: Str | I == "b"})
-            (other, Refinement(refine)) | (Refinement(refine), other)
-                if !other.is_unbound_var() =>
-            {
-                let other = other.clone().into_refinement();
-                Type::Refinement(self.union_refinement(&other, refine))
-            }
             // Array({1, 2}, 2), Array({3, 4}, 2) ==> Array({1, 2, 3, 4}, 2)
             (
                 Type::Poly {
@@ -937,13 +929,51 @@ impl Context {
             }
         }
         match (lhs, rhs) {
-            (FreeVar(lfv), FreeVar(rfv)) if lfv.is_linked() && rfv.is_linked() => {
-                self.intersection(&lfv.crack(), &rfv.crack())
+            (FreeVar(fv), other) | (other, FreeVar(fv)) if fv.is_linked() => {
+                self.intersection(&fv.crack(), other)
             }
+            (Refinement(l), Refinement(r)) => Type::Refinement(self.intersection_refinement(l, r)),
             // {.i = Int} and {.s = Str} == {.i = Int; .s = Str}
-            (Type::Record(l), Type::Record(r)) => Type::Record(l.clone().concat(r.clone())),
+            (Record(l), Record(r)) => Type::Record(l.clone().concat(r.clone())),
+            // {i = Int; j = Int} and not {i = Int} == {j = Int}
+            // not {i = Int} and {i = Int; j = Int} == {j = Int}
+            (other @ Record(rec), Not(t)) | (Not(t), other @ Record(rec)) => match t.as_ref() {
+                Type::FreeVar(fv) => self.intersection(&fv.crack(), other),
+                Type::Record(rec2) => Type::Record(rec.clone().diff(rec2.clone())),
+                _ => Type::Never,
+            },
             (l, r) if self.is_trait(l) && self.is_trait(r) => and(l.clone(), r.clone()),
             (_l, _r) => Type::Never,
+        }
+    }
+
+    fn intersection_refinement(
+        &self,
+        lhs: &RefinementType,
+        rhs: &RefinementType,
+    ) -> RefinementType {
+        let intersec = self.intersection(&lhs.t, &rhs.t);
+        let name = lhs.var.clone();
+        let rhs_preds = rhs
+            .preds
+            .iter()
+            .map(|p| p.clone().change_subject_name(name.clone()))
+            .collect();
+        RefinementType::new(
+            lhs.var.clone(),
+            intersec,
+            lhs.preds.clone().concat(rhs_preds),
+        )
+    }
+
+    /// returns complement (not A)
+    #[allow(clippy::only_used_in_recursion)]
+    pub(crate) fn complement(&self, ty: &Type) -> Type {
+        match ty {
+            FreeVar(fv) if fv.is_linked() => self.complement(&fv.crack()),
+            Not(t) => *t.clone(),
+            Refinement(r) => Type::Refinement(r.clone().invert()),
+            other => not(other.clone()),
         }
     }
 

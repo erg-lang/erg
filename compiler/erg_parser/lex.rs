@@ -74,16 +74,52 @@ impl Runnable for LexerRunner {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Interpolation {
     SingleLine,
-    MultiLine,
+    MultiLine(Quote),
     Not,
 }
 
 impl Interpolation {
     pub const fn is_in(&self) -> bool {
-        matches!(self, Self::SingleLine | Self::MultiLine)
+        matches!(self, Self::SingleLine | Self::MultiLine(_))
+    }
+
+    pub const fn quote(&self) -> Option<Quote> {
+        match self {
+            Self::MultiLine(q) => Some(*q),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Quote {
+    Single,
+    Double,
+}
+
+impl Quote {
+    pub const fn quotes(&self) -> &str {
+        match self {
+            Self::Single => "'''",
+            Self::Double => "\"\"\"",
+        }
+    }
+
+    pub const fn char(&self) -> char {
+        match self {
+            Self::Single => '\'',
+            Self::Double => '"',
+        }
+    }
+
+    pub const fn token_kind(&self) -> TokenKind {
+        match self {
+            Self::Single => TokenKind::DocComment,
+            Self::Double => TokenKind::StrLit,
+        }
     }
 }
 
@@ -812,11 +848,10 @@ impl Lexer /*<'a>*/ {
         Err(Self::unclosed_string_error(token, "\"", line!() as usize))
     }
 
-    const QUOTES: &str = "\"\"\"";
-    fn lex_multi_line_str(&mut self) -> LexResult<Token> {
-        let mut s = Self::QUOTES.to_string();
+    fn lex_multi_line_str(&mut self, quote: Quote) -> LexResult<Token> {
+        let mut s = quote.quotes().to_string();
         while let Some(c) = self.peek_cur_ch() {
-            if c == '"' {
+            if c == quote.char() {
                 let c = self.consume().unwrap();
                 let next_c = self.peek_cur_ch();
                 let aft_next_c = self.peek_next_ch();
@@ -824,7 +859,7 @@ impl Lexer /*<'a>*/ {
                     let token = self.emit_token(Illegal, &s);
                     return Err(Self::unclosed_string_error(
                         token,
-                        Self::QUOTES,
+                        quote.quotes(),
                         line!() as usize,
                     ));
                 }
@@ -833,15 +868,15 @@ impl Lexer /*<'a>*/ {
                     let token = self.emit_token(Illegal, &s);
                     return Err(Self::unclosed_string_error(
                         token,
-                        Self::QUOTES,
+                        quote.quotes(),
                         line!() as usize,
                     ));
                 }
-                if next_c.unwrap() == '"' && aft_next_c.unwrap() == '"' {
+                if next_c.unwrap() == quote.char() && aft_next_c.unwrap() == quote.char() {
                     self.consume().unwrap();
                     self.consume().unwrap();
-                    s.push_str(Self::QUOTES);
-                    let token = self.emit_token(StrLit, &s);
+                    s.push_str(quote.quotes());
+                    let token = self.emit_token(quote.token_kind(), &s);
                     return Ok(token);
                 }
                 // else unclosed_string_error
@@ -854,7 +889,7 @@ impl Lexer /*<'a>*/ {
                         match next_c {
                             '{' => {
                                 s.push_str("\\{");
-                                self.interpol_stack.push(Interpolation::MultiLine);
+                                self.interpol_stack.push(Interpolation::MultiLine(quote));
                                 let token = self.emit_token(StrInterpLeft, &s);
                                 return Ok(token);
                             }
@@ -894,7 +929,7 @@ impl Lexer /*<'a>*/ {
         if self.interpol_stack.len() == 1 {
             Err(Self::unclosed_string_error(
                 token,
-                Self::QUOTES,
+                quote.quotes(),
                 line!() as usize,
             ))
         } else {
@@ -908,7 +943,7 @@ impl Lexer /*<'a>*/ {
         while let Some(c) = self.peek_cur_ch() {
             match c {
                 '\n' => match self.interpol_stack.last().unwrap() {
-                    Interpolation::MultiLine => {
+                    Interpolation::MultiLine(_) => {
                         self.lineno_token_starts += 1;
                         self.col_token_starts = 0;
                         self.consume().unwrap();
@@ -930,8 +965,8 @@ impl Lexer /*<'a>*/ {
                 },
                 '"' => {
                     s.push(self.consume().unwrap());
-                    match self.interpol_stack.last().unwrap() {
-                        Interpolation::MultiLine => {
+                    match self.interpol_stack.last().copied().unwrap() {
+                        Interpolation::MultiLine(quote) => {
                             let next_c = self.peek_cur_ch();
                             let aft_next_c = self.peek_next_ch();
                             if next_c.is_none() {
@@ -939,7 +974,7 @@ impl Lexer /*<'a>*/ {
                                 let token = self.emit_token(Illegal, &s);
                                 return Err(Self::unclosed_string_error(
                                     token,
-                                    Self::QUOTES,
+                                    quote.quotes(),
                                     line!() as usize,
                                 ));
                             }
@@ -949,15 +984,17 @@ impl Lexer /*<'a>*/ {
                                 let token = self.emit_token(Illegal, &s);
                                 return Err(Self::unclosed_string_error(
                                     token,
-                                    Self::QUOTES,
+                                    quote.quotes(),
                                     line!() as usize,
                                 ));
                             }
-                            if next_c.unwrap() == '"' && aft_next_c.unwrap() == '"' {
+                            if next_c.unwrap() == quote.char()
+                                && aft_next_c.unwrap() == quote.char()
+                            {
                                 self.interpol_stack.pop();
                                 self.consume().unwrap();
                                 self.consume().unwrap();
-                                s.push_str(Self::QUOTES);
+                                s.push_str(quote.quotes());
                                 let token = self.emit_token(StrInterpRight, &s);
                                 return Ok(token);
                             }
@@ -1339,31 +1376,24 @@ impl Iterator for Lexer /*<'a>*/ {
                             None,
                         )))
                     }
-                    (Some(c), None) => {
-                        if c == '"' {
-                            self.consume(); // consume second '"'
-                            let token = self.emit_token(StrLit, "\"\"");
-                            Some(Ok(token))
-                        } else {
-                            Some(self.lex_single_str())
-                        }
+                    (Some('"'), Some('"')) => {
+                        self.consume(); // consume second '"'
+                        self.consume(); // consume third '"'
+                        Some(self.lex_multi_line_str(Quote::Double))
                     }
-                    (Some(c), Some(next_c)) => {
-                        if c == '"' && next_c == '"' {
-                            self.consume(); // consume second '"'
-                            self.consume(); // consume third '"'
-                            Some(self.lex_multi_line_str())
-                        } else {
-                            Some(self.lex_single_str())
-                        }
+                    (Some('"'), None) => {
+                        self.consume(); // consume second '"'
+                        let token = self.emit_token(StrLit, "\"\"");
+                        Some(Ok(token))
                     }
+                    _ => Some(self.lex_single_str()),
                 }
             }
-            // TODO:
             Some('\'') => {
                 let c = self.peek_cur_ch();
-                match c {
-                    None => {
+                let next_c = self.peek_next_ch();
+                match (c, next_c) {
+                    (None, _) => {
                         let token = self.emit_token(Illegal, "'");
                         Some(Err(LexError::syntax_error(
                             line!() as usize,
@@ -1377,15 +1407,17 @@ impl Iterator for Lexer /*<'a>*/ {
                             None,
                         )))
                     }
-                    Some(c) => {
-                        if c == '\'' {
-                            self.consume(); // consume second '\''
-                            let token = self.emit_token(Illegal, "\"\"");
-                            Some(Err(LexError::simple_syntax_error(0, token.loc())))
-                        } else {
-                            Some(self.lex_raw_ident())
-                        }
+                    (Some('\''), Some('\'')) => {
+                        self.consume(); // consume second '
+                        self.consume(); // consume third '
+                        Some(self.lex_multi_line_str(Quote::Single))
                     }
+                    (Some('\''), _) => {
+                        self.consume(); // consume second '\''
+                        let token = self.emit_token(Illegal, "''");
+                        Some(Err(LexError::simple_syntax_error(0, token.loc())))
+                    }
+                    _ => Some(self.lex_raw_ident()),
                 }
             }
             // Symbolized operators (シンボル化された演算子)

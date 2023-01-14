@@ -8,6 +8,16 @@ use erg_parser::lex::Lexer;
 use erg_parser::ParserRunner;
 
 #[test]
+fn parse_args() -> Result<(), ()> {
+    expect_success("tests/args.er")
+}
+
+#[test]
+fn parse_containers() -> Result<(), ()> {
+    expect_success("tests/containers.er")
+}
+
+#[test]
 fn parse_dependent() -> Result<(), ()> {
     expect_success("tests/dependent.er")
 }
@@ -97,7 +107,6 @@ fn expect_failure(file_path: &'static str, errs_len: usize) -> Result<(), ()> {
     match parse_test_from_code(file_path) {
         Ok(_) => Err(()),
         Err(errs) => {
-            errs.fmt_all_stderr();
             if errs.len() == errs_len {
                 Ok(())
             } else {

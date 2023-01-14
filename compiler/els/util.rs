@@ -6,7 +6,7 @@ use erg_common::normalize_path;
 use erg_common::traits::{DequeStream, Locational};
 
 use erg_compiler::erg_parser::lex::Lexer;
-use erg_compiler::erg_parser::token::{Token, TokenKind};
+use erg_compiler::erg_parser::token::{Token, TokenStream};
 
 use lsp_types::{Position, Range, Url};
 
@@ -30,23 +30,33 @@ pub fn pos_in_loc<L: Locational>(loc: &L, pos: Position) -> bool {
     }
 }
 
-pub fn get_token(uri: Url, pos: Position) -> ELSResult<Option<Token>> {
-    // FIXME: detect change
+pub fn get_token_stream(uri: Url) -> ELSResult<TokenStream> {
+    let mut code = String::new();
+    let path = uri.to_file_path().unwrap();
+    File::open(path.as_path())?.read_to_string(&mut code)?;
+    Ok(Lexer::from_str(code).lex()?)
+}
+
+pub fn get_token_from_stream(stream: &TokenStream, pos: Position) -> ELSResult<Option<Token>> {
+    for token in stream.iter() {
+        if pos_in_loc(token, pos) {
+            return Ok(Some(token.clone()));
+        }
+    }
+    Ok(None)
+}
+
+pub fn get_token_index(uri: Url, pos: Position) -> ELSResult<Option<usize>> {
     let mut timeout = 300;
     let path = uri.to_file_path().unwrap();
     loop {
         let mut code = String::new();
         File::open(path.as_path())?.read_to_string(&mut code)?;
         if let Ok(tokens) = Lexer::from_str(code).lex() {
-            let mut token = None;
-            for tok in tokens.into_iter() {
-                if pos_in_loc(&tok, pos) {
-                    token = Some(tok);
-                    break;
+            for (i, tok) in tokens.iter().enumerate() {
+                if pos_in_loc(tok, pos) {
+                    return Ok(Some(i));
                 }
-            }
-            if token.is_some() {
-                return Ok(token);
             }
         }
         std::thread::sleep(std::time::Duration::from_millis(10));
@@ -57,39 +67,28 @@ pub fn get_token(uri: Url, pos: Position) -> ELSResult<Option<Token>> {
     }
 }
 
+pub fn get_token(uri: Url, pos: Position) -> ELSResult<Option<Token>> {
+    let index = get_token_index(uri.clone(), pos)?;
+    if let Some(idx) = index {
+        Ok(get_token_stream(uri)?.get(idx).cloned())
+    } else {
+        Ok(None)
+    }
+}
+
 /// plus_minus: 0 => same as get_token
 pub fn get_token_relatively(
     uri: Url,
     pos: Position,
     plus_minus: isize,
 ) -> ELSResult<Option<Token>> {
-    // FIXME: detect change
-    let mut timeout = 300;
-    let path = uri.to_file_path().unwrap();
-    loop {
-        let mut code = String::new();
-        File::open(path.as_path())?.read_to_string(&mut code)?;
-        if let Ok(tokens) = Lexer::from_str(code).lex() {
-            let mut found_index = None;
-            for (i, tok) in tokens.iter().enumerate() {
-                if pos_in_loc(tok, pos) {
-                    found_index = Some(i);
-                    break;
-                }
-            }
-            if let Some(idx) = found_index {
-                if let Some(token) = tokens.into_iter().nth((idx as isize + plus_minus) as usize) {
-                    if !token.is(TokenKind::Newline) {
-                        return Ok(Some(token));
-                    }
-                }
-            }
-        }
-        std::thread::sleep(std::time::Duration::from_millis(10));
-        timeout -= 1;
-        if timeout == 0 {
-            return Ok(None);
-        }
+    let index = get_token_index(uri.clone(), pos)?;
+    if let Some(idx) = index {
+        Ok(get_token_stream(uri)?
+            .get((idx as isize + plus_minus) as usize)
+            .cloned())
+    } else {
+        Ok(None)
     }
 }
 

@@ -213,11 +213,16 @@ impl Context {
             py_name
         };
         let vis = ident.vis();
+        let kind = if id.0 == 0 {
+            VarKind::Declared
+        } else {
+            VarKind::Defined(id)
+        };
         let vi = VarInfo::new(
             body_t.clone(),
             muty,
             vis,
-            VarKind::Defined(id),
+            kind,
             None,
             self.impl_of(),
             py_name,

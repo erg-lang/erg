@@ -91,12 +91,18 @@ pub struct PyScript {
 }
 
 /// Generates a `PyScript` from an String or other File inputs.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Transpiler {
     pub cfg: ErgConfig,
     builder: HIRBuilder,
     shared: SharedCompilerResource,
     script_generator: ScriptGenerator,
+}
+
+impl Default for Transpiler {
+    fn default() -> Self {
+        Self::new(ErgConfig::default())
+    }
 }
 
 impl Runnable for Transpiler {

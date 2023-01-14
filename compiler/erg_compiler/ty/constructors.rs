@@ -418,8 +418,8 @@ pub fn or(lhs: Type, rhs: Type) -> Type {
     Type::Or(Box::new(lhs), Box::new(rhs))
 }
 
-pub fn not(lhs: Type, rhs: Type) -> Type {
-    Type::Not(Box::new(lhs), Box::new(rhs))
+pub fn not(ty: Type) -> Type {
+    Type::Not(Box::new(ty))
 }
 
 #[inline]

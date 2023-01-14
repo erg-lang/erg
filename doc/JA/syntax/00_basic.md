@@ -66,6 +66,44 @@ hello, world
 ]#
 ```
 
+### ドキュメンテーションコメント
+
+`'''...'''`はドキュメンテーションコメントです。コードの意図を説明したいときに使えて、実行時に文字列として参照することも出来ます。Pythonと違い、クラス・関数の外側で定義することに注意してください。
+
+```python
+'''
+この関数は、与えられた数値を2倍にして返す関数です。
+'''
+twice x = x * 2
+
+print! twice.__doc__
+# この関数は、与えられた数値を2倍にして返す関数です。
+
+'''
+クラス全体のドキュメンテーションコメント
+'''
+C = Class {x = Int}
+    '''
+    メソッドのドキュメンテーションコメント
+    '''
+    .method self = ...
+```
+
+`'''`の直後に言語コードを記述することで、ドキュメントの言語を指定することが出来ます。すると[Erg Language Server](https://github.com/erg-lang/erg/tree/main/compiler/els)は各言語バージョンに合わせたドキュメントをMarkdown形式で表示します(デフォルトの言語は英語です)。
+登録されている言語コードについては[こちら](https://github.com/erg-lang/erg/blob/main/doc/JA/dev_guide/i18n_messages.md)を参照してください。
+
+```python
+'''
+Answer to the Ultimate Question of Life, the Universe, and Everything.
+cf. https://www.google.co.jp/search?q=answer+to+life+the+universe+and+everything
+'''
+'''japanese
+生命、宇宙、そして全てについての究極の謎への答え
+参照: https://www.google.co.jp/search?q=answer+to+life+the+universe+and+everything
+'''
+ANSWER = 42
+```
+
 ## 式、セパレータ
 
 スクリプトは、式(expression)の連なりです。式とは計算・評価ができるもので、Ergではほとんどすべてのものが式です。

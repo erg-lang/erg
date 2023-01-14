@@ -63,4 +63,10 @@ impl ASTBuilder {
         let ast = AST::new(Str::rc(self.runner.cfg().input.full_path()), module);
         Ok(ast)
     }
+
+    pub fn build_without_desugaring(&mut self, src: String) -> Result<AST, ParserRunnerErrors> {
+        let module = self.runner.parse(src)?;
+        let ast = AST::new(Str::rc(self.runner.cfg().input.full_path()), module);
+        Ok(ast)
+    }
 }

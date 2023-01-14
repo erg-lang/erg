@@ -1,0 +1,142 @@
+use serde_json::json;
+
+use erg_common::style::*;
+use erg_common::traits::Stream;
+
+use erg_compiler::artifact::BuildRunnable;
+use erg_compiler::error::CompileErrors;
+
+use lsp_types::{Diagnostic, DiagnosticSeverity, Position, PublishDiagnosticsParams, Range, Url};
+
+use crate::server::{ELSResult, Server};
+use crate::util;
+
+impl<Checker: BuildRunnable> Server<Checker> {
+    pub(crate) fn check_file<S: Into<String>>(&mut self, uri: Url, code: S) -> ELSResult<()> {
+        Self::send_log(format!("checking {uri}"))?;
+        let path = util::uri_to_path(&uri);
+        let mode = if path.to_string_lossy().ends_with(".d.er") {
+            "declare"
+        } else {
+            "exec"
+        };
+        let mut checker = if let Some(shared) = self.get_shared() {
+            Checker::inherit(self.cfg.inherit(path), shared.clone())
+        } else {
+            Checker::new(self.cfg.inherit(path))
+        };
+        match checker.build(code.into(), mode) {
+            Ok(artifact) => {
+                self.hirs.insert(uri.clone(), Some(artifact.object));
+                Self::send_log(format!("checking {uri} passed"))?;
+                let uri_and_diags = self.make_uri_and_diags(uri.clone(), artifact.warns);
+                // clear previous diagnostics
+                if uri_and_diags.is_empty() {
+                    self.send_diagnostics(uri.clone(), vec![])?;
+                }
+                for (uri, diags) in uri_and_diags.into_iter() {
+                    Self::send_log(format!("{uri}, warns: {}", diags.len()))?;
+                    self.send_diagnostics(uri, diags)?;
+                }
+            }
+            Err(mut artifact) => {
+                self.hirs.insert(uri.clone(), artifact.object);
+                Self::send_log(format!("found errors: {}", artifact.errors.len()))?;
+                Self::send_log(format!("found warns: {}", artifact.warns.len()))?;
+                artifact.errors.extend(artifact.warns);
+                let uri_and_diags = self.make_uri_and_diags(uri.clone(), artifact.errors);
+                if uri_and_diags.is_empty() {
+                    self.send_diagnostics(uri.clone(), vec![])?;
+                }
+                for (uri, diags) in uri_and_diags.into_iter() {
+                    Self::send_log(format!("{uri}, errs & warns: {}", diags.len()))?;
+                    self.send_diagnostics(uri, diags)?;
+                }
+            }
+        }
+        if let Some(module) = checker.pop_context() {
+            Self::send_log(format!("{uri}: {}", module.context.name))?;
+            self.modules.insert(uri.clone(), module);
+        }
+        let dependents = self.dependents_of(&uri);
+        for dep in dependents {
+            // _log!("dep: {dep}");
+            let code = util::get_code_from_uri(&dep)?;
+            self.check_file(dep, code)?;
+        }
+        Ok(())
+    }
+
+    fn make_uri_and_diags(
+        &mut self,
+        uri: Url,
+        errors: CompileErrors,
+    ) -> Vec<(Url, Vec<Diagnostic>)> {
+        let mut uri_and_diags: Vec<(Url, Vec<Diagnostic>)> = vec![];
+        for err in errors.into_iter() {
+            let loc = err.core.get_loc_with_fallback();
+            let err_uri = if let Some(path) = err.input.path() {
+                util::normalize_url(Url::from_file_path(path).unwrap())
+            } else {
+                uri.clone()
+            };
+            let mut message = remove_style(&err.core.main_message);
+            for sub in err.core.sub_messages {
+                for msg in sub.get_msg() {
+                    message.push('\n');
+                    message.push_str(&remove_style(msg));
+                }
+                if let Some(hint) = sub.get_hint() {
+                    message.push('\n');
+                    message.push_str("hint: ");
+                    message.push_str(&remove_style(hint));
+                }
+            }
+            let start = Position::new(
+                loc.ln_begin().unwrap_or(1) - 1,
+                loc.col_begin().unwrap_or(0),
+            );
+            let end = Position::new(loc.ln_end().unwrap_or(1) - 1, loc.col_end().unwrap_or(0));
+            let severity = if err.core.kind.is_warning() {
+                DiagnosticSeverity::WARNING
+            } else {
+                DiagnosticSeverity::ERROR
+            };
+            let diag = Diagnostic::new(
+                Range::new(start, end),
+                Some(severity),
+                None,
+                None,
+                message,
+                None,
+                None,
+            );
+            if let Some((_, diags)) = uri_and_diags.iter_mut().find(|x| x.0 == err_uri) {
+                diags.push(diag);
+            } else {
+                uri_and_diags.push((err_uri, vec![diag]));
+            }
+        }
+        uri_and_diags
+    }
+
+    fn send_diagnostics(&self, uri: Url, diagnostics: Vec<Diagnostic>) -> ELSResult<()> {
+        let params = PublishDiagnosticsParams::new(uri, diagnostics, None);
+        if self
+            .client_capas
+            .text_document
+            .as_ref()
+            .map(|doc| doc.publish_diagnostics.is_some())
+            .unwrap_or(false)
+        {
+            Self::send(&json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/publishDiagnostics",
+                "params": params,
+            }))?;
+        } else {
+            Self::send_log("the client does not support diagnostics")?;
+        }
+        Ok(())
+    }
+}

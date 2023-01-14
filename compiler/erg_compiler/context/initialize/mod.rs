@@ -14,6 +14,8 @@ use std::path::PathBuf;
 
 use erg_common::config::ErgConfig;
 use erg_common::dict;
+use erg_common::env::erg_pystd_path;
+use erg_common::error::Location;
 use erg_common::fresh::fresh_varname;
 #[allow(unused_imports)]
 use erg_common::log;
@@ -66,6 +68,8 @@ const MUTABLE_FILE_LIKE: &str = "FileLike!";
 const SHOW: &str = "Show";
 const INPUT: &str = "Input";
 const OUTPUT: &str = "Output";
+const POW_OUTPUT: &str = "PowOutput";
+const MOD_OUTPUT: &str = "ModOutput";
 const IN: &str = "In";
 const EQ: &str = "Eq";
 const ORD: &str = "Ord";
@@ -75,6 +79,8 @@ const SEQ: &str = "Seq";
 const FUNC_LEN: &str = "len";
 const FUNC_GET: &str = "get";
 const ITERABLE: &str = "Iterable";
+const ITERATOR: &str = "Iterator";
+const STR_ITERATOR: &str = "StrIterator";
 const FUNC_ITER: &str = "iter";
 const ITER: &str = "Iter";
 const ADD: &str = "Add";
@@ -82,6 +88,160 @@ const SUB: &str = "Sub";
 const MUL: &str = "Mul";
 const DIV: &str = "Div";
 const FLOOR_DIV: &str = "FloorDiv";
+const NEVER: &str = "Never";
+const OBJ: &str = "Obj";
+const MUTABLE_OBJ: &str = "Obj!";
+const FUNC_CLONE: &str = "clone";
+const BYTES: &str = "Bytes";
+const FLOAT: &str = "Float";
+const MUT_FLOAT: &str = "Float!";
+const EPSILON: &str = "EPSILON";
+const REAL: &str = "Real";
+const FUNC_REAL: &str = "real";
+const IMAG: &str = "Imag";
+const FUNC_IMAG: &str = "imag";
+const FUNC_CONJUGATE: &str = "conjugate";
+const FUNC_IS_INTEGER: &str = "is_integer";
+const FUNC_HEX: &str = "hex";
+const FUNC_FROMHEX: &str = "fromhex";
+const INT: &str = "Int";
+const MUT_INT: &str = "Int!";
+const RATIO: &str = "Ratio";
+const MUT_RATIO: &str = "Raltio!";
+const FUNC_ABS: &str = "abs";
+const FUNC_SUCC: &str = "succ";
+const FUNC_PRED: &str = "pred";
+const FUNC_BIT_LENGTH: &str = "bit_length";
+const FUNC_BIT_COUNT: &str = "bit_count";
+const FUNC_BYTEORDER: &str = "byteorder";
+const TOKEN_BIG_ENDIAN: &str = "big";
+const TOKEN_LITTLE_ENDIAN: &str = "little";
+const FUNC_FROM_BYTES: &str = "from_bytes";
+const FUNC_TO_BYTES: &str = "to_bytes";
+const NAT: &str = "Nat";
+const MUT_NAT: &str = "Nat!";
+const PROC_TIMES: &str = "times!";
+const FUNC_TIMES: &str = "times";
+const BOOL: &str = "Bool";
+const MUT_BOOL: &str = "Bool!";
+const STR: &str = "Str";
+const MUT_STR: &str = "Str!";
+const FUNC_REPLACE: &str = "replace";
+const FUNC_ENCODE: &str = "encode";
+const FUNC_FORMAT: &str = "format";
+const FUNC_LOWER: &str = "lower";
+const FUNC_UPPER: &str = "upper";
+const FUNC_TO_INT: &str = "to_int";
+const NONE_TYPE: &str = "NoneType";
+const TYPE: &str = "Type";
+const CLASS_TYPE: &str = "ClassType";
+const TRAIT_TYPE: &str = "TraitType";
+const CODE: &str = "Code";
+const FUNC_MRO: &str = "mro";
+const FUNC_CO_ARGCOUNT: &str = "co_argcount";
+const FUNC_CO_VARNAMES: &str = "co_varnames";
+const FUNC_CO_CONSTS: &str = "co_consts";
+const FUNC_CO_NAMES: &str = "co_names";
+const FUNC_CO_FREEVARS: &str = "co_freevars";
+const FUNC_CO_CELLVARS: &str = "co_cellvars";
+const FUNC_CO_FILENAME: &str = "co_filename";
+const FUNC_CO_NAME: &str = "co_name";
+const FUNC_CO_FIRSTLINENO: &str = "co_firstlineno";
+const FUNC_CO_STACKSIZE: &str = "co_stacksize";
+const FUNC_CO_FLAGS: &str = "co_flags";
+const FUNC_CO_CODE: &str = "co_code";
+const FUNC_CO_LNOTAB: &str = "co_lnotab";
+const FUNC_CO_NLOCALS: &str = "co_nlocals";
+const FUNC_CO_KWONLYARGCOUNT: &str = "co_kwonlyargcount";
+const FUNC_CO_POSONLYARGCOUNT: &str = "co_posonlyargcount";
+const GENERIC_MODULE: &str = "GenericModule";
+const PATH: &str = "Path";
+const MODULE: &str = "Module";
+const PY_MODULE: &str = "PyModule";
+const ARRAY: &str = "Array";
+const MUT_ARRAY: &str = "Array!";
+const FUNC_CONCAT: &str = "concat";
+const FUNC_COUNT: &str = "count";
+const FUNC_PUSH: &str = "push";
+const PROC_PUSH: &str = "push!";
+const ARRAY_ITERATOR: &str = "ArrayIterator";
+const SET: &str = "Set";
+const MUT_SET: &str = "Set!";
+const GENERIC_DICT: &str = "GenericDict";
+const DICT: &str = "Dict";
+const FUNC_DECODE: &str = "decode";
+const GENERIC_TUPLE: &str = "GenericTuple";
+const TUPLE: &str = "Tuple";
+const RECORD: &str = "Record";
+const OR: &str = "Or";
+const RANGE_ITERATOR: &str = "RangeIterator";
+const ENUMERATE: &str = "Enumerate";
+const FILTER: &str = "Filter";
+const MAP: &str = "Map";
+const REVERSED: &str = "Reversed";
+const ZIP: &str = "Zip";
+const FUNC_INC: &str = "inc";
+const PROC_INC: &str = "inc!";
+const FUNC_DEC: &str = "dec";
+const PROC_DEC: &str = "dec!";
+const MUT_FILE: &str = "File!";
+const MUT_READABLE: &str = "Readable!";
+const MUT_WRITABLE: &str = "Writable!";
+const MUT_FILE_LIKE: &str = "FileLike!";
+const FUNC_APPEND: &str = "append";
+const FUNC_EXTEND: &str = "extend";
+const PROC_EXTEND: &str = "extend!";
+const FUNC_INSERT: &str = "insert";
+const PROC_INSERT: &str = "insert!";
+const FUNC_REMOVE: &str = "remove";
+const PROC_REMOVE: &str = "remove!";
+const FUNC_POP: &str = "pop";
+const PROC_POP: &str = "pop!";
+const FUNC_CLEAR: &str = "clear";
+const PROC_CLEAR: &str = "clear!";
+const FUNC_SORT: &str = "sort";
+const PROC_SORT: &str = "sort!";
+const FUNC_REVERSE: &str = "reverse";
+const PROC_REVERSE: &str = "reverse!";
+const PROC_STRICT_MAP: &str = "strict_map!";
+const FUNC_ADD: &str = "add";
+const PROC_ADD: &str = "add!";
+const RANGE: &str = "Range";
+const GENERIC_CALLABLE: &str = "GenericCallable";
+const GENERIC_GENERATOR: &str = "GenericGenerator";
+const FUNC_RETURN: &str = "return";
+const FUNC_YIELD: &str = "yield";
+const PROC: &str = "Proc";
+const NAMED_PROC: &str = "NamedProc";
+const NAMED_FUNC: &str = "NamedFunc";
+const FUNC: &str = "Func";
+const QUANTIFIED: &str = "Quantified";
+const QUANTIFIED_FUNC: &str = "QuantifiedFunc";
+const FUNC_OBJECT: &str = "object";
+const FUNC_INT: &str = "int";
+const FUNC_FLOAT: &str = "float";
+const FUNC_BOOL: &str = "bool";
+const FUNC_STR: &str = "str";
+const FUNC_TYPE: &str = "type";
+const CODE_TYPE: &str = "CodeType";
+const MODULE_TYPE: &str = "ModuleType";
+const FUNC_LIST: &str = "list";
+const FUNC_SET: &str = "set";
+const FUNC_DICT: &str = "dict";
+const FUNC_TUPLE: &str = "tuple";
+const UNION: &str = "Union";
+const FUNC_STR_ITERATOR: &str = "str_iterator";
+const FUNC_ARRAY_ITERATOR: &str = "array_iterator";
+const FUNC_ENUMERATE: &str = "enumerate";
+const FUNC_FILTER: &str = "filter";
+const FUNC_MAP: &str = "map";
+const FUNC_REVERSED: &str = "reversed";
+const FUNC_ZIP: &str = "zip";
+const FILE: &str = "File";
+const CALLABLE: &str = "Callable";
+const GENERATOR: &str = "Generator";
+const FUNC_RANGE: &str = "range";
+
 const OP_IN: &str = "__in__";
 const OP_EQ: &str = "__eq__";
 const OP_CMP: &str = "__cmp__";
@@ -90,10 +250,21 @@ const OP_SUB: &str = "__sub__";
 const OP_MUL: &str = "__mul__";
 const OP_DIV: &str = "__div__";
 const OP_FLOOR_DIV: &str = "__floordiv__";
+const OP_ABS: &str = "__abs__";
+const OP_PARTIAL_CMP: &str = "__partial_cmp__";
+const OP_AND: &str = "__and__";
+const OP_OR: &str = "__or__";
 
 const FUNDAMENTAL_NAME: &str = "__name__";
 const FUNDAMENTAL_STR: &str = "__str__";
 const FUNDAMENTAL_ITER: &str = "__iter__";
+const FUNDAMENTAL_MODULE: &str = "__module__";
+const FUNDAMENTAL_SIZEOF: &str = "__sizeof__";
+const FUNDAMENTAL_REPR: &str = "__repr__";
+const FUNDAMENTAL_DICT: &str = "__dict__";
+const FUNDAMENTAL_BYTES: &str = "__bytes__";
+const FUNDAMENTAL_GETITEM: &str = "__getitem__";
+const FUNDAMENTAL_TUPLE_GETITEM: &str = "__Tuple_getitem__";
 
 const LICENSE: &str = "license";
 const CREDITS: &str = "credits";
@@ -105,15 +276,48 @@ const NOT_IMPLEMENTED: &str = "NotImplemented";
 const ELLIPSIS: &str = "Ellipsis";
 const SITEBUILTINS_PRINTER: &str = "_sitebuiltins._Printer";
 
+const TY_D: &str = "D";
 const TY_T: &str = "T";
+const TY_TS: &str = "Ts";
 const TY_I: &str = "I";
 const TY_R: &str = "R";
+const TY_U: &str = "U";
+const TY_L: &str = "L";
+const TY_N: &str = "N";
+const TY_M: &str = "M";
 
 const KW_OLD: &str = "old";
 const KW_N: &str = "n";
+const KW_S: &str = "s";
+const KW_SELF: &str = "self";
+const KW_LENGTH: &str = "length";
+const KW_PROC: &str = "proc!";
+const KW_PAT: &str = "pat";
+const KW_INTO: &str = "into";
+const KW_ENCODING: &str = "encoding";
+const KW_ERRORS: &str = "errors";
+const KW_ARGS: &str = "args";
+const KW_IDX: &str = "idx";
+const KW_RHS: &str = "rhs";
+const KW_X: &str = "x";
+const KW_ELEM: &str = "elem";
+const KW_FUNC: &str = "func";
+const KW_ITERABLE: &str = "iterable";
+const KW_INDEX: &str = "index";
+const KW_KEY: &str = "key";
+
+pub fn builtins_path() -> PathBuf {
+    erg_pystd_path().join("builtins.d.er")
+}
 
 impl Context {
-    fn register_builtin_decl(&mut self, name: &'static str, t: Type, vis: Visibility) {
+    fn register_builtin_decl(
+        &mut self,
+        name: &'static str,
+        t: Type,
+        vis: Visibility,
+        py_name: Option<&'static str>,
+    ) {
         if cfg!(feature = "debug") {
             if let Type::Subr(subr) = &t {
                 if subr.has_qvar() {
@@ -137,11 +341,15 @@ impl Context {
                 Builtin,
                 None,
                 impl_of,
-                None,
+                py_name.map(Str::ever),
                 AbsLocation::unknown(),
             );
             self.decls.insert(name, vi);
         }
+    }
+
+    fn register_builtin_erg_decl(&mut self, name: &'static str, t: Type, vis: Visibility) {
+        self.register_builtin_decl(name, t, vis, None);
     }
 
     fn register_builtin_py_decl(
@@ -151,90 +359,17 @@ impl Context {
         vis: Visibility,
         py_name: Option<&'static str>,
     ) {
-        if cfg!(feature = "debug") {
-            if let Type::Subr(subr) = &t {
-                if subr.has_qvar() {
-                    panic!("not quantified subr: {subr}");
-                }
-            }
-        }
-        let impl_of = if let ContextKind::MethodDefs(Some(tr)) = &self.kind {
-            Some(tr.clone())
-        } else {
-            None
-        };
-        let name = if cfg!(feature = "py_compatible") {
-            if let Some(py_name) = py_name {
-                VarName::from_static(py_name)
-            } else {
-                VarName::from_static(name)
-            }
-        } else {
-            VarName::from_static(name)
-        };
-        let vi = VarInfo::new(
-            t,
-            Immutable,
-            vis,
-            Builtin,
-            None,
-            impl_of,
-            py_name.map(Str::ever),
-            AbsLocation::unknown(),
-        );
-        if let Some(_vi) = self.decls.get(&name) {
-            if _vi != &vi {
-                panic!("already registered: {} {name}", self.name);
-            }
-        } else {
-            self.decls.insert(name, vi);
-        }
+        self.register_builtin_decl(name, t, vis, py_name);
     }
 
     fn register_builtin_impl(
         &mut self,
-        name: &'static str,
-        t: Type,
-        muty: Mutability,
-        vis: Visibility,
-    ) {
-        if cfg!(feature = "debug") {
-            if let Type::Subr(subr) = &t {
-                if subr.has_qvar() {
-                    panic!("not quantified subr: {subr}");
-                }
-            }
-        }
-        let impl_of = if let ContextKind::MethodDefs(Some(tr)) = &self.kind {
-            Some(tr.clone())
-        } else {
-            None
-        };
-        let name = VarName::from_static(name);
-        let vi = VarInfo::new(
-            t,
-            muty,
-            vis,
-            Builtin,
-            None,
-            impl_of,
-            None,
-            AbsLocation::unknown(),
-        );
-        if self.locals.get(&name).is_some() {
-            panic!("already registered: {} {name}", self.name);
-        } else {
-            self.locals.insert(name, vi);
-        }
-    }
-
-    fn register_builtin_py_impl(
-        &mut self,
-        name: &'static str,
+        name: VarName,
         t: Type,
         muty: Mutability,
         vis: Visibility,
         py_name: Option<&'static str>,
+        loc: AbsLocation,
     ) {
         if cfg!(feature = "debug") {
             if let Type::Subr(subr) = &t {
@@ -247,15 +382,6 @@ impl Context {
             Some(tr.clone())
         } else {
             None
-        };
-        let name = if cfg!(feature = "py_compatible") {
-            if let Some(py_name) = py_name {
-                VarName::from_static(py_name)
-            } else {
-                VarName::from_static(name)
-            }
-        } else {
-            VarName::from_static(name)
         };
         let vi = VarInfo::new(
             t,
@@ -265,7 +391,7 @@ impl Context {
             None,
             impl_of,
             py_name.map(Str::ever),
-            AbsLocation::unknown(),
+            loc,
         );
         if let Some(_vi) = self.locals.get(&name) {
             if _vi != &vi {
@@ -274,6 +400,65 @@ impl Context {
         } else {
             self.locals.insert(name, vi);
         }
+    }
+
+    fn register_builtin_erg_impl(
+        &mut self,
+        name: &'static str,
+        t: Type,
+        muty: Mutability,
+        vis: Visibility,
+    ) {
+        let name = VarName::from_static(name);
+        self.register_builtin_impl(name, t, muty, vis, None, AbsLocation::unknown());
+    }
+
+    // TODO: replace with `register_builtins`
+    fn register_builtin_py_impl(
+        &mut self,
+        name: &'static str,
+        t: Type,
+        muty: Mutability,
+        vis: Visibility,
+        py_name: Option<&'static str>,
+    ) {
+        let name = if cfg!(feature = "py_compatible") {
+            if let Some(py_name) = py_name {
+                VarName::from_static(py_name)
+            } else {
+                VarName::from_static(name)
+            }
+        } else {
+            VarName::from_static(name)
+        };
+        self.register_builtin_impl(name, t, muty, vis, py_name, AbsLocation::unknown());
+    }
+
+    pub(crate) fn register_py_builtin(
+        &mut self,
+        name: &'static str,
+        t: Type,
+        py_name: Option<&'static str>,
+        lineno: u32,
+    ) {
+        let name = if cfg!(feature = "py_compatible") {
+            if let Some(py_name) = py_name {
+                VarName::from_static(py_name)
+            } else {
+                VarName::from_static(name)
+            }
+        } else {
+            VarName::from_static(name)
+        };
+        let vis = if cfg!(feature = "py_compatible") {
+            Public
+        } else {
+            Private
+        };
+        let muty = Immutable;
+        let loc = Location::range(lineno, 0, lineno, name.inspect().len() as u32);
+        let abs_loc = AbsLocation::new(Some(builtins_path()), loc);
+        self.register_builtin_impl(name, t, muty, vis, py_name, abs_loc);
     }
 
     fn register_builtin_const(&mut self, name: &str, vis: Visibility, obj: ValueObj) {

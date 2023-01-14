@@ -606,6 +606,14 @@ pub struct ErrorCore {
     theme: Theme,
 }
 
+impl fmt::Display for ErrorCore {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{self:?}")
+    }
+}
+
+impl std::error::Error for ErrorCore {}
+
 impl ErrorCore {
     pub fn new<S: Into<String>>(
         sub_messages: Vec<SubMessage>,
