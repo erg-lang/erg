@@ -25,7 +25,8 @@ assert foo.i == 1
 由于模块类型也是记录类型，因此可以进行解构赋值
 
 ```python
-{sin; cos;} = import "math"
+# 和 {sin; cos; ...} = import "math" 一样
+{sin; cos} = import "math"
 ```
 
 ## 模块可见性

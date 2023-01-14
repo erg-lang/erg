@@ -222,7 +222,7 @@ add l: Add, r: Add =
 此外，下面的类型 `A` 和 `B` 不被认为是同一类型。但是，类型"O"被认为是匹配的
 
 ```python
-... |R1; R2; O; A <: Add(R1, O); B <: Add(R2, O)|
+... |R1, R2, O, A <: Add(R1, O); B <: Add(R2, O)|
 ```
 
 <p align='center'>

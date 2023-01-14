@@ -1,6 +1,6 @@
 # 基本
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/00_basic.md%26commit_hash%3Dd0a980e7401b15c8d2adc870e42952b8552973f1)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/00_basic.md&commit_hash=d0a980e7401b15c8d2adc870e42952b8552973f1)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/00_basic.md%26commit_hash%3D764a0e8981db429504b2427a6806887fa937ed2d)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/00_basic.md&commit_hash=764a0e8981db429504b2427a6806887fa937ed2d)
 
 > __Warning__: 本文档不完整。它未经校对(样式、正确链接、误译等)。此外，Erg 的语法可能在版本 0.* 期间发生破坏性更改，并且文档可能没有相应更新。请事先了解这一点
 > 如果您在本文档中发现任何错误，请报告至 [此处的表单](https://forms.gle/HtLYRfYzWCAaeTGb6) 或 [GitHub repo](https://github.com/erg-lang/erg/issues/new?assignees=&labels=bug&template=bug_report.yaml)。我们将不胜感激您的建议
@@ -79,6 +79,47 @@ hello, world!
 Multi-line comment
 Treated as a comment all the way up to the corresponding `]#`
 ]#
+```
+
+## 文档注释
+`'''...'''`是一个文档注释。注意，与Python不同，它是在任何类或函数之外定义的。
+
+```python
+'''
+PI is a constant that is the ratio of the circumference of a circle to its diameter.
+'''
+PI = 3.141592653589793
+'''
+This function returns twice the given number.
+'''
+twice x = x * 2
+
+print! twice.__doc__
+# This function returns twice the given number.
+
+'''
+Documentation comments for the entire class
+'''
+C = Class {x = Int}
+    '''
+    Method documentation comments
+    '''
+    .method self = ...
+```
+
+您可以通过在`'''`之后立即写入语言代码来指定文档的语言。然后，[Erg语言服务器](https://github.com/erg-lang/erg/tree/main/compiler/els)将以Markdown格式显示每种语言版本的文档(默认语言为英语)。
+参见[这里](https://github.com/erg-lang/erg/blob/main/doc/JA/dev_guide/i18n_messages.md)获取多语言相关文档
+
+```python
+'''
+Answer to the Ultimate Question of Life, the Universe, and Everything.
+cf. https://www.google.co.jp/search?q=answer+to+life+the+universe+and+everything
+'''
+'''japanese
+生命、宇宙、そして全てについての究極の謎への答え
+参照: https://www.google.co.jp/search?q=answer+to+life+the+universe+and+everything
+'''
+ANSWER = 42
 ```
 
 ## 表达式，分隔符

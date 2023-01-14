@@ -24,11 +24,23 @@ print! classof(john) # Person
 
 请注意，以下不带换行符的定义将导致语法错误
 
-```python
+```python,compile_fail
 Person.new name, age = ... # 语法错误: 不能直接在对象上定义属性
 ```
 
-> __Warning__: 这是最近添加的规范，后续文档中可能不会遵循。如果你发现它，请报告它
+## 新类型符号
+
+对于非记录类型`T` '`，可以通过`' `C = class T`定义类`C`。这是一个简写符号，相当于`C = Class {base = T}`。
+这是为了简化所谓“新型模式”的定义。
+同样，构造函数 `__new__` /  `new`可以直接传递给`T`类型对象，而无需将其包装在记录中
+
+```python
+Id = Class {base = Int}
+i = Id.new {base = 1}
+# ↓
+Id = Class Int
+i = Id.new 1
+```
 
 ## 实例和类属性
 
@@ -128,7 +140,7 @@ InheritableMyStr = Inherit Str
 MyStr3 = Inherit InheritableMyStr # OK
 ```
 
-`Inherit Object` 和 `Class()` 在实践中几乎是等价的。一般使用后者
+`Inherit Obj` 和 `Class()` 在实践中几乎是等价的。一般使用后者
 
 类具有与类型不同的等价检查机制
 类型基于其结构进行等效性测试

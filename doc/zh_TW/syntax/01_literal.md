@@ -1,6 +1,6 @@
 # 字面量
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/01_literal.md%26commit_hash%3D7078f95cecc961a65befb15929af06ae2331c934)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/01_literal.md&commit_hash=7078f95cecc961a65befb15929af06ae2331c934)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/01_literal.md%26commit_hash%3D2284988386db7516d7f2d0cb25b27bd8397dd69e)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/01_literal.md&commit_hash=2284988386db7516d7f2d0cb25b27bd8397dd69e)
 
 ## 基本字面量
 
@@ -15,6 +15,8 @@
 ```python
 0.00, -0.0, 0.1, 400.104, ...
 ```
+
+注意，Ratio類型不同于Float類型，雖然API相同，但計算結果的準確性和效率存在差異。
 
 如果"比率"文字的整數或小數部分為`0`，則可以省略`0`
 
@@ -40,6 +42,17 @@ assert 0.5 == .5
 
 ```python
 assert "1 + 1 is 2" == "\{1} + \{1} is \{1+1}"
+```
+
+文檔注釋也被視為字符串字面量，因此可以使用字符串插值。
+它在編譯時展開。如果您嵌入的表達式在編譯時無法確定，則會收到警告。
+
+````python
+PI = 3.14159265358979323
+'''
+S(r) = 4 × \{PI} × r^2
+'''
+sphere_surface r = 4 * PI * r ** 2
 ```
 
 ### 指數字面量

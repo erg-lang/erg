@@ -24,11 +24,23 @@ print! classof(john) # Person
 
 請注意，以下不帶換行符的定義將導致語法錯誤
 
-```python
+```python,compile_fail
 Person.new name, age = ... # 語法錯誤: 不能直接在對象上定義屬性
 ```
 
-> __Warning__: 這是最近添加的規范，后續文檔中可能不會遵循。如果你發現它，請報告它
+## 新類型符號
+
+對于非記錄類型`T` '`，可以通過`' `C = class T`定義類`C`。這是一個簡寫符號，相當于`C = Class {base = T}`。
+這是為了簡化所謂“新型模式”的定義。
+同樣，構造函數 `__new__` /  `new`可以直接傳遞給`T`類型對象，而無需將其包裝在記錄中
+
+```python
+Id = Class {base = Int}
+i = Id.new {base = 1}
+# ↓
+Id = Class Int
+i = Id.new 1
+```
 
 ## 實例和類屬性
 
@@ -128,7 +140,7 @@ InheritableMyStr = Inherit Str
 MyStr3 = Inherit InheritableMyStr # OK
 ```
 
-`Inherit Object` 和 `Class()` 在實踐中幾乎是等價的。一般使用后者
+`Inherit Obj` 和 `Class()` 在實踐中幾乎是等價的。一般使用后者
 
 類具有與類型不同的等價檢查機制
 類型基于其結構進行等效性測試

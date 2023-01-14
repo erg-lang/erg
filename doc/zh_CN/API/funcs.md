@@ -84,8 +84,8 @@ cycle("hello").take 3 # "hellohellohello"
 
 ### Class
 
-创建一个新类。与`Inherit`不同，通过`Class`传递与基类型无关，并且方法会丢失
-您将无法进行比较，但您可以进行模式匹配等操作
+生成新类。 与`Inherit`不同，通过`Class`与基类型（第一个参数`Base`）无关，并且方法丢失。
+
 
 ```python
 C = Class {i = Int}
@@ -98,11 +98,18 @@ match jan:
     _ -> log "Other"
 ```
 
-第二个参数 Impl 是要实现的Trait
 
 ### Inherit
 
-继承一个类。您可以按原样使用基类方法
+继承类可以直接使用父类(`Super`)的方法。可以在第二参数`Layout`中指定新的布局。
+此时，必须`Super.Base:> Layout`
+
+```python
+@Inheritable
+C = Class {i = Int}
+D = Inherit C, {i = Int; j = Int} # C.Layout == {i = Int} :> {i = Int; j = Int}
+E! = Inherit C, {i = Int!} # {i = Int} :> {i = Int!}
+```
 
 ### Trait
 

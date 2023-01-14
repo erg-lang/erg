@@ -82,7 +82,7 @@ cycle("hello").take 3 # "hellohellohello"
 
 ### Class
 
-Create a new class. Unlike `Inherit`, passing through `Class` is independent of the base type and methods are lost.
+Create a new class. Unlike 'Inherit', passing 'Class' is independent of the base type (the first argument 'Base') and the method is lost.
 You won't be able to compare, but you can do things like pattern matching.
 
 ```python
@@ -96,11 +96,17 @@ match jan:
     _ -> log "Other"
 ```
 
-The second argument, Impl, is the trait to implement.
 
 ### Inherit
 
-Inherit a class. You can use the base class methods as they are.
+Inherit classes. You can use the methods of the parent class ('Super') as is. The second parameter 'Layout' can specify a new layout.
+It must be 'Super.Base:> Layout'.
+```python
+@ Inheritable
+C = Class {i = Int}
+D = Inherit C, {i = Int; j = Int} # C.Layout == {i = Int} :> {i = Int; j = Int}
+E! = Inherit C, {i = Int!} # {i = Int} :> {i = Int!}
+```
 
 ### Traits
 

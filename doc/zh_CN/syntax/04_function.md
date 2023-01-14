@@ -92,7 +92,7 @@ f u := 6, v := 5, w := 4, x := 1, y := 2, z := 3
 
 当某些参数大部分是固定的并且您希望能够省略它们时，使用默认参数
 
-默认参数由`:=`(walrus运算符)指定。如果未指定 `base`，则将 `math.E` 分配给 `base`
+默认参数由`:=`(default-assign运算符)指定。如果未指定 `base`，则将 `math.E` 分配给 `base`
 
 ```python
 math_log x: Ratio, base := math.E = ...
@@ -160,7 +160,7 @@ fib n: Nat =
 
 像上面这样的函数，其中 `match` 直接出现在定义下，可以重写如下
 
-```python
+```python,compile_fail
 fib 0 = 0
 fib 1 = 1
 fib(n: Nat): Nat = fib(n - 1) + fib(n - 2)

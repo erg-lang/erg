@@ -136,13 +136,13 @@ Int = Class ... , Impl := Add() and ...
 
 Erg 不允许普通类之间的交集、差异和互补
 
-```python
+```python,compile_fail
 Int and Str # 类型错误: 无法合并类
 ```
 
 该规则防止从多个类继承，即多重继承
 
-```python
+```python,compile_fail
 IntAndStr = Inherit Int and Str # 语法错误: 不允许类的多重继承
 ```
 

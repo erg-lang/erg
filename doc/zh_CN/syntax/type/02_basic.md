@@ -37,7 +37,7 @@ f X: Int = X
 
 或者，如果你不需要关于类型参数的完整信息，你可以用 `_` 省略它
 
-```python
+```python,compile_fail
 g v: [T; _] = ...
 ```
 

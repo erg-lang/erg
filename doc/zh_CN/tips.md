@@ -11,7 +11,7 @@
 
 ```python
 record: {.name = Str; .age = Nat; .height = CentiMeter}
-{height; rest; ...} = record
+{height; ...rest} = record
 mut_record = {.height = !height; ...rest}
 ```
 
@@ -73,7 +73,7 @@ Status.
 
 ```python
 arr = [...]
-for! arr.iter().enumerate(start: 1), i =>
+for! arr.iter().enumerate(start := 1), i =>
     ...
 ```
 
@@ -106,7 +106,7 @@ foo = import "foo"
     ...
 ```
 
-## 想定义一个从外部只读的(变量)属性
+## 在实现特征的方法时，会对未使用的变量发出警告
 
 您可以将属性设为私有并定义一个 getter
 
@@ -122,14 +122,16 @@ C.
 
 ## 希望在类型系统上识别参数名称
 
-您可以按记录接收参数
+你可以使用`discard`
 
 ```python
-Point = {x = Int; y = Int}
+T = Trait {.f = (Self, x: Int, s: Str) -> Int}
 
-norm: Point -> Int
-norm({x: Int; y: Int}): Int = x**2 + y**2
-assert norm({x = 1; y = 2}) == norm({y = 2; x = 1})
+C = Class T
+C|<: T|.
+    f self, x, s =
+        discard s
+        ...
 ```
 
 ## 想要停止警告

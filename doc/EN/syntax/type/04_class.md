@@ -138,7 +138,7 @@ InheritableMyStr = Inherit Str
 MyStr3 = Inherit InheritableMyStr # OK
 ```
 
-`Inherit Object` and `Class()` are almost equivalent in practice. The latter is generally used.
+`Inherit Obj` and `Class()` are almost equivalent in practice. The latter is generally used.
 
 Classes have a different equivalence checking mechanism than types.
 Types are equivalence tested based on their structure.

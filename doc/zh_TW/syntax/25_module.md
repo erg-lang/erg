@@ -25,7 +25,8 @@ assert foo.i == 1
 由于模塊類型也是記錄類型，因此可以進行解構賦值
 
 ```python
-{sin; cos;} = import "math"
+# 和 {sin; cos; ...} = import "math" 一樣
+{sin; cos} = import "math"
 ```
 
 ## 模塊可見性

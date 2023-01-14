@@ -92,7 +92,7 @@ f u := 6, v := 5, w := 4, x := 1, y := 2, z := 3
 
 當某些參數大部分是固定的并且您希望能夠省略它們時，使用默認參數
 
-默認參數由`:=`(walrus運算符)指定。如果未指定 `base`，則將 `math.E` 分配給 `base`
+默認參數由`:=`(default-assign運算符)指定。如果未指定 `base`，則將 `math.E` 分配給 `base`
 
 ```python
 math_log x: Ratio, base := math.E = ...
@@ -160,7 +160,7 @@ fib n: Nat =
 
 像上面這樣的函數，其中 `match` 直接出現在定義下，可以重寫如下
 
-```python
+```python,compile_fail
 fib 0 = 0
 fib 1 = 1
 fib(n: Nat): Nat = fib(n - 1) + fib(n - 2)
