@@ -306,8 +306,13 @@ const KW_ITERABLE: &str = "iterable";
 const KW_INDEX: &str = "index";
 const KW_KEY: &str = "key";
 
+#[cfg(not(feature = "no_std"))]
 pub fn builtins_path() -> PathBuf {
     erg_pystd_path().join("builtins.d.er")
+}
+#[cfg(feature = "no_std")]
+pub fn builtins_path() -> PathBuf {
+    PathBuf::from("lib/pystd/builtins.d.er")
 }
 
 impl Context {
