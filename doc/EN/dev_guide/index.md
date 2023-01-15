@@ -10,6 +10,12 @@
 
 ## [env](env.md)
 
+## [embedding](embedding.md)
+
 ## [i18n_messages](i18n_messages.md)
 
 ## [rust_code_guideline](rust_code_guideline.md)
+
+## [test](test.md)
+
+## [troubleshooting](troubleshooting.md)

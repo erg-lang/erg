@@ -6,8 +6,9 @@
   └─┬ assets: 图片等
     ├─ CODE_OF_CONDUCT: 行为准则
     ├─┬ compiler
+    │ ├─ els: Erg语言服务器 (Language Server)
     │ ├─ erg_common: 通用工具
-    │ ├─ erg_compiler
+    │ ├─ erg_compiler: 编译器，**Erg核心**
     │ └─ erg_parser: 解析器
     ├─┬ doc: 文档
     │ ├─┬ CN

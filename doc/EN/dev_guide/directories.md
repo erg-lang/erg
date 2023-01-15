@@ -3,9 +3,10 @@
 ```console
   └─┬ assets: images, etc.
     ├─ CODE_OF_CONDUCT: Code of Conduct
-    ├─┬ compiler
+    ├─┬ crates
+    │ ├─ els: Erg Language Server
     │ ├─ erg_common: common utility
-    │ ├─ erg_compiler
+    │ ├─ erg_compiler: Compiler, **core of Erg**
     │ └─ erg_parser: Parser
     ├─┬doc
     │ ├─┬ EN

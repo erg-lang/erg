@@ -5,9 +5,10 @@
 ```console
  └─┬ assets: 画像など
    ├─ CODE_OF_CONDUCT: 行動規範
-   ├─┬ compiler
+   ├─┬ crates
+   │ ├─ els: Erg Language Server (言語サーバー)
    │ ├─ erg_common: 共通のユーティリティ
-   │ ├─ erg_compiler
+   │ ├─ erg_compiler: コンパイラ、**Ergのコア**
    │ └─ erg_parser: パーサー
    ├─┬ doc
    │ ├─┬ EN

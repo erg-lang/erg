@@ -22,7 +22,7 @@ Python is required for execution.
 There is also a stand-alone compiler version that is not connected to the runtime.
 
 ```toml
-[dependencies].
+[dependencies]
 erg_compiler = "0.5.12" # choose latest version
 ```
 
