@@ -1,4 +1,4 @@
-# erg-linter
+# erg-linter (WIP)
 
 erg-linter (can be used with `erg lint`) is a tool to check the erg file for errors.
 

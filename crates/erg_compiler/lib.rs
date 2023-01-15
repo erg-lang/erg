@@ -15,7 +15,6 @@ pub mod effectcheck;
 pub mod error;
 pub mod hir;
 pub mod link;
-pub mod linter;
 pub mod lower;
 pub mod module;
 pub mod optimize;
@@ -27,5 +26,4 @@ pub mod varinfo;
 
 pub use build_hir::HIRBuilder;
 pub use erg_parser::build_ast::ASTBuilder;
-pub use linter::Linter;
 pub use transpile::Transpiler;

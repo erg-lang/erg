@@ -13,10 +13,10 @@ homepage.workspace = true
 
 [workspace]
 members = [
-    "compiler/erg_common",
-    "compiler/erg_compiler",
-    "compiler/erg_parser",
-    "compiler/els",
+    "crates/erg_common",
+    "crates/erg_compiler",
+    "crates/erg_parser",
+    "crates/els",
 ]
 
 [workspace.package]
@@ -61,10 +61,10 @@ py_compatible = ["erg_compiler/py_compatible", "els/py_compatible"]
 els = ["erg_common/els", "erg_compiler/els", "dep:els"]
 
 [workspace.dependencies]
-erg_common = { version = "0.6.2-nightly.1", path = "./compiler/erg_common" }
-erg_parser = { version = "0.6.2-nightly.1", path = "./compiler/erg_parser" }
-erg_compiler = { version = "0.6.2-nightly.1", path = "./compiler/erg_compiler" }
-els = { version = "0.1.14-nightly.1", path = "./compiler/els" }
+erg_common = { version = "0.6.2-nightly.1", path = "./crates/erg_common" }
+erg_parser = { version = "0.6.2-nightly.1", path = "./crates/erg_parser" }
+erg_compiler = { version = "0.6.2-nightly.1", path = "./crates/erg_compiler" }
+els = { version = "0.1.14-nightly.1", path = "./crates/els" }
 
 [dependencies]
 erg_common = { workspace = true }
