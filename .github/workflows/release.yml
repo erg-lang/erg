@@ -46,7 +46,7 @@ jobs:
         with:
           bin: erg
           target: ${{ matrix.target }}
-          include: compiler/erg_compiler/lib
+          include: crates/erg_compiler/lib
           features: els
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
