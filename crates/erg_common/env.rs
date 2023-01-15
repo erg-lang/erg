@@ -4,6 +4,9 @@ use std::path::PathBuf;
 use crate::normalize_path;
 
 fn _erg_path() -> PathBuf {
+    #[cfg(feature = "no_std")]
+    let path = "".to_string("./");
+    #[cfg(not(feature = "no_std"))]
     let path = var("ERG_PATH").unwrap_or_else(|_| env!("CARGO_ERG_PATH").to_string());
     PathBuf::from(path)
         .canonicalize()
