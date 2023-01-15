@@ -527,10 +527,18 @@ pub trait Runnable: Sized + Default {
         self.cfg_mut().input = input;
     }
     fn start_message(&self) -> String {
-        format!(
-            "{} {SEMVER} ({GIT_HASH_SHORT}, {BUILD_DATE}) on {ARCH}/{OS}\n",
-            Self::NAME
-        )
+        if GIT_HASH_SHORT.is_empty() {
+            format!(
+                "{} {SEMVER} ({BUILD_DATE}) on {ARCH}/{OS}\n",
+                Self::NAME
+            )
+        } else {
+            format!(
+                "{} {SEMVER} ({GIT_HASH_SHORT}, {BUILD_DATE}) on {ARCH}/{OS}\n",
+                Self::NAME
+            )
+        }
+        
     }
     fn ps1(&self) -> String {
         self.cfg().ps1.to_string()
