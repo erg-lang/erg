@@ -7,7 +7,7 @@ use erg_common::config::Input;
 use erg_common::error::{
     ErrorCore, ErrorDisplay, ErrorKind::*, Location, MultiErrorDisplay, SubMessage,
 };
-use erg_common::style::{Attribute, Color, StyledStr, StyledString, StyledStrings, THEME};
+use erg_common::style::{Attribute, Color, StyledStr, StyledStrings, THEME};
 use erg_common::traits::Stream;
 use erg_common::{fmt_iter, impl_display_and_error, impl_stream, switch_lang};
 
@@ -51,7 +51,10 @@ impl std::error::Error for LexErrors {}
 
 const ERR: Color = THEME.colors.error;
 const HINT: Color = THEME.colors.hint;
-const ACCENT: Color = THEME.colors.accent;
+#[cfg(not(feature = "pretty"))]
+const ATTR: Attribute = Attribute::Bold;
+#[cfg(feature = "pretty")]
+const ATTR: Attribute = Attribute::Underline;
 
 impl LexError {
     pub fn new(core: ErrorCore) -> Self {
