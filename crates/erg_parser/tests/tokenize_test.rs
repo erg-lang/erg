@@ -390,6 +390,7 @@ line break\"\"\"",
         (Newline, newline),
         (Symbol, "print!"),
         (Symbol, "quotation_marks"),
+        (Newline, newline),
         (EOF, ""),
     ];
     let mut tok: Token;
@@ -437,6 +438,7 @@ fn for_loop() -> ParseResult<()> {
         (Indent, "    "),
         (Symbol, "print!"),
         (StrLit, "\"hi\""),
+        (Newline, newline),
         (Dedent, ""),
         (Dedent, ""),
         (Dedent, ""),
