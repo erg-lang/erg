@@ -510,7 +510,7 @@ impl LexError {
             "traditional_chinese" => expect.push_str("期望: "),
             "english" => expect.push_str("expect: "),
         );
-        expect.push_str_with_color_and_attribute(
+        expect.push_str_with_color_and_attr(
             switch_lang!(
                 "japanese" => "メソッド",
                 "english" => "method",
