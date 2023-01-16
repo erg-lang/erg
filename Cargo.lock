@@ -69,7 +69,7 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "els"
-version = "0.1.14-nightly.1"
+version = "0.1.14"
 dependencies = [
  "erg_common",
  "erg_compiler",
@@ -80,7 +80,7 @@ dependencies = [
 
 [[package]]
 name = "erg"
-version = "0.6.2-nightly.1"
+version = "0.6.2"
 dependencies = [
  "els",
  "erg_common",
@@ -90,7 +90,7 @@ dependencies = [
 
 [[package]]
 name = "erg_common"
-version = "0.6.2-nightly.1"
+version = "0.6.2"
 dependencies = [
  "backtrace-on-stack-overflow",
  "hermit-abi",
@@ -100,7 +100,7 @@ dependencies = [
 
 [[package]]
 name = "erg_compiler"
-version = "0.6.2-nightly.1"
+version = "0.6.2"
 dependencies = [
  "erg_common",
  "erg_parser",
@@ -108,7 +108,7 @@ dependencies = [
 
 [[package]]
 name = "erg_parser"
-version = "0.6.2-nightly.1"
+version = "0.6.2"
 dependencies = [
  "erg_common",
  "unicode-xid",

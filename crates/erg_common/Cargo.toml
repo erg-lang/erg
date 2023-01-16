@@ -19,6 +19,7 @@ pretty = []
 large_thread = []
 els = []
 py_compatible = []
+no_std = []
 
 [target.'cfg(unix)'.dependencies]
 libc = { version = "0.2", default-features = false }

@@ -1,7 +1,7 @@
 @echo off
 
 if %~dp0 == C:%homepath%\GitHub\erg\ (
-    cd compiler/erg_common
+    cd crates/erg_common
     echo publish erg_common ...
     cargo publish
     rem from cargo 1.66 timeout is not needed

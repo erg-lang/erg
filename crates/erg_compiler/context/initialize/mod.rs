@@ -412,8 +412,13 @@ const KW_IMPL: &str = "Impl";
 const KW_ADDITIONAL: &str = "Additional";
 const KW_SUPER: &str = "Super";
 
+#[cfg(not(feature = "no_std"))]
 pub fn builtins_path() -> PathBuf {
     erg_pystd_path().join("builtins.d.er")
+}
+#[cfg(feature = "no_std")]
+pub fn builtins_path() -> PathBuf {
+    PathBuf::from("lib/pystd/builtins.d.er")
 }
 
 impl Context {
