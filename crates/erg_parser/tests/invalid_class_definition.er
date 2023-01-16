@@ -1,0 +1,11 @@
+Pub = Class()
+indent = "indent is needed"
+
+Pub.
+    {a: 1} # invalid attribute
+
+Pri = Class()
+indent = "indent is needed"
+
+Pri::
+    {1, 2} # invalid attribute

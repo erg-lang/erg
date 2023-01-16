@@ -67,6 +67,16 @@ fn exec_invalid_chunk_prs_err() -> Result<(), ()> {
     expect_failure("tests/invalid_chunk.er", 62)
 }
 
+#[test]
+fn expect_failure_collections_err() -> Result<(), ()> {
+    expect_failure("tests/invalid_collections.er", 33)
+}
+
+#[test]
+fn expect_failure_class_def_err() -> Result<(), ()> {
+    expect_failure("tests/invalid_class_definition.er", 4)
+}
+
 fn _parse_test_from_code(file_path: &'static str) -> Result<(), ParserRunnerErrors> {
     let input = Input::file(file_path.into());
     let cfg = ErgConfig {
