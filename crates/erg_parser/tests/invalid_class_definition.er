@@ -1,10 +1,12 @@
 Pub = Class()
+Pub.
 indent = "indent is needed"
 
 Pub.
     {a: 1} # invalid attribute
 
 Pri = Class()
+Priv.
 indent = "indent is needed"
 
 Pri::
