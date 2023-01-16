@@ -21,76 +21,76 @@ impl Context {
         } else {
             Private
         };
-        let T = mono_q("T", instanceof(Type));
-        let U = mono_q("U", instanceof(Type));
-        let Path = mono_q_tp("Path", instanceof(Str));
-        let t_abs = nd_func(vec![kw("n", mono(NUM))], None, Nat);
+        let T = mono_q(TY_T, instanceof(Type));
+        let U = mono_q(TY_U, instanceof(Type));
+        let Path = mono_q_tp(PATH, instanceof(Str));
+        let t_abs = nd_func(vec![kw(KW_N, mono(NUM))], None, Nat);
         let t_all = func(
-            vec![kw("iterable", poly("Iterable", vec![ty_tp(Bool)]))],
+            vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(Bool)]))],
             None,
             vec![],
             Bool,
         );
         let t_any = func(
-            vec![kw("iterable", poly("Iterable", vec![ty_tp(Bool)]))],
+            vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(Bool)]))],
             None,
             vec![],
             Bool,
         );
-        let t_ascii = nd_func(vec![kw("object", Obj)], None, Str);
+        let t_ascii = nd_func(vec![kw(KW_OBJECT, Obj)], None, Str);
         let t_assert = func(
-            vec![kw("condition", Bool)],
+            vec![kw(KW_CONDITION, Bool)],
             None,
-            vec![kw("err_message", Str)],
+            vec![kw(KW_ERR_MESSAGE, Str)],
             NoneType,
         );
-        let t_bin = nd_func(vec![kw("n", Int)], None, Str);
+        let t_bin = nd_func(vec![kw(KW_N, Int)], None, Str);
         // TODO: overload: Iterable(Int) -> Bytes
         let t_bytes = nd_func(
-            vec![kw("str", Str), kw("encoding", Str)],
+            vec![kw(KW_STR, Str), kw(KW_ENCODING, Str)],
             None,
-            mono("Bytes"),
+            mono(BYTES),
         );
         let t_chr = nd_func(
-            vec![kw("i", Type::from(value(0usize)..=value(1_114_111usize)))],
+            vec![kw(KW_I, Type::from(value(0usize)..=value(1_114_111usize)))],
             None,
             Str,
         );
-        let t_classof = nd_func(vec![kw("old", Obj)], None, ClassType);
-        let t_compile = nd_func(vec![kw("src", Str)], None, Code);
+        let t_classof = nd_func(vec![kw(KW_OLD, Obj)], None, ClassType);
+        let t_compile = nd_func(vec![kw(KW_SRC, Str)], None, Code);
         let t_cond = nd_func(
             vec![
-                kw("condition", Bool),
-                kw("then", T.clone()),
-                kw("else", T.clone()),
+                kw(KW_CONDITION, Bool),
+                kw(KW_THEN, T.clone()),
+                kw(KW_ELSE, T.clone()),
             ],
             None,
             T.clone(),
         )
         .quantify();
-        let t_discard = nd_func(vec![kw("obj", Obj)], None, NoneType);
+        let t_discard = nd_func(vec![kw(KW_OBJ, Obj)], None, NoneType);
         let t_enumerate = func(
-            vec![kw("iterable", poly("Iterable", vec![ty_tp(T.clone())]))],
+            vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())]))],
             None,
-            vec![kw("start", Int)],
-            poly("Enumerate", vec![ty_tp(T.clone())]),
+            vec![kw(KW_START, Int)],
+            poly(ENUMERATE, vec![ty_tp(T.clone())]),
         )
         .quantify();
         let t_if = func(
             vec![
-                kw("cond", Bool),
-                kw("then", nd_func(vec![], None, T.clone())),
+                kw(KW_COND, Bool),
+                kw(KW_THEN, nd_func(vec![], None, T.clone())),
             ],
             None,
             vec![kw_default(
-                "else",
+                KW_ELSE,
                 nd_func(vec![], None, U.clone()),
                 nd_func(vec![], None, NoneType),
             )],
             or(T.clone(), U.clone()),
         )
         .quantify();
-        let t_int = nd_func(vec![kw("obj", Obj)], None, or(Int, NoneType));
+        let t_int = nd_func(vec![kw(KW_OBJ, Obj)], None, or(Int, NoneType));
         let t_import = nd_func(
             vec![anon(tp_enum(Str, set! {Path.clone()}))],
             None,
@@ -99,75 +99,75 @@ impl Context {
         .quantify();
         let t_isinstance = nd_func(
             vec![
-                kw("object", Obj),
-                kw("classinfo", ClassType), // TODO: => ClassInfo
+                kw(KW_OBJECT, Obj),
+                kw(KW_CLASSINFO, ClassType), // TODO: => ClassInfo
             ],
             None,
             Bool,
         );
         let t_issubclass = nd_func(
             vec![
-                kw("subclass", ClassType),
-                kw("classinfo", ClassType), // TODO: => ClassInfo
+                kw(KW_SUBCLASS, ClassType),
+                kw(KW_CLASSINFO, ClassType), // TODO: => ClassInfo
             ],
             None,
             Bool,
         );
-        let I = mono_q("I", subtypeof(poly("Iterable", vec![ty_tp(T.clone())])));
-        let t_iter = nd_func(vec![kw("object", I.clone())], None, proj(I, "Iterator")).quantify();
+        let I = mono_q(KW_I, subtypeof(poly(KW_ITERABLE, vec![ty_tp(T.clone())])));
+        let t_iter = nd_func(vec![kw(KW_OBJECT, I.clone())], None, proj(I, ITERATOR)).quantify();
         let t_len = nd_func(
-            vec![kw("s", poly("Seq", vec![TyParam::erased(Type)]))],
+            vec![kw(KW_S, poly(SEQ, vec![TyParam::erased(Type)]))],
             None,
             Nat,
         );
         let t_log = func(
             vec![],
-            Some(kw("objects", ref_(Obj))),
+            Some(kw(KW_OBJECTS, ref_(Obj))),
             vec![
-                kw("sep", Str),
-                kw("end", Str),
-                kw("file", mono("Write")),
-                kw("flush", Bool),
+                kw(KW_SEP, Str),
+                kw(KW_END, Str),
+                kw(KW_FILE, mono(WRITE)),
+                kw(KW_FLUSH, Bool),
             ],
             NoneType,
         );
         let t_map = nd_func(
             vec![
-                kw("proc!", nd_proc(vec![anon(T.clone())], None, T.clone())),
-                kw("iterable", poly("Iterable", vec![ty_tp(T.clone())])),
+                kw(KW_PROC, nd_proc(vec![anon(T.clone())], None, T.clone())),
+                kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())])),
             ],
             None,
-            poly("Map", vec![ty_tp(T.clone())]),
+            poly(MAP, vec![ty_tp(T.clone())]),
         )
         .quantify();
-        let O = mono_q("O", subtypeof(mono("Ord")));
+        let O = mono_q(TY_O, subtypeof(mono(ORD)));
         // TODO: iterable should be non-empty
         let t_max = nd_func(
-            vec![kw("iterable", poly("Iterable", vec![ty_tp(O.clone())]))],
+            vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(O.clone())]))],
             None,
             O.clone(),
         )
         .quantify();
         let t_min = nd_func(
-            vec![kw("iterable", poly("Iterable", vec![ty_tp(O.clone())]))],
+            vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(O.clone())]))],
             None,
             O,
         )
         .quantify();
-        let t_nat = nd_func(vec![kw("obj", Obj)], None, or(Nat, NoneType));
+        let t_nat = nd_func(vec![kw(KW_OBJ, Obj)], None, or(Nat, NoneType));
         // e.g. not(b: Bool!): Bool!
-        let B = mono_q("B", subtypeof(Bool));
-        let t_not = nd_func(vec![kw("b", B.clone())], None, B).quantify();
-        let t_oct = nd_func(vec![kw("x", Int)], None, Str);
-        let t_ord = nd_func(vec![kw("c", Str)], None, Nat);
-        let t_panic = nd_func(vec![kw("err_message", Str)], None, Never);
-        let M = mono_q("M", Constraint::Uninited);
-        let M = mono_q("M", subtypeof(poly("Mul", vec![ty_tp(M)])));
+        let B = mono_q(TY_B, subtypeof(Bool));
+        let t_not = nd_func(vec![kw(KW_B, B.clone())], None, B).quantify();
+        let t_oct = nd_func(vec![kw(KW_X, Int)], None, Str);
+        let t_ord = nd_func(vec![kw(KW_C, Str)], None, Nat);
+        let t_panic = nd_func(vec![kw(KW_ERR_MESSAGE, Str)], None, Never);
+        let M = mono_q(TY_M, Constraint::Uninited);
+        let M = mono_q(TY_M, subtypeof(poly(MUL, vec![ty_tp(M)])));
         // TODO: mod
         let t_pow = nd_func(
-            vec![kw("base", M.clone()), kw("exp", M.clone())],
+            vec![kw(KW_BASE, M.clone()), kw(KW_EXP, M.clone())],
             None,
-            proj(M, "Output"),
+            proj(M, OUTPUT),
         )
         .quantify();
         let t_pyimport = nd_func(
@@ -177,159 +177,189 @@ impl Context {
         )
         .quantify();
         let t_pycompile = nd_func(
-            vec![kw("src", Str), kw("filename", Str), kw("mode", Str)],
+            vec![kw(KW_SRC, Str), kw(KW_FILENAME, Str), kw(KW_MODE, Str)],
             None,
             Code,
         );
-        let t_quit = func(vec![], None, vec![kw("code", Int)], Never);
+        let t_quit = func(vec![], None, vec![kw(KW_CODE, Int)], Never);
         let t_exit = t_quit.clone();
-        let t_repr = nd_func(vec![kw("object", Obj)], None, Str);
+        let t_repr = nd_func(vec![kw(KW_OBJECT, Obj)], None, Str);
         let t_reversed = nd_func(
-            vec![kw("seq", poly("Seq", vec![ty_tp(T.clone())]))],
+            vec![kw(KW_SEQ, poly(SEQ, vec![ty_tp(T.clone())]))],
             None,
-            poly("Reversed", vec![ty_tp(T.clone())]),
+            poly(REVERSED, vec![ty_tp(T.clone())]),
         )
         .quantify();
-        let t_round = nd_func(vec![kw("number", Float)], None, Int);
+        let t_round = nd_func(vec![kw(KW_NUMBER, Float)], None, Int);
         let t_sorted = nd_func(
-            vec![kw("iterable", poly("Iterable", vec![ty_tp(T.clone())]))],
+            vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())]))],
             None,
             array_t(T.clone(), TyParam::erased(Nat)),
         )
         .quantify();
-        let t_str = nd_func(vec![kw("object", Obj)], None, Str);
-        let A = mono_q("A", Constraint::Uninited);
-        let A = mono_q("A", subtypeof(poly("Add", vec![ty_tp(A)])));
+        let t_str = nd_func(vec![kw(KW_OBJECT, Obj)], None, Str);
+        let A = mono_q(TY_A, Constraint::Uninited);
+        let A = mono_q(TY_A, subtypeof(poly(ADD, vec![ty_tp(A)])));
         let t_sum = func(
-            vec![kw("iterable", poly("Iterable", vec![ty_tp(A.clone())]))],
+            vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(A.clone())]))],
             None,
-            vec![kw_default("start", or(A.clone(), Int), Int)],
+            vec![kw_default(KW_START, or(A.clone(), Int), Int)],
             A,
         )
         .quantify();
         let t_unreachable = nd_func(vec![], None, Never);
         let t_zip = nd_func(
             vec![
-                kw("iterable1", poly("Iterable", vec![ty_tp(T.clone())])),
-                kw("iterable2", poly("Iterable", vec![ty_tp(U.clone())])),
+                kw(KW_ITERABLE1, poly(ITERABLE, vec![ty_tp(T.clone())])),
+                kw(KW_ITERABLE2, poly(ITERABLE, vec![ty_tp(U.clone())])),
             ],
             None,
-            poly("Zip", vec![ty_tp(T.clone()), ty_tp(U.clone())]),
+            poly(ZIP, vec![ty_tp(T.clone()), ty_tp(U.clone())]),
         )
         .quantify();
-        self.register_builtin_py_impl("abs", t_abs, Immutable, vis, Some("abs"));
-        self.register_builtin_py_impl("all", t_all, Immutable, vis, Some("all"));
-        self.register_builtin_py_impl("any", t_any, Immutable, vis, Some("any"));
-        self.register_builtin_py_impl("ascii", t_ascii, Immutable, vis, Some("ascii"));
+        self.register_builtin_py_impl(FUNC_ABS, t_abs, Immutable, vis, Some(FUNC_ABS));
+        self.register_builtin_py_impl(FUNC_ALL, t_all, Immutable, vis, Some(FUNC_ALL));
+        self.register_builtin_py_impl(FUNC_ANY, t_any, Immutable, vis, Some(FUNC_ANY));
+        self.register_builtin_py_impl(FUNC_ASCII, t_ascii, Immutable, vis, Some(FUNC_ASCII));
         // Leave as `Const`, as it may negatively affect assert casting.
-        self.register_builtin_erg_impl("assert", t_assert, Const, vis);
-        self.register_builtin_py_impl("bin", t_bin, Immutable, vis, Some("bin"));
-        self.register_builtin_py_impl("bytes", t_bytes, Immutable, vis, Some("bytes"));
-        self.register_builtin_py_impl("chr", t_chr, Immutable, vis, Some("chr"));
-        self.register_builtin_py_impl("classof", t_classof, Immutable, vis, Some("type"));
-        self.register_builtin_py_impl("compile", t_compile, Immutable, vis, Some("compile"));
-        self.register_builtin_erg_impl("cond", t_cond, Immutable, vis);
-        self.register_builtin_py_impl("enumerate", t_enumerate, Immutable, vis, Some("enumerate"));
-        self.register_builtin_py_impl("exit", t_exit, Immutable, vis, Some("exit"));
+        self.register_builtin_erg_impl(FUNC_ASSERT, t_assert, Const, vis);
+        self.register_builtin_py_impl(FUNC_BIN, t_bin, Immutable, vis, Some(FUNC_BIN));
+        self.register_builtin_py_impl(FUNC_BYTES, t_bytes, Immutable, vis, Some(FUNC_BYTES));
+        self.register_builtin_py_impl(FUNC_CHR, t_chr, Immutable, vis, Some(FUNC_CHR));
+        self.register_builtin_py_impl(FUNC_CLASSOF, t_classof, Immutable, vis, Some(FUNC_TYPE));
+        self.register_builtin_py_impl(FUNC_COMPILE, t_compile, Immutable, vis, Some(FUNC_COMPILE));
+        self.register_builtin_erg_impl(KW_COND, t_cond, Immutable, vis);
         self.register_builtin_py_impl(
-            "isinstance",
+            FUNC_ENUMERATE,
+            t_enumerate,
+            Immutable,
+            vis,
+            Some(FUNC_ENUMERATE),
+        );
+        self.register_builtin_py_impl(FUNC_EXIT, t_exit, Immutable, vis, Some(FUNC_EXIT));
+        self.register_builtin_py_impl(
+            FUNC_ISINSTANCE,
             t_isinstance,
             Immutable,
             vis,
-            Some("isinstance"),
+            Some(FUNC_ISINSTANCE),
         );
         self.register_builtin_py_impl(
-            "issubclass",
+            FUNC_ISSUBCLASS,
             t_issubclass,
             Immutable,
             vis,
-            Some("issubclass"),
+            Some(FUNC_ISSUBCLASS),
         );
-        self.register_builtin_py_impl("iter", t_iter, Immutable, vis, Some("iter"));
-        self.register_builtin_py_impl("len", t_len, Immutable, vis, Some("len"));
-        self.register_builtin_py_impl("map", t_map, Immutable, vis, Some("map"));
-        self.register_builtin_py_impl("max", t_max, Immutable, vis, Some("max"));
-        self.register_builtin_py_impl("min", t_min, Immutable, vis, Some("min"));
-        self.register_builtin_py_impl("not", t_not, Immutable, vis, None); // `not` is not a function in Python
-        self.register_builtin_py_impl("oct", t_oct, Immutable, vis, Some("oct"));
-        self.register_builtin_py_impl("ord", t_ord, Immutable, vis, Some("ord"));
-        self.register_builtin_py_impl("pow", t_pow, Immutable, vis, Some("pow"));
+        self.register_builtin_py_impl(FUNC_ITER, t_iter, Immutable, vis, Some(FUNC_ITER));
+        self.register_builtin_py_impl(FUNC_LEN, t_len, Immutable, vis, Some(FUNC_LEN));
+        self.register_builtin_py_impl(FUNC_MAP, t_map, Immutable, vis, Some(FUNC_MAP));
+        self.register_builtin_py_impl(FUNC_MAX, t_max, Immutable, vis, Some(FUNC_MAX));
+        self.register_builtin_py_impl(FUNC_MIN, t_min, Immutable, vis, Some(FUNC_MIN));
+        self.register_builtin_py_impl(FUNC_NOT, t_not, Immutable, vis, None); // `not` is not a function in Python
+        self.register_builtin_py_impl(FUNC_OCT, t_oct, Immutable, vis, Some(FUNC_OCT));
+        self.register_builtin_py_impl(FUNC_ORD, t_ord, Immutable, vis, Some(FUNC_ORD));
+        self.register_builtin_py_impl(FUNC_POW, t_pow, Immutable, vis, Some(FUNC_POW));
         self.register_builtin_py_impl(
-            "pyimport",
+            PYIMPORT,
             t_pyimport.clone(),
             Immutable,
             vis,
-            Some("__import__"),
+            Some(FUNDAMENTAL_IMPORT),
         );
-        self.register_builtin_py_impl("quit", t_quit, Immutable, vis, Some("quit"));
-        self.register_builtin_py_impl("repr", t_repr, Immutable, vis, Some("repr"));
-        self.register_builtin_py_impl("reversed", t_reversed, Immutable, vis, Some("reversed"));
-        self.register_builtin_py_impl("round", t_round, Immutable, vis, Some("round"));
-        self.register_builtin_py_impl("sorted", t_sorted, Immutable, vis, Some("sorted"));
-        self.register_builtin_py_impl("str", t_str, Immutable, vis, Some("str"));
-        self.register_builtin_py_impl("sum", t_sum, Immutable, vis, Some("sum"));
-        self.register_builtin_py_impl("zip", t_zip, Immutable, vis, Some("zip"));
+        self.register_builtin_py_impl(FUNC_QUIT, t_quit, Immutable, vis, Some(FUNC_QUIT));
+        self.register_builtin_py_impl(FUNC_REPR, t_repr, Immutable, vis, Some(FUNC_REPR));
+        self.register_builtin_py_impl(
+            FUNC_REVERSED,
+            t_reversed,
+            Immutable,
+            vis,
+            Some(FUNC_REVERSED),
+        );
+        self.register_builtin_py_impl(FUNC_ROUND, t_round, Immutable, vis, Some(FUNC_ROUND));
+        self.register_builtin_py_impl(FUNC_SORTED, t_sorted, Immutable, vis, Some(FUNC_SORTED));
+        self.register_builtin_py_impl(FUNC_STR, t_str, Immutable, vis, Some(FUNC_STR));
+        self.register_builtin_py_impl(FUNC_SUM, t_sum, Immutable, vis, Some(FUNC_SUM));
+        self.register_builtin_py_impl(FUNC_ZIP, t_zip, Immutable, vis, Some(FUNC_ZIP));
         let name = if cfg!(feature = "py_compatible") {
-            "int"
+            FUNC_INT
         } else {
-            "int__"
+            FUNC_INT__
         };
-        self.register_builtin_py_impl("int", t_int, Immutable, vis, Some(name));
+        self.register_builtin_py_impl(FUNC_INT, t_int, Immutable, vis, Some(name));
         if !cfg!(feature = "py_compatible") {
-            self.register_builtin_py_impl("if", t_if, Immutable, vis, Some("if__"));
-            self.register_builtin_py_impl("discard", t_discard, Immutable, vis, Some("discard__"));
-            self.register_builtin_py_impl("import", t_import, Immutable, vis, Some("__import__"));
-            self.register_builtin_py_impl("log", t_log, Immutable, vis, Some("print"));
-            self.register_builtin_py_impl("nat", t_nat, Immutable, vis, Some("nat__"));
-            self.register_builtin_py_impl("panic", t_panic, Immutable, vis, Some("quit"));
+            self.register_builtin_py_impl(FUNC_IF, t_if, Immutable, vis, Some(FUNC_IF__));
+            self.register_builtin_py_impl(
+                FUNC_DISCARD,
+                t_discard,
+                Immutable,
+                vis,
+                Some(FUNC_DISCARD__),
+            );
+            self.register_builtin_py_impl(
+                FUNC_IMPORT,
+                t_import,
+                Immutable,
+                vis,
+                Some(FUNDAMENTAL_IMPORT),
+            );
+            self.register_builtin_py_impl(FUNC_LOG, t_log, Immutable, vis, Some(FUNC_PRINT));
+            self.register_builtin_py_impl(FUNC_NAT, t_nat, Immutable, vis, Some(FUNC_NAT__));
+            self.register_builtin_py_impl(FUNC_PANIC, t_panic, Immutable, vis, Some(FUNC_QUIT));
             if cfg!(feature = "debug") {
-                self.register_builtin_py_impl("py", t_pyimport, Immutable, vis, Some("__import__"));
+                self.register_builtin_py_impl(
+                    PY,
+                    t_pyimport,
+                    Immutable,
+                    vis,
+                    Some(FUNDAMENTAL_IMPORT),
+                );
             }
             self.register_builtin_py_impl(
-                "pycompile",
+                PYCOMPILE,
                 t_pycompile,
                 Immutable,
                 vis,
-                Some("compile"),
+                Some(FUNC_COMPILE),
             );
             // TODO: original implementation
             self.register_builtin_py_impl(
-                "unreachable",
+                FUNC_UNREACHABLE,
                 t_unreachable,
                 Immutable,
                 vis,
-                Some("exit"),
+                Some(FUNC_EXIT),
             );
         } else {
             let t_range = func(
-                vec![kw("stop", or(Int, NoneType))],
+                vec![kw(KW_STOP, or(Int, NoneType))],
                 None,
                 vec![
-                    kw("start", or(Int, NoneType)),
-                    kw("step", or(Int, NoneType)),
+                    kw(KW_START, or(Int, NoneType)),
+                    kw(KW_STEP, or(Int, NoneType)),
                 ],
-                poly("Range", vec![ty_tp(Int)]),
+                poly(RANGE, vec![ty_tp(Int)]),
             );
-            self.register_builtin_py_impl("range", t_range, Immutable, vis, Some("range"));
+            self.register_builtin_py_impl(FUNC_RANGE, t_range, Immutable, vis, Some(FUNC_RANGE));
             let t_list = func(
                 vec![],
                 None,
-                vec![kw("iterable", poly("Iterable", vec![ty_tp(T.clone())]))],
-                poly("Array", vec![ty_tp(T.clone()), TyParam::erased(Nat)]),
+                vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())]))],
+                poly(ARRAY, vec![ty_tp(T.clone()), TyParam::erased(Nat)]),
             )
             .quantify();
-            self.register_builtin_py_impl("list", t_list, Immutable, vis, Some("list"));
+            self.register_builtin_py_impl(FUNC_LIST, t_list, Immutable, vis, Some(FUNC_LIST));
             let t_dict = func(
                 vec![],
                 None,
                 vec![kw(
-                    "iterable",
-                    poly("Iterable", vec![ty_tp(tuple_t(vec![T.clone(), U.clone()]))]),
+                    KW_ITERABLE,
+                    poly(ITERABLE, vec![ty_tp(tuple_t(vec![T.clone(), U.clone()]))]),
                 )],
                 dict! { T => U }.into(),
             )
             .quantify();
-            self.register_builtin_py_impl("dict", t_dict, Immutable, vis, Some("dict"));
+            self.register_builtin_py_impl(FUNC_DICT, t_dict, Immutable, vis, Some(FUNC_DICT));
         }
     }
 
@@ -342,136 +372,136 @@ impl Context {
         let class_t = func(
             vec![],
             None,
-            vec![kw("Requirement", or(Type, Ellipsis)), kw("Impl", Type)],
+            vec![kw(KW_REQUIREMENT, or(Type, Ellipsis)), kw(KW_IMPL, Type)],
             ClassType,
         );
-        let class = ConstSubr::Builtin(BuiltinConstSubr::new("Class", class_func, class_t, None));
-        self.register_builtin_const("Class", vis, ValueObj::Subr(class));
+        let class = ConstSubr::Builtin(BuiltinConstSubr::new(CLASS, class_func, class_t, None));
+        self.register_builtin_const(CLASS, vis, ValueObj::Subr(class));
         let inherit_t = func(
-            vec![kw("Super", ClassType)],
+            vec![kw(KW_SUPER, ClassType)],
             None,
-            vec![kw("Impl", Type), kw("Additional", Type)],
+            vec![kw(KW_IMPL, Type), kw(KW_ADDITIONAL, Type)],
             ClassType,
         );
         let inherit = ConstSubr::Builtin(BuiltinConstSubr::new(
-            "Inherit",
+            INHERIT,
             inherit_func,
             inherit_t,
             None,
         ));
-        self.register_builtin_const("Inherit", vis, ValueObj::Subr(inherit));
+        self.register_builtin_const(INHERIT, vis, ValueObj::Subr(inherit));
         let trait_t = func(
-            vec![kw("Requirement", Type)],
+            vec![kw(KW_REQUIREMENT, Type)],
             None,
-            vec![kw("Impl", Type)],
+            vec![kw(KW_IMPL, Type)],
             TraitType,
         );
-        let trait_ = ConstSubr::Builtin(BuiltinConstSubr::new("Trait", trait_func, trait_t, None));
-        self.register_builtin_const("Trait", vis, ValueObj::Subr(trait_));
+        let trait_ = ConstSubr::Builtin(BuiltinConstSubr::new(TRAIT, trait_func, trait_t, None));
+        self.register_builtin_const(TRAIT, vis, ValueObj::Subr(trait_));
         let subsume_t = func(
-            vec![kw("Super", TraitType)],
+            vec![kw(KW_SUPER, TraitType)],
             None,
-            vec![kw("Impl", Type), kw("Additional", Type)],
+            vec![kw(KW_IMPL, Type), kw(KW_ADDITIONAL, Type)],
             TraitType,
         );
         let subsume = ConstSubr::Builtin(BuiltinConstSubr::new(
-            "Subsume",
+            SUBSUME,
             subsume_func,
             subsume_t,
             None,
         ));
-        self.register_builtin_const("Subsume", vis, ValueObj::Subr(subsume));
+        self.register_builtin_const(SUBSUME, vis, ValueObj::Subr(subsume));
         // decorators
         let inheritable_t = func1(ClassType, ClassType);
         let inheritable = ConstSubr::Builtin(BuiltinConstSubr::new(
-            "Inheritable",
+            INHERITABLE,
             inheritable_func,
             inheritable_t,
             None,
         ));
-        self.register_builtin_const("Inheritable", vis, ValueObj::Subr(inheritable));
+        self.register_builtin_const(INHERITABLE, vis, ValueObj::Subr(inheritable));
         // TODO: register Del function object
-        let t_del = nd_func(vec![kw("obj", Obj)], None, NoneType);
-        self.register_builtin_erg_impl("Del", t_del, Immutable, vis);
+        let t_del = nd_func(vec![kw(KW_OBJ, Obj)], None, NoneType);
+        self.register_builtin_erg_impl(DEL, t_del, Immutable, vis);
         let patch_t = func(
-            vec![kw("Requirement", Type)],
+            vec![kw(KW_REQUIREMENT, Type)],
             None,
-            vec![kw("Impl", Type)],
+            vec![kw(KW_IMPL, Type)],
             TraitType,
         );
-        let patch = ConstSubr::Builtin(BuiltinConstSubr::new("Patch", patch_func, patch_t, None));
-        self.register_builtin_const("Patch", vis, ValueObj::Subr(patch));
+        let patch = ConstSubr::Builtin(BuiltinConstSubr::new(PATCH, patch_func, patch_t, None));
+        self.register_builtin_const(PATCH, vis, ValueObj::Subr(patch));
     }
 
     pub(super) fn init_builtin_operators(&mut self) {
         /* binary */
-        let R = mono_q("R", instanceof(Type));
+        let R = mono_q(TY_R, instanceof(Type));
         let params = vec![ty_tp(R.clone())];
-        let L = mono_q("L", subtypeof(poly("Add", params.clone())));
+        let L = mono_q(TY_L, subtypeof(poly(ADD, params.clone())));
         let op_t = nd_func(
-            vec![kw("lhs", L.clone()), kw("rhs", R.clone())],
+            vec![kw(KW_LHS, L.clone()), kw(KW_RHS, R.clone())],
             None,
-            proj(L, "Output"),
+            proj(L, OUTPUT),
         )
         .quantify();
-        self.register_builtin_erg_impl("__add__", op_t, Const, Private);
-        let L = mono_q("L", subtypeof(poly("Sub", params.clone())));
-        let op_t = bin_op(L.clone(), R.clone(), proj(L, "Output")).quantify();
-        self.register_builtin_erg_impl("__sub__", op_t, Const, Private);
-        let L = mono_q("L", subtypeof(poly("Mul", params.clone())));
-        let op_t = bin_op(L.clone(), R.clone(), proj(L, "Output")).quantify();
-        self.register_builtin_erg_impl("__mul__", op_t, Const, Private);
-        let L = mono_q("L", subtypeof(poly("Div", params.clone())));
-        let op_t = bin_op(L.clone(), R.clone(), proj(L, "Output")).quantify();
-        self.register_builtin_erg_impl("__div__", op_t, Const, Private);
-        let L = mono_q("L", subtypeof(poly("FloorDiv", params)));
-        let op_t = bin_op(L.clone(), R, proj(L, "Output")).quantify();
-        self.register_builtin_erg_impl("__floordiv__", op_t, Const, Private);
-        let P = mono_q("P", Constraint::Uninited);
-        let P = mono_q("P", subtypeof(poly("Mul", vec![ty_tp(P)])));
-        let op_t = bin_op(P.clone(), P.clone(), proj(P, "PowOutput")).quantify();
+        self.register_builtin_erg_impl(OP_ADD, op_t, Const, Private);
+        let L = mono_q(TY_L, subtypeof(poly(SUB, params.clone())));
+        let op_t = bin_op(L.clone(), R.clone(), proj(L, OUTPUT)).quantify();
+        self.register_builtin_erg_impl(OP_SUB, op_t, Const, Private);
+        let L = mono_q(TY_L, subtypeof(poly(MUL, params.clone())));
+        let op_t = bin_op(L.clone(), R.clone(), proj(L, OUTPUT)).quantify();
+        self.register_builtin_erg_impl(OP_MUL, op_t, Const, Private);
+        let L = mono_q(TY_L, subtypeof(poly(DIV, params.clone())));
+        let op_t = bin_op(L.clone(), R.clone(), proj(L, OUTPUT)).quantify();
+        self.register_builtin_erg_impl(OP_DIV, op_t, Const, Private);
+        let L = mono_q(TY_L, subtypeof(poly(FLOOR_DIV, params)));
+        let op_t = bin_op(L.clone(), R, proj(L, OUTPUT)).quantify();
+        self.register_builtin_erg_impl(OP_FLOOR_DIV, op_t, Const, Private);
+        let P = mono_q(TY_P, Constraint::Uninited);
+        let P = mono_q(TY_P, subtypeof(poly(MUL, vec![ty_tp(P)])));
+        let op_t = bin_op(P.clone(), P.clone(), proj(P, POW_OUTPUT)).quantify();
         // TODO: add bound: M == M.Output
-        self.register_builtin_erg_impl("__pow__", op_t, Const, Private);
-        let M = mono_q("M", Constraint::Uninited);
-        let M = mono_q("M", subtypeof(poly("Div", vec![ty_tp(M)])));
-        let op_t = bin_op(M.clone(), M.clone(), proj(M, "ModOutput")).quantify();
-        self.register_builtin_erg_impl("__mod__", op_t, Const, Private);
-        let op_t = nd_proc(vec![kw("lhs", Obj), kw("rhs", Obj)], None, Bool);
-        self.register_builtin_erg_impl("__is__!", op_t.clone(), Const, Private);
-        self.register_builtin_erg_impl("__isnot__!", op_t, Const, Private);
-        let E = mono_q("E", subtypeof(mono("Eq")));
+        self.register_builtin_erg_impl(OP_POW, op_t, Const, Private);
+        let M = mono_q(TY_M, Constraint::Uninited);
+        let M = mono_q(TY_M, subtypeof(poly(DIV, vec![ty_tp(M)])));
+        let op_t = bin_op(M.clone(), M.clone(), proj(M, MOD_OUTPUT)).quantify();
+        self.register_builtin_erg_impl(OP_MOD, op_t, Const, Private);
+        let op_t = nd_proc(vec![kw(KW_LHS, Obj), kw(KW_RHS, Obj)], None, Bool);
+        self.register_builtin_erg_impl(OP_IS, op_t.clone(), Const, Private);
+        self.register_builtin_erg_impl(OP_IS_NOT, op_t, Const, Private);
+        let E = mono_q(TY_E, subtypeof(mono(EQ)));
         let op_t = bin_op(E.clone(), E, Bool).quantify();
-        self.register_builtin_erg_impl("__eq__", op_t.clone(), Const, Private);
-        self.register_builtin_erg_impl("__ne__", op_t, Const, Private);
-        let O = mono_q("O", subtypeof(mono("Ord")));
+        self.register_builtin_erg_impl(OP_EQ, op_t.clone(), Const, Private);
+        self.register_builtin_erg_impl(OP_NE, op_t, Const, Private);
+        let O = mono_q(TY_O, subtypeof(mono(ORD)));
         let op_t = bin_op(O.clone(), O.clone(), Bool).quantify();
-        self.register_builtin_erg_impl("__lt__", op_t.clone(), Const, Private);
-        self.register_builtin_erg_impl("__le__", op_t.clone(), Const, Private);
-        self.register_builtin_erg_impl("__gt__", op_t.clone(), Const, Private);
-        self.register_builtin_erg_impl("__ge__", op_t, Const, Private);
-        let BT = mono_q("BT", subtypeof(or(Bool, Type)));
+        self.register_builtin_erg_impl(OP_LT, op_t.clone(), Const, Private);
+        self.register_builtin_erg_impl(OP_LE, op_t.clone(), Const, Private);
+        self.register_builtin_erg_impl(OP_GT, op_t.clone(), Const, Private);
+        self.register_builtin_erg_impl(OP_GE, op_t, Const, Private);
+        let BT = mono_q(TY_BT, subtypeof(or(Bool, Type)));
         let op_t = bin_op(BT.clone(), BT.clone(), BT).quantify();
-        self.register_builtin_erg_impl("__and__", op_t.clone(), Const, Private);
-        self.register_builtin_erg_impl("__or__", op_t, Const, Private);
+        self.register_builtin_erg_impl(OP_AND, op_t.clone(), Const, Private);
+        self.register_builtin_erg_impl(OP_OR, op_t, Const, Private);
         let op_t = bin_op(O.clone(), O.clone(), range(O)).quantify();
-        self.register_builtin_erg_decl("__rng__", op_t.clone(), Private);
-        self.register_builtin_erg_decl("__lorng__", op_t.clone(), Private);
-        self.register_builtin_erg_decl("__rorng__", op_t.clone(), Private);
-        self.register_builtin_erg_decl("__orng__", op_t, Private);
+        self.register_builtin_erg_decl(OP_RNG, op_t.clone(), Private);
+        self.register_builtin_erg_decl(OP_LORNG, op_t.clone(), Private);
+        self.register_builtin_erg_decl(OP_RORNG, op_t.clone(), Private);
+        self.register_builtin_erg_decl(OP_ORNG, op_t, Private);
         // TODO: use existential type: |T: Type| (T, In(T)) -> Bool
-        let T = mono_q("T", instanceof(Type));
-        let I = mono_q("I", subtypeof(poly("In", vec![ty_tp(T.clone())])));
+        let T = mono_q(TY_T, instanceof(Type));
+        let I = mono_q(KW_I, subtypeof(poly(IN, vec![ty_tp(T.clone())])));
         let op_t = bin_op(I, T, Bool).quantify();
-        self.register_builtin_erg_impl("__in__", op_t.clone(), Const, Private);
-        self.register_builtin_erg_impl("__notin__", op_t, Const, Private);
+        self.register_builtin_erg_impl(OP_IN, op_t.clone(), Const, Private);
+        self.register_builtin_erg_impl(OP_NOT_IN, op_t, Const, Private);
         /* unary */
         // TODO: +/- Bool would like to be warned
-        let M = mono_q("M", subtypeof(mono("Mutizable")));
-        let op_t = func1(M.clone(), proj(M, "MutType!")).quantify();
-        self.register_builtin_erg_impl("__mutate__", op_t, Const, Private);
-        let N = mono_q("N", subtypeof(mono(NUM)));
+        let M = mono_q(TY_M, subtypeof(mono(MUTIZABLE)));
+        let op_t = func1(M.clone(), proj(M, MUTABLE_MUT_TYPE)).quantify();
+        self.register_builtin_erg_impl(OP_MUTATE, op_t, Const, Private);
+        let N = mono_q(TY_N, subtypeof(mono(NUM)));
         let op_t = func1(N.clone(), N).quantify();
-        self.register_builtin_erg_decl("__pos__", op_t.clone(), Private);
-        self.register_builtin_erg_decl("__neg__", op_t, Private);
+        self.register_builtin_erg_decl(OP_POS, op_t.clone(), Private);
+        self.register_builtin_erg_decl(OP_NEG, op_t, Private);
     }
 }
