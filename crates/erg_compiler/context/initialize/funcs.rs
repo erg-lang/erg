@@ -45,6 +45,7 @@ impl Context {
             NoneType,
         );
         let t_bin = nd_func(vec![kw("n", Int)], None, Str);
+        // TODO: overload: Iterable(Int) -> Bytes
         let t_bytes = nd_func(
             vec![kw("str", Str), kw("encoding", Str)],
             None,
