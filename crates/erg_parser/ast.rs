@@ -3352,6 +3352,13 @@ impl Signature {
         }
     }
 
+    pub fn decorators(&self) -> Option<&HashSet<Decorator>> {
+        match self {
+            Self::Var(_) => None,
+            Self::Subr(subr) => Some(&subr.decorators),
+        }
+    }
+
     pub fn t_spec(&self) -> Option<&TypeSpec> {
         match self {
             Self::Var(v) => v.t_spec.as_ref(),

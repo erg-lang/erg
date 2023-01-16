@@ -1,4 +1,3 @@
-use erg_compiler::erg_parser::ast::ClassAttr;
 use lsp_types::SemanticToken;
 use serde::Deserialize;
 use serde_json::json;
@@ -10,7 +9,8 @@ use erg_common::traits::{Locational, Runnable};
 
 use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::erg_parser::ast::{
-    Accessor, Args, BinOp, Block, Call, ClassDef, Def, DefKind, Expr, Params, UnaryOp, AST,
+    Accessor, Args, BinOp, Block, Call, ClassAttr, Def, DefKind, Expr, Methods, Params,
+    PreDeclTypeSpec, SimpleTypeSpec, TypeSpec, UnaryOp, AST,
 };
 use erg_compiler::erg_parser::token::TokenKind;
 use erg_compiler::ASTBuilder;
@@ -22,6 +22,8 @@ use crate::util;
 
 #[derive(Debug)]
 struct ASTSemanticState {
+    prev_line: u32,
+    prev_col: u32,
     namespaces: Vec<Dict<String, SemanticTokenType>>,
     tokens: Vec<SemanticToken>,
 }
@@ -29,6 +31,8 @@ struct ASTSemanticState {
 impl ASTSemanticState {
     fn new() -> Self {
         Self {
+            prev_line: 1,
+            prev_col: 0,
             namespaces: vec![Dict::new()],
             tokens: Vec::new(),
         }
@@ -91,14 +95,46 @@ impl ASTSemanticState {
         }
     }
 
-    fn gen_token(loc: Location, token_type: SemanticTokenType) -> SemanticToken {
-        SemanticToken {
-            delta_line: loc.ln_begin().unwrap_or(0),
-            delta_start: loc.col_begin().unwrap_or(0),
-            length: loc.col_end().unwrap_or(0) - loc.col_begin().unwrap_or(0),
+    fn gen_token(&mut self, loc: Location, token_type: SemanticTokenType) -> SemanticToken {
+        let delta_line = loc.ln_begin().unwrap_or(1).saturating_sub(self.prev_line);
+        let delta_start = if delta_line == 0 {
+            loc.col_begin().unwrap_or(0).saturating_sub(self.prev_col)
+        } else {
+            loc.col_begin().unwrap_or(0)
+        };
+        let token = SemanticToken {
+            delta_line,
+            delta_start,
+            length: loc.length().unwrap_or(1),
             token_type: Self::token_type_as_u32(token_type),
             token_modifiers_bitset: 0,
+        };
+        self.prev_line = loc.ln_begin().unwrap_or(self.prev_line);
+        self.prev_col = loc.col_begin().unwrap_or(self.prev_col);
+        token
+    }
+
+    fn gen_from_typespec(&mut self, t_spec: TypeSpec) -> Vec<SemanticToken> {
+        match t_spec {
+            TypeSpec::PreDeclTy(predecl) => match predecl {
+                PreDeclTypeSpec::Simple(simple) => self.gen_from_simple_typespec(simple),
+                PreDeclTypeSpec::Attr { namespace, t } => {
+                    let mut tokens = self.gen_from_expr(*namespace);
+                    let ts = self.gen_from_simple_typespec(t);
+                    tokens.extend(ts);
+                    tokens
+                }
+                _ => vec![],
+            },
+            _ => vec![],
         }
+    }
+
+    fn gen_from_simple_typespec(&mut self, t_spec: SimpleTypeSpec) -> Vec<SemanticToken> {
+        let mut tokens = vec![];
+        let token = self.gen_token(t_spec.ident.name.loc(), SemanticTokenType::TYPE);
+        tokens.push(token);
+        tokens
     }
 
     fn gen_from_expr(&mut self, expr: Expr) -> Vec<SemanticToken> {
@@ -111,12 +147,12 @@ impl ASTSemanticState {
                     }
                     _ => SemanticTokenType::VARIABLE,
                 };
-                let token = Self::gen_token(lit.loc(), typ);
+                let token = self.gen_token(lit.loc(), typ);
                 vec![token]
             }
             Expr::Def(def) => self.gen_from_def(def),
             Expr::Lambda(lambda) => self.gen_from_block(Some(lambda.sig.params), lambda.body),
-            Expr::ClassDef(classdef) => self.gen_from_classdef(classdef),
+            Expr::Methods(methods) => self.gen_from_methods(methods),
             Expr::Accessor(acc) => self.gen_from_acc(acc),
             Expr::Call(call) => self.gen_from_call(call),
             Expr::BinOp(bin) => self.gen_from_bin(bin),
@@ -126,11 +162,12 @@ impl ASTSemanticState {
     }
 
     fn gen_from_def(&mut self, def: Def) -> Vec<SemanticToken> {
-        let name = def
+        let mut tokens = vec![];
+        let (_loc, name) = def
             .sig
             .ident()
-            .map(|id| id.name.to_string())
-            .unwrap_or_else(|| "_".to_string());
+            .map(|id| (Some(id.name.loc()), id.name.to_string()))
+            .unwrap_or_else(|| (None, "_".to_string()));
         let typ = match def.def_kind() {
             DefKind::Class => SemanticTokenType::CLASS,
             DefKind::Trait => SemanticTokenType::INTERFACE,
@@ -138,21 +175,31 @@ impl ASTSemanticState {
             _ => SemanticTokenType::VARIABLE,
         };
         self.push_current_namespace(name, typ);
-        let mut tokens = vec![];
+        if let Some(decos) = def.sig.decorators() {
+            for deco in decos.iter() {
+                tokens.extend(self.gen_from_expr(deco.expr().clone()));
+            }
+        }
+        // HACK: the cause is unknown, but pushing _loc will break the order of tokens
+        /*if let Some(loc) = loc {
+            tokens.push(self.gen_token(loc, typ));
+        }
+        if let Some(t_spec) = def.sig.t_spec() {
+            tokens.extend(self.gen_from_typespec(t_spec.clone()));
+        }*/
         let params = def.sig.params();
         tokens.extend(self.gen_from_block(params, def.body.block));
         tokens
     }
 
-    fn gen_from_classdef(&mut self, classdef: ClassDef) -> Vec<SemanticToken> {
-        let mut tokens = self.gen_from_def(classdef.def);
-        for methods in classdef.methods_list.into_iter() {
-            for attr in methods.attrs.into_iter() {
-                #[allow(clippy::single_match)]
-                match attr {
-                    ClassAttr::Def(def) => tokens.extend(self.gen_from_def(def)),
-                    _ => {}
-                }
+    fn gen_from_methods(&mut self, methods: Methods) -> Vec<SemanticToken> {
+        let mut tokens = vec![];
+        tokens.extend(self.gen_from_typespec(methods.class));
+        for attr in methods.attrs.into_iter() {
+            #[allow(clippy::single_match)]
+            match attr {
+                ClassAttr::Def(def) => tokens.extend(self.gen_from_def(def)),
+                _ => {}
             }
         }
         tokens
@@ -162,14 +209,11 @@ impl ASTSemanticState {
         match acc {
             Accessor::Ident(ident) => {
                 let typ = self.get_variable_type(ident.inspect());
-                vec![Self::gen_token(ident.name.loc(), typ)]
+                vec![self.gen_token(ident.name.loc(), typ)]
             }
             Accessor::Attr(attr) => {
                 let mut tokens = self.gen_from_expr(*attr.obj);
-                tokens.push(Self::gen_token(
-                    attr.ident.name.loc(),
-                    SemanticTokenType::PROPERTY,
-                ));
+                tokens.push(self.gen_token(attr.ident.name.loc(), SemanticTokenType::PROPERTY));
                 tokens
             }
             _ => vec![],
@@ -197,13 +241,13 @@ impl ASTSemanticState {
     fn gen_from_bin(&mut self, bin: BinOp) -> Vec<SemanticToken> {
         let mut args = bin.args.into_iter();
         let mut tokens = self.gen_from_expr(*args.next().unwrap());
-        tokens.push(Self::gen_token(bin.op.loc(), SemanticTokenType::OPERATOR));
+        tokens.push(self.gen_token(bin.op.loc(), SemanticTokenType::OPERATOR));
         tokens.extend(self.gen_from_expr(*args.next().unwrap()));
         tokens
     }
 
     fn gen_from_unary(&mut self, unary: UnaryOp) -> Vec<SemanticToken> {
-        let mut tokens = vec![Self::gen_token(unary.op.loc(), SemanticTokenType::OPERATOR)];
+        let mut tokens = vec![self.gen_token(unary.op.loc(), SemanticTokenType::OPERATOR)];
         let mut args = unary.args.into_iter();
         tokens.extend(self.gen_from_expr(*args.next().unwrap()));
         tokens
@@ -216,15 +260,15 @@ impl ASTSemanticState {
             let (nd_params, var_params, d_params, ..) = params.deconstruct();
             for param in nd_params.into_iter() {
                 let typ = SemanticTokenType::PARAMETER;
-                tokens.push(Self::gen_token(param.loc(), typ));
+                tokens.push(self.gen_token(param.loc(), typ));
             }
             if let Some(var_param) = var_params {
                 let typ = SemanticTokenType::PARAMETER;
-                tokens.push(Self::gen_token(var_param.loc(), typ));
+                tokens.push(self.gen_token(var_param.loc(), typ));
             }
             for param in d_params.into_iter() {
                 let typ = SemanticTokenType::PARAMETER;
-                tokens.push(Self::gen_token(param.loc(), typ));
+                tokens.push(self.gen_token(param.loc(), typ));
             }
         }
         for expr in block.into_iter() {
@@ -246,7 +290,8 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let result = match builder.build_without_desugaring(src) {
             Ok(ast) => {
                 let mut state = ASTSemanticState::new();
-                json!(state.enumerate_tokens(ast))
+                let tokens = state.enumerate_tokens(ast);
+                json!(tokens)
             }
             Err(_) => json!(null),
         };

@@ -322,6 +322,15 @@ impl Location {
             _ => None,
         }
     }
+
+    pub const fn length(&self) -> Option<u32> {
+        match self {
+            Self::Range {
+                col_begin, col_end, ..
+            } => Some(*col_end - *col_begin),
+            _ => None,
+        }
+    }
 }
 
 #[allow(clippy::too_many_arguments)]

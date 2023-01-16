@@ -130,7 +130,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         result.capabilities.hover_provider = Some(HoverProviderCapability::Simple(true));
         result.capabilities.inlay_hint_provider = Some(OneOf::Left(true));
         let mut sema_options = SemanticTokensOptions::default();
-        sema_options.range = Some(true);
+        sema_options.range = Some(false);
         sema_options.full = Some(SemanticTokensFullOptions::Bool(true));
         sema_options.legend = SemanticTokensLegend {
             token_types: vec![
