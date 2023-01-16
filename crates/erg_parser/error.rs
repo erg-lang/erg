@@ -67,14 +67,29 @@ impl LexError {
         }
     }
 
+    /* Parser Bug */
     pub fn compiler_bug(errno: usize, loc: Location, fn_name: &str, line: u32) -> Self {
-        const URL: StyledStr = StyledStr::new(
-            "https://github.com/erg-lang/erg",
-            Some(ACCENT),
-            Some(Attribute::Underline),
+        let mut err = Self::new(ErrorCore::bug(errno, loc, fn_name, line));
+        err.set_hint("parser bug");
+        err
+    }
+
+    pub fn feature_error(errno: usize, loc: Location, name: &str) -> Self {
+        let main_msg = switch_lang!(
+            "japanese" => format!("この機能({name})はまだ正式に提供されていません"),
+            "simplified_chinese" => format!("此功能（{name}）尚未实现"),
+            "traditional_chinese" => format!("此功能（{name}）尚未實現"),
+            "english" => format!("this feature({name}) is not implemented yet"),
         );
+        let main_msg = StyledStr::new(&main_msg, Some(ERR), Some(ATTR)).to_string();
         Self::new(ErrorCore::new(
             vec![SubMessage::only_loc(loc)],
+            main_msg,
+            errno,
+            FeatureError,
+            loc,
+        ))
+    }
 
     pub fn invalid_none_match(errno: usize, loc: Location, fn_name: &str, line: u32) -> Self {
         let mut err = Self::new(ErrorCore::bug(errno, loc, fn_name, line));
@@ -82,11 +97,14 @@ impl LexError {
         err
     }
 
+    pub fn failed_to_analyze_block(errno: usize, loc: Location) -> LexError {
+        Self::new(ErrorCore::new(
+            vec![],
             switch_lang!(
-                "japanese" => format!("これはErg compilerのバグです、開発者に報告して下さい ({URL})\n{fn_name}:{line}より発生"),
-                "simplified_chinese" => format!("这是Erg编译器的一个错误，请报告给{URL}\n原因来自: {fn_name}:{line}"),
-                "traditional_chinese" => format!("這是Erg編譯器的一個錯誤，請報告給{URL}\n原因來自: {fn_name}:{line}"),
-                "english" => format!("this is a bug of the Erg compiler, please report it to {URL}\ncaused from: {fn_name}:{line}"),
+                "japanese" => "ブロックの解析に失敗しました",
+                "simplified_chinese" => "无法解析块",
+                "traditional_chinese" => "無法解析塊",
+                "english" => "failed to parse a block",
             ),
             errno,
             CompilerSystemError,
@@ -94,21 +112,31 @@ impl LexError {
         ))
     }
 
-    pub fn feature_error(errno: usize, loc: Location, name: &str) -> Self {
+    pub fn unexpected_token_error(errno: usize, loc: Location, found: &str) -> ParseError {
+        let mut fnd = StyledStrings::default();
+        switch_lang!(
+            "japanese" =>fnd.push_str("予期しないトークン: "),
+            "simplified_chinese" => fnd.push_str("意想不到token: "),
+            "traditional_chinese" => fnd.push_str("意想不到token: "),
+            "english" => fnd.push_str("unexpected token: "),
+        );
+        fnd.push_str_with_color(found, ERR);
+        let main_msg = switch_lang!(
+            "japanese" => "無効な構文です",
+            "simplified_chinese" => "无效的语法",
+            "traditional_chinese" => "無效的語法",
+            "english" => "invalid syntax",
+        );
         Self::new(ErrorCore::new(
-            vec![SubMessage::only_loc(loc)],
-            switch_lang!(
-                "japanese" => format!("この機能({name})はまだ正式に提供されていません"),
-                "simplified_chinese" => format!("此功能（{name}）尚未实现"),
-                "traditional_chinese" => format!("此功能（{name}）尚未實現"),
-                "english" => format!("this feature({name}) is not implemented yet"),
-            ),
+            vec![SubMessage::ambiguous_new(loc, vec![fnd.to_string()], None)],
+            main_msg,
             errno,
-            FeatureError,
+            CompilerSystemError,
             loc,
         ))
     }
 
+    /* Parser Errors */
     pub fn simple_syntax_error(errno: usize, loc: Location) -> Self {
         Self::new(ErrorCore::new(
             vec![SubMessage::only_loc(loc)],
@@ -159,6 +187,23 @@ impl LexError {
         ))
     }
 
+    pub fn invalid_chunk_error(errno: usize, loc: Location) -> LexError {
+        let msg = switch_lang!(
+            "japanese" => "無効な構文です",
+            "simplified_chinese" => "无效的语法",
+            "traditional_chinese" => "無效的語法",
+            "english" => "invalid syntax",
+        );
+        let hint = switch_lang!(
+            "japanese" => "`;`を追加するか改行をしてください",
+            "simplified_chinese" => "`;`或应添加换行符",
+            "traditional_chinese" => "`;`或應添加換行",
+            "english" => "`;` or newline should be added",
+        )
+        .to_string();
+        Self::syntax_error(errno, loc, msg, Some(hint))
+    }
+
     pub fn syntax_warning<S: Into<String>>(
         errno: usize,
         loc: Location,
@@ -188,70 +233,6 @@ impl LexError {
         )
     }
 
-    pub fn no_var_error(
-        errno: usize,
-        loc: Location,
-        name: &str,
-        similar_name: Option<String>,
-    ) -> Self {
-        let hint = similar_name.map(|n| {
-            let n = StyledString::new(n, Some(HINT), Some(Attribute::Bold));
-            switch_lang!(
-                "japanese" => format!("似た名前の変数があります: {n}"),
-                "simplified_chinese" => format!("存在相同名称变量: {n}"),
-                "traditional_chinese" => format!("存在相同名稱變量: {n}"),
-                "english" => format!("exists a similar name variable: {n}"),
-            )
-        });
-        let name = StyledString::new(name, Some(ERR), Some(Attribute::Underline));
-        Self::new(ErrorCore::new(
-            vec![SubMessage::ambiguous_new(loc, vec![], hint)],
-            switch_lang!(
-                "japanese" => format!("{name}という変数は定義されていません"),
-                "simplified_chinese" => format!("{name}未定义"),
-                "traditional_chinese" => format!("{name}未定義"),
-                "english" => format!("{name} is not defined"),
-            ),
-            errno,
-            NameError,
-            loc,
-        ))
-    }
-
-    pub fn invalid_chunk_error(errno: usize, loc: Location) -> LexError {
-        let msg = switch_lang!(
-            "japanese" => "無効な構文です",
-            "simplified_chinese" => "无效的语法",
-            "traditional_chinese" => "無效的語法",
-            "english" => "invalid syntax",
-        );
-        let hint = switch_lang!(
-            "japanese" => "`;`を追加するか改行をしてください",
-            "simplified_chinese" => "`;`或应添加换行符",
-            "traditional_chinese" => "`;`或應添加換行",
-            "english" => "`;` or newline should be added",
-        )
-        .to_string();
-        Self::syntax_error(errno, loc, msg, Some(hint))
-    }
-
-    pub fn invalid_arg_decl_error(errno: usize, loc: Location) -> LexError {
-        let msg = switch_lang!(
-            "japanese" => "連続する要素の宣言が異なります",
-            "simplified_chinese" => "应该添加`;`或换行符",
-            "traditional_chinese" => "應該添加`;`或換行符",
-            "english" => "declaration of sequential elements is invalid",
-        );
-        let hint = switch_lang!(
-            "japanese" => "`,`を追加するか改行をしてください",
-            "simplified_chinese" => "应该添加`,`或换行符",
-            "traditional_chinese" => "應該添加`,`或換行符",
-            "english" => "`,` or newline should be added",
-        )
-        .to_string();
-        Self::syntax_error(errno, loc, msg, Some(hint))
-    }
-
     pub fn invalid_definition_of_last_block(errno: usize, loc: Location) -> LexError {
         Self::syntax_error(
             errno,
@@ -266,74 +247,26 @@ impl LexError {
         )
     }
 
-    pub fn failed_to_analyze_block(errno: usize, loc: Location) -> LexError {
-        Self::syntax_error(
-            errno,
-            loc,
-            switch_lang!(
-                "japanese" => "ブロックの解析に失敗しました",
-                "simplified_chinese" => "无法解析块",
-                "traditional_chinese" => "無法解析塊",
-                "english" => "failed to parse a block",
-            ),
-            None,
-        )
-    }
-
-    pub fn invalid_mutable_symbol(errno: usize, lit: &str, loc: Location) -> LexError {
-        let mut expect = StyledStrings::default();
+    pub fn invalid_token_error(
+        errno: usize,
+        loc: Location,
+        main_msg: &str,
+        expect: &str,
+        found: &str,
+    ) -> LexError {
+        let expect = StyledStr::new(expect, Some(HINT), Some(ATTR));
         let expect = switch_lang!(
-                "japanese" => {
-                    expect.push_str("期待された構文: ");
-                    expect.push_str_with_color(&format!("!{lit}"), HINT);
-                    expect
-                },
-                "simplified_chinese" => {
-                    expect.push_str("预期语法: ");
-                    expect.push_str_with_color(&format!("!{lit}"), HINT);
-                    expect
-                },
-                "traditional_chinese" => {
-                    expect.push_str("預期語法: ");
-                    expect.push_str_with_color(&format!("!{lit}"), HINT);
-                    expect
-                },
-                "english" => {
-                    expect.push_str("expected: ");
-                    expect.push_str_with_color(&format!("!{lit}"), HINT);
-                    expect
-                },
-        )
-        .to_string();
-        let mut found = StyledStrings::default();
+                "japanese" => format!("expect: {}", expect),
+                "simplified_chinese" => format!("期望: {}", expect),
+                "traditional_chinese" => format!("期望: {}", expect),
+                "english" => format!("expect: {}", expect),
+        );
+        let found = StyledStr::new(found, Some(ERR), Some(ATTR));
         let found = switch_lang!(
-                "japanese" => {
-                    found.push_str("見つかった構文: ");
-                    found.push_str_with_color(&format!("{lit}!"), ERR);
-                    found
-                },
-                "simplified_chinese" => {
-                    found.push_str("找到语法: ");
-                    found.push_str_with_color(&format!("{lit}!"), ERR);
-                    found
-                },
-                "traditional_chinese" => {
-                    found.push_str("找到語法: ");
-                    found.push_str_with_color(&format!("{lit}!"), ERR);
-                    found
-                },
-                "english" => {
-                    found.push_str("but found: ");
-                    found.push_str_with_color(&format!("{lit}!"), ERR);
-                    found
-                },
-        )
-        .to_string();
-        let main_msg = switch_lang!(
-            "japanese" => "無効な可変シンボルです",
-            "simplified_chinese" => "无效的可变符号",
-            "traditional_chinese" => "無效的可變符號",
-            "english" => "invalid mutable symbol",
+                "japanese" => format!("与えられた: {}", found),
+                "simplified_chinese" => format!("预期: {}", found),
+                "traditional_chinese" => format!("預期: {}", found),
+                "english" => format!("but found: {}", found),
         );
         Self::new(ErrorCore::new(
             vec![SubMessage::ambiguous_new(loc, vec![expect, found], None)],
@@ -342,6 +275,358 @@ impl LexError {
             SyntaxError,
             loc,
         ))
+    }
+
+    pub fn invalid_seq_elems_error(errno: usize, loc: Location, hint: Option<&str>) -> LexError {
+        let hint = hint.map(|hint| hint.to_string());
+        let msg = switch_lang!(
+            "japanese" => "連続する要素の宣言が異なります",
+            "simplified_chinese" => "无效的顺序元素声明",
+            "traditional_chinese" => "無效的順序元素聲明",
+            "english" => "invalid sequential elements declaration",
+        );
+        Self::syntax_error(errno, loc, msg, hint)
+    }
+
+    pub fn invalid_record_element_err(errno: usize, loc: Location) -> LexError {
+        let msg = switch_lang!(
+            "japanese" => "レコード型の要素が宣言が異なります",
+            "simplified_chinese" => "不同的记录类型元素声明",
+            "traditional_chinese" => "不同的記錄類型元素聲明",
+            "english" => "different record type element declarations",
+        )
+        .to_string();
+        let hint = switch_lang!(
+            "japanese" => {
+                let record = StyledStr::new("レコード型", Some(HINT), Some(ATTR));
+                let var = StyledStr::new("属性", Some(HINT), Some(ATTR));
+                let def = StyledStr::new("属性=リテラル", Some(HINT), Some(ATTR));
+                format!("{}では{}か{}のみ使うことができます", record, var, def)
+            },
+            "simplified_chinese" => {
+                let record = StyledStr::new("记录类型", Some(HINT), Some(ATTR));
+                let var = StyledStr::new("attr", Some(HINT), Some(ATTR));
+                let def = StyledStr::new("attr=lit", Some(HINT), Some(ATTR));
+                format!("只有{}或{}可以在{}中使用",  var, def, record)
+            },
+            "traditional_chinese" => {
+                let record = StyledStr::new("記錄類型", Some(HINT), Some(ATTR));
+                let var = StyledStr::new("attr", Some(HINT), Some(ATTR));
+                let def = StyledStr::new("attr=lit", Some(HINT), Some(ATTR));
+                format!("只有{}或{}可以在{}中使用",  var, def, record)
+            },
+            "english" => {
+                let record = StyledStr::new("Record", Some(HINT), Some(ATTR));
+                let var = StyledStr::new("attr", Some(HINT), Some(ATTR));
+                let def = StyledStr::new("attr=lit", Some(HINT), Some(ATTR));
+                format!("only {} or {} can be used in {}",  var, def, record)
+            },
+        );
+        let sub_msg = SubMessage::ambiguous_new(loc, vec![msg], Some(hint));
+        let msg = switch_lang!(
+            "japanese" => "連続する要素の宣言が異なります",
+            "simplified_chinese" => "无效的顺序元素声明",
+            "traditional_chinese" => "無效的順序元素聲明",
+            "english" => "invalid sequential elements declaration",
+        );
+        Self::new(ErrorCore::new(vec![sub_msg], msg, errno, SyntaxError, loc))
+    }
+
+    pub fn invalid_syntax_after_at_sign(errno: usize, loc: Location) -> Self {
+        Self::new(ErrorCore::new(
+            vec![SubMessage::only_loc(loc)],
+            switch_lang!(
+                "japanese" => "@サインの後ろに不正な構文があります",
+                "simplified_chinese" => "无效的语法",
+                "traditional_chinese" => "無效的語法",
+                "english" => "invalid syntax after @sign",
+            ),
+            errno,
+            SyntaxError,
+            loc,
+        ))
+    }
+
+    pub fn invalid_class_def(errno: usize, loc: Location) -> ParseError {
+        let msg = switch_lang!(
+            "japanese" => "無効なクラスの定義です",
+            "simplified_chinese" => "类定义无效",
+            "traditional_chinese" => "类定义无效",
+            "english" => "invalid Class definition",
+        );
+        let sub = SubMessage::only_loc(loc);
+        Self::new(ErrorCore::new(vec![sub], msg, errno, SyntaxError, loc))
+    }
+
+    pub fn invalid_class_attr_def(errno: usize, loc: Location) -> ParseError {
+        let msg = switch_lang!(
+            "japanese" => "クラス属性を定義するのに失敗しました",
+            "simplified_chinese" => "未能定义类实例属性",
+            "traditional_chinese" => "未能定義類實例屬性",
+            "english" => "failed to define a Class attribute",
+        );
+        let sub = SubMessage::only_loc(loc);
+        Self::new(ErrorCore::new(vec![sub], msg, errno, SyntaxError, loc))
+    }
+
+    pub fn invalid_data_pack_definition(errno: usize, loc: Location, fnd: &str) -> ParseError {
+        let msg = switch_lang!(
+            "japanese" => "データクラスの中身が異なります",
+            "simplified_chinese" => "数据类的内容不同",
+            "traditional_chinese" => "數據類的內容不同",
+            "english" => "contents of data class are different",
+        );
+        let expt = StyledStr::new("Record Type", Some(HINT), Some(ATTR));
+        let expect = switch_lang!(
+            "japanese" => format!("予期した型: {}", expt),
+            "simplified_chinese" => format!("期望的类型: {}", expt),
+            "traditional_chinese" => format!("期望的類型: {}", expt),
+            "english" => format!("expect type: {}", expt),
+        );
+        let fnd = StyledStr::new(fnd, Some(ERR), Some(ATTR));
+        let found = switch_lang!(
+            "japanese" => format!("与えられた型: {}", fnd),
+            "simplified_chinese" => format!("但找到: {}", fnd),
+            "traditional_chinese" => format!("但找到: {}", fnd),
+            "english" => format!("but found: {}", fnd),
+        );
+        let sub = SubMessage::ambiguous_new(loc, vec![expect, found], None);
+        Self::new(ErrorCore::new(vec![sub], msg, errno, SyntaxError, loc))
+    }
+
+    pub fn expect_keyword(errno: usize, loc: Location) -> ParseError {
+        let msg = switch_lang!(
+            "japanese" => "キーワードが指定されていません",
+            "simplified_chinese" => "未指定关键字",
+            "traditional_chinese" => "未指定關鍵字",
+            "english" => "keyword is not specified",
+        );
+        let keyword = StyledStr::new("keyword", Some(HINT), Some(ATTR));
+        let sub_msg = switch_lang!(
+            "japanese" => format!("予期した: {keyword}"),
+            "simplified_chinese" => format!("期望关: {keyword}"),
+            "traditional_chinese" => format!("期望關: {keyword}"),
+            "english" => format!("expect: {keyword}"),
+        );
+        let sub = SubMessage::ambiguous_new(loc, vec![sub_msg], None);
+        Self::new(ErrorCore::new(vec![sub], msg, errno, SyntaxError, loc))
+    }
+
+    pub fn expect_default_parameter(errno: usize, loc: Location) -> ParseError {
+        let msg = switch_lang!(
+            "japanese" => "非デフォルト引数はデフォルト引数の後に指定できません",
+            "simplified_chinese" => "默认实参后面跟着非默认实参",
+            "traditional_chinese" => "默認實參後面跟著非默認實參",
+            "english" => "non-default argument follows default argument",
+        );
+
+        let walrus = StyledStr::new(":=", Some(HINT), Some(ATTR));
+        let sub_msg = switch_lang!(
+            "japanese" => format!("{walrus}を使用してください"),
+            "simplified_chinese" => format!("应该使用{walrus}"),
+            "traditional_chinese" => format!("應該使用{walrus}"),
+            "english" => format!("{walrus} should be used"),
+        );
+        let sub = SubMessage::ambiguous_new(loc, vec![sub_msg], None);
+        Self::new(ErrorCore::new(vec![sub], msg, errno, SyntaxError, loc))
+    }
+
+    pub fn expect_dict_key(errno: usize, loc: Location) -> ParseError {
+        let msg = switch_lang!(
+            "japanese" => "無効な辞書型の要素の宣言です",
+            "english" => "invalid declaration of dict type",
+        );
+        let colon = StyledStr::new(":", Some(HINT), Some(ATTR));
+        let hint = switch_lang!(
+            "japanese" => format!("{colon}を追加する必要があります"),
+            "english" => format!("{colon} should be added"),
+        );
+        Self::syntax_error(errno, loc, msg, Some(hint))
+    }
+
+    pub fn invalid_dict_value(errno: usize, loc: Location) -> ParseError {
+        let colon = StyledStr::new(":", Some(HINT), Some(ATTR));
+        let hint = switch_lang!(
+            "japanese" => format!("{}を追加してください", colon),
+            "simplified_chinese" => format!("{}应该被添加", colon),
+            "traditional_chinese" => format!("{}应该被添加", colon),
+            "english" => format!("{} should be added", colon),
+        );
+        let sub_msg = SubMessage::ambiguous_new(loc, vec![], Some(hint));
+        let main_msg = switch_lang!(
+            "japanese" => "辞書型の値の宣言が異なります",
+            "simplified_chinese" => "字典类型的值声明是不同的",
+            "traditional_chinese" => "字典类型的值声明是不同的",
+            "english" => "failed to declare Dict type",
+        );
+        Self::new(ErrorCore::new(
+            vec![sub_msg],
+            main_msg,
+            errno,
+            SyntaxError,
+            loc,
+        ))
+    }
+
+    pub fn invalid_type_specified_error(
+        errno: usize,
+        loc: Location,
+        hint: Option<String>,
+    ) -> ParseError {
+        let main_msg = switch_lang!(
+            "japanese" => "タプル型の要素ではタイプを宣言することはできません",
+            "simplified_chinese" => "无法声明元组类型元素指定的类型",
+            "traditional_chinese" => "無法聲明元組類型元素指定的類型",
+            "english" => "cannot declare type specified by Tuple Type element",
+        );
+        Self::syntax_error(errno, loc, main_msg, hint)
+    }
+
+    pub fn unclosed_error(errno: usize, loc: Location, closer: &str, ty: &str) -> ParseError {
+        let msg = switch_lang!(
+            "japanese" => format!("{ty}が{closer}で閉じられていません"),
+            "simplified_chinese" => format!("{ty}没有用{closer}封闭"),
+            "traditional_chinese" => format!("{ty}没有用{closer}封闭"),
+            "english" => format!("{ty} is not closed with a {closer}"),
+        );
+
+        let closer = StyledStr::new(closer, Some(HINT), Some(ATTR));
+        let sub_msg = switch_lang!(
+            "japanese" => format!("{}を追加してください", closer),
+            "simplified_chinese" => format!("{}应该被添加", closer),
+            "traditional_chinese" => format!("{}應該被添加", closer),
+            "english" => format!("{} should be added", closer),
+        );
+
+        let sub = SubMessage::ambiguous_new(loc, vec![sub_msg], None);
+        Self::new(ErrorCore::new(vec![sub], msg, errno, SyntaxError, loc))
+    }
+
+    pub fn expect_method_error(errno: usize, loc: Location) -> ParseError {
+        let mut expect = StyledStrings::default();
+        switch_lang!(
+            "japanese" => expect.push_str("期待: "),
+            "simplified_chinese" => expect.push_str("期望: "),
+            "traditional_chinese" => expect.push_str("期望: "),
+            "english" => expect.push_str("expect: "),
+        );
+        expect.push_str_with_color_and_attribute(
+            switch_lang!(
+                "japanese" => "メソッド",
+                "english" => "method",
+            ),
+            HINT,
+            ATTR,
+        );
+        let sub_msg = SubMessage::ambiguous_new(loc, vec![expect.to_string()], None);
+        let main_msg = switch_lang!(
+            "japanese" => "クラスメソッドの定義が必要です",
+            "simplified_chinese" => "クラスメソッドの定義が必要です",
+            "traditional_chinese" => "クラスメソッドの定義が必要です",
+            "english" => "class method definitions are needed",
+        );
+        Self::new(ErrorCore::new(
+            vec![sub_msg],
+            main_msg,
+            errno,
+            SyntaxError,
+            loc,
+        ))
+    }
+
+    pub fn expect_accessor(errno: usize, loc: Location) -> ParseError {
+        let msg = switch_lang!(
+            "japanese" => "無効な構文です",
+            "simplified_chinese" => "无效的语法",
+            "traditional_chinese" => "無效的語法",
+            "english" => "invalid syntax",
+        );
+        let sub_msg = switch_lang!(
+            "japanese" => "アクセッサ―が期待されています",
+            "simplified_chinese" => "期望存取器",
+            "traditional_chinese" => "期望存取器",
+            "english" => "expect accessor",
+        )
+        .to_string();
+        let sub = SubMessage::ambiguous_new(loc, vec![sub_msg], None);
+        Self::new(ErrorCore::new(vec![sub], msg, errno, SyntaxError, loc))
+    }
+
+    pub fn invalid_acc_chain(errno: usize, loc: Location, found: &str) -> ParseError {
+        let expt = switch_lang!(
+            "japanese" => {
+                let method = StyledStr::new("メソッド", Some(HINT), Some(ATTR));
+                let lit = StyledStr::new("NatLit", Some(HINT), Some(ATTR));
+                let newline = StyledStr::new("改行", Some(HINT), Some(ATTR));
+                let arr = StyledStr::new("配列", Some(HINT), Some(ATTR));
+                format!("予期: {method}、{lit}、{newline}、{arr}")
+            },
+            "simplified_chinese" => {
+                let method = StyledStr::new("方法", Some(HINT), Some(ATTR));
+                let lit = StyledStr::new("NatLit", Some(HINT), Some(ATTR));
+                let newline = StyledStr::new("换行", Some(HINT), Some(ATTR));
+                let arr = StyledStr::new("数组", Some(HINT), Some(ATTR));
+                format!("expect: {method}, {lit}, {newline}, {arr}")
+            },
+            "traditional_chinese" => {
+                let method = StyledStr::new("方法", Some(HINT), Some(ATTR));
+                let lit = StyledStr::new("NatLit", Some(HINT), Some(ATTR));
+                let newline = StyledStr::new("换行", Some(HINT), Some(ATTR));
+                let arr = StyledStr::new("數組", Some(HINT), Some(ATTR));
+                format!("expect: {method}, {lit}, {newline}, {arr}")
+            },
+            "english" => {
+                let method = StyledStr::new("method", Some(HINT), Some(ATTR));
+                let lit = StyledStr::new("NatLit", Some(HINT), Some(ATTR));
+                let newline = StyledStr::new("newline", Some(HINT), Some(ATTR));
+                let arr = StyledStr::new("array", Some(HINT), Some(ATTR));
+                format!("expect: {method}, {lit}, {newline}, {arr}")
+            },
+        );
+
+        let fnd = switch_lang!(
+            "japanese" =>format!("与えられた: {}", StyledStr::new(found, Some(ERR), None)),
+            "simplified_chinese" => format!("期望: {}", StyledStr::new(found, Some(ERR), None)),
+            "traditional_chinese" => format!("期望: {}", StyledStr::new(found, Some(ERR), None)),
+            "english" => format!("but found: {}", StyledStr::new(found, Some(ERR), None)),
+        );
+        let sub = SubMessage::ambiguous_new(loc, vec![expt, fnd], None);
+        let msg = switch_lang!(
+            "japanese" => "無効なアクセス呼び出しです",
+            "simplified_chinese" => "无效的访问调用",
+            "traditional_chinese" => "無效的訪問調用",
+            "english" => "invalid access call",
+        )
+        .to_string();
+        Self::new(ErrorCore::new(vec![sub], msg, errno, SyntaxError, loc))
+    }
+
+    pub fn no_indention(errno: usize, loc: Location, place: &str) -> ParseError {
+        let sub_msg = switch_lang!(
+            "japanese" => "インデントを追加してください",
+            "simplified_chinese" => "缩进应该被添加",
+            "traditional_chinese" => "缩縮進應該被添加",
+            "english" => "indent should be added",
+        )
+        .to_string();
+        let sub = SubMessage::ambiguous_new(loc, vec![sub_msg], None);
+        let msg = switch_lang!(
+            "japanese" => format!("{place}のインデントが不正です"),
+            "traditional_chinese" => format!("{place}缩进无效"),
+            "simplified_chinese" => format!("{place}缩进无效"),
+            "english" => format!("invalid the {place} indent"),
+        );
+        Self::new(ErrorCore::new(vec![sub], msg, errno, IndentationError, loc))
+    }
+
+    pub fn expect_type_specified(errno: usize, loc: Location) -> ParseError {
+        let msg = switch_lang!(
+            "japanese" => "型指定が不正です",
+            "traditional_chinese" => "",
+            "simplified_chinese" => "",
+            "english" => "invalid type specification",
+        );
+        Self::syntax_error(errno, loc, msg, None)
     }
 }
 

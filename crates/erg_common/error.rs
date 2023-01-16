@@ -790,15 +790,25 @@ impl ErrorCore {
             Some(Attribute::Underline),
         );
 
-        let m_msg = switch_lang!(
-            "japanese" => format!("これはErgのバグです、開発者に報告して下さい({URL})\n{fn_name}:{line}より発生"),
-            "simplified_chinese" => format!("这是Erg的bug，请报告给{URL}\n原因来自: {fn_name}:{line}"),
-            "traditional_chinese" => format!("这是Erg的bug，请报告给{URL}\n原因来自: {fn_name}:{line}"),
-            "english" => format!("this is a bug of Erg, please report it to {URL}\ncaused from: {fn_name}:{line}"),
+        let main_msg = switch_lang!(
+            "japanese" => format!("\
+    これはErgのバグです、開発者に報告して下さい({URL})
+    発生箇所: {fn_name}:{line}"),
+            "simplified_chinese" => format!("\
+    这是Erg的bug，请报告给{URL}
+    原因来自: {fn_name}:{line}"),
+            "traditional_chinese" => format!("\
+    这是Erg的bug，请报告给{URL}
+    原因来自: {fn_name}:{line}"),
+            "english" => format!("\
+    This is a bug of Erg, please report it to {URL}
+    Caused from: {fn_name}:{line}"),
         );
+        let main_msg =
+            StyledStr::new(&main_msg, Some(Color::Red), Some(Attribute::Bold)).to_string();
         Self::new(
             vec![SubMessage::only_loc(loc)],
-            m_msg,
+            main_msg,
             errno,
             CompilerSystemError,
             loc,
