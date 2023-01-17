@@ -1243,8 +1243,10 @@ impl ASTLowerer {
                         sig_t
                     });
                 let ident = match &sig.pat {
-                    ast::VarPattern::Ident(ident) => ident,
-                    ast::VarPattern::Discard(_) => ast::Identifier::UBAR,
+                    ast::VarPattern::Ident(ident) => ident.clone(),
+                    ast::VarPattern::Discard(token) => {
+                        ast::Identifier::new(None, VarName::new(token.clone()))
+                    }
                     _ => unreachable!(),
                 };
                 if let Some(expect_body_t) = opt_expect_body_t {
@@ -1267,7 +1269,7 @@ impl ASTLowerer {
                     body.id,
                     None,
                 )?;
-                let ident = hir::Identifier::new(ident.dot.clone(), ident.name.clone(), None, vi);
+                let ident = hir::Identifier::new(ident.dot, ident.name, None, vi);
                 let sig = hir::VarSignature::new(ident);
                 let body = hir::DefBody::new(body.op, block, body.id);
                 Ok(hir::Def::new(hir::Signature::Var(sig), body))
