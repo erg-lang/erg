@@ -264,6 +264,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             "textDocument/rename" => self.rename(msg),
             "textDocument/references" => self.show_references(msg),
             "textDocument/semanticTokens/full" => self.get_semantic_tokens_full(msg),
+            "textDocument/inlayHint" => self.get_inlay_hint(msg),
             other => Self::send_error(Some(id), -32600, format!("{other} is not supported")),
         }
     }

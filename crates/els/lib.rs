@@ -3,6 +3,7 @@ mod definition;
 mod diagnostics;
 mod hir_visitor;
 mod hover;
+mod inlay_hint;
 mod message;
 mod references;
 mod rename;
