@@ -44,7 +44,8 @@ impl Runnable for ASTBuilder {
     fn clear(&mut self) {}
 
     fn exec(&mut self) -> Result<i32, Self::Errs> {
-        let ast = self.build(self.input().read())?;
+        let src = self.cfg_mut().input.read();
+        let ast = self.build(src)?;
         println!("{ast}");
         Ok(0)
     }

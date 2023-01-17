@@ -144,12 +144,11 @@ impl Runnable for Transpiler {
 
     fn exec(&mut self) -> Result<i32, Self::Errs> {
         let path = self.cfg.dump_path().replace(".er", ".py");
-        let artifact = self
-            .transpile(self.input().read(), "exec")
-            .map_err(|eart| {
-                eart.warns.fmt_all_stderr();
-                eart.errors
-            })?;
+        let src = self.cfg.input.read();
+        let artifact = self.transpile(src, "exec").map_err(|eart| {
+            eart.warns.fmt_all_stderr();
+            eart.errors
+        })?;
         artifact.warns.fmt_all_stderr();
         let mut f = File::create(path).unwrap();
         f.write_all(artifact.object.code.as_bytes()).unwrap();

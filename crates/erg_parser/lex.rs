@@ -49,7 +49,7 @@ impl Runnable for LexerRunner {
     fn clear(&mut self) {}
 
     fn exec(&mut self) -> Result<i32, Self::Errs> {
-        let lexer = Lexer::from_str(self.input().read());
+        let lexer = Lexer::from_str(self.cfg_mut().input.read());
         let ts = lexer
             .lex()
             .map_err(|errs| LexerRunnerErrors::convert(self.input(), errs))?;
@@ -146,7 +146,7 @@ pub struct Lexer /*<'a>*/ {
 }
 
 impl Lexer /*<'a>*/ {
-    pub fn new(input: Input) -> Self {
+    pub fn new(mut input: Input) -> Self {
         let normed = normalize_newline(&input.read());
         Lexer {
             str_cache: CacheSet::new(),

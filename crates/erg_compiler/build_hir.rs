@@ -65,7 +65,7 @@ impl Runnable for HIRBuilder {
 
     fn exec(&mut self) -> Result<i32, Self::Errs> {
         let mut builder = ASTBuilder::new(self.cfg().copy());
-        let ast = builder.build(self.input().read())?;
+        let ast = builder.build(self.cfg_mut().input.read())?;
         let artifact = self.check(ast, "exec").map_err(|arti| arti.errors)?;
         artifact.warns.fmt_all_stderr();
         println!("{}", artifact.object);

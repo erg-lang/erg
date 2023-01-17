@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 use std::path::PathBuf;
 
-use erg_common::config::ErgConfig;
+use erg_common::config::{DummyStdin, ErgConfig, Input};
 use erg_common::error::MultiErrorDisplay;
 use erg_common::python_util::PythonVersion;
 use erg_common::spawn::exec_new_thread;
@@ -12,8 +12,23 @@ use erg_compiler::error::CompileErrors;
 
 use erg::DummyVM;
 
+pub(crate) fn expect_repl_success(lines: Vec<String>) -> Result<(), ()> {
+    match exec_repl(lines) {
+        Ok(0) => Ok(()),
+        Ok(i) => {
+            println!("err: should succeed, but end with {i}");
+            Err(())
+        }
+        Err(errs) => {
+            println!("err: should succeed, but got compile errors");
+            errs.fmt_all_stderr();
+            Err(())
+        }
+    }
+}
+
 pub(crate) fn expect_success(file_path: &'static str) -> Result<(), ()> {
-    match exec_vm(file_path) {
+    match exec_file(file_path) {
         Ok(0) => Ok(()),
         Ok(i) => {
             println!("err: should succeed, but end with {i}");
@@ -28,7 +43,7 @@ pub(crate) fn expect_success(file_path: &'static str) -> Result<(), ()> {
 }
 
 pub(crate) fn expect_end_with(file_path: &'static str, code: i32) -> Result<(), ()> {
-    match exec_vm(file_path) {
+    match exec_file(file_path) {
         Ok(0) => {
             println!("err: should end with {code}, but end with 0");
             Err(())
@@ -50,7 +65,7 @@ pub(crate) fn expect_end_with(file_path: &'static str, code: i32) -> Result<(), 
 }
 
 pub(crate) fn expect_failure(file_path: &'static str, errs_len: usize) -> Result<(), ()> {
-    match exec_vm(file_path) {
+    match exec_file(file_path) {
         Ok(0) => {
             println!("err: should fail, but end with 0");
             Err(())
@@ -71,11 +86,7 @@ pub(crate) fn expect_failure(file_path: &'static str, errs_len: usize) -> Result
     }
 }
 
-/// The test is intend to run only on 3.11 for fast execution.
-/// To execute on other versions, change the version and magic number.
-fn _exec_vm(file_path: &'static str) -> Result<i32, CompileErrors> {
-    println!("{GREEN}[test] exec {file_path}{RESET}");
-    let mut cfg = ErgConfig::with_main_path(PathBuf::from(file_path));
+fn set_cfg(mut cfg: ErgConfig) -> ErgConfig {
     cfg.py_command = if cfg!(windows) {
         Some("python")
     } else {
@@ -90,10 +101,34 @@ fn _exec_vm(file_path: &'static str) -> Result<i32, CompileErrors> {
         Some(py_ver_micro),
     ));
     cfg.py_magic_num = Some(py_magic_num);
-    let mut vm = DummyVM::new(cfg);
+    cfg
+}
+
+/// The test is intend to run only on 3.11 for fast execution.
+/// To execute on other versions, change the version and magic number.
+fn _exec_file(file_path: &'static str) -> Result<i32, CompileErrors> {
+    println!("{GREEN}[test] exec {file_path}{RESET}");
+    let cfg = ErgConfig::with_main_path(PathBuf::from(file_path));
+    let mut vm = DummyVM::new(set_cfg(cfg));
     vm.exec()
 }
 
-pub(crate) fn exec_vm(file_path: &'static str) -> Result<i32, CompileErrors> {
-    exec_new_thread(move || _exec_vm(file_path))
+/// WARN: You must quit REPL manually (use `:exit`, `:quit` or call something shutdowns the interpreter)
+pub fn _exec_repl(lines: Vec<String>) -> Result<i32, CompileErrors> {
+    println!("{GREEN}[test] exec dummy REPL: {lines:?}{RESET}");
+    let cfg = ErgConfig {
+        input: Input::DummyREPL(DummyStdin::new(lines)),
+        quiet_repl: true,
+        ..Default::default()
+    };
+    <DummyVM as Runnable>::run(set_cfg(cfg));
+    Ok(0)
+}
+
+pub(crate) fn exec_file(file_path: &'static str) -> Result<i32, CompileErrors> {
+    exec_new_thread(move || _exec_file(file_path))
+}
+
+pub(crate) fn exec_repl(lines: Vec<String>) -> Result<i32, CompileErrors> {
+    exec_new_thread(move || _exec_repl(lines))
 }

@@ -562,7 +562,7 @@ pub trait Runnable: Sized + Default {
         let mut instance = Self::new(cfg);
         let res = match instance.input() {
             Input::File(_) | Input::Pipe(_) | Input::Str(_) => instance.exec(),
-            Input::REPL => {
+            Input::REPL | Input::DummyREPL(_) => {
                 let output = stdout();
                 let mut output = BufWriter::new(output.lock());
                 if !quiet_repl {
@@ -576,7 +576,7 @@ pub trait Runnable: Sized + Default {
                 let mut in_block = false;
                 let mut lines = String::new();
                 loop {
-                    let line = chomp(&instance.input().read());
+                    let line = chomp(&instance.cfg_mut().input.read());
                     match &line[..] {
                         ":quit" | ":exit" => {
                             instance.quit_successfully(output);

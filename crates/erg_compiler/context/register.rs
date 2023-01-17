@@ -1325,7 +1325,7 @@ impl Context {
         if mod_cache.get(&path).is_some() {
             return Ok(path);
         }
-        let cfg = self.cfg.inherit(path.clone());
+        let mut cfg = self.cfg.inherit(path.clone());
         let src = cfg.input.read();
         let mut builder =
             HIRBuilder::new_with_cache(cfg, __name__, self.shared.as_ref().unwrap().clone());
@@ -1463,7 +1463,7 @@ impl Context {
         if py_mod_cache.get(&path).is_some() {
             return Ok(path);
         }
-        let cfg = self.cfg.inherit(path.clone());
+        let mut cfg = self.cfg.inherit(path.clone());
         let src = cfg.input.read();
         let mut builder = HIRBuilder::new_with_cache(
             cfg,

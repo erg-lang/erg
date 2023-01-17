@@ -102,7 +102,7 @@ impl Runnable for ASTLowerer {
 
     fn exec(&mut self) -> Result<i32, Self::Errs> {
         let mut ast_builder = ASTBuilder::new(self.cfg.copy());
-        let ast = ast_builder.build(self.input().read())?;
+        let ast = ast_builder.build(self.cfg.input.read())?;
         let artifact = self
             .lower(ast, "exec")
             .map_err(|artifact| artifact.errors)?;

@@ -127,9 +127,10 @@ impl Runnable for DummyVM {
     fn exec(&mut self) -> Result<i32, Self::Errs> {
         // Parallel execution is not possible without dumping with a unique file name.
         let filename = self.cfg().dump_pyc_filename();
+        let src = self.cfg_mut().input.read();
         let warns = self
             .compiler
-            .compile_and_dump_as_pyc(&filename, self.input().read(), "exec")
+            .compile_and_dump_as_pyc(&filename, src, "exec")
             .map_err(|eart| {
                 eart.warns.fmt_all_stderr();
                 eart.errors
