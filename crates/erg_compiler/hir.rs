@@ -1556,6 +1556,7 @@ impl Locational for Dummy {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct VarSignature {
     pub ident: Identifier,
+    pub t_spec: Option<TypeSpec>,
 }
 
 impl NestedDisplay for VarSignature {
@@ -1587,8 +1588,8 @@ impl HasType for VarSignature {
 }
 
 impl VarSignature {
-    pub const fn new(ident: Identifier) -> Self {
-        Self { ident }
+    pub const fn new(ident: Identifier, t_spec: Option<TypeSpec>) -> Self {
+        Self { ident, t_spec }
     }
 
     pub fn inspect(&self) -> &Str {
@@ -1755,6 +1756,7 @@ impl Params {
 pub struct SubrSignature {
     pub ident: Identifier,
     pub params: Params,
+    pub return_t_spec: Option<TypeSpec>,
 }
 
 impl NestedDisplay for SubrSignature {
@@ -1802,8 +1804,12 @@ impl HasType for SubrSignature {
 }
 
 impl SubrSignature {
-    pub const fn new(ident: Identifier, params: Params) -> Self {
-        Self { ident, params }
+    pub const fn new(ident: Identifier, params: Params, return_t_spec: Option<TypeSpec>) -> Self {
+        Self {
+            ident,
+            params,
+            return_t_spec,
+        }
     }
 
     pub fn is_procedural(&self) -> bool {
@@ -1814,7 +1820,7 @@ impl SubrSignature {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Lambda {
     pub params: Params,
-    op: Token,
+    pub op: Token,
     pub body: Block,
     pub id: usize,
     pub t: Type,
@@ -1917,6 +1923,13 @@ impl Signature {
         match self {
             Self::Var(v) => v.ident,
             Self::Subr(s) => s.ident,
+        }
+    }
+
+    pub fn t_spec(&self) -> Option<&TypeSpec> {
+        match self {
+            Self::Var(v) => v.t_spec.as_ref(),
+            Self::Subr(s) => s.return_t_spec.as_ref(),
         }
     }
 }

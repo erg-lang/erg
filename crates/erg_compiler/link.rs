@@ -330,7 +330,7 @@ impl<'a> Linker<'a> {
             let tmp =
                 Identifier::private_with_line(Str::from(fresh_varname()), expr.ln_begin().unwrap());
             let mod_def = Expr::Def(Def::new(
-                Signature::Var(VarSignature::new(tmp.clone())),
+                Signature::Var(VarSignature::new(tmp.clone(), None)),
                 DefBody::new(EQUAL, block, DefId(0)),
             ));
             let module = Expr::Accessor(Accessor::Ident(tmp));

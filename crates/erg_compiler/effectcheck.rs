@@ -255,7 +255,7 @@ impl SideEffectChecker {
                     ));
                 }
             }
-            if let Some((var_arg, va_type)) = sig.params.var_args.as_ref().zip(t.var_args()) {
+            if let Some((var_arg, va_type)) = sig.params.var_args.as_ref().zip(t.var_params()) {
                 if va_type.typ().is_procedure() && !var_arg.inspect().unwrap().ends_with('!') {
                     self.errs.push(EffectError::proc_assign_error(
                         self.cfg.input.clone(),

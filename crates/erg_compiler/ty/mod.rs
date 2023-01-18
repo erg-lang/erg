@@ -213,7 +213,7 @@ impl ParamTy {
 pub struct SubrType {
     pub kind: SubrKind,
     pub non_default_params: Vec<ParamTy>,
-    pub var_params: Option<Box<ParamTy>>,
+    pub var_params: Option<Box<ParamTy>>, // TODO: need to have a position (var_params can be specified after default_params)
     pub default_params: Vec<ParamTy>,
     // var_kw_params: Option<(Str, Box<Type>)>,
     pub return_t: Box<Type>,
@@ -343,6 +343,16 @@ impl SubrType {
                 None
             }
         })
+    }
+
+    pub fn non_var_params(&self) -> impl Iterator<Item = &ParamTy> + Clone {
+        if self.var_params.is_some() {
+            self.non_default_params.iter().chain([].iter())
+        } else {
+            self.non_default_params
+                .iter()
+                .chain(self.default_params.iter())
+        }
     }
 }
 
@@ -1724,18 +1734,18 @@ impl Type {
         }
     }
 
-    pub fn var_args(&self) -> Option<&ParamTy> {
+    pub fn var_params(&self) -> Option<&ParamTy> {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => unsafe { fv.as_ptr().as_ref() }
                 .unwrap()
                 .linked()
-                .and_then(|t| t.var_args()),
-            Self::Refinement(refine) => refine.t.var_args(),
+                .and_then(|t| t.var_params()),
+            Self::Refinement(refine) => refine.t.var_params(),
             Self::Subr(SubrType {
                 var_params: var_args,
                 ..
             }) => var_args.as_deref(),
-            Self::Quantified(quant) => quant.var_args(),
+            Self::Quantified(quant) => quant.var_params(),
             Self::Callable { param_ts: _, .. } => todo!(),
             _ => None,
         }
@@ -1750,6 +1760,19 @@ impl Type {
             Self::Refinement(refine) => refine.t.default_params(),
             Self::Subr(SubrType { default_params, .. }) => Some(default_params),
             Self::Quantified(quant) => quant.default_params(),
+            _ => None,
+        }
+    }
+
+    pub fn non_var_params(&self) -> Option<impl Iterator<Item = &ParamTy> + Clone> {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => unsafe { fv.as_ptr().as_ref() }
+                .unwrap()
+                .linked()
+                .and_then(|t| t.non_var_params()),
+            Self::Refinement(refine) => refine.t.non_var_params(),
+            Self::Subr(subr) => Some(subr.non_var_params()),
+            Self::Quantified(quant) => quant.non_var_params(),
             _ => None,
         }
     }

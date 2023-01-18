@@ -181,7 +181,10 @@ impl Context {
         let ident = match &sig.pat {
             ast::VarPattern::Ident(ident) => ident,
             ast::VarPattern::Discard(_) => {
-                return Ok(VarInfo::const_default());
+                return Ok(VarInfo {
+                    t: body_t.clone(),
+                    ..VarInfo::const_default()
+                });
             }
             _ => todo!(),
         };
@@ -486,7 +489,7 @@ impl Context {
         // FIXME: constでない関数
         let t = self.get_current_scope_var(name).map(|v| &v.t).unwrap();
         let non_default_params = t.non_default_params().unwrap();
-        let var_args = t.var_args();
+        let var_args = t.var_params();
         let default_params = t.default_params().unwrap();
         let mut errs = if let Some(spec_ret_t) = t.return_t() {
             let return_t_loc = sig

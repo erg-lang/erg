@@ -13,7 +13,8 @@ ELS is a language server for the [Erg](https://github.com/erg-lang/erg) programm
 - [x] Jump to definition
 - [x] List / Jump to references
 - [x] Renaming
-- [ ] Inlay hints
+- [x] Inlay hint
+- [x] Semantic tokens
 
 ## Installation
 

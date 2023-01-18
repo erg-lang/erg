@@ -2812,7 +2812,7 @@ impl PyCodeGenerator {
                 Params::new(vec![self_param], None, vec![], None),
             )
         };
-        let subr_sig = SubrSignature::new(ident, params);
+        let subr_sig = SubrSignature::new(ident, params, sig.t_spec().cloned());
         let mut attrs = vec![];
         match new_first_param.map(|pt| pt.typ()) {
             // namedtupleは仕様上::xなどの名前を使えない
@@ -2885,7 +2885,7 @@ impl PyCodeGenerator {
             let param = VarName::from_str_and_line(Str::from(param_name.clone()), line);
             let param = NonDefaultParamSignature::new(ParamPattern::VarName(param), None);
             let params = Params::new(vec![param], None, vec![], None);
-            let sig = SubrSignature::new(ident, params);
+            let sig = SubrSignature::new(ident, params, sig.t_spec().cloned());
             let arg = PosArg::new(Expr::Accessor(Accessor::private_with_line(
                 Str::from(param_name),
                 line,
@@ -2896,7 +2896,7 @@ impl PyCodeGenerator {
             self.emit_subr_def(Some(class_ident.inspect()), sig, body);
         } else {
             let params = Params::new(vec![], None, vec![], None);
-            let sig = SubrSignature::new(ident, params);
+            let sig = SubrSignature::new(ident, params, sig.t_spec().cloned());
             let call = class_new.call_expr(Args::new(vec![], None, vec![], None));
             let block = Block::new(vec![call]);
             let body = DefBody::new(EQUAL, block, DefId(0));
