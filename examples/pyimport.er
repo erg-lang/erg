@@ -10,6 +10,7 @@ _socket = pyimport "socket"
 sub = pyimport "subprocess"
 sys = pyimport "sys"
 urllib = pyimport "urllib"
+util = pyimport "importlib/util"
 
 print! math.pi
 print! importlib.util.MAGIC_NUMBER

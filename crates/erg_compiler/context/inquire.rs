@@ -2098,7 +2098,18 @@ impl Context {
         {
             Some(normalize_path(path))
         } else {
-            None
+            let mut std_path = erg_pystd_path();
+            let len = path.components().count();
+            for (i, comp) in path.components().enumerate() {
+                let p = if i == len - 1 {
+                    format!("{}.d.er", comp.as_os_str().to_str().unwrap())
+                } else {
+                    format!("{}.d", comp.as_os_str().to_str().unwrap())
+                };
+                std_path = std_path.join(p);
+            }
+            let path = std_path.canonicalize().ok()?;
+            Some(normalize_path(path))
         }
     }
 

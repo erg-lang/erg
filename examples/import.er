@@ -8,3 +8,5 @@ print! c.x
 
 consts = import "consts"
 print! consts.physics.G
+physics = import "consts/physics"
+print! physics.c
