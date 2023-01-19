@@ -1,8 +1,9 @@
 #![allow(dead_code)]
 use std::path::PathBuf;
 
-use erg_common::config::{DummyStdin, ErgConfig, Input};
+use erg_common::config::ErgConfig;
 use erg_common::error::MultiErrorDisplay;
+use erg_common::input::{DummyStdin, Input};
 use erg_common::python_util::PythonVersion;
 use erg_common::spawn::exec_new_thread;
 use erg_common::style::{GREEN, RESET};

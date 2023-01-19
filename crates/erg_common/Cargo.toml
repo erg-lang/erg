@@ -20,6 +20,7 @@ large_thread = []
 els = []
 py_compatible = []
 no_std = []
+input_url = ["dep:minreq"]
 
 [target.'cfg(unix)'.dependencies]
 libc = { version = "0.2", default-features = false }
@@ -29,6 +30,8 @@ hermit-abi = "0.1.6"
 [target.'cfg(windows)'.dependencies.winapi]
 version = "0.3"
 features = ["consoleapi"]
+[dependencies]
+minreq = { version = "2", features = ["https-native"], optional = true }
 
 [lib]
 path = "lib.rs"
