@@ -5,7 +5,7 @@
 ```console
   └─┬ assets: 圖片等
     ├─ CODE_OF_CONDUCT: 行為準則
-    ├─┬ compiler
+    ├─┬ crates
     │ ├─ els: Erg語言服務器 (Language Server)
     │ ├─ erg_common: 通用工具
     │ ├─ erg_compiler: 編譯器，**Erg核心**
