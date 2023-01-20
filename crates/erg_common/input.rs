@@ -7,6 +7,31 @@ use crate::normalize_path;
 use crate::stdin::GLOBAL_STDIN;
 use crate::{power_assert, read_file};
 
+#[cfg(feature = "input_url")]
+pub fn get_url(url: &Path) -> String {
+    let url = url.to_str().unwrap();
+    let resp = match ureq::get(url).call() {
+    // let resp = match attohttpc::get(&url[..]).send() {
+        Ok(r) => r,
+        Err(e) => {
+            println!("cannot open '{url}': {e}");
+            process::exit(1);
+        }
+    };
+    match resp /*.text() */ .into_string() {
+        Ok(s) => s,
+        Err(e) => {
+            println!("cannot read '{url}': {e}");
+            process::exit(1);
+        }
+    }
+}
+#[cfg(not(feature = "input_url"))]
+pub fn get_url(url: &str) -> String {
+    println!("cannot open url: feature 'input_url' is not enabled");
+    process::exit(1);
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DummyStdin {
     current_line: usize,
@@ -44,7 +69,7 @@ impl DummyStdin {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Input {
     File(PathBuf),
-    Url(String),
+    Url(PathBuf),
     REPL,
     DummyREPL(DummyStdin),
     /// same content as cfg.command
@@ -68,8 +93,8 @@ impl Input {
 
     pub fn enclosed_name(&self) -> &str {
         match self {
-            Self::File(filename) => filename.to_str().unwrap_or("_"),
-            Self::Url(url) => url.as_str(),
+            Self::File(filename)
+            | Self::Url(filename) => filename.to_str().unwrap_or("_"),
             Self::REPL | Self::DummyREPL(_) | Self::Pipe(_) => "<stdin>",
             Self::Str(_) => "<string>",
             Self::Dummy => "<dummy>",
@@ -78,8 +103,8 @@ impl Input {
 
     pub fn full_path(&self) -> &str {
         match self {
-            Self::File(filename) => filename.to_str().unwrap_or("_"),
-            Self::Url(url) => url.as_str(),
+            Self::File(filename)
+            | Self::Url(filename) => filename.to_str().unwrap_or("_"),
             Self::REPL | Self::DummyREPL(_) | Self::Pipe(_) => "stdin",
             Self::Str(_) => "string",
             Self::Dummy => "dummy",
@@ -88,8 +113,8 @@ impl Input {
 
     pub fn file_stem(&self) -> &str {
         match self {
-            Self::File(filename) => filename.file_stem().and_then(|f| f.to_str()).unwrap_or("_"),
-            Self::Url(url) => url.as_str(),
+            Self::File(filename)
+            | Self::Url(filename) => filename.file_stem().and_then(|f| f.to_str()).unwrap_or("_"),
             Self::REPL | Self::DummyREPL(_) | Self::Pipe(_) => "stdin",
             Self::Str(_) => "string",
             Self::Dummy => "dummy",
@@ -98,8 +123,8 @@ impl Input {
 
     pub fn filename(&self) -> &str {
         match self {
-            Self::File(filename) => filename.file_name().and_then(|f| f.to_str()).unwrap_or("_"),
-            Self::Url(url) => url.split('/').last().unwrap_or("_"),
+            Self::File(filename)
+            | Self::Url(filename) => filename.file_name().and_then(|f| f.to_str()).unwrap_or("_"),
             Self::REPL | Self::DummyREPL(_) | Self::Pipe(_) => "stdin",
             Self::Str(_) => "string",
             Self::Dummy => "dummy",
@@ -130,28 +155,7 @@ impl Input {
                     }
                 }
             }
-            #[cfg(feature = "input_url")]
-            Self::Url(url) => {
-                let resp = match minreq::get(&url[..]).send() {
-                    Ok(r) => r,
-                    Err(e) => {
-                        println!("cannot open '{url}': {e}");
-                        process::exit(1);
-                    }
-                };
-                match resp.as_str() {
-                    Ok(s) => s.to_string(),
-                    Err(e) => {
-                        println!("cannot read '{url}': {e}");
-                        process::exit(1);
-                    }
-                }
-            }
-            #[cfg(not(feature = "input_url"))]
-            Self::Url(_) => {
-                println!("cannot open url: feature 'input_url' is not enabled");
-                process::exit(1);
-            }
+            Self::Url(url) => get_url(url),
             Self::Pipe(s) | Self::Str(s) => s.clone(),
             Self::REPL => GLOBAL_STDIN.read(),
             Self::DummyREPL(dummy) => dummy.read_line().unwrap_or_default(),
@@ -183,28 +187,7 @@ impl Input {
                     }
                 }
             }
-            #[cfg(feature = "input_url")]
-            Self::Url(url) => {
-                let resp = match minreq::get(&url[..]).send() {
-                    Ok(r) => r,
-                    Err(e) => {
-                        println!("cannot open '{url}': {e}");
-                        process::exit(1);
-                    }
-                };
-                match resp.as_str() {
-                    Ok(s) => s.to_string(),
-                    Err(e) => {
-                        println!("cannot read '{url}': {e}");
-                        process::exit(1);
-                    }
-                }
-            }
-            #[cfg(not(feature = "input_url"))]
-            Self::Url(_) => {
-                println!("cannot open url: feature 'input_url' is not enabled");
-                process::exit(1);
-            }
+            Self::Url(url) => get_url(url),
             Self::Pipe(s) | Self::Str(s) => s.clone(),
             Self::REPL => GLOBAL_STDIN.read(),
             Self::Dummy | Self::DummyREPL(_) => panic!("cannot read from a dummy file"),
