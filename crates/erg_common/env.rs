@@ -3,32 +3,25 @@ use std::path::PathBuf;
 
 use crate::normalize_path;
 
+#[cfg(not(feature = "no_std"))]
 fn _erg_path() -> PathBuf {
     let path = var("ERG_PATH").unwrap_or_else(|_| env!("CARGO_ERG_PATH").to_string());
     PathBuf::from(path)
         .canonicalize()
         .expect("ERG_PATH not found")
 }
+#[cfg(feature = "no_std")]
+fn _erg_path() -> PathBuf {
+    PathBuf::from("https://raw.githubusercontent.com/erg-lang/erg/main/crates/erg_compiler")
+}
 fn _erg_std_path() -> PathBuf {
-    _erg_path()
-        .join("lib")
-        .join("std")
-        .canonicalize()
-        .expect("ERG_PATH/lib/std not found")
+    _erg_path().join("lib").join("std")
 }
 fn _erg_pystd_path() -> PathBuf {
-    _erg_path()
-        .join("lib")
-        .join("pystd")
-        .canonicalize()
-        .expect("ERG_PATH/lib/pystd not found")
+    _erg_path().join("lib").join("pystd")
 }
 fn _erg_external_lib_path() -> PathBuf {
-    _erg_path()
-        .join("lib")
-        .join("external")
-        .canonicalize()
-        .expect("ERG_PATH/lib/external not found")
+    _erg_path().join("lib").join("external")
 }
 
 thread_local! {

@@ -3,33 +3,44 @@ use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process;
 
-use crate::normalize_path;
 use crate::stdin::GLOBAL_STDIN;
-use crate::{power_assert, read_file};
+use crate::{normalize_path, power_assert, read_file};
 
 #[cfg(feature = "input_url")]
 pub fn get_url(url: &Path) -> String {
     let url = url.to_str().unwrap();
-    let resp = match ureq::get(url).call() {
-    // let resp = match attohttpc::get(&url[..]).send() {
-        Ok(r) => r,
-        Err(e) => {
-            println!("cannot open '{url}': {e}");
+    let resp = match ehttp::fetch_blocking(&ehttp::Request::get(url)) {
+        Ok(resp) => resp,
+        Err(err) => {
+            println!("cannot open '{url}': {err}");
             process::exit(1);
         }
     };
-    match resp /*.text() */ .into_string() {
-        Ok(s) => s,
-        Err(e) => {
-            println!("cannot read '{url}': {e}");
+    match resp.text() {
+        Some(cont) => cont.to_string(),
+        None => {
+            println!("cannot read '{url}': {}", resp.status_text);
             process::exit(1);
         }
     }
 }
 #[cfg(not(feature = "input_url"))]
-pub fn get_url(url: &str) -> String {
+pub fn get_url(_url: &Path) -> String {
     println!("cannot open url: feature 'input_url' is not enabled");
     process::exit(1);
+}
+
+#[cfg(feature = "input_url")]
+pub fn exists_url(url: &Path) -> bool {
+    let url = url.to_str().unwrap();
+    let resp = match ehttp::fetch_blocking(&ehttp::Request::get(url)) {
+        Ok(resp) => resp,
+        Err(err) => {
+            println!("cannot open '{url}': {err}");
+            process::exit(1);
+        }
+    };
+    resp.status == 200
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -86,15 +97,14 @@ impl Input {
 
     pub fn path(&self) -> Option<&Path> {
         match self {
-            Input::File(path) => Some(path),
+            Input::File(path) | Input::Url(path) => Some(path),
             _ => None,
         }
     }
 
     pub fn enclosed_name(&self) -> &str {
         match self {
-            Self::File(filename)
-            | Self::Url(filename) => filename.to_str().unwrap_or("_"),
+            Self::File(filename) | Self::Url(filename) => filename.to_str().unwrap_or("_"),
             Self::REPL | Self::DummyREPL(_) | Self::Pipe(_) => "<stdin>",
             Self::Str(_) => "<string>",
             Self::Dummy => "<dummy>",
@@ -103,8 +113,7 @@ impl Input {
 
     pub fn full_path(&self) -> &str {
         match self {
-            Self::File(filename)
-            | Self::Url(filename) => filename.to_str().unwrap_or("_"),
+            Self::File(filename) | Self::Url(filename) => filename.to_str().unwrap_or("_"),
             Self::REPL | Self::DummyREPL(_) | Self::Pipe(_) => "stdin",
             Self::Str(_) => "string",
             Self::Dummy => "dummy",
@@ -113,8 +122,9 @@ impl Input {
 
     pub fn file_stem(&self) -> &str {
         match self {
-            Self::File(filename)
-            | Self::Url(filename) => filename.file_stem().and_then(|f| f.to_str()).unwrap_or("_"),
+            Self::File(filename) | Self::Url(filename) => {
+                filename.file_stem().and_then(|f| f.to_str()).unwrap_or("_")
+            }
             Self::REPL | Self::DummyREPL(_) | Self::Pipe(_) => "stdin",
             Self::Str(_) => "string",
             Self::Dummy => "dummy",
@@ -123,8 +133,9 @@ impl Input {
 
     pub fn filename(&self) -> &str {
         match self {
-            Self::File(filename)
-            | Self::Url(filename) => filename.file_name().and_then(|f| f.to_str()).unwrap_or("_"),
+            Self::File(filename) | Self::Url(filename) => {
+                filename.file_name().and_then(|f| f.to_str()).unwrap_or("_")
+            }
             Self::REPL | Self::DummyREPL(_) | Self::Pipe(_) => "stdin",
             Self::Str(_) => "string",
             Self::Dummy => "dummy",

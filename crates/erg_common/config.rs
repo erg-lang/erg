@@ -175,10 +175,16 @@ impl ErgConfig {
     }
 
     pub fn inherit(&self, path: PathBuf) -> Self {
-        let path = normalize_path(path);
+        let module = Box::leak(path.to_str().unwrap().to_string().into_boxed_str());
+        let input = if path.starts_with("http://") || path.starts_with("https://") {
+            Input::Url(path)
+        } else {
+            let path = normalize_path(path);
+            Input::File(path)
+        };
         Self {
-            module: Box::leak(path.to_str().unwrap().to_string().into_boxed_str()),
-            input: Input::File(path),
+            module,
+            input,
             ..self.copy()
         }
     }

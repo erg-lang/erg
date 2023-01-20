@@ -2083,6 +2083,25 @@ impl Context {
         }
     }
 
+    #[cfg(feature = "no_std")]
+    pub(crate) fn resolve_decl_path(_cfg: &ErgConfig, path: &Path) -> Option<PathBuf> {
+        use erg_common::input::exists_url;
+        let url = erg_pystd_path().join(format!("{}.d.er", path.display()));
+        if exists_url(&url) {
+            Some(url)
+        } else {
+            let url = erg_pystd_path()
+                .join(format!("{}.d", path.display()))
+                .join("__init__.d.er");
+            if exists_url(&url) {
+                Some(url)
+            } else {
+                None
+            }
+        }
+    }
+
+    #[cfg(not(feature = "no_std"))]
     pub(crate) fn resolve_decl_path(cfg: &ErgConfig, path: &Path) -> Option<PathBuf> {
         if let Ok(path) = cfg.input.local_resolve(path) {
             Some(path)

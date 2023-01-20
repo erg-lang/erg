@@ -1387,9 +1387,10 @@ impl Context {
         Str::from(name)
     }
 
-    fn get_path(&self, mod_name: &Literal, __name__: Str) -> CompileResult<PathBuf> {
+    fn get_py_path(&self, mod_name: &Literal, __name__: Str) -> CompileResult<PathBuf> {
         match Self::resolve_decl_path(&self.cfg, Path::new(&__name__[..])) {
             Some(path) => {
+                #[cfg(not(feature = "no_std"))]
                 if let Ok(first_line) = std::fs::File::open(&path).and_then(|f| {
                     let mut line = "".to_string();
                     std::io::BufReader::new(f).read_line(&mut line)?;
@@ -1414,6 +1415,7 @@ impl Context {
                 Ok(path)
             }
             None => {
+                #[cfg(not(feature = "no_std"))]
                 if let Ok(path) = self.try_gen_py_decl_file(&__name__) {
                     return Ok(path);
                 }
@@ -1462,7 +1464,7 @@ impl Context {
     fn import_py_mod(&self, mod_name: &Literal) -> CompileResult<PathBuf> {
         let __name__ = enum_unwrap!(mod_name.value.clone(), ValueObj::Str);
         let py_mod_cache = self.py_mod_cache().unwrap();
-        let path = self.get_path(mod_name, __name__)?;
+        let path = self.get_py_path(mod_name, __name__)?;
         if py_mod_cache.get(&path).is_some() {
             return Ok(path);
         }

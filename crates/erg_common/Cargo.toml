@@ -20,7 +20,7 @@ large_thread = []
 els = []
 py_compatible = []
 no_std = []
-input_url = ["dep:ureq"]
+input_url = ["dep:ehttp"]
 
 [target.'cfg(unix)'.dependencies]
 libc = { version = "0.2", default-features = false }
@@ -31,7 +31,7 @@ hermit-abi = "0.1.6"
 version = "0.3"
 features = ["consoleapi"]
 [dependencies]
-ureq = { version = "2", optional = true }
+ehttp = { version = "0.2", optional = true }
 
 [lib]
 path = "lib.rs"
