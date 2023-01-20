@@ -1,10 +1,19 @@
 # Python 字节码指令
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/python/bytecode_instructions.md%26commit_hash%3Dd15cbbf7b33df0f78a575cff9679d84c36ea3ab1)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/python/bytecode_instructions.md&commit_hash=d15cbbf7b33df0f78a575cff9679d84c36ea3ab1)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/python/bytecode_instructions.md%26commit_hash%3Dfd60746f6adcd0c9898d56e9fceca5dab5a0a927)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/python/bytecode_instructions.md&commit_hash=fd60746f6adcd0c9898d56e9fceca5dab5a0a927)
 
 Python 字节码变量操作命令通过 名称索引(名称索引)访问。这是为了在 Python 中实现动态变量访问(可以使用 eval 等作为字符串访问)
 一条指令为 2 个字节，指令和参数以 little endian 形式存储
 不带参数的指令也使用 2 个字节(参数部分为 0)
+
+* 3.11的改动:指令不再是固定长度，一些指令超过2字节。在大多数情况下，额外的字节序列为零，其目的未知，但它被认为是一个优化选项。已知的不规则字节长度指令如下。
+  * `PRECALL` (4 bytes)
+  * `CALL` (10 byte)
+  * `BINARY_OP` (4 byte)
+  * `STORE_ATTR` (10 byte)
+  * `COMPARE_OP` (6 byte)
+  * `LOAD_GLOBAL` (12 byte)
+  * `LOAD_ATTR` (10 byte)
 
 ## STORE_NAME(名称索引)
 
