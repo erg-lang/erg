@@ -1,6 +1,7 @@
 mod completion;
 mod definition;
 mod diagnostics;
+mod file_cache;
 mod hir_visitor;
 mod hover;
 mod inlay_hint;
