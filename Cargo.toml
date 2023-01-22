@@ -20,7 +20,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.6.2"
+version = "0.6.3"
 authors = ["erg-lang team <moderation.erglang@gmail.com>"]
 license = "MIT OR Apache-2.0"
 edition = "2021"
@@ -61,10 +61,10 @@ py_compatible = ["erg_compiler/py_compatible", "els/py_compatible"]
 els = ["erg_common/els", "erg_compiler/els", "dep:els"]
 
 [workspace.dependencies]
-erg_common = { version = "0.6.2", path = "./crates/erg_common" }
-erg_parser = { version = "0.6.2", path = "./crates/erg_parser" }
-erg_compiler = { version = "0.6.2", path = "./crates/erg_compiler" }
-els = { version = "0.1.14", path = "./crates/els" }
+erg_common = { version = "0.6.3", path = "./crates/erg_common" }
+erg_parser = { version = "0.6.3", path = "./crates/erg_parser" }
+erg_compiler = { version = "0.6.3", path = "./crates/erg_compiler" }
+els = { version = "0.1.15", path = "./crates/els" }
 
 [dependencies]
 erg_common = { workspace = true }
