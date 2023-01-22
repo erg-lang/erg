@@ -122,7 +122,8 @@ impl<Checker: BuildRunnable> Server<Checker> {
         result.capabilities.text_document_sync =
             Some(TextDocumentSyncCapability::from(TextDocumentSyncKind::FULL));
         let mut comp_options = CompletionOptions::default();
-        comp_options.trigger_characters = Some(vec![".".to_string(), ":".to_string()]);
+        comp_options.trigger_characters =
+            Some(vec![".".to_string(), ":".to_string(), "(".to_string()]);
         result.capabilities.completion_provider = Some(comp_options);
         result.capabilities.rename_provider = Some(OneOf::Left(true));
         result.capabilities.references_provider = Some(OneOf::Left(true));
