@@ -4,6 +4,7 @@
 
 * Use `log!` for output for debugging (use `println!` etc. for output processing that is also necessary for release).
 * Unused or internal variables/methods (private and used only for specific functions) must be prefixed with `_`. If you want to avoid conflicts with reserved words, add one `_` to the end.
+* Use clippy. However, some rules are not reasonable, so you can ignore rules other than `deny` by using `#[allow(clippy::...)]`.
 
 ## Recommended code
 
@@ -21,3 +22,9 @@
 
 * Define unused helper methods.
 * Use `unwrap` and `clone` a lot. In some cases there is nothing better than doing so.
+
+## Dependencies
+
+Dependencies should be minimized as much as possible, and those that are necessary should be implemented by the Erg developing team. External dependencies are allowed only if they are extremely difficult to implement or hardware-dependent (e.g. `libc`, `winapi`), or crate without external dependencies may be used (e.g. `unicode-xid`). Otherwise, they may be allowed as optional dependencies (e.g. https client). In all cases, well-maintained and widely-used ones should be selected.
+
+This rule applies only to the Erg compiler; Erg tools and libraries are free to add their own dependencies.

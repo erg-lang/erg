@@ -10,11 +10,14 @@ ELS is a language server for the [Erg](https://github.com/erg-lang/erg) programm
   - [x] Method/attribute completion
 - [x] Diagnostics
 - [x] Hover
-- [x] Jump to definition
-- [x] List / Jump to references
+- [x] Go to definition
+- [ ] Go to implementation
+- [x] Find references
 - [x] Renaming
 - [x] Inlay hint
 - [x] Semantic tokens
+- [ ] Code actions
+- [ ] Code lens
 
 ## Installation
 
