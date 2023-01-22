@@ -195,10 +195,10 @@ impl LexError {
             "english" => "invalid syntax",
         );
         let hint = switch_lang!(
-            "japanese" => "`;`を追加するか改行をしてください",
-            "simplified_chinese" => "`;`或应添加换行符",
-            "traditional_chinese" => "`;`或應添加換行",
-            "english" => "`;` or newline should be added",
+            "japanese" => "セミコロンを追加するか改行をしてください",
+            "simplified_chinese" => "分号或应添加换行符",
+            "traditional_chinese" => "分號或應添加換行",
+            "english" => "semicolon or newline should be added",
         )
         .to_string();
         Self::syntax_error(errno, loc, msg, Some(hint))
@@ -336,10 +336,10 @@ impl LexError {
         Self::new(ErrorCore::new(
             vec![SubMessage::only_loc(loc)],
             switch_lang!(
-                "japanese" => "@サインの後ろに不正な構文があります",
-                "simplified_chinese" => "无效的语法",
-                "traditional_chinese" => "無效的語法",
-                "english" => "invalid syntax after @sign",
+                "japanese" => "アットマークの後ろに不正な構文があります",
+                "simplified_chinese" => "at 符号后的语法无效",
+                "traditional_chinese" => "at 符號後的語法無效",
+                "english" => "invalid syntax after at-sign",
             ),
             errno,
             SyntaxError,
@@ -412,7 +412,7 @@ impl LexError {
         Self::new(ErrorCore::new(vec![sub], msg, errno, SyntaxError, loc))
     }
 
-    pub fn expect_default_parameter(errno: usize, loc: Location) -> ParseError {
+    pub fn invalid_non_default_parameter(errno: usize, loc: Location) -> ParseError {
         let msg = switch_lang!(
             "japanese" => "非デフォルト引数はデフォルト引数の後に指定できません",
             "simplified_chinese" => "默认实参后面跟着非默认实参",
@@ -434,11 +434,15 @@ impl LexError {
     pub fn expect_dict_key(errno: usize, loc: Location) -> ParseError {
         let msg = switch_lang!(
             "japanese" => "無効な辞書型の要素の宣言です",
+            "simplified_chinese" => "无效的字典类型声明",
+            "traditional_chinese" => "无效的字典类型声明",
             "english" => "invalid declaration of dict type",
         );
         let colon = StyledStr::new(":", Some(HINT), Some(ATTR));
         let hint = switch_lang!(
             "japanese" => format!("{colon}を追加する必要があります"),
+            "simplified_chinese" => format!("{colon}应该被添加"),
+            "traditional_chinese" => format!("{colon}應該被添加"),
             "english" => format!("{colon} should be added"),
         );
         Self::syntax_error(errno, loc, msg, Some(hint))
@@ -521,8 +525,8 @@ impl LexError {
         let sub_msg = SubMessage::ambiguous_new(loc, vec![expect.to_string()], None);
         let main_msg = switch_lang!(
             "japanese" => "クラスメソッドの定義が必要です",
-            "simplified_chinese" => "クラスメソッドの定義が必要です",
-            "traditional_chinese" => "クラスメソッドの定義が必要です",
+            "simplified_chinese" => "需要类方法定义",
+            "traditional_chinese" => "需要類方法定義",
             "english" => "class method definitions are needed",
         );
         Self::new(ErrorCore::new(
@@ -622,8 +626,8 @@ impl LexError {
     pub fn expect_type_specified(errno: usize, loc: Location) -> ParseError {
         let msg = switch_lang!(
             "japanese" => "型指定が不正です",
-            "traditional_chinese" => "",
-            "simplified_chinese" => "",
+            "traditional_chinese" => "无效的类型说明",
+            "simplified_chinese" => "無效的類型說明",
             "english" => "invalid type specification",
         );
         Self::syntax_error(errno, loc, msg, None)

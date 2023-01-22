@@ -743,8 +743,8 @@ impl Parser {
                         log!(err "error caused by: {caused_by}");
                         let hint = switch_lang!(
                             "japanese" => "カンマの代わりに要素か右括弧を追加してください",
-                            "simplified_chinese" => "",
-                            "traditional_chinese" => "",
+                            "simplified_chinese" => "而不是逗号，应该添加一个元素",
+                            "traditional_chinese" => "而不是逗號，應該添加一個元素",
                             "english" => "instead of comma, a element should be added",
                         );
                         let err = ParseError::invalid_seq_elems_error(
@@ -1052,8 +1052,8 @@ impl Parser {
                                     log!(err "error caused by: {caused_by}");
                                     let hint = switch_lang!(
                                     "japanese" => "カンマの代わりに要素を追加してください",
-                                    "simplified_chinese" => "",
-                                    "traditional_chinese" => "",
+                                    "simplified_chinese" => "而不是逗号，应该添加一个元素",
+                                    "traditional_chinese" => "而不是逗號，應該添加一個元素",
                                     "english" => "instead of comma, a element should be added",
                                     );
                                     let err = ParseError::invalid_seq_elems_error(
@@ -1140,7 +1140,7 @@ impl Parser {
                 } else {
                     let caused_by = caused_by!();
                     log!(err "error caused by: {caused_by}");
-                    let err = ParseError::expect_default_parameter(line!() as usize, t.loc());
+                    let err = ParseError::invalid_non_default_parameter(line!() as usize, t.loc());
                     self.errs.push(err);
                     self.next_expr();
                     debug_exit_info!(self);
@@ -1150,7 +1150,7 @@ impl Parser {
             Some(lit) if lit.category_is(TC::Literal) => {
                 let caused_by = caused_by!();
                 log!(err "error caused by: {caused_by}");
-                let err = ParseError::expect_default_parameter(line!() as usize, lit.loc());
+                let err = ParseError::invalid_non_default_parameter(line!() as usize, lit.loc());
                 self.errs.push(err);
                 self.next_expr();
                 debug_exit_info!(self);
@@ -1195,6 +1195,8 @@ impl Parser {
                 log!(err "error caused by: {caused_by}");
                 let hint = switch_lang!(
                     "japanese" => "メソッドか属性値のみ定義できます",
+                    "simplified_chinese" => "可以定义方法或属性值",
+                    "traditional_chinese" => "可以定義方法或屬性值",
                     "english" => "method or attribute value can be defined",
                 )
                 .to_string();
@@ -1842,19 +1844,7 @@ impl Parser {
                 } else {
                     let caused_by = caused_by!();
                     log!(err "error caused by: {caused_by}");
-                    let msg = switch_lang!(
-                        "japanese" => "不正なデフォルト引数です",
-                        "simplified_chinese" => "无效的默认参数",
-                        "traditional_chinese" => "無效的默認參數",
-                        "english" => "invalid default parameter",
-                    );
-                    let err = ParseError::invalid_token_error(
-                        line!() as usize,
-                        tasc.loc(),
-                        msg,
-                        "keyword",
-                        "",
-                    );
+                    let err = ParseError::expect_keyword(line!() as usize, tasc.loc());
                     self.errs.push(err);
                     self.next_expr();
                     debug_exit_info!(self);
@@ -2328,6 +2318,8 @@ impl Parser {
                     t.loc(),
                     switch_lang!(
                         "japanese" => "無効なレコード型の宣言です",
+                        "simplified_chinese" => "无效的记录类型定义",
+                        "traditional_chinese" => "無效的記錄類型定義",
                         "english" => "invalid record type definition",
                     ),
                     "}",
@@ -2359,6 +2351,8 @@ impl Parser {
                     t.loc(),
                     switch_lang!(
                         "japanese" => "無効な辞書型の宣言です",
+                        "simplified_chinese" => "",
+                        "traditional_chinese" => "",
                         "english" => "invalid dict type definition",
                     ),
                     "}",
@@ -2460,9 +2454,9 @@ impl Parser {
                     match self.peek() {
                         Some(t) if t.is(Semi) => {
                             let hint = switch_lang!(
-                                "japanese" => ";の代わりに要素",
-                                "simplified_chinese" => "",
-                                "traditional_chinese" => "",
+                                "japanese" => "セミコロンの代わりに要素",
+                                "simplified_chinese" => "而不是分号，元素",
+                                "traditional_chinese" => "而不是分號，元素",
                                 "english" => "instead of semicolon, element",
                             );
                             let err = ParseError::invalid_seq_elems_error(
@@ -2561,8 +2555,8 @@ impl Parser {
                             log!(err "error caused by: {caused_by}");
                             let hint = switch_lang!(
                                 "japanese" => "カンマの代わりに要素",
-                                "simplified_chinese" => "",
-                                "traditional_chinese" => "",
+                                "simplified_chinese" => "一个元素",
+                                "traditional_chinese" => "一個元素",
                                 "english" => "a element",
                             );
                             let err = ParseError::invalid_seq_elems_error(
@@ -2673,8 +2667,8 @@ impl Parser {
                             log!(err "error caused by: {caused_by}");
                             let hint = switch_lang!(
                                     "japanese" => "カンマの代わりに要素",
-                                    "simplified_chinese" => "",
-                                    "traditional_chinese" => "",
+                                    "simplified_chinese" => "而不是逗号，一个元素",
+                                    "traditional_chinese" => "而不是逗號，一個元素",
                                     "english" => "instead of comma, a element",
                             );
                             let err = ParseError::invalid_seq_elems_error(
@@ -2739,8 +2733,8 @@ impl Parser {
                     log!(err "error caused by: {caused_by}");
                     let hint = switch_lang!(
                         "japanese" => "セミコロンか括弧",
-                        "simplified_chinese" => "",
-                        "traditional_chinese" => "",
+                        "simplified_chinese" => "分号或右括号",
+                        "traditional_chinese" => "分號或右括號",
                         "english" => "semicolon or right bracket",
                     );
                     let err = ParseError::invalid_seq_elems_error(
@@ -2786,8 +2780,8 @@ impl Parser {
                         log!(err "error caused by: {caused_by}");
                         let hint = switch_lang!(
                             "japanese" => "カンマの代わりに要素",
-                            "simplified_chinese" => "",
-                            "traditional_chinese" => "",
+                            "simplified_chinese" => "代替逗号，一个元素",
+                            "traditional_chinese" => "代替逗號，一個元素",
                             "english" => "instead of a comma, a element",
                         );
                         let err = ParseError::invalid_seq_elems_error(
