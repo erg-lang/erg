@@ -1489,11 +1489,7 @@ impl_stream_for_wrapper!(Block, Expr);
 
 impl Locational for Block {
     fn loc(&self) -> Location {
-        if self.0.is_empty() {
-            Location::Unknown
-        } else {
-            Location::concat(self.0.first().unwrap(), self.0.last().unwrap())
-        }
+        Location::stream(&self.0)
     }
 }
 
@@ -1545,11 +1541,7 @@ impl_stream_for_wrapper!(Dummy, Expr);
 
 impl Locational for Dummy {
     fn loc(&self) -> Location {
-        if self.0.is_empty() {
-            Location::Unknown
-        } else {
-            Location::concat(self.0.first().unwrap(), self.0.last().unwrap())
-        }
+        Location::stream(&self.0)
     }
 }
 
@@ -2435,7 +2427,7 @@ impl fmt::Display for Module {
 
 impl Locational for Module {
     fn loc(&self) -> Location {
-        Location::concat(self.0.first().unwrap(), self.0.last().unwrap())
+        Location::stream(&self.0)
     }
 }
 

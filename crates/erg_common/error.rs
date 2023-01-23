@@ -270,6 +270,19 @@ impl Location {
         }
     }
 
+    pub fn stream<L: Locational>(ls: &[L]) -> Self {
+        if ls.is_empty() {
+            return Self::Unknown;
+        };
+        let Some(first_known) = ls.iter().find(|l| !l.loc().is_unknown()) else {
+            return Self::Unknown;
+        };
+        let Some(last_known) = ls.iter().rev().find(|l| !l.loc().is_unknown()) else {
+            return Self::Unknown;
+        };
+        Self::concat(first_known, last_known)
+    }
+
     pub const fn range(ln_begin: u32, col_begin: u32, ln_end: u32, col_end: u32) -> Self {
         Self::Range {
             ln_begin,

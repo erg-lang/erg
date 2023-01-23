@@ -100,10 +100,15 @@ impl<Checker: BuildRunnable> Server<Checker> {
 
     fn get_subr_def_hint(&self, def: &Def) -> Vec<InlayHint> {
         let mut result = vec![];
+        result.extend(self.get_block_hint(&def.body.block));
         let Signature::Subr(subr) = &def.sig else { unreachable!() };
         let subr_t = subr.ident.ref_t();
-        let nd_ts = subr_t.non_default_params().unwrap();
-        let d_ts = subr_t.default_params().unwrap();
+        let Some(nd_ts) = subr_t.non_default_params() else {
+            return result;
+        };
+        let Some(d_ts) = subr_t.default_params() else {
+            return result;
+        };
         for (nd_param, nd_t) in subr.params.non_defaults.iter().zip(nd_ts) {
             if nd_param.t_spec.is_some() {
                 continue;
@@ -129,7 +134,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
             result.push(hint);
         }
         if def.sig.t_spec().is_none() {
-            let return_t = subr_t.return_t().unwrap();
+            let Some(return_t) = subr_t.return_t() else {
+                return result;
+            };
             let hint = type_anot(
                 def.sig.ln_end().unwrap(),
                 def.sig.col_end().unwrap(),
@@ -146,7 +153,6 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 result.push(hint);
             }
         }
-        result.extend(self.get_block_hint(&def.body.block));
         result
     }
 
@@ -223,8 +229,12 @@ impl<Checker: BuildRunnable> Server<Checker> {
 
     fn get_call_hint(&self, call: &Call) -> Vec<InlayHint> {
         let mut result = vec![];
-        let call_t = call.signature_t().unwrap();
-        let param_ts = call_t.non_var_params().unwrap();
+        let Some(call_t) = call.signature_t() else {
+            return vec![];
+        };
+        let Some(param_ts) = call_t.non_var_params() else {
+            return vec![];
+        };
         let is_method = call.is_method_call();
         for (i, pos_arg) in call.args.pos_args.iter().enumerate() {
             let arg_is_lambda = matches!(&pos_arg.expr, Expr::Lambda(_));
