@@ -14,7 +14,6 @@ use std::path::PathBuf;
 
 use erg_common::config::ErgConfig;
 use erg_common::dict;
-use erg_common::env::erg_pystd_path;
 use erg_common::error::Location;
 use erg_common::fresh::fresh_varname;
 #[allow(unused_imports)]
@@ -414,7 +413,7 @@ const KW_SUPER: &str = "Super";
 
 #[cfg(not(feature = "no_std"))]
 pub fn builtins_path() -> PathBuf {
-    erg_pystd_path().join("builtins.d.er")
+    erg_common::env::erg_pystd_path().join("builtins.d.er")
 }
 #[cfg(feature = "no_std")]
 pub fn builtins_path() -> PathBuf {

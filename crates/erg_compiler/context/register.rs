@@ -12,7 +12,7 @@ use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Visibility;
 use erg_common::{enum_unwrap, get_hash, log, set};
-use erg_common::{fn_name, Str};
+use erg_common::Str;
 
 use ast::{Decorator, DefId, Identifier, OperationKind, SimpleTypeSpec, VarName};
 use erg_parser::ast::{self, ConstIdentifier};
@@ -599,14 +599,12 @@ impl Context {
     ) -> TyCheckResult<()> {
         // already defined as const
         if ident.is_const() {
-            let Some(vi) = self.decls.remove(ident.inspect()) else {
-                return Err(TyCheckErrors::from(TyCheckError::unreachable(
-                    self.cfg.input.clone(),
-                    fn_name!(),
-                    line!(),
-                )));
-            };
-            self.locals.insert(ident.name.clone(), vi);
+            if let Some(vi) = self.decls.remove(ident.inspect()) {
+                self.locals.insert(ident.name.clone(), vi);
+            } else {
+                log!(err "not found: {}", ident.name);
+                return Ok(());
+            }
         }
         let muty = if ident.is_const() {
             Mutability::Const

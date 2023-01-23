@@ -133,6 +133,8 @@ impl Context {
             Accessor::Ident(ident) => {
                 if let Some(val) = self.rec_get_const_obj(ident.inspect()) {
                     Ok(val.clone())
+                } else if self.kind.is_subr() {
+                    feature_error!(self, ident.loc(), "const parameters")
                 } else if ident.is_const() {
                     Err(EvalErrors::from(EvalError::no_var_error(
                         self.cfg.input.clone(),
