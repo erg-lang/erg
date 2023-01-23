@@ -1,11 +1,12 @@
 # Rust 代碼指南
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/dev_guide/rust_code_guideline.md%26commit_hash%3Dd15cbbf7b33df0f78a575cff9679d84c36ea3ab1)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/dev_guide/rust_code_guideline.md&commit_hash=d15cbbf7b33df0f78a575cff9679d84c36ea3ab1)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/dev_guide/rust_code_guideline.md%26commit_hash%3Dc1f43472c254e4c22f936b0f9157fc2ee3189697)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/dev_guide/rust_code_guideline.md&commit_hash=c1f43472c254e4c22f936b0f9157fc2ee3189697)
 
 ## 本地規則
 
 * 使用 `log!` 進行調試輸出(使用 `println!` 等進行輸出處理，這也是發布所必需的)
-* 未使用或內部變量/方法(私有且僅用于特定功能)必須以 `_` 為前綴。如果要避免與保留字沖突，請在末尾添加一個`_`
+* 未使用或內部變量/方法(私有且僅用於特定功能)必須以 `_` 為前綴。如果要避免與保留字沖突，請在末尾添加一個`_`
+* 使用clippy。然而，有些規則是不合理的，所以你可以使用`#[allow(clippy::…)]`來忽略除「deny」之外的規則。
 
 ## 推薦代碼
 
@@ -22,4 +23,10 @@
 ## 根據上下文做出決策的代碼
 
 * 定義未使用的輔助方法
-* 大量使用 `unwrap` 和 `clone`。在某些情況下，沒有什么比這樣做更好的了。
+* 大量使用 `unwrap` 和 `clone`。在某些情況下，沒有什麽比這樣做更好的了。
+
+## 依賴關系
+
+依賴關系應該盡可能地最小化，那些必要的依賴關系應該由Erg開發團隊來實現。只有當外部依賴很難實現或依賴於硬件時才允許使用。例如：`libc`， `winapi`)，或者沒有外部依賴的crate(例如:`unicode-xid`)。否則，它們可能被允許作為可選依賴項(例如https客戶端)。在任何情況下，都應選擇保養良好和廣泛使用的
+
+此規則僅適用於Erg編譯器, Erg工具和庫可以自由添加它們自己的依賴項。

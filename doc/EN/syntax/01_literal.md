@@ -45,7 +45,7 @@ assert "1 + 1 is 2" == "\{1} + \{1} is \{1+1}"
 Documentation comments are also treated as string literals, so string interpolation can be used.
 This is expanded at compile time. You will be warned if you embed an expression that cannot be determined at compile time.
 
-````python
+```python
 PI = 3.14159265358979323
 '''
 S(r) = 4 × \{PI} × r^2
