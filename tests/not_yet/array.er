@@ -3,7 +3,7 @@ mut_content_arr = [1, 2, 3, 4, 5].into [Int!; 5]
 telescoping_arr = [1, 2, 3, 4, 5].into [Int; !5]
 mut_arr = [1, 2, 3, 4, 5].into [Int!; !5]
 
-mut_content_arr.map!(x -> x + 1)
+mut_content_arr.map! x -> x + 1
 # A mutable array class inherits an immutable array class, so a mutable array can compare with an immutable array
 assert mut_content_arr == [2, 3, 4, 5, 6]
 # This is invalid: telescoping_arr.map!(x -> x + 1)
