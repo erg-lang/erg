@@ -6,25 +6,7 @@ on:
       - "doc/**"
 
 jobs:
-  update-summary:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: doc
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-python@v4
-        with:
-          python-version: "3.11"
-      - run: |
-          python scripts/sync_to_summary.py
-      - run: |
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add .
-          git diff-index --quiet HEAD || git commit -m "Automatic update \`SUMMARY.md\`"
-          git push
-  update-translation_status:
+  automatic-update:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -36,11 +18,20 @@ jobs:
           python-version: "3.11"
       - uses: erg-lang/setup-erg@v2.1
       - run: |
-          erg --version
-          erg scripts/sync_to_translation_status.er
-      - run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+      - name: update summary
+        run: |
+          python scripts/sync_to_summary.py
+
+          git add .
+          git diff-index --quiet HEAD || git commit -m "Automatic update \`SUMMARY.md\`"
+      - name: update translation_status
+        run: |
+          erg --version
+          erg scripts/sync_to_translation_status.er
+
           git add .
           git diff-index --quiet HEAD || git commit -m "Automatic update \`translation_status\`"
+      - run: |
           git push
