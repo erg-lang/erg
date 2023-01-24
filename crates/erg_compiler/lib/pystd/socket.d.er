@@ -70,6 +70,14 @@
 .SO_VM_SOCKETS_BUFFER_MIN_SIZE: Nat
 .SO_VM_SOCKETS_BUFFER_SIZE: Nat
 
+.SocketKind: ClassType
+.SocketKind <: Nat
+.SOCK_DGRAM: .SocketKind
+.SOCK_RAW: .SocketKind
+.SOCK_RDM: .SocketKind
+.SOCK_SEQPACKET: .SocketKind
+.SOCK_STREAM: .SocketKind
+
 .SOL_ALG: Nat
 .SOL_CAN_BASE: Nat
 .SOL_CAN_RAW: Nat
