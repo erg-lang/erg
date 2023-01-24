@@ -2,7 +2,6 @@ name: Docs
 
 on:
   push:
-    branches: [main]
     paths:
       - "doc/**"
 
@@ -24,4 +23,24 @@ jobs:
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add .
           git diff-index --quiet HEAD || git commit -m "Automatic update \`SUMMARY.md\`"
+          git push
+  update-translation_status:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: doc
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      - uses: erg-lang/setup-erg@v2.1
+      - run: |
+          erg --version
+          erg scripts/sync_to_translation_status.er
+      - run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add .
+          git diff-index --quiet HEAD || git commit -m "Automatic update \`translation_status\`"
           git push
