@@ -1,2 +1,84 @@
+.AddressFamily: ClassType
+.AddressFamily <: Nat
+.AF_ALG: .AddressFamily # unix only
+.AF_APPLETALK: .AddressFamily
+.AF_ASH: .AddressFamily # unix only
+.AF_ATMPVC: .AddressFamily # unix only
+.AF_ATMSVC: .AddressFamily # unix only
+.AF_AX25: .AddressFamily
+.AF_BRIDGE: .AddressFamily # unix only
+.AF_BLUETOOTH: .AddressFamily
+.AF_CAN: .AddressFamily # unix only
+.AF_DECnet: .AddressFamily
+.AF_ECONET: .AddressFamily # unix only
+.AF_INET: .AddressFamily
+.AF_INET6: .AddressFamily
+.AF_IPX: .AddressFamily
+.AF_IRDA: .AddressFamily # unix only
+.AF_KEY: .AddressFamily # unix only
+.AF_LLC: .AddressFamily # unix only
+.AF_NETBEUI: .AddressFamily # unix only
+.AF_NETLINK: .AddressFamily # unix only
+.AF_NETROM: .AddressFamily
+.AF_PACKET: .AddressFamily # unix only
+.AF_PPPOX: .AddressFamily # unix only
+.AF_QIPCRTR: .AddressFamily # unix only
+.AF_RDS: .AddressFamily # unix only
+.AF_ROSE: .AddressFamily
+.AF_ROUTE: .AddressFamily # unix only
+.AF_SECURITY: .AddressFamily # unix only
+.AF_SNA: .AddressFamily
+.AF_TIPC: .AddressFamily # unix only
+.AF_UNIX: .AddressFamily # unix only
+.AF_UNSPEC: .AddressFamily
+.AF_VSOCK: .AddressFamily # unix only
+.AF_WANPIPE: .AddressFamily # unix only
+.AF_X25: .AddressFamily
+
+.SO_ACCEPTCONN: Nat
+.SO_BINDTODEVICE: Nat
+.SO_BROADCAST: Nat
+.SO_DEBUG: Nat
+.SO_DOMAIN: Nat
+.SO_DONTROUTE: Nat
+.SO_ERROR: Nat
+.SO_INCOMING_CPU: Nat
+.SO_J1939_ERRQUEUE: Nat
+.SO_J1939_FILTER: Nat
+.SO_J1939_PROMISC: Nat
+.SO_J1939_SEND_PRIO: Nat
+.SO_KEEPALIVE: Nat
+.SO_LINGER: Nat
+.SO_MARK: Nat
+.SO_OOBINLINE: Nat
+.SO_PASSCRED: Nat
+.SO_PASSSEC: Nat
+.SO_PEERCRED: Nat
+.SO_PEERSEC: Nat
+.SO_PRIORITY: Nat
+.SO_PROTOCOL: Nat
+.SO_RCVBUF: Nat
+.SO_RCVLOWAT: Nat
+.SO_RCVTIMEO: Nat
+.SO_REUSEADDR: Nat
+.SO_REUSEPORT: Nat
+.SO_SNDBUF: Nat
+.SO_SNDLOWAT: Nat
+.SO_SNDTIMEO: Nat
+.SO_TYPE: Nat
+.SO_VM_SOCKETS_BUFFER_MAX_SIZE: Nat
+.SO_VM_SOCKETS_BUFFER_MIN_SIZE: Nat
+.SO_VM_SOCKETS_BUFFER_SIZE: Nat
+
+.SOL_ALG: Nat
+.SOL_CAN_BASE: Nat
+.SOL_CAN_RAW: Nat
+.SOL_IP: Nat
+.SOL_RDS: Nat
+.SOL_SOCKET: Nat
+.SOL_TCP: Nat
+.SOL_TIPC: Nat
+.SOL_UDP: Nat
+
 .Socket!: ClassType
 .Socket!.new: (family := Int, type := Int, proto := Int, fileno: Int or NoneType := NoneType) -> .Socket!

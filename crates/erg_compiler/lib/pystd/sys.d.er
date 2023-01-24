@@ -6,6 +6,16 @@ io = pyimport "io"
 .copyright: Str
 .executable: Str
 .path: Array!(Str, _)
+'''
+* AIX -> 'aix'
+* FreeBSD -> 'freebsd'
+* Emscripten -> 'emscripten'
+* Linux -> 'linux'
+* WASI -> 'wasi'
+* Windows -> 'win32'
+* Windows/Cygwin -> 'cygwin'
+* macOS -> 'darwin'
+'''
 .platform: Str
 .prefix: Str
 .ps1: Str!

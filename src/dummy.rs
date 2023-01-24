@@ -213,6 +213,7 @@ fn find_available_port() -> u16 {
         .is_ok()
         .then_some(DEFAULT_PORT)
         .unwrap_or_else(|| {
+            // localhost:0 will bind to a free port
             let socket = SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0);
             TcpListener::bind(socket)
                 .and_then(|listener| listener.local_addr())
