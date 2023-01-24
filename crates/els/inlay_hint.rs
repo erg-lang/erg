@@ -252,7 +252,10 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 // NG: f(proc:= i: T): U -> ...
                 // OK: f proc:= (i: T): U -> ...
                 let (name, col_begin) = if arg_is_lambda {
-                    (format!(" {name}"), col_begin.saturating_sub(1))
+                    (
+                        format!(" {name}"),
+                        col_begin.saturating_sub(1),
+                    )
                 } else {
                     (name.to_string(), col_begin)
                 };

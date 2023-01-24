@@ -209,9 +209,14 @@ impl DummyVM {
 
 fn find_available_port() -> u16 {
     const DEFAULT_PORT: u16 = 8736;
-    let mut port = DEFAULT_PORT;
-    while TcpListener::bind(SocketAddrV4::new(Ipv4Addr::LOCALHOST, port)).is_err() {
-        port += 1;
-    }
-    port
+    TcpListener::bind(SocketAddrV4::new(Ipv4Addr::LOCALHOST, DEFAULT_PORT))
+        .is_ok()
+        .then_some(DEFAULT_PORT)
+        .unwrap_or_else(|| {
+            let socket = SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0);
+            TcpListener::bind(socket)
+                .and_then(|listener| listener.local_addr())
+                .map(|sock_addr| sock_addr.port())
+                .expect("No free port found.")
+        })
 }

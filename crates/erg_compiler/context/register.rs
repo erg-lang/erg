@@ -11,8 +11,8 @@ use erg_common::python_util::BUILTIN_PYTHON_MODS;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Visibility;
-use erg_common::Str;
 use erg_common::{enum_unwrap, get_hash, log, set};
+use erg_common::Str;
 
 use ast::{Decorator, DefId, Identifier, OperationKind, SimpleTypeSpec, VarName};
 use erg_parser::ast::{self, ConstIdentifier};
