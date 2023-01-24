@@ -1,5 +1,4 @@
 //! バイトコードからオブジェクトを復元する
-use std::process;
 use std::string::FromUtf8Error;
 
 use erg_common::cache::CacheSet;
@@ -8,6 +7,7 @@ use erg_common::dict::Dict;
 use erg_common::error::{ErrorCore, ErrorKind, Location, SubMessage};
 use erg_common::python_util::PythonVersion;
 use erg_common::serialize::DataTypePrefix;
+use erg_common::traits::ExitStatus;
 use erg_common::{fn_name, switch_lang};
 use erg_common::{RcArray, Str};
 
@@ -110,21 +110,23 @@ impl Deserializer {
         }
     }
 
-    pub fn run(cfg: ErgConfig) {
+    pub fn run(cfg: ErgConfig) -> ExitStatus {
         let Input::File(filename) = cfg.input else {
             eprintln!("{:?} is not a filename", cfg.input);
-            process::exit(1);
+            return ExitStatus::ERR1;
         };
         match CodeObj::from_pyc(&filename) {
             Ok(codeobj) => {
                 println!("{}", codeobj.code_info(None));
+                ExitStatus::OK
             }
             Err(e) => {
                 eprintln!(
                     "failed to deserialize {}: {}",
                     filename.to_string_lossy(),
                     e.desc
-                )
+                );
+                ExitStatus::ERR1
             }
         }
     }

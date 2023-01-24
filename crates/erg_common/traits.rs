@@ -503,6 +503,21 @@ fn is_in_the_expected_block(src: &str, lines: &str, in_block: &mut bool) -> bool
     }
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub struct ExitStatus {
+    pub code: i32,
+    pub num_errors: usize,
+}
+
+impl ExitStatus {
+    pub const OK: ExitStatus = ExitStatus::new(0, 0);
+    pub const ERR1: ExitStatus = ExitStatus::new(1, 0);
+
+    pub const fn new(code: i32, num_errors: usize) -> Self {
+        Self { code, num_errors }
+    }
+}
+
 /// This trait implements REPL (Read-Eval-Print-Loop) automatically
 /// The `exec` method is called for file input, etc.
 pub trait Runnable: Sized + Default {
@@ -557,8 +572,9 @@ pub trait Runnable: Sized + Default {
         process::exit(0);
     }
 
-    fn run(cfg: ErgConfig) {
+    fn run(cfg: ErgConfig) -> ExitStatus {
         let quiet_repl = cfg.quiet_repl;
+        let mut num_errors = 0;
         let mut instance = Self::new(cfg);
         let res = match instance.input() {
             Input::File(_) | Input::Pipe(_) | Input::Str(_) => instance.exec(),
@@ -624,8 +640,9 @@ pub trait Runnable: Sized + Default {
                                 .map(|e| e.core().kind == ErrorKind::SystemExit)
                                 .unwrap_or(false)
                             {
-                                instance.quit_successfully(output);
+                                return ExitStatus::new(0, num_errors);
                             }
+                            num_errors += errs.len();
                             errs.fmt_all_stderr();
                         }
                     }
@@ -636,9 +653,13 @@ pub trait Runnable: Sized + Default {
             }
             Input::Dummy => switch_unreachable!(),
         };
-        if let Err(e) = res {
-            e.fmt_all_stderr();
-            instance.quit(1);
+        match res {
+            Err(errs) => {
+                num_errors += errs.len();
+                errs.fmt_all_stderr();
+                ExitStatus::new(1, num_errors)
+            }
+            Ok(i) => ExitStatus::new(i, num_errors),
         }
     }
 }

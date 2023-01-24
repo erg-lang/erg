@@ -6,7 +6,7 @@ use erg_common::error::MultiErrorDisplay;
 use erg_common::python_util::PythonVersion;
 use erg_common::spawn::exec_new_thread;
 use erg_common::style::{GREEN, RESET};
-use erg_common::traits::{Runnable, Stream};
+use erg_common::traits::{ExitStatus, Runnable, Stream};
 
 use erg_compiler::error::CompileErrors;
 
@@ -14,9 +14,9 @@ use erg::DummyVM;
 
 pub(crate) fn expect_repl_success(lines: Vec<String>) -> Result<(), ()> {
     match exec_repl(lines) {
-        Ok(0) => Ok(()),
-        Ok(i) => {
-            println!("err: should succeed, but end with {i}");
+        Ok(ExitStatus::OK) => Ok(()),
+        Ok(stat) => {
+            println!("err: should succeed, but got: {stat:?}");
             Err(())
         }
         Err(errs) => {
@@ -114,21 +114,21 @@ fn _exec_file(file_path: &'static str) -> Result<i32, CompileErrors> {
 }
 
 /// WARN: You must quit REPL manually (use `:exit`, `:quit` or call something shutdowns the interpreter)
-pub fn _exec_repl(lines: Vec<String>) -> Result<i32, CompileErrors> {
+pub fn _exec_repl(lines: Vec<String>) -> Result<ExitStatus, CompileErrors> {
     println!("{GREEN}[test] exec dummy REPL: {lines:?}{RESET}");
     let cfg = ErgConfig {
         input: Input::DummyREPL(DummyStdin::new(lines)),
         quiet_repl: true,
         ..Default::default()
     };
-    <DummyVM as Runnable>::run(set_cfg(cfg));
-    Ok(0)
+    let stat = <DummyVM as Runnable>::run(set_cfg(cfg));
+    Ok(stat)
 }
 
 pub(crate) fn exec_file(file_path: &'static str) -> Result<i32, CompileErrors> {
     exec_new_thread(move || _exec_file(file_path))
 }
 
-pub(crate) fn exec_repl(lines: Vec<String>) -> Result<i32, CompileErrors> {
+pub(crate) fn exec_repl(lines: Vec<String>) -> Result<ExitStatus, CompileErrors> {
     exec_new_thread(move || _exec_repl(lines))
 }
