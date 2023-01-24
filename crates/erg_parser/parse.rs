@@ -278,19 +278,37 @@ impl Parser {
     fn skip_and_throw_invalid_unclosed_err(
         &mut self,
         caused_by: &str,
-        loc: Location,
+        line: u32,
         closer: &str,
         ty: &str,
     ) -> ParseError {
         log!(err "error caused by: {caused_by}");
+        let loc = self.peek().map(|t| t.loc()).unwrap_or_default();
         self.next_expr();
-        ParseError::unclosed_error(line!() as usize, loc, closer, ty)
+        ParseError::unclosed_error(line as usize, loc, closer, ty)
     }
 
-    fn skip_and_throw_invalid_chunk_err(&mut self, caused_by: &str, loc: Location) -> ParseError {
+    fn skip_and_throw_invalid_seq_err(
+        &mut self,
+        caused_by: &str,
+        errno: usize,
+        hint: Option<&str>,
+    ) -> ParseError {
+        log!(err "error caused by: {caused_by}");
+        let loc = self.peek().map(|t| t.loc()).unwrap_or_default();
+        self.next_expr();
+        ParseError::invalid_seq_elems_error(errno, loc, hint)
+    }
+
+    fn skip_and_throw_invalid_chunk_err(
+        &mut self,
+        caused_by: &str,
+        line: u32,
+        loc: Location,
+    ) -> ParseError {
         log!(err "error caused by: {caused_by}");
         self.next_line();
-        ParseError::invalid_chunk_error(line!() as usize, loc)
+        ParseError::invalid_chunk_error(line as usize, loc)
     }
 
     fn get_stream_op_syntax_error(
@@ -439,8 +457,11 @@ impl Parser {
                 Some(_) => {
                     if let Ok(expr) = self.try_reduce_chunk(true, false) {
                         if !self.cur_is(EOF) && !self.cur_category_is(TC::Separator) {
-                            let err =
-                                self.skip_and_throw_invalid_chunk_err(caused_by!(), expr.loc());
+                            let err = self.skip_and_throw_invalid_chunk_err(
+                                caused_by!(),
+                                line!(),
+                                expr.loc(),
+                            );
                             self.errs.push(err);
                         }
                         chunks.push(expr);
@@ -472,8 +493,11 @@ impl Parser {
                 .map_err(|_| self.stack_dec(fn_name!()))?;
             block.push(chunk);
             if !self.cur_is(Dedent) && !self.cur_category_is(TC::Separator) {
-                let err = self
-                    .skip_and_throw_invalid_chunk_err(caused_by!(), block.last().unwrap().loc());
+                let err = self.skip_and_throw_invalid_chunk_err(
+                    caused_by!(),
+                    line!(),
+                    block.last().unwrap().loc(),
+                );
                 debug_exit_info!(self);
                 self.errs.push(err);
             }
@@ -517,8 +541,11 @@ impl Parser {
                 Some(_) => {
                     if let Ok(expr) = self.try_reduce_chunk(true, false) {
                         if !self.cur_is(Dedent) && !self.cur_category_is(TC::Separator) {
-                            let err =
-                                self.skip_and_throw_invalid_chunk_err(caused_by!(), expr.loc());
+                            let err = self.skip_and_throw_invalid_chunk_err(
+                                caused_by!(),
+                                line!(),
+                                expr.loc(),
+                            );
                             debug_exit_info!(self);
                             self.errs.push(err);
                         }
@@ -739,21 +766,18 @@ impl Parser {
                 Some(Comma) => {
                     self.skip();
                     if self.cur_is(Comma) {
-                        let caused_by = caused_by!();
-                        log!(err "error caused by: {caused_by}");
                         let hint = switch_lang!(
                             "japanese" => "カンマの代わりに要素か右括弧を追加してください",
                             "simplified_chinese" => "而不是逗号，应该添加一个元素",
                             "traditional_chinese" => "而不是逗號，應該添加一個元素",
                             "english" => "instead of comma, a element should be added",
                         );
-                        let err = ParseError::invalid_seq_elems_error(
+                        let err = self.skip_and_throw_invalid_seq_err(
+                            caused_by!(),
                             line!() as usize,
-                            self.lpop().loc(),
                             Some(hint),
                         );
                         self.errs.push(err);
-                        self.next_expr();
                         debug_exit_info!(self);
                         return Err(());
                     }
@@ -768,7 +792,7 @@ impl Parser {
                 Some(_other) => {
                     let err = self.skip_and_throw_invalid_unclosed_err(
                         caused_by!(),
-                        self.peek().map(|t| t.loc()).unwrap_or_default(),
+                        line!(),
                         "]",
                         "array type",
                     );
@@ -1048,21 +1072,18 @@ impl Parser {
                                 if let Expr::Accessor(Accessor::Ident(n)) = *tasc.expr {
                                     (n.name.into_token(), Some(tasc.t_spec))
                                 } else {
-                                    let caused_by = caused_by!();
-                                    log!(err "error caused by: {caused_by}");
                                     let hint = switch_lang!(
                                     "japanese" => "カンマの代わりに要素を追加してください",
                                     "simplified_chinese" => "而不是逗号，应该添加一个元素",
                                     "traditional_chinese" => "而不是逗號，應該添加一個元素",
                                     "english" => "instead of comma, a element should be added",
                                     );
-                                    let err = ParseError::invalid_seq_elems_error(
+                                    let err = self.skip_and_throw_invalid_seq_err(
+                                        caused_by!(),
                                         line!() as usize,
-                                        tasc.loc(),
                                         Some(hint),
                                     );
                                     self.errs.push(err);
-                                    self.next_expr();
                                     debug_exit_info!(self);
                                     return Err(());
                                 }
@@ -1265,7 +1286,11 @@ impl Parser {
                     }
                     match self.peek() {
                         Some(t) if !t.is(Dedent) && !t.category_is(TC::Separator) => {
-                            let err = self.skip_and_throw_invalid_chunk_err(caused_by!(), t.loc());
+                            let err = self.skip_and_throw_invalid_chunk_err(
+                                caused_by!(),
+                                line!(),
+                                t.loc(),
+                            );
                             self.errs.push(err);
                             debug_exit_info!(self);
                             return Err(());
@@ -2459,9 +2484,9 @@ impl Parser {
                                 "traditional_chinese" => "而不是分號，元素",
                                 "english" => "instead of semicolon, element",
                             );
-                            let err = ParseError::invalid_seq_elems_error(
+                            let err = self.skip_and_throw_invalid_seq_err(
+                                caused_by!(),
                                 line!() as usize,
-                                t.loc(),
                                 Some(hint),
                             );
                             self.errs.push(err);
@@ -2551,21 +2576,18 @@ impl Parser {
                     self.skip();
                     match self.peek_kind() {
                         Some(Comma) => {
-                            let caused_by = caused_by!();
-                            log!(err "error caused by: {caused_by}");
                             let hint = switch_lang!(
                                 "japanese" => "カンマの代わりに要素",
                                 "simplified_chinese" => "一个元素",
                                 "traditional_chinese" => "一個元素",
                                 "english" => "a element",
                             );
-                            let err = ParseError::invalid_seq_elems_error(
+                            let err = self.skip_and_throw_invalid_seq_err(
+                                caused_by!(),
                                 line!() as usize,
-                                self.lpop().loc(),
                                 Some(hint),
                             );
                             self.errs.push(err);
-                            self.next_expr();
                             debug_exit_info!(self);
                             return Err(());
                         }
@@ -2636,16 +2658,13 @@ impl Parser {
                 .map_err(|_| self.stack_dec(fn_name!()))?;
             let r_brace = self.lpop();
             if !r_brace.is(RBrace) {
-                let caused_by = caused_by!();
-                log!(err "error caused by: {caused_by}");
-                let err = ParseError::unclosed_error(
-                    line!() as usize,
-                    r_brace.loc(),
+                let err = self.skip_and_throw_invalid_unclosed_err(
+                    caused_by!(),
+                    line!(),
                     "}",
                     "set type specification",
                 );
                 self.errs.push(err);
-                self.next_expr();
                 debug_exit_info!(self);
                 return Err(());
             }
@@ -2671,13 +2690,12 @@ impl Parser {
                                     "traditional_chinese" => "而不是逗號，一個元素",
                                     "english" => "instead of comma, a element",
                             );
-                            let err = ParseError::invalid_seq_elems_error(
+                            let err = self.skip_and_throw_invalid_seq_err(
+                                caused_by!(),
                                 line!() as usize,
-                                self.lpop().loc(),
                                 Some(hint),
                             );
                             self.errs.push(err);
-                            self.next_expr();
                             debug_exit_info!(self);
                             return Err(());
                         }
@@ -2729,21 +2747,18 @@ impl Parser {
                     return Ok(set);
                 }
                 Some(_) => {
-                    let caused_by = caused_by!();
-                    log!(err "error caused by: {caused_by}");
                     let hint = switch_lang!(
                         "japanese" => "セミコロンか括弧",
                         "simplified_chinese" => "分号或右括号",
                         "traditional_chinese" => "分號或右括號",
                         "english" => "semicolon or right bracket",
                     );
-                    let err = ParseError::invalid_seq_elems_error(
+                    let err = self.skip_and_throw_invalid_seq_err(
+                        caused_by!(),
                         line!() as usize,
-                        self.lpop().loc(),
                         Some(hint),
                     );
                     self.errs.push(err);
-                    self.next_expr();
                     debug_exit_info!(self);
                     return Err(());
                 }
@@ -2776,21 +2791,18 @@ impl Parser {
                         self.skip();
                     }
                     if self.cur_is(Comma) {
-                        let caused_by = caused_by!();
-                        log!(err "error caused by: {caused_by}");
                         let hint = switch_lang!(
                             "japanese" => "カンマの代わりに要素",
                             "simplified_chinese" => "代替逗号，一个元素",
                             "traditional_chinese" => "代替逗號，一個元素",
                             "english" => "instead of a comma, a element",
                         );
-                        let err = ParseError::invalid_seq_elems_error(
+                        let err = self.skip_and_throw_invalid_seq_err(
+                            caused_by!(),
                             line!() as usize,
-                            self.lpop().loc(),
                             Some(hint),
                         );
                         self.errs.push(err);
-                        self.next_expr();
                         debug_exit_info!(self);
                         return Err(());
                     } else if self.cur_is(Dedent) || self.cur_is(RParen) {
@@ -2866,7 +2878,6 @@ impl Parser {
                     &other.inspect()[..],
                 );
                 self.errs.push(err);
-                self.next_expr();
                 debug_exit_info!(self);
                 Err(())
             }
