@@ -12,28 +12,28 @@ LANGUAGE_SPECIFIC = {
     "EN": {
         SUMMARY_TITLE: "Summary",
         SUMMARY_DESCRIPTION: """\
-This file is generated automatically. If you want to edit this, edit `doc/sync_to_summary.py`
+This file is generated automatically. If you want to edit this, edit `doc/scripts/sync_to_summary.py`
 This file is for generating The Erg Book. Do not add badges, etc.\
 """,
     },
     "JA": {
         SUMMARY_TITLE: "概要",
         SUMMARY_DESCRIPTION: """\
-このファイルは自動生成されます。これを編集したい場合は`doc/sync_to_summary.py`を編集してください。
+このファイルは自動生成されます。これを編集したい場合は`doc/scripts/sync_to_summary.py`を編集してください。
 このファイルはThe Erg Bookを生成するためのものです。バッジなどは付けないでください。\
 """,
     },
     "zh_CN": {
         SUMMARY_TITLE: "Summary",  # TODO: translate
         SUMMARY_DESCRIPTION: """\
-This file is generated automatically. If you want to edit this, edit `doc/syn_to_summary.py`
+This file is generated automatically. If you want to edit this, edit `doc/scripts/sync_to_summary.py`
 This file is for generating The Erg Book. Do not add badges, etc.\
 """,  # TODO: translate
     },
     "zh_TW": {
         SUMMARY_TITLE: "Summary",  # TODO: translate
         SUMMARY_DESCRIPTION: """\
-This file is generated automatically. If you want to edit this, edit `doc/sync_to_summary.py`
+This file is generated automatically. If you want to edit this, edit `doc/scripts/sync_to_summary.py`
 This file is for generating The Erg Book. Do not add badges, etc.\
 """,  # TODO: translate
     },
@@ -83,7 +83,7 @@ def get_summary(
 
 
 def main():
-    os.chdir(os.path.dirname(__file__))
+    os.chdir(os.path.join(os.path.dirname(__file__),"../"))
 
     for language in LANGUAGE_SPECIFIC.keys():
         syntax_base_path = f"./{language}/syntax"

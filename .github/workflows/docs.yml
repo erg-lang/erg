@@ -18,7 +18,7 @@ jobs:
         with:
           python-version: "3.11"
       - run: |
-          python sync_to_summary.py
+          python scripts/sync_to_summary.py
       - run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com

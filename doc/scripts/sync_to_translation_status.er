@@ -1,6 +1,6 @@
 os = pyimport "os"
 re = pyimport "re"
-mylib = pyimport "mylib"
+mylib = pyimport "mylib" # TODO: Make it work without this
 
 LANGUAGES_KEBAB_CASE = ["JA", "zh-TW", "zh-CN"]
 
@@ -51,6 +51,7 @@ doc_en_file_paths = get_doc_en_file_paths! "EN"
 for! LANGUAGES_KEBAB_CASE, lang =>
     result_text = !""
     result_text.update! t -> "# \{lang} translation status\n\n"
+    result_text.update! t -> "\{t}This This file is generated automatically. If you want to edit this, edit [`doc/scripts/sync_to_translation_status.er`](../scripts/sync_to_translation_status.er)\n\n"
     add_table_row_text! left: Str, right: Str =
         result_text.update! t -> "\{t}| \{left} | \{right} |\n"
 
