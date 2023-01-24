@@ -28,9 +28,10 @@ while True:
         __sys.stdout = __io.StringIO()
         try:
             if __already_loaded:
-                __res = str(exec('__importlib.reload(o)'))
+                # __MODULE__ will be replaced with module name
+                __res = str(exec('__importlib.reload(__MODULE__)'))
             else:
-                __res = str(exec('import o'))
+                __res = str(exec('import __MODULE__'))
         except SystemExit:
             __client_socket.send('[Exception] SystemExit'.encode())
             continue
