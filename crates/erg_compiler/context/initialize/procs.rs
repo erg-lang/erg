@@ -116,13 +116,13 @@ impl Context {
         )
         .quantify();
         self.register_builtin_py_impl("dir!", t_dir, Immutable, vis, Some("dir"));
-        self.register_py_builtin("print!", t_print, Some("print"), 27);
+        self.register_py_builtin("print!", t_print, Some("print"), 95);
         self.register_builtin_py_impl("id!", t_id, Immutable, vis, Some("id"));
         self.register_builtin_py_impl("input!", t_input, Immutable, vis, Some("input"));
         self.register_builtin_py_impl("globals!", t_globals, Immutable, vis, Some("globals"));
         self.register_builtin_py_impl("locals!", t_locals, Immutable, vis, Some("locals"));
         self.register_builtin_py_impl("next!", t_next, Immutable, vis, Some("next"));
-        self.register_py_builtin("open!", t_open, Some("open"), 144);
+        self.register_py_builtin("open!", t_open, Some("open"), 212);
         let name = if cfg!(feature = "py_compatible") {
             "if"
         } else {

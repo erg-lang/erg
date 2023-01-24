@@ -217,10 +217,10 @@ impl Context {
             poly(ZIP, vec![ty_tp(T.clone()), ty_tp(U.clone())]),
         )
         .quantify();
-        self.register_builtin_py_impl(FUNC_ABS, t_abs, Immutable, vis, Some(FUNC_ABS));
-        self.register_builtin_py_impl(FUNC_ALL, t_all, Immutable, vis, Some(FUNC_ALL));
-        self.register_builtin_py_impl(FUNC_ANY, t_any, Immutable, vis, Some(FUNC_ANY));
-        self.register_builtin_py_impl(FUNC_ASCII, t_ascii, Immutable, vis, Some(FUNC_ASCII));
+        self.register_py_builtin(FUNC_ABS, t_abs, Some(FUNC_ABS), 17);
+        self.register_py_builtin(FUNC_ALL, t_all, Some(FUNC_ALL), 29);
+        self.register_py_builtin(FUNC_ANY, t_any, Some(FUNC_ANY), 41);
+        self.register_py_builtin(FUNC_ASCII, t_ascii, Some(FUNC_ASCII), 67);
         // Leave as `Const`, as it may negatively affect assert casting.
         self.register_builtin_erg_impl(FUNC_ASSERT, t_assert, Const, vis);
         self.register_builtin_py_impl(FUNC_BIN, t_bin, Immutable, vis, Some(FUNC_BIN));

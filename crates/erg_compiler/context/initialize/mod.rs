@@ -523,7 +523,7 @@ impl Context {
         self.register_builtin_impl(name, t, muty, vis, None, AbsLocation::unknown());
     }
 
-    // TODO: replace with `register_builtins`
+    // TODO: replace with `register_py_builtin`
     fn register_builtin_py_impl(
         &mut self,
         name: &'static str,
