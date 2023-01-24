@@ -1,3 +1,4 @@
+# TODO: support Windows
 os = pyimport "os"
 re = pyimport "re"
 mylib = pyimport "mylib" # TODO: Make it work without this

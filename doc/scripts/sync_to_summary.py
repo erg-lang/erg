@@ -1,5 +1,6 @@
 # This script automatically generates a table of contents (SUMMARY.md) from markdown file titles
 # TODO: rewrite in Erg
+# TODO: support Windows
 
 import os
 import re
