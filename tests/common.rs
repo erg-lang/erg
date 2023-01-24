@@ -12,8 +12,8 @@ use erg_compiler::error::CompileErrors;
 
 use erg::DummyVM;
 
-pub(crate) fn expect_repl_success(lines: Vec<String>) -> Result<(), ()> {
-    match exec_repl(lines) {
+pub(crate) fn expect_repl_success(name: &'static str, lines: Vec<String>) -> Result<(), ()> {
+    match exec_repl(name, lines) {
         Ok(ExitStatus::OK) => Ok(()),
         Ok(stat) => {
             println!("err: should succeed, but got: {stat:?}");
@@ -114,10 +114,10 @@ fn _exec_file(file_path: &'static str) -> Result<i32, CompileErrors> {
 }
 
 /// WARN: You must quit REPL manually (use `:exit`, `:quit` or call something shutdowns the interpreter)
-pub fn _exec_repl(lines: Vec<String>) -> Result<ExitStatus, CompileErrors> {
+pub fn _exec_repl(name: &'static str, lines: Vec<String>) -> Result<ExitStatus, CompileErrors> {
     println!("{GREEN}[test] exec dummy REPL: {lines:?}{RESET}");
     let cfg = ErgConfig {
-        input: Input::DummyREPL(DummyStdin::new(lines)),
+        input: Input::DummyREPL(DummyStdin::new(name.to_string(), lines)),
         quiet_repl: true,
         ..Default::default()
     };
@@ -129,6 +129,9 @@ pub(crate) fn exec_file(file_path: &'static str) -> Result<i32, CompileErrors> {
     exec_new_thread(move || _exec_file(file_path))
 }
 
-pub(crate) fn exec_repl(lines: Vec<String>) -> Result<ExitStatus, CompileErrors> {
-    exec_new_thread(move || _exec_repl(lines))
+pub(crate) fn exec_repl(
+    name: &'static str,
+    lines: Vec<String>,
+) -> Result<ExitStatus, CompileErrors> {
+    exec_new_thread(move || _exec_repl(name, lines))
 }

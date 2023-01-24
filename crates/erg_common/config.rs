@@ -74,13 +74,15 @@ impl fmt::Display for ErgMode {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DummyStdin {
+    pub name: String,
     current_line: usize,
     lines: Vec<String>,
 }
 
 impl DummyStdin {
-    pub fn new(lines: Vec<String>) -> Self {
+    pub fn new(name: String, lines: Vec<String>) -> Self {
         Self {
+            name,
             current_line: 0,
             lines,
         }
@@ -160,7 +162,8 @@ impl Input {
     pub fn filename(&self) -> &str {
         match self {
             Self::File(filename) => filename.file_name().and_then(|f| f.to_str()).unwrap_or("_"),
-            Self::REPL | Self::DummyREPL(_) | Self::Pipe(_) => "stdin",
+            Self::REPL | Self::Pipe(_) => "stdin",
+            Self::DummyREPL(stdin) => &stdin.name,
             Self::Str(_) => "string",
             Self::Dummy => "dummy",
         }
