@@ -35,6 +35,10 @@ pub fn array_mut(elem_t: Type, len: TyParam) -> Type {
     poly("Array!", vec![TyParam::t(elem_t), len])
 }
 
+pub fn unknown_len_array_t(elem_t: Type) -> Type {
+    array_t(elem_t, TyParam::erased(Type::Nat))
+}
+
 pub fn tuple_t(args: Vec<Type>) -> Type {
     poly(
         "Tuple",

@@ -129,10 +129,10 @@ The `log` function, which outputs a log (record) of its arguments, can take any 
 log "Hello", "World", "!" # Hello World !
 ```
 
-To define such a function, add `...` to a parameter. This way, the function receives arguments as a variable-length array.
+To define such a function, add `*` to a parameter. This way, the function receives arguments as a variable-length array.
 
 ```python
-f ...x =
+f *x =
     for x, i ->
         log i
 

@@ -216,15 +216,17 @@ impl CodeObj {
         filename: S,
         name: T,
         firstlineno: u32,
+        flags: u32,
     ) -> Self {
         let name = name.into();
+        let var_args_defined = (flags & CodeObjFlags::VarArgs as u32 != 0) as u32;
         Self {
-            argcount: params.len() as u32,
+            argcount: params.len() as u32 - var_args_defined,
             posonlyargcount: 0,
             kwonlyargcount: 0,
             nlocals: params.len() as u32,
             stacksize: 2, // Seems to be the default in CPython, but not sure why
-            flags: 0,     // CodeObjFlags::NoFree as u32,
+            flags,        // CodeObjFlags::NoFree as u32,
             code: Vec::with_capacity(8),
             consts: Vec::with_capacity(4),
             names: Vec::with_capacity(3),

@@ -17,7 +17,9 @@ use erg_common::{enum_unwrap, get_hash, log, set};
 use ast::{Decorator, DefId, Identifier, OperationKind, SimpleTypeSpec, VarName};
 use erg_parser::ast::{self, ConstIdentifier};
 
-use crate::ty::constructors::{free_var, func, func0, func1, proc, ref_, ref_mut, v_enum};
+use crate::ty::constructors::{
+    free_var, func, func0, func1, proc, ref_, ref_mut, unknown_len_array_t, v_enum,
+};
 use crate::ty::free::{Constraint, FreeKind, HasLevel};
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{HasType, ParamTy, SubrType, Type};
@@ -37,7 +39,7 @@ use Mutability::*;
 use RegistrationMode::*;
 use Visibility::*;
 
-use super::instantiate::TyVarCache;
+use super::instantiate::{ParamKind, TyVarCache};
 
 const UBAR: &Str = &Str::ever("_");
 
@@ -240,14 +242,15 @@ impl Context {
     fn assign_param(
         &mut self,
         sig: &ast::NonDefaultParamSignature,
-        default_val_exists: bool,
         opt_decl_t: Option<&ParamTy>,
+        kind: ParamKind,
     ) -> TyCheckResult<()> {
         let vis = if cfg!(feature = "py_compatible") {
             Public
         } else {
             Private
         };
+        let default = kind.default_info();
         match &sig.pat {
             // Literal patterns will be desugared to discard patterns
             ast::ParamPattern::Lit(_) => unreachable!(),
@@ -257,6 +260,7 @@ impl Context {
                     opt_decl_t,
                     &mut TyVarCache::new(self.level, self),
                     Normal,
+                    kind,
                 )?;
                 let def_id = DefId(get_hash(&(&self.name, "_")));
                 let kind = VarKind::parameter(def_id, DefaultInfo::NonDefault);
@@ -288,8 +292,13 @@ impl Context {
                 } else {
                     // ok, not defined
                     let mut dummy_tv_cache = TyVarCache::new(self.level, self);
-                    let spec_t =
-                        self.instantiate_param_sig_t(sig, opt_decl_t, &mut dummy_tv_cache, Normal)?;
+                    let spec_t = self.instantiate_param_sig_t(
+                        sig,
+                        opt_decl_t,
+                        &mut dummy_tv_cache,
+                        Normal,
+                        kind,
+                    )?;
                     if &name.inspect()[..] == "self" {
                         if let Some(self_t) = self.rec_get_self_t() {
                             self.sub_unify(&spec_t, &self_t, name.loc(), Some(name.inspect()))?;
@@ -297,11 +306,6 @@ impl Context {
                             log!(err "self_t is None");
                         }
                     }
-                    let default = if default_val_exists {
-                        DefaultInfo::WithDefault
-                    } else {
-                        DefaultInfo::NonDefault
-                    };
                     let def_id = DefId(get_hash(&(&self.name, name)));
                     let kind = VarKind::parameter(def_id, default);
                     let muty = Mutability::from(&name.inspect()[..]);
@@ -334,8 +338,13 @@ impl Context {
                 } else {
                     // ok, not defined
                     let mut dummy_tv_cache = TyVarCache::new(self.level, self);
-                    let spec_t =
-                        self.instantiate_param_sig_t(sig, opt_decl_t, &mut dummy_tv_cache, Normal)?;
+                    let spec_t = self.instantiate_param_sig_t(
+                        sig,
+                        opt_decl_t,
+                        &mut dummy_tv_cache,
+                        Normal,
+                        kind,
+                    )?;
                     if &name.inspect()[..] == "self" {
                         if let Some(self_t) = self.rec_get_self_t() {
                             self.sub_unify(&spec_t, &self_t, name.loc(), Some(name.inspect()))?;
@@ -344,11 +353,6 @@ impl Context {
                         }
                     }
                     let spec_t = ref_(spec_t);
-                    let default = if default_val_exists {
-                        DefaultInfo::WithDefault
-                    } else {
-                        DefaultInfo::NonDefault
-                    };
                     let kind = VarKind::parameter(DefId(get_hash(&(&self.name, name))), default);
                     let vi = VarInfo::new(
                         spec_t,
@@ -379,8 +383,13 @@ impl Context {
                 } else {
                     // ok, not defined
                     let mut dummy_tv_cache = TyVarCache::new(self.level, self);
-                    let spec_t =
-                        self.instantiate_param_sig_t(sig, opt_decl_t, &mut dummy_tv_cache, Normal)?;
+                    let spec_t = self.instantiate_param_sig_t(
+                        sig,
+                        opt_decl_t,
+                        &mut dummy_tv_cache,
+                        Normal,
+                        kind,
+                    )?;
                     if &name.inspect()[..] == "self" {
                         if let Some(self_t) = self.rec_get_self_t() {
                             self.sub_unify(&spec_t, &self_t, name.loc(), Some(name.inspect()))?;
@@ -389,11 +398,6 @@ impl Context {
                         }
                     }
                     let spec_t = ref_mut(spec_t.clone(), Some(spec_t));
-                    let default = if default_val_exists {
-                        DefaultInfo::WithDefault
-                    } else {
-                        DefaultInfo::NonDefault
-                    };
                     let kind = VarKind::parameter(DefId(get_hash(&(&self.name, name))), default);
                     let vi = VarInfo::new(
                         spec_t,
@@ -433,7 +437,18 @@ impl Context {
                 .iter()
                 .zip(decl_subr_t.non_default_params.iter())
             {
-                if let Err(es) = self.assign_param(sig, false, Some(pt)) {
+                if let Err(es) = self.assign_param(sig, Some(pt), ParamKind::NonDefault) {
+                    errs.extend(es);
+                }
+            }
+            if let Some(var_params) = &params.var_params {
+                if let Some(pt) = &decl_subr_t.var_params {
+                    let pt = pt.clone().map_type(unknown_len_array_t);
+                    if let Err(es) = self.assign_param(var_params, Some(&pt), ParamKind::VarParams)
+                    {
+                        errs.extend(es);
+                    }
+                } else if let Err(es) = self.assign_param(var_params, None, ParamKind::VarParams) {
                     errs.extend(es);
                 }
             }
@@ -442,18 +457,22 @@ impl Context {
                 .iter()
                 .zip(decl_subr_t.default_params.iter())
             {
-                if let Err(es) = self.assign_param(&sig.sig, true, Some(pt)) {
+                if let Err(es) =
+                    self.assign_param(&sig.sig, Some(pt), ParamKind::Default(sig.default_val.t()))
+                {
                     errs.extend(es);
                 }
             }
         } else {
             for sig in params.non_defaults.iter() {
-                if let Err(es) = self.assign_param(sig, false, None) {
+                if let Err(es) = self.assign_param(sig, None, ParamKind::NonDefault) {
                     errs.extend(es);
                 }
             }
             for sig in params.defaults.iter() {
-                if let Err(es) = self.assign_param(&sig.sig, true, None) {
+                if let Err(es) =
+                    self.assign_param(&sig.sig, None, ParamKind::Default(sig.default_val.t()))
+                {
                     errs.extend(es);
                 }
             }

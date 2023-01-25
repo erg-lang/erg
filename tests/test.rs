@@ -239,3 +239,8 @@ fn exec_multiline_invalid_next() -> Result<(), ()> {
 fn exec_quantified_err() -> Result<(), ()> {
     expect_failure("tests/should_err/quantified.er", 2)
 }
+
+#[test]
+fn exec_var_args() -> Result<(), ()> {
+    expect_success("tests/should_ok/var_args.er")
+}

@@ -37,6 +37,7 @@ use crate::{feature_error, hir};
 use RegistrationMode::*;
 use Visibility::*;
 
+use super::instantiate::ParamKind;
 use super::{ContextKind, MethodInfo};
 
 impl Context {
@@ -274,6 +275,7 @@ impl Context {
                 None,
                 &mut dummy_tv_cache,
                 Normal,
+                ParamKind::NonDefault,
             )?;
             union_pat_t = self.union(&union_pat_t, &rhs);
         }
