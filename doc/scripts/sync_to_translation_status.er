@@ -61,7 +61,6 @@ for! LANGUAGES_KEBAB_CASE, lang =>
     add_table_row_text! "[README.md](../../README.md)", "[📝](../../README_\{lang}.md) \{get_bedge!(mylib.path_join(cwd, "../README_\{lang}.md"))}"
     add_table_row_text! "[CODE_OF_CONDUCT.md](../../CODE_OF_CONDUCT.md)", "[📝](../CODE_OF_CONDUCT/CODE_OF_CONDUCT_\{lang}.md) \{get_bedge!(mylib.path_join(cwd, "./CODE_OF_CONDUCT/CODE_OF_CONDUCT_\{lang}.md"))}"
     add_table_row_text! "[CONTRIBUTING.md](../../CONTRIBUTING.md)", "[📝](../CONTRIBUTING/CONTRIBUTING_\{lang}.md) \{get_bedge!(mylib.path_join(cwd, "./CONTRIBUTING/CONTRIBUTING_\{lang}.md"))}"
-    add_table_row_text! "", ""
 
     for! doc_en_file_paths, en_path =>
         relative_file_path = "\{lang.replace "-", "_"}\{mylib.str_slice en_path, 2}"

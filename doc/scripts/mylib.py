@@ -15,7 +15,7 @@ def str_slice(str: str, first_index: int):
 
 def eliminate_none_on_match(matched: re.Match):
     class _a:
-        def __init__(self):  # コンストラクタ
+        def __init__(self):
             self.matched = matched
             self.is_none = True if matched is None else False
 
