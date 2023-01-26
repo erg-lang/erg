@@ -27,15 +27,15 @@ This file is for generating The Erg Book. Do not add badges, etc.\
     "zh_CN": {
         SUMMARY_TITLE: "Summary",  # TODO: translate
         SUMMARY_DESCRIPTION: """\
-This file is generated automatically. If you want to edit this, edit `doc/scripts/sync_to_summary.py`
-This file is for generating The Erg Book. Do not add badges, etc.\
+该文件是自动生成的。如果你想编辑这个，编辑 `doc/scripts/sync_to_summary.py`
+此文件用于生成Erg Book。不要添加翻译徽章等\
 """,  # TODO: translate
     },
     "zh_TW": {
         SUMMARY_TITLE: "Summary",  # TODO: translate
         SUMMARY_DESCRIPTION: """\
-This file is generated automatically. If you want to edit this, edit `doc/scripts/sync_to_summary.py`
-This file is for generating The Erg Book. Do not add badges, etc.\
+該文件是自動生成的。如果你想編輯這個，編輯 `doc/scripts/sync_to_summary.py`
+此文件用於生成Erg Book。不要添加翻譯徽章等\
 """,  # TODO: translate
     },
 }
