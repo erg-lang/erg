@@ -107,8 +107,8 @@ C = Class {x = Int}
     .method self = ...
 ```
 
-您可以通過在`'''`之后立即寫入語言代碼來指定文檔的語言。然后，[Erg語言服務器](https://github.com/erg-lang/erg/tree/main/compiler/els)將以Markdown格式顯示每種語言版本的文檔(默認語言為英語)。
-參見[這里](https://github.com/erg-lang/erg/blob/main/doc/JA/dev_guide/i18n_messages.md)獲取多語言相關文檔
+您可以通過在`'''`之后立即寫入語言代碼來指定文檔的語言。然后，[Erg語言服務器](https://github.com/erg-lang/erg/tree/main/crates/els)將以Markdown格式顯示每種語言版本的文檔(默認語言為英語)。
+參見[這里](https://github.com/erg-lang/erg/blob/main/doc/zh_TW/dev_guide/i18n_messages.md)獲取多語言相關文檔
 
 ```python
 '''

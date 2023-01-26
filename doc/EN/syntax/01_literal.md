@@ -76,25 +76,25 @@ Each of these literals has its own documentation describing them separately, so 
 [], [1], [1, 2, 3], ["1", "2",], ...
 ```
 
-### [Tuple Literal](./11_tuple.md)
+### [Tuple Literal](./13_tuple.md)
 
 ```python
 (), (1, 2, 3), (1, "hello", True), ...
 ```
 
-### [Dict Literal](./12_dict.md)
+### [Dict Literal](./11_dict.md)
 
 ```python
 {:}, {"one": 1}, {"one": 1, "two": 2}, {"1": 1, "2": 2}, {1: "1", 2: True, "three": [1]}, ...
 ```
 
-### [Record Literal](./13_record.md)
+### [Record Literal](./14_record.md)
 
 ```python
 {=}, {one = 1}, {one = 1; two = 2}, {.name = "John"; .age = 12}, {.name = Str; .age = Nat}, ...
 ```
 
-### [Set Literal](./14_set.md)
+### [Set Literal](./15_set.md)
 
 ```python
 {}, {1}, {1, 2, 3}, {"1", "2", "1"}, ...
