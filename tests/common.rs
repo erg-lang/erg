@@ -5,7 +5,7 @@ use erg_common::config::{DummyStdin, ErgConfig, Input};
 use erg_common::error::MultiErrorDisplay;
 use erg_common::python_util::PythonVersion;
 use erg_common::spawn::exec_new_thread;
-use erg_common::style::{GREEN, RESET};
+use erg_common::style::{colors::DEBUG_MAIN, RESET};
 use erg_common::traits::{ExitStatus, Runnable, Stream};
 
 use erg_compiler::error::CompileErrors;
@@ -107,7 +107,7 @@ fn set_cfg(mut cfg: ErgConfig) -> ErgConfig {
 /// The test is intend to run only on 3.11 for fast execution.
 /// To execute on other versions, change the version and magic number.
 fn _exec_file(file_path: &'static str) -> Result<i32, CompileErrors> {
-    println!("{GREEN}[test] exec {file_path}{RESET}");
+    println!("{DEBUG_MAIN}[test] exec {file_path}{RESET}");
     let cfg = ErgConfig::with_main_path(PathBuf::from(file_path));
     let mut vm = DummyVM::new(set_cfg(cfg));
     vm.exec()
@@ -115,7 +115,7 @@ fn _exec_file(file_path: &'static str) -> Result<i32, CompileErrors> {
 
 /// WARN: You must quit REPL manually (use `:exit`, `:quit` or call something shutdowns the interpreter)
 pub fn _exec_repl(name: &'static str, lines: Vec<String>) -> Result<ExitStatus, CompileErrors> {
-    println!("{GREEN}[test] exec dummy REPL: {lines:?}{RESET}");
+    println!("{DEBUG_MAIN}[test] exec dummy REPL: {lines:?}{RESET}");
     let cfg = ErgConfig {
         input: Input::DummyREPL(DummyStdin::new(name.to_string(), lines)),
         quiet_repl: true,

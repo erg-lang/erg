@@ -2,6 +2,7 @@
 use std::option::Option; // conflicting to Type::Option
 
 use erg_common::error::{Location, MultiErrorDisplay};
+use erg_common::style::colors::DEBUG_ERROR;
 
 use crate::ty::constructors::{and, not, or, poly};
 use crate::ty::free::{Constraint, FreeKind};
@@ -131,7 +132,7 @@ impl Context {
                     || self.nominal_supertype_of(lhs, rhs)
             }
         };
-        log!("answer: {lhs} {RED}:>{RESET} {rhs} == {res}");
+        log!("answer: {lhs} {DEBUG_ERROR}:>{RESET} {rhs} == {res}");
         res
     }
 
