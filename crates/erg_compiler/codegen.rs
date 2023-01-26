@@ -2041,9 +2041,11 @@ impl PyCodeGenerator {
         }
     }
 
-    fn emit_with_instr_311(&mut self, args: Args) {
+    fn emit_with_instr_311(&mut self, mut args: Args) {
         log!(info "entered {}", fn_name!());
-        let mut args = args;
+        if !matches!(args.get(1).unwrap(), Expr::Lambda(_)) {
+            return self.deopt_instr(ControlKind::With, args);
+        }
         let expr = args.remove(0);
         let lambda = enum_unwrap!(args.remove(0), Expr::Lambda);
         let params = self.gen_param_names(&lambda.params);
@@ -2087,9 +2089,11 @@ impl PyCodeGenerator {
         self.emit_load_name_instr(stash);
     }
 
-    fn emit_with_instr_310(&mut self, args: Args) {
+    fn emit_with_instr_310(&mut self, mut args: Args) {
         log!(info "entered {}", fn_name!());
-        let mut args = args;
+        if !matches!(args.get(1).unwrap(), Expr::Lambda(_)) {
+            return self.deopt_instr(ControlKind::With, args);
+        }
         let expr = args.remove(0);
         let lambda = enum_unwrap!(args.remove(0), Expr::Lambda);
         let params = self.gen_param_names(&lambda.params);
@@ -2138,9 +2142,11 @@ impl PyCodeGenerator {
         self.emit_load_name_instr(stash);
     }
 
-    fn emit_with_instr_308(&mut self, args: Args) {
+    fn emit_with_instr_308(&mut self, mut args: Args) {
         log!(info "entered {}", fn_name!());
-        let mut args = args;
+        if !matches!(args.get(1).unwrap(), Expr::Lambda(_)) {
+            return self.deopt_instr(ControlKind::With, args);
+        }
         let expr = args.remove(0);
         let lambda = enum_unwrap!(args.remove(0), Expr::Lambda);
         let params = self.gen_param_names(&lambda.params);
