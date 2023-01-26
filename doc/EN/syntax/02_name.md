@@ -98,11 +98,11 @@ The above code prints `π` when `x` is `3.141592653589793`. If `x` is changed to
 Some objects cannot be bound as constants. Mutable objects, for example. Mutable objects are objects whose states can be changed, as described in detail later.
 This is because of the rule that only constant expressions can be assigned to constants. Constant expressions are also discussed later.
 
-```python,compile_fail
+```python
 X = 1 # OK
 ```
 
-```python
+```python,compile_fail
 X = !1 # TypeError: cannot define Int! object as a constant
 ```
 
