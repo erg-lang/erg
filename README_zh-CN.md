@@ -76,7 +76,7 @@
     在Erg中，很少有东西被认为是特殊的，没有关键字，因此for和while表达式也只是子程序之一
 
     ```python
-    loop! block = while! do(True), block
+    loop! block! = while! do! True, block!
 
     # equals to `while! do(True), do! print! "hello"`
     loop! do!:

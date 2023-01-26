@@ -38,3 +38,7 @@ Erg 内部オプション、ヘルプ (ヘルプ、著作権、ライセンス�
 
 `--language-server`オプションが利用可能になる。
 `erg --language-server`でLanguage Serverが起動する。
+
+## py_compatible
+
+Python互換モードを有効にする。APIや文法の一部がPythonと互換になる。[pylyzer](https://github.com/mtshiba/pylyzer)のために使用される。

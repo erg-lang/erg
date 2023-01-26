@@ -56,3 +56,6 @@ bd_re = "build --features debug --release"
 bd_ja_re = "build --features debug --features japanese --release"
 bd_zh_cn_re = "build --features debug --features simplified_chinese --release"
 bd_zh_tw_re = "build --features debug --features traditional_chinese --release"
+
+inst = "install --path . --features els"
+dinst = "install --path . --features debug --features els"

@@ -18,7 +18,7 @@ The difference from JavaScript object literals is that they are not accessible a
 This is because access to the value is determined at compile-time, and because dictionaries and records are different things. In other words, `{"name": "John"}` is a Dict and `{name = "John"}` is a record.
 So how should we use dictionaries and records?
 In general, we recommend using records. Records have the advantages of being checked at compile-time for the existence of elements and of being able to specify __visibility_.
-Specifying visibility is equivalent to specifying public/private in Java and other languages. For details, see [visibility](./19_visibility.md) for details.
+Specifying visibility is equivalent to specifying public/private in Java and other languages. For details, see [visibility](./20_visibility.md) for details.
 
 ```python,compile_fail
 a = {x = 1; .y = x + 1}
@@ -53,7 +53,7 @@ assert o.i == 1
 ```
 
 There is a notable syntax with respect to records. When all the attribute values of a record are classes (not structural types), the record itself behaves as a type with its own attributes as required attributes.
-Such a type is called a record type. See the section [Record] for more details.
+Such a type is called a record type. See the section [Record](../API/types/classes/Record.md) for more details.
 
 ```python
 # record

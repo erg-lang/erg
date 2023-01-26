@@ -46,6 +46,18 @@ use crate::ty::{HasType, Type, TypeCode, TypePair};
 use erg_common::fresh::fresh_varname;
 use AccessKind::*;
 
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ControlKind {
+    If,
+    While,
+    For,
+    Match,
+    With,
+    Discard,
+    Assert,
+}
+
 /// patch method -> function
 /// patch attr -> variable
 fn debind(ident: &Identifier) -> Option<Str> {
@@ -1604,6 +1616,21 @@ impl PyCodeGenerator {
         self.emit_load_const(ValueObj::None);
     }
 
+    fn deopt_instr(&mut self, kind: ControlKind, args: Args) {
+        if !self.control_loaded {
+            self.load_control();
+        }
+        let local = match kind {
+            ControlKind::If => Identifier::public("if__"),
+            ControlKind::For => Identifier::public("for__"),
+            ControlKind::While => Identifier::public("while__"),
+            ControlKind::With => Identifier::public("with__"),
+            ControlKind::Discard => Identifier::public("discard__"),
+            kind => todo!("{kind:?}"),
+        };
+        self.emit_call_local(local, args);
+    }
+
     fn emit_if_instr(&mut self, mut args: Args) {
         log!(info "entered {}", fn_name!());
         let init_stack_len = self.stack_len();
@@ -1670,6 +1697,9 @@ impl PyCodeGenerator {
 
     fn emit_for_instr(&mut self, mut args: Args) {
         log!(info "entered {} ({})", fn_name!(), args);
+        if !matches!(args.get(1).unwrap(), Expr::Lambda(_)) {
+            return self.deopt_instr(ControlKind::For, args);
+        }
         let _init_stack_len = self.stack_len();
         let iterable = args.remove(0);
         self.emit_expr(iterable);
@@ -1716,6 +1746,9 @@ impl PyCodeGenerator {
 
     fn emit_while_instr(&mut self, mut args: Args) {
         log!(info "entered {} ({})", fn_name!(), args);
+        if !matches!(args.get(1).unwrap(), Expr::Lambda(_)) {
+            return self.deopt_instr(ControlKind::While, args);
+        }
         let _init_stack_len = self.stack_len();
         // e.g. is_foo!: () => Bool, do!(is_bar)
         let cond_block = args.remove(0);
@@ -2008,9 +2041,11 @@ impl PyCodeGenerator {
         }
     }
 
-    fn emit_with_instr_311(&mut self, args: Args) {
+    fn emit_with_instr_311(&mut self, mut args: Args) {
         log!(info "entered {}", fn_name!());
-        let mut args = args;
+        if !matches!(args.get(1).unwrap(), Expr::Lambda(_)) {
+            return self.deopt_instr(ControlKind::With, args);
+        }
         let expr = args.remove(0);
         let lambda = enum_unwrap!(args.remove(0), Expr::Lambda);
         let params = self.gen_param_names(&lambda.params);
@@ -2054,9 +2089,11 @@ impl PyCodeGenerator {
         self.emit_load_name_instr(stash);
     }
 
-    fn emit_with_instr_310(&mut self, args: Args) {
+    fn emit_with_instr_310(&mut self, mut args: Args) {
         log!(info "entered {}", fn_name!());
-        let mut args = args;
+        if !matches!(args.get(1).unwrap(), Expr::Lambda(_)) {
+            return self.deopt_instr(ControlKind::With, args);
+        }
         let expr = args.remove(0);
         let lambda = enum_unwrap!(args.remove(0), Expr::Lambda);
         let params = self.gen_param_names(&lambda.params);
@@ -2105,9 +2142,11 @@ impl PyCodeGenerator {
         self.emit_load_name_instr(stash);
     }
 
-    fn emit_with_instr_308(&mut self, args: Args) {
+    fn emit_with_instr_308(&mut self, mut args: Args) {
         log!(info "entered {}", fn_name!());
-        let mut args = args;
+        if !matches!(args.get(1).unwrap(), Expr::Lambda(_)) {
+            return self.deopt_instr(ControlKind::With, args);
+        }
         let expr = args.remove(0);
         let lambda = enum_unwrap!(args.remove(0), Expr::Lambda);
         let params = self.gen_param_names(&lambda.params);

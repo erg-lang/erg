@@ -19,6 +19,14 @@ use erg_compiler::Compiler;
 pub type EvalError = CompileError;
 pub type EvalErrors = CompileErrors;
 
+fn find_available_port() -> u16 {
+    let socket = SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0);
+    TcpListener::bind(socket)
+        .and_then(|listener| listener.local_addr())
+        .map(|sock_addr| sock_addr.port())
+        .expect("No free port found.")
+}
+
 /// Open the Python interpreter as a server and act as an Erg interpreter by mediating communication
 ///
 /// Pythonインタープリタをサーバーとして開き、通信を仲介することでErgインタープリタとして振る舞う
@@ -207,25 +215,4 @@ impl DummyVM {
     pub fn eval(&mut self, src: String) -> Result<String, EvalErrors> {
         Runnable::eval(self, src)
     }
-}
-
-#[cfg(test)]
-fn find_available_port() -> u16 {
-    require_free_port()
-}
-#[cfg(not(test))]
-fn find_available_port() -> u16 {
-    const DEFAULT_PORT: u16 = 8736;
-    TcpListener::bind(SocketAddrV4::new(Ipv4Addr::LOCALHOST, DEFAULT_PORT))
-        .is_ok()
-        .then_some(DEFAULT_PORT)
-        .unwrap_or_else(require_free_port)
-}
-
-fn require_free_port() -> u16 {
-    let socket = SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0);
-    TcpListener::bind(socket)
-        .and_then(|listener| listener.local_addr())
-        .map(|sock_addr| sock_addr.port())
-        .expect("No free port found.")
 }

@@ -5,9 +5,7 @@ import sys as __sys
 import importlib as __importlib
 import io as __io
 
-__server_socket = __socket.socket(__socket.AF_INET, __socket.SOCK_STREAM)
-if __sys.platform == 'linux':
-    __server_socket.setsockopt(__socket.SOL_SOCKET, __socket.SO_REUSEADDR, 1)
+__server_socket = __socket.socket()
 # DummyVM will replace this __PORT__ with free port
 __server_socket.bind(('127.0.0.1', __PORT__))
 __server_socket.listen(1)

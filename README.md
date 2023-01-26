@@ -77,7 +77,7 @@
     even for and while expressions are just one of the subroutines, so this is possible.
 
     ```python
-    loop! block = while! do(True), block
+    loop! block! = while! do! True, block!
 
     # equals to `while! do(True), do! print! "hello"`
     loop! do!:
@@ -202,7 +202,7 @@ nix build
 By enabling the `--features` flag, you can customize the installation and build.
 
  - You can change the language of the error message by using  `--features {language}`
-```sh 
+```sh
 --features japanese
 --features simplified_chinese
 --features traditional_chinese

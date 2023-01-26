@@ -112,8 +112,8 @@ C = Class {x = Int}
     .method self = ...
 ```
 
-You can specify the language of the document by writing the language code immediately after the `'''`. The [Erg Language Server](https://github.com/erg-lang/erg/tree/main/compiler/els) will then display documents in the Markdown format for each language version (The default language is English).
-See [here](https://github.com/erg-lang/erg/blob/main/doc/JA/dev_guide/i18n_messages.md) for registered language codes.
+You can specify the language of the document by writing the language code immediately after the `'''`. The [Erg Language Server](https://github.com/erg-lang/erg/tree/main/crates/els) will then display documents in the Markdown format for each language version (The default language is English).
+See [here](https://github.com/erg-lang/erg/blob/main/doc/EN/dev_guide/i18n_messages.md) for registered language codes.
 
 ```python
 '''
