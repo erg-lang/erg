@@ -4,6 +4,7 @@ use erg_common::config::ErgConfig;
 use erg_common::dict::Dict;
 use erg_common::error::Location;
 use erg_common::set::Set;
+use erg_common::style::colors::DEBUG_MAIN;
 use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Visibility;
 use erg_common::Str;
@@ -78,7 +79,7 @@ impl OwnershipChecker {
             self.check_expr(chunk, Ownership::Owned, true);
         }
         log!(
-            "{GREEN}[DEBUG] the ownership checking process has completed, found errors: {}{RESET}",
+            "{DEBUG_MAIN}[DEBUG] the ownership checking process has completed, found errors: {}{RESET}",
             self.errs.len()
         );
         if self.errs.is_empty() {
