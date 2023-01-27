@@ -348,7 +348,7 @@ impl StyledString {
 }
 
 impl std::fmt::Display for StyledString {
-    fn fmt<'a>(&self, f: &mut std::fmt::Formatter<'a>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match (self.color, self.attribute) {
             (None, None) => write!(f, "{}", self.text),
             (None, Some(attr)) => write!(f, "{}{}{}", attr.as_str(), self.text, ATTR_RESET),
@@ -493,7 +493,7 @@ impl StyledStrings {
 impl std::fmt::Display for StyledStrings {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         for text in self.texts.iter() {
-            write!(f, "{}", text)?;
+            write!(f, "{text}")?;
         }
         Ok(())
     }
@@ -563,6 +563,6 @@ mod tests {
             Color::Red,
             Attribute::Reversed,
         );
-        println!("{}", texts);
+        println!("{texts}");
     }
 }

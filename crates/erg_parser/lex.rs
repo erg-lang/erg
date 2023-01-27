@@ -393,10 +393,10 @@ impl Lexer /*<'a>*/ {
         }
         let comment = self.emit_token(Illegal, &s);
         let hint = switch_lang!(
-            "japanese" => format!("`]#`の数があと{}個必要です", nest_level),
-            "simplified_chinese" => format!("需要{}个`]#`", nest_level),
-            "traditional_chinese" => format!("需要{}個`]#`", nest_level),
-            "english" => format!("{} `]#`(s) are needed", nest_level),
+            "japanese" => format!("`]#`の数があと{nest_level}個必要です"),
+            "simplified_chinese" => format!("需要{nest_level}个`]#`"),
+            "traditional_chinese" => format!("需要{nest_level}個`]#`"),
+            "english" => format!("{nest_level} `]#`(s) are needed"),
         );
         Err(LexError::syntax_error(
             line!() as usize,
@@ -731,10 +731,10 @@ impl Lexer /*<'a>*/ {
             line!() as usize,
             token.loc(),
             switch_lang!(
-                "japanese" => format!("不正なエスケープシーケンスです: \\{}", ch),
-                "simplified_chinese" => format!("不合法的转义序列: \\{}", ch),
-                "traditional_chinese" => format!("不合法的轉義序列: \\{}", ch),
-                "english" => format!("illegal escape sequence: \\{}", ch),
+                "japanese" => format!("不正なエスケープシーケンスです: \\{ch}"),
+                "simplified_chinese" => format!("不合法的转义序列: \\{ch}"),
+                "traditional_chinese" => format!("不合法的轉義序列: \\{ch}"),
+                "english" => format!("illegal escape sequence: \\{ch}"),
             ),
             None,
         )

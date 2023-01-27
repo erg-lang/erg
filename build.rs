@@ -14,6 +14,6 @@ fn main() -> std::io::Result<()> {
         version.micro.unwrap_or(0)
     );
     let magic_number = env_magic_number();
-    println!("cargo:rustc-env=PYTHON_MAGIC_NUMBER={}", magic_number);
+    println!("cargo:rustc-env=PYTHON_MAGIC_NUMBER={magic_number}");
     Ok(())
 }
