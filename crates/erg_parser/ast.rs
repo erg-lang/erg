@@ -727,11 +727,12 @@ impl_locational_for_enum!(Dict; Normal, Comprehension);
 pub enum ClassAttr {
     Def(Def),
     Decl(TypeAscription),
+    Doc(Literal),
 }
 
-impl_nested_display_for_enum!(ClassAttr; Def, Decl);
-impl_display_for_enum!(ClassAttr; Def, Decl);
-impl_locational_for_enum!(ClassAttr; Def, Decl);
+impl_nested_display_for_enum!(ClassAttr; Def, Decl, Doc);
+impl_display_for_enum!(ClassAttr; Def, Decl, Doc);
+impl_locational_for_enum!(ClassAttr; Def, Decl, Doc);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ClassAttrs(Vec<ClassAttr>);

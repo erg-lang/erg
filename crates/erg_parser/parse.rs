@@ -984,6 +984,7 @@ impl Parser {
         let first = match first {
             Expr::Def(def) => ClassAttr::Def(def),
             Expr::TypeAsc(tasc) => ClassAttr::Decl(tasc),
+            Expr::Lit(lit) if lit.is_doc_comment() => ClassAttr::Doc(lit),
             _ => {
                 // self.restore();
                 let err = self.skip_and_throw_syntax_err(caused_by!());

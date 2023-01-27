@@ -748,7 +748,12 @@ impl ValueObj {
     pub fn from_str(t: Type, content: Str) -> Option<Self> {
         match t {
             Type::Int => content.replace('_', "").parse::<i32>().ok().map(Self::Int),
-            Type::Nat => content.replace('_', "").parse::<u64>().ok().map(Self::Nat),
+            Type::Nat => content
+                .trim_start_matches('-') // -0 -> 0
+                .replace('_', "")
+                .parse::<u64>()
+                .ok()
+                .map(Self::Nat),
             Type::Float => content
                 .replace('_', "")
                 .parse::<f64>()
