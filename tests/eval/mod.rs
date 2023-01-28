@@ -17,8 +17,12 @@ pub(crate) fn eval_code(code: &'static str) -> CommandOutput {
         .output()
         .unwrap();
     CommandOutput {
-        stdout: String::from_utf8(output.stdout).unwrap(),
-        stderr: String::from_utf8(output.stderr).unwrap(),
+        stdout: String::from_utf8(output.stdout)
+            .unwrap()
+            .replace("\r\n", "\n"),
+        stderr: String::from_utf8(output.stderr)
+            .unwrap()
+            .replace("\r\n", "\n"),
         status: output.status,
     }
 }
