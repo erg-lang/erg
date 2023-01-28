@@ -246,16 +246,16 @@ impl LimitedDisplay for TyParam {
             Self::Type(t) => t.limited_fmt(f, limit - 1),
             Self::FreeVar(fv) => fv.limited_fmt(f, limit - 1),
             Self::UnaryOp { op, val } => {
-                write!(f, "{}", op)?;
+                write!(f, "{op}")?;
                 val.limited_fmt(f, limit - 1)
             }
             Self::BinOp { op, lhs, rhs } => {
                 lhs.limited_fmt(f, limit - 1)?;
-                write!(f, " {} ", op)?;
+                write!(f, " {op} ")?;
                 rhs.limited_fmt(f, limit - 1)
             }
             Self::App { name, args } => {
-                write!(f, "{}", name)?;
+                write!(f, "{name}")?;
                 write!(f, "(")?;
                 for (i, arg) in args.iter().enumerate() {
                     if i > 0 {
@@ -270,10 +270,10 @@ impl LimitedDisplay for TyParam {
                 write!(f, "_: ")?;
                 t.limited_fmt(f, limit - 1)
             }
-            Self::Mono(name) => write!(f, "{}", name),
+            Self::Mono(name) => write!(f, "{name}"),
             Self::Proj { obj, attr } => {
-                write!(f, "{}.", obj)?;
-                write!(f, "{}", attr)
+                write!(f, "{obj}.")?;
+                write!(f, "{attr}")
             }
             Self::Array(arr) => {
                 write!(f, "[")?;

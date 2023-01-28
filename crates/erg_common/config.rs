@@ -618,7 +618,7 @@ USAGE:
                 }
                 _ => {
                     let path = PathBuf::from_str(&arg[..])
-                        .unwrap_or_else(|_| panic!("invalid file path: {}", arg));
+                        .unwrap_or_else(|_| panic!("invalid file path: {arg}"));
                     let path = normalize_path(path);
                     cfg.input = Input::File(path);
                     if let Some("--") = args.next().as_ref().map(|s| &s[..]) {

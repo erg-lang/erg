@@ -287,6 +287,9 @@ impl Desugarer {
                             let expr = desugar(*decl.expr);
                             new_attrs.push(ClassAttr::Decl(expr.type_asc(decl.op, decl.t_spec)));
                         }
+                        ClassAttr::Doc(doc) => {
+                            new_attrs.push(ClassAttr::Doc(doc));
+                        }
                     }
                 }
                 let new_attrs = ClassAttrs::from(new_attrs);

@@ -239,22 +239,22 @@ impl LexError {
         let expect = switch_lang!(
                 "japanese" => {
                     expect.push_str("期待された構文: ");
-                    expect.push_str_with_color(&format!("!{}", lit), HINT);
+                    expect.push_str_with_color(&format!("!{lit}"), HINT);
                     expect
                 },
                 "simplified_chinese" => {
                     expect.push_str("预期语法: ");
-                    expect.push_str_with_color(&format!("!{}", lit), HINT);
+                    expect.push_str_with_color(&format!("!{lit}"), HINT);
                     expect
                 },
                 "traditional_chinese" => {
                     expect.push_str("預期語法: ");
-                    expect.push_str_with_color(&format!("!{}", lit), HINT);
+                    expect.push_str_with_color(&format!("!{lit}"), HINT);
                     expect
                 },
                 "english" => {
                     expect.push_str("expected: ");
-                    expect.push_str_with_color(&format!("!{}", lit), HINT);
+                    expect.push_str_with_color(&format!("!{lit}"), HINT);
                     expect
                 },
         )
@@ -263,22 +263,22 @@ impl LexError {
         let found = switch_lang!(
                 "japanese" => {
                     found.push_str("見つかった構文: ");
-                    found.push_str_with_color(&format!("{}!", lit), ERR);
+                    found.push_str_with_color(&format!("{lit}!"), ERR);
                     found
                 },
                 "simplified_chinese" => {
                     found.push_str("找到语法: ");
-                    found.push_str_with_color(&format!("{}!", lit), ERR);
+                    found.push_str_with_color(&format!("{lit}!"), ERR);
                     found
                 },
                 "traditional_chinese" => {
                     found.push_str("找到語法: ");
-                    found.push_str_with_color(&format!("{}!", lit), ERR);
+                    found.push_str_with_color(&format!("{lit}!"), ERR);
                     found
                 },
                 "english" => {
                     found.push_str("but found: ");
-                    found.push_str_with_color(&format!("{}!", lit), ERR);
+                    found.push_str_with_color(&format!("{lit}!"), ERR);
                     found
                 },
         )

@@ -455,7 +455,7 @@ impl fmt::Debug for ValueObj {
                     if i != 0 {
                         write!(f, ", ")?;
                     }
-                    write!(f, "{}: {}", k, v)?;
+                    write!(f, "{k}: {v}")?;
                 }
                 write!(f, "}}")
             }
@@ -748,7 +748,12 @@ impl ValueObj {
     pub fn from_str(t: Type, content: Str) -> Option<Self> {
         match t {
             Type::Int => content.replace('_', "").parse::<i32>().ok().map(Self::Int),
-            Type::Nat => content.replace('_', "").parse::<u64>().ok().map(Self::Nat),
+            Type::Nat => content
+                .trim_start_matches('-') // -0 -> 0
+                .replace('_', "")
+                .parse::<u64>()
+                .ok()
+                .map(Self::Nat),
             Type::Float => content
                 .replace('_', "")
                 .parse::<f64>()
@@ -972,7 +977,7 @@ impl ValueObj {
             (Self::Int(l), Self::Float(r)) => Some(Self::Float(l as f64 - r)),
             (Self::Nat(l), Self::Float(r)) => Some(Self::Float(l as f64 - r)),
             (Self::Float(l), Self::Int(r)) => Some(Self::Float(l - r as f64)),
-            (Self::Str(l), Self::Str(r)) => Some(Self::Str(Str::from(format!("{}{}", l, r)))),
+            (Self::Str(l), Self::Str(r)) => Some(Self::Str(Str::from(format!("{l}{r}")))),
             (inf @ (Self::Inf | Self::NegInf), _) | (_, inf @ (Self::Inf | Self::NegInf)) => {
                 Some(inf)
             }
