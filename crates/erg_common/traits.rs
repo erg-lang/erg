@@ -577,8 +577,8 @@ pub trait Runnable: Sized + Default {
         let mut num_errors = 0;
         let mut instance = Self::new(cfg);
         let res = match instance.input() {
-            Input::File(_) | Input::Pipe(_) | Input::Str(_) => instance.exec(),
-            Input::REPL | Input::DummyREPL(_) => {
+            Input::File(_) | Input::Pipe(_, _) | Input::Str(_, _) => instance.exec(),
+            Input::REPL(_) | Input::DummyREPL(_) => {
                 let output = stdout();
                 let mut output = BufWriter::new(output.lock());
                 if !quiet_repl {

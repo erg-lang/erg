@@ -292,7 +292,7 @@ impl ParserRunner {
     }
 
     pub fn parse(&mut self, src: String) -> Result<Module, ParserRunnerErrors> {
-        let ts = Lexer::new(Input::Str(src))
+        let ts = Lexer::new(Input::Str(self.cfg.input.id(), src))
             .lex()
             .map_err(|errs| ParserRunnerErrors::convert(self.input(), errs))?;
         Parser::new(ts)
