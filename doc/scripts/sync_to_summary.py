@@ -59,7 +59,7 @@ def get_title(file_path):
 def get_summary(
     base_path: str, dir_relative_path: str, depth: int, current_text: str
 ) -> str:
-    path = f"{base_path}{dir_relative_path}"
+    path = os.path.join(base_path, dir_relative_path)
     dir_list = sorted(os.listdir(path))
     file_names = [
         f
@@ -68,7 +68,7 @@ def get_summary(
     ]
     dir_names = [f for f in dir_list if os.path.isdir(os.path.join(path, f))]
     for file_name in file_names:
-        current_text += f"{'  '*depth}- [{get_title(os.path.join(path, file_name))}](.{dir_relative_path}/{file_name})\n"
+        current_text += f"{'  '*depth}- [{get_title(os.path.join(path, file_name))}]({'./' if dir_relative_path=='' else f'./{dir_relative_path}/'}{file_name})\n"
         dir_file_name_match = dir_file_name_pattern.match(file_name)
         matched_dir_name = None
         if dir_file_name_match is not None:
@@ -76,7 +76,7 @@ def get_summary(
         if matched_dir_name is not None and matched_dir_name in dir_names:
             current_text = get_summary(
                 base_path,
-                f"{dir_relative_path}/{matched_dir_name}",
+                os.path.join(dir_relative_path, matched_dir_name),
                 depth + 1,
                 current_text,
             )
@@ -84,10 +84,10 @@ def get_summary(
 
 
 def main():
-    os.chdir(os.path.join(os.path.dirname(__file__), "../"))
+    os.chdir(os.path.join(os.path.dirname(__file__), ".."))
 
     for language in LANGUAGE_SPECIFIC.keys():
-        syntax_base_path = f"./{language}/syntax"
+        syntax_base_path = os.path.join(language, "syntax")
         with open(
             os.path.join(syntax_base_path, SUMMARY_MD), mode="w", encoding="utf-8"
         ) as f:
