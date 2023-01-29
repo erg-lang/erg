@@ -1,5 +1,5 @@
 use erg_common::style::{colors::DEBUG_MAIN, RESET};
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 mod basic;
 mod literal;
@@ -14,7 +14,12 @@ pub(crate) fn eval_code(code: &'static str) -> CommandOutput {
     println!("{DEBUG_MAIN}[test] eval:\n{code}{RESET}");
     let output = Command::new(env!(concat!("CARGO_BIN_EXE_", env!("CARGO_PKG_NAME"))))
         .args(["-c", code])
-        .output()
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap()
+        .wait_with_output()
         .unwrap();
     CommandOutput {
         stdout: String::from_utf8(output.stdout)
