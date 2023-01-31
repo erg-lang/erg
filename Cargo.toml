@@ -71,6 +71,7 @@ erg_common = { workspace = true }
 erg_parser = { workspace = true }
 erg_compiler = { workspace = true }
 els = { workspace = true, optional = true }
+crossterm = "0.26.0"
 
 [build-dependencies]
 erg_common = { workspace = true }

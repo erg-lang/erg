@@ -30,5 +30,8 @@ hermit-abi = "0.1.6"
 version = "0.3"
 features = ["consoleapi"]
 
+[dependencies]
+crossterm = "0.26.0"
+
 [lib]
 path = "lib.rs"
