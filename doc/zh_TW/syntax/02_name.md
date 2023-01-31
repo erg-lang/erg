@@ -3,6 +3,7 @@
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/02_name.md%26commit_hash%3D14b0c449efc9e9da3e10a09c912a960ecfaf1c9d)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/02_name.md&commit_hash=14b0c449efc9e9da3e10a09c912a960ecfaf1c9d)
 
 ## 變量
+
 變量是一種代數； Erg 中的代數 - 如果沒有混淆，有時簡稱為變量 - 指的是命名對象并使它們可從代碼的其他地方引用的功能
 
 變量定義如下
@@ -24,9 +25,12 @@ n: Nat = 1
 
 請注意，與其他語言不同，不允許多次分配
 
-```python
+```python,compile_fail
 # NG
 l1 = l2 = [1, 2, 3] # 語法錯誤: 不允許多重賦值
+```
+
+```python
 # OK
 l1 = [1, 2, 3]
 l2 = l1.clone()
@@ -67,7 +71,7 @@ assert x == 0
 常數也是一種代數。如果標識符以大寫字母開頭，則將其視為常量。它們被稱為常量，因為一旦定義，它們就不會改變
 `N` 部分稱為常量名(或標識符)。否則，它與變量相同
 
-```python
+```python,compile_fail
 N = 0
 if True, do:
     N = 1 # 賦值錯誤: 常量不能被遮蔽
@@ -100,6 +104,9 @@ match! x:
 
 ```python
 X = 1 # OK
+```
+
+```python,compile_fail
 X = !1 # 類型錯誤: 無法定義 Int！ 對象作為常量
 ```
 
@@ -107,7 +114,7 @@ X = !1 # 類型錯誤: 無法定義 Int！ 對象作為常量
 
 您可以使用 `Del` 函數刪除變量。依賴于變量的所有其他變量(即直接引用變量值的變量)也將被刪除
 
-```python
+```python,compile_fail
 x = 1
 y = 2
 z = 3
@@ -122,7 +129,7 @@ f(2) # 名稱錯誤: f 未定義(在第 6 行中刪除)
 
 注意 `Del` 只能刪除用戶自定義模塊中定義的變量。無法刪除諸如"True"之類的內置常量
 
-```python
+```python,compile_fail
 Del True # 類型錯誤: 無法刪除內置常量
 Del print! # TypeError: 無法刪除內置變量
 ```

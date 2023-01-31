@@ -84,7 +84,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                             let relative = relative
                                 .strip_prefix(self.erg_path.to_str().unwrap())
                                 .unwrap_or(relative);
-                            format!("# {}, line {line}\n", relative)
+                            format!("# {relative}, line {line}\n")
                         };
                         // display the definition line
                         if vi.kind.is_defined() {

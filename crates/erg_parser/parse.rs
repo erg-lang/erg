@@ -33,7 +33,7 @@ macro_rules! debug_call_info {
     ($self: ident) => {
         $self.level += 1;
         log!(
-            c GREEN,
+            c DEBUG_MAIN,
             "\n{} ({}) entered {}, cur: {}",
             "･".repeat(($self.level as f32 / 4.0).floor() as usize),
             $self.level,
@@ -48,7 +48,7 @@ macro_rules! debug_exit_info {
     ($self: ident) => {
         $self.level -= 1;
         log!(
-            c GREEN,
+            c DEBUG_MAIN,
             "\n{} ({}) exit {}, cur: {}",
             "･".repeat(($self.level as f32 / 4.0).floor() as usize),
             $self.level,
@@ -228,7 +228,7 @@ impl Parser {
     pub(crate) fn stack_dec(&mut self, fn_name: &str) {
         self.level -= 1;
         log!(
-            c GREEN,
+            c DEBUG_MAIN,
             "\n{} ({}) exit {}, cur: {}",
             "･".repeat((self.level as f32 / 4.0).floor() as usize),
             self.level,
@@ -292,7 +292,7 @@ impl ParserRunner {
     }
 
     pub fn parse(&mut self, src: String) -> Result<Module, ParserRunnerErrors> {
-        let ts = Lexer::new(Input::Str(src))
+        let ts = Lexer::new(Input::Str(self.cfg.input.id(), src))
             .lex()
             .map_err(|errs| ParserRunnerErrors::convert(self.input(), errs))?;
         Parser::new(ts)
@@ -1011,6 +1011,7 @@ impl Parser {
         let first = match first {
             Expr::Def(def) => ClassAttr::Def(def),
             Expr::TypeAsc(tasc) => ClassAttr::Decl(tasc),
+            Expr::Lit(lit) if lit.is_doc_comment() => ClassAttr::Doc(lit),
             _ => {
                 // self.restore();
                 let err = self.skip_and_throw_syntax_err(caused_by!());

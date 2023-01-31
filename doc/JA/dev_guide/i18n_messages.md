@@ -40,7 +40,7 @@ switch_lang!(
 
 では、`--features simplified_chinese` オプションを付けてビルドしてみましょう。
 
-<img src="../../../assets/screenshot_i18n_messages.png" alt='screenshot_i18n_messages'>
+<img src="https://raw.githubusercontent.com/erg-lang/erg/main/assets/screenshot_i18n_messages.png" alt='screenshot_i18n_messages'>
 
 やりましたね!
 

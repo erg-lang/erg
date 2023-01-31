@@ -491,7 +491,7 @@ impl CodeObj {
     fn read_instr_308(&self, op: &u8, arg: &u8, idx: usize, instrs: &mut String) {
         let op308 = Opcode308::from(*op);
         let s_op = op308.to_string();
-        write!(instrs, "{:>15} {:<25}", idx, s_op).unwrap();
+        write!(instrs, "{idx:>15} {s_op:<25}").unwrap();
         if let Ok(op) = CommonOpcode::try_from(*op) {
             self.dump_additional_info(op, arg, idx, instrs);
         }
@@ -533,7 +533,7 @@ impl CodeObj {
     fn read_instr_310(&self, op: &u8, arg: &u8, idx: usize, instrs: &mut String) {
         let op310 = Opcode310::from(*op);
         let s_op = op310.to_string();
-        write!(instrs, "{:>15} {:<25}", idx, s_op).unwrap();
+        write!(instrs, "{idx:>15} {s_op:<25}").unwrap();
         if let Ok(op) = CommonOpcode::try_from(*op) {
             self.dump_additional_info(op, arg, idx, instrs);
         }

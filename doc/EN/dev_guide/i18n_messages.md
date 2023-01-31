@@ -38,9 +38,9 @@ The `{name}` part is Rust's formatting feature that allows you to embed the cont
 
 Now let's build with the `--features simplified_chinese` option.
 
-<img src="../../../assets/screenshot_i18n_messages.png" alt='screenshot_i18n_messages'>
+<img src="https://raw.githubusercontent.com/erg-lang/erg/main/assets/screenshot_i18n_messages.png" alt='screenshot_i18n_messages'>
 
-You did it, did not you!
+You did it!
 
 ## FAQs
 

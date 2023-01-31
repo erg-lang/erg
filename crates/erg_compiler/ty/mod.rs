@@ -149,13 +149,13 @@ impl fmt::Display for ParamTy {
         match self {
             Self::Pos { name, ty } => {
                 if let Some(name) = name {
-                    write!(f, "{}", name)?;
+                    write!(f, "{name}")?;
                 }
-                write!(f, ": {}", ty)
+                write!(f, ": {ty}")
             }
-            Self::Kw { name, ty } => write!(f, "{}: {}", name, ty),
+            Self::Kw { name, ty } => write!(f, "{name}: {ty}"),
             Self::KwWithDefault { name, ty, default } => {
-                write!(f, "{}: {} := {}", name, ty, default)
+                write!(f, "{name}: {ty} := {default}")
             }
         }
     }
@@ -412,7 +412,7 @@ impl LimitedDisplay for RefinementType {
             write!(f, "{{")?;
             for pred in self.preds.iter() {
                 let (_, rhs) = enum_unwrap!(pred, Predicate::Equal { lhs, rhs });
-                write!(f, "{}, ", rhs)?;
+                write!(f, "{rhs}, ")?;
             }
             write!(f, "}}")?;
             if cfg!(feature = "debug") {

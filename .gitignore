@@ -17,6 +17,7 @@
 /*/.DS_Store
 /.idea/
 /timeit.dat
+**/__pycache__/
 
 # Nix
 .direnv

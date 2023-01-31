@@ -780,7 +780,7 @@ impl Context {
         muty: Mutability,
     ) {
         if self.patches.contains_key(name) {
-            panic!("{} has already been registered", name);
+            panic!("{name} has already been registered");
         } else {
             let name = VarName::from_static(name);
             let vi = VarInfo::new(

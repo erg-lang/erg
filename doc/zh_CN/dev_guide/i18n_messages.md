@@ -39,7 +39,7 @@ switch_lang!(
 
 现在，我们使用选项构建它
 
-<img src="../../../assets/screenshot_i18n_messages.png" alt='screenshot_i18n_messages'>
+<img src="https://raw.githubusercontent.com/erg-lang/erg/main/assets/screenshot_i18n_messages.png" alt='screenshot_i18n_messages'>
 
 你做到了！
 

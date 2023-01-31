@@ -127,7 +127,7 @@ impl TyCheckError {
             ),
             None => "".to_owned(),
         };
-        let name = StyledString::new(format!("{}{}", name, ord), Some(WARN), Some(ATTR));
+        let name = StyledString::new(format!("{name}{ord}"), Some(WARN), Some(ATTR));
         let mut expct = StyledStrings::default();
         switch_lang!(
             "japanese" => expct.push_str("予期した型: "),
@@ -135,7 +135,7 @@ impl TyCheckError {
             "traditional_chinese" => expct.push_str("預期: "),
             "english" => expct.push_str("expected: "),
         );
-        expct.push_str_with_color_and_attribute(format!("{}", expect), HINT, ATTR);
+        expct.push_str_with_color_and_attribute(format!("{expect}"), HINT, ATTR);
 
         let mut fnd = StyledStrings::default();
         switch_lang!(
@@ -144,7 +144,7 @@ impl TyCheckError {
             "traditional_chinese" => fnd.push_str("但找到: "),
             "english" =>fnd.push_str("but found: "),
         );
-        fnd.push_str_with_color_and_attribute(format!("{}", found), ERR, ATTR);
+        fnd.push_str_with_color_and_attribute(format!("{found}"), ERR, ATTR);
         Self::new(
             ErrorCore::new(
                 vec![SubMessage::ambiguous_new(
@@ -183,7 +183,7 @@ impl TyCheckError {
             "traditional_chinese" => expct.push_str("預期: "),
             "english" => expct.push_str("expected: "),
         );
-        expct.push_str_with_color_and_attribute(format!("{}", expect), HINT, ATTR);
+        expct.push_str_with_color_and_attribute(format!("{expect}"), HINT, ATTR);
 
         let mut fnd = StyledStrings::default();
         switch_lang!(
@@ -192,7 +192,7 @@ impl TyCheckError {
             "traditional_chinese" => fnd.push_str("但找到: "),
             "english" =>fnd.push_str("but found: "),
         );
-        fnd.push_str_with_color_and_attribute(format!("{}", found), ERR, ATTR);
+        fnd.push_str_with_color_and_attribute(format!("{found}"), ERR, ATTR);
 
         Self::new(
             ErrorCore::new(
@@ -257,7 +257,7 @@ impl TyCheckError {
             "traditional_chinese" => expct.push_str("預期: "),
             "english" => expct.push_str("expected: "),
         );
-        expct.push_str_with_color_and_attribute(format!("{}", expect), HINT, ATTR);
+        expct.push_str_with_color_and_attribute(format!("{expect}"), HINT, ATTR);
 
         let mut fnd = StyledStrings::default();
         switch_lang!(
@@ -266,7 +266,7 @@ impl TyCheckError {
             "traditional_chinese" => fnd.push_str("但找到: "),
             "english" =>fnd.push_str("but found: "),
         );
-        fnd.push_str_with_color_and_attribute(format!("{}", found), ERR, ATTR);
+        fnd.push_str_with_color_and_attribute(format!("{found}"), ERR, ATTR);
 
         Self::new(
             ErrorCore::new(
@@ -305,7 +305,7 @@ impl TyCheckError {
             "traditional_chinese" => expct.push_str("預期: "),
             "english" => expct.push_str("expected: "),
         );
-        expct.push_str_with_color_and_attribute(format!("{}", expect), HINT, ATTR);
+        expct.push_str_with_color_and_attribute(format!("{expect}"), HINT, ATTR);
 
         let mut fnd = StyledStrings::default();
         switch_lang!(
@@ -314,7 +314,7 @@ impl TyCheckError {
             "traditional_chinese" => fnd.push_str("但找到: "),
             "english" =>fnd.push_str("but found: "),
         );
-        fnd.push_str_with_color_and_attribute(format!("{}", found), ERR, ATTR);
+        fnd.push_str_with_color_and_attribute(format!("{found}"), ERR, ATTR);
 
         Self::new(
             ErrorCore::new(
@@ -433,9 +433,9 @@ impl TyCheckError {
         kw_args_len: usize,
     ) -> Self {
         let name = readable_name(callee_name);
-        let expect = StyledString::new(format!("{}", params_len), Some(HINT), Some(ATTR));
-        let pos_args_len = StyledString::new(format!("{}", pos_args_len), Some(ERR), Some(ATTR));
-        let kw_args_len = StyledString::new(format!("{}", kw_args_len), Some(ERR), Some(ATTR));
+        let expect = StyledString::new(format!("{params_len}"), Some(HINT), Some(ATTR));
+        let pos_args_len = StyledString::new(format!("{pos_args_len}"), Some(ERR), Some(ATTR));
+        let kw_args_len = StyledString::new(format!("{kw_args_len}"), Some(ERR), Some(ATTR));
         Self::new(
             ErrorCore::new(
                 vec![SubMessage::only_loc(loc)],
@@ -576,7 +576,7 @@ passed keyword args:    {kw_args_len}"
             "traditional_chinese" => lhs_typ.push_str("左邊: "),
             "english" => lhs_typ.push_str("lhs: "),
         );
-        lhs_typ.push_str_with_color_and_attribute(format!("{}", lhs_t), WARN, ATTR);
+        lhs_typ.push_str_with_color_and_attribute(format!("{lhs_t}"), WARN, ATTR);
         let mut rhs_typ = StyledStrings::default();
         switch_lang!(
             "japanese" => rhs_typ.push_str("右辺: "),
@@ -584,7 +584,7 @@ passed keyword args:    {kw_args_len}"
             "traditional_chinese" => rhs_typ.push_str("右邊: "),
             "english" => rhs_typ.push_str("rhs: "),
         );
-        rhs_typ.push_str_with_color_and_attribute(format!("{}", rhs_t), WARN, ATTR);
+        rhs_typ.push_str_with_color_and_attribute(format!("{rhs_t}"), WARN, ATTR);
         Self::new(
             ErrorCore::new(
                 vec![SubMessage::ambiguous_new(
@@ -622,7 +622,7 @@ passed keyword args:    {kw_args_len}"
             "traditional_chinese" => lhs_typ.push_str("左邊: "),
             "english" => lhs_typ.push_str("lhs: "),
         );
-        lhs_typ.push_str_with_color_and_attribute(format!("{}", lhs_t), WARN, ATTR);
+        lhs_typ.push_str_with_color_and_attribute(format!("{lhs_t}"), WARN, ATTR);
         let mut rhs_typ = StyledStrings::default();
         switch_lang!(
             "japanese" => rhs_typ.push_str("右辺: "),
@@ -630,7 +630,7 @@ passed keyword args:    {kw_args_len}"
             "traditional_chinese" => rhs_typ.push_str("右邊: "),
             "english" => rhs_typ.push_str("rhs: "),
         );
-        rhs_typ.push_str_with_color_and_attribute(format!("{}", rhs_t), WARN, ATTR);
+        rhs_typ.push_str_with_color_and_attribute(format!("{rhs_t}"), WARN, ATTR);
         Self::new(
             ErrorCore::new(
                 vec![SubMessage::ambiguous_new(
@@ -668,7 +668,7 @@ passed keyword args:    {kw_args_len}"
             "simplified_chinese" =>sub_type.push_str("子類型:"),
             "english" => sub_type.push_str("subtype: "),
         );
-        sub_type.push_str_with_color_and_attribute(format!("{}", sub_t), HINT, ATTR);
+        sub_type.push_str_with_color_and_attribute(format!("{sub_t}"), HINT, ATTR);
 
         let mut sup_type = StyledStrings::default();
         switch_lang!(
@@ -677,7 +677,7 @@ passed keyword args:    {kw_args_len}"
             "simplified_chinese" => sup_type.push_str("父類型: "),
             "english" =>sup_type.push_str("supertype: "),
         );
-        sup_type.push_str_with_color_and_attribute(format!("{}", sup_t), ERR, ATTR);
+        sup_type.push_str_with_color_and_attribute(format!("{sup_t}"), ERR, ATTR);
         let hint = switch_lang!(
             "japanese" => "型推論が失敗している可能性があります。型を明示的に指定してみてください。",
             "simplified_chinese" => "可能是编译器推断失败。请尝试明确指定类型。",
@@ -720,7 +720,7 @@ passed keyword args:    {kw_args_len}"
             "traditional_chinese" => lhs_uni.push_str("左邊: "),
             "english" => lhs_uni.push_str("lhs: "),
         );
-        lhs_uni.push_str_with_color_and_attribute(format!("{}", lhs), HINT, ATTR);
+        lhs_uni.push_str_with_color_and_attribute(format!("{lhs}"), HINT, ATTR);
         let mut rhs_uni = StyledStrings::default();
         switch_lang!(
             "japanese" => rhs_uni.push_str("右辺: "),
@@ -728,7 +728,7 @@ passed keyword args:    {kw_args_len}"
             "traditional_chinese" => rhs_uni.push_str("右邊: "),
             "english" => rhs_uni.push_str("rhs: "),
         );
-        rhs_uni.push_str_with_color_and_attribute(format!("{}", rhs), ERR, ATTR);
+        rhs_uni.push_str_with_color_and_attribute(format!("{rhs}"), ERR, ATTR);
         Self::new(
             ErrorCore::new(
                 vec![SubMessage::ambiguous_new(
@@ -854,23 +854,23 @@ passed keyword args:    {kw_args_len}"
         let mut expct = StyledStrings::default();
         switch_lang!(
             "japanese" => {
-                expct.push_str_with_color_and_attribute(format!("{}", trait_type), ACCENT, ATTR);
+                expct.push_str_with_color_and_attribute(format!("{trait_type}"), ACCENT, ATTR);
                 expct.push_str("で宣言された型: ");
             },
             "simplified_chinese" => {
-                expct.push_str_with_color_and_attribute(format!("{}", trait_type), ACCENT, ATTR);
+                expct.push_str_with_color_and_attribute(format!("{trait_type}"), ACCENT, ATTR);
                 expct.push_str("中声明的类型: ");
             },
             "traditional_chinese" => {
-                expct.push_str_with_color_and_attribute(format!("{}", trait_type), ACCENT, ATTR);
+                expct.push_str_with_color_and_attribute(format!("{trait_type}"), ACCENT, ATTR);
                 expct.push_str("中聲明的類型: ");
             },
             "english" => {
                 expct.push_str("declared in ");
-                expct.push_str_with_color(format!("{}: ", trait_type), ACCENT);
+                expct.push_str_with_color(format!("{trait_type}: "), ACCENT);
             },
         );
-        expct.push_str_with_color(format!("{}", expect), HINT);
+        expct.push_str_with_color(format!("{expect}"), HINT);
         let mut fnd = StyledStrings::default();
         switch_lang!(
             "japanese" => fnd.push_str("与えられた型: "),
@@ -878,7 +878,7 @@ passed keyword args:    {kw_args_len}"
             "traditional_chinese" => fnd.push_str("但找到: "),
             "english" => fnd.push_str("but found: "),
         );
-        fnd.push_str_with_color(format!("{}", found), ERR);
+        fnd.push_str_with_color(format!("{found}"), ERR);
         let member_name = StyledStr::new(member_name, Some(WARN), Some(ATTR));
         Self::new(
             ErrorCore::new(

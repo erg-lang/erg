@@ -576,7 +576,7 @@ impl NestedDisplay for ArrayComprehension {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         let mut generators = String::new();
         for (name, gen) in self.generators.iter() {
-            write!(generators, "{} <- {}, ", name, gen).unwrap();
+            write!(generators, "{name} <- {gen}, ")?;
         }
         write!(
             f,
@@ -750,11 +750,12 @@ impl_locational_for_enum!(Dict; Normal, Comprehension);
 pub enum ClassAttr {
     Def(Def),
     Decl(TypeAscription),
+    Doc(Literal),
 }
 
-impl_nested_display_for_enum!(ClassAttr; Def, Decl);
-impl_display_for_enum!(ClassAttr; Def, Decl);
-impl_locational_for_enum!(ClassAttr; Def, Decl);
+impl_nested_display_for_enum!(ClassAttr; Def, Decl, Doc);
+impl_display_for_enum!(ClassAttr; Def, Decl, Doc);
+impl_locational_for_enum!(ClassAttr; Def, Decl, Doc);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ClassAttrs(Vec<ClassAttr>);
@@ -912,7 +913,7 @@ impl NestedDisplay for MixedRecord {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         write!(f, "{{")?;
         for attr in self.attrs.iter() {
-            write!(f, "{}; ", attr)?;
+            write!(f, "{attr}; ")?;
         }
         write!(f, "}}")
     }
@@ -1095,7 +1096,7 @@ impl NestedDisplay for Call {
             write!(f, "{}", self.obj)?;
         }
         if let Some(attr_name) = self.attr_name.as_ref() {
-            write!(f, "{}", attr_name)?;
+            write!(f, "{attr_name}")?;
         }
         if self.args.is_empty() {
             write!(f, "()")
@@ -2708,11 +2709,11 @@ impl NestedDisplay for VarPattern {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         match self {
             Self::Discard(_) => write!(f, "_"),
-            Self::Ident(ident) => write!(f, "{}", ident),
-            Self::Array(a) => write!(f, "{}", a),
-            Self::Tuple(t) => write!(f, "{}", t),
-            Self::Record(r) => write!(f, "{}", r),
-            Self::DataPack(d) => write!(f, "{}", d),
+            Self::Ident(ident) => write!(f, "{ident}"),
+            Self::Array(a) => write!(f, "{a}"),
+            Self::Tuple(t) => write!(f, "{t}"),
+            Self::Record(r) => write!(f, "{r}"),
+            Self::DataPack(d) => write!(f, "{d}"),
         }
     }
 }
@@ -2975,14 +2976,14 @@ pub enum ParamPattern {
 impl NestedDisplay for ParamPattern {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         match self {
-            Self::Discard(tok) => write!(f, "{}", tok),
-            Self::VarName(var_name) => write!(f, "{}", var_name),
-            Self::Lit(lit) => write!(f, "{}", lit),
-            Self::Array(array) => write!(f, "{}", array),
-            Self::Tuple(tuple) => write!(f, "{}", tuple),
-            Self::Record(record) => write!(f, "{}", record),
-            Self::Ref(var_name) => write!(f, "ref {}", var_name),
-            Self::RefMut(var_name) => write!(f, "ref! {}", var_name),
+            Self::Discard(tok) => write!(f, "{tok}"),
+            Self::VarName(var_name) => write!(f, "{var_name}"),
+            Self::Lit(lit) => write!(f, "{lit}"),
+            Self::Array(array) => write!(f, "{array}"),
+            Self::Tuple(tuple) => write!(f, "{tuple}"),
+            Self::Record(record) => write!(f, "{record}"),
+            Self::Ref(var_name) => write!(f, "ref {var_name}"),
+            Self::RefMut(var_name) => write!(f, "ref! {var_name}"),
         }
     }
 }

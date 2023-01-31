@@ -394,7 +394,7 @@ impl NestedDisplay for Identifier {
             }
         }
         if let Some(qn) = &self.qual_name {
-            write!(f, "(qual_name: {})", qn)?;
+            write!(f, "(qual_name: {qn})")?;
         }
         if self.vi.t != Type::Uninited {
             write!(f, "(: {})", self.vi.t)?;

@@ -374,10 +374,7 @@ fn format_context<E: ErrorDisplay + ?Sized>(
     let (vbreak, vbar) = chars.gutters();
     let offset = format!("{} {} ", &" ".repeat(max_digit), vbreak);
     for (i, lineno) in (ln_begin..=ln_end).enumerate() {
-        context.push_str_with_color(
-            &format!("{:<max_digit$} {vbar} ", lineno, vbar = vbar),
-            gutter_color,
-        );
+        context.push_str_with_color(&format!("{lineno:<max_digit$} {vbar} "), gutter_color);
         context.push_str(codes.get(i).unwrap_or(&String::new()));
         context.push_str("\n");
         context.push_str_with_color(&offset, gutter_color);
@@ -578,7 +575,7 @@ impl SubMessage {
                         .remove(0)
                 };
                 let mut cxt = StyledStrings::default();
-                cxt.push_str_with_color(&format!(" {lineno} {} ", vbar), gutter_color);
+                cxt.push_str_with_color(&format!(" {lineno} {vbar} "), gutter_color);
                 cxt.push_str(&code);
                 cxt.push_str("\n");
                 for msg in self.msg.iter() {
@@ -597,7 +594,7 @@ impl SubMessage {
                 other => {
                     let (_, vbar) = chars.gutters();
                     let mut cxt = StyledStrings::default();
-                    cxt.push_str_with_color(&format!(" ? {} ", vbar), gutter_color);
+                    cxt.push_str_with_color(&format!(" ? {vbar} "), gutter_color);
                     cxt.push_str(&other.reread());
                     cxt.push_str("\n");
                     for msg in self.msg.iter() {

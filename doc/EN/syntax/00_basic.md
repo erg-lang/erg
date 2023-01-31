@@ -11,7 +11,7 @@
 
 This document describes the basic syntax of Erg.
 If you already have experience with languages such as Python, please refer to the [quick tour](quick_tour.md) for an overview.
-There is also a separate [Standard API](../API/index.md) and [Internal Documentation for Erg Contributors](../dev_guide/index.md). If you need a detailed explanation of the syntax or Erg itself, please refer to those documents.
+There is also a separate [Standard API](../API/index.md) and [Internal Documentation for Erg Contributors](../dev_guide/README.md). If you need a detailed explanation of the syntax or Erg itself, please refer to those documents.
 
 ## Hello, World&excl;
 
@@ -112,8 +112,8 @@ C = Class {x = Int}
     .method self = ...
 ```
 
-You can specify the language of the document by writing the language code immediately after the `'''`. The [Erg Language Server](https://github.com/erg-lang/erg/tree/main/compiler/els) will then display documents in the Markdown format for each language version (The default language is English).
-See [here](https://github.com/erg-lang/erg/blob/main/doc/JA/dev_guide/i18n_messages.md) for registered language codes.
+You can specify the language of the document by writing the language code immediately after the `'''`. The [Erg Language Server](https://github.com/erg-lang/erg/tree/main/crates/els) will then display documents in the Markdown format for each language version (The default language is English).
+See [here](https://github.com/erg-lang/erg/blob/main/doc/EN/dev_guide/i18n_messages.md) for registered language codes.
 
 ```python
 '''

@@ -201,7 +201,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             if res.len() != 2 {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
-                    format!("Header '{}' is malformed", buffer),
+                    format!("Header '{buffer}' is malformed"),
                 ));
             }
             let header_name = res[0].to_lowercase();
@@ -217,7 +217,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                     if header_value != "utf8" && header_value != "utf-8" {
                         return Err(io::Error::new(
                             io::ErrorKind::InvalidData,
-                            format!("Content type '{}' is invalid", header_value),
+                            format!("Content type '{header_value}' is invalid"),
                         ));
                     }
                 }
@@ -291,7 +291,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 self.check_file(uri, &code)
             }
             // "textDocument/didChange"
-            _ => Self::send_log(format!("received notification: {}", method)),
+            _ => Self::send_log(format!("received notification: {method}")),
         }
     }
 

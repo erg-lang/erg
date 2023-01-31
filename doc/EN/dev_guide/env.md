@@ -12,7 +12,9 @@
 We use pre-commit to have clippy check and test automatically.
 The checks may fail on the first run even if there are no bugs, in which case you should try committing again.
 
-* Python3 interpreter
+* Python3 interpreter (3.7~3.11)
+
+If you want to check the behavior of Erg in various versions, it is recommended to install such as [pyenv](https://github.com/pyenv/pyenv).
 
 ## Recommendation
 

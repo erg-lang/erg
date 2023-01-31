@@ -290,7 +290,7 @@ pub fn __range_getitem__(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult
     } else {
         Err(ErrorCore::new(
             vec![SubMessage::only_loc(Location::Unknown)],
-            format!("Index out of range: {}", index),
+            format!("Index out of range: {index}"),
             line!() as usize,
             ErrorKind::IndexError,
             Location::Unknown,

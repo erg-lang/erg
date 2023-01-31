@@ -1488,7 +1488,7 @@ impl ASTLowerer {
                             errs
                         })?;
                     }
-                    ast::ClassAttr::Decl(_decl) => {}
+                    ast::ClassAttr::Decl(_) | ast::ClassAttr::Doc(_) => {}
                 }
             }
             for attr in methods.attrs.into_iter() {
@@ -1504,6 +1504,14 @@ impl ASTLowerer {
                     ast::ClassAttr::Decl(decl) => match self.lower_type_asc(decl) {
                         Ok(decl) => {
                             hir_methods.push(hir::Expr::TypeAsc(decl));
+                        }
+                        Err(errs) => {
+                            self.errs.extend(errs);
+                        }
+                    },
+                    ast::ClassAttr::Doc(doc) => match self.lower_literal(doc) {
+                        Ok(doc) => {
+                            hir_methods.push(hir::Expr::Lit(doc));
                         }
                         Err(errs) => {
                             self.errs.extend(errs);
@@ -1607,7 +1615,7 @@ impl ASTLowerer {
                             errs
                         })?;
                     }
-                    ast::ClassAttr::Decl(_decl) => {}
+                    ast::ClassAttr::Decl(_) | ast::ClassAttr::Doc(_) => {}
                 }
             }
             for attr in methods.attrs.into_iter() {
@@ -1623,6 +1631,14 @@ impl ASTLowerer {
                     ast::ClassAttr::Decl(decl) => match self.lower_type_asc(decl) {
                         Ok(decl) => {
                             hir_methods.push(hir::Expr::TypeAsc(decl));
+                        }
+                        Err(errs) => {
+                            self.errs.extend(errs);
+                        }
+                    },
+                    ast::ClassAttr::Doc(doc) => match self.lower_literal(doc) {
+                        Ok(doc) => {
+                            hir_methods.push(hir::Expr::Lit(doc));
                         }
                         Err(errs) => {
                             self.errs.extend(errs);

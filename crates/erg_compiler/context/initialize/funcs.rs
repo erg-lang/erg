@@ -113,7 +113,7 @@ impl Context {
             None,
             Bool,
         );
-        let I = mono_q(KW_I, subtypeof(poly(KW_ITERABLE, vec![ty_tp(T.clone())])));
+        let I = mono_q(TY_I, subtypeof(poly(ITERABLE, vec![ty_tp(T.clone())])));
         let t_iter = nd_func(vec![kw(KW_OBJECT, I.clone())], None, proj(I, ITERATOR)).quantify();
         let t_len = nd_func(
             vec![kw(KW_S, poly(SEQ, vec![TyParam::erased(Type)]))],
