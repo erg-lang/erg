@@ -137,6 +137,25 @@ impl Input {
     pub fn repl() -> Self {
         Self::REPL(random())
     }
+    pub fn lineno(&self) -> usize {
+        GLOBAL_STDIN.lineno()
+    }
+
+    pub fn block_begin(&self) -> usize {
+        GLOBAL_STDIN.block_begin()
+    }
+
+    pub fn set_block_begin(&self) {
+        GLOBAL_STDIN.set_block_begin(self.lineno())
+    }
+
+    pub fn insert_whitespace(&self, whitespace: &str) {
+        GLOBAL_STDIN.insert_whitespace(whitespace);
+    }
+
+    pub fn set_indent(&self, indent: usize) {
+        GLOBAL_STDIN.set_indent(indent);
+    }
 
     pub fn path(&self) -> Option<&Path> {
         match self {

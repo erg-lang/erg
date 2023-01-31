@@ -227,6 +227,10 @@ impl StdinReader {
     pub fn reread_lines(&self, ln_begin: usize, ln_end: usize) -> Vec<String> {
         self.buf[ln_begin - 1..=ln_end - 1].to_vec()
     }
+
+    pub fn last_line(&mut self) -> Option<&mut String> {
+        self.buf.last_mut()
+    }
 }
 
 thread_local! {
@@ -250,5 +254,29 @@ impl GlobalStdin {
     pub fn reread_lines(&'static self, ln_begin: usize, ln_end: usize) -> Vec<String> {
         self.0
             .with(|s| s.borrow_mut().reread_lines(ln_begin, ln_end))
+    }
+
+    pub fn lineno(&'static self) -> usize {
+        self.0.with(|s| s.borrow().lineno)
+    }
+
+    pub fn block_begin(&'static self) -> usize {
+        self.0.with(|s| s.borrow().block_begin)
+    }
+
+    pub fn set_block_begin(&'static self, n: usize) {
+        self.0.with(|s| s.borrow_mut().block_begin = n);
+    }
+
+    pub fn set_indent(&'static self, n: usize) {
+        self.0.with(|s| s.borrow_mut().indent = n as u16);
+    }
+
+    pub fn insert_whitespace(&'static self, whitespace: &str) {
+        self.0.with(|s| {
+            if let Some(line) = s.borrow_mut().last_line() {
+                line.insert_str(0, whitespace);
+            }
+        })
     }
 }
