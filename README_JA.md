@@ -15,8 +15,8 @@
     </a>
 </p>
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3D54dbd1ec22756e0f8aae5ccf0c41aeb9d34876da)
-](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=54dbd1ec22756e0f8aae5ccf0c41aeb9d34876da)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3Dfb9617ca76bb0274882caa33db2dbb6158e81457)
+](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=fb9617ca76bb0274882caa33db2dbb6158e81457)
 
 ## Ergはこんな人におすすめです&#58;
 
@@ -160,6 +160,8 @@
 ## Requirements
 
 [Python3 (3.7~3.11)](https://www.python.org/)インタープリタがインストールされている必要があります。すでにインストールされているならセットアップは不要です。
+
+REPLでペースト機能を利用したい場合は`xsel`をインストールしてください(WSLでは必要ありません)
 
 ## インストール
 

@@ -15,8 +15,8 @@
     </a>
 </p>
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3Ddc7feca6ad1533e791b5fc1fd036636860f03d07)
-](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=dc7feca6ad1533e791b5fc1fd036636860f03d07)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3D54dbd1ec22756e0f8aae5ccf0c41aeb9d34876da)
+](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=54dbd1ec22756e0f8aae5ccf0c41aeb9d34876da)
 
 ## Erg可以推薦給以下人員&colon;
 
@@ -160,6 +160,8 @@
 ## 要求
 
 [Python3 (3.7~3.11)](https://www.python.org/) 解釋器是必需的。如果計算機上已安裝它，則無需進行任何設置
+
+如果你想在Linux上的REPL中使用粘貼功能，請安裝`xsel` (WSL不需要)
 
 ## 安裝
 
