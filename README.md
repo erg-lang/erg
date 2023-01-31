@@ -161,6 +161,8 @@
 
 A [Python3 (3.7~3.11)](https://www.python.org/) interpreter is required. If it is already installed on your machine, no setup is required.
 
+Install `xsel` if you want to use paste function in the REPL on Linux(WSL doesn't need it)
+
 ## Installation
 
 ### Installing by cargo (Rust package manager)
