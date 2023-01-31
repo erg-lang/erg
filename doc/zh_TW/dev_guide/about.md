@@ -1,4 +1,4 @@
-# About this guide
+# 關於本指南
 
-This document is a guide to developing the Erg project.
-It describes how to make contributions, guidelines for development, and how to set up the development environment, etc.
+本文檔是開發Erg項目的指南
+它描述了如何做出貢獻，做開發的指南，以及如何建立開發環境等
