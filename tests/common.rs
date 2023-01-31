@@ -27,6 +27,31 @@ pub(crate) fn expect_repl_success(name: &'static str, lines: Vec<String>) -> Res
     }
 }
 
+pub(crate) fn expect_repl_unsuccess(
+    name: &'static str,
+    lines: Vec<String>,
+    errs_len: usize,
+) -> Result<(), ()> {
+    match exec_repl(name, lines) {
+        Ok(ExitStatus::OK) => Ok(()),
+        Ok(stat) => {
+            println!("err: should succeed, but got: {stat:?}");
+            Err(())
+        }
+        Err(errs) => {
+            if errs.len() == errs_len {
+                Ok(())
+            } else {
+                println!(
+                    "err: number of errors should be {errs_len}, but got {}",
+                    errs.len()
+                );
+                Err(())
+            }
+        }
+    }
+}
+
 pub(crate) fn expect_success(file_path: &'static str) -> Result<(), ()> {
     match exec_file(file_path) {
         Ok(0) => Ok(()),
