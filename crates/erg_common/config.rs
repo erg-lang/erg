@@ -89,13 +89,15 @@ impl DummyStdin {
         }
     }
 
-    pub fn read_line(&mut self) -> Option<String> {
+    pub fn read_line(&mut self) -> String {
         if self.current_line >= self.lines.len() {
-            return None;
+            println!();
+            return "".to_string();
         }
         let line = self.lines[self.current_line].clone();
         self.current_line += 1;
-        Some(line)
+        println!("{line}");
+        line
     }
 
     pub fn reread_lines(&self, ln_begin: usize, ln_end: usize) -> Vec<String> {
@@ -244,7 +246,7 @@ impl Input {
             }
             Self::Pipe(_, s) | Self::Str(_, s) => s.clone(),
             Self::REPL(_) => GLOBAL_STDIN.read(),
-            Self::DummyREPL(dummy) => dummy.read_line().unwrap_or_default(),
+            Self::DummyREPL(dummy) => dummy.read_line(),
             Self::Dummy => panic!("cannot read from a dummy file"),
         }
     }
