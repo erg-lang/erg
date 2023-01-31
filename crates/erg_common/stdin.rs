@@ -25,11 +25,52 @@ use crossterm::{
 /// `{ lineno: 5, buf: ["print! 1\n", "\n", "while! False, do!:\n", "print! \"\"\n", "\n"] }`
 #[derive(Debug)]
 pub struct StdinReader {
-    pub lineno: usize,
+    block_begin: usize,
+    lineno: usize,
     buf: Vec<String>,
+    history_input_position: usize,
+    indent: u16,
 }
 
 impl StdinReader {
+    #[cfg(target_os = "linux")]
+    fn access_clipboard() -> Option<Output> {
+        if let Ok(str) = std::fs::read("/proc/sys/kernel/osrelease") {
+            if let Ok(str) = std::str::from_utf8(&str) {
+                if str.to_ascii_lowercase().contains("microsoft") {
+                    return Some(
+                        Command::new("powershell")
+                            .args(["get-clipboard"])
+                            .output()
+                            .expect("failed to get clipboard"),
+                    );
+                }
+            }
+        }
+        Command::new("xsel")
+            .args(["--output", "--clipboard"])
+            .output()
+            .ok()
+    }
+    #[cfg(target_os = "macos")]
+    fn access_clipboard() -> Option<Output> {
+        Some(
+            Command::new("pbpast")
+                .output()
+                .expect("failed to get clipboard"),
+        )
+    }
+
+    #[cfg(target_os = "windows")]
+    fn access_clipboard() -> Option<Output> {
+        Some(
+            Command::new("powershell")
+                .args(["get-clipboard"])
+                .output()
+                .expect("failed to get clipboard"),
+        )
+    }
+
     pub fn read(&mut self) -> String {
         enable_raw_mode().unwrap();
         let mut output = std::io::stdout();
@@ -62,6 +103,24 @@ impl StdinReader {
                     line.push_str(":exit");
                     return Ok(());
                 }
+                (KeyCode::Char('v'), KeyModifiers::CONTROL) => {
+                    let op = Self::access_clipboard();
+                    let output = match op {
+                        None => {
+                            continue;
+                        }
+                        Some(output) => output,
+                    };
+                    let clipboard = {
+                        let this = String::from_utf8_lossy(&output.stdout).to_string();
+                        this.trim_matches(|c: char| c.is_whitespace())
+                            .to_string()
+                            .replace(['\n', '\r'], "")
+                    };
+                    line.insert_str(position, &clipboard);
+                    position += clipboard.len();
+                }
+                (_, KeyModifiers::CONTROL) => continue,
                 (KeyCode::Tab, _) => {
                     line.insert_str(position, "    ");
                     position += 4;
@@ -171,7 +230,7 @@ impl StdinReader {
 }
 
 thread_local! {
-    static READER: RefCell<StdinReader> = RefCell::new(StdinReader{ lineno: 0, buf: vec![] });
+    static READER: RefCell<StdinReader> = RefCell::new(StdinReader{ block_begin: 1, lineno: 1, buf: vec![], history_input_position: 1, indent: 1 });
 }
 
 #[derive(Debug)]
