@@ -27,14 +27,14 @@ pub mod colors {
 #[cfg(feature = "pretty")]
 pub mod colors {
     pub const BLACK: &str = "\x1b[30m";
-    pub const BLUE: &str = "\x1b[38;2;76;76;255m";
-    pub const CYAN: &str = "\x1b[38;2;76;255;255m";
+    pub const BLUE: &str = "\x1b[38;2;89;194;255m";
+    pub const CYAN: &str = "\x1b[38;2;36;227;242m";
     pub const GRAY: &str = "\x1b[38;2;231;231;235m";
-    pub const GREEN: &str = "\x1b[38;2;76;255;76m";
-    pub const MAGENTA: &str = "\x1b[38;2;165;76;255m";
-    pub const RED: &str = "\x1b[38;2;255;76;76m";
+    pub const GREEN: &str = "\x1b[38;2;159;196;92m";
+    pub const MAGENTA: &str = "\x1b[38;2;147;100;190m";
+    pub const RED: &str = "\x1b[38;2;233;82;149m";
     pub const WHITE: &str = "\x1b[97m";
-    pub const YELLOW: &str = "\x1b[38;2;255;255;76m";
+    pub const YELLOW: &str = "\x1b[38;2;255;212;92m";
     pub const DEBUG_MAIN: &str = BLUE;
     pub const DEBUG: &str = MAGENTA;
     pub const DEBUG_ERROR: &str = CYAN;
