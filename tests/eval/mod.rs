@@ -1,16 +1,25 @@
 use erg_common::style::{colors::DEBUG_MAIN, RESET};
 use std::process::{Command, Stdio};
 
-mod basic;
+mod build_in_function;
 mod literal;
 
+#[derive(PartialEq, Debug)]
 pub(crate) struct CommandOutput {
     pub(crate) stdout: String,
     pub(crate) stderr: String,
-    pub(crate) status: std::process::ExitStatus,
+    pub(crate) status_code: Option<i32>,
 }
 
-pub(crate) fn eval_code(code: &'static str) -> CommandOutput {
+fn successful_output(stdout: &str) -> CommandOutput {
+    CommandOutput {
+        stdout: stdout.into(),
+        stderr: "".into(),
+        status_code: Some(0),
+    }
+}
+
+pub(crate) fn eval(code: &'static str) -> CommandOutput {
     println!("{DEBUG_MAIN}[test] eval:\n{code}{RESET}");
     let output = Command::new(env!(concat!("CARGO_BIN_EXE_", env!("CARGO_PKG_NAME"))))
         .args(["-c", code])
@@ -18,16 +27,16 @@ pub(crate) fn eval_code(code: &'static str) -> CommandOutput {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .unwrap()
+        .expect("Failed to execute command")
         .wait_with_output()
-        .unwrap();
+        .expect("failed to wait for output");
     CommandOutput {
         stdout: String::from_utf8(output.stdout)
-            .unwrap()
+            .expect("failed to convert stdout to string")
             .replace("\r\n", "\n"),
         stderr: String::from_utf8(output.stderr)
-            .unwrap()
+            .expect("failed to convert stderr to string")
             .replace("\r\n", "\n"),
-        status: output.status,
+        status_code: output.status.code(),
     }
 }
