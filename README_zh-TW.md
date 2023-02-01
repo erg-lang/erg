@@ -201,8 +201,9 @@ nix build
 
 通過啟用`--features`標誌，你可以自定義構建和安裝
 
-- 你可以通過`--features {language}`來設置錯誤信息語言
-```
+* 你可以通過`--features {language}`來設置錯誤信息語言
+
+```sh
 --features japanese
 --features simplified_chinese
 --features traditional_chinese
@@ -210,11 +211,11 @@ nix build
 
 還有更多的語言將被加入（我們正在尋找翻譯者。請加入[翻譯項目](./doc/EN/dev_guide/i18n_messages.md)）
 
-- 安裝和構建ELS（Erg語言服務器）
-  - `--features els`
-- 設置成調試模式（針對貢獻者）
-  - `--features debug`
-- 查看 [這裏](https://github.com/erg-lang/erg/blob/main/.cargo/config.toml) 了解更多Flags和簡寫
+* 安裝和構建ELS（Erg語言服務器）
+  * `--features els`
+* 設置成調試模式（針對貢獻者）
+  * `--features debug`
+* 查看 [這裏](https://github.com/erg-lang/erg/blob/main/.cargo/config.toml) 了解更多Flags和簡寫
 
 ## 貢獻
 
