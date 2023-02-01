@@ -14,6 +14,10 @@ fn eval_string() {
     assert_eq!(eval("assert \"\" == \"\""), successful_output(""));
     assert_eq!(eval("print! \"A\""), successful_output("A\n"));
     assert_eq!(
+        eval(r#"a = 10;print! "2 * 5 = \{a}""#),
+        successful_output("2 * 5 = 10\n")
+    );
+    assert_eq!(
         eval(r#"print! "    \{"b"}\{False} \{[1]}""#),
         successful_output("    bFalse [1]\n")
     );
