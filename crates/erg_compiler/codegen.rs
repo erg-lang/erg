@@ -129,11 +129,12 @@ impl PyCodeGenUnit {
         filename: S,
         name: T,
         firstlineno: u32,
+        flags: u32,
     ) -> Self {
         Self {
             id,
             py_version,
-            codeobj: CodeObj::empty(params, filename, name, firstlineno),
+            codeobj: CodeObj::empty(params, filename, name, firstlineno, flags),
             stack_len: 0,
             prev_lineno: firstlineno,
             lasti: 0,
@@ -890,7 +891,7 @@ impl PyCodeGenerator {
             .non_defaults
             .iter()
             .map(|p| p.inspect().map(|s| &s[..]).unwrap_or("_"))
-            .chain(if let Some(var_args) = &params.var_args {
+            .chain(if let Some(var_args) = &params.var_params {
                 vec![var_args.inspect().map(|s| &s[..]).unwrap_or("_")]
             } else {
                 vec![]
@@ -1060,6 +1061,7 @@ impl PyCodeGenerator {
             Str::rc(self.cfg.input.enclosed_name()),
             &name,
             firstlineno,
+            0,
         ));
         let mod_name = self.toplevel_block_codeobj().name.clone();
         self.emit_load_const(mod_name);
@@ -1128,6 +1130,7 @@ impl PyCodeGenerator {
                 Str::rc(self.cfg.input.enclosed_name()),
                 ident.inspect(),
                 ident.ln_begin().unwrap(),
+                0,
             ));
             self.emit_load_const(ValueObj::None);
             self.write_instr(RETURN_VALUE);
@@ -1263,7 +1266,12 @@ impl PyCodeGenerator {
             self.stack_dec_n(defaults_len - 1);
             make_function_flag += MakeFunctionFlags::Defaults as usize;
         }
-        let code = self.emit_block(body.block, Some(name.clone()), params);
+        let flags = if sig.params.var_params.is_some() {
+            CodeObjFlags::VarArgs as u32
+        } else {
+            0
+        };
+        let code = self.emit_block(body.block, Some(name.clone()), params, flags);
         // code.flags += CodeObjFlags::Optimized as u32;
         self.register_cellvars(&mut make_function_flag);
         self.emit_load_const(code);
@@ -1302,7 +1310,12 @@ impl PyCodeGenerator {
             self.stack_dec_n(defaults_len - 1);
             make_function_flag += MakeFunctionFlags::Defaults as usize;
         }
-        let code = self.emit_block(lambda.body, Some("<lambda>".into()), params);
+        let flags = if lambda.params.var_params.is_some() {
+            CodeObjFlags::VarArgs as u32
+        } else {
+            0
+        };
+        let code = self.emit_block(lambda.body, Some("<lambda>".into()), params, flags);
         self.register_cellvars(&mut make_function_flag);
         self.emit_load_const(code);
         if self.py_version.minor < Some(11) {
@@ -2689,7 +2702,7 @@ impl PyCodeGenerator {
             Expr::Dict(dict) => self.emit_dict(dict),
             Expr::Record(rec) => self.emit_record(rec),
             Expr::Code(code) => {
-                let code = self.emit_block(code, None, vec![]);
+                let code = self.emit_block(code, None, vec![], 0);
                 self.emit_load_const(code);
             }
             Expr::Compound(chunks) => self.emit_compound(chunks),
@@ -2718,7 +2731,7 @@ impl PyCodeGenerator {
             Expr::Dict(dict) => self.emit_dict(dict),
             Expr::Record(rec) => self.emit_record(rec),
             Expr::Code(code) => {
-                let code = self.emit_block(code, None, vec![]);
+                let code = self.emit_block(code, None, vec![], 0);
                 self.emit_load_const(code);
             }
             Expr::Compound(chunks) => self.emit_compound(chunks),
@@ -2777,6 +2790,7 @@ impl PyCodeGenerator {
             Str::rc(self.cfg.input.enclosed_name()),
             &name,
             firstlineno,
+            0,
         ));
         let init_stack_len = self.stack_len();
         let mod_name = self.toplevel_block_codeobj().name.clone();
@@ -2943,7 +2957,13 @@ impl PyCodeGenerator {
         }
     }
 
-    fn emit_block(&mut self, block: Block, opt_name: Option<Str>, params: Vec<Str>) -> CodeObj {
+    fn emit_block(
+        &mut self,
+        block: Block,
+        opt_name: Option<Str>,
+        params: Vec<Str>,
+        flags: u32,
+    ) -> CodeObj {
         log!(info "entered {}", fn_name!());
         self.unit_size += 1;
         let name = if let Some(name) = opt_name {
@@ -2962,6 +2982,7 @@ impl PyCodeGenerator {
             Str::rc(self.cfg.input.enclosed_name()),
             name,
             firstlineno,
+            flags,
         ));
         let idx_copy_free_vars = if self.py_version.minor >= Some(11) {
             let idx_copy_free_vars = self.lasti();
@@ -3154,6 +3175,7 @@ impl PyCodeGenerator {
             Str::rc(self.cfg.input.enclosed_name()),
             "<module>",
             1,
+            0,
         ));
         if self.py_version.minor >= Some(11) {
             self.write_instr(Opcode311::RESUME);

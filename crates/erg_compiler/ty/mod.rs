@@ -197,6 +197,21 @@ impl ParamTy {
         }
     }
 
+    pub fn map_type<F>(self, f: F) -> Self
+    where
+        F: FnOnce(Type) -> Type,
+    {
+        match self {
+            Self::Pos { name, ty } => Self::Pos { name, ty: f(ty) },
+            Self::Kw { name, ty } => Self::Kw { name, ty: f(ty) },
+            Self::KwWithDefault { name, ty, default } => Self::KwWithDefault {
+                name,
+                ty: f(ty),
+                default,
+            },
+        }
+    }
+
     pub fn deconstruct(self) -> (Option<Str>, Type, Option<Type>) {
         match self {
             Self::Pos { name, ty } => (name, ty, None),
@@ -242,7 +257,7 @@ impl LimitedDisplay for SubrType {
             if !self.non_default_params.is_empty() {
                 write!(f, ", ")?;
             }
-            write!(f, "...")?;
+            write!(f, "*")?;
             var_params.typ().limited_fmt(f, limit - 1)?;
         }
         for pt in self.default_params.iter() {
@@ -501,7 +516,7 @@ impl Ownership {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ArgsOwnership {
     pub non_defaults: Vec<(Option<Str>, Ownership)>,
-    pub var_params: Option<(Str, Ownership)>,
+    pub var_params: Option<(Option<Str>, Ownership)>,
     pub defaults: Vec<(Str, Ownership)>,
 }
 
@@ -519,7 +534,12 @@ impl fmt::Display for ArgsOwnership {
             }
         }
         if let Some((name, o)) = self.var_params.as_ref() {
-            write!(f, ", ...{name}: {o:?}")?;
+            write!(f, ", *")?;
+            if let Some(name) = name {
+                write!(f, "{name}: {o:?}")?;
+            } else {
+                write!(f, "{o:?}")?;
+            }
         }
         for (name, o) in self.defaults.iter() {
             write!(f, ", {name} := {o:?}")?;
@@ -532,7 +552,7 @@ impl fmt::Display for ArgsOwnership {
 impl ArgsOwnership {
     pub const fn new(
         non_defaults: Vec<(Option<Str>, Ownership)>,
-        var_params: Option<(Str, Ownership)>,
+        var_params: Option<(Option<Str>, Ownership)>,
         defaults: Vec<(Str, Ownership)>,
     ) -> Self {
         Self {
@@ -1295,7 +1315,7 @@ impl Type {
                 let var_args = subr
                     .var_params
                     .as_ref()
-                    .map(|t| (t.name().unwrap().clone(), t.typ().ownership()));
+                    .map(|t| (t.name().cloned(), t.typ().ownership()));
                 let mut d_args = vec![];
                 for d_param in subr.default_params.iter() {
                     let ownership = match d_param.typ() {
@@ -1670,7 +1690,6 @@ impl Type {
     }
 
     pub fn container_len(&self) -> Option<usize> {
-        log!(err "{self}");
         match self {
             Self::Poly { name, params } => match &name[..] {
                 "Array" => {
