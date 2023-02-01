@@ -244,3 +244,8 @@ fn exec_quantified_err() -> Result<(), ()> {
 fn exec_var_args() -> Result<(), ()> {
     expect_success("tests/should_ok/var_args.er")
 }
+
+#[test]
+fn exec_var_args_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/var_args.er", 2)
+}

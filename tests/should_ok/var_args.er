@@ -1,3 +1,5 @@
 p! *x: Int = print! x
-
 p! 1, 2, 3
+
+first *x = x[0]
+assert first(1, 2, 3) == 1

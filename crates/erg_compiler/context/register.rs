@@ -251,6 +251,7 @@ impl Context {
             Private
         };
         let default = kind.default_info();
+        let is_var_params = kind.is_var_params();
         match &sig.pat {
             // Literal patterns will be desugared to discard patterns
             ast::ParamPattern::Lit(_) => unreachable!(),
@@ -299,6 +300,11 @@ impl Context {
                         Normal,
                         kind,
                     )?;
+                    let spec_t = if is_var_params {
+                        unknown_len_array_t(spec_t)
+                    } else {
+                        spec_t
+                    };
                     if &name.inspect()[..] == "self" {
                         if let Some(self_t) = self.rec_get_self_t() {
                             self.sub_unify(&spec_t, &self_t, name.loc(), Some(name.inspect()))?;
@@ -506,7 +512,7 @@ impl Context {
         };
         let name = &sig.ident.name;
         // FIXME: constでない関数
-        let t = self.get_current_scope_var(name).map(|v| &v.t).unwrap();
+        let t = self.get_current_scope_var(name).map(|vi| &vi.t).unwrap();
         let non_default_params = t.non_default_params().unwrap();
         let var_args = t.var_params();
         let default_params = t.default_params().unwrap();

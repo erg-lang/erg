@@ -3111,7 +3111,7 @@ impl fmt::Display for Params {
             f,
             "({}, {}, {})",
             fmt_vec(&self.non_defaults),
-            fmt_option!(pre "...", &self.var_params),
+            fmt_option!(pre "*", &self.var_params),
             fmt_vec(&self.defaults)
         )
     }
@@ -3132,8 +3132,9 @@ impl Locational for Params {
         ) {
             (Some(l), _, Some(r)) => Location::concat(l, r),
             (Some(l), Some(r), None) => Location::concat(l, r.as_ref()),
-            (Some(l), None, None) => Location::concat(l, self.non_defaults.last().unwrap()),
             (None, Some(l), Some(r)) => Location::concat(l.as_ref(), r),
+            (Some(l), None, None) => Location::concat(l, self.non_defaults.last().unwrap()),
+            (None, Some(var), None) => var.loc(),
             (None, None, Some(r)) => Location::concat(self.defaults.first().unwrap(), r),
             _ => Location::Unknown,
         }

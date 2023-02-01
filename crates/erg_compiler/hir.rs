@@ -176,7 +176,7 @@ impl NestedDisplay for Args {
             fmt_lines(self.pos_args.iter(), f, level)?;
         }
         if let Some(var_args) = &self.var_args {
-            writeln!(f, "...")?;
+            writeln!(f, "*")?;
             var_args.fmt_nest(f, level)?;
         }
         if !self.kw_args.is_empty() {
@@ -1683,8 +1683,9 @@ impl Locational for Params {
         ) {
             (Some(l), _, Some(r)) => Location::concat(l, r),
             (Some(l), Some(r), None) => Location::concat(l, r.as_ref()),
-            (Some(l), None, None) => Location::concat(l, self.non_defaults.last().unwrap()),
             (None, Some(l), Some(r)) => Location::concat(l.as_ref(), r),
+            (Some(l), None, None) => Location::concat(l, self.non_defaults.last().unwrap()),
+            (None, Some(var), None) => var.loc(),
             (None, None, Some(r)) => Location::concat(self.defaults.first().unwrap(), r),
             _ => Location::Unknown,
         }
