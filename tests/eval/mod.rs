@@ -1,4 +1,4 @@
-use erg_common::style::{colors::DEBUG_MAIN, RESET};
+use erg_common::style::{self, colors::DEBUG_MAIN, RESET};
 use std::process::{Command, Stdio};
 
 mod build_in_function;
@@ -34,9 +34,11 @@ pub(crate) fn eval(code: &'static str) -> CommandOutput {
         stdout: String::from_utf8(output.stdout)
             .expect("failed to convert stdout to string")
             .replace("\r\n", "\n"),
-        stderr: String::from_utf8(output.stderr)
-            .expect("failed to convert stderr to string")
-            .replace("\r\n", "\n"),
+        stderr: style::remove_style(
+            &String::from_utf8(output.stderr)
+                .expect("failed to convert stderr to string")
+                .replace("\r\n", "\n"),
+        ),
         status_code: output.status.code(),
     }
 }
