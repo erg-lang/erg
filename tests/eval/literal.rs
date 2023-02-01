@@ -64,9 +64,11 @@ fn eval_int() {
     assert_eq!(eval("print! 0 == 0"), successful_output("True\n"));
     assert_eq!(eval("print! 2147483647"), successful_output("2147483647\n"));
     // assert_eq!(eval("print! 2147483648"), successful_output("2147483648\n")); // should be ok?
-    assert_eq!(eval("print!(-2147483648)"), successful_output("-2147483648\n"));
+    assert_eq!(
+        eval("print!(-2147483648)"),
+        successful_output("-2147483648\n")
+    );
     // assert_eq!(eval("print!(-2147483649)"), successful_output("-2147483649\n")); // should be ok?
-
 
     {
         let result = eval("assert 100 == 1000");
