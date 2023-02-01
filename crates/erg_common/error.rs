@@ -1,7 +1,7 @@
 //! provides common components for error handling.
 //!
 //! エラー処理に関する汎用的なコンポーネントを提供する
-use std::cmp;
+use std::cmp::{self, Ordering};
 use std::fmt;
 use std::io::{stderr, BufWriter, Write as _};
 
@@ -258,6 +258,38 @@ pub enum Location {
     /// Used by default in case of loss of Location information
     #[default]
     Unknown,
+}
+
+impl Ord for Location {
+    fn cmp(&self, other: &Location) -> Ordering {
+        if self.ln_end() < other.ln_begin() {
+            Ordering::Less
+        } else if other.ln_end() < self.ln_begin() {
+            Ordering::Greater
+        } else if self.ln_begin() == self.ln_end() && other.ln_begin() == other.ln_end() {
+            // assert_eq!(self.line_begin, other.line_begin);
+            // assert_eq!(self.line_end, other.line_end);
+            if self.col_end() < other.col_begin() {
+                Ordering::Less
+            } else if other.col_end() < self.col_begin() {
+                Ordering::Greater
+            } else {
+                Ordering::Equal
+            }
+        } else {
+            Ordering::Equal
+        }
+    }
+}
+
+impl PartialOrd for Location {
+    fn partial_cmp(&self, other: &Location) -> Option<Ordering> {
+        if self.is_unknown() || other.is_unknown() {
+            None
+        } else {
+            Some(self.cmp(other))
+        }
+    }
 }
 
 impl Location {
