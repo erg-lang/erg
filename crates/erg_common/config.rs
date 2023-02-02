@@ -300,7 +300,13 @@ impl Input {
                 .iter()
                 .map(|s| s.to_string())
                 .collect(),
-            Self::REPL(_) => GLOBAL_STDIN.reread_lines(ln_begin, ln_end),
+            Self::REPL(_) => {
+                if ln_begin == ln_end {
+                    vec![GLOBAL_STDIN.reread()]
+                } else {
+                    GLOBAL_STDIN.reread_lines(ln_begin, ln_end)
+                }
+            }
             Self::DummyREPL(dummy) => dummy.reread_lines(ln_begin, ln_end),
             Self::Dummy => panic!("cannot read lines from a dummy file"),
         }
