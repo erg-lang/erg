@@ -26,4 +26,4 @@
 .getdoc: (object: Obj) -> Str
 .getcomments: (object: Obj) -> Str
 .getfile: (object: Obj) -> Str
-.getmodule: (object: Obj) -> Module or NoneType
+.getmodule: (object: Obj) -> GenericModule or NoneType

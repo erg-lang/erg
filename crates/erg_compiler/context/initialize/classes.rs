@@ -984,6 +984,34 @@ impl Context {
         );
         str_mut_mutable.register_builtin_erg_impl(PROC_UPDATE, t, Immutable, Public);
         str_mut.register_trait(mono(MUT_STR), str_mut_mutable);
+        let t = pr_met(
+            ref_mut(mono(MUT_STR), None),
+            vec![kw("s", Str)],
+            None,
+            vec![],
+            NoneType,
+        );
+        str_mut.register_builtin_py_impl(PROC_PUSH, t, Immutable, Public, Some(FUNC_PUSH));
+        let t = pr0_met(ref_mut(mono(MUT_STR), None), Str);
+        str_mut.register_builtin_py_impl(PROC_POP, t, Immutable, Public, Some(FUNC_POP));
+        let t = pr0_met(ref_mut(mono(MUT_STR), None), NoneType);
+        str_mut.register_builtin_py_impl(PROC_CLEAR, t, Immutable, Public, Some(FUNC_CLEAR));
+        let t = pr_met(
+            ref_mut(mono(MUT_STR), None),
+            vec![kw("idx", Nat), kw("s", Str)],
+            None,
+            vec![],
+            NoneType,
+        );
+        str_mut.register_builtin_py_impl(PROC_INSERT, t, Immutable, Public, Some(FUNC_INSERT));
+        let t = pr_met(
+            ref_mut(mono(MUT_STR), None),
+            vec![kw("idx", Nat)],
+            None,
+            vec![],
+            Str,
+        );
+        str_mut.register_builtin_py_impl(PROC_REMOVE, t, Immutable, Public, Some(FUNC_REMOVE));
         /* File! */
         let mut file_mut = Self::builtin_mono_class(MUT_FILE, 2);
         let mut file_mut_readable = Self::builtin_methods(Some(mono(MUT_READABLE)), 1);

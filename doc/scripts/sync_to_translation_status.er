@@ -1,0 +1,70 @@
+# TODO: support Windows
+os = pyimport "os"
+re = pyimport "re"
+mylib = pyimport "mylib" # TODO: Make it work without this
+
+LANGUAGES_KEBAB_CASE = ["JA", "zh-TW", "zh-CN"]
+
+os.chdir! mylib.path_join(mylib.get_file_dirname!(), "..")
+
+'''
+path_to_erg/erg/doc
+'''
+cwd = os.getcwd!()
+
+badge_pattern = re.compile("\\[!\\[badge\\]\\(([\\w.,@?^=%&:\\/~+#-]+)\\)\\]\\(([\\w.,@?^=%&:\\/~+#-]+)\\)")
+
+get_bedge! file_path =
+    if! os.path.exists!(file_path):
+        do!:
+            with! open!(file_path, encoding := "utf-8"), f =>
+                badge_match = badge_pattern.search(f.read!())
+                {matched; is_none} = mylib.eliminate_none_on_match badge_match
+                # matched: re.Match or NoneType
+                if is_none:
+                    do "Badge not found"
+                    do matched.group(0)
+        do!:
+            "File not found"
+
+get_doc_en_file_paths! relative_dir_path, relative_file_paths_result := [] =
+    dir_path = mylib.path_join(cwd, relative_dir_path)
+    dir_list = sorted os.listdir! dir_path
+    relative_file_paths = ![]
+    relative_dir_paths = ![]
+    for! dir_list, d =>
+        d_path = mylib.path_join(dir_path, d)
+        if! os.path.isfile!(d_path):
+            do! relative_file_paths.push! mylib.path_join(relative_dir_path, d)
+        if! os.path.isdir!(d_path):
+            do! relative_dir_paths.push! mylib.path_join(relative_dir_path, d)
+    result = ![]
+    for! relative_file_paths_result, path =>
+        result.push! path
+    for! relative_file_paths, path =>
+        result.push! path
+    for! relative_dir_paths, path =>
+        result.push! get_doc_en_file_paths! path, result
+    result
+
+doc_en_file_paths = get_doc_en_file_paths! "EN"
+
+for! LANGUAGES_KEBAB_CASE, lang =>
+    result_text = !""
+    result_text.update! t -> "# \{lang} translation status\n\n"
+    result_text.update! t -> "\{t}This This file is generated automatically. If you want to edit this, edit [`doc/scripts/sync_to_translation_status.er`](../scripts/sync_to_translation_status.er)\n\n"
+    add_table_row_text! left: Str, right: Str =
+        result_text.update! t -> "\{t}| \{left} | \{right} |\n"
+
+    add_table_row_text! "EN file name", "edit icon and badge"
+    add_table_row_text! "---", "---"
+    add_table_row_text! "[README.md](../../README.md)", "[📝](../../README_\{lang}.md) \{get_bedge!(mylib.path_join(cwd, "../README_\{lang}.md"))}"
+    add_table_row_text! "[CODE_OF_CONDUCT.md](../../CODE_OF_CONDUCT.md)", "[📝](../CODE_OF_CONDUCT/CODE_OF_CONDUCT_\{lang}.md) \{get_bedge!(mylib.path_join(cwd, "./CODE_OF_CONDUCT/CODE_OF_CONDUCT_\{lang}.md"))}"
+    add_table_row_text! "[CONTRIBUTING.md](../../CONTRIBUTING.md)", "[📝](../CONTRIBUTING/CONTRIBUTING_\{lang}.md) \{get_bedge!(mylib.path_join(cwd, "./CONTRIBUTING/CONTRIBUTING_\{lang}.md"))}"
+
+    for! doc_en_file_paths, en_path =>
+        relative_file_path = "\{lang.replace "-", "_"}\{mylib.str_slice en_path, 2}"
+        add_table_row_text! "[\{mylib.str_slice en_path, 3}](../\{en_path})", "[📝](../\{relative_file_path}) \{get_bedge!(mylib.path_join(cwd, relative_file_path))}"
+
+    with! open!(mylib.path_join(cwd, mylib.path_join("translation_status", "translation_status_\{lang}.md")), encoding := "utf-8", mode := "w"), f =>
+        discard f.write! str(result_text)

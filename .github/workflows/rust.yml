@@ -6,11 +6,21 @@ on:
     paths-ignore:
       - "doc/**"
       - ".github/**"
+      - ".assets/**"
+      - ".cargo/**"
+      - "**.md"
+      - "**.yml"
+      - "LICENSE-**"
   pull_request:
     branches: [main]
     paths-ignore:
       - "doc/**"
       - ".github/**"
+      - ".assets/**"
+      - ".cargo/**"
+      - "**.md"
+      - "**.yml"
+      - "LICENSE-**"
 
 env:
   CARGO_TERM_COLOR: always

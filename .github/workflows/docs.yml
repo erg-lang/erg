@@ -2,12 +2,12 @@ name: Docs
 
 on:
   push:
-    branches: [main]
     paths:
       - "doc/**"
+      - "**.md"
 
 jobs:
-  update-summary:
+  automatic-update:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -17,11 +17,22 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: "3.11"
-      - run: |
-          python sync_to_summary.py
+      - uses: erg-lang/setup-erg@v2.1
       - run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+      - name: update summary
+        run: |
+          python scripts/sync_to_summary.py
+
           git add .
           git diff-index --quiet HEAD || git commit -m "Automatic update \`SUMMARY.md\`"
+      - name: update translation_status
+        run: |
+          erg --version
+          erg scripts/sync_to_translation_status.er
+
+          git add .
+          git diff-index --quiet HEAD || git commit -m "Automatic update \`translation_status\`"
+      - run: |
           git push

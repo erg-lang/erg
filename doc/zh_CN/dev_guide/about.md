@@ -1,4 +1,4 @@
-# About this guide
+# 关于本指南
 
-This document is a guide to developing the Erg project.
-It describes the internal structure of the erg compiler, how to make contributions, guidelines for development, and how to set up the development environment, etc.
+本文档是开发Erg项目的指南
+它描述了如何做出贡献，做开发的指南，以及如何建立开发环境等

@@ -48,6 +48,8 @@ pub enum TokenKind {
     // PreAt,     // @ (unary)
     /// ! (unary)
     Mutate,
+    PreStar,    // * (unary)
+    PreDblStar, // ** (unary)
     /// ? (postfix)
     Try,
     /// `+`
@@ -164,8 +166,6 @@ pub enum TokenKind {
     VBar,
     /// _
     UBar,
-    /// ...
-    Spread,
     /// \n
     Newline,
     /// ;
@@ -229,7 +229,9 @@ impl TokenKind {
             StrInterpLeft => TokenCategory::StrInterpLeft,
             StrInterpMid => TokenCategory::StrInterpMid,
             StrInterpRight => TokenCategory::StrInterpRight,
-            PrePlus | PreMinus | PreBitNot | Mutate | RefOp | RefMutOp => TokenCategory::UnaryOp,
+            PrePlus | PreMinus | PreBitNot | Mutate | PreStar | PreDblStar | RefOp | RefMutOp => {
+                TokenCategory::UnaryOp
+            }
             Try => TokenCategory::PostfixOp,
             Comma | Colon | DblColon | SupertypeOf | SubtypeOf | Dot | Pipe | Walrus
             | Inclusion => TokenCategory::SpecialBinOp,

@@ -1,8 +1,8 @@
-# Summary
+# 概要
 
 <!--
-This file is generated automatically. If you want to edit this, edit `doc/sync_to_summary.py`
-This file is for generating The Erg Book. Do not add badges, etc.
+該文件是自動生成的。如果你想編輯這個，編輯 `doc/scripts/sync_to_summary.py`
+此文件用於生成Erg Book。不要添加翻譯徽章等
 -->
 
 - [基本](./00_basic.md)

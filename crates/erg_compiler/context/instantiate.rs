@@ -31,11 +31,37 @@ use crate::unreachable_error;
 use TyParamOrdering::*;
 use Type::*;
 
-use crate::context::{Context, RegistrationMode};
+use crate::context::{Context, DefaultInfo, RegistrationMode};
 use crate::error::{TyCheckError, TyCheckErrors, TyCheckResult};
 use crate::hir;
 use crate::AccessKind;
 use RegistrationMode::*;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ParamKind {
+    NonDefault,
+    Default(Type),
+    VarParams,
+    KwParams,
+}
+
+impl ParamKind {
+    pub const fn is_var_params(&self) -> bool {
+        matches!(self, ParamKind::VarParams)
+    }
+    pub const fn is_kw_params(&self) -> bool {
+        matches!(self, ParamKind::KwParams)
+    }
+    pub const fn is_default(&self) -> bool {
+        matches!(self, ParamKind::Default(_))
+    }
+    pub const fn default_info(&self) -> DefaultInfo {
+        match self {
+            ParamKind::Default(_) => DefaultInfo::WithDefault,
+            _ => DefaultInfo::NonDefault,
+        }
+    }
+}
 
 /// Context for instantiating a quantified type
 /// For example, cloning each type variable of quantified type `?T -> ?T` would result in `?1 -> ?2`.
@@ -252,7 +278,13 @@ impl Context {
             let opt_decl_t = opt_decl_sig_t
                 .as_ref()
                 .and_then(|subr| subr.non_default_params.get(n));
-            match self.instantiate_param_ty(param, None, opt_decl_t, &mut tmp_tv_cache, mode) {
+            match self.instantiate_param_ty(
+                param,
+                opt_decl_t,
+                &mut tmp_tv_cache,
+                mode,
+                ParamKind::NonDefault,
+            ) {
                 Ok(t) => non_defaults.push(t),
                 Err(es) => {
                     errs.extend(es);
@@ -260,16 +292,16 @@ impl Context {
                 }
             }
         }
-        let var_args = if let Some(var_args) = sig.params.var_args.as_ref() {
+        let var_args = if let Some(var_args) = sig.params.var_params.as_ref() {
             let opt_decl_t = opt_decl_sig_t
                 .as_ref()
                 .and_then(|subr| subr.var_params.as_ref().map(|v| v.as_ref()));
             let pt = match self.instantiate_param_ty(
                 var_args,
-                None,
                 opt_decl_t,
                 &mut tmp_tv_cache,
                 mode,
+                ParamKind::VarParams,
             ) {
                 Ok(pt) => pt,
                 Err(es) => {
@@ -288,10 +320,10 @@ impl Context {
                 .and_then(|subr| subr.default_params.get(n));
             match self.instantiate_param_ty(
                 &p.sig,
-                Some(default_t),
                 opt_decl_t,
                 &mut tmp_tv_cache,
                 mode,
+                ParamKind::Default(default_t),
             ) {
                 Ok(t) => defaults.push(t),
                 Err(es) => {
@@ -345,6 +377,7 @@ impl Context {
         opt_decl_t: Option<&ParamTy>,
         tmp_tv_cache: &mut TyVarCache,
         mode: RegistrationMode,
+        kind: ParamKind,
     ) -> TyCheckResult<Type> {
         let spec_t = if let Some(spec_with_op) = &sig.t_spec {
             self.instantiate_typespec(&spec_with_op.t_spec, opt_decl_t, tmp_tv_cache, mode, false)?
@@ -365,15 +398,28 @@ impl Context {
             }
         };
         if let Some(decl_pt) = opt_decl_t {
-            self.sub_unify(
-                decl_pt.typ(),
-                &spec_t,
-                sig.t_spec
-                    .as_ref()
-                    .map(|s| s.loc())
-                    .unwrap_or_else(|| sig.loc()),
-                None,
-            )?;
+            if kind.is_var_params() {
+                let spec_t = unknown_len_array_t(spec_t.clone());
+                self.sub_unify(
+                    decl_pt.typ(),
+                    &spec_t,
+                    sig.t_spec
+                        .as_ref()
+                        .map(|s| s.loc())
+                        .unwrap_or_else(|| sig.loc()),
+                    None,
+                )?;
+            } else {
+                self.sub_unify(
+                    decl_pt.typ(),
+                    &spec_t,
+                    sig.t_spec
+                        .as_ref()
+                        .map(|s| s.loc())
+                        .unwrap_or_else(|| sig.loc()),
+                    None,
+                )?;
+            }
         }
         Ok(spec_t)
     }
@@ -381,17 +427,18 @@ impl Context {
     pub(crate) fn instantiate_param_ty(
         &self,
         sig: &NonDefaultParamSignature,
-        opt_default_t: Option<Type>,
         opt_decl_t: Option<&ParamTy>,
         tmp_tv_cache: &mut TyVarCache,
         mode: RegistrationMode,
+        kind: ParamKind,
     ) -> TyCheckResult<ParamTy> {
-        let t = self.instantiate_param_sig_t(sig, opt_decl_t, tmp_tv_cache, mode)?;
-        match (sig.inspect(), opt_default_t) {
-            (Some(name), Some(default_t)) => Ok(ParamTy::kw_default(name.clone(), t, default_t)),
-            (Some(name), None) => Ok(ParamTy::kw(name.clone(), t)),
-            (None, None) => Ok(ParamTy::anonymous(t)),
-            _ => unreachable!(),
+        let t = self.instantiate_param_sig_t(sig, opt_decl_t, tmp_tv_cache, mode, kind.clone())?;
+        match (sig.inspect(), kind) {
+            (Some(name), ParamKind::Default(default_t)) => {
+                Ok(ParamTy::kw_default(name.clone(), t, default_t))
+            }
+            (Some(name), _) => Ok(ParamTy::kw(name.clone(), t)),
+            (None, _) => Ok(ParamTy::anonymous(t)),
         }
     }
 
@@ -919,8 +966,8 @@ impl Context {
                 let non_defaults = try_map_mut(subr.non_defaults.iter(), |p| {
                     self.instantiate_func_param_spec(p, opt_decl_t, None, tmp_tv_ctx, mode)
                 })?;
-                let var_args = subr
-                    .var_args
+                let var_params = subr
+                    .var_params
                     .as_ref()
                     .map(|p| {
                         self.instantiate_func_param_spec(p, opt_decl_t, None, tmp_tv_ctx, mode)
@@ -947,7 +994,7 @@ impl Context {
                 Ok(subr_t(
                     SubrKind::from(subr.arrow.kind),
                     non_defaults,
-                    var_args,
+                    var_params,
                     defaults,
                     return_t,
                 ))

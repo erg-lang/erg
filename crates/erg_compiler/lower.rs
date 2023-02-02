@@ -899,7 +899,7 @@ impl ASTLowerer {
         } else {
             None
         };
-        let (pos_args, kw_args, paren) = call.args.deconstruct();
+        let (pos_args, var_args, kw_args, paren) = call.args.deconstruct();
         let mut hir_args = hir::Args::new(
             Vec::with_capacity(pos_args.len()),
             None,
@@ -912,6 +912,16 @@ impl ASTLowerer {
                 Err(es) => {
                     errs.extend(es);
                     hir_args.push_pos(hir::PosArg::new(hir::Expr::Dummy(hir::Dummy::empty())));
+                }
+            }
+        }
+        if let Some(var_args) = var_args {
+            match self.lower_expr(var_args.expr) {
+                Ok(expr) => hir_args.var_args = Some(Box::new(hir::PosArg::new(expr))),
+                Err(es) => {
+                    errs.extend(es);
+                    let dummy = hir::Expr::Dummy(hir::Dummy::empty());
+                    hir_args.var_args = Some(Box::new(hir::PosArg::new(dummy)));
                 }
             }
         }
@@ -1069,7 +1079,7 @@ impl ASTLowerer {
         } else {
             let hir_params = hir::Params::new(
                 params.non_defaults,
-                params.var_args,
+                params.var_params,
                 hir_defaults,
                 params.parens,
             );
