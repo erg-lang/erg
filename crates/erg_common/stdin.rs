@@ -1,8 +1,12 @@
 use std::cell::RefCell;
-use std::process::Command;
-use std::process::Output;
 use std::thread::LocalKey;
 
+#[cfg(not(feature = "full-repl"))]
+use std::io::{stdin, BufRead, BufReader};
+#[cfg(feature = "full-repl")]
+use std::process::{Command, Output};
+
+#[cfg(feature = "full-repl")]
 use crossterm::{
     cursor::{MoveToColumn, SetCursorStyle},
     event::{read, Event, KeyCode, KeyEvent, KeyModifiers},
@@ -28,12 +32,13 @@ pub struct StdinReader {
     block_begin: usize,
     lineno: usize,
     buf: Vec<String>,
+    #[cfg(feature = "full-repl")]
     history_input_position: usize,
     indent: u16,
 }
 
 impl StdinReader {
-    #[cfg(target_os = "linux")]
+    #[cfg(all(target_os = "linux", feature = "full-repl"))]
     fn access_clipboard() -> Option<Output> {
         if let Ok(str) = std::fs::read("/proc/sys/kernel/osrelease") {
             if let Ok(str) = std::str::from_utf8(&str) {
@@ -52,7 +57,7 @@ impl StdinReader {
             .output()
             .ok()
     }
-    #[cfg(target_os = "macos")]
+    #[cfg(all(target_os = "macos", feature = "full-repl"))]
     fn access_clipboard() -> Option<Output> {
         Some(
             Command::new("pbpast")
@@ -61,7 +66,7 @@ impl StdinReader {
         )
     }
 
-    #[cfg(target_os = "windows")]
+    #[cfg(all(target_os = "windows", feature = "full-repl"))]
     fn access_clipboard() -> Option<Output> {
         Some(
             Command::new("powershell")
@@ -71,6 +76,18 @@ impl StdinReader {
         )
     }
 
+    #[cfg(not(feature = "full-repl"))]
+    pub fn read(&mut self) -> String {
+        let mut line = "".to_string();
+        let stdin = stdin();
+        let mut reader = BufReader::new(stdin.lock());
+        reader.read_line(&mut line).unwrap();
+        self.lineno += 1;
+        self.buf.push(line.trim_end().to_string());
+        self.buf.last().cloned().unwrap_or_default()
+    }
+
+    #[cfg(feature = "full-repl")]
     pub fn read(&mut self) -> String {
         enable_raw_mode().unwrap();
         let mut output = std::io::stdout();
@@ -84,6 +101,7 @@ impl StdinReader {
         self.buf.last().cloned().unwrap_or_default()
     }
 
+    #[cfg(feature = "full-repl")]
     fn input(&mut self, line: &mut String) -> std::io::Result<()> {
         let mut position = 0;
         let mut consult_history = false;
@@ -231,7 +249,13 @@ impl StdinReader {
 }
 
 thread_local! {
-    static READER: RefCell<StdinReader> = RefCell::new(StdinReader{ block_begin: 1, lineno: 1, buf: vec![], history_input_position: 1, indent: 1 });
+    static READER: RefCell<StdinReader> = RefCell::new(StdinReader{ block_begin: 1,
+        lineno: 1,
+        buf: vec![],
+        #[cfg(feature = "full-repl")]
+        history_input_position: 1,
+        indent: 1
+    });
 }
 
 #[derive(Debug)]

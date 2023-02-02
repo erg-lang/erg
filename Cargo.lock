@@ -130,12 +130,10 @@ dependencies = [
 name = "erg"
 version = "0.6.3"
 dependencies = [
- "crossterm",
  "els",
  "erg_common",
  "erg_compiler",
  "erg_parser",
- "wl-clipboard-rs",
 ]
 
 [[package]]

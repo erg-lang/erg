@@ -37,6 +37,7 @@ large_thread = [
 py_compatible = ["erg_common/py_compatible"]
 els = ["erg_common/els"]
 no_std = ["erg_common/no_std"]
+full-repl = ["erg_common/full-repl"]
 
 [dependencies]
 erg_common = { workspace = true, path = "../erg_common" }
