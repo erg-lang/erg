@@ -20,6 +20,7 @@ large_thread = []
 els = []
 py_compatible = []
 no_std = []
+full-repl = []
 
 [target.'cfg(unix)'.dependencies]
 libc = { version = "0.2", default-features = false }
@@ -30,8 +31,15 @@ hermit-abi = "0.1.6"
 version = "0.3"
 features = ["consoleapi"]
 
-[dependencies]
-crossterm = "0.26.0"
+[dependencies.crossterm]
+default-features = false
+optional = true
+version = "0.26.0"
+
+[target.'cfg(linux)'.dependencies.wl-clipboard-rs]
+default-features = false 
+optional = true
+version = "0.7.0"
 
 [lib]
 path = "lib.rs"

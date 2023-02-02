@@ -59,6 +59,8 @@ large_thread = [
 ]
 py_compatible = ["erg_compiler/py_compatible", "els/py_compatible"]
 els = ["erg_common/els", "erg_compiler/els", "dep:els"]
+full-repl = ["crossterm", "wl-clipboard-rs"]
+
 
 [workspace.dependencies]
 erg_common = { version = "0.6.3", path = "./crates/erg_common" }
@@ -71,7 +73,16 @@ erg_common = { workspace = true }
 erg_parser = { workspace = true }
 erg_compiler = { workspace = true }
 els = { workspace = true, optional = true }
-crossterm = "0.26.0"
+
+[dependencies.crossterm]
+default-features = false 
+optional = true
+version = "0.26.0"
+
+[target.'cfg(linux)'.dependencies.wl-clipboard-rs]
+default-features = false 
+optional = true
+version = "0.7.0"
 
 [build-dependencies]
 erg_common = { workspace = true }
