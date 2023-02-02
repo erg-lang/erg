@@ -332,7 +332,9 @@ impl PyCodeGenerator {
         } else {
             jump_to
         };
-        if !CommonOpcode::is_jump_op(*self.cur_block_codeobj().code.get(idx - 1).unwrap()) {
+        if idx == 0
+            || !CommonOpcode::is_jump_op(*self.cur_block_codeobj().code.get(idx - 1).unwrap())
+        {
             self.crash(&format!("calc_edit_jump: not jump op: {idx} {jump_to}"));
         }
         self.edit_code(idx, arg);
@@ -886,6 +888,14 @@ impl PyCodeGenerator {
             println!("current block: {}", self.cur_block());
             panic!("internal error: {description}");
         } else {
+            let err = CompileError::compiler_bug(
+                0,
+                self.input().clone(),
+                Location::Unknown,
+                fn_name!(),
+                line!(),
+            );
+            err.write_to_stderr();
             process::exit(1);
         }
     }
