@@ -20,13 +20,13 @@ class Str(str):
     def to_int(self):
         return Int(self) if self.isdigit() else None
     def __add__(self, other):
-        return then__(super().__add__(other), Str)
+        return then__(str.__add__(self, other), Str)
     def __radd__(self, other):
-        return then__(super().__radd__(other), Str)
+        return then__(str.__add__(other, self), Str)
     def __mul__(self, other):
-        return then__(super().__mul__(other), Str)
+        return then__(str.__mul__(self, other), Str)
     def __mod__(self, other):
-        return then__(super().__mod__(other), Str)
+        return then__(str.__mod__(other, self), Str)
 
 class StrMut(): # Inherits Str
     value: Str

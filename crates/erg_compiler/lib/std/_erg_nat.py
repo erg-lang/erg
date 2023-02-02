@@ -1,5 +1,6 @@
 from _erg_result import Error
-from _erg_int import Int, IntMut
+from _erg_int import Int
+from _erg_int import IntMut # don't unify with the above line
 from _erg_control import then__
 
 class Nat(Int):

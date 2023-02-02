@@ -14,29 +14,29 @@ class Int(int):
     def mutate(self):
         return IntMut(self)
     def __add__(self, other):
-        return then__(super().__add__(other), Int)
+        return then__(int.__add__(self, other), Int)
     def __radd__(self, other):
-        return then__(super().__radd__(other), Int)
+        return then__(int.__add__(other, self), Int)
     def __sub__(self, other):
-        return then__(super().__sub__(other), Int)
+        return then__(int.__sub__(self, other), Int)
     def __rsub__(self, other):
-        return then__(super().__rsub__(other), Int)
+        return then__(int.__sub__(other, self), Int)
     def __mul__(self, other):
-        return then__(super().__mul__(other), Int)
+        return then__(int.__mul__(self, other), Int)
     def __rmul__(self, other):
-        return then__(super().__rmul__(other), Int)
+        return then__(int.__mul__(other, self), Int)
     def __div__(self, other):
-        return then__(super().__div__(other), Int)
+        return then__(int.__div__(self, other), Int)
     def __rdiv__(self, other):
-        return then__(super().__rdiv__(other), Int)
+        return then__(int.__div__(other, self), Int)
     def __floordiv__(self, other):
-        return then__(super().__floordiv__(other), Int)
+        return then__(int.__floordiv__(self, other), Int)
     def __rfloordiv__(self, other):
-        return then__(super().__rfloordiv__(other), Int)
+        return then__(int.__floordiv__(other, self), Int)
     def __pow__(self, other):
-        return then__(super().__pow__(other), Int)
+        return then__(int.__pow__(self, other), Int)
     def __rpow__(self, other):
-        return then__(super().__rpow__(other), Int)
+        return then__(int.__pow__(other, self), Int)
 
 class IntMut(): # inherits Int
     value: Int
