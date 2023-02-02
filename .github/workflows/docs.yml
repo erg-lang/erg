@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - "doc/**"
+      - "**.md"
 
 jobs:
   automatic-update:
