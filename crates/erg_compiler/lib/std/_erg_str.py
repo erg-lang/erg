@@ -52,11 +52,11 @@ class StrMut(): # Inherits Str
             return last
         else:
             return Error("Can't pop from empty `Str!`")
-    def push(self, c: str):
-        self.value += c
+    def push(self, s: str):
+        self.value += s
     def remove(self, idx: int):
         char = self.value[idx]
         self.value = self.value[:idx] + self.value[idx+1:]
         return char
-    def insert(self, idx: int, c: str):
-        self.value = self.value[:idx] + c + self.value[idx:]
+    def insert(self, idx: int, s: str):
+        self.value = self.value[:idx] + s + self.value[idx:]

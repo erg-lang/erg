@@ -27,6 +27,7 @@ use crate::ty::typaram::{OpKind, TyParam};
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{ConstSubr, HasType, Predicate, SubrKind, Type, UserConstSubr, ValueArgs};
 
+use crate::context::instantiate::ParamKind;
 use crate::context::{ClassDefType, Context, ContextKind, RegistrationMode};
 use crate::error::{EvalError, EvalErrors, EvalResult, SingleEvalResult};
 
@@ -451,19 +452,19 @@ impl Context {
             let pt = self.instantiate_param_ty(
                 sig,
                 None,
-                None,
                 &mut tmp_tv_cache,
                 RegistrationMode::Normal,
+                ParamKind::NonDefault,
             )?;
             non_default_params.push(pt);
         }
-        let var_params = if let Some(p) = lambda.sig.params.var_args.as_ref() {
+        let var_params = if let Some(p) = lambda.sig.params.var_params.as_ref() {
             let pt = self.instantiate_param_ty(
                 p,
                 None,
-                None,
                 &mut tmp_tv_cache,
                 RegistrationMode::Normal,
+                ParamKind::VarParams,
             )?;
             Some(pt)
         } else {
@@ -474,10 +475,10 @@ impl Context {
             let expr = self.eval_const_expr(&sig.default_val)?;
             let pt = self.instantiate_param_ty(
                 &sig.sig,
-                Some(expr.t()),
                 None,
                 &mut tmp_tv_cache,
                 RegistrationMode::Normal,
+                ParamKind::Default(expr.t()),
             )?;
             default_params.push(pt);
         }

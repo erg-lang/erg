@@ -176,7 +176,7 @@ impl NestedDisplay for Args {
             fmt_lines(self.pos_args.iter(), f, level)?;
         }
         if let Some(var_args) = &self.var_args {
-            writeln!(f, "...")?;
+            writeln!(f, "*")?;
             var_args.fmt_nest(f, level)?;
         }
         if !self.kw_args.is_empty() {
@@ -1637,7 +1637,7 @@ impl DefaultParamSignature {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Params {
     pub non_defaults: Vec<NonDefaultParamSignature>,
-    pub var_args: Option<Box<NonDefaultParamSignature>>,
+    pub var_params: Option<Box<NonDefaultParamSignature>>,
     pub defaults: Vec<DefaultParamSignature>,
     pub parens: Option<(Token, Token)>,
 }
@@ -1648,7 +1648,7 @@ impl fmt::Display for Params {
             f,
             "({}, {}, {})",
             fmt_vec(&self.non_defaults),
-            fmt_option!(pre "...", &self.var_args),
+            fmt_option!(pre "*", &self.var_params),
             fmt_vec(&self.defaults)
         )
     }
@@ -1659,7 +1659,7 @@ impl NoTypeDisplay for Params {
         format!(
             "({}, {}, {})",
             fmt_vec(&self.non_defaults),
-            fmt_option!(pre "...", &self.var_args),
+            fmt_option!(pre "*", &self.var_params),
             self.defaults
                 .iter()
                 .map(|p| p.to_string_notype())
@@ -1678,13 +1678,14 @@ impl Locational for Params {
         }
         match (
             self.non_defaults.first(),
-            self.var_args.as_ref(),
+            self.var_params.as_ref(),
             self.defaults.last(),
         ) {
             (Some(l), _, Some(r)) => Location::concat(l, r),
             (Some(l), Some(r), None) => Location::concat(l, r.as_ref()),
-            (Some(l), None, None) => Location::concat(l, self.non_defaults.last().unwrap()),
             (None, Some(l), Some(r)) => Location::concat(l.as_ref(), r),
+            (Some(l), None, None) => Location::concat(l, self.non_defaults.last().unwrap()),
+            (None, Some(var), None) => var.loc(),
             (None, None, Some(r)) => Location::concat(self.defaults.first().unwrap(), r),
             _ => Location::Unknown,
         }
@@ -1714,7 +1715,7 @@ impl Params {
     ) -> Self {
         Self {
             non_defaults,
-            var_args,
+            var_params: var_args,
             defaults,
             parens,
         }
@@ -1723,14 +1724,19 @@ impl Params {
     pub const fn ref_deconstruct(&self) -> RefRawParams {
         (
             &self.non_defaults,
-            &self.var_args,
+            &self.var_params,
             &self.defaults,
             &self.parens,
         )
     }
 
     pub fn deconstruct(self) -> RawParams {
-        (self.non_defaults, self.var_args, self.defaults, self.parens)
+        (
+            self.non_defaults,
+            self.var_params,
+            self.defaults,
+            self.parens,
+        )
     }
 
     #[inline]

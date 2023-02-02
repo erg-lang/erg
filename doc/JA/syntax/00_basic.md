@@ -1,13 +1,13 @@
 # 基本事項
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/00_basic.md%26commit_hash%3D764A0E8981db429504b2427a6806887fa937ed2d)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/00_basic.md&commit_hash=764A0E8981db429504b2427a6806887fa937ed2d)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/00_basic.md%26commit_hash%3D8f874b3251e0f85832a1c0fd80fffd408844e8a1)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/00_basic.md&commit_hash=8f874b3251e0f85832a1c0fd80fffd408844e8a1)
 
 > __Warning__: 本ドキュメントは未完成です。校正(文体、正しいリンクが張られているか、など)がなされていません。また、Ergの文法はバージョン0.*の間に破壊的変更が加えられる可能性があり、それに伴うドキュメントの更新が追いついていない可能性があります。予めご了承ください。
 > また、本ドキュメントの誤りを見つけた場合は、[こちらのフォーム](https://forms.gle/HtLYRfYzWCAaeTGb6)または[GitHubリポジトリ](https://github.com/erg-lang/erg/issues/new?assignees=&labels=bug&template=bug_report.yaml)から修正の提案をしていただけると幸いです。
 
 本ドキュメントは、Ergの基本文法について解説するものです。
 既にpythonなどの言語に触れた経験がある方は、概説的な[quick&nbsp;tour](./quick_tour.md)もあるためそちらを参照してください。
-また、[標準API](../API/index.md)や[Ergコントリビューター向けの内部資料](../dev_guide/index.md)は別途存在します。文法やErg本体についての詳細な説明が必要な場合はそちらを参照してください。
+また、[標準API](../API/index.md)や[Ergコントリビューター向けの内部資料](../dev_guide/README.md)は別途存在します。文法やErg本体についての詳細な説明が必要な場合はそちらを参照してください。
 
 ## Hello, World&excl;
 

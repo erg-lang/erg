@@ -92,7 +92,7 @@ Parameters:
 * `flush`:
   ストリームを強制的にフラッシュするかどうか。
 '''
-.print!: (args: Ref(Obj), sep := Str, end := Str, file := Writable!, flush := Bool) => NoneType
+.print!: (*args: Ref(Obj), sep := Str, end := Str, file := Writable!, flush := Bool) => NoneType
 
 '''
 Open file and return a stream.

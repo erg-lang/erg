@@ -4,18 +4,18 @@
 .NoReturn: Type
 .Self: Type
 .TypeAlias: Type
-.Tuple: (...Type) -> Type
-.Union: (...Type) -> Type
+.Tuple: (*Type) -> Type
+.Union: (*Type) -> Type
 .Optional: (Type) -> Type
-.Callable: (...Type) -> Type
-.Concatenate: (...Type) -> Type
+.Callable: (*Type) -> Type
+.Concatenate: (*Type) -> Type
 .Type: (Type) -> Type
-.Literal: (...Obj) -> Type
+.Literal: (*Obj) -> Type
 .ClassVar: (Type) -> Type
 .Final: (Type) -> Type
 .Required: (Type) -> Type
 .NotRequired: (Type) -> Type
-.Annotated: (Type, ...Obj) -> Type
+.Annotated: (Type, *Obj) -> Type
 .TypeGuard: (Type) -> Type
 .Generic: (Type) -> Type
 .TypeVar: (Str) -> Type

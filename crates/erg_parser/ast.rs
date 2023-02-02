@@ -159,7 +159,7 @@ impl KwArg {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Args {
     pos_args: Vec<PosArg>,
-    // var_args: Option<Box<PosArg>>,
+    pub(crate) var_args: Option<Box<PosArg>>,
     kw_args: Vec<KwArg>,
     pub paren: Option<(Token, Token)>,
 }
@@ -194,25 +194,44 @@ impl Locational for Args {
 // impl_stream!(Args, Arg, args);
 
 impl Args {
-    pub const fn new(
+    pub fn new(
         pos_args: Vec<PosArg>,
+        var_args: Option<PosArg>,
         kw_args: Vec<KwArg>,
         paren: Option<(Token, Token)>,
     ) -> Self {
         Self {
             pos_args,
+            var_args: var_args.map(Box::new),
             kw_args,
             paren,
         }
     }
 
-    pub const fn empty() -> Self {
-        Self::new(vec![], vec![], None)
+    pub fn pos_only(pos_args: Vec<PosArg>, paren: Option<(Token, Token)>) -> Self {
+        Self::new(pos_args, None, vec![], paren)
+    }
+
+    pub fn empty() -> Self {
+        Self::new(vec![], None, vec![], None)
     }
 
     // for replacing to hir::Args
-    pub fn deconstruct(self) -> (Vec<PosArg>, Vec<KwArg>, Option<(Token, Token)>) {
-        (self.pos_args, self.kw_args, self.paren)
+    #[allow(clippy::type_complexity)]
+    pub fn deconstruct(
+        self,
+    ) -> (
+        Vec<PosArg>,
+        Option<PosArg>,
+        Vec<KwArg>,
+        Option<(Token, Token)>,
+    ) {
+        (
+            self.pos_args,
+            self.var_args.map(|x| *x),
+            self.kw_args,
+            self.paren,
+        )
     }
 
     pub fn is_empty(&self) -> bool {
@@ -265,6 +284,10 @@ impl Args {
 
     pub fn insert_pos(&mut self, index: usize, arg: PosArg) {
         self.pos_args.insert(index, arg);
+    }
+
+    pub fn set_var_args(&mut self, arg: PosArg) {
+        self.var_args = Some(Box::new(arg));
     }
 
     pub fn push_kw(&mut self, arg: KwArg) {
@@ -1016,6 +1039,11 @@ impl BinOp {
             args: [Box::new(lhs), Box::new(rhs)],
         }
     }
+
+    pub fn deconstruct(self) -> (Token, Expr, Expr) {
+        let mut exprs = self.args.into_iter();
+        (self.op, *exprs.next().unwrap(), *exprs.next().unwrap())
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -1045,6 +1073,11 @@ impl UnaryOp {
             op,
             args: [Box::new(expr)],
         }
+    }
+
+    pub fn deconstruct(self) -> (Token, Expr) {
+        let mut exprs = self.args.into_iter();
+        (self.op, *exprs.next().unwrap())
     }
 }
 
@@ -1661,6 +1694,7 @@ impl ConstKwArg {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstArgs {
     pos_args: Vec<ConstPosArg>,
+    var_args: Option<Box<ConstPosArg>>,
     kw_args: Vec<ConstKwArg>,
     paren: Option<(Token, Token)>,
 }
@@ -1692,24 +1726,43 @@ impl Locational for ConstArgs {
 // impl_stream!(ConstArgs, ConstKwArg, pos_args);
 
 impl ConstArgs {
-    pub const fn new(
+    pub fn new(
         pos_args: Vec<ConstPosArg>,
+        var_args: Option<ConstPosArg>,
         kw_args: Vec<ConstKwArg>,
         paren: Option<(Token, Token)>,
     ) -> Self {
         Self {
             pos_args,
+            var_args: var_args.map(Box::new),
             kw_args,
             paren,
         }
     }
 
-    pub fn deconstruct(self) -> (Vec<ConstPosArg>, Vec<ConstKwArg>, Option<(Token, Token)>) {
-        (self.pos_args, self.kw_args, self.paren)
+    pub fn pos_only(pos_args: Vec<ConstPosArg>, paren: Option<(Token, Token)>) -> Self {
+        Self::new(pos_args, None, vec![], paren)
     }
 
-    pub const fn empty() -> Self {
-        Self::new(vec![], vec![], None)
+    #[allow(clippy::type_complexity)]
+    pub fn deconstruct(
+        self,
+    ) -> (
+        Vec<ConstPosArg>,
+        Option<ConstPosArg>,
+        Vec<ConstKwArg>,
+        Option<(Token, Token)>,
+    ) {
+        (
+            self.pos_args,
+            self.var_args.map(|x| *x),
+            self.kw_args,
+            self.paren,
+        )
+    }
+
+    pub fn empty() -> Self {
+        Self::new(vec![], None, vec![], None)
     }
 
     pub fn is_empty(&self) -> bool {
@@ -1742,12 +1795,13 @@ impl ConstArgs {
     }
 
     pub fn downcast(self) -> Args {
-        let (pos_args, kw_args, paren) = self.deconstruct();
+        let (pos_args, var_args, kw_args, paren) = self.deconstruct();
         Args::new(
             pos_args
                 .into_iter()
                 .map(|arg| PosArg::new(arg.expr.downcast()))
                 .collect(),
+            var_args.map(|arg| PosArg::new(arg.expr.downcast())),
             kw_args
                 .into_iter()
                 // TODO t_spec
@@ -1901,7 +1955,7 @@ pub struct SubrTypeSpec {
     pub bounds: TypeBoundSpecs,
     pub lparen: Option<Token>,
     pub non_defaults: Vec<ParamTySpec>,
-    pub var_args: Option<Box<ParamTySpec>>,
+    pub var_params: Option<Box<ParamTySpec>>,
     pub defaults: Vec<DefaultParamTySpec>,
     pub arrow: Token,
     pub return_t: Box<TypeSpec>,
@@ -1916,7 +1970,7 @@ impl fmt::Display for SubrTypeSpec {
             f,
             "({}, {}, {}) {} {}",
             fmt_vec(&self.non_defaults),
-            fmt_option!(pre "...", &self.var_args),
+            fmt_option!(pre "*", &self.var_params),
             fmt_vec(&self.defaults),
             self.arrow.content,
             self.return_t
@@ -1942,7 +1996,7 @@ impl SubrTypeSpec {
         bounds: TypeBoundSpecs,
         lparen: Option<Token>,
         non_defaults: Vec<ParamTySpec>,
-        var_args: Option<ParamTySpec>,
+        var_params: Option<ParamTySpec>,
         defaults: Vec<DefaultParamTySpec>,
         arrow: Token,
         return_t: TypeSpec,
@@ -1951,7 +2005,7 @@ impl SubrTypeSpec {
             bounds,
             lparen,
             non_defaults,
-            var_args: var_args.map(Box::new),
+            var_params: var_params.map(Box::new),
             defaults,
             arrow,
             return_t: Box::new(return_t),
@@ -2163,6 +2217,7 @@ impl TypeSpec {
                 .into_iter()
                 .map(|lit| ConstPosArg::new(ConstExpr::Lit(lit)))
                 .collect(),
+            None,
             vec![],
             None,
         ))
@@ -3045,7 +3100,7 @@ impl DefaultParamSignature {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Params {
     pub non_defaults: Vec<NonDefaultParamSignature>,
-    pub var_args: Option<Box<NonDefaultParamSignature>>,
+    pub var_params: Option<Box<NonDefaultParamSignature>>,
     pub defaults: Vec<DefaultParamSignature>,
     pub parens: Option<(Token, Token)>,
 }
@@ -3056,7 +3111,7 @@ impl fmt::Display for Params {
             f,
             "({}, {}, {})",
             fmt_vec(&self.non_defaults),
-            fmt_option!(pre "...", &self.var_args),
+            fmt_option!(pre "*", &self.var_params),
             fmt_vec(&self.defaults)
         )
     }
@@ -3072,13 +3127,14 @@ impl Locational for Params {
         }
         match (
             self.non_defaults.first(),
-            self.var_args.as_ref(),
+            self.var_params.as_ref(),
             self.defaults.last(),
         ) {
             (Some(l), _, Some(r)) => Location::concat(l, r),
             (Some(l), Some(r), None) => Location::concat(l, r.as_ref()),
-            (Some(l), None, None) => Location::concat(l, self.non_defaults.last().unwrap()),
             (None, Some(l), Some(r)) => Location::concat(l.as_ref(), r),
+            (Some(l), None, None) => Location::concat(l, self.non_defaults.last().unwrap()),
+            (None, Some(var), None) => var.loc(),
             (None, None, Some(r)) => Location::concat(self.defaults.first().unwrap(), r),
             _ => Location::Unknown,
         }
@@ -3095,20 +3151,25 @@ type RawParams = (
 impl Params {
     pub fn new(
         non_defaults: Vec<NonDefaultParamSignature>,
-        var_args: Option<NonDefaultParamSignature>,
+        var_params: Option<NonDefaultParamSignature>,
         defaults: Vec<DefaultParamSignature>,
         parens: Option<(Token, Token)>,
     ) -> Self {
         Self {
             non_defaults,
-            var_args: var_args.map(Box::new),
+            var_params: var_params.map(Box::new),
             defaults,
             parens,
         }
     }
 
     pub fn deconstruct(self) -> RawParams {
-        (self.non_defaults, self.var_args, self.defaults, self.parens)
+        (
+            self.non_defaults,
+            self.var_params,
+            self.defaults,
+            self.parens,
+        )
     }
 
     #[inline]
