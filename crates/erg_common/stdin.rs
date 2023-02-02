@@ -77,11 +77,8 @@ impl StdinReader {
         execute!(output, SetCursorStyle::BlinkingBar).unwrap();
         let mut line = String::new();
         self.input(&mut line).unwrap();
-        if line.is_empty() {
-            return "".to_string();
-        }
         disable_raw_mode().unwrap();
-        execute!(output, SetCursorStyle::DefaultUserShape).unwrap();
+        execute!(output, MoveToColumn(0), SetCursorStyle::DefaultUserShape).unwrap();
         self.lineno += 1;
         self.buf.push(line);
         self.buf.last().cloned().unwrap_or_default()
