@@ -225,6 +225,7 @@ const FUNC_INT__: &str = "int__";
 const FUNC_FLOAT: &str = "float";
 const FUNC_BOOL: &str = "bool";
 const FUNC_STR: &str = "str";
+const FUNC_STR__: &str = "str__";
 const FUNC_TYPE: &str = "type";
 const CODE_TYPE: &str = "CodeType";
 const MODULE_TYPE: &str = "ModuleType";
