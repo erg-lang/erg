@@ -217,7 +217,11 @@ And more languages will be added (we are looking for translators. Please join th
   * `--features els`
 * Debugging mode (for contributors)
   * `--features debug`
-* See [here](https://github.com/erg-lang/erg/blob/main/.cargo/config.toml) for more flags and abbreviations.
+* Makes the display look better
+  * `--features unicode` and `--features pretty`
+* Full features(exclude `--features large_thread`)
+  * `features full`
+* See [here](https://github.com/erg-lang/erg/blob/main/doc/EN/dev_guide/build_features.md) for more flags.
 
 ## Contribution
 
