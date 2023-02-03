@@ -35,6 +35,36 @@ pub type ELSResult<T> = Result<T, Box<dyn std::error::Error>>;
 
 pub type ErgLanguageServer = Server<HIRBuilder>;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ELSFeatures {
+    Completion,
+    Diagnostic,
+    Hover,
+    SemanticTokens,
+    Rename,
+    InlayHint,
+    FindReferences,
+    GotoDefinition,
+}
+
+impl From<&str> for ELSFeatures {
+    fn from(s: &str) -> Self {
+        match s {
+            "completion" => ELSFeatures::Completion,
+            "diagnostic" => ELSFeatures::Diagnostic,
+            "hover" => ELSFeatures::Hover,
+            "semantictoken" | "semantictokens" | "semanticToken" | "semanticTokens"
+            | "semantic-tokens" => ELSFeatures::SemanticTokens,
+            "rename" => ELSFeatures::Rename,
+            "inlayhint" | "inlayhints" | "inlayHint" | "inlayHints" | "inlay-hint"
+            | "inlay-hints" => ELSFeatures::InlayHint,
+            "findreferences" | "findReferences" | "find-references" => ELSFeatures::FindReferences,
+            "gotodefinition" | "gotoDefinition" | "goto-completion" => ELSFeatures::GotoDefinition,
+            _ => panic!("unknown feature: {s}"),
+        }
+    }
+}
+
 macro_rules! _log {
     ($($arg:tt)*) => {
         Self::send_log(format!($($arg)*)).unwrap();
@@ -117,6 +147,15 @@ impl<Checker: BuildRunnable> Server<Checker> {
             self.client_capas = ClientCapabilities::deserialize(&msg["params"]["capabilities"])?;
             // Self::send_log(format!("set client capabilities: {:?}", self.client_capas))?;
         }
+        let mut args = self.cfg.runtime_args.iter();
+        let mut disabled_features = vec![];
+        while let Some(&arg) = args.next() {
+            if arg == "--disable" {
+                if let Some(&feature) = args.next() {
+                    disabled_features.push(ELSFeatures::from(feature));
+                }
+            }
+        }
         let mut result = InitializeResult::default();
         result.capabilities = ServerCapabilities::default();
         result.capabilities.text_document_sync =
@@ -128,8 +167,17 @@ impl<Checker: BuildRunnable> Server<Checker> {
         result.capabilities.rename_provider = Some(OneOf::Left(true));
         result.capabilities.references_provider = Some(OneOf::Left(true));
         result.capabilities.definition_provider = Some(OneOf::Left(true));
-        result.capabilities.hover_provider = Some(HoverProviderCapability::Simple(true));
-        result.capabilities.inlay_hint_provider = Some(OneOf::Left(true));
+        result.capabilities.hover_provider = if disabled_features.contains(&ELSFeatures::Hover) {
+            None
+        } else {
+            Some(HoverProviderCapability::Simple(true))
+        };
+        result.capabilities.inlay_hint_provider =
+            if disabled_features.contains(&ELSFeatures::InlayHint) {
+                None
+            } else {
+                Some(OneOf::Left(true))
+            };
         let mut sema_options = SemanticTokensOptions::default();
         sema_options.range = Some(false);
         sema_options.full = Some(SemanticTokensFullOptions::Bool(true));
@@ -151,9 +199,14 @@ impl<Checker: BuildRunnable> Server<Checker> {
             ],
             token_modifiers: vec![],
         };
-        result.capabilities.semantic_tokens_provider = Some(
-            SemanticTokensServerCapabilities::SemanticTokensOptions(sema_options),
-        );
+        result.capabilities.semantic_tokens_provider =
+            if disabled_features.contains(&ELSFeatures::SemanticTokens) {
+                None
+            } else {
+                Some(SemanticTokensServerCapabilities::SemanticTokensOptions(
+                    sema_options,
+                ))
+            };
         Self::send(&json!({
             "jsonrpc": "2.0",
             "id": id,

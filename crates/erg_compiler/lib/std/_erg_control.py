@@ -19,3 +19,9 @@ def with__(obj, body):
 
 def discard__(obj):
     pass
+
+def then__(x, f):
+    if x == None or x == NotImplemented:
+        return x
+    else:
+        return f(x)

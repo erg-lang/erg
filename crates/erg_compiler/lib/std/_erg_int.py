@@ -1,4 +1,5 @@
 from _erg_result import Error
+from _erg_control import then__
 
 class Int(int):
     def try_new(i): # -> Result[Nat]
@@ -12,6 +13,30 @@ class Int(int):
         return Int(self - 1)
     def mutate(self):
         return IntMut(self)
+    def __add__(self, other):
+        return then__(int.__add__(self, other), Int)
+    def __radd__(self, other):
+        return then__(int.__add__(other, self), Int)
+    def __sub__(self, other):
+        return then__(int.__sub__(self, other), Int)
+    def __rsub__(self, other):
+        return then__(int.__sub__(other, self), Int)
+    def __mul__(self, other):
+        return then__(int.__mul__(self, other), Int)
+    def __rmul__(self, other):
+        return then__(int.__mul__(other, self), Int)
+    def __div__(self, other):
+        return then__(int.__div__(self, other), Int)
+    def __rdiv__(self, other):
+        return then__(int.__div__(other, self), Int)
+    def __floordiv__(self, other):
+        return then__(int.__floordiv__(self, other), Int)
+    def __rfloordiv__(self, other):
+        return then__(int.__floordiv__(other, self), Int)
+    def __pow__(self, other):
+        return then__(int.__pow__(self, other), Int)
+    def __rpow__(self, other):
+        return then__(int.__pow__(other, self), Int)
 
 class IntMut(): # inherits Int
     value: Int
