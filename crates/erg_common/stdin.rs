@@ -3,12 +3,15 @@ use std::thread::LocalKey;
 
 #[cfg(not(feature = "full-repl"))]
 use std::io::{stdin, BufRead, BufReader};
+
 #[cfg(feature = "full-repl")]
-use std::process::{Command, Output};
+use clipboard::{ClipboardContext, ClipboardProvider};
+#[cfg(feature = "full-repl")]
+use std::error::Error;
 
 #[cfg(feature = "full-repl")]
 use crossterm::{
-    cursor::{MoveToColumn, SetCursorShape, CursorShape},
+    cursor::{CursorShape, MoveToColumn, SetCursorShape},
     event::{read, Event, KeyCode, KeyEvent, KeyModifiers},
     execute,
     style::Print,
@@ -39,12 +42,24 @@ pub struct StdinReader {
 
 impl StdinReader {
     #[cfg(feature = "full-repl")]
-    fn access_clipboard() -> Option<Output> {
-        Some(
-            Command::new("inclip")
-                .output()
-                .expect("failed to get clipboard"),
-        )
+    fn access_clipboard() -> String {
+        let mut context = ClipboardProvider::new().unwrap();
+        if let Some(contents) = Self::get_clip_contents(&mut context).unwrap() {
+            return contents;
+        }
+        "".to_string()
+    }
+    #[cfg(feature = "full-repl")]
+    fn get_clip_contents(context: &mut ClipboardContext) -> Result<Option<String>, Box<dyn Error>> {
+        match context.get_contents() {
+            Ok(contents) => Ok(Some(contents)),
+            Err(err)
+                if (*err).to_string() == "The operation completed successfully. (os error 0)" =>
+            {
+                Ok(None)
+            }
+            Err(err) => Err(err),
+        }
     }
 
     #[cfg(not(feature = "full-repl"))]
@@ -90,16 +105,9 @@ impl StdinReader {
                     return Ok(());
                 }
                 (KeyCode::Char('v'), KeyModifiers::CONTROL) => {
-                    let op = Self::access_clipboard();
-                    let output = match op {
-                        None => {
-                            continue;
-                        }
-                        Some(output) => output,
-                    };
                     let clipboard = {
-                        let this = String::from_utf8_lossy(&output.stdout).to_string();
-                        this.trim_matches(|c: char| c.is_whitespace())
+                        Self::access_clipboard()
+                            .trim_matches(|c: char| c.is_whitespace())
                             .to_string()
                             .replace(['\n', '\r'], "")
                     };

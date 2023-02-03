@@ -289,11 +289,6 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-## `inclip`
-
-* Source code is available at [https://github.com/Eolu/inclip](https://github.com/Eolu/inclip)
-* license: MIT
-
 ## `json`
 
 * Source code is available at [https://github.com/serde-rs/json](https://github.com/serde-rs/json)
