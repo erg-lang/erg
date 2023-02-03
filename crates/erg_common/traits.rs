@@ -524,8 +524,14 @@ impl VirtualMachine {
     }
 
     pub fn push_block_kind(&mut self, bk: BlockKind) {
+        if self.now == BlockKind::AtMark && bk == BlockKind::AtMark {
+            return;
+        }
         self.now = bk;
         self.now_block.push(bk);
+        if bk == BlockKind::AtMark {
+            return;
+        }
         self.length += 1;
     }
 
@@ -549,8 +555,6 @@ impl VirtualMachine {
     pub fn indent(&self) -> String {
         if self.now == BlockKind::MultiLineStr {
             String::new()
-        } else if self.now_block.contains(&BlockKind::AtMark) {
-            "    ".repeat(self.length - 2) // Length to AtMark
         } else {
             "    ".repeat(self.length - 1) // Except MainBlock
         }
@@ -665,12 +669,6 @@ pub trait Runnable: Sized + Default {
                             output.flush().unwrap();
                             vm.clear();
                             instance.clear();
-                            continue;
-                        }
-                        "@Inheritable" | "@Override" => {
-                            vm.push_code(line);
-                            vm.push_code("\n");
-                            vm.push_block_kind(BlockKind::AtMark);
                             continue;
                         }
                         "" => {

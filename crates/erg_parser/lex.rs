@@ -95,6 +95,9 @@ impl Runnable for LexerRunner {
         if src.contains(multi_line_str) && src.rfind(multi_line_str) == src.find(multi_line_str) {
             return BlockKind::MultiLineStr;
         }
+        if src.trim_start().starts_with('@') {
+            return BlockKind::AtMark;
+        }
         if src.ends_with("do!:") && !src.starts_with("do!:") {
             return BlockKind::Lambda;
         }
