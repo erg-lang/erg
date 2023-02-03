@@ -20,7 +20,7 @@ large_thread = []
 els = []
 py_compatible = []
 no_std = []
-full-repl = ["crossterm","clipboard"]
+full-repl = ["crossterm"]
 
 [target.'cfg(unix)'.dependencies]
 libc = { version = "0.2", default-features = false }
@@ -34,10 +34,6 @@ features = ["consoleapi"]
 [dependencies.crossterm]
 optional = true
 version = "0.25.0"
-
-[dependencies.clipboard]
-optional = true
-version = "0.5"
 
 [lib]
 path = "lib.rs"

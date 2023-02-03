@@ -5,10 +5,9 @@ use std::thread::LocalKey;
 use std::io::{stdin, BufRead, BufReader};
 
 #[cfg(feature = "full-repl")]
-use clipboard::{ClipboardContext, ClipboardProvider};
+use std::process::Command;
 #[cfg(feature = "full-repl")]
-use std::error::Error;
-
+use std::process::Output;
 #[cfg(feature = "full-repl")]
 use crossterm::{
     cursor::{CursorShape, MoveToColumn, SetCursorShape},
@@ -41,25 +40,52 @@ pub struct StdinReader {
 }
 
 impl StdinReader {
-    #[cfg(feature = "full-repl")]
-    fn access_clipboard() -> String {
-        let mut context = ClipboardProvider::new().unwrap();
-        if let Some(contents) = Self::get_clip_contents(&mut context).unwrap_or_default() {
-            return contents;
-        }
-        "".to_string()
-    }
-    #[cfg(feature = "full-repl")]
-    fn get_clip_contents(context: &mut ClipboardContext) -> Result<Option<String>, Box<dyn Error>> {
-        match context.get_contents() {
-            Ok(contents) => Ok(Some(contents)),
-            Err(err)
-                if (*err).to_string() == "The operation completed successfully. (os error 0)" =>
-            {
-                Ok(None)
+    #[cfg(all(feature = "full-repl", target_os = "linux"))]
+    fn access_clipboard() -> Option<Output> {
+        if let Ok(str) = std::fs::read("/proc/sys/kernel/osrelease") {
+            if let Ok(str) = std::str::from_utf8(&str) {
+                if str.to_ascii_lowercase().contains("microsoft") {
+                    return Some(
+                        Command::new("powershell")
+                            .args(["get-clipboard"])
+                            .output()
+                            .expect("failed to get clipboard"),
+                    );
+                }
             }
-            Err(err) => Err(err),
         }
+        match Command::new("xsel")
+            .args(["--output", "--clipboard"])
+            .output()
+        {
+            Ok(output) => Some(output),
+            Err(_) => {
+                execute!(
+                    std::io::stdout(),
+                    Print("You need to install `xsel` to use the paste feature on Linux desktop"),
+                )
+                .unwrap();
+                None
+            }
+        }
+    }
+    #[cfg(all(feature = "full-repl", target_os = "macos"))]
+    fn access_clipboard() -> Option<Output> {
+        Some(
+            Command::new("pbpast")
+                .output()
+                .expect("failed to get clipboard"),
+        )
+    }
+
+    #[cfg(all(feature = "full-repl", target_os = "windows"))]
+    fn access_clipboard() -> Option<Output> {
+        Some(
+            Command::new("powershell")
+                .args(["get-clipboard"])
+                .output()
+                .expect("failed to get clipboard"),
+        )
     }
 
     #[cfg(not(feature = "full-repl"))]
@@ -105,9 +131,16 @@ impl StdinReader {
                     return Ok(());
                 }
                 (KeyCode::Char('v'), KeyModifiers::CONTROL) => {
+                    let op = Self::access_clipboard();
+                    let output = match op {
+                        None => {
+                            continue;
+                        }
+                        Some(output) => output,
+                    };
                     let clipboard = {
-                        Self::access_clipboard()
-                            .trim_matches(|c: char| c.is_whitespace())
+                        let this = String::from_utf8_lossy(&output.stdout).to_string();
+                        this.trim_matches(|c: char| c.is_whitespace())
                             .to_string()
                             .replace(['\n', '\r'], "")
                     };
