@@ -5,10 +5,6 @@ use std::thread::LocalKey;
 use std::io::{stdin, BufRead, BufReader};
 
 #[cfg(feature = "full-repl")]
-use std::process::Command;
-#[cfg(feature = "full-repl")]
-use std::process::Output;
-#[cfg(feature = "full-repl")]
 use crossterm::{
     cursor::{CursorShape, MoveToColumn, SetCursorShape},
     event::{read, Event, KeyCode, KeyEvent, KeyModifiers},
@@ -17,6 +13,10 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode},
     terminal::{Clear, ClearType},
 };
+#[cfg(feature = "full-repl")]
+use std::process::Command;
+#[cfg(feature = "full-repl")]
+use std::process::Output;
 
 /// e.g.
 /// ```erg
@@ -131,8 +131,7 @@ impl StdinReader {
                     return Ok(());
                 }
                 (KeyCode::Char('v'), KeyModifiers::CONTROL) => {
-                    let op = Self::access_clipboard();
-                    let output = match op {
+                    let output = match Self::access_clipboard() {
                         None => {
                             continue;
                         }
@@ -261,7 +260,8 @@ impl StdinReader {
 }
 
 thread_local! {
-    static READER: RefCell<StdinReader> = RefCell::new(StdinReader{ block_begin: 1,
+    static READER: RefCell<StdinReader> = RefCell::new(StdinReader{
+        block_begin: 1,
         lineno: 1,
         buf: vec![],
         #[cfg(feature = "full-repl")]
