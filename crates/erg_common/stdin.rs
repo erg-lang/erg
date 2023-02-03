@@ -40,20 +40,7 @@ pub struct StdinReader {
 impl StdinReader {
     #[cfg(all(target_os = "linux", feature = "full-repl"))]
     fn access_clipboard() -> Option<Output> {
-        if let Ok(str) = std::fs::read("/proc/sys/kernel/osrelease") {
-            if let Ok(str) = std::str::from_utf8(&str) {
-                if str.to_ascii_lowercase().contains("microsoft") {
-                    return Some(
-                        Command::new("powershell")
-                            .args(["get-clipboard"])
-                            .output()
-                            .expect("failed to get clipboard"),
-                    );
-                }
-            }
-        }
-        Command::new("xsel")
-            .args(["--output", "--clipboard"])
+        Command::new("inclip")
             .output()
             .ok()
     }
