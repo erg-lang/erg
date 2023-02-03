@@ -144,7 +144,7 @@ impl Runnable for Transpiler {
 
     fn exec(&mut self) -> Result<i32, Self::Errs> {
         let mut path = self.cfg.dump_path();
-        path.set_extension(".py");
+        path.set_extension("py");
         let src = self.cfg.input.read();
         let artifact = self.transpile(src, "exec").map_err(|eart| {
             eart.warns.fmt_all_stderr();
