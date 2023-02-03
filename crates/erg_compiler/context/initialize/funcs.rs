@@ -278,7 +278,7 @@ impl Context {
         );
         self.register_builtin_py_impl(FUNC_ROUND, t_round, Immutable, vis, Some(FUNC_ROUND));
         self.register_builtin_py_impl(FUNC_SORTED, t_sorted, Immutable, vis, Some(FUNC_SORTED));
-        self.register_builtin_py_impl(FUNC_STR, t_str, Immutable, vis, Some(FUNC_STR));
+        self.register_builtin_py_impl(FUNC_STR, t_str, Immutable, vis, Some(FUNC_STR__));
         self.register_builtin_py_impl(FUNC_SUM, t_sum, Immutable, vis, Some(FUNC_SUM));
         self.register_builtin_py_impl(FUNC_ZIP, t_zip, Immutable, vis, Some(FUNC_ZIP));
         let name = if cfg!(feature = "py_compatible") {

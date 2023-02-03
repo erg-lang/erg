@@ -701,10 +701,19 @@ impl ValueObj {
         ValueObj::Type(TypeObj::Generated(gen))
     }
 
+    // TODO: add Complex
     pub fn is_num(&self) -> bool {
         match self {
-            Self::Int(_) | Self::Nat(_) | Self::Float(_) | Self::Bool(_) => true,
+            Self::Float(_) | Self::Int(_) | Self::Nat(_) | Self::Bool(_) => true,
             Self::Mut(n) => n.borrow().is_num(),
+            _ => false,
+        }
+    }
+
+    pub fn is_float(&self) -> bool {
+        match self {
+            Self::Float(_) | Self::Int(_) | Self::Nat(_) | Self::Bool(_) => true,
+            Self::Mut(n) => n.borrow().is_float(),
             _ => false,
         }
     }

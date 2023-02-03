@@ -1,6 +1,7 @@
 from _erg_result import Error
 from _erg_int import Int
-from _erg_int import IntMut
+from _erg_int import IntMut # don't unify with the above line
+from _erg_control import then__
 
 class Nat(Int):
     def try_new(i): # -> Result[Nat]
@@ -20,6 +21,10 @@ class Nat(Int):
             return 0
     def mutate(self):
         return NatMut(self)
+    def __add__(self, other):
+        return then__(super().__add__(other), Nat)
+    def __mul__(self, other):
+        return then__(super().__mul__(other), Nat)
 
 class NatMut(IntMut): # and Nat
     value: Nat
