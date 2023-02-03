@@ -215,6 +215,8 @@ And more languages will be added (we are looking for translators. Please join th
   * `--features els`
 * Debugging mode (for contributors)
   * `--features debug`
+* The full REPL experience
+  * `--features full-repl`
 * Makes the display look better
   * `--features unicode` and `--features pretty`
 * Full features(exclude `--features large_thread`)

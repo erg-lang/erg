@@ -214,6 +214,8 @@ nix build
   * `--features els`
 * 设置成调试模式（针对贡献者）
   * `--features debug`
+* 完整的REPL体验
+  * `--features full-repl`
 * 使显示效果更好
   * `--features unicode` and `--features pretty`
 * 完整的功能(除了`--features large_thread`)

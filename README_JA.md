@@ -217,6 +217,8 @@ cargo install erg --features traditional_chinese
   * `--features els`
 * デバッグモード (コントリビューター向け)
   * `--features debug`
+* 完全なREPL体験です
+  * `--features full-repl`
 * ディスプレイをの見栄えを良くします
   * `--features unicode`と`--features pretty`
 * フルフィーチャー(`--features large_thread`は除きます)
