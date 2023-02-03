@@ -15,8 +15,8 @@
     </a>
 </p>
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3D4a5a320dfe1b9a2f91585e1a3f9dde8213edf893)
-](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=4a5a320dfe1b9a2f91585e1a3f9dde8213edf893)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3D28bb235053ad0b43ff8e399199960d095ed7c70c)
+](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=28bb235053ad0b43ff8e399199960d095ed7c70c)
 
 ## Ergはこんな人におすすめです&#58;
 
@@ -218,6 +218,10 @@ cargo install erg --features traditional_chinese
   * `--features els`
 * デバッグモード (コントリビューター向け)
   * `--features debug`
+* ディスプレイをの見栄えを良くします
+  * `--features unicode`と`--features pretty`
+* フルフィーチャー(`--features large_thread`は除きます)
+  * `--features full`
 * その他のフラグ・エイリアスは[こちら](https://github.com/erg-lang/erg/blob/main/.cargo/config.toml)をご覧ください。
 
 ## コントリビューション
