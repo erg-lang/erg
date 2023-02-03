@@ -161,8 +161,6 @@
 
 [Python3 (3.7~3.11)](https://www.python.org/) 解釋器是必需的。如果計算機上已安裝它，則無需進行任何設置
 
-如果你想在Linux上的REPL中使用粘貼功能，請安裝`xsel` (WSL不需要)
-
 ## 安裝
 
 ### 通過Cargo安裝（Rust 包管理器）
