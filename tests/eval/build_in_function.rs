@@ -27,7 +27,7 @@ D""""#
     );
 
     {
-        let output = eval("print 1");
+        let output = eval("print 1"); // print! is correct
         assert_eq!(output.stdout, "");
         assert!(!output.stderr.is_empty());
         assert_eq!(output.status_code, Some(1));

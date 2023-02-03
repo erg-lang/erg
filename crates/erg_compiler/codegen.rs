@@ -332,7 +332,9 @@ impl PyCodeGenerator {
         } else {
             jump_to
         };
-        if !CommonOpcode::is_jump_op(*self.cur_block_codeobj().code.get(idx - 1).unwrap()) {
+        if idx == 0
+            || !CommonOpcode::is_jump_op(*self.cur_block_codeobj().code.get(idx - 1).unwrap())
+        {
             self.crash(&format!("calc_edit_jump: not jump op: {idx} {jump_to}"));
         }
         self.edit_code(idx, arg);
@@ -475,6 +477,7 @@ impl PyCodeGenerator {
     fn emit_load_const<C: Into<ValueObj>>(&mut self, cons: C) {
         let value: ValueObj = cons.into();
         let is_str = value.is_str();
+        let is_float = value.is_float();
         let is_int = value.is_int();
         let is_nat = value.is_nat();
         let is_bool = value.is_bool();
@@ -488,12 +491,15 @@ impl PyCodeGenerator {
             } else if is_int {
                 self.emit_push_null();
                 self.emit_load_name_instr(Identifier::public("Int"));
+            } else if is_float {
+                self.emit_push_null();
+                self.emit_load_name_instr(Identifier::public("Float"));
             } else if is_str {
                 self.emit_push_null();
                 self.emit_load_name_instr(Identifier::public("Str"));
             }
         }
-        let wrapped = is_str || is_int; // is_int => is_nat and is_bool
+        let wrapped = is_str || is_float; // is_float => is_int && is_nat && is_bool
         let idx = self
             .mut_cur_block_codeobj()
             .consts
@@ -678,7 +684,7 @@ impl PyCodeGenerator {
             "if__" | "for__" | "while__" | "with__" | "discard__" => {
                 self.load_control();
             }
-            "int__" | "nat__" => {
+            "int__" | "nat__" | "str__" | "float__" => {
                 self.load_convertors();
             }
             _ => {}
@@ -882,6 +888,14 @@ impl PyCodeGenerator {
             println!("current block: {}", self.cur_block());
             panic!("internal error: {description}");
         } else {
+            let err = CompileError::compiler_bug(
+                0,
+                self.input().clone(),
+                Location::Unknown,
+                fn_name!(),
+                line!(),
+            );
+            err.write_to_stderr();
             process::exit(1);
         }
     }

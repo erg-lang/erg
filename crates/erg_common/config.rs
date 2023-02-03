@@ -468,7 +468,7 @@ impl ErgConfig {
 
     pub fn dump_pyc_path(&self) -> PathBuf {
         let mut dump_path = self.dump_path();
-        dump_path.set_extension(".pyc");
+        dump_path.set_extension("pyc");
         dump_path
     }
 

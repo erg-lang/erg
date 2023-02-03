@@ -1,6 +1,6 @@
 # `erg` 构建功能
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/dev_guide/build_features.md%26commit_hash%3Da4ba6814016f66c32579c53836b10f4abbca8a51)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/dev_guide/build_features.md&commit_hash=a4ba6814016f66c32579c53836b10f4abbca8a51)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/dev_guide/build_features.md%26commit_hash%3Dcbaf48c04b46fadc680fa4e05e8ad22cbdaf6c47)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/dev_guide/build_features.md&commit_hash=cbaf48c04b46fadc680fa4e05e8ad22cbdaf6c47)
 
 ## debug
 
@@ -38,3 +38,7 @@ Erg 内部选项、帮助(帮助、版权、许可证等)和错误显示为繁�
 
 通过 `--language-server` 使其变得可用
 通过 `erg --language-server` 打开
+
+## py_compatible
+
+启用Python兼容模式，使部分api和语法与Python兼容。用于[pylyzer](https://github.com/mtshiba/pylyzer)
