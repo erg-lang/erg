@@ -6,7 +6,7 @@
 
 ## 文檔
 
-如果您正在考慮為 Erg 做貢獻，您應該閱讀 `doc/*/dev_guide` 下的文檔。特別是，請預裝['env.md'](doc/zh_TW/dev_guide/env.md)中寫的內容
+如果您正在考慮為 Erg 做貢獻，您應該閱讀 `doc/*/dev_guide` 下的文檔。特別是，請預裝[`env.md`](doc/zh_TW/dev_guide/env.md)中寫的內容
 
 或者您對 Erg 的內部結構感興趣，`doc/*/compiler` 可能會提供有用的信息
 
