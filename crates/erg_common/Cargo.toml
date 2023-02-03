@@ -33,7 +33,7 @@ features = ["consoleapi"]
 
 [dependencies.crossterm]
 optional = true
-version = "0.26.0"
+version = "0.25.0"
 
 [target.'cfg(linux)'.dependencies.wl-clipboard-rs]
 optional = true

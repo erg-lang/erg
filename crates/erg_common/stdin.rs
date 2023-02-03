@@ -8,7 +8,7 @@ use std::process::{Command, Output};
 
 #[cfg(feature = "full-repl")]
 use crossterm::{
-    cursor::{MoveToColumn, SetCursorStyle},
+    cursor::{MoveToColumn, SetCursorShape, CursorShape},
     event::{read, Event, KeyCode, KeyEvent, KeyModifiers},
     execute,
     style::Print,
@@ -91,11 +91,11 @@ impl StdinReader {
     pub fn read(&mut self) -> String {
         enable_raw_mode().unwrap();
         let mut output = std::io::stdout();
-        execute!(output, SetCursorStyle::BlinkingBar).unwrap();
+        execute!(output, SetCursorShape(CursorShape::Line)).unwrap();
         let mut line = String::new();
         self.input(&mut line).unwrap();
         disable_raw_mode().unwrap();
-        execute!(output, MoveToColumn(0), SetCursorStyle::DefaultUserShape).unwrap();
+        execute!(output, MoveToColumn(0)).unwrap();
         self.lineno += 1;
         self.buf.push(line);
         self.buf.last().cloned().unwrap_or_default()
