@@ -35,7 +35,7 @@ features = ["consoleapi"]
 optional = true
 version = "0.25.0"
 
-[target.'cfg(linux)'.dependencies.inclip]
+[dependencies.inclip]
 optional = true
 version = "2.0.1"
 

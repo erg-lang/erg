@@ -38,26 +38,10 @@ pub struct StdinReader {
 }
 
 impl StdinReader {
-    #[cfg(all(target_os = "linux", feature = "full-repl"))]
-    fn access_clipboard() -> Option<Output> {
-        Command::new("inclip")
-            .output()
-            .ok()
-    }
-    #[cfg(all(target_os = "macos", feature = "full-repl"))]
+    #[cfg(feature = "full-repl")]
     fn access_clipboard() -> Option<Output> {
         Some(
-            Command::new("pbpast")
-                .output()
-                .expect("failed to get clipboard"),
-        )
-    }
-
-    #[cfg(all(target_os = "windows", feature = "full-repl"))]
-    fn access_clipboard() -> Option<Output> {
-        Some(
-            Command::new("powershell")
-                .args(["get-clipboard"])
+            Command::new("inclip")
                 .output()
                 .expect("failed to get clipboard"),
         )
