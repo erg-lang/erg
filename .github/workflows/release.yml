@@ -47,7 +47,7 @@ jobs:
           bin: erg
           target: ${{ matrix.target }}
           include: crates/erg_compiler/lib
-          features: els,full-repl
+          features: full
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # static linking to libc
