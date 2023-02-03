@@ -19,6 +19,8 @@ class Str(str):
         return StrMut(self)
     def to_int(self):
         return Int(self) if self.isdigit() else None
+    def contains(self, s):
+        return s in self
     def __add__(self, other):
         return then__(str.__add__(self, other), Str)
     def __radd__(self, other):
