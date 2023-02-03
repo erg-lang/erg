@@ -44,7 +44,7 @@ impl StdinReader {
     #[cfg(feature = "full-repl")]
     fn access_clipboard() -> String {
         let mut context = ClipboardProvider::new().unwrap();
-        if let Some(contents) = Self::get_clip_contents(&mut context).unwrap() {
+        if let Some(contents) = Self::get_clip_contents(&mut context).unwrap_or_default() {
             return contents;
         }
         "".to_string()
