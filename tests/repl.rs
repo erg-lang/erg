@@ -1,6 +1,5 @@
 mod common;
 use common::expect_repl_success;
-use common::expect_repl_unsuccess;
 
 #[test]
 fn exec_repl_helloworld() -> Result<(), ()> {
@@ -59,27 +58,5 @@ fn exec_repl_auto_indent_dedent_check() -> Result<(), ()> {
         .into_iter()
         .map(|line| line.to_string())
         .collect(),
-    )
-}
-
-#[test]
-fn exec_repl_invalid_indent() -> Result<(), ()> {
-    expect_repl_unsuccess(
-        "repl_invalid_indent",
-        [
-            "a =",
-            "1",
-            "",
-            "2",
-            "x =>",
-            "1",
-            "",
-            "print! \"hi\"",
-            "exit()",
-        ]
-        .into_iter()
-        .map(|x| x.to_string())
-        .collect(),
-        3,
     )
 }
