@@ -697,6 +697,7 @@ pub trait Runnable: Sized + Default {
                                     {
                                         instance.quit_successfully(output);
                                     }
+                                    num_errors += errs.len();
                                     errs.fmt_all_stderr();
                                 }
                             }
@@ -778,6 +779,7 @@ pub trait Runnable: Sized + Default {
                                 {
                                     return ExitStatus::new(0, num_errors);
                                 }
+                                num_errors += errs.len();
                                 errs.fmt_all_stderr();
                             }
                         }
