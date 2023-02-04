@@ -68,13 +68,13 @@ fn exec_repl_invalid_indent() -> Result<(), ()> {
         "repl_invalid_indent",
         [
             "a =",
-            "    1",
-            "2",
+            "1",
             "",
+            "2",
             "x =>",
             "1",
-            "    print! \"hi\"",
             "",
+            "print! \"hi\"",
             "exit()",
         ]
         .into_iter()
