@@ -552,11 +552,17 @@ impl VirtualMachine {
         self.length = 1;
     }
 
-    pub fn indent(&self) -> String {
+    pub fn indent(&mut self) -> String {
         if self.now == BlockKind::MultiLineStr {
             String::new()
         } else {
-            "    ".repeat(self.length - 1) // Except MainBlock
+            if self.length == 0 {
+                self.length = 1;
+                "    ".repeat(0)
+            }
+            else {
+                "    ".repeat(self.length - 1) // Except MainBlock
+            }
         }
     }
 }
