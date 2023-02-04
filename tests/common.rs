@@ -42,13 +42,13 @@ pub(crate) fn expect_success(file_path: &'static str) -> Result<(), ()> {
     }
 }
 
-pub(crate) fn expect_repl_unsuccess(
+pub(crate) fn expect_repl_failure(
     name: &'static str,
     lines: Vec<String>,
     errs_len: usize,
 ) -> Result<(), ()> {
     match exec_repl(name, lines) {
-        Ok(ExitStatus::OK) => Ok(()),
+        Ok(ExitStatus::OK) => Err(()),
         Ok(ExitStatus { num_errors, .. }) => {
             if num_errors == errs_len {
                 Ok(())
