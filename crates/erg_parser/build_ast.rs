@@ -1,6 +1,6 @@
-use erg_common::traits::Runnable;
+use erg_common::config::ErgConfig;
+use erg_common::traits::{BlockKind, Runnable};
 use erg_common::Str;
-use erg_common::{config::ErgConfig, traits::BlockKind};
 
 use crate::ast::AST;
 use crate::desugar::Desugarer;

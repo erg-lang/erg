@@ -1,4 +1,9 @@
 [alias]
+r = "run"
+r_ja = "run --features japanese"
+r_zh_cn = "run --features simplified_chinese"
+r_zh_tw = "run --features traditional_chinese"
+
 lex = "run -- --mode lex"
 prs = "run -- --mode parse"
 lwr = "run -- --mode lower"
@@ -16,6 +21,41 @@ dcmp = "run --features debug -- --mode compile"
 dtrans = "run --features debug -- --mode transpile"
 dex = "run --features debug -- --mode exec"
 dread = "run --features debug -- --mode read"
+
+rd = "run --features debug"
+rd_ja = "run --features debug --features japanese"
+rd_zh_cn = "run --features debug --features simplified_chinese"
+rd_zh_tw = "run --features debug --features traditional_chinese"
+
+b = "build"
+b_ja = "build --features japanese"
+b_zh_cn = "build --features simplified_chinese"
+b_zh_tw = "build --features traditional_chinese"
+
+bd = "build --features debug"
+bd_ja = "build --features debug --features japanese"
+bd_zh_cn = "build --features debug --features simplified_chinese"
+bd_zh_tw = "build --features debug --features traditional_chinese"
+
+r_re = "run --release"
+r_ja_re = "run --features japanese --release"
+r_zh_cn_re = "run --features simplified_chinese --release"
+r_zh_tw_re = "run --features traditional_chinese --release"
+
+rd_re = "run --features debug --release"
+rd_ja_re = "run --features debug --features japanese --release"
+rd_zh_cn_re = "run --features debug --features simplified_chinese --release"
+rd_zh_tw_re = "run --features debug --features traditional_chinese --release"
+
+b_re = "build --release"
+b_ja_re = "build --features japanese --release"
+b_zh_cn_re = "build --features simplified_chinese --release"
+b_zh_tw_re = "build --features traditional_chinese --release"
+
+bd_re = "build --features debug --release"
+bd_ja_re = "build --features debug --features japanese --release"
+bd_zh_cn_re = "build --features debug --features simplified_chinese --release"
+bd_zh_tw_re = "build --features debug --features traditional_chinese --release"
 
 inst = "install --path . --features els"
 dinst = "install --path . --features debug --features els"

@@ -212,16 +212,17 @@ cargo install erg --features traditional_chinese
 
 さらに多くの言語に対応する予定です。(翻訳者を募集しています。ぜひ[翻訳プロジェクト](./doc/JA/dev_guide/i18n_messages.md)に参加してください)。
 
+その他のフラグ
 
-* ELS (Erg Language Server) のインストールとビルド
+* ELS (Erg Language Server) を有効にする
   * `--features els`
 * デバッグモード (コントリビューター向け)
   * `--features debug`
-* 完全なREPL体験です
+* REPLの履歴機能やペースト機能を有効にする
   * `--features full-repl`
-* ディスプレイをの見栄えを良くします
+* エラー表示などの見栄えを良くする
   * `--features unicode`と`--features pretty`
-* フルフィーチャー(`--features large_thread`は除きます)
+* 全機能を有効にする (開発者用機能を除く)
   * `--features full`
 * その他のフラグ・エイリアスは[こちら](https://github.com/erg-lang/erg/blob/main/.cargo/config.toml)をご覧ください。
 

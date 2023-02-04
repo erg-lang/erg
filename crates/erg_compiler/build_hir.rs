@@ -1,7 +1,7 @@
+use erg_common::config::ErgConfig;
 use erg_common::error::MultiErrorDisplay;
-use erg_common::traits::Runnable;
+use erg_common::traits::{BlockKind, Runnable};
 use erg_common::Str;
-use erg_common::{config::ErgConfig, traits::BlockKind};
 
 use erg_parser::ast::{VarName, AST};
 use erg_parser::build_ast::ASTBuilder;

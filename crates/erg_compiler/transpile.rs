@@ -1,11 +1,11 @@
 use std::fs::File;
 use std::io::Write;
 
+use erg_common::config::ErgConfig;
 use erg_common::error::MultiErrorDisplay;
 use erg_common::log;
-use erg_common::traits::{Runnable, Stream};
+use erg_common::traits::{BlockKind, Runnable, Stream};
 use erg_common::Str;
-use erg_common::{config::ErgConfig, traits::BlockKind};
 
 use erg_parser::ast::{ParamPattern, TypeSpec, VarName};
 use erg_parser::token::TokenKind;
