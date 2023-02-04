@@ -39,8 +39,6 @@ jobs:
           python-version: "3.11.0"
       - uses: Swatinem/rust-cache@v2
       - run: rustup update stable
-      - name: Compile
-        run: cargo test --features large_thread --all --verbose --no-run
       - name: Run tests (Windows)
         if: runner.os == 'Windows'
         # HACK: The cause is unknown, but on windows, the exit code is 1 even if tests are successful.
