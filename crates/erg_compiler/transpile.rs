@@ -296,10 +296,13 @@ impl ScriptGenerator {
 
     // TODO: more smart way
     fn replace_import(src: &str) -> String {
-        src.replace("from _erg_nat import Nat", "")
+        src.replace("from _erg_nat import NatMut", "")
+            .replace("from _erg_nat import Nat", "")
             .replace("from _erg_int import IntMut", "")
             .replace("from _erg_int import Int", "")
+            .replace("from _erg_bool import BoolMut", "")
             .replace("from _erg_bool import Bool", "")
+            .replace("from _erg_str import StrMut", "")
             .replace("from _erg_str import Str", "")
             .replace("from _erg_array import Array", "")
             .replace("from _erg_range import Range", "")
