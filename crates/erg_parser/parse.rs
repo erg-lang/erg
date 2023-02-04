@@ -10,7 +10,7 @@ use erg_common::config::Input;
 use erg_common::error::Location;
 use erg_common::set::Set as HashSet;
 use erg_common::str::Str;
-use erg_common::traits::{BlockKind, DequeStream, Locational, Runnable, Stream};
+use erg_common::traits::{DequeStream, Locational, Runnable, Stream};
 use erg_common::{
     caused_by, debug_power_assert, enum_unwrap, fn_name, impl_locational_for_enum, log,
     option_enum_unwrap, set, switch_lang, switch_unreachable,
@@ -278,43 +278,6 @@ impl Runnable for ParserRunner {
     fn eval(&mut self, src: String) -> Result<String, ParserRunnerErrors> {
         let ast = self.parse(src)?;
         Ok(format!("{ast}"))
-    }
-
-    #[inline]
-    fn expect_block(&self, src: &str) -> BlockKind {
-        let multi_line_str = "\"\"\"";
-        if src.contains(multi_line_str) && src.rfind(multi_line_str) == src.find(multi_line_str) {
-            return BlockKind::MultiLineStr;
-        }
-        if src.trim_start().starts_with('@') {
-            return BlockKind::AtMark;
-        }
-        if src.ends_with("do!:") && !src.starts_with("do!:") {
-            return BlockKind::Lambda;
-        }
-        if src.ends_with("do:") && !src.starts_with("do:") {
-            return BlockKind::Lambda;
-        }
-        if src.ends_with(':') && !src.starts_with(':') {
-            return BlockKind::Lambda;
-        }
-        if src.ends_with('=') && !src.starts_with('=') {
-            return BlockKind::Assignment;
-        }
-        if src.ends_with('.') && !src.starts_with('.') {
-            return BlockKind::ClassPub;
-        }
-        if src.ends_with("::") && !src.starts_with("::") {
-            return BlockKind::ClassPriv;
-        }
-        if src.ends_with("=>") && !src.starts_with("=>") {
-            return BlockKind::Lambda;
-        }
-        if src.ends_with("->") && !src.starts_with("->") {
-            return BlockKind::Lambda;
-        }
-
-        BlockKind::None
     }
 }
 
