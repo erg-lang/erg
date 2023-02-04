@@ -555,14 +555,11 @@ impl VirtualMachine {
     pub fn indent(&mut self) -> String {
         if self.now == BlockKind::MultiLineStr {
             String::new()
+        } else if self.length == 0 {
+            self.length = 1;
+            "    ".repeat(0)
         } else {
-            if self.length == 0 {
-                self.length = 1;
-                "    ".repeat(0)
-            }
-            else {
-                "    ".repeat(self.length - 1) // Except MainBlock
-            }
+            "    ".repeat(self.length - 1) // Except MainBlock
         }
     }
 }
