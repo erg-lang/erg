@@ -1,4 +1,4 @@
-# Guidelines for Commit Messages(PR titles use the same method)
+# Guidelines for Commit Messages
 
 This guideline is intended to
 
@@ -103,7 +103,7 @@ You are free to write commits in the middle of your work. When you finally squas
 
 Basically use the present and ongoing tenses for sentences.
 
-If there are messy commits in PR, please use squash and merge(If the commit is clear, merge directly)
+If there are messy commits in PR, please change the PR name (use commit_message specification) and use squash and merge(If the commit is clear, merge directly)
 
 ## Template configuration
 
