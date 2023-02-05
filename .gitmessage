@@ -1,0 +1,50 @@
+# type(scope): description (#issue)
+
+# body
+# Wrap at 72 chars. ################################## which is here:  #
+#
+# footer
+# Wrap at 72 chars. ################################## which is here:  #
+#
+########################################################################
+#
+# ## Help ##
+#
+# ## type: must ##
+# feat: new feature
+# fix: bug fix or issue resolution
+# docs: documentation changes
+# style: code style changes
+# refactor: refactoring
+# perf: performance improvement
+# test: adding or changing tests
+# build: build-related/version/dependency
+# ci: CI-related changes
+# chore: internal/minor changes
+# revert: revert commit
+# * fix, refactor, style and chore are lower priority
+#
+# ## scope: optional ##
+# Indicates the scope
+# e.g.
+# - parser
+# - compiler
+# - els
+# - REPL
+# - linter
+#
+# ## !: optional ##
+# Destructive change
+#
+# ## description: must ##
+# Summary of the commit
+# No more than 50 chars
+#
+# ## issue: optional ##
+# Related issue/PR number
+#
+# ## body: optional ##
+# Indicates the details of the commit
+#
+# ## footer: optional ##
+# Represents information related to the commit

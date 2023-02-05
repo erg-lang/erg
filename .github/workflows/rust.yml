@@ -11,6 +11,8 @@ on:
       - "**.md"
       - "**.yml"
       - "LICENSE-**"
+      - ".gitmessage"
+      - ".pre-commit-config.yaml"
   pull_request:
     branches: [main]
     paths-ignore:
@@ -21,6 +23,8 @@ on:
       - "**.md"
       - "**.yml"
       - "LICENSE-**"
+      - ".gitmessage"
+      - ".pre-commit-config.yaml"
 
 env:
   CARGO_TERM_COLOR: always
