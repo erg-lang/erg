@@ -49,7 +49,7 @@ The meaning of each part is as follows.
   * `compiler`
   * `els`
   * `REPL`
-  * `lint`
+  * `linter`
 
 * The `!` mark indicates that the commit has destructive changes. If this mark is set, the reason for the destructive change must be written. Destructive changes include language specification changes, compiler API changes, and so on.
 
@@ -116,16 +116,14 @@ git config commit.template .gitmessage
 This will use this commit message template only in the Erg repository
 
 ```txt
-# type('(' scope ')')? '!'? ':' description
-# e.g.
-# No more than 50 chars. #### 50 chars is here:  #
+# type(scope): description (#issue)
 
-# body: optional
+# body
 # Wrap at 72 chars. ################################## which is here:  #
 #
-# footer: optional
+# footer
 # Wrap at 72 chars. ################################## which is here:  #
-# 
+#
 ########################################################################
 #
 # ## Help ##
@@ -133,34 +131,39 @@ This will use this commit message template only in the Erg repository
 # ## type: must ##
 # feat: new feature
 # fix: bug fix or issue resolution
-# docs: change documentations
-# style: change in code style
+# docs: documentation changes
+# style: code style changes
 # refactor: refactoring
-# pref: performance improvement
-# test: adding or changing test
+# perf: performance improvement
+# test: adding or changing tests
 # build: build-related/version/dependency
 # ci: CI-related changes
 # chore: internal/minor changes
 # revert: revert commit
-# fix, refactor, style and chore are lower priority
+# * fix, refactor, style and chore are lower priority
 #
 # ## scope: optional ##
-# indicates the scope
+# Indicates the scope
+# e.g.
 # - parser
 # - compiler
 # - els
 # - REPL
-# - lints
+# - linter
 #
 # ## !: optional ##
-# destructive change
+# Destructive change
 #
 # ## description: must ##
-# summary of the commit
+# Summary of the commit
+# No more than 50 chars
+#
+# ## issue: optional ##
+# Related issue/PR number
 #
 # ## body: optional ##
-# indicates the details of the commit
+# Indicates the details of the commit
 #
-# ## footer: optical ##
-# represents information related to the commit
+# ## footer: optional ##
+# Represents information related to the commit
 ```

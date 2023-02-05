@@ -53,7 +53,7 @@ commit ::= type ('(' scope ')')? '!'? ':' description ('(' '#' issue ')')? body?
   * `compiler`
   * `els`
   * `REPL`
-  * `lint`
+  * `linter`
 
 * `!`マークはコミットが破壊的な変更であることを示します。このマークがついている場合、破壊的変更の理由を書く必要があります。破壊的変更は、言語の仕様変更やコンパイラAPIの変更などが該当します。
 
@@ -117,16 +117,14 @@ git config commit.template .gitmessage
 これによりErgのリポジトリ内でのみこのコミットメッセージのテンプレートが利用されます
 
 ```txt
-# type('(' scope ')')? '!'? ':' description
-# e.g.
-# No more than 50 chars. #### 50 chars is here:  #
+# type(scope): description (#issue)
 
-# body: optional
+# body
 # Wrap at 72 chars. ################################## which is here:  #
 #
-# footer: optional
+# footer
 # Wrap at 72 chars. ################################## which is here:  #
-# 
+#
 ########################################################################
 #
 # ## Help ##
@@ -134,34 +132,39 @@ git config commit.template .gitmessage
 # ## type: must ##
 # feat: new feature
 # fix: bug fix or issue resolution
-# docs: change documentations
-# style: change in code style
+# docs: documentation changes
+# style: code style changes
 # refactor: refactoring
-# pref: performance improvement
-# test: adding or changing test
+# perf: performance improvement
+# test: adding or changing tests
 # build: build-related/version/dependency
 # ci: CI-related changes
 # chore: internal/minor changes
 # revert: revert commit
-# fix, refactor, style and chore are lower priority
+# * fix, refactor, style and chore are lower priority
 #
 # ## scope: optional ##
-# indicates the scope
+# Indicates the scope
+# e.g.
 # - parser
 # - compiler
 # - els
 # - REPL
-# - lints
+# - linter
 #
 # ## !: optional ##
-# destructive change
+# Destructive change
 #
 # ## description: must ##
-# summary of the commit
+# Summary of the commit
+# No more than 50 chars
+#
+# ## issue: optional ##
+# Related issue/PR number
 #
 # ## body: optional ##
-# indicates the details of the commit
+# Indicates the details of the commit
 #
-# ## footer: optical ##
-# represents information related to the commit
+# ## footer: optional ##
+# Represents information related to the commit
 ```
