@@ -1,0 +1,47 @@
+# type('(' scope ')')? '!'? ':' description
+# e.g.
+# No more than 50 chars. #### 50 chars is here:  #
+
+# body: optional
+# Wrap at 72 chars. ################################## which is here:  #
+#
+# footer: optional
+# Wrap at 72 chars. ################################## which is here:  #
+# 
+########################################################################
+#
+# ## Help ##
+#
+# ## type: must ##
+# feat: new feature
+# fix: bug fix or issue resolution
+# docs: change documentations
+# style: change in code style
+# refactor: refactoring
+# pref: performance improvement
+# test: adding or changing test
+# build: build-related/version/dependency
+# ci: CI-related changes
+# chore: internal/minor changes
+# revert: revert commit
+# fix, refactor, style and chore are lower priority
+#
+# ## scope: optional ##
+# indicates the scope
+# - parser
+# - compiler
+# - els
+# - REPL
+# - lints
+#
+# ## !: optional ##
+# destructive change
+#
+# ## description: must ##
+# summary of the commit
+#
+# ## body: optional ##
+# indicates the details of the commit
+#
+# ## footer: optical ##
+# represents information related to the commit
