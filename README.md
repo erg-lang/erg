@@ -217,7 +217,7 @@ Other flags:
   * `--features els`
 * Debugging mode (for contributors)
   * `--features debug`
-* Rich REPL experience (pasting, history, etc.)
+* Rich REPL experience (cursor movement, pasting, history, etc.)
   * `--features full-repl`
 * Makes the display look better
   * `--features unicode` and `--features pretty`

@@ -218,7 +218,7 @@ nix build
   * `--features full-repl`
 * 使顯示效果更好
   * `--features unicode` and `--features pretty`
-* 完整的功能(除了`--features large_thread`)
+* 啟用所有功能(除了為語言開發者提供)
   * `features full`
 * 參見[這裏](https://github.com/erg-lang/erg/blob/main/doc/zh_TW/dev_guide/build_features.md)了解更多標誌。
 
