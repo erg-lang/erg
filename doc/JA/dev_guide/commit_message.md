@@ -1,6 +1,6 @@
 # コミットメッセージに関するガイドライン
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/dev_guide/commit_message.md%26commit_hash%3De2469cc0df18d3e3a01d9b483fcd7bfd7ddbe54c)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/dev_guide/commit_message.md&commit_hash=e2469cc0df18d3e3a01d9b483fcd7bfd7ddbe54c)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/dev_guide/commit_message.md%26commit_hash%3D1ea58db851c577805696b61b0b56c7f062d0a941)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/dev_guide/commit_message.md&commit_hash=1ea58db851c577805696b61b0b56c7f062d0a941)
 
 このガイドラインは、
 
@@ -29,13 +29,31 @@ commit ::= type ('(' scope ')')? '!'? ':' description ('(' '#' issue ')')? body?
 
 各部分の意味は以下の通りです。
 
-* `type`はcommitの型を表します。小文字で書いてください(自動commitは大文字で始まるので、これによって手動コミットかどうかを区別します)。`feat`は新しい機能、`fix`はバグの修正やissueの解決、`docs`はドキュメントの変更、`style`はコードスタイルの変更、`refactor`はリファクタリング、`perf`はパフォーマンスの改善、`test`はテストの追加や変更、`build`はビルド関連・バージョン・依存関係の変更、`ci`はCI関連の変更、`chore`は内部的・軽微な変更、`revert`はrevertです。複数該当する場合は、より具体的なtypeを選んでください。優先度の低いtypeは`fix`, `refactor`, `style`, `chore`になります。例えば、ドキュメント(docs)の修正(fix)は`docs`、テスト(test)のリファクタリング(refactor)は`test`になります。
+* `type`はcommitの型を表します。小文字で書いてください(自動commitは大文字で始まるので、これによって手動コミットかどうかを区別します)
+
+| type       | 説明                                   |
+| ---------- | -------------------------------------- |
+| `feat`     | 新しい機能                             |
+| `fix`      | バグの修正やissueの解決                |
+| `docs`     | ドキュメントの変更                     |
+| `style`    | コードスタイルの変更                   |
+| `refactor` | リファクタリング                       |
+| `perf`     | パフォーマンスの改善                   |
+| `test`     | テストの追加や変更                     |
+| `build`    | ビルド関連・バージョン・依存関係の変更 |
+| `ci`       | CI関連の変更                           |
+| `chore`    | 内部的・軽微な変更                     |
+| `revert`   | revert                                 |
+
+複数該当する場合は、より具体的なtypeを選んでください。優先度の低いtypeは`fix`, `refactor`, `style`, `chore`になります。例えば、ドキュメント(docs)の修正(fix)は`docs`、テスト(test)のリファクタリング(refactor)は`test`になります。
 
 * `scope`は省略可能で、コミットの影響範囲を表します。例えば、`fix(parser):`というコミットメッセージはパーサーのバグ修正であることを示します。コンマ区切りで複数のスコープを指定することもできますが、その場合コミットを分割することも検討してください。スコープの例は以下の通りです。
 
   * `parser`
   * `compiler`
   * `els`
+  * `REPL`
+  * `lint`
 
 * `!`マークはコミットが破壊的な変更であることを示します。このマークがついている場合、破壊的変更の理由を書く必要があります。破壊的変更は、言語の仕様変更やコンパイラAPIの変更などが該当します。
 
@@ -85,5 +103,65 @@ style: fix typo
 
 ## 補足
 
-* 作業途中のコミットは自由に書いて構いません。最終的にsquash等をして整理するときに、規則に従ってください。
-* 文は特に理由のない場合現在形・現在進行形で書いてください。
+作業途中のコミットは自由に書いて構いません。最終的にsquash等をして整理するときに、規則に従ってください。
+文は特に理由のない場合現在形・現在進行形で書いてください。
+
+## テンプレートの設定
+
+もしテンプレートを利用したい場合は以下のコマンドを利用してください
+
+```shell
+git config commit.template .gitmessage
+```
+
+これによりErgのリポジトリ内でのみこのコミットメッセージのテンプレートが利用されます
+
+```txt
+# type('(' scope ')')? '!'? ':' description
+# e.g.
+# No more than 50 chars. #### 50 chars is here:  #
+
+# body: optional
+# Wrap at 72 chars. ################################## which is here:  #
+#
+# footer: optional
+# Wrap at 72 chars. ################################## which is here:  #
+# 
+########################################################################
+#
+# ## Help ##
+#
+# ## type: must ##
+# feat: new feature
+# fix: bug fix or issue resolution
+# docs: change documentations
+# style: change in code style
+# refactor: refactoring
+# pref: performance improvement
+# test: adding or changing test
+# build: build-related/version/dependency
+# ci: CI-related changes
+# chore: internal/minor changes
+# revert: revert commit
+# fix, refactor, style and chore are lower priority
+#
+# ## scope: optional ##
+# indicates the scope
+# - parser
+# - compiler
+# - els
+# - REPL
+# - lints
+#
+# ## !: optional ##
+# destructive change
+#
+# ## description: must ##
+# summary of the commit
+#
+# ## body: optional ##
+# indicates the details of the commit
+#
+# ## footer: optical ##
+# represents information related to the commit
+```
