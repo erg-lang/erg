@@ -322,14 +322,7 @@ impl LexError {
                 format!("only {var} or {def} can be used in {record}")
             },
         );
-        let sub_msg = SubMessage::ambiguous_new(loc, vec![msg], Some(hint));
-        let msg = switch_lang!(
-            "japanese" => "連続する要素の宣言が異なります",
-            "simplified_chinese" => "无效的Sequential元素声明",
-            "traditional_chinese" => "無效的Sequential元素聲明",
-            "english" => "invalid sequential elements declaration",
-        );
-        Self::new(ErrorCore::new(vec![sub_msg], msg, errno, SyntaxError, loc))
+        Self::syntax_error(errno, loc, msg, Some(hint))
     }
 
     pub fn invalid_syntax_after_at_sign(errno: usize, loc: Location) -> Self {
@@ -518,7 +511,7 @@ impl LexError {
             switch_lang!(
                 "japanese" => "メソッド",
                 "simplified_chinese" => "方法",
-                "traditional_chinese" => "方法", 
+                "traditional_chinese" => "方法",
                 "english" => "method",
             ),
             HINT,
