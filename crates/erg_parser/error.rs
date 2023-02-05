@@ -224,10 +224,10 @@ impl LexError {
             errno,
             loc,
             switch_lang!(
-                "japanese" => format!("{}から{}に変換するのに失敗しました", from, to),
-                "simplified_chinese" => format!("无法将{}转换为{}", from, to),
-                "traditional_chinese" => format!("無法將{}轉換為{}", from, to),
-                "english" => format!("failed to convert {} to {}",from, to),
+                "japanese" => format!("{from}から{to}に変換するのに失敗しました"),
+                "simplified_chinese" => format!("无法将{from}转换为{to}"),
+                "traditional_chinese" => format!("無法將{from}轉換為{to}"),
+                "english" => format!("failed to convert {from} to {to}"),
             ),
             None,
         )
@@ -256,17 +256,17 @@ impl LexError {
     ) -> LexError {
         let expect = StyledStr::new(expect, Some(HINT), Some(ATTR));
         let expect = switch_lang!(
-                "japanese" => format!("expect: {}", expect),
-                "simplified_chinese" => format!("期望: {}", expect),
-                "traditional_chinese" => format!("期望: {}", expect),
-                "english" => format!("expect: {}", expect),
+                "japanese" => format!("expect: {expect}"),
+                "simplified_chinese" => format!("期望: {expect}"),
+                "traditional_chinese" => format!("期望: {expect}"),
+                "english" => format!("expect: {expect}"),
         );
         let found = StyledStr::new(found, Some(ERR), Some(ATTR));
         let found = switch_lang!(
-                "japanese" => format!("与えられた: {}", found),
-                "simplified_chinese" => format!("预期: {}", found),
-                "traditional_chinese" => format!("預期: {}", found),
-                "english" => format!("but found: {}", found),
+                "japanese" => format!("与えられた: {found}"),
+                "simplified_chinese" => format!("预期: {found}"),
+                "traditional_chinese" => format!("預期: {found}"),
+                "english" => format!("but found: {found}"),
         );
         Self::new(ErrorCore::new(
             vec![SubMessage::ambiguous_new(loc, vec![expect, found], None)],
@@ -301,25 +301,25 @@ impl LexError {
                 let record = StyledStr::new("レコード型", Some(HINT), Some(ATTR));
                 let var = StyledStr::new("属性", Some(HINT), Some(ATTR));
                 let def = StyledStr::new("属性=リテラル", Some(HINT), Some(ATTR));
-                format!("{}では{}か{}のみ使うことができます", record, var, def)
+                format!("{record}では{var}か{def}のみ使うことができます")
             },
             "simplified_chinese" => {
                 let record = StyledStr::new("记录类型", Some(HINT), Some(ATTR));
                 let var = StyledStr::new("attr", Some(HINT), Some(ATTR));
                 let def = StyledStr::new("attr=lit", Some(HINT), Some(ATTR));
-                format!("只有{}或{}可以在{}中使用",  var, def, record)
+                format!("只有{var}或{def}可以在{record}中使用")
             },
             "traditional_chinese" => {
                 let record = StyledStr::new("記錄類型", Some(HINT), Some(ATTR));
                 let var = StyledStr::new("attr", Some(HINT), Some(ATTR));
                 let def = StyledStr::new("attr=lit", Some(HINT), Some(ATTR));
-                format!("只有{}或{}可以在{}中使用",  var, def, record)
+                format!("只有{var}或{def}可以在{record}中使用")
             },
             "english" => {
                 let record = StyledStr::new("Record", Some(HINT), Some(ATTR));
                 let var = StyledStr::new("attr", Some(HINT), Some(ATTR));
                 let def = StyledStr::new("attr=lit", Some(HINT), Some(ATTR));
-                format!("only {} or {} can be used in {}",  var, def, record)
+                format!("only {var} or {def} can be used in {record}")
             },
         );
         let sub_msg = SubMessage::ambiguous_new(loc, vec![msg], Some(hint));
@@ -378,17 +378,17 @@ impl LexError {
         );
         let expt = StyledStr::new("Record Type", Some(HINT), Some(ATTR));
         let expect = switch_lang!(
-            "japanese" => format!("予期した型: {}", expt),
-            "simplified_chinese" => format!("期望的类型: {}", expt),
-            "traditional_chinese" => format!("期望的類型: {}", expt),
-            "english" => format!("expect type: {}", expt),
+            "japanese" => format!("予期した型: {expt}"),
+            "simplified_chinese" => format!("期望的类型: {expt}"),
+            "traditional_chinese" => format!("期望的類型: {expt}"),
+            "english" => format!("expect type: {expt}"),
         );
         let fnd = StyledStr::new(fnd, Some(ERR), Some(ATTR));
         let found = switch_lang!(
-            "japanese" => format!("与えられた型: {}", fnd),
-            "simplified_chinese" => format!("但找到: {}", fnd),
-            "traditional_chinese" => format!("但找到: {}", fnd),
-            "english" => format!("but found: {}", fnd),
+            "japanese" => format!("与えられた型: {fnd}"),
+            "simplified_chinese" => format!("但找到: {fnd}"),
+            "traditional_chinese" => format!("但找到: {fnd}"),
+            "english" => format!("but found: {fnd}"),
         );
         let sub = SubMessage::ambiguous_new(loc, vec![expect, found], None);
         Self::new(ErrorCore::new(vec![sub], msg, errno, SyntaxError, loc))
@@ -451,10 +451,10 @@ impl LexError {
     pub fn invalid_dict_value(errno: usize, loc: Location) -> ParseError {
         let colon = StyledStr::new(":", Some(HINT), Some(ATTR));
         let hint = switch_lang!(
-            "japanese" => format!("{}を追加してください", colon),
-            "simplified_chinese" => format!("{}应该被添加", colon),
-            "traditional_chinese" => format!("{}应该被添加", colon),
-            "english" => format!("{} should be added", colon),
+            "japanese" => format!("{colon}を追加してください"),
+            "simplified_chinese" => format!("{colon}应该被添加"),
+            "traditional_chinese" => format!("{colon}应该被添加"),
+            "english" => format!("{colon} should be added"),
         );
         let sub_msg = SubMessage::ambiguous_new(loc, vec![], Some(hint));
         let main_msg = switch_lang!(
@@ -496,10 +496,10 @@ impl LexError {
 
         let closer = StyledStr::new(closer, Some(HINT), Some(ATTR));
         let sub_msg = switch_lang!(
-            "japanese" => format!("{}を追加してください", closer),
-            "simplified_chinese" => format!("{}应该被添加", closer),
-            "traditional_chinese" => format!("{}應該被添加", closer),
-            "english" => format!("{} should be added", closer),
+            "japanese" => format!("{closer}を追加してください"),
+            "simplified_chinese" => format!("{closer}应该被添加"),
+            "traditional_chinese" => format!("{closer}應該被添加"),
+            "english" => format!("{closer} should be added"),
         );
 
         let sub = SubMessage::ambiguous_new(loc, vec![sub_msg], None);
