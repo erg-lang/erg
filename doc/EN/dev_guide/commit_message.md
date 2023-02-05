@@ -27,13 +27,29 @@ commit ::= type ('('' scope ')')? '!' ? ':' description ('(' '#' issue ')')? bod
 
 The meaning of each part is as follows.
 
-* `type` indicates the type of commit. Please write it in lower case (automatic commits start with a capital letter, so this distinguishes whether it is a manual commit or not). `feat` is a new feature, `fix` is a bug fix or issue resolution, `docs` is a change in documentation, `style` is a change in code style, `refactor` is a refactoring, `perf` is performance improvement, `test` is adding or changing tests, `build` is build-related/version/dependency changes, `ci` is CI-related changes, `chore` is internal/minor changes, and `revert` is revert. If more than one applies, please select the more specific type. The lower priority types are `fix`, `refactor`, `style`, and `chore`. For example, `docs` is for fixing (fix) documentation (docs) and `test` is for refactoring (refactor) tests (test).
+* `type` indicates the type of commit. Please write it in lower case (automatic commits start with a capital letter, so this distinguishes whether it is a manual commit or not).
+
+| type       | description                              |
+| ---------- | ---------------------------------------- |
+| `feat`     | a new feature                            |
+| `fix`      | a bug fix or issue resolution            |
+| `docs`     | a change in documentation                |
+| `style`    | a change in code style                   |
+| `refactor` | a refactoring                            |
+| `perf`     | performance improvement                  |
+| `test`     | adding or changing tests                 |
+| `build`    | build-related/version/dependency changes |
+| `ci`       | CI-related changes                       |
+| `chore`    | internal/minor changes                   |
+| `revert`   | revert                                   |
 
 * `scope` is optional and indicates the scope of the commit. For example, the commit message `fix(parser):` indicates a bug fix for the parser. You may specify multiple scopes separated by commas, but in that case you should also consider splitting the commit. Examples of scopes are:
 
   * `parser`
   * `compiler`
   * `els`
+  * `REPL`
+  * `lint`
 
 * The `!` mark indicates that the commit has destructive changes. If this mark is set, the reason for the destructive change must be written. Destructive changes include language specification changes, compiler API changes, and so on.
 
@@ -83,6 +99,68 @@ As you can see from the examples, API and file/directory names should be enclose
 
 ## Supplemental
 
-* You are free to write commits in the middle of your work. When you finally squash and organize your work, please follow the rules.
-* Basically use the present and ongoing tenses for sentences.
-* If there are messy commits in PR, please use squash and merge(If the commit is clear, merge directly)
+You are free to write commits in the middle of your work. When you finally squash and organize your work, please follow the rules.
+
+Basically use the present and ongoing tenses for sentences.
+
+If there are messy commits in PR, please use squash and merge(If the commit is clear, merge directly)
+
+## Template configuration
+
+If you want to config the git commit template, you should use the following command.
+
+```shell
+git config commit.template .gitmessage
+```
+
+This will use this commit message template only in the Erg repository
+
+```txt
+# type('(' scope ')')? '!'? ':' description
+# e.g.
+# No more than 50 chars. #### 50 chars is here:  #
+
+# body: optional
+# Wrap at 72 chars. ################################## which is here:  #
+#
+# footer: optional
+# Wrap at 72 chars. ################################## which is here:  #
+# 
+########################################################################
+#
+# ## Help ##
+#
+# ## type: must ##
+# feat: new feature
+# fix: bug fix or issue resolution
+# docs: change documentations
+# style: change in code style
+# refactor: refactoring
+# pref: performance improvement
+# test: adding or changing test
+# build: build-related/version/dependency
+# ci: CI-related changes
+# chore: internal/minor changes
+# revert: revert commit
+# fix, refactor, style and chore are lower priority
+#
+# ## scope: optional ##
+# indicates the scope
+# - parser
+# - compiler
+# - els
+# - REPL
+# - lints
+#
+# ## !: optional ##
+# destructive change
+#
+# ## description: must ##
+# summary of the commit
+#
+# ## body: optional ##
+# indicates the details of the commit
+#
+# ## footer: optical ##
+# represents information related to the commit
+```
