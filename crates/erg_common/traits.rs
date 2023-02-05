@@ -532,6 +532,10 @@ impl VirtualMachine {
         if bk == BlockKind::AtMark {
             return;
         }
+        if bk == BlockKind::MultiLineStr {
+            self.length = 1;
+            return;
+        }
         self.length += 1;
     }
 
@@ -770,6 +774,8 @@ pub trait Runnable: Sized + Default {
                             // end of MultiLineStr
                             if vm.now == BlockKind::MultiLineStr {
                                 vm.remove_block_kind();
+                                // set indent back to previous depth
+                                vm.length = vm.now_block.len();
                                 vm.push_code(line);
                                 vm.push_code("\n");
                             } else {
