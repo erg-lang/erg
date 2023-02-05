@@ -9,7 +9,7 @@ use erg_common::error::{
 };
 use erg_common::style::{Attribute, Color, StyledStr, StyledString, StyledStrings, THEME};
 use erg_common::traits::Stream;
-use erg_common::{fmt_iter, impl_display_and_error, impl_stream_for_wrapper, switch_lang};
+use erg_common::{fmt_iter, impl_display_and_error, impl_stream, switch_lang};
 
 #[derive(Debug)]
 pub struct LexError(Box<ErrorCore>); // ErrorCore is large, so use Box
@@ -37,7 +37,7 @@ impl From<LexError> for ErrorCore {
 #[derive(Debug)]
 pub struct LexErrors(Vec<LexError>);
 
-impl_stream_for_wrapper!(LexErrors, LexError);
+impl_stream!(LexErrors, LexError);
 
 impl fmt::Display for LexErrors {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -319,7 +319,7 @@ impl DesugaringError {
 #[derive(Debug)]
 pub struct DesugaringErrors(Vec<DesugaringError>);
 
-impl_stream_for_wrapper!(DesugaringErrors, DesugaringError);
+impl_stream!(DesugaringErrors, DesugaringError);
 
 pub type DesugaringResult<T> = Result<T, DesugaringError>;
 
@@ -357,7 +357,7 @@ pub struct ParserRunnerErrors(Vec<ParserRunnerError>);
 
 impl std::error::Error for ParserRunnerErrors {}
 
-impl_stream_for_wrapper!(ParserRunnerErrors, ParserRunnerError);
+impl_stream!(ParserRunnerErrors, ParserRunnerError);
 
 impl MultiErrorDisplay<ParserRunnerError> for ParserRunnerErrors {}
 

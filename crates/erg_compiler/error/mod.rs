@@ -10,7 +10,7 @@ use erg_common::error::{
 };
 use erg_common::style::{Attribute, Color, StyledStr, StyledString, StyledStrings, Theme, THEME};
 use erg_common::traits::{Locational, Stream};
-use erg_common::{impl_display_and_error, impl_stream_for_wrapper, switch_lang};
+use erg_common::{impl_display_and_error, impl_stream, switch_lang};
 
 use erg_parser::error::{ParserRunnerError, ParserRunnerErrors};
 
@@ -472,7 +472,7 @@ pub struct CompileErrors(Vec<CompileError>);
 
 impl std::error::Error for CompileErrors {}
 
-impl_stream_for_wrapper!(CompileErrors, CompileError);
+impl_stream!(CompileErrors, CompileError);
 
 impl From<ParserRunnerErrors> for CompileErrors {
     fn from(err: ParserRunnerErrors) -> Self {

@@ -322,7 +322,44 @@ macro_rules! impl_displayable_stream_for_wrapper {
 }
 
 #[macro_export]
-macro_rules! impl_stream_for_wrapper {
+macro_rules! impl_stream {
+    ($Strc: ident, $Inner: ident, $field: ident) => {
+        impl $crate::traits::Stream<$Inner> for $Strc {
+            #[inline]
+            fn payload(self) -> Vec<$Inner> {
+                self.$field
+            }
+            #[inline]
+            fn ref_payload(&self) -> &Vec<$Inner> {
+                &self.$field
+            }
+            #[inline]
+            fn ref_mut_payload(&mut self) -> &mut Vec<$Inner> {
+                &mut self.$field
+            }
+        }
+
+        impl std::ops::Index<usize> for $Strc {
+            type Output = $Inner;
+            fn index(&self, idx: usize) -> &Self::Output {
+                erg_common::traits::Stream::get(self, idx).unwrap()
+            }
+        }
+
+        impl From<$Strc> for Vec<$Inner> {
+            fn from(item: $Strc) -> Vec<$Inner> {
+                item.payload()
+            }
+        }
+
+        impl IntoIterator for $Strc {
+            type Item = $Inner;
+            type IntoIter = std::vec::IntoIter<Self::Item>;
+            fn into_iter(self) -> Self::IntoIter {
+                self.payload().into_iter()
+            }
+        }
+    };
     ($Strc: ident, $Inner: ident) => {
         impl $Strc {
             pub const fn new(v: Vec<$Inner>) -> $Strc {
@@ -383,47 +420,6 @@ macro_rules! impl_stream_for_wrapper {
             #[inline]
             fn ref_mut_payload(&mut self) -> &mut Vec<$Inner> {
                 &mut self.0
-            }
-        }
-    };
-}
-
-#[macro_export]
-macro_rules! impl_stream {
-    ($Strc: ident, $Inner: ident, $field: ident) => {
-        impl $crate::traits::Stream<$Inner> for $Strc {
-            #[inline]
-            fn payload(self) -> Vec<$Inner> {
-                self.$field
-            }
-            #[inline]
-            fn ref_payload(&self) -> &Vec<$Inner> {
-                &self.$field
-            }
-            #[inline]
-            fn ref_mut_payload(&mut self) -> &mut Vec<$Inner> {
-                &mut self.$field
-            }
-        }
-
-        impl std::ops::Index<usize> for $Strc {
-            type Output = $Inner;
-            fn index(&self, idx: usize) -> &Self::Output {
-                erg_common::traits::Stream::get(self, idx).unwrap()
-            }
-        }
-
-        impl From<$Strc> for Vec<$Inner> {
-            fn from(item: $Strc) -> Vec<$Inner> {
-                item.payload()
-            }
-        }
-
-        impl IntoIterator for $Strc {
-            type Item = $Inner;
-            type IntoIter = std::vec::IntoIter<Self::Item>;
-            fn into_iter(self) -> Self::IntoIter {
-                self.payload().into_iter()
             }
         }
     };

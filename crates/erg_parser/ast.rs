@@ -12,7 +12,7 @@ use erg_common::{
     fmt_option, fmt_vec, impl_display_for_enum, impl_display_for_single_struct,
     impl_display_from_nested, impl_displayable_stream_for_wrapper, impl_locational,
     impl_locational_for_enum, impl_nested_display_for_chunk_enum, impl_nested_display_for_enum,
-    impl_stream, impl_stream_for_wrapper, option_enum_unwrap,
+    impl_stream, option_enum_unwrap,
 };
 use erg_common::{fmt_vec_split_with, Str};
 
@@ -804,6 +804,8 @@ impl IntoIterator for ClassAttrs {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordAttrs(Vec<Def>);
 
+impl_stream!(RecordAttrs, Def);
+
 impl NestedDisplay for RecordAttrs {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
         fmt_lines(self.0.iter(), f, level)?;
@@ -824,24 +826,12 @@ impl From<Vec<Def>> for RecordAttrs {
 }
 
 impl RecordAttrs {
-    pub const fn new(attrs: Vec<Def>) -> Self {
-        Self(attrs)
-    }
-
     pub fn iter(&self) -> impl Iterator<Item = &Def> {
         self.0.iter()
     }
 
     pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Def> {
         self.0.iter_mut()
-    }
-}
-
-impl IntoIterator for RecordAttrs {
-    type Item = Def;
-    type IntoIter = <Vec<Def> as IntoIterator>::IntoIter;
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
     }
 }
 
@@ -1217,7 +1207,7 @@ impl Locational for Block {
     }
 }
 
-impl_stream_for_wrapper!(Block, Expr);
+impl_stream!(Block, Expr);
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Dummy(Vec<Expr>);
@@ -1241,7 +1231,7 @@ impl Locational for Dummy {
     }
 }
 
-impl_stream_for_wrapper!(Dummy, Expr);
+impl_stream!(Dummy, Expr);
 
 pub type ConstIdentifier = Identifier;
 

@@ -21,8 +21,7 @@ use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Visibility;
 use erg_common::Str;
 use erg_common::{
-    debug_power_assert, enum_unwrap, fn_name, fn_name_full, impl_stream_for_wrapper, log,
-    switch_unreachable,
+    debug_power_assert, enum_unwrap, fn_name, fn_name_full, impl_stream, log, switch_unreachable,
 };
 use erg_parser::ast::{DefId, DefKind};
 use CommonOpcode::*;
@@ -147,7 +146,7 @@ impl PyCodeGenUnit {
 #[derive(Debug, Clone)]
 pub struct PyCodeGenStack(Vec<PyCodeGenUnit>);
 
-impl_stream_for_wrapper!(PyCodeGenStack, PyCodeGenUnit);
+impl_stream!(PyCodeGenStack, PyCodeGenUnit);
 
 #[derive(Debug, Default)]
 pub struct PyCodeGenerator {

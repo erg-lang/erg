@@ -7,12 +7,12 @@ use erg_common::error::Location;
 use erg_common::log;
 use erg_common::traits::{Locational, NestedDisplay, NoTypeDisplay, Stream};
 use erg_common::vis::{Field, Visibility};
+use erg_common::Str;
 use erg_common::{
     enum_unwrap, fmt_option, fmt_vec, impl_display_for_enum, impl_display_from_nested,
     impl_locational, impl_locational_for_enum, impl_nested_display_for_chunk_enum,
-    impl_nested_display_for_enum, impl_stream_for_wrapper,
+    impl_nested_display_for_enum, impl_no_type_display_for_enum, impl_stream,
 };
-use erg_common::{impl_no_type_display_for_enum, Str};
 
 use erg_parser::ast::{
     fmt_lines, DefId, DefKind, NonDefaultParamSignature, OperationKind, TypeSpec, VarName,
@@ -1094,7 +1094,7 @@ impl NoTypeDisplay for RecordAttrs {
 }
 
 impl_display_from_nested!(RecordAttrs);
-impl_stream_for_wrapper!(RecordAttrs, Def);
+impl_stream!(RecordAttrs, Def);
 
 impl Locational for RecordAttrs {
     fn loc(&self) -> Location {
@@ -1485,7 +1485,7 @@ impl NoTypeDisplay for Block {
 }
 
 impl_display_from_nested!(Block);
-impl_stream_for_wrapper!(Block, Expr);
+impl_stream!(Block, Expr);
 
 impl Locational for Block {
     fn loc(&self) -> Location {
@@ -1537,7 +1537,7 @@ impl NoTypeDisplay for Dummy {
 }
 
 impl_display_from_nested!(Dummy);
-impl_stream_for_wrapper!(Dummy, Expr);
+impl_stream!(Dummy, Expr);
 
 impl Locational for Dummy {
     fn loc(&self) -> Location {
@@ -2437,7 +2437,7 @@ impl Locational for Module {
     }
 }
 
-impl_stream_for_wrapper!(Module, Expr);
+impl_stream!(Module, Expr);
 
 /// High-level Intermediate Representation
 /// AST with type information added
