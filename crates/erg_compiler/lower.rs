@@ -1719,7 +1719,7 @@ impl ASTLowerer {
         sup_class: &hir::Expr,
         sub_sig: &hir::Signature,
     ) {
-        if let TypeObj::Generated(gen) = type_obj.base_or_sup().unwrap() {
+        if let Some(TypeObj::Generated(gen)) = type_obj.base_or_sup() {
             if let Some(impls) = gen.impls() {
                 if !impls.contains_intersec(&mono("InheritableType")) {
                     errs.push(LowerError::inheritance_error(
