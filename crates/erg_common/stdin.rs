@@ -142,6 +142,7 @@ impl StdinReader {
                         this.trim_matches(|c: char| c.is_whitespace())
                             .to_string()
                             .replace(['\n', '\r'], "")
+                            .replace(|c: char| c.len_utf8() >= 2, "")
                     };
                     line.insert_str(position, &clipboard);
                     position += clipboard.len();
@@ -226,6 +227,9 @@ impl StdinReader {
                     break;
                 }
                 (KeyCode::Char(c), _) => {
+                    if c.len_utf8() >= 2{
+                        continue;
+                    }
                     line.insert(position, c);
                     position += 1;
                 }
