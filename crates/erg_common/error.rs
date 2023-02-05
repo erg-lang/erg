@@ -798,8 +798,8 @@ impl ErrorCore {
     这是Erg的bug，请报告给{URL}
     原因来自: {fn_name}:{line}"),
             "traditional_chinese" => format!("\
-    这是Erg的bug，请报告给{URL}
-    原因来自: {fn_name}:{line}"),
+    這是Erg的bug，請報告給{URL}
+    原因來自: {fn_name}:{line}"),
             "english" => format!("\
     This is a bug of Erg, please report it to {URL}
     Caused from: {fn_name}:{line}"),

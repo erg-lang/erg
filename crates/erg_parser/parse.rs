@@ -768,8 +768,8 @@ impl Parser {
                     if self.cur_is(Comma) {
                         let hint = switch_lang!(
                             "japanese" => "カンマの代わりに要素か右括弧を追加してください",
-                            "simplified_chinese" => "而不是逗号，应该添加一个元素",
-                            "traditional_chinese" => "而不是逗號，應該添加一個元素",
+                            "simplified_chinese" => "应该添加一个元素，而不是逗号",
+                            "traditional_chinese" => "應該添加一個元素，而不是逗號",
                             "english" => "instead of comma, a element should be added",
                         );
                         let err = self.skip_and_throw_invalid_seq_err(
@@ -1074,8 +1074,8 @@ impl Parser {
                                 } else {
                                     let hint = switch_lang!(
                                     "japanese" => "カンマの代わりに要素を追加してください",
-                                    "simplified_chinese" => "而不是逗号，应该添加一个元素",
-                                    "traditional_chinese" => "而不是逗號，應該添加一個元素",
+                                    "simplified_chinese" => "应该添加一个元素，而不是逗号",
+                                    "traditional_chinese" => "應該添加一個元素，而不是逗號",
                                     "english" => "instead of comma, a element should be added",
                                     );
                                     let err = self.skip_and_throw_invalid_seq_err(
@@ -1226,8 +1226,8 @@ impl Parser {
                     other.loc(),
                     switch_lang!(
                         "japanese" => "クラス属性を定義するのに失敗しました",
-                        "simplified_chinese" => "未能定义类实例属性",
-                        "traditional_chinese" => "未能定義類實例屬性",
+                        "simplified_chinese" => "定义类属性失败",
+                        "traditional_chinese" => "定義類屬性失敗",
                         "english" => "failed to define a Class attribute",
                     ),
                     Some(hint),
@@ -1272,8 +1272,8 @@ impl Parser {
                                 other.loc(),
                                 switch_lang!(
                                     "japanese" => "クラス属性を定義するのに失敗しました",
-                                    "simplified_chinese" => "未能定义类实例属性",
-                                    "traditional_chinese" => "未能定義類實例屬性",
+                                    "simplified_chinese" => "定义类属性失败",
+                                    "traditional_chinese" => "定義類屬性失敗",
                                     "english" => "failed to define a Class attribute",
                                 ),
                                 None,
@@ -1919,8 +1919,8 @@ impl Parser {
                         self.skip();
                         let main_msg = switch_lang!(
                             "japanese" => "不正な可変定義です",
-                            "simplified_chinese" => "无效的变异声明",
-                            "traditional_chinese" => "無效的變異聲明",
+                            "simplified_chinese" => "无效的可变声明",
+                            "traditional_chinese" => "無效的可變聲明",
                             "english" => "invalid mutate declaration",
                         );
                         let lit_loc = lit.loc();
@@ -2343,8 +2343,8 @@ impl Parser {
                     t.loc(),
                     switch_lang!(
                         "japanese" => "無効なレコード型の宣言です",
-                        "simplified_chinese" => "无效的记录类型定义",
-                        "traditional_chinese" => "無效的記錄類型定義",
+                        "simplified_chinese" => "无效的Record类型定义",
+                        "traditional_chinese" => "無效的Record類型定義",
                         "english" => "invalid record type definition",
                     ),
                     "}",
@@ -2352,8 +2352,8 @@ impl Parser {
                 );
                 err.set_hint(switch_lang!(
                     "japanese" => "空のレコード型が期待されています: {=}",
-                    "simplified_chinese" => "期望空记录类型: {=}",
-                    "traditional_chinese" => "期望空記錄類型: {=}",
+                    "simplified_chinese" => "期望空Record类型: {=}",
+                    "traditional_chinese" => "期望空Record類型: {=}",
                     "english" => "expect empty record type: {=}",
                 ));
                 self.errs.push(err);
@@ -2376,8 +2376,8 @@ impl Parser {
                     t.loc(),
                     switch_lang!(
                         "japanese" => "無効な辞書型の宣言です",
-                        "simplified_chinese" => "",
-                        "traditional_chinese" => "",
+                        "simplified_chinese" => "无效的Dict类型定义",
+                        "traditional_chinese" => "無效的Dict類型定義",
                         "english" => "invalid dict type definition",
                     ),
                     "}",
@@ -2480,8 +2480,8 @@ impl Parser {
                         Some(t) if t.is(Semi) => {
                             let hint = switch_lang!(
                                 "japanese" => "セミコロンの代わりに要素",
-                                "simplified_chinese" => "而不是分号，元素",
-                                "traditional_chinese" => "而不是分號，元素",
+                                "simplified_chinese" => "不应该是分号，而应该是元素",
+                                "traditional_chinese" => "不应该是分號，而应该是元素",
                                 "english" => "instead of semicolon, element",
                             );
                             let err = self.skip_and_throw_invalid_seq_err(
@@ -2686,8 +2686,8 @@ impl Parser {
                             log!(err "error caused by: {caused_by}");
                             let hint = switch_lang!(
                                     "japanese" => "カンマの代わりに要素",
-                                    "simplified_chinese" => "而不是逗号，一个元素",
-                                    "traditional_chinese" => "而不是逗號，一個元素",
+                                    "simplified_chinese" => "不应该是逗号，而应该是元素",
+                                    "traditional_chinese" => "不应该是逗號，而应该是元素",
                                     "english" => "instead of comma, a element",
                             );
                             let err = self.skip_and_throw_invalid_seq_err(
@@ -2793,8 +2793,8 @@ impl Parser {
                     if self.cur_is(Comma) {
                         let hint = switch_lang!(
                             "japanese" => "カンマの代わりに要素",
-                            "simplified_chinese" => "代替逗号，一个元素",
-                            "traditional_chinese" => "代替逗號，一個元素",
+                            "simplified_chinese" => "不应该是逗号，而应该是元素",
+                            "traditional_chinese" => "不应该是逗號，而应该是元素",
                             "english" => "instead of a comma, a element",
                         );
                         let err = self.skip_and_throw_invalid_seq_err(
@@ -2923,8 +2923,8 @@ impl Parser {
                         expr.loc(),
                         switch_lang!(
                             "japanese" => "文字列補間の終わりが見つかりませんでした",
-                            "simplified_chinese" => "未找到字符串插值的结尾",
-                            "traditional_chinese" => "未找到字符串插值的結尾",
+                            "simplified_chinese" => "未找到字符串的结尾插值",
+                            "traditional_chinese" => "未找到字符串的結尾插值",
                             "english" => "end of a string interpolation not found",
                         ),
                         None,

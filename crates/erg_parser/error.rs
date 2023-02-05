@@ -116,8 +116,8 @@ impl LexError {
         let mut fnd = StyledStrings::default();
         switch_lang!(
             "japanese" =>fnd.push_str("予期しないトークン: "),
-            "simplified_chinese" => fnd.push_str("意想不到token: "),
-            "traditional_chinese" => fnd.push_str("意想不到token: "),
+            "simplified_chinese" => fnd.push_str("意外的token: "),
+            "traditional_chinese" => fnd.push_str("意外的token: "),
             "english" => fnd.push_str("unexpected token: "),
         );
         fnd.push_str_with_color(found, ERR);
@@ -196,8 +196,8 @@ impl LexError {
         );
         let hint = switch_lang!(
             "japanese" => "セミコロンを追加するか改行をしてください",
-            "simplified_chinese" => "分号或应添加换行符",
-            "traditional_chinese" => "分號或應添加換行",
+            "simplified_chinese" => "应该添加分号或换行符",
+            "traditional_chinese" => "應該添加分號或換行符",
             "english" => "semicolon or newline should be added",
         )
         .to_string();
@@ -264,8 +264,8 @@ impl LexError {
         let found = StyledStr::new(found, Some(ERR), Some(ATTR));
         let found = switch_lang!(
                 "japanese" => format!("与えられた: {found}"),
-                "simplified_chinese" => format!("预期: {found}"),
-                "traditional_chinese" => format!("預期: {found}"),
+                "simplified_chinese" => format!("但找到: {found}"),
+                "traditional_chinese" => format!("但找到: {found}"),
                 "english" => format!("but found: {found}"),
         );
         Self::new(ErrorCore::new(
@@ -281,8 +281,8 @@ impl LexError {
         let hint = hint.map(|hint| hint.to_string());
         let msg = switch_lang!(
             "japanese" => "連続する要素の宣言が異なります",
-            "simplified_chinese" => "无效的顺序元素声明",
-            "traditional_chinese" => "無效的順序元素聲明",
+            "simplified_chinese" => "无效的Sequential元素声明",
+            "traditional_chinese" => "無效的Sequential元素聲明",
             "english" => "invalid sequential elements declaration",
         );
         Self::syntax_error(errno, loc, msg, hint)
@@ -291,9 +291,9 @@ impl LexError {
     pub fn invalid_record_element_err(errno: usize, loc: Location) -> LexError {
         let msg = switch_lang!(
             "japanese" => "レコード型の要素が宣言が異なります",
-            "simplified_chinese" => "不同的记录类型元素声明",
-            "traditional_chinese" => "不同的記錄類型元素聲明",
-            "english" => "different record type element declarations",
+            "simplified_chinese" => "无效的Record类型元素声明",
+            "traditional_chinese" => "無效的Record類型元素聲明",
+            "english" => "invalid record type element declarations",
         )
         .to_string();
         let hint = switch_lang!(
@@ -304,13 +304,13 @@ impl LexError {
                 format!("{record}では{var}か{def}のみ使うことができます")
             },
             "simplified_chinese" => {
-                let record = StyledStr::new("记录类型", Some(HINT), Some(ATTR));
+                let record = StyledStr::new("Record类型", Some(HINT), Some(ATTR));
                 let var = StyledStr::new("attr", Some(HINT), Some(ATTR));
                 let def = StyledStr::new("attr=lit", Some(HINT), Some(ATTR));
                 format!("只有{var}或{def}可以在{record}中使用")
             },
             "traditional_chinese" => {
-                let record = StyledStr::new("記錄類型", Some(HINT), Some(ATTR));
+                let record = StyledStr::new("Record類型", Some(HINT), Some(ATTR));
                 let var = StyledStr::new("attr", Some(HINT), Some(ATTR));
                 let def = StyledStr::new("attr=lit", Some(HINT), Some(ATTR));
                 format!("只有{var}或{def}可以在{record}中使用")
@@ -325,8 +325,8 @@ impl LexError {
         let sub_msg = SubMessage::ambiguous_new(loc, vec![msg], Some(hint));
         let msg = switch_lang!(
             "japanese" => "連続する要素の宣言が異なります",
-            "simplified_chinese" => "无效的顺序元素声明",
-            "traditional_chinese" => "無效的順序元素聲明",
+            "simplified_chinese" => "无效的Sequential元素声明",
+            "traditional_chinese" => "無效的Sequential元素聲明",
             "english" => "invalid sequential elements declaration",
         );
         Self::new(ErrorCore::new(vec![sub_msg], msg, errno, SyntaxError, loc))
@@ -351,7 +351,7 @@ impl LexError {
         let msg = switch_lang!(
             "japanese" => "無効なクラスの定義です",
             "simplified_chinese" => "类定义无效",
-            "traditional_chinese" => "类定义无效",
+            "traditional_chinese" => "類定義無效",
             "english" => "invalid Class definition",
         );
         let sub = SubMessage::only_loc(loc);
@@ -361,8 +361,8 @@ impl LexError {
     pub fn invalid_class_attr_def(errno: usize, loc: Location) -> ParseError {
         let msg = switch_lang!(
             "japanese" => "クラス属性を定義するのに失敗しました",
-            "simplified_chinese" => "未能定义类实例属性",
-            "traditional_chinese" => "未能定義類實例屬性",
+            "simplified_chinese" => "定义类实例属性失败",
+            "traditional_chinese" => "定義類實例屬性失敗",
             "english" => "failed to define a Class attribute",
         );
         let sub = SubMessage::only_loc(loc);
@@ -372,9 +372,9 @@ impl LexError {
     pub fn invalid_data_pack_definition(errno: usize, loc: Location, fnd: &str) -> ParseError {
         let msg = switch_lang!(
             "japanese" => "データクラスの中身が異なります",
-            "simplified_chinese" => "数据类的内容不同",
-            "traditional_chinese" => "數據類的內容不同",
-            "english" => "contents of data class are different",
+            "simplified_chinese" => "数据类的内容无效",
+            "traditional_chinese" => "數據類的內容無效",
+            "english" => "invalid contents of data class",
         );
         let expt = StyledStr::new("Record Type", Some(HINT), Some(ATTR));
         let expect = switch_lang!(
@@ -404,8 +404,8 @@ impl LexError {
         let keyword = StyledStr::new("keyword", Some(HINT), Some(ATTR));
         let sub_msg = switch_lang!(
             "japanese" => format!("予期した: {keyword}"),
-            "simplified_chinese" => format!("期望关: {keyword}"),
-            "traditional_chinese" => format!("期望關: {keyword}"),
+            "simplified_chinese" => format!("期望: {keyword}"),
+            "traditional_chinese" => format!("期望: {keyword}"),
             "english" => format!("expect: {keyword}"),
         );
         let sub = SubMessage::ambiguous_new(loc, vec![sub_msg], None);
@@ -435,7 +435,7 @@ impl LexError {
         let msg = switch_lang!(
             "japanese" => "無効な辞書型の要素の宣言です",
             "simplified_chinese" => "无效的字典类型声明",
-            "traditional_chinese" => "无效的字典类型声明",
+            "traditional_chinese" => "無效的字典類型聲明",
             "english" => "invalid declaration of dict type",
         );
         let colon = StyledStr::new(":", Some(HINT), Some(ATTR));
@@ -453,14 +453,14 @@ impl LexError {
         let hint = switch_lang!(
             "japanese" => format!("{colon}を追加してください"),
             "simplified_chinese" => format!("{colon}应该被添加"),
-            "traditional_chinese" => format!("{colon}应该被添加"),
+            "traditional_chinese" => format!("{colon}應該被添加"),
             "english" => format!("{colon} should be added"),
         );
         let sub_msg = SubMessage::ambiguous_new(loc, vec![], Some(hint));
         let main_msg = switch_lang!(
             "japanese" => "辞書型の値の宣言が異なります",
-            "simplified_chinese" => "字典类型的值声明是不同的",
-            "traditional_chinese" => "字典类型的值声明是不同的",
+            "simplified_chinese" => "声明Dict类型失败",
+            "traditional_chinese" => "聲明Dict類型失敗",
             "english" => "failed to declare Dict type",
         );
         Self::new(ErrorCore::new(
@@ -479,8 +479,8 @@ impl LexError {
     ) -> ParseError {
         let main_msg = switch_lang!(
             "japanese" => "タプル型の要素ではタイプを宣言することはできません",
-            "simplified_chinese" => "无法声明元组类型元素指定的类型",
-            "traditional_chinese" => "無法聲明元組類型元素指定的類型",
+            "simplified_chinese" => "无法声明Tuple类型元素指定的类型",
+            "traditional_chinese" => "無法聲明Tuple類型元素指定的類型",
             "english" => "cannot declare type specified by Tuple Type element",
         );
         Self::syntax_error(errno, loc, main_msg, hint)
@@ -489,8 +489,8 @@ impl LexError {
     pub fn unclosed_error(errno: usize, loc: Location, closer: &str, ty: &str) -> ParseError {
         let msg = switch_lang!(
             "japanese" => format!("{ty}が{closer}で閉じられていません"),
-            "simplified_chinese" => format!("{ty}没有用{closer}封闭"),
-            "traditional_chinese" => format!("{ty}没有用{closer}封闭"),
+            "simplified_chinese" => format!("{ty}没有用{closer}关闭"),
+            "traditional_chinese" => format!("{ty}没有用{closer}關閉"),
             "english" => format!("{ty} is not closed with a {closer}"),
         );
 
@@ -509,7 +509,7 @@ impl LexError {
     pub fn expect_method_error(errno: usize, loc: Location) -> ParseError {
         let mut expect = StyledStrings::default();
         switch_lang!(
-            "japanese" => expect.push_str("期待: "),
+            "japanese" => expect.push_str("予期した: "),
             "simplified_chinese" => expect.push_str("期望: "),
             "traditional_chinese" => expect.push_str("期望: "),
             "english" => expect.push_str("expect: "),
@@ -517,6 +517,8 @@ impl LexError {
         expect.push_str_with_color_and_attr(
             switch_lang!(
                 "japanese" => "メソッド",
+                "simplified_chinese" => "方法",
+                "traditional_chinese" => "方法", 
                 "english" => "method",
             ),
             HINT,
@@ -590,8 +592,8 @@ impl LexError {
 
         let fnd = switch_lang!(
             "japanese" =>format!("与えられた: {}", StyledStr::new(found, Some(ERR), None)),
-            "simplified_chinese" => format!("期望: {}", StyledStr::new(found, Some(ERR), None)),
-            "traditional_chinese" => format!("期望: {}", StyledStr::new(found, Some(ERR), None)),
+            "simplified_chinese" => format!("但找到: {}", StyledStr::new(found, Some(ERR), None)),
+            "traditional_chinese" => format!("但找到: {}", StyledStr::new(found, Some(ERR), None)),
             "english" => format!("but found: {}", StyledStr::new(found, Some(ERR), None)),
         );
         let sub = SubMessage::ambiguous_new(loc, vec![expt, fnd], None);
