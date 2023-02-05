@@ -1,4 +1,4 @@
-# Guidelines for Commit Messages(PR titles use the same method)
+# Guidelines for Commit Messages
 
 This guideline is intended to
 
@@ -85,4 +85,4 @@ As you can see from the examples, API and file/directory names should be enclose
 
 * You are free to write commits in the middle of your work. When you finally squash and organize your work, please follow the rules.
 * Basically use the present and ongoing tenses for sentences.
-* If there are messy commits in PR, please use squash and merge(If the commit is clear, merge directly)
+* If there are messy commits in PR, please change the PR name (use commit_message specification) and use squash and merge(If the commit is clear, merge directly)
