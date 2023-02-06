@@ -782,6 +782,9 @@ pub trait Runnable: Sized + Default {
                                         continue;
                                     }
                                 }
+                                vm.push_code(line);
+                                vm.push_code("\n");
+                                continue;
                             }
                             // Intentionally code will be evaluated and make an error
                             vm.now = BlockKind::Main;
