@@ -1,0 +1,136 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "doc/**"
+      - ".github/**"
+      - ".assets/**"
+      - ".cargo/**"
+      - "**.md"
+      - "**.yml"
+      - "LICENSE-**"
+      - ".gitmessage"
+      - ".pre-commit-config.yaml"
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - "doc/**"
+      - ".github/**"
+      - ".assets/**"
+      - ".cargo/**"
+      - "**.md"
+      - "**.yml"
+      - "LICENSE-**"
+      - ".gitmessage"
+      - ".pre-commit-config.yaml"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test(windows-latest):
+    strategy:
+      fail-fast: false
+    runs-on: windows-latest
+    if: ${{ success() }}
+      needs: [build-check(windows-latest)]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      - uses: Swatinem/rust-cache@v3
+      - run: rustup update stable
+      - name: Run tests (Windows)
+        if: runner.os == 'Windows'
+        # HACK: The cause is unknown, but on windows, the exit code is 1 even if tests are successful.
+        run: cargo test --features large_thread --features pre-commit --all --verbose
+      - name: Run tests (Other OS)
+        if: runner.os != 'Windows'
+        run: cargo test --features large_thread --all --verbose
+
+  test(ubuntu-latest):
+    strategy:
+      fail-fast: false
+    runs-on: ubuntu-latest
+    if: ${{ success() }}
+      needs: [build-check(ubuntu-latest)]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      - uses: Swatinem/rust-cache@v3
+      - run: rustup update stable
+      - name: Run tests (Windows)
+        if: runner.os == 'Windows'
+        # HACK: The cause is unknown, but on windows, the exit code is 1 even if tests are successful.
+        run: cargo test --features large_thread --features pre-commit --all --verbose
+      - name: Run tests (Other OS)
+        if: runner.os != 'Windows'
+        run: cargo test --features large_thread --all --verbose
+
+  test(macos-latest):
+    strategy:
+      fail-fast: false
+    runs-on: macos-latest
+    if: ${{ success() }}
+      needs: [build-check(macos-latest)]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      - uses: Swatinem/rust-cache@v2
+      - run: rustup update stable
+      - name: Run tests (Windows)
+        if: runner.os == 'Windows'
+        # HACK: The cause is unknown, but on windows, the exit code is 1 even if tests are successful.
+        run: cargo test --features large_thread --features pre-commit --all --verbose
+      - name: Run tests (Other OS)
+        if: runner.os != 'Windows'
+        run: cargo test --features large_thread --all --verbose
+
+  build-check(windows-latest):
+    strategy:
+      fail-fast: false
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: Swatinem/rust-cache@v2
+      - run: rustup update stable
+      - run: cargo check --all --all-targets --verbose
+
+  build-check(ubuntu-latest):
+    strategy:
+      fail-fast: false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: Swatinem/rust-cache@v2
+      - run: rustup update stable
+      - run: cargo check --all --all-targets --verbose
+
+  build-check(macos-latest):
+    strategy:
+      fail-fast: false
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: Swatinem/rust-cache@v2
+      - run: rustup update stable
+      - run: cargo check --all --all-targets --verbose
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: Swatinem/rust-cache@v2
+      - run: rustup update stable
+      - name: cargo clippy
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --all --all-targets --verbose -- -D warnings
