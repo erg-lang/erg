@@ -532,8 +532,10 @@ impl VirtualMachine {
         if self.now == BlockKind::AtMark && bk == BlockKind::AtMark {
             return;
         }
-        // Change from AtMark to ClassDef
-        if self.now == BlockKind::AtMark && bk == BlockKind::ClassDef {
+        // Change from AtMark to ClassDef or Assignment
+        if (bk == BlockKind::ClassDef || bk == BlockKind::Assignment)
+            && self.now == BlockKind::AtMark
+        {
             self.now_block.pop();
         }
         // Change from ClassDef to ClassPriv or ClassPub
@@ -646,7 +648,7 @@ pub trait Runnable: Sized + Default {
         if src.ends_with("->") && !src.starts_with("->") {
             return BlockKind::Lambda;
         }
-        if src.contains("Class") {
+        if src.contains("Class") || src.contains("Inherit") {
             return BlockKind::ClassDef;
         }
         BlockKind::None
@@ -782,6 +784,8 @@ pub trait Runnable: Sized + Default {
                                         continue;
                                     }
                                 }
+                                vm.push_code(indent.as_str());
+                                instance.input().insert_whitespace(indent.as_str());
                                 vm.push_code(line);
                                 vm.push_code("\n");
                                 continue;
@@ -789,7 +793,9 @@ pub trait Runnable: Sized + Default {
                             // Intentionally code will be evaluated and make an error
                             vm.now = BlockKind::Main;
                         }
-                        BlockKind::ClassDef if vm.now == BlockKind::AtMark => {
+                        BlockKind::ClassDef | BlockKind::Assignment
+                            if vm.now == BlockKind::AtMark =>
+                        {
                             vm.push_block_kind(bk);
                             vm.push_code(indent.as_str());
                             instance.input().insert_whitespace(indent.as_str());
