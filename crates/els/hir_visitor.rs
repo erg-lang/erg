@@ -4,7 +4,7 @@ use erg_compiler::erg_parser::token::Token;
 use erg_compiler::hir::*;
 use erg_compiler::ty::{HasType, Type};
 use erg_compiler::varinfo::VarInfo;
-use lsp_types::{Position, Url};
+use lsp_types::{Position, Range, Url};
 
 use crate::util;
 
@@ -39,6 +39,45 @@ impl<'a> HIRVisitor<'a> {
         let indent_len = line.len() - line.trim_start_matches(' ').len();
         let cond = ln_end == pos.line && pos.character as usize == indent_len + 1;
         matches!(chunk, Expr::Call(_) | Expr::Lambda(_) | Expr::Def(_) | Expr::ClassDef(_) if cond)
+    }
+
+    pub fn get_min_expr(&self, range: Range) -> Option<&Expr> {
+        self.get_min_expr_from_exprs(self.hir.module.iter(), range)
+    }
+
+    // TODO:
+    fn get_min_expr_from_expr<'e>(&self, expr: &'e Expr, range: Range) -> Option<&'e Expr> {
+        match expr {
+            Expr::Def(def) => {
+                if let Some(expr) = self.get_min_expr_from_exprs(def.body.block.iter(), range) {
+                    Some(expr)
+                } else if util::pos_in_loc(def, range.start) {
+                    Some(expr)
+                } else {
+                    None
+                }
+            }
+            other => {
+                if util::pos_in_loc(other, range.start) {
+                    Some(expr)
+                } else {
+                    None
+                }
+            }
+        }
+    }
+
+    fn get_min_expr_from_exprs<'e>(
+        &self,
+        iter: impl Iterator<Item = &'e Expr>,
+        range: Range,
+    ) -> Option<&'e Expr> {
+        for chunk in iter {
+            if let Some(expr) = self.get_min_expr_from_expr(chunk, range) {
+                return Some(expr);
+            }
+        }
+        None
     }
 
     fn get_expr_ns(&self, cur_ns: Vec<Str>, chunk: &Expr, pos: Position) -> Option<Vec<Str>> {
