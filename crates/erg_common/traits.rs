@@ -498,7 +498,7 @@ pub fn from_str(bk: &str) -> BlockKind {
         "Error" => BlockKind::Error,
         "Lambda" => BlockKind::Lambda,
         "MultiLineStr" => BlockKind::MultiLineStr,
-        "ClassAttr" => BlockKind::ClassDef,
+        "ClassDef" => BlockKind::ClassDef,
         "None" => BlockKind::None,
         _ => unimplemented!("Failed to convert to BlockKind"),
     }
