@@ -37,7 +37,7 @@ jobs:
     if: ${{ success() }}
     needs: [build-check-windows-latest]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v2
       - uses: actions/setup-python@v4
         with:
           python-version: "3.11"
@@ -51,14 +51,14 @@ jobs:
         if: runner.os != 'Windows'
         run: cargo test --features large_thread --all --verbose
 
-  test-ubuntu_latest:
+  test-ubuntu-latest:
     strategy:
       fail-fast: false
     runs-on: ubuntu-latest
     if: ${{ success() }}
     needs: [build-check-ubuntu-latest]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v2
       - uses: actions/setup-python@v4
         with:
           python-version: "3.11"
@@ -72,14 +72,14 @@ jobs:
         if: runner.os != 'Windows'
         run: cargo test --features large_thread --all --verbose
 
-  test-macos_latest:
+  test-macos-latest:
     strategy:
       fail-fast: false
     runs-on: macos-latest
     if: ${{ success() }}
     needs: [build-check-macos-latest]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v2
       - uses: actions/setup-python@v4
         with:
           python-version: "3.11"
@@ -98,7 +98,7 @@ jobs:
       fail-fast: false
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v2
       - uses: Swatinem/rust-cache@v2
       - run: rustup update stable
       - run: cargo check --all --all-targets --verbose
@@ -108,7 +108,7 @@ jobs:
       fail-fast: false
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v2
       - uses: Swatinem/rust-cache@v2
       - run: rustup update stable
       - run: cargo check --all --all-targets --verbose
@@ -118,7 +118,7 @@ jobs:
       fail-fast: false
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v2
       - uses: Swatinem/rust-cache@v2
       - run: rustup update stable
       - run: cargo check --all --all-targets --verbose
@@ -126,7 +126,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v2
       - uses: Swatinem/rust-cache@v2
       - run: rustup update stable
       - name: cargo clippy
