@@ -338,7 +338,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             "textDocument/references" => self.show_references(msg),
             "textDocument/semanticTokens/full" => self.get_semantic_tokens_full(msg),
             "textDocument/inlayHint" => self.get_inlay_hint(msg),
-            "textDocument/codeAction" => self.perform_code_action(msg),
+            "textDocument/codeAction" => self.send_code_action(msg),
             other => Self::send_error(Some(id), -32600, format!("{other} is not supported")),
         }
     }

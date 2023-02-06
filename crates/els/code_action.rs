@@ -16,7 +16,7 @@ use crate::server::{ELSResult, Server};
 use crate::util;
 
 impl<Checker: BuildRunnable> Server<Checker> {
-    fn perform_eliminate_unused_vars_action(
+    fn send_eliminate_unused_vars_action(
         &self,
         _msg: &Value,
         uri: &Url,
@@ -70,7 +70,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         }
     }
 
-    pub(crate) fn perform_code_action(&self, msg: &Value) -> ELSResult<()> {
+    pub(crate) fn send_code_action(&self, msg: &Value) -> ELSResult<()> {
         Self::send_log(format!("code action requested: {msg}"))?;
         let params = CodeActionParams::deserialize(&msg["params"])?;
         let result = match params
@@ -79,7 +79,8 @@ impl<Checker: BuildRunnable> Server<Checker> {
             .as_ref()
             .and_then(|kinds| kinds.first().map(|s| s.as_str()))
         {
-            Some("quickfix") | None => self.perform_quick_fix(msg, params)?,
+            Some("quickfix") => self.send_quick_fix(msg, params)?,
+            None => self.send_normal_action(msg, params)?,
             Some(other) => {
                 Self::send_log(&format!("Unknown code action requested: {other}"))?;
                 vec![]
@@ -90,17 +91,21 @@ impl<Checker: BuildRunnable> Server<Checker> {
         )
     }
 
-    fn perform_quick_fix(
+    fn send_normal_action(
         &self,
         msg: &Value,
         params: CodeActionParams,
     ) -> ELSResult<Vec<CodeAction>> {
+        self.send_quick_fix(msg, params)
+    }
+
+    fn send_quick_fix(&self, msg: &Value, params: CodeActionParams) -> ELSResult<Vec<CodeAction>> {
         let mut result: Vec<CodeAction> = vec![];
         let uri = util::normalize_url(params.text_document.uri);
         for diag in params.context.diagnostics.into_iter() {
             match &diag.message {
                 unused if unused.ends_with("is not used") => {
-                    result.extend(self.perform_eliminate_unused_vars_action(msg, &uri, diag)?);
+                    result.extend(self.send_eliminate_unused_vars_action(msg, &uri, diag)?);
                 }
                 _ => {
                     Self::send_log(&format!("Unknown diagnostic for action: {}", diag.message))?;
