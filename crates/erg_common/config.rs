@@ -4,6 +4,7 @@
 use std::env;
 use std::fmt;
 use std::fs::File;
+use std::io::Write;
 use std::io::{stdin, BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
 use std::process;
@@ -90,13 +91,17 @@ impl DummyStdin {
     }
 
     pub fn read_line(&mut self) -> String {
+        let mut stdout = std::io::stdout();
         if self.current_line >= self.lines.len() {
-            println!();
+            stdout.write_all("\n".as_bytes()).unwrap();
+            stdout.flush().unwrap();
             return "".to_string();
         }
-        let line = self.lines[self.current_line].clone();
+        let mut line = self.lines[self.current_line].clone();
         self.current_line += 1;
-        println!("{line}");
+        line.push('\n');
+        stdout.write_all(line.as_bytes()).unwrap();
+        stdout.flush().unwrap();
         line
     }
 
