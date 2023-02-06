@@ -971,7 +971,6 @@ impl Context {
         self.shared.as_ref().map(|shared| &shared.py_mod_cache)
     }
 
-    #[cfg(feature = "els")]
     pub fn index(&self) -> Option<&crate::module::SharedModuleIndex> {
         self.shared.as_ref().map(|shared| &shared.index)
     }

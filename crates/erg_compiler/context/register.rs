@@ -3,7 +3,6 @@ use std::option::Option;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-#[cfg(feature = "els")]
 use erg_common::config::ErgMode;
 use erg_common::env::erg_pystd_path;
 use erg_common::levenshtein::get_similar_name;
@@ -1624,7 +1623,6 @@ impl Context {
         Ok(())
     }
 
-    #[cfg(feature = "els")]
     pub(crate) fn inc_ref_simple_typespec(&self, simple: &SimpleTypeSpec) {
         if self.cfg.mode == ErgMode::LanguageServer {
             if let Ok(vi) = self.rec_get_var_info(
@@ -1637,10 +1635,7 @@ impl Context {
             }
         }
     }
-    #[cfg(not(feature = "els"))]
-    pub(crate) fn inc_ref_simple_typespec(&self, _simple: &SimpleTypeSpec) {}
 
-    #[cfg(feature = "els")]
     pub(crate) fn inc_ref_const_local(&self, local: &ConstIdentifier) {
         if self.cfg.mode == ErgMode::LanguageServer {
             if let Ok(vi) = self.rec_get_var_info(
@@ -1653,10 +1648,7 @@ impl Context {
             }
         }
     }
-    #[cfg(not(feature = "els"))]
-    pub(crate) fn inc_ref_const_local(&self, _local: &ConstIdentifier) {}
 
-    #[cfg(feature = "els")]
     pub fn inc_ref<L: Locational>(&self, vi: &VarInfo, name: &L) {
         if self.cfg.mode == ErgMode::LanguageServer {
             self.index()
@@ -1664,6 +1656,4 @@ impl Context {
                 .add_ref(vi.def_loc.clone(), self.absolutize(name.loc()));
         }
     }
-    #[cfg(not(feature = "els"))]
-    pub fn inc_ref<L: Locational>(&self, _vi: &VarInfo, _name: &L) {}
 }

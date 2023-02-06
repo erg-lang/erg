@@ -1,4 +1,4 @@
-use std::collections::hash_map::{Keys, Values};
+use std::collections::hash_map::{Iter, Keys, Values};
 use std::fmt;
 
 use erg_common::dict::Dict;
@@ -65,6 +65,10 @@ impl SharedModuleIndex {
 
     pub fn referrers(&self) -> Values<AbsLocation, Set<AbsLocation>> {
         unsafe { self.0.as_ptr().as_ref().unwrap().attrs.values() }
+    }
+
+    pub fn iter(&self) -> Iter<AbsLocation, Set<AbsLocation>> {
+        unsafe { self.0.as_ptr().as_ref().unwrap().attrs.iter() }
     }
 
     pub fn initialize(&self) {

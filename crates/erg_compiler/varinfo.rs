@@ -95,6 +95,24 @@ impl AbsLocation {
     pub const fn unknown() -> Self {
         Self::new(None, Location::Unknown)
     }
+
+    pub fn code(&self) -> Option<String> {
+        use std::io::{BufRead, BufReader};
+        self.module.as_ref().and_then(|module| {
+            let file = std::fs::File::open(module).unwrap();
+            let reader = BufReader::new(file);
+            reader
+                .lines()
+                .nth(self.loc.ln_begin().unwrap_or(0) as usize)
+                .and_then(|res| {
+                    let res = res.ok()?;
+                    let begin = self.loc.col_begin().unwrap_or(0) as usize;
+                    let end = self.loc.col_end().unwrap_or(0) as usize;
+                    let res = res[begin..end].to_string();
+                    Some(res)
+                })
+        })
+    }
 }
 
 /// Has information about the type, variability, visibility, and where the variable was defined (or declared, generated)
