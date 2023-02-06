@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::Read;
+use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
 
 use erg_common::normalize_path;
@@ -97,6 +97,36 @@ pub fn get_code_from_uri(uri: &Url) -> ELSResult<String> {
     let mut code = String::new();
     File::open(path.as_path())?.read_to_string(&mut code)?;
     Ok(code)
+}
+
+pub fn get_ranged_code_from_uri(uri: &Url, range: Range) -> ELSResult<Option<String>> {
+    let path = uri.to_file_path().unwrap();
+    let file = File::open(path)?;
+    let reader = BufReader::new(file);
+    let mut code = String::new();
+    for (i, line) in reader.lines().enumerate() {
+        if i >= range.start.line as usize && i <= range.end.line as usize {
+            let line = line?;
+            if i == range.start.line as usize && i == range.end.line as usize {
+                if line.len() < range.end.character as usize {
+                    return Ok(None);
+                }
+                code.push_str(&line[range.start.character as usize..range.end.character as usize]);
+            } else if i == range.start.line as usize {
+                code.push_str(&line[range.start.character as usize..]);
+                code.push('\n');
+            } else if i == range.end.line as usize {
+                if line.len() < range.end.character as usize {
+                    return Ok(None);
+                }
+                code.push_str(&line[..range.end.character as usize]);
+            } else {
+                code.push_str(&line);
+                code.push('\n');
+            }
+        }
+    }
+    Ok(Some(code))
 }
 
 pub fn get_line_from_uri(uri: &Url, line: u32) -> ELSResult<String> {

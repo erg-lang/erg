@@ -16,6 +16,7 @@ pub mod effectcheck;
 pub mod error;
 pub mod hir;
 pub mod link;
+pub mod lint;
 pub mod lower;
 pub mod module;
 pub mod optimize;

@@ -45,9 +45,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
                     }
                     let mut changes: HashMap<Url, Vec<TextEdit>> = HashMap::new();
                     Self::commit_change(&mut changes, &vi.def_loc, params.new_name.clone());
-                    if let Some(referrers) = self.get_index().get_refs(&vi.def_loc) {
+                    if let Some(value) = self.get_index().get_refs(&vi.def_loc) {
                         // Self::send_log(format!("referrers: {referrers:?}"))?;
-                        for referrer in referrers.iter() {
+                        for referrer in value.referrers.iter() {
                             Self::commit_change(&mut changes, referrer, params.new_name.clone());
                         }
                     }

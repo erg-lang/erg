@@ -21,10 +21,11 @@ use erg_compiler::hir::HIR;
 use erg_compiler::module::{SharedCompilerResource, SharedModuleIndex};
 
 use lsp_types::{
-    ClientCapabilities, CompletionOptions, HoverProviderCapability, InitializeResult, OneOf,
+    ClientCapabilities, CodeActionKind, CodeActionOptions, CodeActionProviderCapability,
+    CompletionOptions, ExecuteCommandOptions, HoverProviderCapability, InitializeResult, OneOf,
     Position, SemanticTokenType, SemanticTokensFullOptions, SemanticTokensLegend,
     SemanticTokensOptions, SemanticTokensServerCapabilities, ServerCapabilities,
-    TextDocumentSyncCapability, TextDocumentSyncKind, Url,
+    TextDocumentSyncCapability, TextDocumentSyncKind, Url, WorkDoneProgressOptions,
 };
 
 use crate::hir_visitor::HIRVisitor;
@@ -37,19 +38,21 @@ pub type ErgLanguageServer = Server<HIRBuilder>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ELSFeatures {
+    CodeAction,
     Completion,
     Diagnostic,
-    Hover,
-    SemanticTokens,
-    Rename,
-    InlayHint,
     FindReferences,
     GotoDefinition,
+    Hover,
+    InlayHint,
+    Rename,
+    SemanticTokens,
 }
 
 impl From<&str> for ELSFeatures {
     fn from(s: &str) -> Self {
         match s {
+            "codeaction" | "codeAction" | "code-action" => ELSFeatures::CodeAction,
             "completion" => ELSFeatures::Completion,
             "diagnostic" => ELSFeatures::Diagnostic,
             "hover" => ELSFeatures::Hover,
@@ -207,6 +210,22 @@ impl<Checker: BuildRunnable> Server<Checker> {
                     sema_options,
                 ))
             };
+        result.capabilities.code_action_provider = if disabled_features
+            .contains(&ELSFeatures::CodeAction)
+        {
+            None
+        } else {
+            let options = CodeActionProviderCapability::Options(CodeActionOptions {
+                code_action_kinds: Some(vec![CodeActionKind::QUICKFIX, CodeActionKind::REFACTOR]),
+                resolve_provider: Some(false),
+                work_done_progress_options: WorkDoneProgressOptions::default(),
+            });
+            Some(options)
+        };
+        result.capabilities.execute_command_provider = Some(ExecuteCommandOptions {
+            commands: vec!["erg.eliminate_unused_vars".to_string()],
+            work_done_progress_options: WorkDoneProgressOptions::default(),
+        });
         Self::send(&json!({
             "jsonrpc": "2.0",
             "id": id,
@@ -319,6 +338,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             "textDocument/references" => self.show_references(msg),
             "textDocument/semanticTokens/full" => self.get_semantic_tokens_full(msg),
             "textDocument/inlayHint" => self.get_inlay_hint(msg),
+            "textDocument/codeAction" => self.send_code_action(msg),
             other => Self::send_error(Some(id), -32600, format!("{other} is not supported")),
         }
     }

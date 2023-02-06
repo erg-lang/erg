@@ -189,136 +189,6 @@ impl ASTLowerer {
 }
 
 impl ASTLowerer {
-    fn var_result_t_check(
-        &self,
-        loc: Location,
-        name: &Str,
-        expect: &Type,
-        found: &Type,
-    ) -> SingleLowerResult<()> {
-        self.module
-            .context
-            .sub_unify(found, expect, loc, Some(name))
-            .map_err(|_| {
-                LowerError::type_mismatch_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    loc,
-                    self.module.context.caused_by(),
-                    name,
-                    None,
-                    expect,
-                    found,
-                    None, // self.ctx.get_candidates(found),
-                    self.module
-                        .context
-                        .get_simple_type_mismatch_hint(expect, found),
-                )
-            })
-    }
-
-    /// OK: exec `i: Int`
-    /// OK: exec `i: Int = 1`
-    /// NG: exec `1 + 2`
-    /// OK: exec `None`
-    fn use_check(&self, expr: &hir::Expr, mode: &str) -> LowerResult<()> {
-        if mode != "eval"
-            && !expr.ref_t().is_nonelike()
-            && !expr.is_type_asc()
-            && !expr.is_doc_comment()
-        {
-            Err(LowerWarnings::from(LowerWarning::unused_expr_warning(
-                self.cfg.input.clone(),
-                line!() as usize,
-                expr,
-                String::from(&self.module.context.name[..]),
-            )))
-        } else {
-            self.block_use_check(expr, mode)
-        }
-    }
-
-    fn block_use_check(&self, expr: &hir::Expr, mode: &str) -> LowerResult<()> {
-        let mut warns = LowerWarnings::empty();
-        match expr {
-            hir::Expr::Def(def) => {
-                let last = def.body.block.len() - 1;
-                for (i, chunk) in def.body.block.iter().enumerate() {
-                    if i == last {
-                        if let Err(ws) = self.block_use_check(chunk, mode) {
-                            warns.extend(ws);
-                        }
-                        break;
-                    }
-                    if let Err(ws) = self.use_check(chunk, mode) {
-                        warns.extend(ws);
-                    }
-                }
-            }
-            hir::Expr::Lambda(lambda) => {
-                let last = lambda.body.len() - 1;
-                for (i, chunk) in lambda.body.iter().enumerate() {
-                    if i == last {
-                        if let Err(ws) = self.block_use_check(chunk, mode) {
-                            warns.extend(ws);
-                        }
-                        break;
-                    }
-                    if let Err(ws) = self.use_check(chunk, mode) {
-                        warns.extend(ws);
-                    }
-                }
-            }
-            hir::Expr::ClassDef(class_def) => {
-                for chunk in class_def.methods.iter() {
-                    if let Err(ws) = self.use_check(chunk, mode) {
-                        warns.extend(ws);
-                    }
-                }
-            }
-            hir::Expr::PatchDef(patch_def) => {
-                for chunk in patch_def.methods.iter() {
-                    if let Err(ws) = self.use_check(chunk, mode) {
-                        warns.extend(ws);
-                    }
-                }
-            }
-            hir::Expr::Call(call) => {
-                for arg in call.args.pos_args.iter() {
-                    if let Err(ws) = self.block_use_check(&arg.expr, mode) {
-                        warns.extend(ws);
-                    }
-                }
-                if let Some(var_args) = &call.args.var_args {
-                    if let Err(ws) = self.block_use_check(&var_args.expr, mode) {
-                        warns.extend(ws);
-                    }
-                }
-                for arg in call.args.kw_args.iter() {
-                    if let Err(ws) = self.block_use_check(&arg.expr, mode) {
-                        warns.extend(ws);
-                    }
-                }
-            }
-            // TODO: unary, binary, array, ...
-            _ => {}
-        }
-        if warns.is_empty() {
-            Ok(())
-        } else {
-            Err(warns)
-        }
-    }
-
-    #[cfg(feature = "els")]
-    fn inc_ref<L: Locational>(&self, vi: &VarInfo, name: &L) {
-        self.module.context.inc_ref(vi, name);
-    }
-    #[cfg(not(feature = "els"))]
-    fn inc_ref<L: Locational>(&self, _vi: &VarInfo, _name: &L) {}
-}
-
-impl ASTLowerer {
     pub(crate) fn lower_literal(&self, lit: ast::Literal) -> LowerResult<hir::Literal> {
         let loc = lit.loc();
         let lit = hir::Literal::try_from(lit.token).map_err(|_| {
@@ -2278,6 +2148,7 @@ impl ASTLowerer {
                 self.warns.extend(warns);
             }
         }
+        self.warn_unused_vars();
         if self.errs.is_empty() {
             log!(info "the AST lowering process has completed.");
             Ok(CompleteArtifact::new(
