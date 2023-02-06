@@ -942,8 +942,11 @@ impl Context {
                         None,
                         self.impl_of(),
                         None,
-                        AbsLocation::unknown(),
+                        self.absolutize(ident.name.loc()),
                     );
+                    if let Some(shared) = self.shared() {
+                        shared.index.register(&vi);
+                    }
                     self.decls.insert(ident.name.clone(), vi);
                     self.consts.insert(ident.name.clone(), other);
                 }
@@ -1078,6 +1081,7 @@ impl Context {
                             None,
                             self.impl_of(),
                             None,
+                            // TODO:
                             AbsLocation::unknown(),
                         );
                         ctx.decls
@@ -1117,6 +1121,7 @@ impl Context {
                                 None,
                                 self.impl_of(),
                                 None,
+                                // TODO:
                                 AbsLocation::unknown(),
                             );
                             ctx.decls
@@ -1164,19 +1169,20 @@ impl Context {
             let name = &ident.name;
             let muty = Mutability::from(&ident.inspect()[..]);
             let id = DefId(get_hash(&(&self.name, &name)));
-            self.decls.insert(
-                name.clone(),
-                VarInfo::new(
-                    Type::Type,
-                    muty,
-                    ident.vis(),
-                    VarKind::Defined(id),
-                    None,
-                    self.impl_of(),
-                    None,
-                    self.absolutize(name.loc()),
-                ),
+            let vi = VarInfo::new(
+                Type::Type,
+                muty,
+                ident.vis(),
+                VarKind::Defined(id),
+                None,
+                self.impl_of(),
+                None,
+                self.absolutize(name.loc()),
             );
+            if let Some(shared) = self.shared() {
+                shared.index.register(&vi);
+            }
+            self.decls.insert(name.clone(), vi);
             self.consts
                 .insert(name.clone(), ValueObj::Type(TypeObj::Builtin(t)));
         }
@@ -1200,19 +1206,20 @@ impl Context {
             let meta_t = gen.meta_type();
             let name = &ident.name;
             let id = DefId(get_hash(&(&self.name, &name)));
-            self.decls.insert(
-                name.clone(),
-                VarInfo::new(
-                    meta_t,
-                    muty,
-                    ident.vis(),
-                    VarKind::Defined(id),
-                    None,
-                    self.impl_of(),
-                    None,
-                    self.absolutize(name.loc()),
-                ),
+            let vi = VarInfo::new(
+                meta_t,
+                muty,
+                ident.vis(),
+                VarKind::Defined(id),
+                None,
+                self.impl_of(),
+                None,
+                self.absolutize(name.loc()),
             );
+            if let Some(shared) = self.shared() {
+                shared.index.register(&vi);
+            }
+            self.decls.insert(name.clone(), vi);
             self.consts
                 .insert(name.clone(), ValueObj::Type(TypeObj::Generated(gen)));
             for impl_trait in ctx.super_traits.iter() {

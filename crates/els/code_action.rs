@@ -46,6 +46,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             let code = util::get_ranged_code_from_uri(uri, next)?;
             match code.as_ref().map(|s| &s[..]) {
                 None => {
+                    // \n
                     range.end.line += 1;
                     range.end.character = 0;
                 }

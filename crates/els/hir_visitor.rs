@@ -57,6 +57,33 @@ impl<'a> HIRVisitor<'a> {
                     None
                 }
             }
+            Expr::Lambda(lambda) => {
+                if let Some(expr) = self.get_min_expr_from_exprs(lambda.body.iter(), range) {
+                    Some(expr)
+                } else if util::pos_in_loc(lambda, range.start) {
+                    Some(expr)
+                } else {
+                    None
+                }
+            }
+            Expr::ClassDef(cdef) => {
+                if let Some(expr) = self.get_min_expr_from_exprs(cdef.methods.iter(), range) {
+                    Some(expr)
+                } else if util::pos_in_loc(cdef, range.start) {
+                    Some(expr)
+                } else {
+                    None
+                }
+            }
+            Expr::PatchDef(pdef) => {
+                if let Some(expr) = self.get_min_expr_from_exprs(pdef.methods.iter(), range) {
+                    Some(expr)
+                } else if util::pos_in_loc(pdef, range.start) {
+                    Some(expr)
+                } else {
+                    None
+                }
+            }
             other => {
                 if util::pos_in_loc(other, range.start) {
                     Some(expr)
