@@ -100,6 +100,38 @@ fn exec_repl_class_def_with_deco() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_invalid_class_inheritable() -> Result<(), ()> {
+    expect_repl_failure(
+        "repl_auto_indent_dedent",
+        [
+            "@Inheritable",
+            "Point2d = Class{ x = Int; y = Int }",
+            "Point2d::",
+            "one = 1",
+            "",
+            "Point2d.",
+            "zero = Point2d::one - 1",
+            "",
+            "Point3d = Inherit Point2d, Additional := { z = Int }",
+            "Point3d.",
+            "@Override",
+            "new(x, y, z) =",
+            "Point3d::__new__{x; y; z}",
+            "",
+            "norm self = self::x**2 + self::y**2 + self::z**2",
+            "",
+            "p = Point3d.new 1, 2, 3",
+            "print! p.norm()",
+            ":exit",
+        ]
+        .into_iter()
+        .map(|line| line.to_string())
+        .collect(),
+        2,
+    )
+}
+
+#[test]
 fn exec_invalid_class_def() -> Result<(), ()> {
     expect_repl_failure(
         "repl_auto_indent_dedent",
