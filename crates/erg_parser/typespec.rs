@@ -3,14 +3,14 @@ use erg_common::traits::{Locational, Stream};
 
 use crate::ast::*;
 use crate::error::ParseError;
-use crate::token::TokenKind;
+use crate::token::{Token, TokenKind};
 use crate::Parser;
 
 // The APIs defined below are also used by `ASTLowerer` to interpret expressions as types.
 impl Parser {
     pub fn validate_const_expr(expr: Expr) -> Result<ConstExpr, ParseError> {
         match expr {
-            Expr::Lit(l) => Ok(ConstExpr::Lit(l)),
+            Expr::Literal(l) => Ok(ConstExpr::Lit(l)),
             Expr::Accessor(Accessor::Ident(local)) => {
                 Ok(ConstExpr::Accessor(ConstAccessor::Local(local)))
             }
@@ -399,7 +399,7 @@ impl Parser {
                     Err(err)
                 }
             }
-            Expr::Lit(lit) => {
+            Expr::Literal(lit) => {
                 let mut err = ParseError::simple_syntax_error(line!() as usize, lit.loc());
                 if lit.is(TokenKind::NoneLit) {
                     err.set_hint("you mean: `NoneType`?");
@@ -410,6 +410,79 @@ impl Parser {
                 let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
                 Err(err)
             }
+        }
+    }
+
+    fn simple_type_spec_to_ident(simple: SimpleTypeSpec) -> Result<Identifier, ParseError> {
+        Ok(simple.ident)
+    }
+
+    fn simple_type_spec_to_call(simple: SimpleTypeSpec) -> Result<Call, ParseError> {
+        let (pos_args_, var_args_, kw_args_, paren) = simple.args.deconstruct();
+        let pos_args = pos_args_
+            .into_iter()
+            .map(|arg| PosArg::new(arg.expr.downcast()))
+            .collect::<Vec<_>>();
+        let var_args = var_args_.map(|arg| PosArg::new(arg.expr.downcast()));
+        let kw_args = kw_args_
+            .into_iter()
+            .map(|arg| KwArg::new(arg.keyword, None, arg.expr.downcast()))
+            .collect::<Vec<_>>();
+        let args = Args::new(pos_args, var_args, kw_args, paren);
+        let call = Call::new(simple.ident.into(), None, args);
+        Ok(call)
+    }
+
+    fn predecl_type_spec_to_expr(predecl: PreDeclTypeSpec) -> Result<Expr, ParseError> {
+        match predecl {
+            PreDeclTypeSpec::Simple(simple) if simple.args.is_empty() => {
+                Ok(Self::simple_type_spec_to_ident(simple)?.into())
+            }
+            PreDeclTypeSpec::Simple(simple) => Ok(Self::simple_type_spec_to_call(simple)?.into()),
+            PreDeclTypeSpec::Attr { namespace, t } => {
+                let ident = Self::simple_type_spec_to_ident(t)?;
+                Ok(namespace.attr_expr(ident))
+            }
+            other => Err(ParseError::feature_error(
+                line!() as usize,
+                other.loc(),
+                "compound predecl type spec to call conversion",
+            )),
+        }
+    }
+
+    pub fn type_spec_to_expr(t_spec: TypeSpec) -> Result<Expr, ParseError> {
+        match t_spec {
+            TypeSpec::PreDeclTy(predecl) => Self::predecl_type_spec_to_expr(predecl),
+            TypeSpec::Or(lhs, rhs) => {
+                let lhs = Self::type_spec_to_expr(*lhs)?;
+                let rhs = Self::type_spec_to_expr(*rhs)?;
+                let op = Token::new(
+                    TokenKind::OrOp,
+                    "or",
+                    lhs.ln_begin().unwrap(),
+                    lhs.col_end().unwrap(),
+                );
+                let bin = BinOp::new(op, lhs, rhs);
+                Ok(Expr::BinOp(bin))
+            }
+            TypeSpec::And(lhs, rhs) => {
+                let lhs = Self::type_spec_to_expr(*lhs)?;
+                let rhs = Self::type_spec_to_expr(*rhs)?;
+                let op = Token::new(
+                    TokenKind::AndOp,
+                    "and",
+                    lhs.ln_begin().unwrap(),
+                    lhs.col_end().unwrap(),
+                );
+                let bin = BinOp::new(op, lhs, rhs);
+                Ok(Expr::BinOp(bin))
+            }
+            other => Err(ParseError::feature_error(
+                line!() as usize,
+                other.loc(),
+                "compound type spec to expr conversion",
+            )),
         }
     }
 }

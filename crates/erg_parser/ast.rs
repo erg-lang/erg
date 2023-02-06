@@ -10,9 +10,9 @@ use erg_common::traits::{Locational, NestedDisplay, Stream};
 use erg_common::vis::{Field, Visibility};
 use erg_common::{
     fmt_option, fmt_vec, impl_display_for_enum, impl_display_for_single_struct,
-    impl_display_from_nested, impl_displayable_stream_for_wrapper, impl_locational,
-    impl_locational_for_enum, impl_nested_display_for_chunk_enum, impl_nested_display_for_enum,
-    impl_stream, option_enum_unwrap,
+    impl_display_from_nested, impl_displayable_stream_for_wrapper, impl_from_trait_for_enum,
+    impl_locational, impl_locational_for_enum, impl_nested_display_for_chunk_enum,
+    impl_nested_display_for_enum, impl_stream, option_enum_unwrap,
 };
 use erg_common::{fmt_vec_split_with, Str};
 
@@ -1629,7 +1629,7 @@ impl ConstExpr {
 
     pub fn downcast(self) -> Expr {
         match self {
-            Self::Lit(lit) => Expr::Lit(lit),
+            Self::Lit(lit) => Expr::Literal(lit),
             Self::Accessor(acc) => Expr::Accessor(acc.downcast()),
             Self::App(app) => Expr::Call(app.downcast()),
             Self::Array(arr) => Expr::Array(arr.downcast()),
@@ -2447,6 +2447,12 @@ impl Locational for Identifier {
 impl From<&Identifier> for Field {
     fn from(ident: &Identifier) -> Self {
         Self::new(ident.vis(), ident.inspect().clone())
+    }
+}
+
+impl From<Identifier> for Expr {
+    fn from(ident: Identifier) -> Self {
+        Self::Accessor(Accessor::Ident(ident))
     }
 }
 
@@ -3703,7 +3709,7 @@ impl PatchDef {
 /// Expression(式)
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Expr {
-    Lit(Literal),
+    Literal(Literal),
     Accessor(Accessor),
     Array(Array),
     Tuple(Tuple),
@@ -3715,7 +3721,7 @@ pub enum Expr {
     Call(Call),
     DataPack(DataPack),
     Lambda(Lambda),
-    TypeAsc(TypeAscription),
+    TypeAscription(TypeAscription),
     Def(Def),
     Methods(Methods),
     ClassDef(ClassDef),
@@ -3725,9 +3731,10 @@ pub enum Expr {
     Dummy(Dummy),
 }
 
-impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAsc, Def, Methods, ClassDef, PatchDef, ReDef, Dummy);
+impl_nested_display_for_chunk_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Dummy);
+impl_from_trait_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Dummy);
 impl_display_from_nested!(Expr);
-impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAsc, Def, Methods, ClassDef, PatchDef, ReDef, Dummy);
+impl_locational_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Dummy);
 
 impl Expr {
     pub fn is_match_call(&self) -> bool {
@@ -3752,7 +3759,7 @@ impl Expr {
     pub fn need_to_be_closed(&self) -> bool {
         matches!(
             self,
-            Expr::BinOp(_) | Expr::UnaryOp(_) | Expr::Lambda(_) | Expr::TypeAsc(_)
+            Expr::BinOp(_) | Expr::UnaryOp(_) | Expr::Lambda(_) | Expr::TypeAscription(_)
         )
     }
 
@@ -3824,7 +3831,7 @@ impl Expr {
     }
 
     pub fn type_asc_expr(self, op: Token, t_spec: TypeSpec) -> Self {
-        Self::TypeAsc(self.type_asc(op, t_spec))
+        Self::TypeAscription(self.type_asc(op, t_spec))
     }
 }
 

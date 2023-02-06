@@ -96,7 +96,7 @@ impl Desugarer {
 
     fn perform_desugar(mut desugar: impl FnMut(Expr) -> Expr, expr: Expr) -> Expr {
         match expr {
-            Expr::Lit(_) => expr,
+            Expr::Literal(_) => expr,
             Expr::Record(record) => match record {
                 Record::Normal(rec) => {
                     let mut new_attrs = vec![];
@@ -268,7 +268,7 @@ impl Desugarer {
                 let body = Block::new(chunks);
                 Expr::Lambda(Lambda::new(lambda.sig, lambda.op, body, lambda.id))
             }
-            Expr::TypeAsc(tasc) => {
+            Expr::TypeAscription(tasc) => {
                 let expr = desugar(*tasc.expr);
                 expr.type_asc_expr(tasc.op, tasc.t_spec)
             }
@@ -605,7 +605,10 @@ impl Desugarer {
                     sig.ln_begin().unwrap(),
                     sig.col_begin().unwrap(),
                 );
-                obj.subscr(Expr::Lit(Literal::nat(n, sig.ln_begin().unwrap())), r_brace)
+                obj.subscr(
+                    Expr::Literal(Literal::nat(n, sig.ln_begin().unwrap())),
+                    r_brace,
+                )
             }
             BufIndex::Record(attr) => obj.attr(attr.clone()),
         };
@@ -887,7 +890,10 @@ impl Desugarer {
                     sig.ln_begin().unwrap(),
                     sig.col_begin().unwrap(),
                 );
-                obj.subscr(Expr::Lit(Literal::nat(n, sig.ln_begin().unwrap())), r_brace)
+                obj.subscr(
+                    Expr::Literal(Literal::nat(n, sig.ln_begin().unwrap())),
+                    r_brace,
+                )
             }
             BufIndex::Record(attr) => obj.attr(attr.clone()),
         };
@@ -1096,7 +1102,7 @@ impl Desugarer {
             }
             // x.0 => x.__Tuple_getitem__(0)
             Accessor::TupleAttr(tattr) => {
-                let args = Args::pos_only(vec![PosArg::new(Expr::Lit(tattr.index))], None);
+                let args = Args::pos_only(vec![PosArg::new(Expr::Literal(tattr.index))], None);
                 let line = tattr.obj.ln_begin().unwrap();
                 let call = Call::new(
                     Self::rec_desugar_acc(*tattr.obj),

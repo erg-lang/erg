@@ -719,7 +719,7 @@ impl Parser {
                 Args::new(vec![], Some(pos_args), vec![], None)
             }
             PosOrKwArg::Pos(PosArg {
-                expr: Expr::TypeAsc(TypeAscription { expr, op, t_spec }),
+                expr: Expr::TypeAscription(TypeAscription { expr, op, t_spec }),
             }) if matches!(expr.as_ref(), Expr::UnaryOp(unary) if unary.op.is(PreStar)) => {
                 let Expr::UnaryOp(unary) = *expr else { unreachable!() };
                 let var_args = PosArg::new(unary.deconstruct().1.type_asc_expr(op, t_spec));
@@ -789,7 +789,7 @@ impl Parser {
                                 args.set_var_args(PosArg::new(unary.deconstruct().1));
                             }
                             PosOrKwArg::Pos(PosArg {
-                                expr: Expr::TypeAsc(TypeAscription { expr, op, t_spec }),
+                                expr: Expr::TypeAscription(TypeAscription { expr, op, t_spec }),
                             }) if matches!(expr.as_ref(), Expr::UnaryOp(unary) if unary.op.is(PreStar)) =>
                             {
                                 let Expr::UnaryOp(unary) = *expr else { unreachable!() };
@@ -909,7 +909,7 @@ impl Parser {
                         self.skip();
                         let (kw, t_spec) = match expr {
                             Expr::Accessor(Accessor::Ident(n)) => (n.name.into_token(), None),
-                            Expr::TypeAsc(tasc) => {
+                            Expr::TypeAscription(tasc) => {
                                 if let Expr::Accessor(Accessor::Ident(n)) = *tasc.expr {
                                     let t_spec = TypeSpecWithOp::new(tasc.op, tasc.t_spec);
                                     (n.name.into_token(), Some(t_spec))
@@ -1010,8 +1010,8 @@ impl Parser {
             .map_err(|_| self.stack_dec(fn_name!()))?;
         let first = match first {
             Expr::Def(def) => ClassAttr::Def(def),
-            Expr::TypeAsc(tasc) => ClassAttr::Decl(tasc),
-            Expr::Lit(lit) if lit.is_doc_comment() => ClassAttr::Doc(lit),
+            Expr::TypeAscription(tasc) => ClassAttr::Decl(tasc),
+            Expr::Literal(lit) if lit.is_doc_comment() => ClassAttr::Doc(lit),
             _ => {
                 // self.restore();
                 let err = self.skip_and_throw_syntax_err(caused_by!());
@@ -1040,7 +1040,7 @@ impl Parser {
                         Expr::Def(def) => {
                             attrs.push(ClassAttr::Def(def));
                         }
-                        Expr::TypeAsc(tasc) => {
+                        Expr::TypeAscription(tasc) => {
                             attrs.push(ClassAttr::Decl(tasc));
                         }
                         other => {
@@ -1597,7 +1597,7 @@ impl Parser {
         let first_elem = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
         let (keyword, t_spec) = match first_elem {
             Expr::Accessor(Accessor::Ident(ident)) => (ident.name.into_token(), None),
-            Expr::TypeAsc(tasc) => {
+            Expr::TypeAscription(tasc) => {
                 if let Expr::Accessor(Accessor::Ident(ident)) = *tasc.expr {
                     (
                         ident.name.into_token(),
@@ -1658,7 +1658,7 @@ impl Parser {
                     }
                 }
                 debug_exit_info!(self);
-                Ok(Expr::Lit(lit))
+                Ok(Expr::Literal(lit))
             }
             Some(t) if t.is(StrInterpLeft) => {
                 let str_interp = self
@@ -2370,7 +2370,7 @@ impl Parser {
                 Args::new(vec![], var_args, vec![], None)
             }
             PosOrKwArg::Pos(PosArg {
-                expr: Expr::TypeAsc(TypeAscription { expr, op, t_spec }),
+                expr: Expr::TypeAscription(TypeAscription { expr, op, t_spec }),
             }) if matches!(expr.as_ref(), Expr::UnaryOp(unary) if unary.op.is(PreStar)) => {
                 let Expr::UnaryOp(unary) = *expr else { unreachable!() };
                 let expr = unary.deconstruct().1;
@@ -2405,7 +2405,7 @@ impl Parser {
                                 Expr::UnaryOp(unary) if unary.op.is(PreStar) => {
                                     args.set_var_args(PosArg::new(unary.deconstruct().1));
                                 }
-                                Expr::TypeAsc(TypeAscription { expr, op, t_spec }) if matches!(expr.as_ref(), Expr::UnaryOp(unary) if unary.op.is(PreStar)) =>
+                                Expr::TypeAscription(TypeAscription { expr, op, t_spec }) if matches!(expr.as_ref(), Expr::UnaryOp(unary) if unary.op.is(PreStar)) =>
                                 {
                                     let Expr::UnaryOp(unary) = *expr else { unreachable!() };
                                     let expr = unary.deconstruct().1;
@@ -2473,7 +2473,7 @@ impl Parser {
         let mut left = self.lpop();
         left.content = Str::from(left.content.trim_end_matches("\\{").to_string() + "\"");
         left.kind = StrLit;
-        let mut expr = Expr::Lit(Literal::from(left));
+        let mut expr = Expr::Literal(Literal::from(left));
         loop {
             match self.peek() {
                 Some(l) if l.is(StrInterpRight) => {
@@ -2481,7 +2481,7 @@ impl Parser {
                     right.content =
                         Str::from(format!("\"{}", right.content.trim_start_matches('}')));
                     right.kind = StrLit;
-                    let right = Expr::Lit(Literal::from(right));
+                    let right = Expr::Literal(Literal::from(right));
                     let op = Token::new(
                         Plus,
                         "+",
@@ -2519,7 +2519,7 @@ impl Parser {
                             mid.content.trim_start_matches('}').trim_end_matches("\\{")
                         ));
                         mid.kind = StrLit;
-                        let mid = Expr::Lit(Literal::from(mid));
+                        let mid = Expr::Literal(Literal::from(mid));
                         let op = Token::new(
                             Plus,
                             "+",

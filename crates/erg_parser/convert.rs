@@ -59,7 +59,7 @@ impl Parser {
                 debug_exit_info!(self);
                 Ok(Signature::Var(var))
             }
-            Expr::TypeAsc(tasc) => {
+            Expr::TypeAscription(tasc) => {
                 let sig = self
                     .convert_type_asc_to_sig(tasc)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
@@ -326,7 +326,7 @@ impl Parser {
 
     fn convert_type_arg_to_bound(&mut self, arg: PosArg) -> ParseResult<TypeBoundSpec> {
         match arg.expr {
-            Expr::TypeAsc(tasc) => {
+            Expr::TypeAscription(tasc) => {
                 let lhs = self
                     .convert_rhs_to_sig(*tasc.expr)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
@@ -406,7 +406,7 @@ impl Parser {
                 debug_exit_info!(self);
                 Ok(param)
             }
-            Expr::Lit(lit) => {
+            Expr::Literal(lit) => {
                 let pat = ParamPattern::Lit(lit);
                 let param = NonDefaultParamSignature::new(pat, None);
                 debug_exit_info!(self);
@@ -439,7 +439,7 @@ impl Parser {
                 debug_exit_info!(self);
                 Ok(param)
             }
-            Expr::TypeAsc(tasc) => {
+            Expr::TypeAscription(tasc) => {
                 let param = self
                     .convert_type_asc_to_param_pattern(tasc, allow_self)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
@@ -607,7 +607,7 @@ impl Parser {
     pub(crate) fn convert_rhs_to_lambda_sig(&mut self, rhs: Expr) -> ParseResult<LambdaSignature> {
         debug_call_info!(self);
         match rhs {
-            Expr::Lit(lit) => {
+            Expr::Literal(lit) => {
                 let param = NonDefaultParamSignature::new(ParamPattern::Lit(lit), None);
                 let params = Params::new(vec![param], None, vec![], None);
                 Ok(LambdaSignature::new(params, None, TypeBoundSpecs::empty()))
@@ -645,7 +645,7 @@ impl Parser {
                 debug_exit_info!(self);
                 Ok(LambdaSignature::new(params, None, TypeBoundSpecs::empty()))
             }
-            Expr::TypeAsc(tasc) => {
+            Expr::TypeAscription(tasc) => {
                 let sig = self
                     .convert_type_asc_to_lambda_sig(tasc)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
@@ -738,7 +738,7 @@ impl Parser {
     ) -> ParseResult<LambdaSignature> {
         debug_call_info!(self);
         let sig = self
-            .convert_rhs_to_param(Expr::TypeAsc(tasc), true)
+            .convert_rhs_to_param(Expr::TypeAscription(tasc), true)
             .map_err(|_| self.stack_dec(fn_name!()))?;
         debug_exit_info!(self);
         Ok(LambdaSignature::new(

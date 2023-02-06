@@ -1404,7 +1404,7 @@ impl ASTLowerer {
                 ast::TypeSpec::TypeApp { spec, args } => {
                     let (impl_trait, loc) = match &args.args.pos_args().first().unwrap().expr {
                         // TODO: check `tasc.op`
-                        ast::Expr::TypeAsc(tasc) => (
+                        ast::Expr::TypeAscription(tasc) => (
                             self.module.context.instantiate_typespec(
                                 &tasc.t_spec,
                                 None,
@@ -2143,7 +2143,7 @@ impl ASTLowerer {
     fn lower_expr(&mut self, expr: ast::Expr) -> LowerResult<hir::Expr> {
         log!(info "entered {}", fn_name!());
         match expr {
-            ast::Expr::Lit(lit) => Ok(hir::Expr::Lit(self.lower_literal(lit)?)),
+            ast::Expr::Literal(lit) => Ok(hir::Expr::Lit(self.lower_literal(lit)?)),
             ast::Expr::Array(arr) => Ok(hir::Expr::Array(self.lower_array(arr)?)),
             ast::Expr::Tuple(tup) => Ok(hir::Expr::Tuple(self.lower_tuple(tup)?)),
             ast::Expr::Record(rec) => Ok(hir::Expr::Record(self.lower_record(rec)?)),
@@ -2155,7 +2155,7 @@ impl ASTLowerer {
             ast::Expr::Call(call) => Ok(hir::Expr::Call(self.lower_call(call)?)),
             ast::Expr::DataPack(pack) => Ok(hir::Expr::Call(self.lower_pack(pack)?)),
             ast::Expr::Lambda(lambda) => Ok(hir::Expr::Lambda(self.lower_lambda(lambda)?)),
-            ast::Expr::TypeAsc(tasc) => Ok(hir::Expr::TypeAsc(self.lower_type_asc(tasc)?)),
+            ast::Expr::TypeAscription(tasc) => Ok(hir::Expr::TypeAsc(self.lower_type_asc(tasc)?)),
             // Checking is also performed for expressions in Dummy. However, it has no meaning in code generation
             ast::Expr::Dummy(dummy) => Ok(hir::Expr::Dummy(self.lower_dummy(dummy)?)),
             other => {
@@ -2175,7 +2175,7 @@ impl ASTLowerer {
             ast::Expr::ClassDef(defs) => Ok(hir::Expr::ClassDef(self.lower_class_def(defs)?)),
             ast::Expr::PatchDef(defs) => Ok(hir::Expr::PatchDef(self.lower_patch_def(defs)?)),
             ast::Expr::ReDef(redef) => Ok(hir::Expr::ReDef(self.lower_redef(redef)?)),
-            ast::Expr::TypeAsc(tasc) => Ok(hir::Expr::TypeAsc(self.lower_decl(tasc)?)),
+            ast::Expr::TypeAscription(tasc) => Ok(hir::Expr::TypeAsc(self.lower_decl(tasc)?)),
             other => self.lower_expr(other),
         }
     }

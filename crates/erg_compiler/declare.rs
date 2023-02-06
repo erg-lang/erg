@@ -302,11 +302,11 @@ impl ASTLowerer {
     fn declare_chunk(&mut self, expr: ast::Expr) -> LowerResult<hir::Expr> {
         log!(info "entered {}", fn_name!());
         match expr {
-            ast::Expr::Lit(lit) if lit.is_doc_comment() => {
+            ast::Expr::Literal(lit) if lit.is_doc_comment() => {
                 Ok(hir::Expr::Lit(self.lower_literal(lit)?))
             }
             ast::Expr::Def(def) => Ok(hir::Expr::Def(self.declare_def(def)?)),
-            ast::Expr::TypeAsc(tasc) => Ok(hir::Expr::TypeAsc(self.declare_ident(tasc)?)),
+            ast::Expr::TypeAscription(tasc) => Ok(hir::Expr::TypeAsc(self.declare_ident(tasc)?)),
             ast::Expr::Call(call)
                 if call
                     .additional_operation()

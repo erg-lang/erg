@@ -523,7 +523,7 @@ impl Context {
 
     pub(crate) fn eval_const_expr(&self, expr: &Expr) -> EvalResult<ValueObj> {
         match expr {
-            Expr::Lit(lit) => self.eval_lit(lit),
+            Expr::Literal(lit) => self.eval_lit(lit),
             Expr::Accessor(acc) => self.eval_const_acc(acc),
             Expr::BinOp(bin) => self.eval_const_bin(bin),
             Expr::UnaryOp(unary) => self.eval_const_unary(unary),
@@ -535,7 +535,7 @@ impl Context {
             Expr::Record(rec) => self.eval_const_record(rec),
             Expr::Lambda(lambda) => self.eval_const_lambda(lambda),
             // FIXME: type check
-            Expr::TypeAsc(tasc) => self.eval_const_expr(&tasc.expr),
+            Expr::TypeAscription(tasc) => self.eval_const_expr(&tasc.expr),
             other => Err(EvalErrors::from(EvalError::not_const_expr(
                 self.cfg.input.clone(),
                 line!() as usize,
@@ -553,7 +553,7 @@ impl Context {
         match expr {
             // TODO: ClassDef, PatchDef
             Expr::Def(def) => self.eval_const_def(def),
-            Expr::Lit(lit) => self.eval_lit(lit),
+            Expr::Literal(lit) => self.eval_lit(lit),
             Expr::Accessor(acc) => self.eval_const_acc(acc),
             Expr::BinOp(bin) => self.eval_const_bin(bin),
             Expr::UnaryOp(unary) => self.eval_const_unary(unary),
@@ -564,7 +564,7 @@ impl Context {
             Expr::Tuple(tuple) => self.eval_const_tuple(tuple),
             Expr::Record(rec) => self.eval_const_record(rec),
             Expr::Lambda(lambda) => self.eval_const_lambda(lambda),
-            Expr::TypeAsc(tasc) => self.eval_const_expr(&tasc.expr),
+            Expr::TypeAscription(tasc) => self.eval_const_expr(&tasc.expr),
             other => Err(EvalErrors::from(EvalError::not_const_expr(
                 self.cfg.input.clone(),
                 line!() as usize,

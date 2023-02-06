@@ -811,6 +811,19 @@ macro_rules! impl_nested_display_for_chunk_enum {
 }
 
 #[macro_export]
+macro_rules! impl_from_trait_for_enum {
+    ($Enum: ident; $($Variant: ident $(,)?)*) => {
+        $(
+            impl From<$Variant> for $Enum {
+                fn from(v: $Variant) -> Self {
+                    $Enum::$Variant(v)
+                }
+            }
+        )*
+    }
+}
+
+#[macro_export]
 macro_rules! impl_nested_display_for_enum {
     ($Enum: ident; $($Variant: ident $(,)?)*) => {
         impl $crate::traits::NestedDisplay for $Enum {
