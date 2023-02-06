@@ -3,7 +3,6 @@ use std::option::Option;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use erg_common::config::ErgMode;
 use erg_common::env::erg_pystd_path;
 use erg_common::levenshtein::get_similar_name;
 use erg_common::python_util::BUILTIN_PYTHON_MODS;
@@ -108,6 +107,9 @@ impl Context {
                 py_name,
                 self.absolutize(ident.name.loc()),
             );
+            if let Some(shared) = self.shared() {
+                shared.index.register(&vi);
+            }
             self.future_defined_locals.insert(ident.name.clone(), vi);
             Ok(())
         }
@@ -153,6 +155,9 @@ impl Context {
             py_name,
             self.absolutize(sig.ident.name.loc()),
         );
+        if let Some(shared) = self.shared() {
+            shared.index.register(&vi);
+        }
         if let Some(_decl) = self.decls.remove(name) {
             Err(TyCheckErrors::from(TyCheckError::duplicate_decl_error(
                 self.cfg.input.clone(),
@@ -1624,36 +1629,30 @@ impl Context {
     }
 
     pub(crate) fn inc_ref_simple_typespec(&self, simple: &SimpleTypeSpec) {
-        if self.cfg.mode == ErgMode::LanguageServer {
-            if let Ok(vi) = self.rec_get_var_info(
-                &simple.ident,
-                crate::compile::AccessKind::Name,
-                &self.cfg.input,
-                &self.name,
-            ) {
-                self.inc_ref(&vi, &simple.ident.name);
-            }
+        if let Ok(vi) = self.rec_get_var_info(
+            &simple.ident,
+            crate::compile::AccessKind::Name,
+            &self.cfg.input,
+            &self.name,
+        ) {
+            self.inc_ref(&vi, &simple.ident.name);
         }
     }
 
     pub(crate) fn inc_ref_const_local(&self, local: &ConstIdentifier) {
-        if self.cfg.mode == ErgMode::LanguageServer {
-            if let Ok(vi) = self.rec_get_var_info(
-                local,
-                crate::compile::AccessKind::Name,
-                &self.cfg.input,
-                &self.name,
-            ) {
-                self.inc_ref(&vi, &local.name);
-            }
+        if let Ok(vi) = self.rec_get_var_info(
+            local,
+            crate::compile::AccessKind::Name,
+            &self.cfg.input,
+            &self.name,
+        ) {
+            self.inc_ref(&vi, &local.name);
         }
     }
 
     pub fn inc_ref<L: Locational>(&self, vi: &VarInfo, name: &L) {
-        if self.cfg.mode == ErgMode::LanguageServer {
-            self.index()
-                .unwrap()
-                .add_ref(vi.def_loc.clone(), self.absolutize(name.loc()));
-        }
+        self.index()
+            .unwrap()
+            .inc_ref(vi, self.absolutize(name.loc()));
     }
 }

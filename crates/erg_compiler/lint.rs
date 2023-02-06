@@ -3,6 +3,8 @@
 //! and `erg_linter` does linting that does not affect optimizations.
 
 use erg_common::error::Location;
+#[allow(unused_imports)]
+use erg_common::log;
 use erg_common::traits::{Locational, Runnable, Stream};
 use erg_common::Str;
 
@@ -141,8 +143,8 @@ impl ASTLowerer {
 
     pub(crate) fn warn_unused_vars(&mut self) {
         if let Some(shared) = self.module.context.shared() {
-            for (referee, referrers) in shared.index.iter() {
-                if referrers.is_empty() {
+            for (referee, value) in shared.index.iter() {
+                if value.referrers.is_empty() && value.vi.vis.is_private() {
                     let warn = LowerWarning::unused_warning(
                         self.input().clone(),
                         line!() as usize,

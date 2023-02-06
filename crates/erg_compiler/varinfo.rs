@@ -103,7 +103,7 @@ impl AbsLocation {
             let reader = BufReader::new(file);
             reader
                 .lines()
-                .nth(self.loc.ln_begin().unwrap_or(0) as usize)
+                .nth(self.loc.ln_begin().map(|l| l - 1).unwrap_or(0) as usize)
                 .and_then(|res| {
                     let res = res.ok()?;
                     let begin = self.loc.col_begin().unwrap_or(0) as usize;
