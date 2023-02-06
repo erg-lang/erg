@@ -56,10 +56,10 @@ fn eval_multiline_string() {
         eval(
             r#"print! """abc
 def
-  ghi
+    ghi
 j kl """"#
         ),
-        successful_output("abc\ndef\n  ghi\nj kl \n")
+        successful_output("abc\ndef\n    ghi\nj kl \n")
     );
 }
 
@@ -68,11 +68,11 @@ fn eval_multiline_string_interpolation() {
     assert_eq!(
         eval(
             r#"print! """
-  \{()}
+    \{()}
 a
 """"#
         ),
-        successful_output("\n  ()\na\n\n")
+        successful_output("\n    ()\na\n\n")
     );
     // TODO: more diverse characters
 }

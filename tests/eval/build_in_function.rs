@@ -8,8 +8,12 @@ fn eval_print_1() {
 }
 
 #[test]
-fn eval_print_str() {
+fn eval_print_str_1() {
     assert_eq!(eval("print! \"abc\""), successful_output("abc\n"));
+}
+
+#[test]
+fn eval_print_str_2() {
     assert_eq!(eval("print!(\"a\")"), successful_output("a\n"));
 }
 
@@ -29,11 +33,15 @@ fn eval_print_unit() {
 }
 
 #[test]
-fn eval_interpolation() {
+fn eval_interpolation_1() {
     assert_eq!(
         eval("world = \"world\"\nprint! \"hello \\{world}\""),
         successful_output("hello world\n")
     );
+}
+
+#[test]
+fn eval_interpolation_2() {
     assert_eq!(eval("print! \"\\{0.005}\""), successful_output("0.005\n"));
 }
 
