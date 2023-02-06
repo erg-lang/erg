@@ -223,7 +223,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             Some(options)
         };
         result.capabilities.execute_command_provider = Some(ExecuteCommandOptions {
-            commands: vec!["erg.eliminate_unused_vars".to_string()],
+            commands: vec!["els.eliminateUnusedVars".to_string()],
             work_done_progress_options: WorkDoneProgressOptions::default(),
         });
         Self::send(&json!({
@@ -339,6 +339,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             "textDocument/semanticTokens/full" => self.get_semantic_tokens_full(msg),
             "textDocument/inlayHint" => self.get_inlay_hint(msg),
             "textDocument/codeAction" => self.perform_code_action(msg),
+            "workspace/executeCommand" => self.execute_command(msg),
             other => Self::send_error(Some(id), -32600, format!("{other} is not supported")),
         }
     }

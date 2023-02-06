@@ -1,4 +1,5 @@
 mod code_action;
+mod command;
 mod completion;
 mod definition;
 mod diagnostics;
