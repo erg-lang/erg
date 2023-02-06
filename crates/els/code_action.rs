@@ -79,10 +79,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
             .as_ref()
             .and_then(|kinds| kinds.first().map(|s| s.as_str()))
         {
-            Some("erg.eliminate_unused_vars") => self.perform_quick_fix(msg, params)?,
-            Some("quickfix") => self.perform_quick_fix(msg, params)?,
-            _ => {
-                Self::send_log("Unknown code action requested")?;
+            Some("quickfix") | None => self.perform_quick_fix(msg, params)?,
+            Some(other) => {
+                Self::send_log(&format!("Unknown code action requested: {other}"))?;
                 vec![]
             }
         };
