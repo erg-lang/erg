@@ -30,12 +30,12 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  test(windows-latest):
+  test-windows-latest:
     strategy:
       fail-fast: false
     runs-on: windows-latest
     if: ${{ success() }}
-      needs: [build-check(windows-latest)]
+    needs: [build-check-windows-latest]
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
@@ -51,12 +51,12 @@ jobs:
         if: runner.os != 'Windows'
         run: cargo test --features large_thread --all --verbose
 
-  test(ubuntu-latest):
+  test-ubuntu_latest:
     strategy:
       fail-fast: false
     runs-on: ubuntu-latest
     if: ${{ success() }}
-      needs: [build-check(ubuntu-latest)]
+    needs: [build-check-ubuntu-latest]
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
@@ -72,12 +72,12 @@ jobs:
         if: runner.os != 'Windows'
         run: cargo test --features large_thread --all --verbose
 
-  test(macos-latest):
+  test-macos_latest:
     strategy:
       fail-fast: false
     runs-on: macos-latest
     if: ${{ success() }}
-      needs: [build-check(macos-latest)]
+    needs: [build-check-macos-latest]
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
@@ -93,7 +93,7 @@ jobs:
         if: runner.os != 'Windows'
         run: cargo test --features large_thread --all --verbose
 
-  build-check(windows-latest):
+  build-check-windows-latest:
     strategy:
       fail-fast: false
     runs-on: windows-latest
@@ -103,7 +103,7 @@ jobs:
       - run: rustup update stable
       - run: cargo check --all --all-targets --verbose
 
-  build-check(ubuntu-latest):
+  build-check-ubuntu-latest:
     strategy:
       fail-fast: false
     runs-on: ubuntu-latest
@@ -113,7 +113,7 @@ jobs:
       - run: rustup update stable
       - run: cargo check --all --all-targets --verbose
 
-  build-check(macos-latest):
+  build-check-macos-latest:
     strategy:
       fail-fast: false
     runs-on: macos-latest
