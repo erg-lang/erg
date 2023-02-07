@@ -5,6 +5,7 @@ use serde_json::Value;
 use erg_common::traits::Locational;
 
 use erg_compiler::artifact::BuildRunnable;
+use erg_compiler::erg_parser::token::TokenKind;
 use erg_compiler::ty::Type;
 use erg_compiler::AccessKind;
 
@@ -31,7 +32,17 @@ impl<Checker: BuildRunnable> Server<Checker> {
         Self::send_log(format!("AccessKind: {acc_kind:?}"))?;
         let mut result: Vec<CompletionItem> = vec![];
         let contexts = if acc_kind.is_local() {
-            self.get_local_ctx(&uri, pos)
+            let prev_token = self.file_cache.get_token_relatively(&uri, pos, -1)?;
+            if prev_token
+                .as_ref()
+                .map(|t| t.kind == TokenKind::Dot)
+                .unwrap_or(false)
+            {
+                let dot_pos = util::loc_to_pos(prev_token.unwrap().loc()).unwrap();
+                self.get_receiver_ctxs(&uri, dot_pos)?
+            } else {
+                self.get_local_ctx(&uri, pos)
+            }
         } else {
             self.get_receiver_ctxs(&uri, pos)?
         };
@@ -81,5 +92,11 @@ impl<Checker: BuildRunnable> Server<Checker> {
         Self::send(
             &json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": result }),
         )
+    }
+
+    pub(crate) fn resolve_completion(&self, msg: &Value) -> ELSResult<()> {
+        Self::send_log(format!("completion resolve requested: {msg}"))?;
+        let item = CompletionItem::deserialize(&msg["params"])?;
+        Self::send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": item }))
     }
 }

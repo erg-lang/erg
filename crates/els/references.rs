@@ -10,11 +10,11 @@ use crate::server::{ELSResult, Server};
 use crate::util;
 
 impl<Checker: BuildRunnable> Server<Checker> {
-    pub(crate) fn show_references(&self, msg: &Value) -> ELSResult<()> {
+    pub(crate) fn show_references(&mut self, msg: &Value) -> ELSResult<()> {
         let params = ReferenceParams::deserialize(&msg["params"])?;
         let uri = util::normalize_url(params.text_document_position.text_document.uri);
         let pos = params.text_document_position.position;
-        if let Some(tok) = util::get_token(uri.clone(), pos)? {
+        if let Some(tok) = self.file_cache.get_token(&uri, pos)? {
             // Self::send_log(format!("token: {tok}"))?;
             if let Some(visitor) = self.get_visitor(&uri) {
                 if let Some(vi) = visitor.get_info(&tok) {

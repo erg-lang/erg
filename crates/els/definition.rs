@@ -33,7 +33,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let params = GotoDefinitionParams::deserialize(&msg["params"])?;
         let uri = util::normalize_url(params.text_document_position_params.text_document.uri);
         let pos = params.text_document_position_params.position;
-        let result = if let Some(token) = util::get_token(uri.clone(), pos)? {
+        let result = if let Some(token) = self.file_cache.get_token(&uri, pos)? {
             if let Some(vi) = self.get_definition(&uri, &token)? {
                 match (vi.def_loc.module, util::loc_to_range(vi.def_loc.loc)) {
                     (Some(path), Some(range)) => {

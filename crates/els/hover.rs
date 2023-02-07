@@ -48,11 +48,15 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let uri = util::normalize_url(params.text_document_position_params.text_document.uri);
         let pos = params.text_document_position_params.position;
         let mut contents = vec![];
-        let opt_tok = util::get_token(uri.clone(), pos)?;
+        let opt_tok = self.file_cache.get_token(&uri, pos)?;
         let opt_token = if let Some(token) = opt_tok {
             match token.category() {
-                TokenCategory::StrInterpRight => util::get_token_relatively(uri.clone(), pos, -1)?,
-                TokenCategory::StrInterpLeft => util::get_token_relatively(uri.clone(), pos, 1)?,
+                TokenCategory::StrInterpRight => {
+                    self.file_cache.get_token_relatively(&uri, pos, -1)?
+                }
+                TokenCategory::StrInterpLeft => {
+                    self.file_cache.get_token_relatively(&uri, pos, 1)?
+                }
                 // TODO: StrInterpMid
                 _ => Some(token),
             }

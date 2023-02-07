@@ -22,12 +22,14 @@ use erg_compiler::module::{SharedCompilerResource, SharedModuleIndex};
 
 use lsp_types::{
     ClientCapabilities, CodeActionKind, CodeActionOptions, CodeActionProviderCapability,
-    CompletionOptions, ExecuteCommandOptions, HoverProviderCapability, InitializeResult, OneOf,
-    Position, SemanticTokenType, SemanticTokensFullOptions, SemanticTokensLegend,
-    SemanticTokensOptions, SemanticTokensServerCapabilities, ServerCapabilities,
-    TextDocumentSyncCapability, TextDocumentSyncKind, Url, WorkDoneProgressOptions,
+    CompletionOptions, DidChangeTextDocumentParams, ExecuteCommandOptions, HoverProviderCapability,
+    InitializeResult, OneOf, Position, SemanticTokenType, SemanticTokensFullOptions,
+    SemanticTokensLegend, SemanticTokensOptions, SemanticTokensServerCapabilities,
+    ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, Url,
+    WorkDoneProgressOptions,
 };
 
+use crate::file_cache::FileCache;
 use crate::hir_visitor::HIRVisitor;
 use crate::message::{ErrorMessage, LogMessage};
 use crate::util;
@@ -116,6 +118,7 @@ pub struct Server<Checker: BuildRunnable = HIRBuilder> {
     pub(crate) home: PathBuf,
     pub(crate) erg_path: PathBuf,
     pub(crate) client_capas: ClientCapabilities,
+    pub(crate) file_cache: FileCache,
     pub(crate) modules: Dict<Url, ModuleContext>,
     pub(crate) hirs: Dict<Url, Option<HIR>>,
     _checker: std::marker::PhantomData<Checker>,
@@ -128,6 +131,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             home: normalize_path(std::env::current_dir().unwrap()),
             erg_path: erg_path(), // already normalized
             client_capas: ClientCapabilities::default(),
+            file_cache: FileCache::new(),
             modules: Dict::new(),
             hirs: Dict::new(),
             _checker: std::marker::PhantomData,
@@ -161,11 +165,13 @@ impl<Checker: BuildRunnable> Server<Checker> {
         }
         let mut result = InitializeResult::default();
         result.capabilities = ServerCapabilities::default();
-        result.capabilities.text_document_sync =
-            Some(TextDocumentSyncCapability::from(TextDocumentSyncKind::FULL));
+        result.capabilities.text_document_sync = Some(TextDocumentSyncCapability::from(
+            TextDocumentSyncKind::INCREMENTAL,
+        ));
         let mut comp_options = CompletionOptions::default();
         comp_options.trigger_characters =
             Some(vec![".".to_string(), ":".to_string(), "(".to_string()]);
+        comp_options.resolve_provider = Some(true);
         result.capabilities.completion_provider = Some(comp_options);
         result.capabilities.rename_provider = Some(OneOf::Left(true));
         result.capabilities.references_provider = Some(OneOf::Left(true));
@@ -332,6 +338,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             "initialize" => self.init(msg, id),
             "shutdown" => self.shutdown(id),
             "textDocument/completion" => self.show_completion(msg),
+            "completionItem/resolve" => self.resolve_completion(msg),
             "textDocument/definition" => self.show_definition(msg),
             "textDocument/hover" => self.show_hover(msg),
             "textDocument/rename" => self.rename(msg),
@@ -352,7 +359,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
                     msg["params"]["textDocument"]["uri"].as_str().unwrap(),
                 )?;
                 Self::send_log(format!("{method}: {uri}"))?;
-                self.check_file(uri, msg["params"]["textDocument"]["text"].as_str().unwrap())
+                let code = msg["params"]["textDocument"]["text"].as_str().unwrap();
+                self.file_cache.update(&uri, code.to_string());
+                self.check_file(uri, code)
             }
             "textDocument/didSave" => {
                 let uri = util::parse_and_normalize_url(
@@ -363,7 +372,12 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 self.clear_cache(&uri);
                 self.check_file(uri, &code)
             }
-            // "textDocument/didChange"
+            "textDocument/didChange" => {
+                let params = DidChangeTextDocumentParams::deserialize(msg["params"].clone())?;
+                // Self::send_log(format!("{method}: {params:?}"))?;
+                self.file_cache.incremental_update(params);
+                Ok(())
+            }
             _ => Self::send_log(format!("received notification: {method}")),
         }
     }
@@ -399,7 +413,6 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let mut ctxs = vec![];
         if let Some(visitor) = self.get_visitor(uri) {
             let ns = visitor.get_namespace(pos);
-            Self::send_log(format!("ns: {ns:?}")).unwrap();
             for i in 1..ns.len() {
                 let ns = ns[..=ns.len() - i].join("");
                 if let Some(ctx) = self.modules.get(uri).unwrap().scope.get(&ns[..]) {
@@ -419,7 +432,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let Some(module) = self.modules.get(uri) else {
             return Ok(vec![]);
         };
-        let maybe_token = util::get_token_relatively(uri.clone(), attr_marker_pos, -1)?;
+        let maybe_token = self
+            .file_cache
+            .get_token_relatively(uri, attr_marker_pos, -1)?;
         if let Some(token) = maybe_token {
             if token.is(TokenKind::Symbol) {
                 let var_name = token.inspect();
