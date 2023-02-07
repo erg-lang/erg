@@ -12,7 +12,7 @@ List.
     head self = match self:
         {head; ...}: Cons_ -> head
         _: Nil -> panic "empty list"
-{nil; cons; ...} = List
+{nil; cons} = List
 
 print! cons(1, cons(2, nil())).head() # 1
 print! nil.head() # RuntimeError: "empty list"
@@ -37,7 +37,7 @@ List.
     cons head, rest | T = Self(T, "Nonempty").new {head; rest}
 List(T, "Nonempty").
     head {head; ...} = head
-{nil; cons; ...} = List
+{nil; cons} = List
 
 print! cons(1, cons(2, nil())).head() # 1
 print! nil().head() # TypeError
@@ -57,7 +57,7 @@ List(_, N | N >= 1).
     head {head; ...} = head
 List(_, N | N >= 2).
     pair {head = first; rest = {head = second; ...}} = [first, second]
-{nil; cons; ...} = List
+{nil; cons} = List
 
 print! cons(1, cons(2, nil)).pair() # [1, 2]
 print! cons(1, nil).pair() # TypeError

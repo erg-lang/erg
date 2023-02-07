@@ -53,7 +53,7 @@
         print! "hello,", end := ""
     # TypeError: `.times!`は`Nat`(0以上のInt)のメソッドです、`Int`ではありません
 
-    {Meter; Sec; meter; yard; sec; ...} = import "unit"
+    {Meter; Sec; meter; yard; sec} = import "unit"
 
     velocity x: Meter, t: Sec = x / t
 
@@ -125,7 +125,7 @@
     ```python
     # Pythonのビルトインモジュールを使います
     math, time = pyimport "math", "time"
-    {sin; pi; ...} = math
+    {sin; pi} = math
     # Pythonの外部モジュールを使います
     Tqdm! = pyimport("tqdm").'tqdm'
 

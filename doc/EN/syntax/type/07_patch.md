@@ -62,7 +62,7 @@ StrBoosterPack = StrReverse and StrMultiReplace and StrToCamelCase and StrToKeba
 ```
 
 ```python
-{StrBoosterPack; ...} = import "foo"
+{StrBoosterPack;} = import "foo"
 
 assert "abc".reverse() == "cba"
 assert "abc".multi_replace([("a", "A"), ("b", "B")]) == "ABc"
@@ -95,7 +95,7 @@ assert StrReverseMk2.reverse("hello") == "olleh"
 You can also make it unique by selectively importing.
 
 ```python
-{StrReverseMk2; ...} = import "foo"
+{StrReverseMk2;} = import "foo"
 
 assert "hello".reverse() == "olleh"
 ```

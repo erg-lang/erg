@@ -21,7 +21,7 @@
 obj = {.x = 1}
 assert obj.x == 1
 
-obj2 = {...x; .y = 2}
+obj2 = {*x; .y = 2}
 assert obj2.x == 1 and obj2.y == 2
 ```
 

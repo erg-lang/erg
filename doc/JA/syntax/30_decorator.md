@@ -92,7 +92,7 @@ AddForOdd.AddO = Even
 
 ```python
 # 本来IntIsBinAdd, OddIsBinAddも同時にインポートする必要があるが、アタッチメントパッチなら省略できる
-{BinAdd; ...} = import "foo"
+{BinAdd;} = import "foo"
 
 assert Int.AddO == Int
 assert Odd.AddO == Even

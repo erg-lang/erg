@@ -92,7 +92,7 @@ AddForOdd.AddO = Even
 
 ```Python
 # 本來應該同時導入IntIsBinAdd和OddIsBinAdd，但是如果是附件補丁可以省略
-{BinAdd; ...} = import "foo"
+{BinAdd;} = import "foo"
 
 assert Int. AddO == Int
 assert Odd.AddO == Even
@@ -102,7 +102,7 @@ assert Odd.AddO == Even
 
 ```python
 @Attach X
-T = Trait...
+T = Trait ...
 assert X in T. attaches
 U = T.detach(X).attach(Y)
 assert X not in U. attaches

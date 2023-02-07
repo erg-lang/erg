@@ -9,8 +9,8 @@ However, external libraries may not support multiple languages.
 
 ```python
 record: {.name = Str; .age = Nat; .height = CentiMeter}
-{height; ...rest} = record
-mut_record = {.height = !height; ...rest}
+{height; *rest} = record
+mut_record = {.height = !height; *rest}
 ```
 
 ## Want to shadow variables
@@ -37,35 +37,7 @@ FinalWrapper.
     ...
 ```
 
-## Want to use an enumerated type that is not a string
-
-You can define a traditional enumerated type (algebraic data type) commonly found in other languages as follows
-If you implement `Singleton`, classes and instances are identical.
-Also, if you use `Enum`, the type of choice is automatically defined as a redirect attribute.
-
-```python
-Ok = Class Impl := Singleton
-Err = Class Impl := Singleton
-ErrWithInfo = Inherit {info = Str}
-Status = Enum Ok, Err, ErrWithInfo
-stat: Status = Status.new ErrWithInfo.new {info = "error caused by ..."}
-match! stat:
-    Status.Ok -> ...
-    Status.Err -> ...
-    Status.ErrWithInfo::{info} -> ...
-```
-
-```python
-Status = Enum Ok, Err, ErrWithInfo
-# is equivalent to
-Status = Class Ok or Err or ErrWithInfo
-Status.
-    Ok = Ok
-    Err = Err
-    ErrWithInfo = ErrWithInfo
-```
-
-## I want to enumerate at the beginning of 1
+## Want to enumerate at the beginning of 1
 
 method 1:
 
@@ -79,7 +51,7 @@ method 2:
 
 ```python
 arr = [...]
-for! arr.iter().zip(1...) , i =>
+for! arr.iter().zip(1..) , i =>
     ...
 ```
 
@@ -120,7 +92,7 @@ C.
 
 ## When implementing a trait's methods, warnings are given for variables that were not used
 
-You can use `discard`.
+You can use `discard` or `_ = ...`.
 
 ```python
 T = Trait {.f = (Self, x: Int, s: Str) -> Int}
@@ -128,7 +100,7 @@ T = Trait {.f = (Self, x: Int, s: Str) -> Int}
 C = Class T
 C|<: T|.
     f self, x, s =
-        discard s
+        discard s # or _ = s
         ...
 ```
 

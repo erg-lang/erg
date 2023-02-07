@@ -16,13 +16,13 @@ assert not Option in Type
 assert Option in Type -> Type
 ```
 
-所以像下面這樣的代碼會報錯: 
+所以像下面這樣的代碼會報錯:
 在 Erg 中，方法只能在原子類型中定義，并且名稱 `self` 不能在方法的第一個參數以外的任何地方使用
 
 ```python
 # K 是一元類型
 K: Type -> Type
-K T = Class...
+K T = Class ...
 K.
 foo x = ... # OK，這就像是所謂的靜態方法
      bar self, x = ... # 類型錯誤: 無法為非類型對象定義方法

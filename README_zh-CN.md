@@ -52,7 +52,7 @@
         print! "hello, ", end := ""
     # 类型错误: `.times!`是`Nat`(0或更大整数)的方法，不是`Int`的
 
-    {Meter; Sec; meter; yard; sec; ...} = import "unit"
+    {Meter; Sec; meter; yard; sec} = import "unit"
 
     velocity x: Meter, t: Sec = x / t
 
@@ -125,7 +125,7 @@
     ```python
     # 使用内置的Python模块
     math, time = pyimport "math", "time"
-    {sin; pi; ...} = math
+    {sin; pi} = math
     # 使用外部Python模块
     Tqdm! = pyimport("tqdm").'tqdm'
 

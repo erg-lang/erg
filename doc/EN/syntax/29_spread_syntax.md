@@ -3,10 +3,10 @@
 In a decomposing assignment, putting `...` in front of a variable expands all remaining elements into that variable. This is called expansion assignment.
 
 ```python
-[x,...y] = [1, 2, 3]
+[x, *y] = [1, 2, 3]
 assert x == 1
 assert y == [2, 3]
-x, ...y = (1, 2, 3)
+x, *y = (1, 2, 3)
 assert x == 1
 assert y == (2, 3)
 ```

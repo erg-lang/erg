@@ -89,9 +89,9 @@ right(_, r) = r
 它與稍后描述的元組/數組/記錄模式結合使用
 
 ```python
-[i,...j] = [1, 2, 3, 4]
+[i, *j] = [1, 2, 3, 4]
 assert j == [2, 3, 4]
-first|T|(fst: T, ...rest: T) = fst
+first|T|(fst: T, *rest: T) = fst
 assert first(1, 2, 3) == 1
 ```
 
@@ -112,17 +112,17 @@ f(x, y) = ...
 [i, j] = [1, 2]
 [[k, l], _] = [[1, 2], [3, 4]]
 
-length[] = 0
-length[_, ...rest] = 1 + lengthrest
+length [] = 0
+length [_, *rest] = 1 + length rest
 ```
 
 #### record 模式
 
 ```python
 record = {i = 1; j = 2; k = 3}
-{j; ...} = record # i, k 將被釋放
+{j;} = record # i, k 將被釋放
 
-{sin; cos; tan; ...} = import "math"
+{sin; cos; tan;} = import "math"
 {*} = import "math" # import all
 
 person = {name = "John Smith"; age = 20}

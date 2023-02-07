@@ -50,7 +50,7 @@ assert C.new(0, 0) == C.new(0)
 また、サブルーチンをインポートすることによって、すでに定義されたサブルーチンの挙動が変わる恐れもある。
 
 ```python
-{id; ...} = import "foo"
+{id;} = import "foo"
 ...
 id x: Int = x
 ...
@@ -85,7 +85,7 @@ f(x: Ratio): Int = ...
 # `f = x -> body`と同じ
 f x = body
 
-# 以下は同じ...何っ!?
+# 以下は同じ...ではない
 f x: Int = x
 f x: Ratio = x
 ```

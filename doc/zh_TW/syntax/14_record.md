@@ -86,7 +86,7 @@ point = {x = 2; y = 3; z = 4}
 match point:
     {x = 0; y = 0; z = 0} -> "origin"
     {x = _; y = 0; z = 0} -> "on the x axis"
-    {x = 0; ...} -> "x = 0"
+    {x = 0; *} -> "x = 0"
     {x = x; y = y; z = z} -> "(\{x}, \{y}, \{z})"
 ```
 

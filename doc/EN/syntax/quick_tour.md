@@ -85,9 +85,9 @@ i = 10
 You can define it just like in Haskell.
 
 ```python
-fib0 = 0
-fib1 = 1
-fibn = fib(n - 1) + fib(n - 2)
+fib 0 = 0
+fib 1 = 1
+fib n = fib(n - 1) + fib(n - 2)
 ```
 
 An anonymous function can be defined like this:
@@ -195,9 +195,9 @@ match x:
     2 -> "2"
     _ -> "other"
 # fibonacci function
-fib0 = 0
-fib1 = 1
-fibn: Nat = fibn-1 + fibn-2
+fib 0 = 0
+fib 1 = 1
+fib n: Nat = fibn-1 + fibn-2
 ```
 
 ### Constant pattern
@@ -244,7 +244,7 @@ m, n = 1, 2
 
 ```python
 length [] = 0
-length [_, *rest] = 1 + lengthrest
+length [_, *rest] = 1 + length rest
 ```
 
 #### Record pattern

@@ -14,7 +14,7 @@ Type assignment rule (S): { ?T --> T, ... }
 Type argument evaluation environment (E): { e -> e', ... }
 ```
 
-我們以下面的代碼為例: 
+我們以下面的代碼為例:
 
 ```python
 v = ![]
@@ -38,8 +38,8 @@ Erg 的類型推斷主要使用 Hindley-Milner 類型推斷算法(盡管已經�
 具體操作如下
 
 第 1 行。Def{sig: v, block: ![]}
-    獲取塊類型: 
-        獲取 UnaryOp 類型: 
+    獲取塊類型:
+        獲取 UnaryOp 類型:
             getArray 類型: `['T; 0]`
             實例化: `[?T; 0]`
             (替代，評估被省略)
@@ -58,9 +58,9 @@ Erg 的類型推斷主要使用 Hindley-Milner 類型推斷算法(盡管已經�
 
 第 3 行。調用 {obj: print!, args: [v]}
     獲取參數類型: `[[Nat; 1]!]`
-    獲取 obj 類型: 
+    獲取 obj 類型:
         搜索: `Γ print!([Nat; 1]!)`
-        得到: `= print!(...Object) => NoneType`
+        得到: `= print!(*Obj) => NoneType`
     表達式 返回`NoneType`: OK
 
 ## 類型變量的實現
@@ -155,7 +155,7 @@ x ->
     y
 ```
 
-首先，Erg 分配類型變量如下: 
+首先，Erg 分配類型變量如下:
 y 的類型也是未知的，但暫時未分配
 
 ```python
@@ -216,7 +216,7 @@ x: ?T ->
 ?T<1>(<:U) or ?T(<:U)<1>, ...
 ```
 
-讓我們再嘗試一次: 
+讓我們再嘗試一次:
 
 ```python
 x ->
@@ -421,7 +421,7 @@ f(10, 1) (: (?W(:> {10}, <: Nat), ?W(:> {1})) -> Nat)
 f(10, 1) (: ({10}, {1}) -> Nat)
 ```
 
-整個程序的結果類型是: 
+整個程序的結果類型是:
 
 ```python
 f|W: Type, T <: Add(W)|(x: T, y: W): T.AddO = id(x) + y

@@ -129,7 +129,7 @@ HIR(Module[
     Call{
         obj: Accessor::Local{
             name: "log",
-            t: ...Object => NoneType,
+            *t: Obj => NoneType,
         },
         args: [
             Call{

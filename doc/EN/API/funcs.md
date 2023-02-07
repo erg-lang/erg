@@ -23,12 +23,12 @@ Emoji-capable terminals are prefixed according to `type`.
 Display msg and stop.
 Emoji-capable terminals have a 🚨 prefix.
 
-### discard|T|(x: ...T) -> NoneType
+### discard|T|(*x: T) -> NoneType
 
-Throw away `x`. Used when the return value is not used. Unlike `del`, it does not make the variable `x` inaccessible.
+Throw away `x`. Used when the return value is not used. Unlike `Del`, it does not make the variable `x` inaccessible.
 
 ```python
-p!x=
+p! x =
     # Let q! return some None or non-() value
     # use `discard` if you don't need it
     discard q!(x)

@@ -52,7 +52,7 @@
         print! "hello, ", end := ""
     # TypeError: `.times!` is a method of `Nat` (0 or more Int), not `Int`
 
-    {Meter; Sec; meter; yard; sec; ...} = import "unit"
+    {Meter; Sec; meter; yard; sec} = import "unit"
 
     velocity x: Meter, t: Sec = x / t
 
@@ -126,7 +126,7 @@
     ```python
     # using built-in Python modules
     math, time = pyimport "math", "time"
-    {sin; pi; ...} = math
+    {sin; pi} = math
     # using an external Python module
     Tqdm! = pyimport("tqdm").'tqdm'
 

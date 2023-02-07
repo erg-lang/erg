@@ -31,7 +31,7 @@ b: Int = a / 2
 Error[#0047]: File <stdin>, line 1, in <module>
 2│ b: Int = int / 2
    ^
-類型錯誤: ratio的類型不匹配: 
+類型錯誤: ratio的類型不匹配:
 期待:  Int
 但找到: Float
 ```
@@ -88,7 +88,7 @@ fib1 = 1
 fibn = fib(n - 1) + fib(n - 2)
 ```
 
-匿名函數可以這樣定義: 
+匿名函數可以這樣定義:
 
 ```python
 i -> i + 1
@@ -97,7 +97,7 @@ assert [1, 2, 3].map(i -> i + 1).to_arr() == [2, 3, 4]
 
 ## 運算符
 
-特定于 Erg 的運算符是: 
+特定于 Erg 的運算符是:
 
 ### 變異運算符 (!)
 
@@ -221,9 +221,9 @@ right(_, r) = r
 與稍后描述的元組/數組/記錄模式結合使用
 
 ```python
-[i,...j] = [1, 2, 3, 4]
+[i, *j] = [1, 2, 3, 4]
 assert j == [2, 3, 4]
-first|T|(fst: T, ...rest: T) = fst
+first|T|(fst: T, *rest: T) = fst
 assert first(1, 2, 3) == 1
 ```
 
@@ -239,14 +239,14 @@ m, n = 1, 2
 ### 數組模式
 
 ```python
-length[] = 0
-length[_, ...rest] = 1 + lengthrest
+length [] = 0
+length [_, *rest] = 1 + length rest
 ```
 
 #### 記錄模式
 
 ```python
-{sin; cos; tan; ...} = import "math"
+{sin; cos; tan} = import "math"
 {*} = import "math" # 全部導入
 
 person = {name = "John Smith"; age = 20}

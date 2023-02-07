@@ -1,4 +1,4 @@
-# Tuple T: ...Type
+# Tuple *T: Type
 
 A collection that holds objects of multiple types.
 
