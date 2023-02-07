@@ -10,9 +10,9 @@ use erg_common::traits::{Locational, NestedDisplay, Stream};
 use erg_common::vis::{Field, Visibility};
 use erg_common::{
     fmt_option, fmt_vec, impl_display_for_enum, impl_display_for_single_struct,
-    impl_display_from_nested, impl_displayable_stream_for_wrapper, impl_locational,
-    impl_locational_for_enum, impl_nested_display_for_chunk_enum, impl_nested_display_for_enum,
-    impl_stream, impl_stream_for_wrapper, option_enum_unwrap,
+    impl_display_from_nested, impl_displayable_stream_for_wrapper, impl_from_trait_for_enum,
+    impl_locational, impl_locational_for_enum, impl_nested_display_for_chunk_enum,
+    impl_nested_display_for_enum, impl_stream, option_enum_unwrap,
 };
 use erg_common::{fmt_vec_split_with, Str};
 
@@ -159,7 +159,7 @@ impl KwArg {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Args {
     pos_args: Vec<PosArg>,
-    // var_args: Option<Box<PosArg>>,
+    pub(crate) var_args: Option<Box<PosArg>>,
     kw_args: Vec<KwArg>,
     pub paren: Option<(Token, Token)>,
 }
@@ -194,25 +194,44 @@ impl Locational for Args {
 // impl_stream!(Args, Arg, args);
 
 impl Args {
-    pub const fn new(
+    pub fn new(
         pos_args: Vec<PosArg>,
+        var_args: Option<PosArg>,
         kw_args: Vec<KwArg>,
         paren: Option<(Token, Token)>,
     ) -> Self {
         Self {
             pos_args,
+            var_args: var_args.map(Box::new),
             kw_args,
             paren,
         }
     }
 
-    pub const fn empty() -> Self {
-        Self::new(vec![], vec![], None)
+    pub fn pos_only(pos_args: Vec<PosArg>, paren: Option<(Token, Token)>) -> Self {
+        Self::new(pos_args, None, vec![], paren)
+    }
+
+    pub fn empty() -> Self {
+        Self::new(vec![], None, vec![], None)
     }
 
     // for replacing to hir::Args
-    pub fn deconstruct(self) -> (Vec<PosArg>, Vec<KwArg>, Option<(Token, Token)>) {
-        (self.pos_args, self.kw_args, self.paren)
+    #[allow(clippy::type_complexity)]
+    pub fn deconstruct(
+        self,
+    ) -> (
+        Vec<PosArg>,
+        Option<PosArg>,
+        Vec<KwArg>,
+        Option<(Token, Token)>,
+    ) {
+        (
+            self.pos_args,
+            self.var_args.map(|x| *x),
+            self.kw_args,
+            self.paren,
+        )
     }
 
     pub fn is_empty(&self) -> bool {
@@ -265,6 +284,10 @@ impl Args {
 
     pub fn insert_pos(&mut self, index: usize, arg: PosArg) {
         self.pos_args.insert(index, arg);
+    }
+
+    pub fn set_var_args(&mut self, arg: PosArg) {
+        self.var_args = Some(Box::new(arg));
     }
 
     pub fn push_kw(&mut self, arg: KwArg) {
@@ -553,7 +576,7 @@ impl NestedDisplay for ArrayComprehension {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         let mut generators = String::new();
         for (name, gen) in self.generators.iter() {
-            write!(generators, "{} <- {}, ", name, gen).unwrap();
+            write!(generators, "{name} <- {gen}, ")?;
         }
         write!(
             f,
@@ -727,11 +750,12 @@ impl_locational_for_enum!(Dict; Normal, Comprehension);
 pub enum ClassAttr {
     Def(Def),
     Decl(TypeAscription),
+    Doc(Literal),
 }
 
-impl_nested_display_for_enum!(ClassAttr; Def, Decl);
-impl_display_for_enum!(ClassAttr; Def, Decl);
-impl_locational_for_enum!(ClassAttr; Def, Decl);
+impl_nested_display_for_enum!(ClassAttr; Def, Decl, Doc);
+impl_display_for_enum!(ClassAttr; Def, Decl, Doc);
+impl_locational_for_enum!(ClassAttr; Def, Decl, Doc);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ClassAttrs(Vec<ClassAttr>);
@@ -780,6 +804,8 @@ impl IntoIterator for ClassAttrs {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordAttrs(Vec<Def>);
 
+impl_stream!(RecordAttrs, Def);
+
 impl NestedDisplay for RecordAttrs {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
         fmt_lines(self.0.iter(), f, level)?;
@@ -800,24 +826,12 @@ impl From<Vec<Def>> for RecordAttrs {
 }
 
 impl RecordAttrs {
-    pub const fn new(attrs: Vec<Def>) -> Self {
-        Self(attrs)
-    }
-
     pub fn iter(&self) -> impl Iterator<Item = &Def> {
         self.0.iter()
     }
 
     pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Def> {
         self.0.iter_mut()
-    }
-}
-
-impl IntoIterator for RecordAttrs {
-    type Item = Def;
-    type IntoIter = <Vec<Def> as IntoIterator>::IntoIter;
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
     }
 }
 
@@ -889,7 +903,7 @@ impl NestedDisplay for MixedRecord {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         write!(f, "{{")?;
         for attr in self.attrs.iter() {
-            write!(f, "{}; ", attr)?;
+            write!(f, "{attr}; ")?;
         }
         write!(f, "}}")
     }
@@ -1015,6 +1029,11 @@ impl BinOp {
             args: [Box::new(lhs), Box::new(rhs)],
         }
     }
+
+    pub fn deconstruct(self) -> (Token, Expr, Expr) {
+        let mut exprs = self.args.into_iter();
+        (self.op, *exprs.next().unwrap(), *exprs.next().unwrap())
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -1045,6 +1064,11 @@ impl UnaryOp {
             args: [Box::new(expr)],
         }
     }
+
+    pub fn deconstruct(self) -> (Token, Expr) {
+        let mut exprs = self.args.into_iter();
+        (self.op, *exprs.next().unwrap())
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -1062,7 +1086,7 @@ impl NestedDisplay for Call {
             write!(f, "{}", self.obj)?;
         }
         if let Some(attr_name) = self.attr_name.as_ref() {
-            write!(f, "{}", attr_name)?;
+            write!(f, "{attr_name}")?;
         }
         if self.args.is_empty() {
             write!(f, "()")
@@ -1183,7 +1207,7 @@ impl Locational for Block {
     }
 }
 
-impl_stream_for_wrapper!(Block, Expr);
+impl_stream!(Block, Expr);
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Dummy(Vec<Expr>);
@@ -1207,7 +1231,7 @@ impl Locational for Dummy {
     }
 }
 
-impl_stream_for_wrapper!(Dummy, Expr);
+impl_stream!(Dummy, Expr);
 
 pub type ConstIdentifier = Identifier;
 
@@ -1605,7 +1629,7 @@ impl ConstExpr {
 
     pub fn downcast(self) -> Expr {
         match self {
-            Self::Lit(lit) => Expr::Lit(lit),
+            Self::Lit(lit) => Expr::Literal(lit),
             Self::Accessor(acc) => Expr::Accessor(acc.downcast()),
             Self::App(app) => Expr::Call(app.downcast()),
             Self::Array(arr) => Expr::Array(arr.downcast()),
@@ -1660,6 +1684,7 @@ impl ConstKwArg {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstArgs {
     pos_args: Vec<ConstPosArg>,
+    var_args: Option<Box<ConstPosArg>>,
     kw_args: Vec<ConstKwArg>,
     paren: Option<(Token, Token)>,
 }
@@ -1691,24 +1716,43 @@ impl Locational for ConstArgs {
 // impl_stream!(ConstArgs, ConstKwArg, pos_args);
 
 impl ConstArgs {
-    pub const fn new(
+    pub fn new(
         pos_args: Vec<ConstPosArg>,
+        var_args: Option<ConstPosArg>,
         kw_args: Vec<ConstKwArg>,
         paren: Option<(Token, Token)>,
     ) -> Self {
         Self {
             pos_args,
+            var_args: var_args.map(Box::new),
             kw_args,
             paren,
         }
     }
 
-    pub fn deconstruct(self) -> (Vec<ConstPosArg>, Vec<ConstKwArg>, Option<(Token, Token)>) {
-        (self.pos_args, self.kw_args, self.paren)
+    pub fn pos_only(pos_args: Vec<ConstPosArg>, paren: Option<(Token, Token)>) -> Self {
+        Self::new(pos_args, None, vec![], paren)
     }
 
-    pub const fn empty() -> Self {
-        Self::new(vec![], vec![], None)
+    #[allow(clippy::type_complexity)]
+    pub fn deconstruct(
+        self,
+    ) -> (
+        Vec<ConstPosArg>,
+        Option<ConstPosArg>,
+        Vec<ConstKwArg>,
+        Option<(Token, Token)>,
+    ) {
+        (
+            self.pos_args,
+            self.var_args.map(|x| *x),
+            self.kw_args,
+            self.paren,
+        )
+    }
+
+    pub fn empty() -> Self {
+        Self::new(vec![], None, vec![], None)
     }
 
     pub fn is_empty(&self) -> bool {
@@ -1741,12 +1785,13 @@ impl ConstArgs {
     }
 
     pub fn downcast(self) -> Args {
-        let (pos_args, kw_args, paren) = self.deconstruct();
+        let (pos_args, var_args, kw_args, paren) = self.deconstruct();
         Args::new(
             pos_args
                 .into_iter()
                 .map(|arg| PosArg::new(arg.expr.downcast()))
                 .collect(),
+            var_args.map(|arg| PosArg::new(arg.expr.downcast())),
             kw_args
                 .into_iter()
                 // TODO t_spec
@@ -1900,7 +1945,7 @@ pub struct SubrTypeSpec {
     pub bounds: TypeBoundSpecs,
     pub lparen: Option<Token>,
     pub non_defaults: Vec<ParamTySpec>,
-    pub var_args: Option<Box<ParamTySpec>>,
+    pub var_params: Option<Box<ParamTySpec>>,
     pub defaults: Vec<DefaultParamTySpec>,
     pub arrow: Token,
     pub return_t: Box<TypeSpec>,
@@ -1915,7 +1960,7 @@ impl fmt::Display for SubrTypeSpec {
             f,
             "({}, {}, {}) {} {}",
             fmt_vec(&self.non_defaults),
-            fmt_option!(pre "...", &self.var_args),
+            fmt_option!(pre "*", &self.var_params),
             fmt_vec(&self.defaults),
             self.arrow.content,
             self.return_t
@@ -1941,7 +1986,7 @@ impl SubrTypeSpec {
         bounds: TypeBoundSpecs,
         lparen: Option<Token>,
         non_defaults: Vec<ParamTySpec>,
-        var_args: Option<ParamTySpec>,
+        var_params: Option<ParamTySpec>,
         defaults: Vec<DefaultParamTySpec>,
         arrow: Token,
         return_t: TypeSpec,
@@ -1950,7 +1995,7 @@ impl SubrTypeSpec {
             bounds,
             lparen,
             non_defaults,
-            var_args: var_args.map(Box::new),
+            var_params: var_params.map(Box::new),
             defaults,
             arrow,
             return_t: Box::new(return_t),
@@ -2162,6 +2207,7 @@ impl TypeSpec {
                 .into_iter()
                 .map(|lit| ConstPosArg::new(ConstExpr::Lit(lit)))
                 .collect(),
+            None,
             vec![],
             None,
         ))
@@ -2401,6 +2447,12 @@ impl Locational for Identifier {
 impl From<&Identifier> for Field {
     fn from(ident: &Identifier) -> Self {
         Self::new(ident.vis(), ident.inspect().clone())
+    }
+}
+
+impl From<Identifier> for Expr {
+    fn from(ident: Identifier) -> Self {
+        Self::Accessor(Accessor::Ident(ident))
     }
 }
 
@@ -2653,11 +2705,11 @@ impl NestedDisplay for VarPattern {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         match self {
             Self::Discard(_) => write!(f, "_"),
-            Self::Ident(ident) => write!(f, "{}", ident),
-            Self::Array(a) => write!(f, "{}", a),
-            Self::Tuple(t) => write!(f, "{}", t),
-            Self::Record(r) => write!(f, "{}", r),
-            Self::DataPack(d) => write!(f, "{}", d),
+            Self::Ident(ident) => write!(f, "{ident}"),
+            Self::Array(a) => write!(f, "{a}"),
+            Self::Tuple(t) => write!(f, "{t}"),
+            Self::Record(r) => write!(f, "{r}"),
+            Self::DataPack(d) => write!(f, "{d}"),
         }
     }
 }
@@ -2920,14 +2972,14 @@ pub enum ParamPattern {
 impl NestedDisplay for ParamPattern {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         match self {
-            Self::Discard(tok) => write!(f, "{}", tok),
-            Self::VarName(var_name) => write!(f, "{}", var_name),
-            Self::Lit(lit) => write!(f, "{}", lit),
-            Self::Array(array) => write!(f, "{}", array),
-            Self::Tuple(tuple) => write!(f, "{}", tuple),
-            Self::Record(record) => write!(f, "{}", record),
-            Self::Ref(var_name) => write!(f, "ref {}", var_name),
-            Self::RefMut(var_name) => write!(f, "ref! {}", var_name),
+            Self::Discard(tok) => write!(f, "{tok}"),
+            Self::VarName(var_name) => write!(f, "{var_name}"),
+            Self::Lit(lit) => write!(f, "{lit}"),
+            Self::Array(array) => write!(f, "{array}"),
+            Self::Tuple(tuple) => write!(f, "{tuple}"),
+            Self::Record(record) => write!(f, "{record}"),
+            Self::Ref(var_name) => write!(f, "ref {var_name}"),
+            Self::RefMut(var_name) => write!(f, "ref! {var_name}"),
         }
     }
 }
@@ -3044,7 +3096,7 @@ impl DefaultParamSignature {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Params {
     pub non_defaults: Vec<NonDefaultParamSignature>,
-    pub var_args: Option<Box<NonDefaultParamSignature>>,
+    pub var_params: Option<Box<NonDefaultParamSignature>>,
     pub defaults: Vec<DefaultParamSignature>,
     pub parens: Option<(Token, Token)>,
 }
@@ -3055,7 +3107,7 @@ impl fmt::Display for Params {
             f,
             "({}, {}, {})",
             fmt_vec(&self.non_defaults),
-            fmt_option!(pre "...", &self.var_args),
+            fmt_option!(pre "*", &self.var_params),
             fmt_vec(&self.defaults)
         )
     }
@@ -3071,13 +3123,14 @@ impl Locational for Params {
         }
         match (
             self.non_defaults.first(),
-            self.var_args.as_ref(),
+            self.var_params.as_ref(),
             self.defaults.last(),
         ) {
             (Some(l), _, Some(r)) => Location::concat(l, r),
             (Some(l), Some(r), None) => Location::concat(l, r.as_ref()),
-            (Some(l), None, None) => Location::concat(l, self.non_defaults.last().unwrap()),
             (None, Some(l), Some(r)) => Location::concat(l.as_ref(), r),
+            (Some(l), None, None) => Location::concat(l, self.non_defaults.last().unwrap()),
+            (None, Some(var), None) => var.loc(),
             (None, None, Some(r)) => Location::concat(self.defaults.first().unwrap(), r),
             _ => Location::Unknown,
         }
@@ -3094,20 +3147,25 @@ type RawParams = (
 impl Params {
     pub fn new(
         non_defaults: Vec<NonDefaultParamSignature>,
-        var_args: Option<NonDefaultParamSignature>,
+        var_params: Option<NonDefaultParamSignature>,
         defaults: Vec<DefaultParamSignature>,
         parens: Option<(Token, Token)>,
     ) -> Self {
         Self {
             non_defaults,
-            var_args: var_args.map(Box::new),
+            var_params: var_params.map(Box::new),
             defaults,
             parens,
         }
     }
 
     pub fn deconstruct(self) -> RawParams {
-        (self.non_defaults, self.var_args, self.defaults, self.parens)
+        (
+            self.non_defaults,
+            self.var_params,
+            self.defaults,
+            self.parens,
+        )
     }
 
     #[inline]
@@ -3651,7 +3709,7 @@ impl PatchDef {
 /// Expression(式)
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Expr {
-    Lit(Literal),
+    Literal(Literal),
     Accessor(Accessor),
     Array(Array),
     Tuple(Tuple),
@@ -3663,7 +3721,7 @@ pub enum Expr {
     Call(Call),
     DataPack(DataPack),
     Lambda(Lambda),
-    TypeAsc(TypeAscription),
+    TypeAscription(TypeAscription),
     Def(Def),
     Methods(Methods),
     ClassDef(ClassDef),
@@ -3673,9 +3731,10 @@ pub enum Expr {
     Dummy(Dummy),
 }
 
-impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAsc, Def, Methods, ClassDef, PatchDef, ReDef, Dummy);
+impl_nested_display_for_chunk_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Dummy);
+impl_from_trait_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Dummy);
 impl_display_from_nested!(Expr);
-impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAsc, Def, Methods, ClassDef, PatchDef, ReDef, Dummy);
+impl_locational_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Dummy);
 
 impl Expr {
     pub fn is_match_call(&self) -> bool {
@@ -3700,7 +3759,7 @@ impl Expr {
     pub fn need_to_be_closed(&self) -> bool {
         matches!(
             self,
-            Expr::BinOp(_) | Expr::UnaryOp(_) | Expr::Lambda(_) | Expr::TypeAsc(_)
+            Expr::BinOp(_) | Expr::UnaryOp(_) | Expr::Lambda(_) | Expr::TypeAscription(_)
         )
     }
 
@@ -3772,7 +3831,7 @@ impl Expr {
     }
 
     pub fn type_asc_expr(self, op: Token, t_spec: TypeSpec) -> Self {
-        Self::TypeAsc(self.type_asc(op, t_spec))
+        Self::TypeAscription(self.type_asc(op, t_spec))
     }
 }
 

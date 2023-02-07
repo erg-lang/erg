@@ -2,12 +2,14 @@ repos:
   - repo: local
     hooks:
       - id: rustfmt
+        exclude: ^doc/|^.github/|^.gitmessage|.md
         name: rustfmt
         description: Check if all files follow the rustfmt style
         entry: cargo fmt --all
         language: system
         pass_filenames: false
       - id: cargo-test
+        exclude: ^doc/|^.github/|^.gitmessage|.md
         name: Cargo test
         entry: cargo test --features pre-commit -- --nocapture
         language: system

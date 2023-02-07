@@ -1,5 +1,6 @@
 //! defines the compiler for Erg (ergc).
 #![allow(clippy::large_enum_variant)]
+#![allow(clippy::result_large_err)]
 extern crate erg_common;
 pub extern crate erg_parser;
 
@@ -15,6 +16,7 @@ pub mod effectcheck;
 pub mod error;
 pub mod hir;
 pub mod link;
+pub mod lint;
 pub mod lower;
 pub mod module;
 pub mod optimize;

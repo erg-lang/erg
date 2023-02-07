@@ -21,10 +21,11 @@ use erg_compiler::hir::HIR;
 use erg_compiler::module::{SharedCompilerResource, SharedModuleIndex};
 
 use lsp_types::{
-    ClientCapabilities, CompletionOptions, HoverProviderCapability, InitializeResult, OneOf,
+    ClientCapabilities, CodeActionKind, CodeActionOptions, CodeActionProviderCapability,
+    CompletionOptions, ExecuteCommandOptions, HoverProviderCapability, InitializeResult, OneOf,
     Position, SemanticTokenType, SemanticTokensFullOptions, SemanticTokensLegend,
     SemanticTokensOptions, SemanticTokensServerCapabilities, ServerCapabilities,
-    TextDocumentSyncCapability, TextDocumentSyncKind, Url,
+    TextDocumentSyncCapability, TextDocumentSyncKind, Url, WorkDoneProgressOptions,
 };
 
 use crate::hir_visitor::HIRVisitor;
@@ -34,6 +35,38 @@ use crate::util;
 pub type ELSResult<T> = Result<T, Box<dyn std::error::Error>>;
 
 pub type ErgLanguageServer = Server<HIRBuilder>;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ELSFeatures {
+    CodeAction,
+    Completion,
+    Diagnostic,
+    FindReferences,
+    GotoDefinition,
+    Hover,
+    InlayHint,
+    Rename,
+    SemanticTokens,
+}
+
+impl From<&str> for ELSFeatures {
+    fn from(s: &str) -> Self {
+        match s {
+            "codeaction" | "codeAction" | "code-action" => ELSFeatures::CodeAction,
+            "completion" => ELSFeatures::Completion,
+            "diagnostic" => ELSFeatures::Diagnostic,
+            "hover" => ELSFeatures::Hover,
+            "semantictoken" | "semantictokens" | "semanticToken" | "semanticTokens"
+            | "semantic-tokens" => ELSFeatures::SemanticTokens,
+            "rename" => ELSFeatures::Rename,
+            "inlayhint" | "inlayhints" | "inlayHint" | "inlayHints" | "inlay-hint"
+            | "inlay-hints" => ELSFeatures::InlayHint,
+            "findreferences" | "findReferences" | "find-references" => ELSFeatures::FindReferences,
+            "gotodefinition" | "gotoDefinition" | "goto-completion" => ELSFeatures::GotoDefinition,
+            _ => panic!("unknown feature: {s}"),
+        }
+    }
+}
 
 macro_rules! _log {
     ($($arg:tt)*) => {
@@ -117,6 +150,15 @@ impl<Checker: BuildRunnable> Server<Checker> {
             self.client_capas = ClientCapabilities::deserialize(&msg["params"]["capabilities"])?;
             // Self::send_log(format!("set client capabilities: {:?}", self.client_capas))?;
         }
+        let mut args = self.cfg.runtime_args.iter();
+        let mut disabled_features = vec![];
+        while let Some(&arg) = args.next() {
+            if arg == "--disable" {
+                if let Some(&feature) = args.next() {
+                    disabled_features.push(ELSFeatures::from(feature));
+                }
+            }
+        }
         let mut result = InitializeResult::default();
         result.capabilities = ServerCapabilities::default();
         result.capabilities.text_document_sync =
@@ -128,8 +170,17 @@ impl<Checker: BuildRunnable> Server<Checker> {
         result.capabilities.rename_provider = Some(OneOf::Left(true));
         result.capabilities.references_provider = Some(OneOf::Left(true));
         result.capabilities.definition_provider = Some(OneOf::Left(true));
-        result.capabilities.hover_provider = Some(HoverProviderCapability::Simple(true));
-        result.capabilities.inlay_hint_provider = Some(OneOf::Left(true));
+        result.capabilities.hover_provider = if disabled_features.contains(&ELSFeatures::Hover) {
+            None
+        } else {
+            Some(HoverProviderCapability::Simple(true))
+        };
+        result.capabilities.inlay_hint_provider =
+            if disabled_features.contains(&ELSFeatures::InlayHint) {
+                None
+            } else {
+                Some(OneOf::Left(true))
+            };
         let mut sema_options = SemanticTokensOptions::default();
         sema_options.range = Some(false);
         sema_options.full = Some(SemanticTokensFullOptions::Bool(true));
@@ -151,9 +202,30 @@ impl<Checker: BuildRunnable> Server<Checker> {
             ],
             token_modifiers: vec![],
         };
-        result.capabilities.semantic_tokens_provider = Some(
-            SemanticTokensServerCapabilities::SemanticTokensOptions(sema_options),
-        );
+        result.capabilities.semantic_tokens_provider =
+            if disabled_features.contains(&ELSFeatures::SemanticTokens) {
+                None
+            } else {
+                Some(SemanticTokensServerCapabilities::SemanticTokensOptions(
+                    sema_options,
+                ))
+            };
+        result.capabilities.code_action_provider = if disabled_features
+            .contains(&ELSFeatures::CodeAction)
+        {
+            None
+        } else {
+            let options = CodeActionProviderCapability::Options(CodeActionOptions {
+                code_action_kinds: Some(vec![CodeActionKind::QUICKFIX, CodeActionKind::REFACTOR]),
+                resolve_provider: Some(false),
+                work_done_progress_options: WorkDoneProgressOptions::default(),
+            });
+            Some(options)
+        };
+        result.capabilities.execute_command_provider = Some(ExecuteCommandOptions {
+            commands: vec!["erg.eliminate_unused_vars".to_string()],
+            work_done_progress_options: WorkDoneProgressOptions::default(),
+        });
         Self::send(&json!({
             "jsonrpc": "2.0",
             "id": id,
@@ -201,7 +273,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             if res.len() != 2 {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
-                    format!("Header '{}' is malformed", buffer),
+                    format!("Header '{buffer}' is malformed"),
                 ));
             }
             let header_name = res[0].to_lowercase();
@@ -217,7 +289,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                     if header_value != "utf8" && header_value != "utf-8" {
                         return Err(io::Error::new(
                             io::ErrorKind::InvalidData,
-                            format!("Content type '{}' is invalid", header_value),
+                            format!("Content type '{header_value}' is invalid"),
                         ));
                     }
                 }
@@ -266,6 +338,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             "textDocument/references" => self.show_references(msg),
             "textDocument/semanticTokens/full" => self.get_semantic_tokens_full(msg),
             "textDocument/inlayHint" => self.get_inlay_hint(msg),
+            "textDocument/codeAction" => self.send_code_action(msg),
             other => Self::send_error(Some(id), -32600, format!("{other} is not supported")),
         }
     }
@@ -291,7 +364,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 self.check_file(uri, &code)
             }
             // "textDocument/didChange"
-            _ => Self::send_log(format!("received notification: {}", method)),
+            _ => Self::send_log(format!("received notification: {method}")),
         }
     }
 

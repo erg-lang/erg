@@ -1,5 +1,6 @@
 from _erg_result import Error
 from _erg_int import Int
+from _erg_control import then__
 
 class Str(str):
     def __instancecheck__(cls, obj):
@@ -18,6 +19,16 @@ class Str(str):
         return StrMut(self)
     def to_int(self):
         return Int(self) if self.isdigit() else None
+    def contains(self, s):
+        return s in self
+    def __add__(self, other):
+        return then__(str.__add__(self, other), Str)
+    def __radd__(self, other):
+        return then__(str.__add__(other, self), Str)
+    def __mul__(self, other):
+        return then__(str.__mul__(self, other), Str)
+    def __mod__(self, other):
+        return then__(str.__mod__(other, self), Str)
 
 class StrMut(): # Inherits Str
     value: Str
@@ -52,11 +63,11 @@ class StrMut(): # Inherits Str
             return last
         else:
             return Error("Can't pop from empty `Str!`")
-    def push(self, c: str):
-        self.value += c
+    def push(self, s: str):
+        self.value += s
     def remove(self, idx: int):
         char = self.value[idx]
         self.value = self.value[:idx] + self.value[idx+1:]
         return char
-    def insert(self, idx: int, c: str):
-        self.value = self.value[:idx] + c + self.value[idx:]
+    def insert(self, idx: int, s: str):
+        self.value = self.value[:idx] + s + self.value[idx:]

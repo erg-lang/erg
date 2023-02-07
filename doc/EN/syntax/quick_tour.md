@@ -8,7 +8,7 @@ Please think that the parts not mentioned are the same as Python.
 
 ## Basic calculation
 
-Erg has a strict type. However, types are automatically casting if subtypes due to the flexibility provided by classes and traits (see [API] for details).
+Erg has a strict type. However, types are automatically casting if subtypes due to the flexibility provided by classes and traits (see [API](../API) for details).
 
 In addition, different types can be calculated for each other as long as the type is a numeric type.
 
@@ -20,16 +20,16 @@ d = c * 0 # -0.0: Float
 e = f // 2 # 0: Nat
 ```
 
-If you do not want to allow these implicit type conversions, you can specify the type at declaration time to detect them as errors at compile time.
+If you do not want to allow unexpected type widening, you can specify the type at declaration time to detect them as errors at compile time.
 
 ```python
 a = 1
 b: Int = a / 2
 # error message
 Error[#0047]: File <stdin>, line 1, in <module>
-2│ b: Int = int / 2
+2│ b: Int = a / 2
    ^
-TypeError: the type of ratio is mismatched:
+TypeError: the type of b is mismatched:
 expected:  Int
 but found: Float
 ```
@@ -48,7 +48,7 @@ False == 0.0 # NG
 True == "a" # NG
 ```
 
-## variables, constants
+## Variables, constants
 
 Variables are defined with `=`. As with Haskell, variables once defined cannot be changed. However, it can be shadowed in another scope.
 
@@ -61,6 +61,7 @@ assert i == 0
 
 Anything starting with an uppercase letter is a constant. Only things that can be computed at compile time can be constants.
 Also, a constant is identical in all scopes since its definition.
+This property allows constants to be used in pattern matching.
 
 ```python
 PI = 3.141592653589793
@@ -84,9 +85,9 @@ i = 10
 You can define it just like in Haskell.
 
 ```python
-fib0 = 0
-fib1 = 1
-fibn = fib(n - 1) + fib(n - 2)
+fib 0 = 0
+fib 1 = 1
+fib n = fib(n - 1) + fib(n - 2)
 ```
 
 An anonymous function can be defined like this:
@@ -110,11 +111,13 @@ i.update! x -> x + 1
 assert i == 1
 ```
 
-## procedures
+## Procedures
 
 Subroutines with side effects are called procedures and are marked with `!`.
+Functions are subroutines that do not have side effects (pure).
 
 You cannot call procedures in functions.
+This explicitly isolates side effects.
 
 ```python
 print! 1 # 1
@@ -166,9 +169,9 @@ assert foo.x == 1
 foo.y # VisibilityError
 ```
 
-## pattern matching
+## Pattern matching
 
-### variable pattern
+### Variable pattern
 
 ```python
 # basic assignments
@@ -192,12 +195,12 @@ match x:
     2 -> "2"
     _ -> "other"
 # fibonacci function
-fib0 = 0
-fib1 = 1
-fibn: Nat = fibn-1 + fibn-2
+fib 0 = 0
+fib 1 = 1
+fib n: Nat = fibn-1 + fibn-2
 ```
 
-### constant pattern
+### Constant pattern
 
 ```python
 PI = 3.141592653589793
@@ -209,7 +212,7 @@ name = match num:
     _ -> "unnamed"
 ```
 
-### discard (wildcard) pattern
+### Discard (wildcard) pattern
 
 ```python
 _ = 1
@@ -222,9 +225,9 @@ right(_, r) = r
 Used in combination with the tuple/array/record pattern described later.
 
 ```python
-[i,...j] = [1, 2, 3, 4]
+[i, *j] = [1, 2, 3, 4]
 assert j == [2, 3, 4]
-first|T|(fst: T, ...rest: T) = fst
+first|T|(fst: T, *rest: T) = fst
 assert first(1, 2, 3) == 1
 ```
 
@@ -237,17 +240,17 @@ assert first(1, 2, 3) == 1
 m, n = 1, 2
 ```
 
-### array pattern
+### Array pattern
 
 ```python
-length[] = 0
-length[_, ...rest] = 1 + lengthrest
+length [] = 0
+length [_, *rest] = 1 + length rest
 ```
 
-#### record pattern
+#### Record pattern
 
 ```python
-{sin; cos; tan; ...} = import "math"
+{sin; cos; tan} = import "math"
 {*} = import "math" # import all
 
 person = {name = "John Smith"; age = 20}
@@ -270,11 +273,20 @@ Point::{x; y} = p
 odds = [i | i <- 1..100; i % 2 == 0]
 ```
 
-## class
+## Class
 
-Erg does not support multiple/multilevel inheritance.
+Erg does not support multiple inheritance.
 
-## Traits
+Classes are non-inheritable by default, and you must define inheritable classes with the `Inheritable` decorator.
+
+```python
+@Inheritable
+Point2D = Class {x = Int; y = Int}
+
+Point3D = Inherit Point2D, Base := {x = Int; y = Int; z = Int}
+```
+
+## Trait
 
 They are similar to Rust traits, but in a more literal sense, allowing composition and decoupling, and treating attributes and methods as equals.
 Also, it does not involve implementation.
@@ -291,11 +303,19 @@ Point.
     ...
 ```
 
-## patch
+## Patch
 
-You can give implementations to classes and traits.
+You can retrofit a class or trait with an implementation.
 
-## Refinement type
+````python
+Invert = Patch Bool
+Invert.
+    invert self = not self
+
+assert False.invert()
+````
+
+## Refinement types
 
 A predicate expression can be type-restricted.
 

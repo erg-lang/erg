@@ -11,8 +11,8 @@
 
 ```python
 record: {.name = Str; .age = Nat; .height = CentiMeter}
-{height; ...rest} = record
-mut_record = {.height = !height; ...rest}
+{height; *rest} = record
+mut_record = {.height = !height; *rest}
 ```
 
 ## 想要隐藏变量
@@ -39,37 +39,9 @@ FinalWrapper.
     ...
 ```
 
-## 想使用不是字符串的枚举类型
-
-可以定义其他语言中常见的传统枚举类型(代数数据类型)如下
-如果您实现"单例"，则类和实例是相同的
-此外，如果您使用 `Enum`，则选择的类型会自动定义为重定向属性
-
-```python
-Ok = Class Impl := Singleton
-Err = Class Impl := Singleton
-ErrWithInfo = Inherit {info = Str}
-Status = Enum Ok, Err, ErrWithInfo
-stat: Status = Status.new ErrWithInfo.new {info = "error caused by ..."}
-match! stat:
-    Status.Ok -> ...
-    Status.Err -> ...
-    Status.ErrWithInfo::{info} -> ...
-```
-
-```python
-Status = Enum Ok, Err, ErrWithInfo
-# 相当于
-Status = Class Ok or Err or ErrWithInfo
-Status.
-    Ok = Ok
-    Err = Err
-    ErrWithInfo = ErrWithInfo
-```
-
 ## 我想在1开头枚举
 
-方法一: 
+方法一:
 
 ```python
 arr = [...]
@@ -122,7 +94,7 @@ C.
 
 ## 希望在类型系统上识别参数名称
 
-你可以使用`discard`
+你可以使用`discard`或`_ = ...`
 
 ```python
 T = Trait {.f = (Self, x: Int, s: Str) -> Int}
@@ -130,7 +102,7 @@ T = Trait {.f = (Self, x: Int, s: Str) -> Int}
 C = Class T
 C|<: T|.
     f self, x, s =
-        discard s
+        discard s # or _ = s
         ...
 ```
 

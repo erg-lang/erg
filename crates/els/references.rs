@@ -19,9 +19,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
             if let Some(visitor) = self.get_visitor(&uri) {
                 if let Some(vi) = visitor.get_info(&tok) {
                     let mut refs = vec![];
-                    if let Some(referrers) = self.get_index().get_refs(&vi.def_loc) {
+                    if let Some(value) = self.get_index().get_refs(&vi.def_loc) {
                         // Self::send_log(format!("referrers: {referrers:?}"))?;
-                        for referrer in referrers.iter() {
+                        for referrer in value.referrers.iter() {
                             if let (Some(path), Some(range)) =
                                 (&referrer.module, util::loc_to_range(referrer.loc))
                             {

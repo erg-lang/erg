@@ -56,18 +56,19 @@ impl Desugarer {
     }
 
     fn desugar_args(mut desugar: impl FnMut(Expr) -> Expr, args: Args) -> Args {
-        let (pos_args, kw_args, paren) = args.deconstruct();
+        let (pos_args, var_args, kw_args, paren) = args.deconstruct();
         let pos_args = pos_args
             .into_iter()
             .map(|arg| PosArg::new(desugar(arg.expr)))
             .collect();
+        let var_args = var_args.map(|arg| PosArg::new(desugar(arg.expr)));
         let kw_args = kw_args
             .into_iter()
             .map(|arg| {
                 KwArg::new(arg.keyword, arg.t_spec, desugar(arg.expr)) // TODO: t_spec
             })
             .collect();
-        Args::new(pos_args, kw_args, paren)
+        Args::new(pos_args, var_args, kw_args, paren)
     }
 
     fn perform_desugar_acc(mut desugar: impl FnMut(Expr) -> Expr, acc: Accessor) -> Accessor {
@@ -95,7 +96,7 @@ impl Desugarer {
 
     fn perform_desugar(mut desugar: impl FnMut(Expr) -> Expr, expr: Expr) -> Expr {
         match expr {
-            Expr::Lit(_) => expr,
+            Expr::Literal(_) => expr,
             Expr::Record(record) => match record {
                 Record::Normal(rec) => {
                     let mut new_attrs = vec![];
@@ -138,12 +139,12 @@ impl Desugarer {
             }
             Expr::Array(array) => match array {
                 Array::Normal(arr) => {
-                    let (elems, _, _) = arr.elems.deconstruct();
+                    let (elems, _, _, _) = arr.elems.deconstruct();
                     let elems = elems
                         .into_iter()
                         .map(|elem| PosArg::new(desugar(elem.expr)))
                         .collect();
-                    let elems = Args::new(elems, vec![], None);
+                    let elems = Args::new(elems, None, vec![], None);
                     let arr = NormalArray::new(arr.l_sqbr, arr.r_sqbr, elems);
                     Expr::Array(Array::Normal(arr))
                 }
@@ -168,24 +169,24 @@ impl Desugarer {
             },
             Expr::Tuple(tuple) => match tuple {
                 Tuple::Normal(tup) => {
-                    let (elems, _, paren) = tup.elems.deconstruct();
+                    let (elems, _, _, paren) = tup.elems.deconstruct();
                     let elems = elems
                         .into_iter()
                         .map(|elem| PosArg::new(desugar(elem.expr)))
                         .collect();
-                    let new_tup = Args::new(elems, vec![], paren);
+                    let new_tup = Args::new(elems, None, vec![], paren);
                     let tup = NormalTuple::new(new_tup);
                     Expr::Tuple(Tuple::Normal(tup))
                 }
             },
             Expr::Set(set) => match set {
                 astSet::Normal(set) => {
-                    let (elems, _, _) = set.elems.deconstruct();
+                    let (elems, _, _, _) = set.elems.deconstruct();
                     let elems = elems
                         .into_iter()
                         .map(|elem| PosArg::new(desugar(elem.expr)))
                         .collect();
-                    let elems = Args::new(elems, vec![], None);
+                    let elems = Args::new(elems, None, vec![], None);
                     let set = NormalSet::new(set.l_brace, set.r_brace, elems);
                     Expr::Set(astSet::Normal(set))
                 }
@@ -267,7 +268,7 @@ impl Desugarer {
                 let body = Block::new(chunks);
                 Expr::Lambda(Lambda::new(lambda.sig, lambda.op, body, lambda.id))
             }
-            Expr::TypeAsc(tasc) => {
+            Expr::TypeAscription(tasc) => {
                 let expr = desugar(*tasc.expr);
                 expr.type_asc_expr(tasc.op, tasc.t_spec)
             }
@@ -286,6 +287,9 @@ impl Desugarer {
                         ClassAttr::Decl(decl) => {
                             let expr = desugar(*decl.expr);
                             new_attrs.push(ClassAttr::Decl(expr.type_asc(decl.op, decl.t_spec)));
+                        }
+                        ClassAttr::Doc(doc) => {
+                            new_attrs.push(ClassAttr::Doc(doc));
                         }
                     }
                 }
@@ -393,13 +397,12 @@ impl Desugarer {
         let return_t_spec = sig.return_t_spec;
         let sig = LambdaSignature::new(sig.params, return_t_spec.clone(), sig.bounds);
         let second_branch = Lambda::new(sig, op, def.body.block, def.body.id);
-        let args = Args::new(
+        let args = Args::pos_only(
             vec![
                 PosArg::new(Expr::dummy_local("_")), // dummy argument, will be removed in line 56
                 PosArg::new(Expr::Lambda(first_branch)),
                 PosArg::new(Expr::Lambda(second_branch)),
             ],
-            vec![],
             None,
         );
         let call = match_symbol.call(args);
@@ -602,7 +605,10 @@ impl Desugarer {
                     sig.ln_begin().unwrap(),
                     sig.col_begin().unwrap(),
                 );
-                obj.subscr(Expr::Lit(Literal::nat(n, sig.ln_begin().unwrap())), r_brace)
+                obj.subscr(
+                    Expr::Literal(Literal::nat(n, sig.ln_begin().unwrap())),
+                    r_brace,
+                )
             }
             BufIndex::Record(attr) => obj.attr(attr.clone()),
         };
@@ -884,7 +890,10 @@ impl Desugarer {
                     sig.ln_begin().unwrap(),
                     sig.col_begin().unwrap(),
                 );
-                obj.subscr(Expr::Lit(Literal::nat(n, sig.ln_begin().unwrap())), r_brace)
+                obj.subscr(
+                    Expr::Literal(Literal::nat(n, sig.ln_begin().unwrap())),
+                    r_brace,
+                )
             }
             BufIndex::Record(attr) => obj.attr(attr.clone()),
         };
@@ -1075,9 +1084,8 @@ impl Desugarer {
         match acc {
             // x[y] => x.__getitem__(y)
             Accessor::Subscr(subscr) => {
-                let args = Args::new(
+                let args = Args::pos_only(
                     vec![PosArg::new(Self::rec_desugar_acc(*subscr.index))],
-                    vec![],
                     None,
                 );
                 let line = subscr.obj.ln_begin().unwrap();
@@ -1094,7 +1102,7 @@ impl Desugarer {
             }
             // x.0 => x.__Tuple_getitem__(0)
             Accessor::TupleAttr(tattr) => {
-                let args = Args::new(vec![PosArg::new(Expr::Lit(tattr.index))], vec![], None);
+                let args = Args::pos_only(vec![PosArg::new(Expr::Literal(tattr.index))], None);
                 let line = tattr.obj.ln_begin().unwrap();
                 let call = Call::new(
                     Self::rec_desugar_acc(*tattr.obj),

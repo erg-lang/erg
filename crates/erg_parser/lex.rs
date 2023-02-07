@@ -14,6 +14,22 @@ use crate::error::{LexError, LexErrors, LexResult, LexerRunnerError, LexerRunner
 use crate::token::{Token, TokenCategory, TokenKind, TokenStream};
 use TokenKind::*;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OpFix {
+    Prefix,
+    Infix,
+    Postfix,
+}
+
+impl OpFix {
+    pub const fn is_prefix(&self) -> bool {
+        matches!(self, Self::Prefix)
+    }
+    pub const fn is_infix(&self) -> bool {
+        matches!(self, Self::Infix)
+    }
+}
+
 /// Lexerは使い捨てなので、Runnerを用意
 #[derive(Debug, Default)]
 pub struct LexerRunner {
@@ -274,7 +290,7 @@ impl Lexer /*<'a>*/ {
 
     // +, -, * etc. may be pre/bin
     // and, or, is!, isnot!, in, notin, as, dot, cross may be bin/function
-    const fn is_bin_position(&self) -> Option<bool> {
+    fn op_fix(&self) -> Option<OpFix> {
         match self.prev_token.category() {
             // unary: `[ +`, `= +`, `+ +`, `, +`, `:: +`
             TokenCategory::LEnclosure
@@ -286,14 +302,17 @@ impl Lexer /*<'a>*/ {
             | TokenCategory::LambdaOp
             | TokenCategory::StrInterpLeft
             | TokenCategory::StrInterpMid
-            | TokenCategory::BOF => Some(false),
-            // bin: `] +`, `1 +`, `true and[true]`, `}aaa"`
-            TokenCategory::REnclosure | TokenCategory::Literal | TokenCategory::StrInterpRight => {
-                Some(true)
-            }
-            // bin: `fn +1`
-            // NOTE: if semantic analysis shows `fn` is a function, should this be rewritten to be unary?
-            TokenCategory::Symbol => Some(true),
+            | TokenCategory::BOF => Some(OpFix::Prefix),
+            TokenCategory::REnclosure
+            | TokenCategory::Literal
+            | TokenCategory::StrInterpRight
+            | TokenCategory::Symbol => match (self.peek_prev_prev_ch(), self.peek_cur_ch()) {
+                (Some(' '), Some(' ')) => Some(OpFix::Infix), // x + 1: bin
+                (Some(' '), Some(_)) => Some(OpFix::Prefix),  // x +1: unary
+                (Some(_), Some(' ')) => Some(OpFix::Infix),   // x+ 1 : bin
+                (Some(_), Some(_)) => Some(OpFix::Infix),     // x+1: bin
+                _ => None,
+            },
             _ => None,
         }
     }
@@ -309,12 +328,12 @@ impl Lexer /*<'a>*/ {
         self.chars.get(now).copied()
     }
 
+    fn peek_prev_prev_ch(&self) -> Option<char> {
+        self.chars.get(self.cursor.checked_sub(2)?).copied()
+    }
+
     fn peek_prev_ch(&self) -> Option<char> {
-        if self.cursor == 0 {
-            None
-        } else {
-            self.chars.get(self.cursor - 1).copied()
-        }
+        self.chars.get(self.cursor.checked_sub(1)?).copied()
     }
 
     #[inline]
@@ -393,10 +412,10 @@ impl Lexer /*<'a>*/ {
         }
         let comment = self.emit_token(Illegal, &s);
         let hint = switch_lang!(
-            "japanese" => format!("`]#`の数があと{}個必要です", nest_level),
-            "simplified_chinese" => format!("需要{}个`]#`", nest_level),
-            "traditional_chinese" => format!("需要{}個`]#`", nest_level),
-            "english" => format!("{} `]#`(s) are needed", nest_level),
+            "japanese" => format!("`]#`の数があと{nest_level}個必要です"),
+            "simplified_chinese" => format!("需要{nest_level}个`]#`"),
+            "traditional_chinese" => format!("需要{nest_level}個`]#`"),
+            "english" => format!("{nest_level} `]#`(s) are needed"),
         );
         Err(LexError::syntax_error(
             line!() as usize,
@@ -731,10 +750,10 @@ impl Lexer /*<'a>*/ {
             line!() as usize,
             token.loc(),
             switch_lang!(
-                "japanese" => format!("不正なエスケープシーケンスです: \\{}", ch),
-                "simplified_chinese" => format!("不合法的转义序列: \\{}", ch),
-                "traditional_chinese" => format!("不合法的轉義序列: \\{}", ch),
-                "english" => format!("illegal escape sequence: \\{}", ch),
+                "japanese" => format!("不正なエスケープシーケンスです: \\{ch}"),
+                "simplified_chinese" => format!("不合法的转义序列: \\{ch}"),
+                "traditional_chinese" => format!("不合法的轉義序列: \\{ch}"),
+                "english" => format!("illegal escape sequence: \\{ch}"),
             ),
             None,
         )
@@ -1264,10 +1283,10 @@ impl Iterator for Lexer /*<'a>*/ {
             }
             Some('?') => self.accept(Try, "?"),
             Some('+') => {
-                let kind = match self.is_bin_position() {
-                    Some(true) => Plus,
-                    Some(false) => PrePlus,
-                    None => {
+                let kind = match self.op_fix() {
+                    Some(OpFix::Infix) => Plus,
+                    Some(OpFix::Prefix) => PrePlus,
+                    _ => {
                         let token = self.emit_token(Illegal, "+");
                         return Some(Err(LexError::simple_syntax_error(0, token.loc())));
                     }
@@ -1280,9 +1299,9 @@ impl Iterator for Lexer /*<'a>*/ {
                     self.accept(FuncArrow, "->")
                 }
                 _ => {
-                    match self.is_bin_position() {
-                        Some(true) => self.accept(Minus, "-"),
-                        Some(false) => {
+                    match self.op_fix() {
+                        Some(OpFix::Infix) => self.accept(Minus, "-"),
+                        Some(OpFix::Prefix) => {
                             // IntLit (negative number)
                             if self
                                 .peek_cur_ch()
@@ -1294,7 +1313,7 @@ impl Iterator for Lexer /*<'a>*/ {
                                 self.accept(PreMinus, "-")
                             }
                         }
-                        None => {
+                        _ => {
                             let token = self.emit_token(Illegal, "-");
                             Some(Err(LexError::simple_syntax_error(0, token.loc())))
                         }
@@ -1302,13 +1321,15 @@ impl Iterator for Lexer /*<'a>*/ {
                 }
             },
             Some('*') => match self.peek_cur_ch() {
+                // TODO: infix/prefix
                 Some('*') => {
                     self.consume();
                     self.accept(Pow, "**")
                 }
                 _ => {
-                    let kind = match self.is_bin_position() {
-                        Some(true) => Star,
+                    let kind = match self.op_fix() {
+                        Some(OpFix::Infix) => Star,
+                        Some(OpFix::Prefix) => PreStar,
                         _ => {
                             let token = self.emit_token(Illegal, "*");
                             return Some(Err(LexError::simple_syntax_error(0, token.loc())));

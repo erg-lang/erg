@@ -3,21 +3,21 @@ use std::option::Option;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-#[cfg(feature = "els")]
-use erg_common::config::ErgMode;
 use erg_common::env::erg_pystd_path;
 use erg_common::levenshtein::get_similar_name;
 use erg_common::python_util::BUILTIN_PYTHON_MODS;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Visibility;
+use erg_common::Str;
 use erg_common::{enum_unwrap, get_hash, log, set};
-use erg_common::{fn_name, Str};
 
 use ast::{Decorator, DefId, Identifier, OperationKind, SimpleTypeSpec, VarName};
 use erg_parser::ast::{self, ConstIdentifier};
 
-use crate::ty::constructors::{free_var, func, func0, func1, proc, ref_, ref_mut, v_enum};
+use crate::ty::constructors::{
+    free_var, func, func0, func1, proc, ref_, ref_mut, unknown_len_array_t, v_enum,
+};
 use crate::ty::free::{Constraint, FreeKind, HasLevel};
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{HasType, ParamTy, SubrType, Type};
@@ -37,7 +37,7 @@ use Mutability::*;
 use RegistrationMode::*;
 use Visibility::*;
 
-use super::instantiate::TyVarCache;
+use super::instantiate::{ParamKind, TyVarCache};
 
 const UBAR: &Str = &Str::ever("_");
 
@@ -107,6 +107,9 @@ impl Context {
                 py_name,
                 self.absolutize(ident.name.loc()),
             );
+            if let Some(shared) = self.shared() {
+                shared.index.register(&vi);
+            }
             self.future_defined_locals.insert(ident.name.clone(), vi);
             Ok(())
         }
@@ -152,6 +155,9 @@ impl Context {
             py_name,
             self.absolutize(sig.ident.name.loc()),
         );
+        if let Some(shared) = self.shared() {
+            shared.index.register(&vi);
+        }
         if let Some(_decl) = self.decls.remove(name) {
             Err(TyCheckErrors::from(TyCheckError::duplicate_decl_error(
                 self.cfg.input.clone(),
@@ -240,14 +246,16 @@ impl Context {
     fn assign_param(
         &mut self,
         sig: &ast::NonDefaultParamSignature,
-        default_val_exists: bool,
         opt_decl_t: Option<&ParamTy>,
+        kind: ParamKind,
     ) -> TyCheckResult<()> {
         let vis = if cfg!(feature = "py_compatible") {
             Public
         } else {
             Private
         };
+        let default = kind.default_info();
+        let is_var_params = kind.is_var_params();
         match &sig.pat {
             // Literal patterns will be desugared to discard patterns
             ast::ParamPattern::Lit(_) => unreachable!(),
@@ -257,6 +265,7 @@ impl Context {
                     opt_decl_t,
                     &mut TyVarCache::new(self.level, self),
                     Normal,
+                    kind,
                 )?;
                 let def_id = DefId(get_hash(&(&self.name, "_")));
                 let kind = VarKind::parameter(def_id, DefaultInfo::NonDefault);
@@ -288,8 +297,18 @@ impl Context {
                 } else {
                     // ok, not defined
                     let mut dummy_tv_cache = TyVarCache::new(self.level, self);
-                    let spec_t =
-                        self.instantiate_param_sig_t(sig, opt_decl_t, &mut dummy_tv_cache, Normal)?;
+                    let spec_t = self.instantiate_param_sig_t(
+                        sig,
+                        opt_decl_t,
+                        &mut dummy_tv_cache,
+                        Normal,
+                        kind,
+                    )?;
+                    let spec_t = if is_var_params {
+                        unknown_len_array_t(spec_t)
+                    } else {
+                        spec_t
+                    };
                     if &name.inspect()[..] == "self" {
                         if let Some(self_t) = self.rec_get_self_t() {
                             self.sub_unify(&spec_t, &self_t, name.loc(), Some(name.inspect()))?;
@@ -297,11 +316,6 @@ impl Context {
                             log!(err "self_t is None");
                         }
                     }
-                    let default = if default_val_exists {
-                        DefaultInfo::WithDefault
-                    } else {
-                        DefaultInfo::NonDefault
-                    };
                     let def_id = DefId(get_hash(&(&self.name, name)));
                     let kind = VarKind::parameter(def_id, default);
                     let muty = Mutability::from(&name.inspect()[..]);
@@ -315,6 +329,9 @@ impl Context {
                         None,
                         self.absolutize(name.loc()),
                     );
+                    if let Some(shared) = self.shared() {
+                        shared.index.register(&vi);
+                    }
                     self.params.push((Some(name.clone()), vi));
                     Ok(())
                 }
@@ -334,8 +351,13 @@ impl Context {
                 } else {
                     // ok, not defined
                     let mut dummy_tv_cache = TyVarCache::new(self.level, self);
-                    let spec_t =
-                        self.instantiate_param_sig_t(sig, opt_decl_t, &mut dummy_tv_cache, Normal)?;
+                    let spec_t = self.instantiate_param_sig_t(
+                        sig,
+                        opt_decl_t,
+                        &mut dummy_tv_cache,
+                        Normal,
+                        kind,
+                    )?;
                     if &name.inspect()[..] == "self" {
                         if let Some(self_t) = self.rec_get_self_t() {
                             self.sub_unify(&spec_t, &self_t, name.loc(), Some(name.inspect()))?;
@@ -344,11 +366,6 @@ impl Context {
                         }
                     }
                     let spec_t = ref_(spec_t);
-                    let default = if default_val_exists {
-                        DefaultInfo::WithDefault
-                    } else {
-                        DefaultInfo::NonDefault
-                    };
                     let kind = VarKind::parameter(DefId(get_hash(&(&self.name, name))), default);
                     let vi = VarInfo::new(
                         spec_t,
@@ -379,8 +396,13 @@ impl Context {
                 } else {
                     // ok, not defined
                     let mut dummy_tv_cache = TyVarCache::new(self.level, self);
-                    let spec_t =
-                        self.instantiate_param_sig_t(sig, opt_decl_t, &mut dummy_tv_cache, Normal)?;
+                    let spec_t = self.instantiate_param_sig_t(
+                        sig,
+                        opt_decl_t,
+                        &mut dummy_tv_cache,
+                        Normal,
+                        kind,
+                    )?;
                     if &name.inspect()[..] == "self" {
                         if let Some(self_t) = self.rec_get_self_t() {
                             self.sub_unify(&spec_t, &self_t, name.loc(), Some(name.inspect()))?;
@@ -389,11 +411,6 @@ impl Context {
                         }
                     }
                     let spec_t = ref_mut(spec_t.clone(), Some(spec_t));
-                    let default = if default_val_exists {
-                        DefaultInfo::WithDefault
-                    } else {
-                        DefaultInfo::NonDefault
-                    };
                     let kind = VarKind::parameter(DefId(get_hash(&(&self.name, name))), default);
                     let vi = VarInfo::new(
                         spec_t,
@@ -433,7 +450,18 @@ impl Context {
                 .iter()
                 .zip(decl_subr_t.non_default_params.iter())
             {
-                if let Err(es) = self.assign_param(sig, false, Some(pt)) {
+                if let Err(es) = self.assign_param(sig, Some(pt), ParamKind::NonDefault) {
+                    errs.extend(es);
+                }
+            }
+            if let Some(var_params) = &params.var_params {
+                if let Some(pt) = &decl_subr_t.var_params {
+                    let pt = pt.clone().map_type(unknown_len_array_t);
+                    if let Err(es) = self.assign_param(var_params, Some(&pt), ParamKind::VarParams)
+                    {
+                        errs.extend(es);
+                    }
+                } else if let Err(es) = self.assign_param(var_params, None, ParamKind::VarParams) {
                     errs.extend(es);
                 }
             }
@@ -442,18 +470,22 @@ impl Context {
                 .iter()
                 .zip(decl_subr_t.default_params.iter())
             {
-                if let Err(es) = self.assign_param(&sig.sig, true, Some(pt)) {
+                if let Err(es) =
+                    self.assign_param(&sig.sig, Some(pt), ParamKind::Default(sig.default_val.t()))
+                {
                     errs.extend(es);
                 }
             }
         } else {
             for sig in params.non_defaults.iter() {
-                if let Err(es) = self.assign_param(sig, false, None) {
+                if let Err(es) = self.assign_param(sig, None, ParamKind::NonDefault) {
                     errs.extend(es);
                 }
             }
             for sig in params.defaults.iter() {
-                if let Err(es) = self.assign_param(&sig.sig, true, None) {
+                if let Err(es) =
+                    self.assign_param(&sig.sig, None, ParamKind::Default(sig.default_val.t()))
+                {
                     errs.extend(es);
                 }
             }
@@ -487,7 +519,7 @@ impl Context {
         };
         let name = &sig.ident.name;
         // FIXME: constでない関数
-        let t = self.get_current_scope_var(name).map(|v| &v.t).unwrap();
+        let t = self.get_current_scope_var(name).map(|vi| &vi.t).unwrap();
         let non_default_params = t.non_default_params().unwrap();
         let var_args = t.var_params();
         let default_params = t.default_params().unwrap();
@@ -599,14 +631,12 @@ impl Context {
     ) -> TyCheckResult<()> {
         // already defined as const
         if ident.is_const() {
-            let Some(vi) = self.decls.remove(ident.inspect()) else {
-                return Err(TyCheckErrors::from(TyCheckError::unreachable(
-                    self.cfg.input.clone(),
-                    fn_name!(),
-                    line!(),
-                )));
-            };
-            self.locals.insert(ident.name.clone(), vi);
+            if let Some(vi) = self.decls.remove(ident.inspect()) {
+                self.locals.insert(ident.name.clone(), vi);
+            } else {
+                log!(err "not found: {}", ident.name);
+                return Ok(());
+            }
         }
         let muty = if ident.is_const() {
             Mutability::Const
@@ -915,8 +945,11 @@ impl Context {
                         None,
                         self.impl_of(),
                         None,
-                        AbsLocation::unknown(),
+                        self.absolutize(ident.name.loc()),
                     );
+                    if let Some(shared) = self.shared() {
+                        shared.index.register(&vi);
+                    }
                     self.decls.insert(ident.name.clone(), vi);
                     self.consts.insert(ident.name.clone(), other);
                 }
@@ -1051,6 +1084,7 @@ impl Context {
                             None,
                             self.impl_of(),
                             None,
+                            // TODO:
                             AbsLocation::unknown(),
                         );
                         ctx.decls
@@ -1090,6 +1124,7 @@ impl Context {
                                 None,
                                 self.impl_of(),
                                 None,
+                                // TODO:
                                 AbsLocation::unknown(),
                             );
                             ctx.decls
@@ -1137,19 +1172,20 @@ impl Context {
             let name = &ident.name;
             let muty = Mutability::from(&ident.inspect()[..]);
             let id = DefId(get_hash(&(&self.name, &name)));
-            self.decls.insert(
-                name.clone(),
-                VarInfo::new(
-                    Type::Type,
-                    muty,
-                    ident.vis(),
-                    VarKind::Defined(id),
-                    None,
-                    self.impl_of(),
-                    None,
-                    self.absolutize(name.loc()),
-                ),
+            let vi = VarInfo::new(
+                Type::Type,
+                muty,
+                ident.vis(),
+                VarKind::Defined(id),
+                None,
+                self.impl_of(),
+                None,
+                self.absolutize(name.loc()),
             );
+            if let Some(shared) = self.shared() {
+                shared.index.register(&vi);
+            }
+            self.decls.insert(name.clone(), vi);
             self.consts
                 .insert(name.clone(), ValueObj::Type(TypeObj::Builtin(t)));
         }
@@ -1173,19 +1209,20 @@ impl Context {
             let meta_t = gen.meta_type();
             let name = &ident.name;
             let id = DefId(get_hash(&(&self.name, &name)));
-            self.decls.insert(
-                name.clone(),
-                VarInfo::new(
-                    meta_t,
-                    muty,
-                    ident.vis(),
-                    VarKind::Defined(id),
-                    None,
-                    self.impl_of(),
-                    None,
-                    self.absolutize(name.loc()),
-                ),
+            let vi = VarInfo::new(
+                meta_t,
+                muty,
+                ident.vis(),
+                VarKind::Defined(id),
+                None,
+                self.impl_of(),
+                None,
+                self.absolutize(name.loc()),
             );
+            if let Some(shared) = self.shared() {
+                shared.index.register(&vi);
+            }
+            self.decls.insert(name.clone(), vi);
             self.consts
                 .insert(name.clone(), ValueObj::Type(TypeObj::Generated(gen)));
             for impl_trait in ctx.super_traits.iter() {
@@ -1601,46 +1638,31 @@ impl Context {
         Ok(())
     }
 
-    #[cfg(feature = "els")]
     pub(crate) fn inc_ref_simple_typespec(&self, simple: &SimpleTypeSpec) {
-        if self.cfg.mode == ErgMode::LanguageServer {
-            if let Ok(vi) = self.rec_get_var_info(
-                &simple.ident,
-                crate::compile::AccessKind::Name,
-                &self.cfg.input,
-                &self.name,
-            ) {
-                self.inc_ref(&vi, &simple.ident.name);
-            }
+        if let Ok(vi) = self.rec_get_var_info(
+            &simple.ident,
+            crate::compile::AccessKind::Name,
+            &self.cfg.input,
+            &self.name,
+        ) {
+            self.inc_ref(&vi, &simple.ident.name);
         }
     }
-    #[cfg(not(feature = "els"))]
-    pub(crate) fn inc_ref_simple_typespec(&self, _simple: &SimpleTypeSpec) {}
 
-    #[cfg(feature = "els")]
     pub(crate) fn inc_ref_const_local(&self, local: &ConstIdentifier) {
-        if self.cfg.mode == ErgMode::LanguageServer {
-            if let Ok(vi) = self.rec_get_var_info(
-                local,
-                crate::compile::AccessKind::Name,
-                &self.cfg.input,
-                &self.name,
-            ) {
-                self.inc_ref(&vi, &local.name);
-            }
+        if let Ok(vi) = self.rec_get_var_info(
+            local,
+            crate::compile::AccessKind::Name,
+            &self.cfg.input,
+            &self.name,
+        ) {
+            self.inc_ref(&vi, &local.name);
         }
     }
-    #[cfg(not(feature = "els"))]
-    pub(crate) fn inc_ref_const_local(&self, _local: &ConstIdentifier) {}
 
-    #[cfg(feature = "els")]
     pub fn inc_ref<L: Locational>(&self, vi: &VarInfo, name: &L) {
-        if self.cfg.mode == ErgMode::LanguageServer {
-            self.index()
-                .unwrap()
-                .add_ref(vi.def_loc.clone(), self.absolutize(name.loc()));
-        }
+        self.index()
+            .unwrap()
+            .inc_ref(vi, self.absolutize(name.loc()));
     }
-    #[cfg(not(feature = "els"))]
-    pub fn inc_ref<L: Locational>(&self, _vi: &VarInfo, _name: &L) {}
 }

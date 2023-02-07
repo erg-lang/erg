@@ -27,6 +27,7 @@ use crate::ty::typaram::{OpKind, TyParam};
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{ConstSubr, HasType, Predicate, SubrKind, Type, UserConstSubr, ValueArgs};
 
+use crate::context::instantiate::ParamKind;
 use crate::context::{ClassDefType, Context, ContextKind, RegistrationMode};
 use crate::error::{EvalError, EvalErrors, EvalResult, SingleEvalResult};
 
@@ -133,6 +134,8 @@ impl Context {
             Accessor::Ident(ident) => {
                 if let Some(val) = self.rec_get_const_obj(ident.inspect()) {
                     Ok(val.clone())
+                } else if self.kind.is_subr() {
+                    feature_error!(self, ident.loc(), "const parameters")
                 } else if ident.is_const() {
                     Err(EvalErrors::from(EvalError::no_var_error(
                         self.cfg.input.clone(),
@@ -449,19 +452,19 @@ impl Context {
             let pt = self.instantiate_param_ty(
                 sig,
                 None,
-                None,
                 &mut tmp_tv_cache,
                 RegistrationMode::Normal,
+                ParamKind::NonDefault,
             )?;
             non_default_params.push(pt);
         }
-        let var_params = if let Some(p) = lambda.sig.params.var_args.as_ref() {
+        let var_params = if let Some(p) = lambda.sig.params.var_params.as_ref() {
             let pt = self.instantiate_param_ty(
                 p,
                 None,
-                None,
                 &mut tmp_tv_cache,
                 RegistrationMode::Normal,
+                ParamKind::VarParams,
             )?;
             Some(pt)
         } else {
@@ -472,10 +475,10 @@ impl Context {
             let expr = self.eval_const_expr(&sig.default_val)?;
             let pt = self.instantiate_param_ty(
                 &sig.sig,
-                Some(expr.t()),
                 None,
                 &mut tmp_tv_cache,
                 RegistrationMode::Normal,
+                ParamKind::Default(expr.t()),
             )?;
             default_params.push(pt);
         }
@@ -520,7 +523,7 @@ impl Context {
 
     pub(crate) fn eval_const_expr(&self, expr: &Expr) -> EvalResult<ValueObj> {
         match expr {
-            Expr::Lit(lit) => self.eval_lit(lit),
+            Expr::Literal(lit) => self.eval_lit(lit),
             Expr::Accessor(acc) => self.eval_const_acc(acc),
             Expr::BinOp(bin) => self.eval_const_bin(bin),
             Expr::UnaryOp(unary) => self.eval_const_unary(unary),
@@ -532,7 +535,7 @@ impl Context {
             Expr::Record(rec) => self.eval_const_record(rec),
             Expr::Lambda(lambda) => self.eval_const_lambda(lambda),
             // FIXME: type check
-            Expr::TypeAsc(tasc) => self.eval_const_expr(&tasc.expr),
+            Expr::TypeAscription(tasc) => self.eval_const_expr(&tasc.expr),
             other => Err(EvalErrors::from(EvalError::not_const_expr(
                 self.cfg.input.clone(),
                 line!() as usize,
@@ -550,7 +553,7 @@ impl Context {
         match expr {
             // TODO: ClassDef, PatchDef
             Expr::Def(def) => self.eval_const_def(def),
-            Expr::Lit(lit) => self.eval_lit(lit),
+            Expr::Literal(lit) => self.eval_lit(lit),
             Expr::Accessor(acc) => self.eval_const_acc(acc),
             Expr::BinOp(bin) => self.eval_const_bin(bin),
             Expr::UnaryOp(unary) => self.eval_const_unary(unary),
@@ -561,7 +564,7 @@ impl Context {
             Expr::Tuple(tuple) => self.eval_const_tuple(tuple),
             Expr::Record(rec) => self.eval_const_record(rec),
             Expr::Lambda(lambda) => self.eval_const_lambda(lambda),
-            Expr::TypeAsc(tasc) => self.eval_const_expr(&tasc.expr),
+            Expr::TypeAscription(tasc) => self.eval_const_expr(&tasc.expr),
             other => Err(EvalErrors::from(EvalError::not_const_expr(
                 self.cfg.input.clone(),
                 line!() as usize,

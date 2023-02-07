@@ -322,7 +322,44 @@ macro_rules! impl_displayable_stream_for_wrapper {
 }
 
 #[macro_export]
-macro_rules! impl_stream_for_wrapper {
+macro_rules! impl_stream {
+    ($Strc: ident, $Inner: ident, $field: ident) => {
+        impl $crate::traits::Stream<$Inner> for $Strc {
+            #[inline]
+            fn payload(self) -> Vec<$Inner> {
+                self.$field
+            }
+            #[inline]
+            fn ref_payload(&self) -> &Vec<$Inner> {
+                &self.$field
+            }
+            #[inline]
+            fn ref_mut_payload(&mut self) -> &mut Vec<$Inner> {
+                &mut self.$field
+            }
+        }
+
+        impl std::ops::Index<usize> for $Strc {
+            type Output = $Inner;
+            fn index(&self, idx: usize) -> &Self::Output {
+                erg_common::traits::Stream::get(self, idx).unwrap()
+            }
+        }
+
+        impl From<$Strc> for Vec<$Inner> {
+            fn from(item: $Strc) -> Vec<$Inner> {
+                item.payload()
+            }
+        }
+
+        impl IntoIterator for $Strc {
+            type Item = $Inner;
+            type IntoIter = std::vec::IntoIter<Self::Item>;
+            fn into_iter(self) -> Self::IntoIter {
+                self.payload().into_iter()
+            }
+        }
+    };
     ($Strc: ident, $Inner: ident) => {
         impl $Strc {
             pub const fn new(v: Vec<$Inner>) -> $Strc {
@@ -383,47 +420,6 @@ macro_rules! impl_stream_for_wrapper {
             #[inline]
             fn ref_mut_payload(&mut self) -> &mut Vec<$Inner> {
                 &mut self.0
-            }
-        }
-    };
-}
-
-#[macro_export]
-macro_rules! impl_stream {
-    ($Strc: ident, $Inner: ident, $field: ident) => {
-        impl $crate::traits::Stream<$Inner> for $Strc {
-            #[inline]
-            fn payload(self) -> Vec<$Inner> {
-                self.$field
-            }
-            #[inline]
-            fn ref_payload(&self) -> &Vec<$Inner> {
-                &self.$field
-            }
-            #[inline]
-            fn ref_mut_payload(&mut self) -> &mut Vec<$Inner> {
-                &mut self.$field
-            }
-        }
-
-        impl std::ops::Index<usize> for $Strc {
-            type Output = $Inner;
-            fn index(&self, idx: usize) -> &Self::Output {
-                erg_common::traits::Stream::get(self, idx).unwrap()
-            }
-        }
-
-        impl From<$Strc> for Vec<$Inner> {
-            fn from(item: $Strc) -> Vec<$Inner> {
-                item.payload()
-            }
-        }
-
-        impl IntoIterator for $Strc {
-            type Item = $Inner;
-            type IntoIter = std::vec::IntoIter<Self::Item>;
-            fn into_iter(self) -> Self::IntoIter {
-                self.payload().into_iter()
             }
         }
     };
@@ -503,6 +499,21 @@ fn is_in_the_expected_block(src: &str, lines: &str, in_block: &mut bool) -> bool
     }
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub struct ExitStatus {
+    pub code: i32,
+    pub num_errors: usize,
+}
+
+impl ExitStatus {
+    pub const OK: ExitStatus = ExitStatus::new(0, 0);
+    pub const ERR1: ExitStatus = ExitStatus::new(1, 0);
+
+    pub const fn new(code: i32, num_errors: usize) -> Self {
+        Self { code, num_errors }
+    }
+}
+
 /// This trait implements REPL (Read-Eval-Print-Loop) automatically
 /// The `exec` method is called for file input, etc.
 pub trait Runnable: Sized + Default {
@@ -557,12 +568,13 @@ pub trait Runnable: Sized + Default {
         process::exit(0);
     }
 
-    fn run(cfg: ErgConfig) {
+    fn run(cfg: ErgConfig) -> ExitStatus {
         let quiet_repl = cfg.quiet_repl;
+        let mut num_errors = 0;
         let mut instance = Self::new(cfg);
         let res = match instance.input() {
-            Input::File(_) | Input::Pipe(_) | Input::Str(_) => instance.exec(),
-            Input::REPL | Input::DummyREPL(_) => {
+            Input::File(_) | Input::Pipe(_, _) | Input::Str(_, _) => instance.exec(),
+            Input::REPL(_) | Input::DummyREPL(_) => {
                 let output = stdout();
                 let mut output = BufWriter::new(output.lock());
                 if !quiet_repl {
@@ -624,8 +636,9 @@ pub trait Runnable: Sized + Default {
                                 .map(|e| e.core().kind == ErrorKind::SystemExit)
                                 .unwrap_or(false)
                             {
-                                instance.quit_successfully(output);
+                                return ExitStatus::new(0, num_errors);
                             }
+                            num_errors += errs.len();
                             errs.fmt_all_stderr();
                         }
                     }
@@ -636,9 +649,13 @@ pub trait Runnable: Sized + Default {
             }
             Input::Dummy => switch_unreachable!(),
         };
-        if let Err(e) = res {
-            e.fmt_all_stderr();
-            instance.quit(1);
+        match res {
+            Err(errs) => {
+                num_errors += errs.len();
+                errs.fmt_all_stderr();
+                ExitStatus::new(1, num_errors)
+            }
+            Ok(i) => ExitStatus::new(i, num_errors),
         }
     }
 }
@@ -790,6 +807,19 @@ macro_rules! impl_nested_display_for_chunk_enum {
                 }
             }
         }
+    }
+}
+
+#[macro_export]
+macro_rules! impl_from_trait_for_enum {
+    ($Enum: ident; $($Variant: ident $(,)?)*) => {
+        $(
+            impl From<$Variant> for $Enum {
+                fn from(v: $Variant) -> Self {
+                    $Enum::$Variant(v)
+                }
+            }
+        )*
     }
 }
 

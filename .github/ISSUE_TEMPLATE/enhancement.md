@@ -1,10 +1,8 @@
 ---
 name: Enhancement
-about: Request enhancements to Erg's feature and environment
+about: Request enhancements to Erg's features or environment
 title: ''
 labels: enhancement
 assignees: ''
 
 ---
-
-

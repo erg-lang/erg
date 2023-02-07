@@ -139,7 +139,7 @@ impl ASTSemanticState {
 
     fn gen_from_expr(&mut self, expr: Expr) -> Vec<SemanticToken> {
         match expr {
-            Expr::Lit(lit) => {
+            Expr::Literal(lit) => {
                 let typ = match lit.token.kind {
                     TokenKind::StrLit => SemanticTokenType::STRING,
                     TokenKind::NatLit | TokenKind::IntLit | TokenKind::RatioLit => {
@@ -228,9 +228,12 @@ impl ASTSemanticState {
 
     fn gen_from_args(&mut self, args: Args) -> Vec<SemanticToken> {
         let mut tokens = vec![];
-        let (pos_args, kw_args, ..) = args.deconstruct();
+        let (pos_args, var_args, kw_args, ..) = args.deconstruct();
         for arg in pos_args {
             tokens.extend(self.gen_from_expr(arg.expr));
+        }
+        if let Some(var_args) = var_args {
+            tokens.extend(self.gen_from_expr(var_args.expr));
         }
         for arg in kw_args {
             tokens.extend(self.gen_from_expr(arg.expr));

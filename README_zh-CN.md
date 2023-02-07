@@ -15,8 +15,7 @@
     </a>
 </p>
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3Ddc7feca6ad1533e791b5fc1fd036636860f03d07)
-](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=dc7feca6ad1533e791b5fc1fd036636860f03d07)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3D4a5a320dfe1b9a2f91585e1a3f9dde8213edf893)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=4a5a320dfe1b9a2f91585e1a3f9dde8213edf893)
 
 ## Erg可以推荐给以下人员&colon;
 
@@ -53,7 +52,7 @@
         print! "hello, ", end := ""
     # 类型错误: `.times!`是`Nat`(0或更大整数)的方法，不是`Int`的
 
-    {Meter; Sec; meter; yard; sec; ...} = import "unit"
+    {Meter; Sec; meter; yard; sec} = import "unit"
 
     velocity x: Meter, t: Sec = x / t
 
@@ -77,7 +76,7 @@
     在Erg中，很少有东西被认为是特殊的，没有关键字，因此for和while表达式也只是子程序之一
 
     ```python
-    loop! block = while! do(True), block
+    loop! block! = while! do! True, block!
 
     # equals to `while! do(True), do! print! "hello"`
     loop! do!:
@@ -126,7 +125,7 @@
     ```python
     # 使用内置的Python模块
     math, time = pyimport "math", "time"
-    {sin; pi; ...} = math
+    {sin; pi} = math
     # 使用外部Python模块
     Tqdm! = pyimport("tqdm").'tqdm'
 
@@ -201,8 +200,9 @@ nix build
 
 通过启用`--features`标志，你可以自定义构建和安装
 
-- 你可以通过`--features {language}`来设置错误信息语言
-```
+* 你可以通过`--features {language}`来设置错误信息语言
+
+```sh
 --features japanese
 --features simplified_chinese
 --features traditional_chinese
@@ -210,11 +210,11 @@ nix build
 
 还有更多的语言将被加入（我们正在寻找翻译者。请加入[翻译项目](./doc/EN/dev_guide/i18n_messages.md)）
 
-- 安装和构建ELS（Erg语言服务器）
-  - `--features els`
-- 设置成调试模式（针对贡献者）
-  - `--features debug`
-- 查看 [这里](https://github.com/erg-lang/erg/blob/main/.cargo/config.toml) 了解更多Flags和简写
+* 安装和构建ELS（Erg语言服务器）
+  * `--features els`
+* 设置成调试模式（针对贡献者）
+  * `--features debug`
+* 查看 [这里](https://github.com/erg-lang/erg/blob/main/.cargo/config.toml) 了解更多Flags和简写
 
 ## 贡献
 

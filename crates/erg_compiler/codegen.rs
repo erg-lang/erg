@@ -4,8 +4,7 @@
 use std::fmt;
 use std::process;
 
-use crate::ty::codeobj::MakeFunctionFlags;
-use crate::ty::codeobj::{CodeObj, CodeObjFlags};
+use crate::ty::codeobj::{CodeObj, CodeObjFlags, MakeFunctionFlags};
 use crate::ty::value::GenTypeObj;
 use erg_common::cache::CacheSet;
 use erg_common::config::{ErgConfig, Input};
@@ -21,8 +20,7 @@ use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Visibility;
 use erg_common::Str;
 use erg_common::{
-    debug_power_assert, enum_unwrap, fn_name, fn_name_full, impl_stream_for_wrapper, log,
-    switch_unreachable,
+    debug_power_assert, enum_unwrap, fn_name, fn_name_full, impl_stream, log, switch_unreachable,
 };
 use erg_parser::ast::{DefId, DefKind};
 use CommonOpcode::*;
@@ -45,6 +43,19 @@ use crate::ty::value::ValueObj;
 use crate::ty::{HasType, Type, TypeCode, TypePair};
 use erg_common::fresh::fresh_varname;
 use AccessKind::*;
+use Type::*;
+
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ControlKind {
+    If,
+    While,
+    For,
+    Match,
+    With,
+    Discard,
+    Assert,
+}
 
 /// patch method -> function
 /// patch attr -> variable
@@ -117,11 +128,12 @@ impl PyCodeGenUnit {
         filename: S,
         name: T,
         firstlineno: u32,
+        flags: u32,
     ) -> Self {
         Self {
             id,
             py_version,
-            codeobj: CodeObj::empty(params, filename, name, firstlineno),
+            codeobj: CodeObj::empty(params, filename, name, firstlineno, flags),
             stack_len: 0,
             prev_lineno: firstlineno,
             lasti: 0,
@@ -134,7 +146,7 @@ impl PyCodeGenUnit {
 #[derive(Debug, Clone)]
 pub struct PyCodeGenStack(Vec<PyCodeGenUnit>);
 
-impl_stream_for_wrapper!(PyCodeGenStack, PyCodeGenUnit);
+impl_stream!(PyCodeGenStack, PyCodeGenUnit);
 
 #[derive(Debug, Default)]
 pub struct PyCodeGenerator {
@@ -319,7 +331,9 @@ impl PyCodeGenerator {
         } else {
             jump_to
         };
-        if !CommonOpcode::is_jump_op(*self.cur_block_codeobj().code.get(idx - 1).unwrap()) {
+        if idx == 0
+            || !CommonOpcode::is_jump_op(*self.cur_block_codeobj().code.get(idx - 1).unwrap())
+        {
             self.crash(&format!("calc_edit_jump: not jump op: {idx} {jump_to}"));
         }
         self.edit_code(idx, arg);
@@ -461,26 +475,6 @@ impl PyCodeGenerator {
 
     fn emit_load_const<C: Into<ValueObj>>(&mut self, cons: C) {
         let value: ValueObj = cons.into();
-        let is_str = value.is_str();
-        let is_int = value.is_int();
-        let is_nat = value.is_nat();
-        let is_bool = value.is_bool();
-        if !self.cfg.no_std {
-            if is_bool {
-                self.emit_push_null();
-                self.emit_load_name_instr(Identifier::public("Bool"));
-            } else if is_nat {
-                self.emit_push_null();
-                self.emit_load_name_instr(Identifier::public("Nat"));
-            } else if is_int {
-                self.emit_push_null();
-                self.emit_load_name_instr(Identifier::public("Int"));
-            } else if is_str {
-                self.emit_push_null();
-                self.emit_load_name_instr(Identifier::public("Str"));
-            }
-        }
-        let wrapped = is_str || is_int; // is_int => is_nat and is_bool
         let idx = self
             .mut_cur_block_codeobj()
             .consts
@@ -493,10 +487,6 @@ impl PyCodeGenerator {
         self.write_instr(LOAD_CONST);
         self.write_arg(idx);
         self.stack_inc();
-        if !self.cfg.no_std && wrapped {
-            self.emit_call_instr(1, Name);
-            self.stack_dec();
-        }
     }
 
     fn register_const<C: Into<ValueObj>>(&mut self, cons: C) -> usize {
@@ -665,7 +655,7 @@ impl PyCodeGenerator {
             "if__" | "for__" | "while__" | "with__" | "discard__" => {
                 self.load_control();
             }
-            "int__" | "nat__" => {
+            "int__" | "nat__" | "str__" | "float__" => {
                 self.load_convertors();
             }
             _ => {}
@@ -869,6 +859,14 @@ impl PyCodeGenerator {
             println!("current block: {}", self.cur_block());
             panic!("internal error: {description}");
         } else {
+            let err = CompileError::compiler_bug(
+                0,
+                self.input().clone(),
+                Location::Unknown,
+                fn_name!(),
+                line!(),
+            );
+            err.write_to_stderr();
             process::exit(1);
         }
     }
@@ -878,7 +876,7 @@ impl PyCodeGenerator {
             .non_defaults
             .iter()
             .map(|p| p.inspect().map(|s| &s[..]).unwrap_or("_"))
-            .chain(if let Some(var_args) = &params.var_args {
+            .chain(if let Some(var_args) = &params.var_params {
                 vec![var_args.inspect().map(|s| &s[..]).unwrap_or("_")]
             } else {
                 vec![]
@@ -1048,6 +1046,7 @@ impl PyCodeGenerator {
             Str::rc(self.cfg.input.enclosed_name()),
             &name,
             firstlineno,
+            0,
         ));
         let mod_name = self.toplevel_block_codeobj().name.clone();
         self.emit_load_const(mod_name);
@@ -1116,6 +1115,7 @@ impl PyCodeGenerator {
                 Str::rc(self.cfg.input.enclosed_name()),
                 ident.inspect(),
                 ident.ln_begin().unwrap(),
+                0,
             ));
             self.emit_load_const(ValueObj::None);
             self.write_instr(RETURN_VALUE);
@@ -1251,7 +1251,12 @@ impl PyCodeGenerator {
             self.stack_dec_n(defaults_len - 1);
             make_function_flag += MakeFunctionFlags::Defaults as usize;
         }
-        let code = self.emit_block(body.block, Some(name.clone()), params);
+        let flags = if sig.params.var_params.is_some() {
+            CodeObjFlags::VarArgs as u32
+        } else {
+            0
+        };
+        let code = self.emit_block(body.block, Some(name.clone()), params, flags);
         // code.flags += CodeObjFlags::Optimized as u32;
         self.register_cellvars(&mut make_function_flag);
         self.emit_load_const(code);
@@ -1290,7 +1295,12 @@ impl PyCodeGenerator {
             self.stack_dec_n(defaults_len - 1);
             make_function_flag += MakeFunctionFlags::Defaults as usize;
         }
-        let code = self.emit_block(lambda.body, Some("<lambda>".into()), params);
+        let flags = if lambda.params.var_params.is_some() {
+            CodeObjFlags::VarArgs as u32
+        } else {
+            0
+        };
+        let code = self.emit_block(lambda.body, Some("<lambda>".into()), params, flags);
         self.register_cellvars(&mut make_function_flag);
         self.emit_load_const(code);
         if self.py_version.minor < Some(11) {
@@ -1604,6 +1614,21 @@ impl PyCodeGenerator {
         self.emit_load_const(ValueObj::None);
     }
 
+    fn deopt_instr(&mut self, kind: ControlKind, args: Args) {
+        if !self.control_loaded {
+            self.load_control();
+        }
+        let local = match kind {
+            ControlKind::If => Identifier::public("if__"),
+            ControlKind::For => Identifier::public("for__"),
+            ControlKind::While => Identifier::public("while__"),
+            ControlKind::With => Identifier::public("with__"),
+            ControlKind::Discard => Identifier::public("discard__"),
+            kind => todo!("{kind:?}"),
+        };
+        self.emit_call_local(local, args);
+    }
+
     fn emit_if_instr(&mut self, mut args: Args) {
         log!(info "entered {}", fn_name!());
         let init_stack_len = self.stack_len();
@@ -1670,6 +1695,9 @@ impl PyCodeGenerator {
 
     fn emit_for_instr(&mut self, mut args: Args) {
         log!(info "entered {} ({})", fn_name!(), args);
+        if !matches!(args.get(1).unwrap(), Expr::Lambda(_)) {
+            return self.deopt_instr(ControlKind::For, args);
+        }
         let _init_stack_len = self.stack_len();
         let iterable = args.remove(0);
         self.emit_expr(iterable);
@@ -1716,6 +1744,9 @@ impl PyCodeGenerator {
 
     fn emit_while_instr(&mut self, mut args: Args) {
         log!(info "entered {} ({})", fn_name!(), args);
+        if !matches!(args.get(1).unwrap(), Expr::Lambda(_)) {
+            return self.deopt_instr(ControlKind::While, args);
+        }
         let _init_stack_len = self.stack_len();
         // e.g. is_foo!: () => Bool, do!(is_bar)
         let cond_block = args.remove(0);
@@ -2008,9 +2039,11 @@ impl PyCodeGenerator {
         }
     }
 
-    fn emit_with_instr_311(&mut self, args: Args) {
+    fn emit_with_instr_311(&mut self, mut args: Args) {
         log!(info "entered {}", fn_name!());
-        let mut args = args;
+        if !matches!(args.get(1).unwrap(), Expr::Lambda(_)) {
+            return self.deopt_instr(ControlKind::With, args);
+        }
         let expr = args.remove(0);
         let lambda = enum_unwrap!(args.remove(0), Expr::Lambda);
         let params = self.gen_param_names(&lambda.params);
@@ -2054,9 +2087,11 @@ impl PyCodeGenerator {
         self.emit_load_name_instr(stash);
     }
 
-    fn emit_with_instr_310(&mut self, args: Args) {
+    fn emit_with_instr_310(&mut self, mut args: Args) {
         log!(info "entered {}", fn_name!());
-        let mut args = args;
+        if !matches!(args.get(1).unwrap(), Expr::Lambda(_)) {
+            return self.deopt_instr(ControlKind::With, args);
+        }
         let expr = args.remove(0);
         let lambda = enum_unwrap!(args.remove(0), Expr::Lambda);
         let params = self.gen_param_names(&lambda.params);
@@ -2105,9 +2140,11 @@ impl PyCodeGenerator {
         self.emit_load_name_instr(stash);
     }
 
-    fn emit_with_instr_308(&mut self, args: Args) {
+    fn emit_with_instr_308(&mut self, mut args: Args) {
         log!(info "entered {}", fn_name!());
-        let mut args = args;
+        if !matches!(args.get(1).unwrap(), Expr::Lambda(_)) {
+            return self.deopt_instr(ControlKind::With, args);
+        }
         let expr = args.remove(0);
         let lambda = enum_unwrap!(args.remove(0), Expr::Lambda);
         let params = self.gen_param_names(&lambda.params);
@@ -2650,7 +2687,7 @@ impl PyCodeGenerator {
             Expr::Dict(dict) => self.emit_dict(dict),
             Expr::Record(rec) => self.emit_record(rec),
             Expr::Code(code) => {
-                let code = self.emit_block(code, None, vec![]);
+                let code = self.emit_block(code, None, vec![], 0);
                 self.emit_load_const(code);
             }
             Expr::Compound(chunks) => self.emit_compound(chunks),
@@ -2662,6 +2699,38 @@ impl PyCodeGenerator {
     fn emit_expr(&mut self, expr: Expr) {
         log!(info "entered {} ({expr})", fn_name!());
         self.push_lnotab(&expr);
+        let mut wrapped = true;
+        if !self.cfg.no_std {
+            match expr.ref_t().derefine() {
+                Bool => {
+                    self.emit_push_null();
+                    self.emit_load_name_instr(Identifier::public("Bool"));
+                }
+                Nat => {
+                    self.emit_push_null();
+                    self.emit_load_name_instr(Identifier::public("Nat"));
+                }
+                Int => {
+                    self.emit_push_null();
+                    self.emit_load_name_instr(Identifier::public("Int"));
+                }
+                Float => {
+                    self.emit_push_null();
+                    self.emit_load_name_instr(Identifier::public("Float"));
+                }
+                Str => {
+                    self.emit_push_null();
+                    self.emit_load_name_instr(Identifier::public("Str"));
+                }
+                other if other.is_array() => {
+                    self.emit_push_null();
+                    self.emit_load_name_instr(Identifier::public("Array"));
+                }
+                _ => {
+                    wrapped = false;
+                }
+            }
+        }
         match expr {
             Expr::Lit(lit) => self.emit_load_const(lit.value),
             Expr::Accessor(acc) => self.emit_acc(acc),
@@ -2679,13 +2748,17 @@ impl PyCodeGenerator {
             Expr::Dict(dict) => self.emit_dict(dict),
             Expr::Record(rec) => self.emit_record(rec),
             Expr::Code(code) => {
-                let code = self.emit_block(code, None, vec![]);
+                let code = self.emit_block(code, None, vec![], 0);
                 self.emit_load_const(code);
             }
             Expr::Compound(chunks) => self.emit_compound(chunks),
             Expr::TypeAsc(tasc) => self.emit_expr(*tasc.expr),
             Expr::Import(acc) => self.emit_import(acc),
             Expr::Dummy(_) => {}
+        }
+        if !self.cfg.no_std && wrapped {
+            self.emit_call_instr(1, Name);
+            self.stack_dec();
         }
     }
 
@@ -2738,6 +2811,7 @@ impl PyCodeGenerator {
             Str::rc(self.cfg.input.enclosed_name()),
             &name,
             firstlineno,
+            0,
         ));
         let init_stack_len = self.stack_len();
         let mod_name = self.toplevel_block_codeobj().name.clone();
@@ -2904,7 +2978,13 @@ impl PyCodeGenerator {
         }
     }
 
-    fn emit_block(&mut self, block: Block, opt_name: Option<Str>, params: Vec<Str>) -> CodeObj {
+    fn emit_block(
+        &mut self,
+        block: Block,
+        opt_name: Option<Str>,
+        params: Vec<Str>,
+        flags: u32,
+    ) -> CodeObj {
         log!(info "entered {}", fn_name!());
         self.unit_size += 1;
         let name = if let Some(name) = opt_name {
@@ -2923,6 +3003,7 @@ impl PyCodeGenerator {
             Str::rc(self.cfg.input.enclosed_name()),
             name,
             firstlineno,
+            flags,
         ));
         let idx_copy_free_vars = if self.py_version.minor >= Some(11) {
             let idx_copy_free_vars = self.lasti();
@@ -3115,6 +3196,7 @@ impl PyCodeGenerator {
             Str::rc(self.cfg.input.enclosed_name()),
             "<module>",
             1,
+            0,
         ));
         if self.py_version.minor >= Some(11) {
             self.write_instr(Opcode311::RESUME);

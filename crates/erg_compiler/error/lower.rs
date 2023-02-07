@@ -127,8 +127,8 @@ impl LowerError {
         found_t: &Type,
     ) -> Self {
         let name = StyledString::new(readable_name(name), Some(WARN), None);
-        let expect = StyledString::new(format!("{}", spec_t), Some(HINT), Some(ATTR));
-        let found = StyledString::new(format!("{}", found_t), Some(ERR), Some(ATTR));
+        let expect = StyledString::new(format!("{spec_t}"), Some(HINT), Some(ATTR));
+        let found = StyledString::new(format!("{found_t}"), Some(ERR), Some(ATTR));
         Self::new(
             ErrorCore::new(
                 vec![SubMessage::only_loc(loc)],
@@ -522,7 +522,7 @@ impl LowerError {
         caused_by: S,
     ) -> Self {
         let name = StyledString::new(name, Some(ERR), Some(ATTR));
-        let superclass = StyledString::new(format!("{}", superclass), Some(WARN), Some(ATTR));
+        let superclass = StyledString::new(format!("{superclass}"), Some(WARN), Some(ATTR));
         let hint = Some(
             switch_lang!(
                 "japanese" => {
@@ -854,7 +854,7 @@ impl LowerError {
         hint: Option<String>,
     ) -> Self {
         let name = StyledString::new(name, Some(WARN), Some(ATTR));
-        let found = StyledString::new(format!("{}", cast_to), Some(ERR), Some(ATTR));
+        let found = StyledString::new(format!("{cast_to}"), Some(ERR), Some(ATTR));
         Self::new(
             ErrorCore::new(
                 vec![SubMessage::ambiguous_new(loc, vec![], hint)],

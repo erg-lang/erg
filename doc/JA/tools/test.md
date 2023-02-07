@@ -11,7 +11,7 @@ Ergではパッケージ中の`tests`ディレクトリか`*.test.er`ファイ�
 
 ```python
 # tests/test1.er
-{add; ...} = import "foo"
+{add;} = import "foo"
 
 @Test
 test_1_plus_n(n: Nat) =
@@ -33,7 +33,7 @@ VM = ...
     execute commands.
     ```erg
     # 標準構成のVM
-    {vm1; ...} = import "tests/mock"
+    {vm1;} = import "tests/mock"
 
     assert vm1.exec!("i = 0") == None
     assert vm1.exec!("i").try_into(Int)? == 0

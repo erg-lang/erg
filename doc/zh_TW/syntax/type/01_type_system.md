@@ -77,11 +77,11 @@ Erg 的數組(Array)就是 Python 所說的列表。`[詮釋; 3]`是一個數組
 
 ```python
 pop|T, N|(l: [T; N]): ([T; N-1], T) =
-    [...l, last] = l
+    [*l, last] = l
     (l, last)
 
 lpop|T, N|(l: [T; N]): (T, [T; N-1]) =
-    [first, ...l] = l
+    [first, *l] = l
     (first, l)
 ```
 

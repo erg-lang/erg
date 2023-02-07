@@ -59,7 +59,7 @@ impl Parser {
                 debug_exit_info!(self);
                 Ok(Signature::Var(var))
             }
-            Expr::TypeAsc(tasc) => {
+            Expr::TypeAscription(tasc) => {
                 let sig = self
                     .convert_type_asc_to_sig(tasc)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
@@ -204,7 +204,7 @@ impl Parser {
         let mut vars = Vars::empty();
         match tuple {
             Tuple::Normal(tup) => {
-                let (pos_args, _kw_args, paren) = tup.elems.deconstruct();
+                let (pos_args, _var_args, _kw_args, paren) = tup.elems.deconstruct();
                 for arg in pos_args {
                     let sig = self
                         .convert_rhs_to_sig(arg.expr)
@@ -312,7 +312,7 @@ impl Parser {
     ) -> ParseResult<TypeBoundSpecs> {
         debug_call_info!(self);
         let mut bounds = vec![];
-        let (pos_args, _kw_args, _paren) = type_args.args.deconstruct();
+        let (pos_args, _var_args, _kw_args, _paren) = type_args.args.deconstruct();
         for arg in pos_args.into_iter() {
             let bound = self
                 .convert_type_arg_to_bound(arg)
@@ -326,7 +326,7 @@ impl Parser {
 
     fn convert_type_arg_to_bound(&mut self, arg: PosArg) -> ParseResult<TypeBoundSpec> {
         match arg.expr {
-            Expr::TypeAsc(tasc) => {
+            Expr::TypeAscription(tasc) => {
                 let lhs = self
                     .convert_rhs_to_sig(*tasc.expr)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
@@ -348,13 +348,19 @@ impl Parser {
 
     pub(crate) fn convert_args_to_params(&mut self, args: Args) -> ParseResult<Params> {
         debug_call_info!(self);
-        let (pos_args, kw_args, parens) = args.deconstruct();
+        let (pos_args, var_args, kw_args, parens) = args.deconstruct();
         let mut params = Params::new(vec![], None, vec![], parens);
         for (i, arg) in pos_args.into_iter().enumerate() {
             let nd_param = self
                 .convert_pos_arg_to_non_default_param(arg, i == 0)
                 .map_err(|_| self.stack_dec(fn_name!()))?;
             params.non_defaults.push(nd_param);
+        }
+        if let Some(var_args) = var_args {
+            let var_args = self
+                .convert_pos_arg_to_non_default_param(var_args, false)
+                .map_err(|_| self.stack_dec(fn_name!()))?;
+            params.var_params = Some(Box::new(var_args));
         }
         // TODO: varargs
         for arg in kw_args.into_iter() {
@@ -400,7 +406,7 @@ impl Parser {
                 debug_exit_info!(self);
                 Ok(param)
             }
-            Expr::Lit(lit) => {
+            Expr::Literal(lit) => {
                 let pat = ParamPattern::Lit(lit);
                 let param = NonDefaultParamSignature::new(pat, None);
                 debug_exit_info!(self);
@@ -433,7 +439,7 @@ impl Parser {
                 debug_exit_info!(self);
                 Ok(param)
             }
-            Expr::TypeAsc(tasc) => {
+            Expr::TypeAscription(tasc) => {
                 let param = self
                     .convert_type_asc_to_param_pattern(tasc, allow_self)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
@@ -566,11 +572,17 @@ impl Parser {
         match tuple {
             Tuple::Normal(tup) => {
                 let mut params = vec![];
-                let (elems, _, parens) = tup.elems.deconstruct();
+                let (elems, var_args, _, parens) = tup.elems.deconstruct();
                 for arg in elems.into_iter() {
                     params.push(self.convert_pos_arg_to_non_default_param(arg, false)?);
                 }
-                let params = Params::new(params, None, vec![], parens);
+                let var_params = if let Some(var_args) = var_args {
+                    let var_params = self.convert_pos_arg_to_non_default_param(var_args, false)?;
+                    Some(var_params)
+                } else {
+                    None
+                };
+                let params = Params::new(params, var_params, vec![], parens);
                 debug_exit_info!(self);
                 Ok(ParamTuplePattern::new(params))
             }
@@ -595,7 +607,7 @@ impl Parser {
     pub(crate) fn convert_rhs_to_lambda_sig(&mut self, rhs: Expr) -> ParseResult<LambdaSignature> {
         debug_call_info!(self);
         match rhs {
-            Expr::Lit(lit) => {
+            Expr::Literal(lit) => {
                 let param = NonDefaultParamSignature::new(ParamPattern::Lit(lit), None);
                 let params = Params::new(vec![param], None, vec![], None);
                 Ok(LambdaSignature::new(params, None, TypeBoundSpecs::empty()))
@@ -633,13 +645,30 @@ impl Parser {
                 debug_exit_info!(self);
                 Ok(LambdaSignature::new(params, None, TypeBoundSpecs::empty()))
             }
-            Expr::TypeAsc(tasc) => {
+            Expr::TypeAscription(tasc) => {
                 let sig = self
                     .convert_type_asc_to_lambda_sig(tasc)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
                 debug_exit_info!(self);
                 Ok(sig)
             }
+            Expr::UnaryOp(unary) => match unary.op.kind {
+                TokenKind::PreStar => {
+                    let mut exprs = unary.args.into_iter();
+                    let param = self
+                        .convert_rhs_to_param(*exprs.next().unwrap(), false)
+                        .map_err(|_| self.stack_dec(fn_name!()))?;
+                    let params = Params::new(vec![], Some(param), vec![], None);
+                    debug_exit_info!(self);
+                    Ok(LambdaSignature::new(params, None, TypeBoundSpecs::empty()))
+                }
+                _ => {
+                    let err = ParseError::simple_syntax_error(line!() as usize, unary.op.loc());
+                    self.errs.push(err);
+                    debug_exit_info!(self);
+                    Err(())
+                }
+            },
             other => {
                 let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
                 self.errs.push(err);
@@ -677,13 +706,19 @@ impl Parser {
         debug_call_info!(self);
         match tuple {
             Tuple::Normal(tup) => {
-                let (pos_args, kw_args, paren) = tup.elems.deconstruct();
+                let (pos_args, var_args, kw_args, paren) = tup.elems.deconstruct();
                 let mut params = Params::new(vec![], None, vec![], paren);
                 for (i, arg) in pos_args.into_iter().enumerate() {
                     let param = self
                         .convert_pos_arg_to_non_default_param(arg, i == 0)
                         .map_err(|_| self.stack_dec(fn_name!()))?;
                     params.non_defaults.push(param);
+                }
+                if let Some(var_args) = var_args {
+                    let param = self
+                        .convert_pos_arg_to_non_default_param(var_args, false)
+                        .map_err(|_| self.stack_dec(fn_name!()))?;
+                    params.var_params = Some(Box::new(param));
                 }
                 for arg in kw_args {
                     let param = self
@@ -703,7 +738,7 @@ impl Parser {
     ) -> ParseResult<LambdaSignature> {
         debug_call_info!(self);
         let sig = self
-            .convert_rhs_to_param(Expr::TypeAsc(tasc), true)
+            .convert_rhs_to_param(Expr::TypeAscription(tasc), true)
             .map_err(|_| self.stack_dec(fn_name!()))?;
         debug_exit_info!(self);
         Ok(LambdaSignature::new(

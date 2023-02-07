@@ -52,7 +52,7 @@
         print! "hello, ", end := ""
     # TypeError: `.times!` is a method of `Nat` (0 or more Int), not `Int`
 
-    {Meter; Sec; meter; yard; sec; ...} = import "unit"
+    {Meter; Sec; meter; yard; sec} = import "unit"
 
     velocity x: Meter, t: Sec = x / t
 
@@ -77,7 +77,7 @@
     even for and while expressions are just one of the subroutines, so this is possible.
 
     ```python
-    loop! block = while! do(True), block
+    loop! block! = while! do! True, block!
 
     # equals to `while! do(True), do! print! "hello"`
     loop! do!:
@@ -126,7 +126,7 @@
     ```python
     # using built-in Python modules
     math, time = pyimport "math", "time"
-    {sin; pi; ...} = math
+    {sin; pi} = math
     # using an external Python module
     Tqdm! = pyimport("tqdm").'tqdm'
 
@@ -201,18 +201,21 @@ nix build
 
 By enabling the `--features` flag, you can customize the installation and build.
 
- - You can change the language of the error message by using  `--features {language}`
-```sh 
+* You can change the language of the error message by using  `--features {language}`
+
+```sh
 --features japanese
 --features simplified_chinese
 --features traditional_chinese
 ```
+
 And more languages will be added (we are looking for translators. Please join the [Translation Project](./doc/EN/dev_guide/i18n_messages.md)).
- - Install and build ELS (Erg Language Server)
-   - `--features els`
- - Debugging mode (for contributors)
-   - `--features debug`
- - See [here](https://github.com/erg-lang/erg/blob/main/.cargo/config.toml) for more flags and abbreviations.
+
+* Install and build ELS (Erg Language Server)
+  * `--features els`
+* Debugging mode (for contributors)
+  * `--features debug`
+* See [here](https://github.com/erg-lang/erg/blob/main/.cargo/config.toml) for more flags and abbreviations.
 
 ## Contribution
 

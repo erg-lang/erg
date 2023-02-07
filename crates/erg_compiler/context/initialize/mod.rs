@@ -14,7 +14,6 @@ use std::path::PathBuf;
 
 use erg_common::config::ErgConfig;
 use erg_common::dict;
-use erg_common::env::erg_pystd_path;
 use erg_common::error::Location;
 use erg_common::fresh::fresh_varname;
 #[allow(unused_imports)]
@@ -133,6 +132,17 @@ const FUNC_FORMAT: &str = "format";
 const FUNC_LOWER: &str = "lower";
 const FUNC_UPPER: &str = "upper";
 const FUNC_TO_INT: &str = "to_int";
+const FUNC_STARTSWITH: &str = "startswith";
+const FUNC_ENDSWITH: &str = "endswith";
+const FUNC_CONTAINS: &str = "contains";
+const FUNC_SPLIT: &str = "split";
+const FUNC_SPLITLINES: &str = "splitlines";
+const FUNC_JOIN: &str = "join";
+const FUNC_FIND: &str = "find";
+const FUNC_RFIND: &str = "rfind";
+const FUNC_INDEX: &str = "index";
+const FUNC_RINDEX: &str = "rindex";
+const FUNC_COUNT: &str = "count";
 const NONE_TYPE: &str = "NoneType";
 const TYPE: &str = "Type";
 const CLASS: &str = "Class";
@@ -163,8 +173,9 @@ const MODULE: &str = "Module";
 const PY_MODULE: &str = "PyModule";
 const ARRAY: &str = "Array";
 const MUT_ARRAY: &str = "Array!";
+const FUNC_PARTITION: &str = "partition";
+const FUNC_DEDUP: &str = "dedup";
 const FUNC_CONCAT: &str = "concat";
-const FUNC_COUNT: &str = "count";
 const FUNC_PUSH: &str = "push";
 const PROC_PUSH: &str = "push!";
 const ARRAY_ITERATOR: &str = "ArrayIterator";
@@ -209,6 +220,8 @@ const PROC_REVERSE: &str = "reverse!";
 const PROC_STRICT_MAP: &str = "strict_map!";
 const FUNC_ADD: &str = "add";
 const PROC_ADD: &str = "add!";
+const FUNC_INVERT: &str = "invert";
+const PROC_INVERT: &str = "invert!";
 const RANGE: &str = "Range";
 const GENERIC_CALLABLE: &str = "GenericCallable";
 const GENERIC_GENERATOR: &str = "GenericGenerator";
@@ -226,6 +239,7 @@ const FUNC_INT__: &str = "int__";
 const FUNC_FLOAT: &str = "float";
 const FUNC_BOOL: &str = "bool";
 const FUNC_STR: &str = "str";
+const FUNC_STR__: &str = "str__";
 const FUNC_TYPE: &str = "type";
 const CODE_TYPE: &str = "CodeType";
 const MODULE_TYPE: &str = "ModuleType";
@@ -378,6 +392,7 @@ const KW_FUNC: &str = "func";
 const KW_ITERABLE: &str = "iterable";
 const KW_INDEX: &str = "index";
 const KW_KEY: &str = "key";
+const KW_KEEPENDS: &str = "keepends";
 const KW_OBJECT: &str = "object";
 const KW_OBJECTS: &str = "objects";
 const KW_CONDITION: &str = "condition";
@@ -411,10 +426,12 @@ const KW_REQUIREMENT: &str = "Requirement";
 const KW_IMPL: &str = "Impl";
 const KW_ADDITIONAL: &str = "Additional";
 const KW_SUPER: &str = "Super";
+const KW_MAXSPLIT: &str = "maxsplit";
+const KW_SUB: &str = "sub";
 
 #[cfg(not(feature = "no_std"))]
 pub fn builtins_path() -> PathBuf {
-    erg_pystd_path().join("builtins.d.er")
+    erg_common::env::erg_pystd_path().join("builtins.d.er")
 }
 #[cfg(feature = "no_std")]
 pub fn builtins_path() -> PathBuf {
@@ -524,7 +541,7 @@ impl Context {
         self.register_builtin_impl(name, t, muty, vis, None, AbsLocation::unknown());
     }
 
-    // TODO: replace with `register_builtins`
+    // TODO: replace with `register_py_builtin`
     fn register_builtin_py_impl(
         &mut self,
         name: &'static str,
@@ -781,7 +798,7 @@ impl Context {
         muty: Mutability,
     ) {
         if self.patches.contains_key(name) {
-            panic!("{} has already been registered", name);
+            panic!("{name} has already been registered");
         } else {
             let name = VarName::from_static(name);
             let vi = VarInfo::new(

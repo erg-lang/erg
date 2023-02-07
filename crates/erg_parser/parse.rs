@@ -33,7 +33,7 @@ macro_rules! debug_call_info {
     ($self: ident) => {
         $self.level += 1;
         log!(
-            c GREEN,
+            c DEBUG_MAIN,
             "\n{} ({}) entered {}, cur: {}",
             "･".repeat(($self.level as f32 / 4.0).floor() as usize),
             $self.level,
@@ -48,7 +48,7 @@ macro_rules! debug_exit_info {
     ($self: ident) => {
         $self.level -= 1;
         log!(
-            c GREEN,
+            c DEBUG_MAIN,
             "\n{} ({}) exit {}, cur: {}",
             "･".repeat(($self.level as f32 / 4.0).floor() as usize),
             $self.level,
@@ -228,7 +228,7 @@ impl Parser {
     pub(crate) fn stack_dec(&mut self, fn_name: &str) {
         self.level -= 1;
         log!(
-            c GREEN,
+            c DEBUG_MAIN,
             "\n{} ({}) exit {}, cur: {}",
             "･".repeat((self.level as f32 / 4.0).floor() as usize),
             self.level,
@@ -292,7 +292,7 @@ impl ParserRunner {
     }
 
     pub fn parse(&mut self, src: String) -> Result<Module, ParserRunnerErrors> {
-        let ts = Lexer::new(Input::Str(src))
+        let ts = Lexer::new(Input::Str(self.cfg.input.id(), src))
             .lex()
             .map_err(|errs| ParserRunnerErrors::convert(self.input(), errs))?;
         Parser::new(ts)
@@ -555,14 +555,14 @@ impl Parser {
     fn try_reduce_elems(&mut self) -> ParseResult<ArrayInner> {
         debug_call_info!(self);
         if self.cur_category_is(TC::REnclosure) {
-            let args = Args::new(vec![], vec![], None);
+            let args = Args::empty();
             debug_exit_info!(self);
             return Ok(ArrayInner::Normal(args));
         }
         let first = self
             .try_reduce_elem()
             .map_err(|_| self.stack_dec(fn_name!()))?;
-        let mut elems = Args::new(vec![first], vec![], None);
+        let mut elems = Args::pos_only(vec![first], None);
         match self.peek_kind() {
             Some(Semi) => {
                 self.lpop();
@@ -693,11 +693,11 @@ impl Parser {
             Some(RParen) => {
                 rp = Some(self.lpop());
                 debug_exit_info!(self);
-                return Ok(Args::new(vec![], vec![], Some((lp.unwrap(), rp.unwrap()))));
+                return Ok(Args::pos_only(vec![], Some((lp.unwrap(), rp.unwrap()))));
             }
             Some(RBrace | RSqBr | Dedent) => {
                 debug_exit_info!(self);
-                return Ok(Args::new(vec![], vec![], None));
+                return Ok(Args::pos_only(vec![], None));
             }
             Some(Newline) if style.needs_parens() => {
                 self.skip();
@@ -712,8 +712,21 @@ impl Parser {
             .try_reduce_arg(in_type_args)
             .map_err(|_| self.stack_dec(fn_name!()))?
         {
-            PosOrKwArg::Pos(arg) => Args::new(vec![arg], vec![], None),
-            PosOrKwArg::Kw(arg) => Args::new(vec![], vec![arg], None),
+            PosOrKwArg::Pos(PosArg {
+                expr: Expr::UnaryOp(unary),
+            }) if unary.op.is(PreStar) => {
+                let pos_args = PosArg::new(unary.deconstruct().1);
+                Args::new(vec![], Some(pos_args), vec![], None)
+            }
+            PosOrKwArg::Pos(PosArg {
+                expr: Expr::TypeAscription(TypeAscription { expr, op, t_spec }),
+            }) if matches!(expr.as_ref(), Expr::UnaryOp(unary) if unary.op.is(PreStar)) => {
+                let Expr::UnaryOp(unary) = *expr else { unreachable!() };
+                let var_args = PosArg::new(unary.deconstruct().1.type_asc_expr(op, t_spec));
+                Args::new(vec![], Some(var_args), vec![], None)
+            }
+            PosOrKwArg::Pos(arg) => Args::pos_only(vec![arg], None),
+            PosOrKwArg::Kw(arg) => Args::new(vec![], None, vec![arg], None),
         };
         loop {
             match self.peek_kind() {
@@ -756,8 +769,8 @@ impl Parser {
                     }
                     if style.needs_parens() && self.cur_is(RParen) {
                         let rp = self.lpop();
-                        let (pos_args, kw_args, _) = args.deconstruct();
-                        args = Args::new(pos_args, kw_args, Some((lp.unwrap(), rp)));
+                        let (pos_args, var_args, kw_args, _) = args.deconstruct();
+                        args = Args::new(pos_args, var_args, kw_args, Some((lp.unwrap(), rp)));
                         break;
                     }
                     if !args.kw_is_empty() {
@@ -770,6 +783,20 @@ impl Parser {
                             .try_reduce_arg(in_type_args)
                             .map_err(|_| self.stack_dec(fn_name!()))?
                         {
+                            PosOrKwArg::Pos(PosArg {
+                                expr: Expr::UnaryOp(unary),
+                            }) if unary.op.is(PreStar) => {
+                                args.set_var_args(PosArg::new(unary.deconstruct().1));
+                            }
+                            PosOrKwArg::Pos(PosArg {
+                                expr: Expr::TypeAscription(TypeAscription { expr, op, t_spec }),
+                            }) if matches!(expr.as_ref(), Expr::UnaryOp(unary) if unary.op.is(PreStar)) =>
+                            {
+                                let Expr::UnaryOp(unary) = *expr else { unreachable!() };
+                                args.set_var_args(PosArg::new(
+                                    unary.deconstruct().1.type_asc_expr(op, t_spec),
+                                ));
+                            }
                             PosOrKwArg::Pos(arg) => {
                                 args.push_pos(arg);
                             }
@@ -782,12 +809,12 @@ impl Parser {
                 Some(RParen) => {
                     if let Some(lp) = lp {
                         let rp = self.lpop();
-                        let (pos_args, kw_args, _) = args.deconstruct();
-                        args = Args::new(pos_args, kw_args, Some((lp, rp)));
+                        let (pos_args, var_args, kw_args, _) = args.deconstruct();
+                        args = Args::new(pos_args, var_args, kw_args, Some((lp, rp)));
                     } else {
                         // e.g. f(g 1)
-                        let (pos_args, kw_args, _) = args.deconstruct();
-                        args = Args::new(pos_args, kw_args, None);
+                        let (pos_args, var_args, kw_args, _) = args.deconstruct();
+                        args = Args::new(pos_args, var_args, kw_args, None);
                     }
                     break;
                 }
@@ -805,8 +832,8 @@ impl Parser {
                                 debug_exit_info!(self);
                                 return Err(());
                             }
-                            let (pos_args, kw_args, _) = args.deconstruct();
-                            args = Args::new(pos_args, kw_args, Some((lp.unwrap(), rp)));
+                            let (pos_args, var_args, kw_args, _) = args.deconstruct();
+                            args = Args::new(pos_args, var_args, kw_args, Some((lp.unwrap(), rp)));
                         }
                         break;
                     }
@@ -882,7 +909,7 @@ impl Parser {
                         self.skip();
                         let (kw, t_spec) = match expr {
                             Expr::Accessor(Accessor::Ident(n)) => (n.name.into_token(), None),
-                            Expr::TypeAsc(tasc) => {
+                            Expr::TypeAscription(tasc) => {
                                 if let Expr::Accessor(Accessor::Ident(n)) = *tasc.expr {
                                     let t_spec = TypeSpecWithOp::new(tasc.op, tasc.t_spec);
                                     (n.name.into_token(), Some(t_spec))
@@ -983,7 +1010,8 @@ impl Parser {
             .map_err(|_| self.stack_dec(fn_name!()))?;
         let first = match first {
             Expr::Def(def) => ClassAttr::Def(def),
-            Expr::TypeAsc(tasc) => ClassAttr::Decl(tasc),
+            Expr::TypeAscription(tasc) => ClassAttr::Decl(tasc),
+            Expr::Literal(lit) if lit.is_doc_comment() => ClassAttr::Doc(lit),
             _ => {
                 // self.restore();
                 let err = self.skip_and_throw_syntax_err(caused_by!());
@@ -1012,7 +1040,7 @@ impl Parser {
                         Expr::Def(def) => {
                             attrs.push(ClassAttr::Def(def));
                         }
-                        Expr::TypeAsc(tasc) => {
+                        Expr::TypeAscription(tasc) => {
                             attrs.push(ClassAttr::Decl(tasc));
                         }
                         other => {
@@ -1569,7 +1597,7 @@ impl Parser {
         let first_elem = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
         let (keyword, t_spec) = match first_elem {
             Expr::Accessor(Accessor::Ident(ident)) => (ident.name.into_token(), None),
-            Expr::TypeAsc(tasc) => {
+            Expr::TypeAscription(tasc) => {
                 if let Expr::Accessor(Accessor::Ident(ident)) = *tasc.expr {
                     (
                         ident.name.into_token(),
@@ -1630,7 +1658,7 @@ impl Parser {
                     }
                 }
                 debug_exit_info!(self);
-                Ok(Expr::Lit(lit))
+                Ok(Expr::Literal(lit))
             }
             Some(t) if t.is(StrInterpLeft) => {
                 let str_interp = self
@@ -1659,11 +1687,9 @@ impl Parser {
                     Signature::Var(var) => {
                         let mut last = def.body.block.pop().unwrap();
                         for deco in decos.into_iter() {
-                            last = deco.into_expr().call_expr(Args::new(
-                                vec![PosArg::new(last)],
-                                vec![],
-                                None,
-                            ));
+                            last = deco
+                                .into_expr()
+                                .call_expr(Args::pos_only(vec![PosArg::new(last)], None));
                         }
                         def.body.block.push(last);
                         let expr = Expr::Def(Def::new(Signature::Var(var), def.body));
@@ -1699,7 +1725,7 @@ impl Parser {
                 };
                 if self.cur_is(RParen) {
                     let rparen = self.lpop();
-                    let args = Args::new(vec![], vec![], Some((lparen, rparen)));
+                    let args = Args::pos_only(vec![], Some((lparen, rparen)));
                     let unit = Tuple::Normal(NormalTuple::new(args));
                     debug_exit_info!(self);
                     return Ok(Expr::Tuple(unit));
@@ -2268,7 +2294,7 @@ impl Parser {
                 len,
             )));
         }
-        let mut args = Args::new(vec![PosArg::new(first_elem)], vec![], None);
+        let mut args = Args::pos_only(vec![PosArg::new(first_elem)], None);
         loop {
             match self.peek_kind() {
                 Some(Comma) => {
@@ -2337,8 +2363,22 @@ impl Parser {
     ) -> ParseResult<Tuple> {
         debug_call_info!(self);
         let mut args = match first_elem {
-            PosOrKwArg::Pos(pos) => Args::new(vec![pos], vec![], None),
-            PosOrKwArg::Kw(kw) => Args::new(vec![], vec![kw], None),
+            PosOrKwArg::Pos(PosArg {
+                expr: Expr::UnaryOp(unary),
+            }) if unary.op.is(PreStar) => {
+                let var_args = Some(PosArg::new(unary.deconstruct().1));
+                Args::new(vec![], var_args, vec![], None)
+            }
+            PosOrKwArg::Pos(PosArg {
+                expr: Expr::TypeAscription(TypeAscription { expr, op, t_spec }),
+            }) if matches!(expr.as_ref(), Expr::UnaryOp(unary) if unary.op.is(PreStar)) => {
+                let Expr::UnaryOp(unary) = *expr else { unreachable!() };
+                let expr = unary.deconstruct().1;
+                let var_args = Some(PosArg::new(expr.type_asc_expr(op, t_spec)));
+                Args::new(vec![], var_args, vec![], None)
+            }
+            PosOrKwArg::Pos(pos) => Args::pos_only(vec![pos], None),
+            PosOrKwArg::Kw(kw) => Args::new(vec![], None, vec![kw], None),
         };
         #[allow(clippy::while_let_loop)]
         loop {
@@ -2360,14 +2400,25 @@ impl Parser {
                         .try_reduce_arg(false)
                         .map_err(|_| self.stack_dec(fn_name!()))?
                     {
-                        PosOrKwArg::Pos(arg) if args.kw_is_empty() => match arg.expr {
-                            Expr::Tuple(Tuple::Normal(tup)) if tup.elems.paren.is_none() => {
-                                args.extend_pos(tup.elems.into_iters().0);
+                        PosOrKwArg::Pos(arg) if args.kw_is_empty() && args.var_args.is_none() => {
+                            match arg.expr {
+                                Expr::UnaryOp(unary) if unary.op.is(PreStar) => {
+                                    args.set_var_args(PosArg::new(unary.deconstruct().1));
+                                }
+                                Expr::TypeAscription(TypeAscription { expr, op, t_spec }) if matches!(expr.as_ref(), Expr::UnaryOp(unary) if unary.op.is(PreStar)) =>
+                                {
+                                    let Expr::UnaryOp(unary) = *expr else { unreachable!() };
+                                    let expr = unary.deconstruct().1;
+                                    args.set_var_args(PosArg::new(expr.type_asc_expr(op, t_spec)));
+                                }
+                                Expr::Tuple(Tuple::Normal(tup)) if tup.elems.paren.is_none() => {
+                                    args.extend_pos(tup.elems.into_iters().0);
+                                }
+                                other => {
+                                    args.push_pos(PosArg::new(other));
+                                }
                             }
-                            other => {
-                                args.push_pos(PosArg::new(other));
-                            }
-                        },
+                        }
                         PosOrKwArg::Pos(arg) => {
                             let err = ParseError::syntax_error(
                                 line!() as usize,
@@ -2422,7 +2473,7 @@ impl Parser {
         let mut left = self.lpop();
         left.content = Str::from(left.content.trim_end_matches("\\{").to_string() + "\"");
         left.kind = StrLit;
-        let mut expr = Expr::Lit(Literal::from(left));
+        let mut expr = Expr::Literal(Literal::from(left));
         loop {
             match self.peek() {
                 Some(l) if l.is(StrInterpRight) => {
@@ -2430,7 +2481,7 @@ impl Parser {
                     right.content =
                         Str::from(format!("\"{}", right.content.trim_start_matches('}')));
                     right.kind = StrLit;
-                    let right = Expr::Lit(Literal::from(right));
+                    let right = Expr::Literal(Literal::from(right));
                     let op = Token::new(
                         Plus,
                         "+",
@@ -2451,7 +2502,7 @@ impl Parser {
                     let call = Call::new(
                         str_func,
                         None,
-                        Args::new(vec![PosArg::new(mid_expr)], vec![], None),
+                        Args::pos_only(vec![PosArg::new(mid_expr)], None),
                     );
                     let op = Token::new(
                         Plus,
@@ -2468,7 +2519,7 @@ impl Parser {
                             mid.content.trim_start_matches('}').trim_end_matches("\\{")
                         ));
                         mid.kind = StrLit;
-                        let mid = Expr::Lit(Literal::from(mid));
+                        let mid = Expr::Literal(Literal::from(mid));
                         let op = Token::new(
                             Plus,
                             "+",

@@ -19,6 +19,14 @@ use erg_compiler::Compiler;
 pub type EvalError = CompileError;
 pub type EvalErrors = CompileErrors;
 
+fn find_available_port() -> u16 {
+    let socket = SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0);
+    TcpListener::bind(socket)
+        .and_then(|listener| listener.local_addr())
+        .map(|sock_addr| sock_addr.port())
+        .expect("No free port found.")
+}
+
 /// Open the Python interpreter as a server and act as an Erg interpreter by mediating communication
 ///
 /// Pythonインタープリタをサーバーとして開き、通信を仲介することでErgインタープリタとして振る舞う
@@ -61,7 +69,8 @@ impl Runnable for DummyVM {
             }
             let port = find_available_port();
             let code = include_str!("scripts/repl_server.py")
-                .replace("__PORT__", port.to_string().as_str());
+                .replace("__PORT__", port.to_string().as_str())
+                .replace("__MODULE__", &cfg.dump_filename().replace('/', "."));
             spawn_py(cfg.py_command, &code);
             let addr = SocketAddrV4::new(Ipv4Addr::LOCALHOST, port);
             if !cfg.quiet_repl {
@@ -112,7 +121,7 @@ impl Runnable for DummyVM {
                     process::exit(1);
                 }
             }
-            remove_file("o.pyc").unwrap_or(());
+            remove_file(self.cfg().dump_pyc_filename()).unwrap_or(());
         }
     }
 
@@ -142,9 +151,10 @@ impl Runnable for DummyVM {
     }
 
     fn eval(&mut self, src: String) -> Result<String, EvalErrors> {
+        let path = self.cfg().dump_pyc_filename();
         let arti = self
             .compiler
-            .eval_compile_and_dump_as_pyc("o.pyc", src, "eval")
+            .eval_compile_and_dump_as_pyc(path, src, "eval")
             .map_err(|eart| eart.errors)?;
         let (last, warns) = (arti.object, arti.warns);
         let mut res = warns.to_string();
@@ -205,18 +215,4 @@ impl DummyVM {
     pub fn eval(&mut self, src: String) -> Result<String, EvalErrors> {
         Runnable::eval(self, src)
     }
-}
-
-fn find_available_port() -> u16 {
-    const DEFAULT_PORT: u16 = 8736;
-    TcpListener::bind(SocketAddrV4::new(Ipv4Addr::LOCALHOST, DEFAULT_PORT))
-        .is_ok()
-        .then_some(DEFAULT_PORT)
-        .unwrap_or_else(|| {
-            let socket = SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0);
-            TcpListener::bind(socket)
-                .and_then(|listener| listener.local_addr())
-                .map(|sock_addr| sock_addr.port())
-                .expect("No free port found.")
-        })
 }

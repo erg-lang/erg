@@ -402,6 +402,8 @@ impl Context {
         let mut bool_show = Self::builtin_methods(Some(mono(SHOW)), 1);
         bool_show.register_builtin_erg_impl(TO_STR, fn0_met(Bool, Str), Immutable, Public);
         bool_.register_trait(Bool, bool_show);
+        let t = fn0_met(Bool, Bool);
+        bool_.register_builtin_py_impl(FUNC_INVERT, t, Immutable, Public, Some(FUNC_INVERT));
         /* Str */
         let mut str_ = Self::builtin_mono_class(STR, 10);
         str_.register_superclass(Obj, &obj);
@@ -455,6 +457,119 @@ impl Context {
             Immutable,
             Public,
         );
+        str_.register_builtin_py_impl(
+            FUNC_STARTSWITH,
+            fn1_met(Str, Str, Bool),
+            Immutable,
+            Public,
+            Some(FUNC_STARTSWITH),
+        );
+        str_.register_builtin_py_impl(
+            FUNC_ENDSWITH,
+            fn1_met(Str, Str, Bool),
+            Immutable,
+            Public,
+            Some(FUNC_ENDSWITH),
+        );
+        str_.register_builtin_py_impl(
+            FUNC_SPLIT,
+            fn_met(
+                Str,
+                vec![kw(KW_SEP, Str)],
+                None,
+                vec![kw(KW_MAXSPLIT, Nat)],
+                unknown_len_array_t(Str),
+            ),
+            Immutable,
+            Public,
+            Some(FUNC_SPLIT),
+        );
+        str_.register_builtin_py_impl(
+            FUNC_SPLITLINES,
+            fn_met(
+                Str,
+                vec![],
+                None,
+                vec![kw(KW_KEEPENDS, Bool)],
+                unknown_len_array_t(Str),
+            ),
+            Immutable,
+            Public,
+            Some(FUNC_SPLITLINES),
+        );
+        str_.register_builtin_py_impl(
+            FUNC_JOIN,
+            fn1_met(unknown_len_array_t(Str), Str, Str),
+            Immutable,
+            Public,
+            Some(FUNC_JOIN),
+        );
+        str_.register_builtin_py_impl(
+            FUNC_INDEX,
+            fn_met(
+                Str,
+                vec![kw(KW_SUB, Str)],
+                None,
+                vec![kw(KW_START, Nat), kw(KW_END, Nat)],
+                or(Nat, Never),
+            ),
+            Immutable,
+            Public,
+            Some(FUNC_INDEX),
+        );
+        str_.register_builtin_py_impl(
+            FUNC_RINDEX,
+            fn_met(
+                Str,
+                vec![kw(KW_SUB, Str)],
+                None,
+                vec![kw(KW_START, Nat), kw(KW_END, Nat)],
+                or(Nat, Never),
+            ),
+            Immutable,
+            Public,
+            Some(FUNC_RINDEX),
+        );
+        str_.register_builtin_py_impl(
+            FUNC_FIND,
+            fn_met(
+                Str,
+                vec![kw(KW_SUB, Str)],
+                None,
+                vec![kw(KW_START, Nat), kw(KW_END, Nat)],
+                or(Nat, v_enum(set! {(-1).into()})),
+            ),
+            Immutable,
+            Public,
+            Some(FUNC_FIND),
+        );
+        str_.register_builtin_py_impl(
+            FUNC_RFIND,
+            fn_met(
+                Str,
+                vec![kw(KW_SUB, Str)],
+                None,
+                vec![kw(KW_START, Nat), kw(KW_END, Nat)],
+                or(Nat, v_enum(set! {(-1).into()})),
+            ),
+            Immutable,
+            Public,
+            Some(FUNC_RFIND),
+        );
+        str_.register_builtin_py_impl(
+            FUNC_COUNT,
+            fn_met(
+                Str,
+                vec![kw(KW_SUB, Str)],
+                None,
+                vec![kw(KW_START, Nat), kw(KW_END, Nat)],
+                Nat,
+            ),
+            Immutable,
+            Public,
+            Some(FUNC_COUNT),
+        );
+        str_.register_builtin_erg_impl(FUNC_CONTAINS, fn1_met(Str, Str, Bool), Immutable, Public);
         let str_getitem_t = fn1_kw_met(Str, kw(KW_IDX, Nat), Str);
         str_.register_builtin_erg_impl(FUNDAMENTAL_GETITEM, str_getitem_t, Immutable, Public);
         let mut str_eq = Self::builtin_methods(Some(mono(EQ)), 2);
@@ -700,6 +815,23 @@ impl Context {
         );
         array_iterable.register_builtin_const(ITERATOR, vis, ValueObj::builtin_t(array_iter));
         array_.register_trait(arr_t.clone(), array_iterable);
+        let t = fn1_met(
+            array_t(T.clone(), TyParam::erased(Nat)),
+            func1(T.clone(), Bool),
+            tuple_t(vec![
+                array_t(T.clone(), TyParam::erased(Nat)),
+                array_t(T.clone(), TyParam::erased(Nat)),
+            ]),
+        );
+        array_.register_builtin_erg_impl(FUNC_PARTITION, t.quantify(), Immutable, Public);
+        let t = fn_met(
+            array_t(T.clone(), TyParam::erased(Nat)),
+            vec![],
+            None,
+            vec![kw("f", or(func1(T.clone(), Bool), NoneType))],
+            array_t(T.clone(), TyParam::erased(Nat)),
+        );
+        array_.register_builtin_erg_impl(FUNC_DEDUP, t.quantify(), Immutable, Public);
         /* Set */
         let mut set_ =
             Self::builtin_poly_class(SET, vec![PS::t_nd(TY_T), PS::named_nd(TY_N, Nat)], 10);
@@ -969,6 +1101,8 @@ impl Context {
         );
         bool_mut_mutable.register_builtin_erg_impl(PROC_UPDATE, t, Immutable, Public);
         bool_mut.register_trait(mono(MUT_BOOL), bool_mut_mutable);
+        let t = pr0_met(mono(MUT_BOOL), NoneType);
+        bool_mut.register_builtin_py_impl(PROC_INVERT, t, Immutable, Public, Some(FUNC_INVERT));
         /* Str! */
         let mut str_mut = Self::builtin_mono_class(MUT_STR, 2);
         str_mut.register_superclass(Str, &nonetype);
@@ -984,6 +1118,34 @@ impl Context {
         );
         str_mut_mutable.register_builtin_erg_impl(PROC_UPDATE, t, Immutable, Public);
         str_mut.register_trait(mono(MUT_STR), str_mut_mutable);
+        let t = pr_met(
+            ref_mut(mono(MUT_STR), None),
+            vec![kw("s", Str)],
+            None,
+            vec![],
+            NoneType,
+        );
+        str_mut.register_builtin_py_impl(PROC_PUSH, t, Immutable, Public, Some(FUNC_PUSH));
+        let t = pr0_met(ref_mut(mono(MUT_STR), None), Str);
+        str_mut.register_builtin_py_impl(PROC_POP, t, Immutable, Public, Some(FUNC_POP));
+        let t = pr0_met(ref_mut(mono(MUT_STR), None), NoneType);
+        str_mut.register_builtin_py_impl(PROC_CLEAR, t, Immutable, Public, Some(FUNC_CLEAR));
+        let t = pr_met(
+            ref_mut(mono(MUT_STR), None),
+            vec![kw("idx", Nat), kw("s", Str)],
+            None,
+            vec![],
+            NoneType,
+        );
+        str_mut.register_builtin_py_impl(PROC_INSERT, t, Immutable, Public, Some(FUNC_INSERT));
+        let t = pr_met(
+            ref_mut(mono(MUT_STR), None),
+            vec![kw("idx", Nat)],
+            None,
+            vec![],
+            Str,
+        );
+        str_mut.register_builtin_py_impl(PROC_REMOVE, t, Immutable, Public, Some(FUNC_REMOVE));
         /* File! */
         let mut file_mut = Self::builtin_mono_class(MUT_FILE, 2);
         let mut file_mut_readable = Self::builtin_methods(Some(mono(MUT_READABLE)), 1);

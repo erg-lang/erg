@@ -7,12 +7,12 @@ use erg_common::error::Location;
 use erg_common::log;
 use erg_common::traits::{Locational, NestedDisplay, NoTypeDisplay, Stream};
 use erg_common::vis::{Field, Visibility};
+use erg_common::Str;
 use erg_common::{
     enum_unwrap, fmt_option, fmt_vec, impl_display_for_enum, impl_display_from_nested,
     impl_locational, impl_locational_for_enum, impl_nested_display_for_chunk_enum,
-    impl_nested_display_for_enum, impl_stream_for_wrapper,
+    impl_nested_display_for_enum, impl_no_type_display_for_enum, impl_stream,
 };
-use erg_common::{impl_no_type_display_for_enum, Str};
 
 use erg_parser::ast::{
     fmt_lines, DefId, DefKind, NonDefaultParamSignature, OperationKind, TypeSpec, VarName,
@@ -176,7 +176,7 @@ impl NestedDisplay for Args {
             fmt_lines(self.pos_args.iter(), f, level)?;
         }
         if let Some(var_args) = &self.var_args {
-            writeln!(f, "...")?;
+            writeln!(f, "*")?;
             var_args.fmt_nest(f, level)?;
         }
         if !self.kw_args.is_empty() {
@@ -394,7 +394,7 @@ impl NestedDisplay for Identifier {
             }
         }
         if let Some(qn) = &self.qual_name {
-            write!(f, "(qual_name: {})", qn)?;
+            write!(f, "(qual_name: {qn})")?;
         }
         if self.vi.t != Type::Uninited {
             write!(f, "(: {})", self.vi.t)?;
@@ -1094,7 +1094,7 @@ impl NoTypeDisplay for RecordAttrs {
 }
 
 impl_display_from_nested!(RecordAttrs);
-impl_stream_for_wrapper!(RecordAttrs, Def);
+impl_stream!(RecordAttrs, Def);
 
 impl Locational for RecordAttrs {
     fn loc(&self) -> Location {
@@ -1485,15 +1485,11 @@ impl NoTypeDisplay for Block {
 }
 
 impl_display_from_nested!(Block);
-impl_stream_for_wrapper!(Block, Expr);
+impl_stream!(Block, Expr);
 
 impl Locational for Block {
     fn loc(&self) -> Location {
-        if self.0.is_empty() {
-            Location::Unknown
-        } else {
-            Location::concat(self.0.first().unwrap(), self.0.last().unwrap())
-        }
+        Location::stream(&self.0)
     }
 }
 
@@ -1541,15 +1537,11 @@ impl NoTypeDisplay for Dummy {
 }
 
 impl_display_from_nested!(Dummy);
-impl_stream_for_wrapper!(Dummy, Expr);
+impl_stream!(Dummy, Expr);
 
 impl Locational for Dummy {
     fn loc(&self) -> Location {
-        if self.0.is_empty() {
-            Location::Unknown
-        } else {
-            Location::concat(self.0.first().unwrap(), self.0.last().unwrap())
-        }
+        Location::stream(&self.0)
     }
 }
 
@@ -1645,7 +1637,7 @@ impl DefaultParamSignature {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Params {
     pub non_defaults: Vec<NonDefaultParamSignature>,
-    pub var_args: Option<Box<NonDefaultParamSignature>>,
+    pub var_params: Option<Box<NonDefaultParamSignature>>,
     pub defaults: Vec<DefaultParamSignature>,
     pub parens: Option<(Token, Token)>,
 }
@@ -1656,7 +1648,7 @@ impl fmt::Display for Params {
             f,
             "({}, {}, {})",
             fmt_vec(&self.non_defaults),
-            fmt_option!(pre "...", &self.var_args),
+            fmt_option!(pre "*", &self.var_params),
             fmt_vec(&self.defaults)
         )
     }
@@ -1667,7 +1659,7 @@ impl NoTypeDisplay for Params {
         format!(
             "({}, {}, {})",
             fmt_vec(&self.non_defaults),
-            fmt_option!(pre "...", &self.var_args),
+            fmt_option!(pre "*", &self.var_params),
             self.defaults
                 .iter()
                 .map(|p| p.to_string_notype())
@@ -1686,13 +1678,14 @@ impl Locational for Params {
         }
         match (
             self.non_defaults.first(),
-            self.var_args.as_ref(),
+            self.var_params.as_ref(),
             self.defaults.last(),
         ) {
             (Some(l), _, Some(r)) => Location::concat(l, r),
             (Some(l), Some(r), None) => Location::concat(l, r.as_ref()),
-            (Some(l), None, None) => Location::concat(l, self.non_defaults.last().unwrap()),
             (None, Some(l), Some(r)) => Location::concat(l.as_ref(), r),
+            (Some(l), None, None) => Location::concat(l, self.non_defaults.last().unwrap()),
+            (None, Some(var), None) => var.loc(),
             (None, None, Some(r)) => Location::concat(self.defaults.first().unwrap(), r),
             _ => Location::Unknown,
         }
@@ -1722,7 +1715,7 @@ impl Params {
     ) -> Self {
         Self {
             non_defaults,
-            var_args,
+            var_params: var_args,
             defaults,
             parens,
         }
@@ -1731,14 +1724,19 @@ impl Params {
     pub const fn ref_deconstruct(&self) -> RefRawParams {
         (
             &self.non_defaults,
-            &self.var_args,
+            &self.var_params,
             &self.defaults,
             &self.parens,
         )
     }
 
     pub fn deconstruct(self) -> RawParams {
-        (self.non_defaults, self.var_args, self.defaults, self.parens)
+        (
+            self.non_defaults,
+            self.var_params,
+            self.defaults,
+            self.parens,
+        )
     }
 
     #[inline]
@@ -2435,11 +2433,11 @@ impl fmt::Display for Module {
 
 impl Locational for Module {
     fn loc(&self) -> Location {
-        Location::concat(self.0.first().unwrap(), self.0.last().unwrap())
+        Location::stream(&self.0)
     }
 }
 
-impl_stream_for_wrapper!(Module, Expr);
+impl_stream!(Module, Expr);
 
 /// High-level Intermediate Representation
 /// AST with type information added

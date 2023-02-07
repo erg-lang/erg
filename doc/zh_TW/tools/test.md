@@ -33,7 +33,7 @@ VMs =...
     execute commands.
     ```erg
     # 標準配置的虛擬機
-    {vm1; ...} = import "tests/mock"
+    {vm1;} = import "tests/mock"
 
     assert vm1.exec!("i = 0") == None
     assert vm1.exec!("i").try_into(Int)? == 0

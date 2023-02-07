@@ -32,13 +32,14 @@
         inherit (pkgs) lib;
       in {
         packages.erg = pkgs.rustPlatform.buildRustPackage {
-          inherit (cargoToml.package) name version;
+          inherit (cargoToml.package) name;
+          inherit (cargoToml.workspace.package) version;
           src = builtins.path {
             path = ./.;
             filter = name: type:
               (name == toString ./Cargo.toml)
               || (name == toString ./Cargo.lock)
-              || (lib.hasPrefix (toString ./compiler) name)
+              || (lib.hasPrefix (toString ./crates) name)
               || (lib.hasPrefix (toString ./src) name);
           };
           cargoLock.lockFile = ./Cargo.lock;

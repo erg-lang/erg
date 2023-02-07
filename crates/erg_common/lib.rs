@@ -21,6 +21,7 @@ pub mod opcode308;
 pub mod opcode310;
 pub mod opcode311;
 pub mod python_util;
+pub mod random;
 pub mod serialize;
 pub mod set;
 pub mod shared;

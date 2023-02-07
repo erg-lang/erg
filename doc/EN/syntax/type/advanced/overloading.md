@@ -48,7 +48,7 @@ First, overloaded functions are distributed in their definitions. This makes it 
 Also, importing a subroutine may change the behavior of already defined subroutines.
 
 ```python
-{id; ...} = import "foo"
+{id;} = import "foo"
 ...
 id x: Int = x
 ...

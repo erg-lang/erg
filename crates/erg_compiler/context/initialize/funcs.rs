@@ -113,7 +113,7 @@ impl Context {
             None,
             Bool,
         );
-        let I = mono_q(KW_I, subtypeof(poly(KW_ITERABLE, vec![ty_tp(T.clone())])));
+        let I = mono_q(TY_I, subtypeof(poly(ITERABLE, vec![ty_tp(T.clone())])));
         let t_iter = nd_func(vec![kw(KW_OBJECT, I.clone())], None, proj(I, ITERATOR)).quantify();
         let t_len = nd_func(
             vec![kw(KW_S, poly(SEQ, vec![TyParam::erased(Type)]))],
@@ -217,10 +217,10 @@ impl Context {
             poly(ZIP, vec![ty_tp(T.clone()), ty_tp(U.clone())]),
         )
         .quantify();
-        self.register_builtin_py_impl(FUNC_ABS, t_abs, Immutable, vis, Some(FUNC_ABS));
-        self.register_builtin_py_impl(FUNC_ALL, t_all, Immutable, vis, Some(FUNC_ALL));
-        self.register_builtin_py_impl(FUNC_ANY, t_any, Immutable, vis, Some(FUNC_ANY));
-        self.register_builtin_py_impl(FUNC_ASCII, t_ascii, Immutable, vis, Some(FUNC_ASCII));
+        self.register_py_builtin(FUNC_ABS, t_abs, Some(FUNC_ABS), 17);
+        self.register_py_builtin(FUNC_ALL, t_all, Some(FUNC_ALL), 29);
+        self.register_py_builtin(FUNC_ANY, t_any, Some(FUNC_ANY), 41);
+        self.register_py_builtin(FUNC_ASCII, t_ascii, Some(FUNC_ASCII), 67);
         // Leave as `Const`, as it may negatively affect assert casting.
         self.register_builtin_erg_impl(FUNC_ASSERT, t_assert, Const, vis);
         self.register_builtin_py_impl(FUNC_BIN, t_bin, Immutable, vis, Some(FUNC_BIN));
@@ -278,7 +278,7 @@ impl Context {
         );
         self.register_builtin_py_impl(FUNC_ROUND, t_round, Immutable, vis, Some(FUNC_ROUND));
         self.register_builtin_py_impl(FUNC_SORTED, t_sorted, Immutable, vis, Some(FUNC_SORTED));
-        self.register_builtin_py_impl(FUNC_STR, t_str, Immutable, vis, Some(FUNC_STR));
+        self.register_builtin_py_impl(FUNC_STR, t_str, Immutable, vis, Some(FUNC_STR__));
         self.register_builtin_py_impl(FUNC_SUM, t_sum, Immutable, vis, Some(FUNC_SUM));
         self.register_builtin_py_impl(FUNC_ZIP, t_zip, Immutable, vis, Some(FUNC_ZIP));
         let name = if cfg!(feature = "py_compatible") {

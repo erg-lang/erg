@@ -20,7 +20,7 @@ In Erg, methods can only be defined in atomic kinds, and the name `self` cannot 
 ```python
 # K is an unary kind
 K: Type -> Type
-K T = Class...
+K T = Class ...
 K.
     foo x = ... # OK, this is like a so-called static method
     bar self, x = ... # TypeError: cannot define a method to a non-type object

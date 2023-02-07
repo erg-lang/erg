@@ -14,7 +14,7 @@ List.
     head self = match self:
         {head; ...}: Cons_ -> head
         _: Nil -> panic "empty list"
-{nil; cons; ...} = List
+{nil; cons} = List
 
 print! cons(1, cons(2, nil())).head() # 1
 print! nil.head() # 運行時錯誤: "空list"

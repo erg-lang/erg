@@ -3,26 +3,26 @@ use erg_common::traits::{Locational, Stream};
 
 use crate::ast::*;
 use crate::error::ParseError;
-use crate::token::TokenKind;
+use crate::token::{Token, TokenKind};
 use crate::Parser;
 
 // The APIs defined below are also used by `ASTLowerer` to interpret expressions as types.
 impl Parser {
     pub fn validate_const_expr(expr: Expr) -> Result<ConstExpr, ParseError> {
         match expr {
-            Expr::Lit(l) => Ok(ConstExpr::Lit(l)),
+            Expr::Literal(l) => Ok(ConstExpr::Lit(l)),
             Expr::Accessor(Accessor::Ident(local)) => {
                 Ok(ConstExpr::Accessor(ConstAccessor::Local(local)))
             }
             Expr::Array(array) => match array {
                 Array::Normal(arr) => {
-                    let (elems, _, _) = arr.elems.deconstruct();
+                    let (elems, ..) = arr.elems.deconstruct();
                     let mut const_elems = vec![];
                     for elem in elems.into_iter() {
                         let const_expr = Self::validate_const_expr(elem.expr)?;
                         const_elems.push(ConstPosArg::new(const_expr));
                     }
-                    let elems = ConstArgs::new(const_elems, vec![], None);
+                    let elems = ConstArgs::new(const_elems, None, vec![], None);
                     let const_arr = ConstArray::new(arr.l_sqbr, arr.r_sqbr, elems, None);
                     Ok(ConstExpr::Array(const_arr))
                 }
@@ -34,13 +34,13 @@ impl Parser {
             },
             Expr::Set(set) => match set {
                 Set::Normal(set) => {
-                    let (elems, _, _) = set.elems.deconstruct();
+                    let (elems, ..) = set.elems.deconstruct();
                     let mut const_elems = vec![];
                     for elem in elems.into_iter() {
                         let const_expr = Self::validate_const_expr(elem.expr)?;
                         const_elems.push(ConstPosArg::new(const_expr));
                     }
-                    let elems = ConstArgs::new(const_elems, vec![], None);
+                    let elems = ConstArgs::new(const_elems, None, vec![], None);
                     let const_set = ConstSet::new(set.l_brace, set.r_brace, elems);
                     Ok(ConstExpr::Set(const_set))
                 }
@@ -69,13 +69,13 @@ impl Parser {
             },
             Expr::Tuple(tuple) => match tuple {
                 Tuple::Normal(tup) => {
-                    let (elems, _, paren) = tup.elems.deconstruct();
+                    let (elems, _, _, paren) = tup.elems.deconstruct();
                     let mut const_elems = vec![];
                     for elem in elems.into_iter() {
                         let const_expr = Self::validate_const_expr(elem.expr)?;
                         const_elems.push(ConstPosArg::new(const_expr));
                     }
-                    let elems = ConstArgs::new(const_elems, vec![], paren);
+                    let elems = ConstArgs::pos_only(const_elems, paren);
                     let const_tup = ConstTuple::new(elems);
                     Ok(ConstExpr::Tuple(const_tup))
                 }
@@ -100,13 +100,13 @@ impl Parser {
                         "complex const function call",
                     ));
                 };
-                let (pos_args, _, paren) = call.args.deconstruct();
+                let (pos_args, _, _, paren) = call.args.deconstruct();
                 let mut const_pos_args = vec![];
                 for elem in pos_args.into_iter() {
                     let const_expr = Self::validate_const_expr(elem.expr)?;
                     const_pos_args.push(ConstPosArg::new(const_expr));
                 }
-                let args = ConstArgs::new(const_pos_args, vec![], paren);
+                let args = ConstArgs::pos_only(const_pos_args, paren);
                 Ok(ConstExpr::App(ConstApp::new(acc, args)))
             }
             // TODO: App, Record,
@@ -155,12 +155,18 @@ impl Parser {
     fn call_to_predecl_type_spec(call: Call) -> Result<PreDeclTypeSpec, ParseError> {
         match *call.obj {
             Expr::Accessor(Accessor::Ident(ident)) => {
-                let (_pos_args, _kw_args, paren) = call.args.deconstruct();
+                let (_pos_args, _var_args, _kw_args, paren) = call.args.deconstruct();
                 let mut pos_args = vec![];
                 for arg in _pos_args.into_iter() {
                     let const_expr = Self::validate_const_expr(arg.expr)?;
                     pos_args.push(ConstPosArg::new(const_expr));
                 }
+                let var_args = if let Some(var_args) = _var_args {
+                    let const_var_args = Self::validate_const_expr(var_args.expr)?;
+                    Some(ConstPosArg::new(const_var_args))
+                } else {
+                    None
+                };
                 let mut kw_args = vec![];
                 for arg in _kw_args.into_iter() {
                     let const_expr = Self::validate_const_expr(arg.expr)?;
@@ -168,7 +174,7 @@ impl Parser {
                 }
                 Ok(PreDeclTypeSpec::Simple(SimpleTypeSpec::new(
                     ident,
-                    ConstArgs::new(pos_args, kw_args, paren),
+                    ConstArgs::new(pos_args, var_args, kw_args, paren),
                 )))
             }
             _ => todo!(),
@@ -193,11 +199,11 @@ impl Parser {
             };
             non_defaults.push(param);
         }
-        let var_args =
+        let var_params =
             lambda
                 .sig
                 .params
-                .var_args
+                .var_params
                 .map(|var_args| match (var_args.pat, var_args.t_spec) {
                     (ParamPattern::VarName(name), Some(t_spec_with_op)) => {
                         ParamTySpec::new(Some(name.into_token()), t_spec_with_op.t_spec)
@@ -233,7 +239,7 @@ impl Parser {
             bounds,
             lparen,
             non_defaults,
-            var_args,
+            var_params,
             defaults,
             lambda.op,
             return_t,
@@ -269,7 +275,7 @@ impl Parser {
                     let const_expr = Self::validate_const_expr(elem.expr)?;
                     elem_ts.push(ConstPosArg::new(const_expr));
                 }
-                Ok(TypeSpec::Enum(ConstArgs::new(elem_ts, vec![], paren)))
+                Ok(TypeSpec::Enum(ConstArgs::pos_only(elem_ts, paren)))
             }
             Set::WithLength(set) => {
                 let t_spec = Self::expr_to_type_spec(set.elem.expr)?;
@@ -393,7 +399,7 @@ impl Parser {
                     Err(err)
                 }
             }
-            Expr::Lit(lit) => {
+            Expr::Literal(lit) => {
                 let mut err = ParseError::simple_syntax_error(line!() as usize, lit.loc());
                 if lit.is(TokenKind::NoneLit) {
                     err.set_hint("you mean: `NoneType`?");
@@ -404,6 +410,79 @@ impl Parser {
                 let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
                 Err(err)
             }
+        }
+    }
+
+    fn simple_type_spec_to_ident(simple: SimpleTypeSpec) -> Result<Identifier, ParseError> {
+        Ok(simple.ident)
+    }
+
+    fn simple_type_spec_to_call(simple: SimpleTypeSpec) -> Result<Call, ParseError> {
+        let (pos_args_, var_args_, kw_args_, paren) = simple.args.deconstruct();
+        let pos_args = pos_args_
+            .into_iter()
+            .map(|arg| PosArg::new(arg.expr.downcast()))
+            .collect::<Vec<_>>();
+        let var_args = var_args_.map(|arg| PosArg::new(arg.expr.downcast()));
+        let kw_args = kw_args_
+            .into_iter()
+            .map(|arg| KwArg::new(arg.keyword, None, arg.expr.downcast()))
+            .collect::<Vec<_>>();
+        let args = Args::new(pos_args, var_args, kw_args, paren);
+        let call = Call::new(simple.ident.into(), None, args);
+        Ok(call)
+    }
+
+    fn predecl_type_spec_to_expr(predecl: PreDeclTypeSpec) -> Result<Expr, ParseError> {
+        match predecl {
+            PreDeclTypeSpec::Simple(simple) if simple.args.is_empty() => {
+                Ok(Self::simple_type_spec_to_ident(simple)?.into())
+            }
+            PreDeclTypeSpec::Simple(simple) => Ok(Self::simple_type_spec_to_call(simple)?.into()),
+            PreDeclTypeSpec::Attr { namespace, t } => {
+                let ident = Self::simple_type_spec_to_ident(t)?;
+                Ok(namespace.attr_expr(ident))
+            }
+            other => Err(ParseError::feature_error(
+                line!() as usize,
+                other.loc(),
+                "compound predecl type spec to call conversion",
+            )),
+        }
+    }
+
+    pub fn type_spec_to_expr(t_spec: TypeSpec) -> Result<Expr, ParseError> {
+        match t_spec {
+            TypeSpec::PreDeclTy(predecl) => Self::predecl_type_spec_to_expr(predecl),
+            TypeSpec::Or(lhs, rhs) => {
+                let lhs = Self::type_spec_to_expr(*lhs)?;
+                let rhs = Self::type_spec_to_expr(*rhs)?;
+                let op = Token::new(
+                    TokenKind::OrOp,
+                    "or",
+                    lhs.ln_begin().unwrap(),
+                    lhs.col_end().unwrap(),
+                );
+                let bin = BinOp::new(op, lhs, rhs);
+                Ok(Expr::BinOp(bin))
+            }
+            TypeSpec::And(lhs, rhs) => {
+                let lhs = Self::type_spec_to_expr(*lhs)?;
+                let rhs = Self::type_spec_to_expr(*rhs)?;
+                let op = Token::new(
+                    TokenKind::AndOp,
+                    "and",
+                    lhs.ln_begin().unwrap(),
+                    lhs.col_end().unwrap(),
+                );
+                let bin = BinOp::new(op, lhs, rhs);
+                Ok(Expr::BinOp(bin))
+            }
+            other => Err(ParseError::feature_error(
+                line!() as usize,
+                other.loc(),
+                "compound type spec to expr conversion",
+            )),
         }
     }
 }

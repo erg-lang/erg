@@ -4,7 +4,7 @@ extern crate erg_parser;
 
 use erg_common::config::{ErgConfig, ErgMode::*};
 use erg_common::spawn::exec_new_thread;
-use erg_common::traits::Runnable;
+use erg_common::traits::{ExitStatus, Runnable};
 
 use erg_parser::build_ast::ASTBuilder;
 use erg_parser::lex::LexerRunner;
@@ -20,48 +20,32 @@ use erg::DummyVM;
 
 fn run() {
     let cfg = ErgConfig::parse();
-    match cfg.mode {
-        Lex => {
-            LexerRunner::run(cfg);
-        }
-        Parse => {
-            ParserRunner::run(cfg);
-        }
-        Desugar => {
-            ASTBuilder::run(cfg);
-        }
-        TypeCheck => {
-            ASTLowerer::run(cfg);
-        }
-        FullCheck => {
-            HIRBuilder::run(cfg);
-        }
-        Compile => {
-            Compiler::run(cfg);
-        }
-        Transpile => {
-            Transpiler::run(cfg);
-        }
-        Execute => {
-            DummyVM::run(cfg);
-        }
-        Read => {
-            Deserializer::run(cfg);
-        }
+    let stat = match cfg.mode {
+        Lex => LexerRunner::run(cfg),
+        Parse => ParserRunner::run(cfg),
+        Desugar => ASTBuilder::run(cfg),
+        TypeCheck => ASTLowerer::run(cfg),
+        FullCheck => HIRBuilder::run(cfg),
+        Compile => Compiler::run(cfg),
+        Transpile => Transpiler::run(cfg),
+        Execute => DummyVM::run(cfg),
+        Read => Deserializer::run(cfg),
         LanguageServer => {
             #[cfg(feature = "els")]
             {
                 use els::ErgLanguageServer;
                 let mut server = ErgLanguageServer::new(cfg);
                 server.run().unwrap();
+                ExitStatus::OK
             }
             #[cfg(not(feature = "els"))]
             {
                 eprintln!("This version of the build does not support language server mode");
-                std::process::exit(1);
+                ExitStatus::ERR1
             }
         }
-    }
+    };
+    std::process::exit(stat.code);
 }
 
 fn main() {

@@ -11,8 +11,8 @@
 
 ```python
 record: {.name = Str; .age = Nat; .height = CentiMeter}
-{height; ...rest} = record
-mut_record = {.height = !height; ...rest}
+{height; *rest} = record
+mut_record = {.height = !height; *rest}
 ```
 
 ## 変数のシャドーイングがしたい
@@ -37,34 +37,6 @@ FinalWrapper.
     method self =
         self::inner.method()
     ...
-```
-
-## 文字列でない列挙型が使いたい
-
-以下のようにして、他の言語でよく見られる伝統的な列挙型(代数的データ型)を定義できます。
-`Singleton`を実装すると、クラスとインスタンスが同一視されます。
-また、`Enum`を使うと、その選択肢となる型がリダイレクト属性として自動的に定義されます。
-
-```python
-Ok = Class Impl := Singleton
-Err = Class Impl := Singleton
-ErrWithInfo = Inherit {info = Str}
-Status = Enum Ok, Err, ErrWithInfo
-stat: Status = Status.new ErrWithInfo.new {info = "error caused by ..."}
-match! stat:
-    Status.Ok -> ...
-    Status.Err -> ...
-    Status.ErrWithInfo::{info;} -> ...
-```
-
-```python
-Status = Enum Ok, Err, ErrWithInfo
-# 以下のと同じ
-Status = Class Ok or Err or ErrWithInfo
-Status.
-    Ok = Ok
-    Err = Err
-    ErrWithInfo = ErrWithInfo
 ```
 
 ## 1始まりでenumerateしたい
@@ -122,7 +94,7 @@ C.
 
 ## トレイトのメソッドを実装する際に、使わなかった変数の警告が出る
 
-`discard`を使うとよいでしょう。
+`discard`または`_ = ...`を使うとよいでしょう。
 
 ```python
 T = Trait {.f = (Self, x: Int, s: Str) -> Int}
@@ -130,10 +102,10 @@ T = Trait {.f = (Self, x: Int, s: Str) -> Int}
 C = Class T
 C|<: T|.
     f self, x, s =
-        discard s
+        discard s # or _ = s
         ...
 ```
 
 ## 警告を出さないようにしたい
 
-Ergに警告を止めるオプションはありません(これは意図的な設計です)。コードを書き直してください。
+Ergに警告を止めるオプションはありません(これは意図的な設計です)。コードを修正してください。

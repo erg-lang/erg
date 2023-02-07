@@ -1,29 +1,44 @@
+use self::colors::*;
 use std::borrow::Cow;
 
 pub const ATTR_RESET: &str = "\x1b[0m";
 pub const BOLD: &str = "\x1b[1m";
 pub const UNDERLINE: &str = "\x1b[4m";
 pub const REVERSED: &str = "\x1b[7m";
+pub const RESET: &str = "\x1b[m";
 
 // Escape sequences change the color of the terminal
-pub const RESET: &str = "\x1b[m";
-pub const BLACK: &str = "\x1b[30m";
-pub const BLUE: &str = "\x1b[94m";
-pub const CYAN: &str = "\x1b[96m";
-pub const GRAY: &str = "\x1b[37m";
-pub const GREEN: &str = "\x1b[92m";
-pub const MAGENTA: &str = "\x1b[95m";
-pub const RED: &str = "\x1b[91m";
-pub const WHITE: &str = "\x1b[97m";
-pub const YELLOW: &str = "\x1b[93m";
+#[cfg(not(feature = "pretty"))]
+pub mod colors {
+    pub const BLACK: &str = "\x1b[30m";
+    pub const BLUE: &str = "\x1b[94m";
+    pub const CYAN: &str = "\x1b[96m";
+    pub const GRAY: &str = "\x1b[37m";
+    pub const GREEN: &str = "\x1b[92m";
+    pub const MAGENTA: &str = "\x1b[95m";
+    pub const RED: &str = "\x1b[91m";
+    pub const WHITE: &str = "\x1b[97m";
+    pub const YELLOW: &str = "\x1b[93m";
+    pub const DEBUG_MAIN: &str = GREEN;
+    pub const DEBUG: &str = CYAN;
+    pub const DEBUG_ERROR: &str = RED;
+}
 // custom colors when use `pretty`
-pub const CUSTOM_RED: &str = "\x1b[38;2;255;76;76m";
-pub const CUSTOM_BLUE: &str = "\x1b[38;2;76;76;255m";
-pub const CUSTOM_GRAY: &str = "\x1b[38;2;231;231;235m";
-pub const CUSTOM_CYAN: &str = "\x1b[38;2;76;255;255m";
-pub const CUSTOM_MAGENTA: &str = "\x1b[38;2;165;76;255m";
-pub const CUSTOM_GREEN: &str = "\x1b[38;2;76;255;76m";
-pub const CUSTOM_YELLOW: &str = "\x1b[38;2;255;255;76m";
+#[cfg(feature = "pretty")]
+pub mod colors {
+    pub const BLACK: &str = "\x1b[30m";
+    pub const BLUE: &str = "\x1b[38;2;89;194;255m";
+    pub const CYAN: &str = "\x1b[38;2;36;227;242m";
+    pub const GRAY: &str = "\x1b[38;2;231;231;235m";
+    pub const GREEN: &str = "\x1b[38;2;159;196;92m";
+    pub const MAGENTA: &str = "\x1b[38;2;147;100;190m";
+    pub const RED: &str = "\x1b[38;2;233;82;149m";
+    pub const WHITE: &str = "\x1b[97m";
+    pub const YELLOW: &str = "\x1b[38;2;255;212;92m";
+    pub const DEBUG_MAIN: &str = BLUE;
+    pub const DEBUG: &str = MAGENTA;
+    pub const DEBUG_ERROR: &str = CYAN;
+}
 
 pub fn remove_style(s: &str) -> String {
     s.replace(RED, "")
@@ -53,13 +68,6 @@ pub enum Color {
     Red,
     White,
     Yellow,
-    CustomRed,
-    CustomBlue,
-    CustomGray,
-    CustomCyan,
-    CustomMagenta,
-    CustomGreen,
-    CustomYellow,
 }
 
 impl Color {
@@ -75,13 +83,6 @@ impl Color {
             Color::Red => RED,
             Color::Yellow => YELLOW,
             Color::White => WHITE,
-            Color::CustomRed => CUSTOM_RED,
-            Color::CustomBlue => CUSTOM_BLUE,
-            Color::CustomGray => CUSTOM_GRAY,
-            Color::CustomCyan => CUSTOM_CYAN,
-            Color::CustomMagenta => CUSTOM_MAGENTA,
-            Color::CustomGreen => CUSTOM_GREEN,
-            Color::CustomYellow => CUSTOM_YELLOW,
         }
     }
 }
@@ -115,7 +116,6 @@ pub struct ThemeColors {
     pub accent: Color,
 }
 
-#[cfg(not(feature = "pretty"))]
 pub const COLORS: ThemeColors = ThemeColors {
     error: Color::Red,
     warning: Color::Yellow,
@@ -123,16 +123,6 @@ pub const COLORS: ThemeColors = ThemeColors {
     gutter: Color::Cyan,
     hint: Color::Green,
     accent: Color::White,
-};
-
-#[cfg(feature = "pretty")]
-pub const COLORS: ThemeColors = ThemeColors {
-    error: Color::CustomRed,
-    warning: Color::CustomYellow,
-    exception: Color::CustomMagenta,
-    gutter: Color::CustomCyan,
-    hint: Color::CustomGreen,
-    accent: Color::CustomGray,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -358,7 +348,7 @@ impl StyledString {
 }
 
 impl std::fmt::Display for StyledString {
-    fn fmt<'a>(&self, f: &mut std::fmt::Formatter<'a>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match (self.color, self.attribute) {
             (None, None) => write!(f, "{}", self.text),
             (None, Some(attr)) => write!(f, "{}{}{}", attr.as_str(), self.text, ATTR_RESET),
@@ -503,7 +493,7 @@ impl StyledStrings {
 impl std::fmt::Display for StyledStrings {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         for text in self.texts.iter() {
-            write!(f, "{}", text)?;
+            write!(f, "{text}")?;
         }
         Ok(())
     }
@@ -524,9 +514,6 @@ mod tests {
         println!("{BLUE}Hello{RESET}, {GREEN}World{RESET}");
         println!("{MAGENTA}Hello{RESET}, {BLACK}World{RESET}");
         println!("{GRAY}Hello{RESET}, {WHITE}World{RESET}");
-        println!("{CUSTOM_BLUE}Hello{RESET}, {CUSTOM_CYAN}World{RESET}");
-        println!("{CUSTOM_GRAY}Hello{RESET}, {CUSTOM_GREEN}World{RESET}");
-        println!("{CUSTOM_MAGENTA}Hello{RESET}, {CUSTOM_RED}World{RESET}");
     }
 
     #[test]
@@ -576,6 +563,6 @@ mod tests {
             Color::Red,
             Attribute::Reversed,
         );
-        println!("{}", texts);
+        println!("{texts}");
     }
 }

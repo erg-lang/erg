@@ -1,7 +1,7 @@
 //! provides common components for error handling.
 //!
 //! エラー処理に関する汎用的なコンポーネントを提供する
-use std::cmp;
+use std::cmp::{self, Ordering};
 use std::fmt;
 use std::io::{stderr, BufWriter, Write as _};
 
@@ -260,6 +260,38 @@ pub enum Location {
     Unknown,
 }
 
+impl Ord for Location {
+    fn cmp(&self, other: &Location) -> Ordering {
+        if self.ln_end() < other.ln_begin() {
+            Ordering::Less
+        } else if other.ln_end() < self.ln_begin() {
+            Ordering::Greater
+        } else if self.ln_begin() == self.ln_end() && other.ln_begin() == other.ln_end() {
+            // assert_eq!(self.line_begin, other.line_begin);
+            // assert_eq!(self.line_end, other.line_end);
+            if self.col_end() < other.col_begin() {
+                Ordering::Less
+            } else if other.col_end() < self.col_begin() {
+                Ordering::Greater
+            } else {
+                Ordering::Equal
+            }
+        } else {
+            Ordering::Equal
+        }
+    }
+}
+
+impl PartialOrd for Location {
+    fn partial_cmp(&self, other: &Location) -> Option<Ordering> {
+        if self.is_unknown() || other.is_unknown() {
+            None
+        } else {
+            Some(self.cmp(other))
+        }
+    }
+}
+
 impl Location {
     pub fn concat<L: Locational, R: Locational>(l: &L, r: &R) -> Self {
         match (l.ln_begin(), l.col_begin(), r.ln_end(), r.col_end()) {
@@ -268,6 +300,19 @@ impl Location {
             (Some(l), _, _, _) | (_, _, Some(l), _) => Self::Line(l),
             _ => Self::Unknown,
         }
+    }
+
+    pub fn stream<L: Locational>(ls: &[L]) -> Self {
+        if ls.is_empty() {
+            return Self::Unknown;
+        };
+        let Some(first_known) = ls.iter().find(|l| !l.loc().is_unknown()) else {
+            return Self::Unknown;
+        };
+        let Some(last_known) = ls.iter().rev().find(|l| !l.loc().is_unknown()) else {
+            return Self::Unknown;
+        };
+        Self::concat(first_known, last_known)
     }
 
     pub const fn range(ln_begin: u32, col_begin: u32, ln_end: u32, col_end: u32) -> Self {
@@ -361,10 +406,7 @@ fn format_context<E: ErrorDisplay + ?Sized>(
     let (vbreak, vbar) = chars.gutters();
     let offset = format!("{} {} ", &" ".repeat(max_digit), vbreak);
     for (i, lineno) in (ln_begin..=ln_end).enumerate() {
-        context.push_str_with_color(
-            &format!("{:<max_digit$} {vbar} ", lineno, vbar = vbar),
-            gutter_color,
-        );
+        context.push_str_with_color(&format!("{lineno:<max_digit$} {vbar} "), gutter_color);
         context.push_str(codes.get(i).unwrap_or(&String::new()));
         context.push_str("\n");
         context.push_str_with_color(&offset, gutter_color);
@@ -565,7 +607,7 @@ impl SubMessage {
                         .remove(0)
                 };
                 let mut cxt = StyledStrings::default();
-                cxt.push_str_with_color(&format!(" {lineno} {} ", vbar), gutter_color);
+                cxt.push_str_with_color(&format!(" {lineno} {vbar} "), gutter_color);
                 cxt.push_str(&code);
                 cxt.push_str("\n");
                 for msg in self.msg.iter() {
@@ -584,7 +626,7 @@ impl SubMessage {
                 other => {
                     let (_, vbar) = chars.gutters();
                     let mut cxt = StyledStrings::default();
-                    cxt.push_str_with_color(&format!(" ? {} ", vbar), gutter_color);
+                    cxt.push_str_with_color(&format!(" ? {vbar} "), gutter_color);
                     cxt.push_str(&other.reread());
                     cxt.push_str("\n");
                     for msg in self.msg.iter() {

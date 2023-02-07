@@ -50,7 +50,7 @@ Erg 的立場是，您不能定義行為完全不同的函數，例如根據參�
 此外，導入子程序可能會改變已定義子程序的行為
 
 ```python
-{id; ...} = import "foo"
+{id;} = import "foo"
 ...
 id x: Int = x
 ...

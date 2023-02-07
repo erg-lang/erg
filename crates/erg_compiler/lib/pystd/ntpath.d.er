@@ -1,0 +1,31 @@
+.abspath: (path: PathLike) -> Str
+.basename: (path: PathLike) -> Str
+.commonpath: (paths: Iterable PathLike) -> Str
+.commonprefix: (list: [PathLike; _]) -> Str
+.dirname: (path: PathLike) -> Str
+.exists!: (path: PathLike) => Bool
+.lexists!: (path: PathLike) => Bool
+.expanduser!: (path: PathLike) => Str
+.expandvars!: (path: PathLike) => Str
+.getatime!: (path: PathLike) => Float
+.getmtime!: (path: PathLike) => Float
+.getctime!: (path: PathLike) => Float
+.getsize!: (path: PathLike) => Int
+.isabs: (path: PathLike) -> Bool
+.isfile!: (path: PathLike) => Bool
+.isdir!: (path: PathLike) => Bool
+.islink!: (path: PathLike) => Bool
+.ismount!: (path: PathLike) => Bool
+.join: (path: PathLike, *paths: PathLike) -> Str
+.normcase: (path: PathLike) -> Str
+.normpath: (path: PathLike) -> Str
+.realpath!: (path: PathLike, strict := Bool) => Str
+.relpath: (path: PathLike, start := PathLike) -> Str
+.samefile!: (path1: PathLike, path2: PathLike) => Bool
+.sameopenfile!: (fp1: File! or PathLike, fp2: File! or PathLike) => Bool
+
+.split: (path: PathLike) -> (Str, Str)
+.splitdrive: (path: PathLike) -> (Str, Str)
+.splitext: (path: PathLike) -> (Str, Str)
+
+.supports_unicode_filenames: Bool

@@ -211,15 +211,19 @@ impl ContextKind {
         matches!(self, Self::Class | Self::Trait | Self::StructuralTrait)
     }
 
-    pub fn is_class(&self) -> bool {
+    pub const fn is_subr(&self) -> bool {
+        matches!(self, Self::Func | Self::Proc)
+    }
+
+    pub const fn is_class(&self) -> bool {
         matches!(self, Self::Class)
     }
 
-    pub fn is_trait(&self) -> bool {
+    pub const fn is_trait(&self) -> bool {
         matches!(self, Self::Trait | Self::StructuralTrait)
     }
 
-    pub fn is_patch(&self) -> bool {
+    pub const fn is_patch(&self) -> bool {
         matches!(self, Self::Patch(_) | Self::GluePatch(_))
     }
 }
@@ -967,7 +971,6 @@ impl Context {
         self.shared.as_ref().map(|shared| &shared.py_mod_cache)
     }
 
-    #[cfg(feature = "els")]
     pub fn index(&self) -> Option<&crate::module::SharedModuleIndex> {
         self.shared.as_ref().map(|shared| &shared.index)
     }

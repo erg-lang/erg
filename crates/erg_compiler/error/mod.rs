@@ -10,7 +10,7 @@ use erg_common::error::{
 };
 use erg_common::style::{Attribute, Color, StyledStr, StyledString, StyledStrings, Theme, THEME};
 use erg_common::traits::{Locational, Stream};
-use erg_common::{impl_display_and_error, impl_stream_for_wrapper, switch_lang};
+use erg_common::{impl_display_and_error, impl_stream, switch_lang};
 
 use erg_parser::error::{ParserRunnerError, ParserRunnerErrors};
 
@@ -472,7 +472,7 @@ pub struct CompileErrors(Vec<CompileError>);
 
 impl std::error::Error for CompileErrors {}
 
-impl_stream_for_wrapper!(CompileErrors, CompileError);
+impl_stream!(CompileErrors, CompileError);
 
 impl From<ParserRunnerErrors> for CompileErrors {
     fn from(err: ParserRunnerErrors) -> Self {
@@ -528,18 +528,18 @@ mod test {
     fn default_error_format_confirmation() {
         let mut errors = Vec::new();
 
-        let input = Input::Pipe("stack bug error".to_owned());
+        let input = Input::pipe("stack bug error".to_owned());
         let loc = Location::Line(1);
         let err = CompileError::stack_bug(input, loc, 0, 0, "FileName");
         errors.push(err);
 
-        let input = Input::Pipe("checker bug error".to_owned());
+        let input = Input::pipe("checker bug error".to_owned());
         let errno = 0;
         let err = TyCheckError::checker_bug(input, errno, Location::Unknown, "name", 1);
         errors.push(err);
 
         let loc = Location::LineRange(1, 3);
-        let input = Input::Pipe("args\nmissing\nerror".to_string());
+        let input = Input::pipe("args\nmissing\nerror".to_string());
         let caused_by = "<caused_by>";
         let err = TyCheckError::args_missing_error(
             input,
@@ -559,7 +559,7 @@ mod test {
         };
         let expect = Type::Nat;
         let found = Type::Int;
-        let input = Input::Pipe("return type error".to_string());
+        let input = Input::pipe("return type error".to_string());
         let name = "name";
         let err = TyCheckError::return_type_error(
             input,
@@ -580,7 +580,7 @@ mod test {
         };
         let expect = Type::Nat;
         let found = Type::Int;
-        let input = Input::Pipe("type mismatch error".to_string());
+        let input = Input::pipe("type mismatch error".to_string());
         let err = TyCheckError::type_mismatch_error(
             input,
             errno,
@@ -595,7 +595,7 @@ mod test {
         );
         errors.push(err);
 
-        let input = Input::Pipe(
+        let input = Input::pipe(
             "too_many_args_error(some_long_name_variable_1,
     some_long_name_variable_2,
     some_long_name_variable_3,
@@ -619,12 +619,12 @@ mod test {
         );
         errors.push(err);
 
-        let input = Input::Pipe("argument error".to_string());
+        let input = Input::pipe("argument error".to_string());
         let loc = Location::range(1, 0, 1, 8);
         let err = TyCheckError::argument_error(input, errno, loc, caused_by.to_string(), 1, 2);
         errors.push(err);
 
-        let input = Input::Pipe("Nat <: Int <: Ratio".to_string());
+        let input = Input::pipe("Nat <: Int <: Ratio".to_string());
         let loc = Location::range(1, 0, 1, 10);
         let sub_t = &Type::Nat;
         let sup_t = &Type::Int;
@@ -632,14 +632,14 @@ mod test {
             TyCheckError::subtyping_error(input, errno, sub_t, sup_t, loc, caused_by.to_string());
         errors.push(err);
 
-        let input = Input::Pipe("pred unification error".to_string());
+        let input = Input::pipe("pred unification error".to_string());
         let lhs = &Predicate::Const("Str".into());
         let rhs = &Predicate::Const("Nat".into());
         let err =
             TyCheckError::pred_unification_error(input, errno, lhs, rhs, caused_by.to_string());
         errors.push(err);
 
-        let input = Input::Pipe("Trait member type error".to_string());
+        let input = Input::pipe("Trait member type error".to_string());
         let errno = 0;
         let loc = Location::Range {
             ln_begin: 1,
@@ -663,7 +663,7 @@ mod test {
         );
         errors.push(err);
 
-        let input = Input::Pipe("trait member not defined error".to_string());
+        let input = Input::pipe("trait member not defined error".to_string());
         let member_name = "member name";
         let trait_type = &Type::ClassType;
         let class_type = &Type::Ellipsis;
@@ -679,7 +679,7 @@ mod test {
         );
         errors.push(err);
 
-        let input = Input::Pipe("singular no attribute error".to_string());
+        let input = Input::pipe("singular no attribute error".to_string());
         let loc = Location::Range {
             ln_begin: 1,
             col_begin: 0,
@@ -702,7 +702,7 @@ mod test {
         );
         errors.push(err);
 
-        let input = Input::Pipe("ambiguous type error".to_string());
+        let input = Input::pipe("ambiguous type error".to_string());
         let expr = Identifier::new(
             Some(erg_parser::token::Token {
                 kind: erg_parser::token::TokenKind::EOF,
@@ -728,7 +728,7 @@ mod test {
             EvalError::ambiguous_type_error(input, errno, &expr, candidates, caused_by.to_string());
         errors.push(err);
 
-        let input = Input::Pipe("invalid type cast error".to_string());
+        let input = Input::pipe("invalid type cast error".to_string());
         let loc = Location::range(1, 8, 1, 17);
         let cast_to = Type::Error;
         let hint = Some("hint message here".to_string());
@@ -743,7 +743,7 @@ mod test {
         );
         errors.push(err);
 
-        let input = Input::Pipe("override error".to_string());
+        let input = Input::pipe("override error".to_string());
         let name_loc = Location::range(1, 0, 1, 8);
         let superclass = &Type::Failure;
         let err = TyCheckError::override_error(
@@ -756,14 +756,14 @@ mod test {
         );
         errors.push(err);
 
-        let input = Input::Pipe("visibility error".to_string());
+        let input = Input::pipe("visibility error".to_string());
         let loc = Location::Line(1);
         let vis = erg_common::vis::Visibility::Private;
         let err =
             TyCheckError::visibility_error(input, errno, loc, caused_by.to_string(), name, vis);
         errors.push(err);
 
-        let input = Input::Pipe("import nunpy as np".to_string());
+        let input = Input::pipe("import nunpy as np".to_string());
         let errno = 0;
         let desc = "nunpy is not defined".to_string();
         let loc = Location::range(1, 7, 1, 12);

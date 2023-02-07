@@ -1,13 +1,12 @@
 # Erg への貢献
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DCONTRIBUTING.md%26commit_hash%3D00350f64a40b12f763a605bc16748d09379ab182)
-](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=CONTRIBUTING.md&commit_hash=00350f64a40b12f763a605bc16748d09379ab182)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DCONTRIBUTING.md%26commit_hash%3Dcbaf48c04b46fadc680fa4e05e8ad22cbdaf6c47)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=CONTRIBUTING.md&commit_hash=cbaf48c04b46fadc680fa4e05e8ad22cbdaf6c47)
 
 初心者は[こちら](https://github.com/erg-lang/erg/issues/31#issuecomment-1217505198)の説明を読んでください。
 
 ## ドキュメント
 
-Erg への貢献を考えている場合は、`doc/*/dev_guide` にあるドキュメントを読む必要があります。特に`env.md`に書かれているものを事前にインストールしてください。
+Erg への貢献を考えている場合は、`doc/*/dev_guide` にあるドキュメントを読む必要があります。特に[`env.md`](../JA/dev_guide/env.md)に書かれているものを事前にインストールしてください。
 
 Erg の内部構造に興味がある場合は、`doc/*/compiler` が役に立つかもしれません。
 
@@ -23,11 +22,11 @@ Ergのバグだと思われる動作を見つけた場合は、[報告](https://
 
 私たちは常に、ドキュメントをさまざまな言語バージョンに翻訳してくれる人を探しています。
 
-ドキュメントが他の言語に比べて古くなっていることに気づき、内容を更新したいという方も歓迎します ([こちら](https://github.com/erg-lang/erg/issues/48#issuecomment-1218247362) を参照)。これを行う方法について)。
+ドキュメントが他の言語に比べて古くなっていることに気づき、内容を更新したいという方も歓迎します (これを行う方法については[こちら](https://github.com/erg-lang/erg/issues/48#issuecomment-1218247362) を参照)。
 
 ## 質問する
 
-ご不明な点がございましたら、[Discord チャンネル](https://discord.gg/zfAAUbgGr4)までお気軽にお問い合わせください。
+ご不明な点がございましたら、[Discord チャンネル](https://discord.gg/zfAAUbgGr4)でお気軽にお問い合わせください。
 
 ## 開発・実装に関して
 

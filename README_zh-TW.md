@@ -15,8 +15,7 @@
     </a>
 </p>
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3Ddc7feca6ad1533e791b5fc1fd036636860f03d07)
-](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=dc7feca6ad1533e791b5fc1fd036636860f03d07)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3D4a5a320dfe1b9a2f91585e1a3f9dde8213edf893)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=4a5a320dfe1b9a2f91585e1a3f9dde8213edf893)
 
 ## Erg可以推薦給以下人員&colon;
 
@@ -53,7 +52,7 @@
         print! "hello, ", end := ""
     # 類型錯誤: `.times!`是`Nat`(0或更大整數)的方法，不是`Int`的
 
-    {Meter; Sec; meter; yard; sec; ...} = import "unit"
+    {Meter; Sec; meter; yard; sec} = import "unit"
 
     velocity x: Meter, t: Sec = x / t
 
@@ -77,9 +76,9 @@
     在Erg中，很少有東西被認為是特殊的，沒有關鍵字，因此for和while表達式也只是子程序之一
 
     ```python
-    loop! block = while! do(True), block
+    loop! block! = while! do! True, block!
 
-    # equals to `while! do(True), do! print! "hello"`
+    # equals to `while! do! True, do! print! "hello"`
     loop! do!:
         print! "hello"
     ```
@@ -126,7 +125,7 @@
     ```python
     # 使用內置的Python模塊
     math, time = pyimport "math", "time"
-    {sin; pi; ...} = math
+    {sin; pi} = math
     # 使用外部Python模塊
     Tqdm! = pyimport("tqdm").'tqdm'
 
@@ -201,8 +200,9 @@ nix build
 
 通過啟用`--features`標誌，你可以自定義構建和安裝
 
-- 你可以通過`--features {language}`來設置錯誤信息語言
-```
+* 你可以通過`--features {language}`來設置錯誤信息語言
+
+```sh
 --features japanese
 --features simplified_chinese
 --features traditional_chinese
@@ -210,11 +210,11 @@ nix build
 
 還有更多的語言將被加入（我們正在尋找翻譯者。請加入[翻譯項目](./doc/EN/dev_guide/i18n_messages.md)）
 
-- 安裝和構建ELS（Erg語言服務器）
-  - `--features els`
-- 設置成調試模式（針對貢獻者）
-  - `--features debug`
-- 查看 [這裏](https://github.com/erg-lang/erg/blob/main/.cargo/config.toml) 了解更多Flags和簡寫
+* 安裝和構建ELS（Erg語言服務器）
+  * `--features els`
+* 設置成調試模式（針對貢獻者）
+  * `--features debug`
+* 查看 [這裏](https://github.com/erg-lang/erg/blob/main/.cargo/config.toml) 了解更多Flags和簡寫
 
 ## 貢獻
 

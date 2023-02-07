@@ -12,6 +12,7 @@ use std::str::FromStr;
 use crate::help_messages::{command_message, mode_message};
 use crate::normalize_path;
 use crate::python_util::{detect_magic_number, get_python_version, PythonVersion};
+use crate::random::random;
 use crate::serialize::{get_magic_num_from_bytes, get_ver_from_magic_num};
 use crate::stdin::GLOBAL_STDIN;
 use crate::{power_assert, read_file};
@@ -74,13 +75,15 @@ impl fmt::Display for ErgMode {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DummyStdin {
+    pub name: String,
     current_line: usize,
     lines: Vec<String>,
 }
 
 impl DummyStdin {
-    pub fn new(lines: Vec<String>) -> Self {
+    pub fn new(name: String, lines: Vec<String>) -> Self {
         Self {
+            name,
             current_line: 0,
             lines,
         }
@@ -109,18 +112,30 @@ impl DummyStdin {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Input {
     File(PathBuf),
-    REPL,
+    REPL(u64),
     DummyREPL(DummyStdin),
     /// same content as cfg.command
-    Pipe(String),
+    Pipe(u64, String),
     /// from command option | eval
-    Str(String),
+    Str(u64, String),
     Dummy,
 }
 
 impl Input {
-    pub fn is_repl(&self) -> bool {
-        matches!(self, Input::REPL | Input::DummyREPL(_))
+    pub const fn is_repl(&self) -> bool {
+        matches!(self, Input::REPL(_) | Input::DummyREPL(_))
+    }
+
+    pub fn pipe(src: String) -> Self {
+        Self::Pipe(random(), src)
+    }
+
+    pub fn str(src: String) -> Self {
+        Self::Str(random(), src)
+    }
+
+    pub fn repl() -> Self {
+        Self::REPL(random())
     }
 
     pub fn path(&self) -> Option<&Path> {
@@ -130,39 +145,57 @@ impl Input {
         }
     }
 
+    pub const fn id(&self) -> u64 {
+        match self {
+            Input::File(_) | Input::DummyREPL(_) | Input::Dummy => 0,
+            Input::REPL(id) | Input::Pipe(id, _) | Input::Str(id, _) => *id,
+        }
+    }
+
     pub fn enclosed_name(&self) -> &str {
         match self {
             Self::File(filename) => filename.to_str().unwrap_or("_"),
-            Self::REPL | Self::DummyREPL(_) | Self::Pipe(_) => "<stdin>",
-            Self::Str(_) => "<string>",
+            Self::REPL(_) | Self::DummyREPL(_) | Self::Pipe(_, _) => "<stdin>",
+            Self::Str(_, _) => "<string>",
             Self::Dummy => "<dummy>",
         }
     }
 
-    pub fn full_path(&self) -> &str {
+    pub fn full_path(&self) -> PathBuf {
         match self {
-            Self::File(filename) => filename.to_str().unwrap_or("_"),
-            Self::REPL | Self::DummyREPL(_) | Self::Pipe(_) => "stdin",
-            Self::Str(_) => "string",
-            Self::Dummy => "dummy",
+            Self::File(filename) => filename.clone(),
+            Self::REPL(id) | Self::Pipe(id, _) => PathBuf::from(format!("stdin_{id}")),
+            Self::DummyREPL(dummy) => PathBuf::from(format!("stdin_{}", dummy.name)),
+            Self::Str(id, _) => PathBuf::from(format!("string_{id}")),
+            Self::Dummy => PathBuf::from("dummy"),
         }
     }
 
-    pub fn file_stem(&self) -> &str {
+    pub fn file_stem(&self) -> String {
         match self {
-            Self::File(filename) => filename.file_stem().and_then(|f| f.to_str()).unwrap_or("_"),
-            Self::REPL | Self::DummyREPL(_) | Self::Pipe(_) => "stdin",
-            Self::Str(_) => "string",
-            Self::Dummy => "dummy",
+            Self::File(filename) => filename
+                .file_stem()
+                .and_then(|f| f.to_str())
+                .unwrap_or("_")
+                .to_string(),
+            Self::REPL(id) | Self::Pipe(id, _) => format!("stdin_{id}"),
+            Self::DummyREPL(stdin) => format!("stdin_{}", stdin.name),
+            Self::Str(id, _) => format!("string_{id}"),
+            Self::Dummy => "dummy".to_string(),
         }
     }
 
-    pub fn filename(&self) -> &str {
+    pub fn filename(&self) -> String {
         match self {
-            Self::File(filename) => filename.file_name().and_then(|f| f.to_str()).unwrap_or("_"),
-            Self::REPL | Self::DummyREPL(_) | Self::Pipe(_) => "stdin",
-            Self::Str(_) => "string",
-            Self::Dummy => "dummy",
+            Self::File(filename) => filename
+                .file_name()
+                .and_then(|f| f.to_str())
+                .unwrap_or("_")
+                .to_string(),
+            Self::REPL(id) | Self::Pipe(id, _) => format!("stdin_{id}"),
+            Self::DummyREPL(stdin) => format!("stdin_{}", stdin.name),
+            Self::Str(id, _) => format!("string_{id}"),
+            Self::Dummy => "dummy".to_string(),
         }
     }
 
@@ -190,8 +223,8 @@ impl Input {
                     }
                 }
             }
-            Self::Pipe(s) | Self::Str(s) => s.clone(),
-            Self::REPL => GLOBAL_STDIN.read(),
+            Self::Pipe(_, s) | Self::Str(_, s) => s.clone(),
+            Self::REPL(_) => GLOBAL_STDIN.read(),
             Self::DummyREPL(dummy) => dummy.read_line().unwrap_or_default(),
             Self::Dummy => panic!("cannot read from a dummy file"),
         }
@@ -221,8 +254,8 @@ impl Input {
                     }
                 }
             }
-            Self::Pipe(s) | Self::Str(s) => s.clone(),
-            Self::REPL => GLOBAL_STDIN.read(),
+            Self::Pipe(_, s) | Self::Str(_, s) => s.clone(),
+            Self::REPL(_) => GLOBAL_STDIN.read(),
             Self::Dummy | Self::DummyREPL(_) => panic!("cannot read from a dummy file"),
         }
     }
@@ -241,12 +274,12 @@ impl Input {
                 }
                 Err(_) => vec!["<file not found>".into()],
             },
-            Self::Pipe(s) | Self::Str(s) => s.split('\n').collect::<Vec<_>>()
+            Self::Pipe(_, s) | Self::Str(_, s) => s.split('\n').collect::<Vec<_>>()
                 [ln_begin - 1..=ln_end - 1]
                 .iter()
                 .map(|s| s.to_string())
                 .collect(),
-            Self::REPL => GLOBAL_STDIN.reread_lines(ln_begin, ln_end),
+            Self::REPL(_) => GLOBAL_STDIN.reread_lines(ln_begin, ln_end),
             Self::DummyREPL(dummy) => dummy.reread_lines(ln_begin, ln_end),
             Self::Dummy => panic!("cannot read lines from a dummy file"),
         }
@@ -255,8 +288,8 @@ impl Input {
     pub fn reread(&self) -> String {
         match self {
             Self::File(_filename) => todo!(),
-            Self::Pipe(s) | Self::Str(s) => s.clone(),
-            Self::REPL => GLOBAL_STDIN.reread().trim_end().to_owned(),
+            Self::Pipe(_, s) | Self::Str(_, s) => s.clone(),
+            Self::REPL(_) => GLOBAL_STDIN.reread().trim_end().to_owned(),
             Self::DummyREPL(dummy) => dummy.reread().unwrap_or_default(),
             Self::Dummy => panic!("cannot read from a dummy file"),
         }
@@ -363,7 +396,7 @@ impl Default for ErgConfig {
             py_server_timeout: 10,
             quiet_repl: false,
             show_type: false,
-            input: Input::REPL,
+            input: Input::repl(),
             output_dir: None,
             module: "<module>",
             verbose: 1,
@@ -390,11 +423,11 @@ impl ErgConfig {
         self.clone()
     }
 
-    pub fn dump_path(&self) -> String {
+    pub fn dump_path(&self) -> PathBuf {
         if let Some(output) = &self.output_dir {
-            format!("{output}/{}", self.input.filename())
+            PathBuf::from(format!("{output}/{}", self.input.filename()))
         } else {
-            self.input.full_path().to_string()
+            self.input.full_path()
         }
     }
 
@@ -402,17 +435,14 @@ impl ErgConfig {
         if let Some(output) = &self.output_dir {
             format!("{output}/{}", self.input.filename())
         } else {
-            self.input.filename().to_string()
+            self.input.filename()
         }
     }
 
-    pub fn dump_pyc_path(&self) -> String {
-        let dump_path = self.dump_path();
-        if dump_path.ends_with(".er") {
-            dump_path.replace(".er", ".pyc")
-        } else {
-            dump_path + ".pyc"
-        }
+    pub fn dump_pyc_path(&self) -> PathBuf {
+        let mut dump_path = self.dump_path();
+        dump_path.set_extension("pyc");
+        dump_path
     }
 
     pub fn dump_pyc_filename(&self) -> String {
@@ -447,7 +477,7 @@ impl ErgConfig {
                     break;
                 }
                 "-c" | "--code" => {
-                    cfg.input = Input::Str(args.next().expect("the value of `-c` is not passed"));
+                    cfg.input = Input::str(args.next().expect("the value of `-c` is not passed"));
                 }
                 "--check" => {
                     cfg.mode = ErgMode::FullCheck;
@@ -615,7 +645,7 @@ USAGE:
                 }
                 _ => {
                     let path = PathBuf::from_str(&arg[..])
-                        .unwrap_or_else(|_| panic!("invalid file path: {}", arg));
+                        .unwrap_or_else(|_| panic!("invalid file path: {arg}"));
                     let path = normalize_path(path);
                     cfg.input = Input::File(path);
                     if let Some("--") = args.next().as_ref().map(|s| &s[..]) {
@@ -627,15 +657,15 @@ USAGE:
                 }
             }
         }
-        if cfg.input == Input::REPL && cfg.mode != ErgMode::LanguageServer {
+        if cfg.input.is_repl() && cfg.mode != ErgMode::LanguageServer {
             use crate::tty::IsTty;
             let is_stdin_piped = !stdin().is_tty();
             let input = if is_stdin_piped {
                 let mut buffer = String::new();
                 stdin().read_to_string(&mut buffer).unwrap();
-                Input::Pipe(buffer)
+                Input::pipe(buffer)
             } else {
-                Input::REPL
+                Input::repl()
             };
             cfg.input = input;
         }

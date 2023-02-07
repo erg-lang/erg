@@ -9,7 +9,7 @@ use erg_common::error::{
 };
 use erg_common::style::{Attribute, Color, StyledStr, StyledString, StyledStrings, THEME};
 use erg_common::traits::Stream;
-use erg_common::{fmt_iter, impl_display_and_error, impl_stream_for_wrapper, switch_lang};
+use erg_common::{fmt_iter, impl_display_and_error, impl_stream, switch_lang};
 
 #[derive(Debug)]
 pub struct LexError(Box<ErrorCore>); // ErrorCore is large, so use Box
@@ -37,7 +37,7 @@ impl From<LexError> for ErrorCore {
 #[derive(Debug)]
 pub struct LexErrors(Vec<LexError>);
 
-impl_stream_for_wrapper!(LexErrors, LexError);
+impl_stream!(LexErrors, LexError);
 
 impl fmt::Display for LexErrors {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -239,22 +239,22 @@ impl LexError {
         let expect = switch_lang!(
                 "japanese" => {
                     expect.push_str("期待された構文: ");
-                    expect.push_str_with_color(&format!("!{}", lit), HINT);
+                    expect.push_str_with_color(&format!("!{lit}"), HINT);
                     expect
                 },
                 "simplified_chinese" => {
                     expect.push_str("预期语法: ");
-                    expect.push_str_with_color(&format!("!{}", lit), HINT);
+                    expect.push_str_with_color(&format!("!{lit}"), HINT);
                     expect
                 },
                 "traditional_chinese" => {
                     expect.push_str("預期語法: ");
-                    expect.push_str_with_color(&format!("!{}", lit), HINT);
+                    expect.push_str_with_color(&format!("!{lit}"), HINT);
                     expect
                 },
                 "english" => {
                     expect.push_str("expected: ");
-                    expect.push_str_with_color(&format!("!{}", lit), HINT);
+                    expect.push_str_with_color(&format!("!{lit}"), HINT);
                     expect
                 },
         )
@@ -263,22 +263,22 @@ impl LexError {
         let found = switch_lang!(
                 "japanese" => {
                     found.push_str("見つかった構文: ");
-                    found.push_str_with_color(&format!("{}!", lit), ERR);
+                    found.push_str_with_color(&format!("{lit}!"), ERR);
                     found
                 },
                 "simplified_chinese" => {
                     found.push_str("找到语法: ");
-                    found.push_str_with_color(&format!("{}!", lit), ERR);
+                    found.push_str_with_color(&format!("{lit}!"), ERR);
                     found
                 },
                 "traditional_chinese" => {
                     found.push_str("找到語法: ");
-                    found.push_str_with_color(&format!("{}!", lit), ERR);
+                    found.push_str_with_color(&format!("{lit}!"), ERR);
                     found
                 },
                 "english" => {
                     found.push_str("but found: ");
-                    found.push_str_with_color(&format!("{}!", lit), ERR);
+                    found.push_str_with_color(&format!("{lit}!"), ERR);
                     found
                 },
         )
@@ -319,7 +319,7 @@ impl DesugaringError {
 #[derive(Debug)]
 pub struct DesugaringErrors(Vec<DesugaringError>);
 
-impl_stream_for_wrapper!(DesugaringErrors, DesugaringError);
+impl_stream!(DesugaringErrors, DesugaringError);
 
 pub type DesugaringResult<T> = Result<T, DesugaringError>;
 
@@ -357,7 +357,7 @@ pub struct ParserRunnerErrors(Vec<ParserRunnerError>);
 
 impl std::error::Error for ParserRunnerErrors {}
 
-impl_stream_for_wrapper!(ParserRunnerErrors, ParserRunnerError);
+impl_stream!(ParserRunnerErrors, ParserRunnerError);
 
 impl MultiErrorDisplay<ParserRunnerError> for ParserRunnerErrors {}
 

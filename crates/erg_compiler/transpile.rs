@@ -143,7 +143,8 @@ impl Runnable for Transpiler {
     }
 
     fn exec(&mut self) -> Result<i32, Self::Errs> {
-        let path = self.cfg.dump_path().replace(".er", ".py");
+        let mut path = self.cfg.dump_path();
+        path.set_extension("py");
         let src = self.cfg.input.read();
         let artifact = self.transpile(src, "exec").map_err(|eart| {
             eart.warns.fmt_all_stderr();
@@ -181,7 +182,7 @@ impl ContextProvider for Transpiler {
 
 impl Buildable<PyScript> for Transpiler {
     fn inherit(cfg: ErgConfig, shared: SharedCompilerResource) -> Self {
-        let mod_name = Str::rc(cfg.input.file_stem());
+        let mod_name = Str::from(cfg.input.file_stem());
         Self {
             shared: shared.clone(),
             builder: HIRBuilder::new_with_cache(cfg.copy(), mod_name, shared),
@@ -295,65 +296,91 @@ impl ScriptGenerator {
 
     // TODO: more smart way
     fn replace_import(src: &str) -> String {
-        src.replace("from _erg_nat import Nat", "")
+        src.replace("from _erg_nat import NatMut", "")
+            .replace("from _erg_nat import Nat", "")
             .replace("from _erg_int import IntMut", "")
             .replace("from _erg_int import Int", "")
+            .replace("from _erg_bool import BoolMut", "")
             .replace("from _erg_bool import Bool", "")
+            .replace("from _erg_str import StrMut", "")
             .replace("from _erg_str import Str", "")
             .replace("from _erg_array import Array", "")
             .replace("from _erg_range import Range", "")
             .replace("from _erg_result import Error", "")
             .replace("from _erg_result import is_ok", "")
+            .replace("from _erg_control import then__", "")
     }
 
-    fn load_namedtuple(&mut self) {
-        self.prelude += "from collections import namedtuple as NamedTuple__\n";
-    }
-
-    // TODO: name escaping
-    fn load_range_ops(&mut self) {
-        self.prelude += &Self::replace_import(include_str!("lib/std/_erg_result.py"));
-        self.prelude += &Self::replace_import(include_str!("lib/std/_erg_int.py"));
-        self.prelude += &Self::replace_import(include_str!("lib/std/_erg_nat.py"));
-        self.prelude += &Self::replace_import(include_str!("lib/std/_erg_str.py"));
-        self.prelude += &Self::replace_import(include_str!("lib/std/_erg_range.py"));
-    }
-
-    fn load_in_op(&mut self) {
-        self.prelude += &Self::replace_import(include_str!("lib/std/_erg_result.py"));
-        self.prelude += &Self::replace_import(include_str!("lib/std/_erg_range.py"));
-        self.prelude += &Self::replace_import(include_str!("lib/std/_erg_in_operator.py"));
-    }
-
-    fn load_mutate_op(&mut self) {
-        self.prelude += &Self::replace_import(include_str!("lib/std/_erg_mutate_operator.py"));
-    }
-
-    fn load_builtin_types(&mut self) {
-        if self.range_ops_loaded {
-            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_array.py"));
-        } else if self.in_op_loaded {
-            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_int.py"));
-            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_nat.py"));
-            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_bool.py"));
-            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_str.py"));
-            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_array.py"));
-        } else {
-            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_result.py"));
-            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_int.py"));
-            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_nat.py"));
-            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_bool.py"));
-            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_str.py"));
-            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_array.py"));
+    fn load_namedtuple_if_not(&mut self) {
+        if !self.namedtuple_loaded {
+            self.prelude += "from collections import namedtuple as NamedTuple__\n";
+            self.namedtuple_loaded = true;
         }
     }
 
-    fn load_builtin_controls(&mut self) {
-        self.prelude += include_str!("lib/std/_erg_control.py");
+    // TODO: name escaping
+    fn load_range_ops_if_not(&mut self) {
+        if !self.range_ops_loaded {
+            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_result.py"));
+            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_int.py"));
+            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_nat.py"));
+            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_str.py"));
+            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_range.py"));
+            self.range_ops_loaded = true;
+        }
     }
 
-    fn load_convertors(&mut self) {
-        self.prelude += &Self::replace_import(include_str!("lib/std/_erg_convertors.py"));
+    fn load_in_op_if_not(&mut self) {
+        if !self.in_op_loaded {
+            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_result.py"));
+            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_range.py"));
+            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_in_operator.py"));
+            self.in_op_loaded = true;
+        }
+    }
+
+    fn load_mutate_op_if_not(&mut self) {
+        if !self.mutate_op_loaded {
+            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_mutate_operator.py"));
+            self.mutate_op_loaded = true;
+        }
+    }
+
+    fn load_builtin_types_if_not(&mut self) {
+        if !self.builtin_types_loaded {
+            self.load_builtin_controls_if_not();
+            if self.range_ops_loaded {
+                self.prelude += &Self::replace_import(include_str!("lib/std/_erg_array.py"));
+            } else if self.in_op_loaded {
+                self.prelude += &Self::replace_import(include_str!("lib/std/_erg_int.py"));
+                self.prelude += &Self::replace_import(include_str!("lib/std/_erg_nat.py"));
+                self.prelude += &Self::replace_import(include_str!("lib/std/_erg_bool.py"));
+                self.prelude += &Self::replace_import(include_str!("lib/std/_erg_str.py"));
+                self.prelude += &Self::replace_import(include_str!("lib/std/_erg_array.py"));
+            } else {
+                self.prelude += &Self::replace_import(include_str!("lib/std/_erg_result.py"));
+                self.prelude += &Self::replace_import(include_str!("lib/std/_erg_int.py"));
+                self.prelude += &Self::replace_import(include_str!("lib/std/_erg_nat.py"));
+                self.prelude += &Self::replace_import(include_str!("lib/std/_erg_bool.py"));
+                self.prelude += &Self::replace_import(include_str!("lib/std/_erg_str.py"));
+                self.prelude += &Self::replace_import(include_str!("lib/std/_erg_array.py"));
+            }
+            self.builtin_types_loaded = true;
+        }
+    }
+
+    fn load_builtin_controls_if_not(&mut self) {
+        if !self.builtin_control_loaded {
+            self.prelude += include_str!("lib/std/_erg_control.py");
+            self.builtin_control_loaded = true;
+        }
+    }
+
+    fn load_convertors_if_not(&mut self) {
+        if !self.convertors_loaded {
+            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_convertors.py"));
+            self.convertors_loaded = true;
+        }
     }
 
     fn escape_str(s: &str) -> String {
@@ -454,10 +481,7 @@ impl ScriptGenerator {
             &lit.value,
             ValueObj::Bool(_) | ValueObj::Int(_) | ValueObj::Nat(_) | ValueObj::Str(_)
         ) {
-            if !self.builtin_types_loaded {
-                self.load_builtin_types();
-                self.builtin_types_loaded = true;
-            }
+            self.load_builtin_types_if_not();
             format!("{}({escaped})", lit.value.class())
         } else {
             escaped
@@ -465,10 +489,7 @@ impl ScriptGenerator {
     }
 
     fn transpile_record(&mut self, rec: Record) -> String {
-        if !self.namedtuple_loaded {
-            self.load_namedtuple();
-            self.namedtuple_loaded = true;
-        }
+        self.load_namedtuple_if_not();
         let mut attrs = "[".to_string();
         let mut values = "(".to_string();
         for mut attr in rec.attrs.into_iter() {
@@ -493,10 +514,7 @@ impl ScriptGenerator {
     fn transpile_binop(&mut self, bin: BinOp) -> String {
         match bin.op.kind {
             TokenKind::Closed | TokenKind::LeftOpen | TokenKind::RightOpen | TokenKind::Open => {
-                if !self.range_ops_loaded {
-                    self.load_range_ops();
-                    self.range_ops_loaded = true;
-                }
+                self.load_range_ops_if_not();
                 let mut code = match bin.op.kind {
                     TokenKind::Closed => "ClosedRange(",
                     TokenKind::LeftOpen => "LeftOpenRange(",
@@ -512,10 +530,7 @@ impl ScriptGenerator {
                 code
             }
             TokenKind::InOp => {
-                if !self.in_op_loaded {
-                    self.load_in_op();
-                    self.in_op_loaded = true;
-                }
+                self.load_in_op_if_not();
                 let mut code = "in_operator(".to_string();
                 code += &self.transpile_expr(*bin.lhs);
                 code.push(',');
@@ -539,10 +554,7 @@ impl ScriptGenerator {
     fn transpile_unaryop(&mut self, unary: UnaryOp) -> String {
         let mut code = "".to_string();
         if unary.op.kind == TokenKind::Mutate {
-            if !self.mutate_op_loaded {
-                self.load_mutate_op();
-                self.mutate_op_loaded = true;
-            }
+            self.load_mutate_op_if_not();
             code += "mutate_operator(";
         } else {
             code += "(";
@@ -557,17 +569,14 @@ impl ScriptGenerator {
         match acc {
             Accessor::Ident(ident) => {
                 match &ident.inspect()[..] {
-                    "Str" | "Bool" | "Nat" | "Array" if !self.builtin_types_loaded => {
-                        self.load_builtin_types();
-                        self.builtin_types_loaded = true;
+                    "Str" | "Bool" | "Nat" | "Array" => {
+                        self.load_builtin_types_if_not();
                     }
-                    "if" | "if!" | "for!" | "while" | "discard" if !self.builtin_control_loaded => {
-                        self.load_builtin_controls();
-                        self.builtin_control_loaded = true;
+                    "if" | "if!" | "for!" | "while" | "discard" => {
+                        self.load_builtin_controls_if_not();
                     }
-                    "int" | "nat" if !self.convertors_loaded => {
-                        self.load_convertors();
-                        self.convertors_loaded = true;
+                    "int" | "nat" | "float" | "str" => {
+                        self.load_convertors_if_not();
                     }
                     _ => {}
                 }

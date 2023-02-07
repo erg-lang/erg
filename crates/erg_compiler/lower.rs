@@ -189,136 +189,6 @@ impl ASTLowerer {
 }
 
 impl ASTLowerer {
-    fn var_result_t_check(
-        &self,
-        loc: Location,
-        name: &Str,
-        expect: &Type,
-        found: &Type,
-    ) -> SingleLowerResult<()> {
-        self.module
-            .context
-            .sub_unify(found, expect, loc, Some(name))
-            .map_err(|_| {
-                LowerError::type_mismatch_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    loc,
-                    self.module.context.caused_by(),
-                    name,
-                    None,
-                    expect,
-                    found,
-                    None, // self.ctx.get_candidates(found),
-                    self.module
-                        .context
-                        .get_simple_type_mismatch_hint(expect, found),
-                )
-            })
-    }
-
-    /// OK: exec `i: Int`
-    /// OK: exec `i: Int = 1`
-    /// NG: exec `1 + 2`
-    /// OK: exec `None`
-    fn use_check(&self, expr: &hir::Expr, mode: &str) -> LowerResult<()> {
-        if mode != "eval"
-            && !expr.ref_t().is_nonelike()
-            && !expr.is_type_asc()
-            && !expr.is_doc_comment()
-        {
-            Err(LowerWarnings::from(LowerWarning::unused_expr_warning(
-                self.cfg.input.clone(),
-                line!() as usize,
-                expr,
-                String::from(&self.module.context.name[..]),
-            )))
-        } else {
-            self.block_use_check(expr, mode)
-        }
-    }
-
-    fn block_use_check(&self, expr: &hir::Expr, mode: &str) -> LowerResult<()> {
-        let mut warns = LowerWarnings::empty();
-        match expr {
-            hir::Expr::Def(def) => {
-                let last = def.body.block.len() - 1;
-                for (i, chunk) in def.body.block.iter().enumerate() {
-                    if i == last {
-                        if let Err(ws) = self.block_use_check(chunk, mode) {
-                            warns.extend(ws);
-                        }
-                        break;
-                    }
-                    if let Err(ws) = self.use_check(chunk, mode) {
-                        warns.extend(ws);
-                    }
-                }
-            }
-            hir::Expr::Lambda(lambda) => {
-                let last = lambda.body.len() - 1;
-                for (i, chunk) in lambda.body.iter().enumerate() {
-                    if i == last {
-                        if let Err(ws) = self.block_use_check(chunk, mode) {
-                            warns.extend(ws);
-                        }
-                        break;
-                    }
-                    if let Err(ws) = self.use_check(chunk, mode) {
-                        warns.extend(ws);
-                    }
-                }
-            }
-            hir::Expr::ClassDef(class_def) => {
-                for chunk in class_def.methods.iter() {
-                    if let Err(ws) = self.use_check(chunk, mode) {
-                        warns.extend(ws);
-                    }
-                }
-            }
-            hir::Expr::PatchDef(patch_def) => {
-                for chunk in patch_def.methods.iter() {
-                    if let Err(ws) = self.use_check(chunk, mode) {
-                        warns.extend(ws);
-                    }
-                }
-            }
-            hir::Expr::Call(call) => {
-                for arg in call.args.pos_args.iter() {
-                    if let Err(ws) = self.block_use_check(&arg.expr, mode) {
-                        warns.extend(ws);
-                    }
-                }
-                if let Some(var_args) = &call.args.var_args {
-                    if let Err(ws) = self.block_use_check(&var_args.expr, mode) {
-                        warns.extend(ws);
-                    }
-                }
-                for arg in call.args.kw_args.iter() {
-                    if let Err(ws) = self.block_use_check(&arg.expr, mode) {
-                        warns.extend(ws);
-                    }
-                }
-            }
-            // TODO: unary, binary, array, ...
-            _ => {}
-        }
-        if warns.is_empty() {
-            Ok(())
-        } else {
-            Err(warns)
-        }
-    }
-
-    #[cfg(feature = "els")]
-    fn inc_ref<L: Locational>(&self, vi: &VarInfo, name: &L) {
-        self.module.context.inc_ref(vi, name);
-    }
-    #[cfg(not(feature = "els"))]
-    fn inc_ref<L: Locational>(&self, _vi: &VarInfo, _name: &L) {}
-}
-
-impl ASTLowerer {
     pub(crate) fn lower_literal(&self, lit: ast::Literal) -> LowerResult<hir::Literal> {
         let loc = lit.loc();
         let lit = hir::Literal::try_from(lit.token).map_err(|_| {
@@ -862,7 +732,7 @@ impl ASTLowerer {
         } else {
             None
         };
-        let (pos_args, kw_args, paren) = call.args.deconstruct();
+        let (pos_args, var_args, kw_args, paren) = call.args.deconstruct();
         let mut hir_args = hir::Args::new(
             Vec::with_capacity(pos_args.len()),
             None,
@@ -875,6 +745,16 @@ impl ASTLowerer {
                 Err(es) => {
                     errs.extend(es);
                     hir_args.push_pos(hir::PosArg::new(hir::Expr::Dummy(hir::Dummy::empty())));
+                }
+            }
+        }
+        if let Some(var_args) = var_args {
+            match self.lower_expr(var_args.expr) {
+                Ok(expr) => hir_args.var_args = Some(Box::new(hir::PosArg::new(expr))),
+                Err(es) => {
+                    errs.extend(es);
+                    let dummy = hir::Expr::Dummy(hir::Dummy::empty());
+                    hir_args.var_args = Some(Box::new(hir::PosArg::new(dummy)));
                 }
             }
         }
@@ -1032,7 +912,7 @@ impl ASTLowerer {
         } else {
             let hir_params = hir::Params::new(
                 params.non_defaults,
-                params.var_args,
+                params.var_params,
                 hir_defaults,
                 params.parens,
             );
@@ -1394,7 +1274,7 @@ impl ASTLowerer {
                 ast::TypeSpec::TypeApp { spec, args } => {
                     let (impl_trait, loc) = match &args.args.pos_args().first().unwrap().expr {
                         // TODO: check `tasc.op`
-                        ast::Expr::TypeAsc(tasc) => (
+                        ast::Expr::TypeAscription(tasc) => (
                             self.module.context.instantiate_typespec(
                                 &tasc.t_spec,
                                 None,
@@ -1478,7 +1358,7 @@ impl ASTLowerer {
                             errs
                         })?;
                     }
-                    ast::ClassAttr::Decl(_decl) => {}
+                    ast::ClassAttr::Decl(_) | ast::ClassAttr::Doc(_) => {}
                 }
             }
             for attr in methods.attrs.into_iter() {
@@ -1494,6 +1374,14 @@ impl ASTLowerer {
                     ast::ClassAttr::Decl(decl) => match self.lower_type_asc(decl) {
                         Ok(decl) => {
                             hir_methods.push(hir::Expr::TypeAsc(decl));
+                        }
+                        Err(errs) => {
+                            self.errs.extend(errs);
+                        }
+                    },
+                    ast::ClassAttr::Doc(doc) => match self.lower_literal(doc) {
+                        Ok(doc) => {
+                            hir_methods.push(hir::Expr::Lit(doc));
                         }
                         Err(errs) => {
                             self.errs.extend(errs);
@@ -1597,7 +1485,7 @@ impl ASTLowerer {
                             errs
                         })?;
                     }
-                    ast::ClassAttr::Decl(_decl) => {}
+                    ast::ClassAttr::Decl(_) | ast::ClassAttr::Doc(_) => {}
                 }
             }
             for attr in methods.attrs.into_iter() {
@@ -1613,6 +1501,14 @@ impl ASTLowerer {
                     ast::ClassAttr::Decl(decl) => match self.lower_type_asc(decl) {
                         Ok(decl) => {
                             hir_methods.push(hir::Expr::TypeAsc(decl));
+                        }
+                        Err(errs) => {
+                            self.errs.extend(errs);
+                        }
+                    },
+                    ast::ClassAttr::Doc(doc) => match self.lower_literal(doc) {
+                        Ok(doc) => {
+                            hir_methods.push(hir::Expr::Lit(doc));
                         }
                         Err(errs) => {
                             self.errs.extend(errs);
@@ -1693,7 +1589,7 @@ impl ASTLowerer {
         sup_class: &hir::Expr,
         sub_sig: &hir::Signature,
     ) {
-        if let TypeObj::Generated(gen) = type_obj.base_or_sup().unwrap() {
+        if let Some(TypeObj::Generated(gen)) = type_obj.base_or_sup() {
             if let Some(impls) = gen.impls() {
                 if !impls.contains_intersec(&mono("InheritableType")) {
                     errs.push(LowerError::inheritance_error(
@@ -2117,7 +2013,7 @@ impl ASTLowerer {
     fn lower_expr(&mut self, expr: ast::Expr) -> LowerResult<hir::Expr> {
         log!(info "entered {}", fn_name!());
         match expr {
-            ast::Expr::Lit(lit) => Ok(hir::Expr::Lit(self.lower_literal(lit)?)),
+            ast::Expr::Literal(lit) => Ok(hir::Expr::Lit(self.lower_literal(lit)?)),
             ast::Expr::Array(arr) => Ok(hir::Expr::Array(self.lower_array(arr)?)),
             ast::Expr::Tuple(tup) => Ok(hir::Expr::Tuple(self.lower_tuple(tup)?)),
             ast::Expr::Record(rec) => Ok(hir::Expr::Record(self.lower_record(rec)?)),
@@ -2129,7 +2025,7 @@ impl ASTLowerer {
             ast::Expr::Call(call) => Ok(hir::Expr::Call(self.lower_call(call)?)),
             ast::Expr::DataPack(pack) => Ok(hir::Expr::Call(self.lower_pack(pack)?)),
             ast::Expr::Lambda(lambda) => Ok(hir::Expr::Lambda(self.lower_lambda(lambda)?)),
-            ast::Expr::TypeAsc(tasc) => Ok(hir::Expr::TypeAsc(self.lower_type_asc(tasc)?)),
+            ast::Expr::TypeAscription(tasc) => Ok(hir::Expr::TypeAsc(self.lower_type_asc(tasc)?)),
             // Checking is also performed for expressions in Dummy. However, it has no meaning in code generation
             ast::Expr::Dummy(dummy) => Ok(hir::Expr::Dummy(self.lower_dummy(dummy)?)),
             other => {
@@ -2149,7 +2045,7 @@ impl ASTLowerer {
             ast::Expr::ClassDef(defs) => Ok(hir::Expr::ClassDef(self.lower_class_def(defs)?)),
             ast::Expr::PatchDef(defs) => Ok(hir::Expr::PatchDef(self.lower_patch_def(defs)?)),
             ast::Expr::ReDef(redef) => Ok(hir::Expr::ReDef(self.lower_redef(redef)?)),
-            ast::Expr::TypeAsc(tasc) => Ok(hir::Expr::TypeAsc(self.lower_decl(tasc)?)),
+            ast::Expr::TypeAscription(tasc) => Ok(hir::Expr::TypeAsc(self.lower_decl(tasc)?)),
             other => self.lower_expr(other),
         }
     }
@@ -2246,12 +2142,8 @@ impl ASTLowerer {
                 return Err(self.return_incomplete_artifact(hir));
             }
         };
-        // TODO: recursive check
-        for chunk in hir.module.iter() {
-            if let Err(warns) = self.use_check(chunk, mode) {
-                self.warns.extend(warns);
-            }
-        }
+        self.warn_unused_expr(&hir.module, mode);
+        self.warn_unused_vars(mode);
         if self.errs.is_empty() {
             log!(info "the AST lowering process has completed.");
             Ok(CompleteArtifact::new(

@@ -89,7 +89,7 @@ print!(x: Int) # 語法錯誤:
 
 后綴運算符。如果出現錯誤，請立即調用 `x.unwrap()` 和 `return`
 
-## match(obj, ...lambdas: Lambda)
+## match(obj, *lambdas: Lambda)
 
 對于 obj，執行與模式匹配的 lambda
 
@@ -97,19 +97,19 @@ print!(x: Int) # 語法錯誤:
 match [1, 2, 3]:
   (l: Int) -> log "this is type of Int"
   [[a], b] -> log a, b
-  [...a] -> log a
+  [*a] -> log a
 # (1, 2, 3)
 ```
 
-## del(x: ...T) -> NoneType
+## Del(*x: T) -> NoneType
 
 刪除變量"x"。但是，無法刪除內置對象
 
 ```python
 a = 1
-del a # OK
+Del a # OK
 
-del True # SyntaxError: cannot delete a built-in object
+Del True # SyntaxError: cannot delete a built-in object
 ```
 
 ## do(body: Body) -> Func
@@ -120,48 +120,36 @@ del True # SyntaxError: cannot delete a built-in object
 
 生成不帶參數的匿名過程。`() =>` 的語法糖
 
-## `else`(l, r) -> Choice
-
-創建一個由兩對組成的類元組結構，稱為 Choice 對象
-`l, r` 被懶惰地評估。也就是說，只有在調用 .get_then 或 .get_else 時才會計算表達式
-
-```python
-choice = 1 else 2
-assert choice.get_then() == 1
-assert choice.get_else() == 2
-assert True.then(choice) == 1
-```
-
 ## 集合運算符
 
-### `[]`(...objs)
+### `[]`(*objs)
 
 從參數創建一個數組或從可選參數創建一個字典
 
-### `{}`(...objs)
+### `{}`(*objs)
 
 從參數創建一個集合
 
-### `{}`(...fields: ((Field, Value); N))
+### `{}`(*fields: ((Field, Value); N))
 
 生成記錄
 
-### `{}`(layout, ...names, ...preds)
+### `{}`(layout, *names, *preds)
 
-生成篩型，等級2型
+生成篩型
 
-### `...`
+### `*`
 
 展開嵌套集合。它也可以用于模式匹配
 
 ```python
-[x, ...y] = [1, 2, 3]
+[x, *y] = [1, 2, 3]
 assert x == 1 and y == [2, 3]
-assert [x, ...y] == [1, 2, 3]
-assert [...y, x] == [2, 3, 1]
-{x; ...yz} = {x = 1; y = 2; z = 3}
+assert [x, *y] == [1, 2, 3]
+assert [*y, x] == [2, 3, 1]
+{x; *yz} = {x = 1; y = 2; z = 3}
 assert x == 1 and yz == {y = 2; z = 3}
-assert {x; ...yz} == {x = 1; y = 2; z = 3}
+assert {x; *yz} == {x = 1; y = 2; z = 3}
 ```
 
 ## 虛擬運算符

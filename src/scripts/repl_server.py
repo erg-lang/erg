@@ -15,17 +15,21 @@ __already_loaded = False
 __res = ''
 
 while True:
-    __order = __client_socket.recv(1024).decode()
-    if __order == 'quit' or __order == 'exit':
+    try:
+        __order = __client_socket.recv(1024).decode()
+    except ConnectionResetError: # when the server was crashed
+        break
+    if __order == 'quit' or __order == 'exit': # when the server was closed successfully
         __client_socket.send('closed'.encode())
         break
     elif __order == 'load':
         __sys.stdout = __io.StringIO()
         try:
             if __already_loaded:
-                __res = str(exec('__importlib.reload(o)'))
+                # __MODULE__ will be replaced with module name
+                __res = str(exec('__importlib.reload(__MODULE__)'))
             else:
-                __res = str(exec('import o'))
+                __res = str(exec('import __MODULE__'))
         except SystemExit:
             __client_socket.send('[Exception] SystemExit'.encode())
             continue

@@ -1,5 +1,6 @@
 from _erg_range import Range, LeftOpenRange, RightOpenRange, OpenRange, ClosedRange, RangeIterator
 from _erg_result import Result, Error, is_ok
+from _erg_float import Float, FloatMut
 from _erg_int import Int, IntMut
 from _erg_nat import Nat, NatMut
 from _erg_bool import Bool

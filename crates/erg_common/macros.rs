@@ -356,11 +356,11 @@ macro_rules! debug_enum_assert {
 macro_rules! debug_info {
     ($output:ident) => {{
         #[allow(unused_imports)]
-        use $crate::style::{CYAN, RESET};
+        use $crate::style::{colors::DEBUG, RESET};
         write!(
             $output,
             "[{}DEBUG{}] {}:{:04}: ",
-            CYAN,
+            DEBUG,
             RESET,
             file!(),
             line!()
@@ -369,8 +369,8 @@ macro_rules! debug_info {
     }};
     () => {{
         #[allow(unused_imports)]
-        use $crate::style::{CYAN, RESET};
-        print!("[{}DEBUG{}] {}:{:04}: ", CYAN, RESET, file!(), line!());
+        use $crate::style::{colors::DEBUG, RESET};
+        print!("[{}DEBUG{}] {}:{:04}: ", DEBUG, RESET, file!(), line!());
     }};
 }
 
@@ -386,25 +386,25 @@ macro_rules! debug_info {
 #[macro_export]
 macro_rules! log {
     (info $($arg: tt)*) => {{
-        $crate::log!(c GREEN, $($arg)*);
+        $crate::log!(c DEBUG_MAIN, $($arg)*);
     }};
 
     (err $($arg: tt)*) => {{
-        $crate::log!(c RED, $($arg)*);
+        $crate::log!(c DEBUG_ERROR, $($arg)*);
     }};
 
     (info_f $output:ident, $($arg: tt)*) => {{
-        $crate::log!(f+c $output, GREEN, $($arg)*);
+        $crate::log!(f+c $output, DEBUG_MAIN, $($arg)*);
     }};
 
     (err_f $output:ident, $($arg: tt)*) => {{
-        $crate::log!(f+c $output, RED, $($arg)*);
+        $crate::log!(f+c $output, DEBUG_ERROR, $($arg)*);
     }};
 
     (f $output: ident, $($arg: tt)*) => {{
         if cfg!(feature = "debug") {
             #[allow(unused_imports)]
-            use $crate::color::{RESET, GREEN, RED};
+            use $crate::color::{RESET, colors::DEBUG_MAIN, colors::DEBUG_ERROR};
             $crate::debug_info!($output);
             write!($output, $($arg)*).unwrap();
             write!($output, "{}", RESET).unwrap(); // color color anyway
@@ -415,7 +415,7 @@ macro_rules! log {
     (c $color:ident, $($arg: tt)*) => {{
         if cfg!(feature = "debug") {
             #[allow(unused_imports)]
-            use $crate::style::{RESET, GREEN, RED};
+            use $crate::style::{RESET, colors::DEBUG_MAIN, colors::DEBUG_ERROR};
             $crate::debug_info!();
             print!("{}", $color);
             println!($($arg)*);
@@ -426,7 +426,7 @@ macro_rules! log {
     (f+c $output:ident, $color:ident, $($arg: tt)*) => {{
         if cfg!(feature = "debug") {
             #[allow(unused_imports)]
-            use $crate::style::{RESET, GREEN};
+            use $crate::style::{RESET, colors::DEBUG_MAIN};
             $crate::debug_info!($output);
             write!($output, "{}{}{}", $color, $($arg)*, RESET).unwrap();
             write!($output, $($arg)*).unwrap();

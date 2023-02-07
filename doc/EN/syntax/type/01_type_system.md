@@ -75,11 +75,11 @@ Erg's array (Array) is what Python calls a list. `[Int; 3]` is an array class th
 
 ```python
 pop|T, N|(l: [T; N]): ([T; N-1], T) =
-    [...l, last] = l
+    [*l, last] = l
     (l, last)
 
 lpop|T, N|(l: [T; N]): (T, [T; N-1]) =
-    [first, ...l] = l
+    [first, *l] = l
     (first, l)
 ```
 

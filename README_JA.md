@@ -15,8 +15,7 @@
     </a>
 </p>
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3D54dbd1ec22756e0f8aae5ccf0c41aeb9d34876da)
-](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=54dbd1ec22756e0f8aae5ccf0c41aeb9d34876da)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3D4a5a320dfe1b9a2f91585e1a3f9dde8213edf893)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=4a5a320dfe1b9a2f91585e1a3f9dde8213edf893)
 
 ## Ergはこんな人におすすめです&#58;
 
@@ -54,7 +53,7 @@
         print! "hello,", end := ""
     # TypeError: `.times!`は`Nat`(0以上のInt)のメソッドです、`Int`ではありません
 
-    {Meter; Sec; meter; yard; sec; ...} = import "unit"
+    {Meter; Sec; meter; yard; sec} = import "unit"
 
     velocity x: Meter, t: Sec = x / t
 
@@ -74,10 +73,10 @@
     assert fib(10) == 55
     ```
 
-    Ergでは特別扱いされる構文要素がとても少なく、例えば予約語が一つもありません。以下のような芸当も可能です。
+    Ergでは特別扱いされる構文要素がとても少なく、例えば予約語が一つもありません。for式やwhile式もサブルーチンの一つに過ぎないので以下のような芸当も可能です。
 
     ```python
-    loop! block = while! do(True), block
+    loop! block! = while! do! True, block!
 
     # `while! do(True), do! print! "hello"`と同じです
     loop! do!:
@@ -87,7 +86,7 @@
 3. 関数型&オブジェクト指向
 
     Ergは純粋なオブジェクト指向言語です。全てはオブジェクトであり、型、関数、演算子も例外ではありません。
-    一方、Ergは関数型言語でもあります。副作用を引き起こすコードには`!`を付けなくてはなりません。これは、副作用の局所化を意識させてくれます。
+    一方、Ergは関数型言語でもあります。Ergでは副作用を引き起こすコードや内部状態を変更するコードに、ある種の記号を書く必要があり、これによりコードの複雑さを局所化することができます。これにより、コードのメンテナンス性が大幅に向上します。
 
     ```python
     # immutableな関数型スタイル、Pythonの`.sorted()`と同じです
@@ -126,7 +125,7 @@
     ```python
     # Pythonのビルトインモジュールを使います
     math, time = pyimport "math", "time"
-    {sin; pi; ...} = math
+    {sin; pi} = math
     # Pythonの外部モジュールを使います
     Tqdm! = pyimport("tqdm").'tqdm'
 
@@ -137,7 +136,7 @@
 
 5. 読みやすいエラーメッセージ
 
-    Ergはエラーメッセージの読みやすさを重視しています。Ergはプログラマに寄り添う言語であり、~~C++のように~~訳のわからない呪文を吐いたりはしません。
+    Ergはエラーメッセージの読みやすさを重視しています。~~C++とは異なり~~Ergはプログラマに寄り添う言語です。
 
     ```python
     proc! x =
@@ -169,34 +168,6 @@
 cargo install erg
 ```
 
-`--features`フラグを有効化することで、エラーメッセージの言語を変更できます。
-
-* Japanese
-
-```sh
-cargo install erg --features japanese
-```
-
-* Chinese (Simplified)
-
-```sh
-cargo install erg --features simplified_chinese
-```
-
-* Chinese (Traditional)
-
-```sh
-cargo install erg --features traditional_chinese
-```
-
-さらに多くの言語に対応する予定です。(翻訳者を募集しています。ぜひ[翻訳プロジェクト](./doc/JA/dev_guide/i18n_messages.md)に参加してください)。
-
-* デバッグモード (コントリビューター向け)
-
-```sh
-cargo install erg --features debug
-```
-
 ### ソースコードからのビルド
 
 ソースコードからのビルドにはRustツールチェインが必要です。
@@ -225,9 +196,31 @@ cd erg
 nix build
 ```
 
+### フラグ
+
+`--features`フラグを有効化することで、インストールとビルドをカスタマイズできます。
+
+* もしエラーメッセージの言語を変えるには`--features {language}`というオプションを使用します。
+
+```sh
+cargo install erg --features japanese
+cargo install erg --features simplified_chinese
+cargo install erg --features traditional_chinese
+```
+
+さらに多くの言語に対応する予定です。(翻訳者を募集しています。ぜひ[翻訳プロジェクト](./doc/JA/dev_guide/i18n_messages.md)に参加してください)。
+
+
+* ELS (Erg Language Server) のインストールとビルド
+  * `--features els`
+* デバッグモード (コントリビューター向け)
+  * `--features debug`
+* その他のフラグ・エイリアスは[こちら](https://github.com/erg-lang/erg/blob/main/.cargo/config.toml)をご覧ください。
+
 ## コントリビューション
 
-コントリビューション(プロジェクトへの貢献、協力)はいつでも歓迎しています！
+コントリビューション(プロジェクトへの貢献、協力)はいつでも歓迎しています！始めたい方は[こちら](https://github.com/erg-lang/erg/blob/main/doc/CONTRIBUTING/CONTRIBUTING_JA.md)をお読みください。
+
 何かわからないことがあれば、[Discordチャンネル](https://discord.gg/zfAAUbgGr4)で気軽に質問してください。
 
 ## License
