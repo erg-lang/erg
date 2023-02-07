@@ -815,6 +815,23 @@ impl Context {
         );
         array_iterable.register_builtin_const(ITERATOR, vis, ValueObj::builtin_t(array_iter));
         array_.register_trait(arr_t.clone(), array_iterable);
+        let t = fn1_met(
+            array_t(T.clone(), TyParam::erased(Nat)),
+            func1(T.clone(), Bool),
+            tuple_t(vec![
+                array_t(T.clone(), TyParam::erased(Nat)),
+                array_t(T.clone(), TyParam::erased(Nat)),
+            ]),
+        );
+        array_.register_builtin_erg_impl(FUNC_PARTITION, t.quantify(), Immutable, Public);
+        let t = fn_met(
+            array_t(T.clone(), TyParam::erased(Nat)),
+            vec![],
+            None,
+            vec![kw("f", or(func1(T.clone(), Bool), NoneType))],
+            array_t(T.clone(), TyParam::erased(Nat)),
+        );
+        array_.register_builtin_erg_impl(FUNC_DEDUP, t, Immutable, Public);
         /* Set */
         let mut set_ =
             Self::builtin_poly_class(SET, vec![PS::t_nd(TY_T), PS::named_nd(TY_N, Nat)], 10);
