@@ -329,6 +329,9 @@ impl Context {
                         None,
                         self.absolutize(name.loc()),
                     );
+                    if let Some(shared) = self.shared() {
+                        shared.index.register(&vi);
+                    }
                     self.params.push((Some(name.clone()), vi));
                     Ok(())
                 }
