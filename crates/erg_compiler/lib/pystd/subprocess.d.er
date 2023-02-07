@@ -12,3 +12,22 @@
     capture_output := Bool,
     shell := Bool,
 ) => .CompletedProcess
+.call!: (
+    args: Str or [Str; _],
+    stdin: File! or NoneType := NoneType,
+    stdout: File! or NoneType := NoneType,
+    stderr: File! or NoneType := NoneType,
+    shell := Bool,
+) => Int
+.check_call!: (
+    args: Str or [Str; _],
+    stdin: File! or NoneType := NoneType,
+    stderr: File! or NoneType := NoneType,
+    shell := Bool,
+) => {0} or Never
+.check_output!: (
+    args: Str or [Str; _],
+    stdin: File! or NoneType := NoneType,
+    stderr: File! or NoneType := NoneType,
+    shell := Bool,
+) => Bytes or NoneType
