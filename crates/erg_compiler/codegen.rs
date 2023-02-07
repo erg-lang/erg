@@ -4,8 +4,7 @@
 use std::fmt;
 use std::process;
 
-use crate::ty::codeobj::MakeFunctionFlags;
-use crate::ty::codeobj::{CodeObj, CodeObjFlags};
+use crate::ty::codeobj::{CodeObj, CodeObjFlags, MakeFunctionFlags};
 use crate::ty::value::GenTypeObj;
 use erg_common::cache::CacheSet;
 use erg_common::config::{ErgConfig, Input};
@@ -44,6 +43,7 @@ use crate::ty::value::ValueObj;
 use crate::ty::{HasType, Type, TypeCode, TypePair};
 use erg_common::fresh::fresh_varname;
 use AccessKind::*;
+use Type::*;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -475,30 +475,6 @@ impl PyCodeGenerator {
 
     fn emit_load_const<C: Into<ValueObj>>(&mut self, cons: C) {
         let value: ValueObj = cons.into();
-        let is_str = value.is_str();
-        let is_float = value.is_float();
-        let is_int = value.is_int();
-        let is_nat = value.is_nat();
-        let is_bool = value.is_bool();
-        if !self.cfg.no_std {
-            if is_bool {
-                self.emit_push_null();
-                self.emit_load_name_instr(Identifier::public("Bool"));
-            } else if is_nat {
-                self.emit_push_null();
-                self.emit_load_name_instr(Identifier::public("Nat"));
-            } else if is_int {
-                self.emit_push_null();
-                self.emit_load_name_instr(Identifier::public("Int"));
-            } else if is_float {
-                self.emit_push_null();
-                self.emit_load_name_instr(Identifier::public("Float"));
-            } else if is_str {
-                self.emit_push_null();
-                self.emit_load_name_instr(Identifier::public("Str"));
-            }
-        }
-        let wrapped = is_str || is_float; // is_float => is_int && is_nat && is_bool
         let idx = self
             .mut_cur_block_codeobj()
             .consts
@@ -511,10 +487,6 @@ impl PyCodeGenerator {
         self.write_instr(LOAD_CONST);
         self.write_arg(idx);
         self.stack_inc();
-        if !self.cfg.no_std && wrapped {
-            self.emit_call_instr(1, Name);
-            self.stack_dec();
-        }
     }
 
     fn register_const<C: Into<ValueObj>>(&mut self, cons: C) -> usize {
@@ -2727,6 +2699,38 @@ impl PyCodeGenerator {
     fn emit_expr(&mut self, expr: Expr) {
         log!(info "entered {} ({expr})", fn_name!());
         self.push_lnotab(&expr);
+        let mut wrapped = true;
+        if !self.cfg.no_std {
+            match expr.ref_t().derefine() {
+                Bool => {
+                    self.emit_push_null();
+                    self.emit_load_name_instr(Identifier::public("Bool"));
+                }
+                Nat => {
+                    self.emit_push_null();
+                    self.emit_load_name_instr(Identifier::public("Nat"));
+                }
+                Int => {
+                    self.emit_push_null();
+                    self.emit_load_name_instr(Identifier::public("Int"));
+                }
+                Float => {
+                    self.emit_push_null();
+                    self.emit_load_name_instr(Identifier::public("Float"));
+                }
+                Str => {
+                    self.emit_push_null();
+                    self.emit_load_name_instr(Identifier::public("Str"));
+                }
+                other if other.is_array() => {
+                    self.emit_push_null();
+                    self.emit_load_name_instr(Identifier::public("Array"));
+                }
+                _ => {
+                    wrapped = false;
+                }
+            }
+        }
         match expr {
             Expr::Lit(lit) => self.emit_load_const(lit.value),
             Expr::Accessor(acc) => self.emit_acc(acc),
@@ -2751,6 +2755,10 @@ impl PyCodeGenerator {
             Expr::TypeAsc(tasc) => self.emit_expr(*tasc.expr),
             Expr::Import(acc) => self.emit_import(acc),
             Expr::Dummy(_) => {}
+        }
+        if !self.cfg.no_std && wrapped {
+            self.emit_call_instr(1, Name);
+            self.stack_dec();
         }
     }
 

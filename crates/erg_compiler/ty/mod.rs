@@ -1277,6 +1277,15 @@ impl Type {
         }
     }
 
+    pub fn is_array(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_array(),
+            Self::Poly { name, .. } => &name[..] == "Array",
+            Self::Refinement(refine) => refine.t.is_array(),
+            _ => false,
+        }
+    }
+
     pub fn contains_tvar(&self, name: &str) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains_tvar(name),
@@ -1814,6 +1823,7 @@ impl Type {
                 }
                 quant.return_t()
             }
+            Self::Failure => Some(&Type::Failure),
             _ => None,
         }
     }

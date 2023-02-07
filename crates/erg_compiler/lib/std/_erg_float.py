@@ -12,27 +12,27 @@ class Float(float):
     def __add__(self, other):
         return then__(float.__add__(self, other), Float)
     def __radd__(self, other):
-        return then__(float.__add__(other, self), Float)
+        return then__(float.__add__(float(other), self), Float)
     def __sub__(self, other):
         return then__(float.__sub__(self, other), Float)
     def __rsub__(self, other):
-        return then__(float.__sub__(other, self), Float)
+        return then__(float.__sub__(float(other), self), Float)
     def __mul__(self, other):
         return then__(float.__mul__(self, other), Float)
     def __rmul__(self, other):
-        return then__(float.__mul__(other, self), Float)
+        return then__(float.__mul__(float(other), self), Float)
     def __div__(self, other):
         return then__(float.__div__(self, other), Float)
     def __rdiv__(self, other):
-        return then__(float.__div__(other, self), Float)
+        return then__(float.__div__(float(other), self), Float)
     def __floordiv__(self, other):
         return then__(float.__floordiv__(self, other), Float)
     def __rfloordiv__(self, other):
-        return then__(float.__floordiv__(other, self), Float)
+        return then__(float.__floordiv__(float(other), self), Float)
     def __pow__(self, other):
         return then__(float.__pow__(self, other), Float)
     def __rpow__(self, other):
-        return then__(float.__pow__(other, self), Float)
+        return then__(float.__pow__(float(other), self), Float)
 
 class FloatMut(): # inherits Float
     value: Float
