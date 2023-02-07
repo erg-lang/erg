@@ -44,16 +44,23 @@ impl ASTLowerer {
             })
     }
 
+    pub(crate) fn warn_unused_expr(&mut self, module: &hir::Module, mode: &str) {
+        if mode == "eval" {
+            return;
+        }
+        for chunk in module.iter() {
+            if let Err(warns) = self.expr_use_check(chunk) {
+                self.warns.extend(warns);
+            }
+        }
+    }
+
     /// OK: exec `i: Int`
     /// OK: exec `i: Int = 1`
     /// NG: exec `1 + 2`
     /// OK: exec `None`
-    pub(crate) fn use_check(&self, expr: &hir::Expr, mode: &str) -> LowerResult<()> {
-        if mode != "eval"
-            && !expr.ref_t().is_nonelike()
-            && !expr.is_type_asc()
-            && !expr.is_doc_comment()
-        {
+    fn expr_use_check(&self, expr: &hir::Expr) -> LowerResult<()> {
+        if !expr.ref_t().is_nonelike() && !expr.is_type_asc() && !expr.is_doc_comment() {
             Err(LowerWarnings::from(LowerWarning::unused_expr_warning(
                 self.cfg().input.clone(),
                 line!() as usize,
@@ -61,23 +68,23 @@ impl ASTLowerer {
                 String::from(&self.module.context.name[..]),
             )))
         } else {
-            self.block_use_check(expr, mode)
+            self.block_use_check(expr)
         }
     }
 
-    fn block_use_check(&self, expr: &hir::Expr, mode: &str) -> LowerResult<()> {
+    fn block_use_check(&self, expr: &hir::Expr) -> LowerResult<()> {
         let mut warns = LowerWarnings::empty();
         match expr {
             hir::Expr::Def(def) => {
                 let last = def.body.block.len() - 1;
                 for (i, chunk) in def.body.block.iter().enumerate() {
                     if i == last {
-                        if let Err(ws) = self.block_use_check(chunk, mode) {
+                        if let Err(ws) = self.block_use_check(chunk) {
                             warns.extend(ws);
                         }
                         break;
                     }
-                    if let Err(ws) = self.use_check(chunk, mode) {
+                    if let Err(ws) = self.expr_use_check(chunk) {
                         warns.extend(ws);
                     }
                 }
@@ -86,43 +93,43 @@ impl ASTLowerer {
                 let last = lambda.body.len() - 1;
                 for (i, chunk) in lambda.body.iter().enumerate() {
                     if i == last {
-                        if let Err(ws) = self.block_use_check(chunk, mode) {
+                        if let Err(ws) = self.block_use_check(chunk) {
                             warns.extend(ws);
                         }
                         break;
                     }
-                    if let Err(ws) = self.use_check(chunk, mode) {
+                    if let Err(ws) = self.expr_use_check(chunk) {
                         warns.extend(ws);
                     }
                 }
             }
             hir::Expr::ClassDef(class_def) => {
                 for chunk in class_def.methods.iter() {
-                    if let Err(ws) = self.use_check(chunk, mode) {
+                    if let Err(ws) = self.expr_use_check(chunk) {
                         warns.extend(ws);
                     }
                 }
             }
             hir::Expr::PatchDef(patch_def) => {
                 for chunk in patch_def.methods.iter() {
-                    if let Err(ws) = self.use_check(chunk, mode) {
+                    if let Err(ws) = self.expr_use_check(chunk) {
                         warns.extend(ws);
                     }
                 }
             }
             hir::Expr::Call(call) => {
                 for arg in call.args.pos_args.iter() {
-                    if let Err(ws) = self.block_use_check(&arg.expr, mode) {
+                    if let Err(ws) = self.block_use_check(&arg.expr) {
                         warns.extend(ws);
                     }
                 }
                 if let Some(var_args) = &call.args.var_args {
-                    if let Err(ws) = self.block_use_check(&var_args.expr, mode) {
+                    if let Err(ws) = self.block_use_check(&var_args.expr) {
                         warns.extend(ws);
                     }
                 }
                 for arg in call.args.kw_args.iter() {
-                    if let Err(ws) = self.block_use_check(&arg.expr, mode) {
+                    if let Err(ws) = self.block_use_check(&arg.expr) {
                         warns.extend(ws);
                     }
                 }
@@ -141,7 +148,10 @@ impl ASTLowerer {
         self.module.context.inc_ref(vi, name);
     }
 
-    pub(crate) fn warn_unused_vars(&mut self) {
+    pub(crate) fn warn_unused_vars(&mut self, mode: &str) {
+        if mode == "eval" {
+            return;
+        }
         if let Some(shared) = self.module.context.shared() {
             for (referee, value) in shared.index.iter() {
                 if value.referrers.is_empty() && value.vi.vis.is_private() {

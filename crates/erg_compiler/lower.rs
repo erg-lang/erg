@@ -2142,13 +2142,8 @@ impl ASTLowerer {
                 return Err(self.return_incomplete_artifact(hir));
             }
         };
-        // TODO: recursive check
-        for chunk in hir.module.iter() {
-            if let Err(warns) = self.use_check(chunk, mode) {
-                self.warns.extend(warns);
-            }
-        }
-        self.warn_unused_vars();
+        self.warn_unused_expr(&hir.module, mode);
+        self.warn_unused_vars(mode);
         if self.errs.is_empty() {
             log!(info "the AST lowering process has completed.");
             Ok(CompleteArtifact::new(

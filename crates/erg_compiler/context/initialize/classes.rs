@@ -831,7 +831,7 @@ impl Context {
             vec![kw("f", or(func1(T.clone(), Bool), NoneType))],
             array_t(T.clone(), TyParam::erased(Nat)),
         );
-        array_.register_builtin_erg_impl(FUNC_DEDUP, t, Immutable, Public);
+        array_.register_builtin_erg_impl(FUNC_DEDUP, t.quantify(), Immutable, Public);
         /* Set */
         let mut set_ =
             Self::builtin_poly_class(SET, vec![PS::t_nd(TY_T), PS::named_nd(TY_N, Nat)], 10);
