@@ -14,6 +14,16 @@ use lsp_types::{CompletionItem, CompletionItemKind, CompletionParams};
 use crate::server::{ELSResult, Server};
 use crate::util;
 
+fn set_completion_order(item: &mut CompletionItem) {
+    let label = &item.label[..];
+    // HACK: let escaped symbols come at the bottom when sorting
+    if label.starts_with("__") {
+        item.sort_text = Some(format!("\u{10FFFF}_{label}"));
+    } else if label.starts_with('_') {
+        item.sort_text = Some(format!("\u{10FFFE}_{label}"));
+    }
+}
+
 impl<Checker: BuildRunnable> Server<Checker> {
     pub(crate) fn show_completion(&mut self, msg: &Value) -> ELSResult<()> {
         Self::send_log(format!("completion requested: {msg}"))?;
@@ -72,6 +82,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 })
                 .unwrap_or_else(|| vi.t.clone());
             let mut item = CompletionItem::new_simple(name.to_string(), readable_t.to_string());
+            set_completion_order(&mut item);
             item.kind = match &vi.t {
                 Type::Subr(subr) if subr.self_t().is_some() => Some(CompletionItemKind::METHOD),
                 Type::Quantified(quant) if quant.self_t().is_some() => {
