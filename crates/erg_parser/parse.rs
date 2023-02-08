@@ -1458,7 +1458,7 @@ impl Parser {
                     match self.lpop() {
                         symbol if symbol.is(Symbol) => {
                             let Some(ExprOrOp::Expr(obj)) = stack.pop() else {
-            let err = self.skip_and_throw_syntax_err(line!(), caused_by!());
+                                let err = self.skip_and_throw_syntax_err(line!(), caused_by!());
                                 self.errs.push(err);
                                 debug_exit_info!(self);
                                 return Err(());
@@ -1525,7 +1525,7 @@ impl Parser {
                     match self.lpop() {
                         symbol if symbol.is(Symbol) => {
                             let Some(ExprOrOp::Expr(obj)) = stack.pop() else {
-            let err = self.skip_and_throw_syntax_err(line!(), caused_by!());
+                                let err = self.skip_and_throw_syntax_err(line!(), caused_by!());
                                 self.errs.push(err);
                                 debug_exit_info!(self);
                                 return Err(());
