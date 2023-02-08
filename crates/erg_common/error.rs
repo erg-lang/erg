@@ -395,11 +395,7 @@ fn format_context<E: ErrorDisplay + ?Sized>(
     hint: Option<&String>,
 ) -> String {
     let mark = mark.to_string();
-    let codes = if e.input().is_repl() {
-        vec![e.input().reread()]
-    } else {
-        e.input().reread_lines(ln_begin, ln_end)
-    };
+    let codes = e.input().reread_lines(ln_begin, ln_end);
     let mut context = StyledStrings::default();
     let final_step = ln_end - ln_begin;
     let max_digit = ln_end.to_string().len();
@@ -564,14 +560,9 @@ impl SubMessage {
                 self.hint.as_ref(),
             ),
             Location::LineRange(ln_begin, ln_end) => {
-                let input = e.input();
                 let (vbreak, vbar) = chars.gutters();
                 let mut cxt = StyledStrings::default();
-                let codes = if input.is_repl() {
-                    vec![input.reread()]
-                } else {
-                    input.reread_lines(ln_begin as usize, ln_end as usize)
-                };
+                let codes = e.input().reread_lines(ln_begin as usize, ln_end as usize);
                 let mark = mark.to_string();
                 for (i, lineno) in (ln_begin..=ln_end).enumerate() {
                     cxt.push_str_with_color(&format!("{lineno} {vbar} "), gutter_color);
@@ -599,13 +590,9 @@ impl SubMessage {
             Location::Line(lineno) => {
                 let input = e.input();
                 let (_, vbar) = chars.gutters();
-                let code = if input.is_repl() {
-                    input.reread()
-                } else {
-                    input
-                        .reread_lines(lineno as usize, lineno as usize)
-                        .remove(0)
-                };
+                let code = input
+                    .reread_lines(lineno as usize, lineno as usize)
+                    .remove(0);
                 let mut cxt = StyledStrings::default();
                 cxt.push_str_with_color(&format!(" {lineno} {vbar} "), gutter_color);
                 cxt.push_str(&code);

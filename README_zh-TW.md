@@ -15,7 +15,7 @@
     </a>
 </p>
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3D4a5a320dfe1b9a2f91585e1a3f9dde8213edf893)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=4a5a320dfe1b9a2f91585e1a3f9dde8213edf893)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3D823f7134852f9410b066726b443133d2edc3e6eb)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=823f7134852f9410b066726b443133d2edc3e6eb)
 
 ## Erg可以推薦給以下人員&colon;
 
@@ -78,7 +78,7 @@
     ```python
     loop! block! = while! do! True, block!
 
-    # equals to `while! do! True, do! print! "hello"`
+    # equals to `while! do(True), do! print! "hello"`
     loop! do!:
         print! "hello"
     ```
@@ -208,13 +208,19 @@ nix build
 --features traditional_chinese
 ```
 
-還有更多的語言將被加入（我們正在尋找翻譯者。請加入[翻譯項目](./doc/EN/dev_guide/i18n_messages.md)）
+還有更多的語言將被加入（我們正在尋找翻譯者。請加入[翻譯項目](./doc/zh_TW/dev_guide/i18n_messages.md)）
 
 * 安裝和構建ELS（Erg語言服務器）
   * `--features els`
 * 設置成調試模式（針對貢獻者）
   * `--features debug`
-* 查看 [這裏](https://github.com/erg-lang/erg/blob/main/.cargo/config.toml) 了解更多Flags和簡寫
+* 完整的REPL體驗
+  * `--features full-repl`
+* 使顯示效果更好
+  * `--features unicode` and `--features pretty`
+* 啟用所有功能(除了為語言開發者提供)
+  * `features full`
+* 參見[這裏](https://github.com/erg-lang/erg/blob/main/doc/zh_TW/dev_guide/build_features.md)了解更多標誌。
 
 ## 貢獻
 

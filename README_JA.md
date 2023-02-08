@@ -15,7 +15,7 @@
     </a>
 </p>
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3D4a5a320dfe1b9a2f91585e1a3f9dde8213edf893)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=4a5a320dfe1b9a2f91585e1a3f9dde8213edf893)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3D823f7134852f9410b066726b443133d2edc3e6eb)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=823f7134852f9410b066726b443133d2edc3e6eb)
 
 ## Ergはこんな人におすすめです&#58;
 
@@ -160,6 +160,8 @@
 
 [Python3 (3.7~3.11)](https://www.python.org/)インタープリタがインストールされている必要があります。すでにインストールされているならセットアップは不要です。
 
+REPLでペースト機能を利用したい場合は`xsel`をインストールしてください(WSLでは必要ありません)
+
 ## インストール
 
 ### cargo(Rustパッケージマネージャ)によるインストール
@@ -210,11 +212,18 @@ cargo install erg --features traditional_chinese
 
 さらに多くの言語に対応する予定です。(翻訳者を募集しています。ぜひ[翻訳プロジェクト](./doc/JA/dev_guide/i18n_messages.md)に参加してください)。
 
+その他のフラグ
 
-* ELS (Erg Language Server) のインストールとビルド
+* ELS (Erg Language Server) を有効にする
   * `--features els`
 * デバッグモード (コントリビューター向け)
   * `--features debug`
+* REPLの履歴機能やペースト機能を有効にする
+  * `--features full-repl`
+* エラー表示などの見栄えを良くする
+  * `--features unicode`と`--features pretty`
+* 全機能を有効にする (開発者用機能を除く)
+  * `--features full`
 * その他のフラグ・エイリアスは[こちら](https://github.com/erg-lang/erg/blob/main/.cargo/config.toml)をご覧ください。
 
 ## コントリビューション

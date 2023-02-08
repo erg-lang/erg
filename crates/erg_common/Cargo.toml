@@ -20,6 +20,7 @@ large_thread = []
 els = []
 py_compatible = []
 no_std = []
+full-repl = ["dep:crossterm"]
 
 [target.'cfg(unix)'.dependencies]
 libc = { version = "0.2", default-features = false }
@@ -29,6 +30,9 @@ hermit-abi = "0.1.6"
 [target.'cfg(windows)'.dependencies.winapi]
 version = "0.3"
 features = ["consoleapi"]
+
+[dependencies]
+crossterm = { optional = true, version = "0.25.0" }
 
 [lib]
 path = "lib.rs"

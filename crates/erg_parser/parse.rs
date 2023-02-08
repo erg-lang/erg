@@ -8,15 +8,12 @@ use std::mem;
 use erg_common::config::ErgConfig;
 use erg_common::config::Input;
 use erg_common::error::Location;
-use erg_common::option_enum_unwrap;
 use erg_common::set::Set as HashSet;
 use erg_common::str::Str;
-use erg_common::traits::DequeStream;
-use erg_common::traits::Runnable;
-use erg_common::traits::{Locational, Stream};
+use erg_common::traits::{DequeStream, Locational, Runnable, Stream};
 use erg_common::{
-    caused_by, debug_power_assert, enum_unwrap, fn_name, impl_locational_for_enum, log, set,
-    switch_lang, switch_unreachable,
+    caused_by, debug_power_assert, enum_unwrap, fn_name, impl_locational_for_enum, log,
+    option_enum_unwrap, set, switch_lang, switch_unreachable,
 };
 
 use crate::ast::*;

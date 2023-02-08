@@ -211,11 +211,19 @@ By enabling the `--features` flag, you can customize the installation and build.
 
 And more languages will be added (we are looking for translators. Please join the [Translation Project](./doc/EN/dev_guide/i18n_messages.md)).
 
+Other flags:
+
 * Install and build ELS (Erg Language Server)
   * `--features els`
 * Debugging mode (for contributors)
   * `--features debug`
-* See [here](https://github.com/erg-lang/erg/blob/main/.cargo/config.toml) for more flags and abbreviations.
+* Rich REPL experience (cursor movement, pasting, history, etc.)
+  * `--features full-repl`
+* Makes the display look better
+  * `--features unicode` and `--features pretty`
+* Enable all features (exclude features for developers)
+  * `--features full`
+* See [here](https://github.com/erg-lang/erg/blob/main/doc/EN/dev_guide/build_features.md) for more flags.
 
 ## Contribution
 

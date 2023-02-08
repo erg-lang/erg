@@ -42,6 +42,29 @@ pub(crate) fn expect_success(file_path: &'static str) -> Result<(), ()> {
     }
 }
 
+pub(crate) fn expect_repl_failure(
+    name: &'static str,
+    lines: Vec<String>,
+    errs_len: usize,
+) -> Result<(), ()> {
+    match exec_repl(name, lines) {
+        Ok(ExitStatus::OK) => Err(()),
+        Ok(ExitStatus { num_errors, .. }) => {
+            if num_errors == errs_len {
+                Ok(())
+            } else {
+                println!("err: number of errors should be {errs_len}, but got {num_errors}");
+                Err(())
+            }
+        }
+        Err(errs) => {
+            println!("err: should succeed, but got compile errors");
+            errs.fmt_all_stderr();
+            Err(())
+        }
+    }
+}
+
 pub(crate) fn expect_end_with(file_path: &'static str, code: i32) -> Result<(), ()> {
     match exec_file(file_path) {
         Ok(0) => {

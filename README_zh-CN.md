@@ -15,7 +15,7 @@
     </a>
 </p>
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3D4a5a320dfe1b9a2f91585e1a3f9dde8213edf893)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=4a5a320dfe1b9a2f91585e1a3f9dde8213edf893)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3DREADME.md%26commit_hash%3D823f7134852f9410b066726b443133d2edc3e6eb)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=README.md&commit_hash=823f7134852f9410b066726b443133d2edc3e6eb)
 
 ## Erg可以推荐给以下人员&colon;
 
@@ -208,13 +208,19 @@ nix build
 --features traditional_chinese
 ```
 
-还有更多的语言将被加入（我们正在寻找翻译者。请加入[翻译项目](./doc/EN/dev_guide/i18n_messages.md)）
+还有更多的语言将被加入（我们正在寻找翻译者。请加入[翻译项目](./doc/zh_CN/dev_guide/i18n_messages.md)）
 
 * 安装和构建ELS（Erg语言服务器）
   * `--features els`
 * 设置成调试模式（针对贡献者）
   * `--features debug`
-* 查看 [这里](https://github.com/erg-lang/erg/blob/main/.cargo/config.toml) 了解更多Flags和简写
+* 完整的REPL体验
+  * `--features full-repl`
+* 使显示效果更好
+  * `--features unicode` and `--features pretty`
+* 启用所有功能(除了为语言开发者提供)
+  * `features full`
+* 参见[这里](https://github.com/erg-lang/erg/blob/main/doc/zh_CN/dev_guide/build_features.md)了解更多标志。
 
 ## 贡献
 

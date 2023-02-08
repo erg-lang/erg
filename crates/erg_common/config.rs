@@ -4,6 +4,7 @@
 use std::env;
 use std::fmt;
 use std::fs::File;
+use std::io::Write;
 use std::io::{stdin, BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
 use std::process;
@@ -89,13 +90,19 @@ impl DummyStdin {
         }
     }
 
-    pub fn read_line(&mut self) -> Option<String> {
+    pub fn read_line(&mut self) -> String {
+        let mut stdout = std::io::stdout();
         if self.current_line >= self.lines.len() {
-            return None;
+            stdout.write_all("\n".as_bytes()).unwrap();
+            stdout.flush().unwrap();
+            return "".to_string();
         }
-        let line = self.lines[self.current_line].clone();
+        let mut line = self.lines[self.current_line].clone();
         self.current_line += 1;
-        Some(line)
+        line.push('\n');
+        stdout.write_all(line.as_bytes()).unwrap();
+        stdout.flush().unwrap();
+        line
     }
 
     pub fn reread_lines(&self, ln_begin: usize, ln_end: usize) -> Vec<String> {
@@ -136,6 +143,25 @@ impl Input {
 
     pub fn repl() -> Self {
         Self::REPL(random())
+    }
+    pub fn lineno(&self) -> usize {
+        GLOBAL_STDIN.lineno()
+    }
+
+    pub fn block_begin(&self) -> usize {
+        GLOBAL_STDIN.block_begin()
+    }
+
+    pub fn set_block_begin(&self) {
+        GLOBAL_STDIN.set_block_begin(self.lineno())
+    }
+
+    pub fn insert_whitespace(&self, whitespace: &str) {
+        GLOBAL_STDIN.insert_whitespace(whitespace);
+    }
+
+    pub fn set_indent(&self, indent: usize) {
+        GLOBAL_STDIN.set_indent(indent);
     }
 
     pub fn path(&self) -> Option<&Path> {
@@ -225,7 +251,7 @@ impl Input {
             }
             Self::Pipe(_, s) | Self::Str(_, s) => s.clone(),
             Self::REPL(_) => GLOBAL_STDIN.read(),
-            Self::DummyREPL(dummy) => dummy.read_line().unwrap_or_default(),
+            Self::DummyREPL(dummy) => dummy.read_line(),
             Self::Dummy => panic!("cannot read from a dummy file"),
         }
     }
@@ -279,7 +305,13 @@ impl Input {
                 .iter()
                 .map(|s| s.to_string())
                 .collect(),
-            Self::REPL(_) => GLOBAL_STDIN.reread_lines(ln_begin, ln_end),
+            Self::REPL(_) => {
+                if ln_begin == ln_end {
+                    vec![GLOBAL_STDIN.reread()]
+                } else {
+                    GLOBAL_STDIN.reread_lines(ln_begin, ln_end)
+                }
+            }
             Self::DummyREPL(dummy) => dummy.reread_lines(ln_begin, ln_end),
             Self::Dummy => panic!("cannot read lines from a dummy file"),
         }

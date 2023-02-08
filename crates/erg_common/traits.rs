@@ -468,34 +468,116 @@ pub trait LimitedDisplay {
     fn limited_fmt(&self, f: &mut std::fmt::Formatter<'_>, limit: usize) -> std::fmt::Result;
 }
 
-// for Runnable::run
-fn expect_block(src: &str) -> bool {
-    let src = src.trim_end();
-    src.ends_with(&['.', '=', ':'])
-        || src.ends_with("->")
-        || src.ends_with("=>")
-        // when `"""` are on the same line
-        // e.g. """something"""
-        || src.contains("\"\"\"") && src.find("\"\"\"") == src.rfind("\"\"\"")
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum BlockKind {
+    Main,       // now_block Vec must contain this
+    Assignment, // =
+    ClassPriv,  // ::
+    ClassPub,   // .
+    ColonCall,  // :
+    Error,      // parser error
+    Lambda,     // =>, ->, do, do!
+    // not block
+    AtMark,       // @
+    MultiLineStr, // """
+    ClassDef,     // class definition
+    None,         // one line
 }
 
-// In the REPL, it is invalid for these symbols to be at the beginning of a line
-fn expect_invalid_block(src: &str) -> bool {
-    let src = src.trim_start();
-    src.starts_with(['.', '=', ':']) || src.starts_with("->") || src.starts_with("=>")
+pub fn from_str(bk: &str) -> BlockKind {
+    match bk {
+        "Assignment" => BlockKind::Assignment,
+        "AtMark" => BlockKind::AtMark,
+        "ClassPriv" => BlockKind::ClassPriv,
+        "ClassPub" => BlockKind::ClassPub,
+        "ColonCall" => BlockKind::ColonCall,
+        "Error" => BlockKind::Error,
+        "Lambda" => BlockKind::Lambda,
+        "MultiLineStr" => BlockKind::MultiLineStr,
+        "ClassDef" => BlockKind::ClassDef,
+        "None" => BlockKind::None,
+        _ => unimplemented!("Failed to convert to BlockKind"),
+    }
 }
 
-fn is_in_the_expected_block(src: &str, lines: &str, in_block: &mut bool) -> bool {
-    if lines.contains("\"\"\"") {
-        if src.ends_with("\"\"\"") {
-            *in_block = false;
-            false
-        } else {
-            true
+pub struct VirtualMachine {
+    pub codes: String,
+    pub now_block: Vec<BlockKind>,
+    pub now: BlockKind,
+    pub length: usize,
+}
+
+impl Default for VirtualMachine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl VirtualMachine {
+    pub fn new() -> Self {
+        Self {
+            codes: String::new(),
+            now_block: vec![BlockKind::Main],
+            now: BlockKind::Main,
+            length: 1,
         }
-    } else {
-        *in_block = false;
-        !expect_invalid_block(src) || src.starts_with(' ') && lines.contains('\n')
+    }
+
+    pub fn push_block_kind(&mut self, bk: BlockKind) {
+        // Don't add block to @ after @
+        if self.now == BlockKind::AtMark && bk == BlockKind::AtMark {
+            return;
+        }
+        // Change from AtMark to ClassDef or Assignment
+        if (bk == BlockKind::ClassDef || bk == BlockKind::Assignment)
+            && self.now == BlockKind::AtMark
+        {
+            self.now_block.pop();
+        }
+        // Change from ClassDef to ClassPriv or ClassPub
+        if (bk == BlockKind::ClassPriv || bk == BlockKind::ClassPub)
+            && self.now == BlockKind::ClassDef
+        {
+            self.now_block.pop();
+        }
+        self.now = bk;
+        self.now_block.push(bk);
+        if bk == BlockKind::AtMark || bk == BlockKind::ClassDef {
+            return;
+        }
+        if bk == BlockKind::MultiLineStr {
+            self.length = 1;
+            return;
+        }
+        self.length += 1;
+    }
+
+    pub fn remove_block_kind(&mut self) {
+        self.now_block.pop().unwrap();
+        self.now = *self.now_block.last().unwrap();
+        self.length -= 1;
+    }
+
+    pub fn push_code(&mut self, src: &str) {
+        self.codes.push_str(src)
+    }
+
+    pub fn clear(&mut self) {
+        self.codes = String::new();
+        self.now_block = vec![BlockKind::Main];
+        self.now = BlockKind::Main;
+        self.length = 1;
+    }
+
+    pub fn indent(&mut self) -> String {
+        if self.now == BlockKind::MultiLineStr {
+            String::new()
+        } else if self.length == 0 {
+            self.length = 1;
+            "    ".repeat(0)
+        } else {
+            "    ".repeat(self.length - 1) // Except MainBlock
+        }
     }
 }
 
@@ -530,7 +612,43 @@ pub trait Runnable: Sized + Default {
     fn clear(&mut self);
     fn eval(&mut self, src: String) -> Result<String, Self::Errs>;
     fn exec(&mut self) -> Result<i32, Self::Errs>;
-
+    fn expect_block(&self, src: &str) -> BlockKind {
+        let multi_line_str = "\"\"\"";
+        if src.contains(multi_line_str) && src.rfind(multi_line_str) == src.find(multi_line_str) {
+            return BlockKind::MultiLineStr;
+        }
+        if src.trim_start().starts_with('@') {
+            return BlockKind::AtMark;
+        }
+        if src.ends_with("do!:") && !src.starts_with("do!:") {
+            return BlockKind::Lambda;
+        }
+        if src.ends_with("do:") && !src.starts_with("do:") {
+            return BlockKind::Lambda;
+        }
+        if src.ends_with(':') && !src.starts_with(':') {
+            return BlockKind::Lambda;
+        }
+        if src.ends_with('=') && !src.starts_with('=') {
+            return BlockKind::Assignment;
+        }
+        if src.ends_with('.') && !src.starts_with('.') {
+            return BlockKind::ClassPub;
+        }
+        if src.ends_with("::") && !src.starts_with("::") {
+            return BlockKind::ClassPriv;
+        }
+        if src.ends_with("=>") && !src.starts_with("=>") {
+            return BlockKind::Lambda;
+        }
+        if src.ends_with("->") && !src.starts_with("->") {
+            return BlockKind::Lambda;
+        }
+        if src.contains("Class") || src.contains("Inherit") {
+            return BlockKind::ClassDef;
+        }
+        BlockKind::None
+    }
     fn input(&self) -> &Input {
         &self.cfg().input
     }
@@ -583,22 +701,62 @@ pub trait Runnable: Sized + Default {
                         .write_all(instance.start_message().as_bytes())
                         .unwrap();
                 }
-                output.write_all(instance.ps1().as_bytes()).unwrap();
                 output.flush().unwrap();
-                let mut in_block = false;
-                let mut lines = String::new();
+                let mut vm = VirtualMachine::new();
                 loop {
+                    let indent = vm.indent();
+                    if vm.now_block.len() > 1 {
+                        output.write_all(instance.ps2().as_bytes()).unwrap();
+                        output.write_all(indent.as_str().as_bytes()).unwrap();
+                        output.flush().unwrap();
+                    } else {
+                        output.write_all(instance.ps1().as_bytes()).unwrap();
+                        output.flush().unwrap();
+                    }
+                    instance.cfg().input.set_indent(vm.length);
                     let line = chomp(&instance.cfg_mut().input.read());
-                    match &line[..] {
+                    let line = line.trim_end();
+                    match line {
                         ":quit" | ":exit" => {
                             instance.quit_successfully(output);
                         }
-                        ":clear" => {
+                        ":clear" | ":cln" => {
                             output.write_all("\x1b[2J\x1b[1;1H".as_bytes()).unwrap();
                             output.flush().unwrap();
-                            output.write_all(instance.ps1().as_bytes()).unwrap();
-                            output.flush().unwrap();
+                            vm.clear();
                             instance.clear();
+                            continue;
+                        }
+                        "" => {
+                            // eval after the end of the block
+                            if vm.now_block.len() == 2 {
+                                vm.remove_block_kind();
+                            } else if vm.now_block.len() > 1 {
+                                vm.remove_block_kind();
+                                vm.push_code("\n");
+                                continue;
+                            }
+                            match instance.eval(mem::take(&mut vm.codes)) {
+                                Ok(out) if out.is_empty() => continue,
+                                Ok(out) => {
+                                    output.write_all((out + "\n").as_bytes()).unwrap();
+                                    output.flush().unwrap();
+                                }
+                                Err(errs) => {
+                                    if errs
+                                        .first()
+                                        .map(|e| e.core().kind == ErrorKind::SystemExit)
+                                        .unwrap_or(false)
+                                    {
+                                        instance.quit_successfully(output);
+                                    }
+                                    num_errors += errs.len();
+                                    errs.fmt_all_stderr();
+                                }
+                            }
+                            instance.input().set_block_begin();
+                            instance.clear();
+                            vm.clear();
                             continue;
                         }
                         _ => {}
@@ -606,56 +764,135 @@ pub trait Runnable: Sized + Default {
                     let line = if let Some(comment_start) = line.find('#') {
                         &line[..comment_start]
                     } else {
-                        &line[..]
+                        line
                     };
-                    lines.push_str(line);
-
-                    if in_block {
-                        if is_in_the_expected_block(line, &lines, &mut in_block) {
-                            lines += "\n";
-                            output.write_all(instance.ps2().as_bytes()).unwrap();
-                            output.flush().unwrap();
+                    let bk = instance.expect_block(line);
+                    match bk {
+                        BlockKind::None if vm.now == BlockKind::AtMark => {
+                            if let Some(eq) = line.find('=') {
+                                if let Some(class) = line.find("Class") {
+                                    if eq < class {
+                                        vm.push_code(indent.as_str());
+                                        instance.input().insert_whitespace(indent.as_str());
+                                        vm.push_code(line);
+                                        vm.push_code("\n");
+                                        vm.push_block_kind(bk);
+                                        continue;
+                                    }
+                                }
+                                vm.push_code(indent.as_str());
+                                instance.input().insert_whitespace(indent.as_str());
+                                vm.push_code(line);
+                                vm.push_code("\n");
+                                continue;
+                            }
+                            // Intentionally code will be evaluated and make an error
+                            vm.now = BlockKind::Main;
+                        }
+                        BlockKind::ClassDef | BlockKind::Assignment
+                            if vm.now == BlockKind::AtMark =>
+                        {
+                            vm.push_block_kind(bk);
+                            vm.push_code(indent.as_str());
+                            instance.input().insert_whitespace(indent.as_str());
+                            vm.push_code(line);
+                            vm.push_code("\n");
                             continue;
                         }
-                    } else if expect_block(line) {
-                        in_block = true;
-                        lines += "\n";
-                        output.write_all(instance.ps2().as_bytes()).unwrap();
-                        output.flush().unwrap();
-                        continue;
+                        // Intentionally code will be evaluated and make an error
+                        _ if vm.now == BlockKind::AtMark => {
+                            vm.push_code(line);
+                            vm.push_code("\n");
+                            vm.now = BlockKind::Main;
+                        }
+                        BlockKind::None if vm.now == BlockKind::MultiLineStr => {
+                            vm.push_code(line);
+                            vm.push_code("\n");
+                            continue;
+                        }
+                        // single eval
+                        BlockKind::None => {
+                            vm.push_code(indent.as_str());
+                            instance.input().insert_whitespace(indent.as_str());
+                            vm.push_code(line);
+                            vm.push_code("\n");
+                        }
+                        BlockKind::Error => {
+                            vm.push_code(indent.as_str());
+                            instance.input().insert_whitespace(indent.as_str());
+                            vm.push_code(line);
+                            vm.now = BlockKind::Main;
+                            vm.now_block = vec![BlockKind::Main];
+                        }
+                        // end of MultiLineStr
+                        BlockKind::MultiLineStr if vm.now == BlockKind::MultiLineStr => {
+                            vm.remove_block_kind();
+                            vm.length = vm.now_block.len();
+                            vm.push_code(line);
+                            vm.push_code("\n");
+                        }
+                        // start of MultiLineStr
+                        BlockKind::MultiLineStr => {
+                            vm.push_block_kind(BlockKind::MultiLineStr);
+                            vm.push_code(indent.as_str());
+                            instance.input().insert_whitespace(indent.as_str());
+                            vm.push_code(line);
+                            vm.push_code("\n");
+                            continue;
+                        }
+                        // block is expected but string
+                        _ if vm.now == BlockKind::MultiLineStr => {
+                            vm.push_code(line);
+                            vm.push_code("\n");
+                            continue;
+                        }
+                        // expect block
+                        _ => {
+                            if vm.length == 1 {
+                                instance.input().set_block_begin();
+                            }
+                            vm.push_code(indent.as_str());
+                            instance.input().insert_whitespace(indent.as_str());
+                            vm.push_block_kind(bk);
+                            vm.push_code(line);
+                            vm.push_code("\n");
+                            continue;
+                        }
                     }
 
-                    match instance.eval(mem::take(&mut lines)) {
-                        Ok(out) => {
-                            output.write_all((out + "\n").as_bytes()).unwrap();
-                            output.flush().unwrap();
-                        }
-                        Err(errs) => {
-                            if errs
-                                .first()
-                                .map(|e| e.core().kind == ErrorKind::SystemExit)
-                                .unwrap_or(false)
-                            {
-                                return ExitStatus::new(0, num_errors);
+                    if vm.now == BlockKind::Main {
+                        match instance.eval(mem::take(&mut vm.codes)) {
+                            Ok(out) => {
+                                output.write_all((out + "\n").as_bytes()).unwrap();
+                                output.flush().unwrap();
                             }
-                            num_errors += errs.len();
-                            errs.fmt_all_stderr();
+                            Err(errs) => {
+                                if errs
+                                    .first()
+                                    .map(|e| e.core().kind == ErrorKind::SystemExit)
+                                    .unwrap_or(false)
+                                {
+                                    return ExitStatus::new(0, num_errors);
+                                }
+                                num_errors += errs.len();
+                                errs.fmt_all_stderr();
+                            }
                         }
+                        instance.input().set_block_begin();
+                        instance.clear();
+                        vm.clear();
                     }
-                    output.write_all(instance.ps1().as_bytes()).unwrap();
-                    output.flush().unwrap();
-                    instance.clear();
                 }
             }
             Input::Dummy => switch_unreachable!(),
         };
         match res {
+            Ok(i) => ExitStatus::new(i, num_errors),
             Err(errs) => {
                 num_errors += errs.len();
                 errs.fmt_all_stderr();
                 ExitStatus::new(1, num_errors)
             }
-            Ok(i) => ExitStatus::new(i, num_errors),
         }
     }
 }
