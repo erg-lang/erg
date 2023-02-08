@@ -82,9 +82,12 @@ impl FileCache {
     ) -> ELSResult<Option<Token>> {
         let Some(index) = self.get_token_index(uri, pos)? else {
             let tokens = self.get(uri)?.token_stream.as_ref().ok_or("lex error")?;
-            for token in tokens.iter().rev() {
-                if !token.is(TokenKind::EOF) && !token.is(TokenKind::Dedent) && !token.is(TokenKind::Newline) {
-                    return Ok(Some(token.clone()));
+            while let Some(token) = tokens.iter().next_back(){
+                match token.kind {
+                    TokenKind::EOF | TokenKind::Dedent | TokenKind::Newline => {}
+                    _ => {
+                        return Ok(Some(token.clone()))
+                    }
                 }
             }
             return Ok(None);
