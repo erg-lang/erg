@@ -226,10 +226,8 @@ impl StdinReader {
                     println!();
                     break;
                 }
-                (KeyCode::Char(c), _) => {
-                    if c.len_utf8() >= 2{
-                        continue;
-                    }
+                // TODO: check a full-width char and possible to insert
+                (KeyCode::Char(c), _) if c.len_utf8() < 2 => {
                     line.insert(position, c);
                     position += 1;
                 }
