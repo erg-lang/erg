@@ -35,7 +35,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             let prev_token = self.file_cache.get_token_relatively(&uri, pos, -1)?;
             if prev_token
                 .as_ref()
-                .map(|t| t.kind == TokenKind::Dot)
+                .map(|t| t.is(TokenKind::Dot) || t.is(TokenKind::DblColon))
                 .unwrap_or(false)
             {
                 let dot_pos = util::loc_to_pos(prev_token.unwrap().loc()).unwrap();

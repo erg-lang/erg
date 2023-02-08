@@ -16,7 +16,6 @@ use erg_common::normalize_path;
 use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::build_hir::HIRBuilder;
 use erg_compiler::context::{Context, ModuleContext};
-use erg_compiler::erg_parser::token::TokenKind;
 use erg_compiler::hir::HIR;
 use erg_compiler::module::{SharedCompilerResource, SharedModuleIndex};
 
@@ -436,22 +435,22 @@ impl<Checker: BuildRunnable> Server<Checker> {
             .file_cache
             .get_token_relatively(uri, attr_marker_pos, -1)?;
         if let Some(token) = maybe_token {
-            if token.is(TokenKind::Symbol) {
-                let var_name = token.inspect();
-                Self::send_log(format!("{} name: {var_name}", line!()))?;
-                Ok(module.context.get_receiver_ctxs(var_name))
+            Self::send_log(format!("token: {token}"))?;
+            let var_name = token.inspect();
+            let ctxs = module.context.get_receiver_ctxs(var_name);
+            if let Some(typ) = self
+                .get_visitor(uri)
+                .and_then(|visitor| visitor.get_t(&token))
+            {
+                Self::send_log(format!("type: {typ}"))?;
+                let type_ctxs = module
+                    .context
+                    .get_nominal_super_type_ctxs(&typ)
+                    .unwrap_or(vec![]);
+                Ok([ctxs, type_ctxs].concat())
             } else {
-                Self::send_log(format!("non-name token: {token}"))?;
-                if let Some(typ) = self
-                    .get_visitor(uri)
-                    .and_then(|visitor| visitor.get_t(&token))
-                {
-                    let t_name = typ.qual_name();
-                    Self::send_log(format!("type: {t_name}"))?;
-                    Ok(module.context.get_receiver_ctxs(&t_name))
-                } else {
-                    Ok(vec![])
-                }
+                Self::send_log("failed to get the type")?;
+                Ok(ctxs)
             }
         } else {
             Self::send_log("token not found")?;

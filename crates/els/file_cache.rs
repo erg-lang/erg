@@ -83,7 +83,7 @@ impl FileCache {
         let Some(index) = self.get_token_index(uri, pos)? else {
             let tokens = self.get(uri)?.token_stream.as_ref().ok_or("lex error")?;
             for token in tokens.iter().rev() {
-                if !token.is(TokenKind::EOF) && !token.is(TokenKind::Dedent) && !token.is(TokenKind::Newline) {
+                if !matches!(token.kind, TokenKind::EOF | TokenKind::Dedent | TokenKind::Newline) {
                     return Ok(Some(token.clone()));
                 }
             }
