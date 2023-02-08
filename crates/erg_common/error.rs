@@ -260,6 +260,49 @@ pub enum Location {
     Unknown,
 }
 
+impl fmt::Display for Location {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Range {
+                ln_begin,
+                col_begin,
+                ln_end,
+                col_end,
+            } => write!(f, "{ln_begin}:{col_begin}-{ln_end}:{col_end}"),
+            Self::LineRange(ln_begin, ln_end) => write!(f, "{ln_begin}:?-{ln_end}:?"),
+            Self::Line(ln) => write!(f, "{ln}:?-{ln}:?"),
+            Self::Unknown => write!(f, "?"),
+        }
+    }
+}
+
+impl std::str::FromStr for Location {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s == "?" {
+            return Ok(Self::Unknown);
+        }
+        // ln_begin:col_begin-ln_end:col_end
+        let mut comps = s.split('-');
+        let mut comp1 = comps.next().ok_or(())?.split(':');
+        let mut comp2 = comps.next().ok_or(())?.split(':');
+        let ln_begin = comp1.next().unwrap().parse::<u32>().map_err(|_| ())?;
+        let col_begin = comp1.next().unwrap().parse::<u32>();
+        let ln_end = comp2.next().unwrap().parse::<u32>().map_err(|_| ())?;
+        let col_end = comp2.next().unwrap().parse::<u32>();
+        match (col_begin, col_end) {
+            (Ok(col_begin), Ok(col_end)) => Ok(Self::Range {
+                ln_begin,
+                col_begin,
+                ln_end,
+                col_end,
+            }),
+            _ if ln_begin == ln_end => Ok(Self::Line(ln_begin)),
+            _ => Ok(Self::LineRange(ln_begin, ln_end)),
+        }
+    }
+}
+
 impl Ord for Location {
     fn cmp(&self, other: &Location) -> Ordering {
         if self.ln_end() < other.ln_begin() {

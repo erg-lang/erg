@@ -111,7 +111,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                         format!("{}: {}", token.content, vi.t),
                     );
                     contents.push(typ);
-                    self.show_doc_comment(token, &mut contents, &vi.def_loc)?;
+                    self.show_doc_comment(Some(token), &mut contents, &vi.def_loc)?;
                 }
                 // not found or not symbol, etc.
                 None => {
@@ -135,9 +135,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
         )
     }
 
-    fn show_doc_comment(
+    pub(crate) fn show_doc_comment(
         &self,
-        var_token: Token,
+        var_token: Option<Token>,
         contents: &mut Vec<MarkedString>,
         def_loc: &AbsLocation,
     ) -> ELSResult<()> {
@@ -177,7 +177,8 @@ impl<Checker: BuildRunnable> Server<Checker> {
                         }
                         next!(def_pos, default_code_block, contents, prev_token, token);
                     }
-                } else if token == var_token {
+                } else if var_token.as_ref() == Some(&token) {
+                    // multiple pattern def
                     next!(def_pos, default_code_block, contents, prev_token, token);
                 } else {
                     if token.category_is(TokenCategory::Separator) {
