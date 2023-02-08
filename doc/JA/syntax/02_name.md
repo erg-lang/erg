@@ -112,7 +112,7 @@ X = !1 # TypeError: cannot define Int! object as a constant
 
 `Del`関数を使うことで、代数を削除することが出来ます。その代数に依存している(その代数の値を直接参照している)他の代数もまとめて削除されます。
 
-```python,compile_fail
+```python,checker_ignore
 x = 1
 y = 2
 z = 3

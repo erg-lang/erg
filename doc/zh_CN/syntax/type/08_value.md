@@ -38,6 +38,7 @@ Value = (
 
 <span id="1" style="font-size:x-small"><sup>1</sup> Erg 中的术语"值类型"与其他语言中的定义不同。纯 Erg 语义中没有内存的概念，并且因为它被放置在堆栈上而说它是值类型，或者因为它实际上是一个指针而说它不是值类型是不正确的。值类型仅表示它是"值"类型或其子类型。[↩](#f1)</span>
 
+
 <p align='center'>
     <a href='./07_patch.md'>上一页</a> | <a href='./09_attributive.md'>下一页</a>
 </p>

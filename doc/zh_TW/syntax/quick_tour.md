@@ -83,9 +83,9 @@ i = 10
 你可以像在 Haskell 中一樣定義它
 
 ```python
-fib0 = 0
-fib1 = 1
-fibn = fib(n - 1) + fib(n - 2)
+fib 0 = 0
+fib 1 = 1
+fib n = fib(n - 1) + fib(n - 2)
 ```
 
 匿名函數可以這樣定義:

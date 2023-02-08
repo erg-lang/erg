@@ -81,7 +81,7 @@ cell = freevars[namei]
 stack. push(cell)
 ```
 
-然后调用 BUILD_TUPLE
+然後调用 BUILD_TUPLE
 它只在闭包内被调用，并且 cellvars 应该在闭包内存储引用
 与 LOAD_DEREF 不同，每个单元格(填充有引用的容器)都被推入堆栈
 

@@ -84,7 +84,7 @@ classDiagram
 
 ---
 
-<span id="1" style="font-size:x-small"><sup>1</sup> 這個模式似乎沒有統一的名稱，但是在 Rust 中，有 [companion struct 模式]( https://gist.github.com/qnighy/be99c2ece6f3f4b1248608a04e104b38# :~:text=%E3%82%8F%E3%82%8C%E3%81%A6%E3%81%84%E3%82 %8B%E3%80%82-,companion%20struct,-%E3%83%A1%E3%82%BD%E3%83%83%E3%83%89%E3%81%A8%E3%80% 81%E3 %81%9D%E3%81%AE)，并以此命名。[?](#f1) </span>
+<span id="1" style="font-size:x-small"><sup>1</sup> 這個模式似乎沒有統一的名稱，但是在 Rust 中，有 [companion struct 模式]( https://gist.github.com/qnighy/be99c2ece6f3f4b1248608a04e104b38# :~:text=%E3%82%8F%E3%82%8C%E3%81%A6%E3%81%84%E3%82 %8B%E3%80%82-,companion%20struct,-%E3%83%A1%E3%82%BD%E3%83%83%E3%83%89%E3%81%A8%E3%80% 81%E3 %81%9D%E3%81%AE)，并以此命名。[↩](#f1)</span>
 
 <p align='center'>
     <a href='./16_type.md'>上一頁</a> | <a href='./18_mutability.md'>下一頁</a>

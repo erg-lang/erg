@@ -1,6 +1,6 @@
 # 重载
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/overloading.md%26commit_hash%3D51de3c9d5a9074241f55c043b9951b384836b258)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/overloading.md&commit_hash=51de3c9d5a9074241f55c043b9951b384836b258)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/overloading.md%26commit_hash%3D8673a0ce564fd282d0ca586642fa7f002e8a3c50)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/overloading.md&commit_hash=8673a0ce564fd282d0ca586642fa7f002e8a3c50)
 
 Erg 不支持 __ad hoc 多态性__。也就是说，函数和种类(重载)的多重定义是不可能的。但是，您可以通过使用Trait和补丁的组合来重现重载行为
 您可以使用Trait而不是Trait类，但随后将涵盖所有实现 `.add1` 的类型
@@ -50,7 +50,7 @@ Erg 的立场是，您不能定义行为完全不同的函数，例如根据参�
 此外，导入子程序可能会改变已定义子程序的行为
 
 ```python
-{id; ...} = import "foo"
+{id;} = import "foo"
 ...
 id x: Int = x
 ...

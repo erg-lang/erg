@@ -105,7 +105,7 @@ List(T).
 但是請注意，Erg 編譯器不理解方法的語義。編譯器只是根據變量和類型變量的使用方式機械地推斷和派生類型關系
 
 正如評論中所寫，放在`List T`的`head`中的`U`類型是`T`的子類(`T: Int`，例如`Nat`)。也就是說，它被推斷為 `U <: T`。此約束將 `.push{U}` upcast `(List(T), U) -> List(T) 的參數類型更改為 (List(T), T) -> List(T)`(例如 disallow `列表(整數).push{對象}`)。但是請注意，`U <: T` 約束不會改變函數的類型包含。`(List(Int), Object) -> List(Int) to (List(Int), Int) -> List(Int)` 的事實并沒有改變，只是在 `.push` 方法中表示強制轉換無法執行
-類似地，從 `List T` 到?? `List U` 的轉換可能會受到約束 `U :> T` 的約束，因此可以推斷出變體規范。此約束將 `.upcast(U)` 的返回類型更改為向上轉換 `List(T) -> List(T) 到 List(T) -> List(T)`(例如 `List(Object) .upcast(Int )`) 被禁止
+類似地，從 `List T` 到 `List U` 的轉換可能會受到約束 `U :> T` 的約束，因此可以推斷出變體規范。此約束將 `.upcast(U)` 的返回類型更改為向上轉換 `List(T) -> List(T) 到 List(T) -> List(T)`(例如 `List(Object) .upcast(Int )`) 被禁止
 
 現在讓我們看看如果我們允許這種向上轉換會發生什么
 讓我們反轉變性名稱

@@ -1,6 +1,6 @@
 # 广义代数数据类型 (GADT)
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/GADTs.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/GADTs.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/GADTs.md%26commit_hash%3D8673a0ce564fd282d0ca586642fa7f002e8a3c50)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/GADTs.md&commit_hash=8673a0ce564fd282d0ca586642fa7f002e8a3c50)
 
 Erg 可以通过对 Or 类型进行分类来创建广义代数数据类型 (GADT)
 
@@ -14,7 +14,7 @@ List.
     head self = match self:
         {head; ...}: Cons_ -> head
         _: Nil -> panic "empty list"
-{nil; cons; ...} = List
+{nil; cons} = List
 
 print! cons(1, cons(2, nil())).head() # 1
 print! nil.head() # 运行时错误: "空list"
@@ -39,7 +39,7 @@ List.
     cons head, rest | T = Self(T, "Nonempty").new {head; rest}
 List(T, "Nonempty").
     head {head; ...} = head
-{nil; cons; ...} = List
+{nil; cons} = List
 
 print! cons(1, cons(2, nil())).head() # 1
 print! nil().head() # 类型错误
@@ -59,7 +59,7 @@ List(_, N | N >= 1).
     head {head; ...} = head
 List(_, N | N >= 2).
     pair {head = first; rest = {head = second; ...}} = [first, second]
-{nil; cons; ...} = List
+{nil; cons} = List
 
 print! cons(1, cons(2, nil)).pair() # [1, 2]
 print! cons(1, nil).pair() # 类型错误

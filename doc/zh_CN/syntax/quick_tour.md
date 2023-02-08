@@ -31,7 +31,7 @@ b: Int = a / 2
 Error[#0047]: File <stdin>, line 1, in <module>
 2│ b: Int = int / 2
    ^
-类型错误: ratio的类型不匹配: 
+类型错误: ratio的类型不匹配:
 期待:  Int
 但找到: Float
 ```
@@ -83,12 +83,12 @@ i = 10
 你可以像在 Haskell 中一样定义它
 
 ```python
-fib0 = 0
-fib1 = 1
-fibn = fib(n - 1) + fib(n - 2)
+fib 0 = 0
+fib 1 = 1
+fib n = fib(n - 1) + fib(n - 2)
 ```
 
-匿名函数可以这样定义: 
+匿名函数可以这样定义:
 
 ```python
 i -> i + 1
@@ -97,7 +97,7 @@ assert [1, 2, 3].map(i -> i + 1).to_arr() == [2, 3, 4]
 
 ## 运算符
 
-特定于 Erg 的运算符是: 
+特定于 Erg 的运算符是:
 
 ### 变异运算符 (!)
 
@@ -221,9 +221,9 @@ right(_, r) = r
 与稍后描述的元组/数组/记录模式结合使用
 
 ```python
-[i,...j] = [1, 2, 3, 4]
+[i, *j] = [1, 2, 3, 4]
 assert j == [2, 3, 4]
-first|T|(fst: T, ...rest: T) = fst
+first|T|(fst: T, *rest: T) = fst
 assert first(1, 2, 3) == 1
 ```
 
@@ -239,14 +239,14 @@ m, n = 1, 2
 ### 数组模式
 
 ```python
-length[] = 0
-length[_, ...rest] = 1 + lengthrest
+length [] = 0
+length [_, *rest] = 1 + length rest
 ```
 
 #### 记录模式
 
 ```python
-{sin; cos; tan; ...} = import "math"
+{sin; cos; tan} = import "math"
 {*} = import "math" # 全部导入
 
 person = {name = "John Smith"; age = 20}

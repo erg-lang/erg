@@ -114,7 +114,7 @@ X = !1 # 類型錯誤: 無法定義 Int！ 對象作為常量
 
 您可以使用 `Del` 函數刪除變量。依賴于變量的所有其他變量(即直接引用變量值的變量)也將被刪除
 
-```python,compile_fail
+```python,checker_ignore
 x = 1
 y = 2
 z = 3

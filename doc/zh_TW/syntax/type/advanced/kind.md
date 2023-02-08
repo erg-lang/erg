@@ -1,6 +1,6 @@
 # Kind
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/kind.md%26commit_hash%3D44d7784aac3550ba97c8a1eaf20b9264b13d4134)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/kind.md&commit_hash=44d7784aac3550ba97c8a1eaf20b9264b13d4134)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/kind.md%26commit_hash%3D8673a0ce564fd282d0ca586642fa7f002e8a3c50)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/kind.md&commit_hash=8673a0ce564fd282d0ca586642fa7f002e8a3c50)
 
 一切都在 Erg 中輸入。類型本身也不例外。__kind__ 表示"類型的類型"。例如，`Int` 屬于 `Type`，就像 `1` 屬于 `Int`。`Type` 是最簡單的一種，__atomic kind__。在類型論符號中，`Type` 對應于 `*`
 
@@ -144,6 +144,6 @@ Fn2(T, U).
 
 ---
 
-<span id="1" style="font-size:x-small"><sup>1</sup> 在類型理論符號中，`*=>*` [?](#f1)</span>
+<span id="1" style="font-size:x-small"><sup>1</sup> 在類型理論符號中，`*=>*` [↩](#f1)</span>
 
-<span id="2" style="font-size:x-small"><sup>2</sup> 可見性等細微差別。[?](#f2)</span>
+<span id="2" style="font-size:x-small"><sup>2</sup> 可見性等細微差別。[↩](#f2)</span>

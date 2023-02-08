@@ -1,6 +1,6 @@
 # Kind
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/kind.md%26commit_hash%3D44d7784aac3550ba97c8a1eaf20b9264b13d4134)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/kind.md&commit_hash=44d7784aac3550ba97c8a1eaf20b9264b13d4134)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/kind.md%26commit_hash%3D8673a0ce564fd282d0ca586642fa7f002e8a3c50)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/kind.md&commit_hash=8673a0ce564fd282d0ca586642fa7f002e8a3c50)
 
 一切都在 Erg 中输入。类型本身也不例外。__kind__ 表示"类型的类型"。例如，`Int` 属于 `Type`，就像 `1` 属于 `Int`。`Type` 是最简单的一种，__atomic kind__。在类型论符号中，`Type` 对应于 `*`
 
@@ -16,13 +16,13 @@ assert not Option in Type
 assert Option in Type -> Type
 ```
 
-所以像下面这样的代码会报错: 
+所以像下面这样的代码会报错:
 在 Erg 中，方法只能在原子类型中定义，并且名称 `self` 不能在方法的第一个参数以外的任何地方使用
 
 ```python
 # K 是一元类型
 K: Type -> Type
-K T = Class...
+K T = Class ...
 K.
 foo x = ... # OK，这就像是所谓的静态方法
      bar self, x = ... # 类型错误: 无法为非类型对象定义方法

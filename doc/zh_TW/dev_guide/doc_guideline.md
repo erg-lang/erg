@@ -12,4 +12,4 @@
 
 ---
 
-<span id="1" style="font-size:x-small"><sup>1</sup> 參見這里了解如何編寫腳注。[?](#f1)</span>
+<span id="1" style="font-size:x-small"><sup>1</sup> 參見這里了解如何編寫腳注。[↩](#f1)</span>
