@@ -48,11 +48,15 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let uri = util::normalize_url(params.text_document_position_params.text_document.uri);
         let pos = params.text_document_position_params.position;
         let mut contents = vec![];
-        let opt_tok = util::get_token(uri.clone(), pos)?;
+        let opt_tok = self.file_cache.get_token(&uri, pos)?;
         let opt_token = if let Some(token) = opt_tok {
             match token.category() {
-                TokenCategory::StrInterpRight => util::get_token_relatively(uri.clone(), pos, -1)?,
-                TokenCategory::StrInterpLeft => util::get_token_relatively(uri.clone(), pos, 1)?,
+                TokenCategory::StrInterpRight => {
+                    self.file_cache.get_token_relatively(&uri, pos, -1)?
+                }
+                TokenCategory::StrInterpLeft => {
+                    self.file_cache.get_token_relatively(&uri, pos, 1)?
+                }
                 // TODO: StrInterpMid
                 _ => Some(token),
             }
@@ -107,7 +111,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                         format!("{}: {}", token.content, vi.t),
                     );
                     contents.push(typ);
-                    self.show_doc_comment(token, &mut contents, &vi.def_loc)?;
+                    self.show_doc_comment(Some(token), &mut contents, &vi.def_loc)?;
                 }
                 // not found or not symbol, etc.
                 None => {
@@ -131,9 +135,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
         )
     }
 
-    fn show_doc_comment(
+    pub(crate) fn show_doc_comment(
         &self,
-        var_token: Token,
+        var_token: Option<Token>,
         contents: &mut Vec<MarkedString>,
         def_loc: &AbsLocation,
     ) -> ELSResult<()> {
@@ -173,7 +177,8 @@ impl<Checker: BuildRunnable> Server<Checker> {
                         }
                         next!(def_pos, default_code_block, contents, prev_token, token);
                     }
-                } else if token == var_token {
+                } else if var_token.as_ref() == Some(&token) {
+                    // multiple pattern def
                     next!(def_pos, default_code_block, contents, prev_token, token);
                 } else {
                     if token.category_is(TokenCategory::Separator) {

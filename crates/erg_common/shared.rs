@@ -75,6 +75,19 @@ impl<T: ?Sized> Shared<T> {
         RefCell::as_ptr(&self.0)
     }
 
+    /// # Safety
+    /// The caller must ensure that the returned reference is not used after the underlying
+    pub unsafe fn as_ref(&self) -> &T {
+        self.as_ptr().as_ref().unwrap()
+    }
+
+    /// # Safety
+    /// The caller must ensure that the returned reference is not used after the underlying
+    #[allow(clippy::mut_from_ref)]
+    pub unsafe fn as_mut(&self) -> &mut T {
+        self.as_ptr().as_mut().unwrap()
+    }
+
     #[inline]
     pub fn try_borrow_mut(&self) -> Result<RefMut<'_, T>, std::cell::BorrowMutError> {
         RefCell::try_borrow_mut(&self.0)

@@ -1753,7 +1753,7 @@ impl Context {
         concatenated
     }
 
-    pub(crate) fn get_nominal_super_type_ctxs<'a>(&'a self, t: &Type) -> Option<Vec<&'a Context>> {
+    pub fn get_nominal_super_type_ctxs<'a>(&'a self, t: &Type) -> Option<Vec<&'a Context>> {
         match t {
             Type::FreeVar(fv) if fv.is_linked() => self.get_nominal_super_type_ctxs(&fv.crack()),
             Type::FreeVar(fv) => {

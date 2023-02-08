@@ -18,16 +18,44 @@ pub fn loc_to_range(loc: erg_common::error::Location) -> Option<Range> {
     Some(Range::new(start, end))
 }
 
+pub fn loc_to_pos(loc: erg_common::error::Location) -> Option<Position> {
+    // FIXME: should `Position::new(loc.ln_begin()? - 1, loc.col_begin()?)`
+    // but completion doesn't work (because the newline will be included)
+    let start = Position::new(loc.ln_begin()? - 1, loc.col_begin()? + 1);
+    Some(start)
+}
+
 pub fn pos_in_loc<L: Locational>(loc: &L, pos: Position) -> bool {
     let ln_begin = loc.ln_begin().unwrap_or(0);
     let ln_end = loc.ln_end().unwrap_or(0);
     let in_lines = (ln_begin..=ln_end).contains(&(pos.line + 1));
     if ln_begin == ln_end {
         in_lines
+            // FIXME: .., not ..=
             && (loc.col_begin().unwrap_or(0)..=loc.col_end().unwrap_or(0)).contains(&pos.character)
     } else {
         in_lines
     }
+}
+
+pub fn pos_to_index(src: &str, pos: Position) -> usize {
+    let mut index = 0;
+    let mut line = 0;
+    let mut col = 0;
+    for c in src.chars() {
+        if line == pos.line && col == pos.character {
+            return index;
+        }
+        if c == '\n' {
+            line += 1;
+            col = 0;
+            index += 1;
+        } else {
+            col += 1;
+            index += 1;
+        }
+    }
+    index
 }
 
 pub fn get_token_stream(uri: Url) -> ELSResult<TokenStream> {
@@ -44,52 +72,6 @@ pub fn get_token_from_stream(stream: &TokenStream, pos: Position) -> ELSResult<O
         }
     }
     Ok(None)
-}
-
-pub fn get_token_index(uri: Url, pos: Position) -> ELSResult<Option<usize>> {
-    let mut timeout = 300;
-    let path = uri.to_file_path().unwrap();
-    loop {
-        let mut code = String::new();
-        File::open(path.as_path())?.read_to_string(&mut code)?;
-        if let Ok(tokens) = Lexer::from_str(code).lex() {
-            for (i, tok) in tokens.iter().enumerate() {
-                if pos_in_loc(tok, pos) {
-                    return Ok(Some(i));
-                }
-            }
-        }
-        std::thread::sleep(std::time::Duration::from_millis(10));
-        timeout -= 1;
-        if timeout == 0 {
-            return Ok(None);
-        }
-    }
-}
-
-pub fn get_token(uri: Url, pos: Position) -> ELSResult<Option<Token>> {
-    let index = get_token_index(uri.clone(), pos)?;
-    if let Some(idx) = index {
-        Ok(get_token_stream(uri)?.get(idx).cloned())
-    } else {
-        Ok(None)
-    }
-}
-
-/// plus_minus: 0 => same as get_token
-pub fn get_token_relatively(
-    uri: Url,
-    pos: Position,
-    plus_minus: isize,
-) -> ELSResult<Option<Token>> {
-    let index = get_token_index(uri.clone(), pos)?;
-    if let Some(idx) = index {
-        Ok(get_token_stream(uri)?
-            .get((idx as isize + plus_minus) as usize)
-            .cloned())
-    } else {
-        Ok(None)
-    }
 }
 
 pub fn get_code_from_uri(uri: &Url) -> ELSResult<String> {

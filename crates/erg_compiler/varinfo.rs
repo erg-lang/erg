@@ -9,9 +9,8 @@ use Visibility::*;
 
 use erg_parser::ast::DefId;
 
-use crate::ty::{HasType, Type};
-
 use crate::context::DefaultInfo;
+use crate::ty::{HasType, Type};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
@@ -80,10 +79,21 @@ pub struct AbsLocation {
 impl fmt::Display for AbsLocation {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if let Some(module) = &self.module {
-            write!(f, "{}:{:?}", module.display(), self.loc)
+            write!(f, "{}@{}", module.display(), self.loc)
         } else {
-            write!(f, "{:?}", self.loc)
+            write!(f, "{}", self.loc)
         }
+    }
+}
+
+impl std::str::FromStr for AbsLocation {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut split = s.split('@');
+        let module = split.next().map(PathBuf::from);
+        let loc = split.next().ok_or(())?.parse().map_err(|_| ())?;
+        Ok(Self { module, loc })
     }
 }
 

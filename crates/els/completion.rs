@@ -2,16 +2,57 @@ use serde::Deserialize;
 use serde_json::json;
 use serde_json::Value;
 
+use erg_common::impl_u8_enum;
 use erg_common::traits::Locational;
 
 use erg_compiler::artifact::BuildRunnable;
+use erg_compiler::erg_parser::token::TokenKind;
 use erg_compiler::ty::Type;
+use erg_compiler::varinfo::AbsLocation;
 use erg_compiler::AccessKind;
 
-use lsp_types::{CompletionItem, CompletionItemKind, CompletionParams};
+use lsp_types::{
+    CompletionItem, CompletionItemKind, CompletionParams, Documentation, MarkedString,
+    MarkupContent, MarkupKind,
+};
 
 use crate::server::{ELSResult, Server};
 use crate::util;
+
+fn mark_to_string(mark: MarkedString) -> String {
+    match mark {
+        MarkedString::String(s) => s,
+        MarkedString::LanguageString(ls) => ls.value,
+    }
+}
+
+impl_u8_enum! { CompletionOrder;
+    TypeMatched = 0,
+    Normal = 1,
+    Escaped = 2,
+    DoubleEscaped = 3
+}
+
+impl CompletionOrder {
+    pub fn from_label(label: &str) -> Self {
+        if label.starts_with("__") {
+            Self::DoubleEscaped
+        } else if label.starts_with('_') {
+            Self::Escaped
+        } else {
+            Self::Normal
+        }
+    }
+
+    pub fn mangle(&self, label: &str) -> String {
+        format!("{}_{label}", u8::from(*self))
+    }
+
+    fn set(item: &mut CompletionItem) {
+        let order = Self::from_label(&item.label[..]);
+        item.sort_text = Some(order.mangle(&item.label));
+    }
+}
 
 impl<Checker: BuildRunnable> Server<Checker> {
     pub(crate) fn show_completion(&mut self, msg: &Value) -> ELSResult<()> {
@@ -31,7 +72,17 @@ impl<Checker: BuildRunnable> Server<Checker> {
         Self::send_log(format!("AccessKind: {acc_kind:?}"))?;
         let mut result: Vec<CompletionItem> = vec![];
         let contexts = if acc_kind.is_local() {
-            self.get_local_ctx(&uri, pos)
+            let prev_token = self.file_cache.get_token_relatively(&uri, pos, -1)?;
+            if prev_token
+                .as_ref()
+                .map(|t| t.is(TokenKind::Dot) || t.is(TokenKind::DblColon))
+                .unwrap_or(false)
+            {
+                let dot_pos = util::loc_to_pos(prev_token.unwrap().loc()).unwrap();
+                self.get_receiver_ctxs(&uri, dot_pos)?
+            } else {
+                self.get_local_ctx(&uri, pos)
+            }
         } else {
             self.get_receiver_ctxs(&uri, pos)?
         };
@@ -61,6 +112,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 })
                 .unwrap_or_else(|| vi.t.clone());
             let mut item = CompletionItem::new_simple(name.to_string(), readable_t.to_string());
+            CompletionOrder::set(&mut item);
             item.kind = match &vi.t {
                 Type::Subr(subr) if subr.self_t().is_some() => Some(CompletionItemKind::METHOD),
                 Type::Quantified(quant) if quant.self_t().is_some() => {
@@ -75,11 +127,33 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 _ if vi.muty.is_const() => Some(CompletionItemKind::CONSTANT),
                 _ => Some(CompletionItemKind::VARIABLE),
             };
+            item.data = Some(Value::String(vi.def_loc.to_string()));
             result.push(item);
         }
         Self::send_log(format!("completion items: {}", result.len()))?;
         Self::send(
             &json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": result }),
         )
+    }
+
+    pub(crate) fn resolve_completion(&self, msg: &Value) -> ELSResult<()> {
+        Self::send_log(format!("completion resolve requested: {msg}"))?;
+        let mut item = CompletionItem::deserialize(&msg["params"])?;
+        if let Some(data) = &item.data {
+            let mut contents = vec![];
+            let Ok(def_loc) = data.as_str().unwrap().parse::<AbsLocation>() else {
+                return Self::send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": item }));
+            };
+            self.show_doc_comment(None, &mut contents, &def_loc)?;
+            item.documentation = Some(Documentation::MarkupContent(MarkupContent {
+                kind: MarkupKind::Markdown,
+                value: contents
+                    .into_iter()
+                    .map(mark_to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+            }));
+        }
+        Self::send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": item }))
     }
 }

@@ -57,6 +57,11 @@ pub trait DequeStream<T>: Sized {
     fn iter(&self) -> vec_deque::Iter<'_, T> {
         self.ref_payload().iter()
     }
+
+    #[inline]
+    fn len(&self) -> usize {
+        self.ref_payload().len()
+    }
 }
 
 #[macro_export]

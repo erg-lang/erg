@@ -32,7 +32,10 @@ impl<Checker: BuildRunnable> Server<Checker> {
             return Ok(vec![]);
         };
         if let Expr::Def(def) = expr {
-            let mut range = util::loc_to_range(def.loc()).unwrap();
+            let Some(mut range) = util::loc_to_range(def.loc()) else {
+                Self::send_log("range not found")?;
+                return Ok(vec![]);
+            };
             let next = lsp_types::Range {
                 start: lsp_types::Position {
                     line: range.end.line,
