@@ -69,7 +69,11 @@ impl Runnable for LexerRunner {
         let ts = lexer
             .lex()
             .map_err(|errs| LexerRunnerErrors::convert(self.input(), errs))?;
-        println!("{ts}");
+        if cfg!(feature = "debug") {
+            println!("{ts:?}");
+        } else {
+            println!("{ts}");
+        }
         Ok(0)
     }
 
@@ -79,7 +83,7 @@ impl Runnable for LexerRunner {
             let ts = lexer
                 .lex()
                 .map_err(|errs| LexerRunnerErrors::convert(self.input(), errs))?;
-            println!("{ts}");
+            println!("{ts:?}");
             Ok(ts.to_string())
         } else {
             Ok(lexer
