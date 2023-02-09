@@ -325,7 +325,8 @@ impl PyCodeGenerator {
         }
     }
 
-    fn calc_edit_jump(&mut self, idx: usize, jump_to: usize) {
+    /// returns: shift bytes
+    fn calc_edit_jump(&mut self, idx: usize, jump_to: usize) -> usize {
         let arg = if self.py_version.minor >= Some(10) {
             jump_to / 2
         } else {
@@ -336,15 +337,17 @@ impl PyCodeGenerator {
         {
             self.crash(&format!("calc_edit_jump: not jump op: {idx} {jump_to}"));
         }
-        self.edit_code(idx, arg);
+        self.edit_code(idx, arg)
     }
 
+    /// returns: shift bytes
     #[inline]
-    fn edit_code(&mut self, idx: usize, arg: usize) {
+    fn edit_code(&mut self, idx: usize, arg: usize) -> usize {
         log!(err "editing: {idx} {arg}");
         match u8::try_from(arg) {
             Ok(u8code) => {
                 *self.mut_cur_block_codeobj().code.get_mut(idx).unwrap() = u8code;
+                0
             }
             Err(_e) => {
                 // TODO: use u16 as long as possible
@@ -353,7 +356,7 @@ impl PyCodeGenerator {
                 let bytes = u32::try_from(arg + delta).unwrap().to_be_bytes();
                 let before_instr = idx.saturating_sub(1);
                 *self.mut_cur_block_codeobj().code.get_mut(idx).unwrap() = bytes[3];
-                self.extend_arg(before_instr, &bytes);
+                self.extend_arg(before_instr, &bytes)
             }
         }
     }
@@ -365,8 +368,10 @@ impl PyCodeGenerator {
     // 270.to_be_bytes() == [0, 0, 1, 14]
     // then, write the bytes in reverse order
     // [..., EXTENDED_ARG 0, EXTENDED_ARG 0, EXTENDED_ARG 1, JUMP_ABSOLUTE 14]
+    /// returns: shift bytes
     #[inline]
-    fn extend_arg(&mut self, before_instr: usize, bytes: &[u8]) {
+    fn extend_arg(&mut self, before_instr: usize, bytes: &[u8]) -> usize {
+        let mut shift_bytes = 0;
         for byte in bytes.iter().rev().skip(1) {
             self.mut_cur_block_codeobj()
                 .code
@@ -375,7 +380,9 @@ impl PyCodeGenerator {
                 .code
                 .insert(before_instr, CommonOpcode::EXTENDED_ARG as u8);
             self.mut_cur_block().lasti += 2;
+            shift_bytes += 2;
         }
+        shift_bytes
     }
 
     fn write_instr<C: Into<u8>>(&mut self, code: C) {
@@ -384,12 +391,13 @@ impl PyCodeGenerator {
         // log!(info "wrote: {}", code);
     }
 
-    fn write_arg(&mut self, code: usize) {
+    /// returns: shift bytes
+    fn write_arg(&mut self, code: usize) -> usize {
         match u8::try_from(code) {
             Ok(u8code) => {
                 self.mut_cur_block_codeobj().code.push(u8code);
                 self.mut_cur_block().lasti += 1;
-                // log!(info "wrote: {}", code);
+                1
             }
             Err(_) => match u16::try_from(code) {
                 Ok(_) => {
@@ -406,7 +414,7 @@ impl PyCodeGenerator {
                     let before_instr = self.lasti().saturating_sub(1);
                     self.mut_cur_block_codeobj().code.push(bytes[1]);
                     self.mut_cur_block().lasti += 1;
-                    self.extend_arg(before_instr, &bytes);
+                    self.extend_arg(before_instr, &bytes)
                 }
                 Err(_) => {
                     let delta =
@@ -422,7 +430,7 @@ impl PyCodeGenerator {
                     let before_instr = self.lasti().saturating_sub(1);
                     self.mut_cur_block_codeobj().code.push(bytes[3]);
                     self.mut_cur_block().lasti += 1;
-                    self.extend_arg(before_instr, &bytes);
+                    self.extend_arg(before_instr, &bytes)
                 }
             },
         }
@@ -1650,7 +1658,7 @@ impl PyCodeGenerator {
             }
         }
         if args.get(0).is_some() {
-            let idx_jump_forward = self.lasti();
+            let mut idx_jump_forward = self.lasti();
             self.write_instr(JUMP_FORWARD); // jump to end
             self.write_arg(0);
             // else block
@@ -1659,7 +1667,7 @@ impl PyCodeGenerator {
             } else {
                 self.lasti()
             };
-            self.calc_edit_jump(idx_pop_jump_if_false + 1, idx_else_begin);
+            idx_jump_forward += self.calc_edit_jump(idx_pop_jump_if_false + 1, idx_else_begin);
             match args.remove(0) {
                 Expr::Lambda(lambda) => {
                     // let params = self.gen_param_names(&lambda.params);
