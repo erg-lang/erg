@@ -280,7 +280,7 @@ impl LexError {
     pub fn invalid_seq_elems_error(errno: usize, loc: Location, hint: Option<&str>) -> LexError {
         let hint = hint.map(|hint| hint.to_string());
         let msg = switch_lang!(
-            "japanese" => "連続する要素の宣言が異なります",
+            "japanese" => "要素の列挙の仕方が不正です",
             "simplified_chinese" => "无效的Sequential元素声明",
             "traditional_chinese" => "無效的Sequential元素聲明",
             "english" => "invalid sequential elements declaration",
@@ -290,7 +290,7 @@ impl LexError {
 
     pub fn invalid_record_element_err(errno: usize, loc: Location) -> LexError {
         let msg = switch_lang!(
-            "japanese" => "レコード型の要素が宣言が異なります",
+            "japanese" => "レコード型要素の列挙の仕方が不正です",
             "simplified_chinese" => "无效的Record类型元素声明",
             "traditional_chinese" => "無效的Record類型元素聲明",
             "english" => "invalid record type element declarations",
@@ -301,25 +301,29 @@ impl LexError {
                 let record = StyledStr::new("レコード型", Some(HINT), Some(ATTR));
                 let var = StyledStr::new("属性", Some(HINT), Some(ATTR));
                 let def = StyledStr::new("属性=リテラル", Some(HINT), Some(ATTR));
-                format!("{record}では{var}か{def}のみ使うことができます")
+                let obj = StyledStr::new("属性=オブジェクト", Some(HINT), Some(ATTR));
+                format!("{record}では{var}か{def}、{obj}のみ宣言することができます")
             },
             "simplified_chinese" => {
                 let record = StyledStr::new("Record类型", Some(HINT), Some(ATTR));
                 let var = StyledStr::new("attr", Some(HINT), Some(ATTR));
                 let def = StyledStr::new("attr=lit", Some(HINT), Some(ATTR));
-                format!("只有{var}或{def}可以在{record}中使用")
+                let obj = StyledStr::new("attr=object", Some(HINT), Some(ATTR));
+                format!("{record}中只能声明 {var}、{def} 或 {obj}")
             },
             "traditional_chinese" => {
                 let record = StyledStr::new("Record類型", Some(HINT), Some(ATTR));
                 let var = StyledStr::new("attr", Some(HINT), Some(ATTR));
                 let def = StyledStr::new("attr=lit", Some(HINT), Some(ATTR));
-                format!("只有{var}或{def}可以在{record}中使用")
+                let obj = StyledStr::new("attr=object", Some(HINT), Some(ATTR));
+                format!("{record}中只能声明 {var}、{def} 或 {obj}")
             },
             "english" => {
                 let record = StyledStr::new("Record", Some(HINT), Some(ATTR));
                 let var = StyledStr::new("attr", Some(HINT), Some(ATTR));
                 let def = StyledStr::new("attr=lit", Some(HINT), Some(ATTR));
-                format!("only {var} or {def} can be used in {record}")
+                let obj = StyledStr::new("attr=object", Some(HINT), Some(ATTR));
+                format!("only {var}, {def} or {obj} can be declared in {record}")
             },
         );
         Self::syntax_error(errno, loc, msg, Some(hint))

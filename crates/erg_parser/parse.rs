@@ -1074,9 +1074,9 @@ impl Parser {
                                 } else {
                                     let hint = switch_lang!(
                                     "japanese" => "カンマの代わりに要素を追加してください",
-                                    "simplified_chinese" => "应该添加一个元素，而不是逗号",
-                                    "traditional_chinese" => "應該添加一個元素，而不是逗號",
-                                    "english" => "instead of comma, a element should be added",
+                                    "simplified_chinese" => "应该添加一个元素而不是逗号",
+                                    "traditional_chinese" => "應該添加一個元素而不是逗號",
+                                    "english" => "a element may be added instead of comma",
                                     );
                                     let err = self.skip_and_throw_invalid_seq_err(
                                         caused_by!(),
@@ -2479,10 +2479,10 @@ impl Parser {
                     match self.peek() {
                         Some(t) if t.is(Semi) => {
                             let hint = switch_lang!(
-                                "japanese" => "セミコロンの代わりに要素",
+                                "japanese" => "セミコロンの代わりに要素を追加してください",
                                 "simplified_chinese" => "不应该是分号，而应该是元素",
                                 "traditional_chinese" => "不应该是分號，而应该是元素",
-                                "english" => "instead of semicolon, element",
+                                "english" => "a element may be added instead of semicolon",
                             );
                             let err = self.skip_and_throw_invalid_seq_err(
                                 caused_by!(),
@@ -2578,9 +2578,9 @@ impl Parser {
                         Some(Comma) => {
                             let hint = switch_lang!(
                                 "japanese" => "カンマの代わりに要素",
-                                "simplified_chinese" => "一个元素",
-                                "traditional_chinese" => "一個元素",
-                                "english" => "a element",
+                                "simplified_chinese" => "可以添加一个元素而不是逗号",
+                                "traditional_chinese" => "可以添加一個元素而不是逗號",
+                                "english" => "a element may be added instead of comma",
                             );
                             let err = self.skip_and_throw_invalid_seq_err(
                                 caused_by!(),
@@ -2686,9 +2686,9 @@ impl Parser {
                             log!(err "error caused by: {caused_by}");
                             let hint = switch_lang!(
                                     "japanese" => "カンマの代わりに要素",
-                                    "simplified_chinese" => "不应该是逗号，而应该是元素",
-                                    "traditional_chinese" => "不应该是逗號，而应该是元素",
-                                    "english" => "instead of comma, a element",
+                                    "simplified_chinese" => "可以添加一个元素而不是逗号",
+                                    "traditional_chinese" => "可以添加一個元素而不是逗號",
+                                    "english" => "a element may be added instead of comma",
                             );
                             let err = self.skip_and_throw_invalid_seq_err(
                                 caused_by!(),
@@ -2748,10 +2748,10 @@ impl Parser {
                 }
                 Some(_) => {
                     let hint = switch_lang!(
-                        "japanese" => "セミコロンか括弧",
-                        "simplified_chinese" => "分号或右括号",
-                        "traditional_chinese" => "分號或右括號",
-                        "english" => "semicolon or right bracket",
+                        "japanese" => "セミコロンか括弧を追加してください",
+                        "simplified_chinese" => "可以添加分号或右括号",
+                        "traditional_chinese" => "可以添加分號或右括號",
+                        "english" => "semicolon or right bracket may be added",
                     );
                     let err = self.skip_and_throw_invalid_seq_err(
                         caused_by!(),
