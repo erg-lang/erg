@@ -13,9 +13,9 @@ use crate::ast::{
     ClassAttr, ClassAttrs, ClassDef, ConstExpr, DataPack, Def, DefBody, DefId, Dict, Dummy, Expr,
     Identifier, KeyValue, KwArg, Lambda, LambdaSignature, Literal, Methods, MixedRecord, Module,
     NonDefaultParamSignature, NormalArray, NormalDict, NormalRecord, NormalSet, NormalTuple,
-    ParamPattern, ParamRecordAttr, Params, PatchDef, PosArg, ReDef, Record, RecordAttrOrIdent,
-    RecordAttrs, Set as astSet, SetWithLength, Signature, SubrSignature, Tuple, TupleTypeSpec,
-    TypeAppArgs, TypeBoundSpecs, TypeSpec, TypeSpecWithOp, UnaryOp, VarName, VarPattern,
+    ParamPattern, ParamRecordAttr, Params, PatchDef, PosArg, PostfixOp, PrefixOp, ReDef, Record,
+    RecordAttrOrIdent, RecordAttrs, Set as astSet, SetWithLength, Signature, SubrSignature, Tuple,
+    TupleTypeSpec, TypeAppArgs, TypeBoundSpecs, TypeSpec, TypeSpecWithOp, VarName, VarPattern,
     VarRecordAttr, VarSignature,
 };
 use crate::token::{Token, TokenKind, COLON, DOT};
@@ -219,10 +219,15 @@ impl Desugarer {
                 let rhs = desugar(*args.next().unwrap());
                 Expr::BinOp(BinOp::new(binop.op, lhs, rhs))
             }
-            Expr::UnaryOp(unaryop) => {
-                let mut args = unaryop.args.into_iter();
+            Expr::PrefixOp(prefixop) => {
+                let mut args = prefixop.args.into_iter();
                 let expr = desugar(*args.next().unwrap());
-                Expr::UnaryOp(UnaryOp::new(unaryop.op, expr))
+                Expr::PrefixOp(PrefixOp::new(prefixop.op, expr))
+            }
+            Expr::PostfixOp(postfixop) => {
+                let mut args = postfixop.args.into_iter();
+                let expr = desugar(*args.next().unwrap());
+                Expr::PostfixOp(PostfixOp::new(expr, postfixop.op))
             }
             Expr::Call(call) => {
                 let obj = desugar(*call.obj);

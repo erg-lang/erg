@@ -44,6 +44,10 @@ pub enum TokenKind {
     PreMinus,
     /// ~ (unary)
     PreBitNot,
+    /// .. (unary prefix)
+    PreRange,
+    /// <.. (unary prefix)
+    PreOpenRange,
     // PreAmp,    // & (unary)
     // PreAt,     // @ (unary)
     /// ! (unary)
@@ -52,6 +56,10 @@ pub enum TokenKind {
     PreDblStar, // ** (unary)
     /// ? (postfix)
     Try,
+    /// .. (postfix)
+    PostRange,
+    /// <.. (postfix)
+    PostOpenRange,
     /// `+`
     Plus,
     /// `-`
@@ -218,6 +226,39 @@ impl TokenCategory {
     pub const fn is_block_op(&self) -> bool {
         matches!(self, Self::DefOp | Self::LambdaOp)
     }
+
+    // prefix?: `[ +`, `= +`, `+ +`, `, +`, `:: +`
+    pub fn is_left_disconnective(&self) -> bool {
+        matches!(
+            self,
+            Self::LEnclosure
+                | Self::BinOp
+                | Self::UnaryOp
+                | Self::Separator
+                | Self::SpecialBinOp
+                | Self::DefOp
+                | Self::LambdaOp
+                | Self::StrInterpLeft
+                | Self::StrInterpMid
+                | Self::BOF
+        )
+    }
+
+    /// postfix?: `.. ]`, `.. ;`
+    pub fn is_right_disconnective(&self) -> bool {
+        matches!(
+            self,
+            Self::REnclosure
+                | Self::PostfixOp
+                | Self::Separator
+                | Self::SpecialBinOp
+                | Self::DefOp
+                | Self::LambdaOp
+                | Self::StrInterpMid
+                | Self::StrInterpRight
+                | Self::EOF
+        )
+    }
 }
 
 impl TokenKind {
@@ -229,10 +270,9 @@ impl TokenKind {
             StrInterpLeft => TokenCategory::StrInterpLeft,
             StrInterpMid => TokenCategory::StrInterpMid,
             StrInterpRight => TokenCategory::StrInterpRight,
-            PrePlus | PreMinus | PreBitNot | Mutate | PreStar | PreDblStar | RefOp | RefMutOp => {
-                TokenCategory::UnaryOp
-            }
-            Try => TokenCategory::PostfixOp,
+            PrePlus | PreMinus | PreBitNot | Mutate | PreStar | PreDblStar | RefOp | RefMutOp
+            | PreRange | PreOpenRange => TokenCategory::UnaryOp,
+            Try | PostOpenRange | PostRange => TokenCategory::PostfixOp,
             Comma | Colon | DblColon | SupertypeOf | SubtypeOf | Dot | Pipe | Walrus
             | Inclusion => TokenCategory::SpecialBinOp,
             Equal => TokenCategory::DefOp,

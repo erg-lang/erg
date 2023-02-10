@@ -86,7 +86,7 @@ impl Parser {
                 let rhs = Self::validate_const_expr(*args.next().unwrap())?;
                 Ok(ConstExpr::BinOp(ConstBinOp::new(bin.op, lhs, rhs)))
             }
-            Expr::UnaryOp(unary) => {
+            Expr::PrefixOp(unary) => {
                 let mut args = unary.args.into_iter();
                 let arg = Self::validate_const_expr(*args.next().unwrap())?;
                 Ok(ConstExpr::UnaryOp(ConstUnaryOp::new(unary.op, arg)))
