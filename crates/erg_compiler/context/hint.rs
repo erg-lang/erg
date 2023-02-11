@@ -99,22 +99,22 @@ impl Context {
                         hint.push_str("を使用する必要があります");
                     },
                     "simplified_chinese" => {
-                        hint.push_str("此参数接受func（无副作用）但由于副作用而不接受proc。你应该使用 ");
-                        hint.push_str_with_color_and_attribute("->", HINT, ATTR);
-                        hint.push_str("而不是 ");
-                        hint.push_str_with_color_and_attribute("=>", ERR, ATTR);
+                        hint.push_str("此参数接受函数(无副作用)，但不接受过程，因为过程有副作用。你应该使用");
+                        hint.push_str_with_color_and_attribute("=>", HINT, ATTR);
+                        hint.push_str("而不是");
+                        hint.push_str_with_color_and_attribute("->", ERR, ATTR);
                     },
                     "traditional_chinese" => {
-                        hint.push_str("此参数接受 func（无副作用）但由于副作用而不接受proc。你應該使用 ");
-                        hint.push_str_with_color_and_attribute("->", HINT, ATTR);
-                        hint.push_str("而不是 ");
-                        hint.push_str_with_color_and_attribute("=>", ERR, ATTR);
+                        hint.push_str("此參數接受函數(無副作用)，但不接受過程，因為過程有副作用。你應該使用");
+                        hint.push_str_with_color_and_attribute("=>", HINT, ATTR);
+                        hint.push_str("而不是");
+                        hint.push_str_with_color_and_attribute("->", ERR, ATTR);
                     },
                     "english" => {
                         hint.push_str("This param accepts func (without side-effects) but not proc because of side-effects. You should use ");
-                        hint.push_str_with_color_and_attribute("->", HINT, ATTR);
+                        hint.push_str_with_color_and_attribute("=>", HINT, ATTR);
                         hint.push_str(" instead of ");
-                        hint.push_str_with_color_and_attribute("=>", ERR, ATTR);
+                        hint.push_str_with_color_and_attribute("->", ERR, ATTR);
                     },
                 );
                 return Some(hint.to_string());
