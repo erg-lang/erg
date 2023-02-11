@@ -1282,6 +1282,16 @@ impl Type {
         }
     }
 
+    pub fn is_subr(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_subr(),
+            Self::Subr(_) => true,
+            Self::Quantified(quant) => quant.is_subr(),
+            Self::Refinement(refine) => refine.t.is_subr(),
+            _ => false,
+        }
+    }
+
     pub fn is_quantified(&self) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_quantified(),

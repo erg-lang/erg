@@ -61,12 +61,23 @@ impl ASTLowerer {
     /// OK: exec `None`
     fn expr_use_check(&self, expr: &hir::Expr) -> LowerResult<()> {
         if !expr.ref_t().is_nonelike() && !expr.is_type_asc() && !expr.is_doc_comment() {
-            Err(LowerWarnings::from(LowerWarning::unused_expr_warning(
-                self.cfg().input.clone(),
-                line!() as usize,
-                expr,
-                String::from(&self.module.context.name[..]),
-            )))
+            if expr.ref_t().is_subr() {
+                Err(LowerWarnings::from(
+                    LowerWarning::unused_subroutine_warning(
+                        self.cfg().input.clone(),
+                        line!() as usize,
+                        expr,
+                        String::from(&self.module.context.name[..]),
+                    ),
+                ))
+            } else {
+                Err(LowerWarnings::from(LowerWarning::unused_expr_warning(
+                    self.cfg().input.clone(),
+                    line!() as usize,
+                    expr,
+                    String::from(&self.module.context.name[..]),
+                )))
+            }
         } else {
             self.block_use_check(expr)
         }

@@ -65,6 +65,37 @@ impl LowerError {
         )
     }
 
+    pub fn unused_subroutine_warning(
+        input: Input,
+        errno: usize,
+        expr: &Expr,
+        caused_by: String,
+    ) -> Self {
+        let desc = switch_lang!(
+            "japanese" => format!("式の評価結果(: {})が使われていません", expr.ref_t()),
+            "simplified_chinese" => format!("表达式评估结果(: {})未使用", expr.ref_t()),
+            "traditional_chinese" => format!("表達式評估結果(: {})未使用", expr.ref_t()),
+            "english" => format!("the evaluation result of the expression (: {}) is not used", expr.ref_t()),
+        );
+        let hint = switch_lang!(
+            "japanese" => format!("呼び出しの()を忘れていませんか?"),
+            "simplified_chinese" => format!("忘记了调用的()吗?"),
+            "traditional_chinese" => format!("忘記了調用的()嗎?"),
+            "english" => format!("perhaps you forgot the () in the call?"),
+        );
+        Self::new(
+            ErrorCore::new(
+                vec![SubMessage::ambiguous_new(expr.loc(), vec![], Some(hint))],
+                desc,
+                errno,
+                UnusedWarning,
+                expr.loc(),
+            ),
+            input,
+            caused_by,
+        )
+    }
+
     pub fn duplicate_decl_error(
         input: Input,
         errno: usize,
