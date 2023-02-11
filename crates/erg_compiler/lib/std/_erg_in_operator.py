@@ -5,7 +5,7 @@ def in_operator(elem, y):
     if type(y) == type:
         if isinstance(elem, y):
             return True
-        elif is_ok(y.try_new(elem)):
+        elif hasattr(y, "try_new") and is_ok(y.try_new(elem)):
             return True
         # TODO: trait check
         return False
