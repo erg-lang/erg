@@ -458,6 +458,10 @@ impl Context {
         }
         match self.get_attr_from_nominal_t(obj, ident, input, namespace) {
             Ok(vi) => {
+                if let Some(self_t) = vi.t.self_t() {
+                    self.sub_unify(obj.ref_t(), self_t, obj.loc(), Some(&"self".into()))
+                        .map_err(|mut e| e.remove(0))?;
+                }
                 return Ok(vi);
             }
             Err(e) if e.core.kind == ErrorKind::AttributeError => {}

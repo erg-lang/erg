@@ -1,0 +1,6 @@
+a = ![]
+
+a.sort! # WARN
+
+# NOTE: For safety reasons this is assumed to be an error, but maybe this restriction can be relaxed
+print! a # ERR

@@ -720,7 +720,11 @@ impl TyParam {
     pub fn qvars(&self) -> Set<(Str, Constraint)> {
         match self {
             Self::FreeVar(fv) if !fv.constraint_is_uninited() => {
-                set! { (fv.unbound_name().unwrap(), fv.constraint().unwrap()) }
+                if let (Some(name), Some(constraint)) = (fv.unbound_name(), fv.constraint()) {
+                    set! { (name, constraint) }
+                } else {
+                    set! {}
+                }
             }
             Self::FreeVar(fv) if fv.is_linked() => fv.forced_as_ref().linked().unwrap().qvars(),
             Self::Type(t) => t.qvars(),

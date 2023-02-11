@@ -249,3 +249,8 @@ fn exec_var_args() -> Result<(), ()> {
 fn exec_var_args_err() -> Result<(), ()> {
     expect_failure("tests/should_err/var_args.er", 2)
 }
+
+#[test]
+fn exec_move() -> Result<(), ()> {
+    expect_failure("tests/should_err/move.er", 1)
+}

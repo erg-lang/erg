@@ -360,6 +360,10 @@ impl SubrType {
         })
     }
 
+    pub fn is_method(&self) -> bool {
+        self.self_t().is_some()
+    }
+
     pub fn non_var_params(&self) -> impl Iterator<Item = &ParamTy> + Clone {
         if self.var_params.is_some() {
             self.non_default_params.iter().chain([].iter())
@@ -1264,6 +1268,16 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_py_module(),
             Self::Refinement(refine) => refine.t.is_py_module(),
             Self::Poly { name, .. } => &name[..] == "PyModule",
+            _ => false,
+        }
+    }
+
+    pub fn is_method(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_method(),
+            Self::Refinement(refine) => refine.t.is_method(),
+            Self::Subr(subr) => subr.is_method(),
+            Self::Quantified(quant) => quant.is_method(),
             _ => false,
         }
     }
