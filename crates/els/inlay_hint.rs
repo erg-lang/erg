@@ -113,7 +113,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             return result;
         };
         for (nd_param, nd_t) in subr.params.non_defaults.iter().zip(nd_ts) {
-            if nd_param.t_spec.is_some() {
+            if nd_param.raw.t_spec.is_some() {
                 continue;
             }
             let hint = type_anot(
@@ -125,7 +125,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             result.push(hint);
         }
         for (d_param, d_t) in subr.params.defaults.iter().zip(d_ts) {
-            if d_param.sig.t_spec.is_some() {
+            if d_param.sig.raw.t_spec.is_some() {
                 continue;
             }
             let hint = type_anot(
@@ -185,7 +185,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             return result;
         };
         for (nd_param, nd_t) in lambda.params.non_defaults.iter().zip(nd_ts) {
-            if nd_param.t_spec.is_some() {
+            if nd_param.raw.t_spec.is_some() {
                 continue;
             }
             let hint = type_anot(
@@ -197,7 +197,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             result.push(hint);
         }
         for (d_param, d_t) in lambda.params.defaults.iter().zip(d_ts) {
-            if d_param.sig.t_spec.is_some() {
+            if d_param.sig.raw.t_spec.is_some() {
                 continue;
             }
             let hint = type_anot(

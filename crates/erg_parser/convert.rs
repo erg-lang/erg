@@ -236,7 +236,7 @@ impl Parser {
             .map_err(|_| self.stack_dec(fn_name!()))?;
         let sig = match sig {
             Signature::Var(var) => {
-                let var = VarSignature::new(var.pat, Some(tasc.t_spec));
+                let var = VarSignature::new(var.pat, Some(tasc.t_spec.t_spec));
                 Signature::Var(var)
             }
             Signature::Subr(subr) => {
@@ -245,7 +245,7 @@ impl Parser {
                     subr.ident,
                     subr.bounds,
                     subr.params,
-                    Some(tasc.t_spec),
+                    Some(tasc.t_spec.t_spec),
                 );
                 Signature::Subr(subr)
             }
@@ -334,8 +334,7 @@ impl Parser {
                     .unwrap_or_else(|| todo!())
                     .pat;
                 let lhs = option_enum_unwrap!(lhs, VarPattern::Ident).unwrap_or_else(|| todo!());
-                let spec_with_op = TypeSpecWithOp::new(tasc.op, tasc.t_spec);
-                let bound = TypeBoundSpec::non_default(lhs.name.into_token(), spec_with_op);
+                let bound = TypeBoundSpec::non_default(lhs.name.into_token(), tasc.t_spec);
                 Ok(bound)
             }
             other => {
@@ -598,8 +597,7 @@ impl Parser {
         let param = self
             .convert_rhs_to_param(*tasc.expr, allow_self)
             .map_err(|_| self.stack_dec(fn_name!()))?;
-        let t_spec = TypeSpecWithOp::new(tasc.op, tasc.t_spec);
-        let param = NonDefaultParamSignature::new(param.pat, Some(t_spec));
+        let param = NonDefaultParamSignature::new(param.pat, Some(tasc.t_spec));
         debug_exit_info!(self);
         Ok(param)
     }

@@ -250,7 +250,7 @@ impl SideEffectChecker {
                     self.errs.push(EffectError::proc_assign_error(
                         self.cfg.input.clone(),
                         line!() as usize,
-                        nd_param.pat.loc(),
+                        nd_param.raw.pat.loc(),
                         self.full_path(),
                     ));
                 }
@@ -260,7 +260,7 @@ impl SideEffectChecker {
                     self.errs.push(EffectError::proc_assign_error(
                         self.cfg.input.clone(),
                         line!() as usize,
-                        var_arg.pat.loc(),
+                        var_arg.raw.pat.loc(),
                         self.full_path(),
                     ));
                 }
@@ -270,7 +270,7 @@ impl SideEffectChecker {
                     self.errs.push(EffectError::proc_assign_error(
                         self.cfg.input.clone(),
                         line!() as usize,
-                        d_param.sig.pat.loc(),
+                        d_param.sig.raw.pat.loc(),
                         self.full_path(),
                     ));
                 }

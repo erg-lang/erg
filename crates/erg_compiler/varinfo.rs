@@ -218,4 +218,12 @@ impl VarInfo {
             _ => false,
         }
     }
+
+    pub fn parameter(t: Type, def_loc: AbsLocation) -> Self {
+        let kind = VarKind::Parameter {
+            def_id: DefId(0),
+            default: DefaultInfo::NonDefault,
+        };
+        Self::new(t, Immutable, Private, kind, None, None, None, def_loc)
+    }
 }

@@ -480,8 +480,40 @@ impl<'a> HIRVisitor<'a> {
         None
     }
 
+    fn get_sig_info(&self, sig: &Signature, token: &Token) -> Option<VarInfo> {
+        match sig {
+            Signature::Var(var) => {
+                self.return_var_info_if_same(&var.ident, var.ident.name.token(), token)
+            }
+            Signature::Subr(subr) => self
+                .return_var_info_if_same(&subr.ident, subr.ident.name.token(), token)
+                .or_else(|| self.get_params_info(&subr.params, token)),
+        }
+    }
+
+    fn get_params_info(&self, params: &Params, token: &Token) -> Option<VarInfo> {
+        for param in params.non_defaults.iter() {
+            if param.raw.pat.loc() == token.loc() {
+                return Some(param.vi.clone());
+            }
+        }
+        if let Some(var) = &params.var_params {
+            if var.raw.pat.loc() == token.loc() {
+                return Some(var.vi.clone());
+            }
+        }
+        for param in params.defaults.iter() {
+            if param.sig.raw.pat.loc() == token.loc() {
+                return Some(param.sig.vi.clone());
+            } else if let Some(vi) = self.get_expr_info(&param.default_val, token) {
+                return Some(vi);
+            }
+        }
+        None
+    }
+
     fn get_def_info(&self, def: &Def, token: &Token) -> Option<VarInfo> {
-        self.return_var_info_if_same(def.sig.ident(), def.sig.ident().name.token(), token)
+        self.get_sig_info(&def.sig, token)
             .or_else(|| self.get_block_info(&def.body.block, token))
     }
 
@@ -490,13 +522,7 @@ impl<'a> HIRVisitor<'a> {
             .require_or_sup
             .as_ref()
             .and_then(|req_sup| self.get_expr_info(req_sup, token))
-            .or_else(|| {
-                self.return_var_info_if_same(
-                    class_def.sig.ident(),
-                    class_def.sig.ident().name.token(),
-                    token,
-                )
-            })
+            .or_else(|| self.get_sig_info(&class_def.sig, token))
             .or_else(|| self.get_block_info(&class_def.methods, token))
     }
 

@@ -1210,12 +1210,15 @@ impl Locational for Block {
 impl_stream!(Block, Expr);
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Dummy(Vec<Expr>);
+pub struct Dummy {
+    pub loc: Option<Location>,
+    exprs: Vec<Expr>,
+}
 
 impl NestedDisplay for Dummy {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
         writeln!(f, "Dummy:")?;
-        fmt_lines(self.0.iter(), f, level)
+        fmt_lines(self.exprs.iter(), f, level)
     }
 }
 
@@ -1223,15 +1226,23 @@ impl_display_from_nested!(Dummy);
 
 impl Locational for Dummy {
     fn loc(&self) -> Location {
-        if self.0.is_empty() {
+        if self.loc.is_some() {
+            self.loc.unwrap_or(Location::Unknown)
+        } else if self.exprs.is_empty() {
             Location::Unknown
         } else {
-            Location::concat(self.0.first().unwrap(), self.0.last().unwrap())
+            Location::concat(self.exprs.first().unwrap(), self.exprs.last().unwrap())
         }
     }
 }
 
-impl_stream!(Dummy, Expr);
+impl_stream!(Dummy, Expr, exprs);
+
+impl Dummy {
+    pub const fn new(loc: Option<Location>, exprs: Vec<Expr>) -> Self {
+        Self { loc, exprs }
+    }
+}
 
 pub type ConstIdentifier = Identifier;
 
@@ -2218,6 +2229,7 @@ impl TypeSpec {
 pub struct TypeSpecWithOp {
     pub op: Token,
     pub t_spec: TypeSpec,
+    pub t_spec_as_expr: Box<Expr>,
 }
 
 impl NestedDisplay for TypeSpecWithOp {
@@ -2230,8 +2242,12 @@ impl_display_from_nested!(TypeSpecWithOp);
 impl_locational!(TypeSpecWithOp, lossy op, t_spec);
 
 impl TypeSpecWithOp {
-    pub const fn new(op: Token, t_spec: TypeSpec) -> Self {
-        Self { op, t_spec }
+    pub fn new(op: Token, t_spec: TypeSpec, t_spec_as_expr: Expr) -> Self {
+        Self {
+            op,
+            t_spec,
+            t_spec_as_expr: Box::new(t_spec_as_expr),
+        }
     }
 }
 
@@ -3447,13 +3463,12 @@ impl Signature {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct TypeAscription {
     pub expr: Box<Expr>,
-    pub op: Token,
-    pub t_spec: TypeSpec,
+    pub t_spec: TypeSpecWithOp,
 }
 
 impl NestedDisplay for TypeAscription {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        writeln!(f, "{}{} {}", self.expr, self.op.content, self.t_spec)
+        writeln!(f, "{}{}", self.expr, self.t_spec)
     }
 }
 
@@ -3461,20 +3476,19 @@ impl_display_from_nested!(TypeAscription);
 impl_locational!(TypeAscription, expr, t_spec);
 
 impl TypeAscription {
-    pub fn new(expr: Expr, op: Token, t_spec: TypeSpec) -> Self {
+    pub fn new(expr: Expr, t_spec: TypeSpecWithOp) -> Self {
         Self {
             expr: Box::new(expr),
-            op,
             t_spec,
         }
     }
 
     pub fn is_instance_ascription(&self) -> bool {
-        self.op.is(TokenKind::Colon)
+        self.t_spec.op.is(TokenKind::Colon)
     }
 
     pub fn is_subtype_ascription(&self) -> bool {
-        self.op.is(TokenKind::SubtypeOf)
+        self.t_spec.op.is(TokenKind::SubtypeOf)
     }
 }
 
@@ -3826,12 +3840,16 @@ impl Expr {
         Self::Call(self.call(args))
     }
 
-    pub fn type_asc(self, op: Token, t_spec: TypeSpec) -> TypeAscription {
-        TypeAscription::new(self, op, t_spec)
+    pub fn type_asc(self, t_spec: TypeSpecWithOp) -> TypeAscription {
+        TypeAscription::new(self, t_spec)
     }
 
-    pub fn type_asc_expr(self, op: Token, t_spec: TypeSpec) -> Self {
-        Self::TypeAscription(self.type_asc(op, t_spec))
+    pub fn type_asc_expr(self, t_spec: TypeSpecWithOp) -> Self {
+        Self::TypeAscription(self.type_asc(t_spec))
+    }
+
+    pub fn dummy(loc: Location) -> Self {
+        Self::Dummy(Dummy::new(Some(loc), vec![]))
     }
 }
 

@@ -45,6 +45,8 @@ class IntMut(): # inherits Int
         self.value = Int(i)
     def __repr__(self):
         return self.value.__repr__()
+    def __hash__(self):
+        return self.value.__hash__()
     def __eq__(self, other):
         if isinstance(other, Int):
             return self.value == other

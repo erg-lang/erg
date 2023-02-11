@@ -41,6 +41,8 @@ class FloatMut(): # inherits Float
         self.value = Float(i)
     def __repr__(self):
         return self.value.__repr__()
+    def __hash__(self):
+        return self.value.__hash__()
     def __deref__(self):
         return self.value
     def __eq__(self, other):

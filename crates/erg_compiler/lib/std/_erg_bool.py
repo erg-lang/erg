@@ -28,6 +28,8 @@ class BoolMut(NatMut):
         self.value = b
     def __repr__(self):
         return self.value.__repr__()
+    def __hash__(self):
+        return self.value.__hash__()
     def __eq__(self, other):
         if isinstance(other, bool):
             return self.value == other

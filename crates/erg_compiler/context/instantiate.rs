@@ -379,8 +379,14 @@ impl Context {
         mode: RegistrationMode,
         kind: ParamKind,
     ) -> TyCheckResult<Type> {
-        let spec_t = if let Some(spec_with_op) = &sig.t_spec {
-            self.instantiate_typespec(&spec_with_op.t_spec, opt_decl_t, tmp_tv_cache, mode, false)?
+        let spec_t = if let Some(t_spec_with_op) = &sig.t_spec {
+            self.instantiate_typespec(
+                &t_spec_with_op.t_spec,
+                opt_decl_t,
+                tmp_tv_cache,
+                mode,
+                false,
+            )?
         } else {
             match &sig.pat {
                 ast::ParamPattern::Lit(lit) => v_enum(set![self.eval_lit(lit)?]),

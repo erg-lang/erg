@@ -270,7 +270,10 @@ impl Desugarer {
             }
             Expr::TypeAscription(tasc) => {
                 let expr = desugar(*tasc.expr);
-                expr.type_asc_expr(tasc.op, tasc.t_spec)
+                let t_spec_as_expr = desugar(*tasc.t_spec.t_spec_as_expr);
+                let t_spec =
+                    TypeSpecWithOp::new(tasc.t_spec.op, tasc.t_spec.t_spec, t_spec_as_expr);
+                expr.type_asc_expr(t_spec)
             }
             Expr::Methods(method_defs) => {
                 let mut new_attrs = vec![];
@@ -286,7 +289,13 @@ impl Desugarer {
                         }
                         ClassAttr::Decl(decl) => {
                             let expr = desugar(*decl.expr);
-                            new_attrs.push(ClassAttr::Decl(expr.type_asc(decl.op, decl.t_spec)));
+                            let t_spec_as_expr = desugar(*decl.t_spec.t_spec_as_expr);
+                            let t_spec = TypeSpecWithOp::new(
+                                decl.t_spec.op,
+                                decl.t_spec.t_spec,
+                                t_spec_as_expr,
+                            );
+                            new_attrs.push(ClassAttr::Decl(expr.type_asc(t_spec)));
                         }
                         ClassAttr::Doc(doc) => {
                             new_attrs.push(ClassAttr::Doc(doc));
@@ -298,11 +307,12 @@ impl Desugarer {
             }
             Expr::Accessor(acc) => Expr::Accessor(Self::perform_desugar_acc(desugar, acc)),
             Expr::Dummy(exprs) => {
+                let loc = exprs.loc;
                 let mut chunks = vec![];
                 for chunk in exprs.into_iter() {
                     chunks.push(desugar(chunk));
                 }
-                Expr::Dummy(Dummy::new(chunks))
+                Expr::Dummy(Dummy::new(loc, chunks))
             }
         }
     }
@@ -773,7 +783,22 @@ impl Desugarer {
                     l.ln_begin().unwrap(),
                     l.col_begin().unwrap(),
                 ));
-                param.t_spec = Some(TypeSpecWithOp::new(COLON, TypeSpec::enum_t_spec(vec![lit])));
+                let l_brace = Token {
+                    content: "{".into(),
+                    kind: TokenKind::LBrace,
+                    ..lit.token
+                };
+                let r_brace = Token {
+                    content: "}".into(),
+                    kind: TokenKind::RBrace,
+                    ..lit.token
+                };
+                let t_spec = TypeSpec::enum_t_spec(vec![lit.clone()]);
+                let args = Args::pos_only(vec![PosArg::new(Expr::Literal(lit))], None);
+                let set = astSet::Normal(NormalSet::new(l_brace, r_brace, args));
+                let t_spec_as_expr = Expr::Set(set);
+                let t_spec = TypeSpecWithOp::new(COLON, t_spec, t_spec_as_expr);
+                param.t_spec = Some(t_spec);
             }
             ParamPattern::Tuple(tup) => {
                 let (buf_name, buf_param) = self.gen_buf_nd_param(line);
@@ -797,7 +822,8 @@ impl Desugarer {
                 }
                 if param.t_spec.is_none() {
                     let t_spec = TypeSpec::Tuple(TupleTypeSpec::new(tup.elems.parens.clone(), tys));
-                    param.t_spec = Some(TypeSpecWithOp::new(COLON, t_spec));
+                    let t_spec_as_expr = Expr::dummy(t_spec.loc());
+                    param.t_spec = Some(TypeSpecWithOp::new(COLON, t_spec, t_spec_as_expr));
                 }
                 param.pat = buf_param;
             }
@@ -817,9 +843,11 @@ impl Desugarer {
                     let len = Literal::new(Token::new(TokenKind::NatLit, len.to_string(), line, 0));
                     let infer = Token::new(TokenKind::Try, "?", line, 0);
                     let t_spec = ArrayTypeSpec::new(TypeSpec::Infer(infer), ConstExpr::Lit(len));
+                    let t_spec_as_expr = Expr::dummy(t_spec.loc());
                     param.t_spec = Some(TypeSpecWithOp::new(
                         Token::dummy(TokenKind::Colon, ":"),
                         TypeSpec::Array(t_spec),
+                        t_spec_as_expr,
                     ));
                 }
                 param.pat = buf_param;
@@ -848,7 +876,9 @@ impl Desugarer {
                                 .clone(),
                         ));
                     }
-                    param.t_spec = Some(TypeSpecWithOp::new(COLON, TypeSpec::Record(tys)));
+                    let t_spec = TypeSpec::Record(tys);
+                    let t_spec_as_expr = Expr::dummy(t_spec.loc());
+                    param.t_spec = Some(TypeSpecWithOp::new(COLON, t_spec, t_spec_as_expr));
                 }
                 param.pat = buf_param;
             }
@@ -937,7 +967,8 @@ impl Desugarer {
                 }
                 if sig.t_spec.is_none() {
                     let t_spec = TypeSpec::Tuple(TupleTypeSpec::new(tup.elems.parens.clone(), tys));
-                    sig.t_spec = Some(TypeSpecWithOp::new(COLON, t_spec));
+                    let t_spec_as_expr = Expr::dummy(t_spec.loc());
+                    sig.t_spec = Some(TypeSpecWithOp::new(COLON, t_spec, t_spec_as_expr));
                 }
                 sig.pat = buf_sig;
                 insertion_idx
@@ -968,8 +999,31 @@ impl Desugarer {
                     let len = arr.elems.non_defaults.len();
                     let len = Literal::new(Token::new(TokenKind::NatLit, len.to_string(), line, 0));
                     let infer = Token::new(TokenKind::Try, "?", line, 0);
-                    let t_spec = ArrayTypeSpec::new(TypeSpec::Infer(infer), ConstExpr::Lit(len));
-                    sig.t_spec = Some(TypeSpecWithOp::new(COLON, TypeSpec::Array(t_spec)));
+                    let t_spec =
+                        ArrayTypeSpec::new(TypeSpec::Infer(infer), ConstExpr::Lit(len.clone()));
+                    let l_sqbr = Token {
+                        content: "[".into(),
+                        kind: TokenKind::LSqBr,
+                        ..len.token
+                    };
+                    let r_sqbr = Token {
+                        content: "]".into(),
+                        kind: TokenKind::RSqBr,
+                        ..len.token
+                    };
+                    let elem = Expr::local("Obj", l_sqbr.lineno, l_sqbr.col_begin);
+                    let array = Array::WithLength(ArrayWithLength::new(
+                        l_sqbr,
+                        r_sqbr,
+                        PosArg::new(elem),
+                        Expr::Literal(len),
+                    ));
+                    let t_spec_as_expr = Expr::Array(array);
+                    sig.t_spec = Some(TypeSpecWithOp::new(
+                        COLON,
+                        TypeSpec::Array(t_spec),
+                        t_spec_as_expr,
+                    ));
                 }
                 sig.pat = buf_sig;
                 insertion_idx
@@ -1007,7 +1061,9 @@ impl Desugarer {
                     ));
                 }
                 if sig.t_spec.is_none() {
-                    sig.t_spec = Some(TypeSpecWithOp::new(COLON, TypeSpec::Record(tys)));
+                    let t_spec = TypeSpec::Record(tys);
+                    let t_spec_as_expr = Expr::dummy(t_spec.loc());
+                    sig.t_spec = Some(TypeSpecWithOp::new(COLON, t_spec, t_spec_as_expr));
                 }
                 sig.pat = buf_sig;
                 insertion_idx
@@ -1047,7 +1103,21 @@ impl Desugarer {
                     l.ln_begin().unwrap(),
                     l.col_begin().unwrap(),
                 ));
-                sig.t_spec = Some(TypeSpecWithOp::new(COLON, TypeSpec::enum_t_spec(vec![lit])));
+                let l_brace = Token {
+                    content: "{".into(),
+                    kind: TokenKind::LBrace,
+                    ..lit.token
+                };
+                let r_brace = Token {
+                    content: "}".into(),
+                    kind: TokenKind::RBrace,
+                    ..lit.token
+                };
+                let t_spec = TypeSpec::enum_t_spec(vec![lit.clone()]);
+                let args = Args::pos_only(vec![PosArg::new(Expr::Literal(lit))], None);
+                let set = astSet::Normal(NormalSet::new(l_brace, r_brace, args));
+                let t_spec_as_expr = Expr::Set(set);
+                sig.t_spec = Some(TypeSpecWithOp::new(COLON, t_spec, t_spec_as_expr));
                 insertion_idx
             }
             _ => insertion_idx,
