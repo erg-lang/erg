@@ -54,8 +54,14 @@ impl FileCache {
         }
     }
 
+    pub fn get_token_stream(&self, uri: &Url) -> Option<&TokenStream> {
+        self.get(uri).ok().and_then(|ent| ent.token_stream.as_ref())
+    }
+
     pub fn get_token_index(&self, uri: &Url, pos: Position) -> ELSResult<Option<usize>> {
-        let tokens = self.get(uri)?.token_stream.as_ref().ok_or("lex error")?;
+        let Some(tokens) = self.get_token_stream(uri) else {
+            return Ok(None);
+        };
         for (i, tok) in tokens.iter().enumerate() {
             if util::pos_in_loc(tok, pos) {
                 return Ok(Some(i));
@@ -65,7 +71,9 @@ impl FileCache {
     }
 
     pub fn get_token(&self, uri: &Url, pos: Position) -> ELSResult<Option<Token>> {
-        let tokens = self.get(uri)?.token_stream.as_ref().ok_or("lex error")?;
+        let Some(tokens) = self.get_token_stream(uri) else {
+            return Ok(None);
+        };
         for tok in tokens.iter() {
             if util::pos_in_loc(tok, pos) {
                 return Ok(Some(tok.clone()));
@@ -80,8 +88,10 @@ impl FileCache {
         pos: Position,
         offset: isize,
     ) -> ELSResult<Option<Token>> {
+        let Some(tokens) = self.get_token_stream(uri) else {
+            return Ok(None);
+        };
         let Some(index) = self.get_token_index(uri, pos)? else {
-            let tokens = self.get(uri)?.token_stream.as_ref().ok_or("lex error")?;
             for token in tokens.iter().rev() {
                 if !matches!(token.kind, TokenKind::EOF | TokenKind::Dedent | TokenKind::Newline) {
                     return Ok(Some(token.clone()));
@@ -90,7 +100,6 @@ impl FileCache {
             return Ok(None);
         };
         let index = (index as isize + offset) as usize;
-        let tokens = self.get(uri)?.token_stream.as_ref().ok_or("lex error")?;
         if index < tokens.len() {
             Ok(Some(tokens[index].clone()))
         } else {

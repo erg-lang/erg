@@ -304,6 +304,8 @@ impl ScriptGenerator {
             .replace("from _erg_bool import Bool", "")
             .replace("from _erg_str import StrMut", "")
             .replace("from _erg_str import Str", "")
+            .replace("from _erg_float import FloatMut", "")
+            .replace("from _erg_float import Float", "")
             .replace("from _erg_array import Array", "")
             .replace("from _erg_range import Range", "")
             .replace("from _erg_result import Error", "")
@@ -350,12 +352,14 @@ impl ScriptGenerator {
         if !self.builtin_types_loaded {
             self.load_builtin_controls_if_not();
             if self.range_ops_loaded {
+                self.prelude += &Self::replace_import(include_str!("lib/std/_erg_float.py"));
                 self.prelude += &Self::replace_import(include_str!("lib/std/_erg_array.py"));
             } else if self.in_op_loaded {
                 self.prelude += &Self::replace_import(include_str!("lib/std/_erg_int.py"));
                 self.prelude += &Self::replace_import(include_str!("lib/std/_erg_nat.py"));
                 self.prelude += &Self::replace_import(include_str!("lib/std/_erg_bool.py"));
                 self.prelude += &Self::replace_import(include_str!("lib/std/_erg_str.py"));
+                self.prelude += &Self::replace_import(include_str!("lib/std/_erg_float.py"));
                 self.prelude += &Self::replace_import(include_str!("lib/std/_erg_array.py"));
             } else {
                 self.prelude += &Self::replace_import(include_str!("lib/std/_erg_result.py"));
@@ -363,6 +367,7 @@ impl ScriptGenerator {
                 self.prelude += &Self::replace_import(include_str!("lib/std/_erg_nat.py"));
                 self.prelude += &Self::replace_import(include_str!("lib/std/_erg_bool.py"));
                 self.prelude += &Self::replace_import(include_str!("lib/std/_erg_str.py"));
+                self.prelude += &Self::replace_import(include_str!("lib/std/_erg_float.py"));
                 self.prelude += &Self::replace_import(include_str!("lib/std/_erg_array.py"));
             }
             self.builtin_types_loaded = true;
@@ -728,6 +733,7 @@ impl ScriptGenerator {
         code += &"    ".repeat(self.level);
         code += &format!("return {tmp}\n");
         self.prelude += &code;
+        self.level -= 1;
         format!("{tmp_func}()")
     }
 
@@ -858,9 +864,19 @@ impl ScriptGenerator {
 
     // TODO: trait definition
     fn transpile_def(&mut self, mut def: Def) -> String {
+        // HACK: allow reference to local variables in tmp functions
+        let mut code = if self.level == 0 {
+            "".to_string()
+        } else {
+            format!(
+                "global {}\n{}",
+                Self::transpile_ident(def.sig.ident().clone()),
+                "    ".repeat(self.level)
+            )
+        };
         match def.sig {
             Signature::Var(var) => {
-                let mut code = format!("{} = ", Self::transpile_ident(var.ident));
+                code += &format!("{} = ", Self::transpile_ident(var.ident));
                 if def.body.block.len() > 1 {
                     let name = format!("instant_block_{}__", self.fresh_var_n);
                     self.fresh_var_n += 1;
@@ -875,7 +891,7 @@ impl ScriptGenerator {
                 }
             }
             Signature::Subr(subr) => {
-                let mut code = format!(
+                code += &format!(
                     "def {}({}):\n",
                     Self::transpile_ident(subr.ident),
                     self.transpile_params(subr.params)
