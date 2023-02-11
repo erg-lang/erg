@@ -38,6 +38,16 @@ impl fmt::Display for IncompleteArtifact {
 
 impl std::error::Error for IncompleteArtifact {}
 
+impl From<CompleteArtifact> for IncompleteArtifact {
+    fn from(artifact: CompleteArtifact) -> Self {
+        Self {
+            object: Some(artifact.object),
+            errors: CompileErrors::empty(),
+            warns: artifact.warns,
+        }
+    }
+}
+
 impl<Inner> IncompleteArtifact<Inner> {
     pub const fn new(object: Option<Inner>, errors: CompileErrors, warns: CompileErrors) -> Self {
         Self {

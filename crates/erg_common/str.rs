@@ -188,6 +188,27 @@ impl Str {
         ret.push(&self[start..]);
         ret
     }
+
+    pub fn is_snake_case(&self) -> bool {
+        self.chars().all(|c| !c.is_uppercase())
+    }
+
+    pub fn to_snake_case(&self) -> Str {
+        let mut ret = String::new();
+        let mut prev = '_';
+        for c in self.chars() {
+            if c.is_ascii_uppercase() {
+                if prev != '_' {
+                    ret.push('_');
+                }
+                ret.push(c.to_ascii_lowercase());
+            } else {
+                ret.push(c);
+            }
+            prev = c;
+        }
+        Str::rc(&ret)
+    }
 }
 
 #[cfg(test)]

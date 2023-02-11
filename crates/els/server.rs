@@ -13,10 +13,9 @@ use erg_common::config::ErgConfig;
 use erg_common::dict::Dict;
 use erg_common::normalize_path;
 
-use erg_compiler::artifact::BuildRunnable;
+use erg_compiler::artifact::{BuildRunnable, IncompleteArtifact};
 use erg_compiler::build_hir::HIRBuilder;
 use erg_compiler::context::{Context, ModuleContext};
-use erg_compiler::hir::HIR;
 use erg_compiler::module::{SharedCompilerResource, SharedModuleIndex};
 
 use lsp_types::{
@@ -119,7 +118,7 @@ pub struct Server<Checker: BuildRunnable = HIRBuilder> {
     pub(crate) client_capas: ClientCapabilities,
     pub(crate) file_cache: FileCache,
     pub(crate) modules: Dict<Url, ModuleContext>,
-    pub(crate) hirs: Dict<Url, Option<HIR>>,
+    pub(crate) artifacts: Dict<Url, IncompleteArtifact>,
     _checker: std::marker::PhantomData<Checker>,
 }
 
@@ -132,7 +131,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             client_capas: ClientCapabilities::default(),
             file_cache: FileCache::new(),
             modules: Dict::new(),
-            hirs: Dict::new(),
+            artifacts: Dict::new(),
             _checker: std::marker::PhantomData,
         }
     }
@@ -401,8 +400,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
     }
 
     pub(crate) fn get_visitor(&self, uri: &Url) -> Option<HIRVisitor> {
-        self.hirs
+        self.artifacts
             .get(uri)?
+            .object
             .as_ref()
             .map(|hir| HIRVisitor::new(hir, uri.clone(), !cfg!(feature = "py_compatible")))
     }
@@ -476,7 +476,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
     }
 
     pub(crate) fn clear_cache(&mut self, uri: &Url) {
-        self.hirs.remove(uri);
+        self.artifacts.remove(uri);
         if let Some(module) = self.modules.remove(uri) {
             if let Some(shared) = module.context.shared() {
                 shared.mod_cache.remove(&util::uri_to_path(uri));

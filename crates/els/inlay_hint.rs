@@ -10,7 +10,7 @@ use erg_common::dict::Dict;
 use erg_common::error::Location;
 use erg_common::traits::{Locational, Runnable, Stream};
 
-use erg_compiler::artifact::BuildRunnable;
+use erg_compiler::artifact::{BuildRunnable, IncompleteArtifact};
 use erg_compiler::hir::{Block, Call, ClassDef, Def, Expr, Lambda, Signature};
 use lsp_types::{InlayHint, InlayHintKind, InlayHintLabel, InlayHintParams};
 
@@ -77,7 +77,10 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let params = InlayHintParams::deserialize(&msg["params"])?;
         let uri = util::normalize_url(params.text_document.uri);
         let mut result = vec![];
-        if let Some(Some(hir)) = self.hirs.get(&uri) {
+        if let Some(IncompleteArtifact {
+            object: Some(hir), ..
+        }) = self.artifacts.get(&uri)
+        {
             for chunk in hir.module.iter() {
                 result.extend(self.get_expr_hint(chunk));
             }

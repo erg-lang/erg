@@ -475,6 +475,10 @@ impl Token {
     pub fn is_procedural(&self) -> bool {
         self.inspect().ends_with('!')
     }
+
+    pub fn is_const(&self) -> bool {
+        self.inspect().is_uppercase()
+    }
 }
 
 #[derive(Debug, Clone)]

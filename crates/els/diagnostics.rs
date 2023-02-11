@@ -27,9 +27,8 @@ impl<Checker: BuildRunnable> Server<Checker> {
         };
         match checker.build(code.into(), mode) {
             Ok(artifact) => {
-                self.hirs.insert(uri.clone(), Some(artifact.object));
                 Self::send_log(format!("checking {uri} passed"))?;
-                let uri_and_diags = self.make_uri_and_diags(uri.clone(), artifact.warns);
+                let uri_and_diags = self.make_uri_and_diags(uri.clone(), artifact.warns.clone());
                 // clear previous diagnostics
                 if uri_and_diags.is_empty() {
                     self.send_diagnostics(uri.clone(), vec![])?;
@@ -38,13 +37,18 @@ impl<Checker: BuildRunnable> Server<Checker> {
                     Self::send_log(format!("{uri}, warns: {}", diags.len()))?;
                     self.send_diagnostics(uri, diags)?;
                 }
+                self.artifacts.insert(uri.clone(), artifact.into());
             }
-            Err(mut artifact) => {
-                self.hirs.insert(uri.clone(), artifact.object);
+            Err(artifact) => {
                 Self::send_log(format!("found errors: {}", artifact.errors.len()))?;
                 Self::send_log(format!("found warns: {}", artifact.warns.len()))?;
-                artifact.errors.extend(artifact.warns);
-                let uri_and_diags = self.make_uri_and_diags(uri.clone(), artifact.errors);
+                let diags = artifact
+                    .errors
+                    .clone()
+                    .into_iter()
+                    .chain(artifact.warns.clone().into_iter())
+                    .collect();
+                let uri_and_diags = self.make_uri_and_diags(uri.clone(), diags);
                 if uri_and_diags.is_empty() {
                     self.send_diagnostics(uri.clone(), vec![])?;
                 }
@@ -52,6 +56,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                     Self::send_log(format!("{uri}, errs & warns: {}", diags.len()))?;
                     self.send_diagnostics(uri, diags)?;
                 }
+                self.artifacts.insert(uri.clone(), artifact);
             }
         }
         if let Some(module) = checker.pop_context() {
