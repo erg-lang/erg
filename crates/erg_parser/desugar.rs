@@ -738,6 +738,42 @@ impl Desugarer {
         NormalRecord::new(record.l_brace, record.r_brace, attrs)
     }
 
+    fn dummy_array_expr(len: Literal) -> Expr {
+        let l_sqbr = Token {
+            content: "[".into(),
+            kind: TokenKind::LSqBr,
+            ..len.token
+        };
+        let r_sqbr = Token {
+            content: "]".into(),
+            kind: TokenKind::RSqBr,
+            ..len.token
+        };
+        let elem = Expr::local("Obj", l_sqbr.lineno, l_sqbr.col_begin);
+        let array = Array::WithLength(ArrayWithLength::new(
+            l_sqbr,
+            r_sqbr,
+            PosArg::new(elem),
+            Expr::Literal(len),
+        ));
+        Expr::Array(array)
+    }
+
+    fn dummy_set_expr(lit: Literal) -> Expr {
+        let l_brace = Token {
+            content: "{".into(),
+            kind: TokenKind::LBrace,
+            ..lit.token
+        };
+        let r_brace = Token {
+            content: "}".into(),
+            kind: TokenKind::RBrace,
+            ..lit.token
+        };
+        let args = Args::pos_only(vec![PosArg::new(Expr::Literal(lit))], None);
+        Expr::from(NormalSet::new(l_brace, r_brace, args))
+    }
+
     /// ```erg
     /// f [x, y] =
     ///     ...
@@ -795,14 +831,14 @@ impl Desugarer {
                 };
                 let t_spec = TypeSpec::enum_t_spec(vec![lit.clone()]);
                 let args = Args::pos_only(vec![PosArg::new(Expr::Literal(lit))], None);
-                let set = astSet::Normal(NormalSet::new(l_brace, r_brace, args));
-                let t_spec_as_expr = Expr::Set(set);
+                let t_spec_as_expr = Expr::from(NormalSet::new(l_brace, r_brace, args));
                 let t_spec = TypeSpecWithOp::new(COLON, t_spec, t_spec_as_expr);
                 param.t_spec = Some(t_spec);
             }
             ParamPattern::Tuple(tup) => {
                 let (buf_name, buf_param) = self.gen_buf_nd_param(line);
-                let mut tys = vec![];
+                let mut ty_specs = vec![];
+                let mut ty_exprs = vec![];
                 for (n, elem) in tup.elems.non_defaults.iter_mut().enumerate() {
                     insertion_idx = self.desugar_nested_param_pattern(
                         body,
@@ -812,7 +848,13 @@ impl Desugarer {
                         insertion_idx,
                     );
                     let infer = Token::new(TokenKind::Try, "?", line, 0);
-                    tys.push(
+                    let ty_expr = elem
+                        .t_spec
+                        .as_ref()
+                        .map(|ts| *ts.t_spec_as_expr.clone())
+                        .unwrap_or(Expr::local("Obj", infer.lineno, infer.col_begin));
+                    ty_exprs.push(PosArg::new(ty_expr));
+                    ty_specs.push(
                         elem.t_spec
                             .as_ref()
                             .map(|ts| ts.t_spec.clone())
@@ -821,8 +863,12 @@ impl Desugarer {
                     );
                 }
                 if param.t_spec.is_none() {
-                    let t_spec = TypeSpec::Tuple(TupleTypeSpec::new(tup.elems.parens.clone(), tys));
-                    let t_spec_as_expr = Expr::dummy(t_spec.loc());
+                    let t_spec =
+                        TypeSpec::Tuple(TupleTypeSpec::new(tup.elems.parens.clone(), ty_specs));
+                    let t_spec_as_expr = Expr::from(NormalTuple::new(Args::pos_only(
+                        ty_exprs,
+                        tup.elems.parens.clone(),
+                    )));
                     param.t_spec = Some(TypeSpecWithOp::new(COLON, t_spec, t_spec_as_expr));
                 }
                 param.pat = buf_param;
@@ -842,8 +888,9 @@ impl Desugarer {
                     let len = arr.elems.non_defaults.len();
                     let len = Literal::new(Token::new(TokenKind::NatLit, len.to_string(), line, 0));
                     let infer = Token::new(TokenKind::Try, "?", line, 0);
-                    let t_spec = ArrayTypeSpec::new(TypeSpec::Infer(infer), ConstExpr::Lit(len));
-                    let t_spec_as_expr = Expr::dummy(t_spec.loc());
+                    let t_spec =
+                        ArrayTypeSpec::new(TypeSpec::Infer(infer), ConstExpr::Lit(len.clone()));
+                    let t_spec_as_expr = Self::dummy_array_expr(len);
                     param.t_spec = Some(TypeSpecWithOp::new(
                         Token::dummy(TokenKind::Colon, ":"),
                         TypeSpec::Array(t_spec),
@@ -864,9 +911,18 @@ impl Desugarer {
                     );
                 }
                 if param.t_spec.is_none() {
+                    let mut attrs = RecordAttrs::new(vec![]);
                     let mut tys = vec![];
                     for ParamRecordAttr { lhs, rhs } in rec.elems.iter() {
                         let infer = Token::new(TokenKind::Try, "?", line, 0);
+                        let expr = rhs
+                            .t_spec
+                            .as_ref()
+                            .map(|ts| *ts.t_spec_as_expr.clone())
+                            .unwrap_or(Expr::local("Obj", infer.lineno, infer.col_begin));
+                        let attr =
+                            Def::new(Signature::new_var(lhs.clone()), DefBody::new_single(expr));
+                        attrs.push(attr);
                         tys.push((
                             lhs.clone(),
                             rhs.t_spec
@@ -877,7 +933,11 @@ impl Desugarer {
                         ));
                     }
                     let t_spec = TypeSpec::Record(tys);
-                    let t_spec_as_expr = Expr::dummy(t_spec.loc());
+                    let t_spec_as_expr = Expr::from(NormalRecord::new(
+                        rec.l_brace.clone(),
+                        rec.r_brace.clone(),
+                        attrs,
+                    ));
                     param.t_spec = Some(TypeSpecWithOp::new(COLON, t_spec, t_spec_as_expr));
                 }
                 param.pat = buf_param;
@@ -947,6 +1007,7 @@ impl Desugarer {
                     )),
                 );
                 insertion_idx += 1;
+                let mut ty_exprs = vec![];
                 let mut tys = vec![];
                 for (n, elem) in tup.elems.non_defaults.iter_mut().enumerate() {
                     insertion_idx = self.desugar_nested_param_pattern(
@@ -957,6 +1018,12 @@ impl Desugarer {
                         insertion_idx,
                     );
                     let infer = Token::new(TokenKind::Try, "?", line, 0);
+                    let ty_expr = elem
+                        .t_spec
+                        .as_ref()
+                        .map(|ts| *ts.t_spec_as_expr.clone())
+                        .unwrap_or(Expr::local("Obj", infer.lineno, infer.col_begin));
+                    ty_exprs.push(PosArg::new(ty_expr));
                     tys.push(
                         elem.t_spec
                             .as_ref()
@@ -967,7 +1034,10 @@ impl Desugarer {
                 }
                 if sig.t_spec.is_none() {
                     let t_spec = TypeSpec::Tuple(TupleTypeSpec::new(tup.elems.parens.clone(), tys));
-                    let t_spec_as_expr = Expr::dummy(t_spec.loc());
+                    let t_spec_as_expr = Expr::from(NormalTuple::new(Args::pos_only(
+                        ty_exprs,
+                        tup.elems.parens.clone(),
+                    )));
                     sig.t_spec = Some(TypeSpecWithOp::new(COLON, t_spec, t_spec_as_expr));
                 }
                 sig.pat = buf_sig;
@@ -1001,24 +1071,7 @@ impl Desugarer {
                     let infer = Token::new(TokenKind::Try, "?", line, 0);
                     let t_spec =
                         ArrayTypeSpec::new(TypeSpec::Infer(infer), ConstExpr::Lit(len.clone()));
-                    let l_sqbr = Token {
-                        content: "[".into(),
-                        kind: TokenKind::LSqBr,
-                        ..len.token
-                    };
-                    let r_sqbr = Token {
-                        content: "]".into(),
-                        kind: TokenKind::RSqBr,
-                        ..len.token
-                    };
-                    let elem = Expr::local("Obj", l_sqbr.lineno, l_sqbr.col_begin);
-                    let array = Array::WithLength(ArrayWithLength::new(
-                        l_sqbr,
-                        r_sqbr,
-                        PosArg::new(elem),
-                        Expr::Literal(len),
-                    ));
-                    let t_spec_as_expr = Expr::Array(array);
+                    let t_spec_as_expr = Self::dummy_array_expr(len);
                     sig.t_spec = Some(TypeSpecWithOp::new(
                         COLON,
                         TypeSpec::Array(t_spec),
@@ -1041,6 +1094,7 @@ impl Desugarer {
                     )),
                 );
                 insertion_idx += 1;
+                let mut attrs = RecordAttrs::new(vec![]);
                 let mut tys = vec![];
                 for ParamRecordAttr { lhs, rhs } in rec.elems.iter_mut() {
                     insertion_idx = self.desugar_nested_param_pattern(
@@ -1051,6 +1105,13 @@ impl Desugarer {
                         insertion_idx,
                     );
                     let infer = Token::new(TokenKind::Try, "?", line, 0);
+                    let expr = rhs
+                        .t_spec
+                        .as_ref()
+                        .map(|ts| *ts.t_spec_as_expr.clone())
+                        .unwrap_or(Expr::local("Obj", infer.lineno, infer.col_begin));
+                    let attr = Def::new(Signature::new_var(lhs.clone()), DefBody::new_single(expr));
+                    attrs.push(attr);
                     tys.push((
                         lhs.clone(),
                         rhs.t_spec
@@ -1062,7 +1123,11 @@ impl Desugarer {
                 }
                 if sig.t_spec.is_none() {
                     let t_spec = TypeSpec::Record(tys);
-                    let t_spec_as_expr = Expr::dummy(t_spec.loc());
+                    let t_spec_as_expr = Expr::from(NormalRecord::new(
+                        rec.l_brace.clone(),
+                        rec.r_brace.clone(),
+                        attrs,
+                    ));
                     sig.t_spec = Some(TypeSpecWithOp::new(COLON, t_spec, t_spec_as_expr));
                 }
                 sig.pat = buf_sig;
@@ -1103,20 +1168,8 @@ impl Desugarer {
                     l.ln_begin().unwrap(),
                     l.col_begin().unwrap(),
                 ));
-                let l_brace = Token {
-                    content: "{".into(),
-                    kind: TokenKind::LBrace,
-                    ..lit.token
-                };
-                let r_brace = Token {
-                    content: "}".into(),
-                    kind: TokenKind::RBrace,
-                    ..lit.token
-                };
                 let t_spec = TypeSpec::enum_t_spec(vec![lit.clone()]);
-                let args = Args::pos_only(vec![PosArg::new(Expr::Literal(lit))], None);
-                let set = astSet::Normal(NormalSet::new(l_brace, r_brace, args));
-                let t_spec_as_expr = Expr::Set(set);
+                let t_spec_as_expr = Self::dummy_set_expr(lit);
                 sig.t_spec = Some(TypeSpecWithOp::new(COLON, t_spec, t_spec_as_expr));
                 insertion_idx
             }

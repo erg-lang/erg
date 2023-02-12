@@ -1345,7 +1345,13 @@ impl PyCodeGenerator {
 
     fn emit_unaryop(&mut self, unary: UnaryOp) {
         log!(info "entered {} ({unary})", fn_name!());
-        let tycode = TypeCode::from(unary.lhs_t());
+        let val_t = unary
+            .info
+            .t
+            .non_default_params()
+            .and_then(|tys| tys.get(0).map(|pt| pt.typ()))
+            .unwrap_or(Type::FAILURE);
+        let tycode = TypeCode::from(val_t);
         let instr = match &unary.op.kind {
             // TODO:
             TokenKind::PrePlus => UNARY_POSITIVE,
@@ -1422,7 +1428,19 @@ impl PyCodeGenerator {
             }
             _ => {}
         }
-        let type_pair = TypePair::new(bin.lhs_t(), bin.rhs_t());
+        let lhs_t = bin
+            .info
+            .t
+            .non_default_params()
+            .and_then(|tys| tys.get(0).map(|pt| pt.typ()))
+            .unwrap_or(Type::FAILURE);
+        let rhs_t = bin
+            .info
+            .t
+            .non_default_params()
+            .and_then(|tys| tys.get(1).map(|pt| pt.typ()))
+            .unwrap_or(Type::FAILURE);
+        let type_pair = TypePair::new(lhs_t, rhs_t);
         self.emit_expr(*bin.lhs);
         self.emit_expr(*bin.rhs);
         if self.py_version.minor >= Some(11) {

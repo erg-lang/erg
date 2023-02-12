@@ -162,7 +162,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
     fn get_var_def_hint(&self, def: &Def) -> Vec<InlayHint> {
         let mut result = self.get_block_hint(&def.body.block);
         // don't show hints for compiler internal variables
-        if def.sig.t_spec().is_none() && !def.sig.ident().inspect().starts_with(['%', '$']) {
+        if def.sig.t_spec().is_none() && !def.sig.ident().inspect().starts_with(['%']) {
             let hint = type_anot(
                 def.sig.ln_end().unwrap(),
                 def.sig.col_end().unwrap(),

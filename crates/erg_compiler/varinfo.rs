@@ -68,6 +68,10 @@ impl VarKind {
     pub const fn is_defined(&self) -> bool {
         matches!(self, Self::Defined(_))
     }
+
+    pub const fn does_not_exist(&self) -> bool {
+        matches!(self, Self::DoesNotExist)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

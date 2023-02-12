@@ -16,7 +16,7 @@ use erg_common::{
 };
 use erg_common::{fmt_vec_split_with, Str};
 
-use crate::token::{Token, TokenKind};
+use crate::token::{Token, TokenKind, EQUAL};
 
 /// Some Erg functions require additional operation by the compiler.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -636,6 +636,12 @@ impl NestedDisplay for NormalTuple {
 impl_display_from_nested!(NormalTuple);
 impl_locational!(NormalTuple, elems, elems);
 
+impl From<NormalTuple> for Expr {
+    fn from(tuple: NormalTuple) -> Self {
+        Self::Tuple(Tuple::Normal(tuple))
+    }
+}
+
 impl NormalTuple {
     pub const fn new(elems: Args) -> Self {
         Self { elems }
@@ -853,6 +859,12 @@ impl NestedDisplay for NormalRecord {
 impl_display_from_nested!(NormalRecord);
 impl_locational!(NormalRecord, l_brace, attrs, r_brace);
 
+impl From<NormalRecord> for Expr {
+    fn from(record: NormalRecord) -> Self {
+        Self::Record(Record::Normal(record))
+    }
+}
+
 impl NormalRecord {
     pub const fn new(l_brace: Token, r_brace: Token, attrs: RecordAttrs) -> Self {
         Self {
@@ -949,6 +961,12 @@ impl NestedDisplay for NormalSet {
 
 impl_display_from_nested!(NormalSet);
 impl_locational!(NormalSet, l_brace, elems, r_brace);
+
+impl From<NormalSet> for Expr {
+    fn from(set: NormalSet) -> Self {
+        Self::Set(Set::Normal(set))
+    }
+}
 
 impl NormalSet {
     pub const fn new(l_brace: Token, r_brace: Token, elems: Args) -> Self {
@@ -2946,9 +2964,9 @@ impl ParamRecordAttrs {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ParamRecordPattern {
-    l_brace: Token,
+    pub(crate) l_brace: Token,
     pub(crate) elems: ParamRecordAttrs,
-    r_brace: Token,
+    pub(crate) r_brace: Token,
 }
 
 impl NestedDisplay for ParamRecordPattern {
@@ -3391,6 +3409,20 @@ impl Signature {
         }
     }
 
+    pub fn new_var(ident: Identifier) -> Self {
+        Self::Var(VarSignature::new(VarPattern::Ident(ident), None))
+    }
+
+    pub fn new_subr(ident: Identifier, params: Params) -> Self {
+        Self::Subr(SubrSignature::new(
+            HashSet::new(),
+            ident,
+            TypeBoundSpecs::empty(),
+            params,
+            None,
+        ))
+    }
+
     pub fn ident(&self) -> Option<&Identifier> {
         match self {
             Self::Var(var) => {
@@ -3539,6 +3571,10 @@ impl_locational!(DefBody, lossy op, block);
 impl DefBody {
     pub const fn new(op: Token, block: Block, id: DefId) -> Self {
         Self { op, block, id }
+    }
+
+    pub fn new_single(expr: Expr) -> Self {
+        Self::new(EQUAL, Block::new(vec![expr]), DefId(0))
     }
 
     pub fn def_kind(&self) -> DefKind {
@@ -3846,10 +3882,6 @@ impl Expr {
 
     pub fn type_asc_expr(self, t_spec: TypeSpecWithOp) -> Self {
         Self::TypeAscription(self.type_asc(t_spec))
-    }
-
-    pub fn dummy(loc: Location) -> Self {
-        Self::Dummy(Dummy::new(Some(loc), vec![]))
     }
 }
 

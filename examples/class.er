@@ -36,11 +36,11 @@ IorS.
         # self: IorS
         # self::base: Int or Str
         match self::base:
-            (i: Int) -> True
+            (_: Int) -> True
             _ -> False
     is_str self =
         match self::base:
-            (s: Str) -> True
+            (_: Str) -> True
             _ -> False
 
 # `.new` is of type `Int or Str -> IorS`, not `{base = Int or Str} -> IorS`

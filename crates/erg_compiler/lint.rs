@@ -165,12 +165,15 @@ impl ASTLowerer {
         }
         if let Some(shared) = self.module.context.shared() {
             for (referee, value) in shared.index.iter() {
-                if value.referrers.is_empty() && value.vi.vis.is_private() {
+                let code = referee.code();
+                let name = code.as_ref().map(|s| &s[..]).unwrap_or("");
+                let name_is_auto = name == "_"; // || name.starts_with(['%']);
+                if value.referrers.is_empty() && value.vi.vis.is_private() && !name_is_auto {
                     let warn = LowerWarning::unused_warning(
                         self.input().clone(),
                         line!() as usize,
                         referee.loc,
-                        referee.code().as_ref().map(|s| &s[..]).unwrap_or(""),
+                        name,
                         self.module.context.caused_by(),
                     );
                     self.warns.push(warn);
