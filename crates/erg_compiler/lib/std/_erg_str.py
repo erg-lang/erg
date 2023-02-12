@@ -37,6 +37,8 @@ class StrMut(): # Inherits Str
         self.value = s
     def __repr__(self):
         return self.value.__repr__()
+    def __str__(self):
+        return self.value.__str__()
     def __hash__(self):
         return self.value.__hash__()
     def __eq__(self, other):
