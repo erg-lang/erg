@@ -360,12 +360,16 @@ impl Context {
                     )?;
                     if &name.inspect()[..] == "self" {
                         if let Some(self_t) = self.rec_get_self_t() {
-                            self.sub_unify(&spec_t, &self_t, name.loc(), Some(name.inspect()))?;
+                            self.sub_unify(
+                                &spec_t,
+                                &ref_(self_t),
+                                name.loc(),
+                                Some(name.inspect()),
+                            )?;
                         } else {
                             log!(err "self_t is None");
                         }
                     }
-                    let spec_t = ref_(spec_t);
                     let kind = VarKind::parameter(DefId(get_hash(&(&self.name, name))), default);
                     let vi = VarInfo::new(
                         spec_t,
@@ -405,12 +409,16 @@ impl Context {
                     )?;
                     if &name.inspect()[..] == "self" {
                         if let Some(self_t) = self.rec_get_self_t() {
-                            self.sub_unify(&spec_t, &self_t, name.loc(), Some(name.inspect()))?;
+                            self.sub_unify(
+                                &spec_t,
+                                &ref_mut(self_t, None),
+                                name.loc(),
+                                Some(name.inspect()),
+                            )?;
                         } else {
                             log!(err "self_t is None");
                         }
                     }
-                    let spec_t = ref_mut(spec_t.clone(), Some(spec_t));
                     let kind = VarKind::parameter(DefId(get_hash(&(&self.name, name))), default);
                     let vi = VarInfo::new(
                         spec_t,

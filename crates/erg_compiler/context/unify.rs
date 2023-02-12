@@ -849,7 +849,11 @@ impl Context {
             (_, Type::Or(l, r)) => self
                 .sub_unify(maybe_sub, l, loc, param_name)
                 .or_else(|_e| self.sub_unify(maybe_sub, r, loc, param_name)),
+            (Type::Ref(l), Type::Ref(r)) => self.sub_unify(l, r, loc, param_name),
             (_, Type::Ref(t)) => self.sub_unify(maybe_sub, t, loc, param_name),
+            (Type::RefMut { before: l, .. }, Type::RefMut { before: r, .. }) => {
+                self.sub_unify(l, r, loc, param_name)
+            }
             (_, Type::RefMut { before, .. }) => self.sub_unify(maybe_sub, before, loc, param_name),
             (Type::Proj { .. }, _) => todo!(),
             (_, Type::Proj { .. }) => todo!(),
