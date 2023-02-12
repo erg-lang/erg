@@ -3,6 +3,8 @@
 Inheritance allows you to define a new class that adds functionality or specialization to an existing class.
 Inheritance is similar to inclusion in a trait. The inherited class becomes a subtype of the original class.
 
+`Inherit` is a function that defines an inherited class. The type on the left side is called subclass and the argument type of `Inherit` on the right side is called superclass.
+
 ```python
 NewInt = Inherit Int
 NewInt.
@@ -12,22 +14,21 @@ assert NewInt.new(1).plus1() == 2
 assert NewInt.new(1) + NewInt.new(1) == 2
 ```
 
+Unlike Python, classes are non-inheritable (final) by default.
 If you want the newly defined class to be inheritable, you must give it the `Inheritable` decorator.
 
-You can specify an optional argument `additional` to allow the class to have additional instance attributes, but only if the class is a value class. However, you cannot add instance attributes if the class is a value class.
+You can specify an optional argument `Additional` to allow the class to have additional instance attributes, but only if the class is a value class. However, you cannot add instance attributes if the class is a value class.
 
 ```python
 @Inheritable
 Person = Class {name = Str}
-Student = Inherit Person, additional: {id = Int}
+Student = Inherit Person, Additional := {id = Int}
 
 john = Person.new {name = "John"}
 alice = Student.new {name = "Alice", id = 123}
 
-MailAddress = Inherit Str, additional: {owner = Str} # TypeError: instance variables cannot be added to a value class
+MailAddress = Inherit Str, Additional := {owner = Str} # TypeError: instance variables cannot be added to a value class
 ```
-
-Erg is exceptionally designed not to allow inheritance of type ``Never``. Erg is exceptionally designed not to allow inheritance of `Never` type, because `Never` is a unique class that can never be instantiated.
 
 ## Inheritance of Enumerated Classes
 
@@ -36,11 +37,12 @@ No additional choices can be added. The class to which you add an option is not 
 
 ```python
 Number = Class Int or Float or Complex
-Number.abs(self): Float =
-    match self:
-        i: Int -> i.abs().into Float
-        f: Float -> f.abs()
-        c: Complex -> c.abs().into Float
+Number
+    .abs(self): Float =
+        match self:
+            i: Int -> i.abs().into Float
+            f: Float -> f.abs()
+            c: Complex -> c.abs().into Float
 
 # c: Complex cannot appear in match choices
 RealNumber = Inherit Number, Excluding: Complex
@@ -77,14 +79,14 @@ Finally, consider the third condition. This condition is unique to Erg and not o
 # Bad example
 @Inheritable
 Base! = Class {x = Int!}
-Base!
+Base!.
     f! ref! self =
         print! self::x
         self.g!()
     g! ref! self = self::x.update! x -> x + 1
 
 Inherited! = Inherit Base!
-Inherited!
+Inherited!.
     @Override
     g! ref! self = self.f!() # InfiniteRecursionWarning: This code falls into an infinite loop
     # OverrideError: method `.g` is referenced by `.f` but not overridden
@@ -98,14 +100,14 @@ Erg has built this rule into the specification.
 # OK.
 @Inheritable
 Base! = Class {x = Int!}
-Base!
+Base!.
     f! ref! self =
         print! self::x
         self.g!()
     g! ref! self = self::x.update! x -> x + 1
 
 Inherited! = Inherit Base!
-Inherited!
+Inherited!.
     @Override
     f! ref! self =
         print! self::x
@@ -183,12 +185,12 @@ Regardless of the visibility of the attribute, it cannot be updated directly. Ho
 ```python
 @Inheritable
 Base! = Class {.pub = !Int; pri = !Int}
-Base!
+Base!.
     inc_pub! ref! self = self.pub.update! p -> p + 1
     inc_pri! ref! self = self::pri.update! p -> p + 1
 
 self = self.pub.update!
-Inherited!
+Inherited!.
     # OK
     add2_pub! ref! self =
         self.inc_pub!()
