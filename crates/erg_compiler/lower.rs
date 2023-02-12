@@ -701,38 +701,8 @@ impl ASTLowerer {
         Ok(hir::UnaryOp::new(unary.op, expr, t))
     }
 
-    pub(crate) fn lower_call(&mut self, call: ast::Call) -> LowerResult<hir::Call> {
-        log!(info "entered {}({}{}(...))", fn_name!(), call.obj, fmt_option!(call.attr_name));
-        if let Some(name) = call.obj.get_name() {
-            self.module.context.higher_order_caller.push(name.clone());
-        }
-        let mut errs = LowerErrors::empty();
-        let opt_cast_to = if call.is_assert_cast() {
-            if let Some(typ) = call.assert_cast_target_type() {
-                Some(Parser::expr_to_type_spec(typ.clone()).map_err(|e| {
-                    self.module.context.higher_order_caller.pop();
-                    let e = LowerError::new(
-                        e.into(),
-                        self.input().clone(),
-                        self.module.context.caused_by(),
-                    );
-                    LowerErrors::from(e)
-                })?)
-            } else {
-                self.module.context.higher_order_caller.pop();
-                return Err(LowerErrors::from(LowerError::syntax_error(
-                    self.input().clone(),
-                    line!() as usize,
-                    call.args.loc(),
-                    self.module.context.caused_by(),
-                    "invalid assert casting type".to_owned(),
-                    None,
-                )));
-            }
-        } else {
-            None
-        };
-        let (pos_args, var_args, kw_args, paren) = call.args.deconstruct();
+    fn lower_args(&mut self, args: ast::Args, errs: &mut LowerErrors) -> hir::Args {
+        let (pos_args, var_args, kw_args, paren) = args.deconstruct();
         let mut hir_args = hir::Args::new(
             Vec::with_capacity(pos_args.len()),
             None,
@@ -770,6 +740,41 @@ impl ASTLowerer {
                 }
             }
         }
+        hir_args
+    }
+
+    pub(crate) fn lower_call(&mut self, call: ast::Call) -> LowerResult<hir::Call> {
+        log!(info "entered {}({}{}(...))", fn_name!(), call.obj, fmt_option!(call.attr_name));
+        if let Some(name) = call.obj.get_name() {
+            self.module.context.higher_order_caller.push(name.clone());
+        }
+        let mut errs = LowerErrors::empty();
+        let opt_cast_to = if call.is_assert_cast() {
+            if let Some(typ) = call.assert_cast_target_type() {
+                Some(Parser::expr_to_type_spec(typ.clone()).map_err(|e| {
+                    self.module.context.higher_order_caller.pop();
+                    let e = LowerError::new(
+                        e.into(),
+                        self.input().clone(),
+                        self.module.context.caused_by(),
+                    );
+                    LowerErrors::from(e)
+                })?)
+            } else {
+                self.module.context.higher_order_caller.pop();
+                return Err(LowerErrors::from(LowerError::syntax_error(
+                    self.input().clone(),
+                    line!() as usize,
+                    call.args.loc(),
+                    self.module.context.caused_by(),
+                    "invalid assert casting type".to_owned(),
+                    None,
+                )));
+            }
+        } else {
+            None
+        };
+        let hir_args = self.lower_args(call.args, &mut errs);
         let mut obj = match self.lower_expr(*call.obj) {
             Ok(obj) => obj,
             Err(es) => {
@@ -895,14 +900,59 @@ impl ASTLowerer {
         Ok(hir::Call::new(class, Some(attr_name), args))
     }
 
+    fn lower_non_default_param(
+        &mut self,
+        non_default: ast::NonDefaultParamSignature,
+    ) -> LowerResult<hir::NonDefaultParamSignature> {
+        let t_spec_as_expr = non_default
+            .t_spec
+            .as_ref()
+            .map(|t_spec_op| self.fake_lower_expr(*t_spec_op.t_spec_as_expr.clone()))
+            .transpose()?;
+        // TODO: define here (not assign_params)
+        let vi = VarInfo::default();
+        let sig = hir::NonDefaultParamSignature::new(non_default, vi, t_spec_as_expr);
+        Ok(sig)
+    }
+
+    fn lower_type_spec_with_op(
+        &mut self,
+        type_spec_with_op: ast::TypeSpecWithOp,
+    ) -> LowerResult<hir::TypeSpecWithOp> {
+        let expr = self.fake_lower_expr(*type_spec_with_op.t_spec_as_expr)?;
+        Ok(hir::TypeSpecWithOp::new(
+            type_spec_with_op.op,
+            type_spec_with_op.t_spec,
+            expr,
+        ))
+    }
+
     fn lower_params(&mut self, params: ast::Params) -> LowerResult<hir::Params> {
         log!(info "entered {}({})", fn_name!(), params);
         let mut errs = LowerErrors::empty();
+        let mut hir_non_defaults = vec![];
+        for non_default in params.non_defaults.into_iter() {
+            match self.lower_non_default_param(non_default) {
+                Ok(sig) => hir_non_defaults.push(sig),
+                Err(es) => errs.extend(es),
+            }
+        }
+        let hir_var_params = match params.var_params {
+            Some(var_params) => match self.lower_non_default_param(*var_params) {
+                Ok(sig) => Some(Box::new(sig)),
+                Err(es) => {
+                    errs.extend(es);
+                    None
+                }
+            },
+            None => None,
+        };
         let mut hir_defaults = vec![];
         for default in params.defaults.into_iter() {
             match self.lower_expr(default.default_val) {
                 Ok(default_val) => {
-                    hir_defaults.push(hir::DefaultParamSignature::new(default.sig, default_val));
+                    let sig = self.lower_non_default_param(default.sig)?;
+                    hir_defaults.push(hir::DefaultParamSignature::new(sig, default_val));
                 }
                 Err(es) => errs.extend(es),
             }
@@ -911,8 +961,8 @@ impl ASTLowerer {
             Err(errs)
         } else {
             let hir_params = hir::Params::new(
-                params.non_defaults,
-                params.var_params,
+                hir_non_defaults,
+                hir_var_params,
                 hir_defaults,
                 params.parens,
             );
@@ -949,13 +999,13 @@ impl ASTLowerer {
                 .context
                 .grow(&name, kind, Private, Some(tv_cache));
         }
-        let params = self.lower_params(lambda.sig.params).map_err(|errs| {
+        let mut params = self.lower_params(lambda.sig.params).map_err(|errs| {
             if !in_statement {
                 self.pop_append_errs();
             }
             errs
         })?;
-        if let Err(errs) = self.module.context.assign_params(&params, None) {
+        if let Err(errs) = self.module.context.assign_params(&mut params, None) {
             self.errs.extend(errs);
         }
         if let Err(errs) = self.module.context.preregister(&lambda.body) {
@@ -1011,12 +1061,12 @@ impl ASTLowerer {
         } else {
             self.pop_append_errs();
         }
-        let t = if is_procedural {
+        let ty = if is_procedural {
             proc(non_default_params, None, default_params, body.t())
         } else {
             func(non_default_params, None, default_params, body.t())
         };
-        let t = if t.has_qvar() { t.quantify() } else { t };
+        let t = if ty.has_qvar() { ty.quantify() } else { ty };
         Ok(hir::Lambda::new(id, params, lambda.op, body, t))
     }
 
@@ -1184,8 +1234,8 @@ impl ASTLowerer {
             .unwrap_or(Type::Failure);
         match registered_t {
             Type::Subr(subr_t) => {
-                let params = self.lower_params(sig.params.clone())?;
-                if let Err(errs) = self.module.context.assign_params(&params, Some(subr_t)) {
+                let mut params = self.lower_params(sig.params.clone())?;
+                if let Err(errs) = self.module.context.assign_params(&mut params, Some(subr_t)) {
                     self.errs.extend(errs);
                 }
                 if let Err(errs) = self.module.context.preregister(&body.block) {
@@ -1241,8 +1291,8 @@ impl ASTLowerer {
                 }
             }
             Type::Failure => {
-                let params = self.lower_params(sig.params)?;
-                if let Err(errs) = self.module.context.assign_params(&params, None) {
+                let mut params = self.lower_params(sig.params)?;
+                if let Err(errs) = self.module.context.assign_params(&mut params, None) {
                     self.errs.extend(errs);
                 }
                 if let Err(errs) = self.module.context.preregister(&body.block) {
@@ -1276,7 +1326,7 @@ impl ASTLowerer {
                         // TODO: check `tasc.op`
                         ast::Expr::TypeAscription(tasc) => (
                             self.module.context.instantiate_typespec(
-                                &tasc.t_spec,
+                                &tasc.t_spec.t_spec,
                                 None,
                                 &mut dummy_tv_cache,
                                 RegistrationMode::Normal,
@@ -1891,7 +1941,7 @@ impl ASTLowerer {
         let is_instance_ascription = tasc.is_instance_ascription();
         let mut dummy_tv_cache = TyVarCache::new(self.module.context.level, &self.module.context);
         let spec_t = self.module.context.instantiate_typespec(
-            &tasc.t_spec,
+            &tasc.t_spec.t_spec,
             None,
             &mut dummy_tv_cache,
             RegistrationMode::Normal,
@@ -1926,7 +1976,8 @@ impl ASTLowerer {
                 )));
             }
         }
-        Ok(expr.type_asc(tasc.t_spec))
+        let t_spec = self.lower_type_spec_with_op(tasc.t_spec)?;
+        Ok(expr.type_asc(t_spec))
     }
 
     fn lower_decl(&mut self, tasc: ast::TypeAscription) -> LowerResult<hir::TypeAscription> {
@@ -1934,7 +1985,7 @@ impl ASTLowerer {
         let is_instance_ascription = tasc.is_instance_ascription();
         let mut dummy_tv_cache = TyVarCache::new(self.module.context.level, &self.module.context);
         let spec_t = self.module.context.instantiate_typespec(
-            &tasc.t_spec,
+            &tasc.t_spec.t_spec,
             None,
             &mut dummy_tv_cache,
             RegistrationMode::Normal,
@@ -2005,7 +2056,8 @@ impl ASTLowerer {
             .map(|ctx| ctx.name.clone());
         let ident = hir::Identifier::new(ident.dot, ident.name, qual_name, ident_vi);
         let expr = hir::Expr::Accessor(hir::Accessor::Ident(ident));
-        Ok(expr.type_asc(tasc.t_spec))
+        let t_spec = self.lower_type_spec_with_op(tasc.t_spec)?;
+        Ok(expr.type_asc(t_spec))
     }
 
     // Call.obj == Accessor cannot be type inferred by itself (it can only be inferred with arguments)

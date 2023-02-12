@@ -5,8 +5,3 @@ re = pyimport "re"
 .path_join: (__a: Str, path: Str) => Str
 
 .str_slice: (str: Str, first_index: Nat) => Str
-
-'''
-! this is unsafe
-'''
-.eliminate_none_on_match: (matched: re.Match or NoneType) -> {.matched = re.Match; .is_none = Bool}

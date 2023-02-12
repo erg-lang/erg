@@ -12,8 +12,10 @@ if! cond:
 
 a = 1
 _ = match a:
+    (_: {1}) -> 1
+    (_: 0..1) -> 100
     (i: Int) -> i
-    (s: Int) -> 1
+    (s: Str) -> 1
     _ -> panic "unknown object"
 
 for! 0..<10, i =>

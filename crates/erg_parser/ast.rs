@@ -16,7 +16,7 @@ use erg_common::{
 };
 use erg_common::{fmt_vec_split_with, Str};
 
-use crate::token::{Token, TokenKind};
+use crate::token::{Token, TokenKind, EQUAL};
 
 /// Some Erg functions require additional operation by the compiler.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -636,6 +636,12 @@ impl NestedDisplay for NormalTuple {
 impl_display_from_nested!(NormalTuple);
 impl_locational!(NormalTuple, elems, elems);
 
+impl From<NormalTuple> for Expr {
+    fn from(tuple: NormalTuple) -> Self {
+        Self::Tuple(Tuple::Normal(tuple))
+    }
+}
+
 impl NormalTuple {
     pub const fn new(elems: Args) -> Self {
         Self { elems }
@@ -853,6 +859,12 @@ impl NestedDisplay for NormalRecord {
 impl_display_from_nested!(NormalRecord);
 impl_locational!(NormalRecord, l_brace, attrs, r_brace);
 
+impl From<NormalRecord> for Expr {
+    fn from(record: NormalRecord) -> Self {
+        Self::Record(Record::Normal(record))
+    }
+}
+
 impl NormalRecord {
     pub const fn new(l_brace: Token, r_brace: Token, attrs: RecordAttrs) -> Self {
         Self {
@@ -949,6 +961,12 @@ impl NestedDisplay for NormalSet {
 
 impl_display_from_nested!(NormalSet);
 impl_locational!(NormalSet, l_brace, elems, r_brace);
+
+impl From<NormalSet> for Expr {
+    fn from(set: NormalSet) -> Self {
+        Self::Set(Set::Normal(set))
+    }
+}
 
 impl NormalSet {
     pub const fn new(l_brace: Token, r_brace: Token, elems: Args) -> Self {
@@ -1210,12 +1228,15 @@ impl Locational for Block {
 impl_stream!(Block, Expr);
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Dummy(Vec<Expr>);
+pub struct Dummy {
+    pub loc: Option<Location>,
+    exprs: Vec<Expr>,
+}
 
 impl NestedDisplay for Dummy {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
         writeln!(f, "Dummy:")?;
-        fmt_lines(self.0.iter(), f, level)
+        fmt_lines(self.exprs.iter(), f, level)
     }
 }
 
@@ -1223,15 +1244,23 @@ impl_display_from_nested!(Dummy);
 
 impl Locational for Dummy {
     fn loc(&self) -> Location {
-        if self.0.is_empty() {
+        if self.loc.is_some() {
+            self.loc.unwrap_or(Location::Unknown)
+        } else if self.exprs.is_empty() {
             Location::Unknown
         } else {
-            Location::concat(self.0.first().unwrap(), self.0.last().unwrap())
+            Location::concat(self.exprs.first().unwrap(), self.exprs.last().unwrap())
         }
     }
 }
 
-impl_stream!(Dummy, Expr);
+impl_stream!(Dummy, Expr, exprs);
+
+impl Dummy {
+    pub const fn new(loc: Option<Location>, exprs: Vec<Expr>) -> Self {
+        Self { loc, exprs }
+    }
+}
 
 pub type ConstIdentifier = Identifier;
 
@@ -2218,6 +2247,7 @@ impl TypeSpec {
 pub struct TypeSpecWithOp {
     pub op: Token,
     pub t_spec: TypeSpec,
+    pub t_spec_as_expr: Box<Expr>,
 }
 
 impl NestedDisplay for TypeSpecWithOp {
@@ -2230,8 +2260,12 @@ impl_display_from_nested!(TypeSpecWithOp);
 impl_locational!(TypeSpecWithOp, lossy op, t_spec);
 
 impl TypeSpecWithOp {
-    pub const fn new(op: Token, t_spec: TypeSpec) -> Self {
-        Self { op, t_spec }
+    pub fn new(op: Token, t_spec: TypeSpec, t_spec_as_expr: Expr) -> Self {
+        Self {
+            op,
+            t_spec,
+            t_spec_as_expr: Box::new(t_spec_as_expr),
+        }
     }
 }
 
@@ -2930,9 +2964,9 @@ impl ParamRecordAttrs {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ParamRecordPattern {
-    l_brace: Token,
+    pub(crate) l_brace: Token,
     pub(crate) elems: ParamRecordAttrs,
-    r_brace: Token,
+    pub(crate) r_brace: Token,
 }
 
 impl NestedDisplay for ParamRecordPattern {
@@ -3375,6 +3409,20 @@ impl Signature {
         }
     }
 
+    pub fn new_var(ident: Identifier) -> Self {
+        Self::Var(VarSignature::new(VarPattern::Ident(ident), None))
+    }
+
+    pub fn new_subr(ident: Identifier, params: Params) -> Self {
+        Self::Subr(SubrSignature::new(
+            HashSet::new(),
+            ident,
+            TypeBoundSpecs::empty(),
+            params,
+            None,
+        ))
+    }
+
     pub fn ident(&self) -> Option<&Identifier> {
         match self {
             Self::Var(var) => {
@@ -3447,13 +3495,12 @@ impl Signature {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct TypeAscription {
     pub expr: Box<Expr>,
-    pub op: Token,
-    pub t_spec: TypeSpec,
+    pub t_spec: TypeSpecWithOp,
 }
 
 impl NestedDisplay for TypeAscription {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        writeln!(f, "{}{} {}", self.expr, self.op.content, self.t_spec)
+        writeln!(f, "{}{}", self.expr, self.t_spec)
     }
 }
 
@@ -3461,20 +3508,19 @@ impl_display_from_nested!(TypeAscription);
 impl_locational!(TypeAscription, expr, t_spec);
 
 impl TypeAscription {
-    pub fn new(expr: Expr, op: Token, t_spec: TypeSpec) -> Self {
+    pub fn new(expr: Expr, t_spec: TypeSpecWithOp) -> Self {
         Self {
             expr: Box::new(expr),
-            op,
             t_spec,
         }
     }
 
     pub fn is_instance_ascription(&self) -> bool {
-        self.op.is(TokenKind::Colon)
+        self.t_spec.op.is(TokenKind::Colon)
     }
 
     pub fn is_subtype_ascription(&self) -> bool {
-        self.op.is(TokenKind::SubtypeOf)
+        self.t_spec.op.is(TokenKind::SubtypeOf)
     }
 }
 
@@ -3525,6 +3571,10 @@ impl_locational!(DefBody, lossy op, block);
 impl DefBody {
     pub const fn new(op: Token, block: Block, id: DefId) -> Self {
         Self { op, block, id }
+    }
+
+    pub fn new_single(expr: Expr) -> Self {
+        Self::new(EQUAL, Block::new(vec![expr]), DefId(0))
     }
 
     pub fn def_kind(&self) -> DefKind {
@@ -3826,12 +3876,12 @@ impl Expr {
         Self::Call(self.call(args))
     }
 
-    pub fn type_asc(self, op: Token, t_spec: TypeSpec) -> TypeAscription {
-        TypeAscription::new(self, op, t_spec)
+    pub fn type_asc(self, t_spec: TypeSpecWithOp) -> TypeAscription {
+        TypeAscription::new(self, t_spec)
     }
 
-    pub fn type_asc_expr(self, op: Token, t_spec: TypeSpec) -> Self {
-        Self::TypeAscription(self.type_asc(op, t_spec))
+    pub fn type_asc_expr(self, t_spec: TypeSpecWithOp) -> Self {
+        Self::TypeAscription(self.type_asc(t_spec))
     }
 }
 

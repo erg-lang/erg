@@ -19,11 +19,9 @@ get_bedge! file_path =
         do!:
             with! open!(file_path, encoding := "utf-8"), f =>
                 badge_match = badge_pattern.search(f.read!())
-                {matched; is_none} = mylib.eliminate_none_on_match badge_match
-                # matched: re.Match or NoneType
-                if is_none:
-                    do "Badge not found"
-                    do matched.group(0)
+                match badge_match:
+                    (matched: re.Match) -> matched.group(0)
+                    _ -> "Badge not found"
         do!:
             "File not found"
 
@@ -50,11 +48,10 @@ get_doc_en_file_paths! relative_dir_path, relative_file_paths_result := [] =
 doc_en_file_paths = get_doc_en_file_paths! "EN"
 
 for! LANGUAGES_KEBAB_CASE, lang =>
-    result_text = !""
-    result_text.update! t -> "# \{lang} translation status\n\n"
-    result_text.update! t -> "\{t}This This file is generated automatically. If you want to edit this, edit [`doc/scripts/sync_to_translation_status.er`](../scripts/sync_to_translation_status.er)\n\n"
+    result_text = !"# \{lang} translation status\n\n"
+    result_text.push! "This file is generated automatically. If you want to edit this, edit [`doc/scripts/sync_to_translation_status.er`](../scripts/sync_to_translation_status.er)\n\n"
     add_table_row_text! left: Str, right: Str =
-        result_text.update! t -> "\{t}| \{left} | \{right} |\n"
+        result_text.push! "| \{left} | \{right} |\n"
 
     add_table_row_text! "EN file name", "edit icon and badge"
     add_table_row_text! "---", "---"

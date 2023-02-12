@@ -271,7 +271,7 @@ impl Context {
             }
             let mut dummy_tv_cache = TyVarCache::new(self.level, self);
             let rhs = self.instantiate_param_sig_t(
-                &lambda.params.non_defaults[0],
+                &lambda.params.non_defaults[0].raw,
                 None,
                 &mut dummy_tv_cache,
                 Normal,

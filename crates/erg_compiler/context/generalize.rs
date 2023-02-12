@@ -759,6 +759,26 @@ impl Context {
         self.methods_list = methods_list;
     }
 
+    fn resolve_params_t(&self, params: &mut hir::Params) -> TyCheckResult<()> {
+        for param in params.non_defaults.iter_mut() {
+            param.vi.t =
+                self.deref_tyvar(mem::take(&mut param.vi.t), Contravariant, param.loc())?;
+        }
+        if let Some(var_params) = &mut params.var_params {
+            var_params.vi.t = self.deref_tyvar(
+                mem::take(&mut var_params.vi.t),
+                Contravariant,
+                var_params.loc(),
+            )?;
+        }
+        for param in params.defaults.iter_mut() {
+            param.sig.vi.t =
+                self.deref_tyvar(mem::take(&mut param.sig.vi.t), Contravariant, param.loc())?;
+            self.resolve_expr_t(&mut param.default_val)?;
+        }
+        Ok(())
+    }
+
     fn resolve_expr_t(&self, expr: &mut hir::Expr) -> TyCheckResult<()> {
         match expr {
             hir::Expr::Lit(_) => Ok(()),
@@ -896,6 +916,9 @@ impl Context {
             hir::Expr::Def(def) => {
                 *def.sig.ref_mut_t() =
                     self.deref_tyvar(mem::take(def.sig.ref_mut_t()), Covariant, def.sig.loc())?;
+                if let Some(params) = def.sig.params_mut() {
+                    self.resolve_params_t(params)?;
+                }
                 for chunk in def.body.block.iter_mut() {
                     self.resolve_expr_t(chunk)?;
                 }
@@ -903,6 +926,7 @@ impl Context {
             }
             hir::Expr::Lambda(lambda) => {
                 lambda.t = self.deref_tyvar(mem::take(&mut lambda.t), Covariant, lambda.loc())?;
+                self.resolve_params_t(&mut lambda.params)?;
                 for chunk in lambda.body.iter_mut() {
                     self.resolve_expr_t(chunk)?;
                 }

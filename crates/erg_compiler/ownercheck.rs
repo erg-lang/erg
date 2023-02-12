@@ -112,17 +112,17 @@ impl OwnershipChecker {
                 if let Signature::Subr(subr) = &def.sig {
                     let (nd_params, var_params, d_params, _) = subr.params.ref_deconstruct();
                     for param in nd_params {
-                        if let ParamPattern::VarName(name) = &param.pat {
+                        if let ParamPattern::VarName(name) = &param.raw.pat {
                             self.define_param(name);
                         }
                     }
                     if let Some(var) = var_params {
-                        if let ParamPattern::VarName(name) = &var.pat {
+                        if let ParamPattern::VarName(name) = &var.raw.pat {
                             self.define_param(name);
                         }
                     }
                     for param in d_params {
-                        if let ParamPattern::VarName(name) = &param.sig.pat {
+                        if let ParamPattern::VarName(name) = &param.sig.raw.pat {
                             self.define_param(name);
                         }
                     }

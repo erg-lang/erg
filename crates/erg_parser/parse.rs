@@ -716,10 +716,10 @@ impl Parser {
                 Args::new(vec![], Some(pos_args), vec![], None)
             }
             PosOrKwArg::Pos(PosArg {
-                expr: Expr::TypeAscription(TypeAscription { expr, op, t_spec }),
+                expr: Expr::TypeAscription(TypeAscription { expr, t_spec }),
             }) if matches!(expr.as_ref(), Expr::UnaryOp(unary) if unary.op.is(PreStar)) => {
                 let Expr::UnaryOp(unary) = *expr else { unreachable!() };
-                let var_args = PosArg::new(unary.deconstruct().1.type_asc_expr(op, t_spec));
+                let var_args = PosArg::new(unary.deconstruct().1.type_asc_expr(t_spec));
                 Args::new(vec![], Some(var_args), vec![], None)
             }
             PosOrKwArg::Pos(arg) => Args::pos_only(vec![arg], None),
@@ -786,12 +786,12 @@ impl Parser {
                                 args.set_var_args(PosArg::new(unary.deconstruct().1));
                             }
                             PosOrKwArg::Pos(PosArg {
-                                expr: Expr::TypeAscription(TypeAscription { expr, op, t_spec }),
+                                expr: Expr::TypeAscription(TypeAscription { expr, t_spec }),
                             }) if matches!(expr.as_ref(), Expr::UnaryOp(unary) if unary.op.is(PreStar)) =>
                             {
                                 let Expr::UnaryOp(unary) = *expr else { unreachable!() };
                                 args.set_var_args(PosArg::new(
-                                    unary.deconstruct().1.type_asc_expr(op, t_spec),
+                                    unary.deconstruct().1.type_asc_expr(t_spec),
                                 ));
                             }
                             PosOrKwArg::Pos(arg) => {
@@ -908,8 +908,7 @@ impl Parser {
                             Expr::Accessor(Accessor::Ident(n)) => (n.name.into_token(), None),
                             Expr::TypeAscription(tasc) => {
                                 if let Expr::Accessor(Accessor::Ident(n)) = *tasc.expr {
-                                    let t_spec = TypeSpecWithOp::new(tasc.op, tasc.t_spec);
-                                    (n.name.into_token(), Some(t_spec))
+                                    (n.name.into_token(), Some(tasc.t_spec))
                                 } else {
                                     let err = ParseError::simple_syntax_error(0, tasc.loc());
                                     self.errs.push(err);
@@ -1165,11 +1164,13 @@ impl Parser {
                     }
                     let op = self.lpop();
                     let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
-                    let t_spec = self
+                    let t_spec_as_expr = self
                         .try_reduce_expr(false, false, false, false)
                         .map_err(|_| self.stack_dec(fn_name!()))?;
-                    let t_spec = Self::expr_to_type_spec(t_spec).map_err(|e| self.errs.push(e))?;
-                    let expr = lhs.type_asc_expr(op, t_spec);
+                    let t_spec = Self::expr_to_type_spec(t_spec_as_expr.clone())
+                        .map_err(|e| self.errs.push(e))?;
+                    let t_spec_op = TypeSpecWithOp::new(op, t_spec, t_spec_as_expr);
+                    let expr = lhs.type_asc_expr(t_spec_op);
                     stack.push(ExprOrOp::Expr(expr));
                 }
                 Some(op) if op.category_is(TC::BinOp) => {
@@ -1434,11 +1435,13 @@ impl Parser {
                     }
                     let op = self.lpop();
                     let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
-                    let t_spec = self
+                    let t_spec_as_expr = self
                         .try_reduce_expr(false, in_type_args, in_brace, false)
                         .map_err(|_| self.stack_dec(fn_name!()))?;
-                    let t_spec = Self::expr_to_type_spec(t_spec).map_err(|e| self.errs.push(e))?;
-                    let expr = lhs.type_asc_expr(op, t_spec);
+                    let t_spec = Self::expr_to_type_spec(t_spec_as_expr.clone())
+                        .map_err(|e| self.errs.push(e))?;
+                    let t_spec_op = TypeSpecWithOp::new(op, t_spec, t_spec_as_expr);
+                    let expr = lhs.type_asc_expr(t_spec_op);
                     stack.push(ExprOrOp::Expr(expr));
                 }
                 Some(op) if op.category_is(TC::BinOp) => {
@@ -1596,10 +1599,7 @@ impl Parser {
             Expr::Accessor(Accessor::Ident(ident)) => (ident.name.into_token(), None),
             Expr::TypeAscription(tasc) => {
                 if let Expr::Accessor(Accessor::Ident(ident)) = *tasc.expr {
-                    (
-                        ident.name.into_token(),
-                        Some(TypeSpecWithOp::new(tasc.op, tasc.t_spec)),
-                    )
+                    (ident.name.into_token(), Some(tasc.t_spec))
                 } else {
                     let err = ParseError::simple_syntax_error(line!() as usize, tasc.loc());
                     self.errs.push(err);
@@ -2367,11 +2367,11 @@ impl Parser {
                 Args::new(vec![], var_args, vec![], None)
             }
             PosOrKwArg::Pos(PosArg {
-                expr: Expr::TypeAscription(TypeAscription { expr, op, t_spec }),
+                expr: Expr::TypeAscription(TypeAscription { expr, t_spec }),
             }) if matches!(expr.as_ref(), Expr::UnaryOp(unary) if unary.op.is(PreStar)) => {
                 let Expr::UnaryOp(unary) = *expr else { unreachable!() };
                 let expr = unary.deconstruct().1;
-                let var_args = Some(PosArg::new(expr.type_asc_expr(op, t_spec)));
+                let var_args = Some(PosArg::new(expr.type_asc_expr(t_spec)));
                 Args::new(vec![], var_args, vec![], None)
             }
             PosOrKwArg::Pos(pos) => Args::pos_only(vec![pos], None),
@@ -2402,11 +2402,11 @@ impl Parser {
                                 Expr::UnaryOp(unary) if unary.op.is(PreStar) => {
                                     args.set_var_args(PosArg::new(unary.deconstruct().1));
                                 }
-                                Expr::TypeAscription(TypeAscription { expr, op, t_spec }) if matches!(expr.as_ref(), Expr::UnaryOp(unary) if unary.op.is(PreStar)) =>
+                                Expr::TypeAscription(TypeAscription { expr, t_spec }) if matches!(expr.as_ref(), Expr::UnaryOp(unary) if unary.op.is(PreStar)) =>
                                 {
                                     let Expr::UnaryOp(unary) = *expr else { unreachable!() };
                                     let expr = unary.deconstruct().1;
-                                    args.set_var_args(PosArg::new(expr.type_asc_expr(op, t_spec)));
+                                    args.set_var_args(PosArg::new(expr.type_asc_expr(t_spec)));
                                 }
                                 Expr::Tuple(Tuple::Normal(tup)) if tup.elems.paren.is_none() => {
                                     args.extend_pos(tup.elems.into_iters().0);

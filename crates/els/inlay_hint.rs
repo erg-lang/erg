@@ -1,5 +1,6 @@
 #![allow(unused_imports)]
 
+use erg_common::traits::NoTypeDisplay;
 use erg_compiler::ty::HasType;
 use lsp_types::Position;
 use serde::Deserialize;
@@ -105,39 +106,32 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let mut result = vec![];
         result.extend(self.get_block_hint(&def.body.block));
         let Signature::Subr(subr) = &def.sig else { unreachable!() };
-        let subr_t = subr.ident.ref_t();
-        let Some(nd_ts) = subr_t.non_default_params() else {
-            return result;
-        };
-        let Some(d_ts) = subr_t.default_params() else {
-            return result;
-        };
-        for (nd_param, nd_t) in subr.params.non_defaults.iter().zip(nd_ts) {
-            if nd_param.t_spec.is_some() {
+        for nd_param in subr.params.non_defaults.iter() {
+            if nd_param.raw.t_spec.is_some() {
                 continue;
             }
             let hint = type_anot(
                 nd_param.ln_end().unwrap(),
                 nd_param.col_end().unwrap(),
-                nd_t.typ(),
+                &nd_param.vi.t,
                 false,
             );
             result.push(hint);
         }
-        for (d_param, d_t) in subr.params.defaults.iter().zip(d_ts) {
-            if d_param.sig.t_spec.is_some() {
+        for d_param in subr.params.defaults.iter() {
+            if d_param.sig.raw.t_spec.is_some() {
                 continue;
             }
             let hint = type_anot(
                 d_param.sig.ln_end().unwrap(),
                 d_param.sig.col_end().unwrap(),
-                d_t.typ(),
+                &d_param.sig.vi.t,
                 false,
             );
             result.push(hint);
         }
         if def.sig.t_spec().is_none() {
-            let Some(return_t) = subr_t.return_t() else {
+            let Some(return_t) = subr.ref_t().return_t() else {
                 return result;
             };
             let hint = type_anot(
@@ -162,7 +156,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
     fn get_var_def_hint(&self, def: &Def) -> Vec<InlayHint> {
         let mut result = self.get_block_hint(&def.body.block);
         // don't show hints for compiler internal variables
-        if def.sig.t_spec().is_none() && !def.sig.ident().inspect().starts_with(['%', '$']) {
+        if def.sig.t_spec().is_none() && !def.sig.ident().inspect().starts_with(['%']) {
             let hint = type_anot(
                 def.sig.ln_end().unwrap(),
                 def.sig.col_end().unwrap(),
@@ -177,38 +171,31 @@ impl<Checker: BuildRunnable> Server<Checker> {
     fn get_lambda_hint(&self, lambda: &Lambda) -> Vec<InlayHint> {
         let mut result = vec![];
         result.extend(self.get_block_hint(&lambda.body));
-        let subr_t = lambda.ref_t();
-        let Some(nd_ts) = subr_t.non_default_params() else {
-            return result;
-        };
-        let Some(d_ts) = subr_t.default_params() else {
-            return result;
-        };
-        for (nd_param, nd_t) in lambda.params.non_defaults.iter().zip(nd_ts) {
-            if nd_param.t_spec.is_some() {
+        for nd_param in lambda.params.non_defaults.iter() {
+            if nd_param.raw.t_spec.is_some() {
                 continue;
             }
             let hint = type_anot(
                 nd_param.ln_end().unwrap(),
                 nd_param.col_end().unwrap(),
-                nd_t.typ(),
+                &nd_param.vi.t,
                 false,
             );
             result.push(hint);
         }
-        for (d_param, d_t) in lambda.params.defaults.iter().zip(d_ts) {
-            if d_param.sig.t_spec.is_some() {
+        for d_param in lambda.params.defaults.iter() {
+            if d_param.sig.raw.t_spec.is_some() {
                 continue;
             }
             let hint = type_anot(
                 d_param.sig.ln_end().unwrap(),
                 d_param.sig.col_end().unwrap(),
-                d_t.typ(),
+                &d_param.sig.vi.t,
                 false,
             );
             result.push(hint);
         }
-        let return_t = subr_t.return_t().unwrap();
+        let return_t = lambda.ref_t().return_t().unwrap();
         let hint = type_anot(
             lambda.params.ln_end().unwrap(),
             lambda.params.col_end().unwrap(),
@@ -249,6 +236,11 @@ impl<Checker: BuildRunnable> Server<Checker> {
             result.extend(self.get_expr_hint(&pos_arg.expr));
             let index = if is_method { i + 1 } else { i };
             if let Some(name) = param_ts.clone().nth(index).and_then(|pt| pt.name()) {
+                let disp_arg = pos_arg.expr.to_string_notype();
+                // if param_name is same as arg_name
+                if disp_arg.trim_start_matches("::") == &name[..] {
+                    continue;
+                }
                 let (Some(ln_begin), Some(col_begin)) = (pos_arg.ln_begin(), pos_arg.col_begin()) else {
                     continue;
                 };

@@ -14,9 +14,8 @@ use erg_common::{
     impl_nested_display_for_enum, impl_no_type_display_for_enum, impl_stream,
 };
 
-use erg_parser::ast::{
-    fmt_lines, DefId, DefKind, NonDefaultParamSignature, OperationKind, TypeSpec, VarName,
-};
+use erg_parser::ast;
+use erg_parser::ast::{fmt_lines, DefId, DefKind, OperationKind, TypeSpec, VarName};
 use erg_parser::token::{Token, TokenKind, DOT};
 
 use crate::ty::constructors::{array_t, dict_t, set_t, tuple_t};
@@ -1595,6 +1594,50 @@ impl VarSignature {
 
 /// Once the default_value is set to Some, all subsequent values must be Some
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct NonDefaultParamSignature {
+    pub raw: ast::NonDefaultParamSignature,
+    pub vi: VarInfo,
+    pub t_spec_as_expr: Option<Expr>,
+}
+
+impl NestedDisplay for NonDefaultParamSignature {
+    fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, _level: usize) -> std::fmt::Result {
+        write!(f, "{}", self.raw)
+    }
+}
+
+impl_display_from_nested!(NonDefaultParamSignature);
+
+impl Locational for NonDefaultParamSignature {
+    fn loc(&self) -> Location {
+        self.raw.loc()
+    }
+}
+
+impl NonDefaultParamSignature {
+    pub const fn new(
+        sig: ast::NonDefaultParamSignature,
+        vi: VarInfo,
+        t_spec_as_expr: Option<Expr>,
+    ) -> Self {
+        Self {
+            raw: sig,
+            vi,
+            t_spec_as_expr,
+        }
+    }
+
+    pub const fn inspect(&self) -> Option<&Str> {
+        self.raw.pat.inspect()
+    }
+
+    pub const fn name(&self) -> Option<&VarName> {
+        self.raw.pat.name()
+    }
+}
+
+/// Once the default_value is set to Some, all subsequent values must be Some
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct DefaultParamSignature {
     pub sig: NonDefaultParamSignature,
     pub default_val: Expr,
@@ -1626,7 +1669,7 @@ impl DefaultParamSignature {
     }
 
     pub const fn inspect(&self) -> Option<&Str> {
-        self.sig.pat.inspect()
+        self.sig.inspect()
     }
 
     pub const fn name(&self) -> Option<&VarName> {
@@ -1928,6 +1971,13 @@ impl Signature {
         match self {
             Self::Var(v) => v.t_spec.as_ref(),
             Self::Subr(s) => s.return_t_spec.as_ref(),
+        }
+    }
+
+    pub fn params_mut(&mut self) -> Option<&mut Params> {
+        match self {
+            Self::Var(_) => None,
+            Self::Subr(s) => Some(&mut s.params),
         }
     }
 }
@@ -2260,20 +2310,46 @@ impl ReDef {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TypeSpecWithOp {
+    pub op: Token,
+    pub t_spec: TypeSpec,
+    pub t_spec_as_expr: Box<Expr>,
+}
+
+impl NestedDisplay for TypeSpecWithOp {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(f, "{} {}", self.op.content, self.t_spec)
+    }
+}
+
+impl_display_from_nested!(TypeSpecWithOp);
+impl_locational!(TypeSpecWithOp, lossy op, t_spec);
+
+impl TypeSpecWithOp {
+    pub fn new(op: Token, t_spec: TypeSpec, t_spec_as_expr: Expr) -> Self {
+        Self {
+            op,
+            t_spec,
+            t_spec_as_expr: Box::new(t_spec_as_expr),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TypeAscription {
     pub expr: Box<Expr>,
-    pub spec: TypeSpec,
+    pub spec: TypeSpecWithOp,
 }
 
 impl NestedDisplay for TypeAscription {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        writeln!(f, "{}: {}", self.expr, self.spec)
+        writeln!(f, "{}{}", self.expr, self.spec)
     }
 }
 
 impl NoTypeDisplay for TypeAscription {
     fn to_string_notype(&self) -> String {
-        format!("{}: {}", self.expr.to_string_notype(), self.spec)
+        format!("{}{}", self.expr.to_string_notype(), self.spec)
     }
 }
 
@@ -2300,7 +2376,7 @@ impl HasType for TypeAscription {
 }
 
 impl TypeAscription {
-    pub fn new(expr: Expr, spec: TypeSpec) -> Self {
+    pub fn new(expr: Expr, spec: TypeSpecWithOp) -> Self {
         Self {
             expr: Box::new(expr),
             spec,
@@ -2412,11 +2488,11 @@ impl Expr {
         Self::Accessor(self.attr(ident))
     }
 
-    pub fn type_asc(self, t_spec: TypeSpec) -> TypeAscription {
+    pub fn type_asc(self, t_spec: TypeSpecWithOp) -> TypeAscription {
         TypeAscription::new(self, t_spec)
     }
 
-    pub fn type_asc_expr(self, t_spec: TypeSpec) -> Self {
+    pub fn type_asc_expr(self, t_spec: TypeSpecWithOp) -> Self {
         Self::TypeAsc(self.type_asc(t_spec))
     }
 }

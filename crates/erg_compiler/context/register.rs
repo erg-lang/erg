@@ -242,10 +242,11 @@ impl Context {
         Ok(vi)
     }
 
+    /// TODO: sig should be immutable
     /// 宣言が既にある場合、opt_decl_tに宣言の型を渡す
     fn assign_param(
         &mut self,
-        sig: &ast::NonDefaultParamSignature,
+        sig: &mut hir::NonDefaultParamSignature,
         opt_decl_t: Option<&ParamTy>,
         kind: ParamKind,
     ) -> TyCheckResult<()> {
@@ -256,12 +257,12 @@ impl Context {
         };
         let default = kind.default_info();
         let is_var_params = kind.is_var_params();
-        match &sig.pat {
+        match &sig.raw.pat {
             // Literal patterns will be desugared to discard patterns
             ast::ParamPattern::Lit(_) => unreachable!(),
             ast::ParamPattern::Discard(token) => {
                 let spec_t = self.instantiate_param_sig_t(
-                    sig,
+                    &sig.raw,
                     opt_decl_t,
                     &mut TyVarCache::new(self.level, self),
                     Normal,
@@ -279,6 +280,7 @@ impl Context {
                     None,
                     self.absolutize(token.loc()),
                 );
+                sig.vi = vi.clone();
                 self.params.push((Some(VarName::from_static("_")), vi));
                 Ok(())
             }
@@ -298,7 +300,7 @@ impl Context {
                     // ok, not defined
                     let mut dummy_tv_cache = TyVarCache::new(self.level, self);
                     let spec_t = self.instantiate_param_sig_t(
-                        sig,
+                        &sig.raw,
                         opt_decl_t,
                         &mut dummy_tv_cache,
                         Normal,
@@ -332,6 +334,7 @@ impl Context {
                     if let Some(shared) = self.shared() {
                         shared.index.register(&vi);
                     }
+                    sig.vi = vi.clone();
                     self.params.push((Some(name.clone()), vi));
                     Ok(())
                 }
@@ -352,7 +355,7 @@ impl Context {
                     // ok, not defined
                     let mut dummy_tv_cache = TyVarCache::new(self.level, self);
                     let spec_t = self.instantiate_param_sig_t(
-                        sig,
+                        &sig.raw,
                         opt_decl_t,
                         &mut dummy_tv_cache,
                         Normal,
@@ -381,6 +384,7 @@ impl Context {
                         None,
                         self.absolutize(name.loc()),
                     );
+                    sig.vi = vi.clone();
                     self.params.push((Some(name.clone()), vi));
                     Ok(())
                 }
@@ -401,7 +405,7 @@ impl Context {
                     // ok, not defined
                     let mut dummy_tv_cache = TyVarCache::new(self.level, self);
                     let spec_t = self.instantiate_param_sig_t(
-                        sig,
+                        &sig.raw,
                         opt_decl_t,
                         &mut dummy_tv_cache,
                         Normal,
@@ -430,6 +434,7 @@ impl Context {
                         None,
                         self.absolutize(name.loc()),
                     );
+                    sig.vi = vi.clone();
                     self.params.push((Some(name.clone()), vi));
                     Ok(())
                 }
@@ -443,7 +448,7 @@ impl Context {
 
     pub(crate) fn assign_params(
         &mut self,
-        params: &hir::Params,
+        params: &mut hir::Params,
         opt_decl_subr_t: Option<SubrType>,
     ) -> TyCheckResult<()> {
         let mut errs = TyCheckErrors::empty();
@@ -453,16 +458,16 @@ impl Context {
                 decl_subr_t.non_default_params.len()
             );
             debug_assert_eq!(params.defaults.len(), decl_subr_t.default_params.len());
-            for (sig, pt) in params
+            for (non_default, pt) in params
                 .non_defaults
-                .iter()
+                .iter_mut()
                 .zip(decl_subr_t.non_default_params.iter())
             {
-                if let Err(es) = self.assign_param(sig, Some(pt), ParamKind::NonDefault) {
+                if let Err(es) = self.assign_param(non_default, Some(pt), ParamKind::NonDefault) {
                     errs.extend(es);
                 }
             }
-            if let Some(var_params) = &params.var_params {
+            if let Some(var_params) = &mut params.var_params {
                 if let Some(pt) = &decl_subr_t.var_params {
                     let pt = pt.clone().map_type(unknown_len_array_t);
                     if let Err(es) = self.assign_param(var_params, Some(&pt), ParamKind::VarParams)
@@ -473,27 +478,31 @@ impl Context {
                     errs.extend(es);
                 }
             }
-            for (sig, pt) in params
+            for (default, pt) in params
                 .defaults
-                .iter()
+                .iter_mut()
                 .zip(decl_subr_t.default_params.iter())
             {
-                if let Err(es) =
-                    self.assign_param(&sig.sig, Some(pt), ParamKind::Default(sig.default_val.t()))
-                {
+                if let Err(es) = self.assign_param(
+                    &mut default.sig,
+                    Some(pt),
+                    ParamKind::Default(default.default_val.t()),
+                ) {
                     errs.extend(es);
                 }
             }
         } else {
-            for sig in params.non_defaults.iter() {
-                if let Err(es) = self.assign_param(sig, None, ParamKind::NonDefault) {
+            for non_default in params.non_defaults.iter_mut() {
+                if let Err(es) = self.assign_param(non_default, None, ParamKind::NonDefault) {
                     errs.extend(es);
                 }
             }
-            for sig in params.defaults.iter() {
-                if let Err(es) =
-                    self.assign_param(&sig.sig, None, ParamKind::Default(sig.default_val.t()))
-                {
+            for default in params.defaults.iter_mut() {
+                if let Err(es) = self.assign_param(
+                    &mut default.sig,
+                    None,
+                    ParamKind::Default(default.default_val.t()),
+                ) {
                     errs.extend(es);
                 }
             }

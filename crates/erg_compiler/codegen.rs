@@ -25,9 +25,7 @@ use erg_common::{
 use erg_parser::ast::{DefId, DefKind};
 use CommonOpcode::*;
 
-use erg_parser::ast::PreDeclTypeSpec;
-use erg_parser::ast::TypeSpec;
-use erg_parser::ast::{NonDefaultParamSignature, ParamPattern, VarName};
+use erg_parser::ast::{ParamPattern, VarName};
 use erg_parser::token::DOT;
 use erg_parser::token::EQUAL;
 use erg_parser::token::{Token, TokenKind};
@@ -36,11 +34,12 @@ use crate::compile::{AccessKind, Name, StoreLoadKind};
 use crate::error::CompileError;
 use crate::hir::{
     Accessor, Args, Array, BinOp, Block, Call, ClassDef, Def, DefBody, Expr, Identifier, Lambda,
-    Literal, Params, PatchDef, PosArg, ReDef, Record, Signature, SubrSignature, Tuple, UnaryOp,
-    VarSignature, HIR,
+    Literal, NonDefaultParamSignature, Params, PatchDef, PosArg, ReDef, Record, Signature,
+    SubrSignature, Tuple, UnaryOp, VarSignature, HIR,
 };
 use crate::ty::value::ValueObj;
 use crate::ty::{HasType, Type, TypeCode, TypePair};
+use crate::varinfo::VarInfo;
 use erg_common::fresh::fresh_varname;
 use AccessKind::*;
 use Type::*;
@@ -1346,7 +1345,13 @@ impl PyCodeGenerator {
 
     fn emit_unaryop(&mut self, unary: UnaryOp) {
         log!(info "entered {} ({unary})", fn_name!());
-        let tycode = TypeCode::from(unary.lhs_t());
+        let val_t = unary
+            .info
+            .t
+            .non_default_params()
+            .and_then(|tys| tys.get(0).map(|pt| pt.typ()))
+            .unwrap_or(Type::FAILURE);
+        let tycode = TypeCode::from(val_t);
         let instr = match &unary.op.kind {
             // TODO:
             TokenKind::PrePlus => UNARY_POSITIVE,
@@ -1423,7 +1428,19 @@ impl PyCodeGenerator {
             }
             _ => {}
         }
-        let type_pair = TypePair::new(bin.lhs_t(), bin.rhs_t());
+        let lhs_t = bin
+            .info
+            .t
+            .non_default_params()
+            .and_then(|tys| tys.get(0).map(|pt| pt.typ()))
+            .unwrap_or(Type::FAILURE);
+        let rhs_t = bin
+            .info
+            .t
+            .non_default_params()
+            .and_then(|tys| tys.get(1).map(|pt| pt.typ()))
+            .unwrap_or(Type::FAILURE);
+        let type_pair = TypePair::new(lhs_t, rhs_t);
         self.emit_expr(*bin.lhs);
         self.emit_expr(*bin.rhs);
         if self.py_version.minor >= Some(11) {
@@ -1850,46 +1867,9 @@ impl PyCodeGenerator {
     ) -> Vec<usize> {
         log!(info "entered {}", fn_name!());
         let mut pop_jump_points = vec![];
-        if let Some(t_spec) = param.t_spec.map(|spec| spec.t_spec) {
+        if let Some(t_spec) = param.t_spec_as_expr {
             // If it's the last arm, there's no need to inspect it
             if !is_last_arm {
-                if self.py_version.minor >= Some(11) {
-                    self.emit_match_guard_311(t_spec, &mut pop_jump_points);
-                } else {
-                    self.emit_match_guard_310(t_spec, &mut pop_jump_points);
-                }
-            }
-        }
-        match param.pat {
-            ParamPattern::VarName(name) => {
-                let ident = Identifier::bare(None, name);
-                self.emit_store_instr(ident, AccessKind::Name);
-            }
-            ParamPattern::Discard(_) => {
-                self.emit_pop_top();
-            }
-            _other => unreachable!(),
-        }
-        pop_jump_points
-    }
-
-    fn emit_match_guard_311(&mut self, t_spec: TypeSpec, pop_jump_points: &mut Vec<usize>) {
-        log!(info "entered {} ({t_spec})", fn_name!());
-        match t_spec {
-            TypeSpec::Enum(enum_t) => {
-                let elems = ValueObj::vec_from_const_args(enum_t);
-                self.emit_load_const(elems);
-                self.write_instr(CONTAINS_OP);
-                self.write_arg(0);
-                self.stack_dec();
-                pop_jump_points.push(self.lasti());
-                // in 3.11, POP_JUMP_IF_FALSE is replaced with POP_JUMP_FORWARD_IF_FALSE
-                // but the numbers are the same, only the way the jumping points are calculated is different.
-                self.write_instr(Opcode310::POP_JUMP_IF_FALSE); // jump to the next case
-                self.write_arg(0);
-                // self.stack_dec();
-            }
-            TypeSpec::PreDeclTy(PreDeclTypeSpec::Simple(simple)) if simple.args.is_empty() => {
                 // arg null
                 // ↓ SWAP 1
                 // null arg
@@ -1906,15 +1886,7 @@ impl PyCodeGenerator {
                 }
                 self.emit_load_name_instr(Identifier::private("#in_operator"));
                 self.rot2();
-                // TODO: DOT/not
-                let mut typ = Identifier::bare(Some(DOT), simple.ident.name);
-                // TODO:
-                typ.vi.py_name = match &typ.name.inspect()[..] {
-                    "Int" => Some("int".into()),
-                    "Float" => Some("float".into()),
-                    _ => None,
-                };
-                self.emit_load_name_instr(typ);
+                self.emit_expr(t_spec);
                 self.emit_precall_and_call(2);
                 self.stack_dec();
                 pop_jump_points.push(self.lasti());
@@ -1924,127 +1896,18 @@ impl PyCodeGenerator {
                 self.write_arg(0);
                 self.stack_dec();
             }
-            // _: (Int, Str)
-            TypeSpec::Tuple(tup) => {
-                let len = tup.tys.len();
-                for (i, t_spec) in tup.tys.into_iter().enumerate() {
-                    if i != 0 && i != len - 1 {
-                        self.dup_top();
-                    }
-                    self.emit_load_const(i);
-                    self.write_instr(Opcode311::BINARY_SUBSCR);
-                    self.write_arg(0);
-                    self.stack_dec();
-                    self.emit_match_guard_311(t_spec, pop_jump_points);
-                }
-            }
-            // TODO: consider ordering (e.g. both [1, 2] and [2, 1] is type of [{1, 2}; 2])
-            TypeSpec::Array(arr) => {
-                let ValueObj::Nat(len) = ValueObj::from_const_expr(arr.len) else { todo!() };
-                for i in 0..=(len - 1) {
-                    if i != 0 && i != len - 1 {
-                        self.dup_top();
-                    }
-                    self.emit_load_const(i);
-                    self.write_instr(Opcode311::BINARY_SUBSCR);
-                    self.write_arg(0);
-                    self.stack_dec();
-                    self.emit_match_guard_311(*arr.ty.clone(), pop_jump_points);
-                }
-            }
-            /*TypeSpec::Interval { op, lhs, rhs } => {
-                let binop = BinOp::new(op, lhs.downcast(), rhs.downcast(), VarInfo::default());
-                self.emit_binop(binop);
-            }*/
-            // TODO:
-            TypeSpec::Infer(_) => unreachable!(),
-            // TODO:
-            other => log!(err "{other}"),
         }
-    }
-
-    fn emit_match_guard_310(&mut self, t_spec: TypeSpec, pop_jump_points: &mut Vec<usize>) {
-        log!(info "entered {} ({t_spec})", fn_name!());
-        match t_spec {
-            TypeSpec::Enum(enum_t) => {
-                let elems = ValueObj::vec_from_const_args(enum_t);
-                self.emit_load_const(elems);
-                self.write_instr(Opcode310::CONTAINS_OP);
-                self.write_arg(0);
-                self.stack_dec();
-                pop_jump_points.push(self.lasti());
-                // in 3.11, POP_JUMP_IF_FALSE is replaced with POP_JUMP_FORWARD_IF_FALSE
-                // but the numbers are the same, only the way the jumping points are calculated is different.
-                self.write_instr(Opcode310::POP_JUMP_IF_FALSE); // jump to the next case
-                self.write_arg(0);
-                // self.stack_dec();
+        match param.raw.pat {
+            ParamPattern::VarName(name) => {
+                let ident = Identifier::bare(None, name);
+                self.emit_store_instr(ident, AccessKind::Name);
             }
-            TypeSpec::PreDeclTy(PreDeclTypeSpec::Simple(simple)) if simple.args.is_empty() => {
-                // arg
-                // ↓ LOAD_NAME(in_operator)
-                // arg in_operator
-                // ↓ ROT 2
-                // in_operator arg
-                // ↓ LOAD_NAME(typ)
-                // in_operator arg typ
-                self.emit_load_name_instr(Identifier::private("#in_operator"));
-                self.rot2();
-                // TODO: DOT/not
-                let mut typ = Identifier::bare(Some(DOT), simple.ident.name);
-                // TODO:
-                typ.vi.py_name = match &typ.name.inspect()[..] {
-                    "Int" => Some("int".into()),
-                    "Float" => Some("float".into()),
-                    _ => None,
-                };
-                self.emit_load_name_instr(typ);
-                self.write_instr(Opcode310::CALL_FUNCTION);
-                self.write_arg(2);
-                self.stack_dec();
-                pop_jump_points.push(self.lasti());
-                // in 3.11, POP_JUMP_IF_FALSE is replaced with POP_JUMP_FORWARD_IF_FALSE
-                // but the numbers are the same, only the way the jumping points are calculated is different.
-                self.write_instr(Opcode310::POP_JUMP_IF_FALSE); // jump to the next case
-                self.write_arg(0);
-                self.stack_dec();
+            ParamPattern::Discard(_) => {
+                self.emit_pop_top();
             }
-            // _: (Int, Str)
-            TypeSpec::Tuple(tup) => {
-                let len = tup.tys.len();
-                for (i, t_spec) in tup.tys.into_iter().enumerate() {
-                    if i != 0 && i != len - 1 {
-                        self.dup_top();
-                    }
-                    self.emit_load_const(i);
-                    self.write_instr(Opcode310::BINARY_SUBSCR);
-                    self.write_arg(0);
-                    self.stack_dec();
-                    self.emit_match_guard_310(t_spec, pop_jump_points);
-                }
-            }
-            // TODO: consider ordering (e.g. both [1, 2] and [2, 1] is type of [{1, 2}; 2])
-            TypeSpec::Array(arr) => {
-                let ValueObj::Nat(len) = ValueObj::from_const_expr(arr.len) else { todo!() };
-                for i in 0..=(len - 1) {
-                    if i != 0 && i != len - 1 {
-                        self.dup_top();
-                    }
-                    self.emit_load_const(i);
-                    self.write_instr(Opcode310::BINARY_SUBSCR);
-                    self.write_arg(0);
-                    self.stack_dec();
-                    self.emit_match_guard_310(*arr.ty.clone(), pop_jump_points);
-                }
-            }
-            /*TypeSpec::Interval { op, lhs, rhs } => {
-                let binop = BinOp::new(op, lhs.downcast(), rhs.downcast(), VarInfo::default());
-                self.emit_binop(binop);
-            }*/
-            // TODO:
-            TypeSpec::Infer(_) => unreachable!(),
-            // TODO:
-            other => log!(err "{other}"),
+            _other => unreachable!(),
         }
+        pop_jump_points
     }
 
     fn emit_with_instr_311(&mut self, mut args: Args) {
@@ -2878,14 +2741,23 @@ impl PyCodeGenerator {
         let mut ident = Identifier::public_with_line(DOT, Str::ever("__init__"), line);
         ident.vi.t = __new__.clone();
         let self_param = VarName::from_str_and_line(Str::ever("self"), line);
-        let self_param = NonDefaultParamSignature::new(ParamPattern::VarName(self_param), None);
+        let vi = VarInfo::parameter(
+            __new__.return_t().unwrap().clone(),
+            ident.vi.def_loc.clone(),
+        );
+        let raw =
+            erg_parser::ast::NonDefaultParamSignature::new(ParamPattern::VarName(self_param), None);
+        let self_param = NonDefaultParamSignature::new(raw, vi, None);
         let (param_name, params) = if let Some(new_first_param) = new_first_param {
             let param_name = new_first_param
                 .name()
                 .map(|s| s.to_string())
                 .unwrap_or_else(fresh_varname);
             let param = VarName::from_str_and_line(Str::from(param_name.clone()), line);
-            let param = NonDefaultParamSignature::new(ParamPattern::VarName(param), None);
+            let raw =
+                erg_parser::ast::NonDefaultParamSignature::new(ParamPattern::VarName(param), None);
+            let vi = VarInfo::parameter(new_first_param.typ().clone(), ident.vi.def_loc.clone());
+            let param = NonDefaultParamSignature::new(raw, vi, None);
             let params = Params::new(vec![self_param, param], None, vec![], None);
             (param_name, params)
         } else {
@@ -2965,7 +2837,10 @@ impl PyCodeGenerator {
                 .map(|s| s.to_string())
                 .unwrap_or_else(fresh_varname);
             let param = VarName::from_str_and_line(Str::from(param_name.clone()), line);
-            let param = NonDefaultParamSignature::new(ParamPattern::VarName(param), None);
+            let vi = VarInfo::parameter(new_first_param.typ().clone(), ident.vi.def_loc.clone());
+            let raw =
+                erg_parser::ast::NonDefaultParamSignature::new(ParamPattern::VarName(param), None);
+            let param = NonDefaultParamSignature::new(raw, vi, None);
             let params = Params::new(vec![param], None, vec![], None);
             let sig = SubrSignature::new(ident, params, sig.t_spec().cloned());
             let arg = PosArg::new(Expr::Accessor(Accessor::private_with_line(

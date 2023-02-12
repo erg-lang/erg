@@ -616,8 +616,8 @@ impl ScriptGenerator {
                 let mut code = "for ".to_string();
                 let iter = call.args.remove(0);
                 let Expr::Lambda(block) = call.args.remove(0) else { todo!() };
-                let sig = block.params.non_defaults.get(0).unwrap();
-                let ParamPattern::VarName(param) = &sig.pat else { todo!() };
+                let non_default = block.params.non_defaults.get(0).unwrap();
+                let ParamPattern::VarName(param) = &non_default.raw.pat else { todo!() };
                 code += &format!("{}__ ", &param.token().content);
                 code += &format!("in {}:\n", self.transpile_expr(iter));
                 code += &self.transpile_block(block.body, Discard);
@@ -703,14 +703,14 @@ impl ScriptGenerator {
             self.level += 1;
             code += &"    ".repeat(self.level);
             let target = arm.params.non_defaults.get(0).unwrap();
-            match &target.pat {
+            match &target.raw.pat {
                 ParamPattern::VarName(param) => {
                     code += &format!("case {}__:\n", &param.token().content);
                     code += &self.transpile_block(arm.body, StoreTmp(tmp.clone()));
                     self.level -= 1;
                 }
                 ParamPattern::Discard(_) => {
-                    match target.t_spec.as_ref().map(|t| &t.t_spec) {
+                    match target.raw.t_spec.as_ref().map(|t| &t.t_spec) {
                         Some(TypeSpec::Enum(enum_t)) => {
                             let values = ValueObj::vec_from_const_args(enum_t.clone());
                             if values.len() == 1 {
@@ -799,7 +799,7 @@ impl ScriptGenerator {
     fn transpile_params(&mut self, params: Params) -> String {
         let mut code = String::new();
         for non_default in params.non_defaults {
-            match non_default.pat {
+            match non_default.raw.pat {
                 ParamPattern::VarName(param) => {
                     code += &format!("{}__,", param.into_token().content);
                 }
@@ -811,7 +811,7 @@ impl ScriptGenerator {
             }
         }
         for default in params.defaults {
-            let ParamPattern::VarName(param) = default.sig.pat else { todo!() };
+            let ParamPattern::VarName(param) = default.sig.raw.pat else { todo!() };
             code += &format!(
                 "{}__ = {},",
                 param.into_token().content,

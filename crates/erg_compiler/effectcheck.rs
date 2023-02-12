@@ -13,7 +13,7 @@ use Visibility::*;
 use crate::ty::HasType;
 
 use crate::error::{EffectError, EffectErrors};
-use crate::hir::{Array, Def, Dict, Expr, Set, Signature, Tuple, HIR};
+use crate::hir::{Array, Def, Dict, Expr, Params, Set, Signature, Tuple, HIR};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum BlockKind {
@@ -209,6 +209,40 @@ impl SideEffectChecker {
         }
     }
 
+    fn check_params(&mut self, params: &Params) {
+        for nd_param in params.non_defaults.iter() {
+            if nd_param.vi.t.is_procedure() && !nd_param.inspect().unwrap().ends_with('!') {
+                self.errs.push(EffectError::proc_assign_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    nd_param.raw.pat.loc(),
+                    self.full_path(),
+                ));
+            }
+        }
+        if let Some(var_arg) = params.var_params.as_deref() {
+            if var_arg.vi.t.is_procedure() && !var_arg.inspect().unwrap().ends_with('!') {
+                self.errs.push(EffectError::proc_assign_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    var_arg.raw.pat.loc(),
+                    self.full_path(),
+                ));
+            }
+        }
+        for d_param in params.defaults.iter() {
+            if d_param.sig.vi.t.is_procedure() && !d_param.inspect().unwrap().ends_with('!') {
+                self.errs.push(EffectError::proc_assign_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    d_param.sig.raw.pat.loc(),
+                    self.full_path(),
+                ));
+            }
+            self.check_expr(&d_param.default_val);
+        }
+    }
+
     fn check_def(&mut self, def: &Def) {
         let name_and_vis = match &def.sig {
             Signature::Var(var) => (var.inspect().clone(), var.vis()),
@@ -239,42 +273,7 @@ impl SideEffectChecker {
             }
         }
         if let Signature::Subr(sig) = &def.sig {
-            let t = sig.ident.ref_t();
-            for (nd_param, nd_type) in sig
-                .params
-                .non_defaults
-                .iter()
-                .zip(t.non_default_params().unwrap())
-            {
-                if nd_type.typ().is_procedure() && !nd_param.inspect().unwrap().ends_with('!') {
-                    self.errs.push(EffectError::proc_assign_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        nd_param.pat.loc(),
-                        self.full_path(),
-                    ));
-                }
-            }
-            if let Some((var_arg, va_type)) = sig.params.var_params.as_ref().zip(t.var_params()) {
-                if va_type.typ().is_procedure() && !var_arg.inspect().unwrap().ends_with('!') {
-                    self.errs.push(EffectError::proc_assign_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        var_arg.pat.loc(),
-                        self.full_path(),
-                    ));
-                }
-            }
-            for (d_param, d_type) in sig.params.defaults.iter().zip(t.default_params().unwrap()) {
-                if d_type.typ().is_procedure() && !d_param.inspect().unwrap().ends_with('!') {
-                    self.errs.push(EffectError::proc_assign_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        d_param.sig.pat.loc(),
-                        self.full_path(),
-                    ));
-                }
-            }
+            self.check_params(&sig.params);
         }
         let last_idx = def.body.block.len() - 1;
         for (i, chunk) in def.body.block.iter().enumerate() {
@@ -440,6 +439,7 @@ impl SideEffectChecker {
                     self.path_stack.push((Str::ever("<lambda>"), Private));
                     self.block_stack.push(Func);
                 }
+                self.check_params(&lambda.params);
                 lambda.body.iter().for_each(|chunk| self.check_expr(chunk));
                 self.path_stack.pop();
                 self.block_stack.pop();

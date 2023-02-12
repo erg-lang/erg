@@ -68,6 +68,10 @@ impl VarKind {
     pub const fn is_defined(&self) -> bool {
         matches!(self, Self::Defined(_))
     }
+
+    pub const fn does_not_exist(&self) -> bool {
+        matches!(self, Self::DoesNotExist)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -217,5 +221,13 @@ impl VarInfo {
             VarKind::Defined(i) | VarKind::Parameter { def_id: i, .. } => id == i,
             _ => false,
         }
+    }
+
+    pub fn parameter(t: Type, def_loc: AbsLocation) -> Self {
+        let kind = VarKind::Parameter {
+            def_id: DefId(0),
+            default: DefaultInfo::NonDefault,
+        };
+        Self::new(t, Immutable, Private, kind, None, None, None, def_loc)
     }
 }
