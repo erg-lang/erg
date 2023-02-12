@@ -1,6 +1,6 @@
 # クラス
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/04_class.md%26commit_hash%3D7078f95cecc961a65befb15929af06ae2331c934)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/04_class.md&commit_hash=7078f95cecc961a65befb15929af06ae2331c934)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/04_class.md%26commit_hash%3Dfcb7cf72ab5293812d4c7c76a136cbfba9fe2bd5)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/04_class.md&commit_hash=fcb7cf72ab5293812d4c7c76a136cbfba9fe2bd5)
 
 Ergにおけるクラスは、大まかには自身の要素(インスタンス)を生成できる型と言えます。
 以下は単純なクラスの例です。
@@ -16,7 +16,7 @@ print! john # <Person object>
 print! classof(john) # Person
 ```
 
-`Class`に与えられる型(通常はレコード)を要件型(この場合は`{.name = Str; .age = Nat}`)といいます。
+`Class`に与えられる型を要件型(この場合は`{.name = Str; .age = Nat}`)といいます。
 インスタンスは`クラス名::__new__ {属性名 = 値; ...}`で生成できます。
 `{.name = "John Smith"; .age = 25}`は単なるレコードですが、`Person.new`を通すことで`Person`インスタンスに変換されるわけです。
 このようなインスタンスを生成するサブルーチンはコンストラクタと呼ばれます。
@@ -106,61 +106,11 @@ C.
 
 ## Class, Type
 
-`1`のクラスと型が違うものであることに注意してください。
-`1`の生成元であるクラスは`Int`ただひとつです。オブジェクトの属するクラスは`classof(obj)`または`obj.__class__`で取得できます。
-対して`1`の型は無数にあります。例としては、`{1}, {0, 1}, 0..12, Nat, Int, Num`などです。
-ただし最小の型はひとつに定めることができ、この場合は`{1}`です。オブジェクトの属する型は`Typeof(obj)`で取得できます。
-これはコンパイル時関数であり、その名の通りコンパイル時に計算されます。
-オブジェクトからは、クラスメソッドの他にパッチメソッドも使用可能です。
-Ergではクラスメソッドを追加したりはできませんが、[パッチ](./07_patch.md)で拡張可能です。
+「`1`の型は何であるか?」という問いに対しては、少し長い答えが必要になります。
 
-既存のクラスを継承することも出来ます([Inheritable](../29_decorator.md#inheritable)クラスの場合)。
-`Inherit`は継承を意味します。左辺の型をサブクラス、右辺の`Inherit`の引数型をスーパークラスと言います。
-
-```python
-MyStr = Inherit Str
-# other: StrとしておけばMyStrでもOK
-MyStr.
-    `-` self, other: Str = self.replace other, ""
-
-abc = MyStr.new("abc")
-# ここの比較はアップキャストが入る
-assert abc - "b" == "ac"
-```
-
-Pythonと違い、定義されたErgのクラスはデフォルトで`final`(継承不可)です。
-継承可能にするためには`Inheritable`デコレータをクラスに付ける必要があります。
-`Str`は継承可能クラスのひとつです。
-
-```python
-MyStr = Inherit Str # OK
-MyStr2 = Inherit MyStr # NG
-
-@Inheritable
-InheritableMyStr = Inherit Str
-MyStr3 = Inherit InheritableMyStr # OK
-```
-
-`Inherit Obj`と`Class()`は実用上ほぼ等価です。一般的には後者を使用します。
-
-クラスは型とは同値判定の仕組みが異なります。
-型は構造に基づいて同値性が判定されます。
-
-```python
-Person = {.name = Str; .age = Nat}
-Human = {.name = Str; .age = Nat}
-
-assert Person == Human
-```
-
-クラスは同値関係が定義されていません。
-
-```python
-Person = Class {.name = Str; .age = Nat}
-Human = Class {.name = Str; .age = Nat}
-
-Person == Human # TypeError: cannot compare classes
-```
+`1`の生成元である __クラス__ は`Nat`ただひとつです。オブジェクトの属するクラスは`classof(obj)`または`obj.__class__`で取得できます。
+対して`1`の属する __型__ は無数にあります。例としては、`{1}, {0, 1}, 0..12, Nat, Int, Num`などです。
+このようにオブジェクトが複数の型に属しうるのは、Ergが部分型システムを持つためです。`Nat`は`Int`の部分型であり、`Int`は`Num`の部分型です。
 
 ## 構造型との違い
 
@@ -176,7 +126,7 @@ john = Person.new("John Smith", 25)
 ```
 
 クラスを使用するメリットは4つあります。
-1つはコンストラクタの正当性が検査されること、2つ目はパフォーマンスが高いこと、3つ目は記名的部分型(NST)が使用できること、4つ目は継承・オーバーライドができることです。
+1つはコンストラクタの正当性が検査されること、2つ目は型検査が簡便であること、3つ目は記名的部分型(NST)が使用できること、4つ目は継承・オーバーライドができることです。
 
 先程レコード型+パッチでもコンストラクタ(のようなもの)が定義できることを見ましたが、これはもちろん正当なコンストラクタとは言えません。`.new`と名乗っていても全く関係のないオブジェクトを返すことができるからです。クラスの場合は、`.new`が要件を満たすオブジェクトを生成するか静的に検査されます。
 

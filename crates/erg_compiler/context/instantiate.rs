@@ -285,7 +285,7 @@ impl Context {
                 mode,
                 ParamKind::NonDefault,
             ) {
-                Ok(t) => non_defaults.push(t),
+                Ok(pt) => non_defaults.push(pt),
                 Err(es) => {
                     errs.extend(es);
                     non_defaults.push(ParamTy::pos(param.inspect().cloned(), Type::Failure));
@@ -325,7 +325,7 @@ impl Context {
                 mode,
                 ParamKind::Default(default_t),
             ) {
-                Ok(t) => defaults.push(t),
+                Ok(pt) => defaults.push(pt),
                 Err(es) => {
                     errs.extend(es);
                     defaults.push(ParamTy::pos(p.sig.inspect().cloned(), Type::Failure));
@@ -379,28 +379,25 @@ impl Context {
         mode: RegistrationMode,
         kind: ParamKind,
     ) -> TyCheckResult<Type> {
-        let spec_t = if let Some(t_spec_with_op) = &sig.t_spec {
-            self.instantiate_typespec(
-                &t_spec_with_op.t_spec,
-                opt_decl_t,
-                tmp_tv_cache,
-                mode,
-                false,
-            )?
+        let gen_free_t = || {
+            let level = if mode == PreRegister {
+                self.level
+            } else {
+                self.level + 1
+            };
+            free_var(level, Constraint::new_type_of(Type))
+        };
+        let spec_t = if let Some(spec_with_op) = &sig.t_spec {
+            self.instantiate_typespec(&spec_with_op.t_spec, opt_decl_t, tmp_tv_cache, mode, false)?
         } else {
             match &sig.pat {
                 ast::ParamPattern::Lit(lit) => v_enum(set![self.eval_lit(lit)?]),
                 ast::ParamPattern::Discard(_) => Type::Obj,
+                ast::ParamPattern::Ref(_) => ref_(gen_free_t()),
+                ast::ParamPattern::RefMut(_) => ref_mut(gen_free_t(), None),
                 // ast::ParamPattern::VarName(name) if &name.inspect()[..] == "_" => Type::Obj,
                 // TODO: Array<Lit>
-                _ => {
-                    let level = if mode == PreRegister {
-                        self.level
-                    } else {
-                        self.level + 1
-                    };
-                    free_var(level, Constraint::new_type_of(Type))
-                }
+                _ => gen_free_t(),
             }
         };
         if let Some(decl_pt) = opt_decl_t {

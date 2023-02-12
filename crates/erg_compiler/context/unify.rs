@@ -548,6 +548,12 @@ impl Context {
             return Ok(());
         }
         match (maybe_sub, maybe_sup) {
+            (Type::FreeVar(lfv), _) if lfv.is_linked() => {
+                self.sub_unify(&lfv.crack(), maybe_sup, loc, param_name)
+            }
+            (_, Type::FreeVar(rfv)) if rfv.is_linked() => {
+                self.sub_unify(maybe_sub, &rfv.crack(), loc, param_name)
+            }
             // lfv's sup can be shrunk (take min), rfv's sub can be expanded (take union)
             // lfvのsupは縮小可能(minを取る)、rfvのsubは拡大可能(unionを取る)
             // sub_unify(?T[0](:> Never, <: Int), ?U[1](:> Never, <: Nat)): (/* ?U[1] --> ?T[0](:> Never, <: Nat))
@@ -604,12 +610,6 @@ impl Context {
                     lfv.link(maybe_sup);
                 }
                 Ok(())
-            }
-            (Type::FreeVar(lfv), _) if lfv.is_linked() => {
-                self.sub_unify(&lfv.crack(), maybe_sup, loc, param_name)
-            }
-            (_, Type::FreeVar(rfv)) if rfv.is_linked() => {
-                self.sub_unify(maybe_sub, &rfv.crack(), loc, param_name)
             }
             (_, Type::FreeVar(rfv)) if rfv.is_unbound() => {
                 // NOTE: cannot `borrow_mut` because of cycle reference
@@ -849,7 +849,11 @@ impl Context {
             (_, Type::Or(l, r)) => self
                 .sub_unify(maybe_sub, l, loc, param_name)
                 .or_else(|_e| self.sub_unify(maybe_sub, r, loc, param_name)),
+            (Type::Ref(l), Type::Ref(r)) => self.sub_unify(l, r, loc, param_name),
             (_, Type::Ref(t)) => self.sub_unify(maybe_sub, t, loc, param_name),
+            (Type::RefMut { before: l, .. }, Type::RefMut { before: r, .. }) => {
+                self.sub_unify(l, r, loc, param_name)
+            }
             (_, Type::RefMut { before, .. }) => self.sub_unify(maybe_sub, before, loc, param_name),
             (Type::Proj { .. }, _) => todo!(),
             (_, Type::Proj { .. }) => todo!(),

@@ -4,3 +4,10 @@ show s =
 assert show(1) == "1"
 assert show(True) == "True"
 # discard show((x,) -> x)
+
+C = Class {x = Int}
+C|C <: Show|.
+    to_str(ref(self)) = "<C object: x = \{self::x}>"
+
+c = C.new {x = 1}
+assert c.to_str() == "<C object: x = 1>"

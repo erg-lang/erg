@@ -4,3 +4,7 @@ _: Float = math.prod [1.1, 2.1]
 print! math.prod ["a", "b"] # ERR
 _: Nat = math.prod [1, 2, 3]
 _: Str = math.prod [1, 2, 3] # ERR
+
+eq x, y = x == y
+print! eq 1, 1
+print! eq 1, "a" # ERR

@@ -1,29 +1,64 @@
 # Trait
 
-Trait is a nominal type that adds a type attribute requirement to record types.
-It is similar to the Abstract Base Class (ABC) in Python, but with the distinction of being able to perform algebraic operations.
+Traits are nominal types that add a type attribute requirement to record types.
+It is similar to the Abstract Base Class (ABC) in Python, but it has the feature of being able to perform algebraic operations.
+
+Traits are used when you want to identify different classes. Examples of builtin traits are `Eq` and `Add`.
+`Eq` requires `==` to be implemented. `Add` requires the implementation of `+` (in-place).
+
+So any class that implements these can be (partially) identified as a subtype of trait.
+
+As an example, let's define a `Norm` trait that computes the norm (length) of a vector.
 
 ```python
-Norm = Trait {.x = Int; .y = Int; .norm = Self.() -> Int}
+Norm = Trait {.norm = (self: Self) -> Int}
 ```
 
-Trait does not distinguish between attributes and methods.
-
-Note that traits can only be declared, not implemented (implementation is achieved by a feature called patching, which will be discussed later).
-Traits can be checked for implementation in a class by specifying a partial type.
+Note that traits can only be declared, not implemented.
+Traits can be "implemented" for a class as follows:
 
 ```python
-Point2D <: Norm
 Point2D = Class {.x = Int; .y = Int}
-Point2D.norm self = self.x**2 + self.y**2
+Point2D|<: Norm|.
+    Norm self = self.x**2 + self.y**2
+
+Point3D = Class {.x = Int; .y = Int; .z = Int}
+Point3D|<: Norm|.
+    norm self = self.x**2 + self.y**2 + self.z**2
+```
+
+Since `Point2D` and `Point3D` implement `Norm`, they can be identified as types with the `.norm` method.
+
+```python
+norm x: Norm = x.norm()
+
+assert norm(Point2D.new({x = 1; y = 2})) == 5
+assert norm(Point3D.new({x = 1; y = 2; z = 3})) == 14
 ```
 
 Error if the required attributes are not implemented.
 
-```python
-Point2D <: Norm # TypeError: Point2D is not a subtype of Norm
-Point2D = Class {.x = Int; .y = Int}
+```python,compile_fail
+Point3D = Class {.x = Int; .y = Int; .z = Int}
+
+Point3D|<: Norm|.
+    foo self = 1
 ```
+
+One of the nice things about traits is that you can define methods on them in Patch (described later).
+
+```python
+@Attach NotEqual
+Eq = Trait {. `==` = (self: Self, other: Self) -> Bool}
+
+NotEq = Patch Eq
+NotEq.
+    `! =` self, other = not self.`==` other
+```
+
+With the `NotEq` patch, all classes that implement `Eq` will automatically implement `!=`.
+
+## Trait operations
 
 Traits, like structural types, can apply operations such as composition, substitution, and elimination (e.g. `T and U`). The resulting trait is called an instant trait.
 

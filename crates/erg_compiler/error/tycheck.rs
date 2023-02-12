@@ -1032,8 +1032,8 @@ passed keyword args:    {kw_args_len}"
         );
         let sub_msg = switch_lang!(
             "japanese" => "型を指定してください",
-            "simplified_chinese" => "方式指定类型",
-            "traditional_chinese" => "specify the type",
+            "simplified_chinese" => "请指定类型",
+            "traditional_chinese" => "請指定類型",
             "english" => "specify the type",
         );
         let mut candidate = StyledStrings::default();

@@ -104,60 +104,11 @@ C.i = 1 # AttributeError: `.i` is already defined in instance fields
 
 ## Class, Type
 
-Note that the class and type of `1` are different.
-There is only one class `Int` that is the generator of `1`. You can get the class to which an object belongs by `classof(obj)` or `obj.__class__`.
-In contrast, there are countless types of `1`. For example, `{1}, {0, 1}, 0..12, Nat, Int, Num`.
-However, the smallest type can be defined as a single type, in this case `{1}`. The type to which an object belongs can be obtained with `Typeof(obj)`. This is a compile-time function.
-Objects can use patch methods as well as class methods.
-Erg does not allow you to add class methods, but you can use [patch](./07_patch.md) to extend a class.
+The question "What is the type of `1`?" requires a slightly longer answer.
 
-You can also inherit from existing classes ([Inheritable](../29_decorator.md#inheritable) class).
-You can create an inherited class by using `Inherit`. The type on the left-hand side is called the derived class, and the argument type of `Inherit` on the right-hand side is called the base class (inherited class).
-
-```python
-MyStr = Inherit Str
-# other: You can use MyStr if you set ``other: Str''.
-MyStr.
-    `-` self, other: Str = self.replace other, ""
-
-abc = MyStr.new("abc")
-# Comparison here gets an upcast
-assert abc - "b" == "ac"
-```
-
-Unlike Python, the defined Erg classes are `final` (non-inheritable) by default.
-To make a class inheritable, an `Inheritable` decorator must be attached to the class.
-Str` is one of the inheritable classes.
-
-```python
-MyStr = Inherit Str # OK
-MyStr2 = Inherit MyStr # NG
-
-@Inheritable
-InheritableMyStr = Inherit Str
-MyStr3 = Inherit InheritableMyStr # OK
-```
-
-`Inherit Obj` and `Class()` are almost equivalent in practice. The latter is generally used.
-
-Classes have a different equivalence checking mechanism than types.
-Types are equivalence tested based on their structure.
-
-```python
-Person = {.name = Str; .age = Nat}
-Human = {.name = Str; .age = Nat}
-
-assert Person == Human
-```
-
-class has no equivalence relation defined.
-
-```python
-Person = Class {.name = Str; .age = Nat}
-Human = Class {.name = Str; .age = Nat}
-
-Person == Human # TypeError: cannot compare classes
-```
+There is only one __class__ `Nat` from which `1` belongs. The class to which an object belongs can be obtained by `classof(obj)` or `obj.__class__`.
+In contrast, there are countless __types__ to which `1` belongs. Examples are `{1}, {0, 1}, 0..12, Nat, Int, Num`.
+The reason an object can belong to more than one type is that Erg has a subtype system. `Nat` is a subtype of `Int` and `Int` is a subtype of `Num`.
 
 ## Difference from structural types
 

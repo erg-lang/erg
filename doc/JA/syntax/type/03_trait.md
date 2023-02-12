@@ -1,31 +1,66 @@
 # トレイト
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/03_trait.md%26commit_hash%3Da373185dec9bc0b1ca8e17d482336d502d714af9)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/03_trait.md&commit_hash=a373185dec9bc0b1ca8e17d482336d502d714af9)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/03_trait.md%26commit_hash%3Dfcb7cf72ab5293812d4c7c76a136cbfba9fe2bd5)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/03_trait.md&commit_hash=fcb7cf72ab5293812d4c7c76a136cbfba9fe2bd5)
 
 トレイトは、レコード型に型属性の要求を追加した記名型です。
 Pythonでいう抽象基底クラス(Abstract Base Class, ABC)に類似しますが、代数的演算を行えるという特徴があります。
 
+トレイトは別々のクラスを同一視したい場合などに使います。標準で定義されているトレイトの例には`Eq`や`Add`などがあります。
+`Eq`は`==`を実装することを要求します。`Add`は`+`(中置)を実装することを要求します。
+
+これらを実装したクラスは全てトレイトのサブタイプとして(部分的に)同一視できるわけです。
+
+例として、ベクトルのノルム(長さ)を計算する`Norm`トレイトを定義してみましょう。
+
 ```python
-Norm = Trait {.x = Int; .y = Int; .norm = Self.() -> Int}
+Norm = Trait {.norm = (self: Self) -> Int}
 ```
 
-トレイトは属性とメソッドを区別しません。
-
-トレイトは宣言ができるのみで実装を持てないことに注意してください(実装は後に述べるパッチという機能で実現します)。
-トレイトは部分型指定でクラスに実装されているかチェックできます。
+トレイトは宣言ができるのみで実装を持てないことに注意してください。
+トレイトは以下のようにしてクラスに「実装」することができます。
 
 ```python
-Point2D <: Norm
 Point2D = Class {.x = Int; .y = Int}
-Point2D.norm self = self.x**2 + self.y**2
+Point2D|<: Norm|.
+    norm self = self.x**2 + self.y**2
+
+Point3D = Class {.x = Int; .y = Int; .z = Int}
+Point3D|<: Norm|.
+    norm self = self.x**2 + self.y**2 + self.z**2
+```
+
+`Point2D`と`Point3D`は`Norm`を実装したので、`.norm`メソッドを持つ型として同一視出来ます。
+
+```python
+norm x: Norm = x.norm()
+
+assert norm(Point2D.new({x = 1; y = 2})) == 5
+assert norm(Point3D.new({x = 1; y = 2; z = 3})) == 14
 ```
 
 要求属性を実装していないとエラーになります。
 
-```python
-Point2D <: Norm # TypeError: Point2D is not a subtype of Norm
-Point2D = Class {.x = Int; .y = Int}
+```python,compile_fail
+Point3D = Class {.x = Int; .y = Int; .z = Int}
+
+Point3D|<: Norm|.
+    foo self = 1
 ```
+
+トレイトのうま味の一つは、後述するPatchでメソッドを定義できるという点です。
+
+```python
+@Attach NotEqual
+Eq = Trait {.`==` = (self: Self, other: Self) -> Bool}
+
+NotEq = Patch Eq
+NotEq.
+    `!=` self, other = not self.`==` other
+```
+
+`NotEq`パッチにより、`Eq`を実装する全てのクラスは自動で`!=`も実装することになります。
+
+## トレイト上の演算
 
 トレイトは構造型と同じく合成、置換、排除などの演算を適用できます(e.g. `T and U`)。このようにしてできたトレイトをインスタントトレイトと呼びます。
 

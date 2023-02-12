@@ -113,9 +113,7 @@ impl Context {
                 let constr = fv.constraint().unwrap();
                 if let Some((l, r)) = constr.get_sub_sup() {
                     // |Int <: T <: Int| T -> T ==> Int -> Int
-                    if l == r
-                    /*self.same_type_of(l, r)*/
-                    {
+                    if l == r {
                         fv.forced_link(l);
                         FreeVar(fv)
                     } else if r != &Obj && self.is_class(r) && variance == Contravariant {
