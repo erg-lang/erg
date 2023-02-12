@@ -29,7 +29,7 @@ use lsp_types::{
 
 use crate::file_cache::FileCache;
 use crate::hir_visitor::HIRVisitor;
-use crate::message::{ErrorMessage, LogMessage};
+use crate::message::{ErrorMessage, LogMessage, ShowMessage};
 use crate::util;
 
 pub type ELSResult<T> = Result<T, Box<dyn std::error::Error>>;
@@ -138,7 +138,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
 
     pub fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         loop {
-            let msg = Value::from_str(&self.read_message()?)?;
+            let msg = self.read_message()?;
             self.dispatch(msg)?;
         }
         // Ok(())
@@ -252,7 +252,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
     }
 
     /// Copied and modified from RLS, https://github.com/rust-lang/rls/blob/master/rls/src/server/io.rs
-    fn read_message(&self) -> Result<String, io::Error> {
+    fn read_message(&self) -> Result<Value, io::Error> {
         // Read in the "Content-Length: xx" part.
         let mut size: Option<usize> = None;
         loop {
@@ -313,7 +313,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
 
         let content = read_exact(size)?;
 
-        String::from_utf8(content).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
+        let s = String::from_utf8(content)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        Ok(Value::from_str(&s)?)
     }
 
     fn dispatch(&mut self, msg: Value) -> ELSResult<()> {
@@ -386,6 +388,15 @@ impl<Checker: BuildRunnable> Server<Checker> {
 
     pub(crate) fn send_log<S: Into<String>>(msg: S) -> ELSResult<()> {
         Self::send(&LogMessage::new(msg))
+    }
+
+    #[allow(unused)]
+    pub(crate) fn send_info<S: Into<String>>(msg: S) -> ELSResult<()> {
+        Self::send(&ShowMessage::info(msg))
+    }
+
+    pub(crate) fn send_error_info<S: Into<String>>(msg: S) -> ELSResult<()> {
+        Self::send(&ShowMessage::error(msg))
     }
 
     pub(crate) fn send_error<S: Into<String>>(id: Option<i64>, code: i64, msg: S) -> ELSResult<()> {

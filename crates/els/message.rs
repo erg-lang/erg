@@ -41,3 +41,39 @@ impl LogMessage {
         }
     }
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ShowMessage {
+    jsonrpc: String,
+    method: String,
+    params: Value,
+}
+
+impl ShowMessage {
+    #[allow(unused)]
+    pub fn info<S: Into<String>>(message: S) -> Self {
+        Self {
+            jsonrpc: "2.0".into(),
+            method: "window/showMessage".into(),
+            params: json! {
+                {
+                    "type": 3,
+                    "message": message.into(),
+                }
+            },
+        }
+    }
+
+    pub fn error<S: Into<String>>(message: S) -> Self {
+        Self {
+            jsonrpc: "2.0".into(),
+            method: "window/showMessage".into(),
+            params: json! {
+                {
+                    "type": 1,
+                    "message": message.into(),
+                }
+            },
+        }
+    }
+}
