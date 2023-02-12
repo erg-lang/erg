@@ -11,12 +11,3 @@ path_join = os.path.join
 
 def str_slice(str: str, first_index: int):
     return str[first_index:]
-
-
-def eliminate_none_on_match(matched: re.Match):
-    class _a:
-        def __init__(self):
-            self.matched = matched
-            self.is_none = True if matched is None else False
-
-    return _a()
