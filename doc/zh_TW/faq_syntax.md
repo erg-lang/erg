@@ -1,20 +1,6 @@
 # Erg 部分設計的原因
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/faq_syntax.md%26commit_hash%3D14b0c449efc9e9da3e10a09c912a960ecfaf1c9d)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/faq_syntax.md&commit_hash=14b0c449efc9e9da3e10a09c912a960ecfaf1c9d)
-
-## Erg內存管理模型
-
-在CPython后端中使用所有權 + Python內存管理模型(不過Erg代碼中的循環引用不會通過GC處理詳見[此處](syntax/18_ownership.md/#循環引用))
-
-在Erg自己的虛擬機(Dyne)中使用所有權 + [Perceus](https://www.microsoft.com/en-us/research/uploads/prod/2020/11/perceus-tr-v1.pdf)內存管理模型，如果Erg代碼使用了Python API那么這些Erg代碼使用跟蹤垃圾回收內存管理模型
-
-在LLVM, WASM后端使用所有權 + [Perceus](https://www.microsoft.com/en-us/research/uploads/prod/2020/11/perceus-tr-v1.pdf)內存管理模型
-
-無論是什么后端都不需要因為內存管理的不同對代碼進行任何更改
-
-__注意__: Erg 引入所有權系統的動機不是像 Rust 那樣"不依賴 GC 的內存管理"
-Erg 所有權系統的目標是"可變狀態的本地化"。Erg 有一個附屬于可變對象的所有權概念
-這是因為共享可變狀態容易出現錯誤，甚至違反類型安全(參見 [此處](./syntax/type/advanced/shared.md#共享參考))。這是一個判斷決定
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/faq_syntax.md%26commit_hash%3De56ba70c7d77bf2b37db77cc5bd4b21ad528531c)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/faq_syntax.md&commit_hash=e56ba70c7d77bf2b37db77cc5bd4b21ad528531c)
 
 ## 為什么類型參數要大括號 || 而不是 <> 或 []?
 
