@@ -5,7 +5,7 @@ Point2D|Point2D <: Norm|.
     norm self = self::x**2 + self::y**2
 
 Point3D = Class {x = Int; y = Int; z = Int}
-Point3D|Point2D <: Norm|.
+Point3D|Point3D <: Norm|.
     norm self = self::x**2 + self::y**2 + self::z**2
 
 norm|T <: Norm| x: T = x.norm()
