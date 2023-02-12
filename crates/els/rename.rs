@@ -25,7 +25,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             // Self::send_log(format!("token: {tok}"))?;
             if let Some(visitor) = self.get_visitor(&uri) {
                 if let Some(vi) = visitor.get_info(&tok) {
-                    // Self::send_log(format!("vi: {vi}"))?;
+                    let mut changes: HashMap<Url, Vec<TextEdit>> = HashMap::new();
                     let is_std = vi
                         .def_loc
                         .module
@@ -41,9 +41,14 @@ impl<Checker: BuildRunnable> Server<Checker> {
                             _ if is_std => "this is a standard library API and cannot be renamed",
                             _ => "this name cannot be renamed",
                         };
-                        return Self::send_error(msg["id"].as_i64(), 0, error_reason);
+                        // identical change (to avoid displaying "no result")
+                        Self::commit_change(&mut changes, &vi.def_loc, tok.content.to_string());
+                        let edit = WorkspaceEdit::new(changes);
+                        Self::send(
+                            &json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": edit }),
+                        )?;
+                        return Self::send_error_info(error_reason);
                     }
-                    let mut changes: HashMap<Url, Vec<TextEdit>> = HashMap::new();
                     Self::commit_change(&mut changes, &vi.def_loc, params.new_name.clone());
                     if let Some(value) = self.get_index().get_refs(&vi.def_loc) {
                         // Self::send_log(format!("referrers: {referrers:?}"))?;

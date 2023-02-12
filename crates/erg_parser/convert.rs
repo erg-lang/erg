@@ -1,5 +1,5 @@
 use erg_common::traits::{Locational, Stream};
-use erg_common::{fn_name, log, option_enum_unwrap, set};
+use erg_common::{fn_name, log, set};
 
 use crate::ast::*;
 use crate::debug_call_info;
@@ -142,11 +142,18 @@ impl Parser {
 
     fn convert_def_to_var_record_attr(&mut self, mut attr: Def) -> ParseResult<VarRecordAttr> {
         debug_call_info!(self);
-        let lhs = option_enum_unwrap!(attr.sig, Signature::Var).unwrap_or_else(|| todo!());
-        let lhs = option_enum_unwrap!(lhs.pat, VarPattern::Ident).unwrap_or_else(|| todo!());
+        let Signature::Var(VarSignature{ pat: VarPattern::Ident(lhs), .. }) = attr.sig else {
+            let err = ParseError::simple_syntax_error(line!() as usize, attr.sig.loc());
+            self.errs.push(err);
+            return Err(());
+        };
         assert_eq!(attr.body.block.len(), 1);
-        let rhs = option_enum_unwrap!(attr.body.block.remove(0), Expr::Accessor)
-            .unwrap_or_else(|| todo!());
+        let first = attr.body.block.remove(0);
+        let Expr::Accessor(rhs) = first else {
+            let err = ParseError::simple_syntax_error(line!() as usize, first.loc());
+            self.errs.push(err);
+            return Err(());
+        };
         let rhs = self.convert_accessor_to_var_sig(rhs)?;
         debug_exit_info!(self);
         Ok(VarRecordAttr::new(lhs, rhs))
@@ -286,10 +293,12 @@ impl Parser {
                 let sig = self
                     .convert_rhs_to_sig(*t_app.obj)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
-                let pat = option_enum_unwrap!(sig, Signature::Var)
-                    .unwrap_or_else(|| todo!())
-                    .pat;
-                let ident = option_enum_unwrap!(pat, VarPattern::Ident).unwrap_or_else(|| todo!());
+                let Signature::Var(VarSignature { pat: VarPattern::Ident(ident), .. }) = sig else {
+                    let err = ParseError::simple_syntax_error(line!() as usize, sig.loc());
+                    self.errs.push(err);
+                    debug_exit_info!(self);
+                    return Err(());
+                };
                 let bounds = self
                     .convert_type_args_to_bounds(t_app.type_args)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
@@ -330,10 +339,11 @@ impl Parser {
                 let lhs = self
                     .convert_rhs_to_sig(*tasc.expr)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
-                let lhs = option_enum_unwrap!(lhs, Signature::Var)
-                    .unwrap_or_else(|| todo!())
-                    .pat;
-                let lhs = option_enum_unwrap!(lhs, VarPattern::Ident).unwrap_or_else(|| todo!());
+                let Signature::Var(VarSignature{ pat: VarPattern::Ident(lhs), .. }) = lhs else {
+                    let err = ParseError::simple_syntax_error(line!() as usize, lhs.loc());
+                    self.errs.push(err);
+                    return Err(());
+                };
                 let spec_with_op = TypeSpecWithOp::new(tasc.op, tasc.t_spec);
                 let bound = TypeBoundSpec::non_default(lhs.name.into_token(), spec_with_op);
                 Ok(bound)
@@ -449,8 +459,12 @@ impl Parser {
             Expr::UnaryOp(unary) => match unary.op.kind {
                 TokenKind::RefOp => {
                     let var = unary.args.into_iter().next().unwrap();
-                    let var = option_enum_unwrap!(*var, Expr::Accessor:(Accessor::Ident:(_)))
-                        .unwrap_or_else(|| todo!());
+                    let Expr::Accessor(Accessor::Ident(var)) = *var else {
+                        let err = ParseError::simple_syntax_error(line!() as usize, var.loc());
+                        self.errs.push(err);
+                        debug_exit_info!(self);
+                        return Err(());
+                    };
                     let pat = ParamPattern::Ref(var.name);
                     let param = NonDefaultParamSignature::new(pat, None);
                     debug_exit_info!(self);
@@ -458,8 +472,12 @@ impl Parser {
                 }
                 TokenKind::RefMutOp => {
                     let var = unary.args.into_iter().next().unwrap();
-                    let var = option_enum_unwrap!(*var, Expr::Accessor:(Accessor::Ident:(_)))
-                        .unwrap_or_else(|| todo!());
+                    let Expr::Accessor(Accessor::Ident(var)) = *var else {
+                        let err = ParseError::simple_syntax_error(line!() as usize, var.loc());
+                        self.errs.push(err);
+                        debug_exit_info!(self);
+                        return Err(());
+                    };
                     let pat = ParamPattern::RefMut(var.name);
                     let param = NonDefaultParamSignature::new(pat, None);
                     debug_exit_info!(self);
@@ -516,11 +534,20 @@ impl Parser {
     }
 
     fn convert_def_to_param_record_attr(&mut self, mut attr: Def) -> ParseResult<ParamRecordAttr> {
-        let lhs = option_enum_unwrap!(attr.sig, Signature::Var).unwrap_or_else(|| todo!());
-        let lhs = option_enum_unwrap!(lhs.pat, VarPattern::Ident).unwrap_or_else(|| todo!());
+        let Signature::Var(VarSignature{ pat: VarPattern::Ident(lhs), .. }) = attr.sig else {
+            let err = ParseError::simple_syntax_error(line!() as usize, attr.sig.loc());
+            self.errs.push(err);
+            debug_exit_info!(self);
+            return Err(());
+        };
         assert_eq!(attr.body.block.len(), 1);
-        let rhs = option_enum_unwrap!(attr.body.block.remove(0), Expr::Accessor)
-            .unwrap_or_else(|| todo!());
+        let first = attr.body.block.remove(0);
+        let Expr::Accessor(rhs) = first else {
+            let err = ParseError::simple_syntax_error(line!() as usize, first.loc());
+            self.errs.push(err);
+            debug_exit_info!(self);
+            return Err(());
+        };
         let rhs = self.convert_accessor_to_param_sig(rhs)?;
         Ok(ParamRecordAttr::new(lhs, rhs))
     }
