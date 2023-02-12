@@ -1,9 +1,11 @@
 # 継承
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/05_inheritance.md%26commit_hash%3D7078f95cecc961a65befb15929af06ae2331c934)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/05_inheritance.md&commit_hash=7078f95cecc961a65befb15929af06ae2331c934)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/05_inheritance.md%26commit_hash%3Dfcb7cf72ab5293812d4c7c76a136cbfba9fe2bd5)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/05_inheritance.md&commit_hash=fcb7cf72ab5293812d4c7c76a136cbfba9fe2bd5)
 
 継承を使うと、既存のクラスに機能を加えたり特化したりした新しいクラスを定義できます。
 継承はトレイトにおける包摂に似ています。継承してできたクラスは、もとのクラスのサブタイプになります。
+
+`Inherit`は継承クラスを定義する関数です。左辺の型をサブクラス、右辺の`Inherit`の引数型をスーパークラスと言います。
 
 ```python
 NewInt = Inherit Int
@@ -14,19 +16,20 @@ assert NewInt.new(1).plus1() == 2
 assert NewInt.new(1) + NewInt.new(1) == 2
 ```
 
-新しく定義するクラスを継承可能なクラスにしたい場合は`Inheritable`デコレータを付与する必要があります。
+Pythonと違い、定義されたErgのクラスはデフォルトで継承不可(final)です。
+新しく定義するクラスを継承可能なクラスにしたい場合は、`Inheritable`デコレータを付与する必要があります。
 
-オプション引数`additional`を指定すると追加のインスタンス属性を持つことができます。ただし値クラスの場合はインスタンス属性を追加できません。
+オプション引数`Additional`を指定すると追加のインスタンス属性を持つことができます。ただし値クラスの場合はインスタンス属性を追加できません。
 
 ```python
 @Inheritable
 Person = Class {name = Str}
-Student = Inherit Person, additional: {id = Int}
+Student = Inherit Person, Additional := {id = Int}
 
 john = Person.new {name = "John"}
 alice = Student.new {name = "Alice", id = 123}
 
-MailAddress = Inherit Str, additional: {owner = Str} # TypeError: instance variables cannot be added to a value class
+MailAddress = Inherit Str, Additional := {owner = Str} # TypeError: instance variables cannot be added to a value class
 ```
 
 Ergでは例外的に`Never`型の継承はできない設計となっている。`Never`は決してインスタンスを生成できない特異なクラスであるためである。
