@@ -1,19 +1,5 @@
 # Erg design's "Why" and Answers
 
-## Erg memory management model
-
-Use ownership in CPython backend + Python memory management model (though circular references in Erg code will not be handled by GC [see details](./syntax/18_ownership.md/#circular-references)
-
-Using ownership + [Perceus](https://www.microsoft.com/en-us/research/uploads/prod/2020/11/perceus-tr-v1.pdf) memory in Erg's own virtual machine (Dyne) Management model, if Erg code uses the Python API then the Erg code uses the tracking garbage collection memory management model
-
-In LLVM, WASM backend uses ownership + [Perceus](https://www.microsoft.com/en-us/research/uploads/prod/2020/11/perceus-tr-v1.pdf) memory management model
-
-Regardless of the backend, the difference in memory management will not need any changes to the code
-
-__Notice__:Erg's motivation for introducing an ownership system is not for "memory management without relying on GC" like Rust.
-The aim of Erg's ownership system is ``localization of mutable state''. Erg has a notion of ownership attached to mutable objects.
-This is because shared mutable state is prone to bugs and even violates type safety (see [here](./syntax/type/advanced/shared.md#SharedReference)). It's a judgmental decision.
-
 ## Why are the braces around type parameters || instead of <> or []?
 
 This is because `<>` and `[]` cause syntax conflicts.
