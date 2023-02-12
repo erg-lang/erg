@@ -685,7 +685,7 @@ impl ASTLowerer {
         Ok(hir::BinOp::new(bin.op, lhs, rhs, t))
     }
 
-    fn lower_unary(&mut self, unary: ast::UnaryOp) -> LowerResult<hir::UnaryOp> {
+    fn lower_unary(&mut self, unary: ast::PrefixOp) -> LowerResult<hir::UnaryOp> {
         log!(info "entered {}({unary})", fn_name!());
         let mut args = unary.args.into_iter();
         let arg = hir::PosArg::new(self.lower_expr(*args.next().unwrap())?);
@@ -2021,7 +2021,7 @@ impl ASTLowerer {
             ast::Expr::Dict(dict) => Ok(hir::Expr::Dict(self.lower_dict(dict)?)),
             ast::Expr::Accessor(acc) => Ok(hir::Expr::Accessor(self.lower_acc(acc)?)),
             ast::Expr::BinOp(bin) => Ok(hir::Expr::BinOp(self.lower_bin(bin)?)),
-            ast::Expr::UnaryOp(unary) => Ok(hir::Expr::UnaryOp(self.lower_unary(unary)?)),
+            ast::Expr::PrefixOp(unary) => Ok(hir::Expr::UnaryOp(self.lower_unary(unary)?)),
             ast::Expr::Call(call) => Ok(hir::Expr::Call(self.lower_call(call)?)),
             ast::Expr::DataPack(pack) => Ok(hir::Expr::Call(self.lower_pack(pack)?)),
             ast::Expr::Lambda(lambda) => Ok(hir::Expr::Lambda(self.lower_lambda(lambda)?)),

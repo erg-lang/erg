@@ -710,16 +710,16 @@ impl Parser {
             .map_err(|_| self.stack_dec(fn_name!()))?
         {
             PosOrKwArg::Pos(PosArg {
-                expr: Expr::UnaryOp(unary),
-            }) if unary.op.is(PreStar) => {
-                let pos_args = PosArg::new(unary.deconstruct().1);
+                expr: Expr::PrefixOp(prefix),
+            }) if prefix.op.is(PreStar) => {
+                let pos_args = PosArg::new(prefix.deconstruct().1);
                 Args::new(vec![], Some(pos_args), vec![], None)
             }
             PosOrKwArg::Pos(PosArg {
                 expr: Expr::TypeAscription(TypeAscription { expr, op, t_spec }),
-            }) if matches!(expr.as_ref(), Expr::UnaryOp(unary) if unary.op.is(PreStar)) => {
-                let Expr::UnaryOp(unary) = *expr else { unreachable!() };
-                let var_args = PosArg::new(unary.deconstruct().1.type_asc_expr(op, t_spec));
+            }) if matches!(expr.as_ref(), Expr::PrefixOp(prefix) if prefix.op.is(PreStar)) => {
+                let Expr::PrefixOp(prefix) = *expr else { unreachable!() };
+                let var_args = PosArg::new(prefix.deconstruct().1.type_asc_expr(op, t_spec));
                 Args::new(vec![], Some(var_args), vec![], None)
             }
             PosOrKwArg::Pos(arg) => Args::pos_only(vec![arg], None),
@@ -781,17 +781,17 @@ impl Parser {
                             .map_err(|_| self.stack_dec(fn_name!()))?
                         {
                             PosOrKwArg::Pos(PosArg {
-                                expr: Expr::UnaryOp(unary),
-                            }) if unary.op.is(PreStar) => {
-                                args.set_var_args(PosArg::new(unary.deconstruct().1));
+                                expr: Expr::PrefixOp(prefix),
+                            }) if prefix.op.is(PreStar) => {
+                                args.set_var_args(PosArg::new(prefix.deconstruct().1));
                             }
                             PosOrKwArg::Pos(PosArg {
                                 expr: Expr::TypeAscription(TypeAscription { expr, op, t_spec }),
-                            }) if matches!(expr.as_ref(), Expr::UnaryOp(unary) if unary.op.is(PreStar)) =>
+                            }) if matches!(expr.as_ref(), Expr::PrefixOp(prefix) if prefix.op.is(PreStar)) =>
                             {
-                                let Expr::UnaryOp(unary) = *expr else { unreachable!() };
+                                let Expr::PrefixOp(prefix) = *expr else { unreachable!() };
                                 args.set_var_args(PosArg::new(
-                                    unary.deconstruct().1.type_asc_expr(op, t_spec),
+                                    prefix.deconstruct().1.type_asc_expr(op, t_spec),
                                 ));
                             }
                             PosOrKwArg::Pos(arg) => {
@@ -1104,6 +1104,11 @@ impl Parser {
                     let obj = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                     stack.push(ExprOrOp::Expr(obj.call_expr(args)));
                 }
+                Some(post_op) if post_op.category_is(TokenCategory::PostfixOp) => {
+                    let post_op = self.lpop();
+                    let obj = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
+                    stack.push(ExprOrOp::Expr(obj.postfix_expr(post_op)));
+                }
                 Some(op) if op.category_is(TC::DefOp) => {
                     let op = self.lpop();
                     let is_multiline_block = self.cur_is(Newline);
@@ -1399,6 +1404,11 @@ impl Parser {
         ));
         loop {
             match self.peek() {
+                Some(post_op) if post_op.category_is(TokenCategory::PostfixOp) => {
+                    let post_op = self.lpop();
+                    let obj = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
+                    stack.push(ExprOrOp::Expr(obj.postfix_expr(post_op)));
+                }
                 Some(op) if op.category_is(TC::LambdaOp) => {
                     let op = self.lpop();
                     let is_multiline_block = self.cur_is(Newline);
@@ -1703,11 +1713,11 @@ impl Parser {
                 Ok(call_or_acc)
             }
             Some(t) if t.category_is(TC::UnaryOp) => {
-                let unaryop = self
-                    .try_reduce_unary()
+                let prefixop = self
+                    .try_reduce_prefix()
                     .map_err(|_| self.stack_dec(fn_name!()))?;
                 debug_exit_info!(self);
-                Ok(Expr::UnaryOp(unaryop))
+                Ok(Expr::PrefixOp(prefixop))
             }
             Some(t) if t.is(LParen) => {
                 let lparen = self.lpop();
@@ -1964,14 +1974,14 @@ impl Parser {
     }
 
     #[inline]
-    fn try_reduce_unary(&mut self) -> ParseResult<UnaryOp> {
+    fn try_reduce_prefix(&mut self) -> ParseResult<PrefixOp> {
         debug_call_info!(self);
         let op = self.lpop();
         let expr = self
             .try_reduce_expr(false, false, false, false)
             .map_err(|_| self.stack_dec(fn_name!()))?;
         debug_exit_info!(self);
-        Ok(UnaryOp::new(op, expr))
+        Ok(PrefixOp::new(op, expr))
     }
 
     #[inline]
@@ -2361,16 +2371,16 @@ impl Parser {
         debug_call_info!(self);
         let mut args = match first_elem {
             PosOrKwArg::Pos(PosArg {
-                expr: Expr::UnaryOp(unary),
-            }) if unary.op.is(PreStar) => {
-                let var_args = Some(PosArg::new(unary.deconstruct().1));
+                expr: Expr::PrefixOp(prefix),
+            }) if prefix.op.is(PreStar) => {
+                let var_args = Some(PosArg::new(prefix.deconstruct().1));
                 Args::new(vec![], var_args, vec![], None)
             }
             PosOrKwArg::Pos(PosArg {
                 expr: Expr::TypeAscription(TypeAscription { expr, op, t_spec }),
-            }) if matches!(expr.as_ref(), Expr::UnaryOp(unary) if unary.op.is(PreStar)) => {
-                let Expr::UnaryOp(unary) = *expr else { unreachable!() };
-                let expr = unary.deconstruct().1;
+            }) if matches!(expr.as_ref(), Expr::PrefixOp(prefix) if prefix.op.is(PreStar)) => {
+                let Expr::PrefixOp(prefix) = *expr else { unreachable!() };
+                let expr = prefix.deconstruct().1;
                 let var_args = Some(PosArg::new(expr.type_asc_expr(op, t_spec)));
                 Args::new(vec![], var_args, vec![], None)
             }
@@ -2399,13 +2409,13 @@ impl Parser {
                     {
                         PosOrKwArg::Pos(arg) if args.kw_is_empty() && args.var_args.is_none() => {
                             match arg.expr {
-                                Expr::UnaryOp(unary) if unary.op.is(PreStar) => {
-                                    args.set_var_args(PosArg::new(unary.deconstruct().1));
+                                Expr::PrefixOp(prefix) if prefix.op.is(PreStar) => {
+                                    args.set_var_args(PosArg::new(prefix.deconstruct().1));
                                 }
-                                Expr::TypeAscription(TypeAscription { expr, op, t_spec }) if matches!(expr.as_ref(), Expr::UnaryOp(unary) if unary.op.is(PreStar)) =>
+                                Expr::TypeAscription(TypeAscription { expr, op, t_spec }) if matches!(expr.as_ref(), Expr::PrefixOp(prefix) if prefix.op.is(PreStar)) =>
                                 {
-                                    let Expr::UnaryOp(unary) = *expr else { unreachable!() };
-                                    let expr = unary.deconstruct().1;
+                                    let Expr::PrefixOp(prefix) = *expr else { unreachable!() };
+                                    let expr = prefix.deconstruct().1;
                                     args.set_var_args(PosArg::new(expr.type_asc_expr(op, t_spec)));
                                 }
                                 Expr::Tuple(Tuple::Normal(tup)) if tup.elems.paren.is_none() => {

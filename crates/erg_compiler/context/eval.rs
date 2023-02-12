@@ -200,7 +200,7 @@ impl Context {
         self.eval_bin(op, lhs, rhs)
     }
 
-    fn eval_const_unary(&self, unary: &UnaryOp) -> EvalResult<ValueObj> {
+    fn eval_const_unary(&self, unary: &PrefixOp) -> EvalResult<ValueObj> {
         let val = self.eval_const_expr(&unary.args[0])?;
         let op = self.try_get_op_kind_from_token(&unary.op)?;
         self.eval_unary_val(op, val)
@@ -526,7 +526,7 @@ impl Context {
             Expr::Literal(lit) => self.eval_lit(lit),
             Expr::Accessor(acc) => self.eval_const_acc(acc),
             Expr::BinOp(bin) => self.eval_const_bin(bin),
-            Expr::UnaryOp(unary) => self.eval_const_unary(unary),
+            Expr::PrefixOp(unary) => self.eval_const_unary(unary),
             Expr::Call(call) => self.eval_const_call(call),
             Expr::Array(arr) => self.eval_const_array(arr),
             Expr::Set(set) => self.eval_const_set(set),
@@ -556,7 +556,7 @@ impl Context {
             Expr::Literal(lit) => self.eval_lit(lit),
             Expr::Accessor(acc) => self.eval_const_acc(acc),
             Expr::BinOp(bin) => self.eval_const_bin(bin),
-            Expr::UnaryOp(unary) => self.eval_const_unary(unary),
+            Expr::PrefixOp(unary) => self.eval_const_unary(unary),
             Expr::Call(call) => self.eval_const_call(call),
             Expr::Array(arr) => self.eval_const_array(arr),
             Expr::Set(set) => self.eval_const_set(set),

@@ -10,7 +10,7 @@ use erg_common::traits::{Locational, Runnable};
 use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::erg_parser::ast::{
     Accessor, Args, BinOp, Block, Call, ClassAttr, Def, DefKind, Expr, Methods, Params,
-    PreDeclTypeSpec, SimpleTypeSpec, TypeSpec, UnaryOp, AST,
+    PreDeclTypeSpec, PrefixOp, SimpleTypeSpec, TypeSpec, AST,
 };
 use erg_compiler::erg_parser::token::TokenKind;
 use erg_compiler::ASTBuilder;
@@ -156,7 +156,7 @@ impl ASTSemanticState {
             Expr::Accessor(acc) => self.gen_from_acc(acc),
             Expr::Call(call) => self.gen_from_call(call),
             Expr::BinOp(bin) => self.gen_from_bin(bin),
-            Expr::UnaryOp(unary) => self.gen_from_unary(unary),
+            Expr::PrefixOp(unary) => self.gen_from_unary(unary),
             _ => vec![],
         }
     }
@@ -249,7 +249,7 @@ impl ASTSemanticState {
         tokens
     }
 
-    fn gen_from_unary(&mut self, unary: UnaryOp) -> Vec<SemanticToken> {
+    fn gen_from_unary(&mut self, unary: PrefixOp) -> Vec<SemanticToken> {
         let mut tokens = vec![self.gen_token(unary.op.loc(), SemanticTokenType::OPERATOR)];
         let mut args = unary.args.into_iter();
         tokens.extend(self.gen_from_expr(*args.next().unwrap()));

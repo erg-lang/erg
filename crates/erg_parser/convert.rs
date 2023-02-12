@@ -446,9 +446,9 @@ impl Parser {
                 debug_exit_info!(self);
                 Ok(param)
             }
-            Expr::UnaryOp(unary) => match unary.op.kind {
+            Expr::PrefixOp(prefix) => match prefix.op.kind {
                 TokenKind::RefOp => {
-                    let var = unary.args.into_iter().next().unwrap();
+                    let var = prefix.args.into_iter().next().unwrap();
                     let var = option_enum_unwrap!(*var, Expr::Accessor:(Accessor::Ident:(_)))
                         .unwrap_or_else(|| todo!());
                     let pat = ParamPattern::Ref(var.name);
@@ -457,7 +457,7 @@ impl Parser {
                     Ok(param)
                 }
                 TokenKind::RefMutOp => {
-                    let var = unary.args.into_iter().next().unwrap();
+                    let var = prefix.args.into_iter().next().unwrap();
                     let var = option_enum_unwrap!(*var, Expr::Accessor:(Accessor::Ident:(_)))
                         .unwrap_or_else(|| todo!());
                     let pat = ParamPattern::RefMut(var.name);
@@ -467,7 +467,7 @@ impl Parser {
                 }
                 // TODO: Spread
                 _other => {
-                    let err = ParseError::simple_syntax_error(line!() as usize, unary.loc());
+                    let err = ParseError::simple_syntax_error(line!() as usize, prefix.loc());
                     self.errs.push(err);
                     debug_exit_info!(self);
                     Err(())
@@ -652,9 +652,9 @@ impl Parser {
                 debug_exit_info!(self);
                 Ok(sig)
             }
-            Expr::UnaryOp(unary) => match unary.op.kind {
+            Expr::PrefixOp(prefix) => match prefix.op.kind {
                 TokenKind::PreStar => {
-                    let mut exprs = unary.args.into_iter();
+                    let mut exprs = prefix.args.into_iter();
                     let param = self
                         .convert_rhs_to_param(*exprs.next().unwrap(), false)
                         .map_err(|_| self.stack_dec(fn_name!()))?;
@@ -663,7 +663,7 @@ impl Parser {
                     Ok(LambdaSignature::new(params, None, TypeBoundSpecs::empty()))
                 }
                 _ => {
-                    let err = ParseError::simple_syntax_error(line!() as usize, unary.op.loc());
+                    let err = ParseError::simple_syntax_error(line!() as usize, prefix.op.loc());
                     self.errs.push(err);
                     debug_exit_info!(self);
                     Err(())

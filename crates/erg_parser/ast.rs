@@ -1037,27 +1037,27 @@ impl BinOp {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct UnaryOp {
+pub struct PrefixOp {
     pub op: Token,
     pub args: [Box<Expr>; 1],
 }
 
-impl NestedDisplay for UnaryOp {
+impl NestedDisplay for PrefixOp {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
         writeln!(f, "`{}`:", self.op.content)?;
         self.args[0].fmt_nest(f, level + 1)
     }
 }
 
-impl_display_from_nested!(UnaryOp);
+impl_display_from_nested!(PrefixOp);
 
-impl Locational for UnaryOp {
+impl Locational for PrefixOp {
     fn loc(&self) -> Location {
         Location::concat(&self.op, self.args[0].as_ref())
     }
 }
 
-impl UnaryOp {
+impl PrefixOp {
     pub fn new(op: Token, expr: Expr) -> Self {
         Self {
             op,
@@ -1068,6 +1068,41 @@ impl UnaryOp {
     pub fn deconstruct(self) -> (Token, Expr) {
         let mut exprs = self.args.into_iter();
         (self.op, *exprs.next().unwrap())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct PostfixOp {
+    pub op: Token,
+    pub args: [Box<Expr>; 1],
+}
+
+impl NestedDisplay for PostfixOp {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
+        self.args[0].fmt_nest(f, level + 1)?;
+        writeln!(f, "{}", self.op.content)
+    }
+}
+
+impl_display_from_nested!(PostfixOp);
+
+impl Locational for PostfixOp {
+    fn loc(&self) -> Location {
+        Location::concat(self.args[0].as_ref(), &self.op)
+    }
+}
+
+impl PostfixOp {
+    pub fn new(expr: Expr, op: Token) -> Self {
+        Self {
+            op,
+            args: [Box::new(expr)],
+        }
+    }
+
+    pub fn deconstruct(self) -> (Expr, Token) {
+        let mut exprs = self.args.into_iter();
+        (*exprs.next().unwrap(), self.op)
     }
 }
 
@@ -1562,8 +1597,8 @@ impl ConstUnaryOp {
         }
     }
 
-    pub fn downcast(self) -> UnaryOp {
-        UnaryOp::new(self.op, self.expr.downcast())
+    pub fn downcast(self) -> PrefixOp {
+        PrefixOp::new(self.op, self.expr.downcast())
     }
 }
 
@@ -1636,7 +1671,7 @@ impl ConstExpr {
             // Self::Set(set) => Expr::Set(set.downcast()),
             // Self::Dict(dict) => Expr::Dict(dict.downcast()),
             Self::BinOp(binop) => Expr::BinOp(binop.downcast()),
-            Self::UnaryOp(unop) => Expr::UnaryOp(unop.downcast()),
+            Self::UnaryOp(unop) => Expr::PrefixOp(unop.downcast()),
             _ => todo!(),
         }
     }
@@ -3717,7 +3752,8 @@ pub enum Expr {
     Set(Set),
     Record(Record),
     BinOp(BinOp),
-    UnaryOp(UnaryOp),
+    PrefixOp(PrefixOp),
+    PostfixOp(PostfixOp),
     Call(Call),
     DataPack(DataPack),
     Lambda(Lambda),
@@ -3731,10 +3767,10 @@ pub enum Expr {
     Dummy(Dummy),
 }
 
-impl_nested_display_for_chunk_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Dummy);
-impl_from_trait_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Dummy);
+impl_nested_display_for_chunk_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, PrefixOp, PostfixOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Dummy);
+impl_from_trait_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, PrefixOp, PostfixOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Dummy);
 impl_display_from_nested!(Expr);
-impl_locational_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Dummy);
+impl_locational_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, PrefixOp, PostfixOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Dummy);
 
 impl Expr {
     pub fn is_match_call(&self) -> bool {
@@ -3759,7 +3795,7 @@ impl Expr {
     pub fn need_to_be_closed(&self) -> bool {
         matches!(
             self,
-            Expr::BinOp(_) | Expr::UnaryOp(_) | Expr::Lambda(_) | Expr::TypeAscription(_)
+            Expr::BinOp(_) | Expr::PrefixOp(_) | Expr::Lambda(_) | Expr::TypeAscription(_)
         )
     }
 
@@ -3824,6 +3860,10 @@ impl Expr {
 
     pub fn call_expr(self, args: Args) -> Self {
         Self::Call(self.call(args))
+    }
+
+    pub fn postfix_expr(self, op: Token) -> Self {
+        Self::PostfixOp(PostfixOp::new(self, op))
     }
 
     pub fn type_asc(self, op: Token, t_spec: TypeSpec) -> TypeAscription {

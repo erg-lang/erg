@@ -11,7 +11,7 @@ use erg_common::traits::{Locational, Runnable, Stream};
 use erg_common::{debug_power_assert, fn_name_full, normalize_newline, switch_lang};
 
 use crate::error::{LexError, LexErrors, LexResult, LexerRunnerError, LexerRunnerErrors};
-use crate::token::{Token, TokenCategory, TokenKind, TokenStream};
+use crate::token::{Token, TokenKind, TokenStream};
 use TokenKind::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -292,32 +292,29 @@ impl Lexer /*<'a>*/ {
         )
     }
 
+    fn is_right_disconnective(s: char) -> bool {
+        matches!(s, ')' | ']' | '}' | ',' | ':' | ';' | '\n' | '>' | '=')
+    }
+
     // +, -, * etc. may be pre/bin
     // and, or, is!, isnot!, in, notin, as, dot, cross may be bin/function
+    // None means invalid syntax
     fn op_fix(&self) -> Option<OpFix> {
-        match self.prev_token.category() {
-            // unary: `[ +`, `= +`, `+ +`, `, +`, `:: +`
-            TokenCategory::LEnclosure
-            | TokenCategory::BinOp
-            | TokenCategory::UnaryOp
-            | TokenCategory::Separator
-            | TokenCategory::SpecialBinOp
-            | TokenCategory::DefOp
-            | TokenCategory::LambdaOp
-            | TokenCategory::StrInterpLeft
-            | TokenCategory::StrInterpMid
-            | TokenCategory::BOF => Some(OpFix::Prefix),
-            TokenCategory::REnclosure
-            | TokenCategory::Literal
-            | TokenCategory::StrInterpRight
-            | TokenCategory::Symbol => match (self.peek_prev_prev_ch(), self.peek_cur_ch()) {
+        let left_disconnective = self.prev_token.category().is_left_disconnective();
+        let right_disconnective = self
+            .peek_cur_ch()
+            .map_or(false, Self::is_right_disconnective);
+        match (left_disconnective, right_disconnective) {
+            (true, true) => None,
+            (true, false) => Some(OpFix::Prefix),
+            (false, true) => Some(OpFix::Postfix),
+            (false, false) => match (self.peek_prev_prev_ch(), self.peek_cur_ch()) {
                 (Some(' '), Some(' ')) => Some(OpFix::Infix), // x + 1: bin
                 (Some(' '), Some(_)) => Some(OpFix::Prefix),  // x +1: unary
                 (Some(_), Some(' ')) => Some(OpFix::Infix),   // x+ 1 : bin
                 (Some(_), Some(_)) => Some(OpFix::Infix),     // x+1: bin
                 _ => None,
             },
-            _ => None,
         }
     }
 
@@ -1207,7 +1204,15 @@ impl Iterator for Lexer /*<'a>*/ {
                             self.consume();
                             self.accept(EllipsisLit, "...")
                         }
-                        _ => self.accept(Closed, ".."),
+                        _ => match self.op_fix() {
+                            Some(OpFix::Prefix) => self.accept(PreRange, ".."),
+                            Some(OpFix::Infix) => self.accept(Closed, ".."),
+                            Some(OpFix::Postfix) => self.accept(PostRange, ".."),
+                            _ => {
+                                let token = self.emit_token(Illegal, "..");
+                                Some(Err(LexError::simple_syntax_error(0, token.loc())))
+                            }
+                        },
                     }
                 }
                 // prev_token is Symbol => TupleAttribute
