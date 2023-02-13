@@ -261,13 +261,16 @@ impl Context {
             // Literal patterns will be desugared to discard patterns
             ast::ParamPattern::Lit(_) => unreachable!(),
             ast::ParamPattern::Discard(token) => {
-                let spec_t = self.instantiate_param_sig_t(
+                let (spec_t, errs) = match self.instantiate_param_sig_t(
                     &sig.raw,
                     opt_decl_t,
                     &mut TyVarCache::new(self.level, self),
                     Normal,
                     kind,
-                )?;
+                ) {
+                    Ok(ty) => (ty, TyCheckErrors::empty()),
+                    Err(errs) => (Type::Failure, errs),
+                };
                 let def_id = DefId(get_hash(&(&self.name, "_")));
                 let kind = VarKind::parameter(def_id, DefaultInfo::NonDefault);
                 let vi = VarInfo::new(
@@ -282,7 +285,11 @@ impl Context {
                 );
                 sig.vi = vi.clone();
                 self.params.push((Some(VarName::from_static("_")), vi));
-                Ok(())
+                if errs.is_empty() {
+                    Ok(())
+                } else {
+                    Err(errs)
+                }
             }
             ast::ParamPattern::VarName(name) => {
                 if self
@@ -299,13 +306,16 @@ impl Context {
                 } else {
                     // ok, not defined
                     let mut dummy_tv_cache = TyVarCache::new(self.level, self);
-                    let spec_t = self.instantiate_param_sig_t(
+                    let (spec_t, mut errs) = match self.instantiate_param_sig_t(
                         &sig.raw,
                         opt_decl_t,
                         &mut dummy_tv_cache,
                         Normal,
                         kind,
-                    )?;
+                    ) {
+                        Ok(ty) => (ty, TyCheckErrors::empty()),
+                        Err(errs) => (Type::Failure, errs),
+                    };
                     let spec_t = if is_var_params {
                         unknown_len_array_t(spec_t)
                     } else {
@@ -313,7 +323,11 @@ impl Context {
                     };
                     if &name.inspect()[..] == "self" {
                         if let Some(self_t) = self.rec_get_self_t() {
-                            self.sub_unify(&spec_t, &self_t, name.loc(), Some(name.inspect()))?;
+                            if let Err(es) =
+                                self.sub_unify(&spec_t, &self_t, name.loc(), Some(name.inspect()))
+                            {
+                                errs.extend(es);
+                            }
                         } else {
                             log!(err "self_t is None");
                         }
@@ -336,7 +350,11 @@ impl Context {
                     }
                     sig.vi = vi.clone();
                     self.params.push((Some(name.clone()), vi));
-                    Ok(())
+                    if errs.is_empty() {
+                        Ok(())
+                    } else {
+                        Err(errs)
+                    }
                 }
             }
             ast::ParamPattern::Ref(name) => {
@@ -354,21 +372,26 @@ impl Context {
                 } else {
                     // ok, not defined
                     let mut dummy_tv_cache = TyVarCache::new(self.level, self);
-                    let spec_t = self.instantiate_param_sig_t(
+                    let (spec_t, mut errs) = match self.instantiate_param_sig_t(
                         &sig.raw,
                         opt_decl_t,
                         &mut dummy_tv_cache,
                         Normal,
                         kind,
-                    )?;
+                    ) {
+                        Ok(ty) => (ty, TyCheckErrors::empty()),
+                        Err(errs) => (Type::Failure, errs),
+                    };
                     if &name.inspect()[..] == "self" {
                         if let Some(self_t) = self.rec_get_self_t() {
-                            self.sub_unify(
+                            if let Err(es) = self.sub_unify(
                                 &spec_t,
                                 &ref_(self_t),
                                 name.loc(),
                                 Some(name.inspect()),
-                            )?;
+                            ) {
+                                errs.extend(es);
+                            }
                         } else {
                             log!(err "self_t is None");
                         }
@@ -386,7 +409,11 @@ impl Context {
                     );
                     sig.vi = vi.clone();
                     self.params.push((Some(name.clone()), vi));
-                    Ok(())
+                    if errs.is_empty() {
+                        Ok(())
+                    } else {
+                        Err(errs)
+                    }
                 }
             }
             ast::ParamPattern::RefMut(name) => {
@@ -404,21 +431,26 @@ impl Context {
                 } else {
                     // ok, not defined
                     let mut dummy_tv_cache = TyVarCache::new(self.level, self);
-                    let spec_t = self.instantiate_param_sig_t(
+                    let (spec_t, mut errs) = match self.instantiate_param_sig_t(
                         &sig.raw,
                         opt_decl_t,
                         &mut dummy_tv_cache,
                         Normal,
                         kind,
-                    )?;
+                    ) {
+                        Ok(ty) => (ty, TyCheckErrors::empty()),
+                        Err(errs) => (Type::Failure, errs),
+                    };
                     if &name.inspect()[..] == "self" {
                         if let Some(self_t) = self.rec_get_self_t() {
-                            self.sub_unify(
+                            if let Err(es) = self.sub_unify(
                                 &spec_t,
                                 &ref_mut(self_t, None),
                                 name.loc(),
                                 Some(name.inspect()),
-                            )?;
+                            ) {
+                                errs.extend(es);
+                            }
                         } else {
                             log!(err "self_t is None");
                         }
@@ -436,7 +468,11 @@ impl Context {
                     );
                     sig.vi = vi.clone();
                     self.params.push((Some(name.clone()), vi));
-                    Ok(())
+                    if errs.is_empty() {
+                        Ok(())
+                    } else {
+                        Err(errs)
+                    }
                 }
             }
             other => {
@@ -1045,7 +1081,7 @@ impl Context {
                     if let Some(sup) =
                         self.rec_get_const_obj(&gen.base_or_sup().unwrap().typ().local_name())
                     {
-                        let sup = enum_unwrap!(sup, ValueObj::Type);
+                        let ValueObj::Type(sup) = sup else { todo!("{sup}") };
                         let param_t = match sup {
                             TypeObj::Builtin(t) => t,
                             TypeObj::Generated(t) => t.base_or_sup().unwrap().typ(),
@@ -1086,7 +1122,7 @@ impl Context {
                         2,
                         self.level,
                     );
-                    let req = enum_unwrap!(gen.base_or_sup().unwrap(), TypeObj::Builtin:(Type::Record:(_)));
+                    let Some(TypeObj::Builtin(Type::Record(req))) = gen.base_or_sup() else { todo!("{gen}") };
                     for (field, t) in req.iter() {
                         let muty = if field.is_const() {
                             Mutability::Const
@@ -1162,7 +1198,7 @@ impl Context {
             }
             GenTypeObj::Patch(_) => {
                 if gen.typ().is_monomorphic() {
-                    let base = enum_unwrap!(gen.base_or_sup().unwrap(), TypeObj::Builtin);
+                    let Some(TypeObj::Builtin(base)) = gen.base_or_sup() else { todo!("{gen}") };
                     let ctx = Self::mono_patch(
                         gen.typ().qual_name(),
                         base.clone(),
@@ -1356,7 +1392,7 @@ impl Context {
     }
 
     fn import_erg_mod(&self, mod_name: &Literal) -> CompileResult<PathBuf> {
-        let __name__ = enum_unwrap!(mod_name.value.clone(), ValueObj::Str);
+        let ValueObj::Str(__name__) = mod_name.value.clone() else { todo!("{mod_name}") };
         let mod_cache = self.mod_cache().unwrap();
         let py_mod_cache = self.py_mod_cache().unwrap();
         let path = match Self::resolve_real_path(&self.cfg, Path::new(&__name__[..])) {
@@ -1514,7 +1550,7 @@ impl Context {
     }
 
     fn import_py_mod(&self, mod_name: &Literal) -> CompileResult<PathBuf> {
-        let __name__ = enum_unwrap!(mod_name.value.clone(), ValueObj::Str);
+        let ValueObj::Str(__name__) = mod_name.value.clone() else { todo!("{mod_name}") };
         let py_mod_cache = self.py_mod_cache().unwrap();
         let path = self.get_path(mod_name, __name__)?;
         if py_mod_cache.get(&path).is_some() {
@@ -1586,12 +1622,7 @@ impl Context {
             RegistrationMode::Normal,
             false,
         )?;
-        let lhs = enum_unwrap!(
-            call.args.get_mut_left_or_key("pred").unwrap(),
-            hir::Expr::BinOp
-        )
-        .lhs
-        .as_mut();
+        let Some(hir::Expr::BinOp(hir::BinOp { lhs, .. })) = call.args.get_mut_left_or_key("pred") else { todo!("{}", call.args) };
         match (
             self.supertype_of(lhs.ref_t(), &cast_to),
             self.subtype_of(lhs.ref_t(), &cast_to),
@@ -1602,7 +1633,7 @@ impl Context {
             (false, true) => Ok(()), // TODO: warn (needless)
             // assert x in Nat (x: Int)
             (true, false) => {
-                if let hir::Expr::Accessor(ref acc) = lhs {
+                if let hir::Expr::Accessor(ref acc) = lhs.as_ref() {
                     self.change_var_type(acc, cast_to.clone())?;
                 }
                 match lhs.ref_t() {

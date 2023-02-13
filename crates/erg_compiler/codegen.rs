@@ -2195,12 +2195,17 @@ impl PyCodeGenerator {
     }
 
     /// X.update! x -> x + 1
-    /// X = (x -> x + 1)(X)
-    /// X = X + 1
+    /// => X = mutate_operator((x -> x + 1)(X))
+    /// TODO: should be `X = X + 1` in the above case
     fn emit_call_update_311(&mut self, obj: Expr, mut args: Args) {
         log!(info "entered {}", fn_name!());
         let acc = enum_unwrap!(obj, Expr::Accessor);
         let func = args.remove_left_or_key("f").unwrap();
+        if !self.mutate_op_loaded {
+            self.load_mutate_op();
+        }
+        self.emit_push_null();
+        self.emit_load_name_instr(Identifier::private("#mutate_operator"));
         self.emit_push_null();
         self.emit_expr(func);
         self.emit_acc(acc.clone());
@@ -2208,23 +2213,32 @@ impl PyCodeGenerator {
         // (1 (subroutine) + argc) input objects -> 1 return object
         // self.stack_dec_n((1 + 1) - 1);
         self.stack_dec();
+        self.emit_precall_and_call(1);
+        self.stack_dec();
         self.store_acc(acc);
         self.emit_load_const(ValueObj::None);
     }
 
     /// X.update! x -> x + 1
-    /// X = (x -> x + 1)(X)
+    /// X = mutate_operator((x -> x + 1)(X))
     /// X = X + 1
     fn emit_call_update_310(&mut self, obj: Expr, mut args: Args) {
         log!(info "entered {}", fn_name!());
         let acc = enum_unwrap!(obj, Expr::Accessor);
         let func = args.remove_left_or_key("f").unwrap();
+        if !self.mutate_op_loaded {
+            self.load_mutate_op();
+        }
+        self.emit_load_name_instr(Identifier::private("#mutate_operator"));
         self.emit_expr(func);
         self.emit_acc(acc.clone());
         self.write_instr(Opcode310::CALL_FUNCTION);
         self.write_arg(1);
         // (1 (subroutine) + argc) input objects -> 1 return object
         self.stack_dec_n((1 + 1) - 1);
+        self.write_instr(Opcode310::CALL_FUNCTION);
+        self.write_arg(1);
+        self.stack_dec();
         self.store_acc(acc);
         self.emit_load_const(ValueObj::None);
     }

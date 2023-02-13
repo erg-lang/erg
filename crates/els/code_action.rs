@@ -38,7 +38,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
             .filter(|warn| warn.core.main_message.ends_with("is not used"))
             .collect::<Vec<_>>();
         for warn in warns {
-            let range = util::loc_to_range(warn.core.loc).unwrap();
+            let Some(range) = util::loc_to_range(warn.core.loc) else {
+                continue;
+            };
             match visitor.get_min_expr(range) {
                 Some(Expr::Def(def)) => {
                     let Some(mut range) = util::loc_to_range(def.loc()) else {

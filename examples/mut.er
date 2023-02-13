@@ -1,4 +1,5 @@
-i = !1
+i = !0
+i.update! _ -> 1
 i.update! i -> i * 3
 assert i == 3
 

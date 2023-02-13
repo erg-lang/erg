@@ -1017,28 +1017,45 @@ impl ASTLowerer {
             }
             errs
         })?;
+        // suppress warns of lambda types, e.g. `(x: Int, y: Int) -> Int`
+        if self.module.context.subtype_of(body.ref_t(), &Type::Type) {
+            for param in params.non_defaults.iter() {
+                self.inc_ref(&param.vi, param);
+            }
+            if let Some(var_param) = params.var_params.as_deref() {
+                self.inc_ref(&var_param.vi, var_param);
+            }
+            for default in params.defaults.iter() {
+                self.inc_ref(&default.sig.vi, &default.sig);
+            }
+        }
         let (non_default_params, default_params): (Vec<_>, Vec<_>) = self
             .module
             .context
             .params
             .iter()
-            .partition(|(_, v)| !v.kind.has_default());
-        let non_default_params = non_default_params
-            .into_iter()
-            // necessary when `py_compatible` feature is enabled
-            .filter(|(name, _)| {
-                params
-                    .non_defaults
-                    .iter()
-                    .any(|nd| nd.name() == name.as_ref())
-            })
+            .partition(|(_, vi)| !vi.kind.has_default());
+        #[cfg(not(feature = "py_compatible"))]
+        let non_default_params = non_default_params.into_iter();
+        #[cfg(feature = "py_compatible")]
+        let non_default_params = non_default_params.into_iter().filter(|(name, _)| {
+            params
+                .non_defaults
+                .iter()
+                .any(|nd| nd.name() == name.as_ref())
+        });
+        let non_default_param_tys = non_default_params
             .map(|(name, vi)| {
                 ParamTy::pos(name.as_ref().map(|n| n.inspect().clone()), vi.t.clone())
             })
             .collect();
+        #[cfg(not(feature = "py_compatible"))]
+        let default_params = default_params.into_iter();
+        #[cfg(feature = "py_compatible")]
         let default_params = default_params
             .into_iter()
-            .filter(|(name, _)| params.defaults.iter().any(|d| d.name() == name.as_ref()))
+            .filter(|(name, _)| params.defaults.iter().any(|d| d.name() == name.as_ref()));
+        let default_param_tys = default_params
             .map(|(name, vi)| ParamTy::kw(name.as_ref().unwrap().inspect().clone(), vi.t.clone()))
             .collect();
         if in_statement {
@@ -1062,9 +1079,9 @@ impl ASTLowerer {
             self.pop_append_errs();
         }
         let ty = if is_procedural {
-            proc(non_default_params, None, default_params, body.t())
+            proc(non_default_param_tys, None, default_param_tys, body.t())
         } else {
-            func(non_default_params, None, default_params, body.t())
+            func(non_default_param_tys, None, default_param_tys, body.t())
         };
         let t = if ty.has_qvar() { ty.quantify() } else { ty };
         Ok(hir::Lambda::new(id, params, lambda.op, body, t))

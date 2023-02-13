@@ -555,7 +555,8 @@ impl<'a> HIRVisitor<'a> {
     }
 
     fn get_lambda_info(&self, lambda: &Lambda, token: &Token) -> Option<VarInfo> {
-        self.get_block_info(&lambda.body, token)
+        self.get_params_info(&lambda.params, token)
+            .or_else(|| self.get_block_info(&lambda.body, token))
     }
 
     fn get_array_info(&self, arr: &Array, token: &Token) -> Option<VarInfo> {
@@ -583,7 +584,7 @@ impl<'a> HIRVisitor<'a> {
 
     fn get_record_info(&self, record: &Record, token: &Token) -> Option<VarInfo> {
         for field in record.attrs.iter() {
-            if let Some(expr) = self.get_block_info(&field.body.block, token) {
+            if let Some(expr) = self.get_def_info(field, token) {
                 return Some(expr);
             }
         }
