@@ -128,6 +128,18 @@ pub enum Input {
     Dummy,
 }
 
+impl From<PathBuf> for Input {
+    fn from(path: PathBuf) -> Self {
+        Self::File(path)
+    }
+}
+
+impl From<&Path> for Input {
+    fn from(path: &Path) -> Self {
+        Self::File(path.to_path_buf())
+    }
+}
+
 impl Input {
     pub const fn is_repl(&self) -> bool {
         matches!(self, Input::REPL(_) | Input::DummyREPL(_))

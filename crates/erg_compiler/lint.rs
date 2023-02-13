@@ -169,8 +169,12 @@ impl ASTLowerer {
                 let name = code.as_ref().map(|s| &s[..]).unwrap_or("");
                 let name_is_auto = name == "_"; // || name.starts_with(['%']);
                 if value.referrers.is_empty() && value.vi.vis.is_private() && !name_is_auto {
+                    let input = referee
+                        .module
+                        .as_ref()
+                        .map_or(self.input().clone(), |path| path.as_path().into());
                     let warn = LowerWarning::unused_warning(
-                        self.input().clone(),
+                        input,
                         line!() as usize,
                         referee.loc,
                         name,

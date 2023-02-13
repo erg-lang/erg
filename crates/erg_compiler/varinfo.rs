@@ -85,7 +85,7 @@ impl fmt::Display for AbsLocation {
         if let Some(module) = &self.module {
             write!(f, "{}@{}", module.display(), self.loc)
         } else {
-            write!(f, "{}", self.loc)
+            write!(f, "?@{}", self.loc)
         }
     }
 }

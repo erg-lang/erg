@@ -1,6 +1,6 @@
 use erg_common::config::ErgConfig;
 use erg_common::error::MultiErrorDisplay;
-use erg_common::traits::Runnable;
+use erg_common::traits::{Runnable, Stream};
 use erg_common::Str;
 
 use erg_parser::ast::{VarName, AST};
@@ -126,17 +126,17 @@ impl HIRBuilder {
     }
 
     pub fn check(&mut self, ast: AST, mode: &str) -> Result<CompleteArtifact, IncompleteArtifact> {
-        let artifact = self.lowerer.lower(ast, mode)?;
+        let mut artifact = self.lowerer.lower(ast, mode)?;
         let effect_checker = SideEffectChecker::new(self.cfg().clone());
         let hir = effect_checker
             .check(artifact.object)
             .map_err(|(hir, errs)| {
                 self.lowerer.module.context.clear_invalid_vars();
-                IncompleteArtifact::new(Some(hir), errs, artifact.warns.clone())
+                IncompleteArtifact::new(Some(hir), errs, artifact.warns.take_all().into())
             })?;
         let hir = self.ownership_checker.check(hir).map_err(|(hir, errs)| {
             self.lowerer.module.context.clear_invalid_vars();
-            IncompleteArtifact::new(Some(hir), errs, artifact.warns.clone())
+            IncompleteArtifact::new(Some(hir), errs, artifact.warns.take_all().into())
         })?;
         Ok(CompleteArtifact::new(hir, artifact.warns))
     }

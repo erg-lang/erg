@@ -330,6 +330,7 @@ pub struct Context {
     pub(crate) patches: Dict<VarName, Context>,
     pub(crate) shared: Option<SharedCompilerResource>,
     pub(crate) tv_cache: Option<TyVarCache>,
+    // for pylyzer, ignore this
     pub(crate) higher_order_caller: Vec<Str>,
     pub(crate) level: usize,
 }
