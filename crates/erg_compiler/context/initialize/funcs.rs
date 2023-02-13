@@ -39,9 +39,9 @@ impl Context {
         );
         let t_ascii = nd_func(vec![kw(KW_OBJECT, Obj)], None, Str);
         let t_assert = func(
-            vec![kw(KW_CONDITION, Bool)],
+            vec![kw(KW_TEST, Bool)],
             None,
-            vec![kw(KW_ERR_MESSAGE, Str)],
+            vec![kw(KW_MSG, Str)],
             NoneType,
         );
         let t_bin = nd_func(vec![kw(KW_N, Int)], None, Str);
@@ -60,7 +60,7 @@ impl Context {
         let t_compile = nd_func(vec![kw(KW_SRC, Str)], None, Code);
         let t_cond = nd_func(
             vec![
-                kw(KW_CONDITION, Bool),
+                kw(KW_TEST, Bool),
                 kw(KW_THEN, T.clone()),
                 kw(KW_ELSE, T.clone()),
             ],
@@ -160,7 +160,7 @@ impl Context {
         let t_not = nd_func(vec![kw(KW_B, B.clone())], None, B).quantify();
         let t_oct = nd_func(vec![kw(KW_X, Int)], None, Str);
         let t_ord = nd_func(vec![kw(KW_C, Str)], None, Nat);
-        let t_panic = nd_func(vec![kw(KW_ERR_MESSAGE, Str)], None, Never);
+        let t_panic = nd_func(vec![kw(KW_MSG, Str)], None, Never);
         let M = mono_q(TY_M, Constraint::Uninited);
         let M = mono_q(TY_M, subtypeof(poly(MUL, vec![ty_tp(M)])));
         // TODO: mod
