@@ -271,6 +271,10 @@ impl<'a> HIRVisitor<'a> {
     }
 
     fn get_call_t(&self, call: &Call, token: &Token) -> Option<Type> {
+        if call.args.paren.is_some() && call.ln_end() == token.ln_end() {
+            // call: `f(x)`, token: `)`
+            return Some(call.t());
+        }
         if let Some(attr) = &call.attr_name {
             if let Some(t) = self.return_expr_t_if_same(attr, attr.name.token(), token) {
                 return Some(t);
@@ -355,6 +359,10 @@ impl<'a> HIRVisitor<'a> {
     }
 
     fn get_array_t(&self, arr: &Array, token: &Token) -> Option<Type> {
+        if arr.ln_end() == token.ln_end() {
+            // arr: `[1, 2]`, token: `]`
+            return Some(arr.t());
+        }
         match arr {
             Array::Normal(arr) => self.get_args_t(&arr.elems, token),
             _ => None, // todo!(),
@@ -362,6 +370,10 @@ impl<'a> HIRVisitor<'a> {
     }
 
     fn get_dict_t(&self, dict: &Dict, token: &Token) -> Option<Type> {
+        if dict.ln_end() == token.ln_end() {
+            // arr: `{...}`, token: `}`
+            return Some(dict.t());
+        }
         match dict {
             Dict::Normal(dict) => {
                 for kv in &dict.kvs {
@@ -378,6 +390,10 @@ impl<'a> HIRVisitor<'a> {
     }
 
     fn get_record_t(&self, record: &Record, token: &Token) -> Option<Type> {
+        if record.ln_end() == token.ln_end() {
+            // arr: `{...}`, token: `}`
+            return Some(record.t());
+        }
         for field in record.attrs.iter() {
             if let Some(expr) = self.get_block_t(&field.body.block, token) {
                 return Some(expr);
@@ -387,6 +403,10 @@ impl<'a> HIRVisitor<'a> {
     }
 
     fn get_set_t(&self, set: &Set, token: &Token) -> Option<Type> {
+        if set.ln_end() == token.ln_end() {
+            // arr: `{...}`, token: `}`
+            return Some(set.t());
+        }
         match set {
             Set::Normal(set) => self.get_args_t(&set.elems, token),
             _ => None, // todo!(),
@@ -395,8 +415,13 @@ impl<'a> HIRVisitor<'a> {
 
     fn get_tuple_t(&self, tuple: &Tuple, token: &Token) -> Option<Type> {
         match tuple {
-            Tuple::Normal(tuple) => self.get_args_t(&tuple.elems, token),
-            // _ => None, // todo!(),
+            Tuple::Normal(tuple) => {
+                if tuple.elems.paren.is_some() && tuple.ln_end() == token.ln_end() {
+                    // arr: `(1, 2)`, token: `)`
+                    return Some(tuple.t());
+                }
+                self.get_args_t(&tuple.elems, token)
+            } // _ => None, // todo!(),
         }
     }
 }

@@ -166,7 +166,7 @@ pub struct Args {
     pub pos_args: Vec<PosArg>,
     pub var_args: Option<Box<PosArg>>,
     pub kw_args: Vec<KwArg>,
-    paren: Option<(Token, Token)>,
+    pub paren: Option<(Token, Token)>,
 }
 
 impl NestedDisplay for Args {
