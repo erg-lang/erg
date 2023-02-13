@@ -12,7 +12,7 @@ use erg_common::error::Location;
 use erg_common::traits::{Locational, Runnable, Stream};
 
 use erg_compiler::artifact::{BuildRunnable, IncompleteArtifact};
-use erg_compiler::hir::{Block, Call, ClassDef, Def, Expr, Lambda, Signature};
+use erg_compiler::hir::{Block, Call, ClassDef, Def, Expr, Lambda, Params, PatchDef, Signature};
 use lsp_types::{InlayHint, InlayHintKind, InlayHintLabel, InlayHintParams};
 
 use crate::server::{ELSResult, Server};
@@ -97,16 +97,15 @@ impl<Checker: BuildRunnable> Server<Checker> {
             Expr::Def(def) => self.get_var_def_hint(def),
             Expr::Lambda(lambda) => self.get_lambda_hint(lambda),
             Expr::ClassDef(class_def) => self.get_class_def_hint(class_def),
+            Expr::PatchDef(patch_def) => self.get_patch_def_hint(patch_def),
             Expr::Call(call) => self.get_call_hint(call),
             _ => vec![],
         }
     }
 
-    fn get_subr_def_hint(&self, def: &Def) -> Vec<InlayHint> {
+    fn get_param_hint(&self, params: &Params) -> Vec<InlayHint> {
         let mut result = vec![];
-        result.extend(self.get_block_hint(&def.body.block));
-        let Signature::Subr(subr) = &def.sig else { unreachable!() };
-        for nd_param in subr.params.non_defaults.iter() {
+        for nd_param in params.non_defaults.iter() {
             if nd_param.raw.t_spec.is_some() {
                 continue;
             }
@@ -118,7 +117,19 @@ impl<Checker: BuildRunnable> Server<Checker> {
             );
             result.push(hint);
         }
-        for d_param in subr.params.defaults.iter() {
+        if let Some(var_params) = &params.var_params {
+            if var_params.raw.t_spec.is_some() {
+                return result;
+            }
+            let hint = type_anot(
+                var_params.ln_end().unwrap(),
+                var_params.col_end().unwrap(),
+                &var_params.vi.t,
+                false,
+            );
+            result.push(hint);
+        }
+        for d_param in params.defaults.iter() {
             if d_param.sig.raw.t_spec.is_some() {
                 continue;
             }
@@ -130,6 +141,14 @@ impl<Checker: BuildRunnable> Server<Checker> {
             );
             result.push(hint);
         }
+        result
+    }
+
+    fn get_subr_def_hint(&self, def: &Def) -> Vec<InlayHint> {
+        let mut result = vec![];
+        result.extend(self.get_block_hint(&def.body.block));
+        let Signature::Subr(subr) = &def.sig else { unreachable!() };
+        result.extend(self.get_param_hint(&subr.params));
         if def.sig.t_spec().is_none() {
             let Some(return_t) = subr.ref_t().return_t() else {
                 return result;
@@ -171,30 +190,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
     fn get_lambda_hint(&self, lambda: &Lambda) -> Vec<InlayHint> {
         let mut result = vec![];
         result.extend(self.get_block_hint(&lambda.body));
-        for nd_param in lambda.params.non_defaults.iter() {
-            if nd_param.raw.t_spec.is_some() {
-                continue;
-            }
-            let hint = type_anot(
-                nd_param.ln_end().unwrap(),
-                nd_param.col_end().unwrap(),
-                &nd_param.vi.t,
-                false,
-            );
-            result.push(hint);
-        }
-        for d_param in lambda.params.defaults.iter() {
-            if d_param.sig.raw.t_spec.is_some() {
-                continue;
-            }
-            let hint = type_anot(
-                d_param.sig.ln_end().unwrap(),
-                d_param.sig.col_end().unwrap(),
-                &d_param.sig.vi.t,
-                false,
-            );
-            result.push(hint);
-        }
+        result.extend(self.get_param_hint(&lambda.params));
         let return_t = lambda.ref_t().return_t().unwrap();
         let hint = type_anot(
             lambda.params.ln_end().unwrap(),
@@ -216,6 +212,14 @@ impl<Checker: BuildRunnable> Server<Checker> {
 
     fn get_class_def_hint(&self, class_def: &ClassDef) -> Vec<InlayHint> {
         class_def
+            .methods
+            .iter()
+            .flat_map(|expr| self.get_expr_hint(expr))
+            .collect()
+    }
+
+    fn get_patch_def_hint(&self, patch_def: &PatchDef) -> Vec<InlayHint> {
+        patch_def
             .methods
             .iter()
             .flat_map(|expr| self.get_expr_hint(expr))

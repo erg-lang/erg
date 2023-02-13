@@ -2226,7 +2226,7 @@ impl NoTypeDisplay for PatchDef {
 }
 
 impl_display_from_nested!(PatchDef);
-impl_locational!(PatchDef, sig);
+impl_locational!(PatchDef, sig, methods);
 
 impl HasType for PatchDef {
     #[inline]
