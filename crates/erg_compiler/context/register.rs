@@ -1553,6 +1553,10 @@ impl Context {
         let ValueObj::Str(__name__) = mod_name.value.clone() else { todo!("{mod_name}") };
         let py_mod_cache = self.py_mod_cache().unwrap();
         let path = self.get_path(mod_name, __name__)?;
+        if let Some(referrer) = self.cfg.input.path() {
+            let graph = &self.shared.as_ref().unwrap().graph;
+            graph.inc_ref(referrer, path.clone());
+        }
         if py_mod_cache.get(&path).is_some() {
             return Ok(path);
         }

@@ -496,7 +496,10 @@ impl<Checker: BuildRunnable> Server<Checker> {
         self.artifacts.remove(uri);
         if let Some(module) = self.modules.remove(uri) {
             if let Some(shared) = module.context.shared() {
-                shared.mod_cache.remove(&util::uri_to_path(uri));
+                let path = util::uri_to_path(uri);
+                shared.mod_cache.remove(&path);
+                shared.index.remove_path(&path);
+                shared.graph.initialize();
             }
         }
     }

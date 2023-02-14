@@ -46,7 +46,7 @@ impl FileCache {
                 FileOperationFilter {
                     scheme: Some(String::from("file")),
                     pattern: FileOperationPattern {
-                        glob: String::from("**/*.er"),
+                        glob: String::from("**/*.{er,py}"),
                         matches: Some(FileOperationPatternKind::File),
                         options: None,
                     },

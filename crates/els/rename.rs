@@ -1,8 +1,10 @@
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::time::SystemTime;
 
 use erg_common::traits::{Locational, Stream};
 use erg_compiler::artifact::IncompleteArtifact;
+use lsp_types::OneOf;
 use serde::Deserialize;
 use serde_json::json;
 use serde_json::Value;
@@ -13,7 +15,10 @@ use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::hir::{Expr, Literal};
 use erg_compiler::varinfo::{AbsLocation, VarKind};
 
-use lsp_types::{RenameFilesParams, RenameParams, TextEdit, Url, WorkspaceEdit};
+use lsp_types::{
+    DocumentChangeOperation, DocumentChanges, OptionalVersionedTextDocumentIdentifier, RenameFile,
+    RenameFilesParams, RenameParams, ResourceOp, TextDocumentEdit, TextEdit, Url, WorkspaceEdit,
+};
 
 use crate::server::{ELSResult, Server};
 use crate::util;
@@ -35,14 +40,25 @@ impl<Checker: BuildRunnable> Server<Checker> {
                         .as_ref()
                         .map(|path| path.starts_with(&self.erg_path))
                         .unwrap_or(false);
+                    let kind = if vi.t.is_method() {
+                        "method"
+                    } else if vi.t.is_subr() {
+                        "subroutine"
+                    } else {
+                        "variable"
+                    };
                     if vi.def_loc.loc.is_unknown() || is_std {
                         let error_reason = match vi.kind {
-                            VarKind::Builtin => "this is a builtin variable and cannot be renamed",
-                            VarKind::FixedAuto => {
-                                "this is a fixed auto variable and cannot be renamed"
+                            VarKind::Builtin => {
+                                format!("this is a builtin {kind} and cannot be renamed")
                             }
-                            _ if is_std => "this is a standard library API and cannot be renamed",
-                            _ => "this name cannot be renamed",
+                            VarKind::FixedAuto => {
+                                format!("this is a fixed auto {kind} and cannot be renamed")
+                            }
+                            _ if is_std => {
+                                "this is a standard library API and cannot be renamed".to_string()
+                            }
+                            _ => format!("this {kind} cannot be renamed"),
                         };
                         // identical change (to avoid displaying "no result")
                         Self::commit_change(&mut changes, &vi.def_loc, tok.content.to_string());
@@ -155,76 +171,115 @@ impl<Checker: BuildRunnable> Server<Checker> {
         old_uri: &Url,
         new_uri: &Url,
     ) -> HashMap<Url, Vec<TextEdit>> {
+        let old_path = util::uri_to_path(old_uri)
+            .file_stem()
+            .unwrap()
+            .to_string_lossy()
+            .to_string();
+        let old_path = old_path.trim_end_matches(".d");
         let new_path = util::uri_to_path(new_uri)
             .file_stem()
             .unwrap()
             .to_string_lossy()
             .to_string();
-        let new_path = format!("\"{new_path}\"");
+        let new_path = new_path.trim_end_matches(".d");
         let mut changes = HashMap::new();
         for dep in self.dependents_of(old_uri) {
-            let imports = self.search_imports(&dep, old_uri);
+            let imports = self.search_imports(&dep, old_path);
             for import in imports.iter() {
                 let range = util::loc_to_range(import.loc()).unwrap();
-                self.file_cache.ranged_update(&dep, range, &new_path);
+                self.file_cache.ranged_update(&dep, range, new_path);
             }
-            let edits = imports
-                .iter()
-                .map(|lit| TextEdit::new(util::loc_to_range(lit.loc()).unwrap(), new_path.clone()));
+            let edits = imports.iter().map(|lit| {
+                TextEdit::new(
+                    util::loc_to_range(lit.loc()).unwrap(),
+                    lit.token.content.replace(old_path, new_path),
+                )
+            });
             changes.insert(dep, edits.collect());
         }
         changes
     }
 
     /// TODO: multi-path imports
-    /// returning exprs: import call
-    fn search_imports(&self, target: &Url, needle: &Url) -> Vec<&Literal> {
-        let needle_module_name = util::uri_to_path(needle)
-            .file_stem()
-            .unwrap()
-            .to_string_lossy()
-            .to_string();
+    /// returning exprs: import symbol (string literal)
+    fn search_imports(&self, target: &Url, needle_module_name: &str) -> Vec<&Literal> {
         let mut imports = vec![];
         if let Some(IncompleteArtifact {
             object: Some(hir), ..
         }) = self.artifacts.get(target)
         {
             for chunk in hir.module.iter() {
-                match chunk {
-                    Expr::Def(def) if def.def_kind().is_import() => {
-                        let Some(Expr::Call(import_call)) = def.body.block.first() else {
-                            continue;
-                        };
-                        let module_name = import_call.args.get_left_or_key("Path").unwrap();
-                        match module_name {
-                            Expr::Lit(lit)
-                                if lit
-                                    .token
-                                    .content
-                                    .trim_start_matches('\"')
-                                    .trim_end_matches('\"')
-                                    == needle_module_name =>
-                            {
-                                imports.push(lit);
-                            }
-                            _ => {}
-                        }
-                    }
-                    _ => {}
-                }
+                imports.extend(Self::extract_import_symbols(chunk, needle_module_name));
             }
         }
         imports
+    }
+
+    fn extract_import_symbols<'e>(expr: &'e Expr, needle_module_name: &str) -> Vec<&'e Literal> {
+        match expr {
+            Expr::Def(def) if def.def_kind().is_import() => {
+                let Some(Expr::Call(import_call)) = def.body.block.first() else {
+                    return vec![];
+                };
+                let module_name = import_call.args.get_left_or_key("Path").unwrap();
+                match module_name {
+                    Expr::Lit(lit)
+                        if lit
+                            .token
+                            .content
+                            .trim_start_matches('\"')
+                            .trim_end_matches('\"')
+                            .ends_with(needle_module_name) =>
+                    // FIXME: Possibly a submodule of the same name of another module
+                    {
+                        vec![lit]
+                    }
+                    _ => vec![],
+                }
+            }
+            _ => vec![],
+        }
+    }
+
+    fn rename_linked_files(
+        &self,
+        renames: &mut Vec<DocumentChangeOperation>,
+        old_uri: &Url,
+        new_uri: &Url,
+    ) {
+        if old_uri.as_str().ends_with(".d.er") {
+            let rename = DocumentChangeOperation::Op(ResourceOp::Rename(RenameFile {
+                old_uri: Url::parse(&old_uri.as_str().replace(".d.er", ".py")).unwrap(),
+                new_uri: Url::parse(&new_uri.as_str().replace(".d.er", ".py")).unwrap(),
+                options: None,
+                annotation_id: None,
+            }));
+            renames.push(rename);
+        } else if old_uri.as_str().ends_with(".py") {
+            let d_er_file = PathBuf::from(old_uri.as_str().replace(".py", ".d.er"));
+            if d_er_file.exists() {
+                let rename = DocumentChangeOperation::Op(ResourceOp::Rename(RenameFile {
+                    old_uri: Url::from_file_path(&d_er_file).unwrap(),
+                    new_uri: Url::parse(&new_uri.as_str().replace(".py", ".d.er")).unwrap(),
+                    options: None,
+                    annotation_id: None,
+                }));
+                renames.push(rename);
+            }
+        }
     }
 
     pub(crate) fn rename_files(&mut self, msg: &Value) -> ELSResult<()> {
         Self::send_log("workspace/willRenameFiles request")?;
         let params = RenameFilesParams::deserialize(msg["params"].clone())?;
         let mut edits = HashMap::new();
+        let mut renames = vec![];
         for file in &params.files {
             let old_uri = util::normalize_url(Url::parse(&file.old_uri).unwrap());
             let new_uri = util::normalize_url(Url::parse(&file.new_uri).unwrap());
             edits.extend(self.collect_module_changes(&old_uri, &new_uri));
+            self.rename_linked_files(&mut renames, &old_uri, &new_uri);
             let Some(entry) = self.artifacts.remove(&old_uri) else {
                 continue;
             };
@@ -238,7 +293,22 @@ impl<Checker: BuildRunnable> Server<Checker> {
             }
         }
         self.file_cache.rename_files(&params)?;
-        let edit = WorkspaceEdit::new(edits);
+        let changes = {
+            let edits = edits.into_iter().map(|(uri, edits)| {
+                let text_document = OptionalVersionedTextDocumentIdentifier { uri, version: None };
+                let edit = TextDocumentEdit {
+                    text_document,
+                    edits: edits.into_iter().map(OneOf::Left).collect(),
+                };
+                DocumentChangeOperation::Edit(edit)
+            });
+            let ops = edits.chain(renames).collect();
+            DocumentChanges::Operations(ops)
+        };
+        let edit = WorkspaceEdit {
+            document_changes: Some(changes),
+            ..Default::default()
+        };
         Self::send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": edit }))
     }
 }

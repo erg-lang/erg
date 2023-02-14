@@ -1,5 +1,6 @@
 use std::collections::hash_map::{Iter, Keys, Values};
 use std::fmt;
+use std::path::Path;
 
 use erg_common::dict::Dict;
 use erg_common::set;
@@ -67,6 +68,15 @@ impl ModuleIndex {
     pub fn get_refs(&self, referee: &AbsLocation) -> Option<&ModuleIndexValue> {
         self.members.get(referee)
     }
+
+    pub fn initialize(&mut self) {
+        self.members.clear();
+    }
+
+    pub fn remove_path(&mut self, path: &Path) {
+        self.members
+            .retain(|loc, _| loc.module.as_deref() != Some(path));
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -108,6 +118,10 @@ impl SharedModuleIndex {
     }
 
     pub fn initialize(&self) {
-        self.0.borrow_mut().members.clear();
+        self.0.borrow_mut().initialize();
+    }
+
+    pub fn remove_path(&self, path: &Path) {
+        self.0.borrow_mut().remove_path(path);
     }
 }

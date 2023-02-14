@@ -30,9 +30,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 Self::send_log(format!("checking {uri} passed"))?;
                 let uri_and_diags = self.make_uri_and_diags(uri.clone(), artifact.warns.clone());
                 // clear previous diagnostics
-                if uri_and_diags.is_empty() {
-                    self.send_diagnostics(uri.clone(), vec![])?;
-                }
+                self.send_diagnostics(uri.clone(), vec![])?;
                 for (uri, diags) in uri_and_diags.into_iter() {
                     Self::send_log(format!("{uri}, warns: {}", diags.len()))?;
                     self.send_diagnostics(uri, diags)?;

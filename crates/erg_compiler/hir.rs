@@ -2059,7 +2059,9 @@ impl Def {
                     }
                 }
                 Some("import") => DefKind::ErgImport,
-                Some("pyimport") | Some("py") | Some("__import__") => DefKind::PyImport,
+                Some("pyimport") | Some("__import__") => DefKind::PyImport,
+                #[cfg(feature = "debug")]
+                Some("py") => DefKind::PyImport,
                 _ => DefKind::Other,
             },
             _ => DefKind::Other,
