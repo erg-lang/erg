@@ -144,6 +144,14 @@ impl<Checker: BuildRunnable> Server<Checker> {
         // Ok(())
     }
 
+    pub const fn mode(&self) -> &str {
+        if cfg!(feature = "py_compatible") {
+            "pylyzer"
+        } else {
+            "erg"
+        }
+    }
+
     #[allow(clippy::field_reassign_with_default)]
     fn init(&mut self, msg: &Value, id: i64) -> ELSResult<()> {
         Self::send_log("initializing ELS")?;
@@ -227,7 +235,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             Some(options)
         };
         result.capabilities.execute_command_provider = Some(ExecuteCommandOptions {
-            commands: vec!["erg.eliminate_unused_vars".to_string()],
+            commands: vec![format!("{}.eliminate_unused_vars", self.mode())],
             work_done_progress_options: WorkDoneProgressOptions::default(),
         });
         Self::send(&json!({
