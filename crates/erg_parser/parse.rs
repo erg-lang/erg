@@ -263,6 +263,21 @@ impl Parser {
         }
     }
 
+    fn until_dedent(&mut self) {
+        while let Some(t) = self.peek() {
+            match t.kind {
+                Dedent => {
+                    self.skip();
+                    return;
+                }
+                EOF => return,
+                _ => {
+                    self.skip();
+                }
+            }
+        }
+    }
+
     fn unexpected_none(&self, errno: u32, caused_by: &str) -> ParseError {
         log!(err "error caused by: {caused_by}");
         ParseError::invalid_none_match(0, Location::Unknown, file!(), errno)
@@ -1233,7 +1248,7 @@ impl Parser {
                     Some(hint),
                 );
                 self.errs.push(err);
-                self.next_line();
+                self.until_dedent();
                 debug_exit_info!(self);
                 return Err(());
             }
@@ -1245,6 +1260,10 @@ impl Parser {
                     let nl = self.lpop();
                     self.skip();
                     self.restore(nl);
+                    break;
+                }
+                Some(t) if t.is(Dedent) => {
+                    self.skip();
                     break;
                 }
                 Some(t) if t.category_is(TC::Separator) => {
@@ -2094,10 +2113,6 @@ impl Parser {
                 debug_exit_info!(self);
                 Err(())
             }
-            Some(t) if t.is(Dedent) => {
-                self.skip();
-                Err(())
-            }
             Some(_other) => {
                 let err = self.skip_and_throw_syntax_err(line!(), caused_by!());
                 self.errs.push(err);
@@ -2343,8 +2358,8 @@ impl Parser {
                     t.loc(),
                     switch_lang!(
                         "japanese" => "無効なレコード型の宣言です",
-                        "simplified_chinese" => "无效的Record类型定义",
-                        "traditional_chinese" => "無效的Record類型定義",
+                        "simplified_chinese" => "无效的记录类型定义",
+                        "traditional_chinese" => "無效的記錄類型定義",
                         "english" => "invalid record type definition",
                     ),
                     "}",
@@ -2352,8 +2367,8 @@ impl Parser {
                 );
                 err.set_hint(switch_lang!(
                     "japanese" => "空のレコード型が期待されています: {=}",
-                    "simplified_chinese" => "期望空Record类型: {=}",
-                    "traditional_chinese" => "期望空Record類型: {=}",
+                    "simplified_chinese" => "期望空记录类型: {=}",
+                    "traditional_chinese" => "期望空記錄類型: {=}",
                     "english" => "expect empty record type: {=}",
                 ));
                 self.errs.push(err);
@@ -2376,8 +2391,8 @@ impl Parser {
                     t.loc(),
                     switch_lang!(
                         "japanese" => "無効な辞書型の宣言です",
-                        "simplified_chinese" => "无效的Dict类型定义",
-                        "traditional_chinese" => "無效的Dict類型定義",
+                        "simplified_chinese" => "无效的字典类型定义",
+                        "traditional_chinese" => "無效的字典類型定義",
                         "english" => "invalid dict type definition",
                     ),
                     "}",
