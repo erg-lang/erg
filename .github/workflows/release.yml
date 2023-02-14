@@ -58,7 +58,7 @@ jobs:
     steps:
       - name: run curl
         run: |
-          TOKEN=${{ secrets.DEV_TOKEN }}
+          TOKEN=${{ secrets.GITHUB_TOKEN }}
 
           curl \
             -X POST \
