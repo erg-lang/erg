@@ -74,7 +74,7 @@ fn expect_failure_collections_err() -> Result<(), ()> {
 
 #[test]
 fn expect_failure_class_def_err() -> Result<(), ()> {
-    expect_failure("tests/invalid_class_definition.er", 4)
+    expect_failure("tests/invalid_class_definition.er", 6)
 }
 
 fn _parse_test_from_code(file_path: &'static str) -> Result<(), ParserRunnerErrors> {

@@ -5,6 +5,11 @@ indent = "indent is needed"
 Pub.
     {a: 1} # invalid attribute
 
+Pub.
+    a = 1
+    {x = 1; y = 2}
+    b = 2
+
 Pri = Class()
 Priv.
 indent = "indent is needed"
