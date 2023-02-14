@@ -21,3 +21,12 @@ A positive test is a test to check whether the compiler operates as intended, an
 Due to the nature of programming language processors, among all software, they are particularly susceptible to invalid input, and errors must always be presented to the user, so the latter must also be taken care of.
 
 If you add a new feature to the language, you need to write at least one positive test. Also, please write negative tests if possible.
+
+## `#[ignore]` attribute
+
+The Erg development team recommends pre-commit.
+This prevents bugs from getting into the code by running tests before each commit, but some tests are time-consuming and slow down the commit.
+
+Therefore, tests that are heavy or have a low probability of failure are marked with the `#[ignore]` attribute.
+Tests with the `#[ignore]` attribute are not run by `cargo test`, but can be run with `cargo test -- --include-ignored`.
+These tests are run by CI and do not need to be run on the local PC.
