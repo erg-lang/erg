@@ -3,7 +3,6 @@ use std::mem;
 use std::option::Option; // conflicting to Type::Option
 
 use erg_common::dict::Dict;
-use erg_common::error::Location;
 #[allow(unused)]
 use erg_common::log;
 use erg_common::set::Set;
@@ -119,7 +118,7 @@ impl TyVarCache {
         &mut self,
         constr: Constraint,
         ctx: &Context,
-        loc: Location,
+        loc: &impl Locational,
     ) -> TyCheckResult<Constraint> {
         match constr {
             Constraint::Sandwiched { sub, sup } => Ok(Constraint::new_sandwiched(
@@ -248,12 +247,11 @@ impl Context {
             free_var(self.level, Constraint::new_type_of(Type))
         };
         if let Some(eval_t) = opt_eval_t {
-            self.sub_unify(
-                &eval_t,
-                &spec_t,
-                t_spec.map(|s| s.loc()).unwrap_or(Location::Unknown),
-                None,
-            )?;
+            if let Some(t_spec) = t_spec {
+                self.sub_unify(&eval_t, &spec_t, t_spec, None)?;
+            } else {
+                self.sub_unify(&eval_t, &spec_t, &(), None)?;
+            }
         }
         Ok(spec_t)
     }
@@ -406,20 +404,14 @@ impl Context {
                 self.sub_unify(
                     decl_pt.typ(),
                     &spec_t,
-                    sig.t_spec
-                        .as_ref()
-                        .map(|s| s.loc())
-                        .unwrap_or_else(|| sig.loc()),
+                    &sig.t_spec.as_ref().ok_or(sig),
                     None,
                 )?;
             } else {
                 self.sub_unify(
                     decl_pt.typ(),
                     &spec_t,
-                    sig.t_spec
-                        .as_ref()
-                        .map(|s| s.loc())
-                        .unwrap_or_else(|| sig.loc()),
+                    &sig.t_spec.as_ref().ok_or(sig),
                     None,
                 )?;
             }
@@ -744,10 +736,10 @@ impl Context {
         tmp_tv_cache: &mut TyVarCache,
     ) -> TyCheckResult<Type> {
         let tp = self.instantiate_const_expr(expr, erased_idx, tmp_tv_cache)?;
-        self.instantiate_tp_as_type(tp, expr.loc())
+        self.instantiate_tp_as_type(tp, expr)
     }
 
-    fn instantiate_tp_as_type(&self, tp: TyParam, loc: Location) -> TyCheckResult<Type> {
+    fn instantiate_tp_as_type(&self, tp: TyParam, loc: &impl Locational) -> TyCheckResult<Type> {
         match tp {
             TyParam::FreeVar(fv) if fv.is_linked() => {
                 self.instantiate_tp_as_type(fv.crack().clone(), loc)
@@ -762,7 +754,9 @@ impl Context {
                     .unwrap_or(Type::Never);
                 Ok(tp_enum(t, set))
             }
-            other => type_feature_error!(self, loc, &format!("instantiate `{other}` as type")),
+            other => {
+                type_feature_error!(self, loc.loc(), &format!("instantiate `{other}` as type"))
+            }
         }
     }
 
@@ -1096,7 +1090,7 @@ impl Context {
         &self,
         quantified: TyParam,
         tmp_tv_cache: &mut TyVarCache,
-        loc: Location,
+        loc: &impl Locational,
     ) -> TyCheckResult<TyParam> {
         match quantified {
             TyParam::FreeVar(fv) if fv.is_linked() => {
@@ -1206,7 +1200,11 @@ impl Context {
             | TyParam::FreeVar(_)
             | TyParam::Erased(_)) => Ok(p),
             other => {
-                type_feature_error!(self, loc, &format!("instantiating type-parameter {other}"))
+                type_feature_error!(
+                    self,
+                    loc.loc(),
+                    &format!("instantiating type-parameter {other}")
+                )
             }
         }
     }
@@ -1216,7 +1214,7 @@ impl Context {
         &self,
         unbound: Type,
         tmp_tv_cache: &mut TyVarCache,
-        loc: Location,
+        loc: &impl Locational,
     ) -> TyCheckResult<Type> {
         match unbound {
             FreeVar(fv) if fv.is_linked() => {
@@ -1391,7 +1389,7 @@ impl Context {
                 Ok(self.complement(&ty))
             }
             other if other.is_monomorphic() => Ok(other),
-            other => type_feature_error!(self, loc, &format!("instantiating type {other}")),
+            other => type_feature_error!(self, loc.loc(), &format!("instantiating type {other}")),
         }
     }
 
@@ -1399,14 +1397,14 @@ impl Context {
         match quantified {
             Quantified(quant) => {
                 let mut tmp_tv_cache = TyVarCache::new(self.level, self);
-                let t = self.instantiate_t_inner(*quant, &mut tmp_tv_cache, callee.loc())?;
+                let t = self.instantiate_t_inner(*quant, &mut tmp_tv_cache, callee)?;
                 match &t {
                     Type::Subr(subr) => {
                         if let Some(self_t) = subr.self_t() {
                             self.sub_unify(
                                 callee.ref_t(),
                                 self_t,
-                                callee.loc(),
+                                callee,
                                 Some(&Str::ever("self")),
                             )?;
                         }
@@ -1422,14 +1420,14 @@ impl Context {
             Refinement(refine) if refine.t.is_quantified() => {
                 let quant = enum_unwrap!(*refine.t, Type::Quantified);
                 let mut tmp_tv_cache = TyVarCache::new(self.level, self);
-                let t = self.instantiate_t_inner(*quant, &mut tmp_tv_cache, callee.loc())?;
+                let t = self.instantiate_t_inner(*quant, &mut tmp_tv_cache, callee)?;
                 match &t {
                     Type::Subr(subr) => {
                         if let Some(self_t) = subr.self_t() {
                             self.sub_unify(
                                 callee.ref_t(),
                                 self_t,
-                                callee.loc(),
+                                callee,
                                 Some(&Str::ever("self")),
                             )?;
                         }

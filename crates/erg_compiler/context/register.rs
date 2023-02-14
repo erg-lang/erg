@@ -325,7 +325,7 @@ impl Context {
                     if &name.inspect()[..] == "self" {
                         if let Some(self_t) = self.rec_get_self_t() {
                             if let Err(es) =
-                                self.sub_unify(&spec_t, &self_t, name.loc(), Some(name.inspect()))
+                                self.sub_unify(&spec_t, &self_t, name, Some(name.inspect()))
                             {
                                 errs.extend(es);
                             }
@@ -385,12 +385,9 @@ impl Context {
                     };
                     if &name.inspect()[..] == "self" {
                         if let Some(self_t) = self.rec_get_self_t() {
-                            if let Err(es) = self.sub_unify(
-                                &spec_t,
-                                &ref_(self_t),
-                                name.loc(),
-                                Some(name.inspect()),
-                            ) {
+                            if let Err(es) =
+                                self.sub_unify(&spec_t, &ref_(self_t), name, Some(name.inspect()))
+                            {
                                 errs.extend(es);
                             }
                         } else {
@@ -447,7 +444,7 @@ impl Context {
                             if let Err(es) = self.sub_unify(
                                 &spec_t,
                                 &ref_mut(self_t, None),
-                                name.loc(),
+                                name,
                                 Some(name.inspect()),
                             ) {
                                 errs.extend(es);
@@ -578,12 +575,8 @@ impl Context {
         let var_args = t.var_params();
         let default_params = t.default_params().unwrap();
         let mut errs = if let Some(spec_ret_t) = t.return_t() {
-            let return_t_loc = sig
-                .return_t_spec
-                .as_ref()
-                .map(|t_spec| t_spec.loc())
-                .unwrap_or_else(|| sig.loc());
-            self.sub_unify(body_t, spec_ret_t, return_t_loc, None)
+            let return_t_loc = sig.return_t_spec.as_ref().ok_or(sig);
+            self.sub_unify(body_t, spec_ret_t, &return_t_loc, None)
                 .map_err(|errs| {
                     TyCheckErrors::new(
                         errs.into_iter()
@@ -783,7 +776,7 @@ impl Context {
                                 self.pop();
                                 errs
                             })?;
-                        self.sub_unify(&const_t, &spec_t, def.body.loc(), None)
+                        self.sub_unify(&const_t, &spec_t, &def.body, None)
                             .map_err(|errs| {
                                 self.pop();
                                 errs
@@ -820,7 +813,7 @@ impl Context {
                                 self.pop();
                                 errs
                             })?;
-                        self.sub_unify(&const_t, &spec_t, def.body.loc(), None)
+                        self.sub_unify(&const_t, &spec_t, &def.body, None)
                             .map_err(|errs| {
                                 self.pop();
                                 errs

@@ -921,6 +921,8 @@ pub trait Runnable: Sized + Default {
 }
 
 pub trait Locational {
+    /// NOTE: `loc` cannot be treated as a light method when `self` is a large grammatical element.
+    /// If possible, delay the computation by passing `&impl Locational` or other means.
     fn loc(&self) -> Location;
 
     fn ln_begin(&self) -> Option<u32> {
@@ -951,6 +953,36 @@ pub trait Locational {
             Location::Range { col_end, .. } => Some(col_end),
             _ => None,
         }
+    }
+}
+
+impl<L: Locational> Locational for Option<L> {
+    fn loc(&self) -> Location {
+        match self {
+            Some(l) => l.loc(),
+            None => Location::Unknown,
+        }
+    }
+}
+
+impl<L: Locational, R: Locational> Locational for Result<&L, &R> {
+    fn loc(&self) -> Location {
+        match self {
+            Ok(l) => l.loc(),
+            Err(r) => r.loc(),
+        }
+    }
+}
+
+impl<L: Locational, R: Locational> Locational for (&L, &R) {
+    fn loc(&self) -> Location {
+        Location::concat(self.0, self.1)
+    }
+}
+
+impl Locational for () {
+    fn loc(&self) -> Location {
+        Location::Unknown
     }
 }
 

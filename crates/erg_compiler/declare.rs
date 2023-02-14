@@ -63,7 +63,7 @@ impl ASTLowerer {
         if let Some(spec_t) = opt_spec_t {
             self.module
                 .context
-                .sub_unify(found_body_t, &spec_t, sig.loc(), None)?;
+                .sub_unify(found_body_t, &spec_t, &sig, None)?;
         }
         if let Some(py_name) = &py_name {
             self.declare_instance(ident, found_body_t, py_name.clone())?;

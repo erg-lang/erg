@@ -868,7 +868,7 @@ impl Context {
         &self,
         substituted: Type,
         level: usize,
-        t_loc: Location,
+        t_loc: &impl Locational,
     ) -> EvalResult<Type> {
         match substituted {
             Type::FreeVar(fv) if fv.is_linked() => {
@@ -941,7 +941,7 @@ impl Context {
                 Ok(self.complement(&ty))
             }
             other if other.is_monomorphic() => Ok(other),
-            _other => feature_error!(self, t_loc, "???"),
+            _other => feature_error!(self, t_loc.loc(), "???"),
         }
     }
 
@@ -950,7 +950,7 @@ impl Context {
         lhs: Type,
         rhs: Str,
         level: usize,
-        t_loc: Location,
+        t_loc: &impl Locational,
     ) -> EvalResult<Type> {
         // Currently Erg does not allow projection-types to be evaluated with type variables included.
         // All type variables will be dereferenced or fail.
@@ -980,7 +980,7 @@ impl Context {
             EvalError::type_not_found(
                 self.cfg.input.clone(),
                 line!() as usize,
-                t_loc,
+                t_loc.loc(),
                 self.caused_by(),
                 &sub,
             )
@@ -1029,7 +1029,7 @@ impl Context {
                     line!() as usize,
                     &sub,
                     &sup,
-                    t_loc,
+                    t_loc.loc(),
                     self.caused_by(),
                     self.get_simple_type_mismatch_hint(&sup, &sub),
                 )));
@@ -1050,7 +1050,7 @@ impl Context {
                 self.cfg.input.clone(),
                 line!() as usize,
                 &proj,
-                t_loc,
+                t_loc.loc(),
                 self.caused_by(),
                 self.get_no_candidate_hint(&proj),
             )))
@@ -1119,7 +1119,7 @@ impl Context {
         rhs: &str,
         methods: &Context,
         level: usize,
-        t_loc: Location,
+        t_loc: &impl Locational,
     ) -> Option<Type> {
         // e.g. sub: Int, opt_sup: Add(?T), rhs: Output, methods: Int.methods
         //      sub: [Int; 4], opt_sup: Add([Int; 2]), rhs: Output, methods: [T; N].methods
@@ -1259,7 +1259,7 @@ impl Context {
                 if !st.is_generalized() {
                     qt.undoable_link(&st);
                 }
-                self.sub_unify(&st, &gt, Location::Unknown, None)
+                self.sub_unify(&st, &gt, &(), None)
             }
             TyParam::Type(qt) => {
                 let Ok(st) = Type::try_from(stp) else { todo!(); };
@@ -1272,7 +1272,7 @@ impl Context {
                 if !st.is_generalized() {
                     self.substitute_typarams(&qt, &st)?;
                 }
-                self.sub_unify(&st, &qt, Location::Unknown, None)
+                self.sub_unify(&st, &qt, &(), None)
             }
             _ => Ok(()),
         }
@@ -1302,14 +1302,14 @@ impl Context {
         attr_name: Str,
         args: Vec<TyParam>,
         level: usize,
-        t_loc: Location,
+        t_loc: &impl Locational,
     ) -> EvalResult<Type> {
         let t = self.get_tp_t(&lhs)?;
         for ty_ctx in self.get_nominal_super_type_ctxs(&t).ok_or_else(|| {
             EvalError::type_not_found(
                 self.cfg.input.clone(),
                 line!() as usize,
-                t_loc,
+                t_loc.loc(),
                 self.caused_by(),
                 &t,
             )
@@ -1324,7 +1324,7 @@ impl Context {
                                 pos_args.push(value);
                             }
                             Err(_) => {
-                                return feature_error!(self, t_loc, "??");
+                                return feature_error!(self, t_loc.loc(), "??");
                             }
                         }
                     }
@@ -1334,16 +1334,16 @@ impl Context {
                                 pos_args.push(value);
                             }
                             Err(_) => {
-                                return feature_error!(self, t_loc, "??");
+                                return feature_error!(self, t_loc.loc(), "??");
                             }
                         }
                     }
                     let args = ValueArgs::new(pos_args, dict! {});
-                    let t = self.call(subr, args, t_loc)?;
+                    let t = self.call(subr, args, t_loc.loc())?;
                     let t = enum_unwrap!(t, ValueObj::Type); // TODO: error handling
                     return Ok(t.into_typ());
                 } else {
-                    return feature_error!(self, t_loc, "??");
+                    return feature_error!(self, t_loc.loc(), "??");
                 }
             }
             for (_class, methods) in ty_ctx.methods_list.iter() {
@@ -1356,16 +1356,16 @@ impl Context {
                                     pos_args.push(value);
                                 }
                                 Err(_) => {
-                                    return feature_error!(self, t_loc, "??");
+                                    return feature_error!(self, t_loc.loc(), "??");
                                 }
                             }
                         }
                         let args = ValueArgs::new(pos_args, dict! {});
-                        let t = self.call(subr, args, t_loc)?;
+                        let t = self.call(subr, args, t_loc.loc())?;
                         let t = enum_unwrap!(t, ValueObj::Type); // TODO: error handling
                         return Ok(t.into_typ());
                     } else {
-                        return feature_error!(self, t_loc, "??");
+                        return feature_error!(self, t_loc.loc(), "??");
                     }
                 }
             }
@@ -1388,7 +1388,7 @@ impl Context {
                     line!() as usize,
                     &sub,
                     &sup,
-                    t_loc,
+                    t_loc.loc(),
                     self.caused_by(),
                     self.get_simple_type_mismatch_hint(&sup, &sub),
                 )));
@@ -1409,7 +1409,7 @@ impl Context {
                 self.cfg.input.clone(),
                 line!() as usize,
                 &proj,
-                t_loc,
+                t_loc.loc(),
                 self.caused_by(),
                 self.get_no_candidate_hint(&proj),
             )))

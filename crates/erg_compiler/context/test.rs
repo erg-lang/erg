@@ -1,8 +1,6 @@
 //! test module for `Context`
-use erg_common::error::Location;
-use erg_common::Str;
-// use erg_common::error::Location;
 use erg_common::set;
+use erg_common::Str;
 
 use crate::ty::constructors::{func1, mono, mono_q, poly, refinement};
 use crate::ty::free::Constraint;
@@ -56,7 +54,7 @@ impl Context {
         let mut tv_cache = TyVarCache::new(self.level + 1, self);
         println!("tv_cache: {tv_cache}");
         let inst = self
-            .instantiate_t_inner(unbound, &mut tv_cache, Location::Unknown)
+            .instantiate_t_inner(unbound, &mut tv_cache, &())
             .map_err(|_| ())?;
         println!("inst: {inst}");
         inst.lift();

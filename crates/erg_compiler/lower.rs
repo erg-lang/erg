@@ -449,7 +449,7 @@ impl ASTLowerer {
         if let Err(errs) = self
             .module
             .context
-            .sub_unify(&elem_t, &mono("Eq"), elems.loc(), None)
+            .sub_unify(&elem_t, &mono("Eq"), &elems, None)
         {
             self.errs.extend(errs);
         }
@@ -558,7 +558,7 @@ impl ASTLowerer {
             new_kvs.push(hir::KeyValue::new(key, value));
         }
         for key_t in union.keys() {
-            let loc = Location::concat(&dict.l_brace, &dict.r_brace);
+            let loc = &(&dict.l_brace, &dict.r_brace);
             // check if key_t is Eq
             if let Err(errs) = self.module.context.sub_unify(key_t, &mono("Eq"), loc, None) {
                 self.errs.extend(errs);
@@ -851,9 +851,7 @@ impl ASTLowerer {
                     }
                 };
                 let arg_t = call.args.get(0).unwrap().ref_t();
-                self.module
-                    .context
-                    .sub_unify(arg_t, &ret_t, call.loc(), None)?;
+                self.module.context.sub_unify(arg_t, &ret_t, &call, None)?;
             }
             _ => {
                 if let Some(type_spec) = opt_cast_to {
@@ -1201,7 +1199,7 @@ impl ASTLowerer {
                     // TODO: 定数の場合、expect_body_tのほうが小さくなってしまう
                     if !sig.is_const() {
                         if let Err(e) = self.var_result_t_check(
-                            sig.loc(),
+                            &sig,
                             ident.inspect(),
                             &expect_body_t,
                             found_body_t,
@@ -1277,11 +1275,7 @@ impl ASTLowerer {
                                 &self
                                     .module
                                     .context
-                                    .deref_tyvar(
-                                        return_t.clone(),
-                                        Variance::Covariant,
-                                        Location::Unknown,
-                                    )
+                                    .deref_tyvar(return_t.clone(), Variance::Covariant, &())
                                     .unwrap_or_else(|_| return_t.clone()),
                             );
                             self.warns.push(warn);
@@ -1595,12 +1589,9 @@ impl ASTLowerer {
         log!(info "entered {}({redef})", fn_name!());
         let attr = self.lower_acc(redef.attr)?;
         let expr = self.lower_expr(*redef.expr)?;
-        if let Err(err) = self.var_result_t_check(
-            attr.loc(),
-            &Str::from(attr.show()),
-            attr.ref_t(),
-            expr.ref_t(),
-        ) {
+        if let Err(err) =
+            self.var_result_t_check(&attr, &Str::from(attr.show()), attr.ref_t(), expr.ref_t())
+        {
             self.errs.push(err);
         }
         Ok(hir::ReDef::new(attr, hir::Block::new(vec![expr])))
@@ -1970,7 +1961,7 @@ impl ASTLowerer {
             self.module.context.sub_unify(
                 expr.ref_t(),
                 &spec_t,
-                expr.loc(),
+                &expr,
                 Some(&Str::from(expr.to_string())),
             )?;
         } else {
@@ -2008,7 +1999,6 @@ impl ASTLowerer {
             RegistrationMode::Normal,
             false,
         )?;
-        let loc = tasc.loc();
         let ast::Expr::Accessor(ast::Accessor::Ident(ident)) = *tasc.expr else {
             return Err(LowerErrors::from(LowerError::syntax_error(
                 self.cfg.input.clone(),
@@ -2044,7 +2034,7 @@ impl ASTLowerer {
         if is_instance_ascription {
             self.module
                 .context
-                .sub_unify(&ident_vi.t, &spec_t, loc, Some(ident.inspect()))?;
+                .sub_unify(&ident_vi.t, &spec_t, &ident, Some(ident.inspect()))?;
         } else {
             // if subtype ascription
             let ctx = self
@@ -2060,7 +2050,7 @@ impl ASTLowerer {
                     line!() as usize,
                     &ident_vi.t,
                     &spec_t,
-                    loc,
+                    ident.loc(),
                     self.module.context.caused_by(),
                 )));
             }

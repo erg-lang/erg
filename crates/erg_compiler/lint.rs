@@ -2,7 +2,6 @@
 //! What is implemented here affects subsequent optimizations,
 //! and `erg_linter` does linting that does not affect optimizations.
 
-use erg_common::error::Location;
 #[allow(unused_imports)]
 use erg_common::log;
 use erg_common::traits::{Locational, Runnable, Stream};
@@ -18,7 +17,7 @@ use crate::varinfo::VarInfo;
 impl ASTLowerer {
     pub(crate) fn var_result_t_check(
         &self,
-        loc: Location,
+        loc: &impl Locational,
         name: &Str,
         expect: &Type,
         found: &Type,
@@ -30,7 +29,7 @@ impl ASTLowerer {
                 LowerError::type_mismatch_error(
                     self.cfg().input.clone(),
                     line!() as usize,
-                    loc,
+                    loc.loc(),
                     self.module.context.caused_by(),
                     name,
                     None,

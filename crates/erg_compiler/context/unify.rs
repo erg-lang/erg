@@ -2,8 +2,8 @@
 use std::mem;
 use std::option::Option;
 
-use erg_common::error::Location;
 use erg_common::fn_name;
+use erg_common::traits::Locational;
 use erg_common::Str;
 #[allow(unused_imports)]
 use erg_common::{fmt_vec, log};
@@ -28,7 +28,12 @@ impl Context {
     // occur(?T, ?T -> X) ==> Error
     // occur(?T, Option(?T)) ==> Error
     // occur(?T, ?T.Output) ==> Error
-    fn occur(&self, maybe_sub: &Type, maybe_sup: &Type, loc: Location) -> TyCheckResult<()> {
+    fn occur(
+        &self,
+        maybe_sub: &Type,
+        maybe_sup: &Type,
+        loc: &impl Locational,
+    ) -> TyCheckResult<()> {
         match (maybe_sub, maybe_sup) {
             (Type::FreeVar(sub), Type::FreeVar(sup)) => {
                 if sub.is_unbound() && sup.is_unbound() && sub == sup {
@@ -37,7 +42,7 @@ impl Context {
                         line!() as usize,
                         maybe_sub,
                         maybe_sup,
-                        loc,
+                        loc.loc(),
                         self.caused_by(),
                     )))
                 } else {
@@ -128,7 +133,7 @@ impl Context {
         maybe_sub: &TyParam,
         maybe_sup: &TyParam,
         _variance: Option<Variance>,
-        loc: Location,
+        loc: &impl Locational,
         allow_divergence: bool,
     ) -> TyCheckResult<()> {
         if maybe_sub.has_no_unbound_var()
@@ -253,7 +258,7 @@ impl Context {
                         line!() as usize,
                         &sub_t,
                         t,
-                        loc,
+                        loc.loc(),
                         self.caused_by(),
                     )))
                 }
@@ -301,7 +306,7 @@ impl Context {
         &self,
         before: &TyParam,
         after: &TyParam,
-        loc: Location,
+        loc: &impl Locational,
     ) -> SingleTyCheckResult<()> {
         match (before, after) {
             (TyParam::Value(ValueObj::Mut(l)), TyParam::Value(ValueObj::Mut(r))) => {
@@ -339,7 +344,7 @@ impl Context {
         &self,
         l_pred: &Predicate,
         r_pred: &Predicate,
-        loc: Location,
+        loc: &impl Locational,
     ) -> TyCheckResult<()> {
         match (l_pred, r_pred) {
             (Pred::Value(_), Pred::Value(_)) | (Pred::Const(_), Pred::Const(_)) => Ok(()),
@@ -430,7 +435,7 @@ impl Context {
         &self,
         before_t: &Type,
         after_t: &Type,
-        loc: Location,
+        loc: &impl Locational,
     ) -> SingleTyCheckResult<()> {
         match (before_t, after_t) {
             (Type::FreeVar(fv), r) if fv.is_linked() => self.reunify(&fv.crack(), r, loc),
@@ -478,7 +483,7 @@ impl Context {
                         line!() as usize,
                         &before_t,
                         after_t,
-                        loc,
+                        loc.loc(),
                         self.caused_by(),
                     ));
                 }
@@ -493,7 +498,7 @@ impl Context {
                 line!() as usize,
                 l,
                 r,
-                loc,
+                loc.loc(),
                 self.caused_by(),
             )),
         }
@@ -515,7 +520,7 @@ impl Context {
         &self,
         maybe_sub: &Type,
         maybe_sup: &Type,
-        loc: Location,
+        loc: &impl Locational,
         param_name: Option<&Str>,
     ) -> TyCheckResult<()> {
         log!(info "trying sub_unify:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_sup}");
@@ -535,7 +540,7 @@ impl Context {
             return Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
                 self.cfg.input.clone(),
                 line!() as usize,
-                loc,
+                loc.loc(),
                 self.caused_by(),
                 param_name.unwrap_or(&Str::ever("_")),
                 None,
@@ -598,7 +603,7 @@ impl Context {
                         line!() as usize,
                         maybe_sub,
                         maybe_sup,
-                        loc,
+                        loc.loc(),
                         self.caused_by(),
                     )));
                 };
@@ -703,7 +708,7 @@ impl Context {
                             line!() as usize,
                             maybe_sub,
                             maybe_sup,
-                            loc,
+                            loc.loc(),
                             self.caused_by(),
                         )));
                     }
@@ -894,7 +899,7 @@ impl Context {
             (Type::Subr(_), Mono(name)) if &name[..] == "GenericCallable" => Ok(()),
             _ => type_feature_error!(
                 self,
-                loc,
+                loc.loc(),
                 &format!("{maybe_sub} can be a subtype of {maybe_sup}, but failed to semi-unify")
             ),
         }
@@ -906,7 +911,7 @@ impl Context {
         maybe_sub: &Type,
         maybe_sup: &Type,
         sup_params: &[TyParam],
-        loc: Location,
+        loc: &impl Locational,
     ) -> TyCheckResult<()> {
         if let Some((sub_def_t, sub_ctx)) = self.get_nominal_type_ctx(maybe_sub) {
             let mut tv_cache = TyVarCache::new(self.level, self);
@@ -945,7 +950,7 @@ impl Context {
             line!() as usize,
             maybe_sub,
             maybe_sup,
-            loc,
+            loc.loc(),
             self.caused_by(),
         )))
     }

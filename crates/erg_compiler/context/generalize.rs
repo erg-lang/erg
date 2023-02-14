@@ -1,6 +1,5 @@
 use std::mem;
 
-use erg_common::error::Location;
 use erg_common::traits::{Locational, Stream};
 use erg_common::{assume_unreachable, fn_name};
 use erg_common::{dict, set};
@@ -287,7 +286,7 @@ impl Context {
         &self,
         tp: TyParam,
         variance: Variance,
-        loc: Location,
+        loc: &impl Locational,
     ) -> TyCheckResult<TyParam> {
         match tp {
             TyParam::FreeVar(fv) if fv.is_linked() => {
@@ -362,7 +361,7 @@ impl Context {
         &self,
         constraint: Constraint,
         variance: Variance,
-        loc: Location,
+        loc: &impl Locational,
     ) -> TyCheckResult<Constraint> {
         match constraint {
             Constraint::Sandwiched { sub, sup } => Ok(Constraint::new_sandwiched(
@@ -381,7 +380,7 @@ impl Context {
         sub_t: Type,
         super_t: Type,
         variance: Variance,
-        loc: Location,
+        loc: &impl Locational,
     ) -> TyCheckResult<Type> {
         // TODO: Subr, ...
         match (sub_t, super_t) {
@@ -401,7 +400,7 @@ impl Context {
                     TyCheckError::type_not_found(
                         self.cfg.input.clone(),
                         line!() as usize,
-                        loc,
+                        loc.loc(),
                         self.caused_by(),
                         &typ,
                     )
@@ -428,7 +427,7 @@ impl Context {
         sub_t: Type,
         super_t: Type,
         variance: Variance,
-        loc: Location,
+        loc: &impl Locational,
     ) -> TyCheckResult<Type> {
         if self.is_trait(&super_t) {
             self.check_trait_impl(&sub_t, &super_t, loc)?;
@@ -458,7 +457,7 @@ impl Context {
                             line!() as usize,
                             &sub_t,
                             &super_t,
-                            loc,
+                            loc.loc(),
                             self.caused_by(),
                         )))
                     }
@@ -480,7 +479,7 @@ impl Context {
                 line!() as usize,
                 &sub_t,
                 &super_t,
-                loc,
+                loc.loc(),
                 self.caused_by(),
             )))
         }
@@ -498,7 +497,7 @@ impl Context {
         &self,
         t: Type,
         variance: Variance,
-        loc: Location,
+        loc: &impl Locational,
     ) -> TyCheckResult<Type> {
         match t {
             // ?T(:> Nat, <: Int)[n] ==> Nat (self.level <= n)
@@ -552,7 +551,7 @@ impl Context {
                     TyCheckError::type_not_found(
                         self.cfg.input.clone(),
                         line!() as usize,
-                        loc,
+                        loc.loc(),
                         self.caused_by(),
                         &typ,
                     )
@@ -651,8 +650,7 @@ impl Context {
         } else {
             Covariant
         };
-        self.deref_tyvar(t.clone(), variance, Location::Unknown)
-            .unwrap_or(t)
+        self.deref_tyvar(t.clone(), variance, &()).unwrap_or(t)
     }
 
     pub(crate) fn trait_impl_exists(&self, class: &Type, trait_: &Type) -> bool {
@@ -689,7 +687,12 @@ impl Context {
         super_exists
     }
 
-    fn check_trait_impl(&self, class: &Type, trait_: &Type, loc: Location) -> TyCheckResult<()> {
+    fn check_trait_impl(
+        &self,
+        class: &Type,
+        trait_: &Type,
+        loc: &impl Locational,
+    ) -> TyCheckResult<()> {
         if !self.trait_impl_exists(class, trait_) {
             let class = if cfg!(feature = "debug") {
                 class.clone()
@@ -706,7 +709,7 @@ impl Context {
                 line!() as usize,
                 &class,
                 &trait_,
-                loc,
+                loc.loc(),
                 self.caused_by(),
                 self.get_simple_type_mismatch_hint(&trait_, &class),
             )))
@@ -741,13 +744,12 @@ impl Context {
         let mut params = mem::take(&mut self.params);
         let mut methods_list = mem::take(&mut self.methods_list);
         for (name, vi) in locals.iter_mut() {
-            if let Ok(t) = self.deref_tyvar(mem::take(&mut vi.t), Variance::Covariant, name.loc()) {
+            if let Ok(t) = self.deref_tyvar(mem::take(&mut vi.t), Variance::Covariant, name) {
                 vi.t = t;
             }
         }
         for (name, vi) in params.iter_mut() {
-            let loc = name.as_ref().map(|n| n.loc()).unwrap_or_default();
-            if let Ok(t) = self.deref_tyvar(mem::take(&mut vi.t), Variance::Covariant, loc) {
+            if let Ok(t) = self.deref_tyvar(mem::take(&mut vi.t), Variance::Covariant, name) {
                 vi.t = t;
             }
         }
@@ -761,19 +763,18 @@ impl Context {
 
     fn resolve_params_t(&self, params: &mut hir::Params) -> TyCheckResult<()> {
         for param in params.non_defaults.iter_mut() {
-            param.vi.t =
-                self.deref_tyvar(mem::take(&mut param.vi.t), Contravariant, param.loc())?;
+            param.vi.t = self.deref_tyvar(mem::take(&mut param.vi.t), Contravariant, param)?;
         }
         if let Some(var_params) = &mut params.var_params {
             var_params.vi.t = self.deref_tyvar(
                 mem::take(&mut var_params.vi.t),
                 Contravariant,
-                var_params.loc(),
+                var_params.as_ref(),
             )?;
         }
         for param in params.defaults.iter_mut() {
             param.sig.vi.t =
-                self.deref_tyvar(mem::take(&mut param.sig.vi.t), Contravariant, param.loc())?;
+                self.deref_tyvar(mem::take(&mut param.sig.vi.t), Contravariant, param)?;
             self.resolve_expr_t(&mut param.default_val)?;
         }
         Ok(())
@@ -788,9 +789,8 @@ impl Context {
                 } else {
                     Covariant
                 };
-                let loc = acc.loc();
-                let t = acc.ref_mut_t();
-                *t = self.deref_tyvar(mem::take(t), variance, loc)?;
+                let t = mem::take(acc.ref_mut_t());
+                *acc.ref_mut_t() = self.deref_tyvar(t, variance, acc)?;
                 if let hir::Accessor::Attr(attr) = acc {
                     self.resolve_expr_t(&mut attr.obj)?;
                 }
@@ -798,14 +798,14 @@ impl Context {
             }
             hir::Expr::Array(array) => match array {
                 hir::Array::Normal(arr) => {
-                    arr.t = self.deref_tyvar(mem::take(&mut arr.t), Covariant, arr.loc())?;
+                    arr.t = self.deref_tyvar(mem::take(&mut arr.t), Covariant, arr)?;
                     for elem in arr.elems.pos_args.iter_mut() {
                         self.resolve_expr_t(&mut elem.expr)?;
                     }
                     Ok(())
                 }
                 hir::Array::WithLength(arr) => {
-                    arr.t = self.deref_tyvar(mem::take(&mut arr.t), Covariant, arr.loc())?;
+                    arr.t = self.deref_tyvar(mem::take(&mut arr.t), Covariant, arr)?;
                     self.resolve_expr_t(&mut arr.elem)?;
                     self.resolve_expr_t(&mut arr.len)?;
                     Ok(())
@@ -820,7 +820,7 @@ impl Context {
             },
             hir::Expr::Tuple(tuple) => match tuple {
                 hir::Tuple::Normal(tup) => {
-                    tup.t = self.deref_tyvar(mem::take(&mut tup.t), Covariant, tup.loc())?;
+                    tup.t = self.deref_tyvar(mem::take(&mut tup.t), Covariant, tup)?;
                     for elem in tup.elems.pos_args.iter_mut() {
                         self.resolve_expr_t(&mut elem.expr)?;
                     }
@@ -829,14 +829,14 @@ impl Context {
             },
             hir::Expr::Set(set) => match set {
                 hir::Set::Normal(st) => {
-                    st.t = self.deref_tyvar(mem::take(&mut st.t), Covariant, st.loc())?;
+                    st.t = self.deref_tyvar(mem::take(&mut st.t), Covariant, st)?;
                     for elem in st.elems.pos_args.iter_mut() {
                         self.resolve_expr_t(&mut elem.expr)?;
                     }
                     Ok(())
                 }
                 hir::Set::WithLength(st) => {
-                    st.t = self.deref_tyvar(mem::take(&mut st.t), Covariant, st.loc())?;
+                    st.t = self.deref_tyvar(mem::take(&mut st.t), Covariant, st)?;
                     self.resolve_expr_t(&mut st.elem)?;
                     self.resolve_expr_t(&mut st.len)?;
                     Ok(())
@@ -844,7 +844,7 @@ impl Context {
             },
             hir::Expr::Dict(dict) => match dict {
                 hir::Dict::Normal(dic) => {
-                    dic.t = self.deref_tyvar(mem::take(&mut dic.t), Covariant, dic.loc())?;
+                    dic.t = self.deref_tyvar(mem::take(&mut dic.t), Covariant, dic)?;
                     for kv in dic.kvs.iter_mut() {
                         self.resolve_expr_t(&mut kv.key)?;
                         self.resolve_expr_t(&mut kv.value)?;
@@ -860,19 +860,16 @@ impl Context {
                 ),
             },
             hir::Expr::Record(record) => {
-                record.t = self.deref_tyvar(mem::take(&mut record.t), Covariant, record.loc())?;
+                record.t = self.deref_tyvar(mem::take(&mut record.t), Covariant, record)?;
                 for attr in record.attrs.iter_mut() {
                     match &mut attr.sig {
                         hir::Signature::Var(var) => {
                             *var.ref_mut_t() =
-                                self.deref_tyvar(mem::take(var.ref_mut_t()), Covariant, var.loc())?;
+                                self.deref_tyvar(mem::take(var.ref_mut_t()), Covariant, var)?;
                         }
                         hir::Signature::Subr(subr) => {
-                            *subr.ref_mut_t() = self.deref_tyvar(
-                                mem::take(subr.ref_mut_t()),
-                                Covariant,
-                                subr.loc(),
-                            )?;
+                            *subr.ref_mut_t() =
+                                self.deref_tyvar(mem::take(subr.ref_mut_t()), Covariant, subr)?;
                         }
                     }
                     for chunk in attr.body.block.iter_mut() {
@@ -882,24 +879,22 @@ impl Context {
                 Ok(())
             }
             hir::Expr::BinOp(binop) => {
-                let loc = binop.loc();
-                let t = binop.signature_mut_t().unwrap();
-                *t = self.deref_tyvar(mem::take(t), Covariant, loc)?;
+                let t = mem::take(binop.signature_mut_t().unwrap());
+                *binop.signature_mut_t().unwrap() = self.deref_tyvar(t, Covariant, binop)?;
                 self.resolve_expr_t(&mut binop.lhs)?;
                 self.resolve_expr_t(&mut binop.rhs)?;
                 Ok(())
             }
             hir::Expr::UnaryOp(unaryop) => {
-                let loc = unaryop.loc();
-                let t = unaryop.signature_mut_t().unwrap();
-                *t = self.deref_tyvar(mem::take(t), Covariant, loc)?;
+                let t = mem::take(unaryop.signature_mut_t().unwrap());
+                *unaryop.signature_mut_t().unwrap() = self.deref_tyvar(t, Covariant, unaryop)?;
                 self.resolve_expr_t(&mut unaryop.expr)?;
                 Ok(())
             }
             hir::Expr::Call(call) => {
-                let loc = call.loc();
                 if let Some(t) = call.signature_mut_t() {
-                    *t = self.deref_tyvar(mem::take(t), Covariant, loc)?;
+                    let t = mem::take(t);
+                    *call.signature_mut_t().unwrap() = self.deref_tyvar(t, Covariant, call)?;
                 }
                 self.resolve_expr_t(&mut call.obj)?;
                 for arg in call.args.pos_args.iter_mut() {
@@ -915,7 +910,7 @@ impl Context {
             }
             hir::Expr::Def(def) => {
                 *def.sig.ref_mut_t() =
-                    self.deref_tyvar(mem::take(def.sig.ref_mut_t()), Covariant, def.sig.loc())?;
+                    self.deref_tyvar(mem::take(def.sig.ref_mut_t()), Covariant, &def.sig)?;
                 if let Some(params) = def.sig.params_mut() {
                     self.resolve_params_t(params)?;
                 }
@@ -925,7 +920,7 @@ impl Context {
                 Ok(())
             }
             hir::Expr::Lambda(lambda) => {
-                lambda.t = self.deref_tyvar(mem::take(&mut lambda.t), Covariant, lambda.loc())?;
+                lambda.t = self.deref_tyvar(mem::take(&mut lambda.t), Covariant, lambda)?;
                 self.resolve_params_t(&mut lambda.params)?;
                 for chunk in lambda.body.iter_mut() {
                     self.resolve_expr_t(chunk)?;

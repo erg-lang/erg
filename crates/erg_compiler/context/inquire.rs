@@ -282,7 +282,7 @@ impl Context {
         // NG: expr_t: Nat, union_pat_t: {1, 2}
         // OK: expr_t: Int, union_pat_t: {1} or 'T
         if self
-            .sub_unify(match_target_expr_t, &union_pat_t, pos_args[0].loc(), None)
+            .sub_unify(match_target_expr_t, &union_pat_t, &pos_args[0], None)
             .is_err()
         {
             return Err(TyCheckErrors::from(TyCheckError::match_error(
@@ -459,7 +459,7 @@ impl Context {
         match self.get_attr_from_nominal_t(obj, ident, input, namespace) {
             Ok(vi) => {
                 if let Some(self_t) = vi.t.self_t() {
-                    self.sub_unify(obj.ref_t(), self_t, obj.loc(), Some(&"self".into()))
+                    self.sub_unify(obj.ref_t(), self_t, obj, Some(&"self".into()))
                         .map_err(|mut e| e.remove(0))?;
                 }
                 return Ok(vi);
@@ -534,7 +534,7 @@ impl Context {
             }
         }
         let coerced = self
-            .deref_tyvar(obj.t(), Variance::Covariant, Location::Unknown)
+            .deref_tyvar(obj.t(), Variance::Covariant, &())
             .map_err(|mut es| es.remove(0))?;
         if obj.ref_t() != &coerced {
             for ctx in self.get_nominal_super_type_ctxs(&coerced).ok_or_else(|| {
@@ -818,7 +818,7 @@ impl Context {
         }
         match self.get_method_type_by_name(attr_name) {
             Ok(method) => {
-                self.sub_unify(obj.ref_t(), &method.definition_type, obj.loc(), None)
+                self.sub_unify(obj.ref_t(), &method.definition_type, obj, None)
                     // HACK: change this func's return type to TyCheckResult<Type>
                     .map_err(|mut errs| errs.remove(0))?;
                 return Ok(method.method_type.clone());
@@ -994,7 +994,7 @@ impl Context {
                     None
                 }
             }) {
-                self.reunify(callee.ref_t(), after, callee.loc())?;
+                self.reunify(callee.ref_t(), after, callee)?;
             }
         }
         Ok(())
@@ -1107,7 +1107,7 @@ impl Context {
                     let mut non_default_params = subr.non_default_params.iter();
                     let self_pt = non_default_params.next().unwrap();
                     if let Err(mut es) =
-                        self.sub_unify(obj.ref_t(), self_pt.typ(), obj.loc(), self_pt.name())
+                        self.sub_unify(obj.ref_t(), self_pt.typ(), obj, self_pt.name())
                     {
                         errs.append(&mut es);
                     }
@@ -1179,8 +1179,7 @@ impl Context {
                         .filter(|pt| !passed_params.contains(pt.name().unwrap()))
                     {
                         if let ParamTy::KwWithDefault { ty, default, .. } = &not_passed {
-                            if let Err(mut es) =
-                                self.sub_unify(default, ty, obj.loc(), not_passed.name())
+                            if let Err(mut es) = self.sub_unify(default, ty, obj, not_passed.name())
                             {
                                 errs.append(&mut es);
                             }
@@ -1248,7 +1247,7 @@ impl Context {
                     {
                         let mut dummy = TyVarCache::new(self.level, self);
                         let instance =
-                            self.instantiate_t_inner(call_vi.t.clone(), &mut dummy, obj.loc())?;
+                            self.instantiate_t_inner(call_vi.t.clone(), &mut dummy, obj)?;
                         self.substitute_call(obj, attr_name, &instance, pos_args, kw_args)?;
                         return Ok(Some(instance));
                     }
@@ -1363,7 +1362,7 @@ impl Context {
                 passed_params.insert(name.clone());
             }
         }
-        self.sub_unify(arg_t, param_t, arg.loc(), param.name())
+        self.sub_unify(arg_t, param_t, arg, param.name())
             .map_err(|errs| {
                 log!(err "semi-unification failed with {callee}\n{arg_t} !<: {param_t}");
                 let name = if let Some(attr) = attr_name {
@@ -1380,10 +1379,10 @@ impl Context {
                     arg_t,
                 );
                 let param_t = self
-                    .deref_tyvar(param_t.clone(), Variance::Contravariant, arg.loc())
+                    .deref_tyvar(param_t.clone(), Variance::Contravariant, arg)
                     .unwrap_or_else(|_| param_t.clone());
                 let arg_t = self
-                    .deref_tyvar(arg_t.clone(), Variance::Covariant, arg.loc())
+                    .deref_tyvar(arg_t.clone(), Variance::Covariant, arg)
                     .unwrap_or_else(|_| arg_t.clone());
                 TyCheckErrors::new(
                     errs.into_iter()
@@ -1417,7 +1416,7 @@ impl Context {
     ) -> TyCheckResult<()> {
         let arg_t = arg.ref_t();
         let param_t = param.typ();
-        self.sub_unify(arg_t, param_t, arg.loc(), param.name())
+        self.sub_unify(arg_t, param_t, arg, param.name())
             .map_err(|errs| {
                 log!(err "semi-unification failed with {callee}\n{arg_t} !<: {param_t}");
                 let name = if let Some(attr) = attr_name {
@@ -1477,7 +1476,7 @@ impl Context {
         {
             let param_t = pt.typ();
             passed_params.insert(kw_name.clone());
-            self.sub_unify(arg_t, param_t, arg.loc(), Some(kw_name))
+            self.sub_unify(arg_t, param_t, arg, Some(kw_name))
                 .map_err(|errs| {
                     log!(err "semi-unification failed with {callee}\n{arg_t} !<: {}", pt.typ());
                     let name = if let Some(attr) = attr_name {
@@ -1561,7 +1560,7 @@ impl Context {
             instance
         };
         log!(info "Substituted:\ninstance: {instance}");
-        let res = self.eval_t_params(instance, self.level, obj.loc())?;
+        let res = self.eval_t_params(instance, self.level, obj)?;
         log!(info "Params evaluated:\nres: {res}\n");
         self.propagate(&res, obj)?;
         log!(info "Propagated:\nres: {res}\n");
@@ -2370,12 +2369,8 @@ impl Context {
                     let insts = self.get_trait_impls(&sup);
                     let candidates = insts.into_iter().filter_map(move |inst| {
                         if self.supertype_of(&inst.sup_trait, &sup) {
-                            self.eval_t_params(
-                                proj(inst.sub_type, rhs),
-                                self.level,
-                                Location::Unknown,
-                            )
-                            .ok()
+                            self.eval_t_params(proj(inst.sub_type, rhs), self.level, &())
+                                .ok()
                         } else {
                             None
                         }

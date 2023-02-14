@@ -1,7 +1,7 @@
 //! provides type-comparison
 use std::option::Option; // conflicting to Type::Option
 
-use erg_common::error::{Location, MultiErrorDisplay};
+use erg_common::error::MultiErrorDisplay;
 use erg_common::style::colors::DEBUG_ERROR;
 
 use crate::ty::constructors::{and, not, or, poly};
@@ -554,7 +554,7 @@ impl Context {
                 if quant.has_uninited_qvars() {
                     let mut tmp_tv_cache = TyVarCache::new(self.level, self);
                     let inst = self
-                        .instantiate_t_inner(*quant.clone(), &mut tmp_tv_cache, Location::Unknown)
+                        .instantiate_t_inner(*quant.clone(), &mut tmp_tv_cache, &())
                         .unwrap();
                     self.supertype_of(&inst, r)
                 } else {
@@ -565,7 +565,7 @@ impl Context {
                 if quant.has_uninited_qvars() {
                     let mut tmp_tv_cache = TyVarCache::new(self.level, self);
                     let inst = self
-                        .instantiate_t_inner(*quant.clone(), &mut tmp_tv_cache, Location::Unknown)
+                        .instantiate_t_inner(*quant.clone(), &mut tmp_tv_cache, &())
                         .unwrap();
                     self.supertype_of(l, &inst)
                 } else {
