@@ -25,3 +25,5 @@ pub fn get_erg_version(erg_command: &str) -> Option<String> {
 pub fn env_erg_version() -> Option<String> {
     get_erg_version("erg")
 }
+
+pub const BUILTIN_ERG_MODS: [&str; 3] = ["consts", "consts/physics", "semver"];

@@ -712,13 +712,17 @@ impl LowerError {
                 (Some(erg), None) => {
                     erg_str.push_str("似た名前のergモジュールが存在します");
                     erg_str.push_str_with_color_and_attribute(erg, ACCENT, ATTR);
-                    None
+                    let mut hint  = StyledStrings::default();
+                    hint.push_str("ergのモジュールをインポートするためには、pyimportではなく");
+                    hint.push_str_with_color_and_attribute("import", ACCENT, ATTR);
+                    hint.push_str("を使用してください");
+                    Some(hint.to_string())
                 }
                 (None, Some(py)) => {
                     py_str.push_str("似た名前のpythonモジュールが存在します");
                     py_str.push_str_with_color_and_attribute(py, HINT, ATTR);
                     let mut hint  = StyledStrings::default();
-                    hint.push_str("pythonのモジュールをインポートするためには");
+                    hint.push_str("pythonのモジュールをインポートするためには、importではなく");
                     hint.push_str_with_color_and_attribute("pyimport", ACCENT, ATTR);
                     hint.push_str("を使用してください");
                     Some(hint.to_string())
@@ -741,7 +745,11 @@ impl LowerError {
                 (Some(erg), None) => {
                     erg_str.push_str("存在相似名称的erg模块: ");
                     erg_str.push_str_with_color_and_attribute(erg, HINT, ATTR);
-                    None
+                    let mut hint  = StyledStrings::default();
+                    hint.push_str("要导入erg模块,请使用");
+                    hint.push_str_with_color_and_attribute("import", ACCENT, ATTR);
+                    hint.push_str("而不是pyimport");
+                    Some(hint.to_string())
                 }
                 (None, Some(py)) => {
                     py_str.push_str("存在相似名称的python模块: ");
@@ -749,6 +757,7 @@ impl LowerError {
                     let mut hint  = StyledStrings::default();
                     hint.push_str("要导入python模块,请使用");
                     hint.push_str_with_color_and_attribute("pyimport", ACCENT, ATTR);
+                    hint.push_str("而不是import");
                     Some(hint.to_string())
                 }
                 (None, None) => None,
@@ -769,7 +778,11 @@ impl LowerError {
                 (Some(erg), None) => {
                     erg_str.push_str("存在類似名稱的erg模塊: ");
                     erg_str.push_str_with_color_and_attribute(erg, HINT, ATTR);
-                    None
+                    let mut hint  = StyledStrings::default();
+                    hint.push_str("要導入erg模塊, 請使用");
+                    hint.push_str_with_color_and_attribute("import", ACCENT, ATTR);
+                    hint.push_str("而不是pyimport");
+                    Some(hint.to_string())
                 }
                 (None, Some(py)) => {
                     py_str.push_str("存在類似名稱的python模塊: ");
@@ -777,6 +790,7 @@ impl LowerError {
                     let mut hint  = StyledStrings::default();
                     hint.push_str("要導入python模塊, 請使用");
                     hint.push_str_with_color_and_attribute("pyimport", ACCENT, ATTR);
+                    hint.push_str("而不是import");
                     Some(hint.to_string())
                 }
                 (None, None) => None,
@@ -797,7 +811,11 @@ impl LowerError {
                 (Some(erg), None) => {
                     erg_str.push_str("similar name erg module exists: ");
                     erg_str.push_str_with_color_and_attribute(erg, HINT, ATTR);
-                    None
+                    let mut hint  = StyledStrings::default();
+                    hint.push_str("to import erg modules, use ");
+                    hint.push_str_with_color_and_attribute("import", ACCENT, ATTR);
+                    hint.push_str(" (not pyimport)");
+                    Some(hint.to_string())
                 }
                 (None, Some(py)) => {
                     py_str.push_str("similar name python module exits: ");
@@ -805,6 +823,7 @@ impl LowerError {
                     let mut hint  = StyledStrings::default();
                     hint.push_str("to import python modules, use ");
                     hint.push_str_with_color_and_attribute("pyimport", ACCENT, ATTR);
+                    hint.push_str(" (not import)");
                     Some(hint.to_string())
                 }
                 (None, None) => None,

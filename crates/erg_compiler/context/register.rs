@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use erg_common::env::erg_pystd_path;
+use erg_common::erg_util::BUILTIN_ERG_MODS;
 use erg_common::levenshtein::get_similar_name;
 use erg_common::python_util::BUILTIN_PYTHON_MODS;
 use erg_common::set::Set;
@@ -1404,7 +1405,8 @@ impl Context {
                     format!("module {__name__} not found"),
                     mod_name.loc(),
                     self.caused_by(),
-                    mod_cache.get_similar_name(&__name__),
+                    self.similar_builtin_erg_mod_name(&__name__)
+                        .or_else(|| mod_cache.get_similar_name(&__name__)),
                     self.similar_builtin_py_mod_name(&__name__)
                         .or_else(|| py_mod_cache.get_similar_name(&__name__)),
                 ));
@@ -1442,6 +1444,10 @@ impl Context {
 
     fn similar_builtin_py_mod_name(&self, name: &Str) -> Option<Str> {
         get_similar_name(BUILTIN_PYTHON_MODS.into_iter(), name).map(Str::rc)
+    }
+
+    fn similar_builtin_erg_mod_name(&self, name: &Str) -> Option<Str> {
+        get_similar_name(BUILTIN_ERG_MODS.into_iter(), name).map(Str::rc)
     }
 
     fn is_pystd_main_module(&self, path: &Path) -> bool {
@@ -1513,7 +1519,8 @@ impl Context {
                     format!("module {__name__} not found"),
                     mod_name.loc(),
                     self.caused_by(),
-                    self.mod_cache().unwrap().get_similar_name(&__name__),
+                    self.similar_builtin_erg_mod_name(&__name__)
+                        .or_else(|| self.mod_cache().unwrap().get_similar_name(&__name__)),
                     self.similar_builtin_py_mod_name(&__name__)
                         .or_else(|| self.py_mod_cache().unwrap().get_similar_name(&__name__)),
                 );
