@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::time::SystemTime;
 
+use erg_common::traits::{Locational, Stream};
+use erg_compiler::artifact::IncompleteArtifact;
 use serde::Deserialize;
 use serde_json::json;
 use serde_json::Value;
@@ -8,9 +10,10 @@ use serde_json::Value;
 use erg_common::dict::Dict;
 
 use erg_compiler::artifact::BuildRunnable;
+use erg_compiler::hir::{Expr, Literal};
 use erg_compiler::varinfo::{AbsLocation, VarKind};
 
-use lsp_types::{RenameParams, TextEdit, Url, WorkspaceEdit};
+use lsp_types::{RenameFilesParams, RenameParams, TextEdit, Url, WorkspaceEdit};
 
 use crate::server::{ELSResult, Server};
 use crate::util;
@@ -143,5 +146,99 @@ impl<Checker: BuildRunnable> Server<Checker> {
             .filter(|node| node.depends_on(&path))
             .map(|node| util::normalize_url(Url::from_file_path(&node.id).unwrap()))
             .collect()
+    }
+}
+
+impl<Checker: BuildRunnable> Server<Checker> {
+    fn collect_module_changes(
+        &mut self,
+        old_uri: &Url,
+        new_uri: &Url,
+    ) -> HashMap<Url, Vec<TextEdit>> {
+        let new_path = util::uri_to_path(new_uri)
+            .file_stem()
+            .unwrap()
+            .to_string_lossy()
+            .to_string();
+        let new_path = format!("\"{new_path}\"");
+        let mut changes = HashMap::new();
+        for dep in self.dependents_of(old_uri) {
+            let imports = self.search_imports(&dep, old_uri);
+            for import in imports.iter() {
+                let range = util::loc_to_range(import.loc()).unwrap();
+                self.file_cache.ranged_update(&dep, range, &new_path);
+            }
+            let edits = imports
+                .iter()
+                .map(|lit| TextEdit::new(util::loc_to_range(lit.loc()).unwrap(), new_path.clone()));
+            changes.insert(dep, edits.collect());
+        }
+        changes
+    }
+
+    /// TODO: multi-path imports
+    /// returning exprs: import call
+    fn search_imports(&self, target: &Url, needle: &Url) -> Vec<&Literal> {
+        let needle_module_name = util::uri_to_path(needle)
+            .file_stem()
+            .unwrap()
+            .to_string_lossy()
+            .to_string();
+        let mut imports = vec![];
+        if let Some(IncompleteArtifact {
+            object: Some(hir), ..
+        }) = self.artifacts.get(target)
+        {
+            for chunk in hir.module.iter() {
+                match chunk {
+                    Expr::Def(def) if def.def_kind().is_import() => {
+                        let Some(Expr::Call(import_call)) = def.body.block.first() else {
+                            continue;
+                        };
+                        let module_name = import_call.args.get_left_or_key("Path").unwrap();
+                        match module_name {
+                            Expr::Lit(lit)
+                                if lit
+                                    .token
+                                    .content
+                                    .trim_start_matches('\"')
+                                    .trim_end_matches('\"')
+                                    == needle_module_name =>
+                            {
+                                imports.push(lit);
+                            }
+                            _ => {}
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        imports
+    }
+
+    pub(crate) fn rename_files(&mut self, msg: &Value) -> ELSResult<()> {
+        Self::send_log("workspace/willRenameFiles request")?;
+        let params = RenameFilesParams::deserialize(msg["params"].clone())?;
+        let mut edits = HashMap::new();
+        for file in &params.files {
+            let old_uri = util::normalize_url(Url::parse(&file.old_uri).unwrap());
+            let new_uri = util::normalize_url(Url::parse(&file.new_uri).unwrap());
+            edits.extend(self.collect_module_changes(&old_uri, &new_uri));
+            let Some(entry) = self.artifacts.remove(&old_uri) else {
+                continue;
+            };
+            self.artifacts.insert(new_uri.clone(), entry);
+            let Some(entry) = self.modules.remove(&old_uri) else {
+                continue;
+            };
+            self.modules.insert(new_uri, entry);
+            if let Some(shared) = self.get_shared() {
+                shared.clear_all();
+            }
+        }
+        self.file_cache.rename_files(&params)?;
+        let edit = WorkspaceEdit::new(edits);
+        Self::send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": edit }))
     }
 }

@@ -1116,14 +1116,6 @@ impl RecordAttrs {
         self.0.is_empty()
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &Def> {
-        self.0.iter()
-    }
-
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Def> {
-        self.0.iter_mut()
-    }
-
     pub fn push(&mut self, attr: Def) {
         self.0.push(attr);
     }

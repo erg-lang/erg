@@ -113,7 +113,7 @@ impl AbsLocation {
     pub fn code(&self) -> Option<String> {
         use std::io::{BufRead, BufReader};
         self.module.as_ref().and_then(|module| {
-            let file = std::fs::File::open(module).unwrap();
+            let file = std::fs::File::open(module).ok()?;
             let reader = BufReader::new(file);
             reader
                 .lines()

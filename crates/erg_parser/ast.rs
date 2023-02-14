@@ -831,16 +831,6 @@ impl From<Vec<Def>> for RecordAttrs {
     }
 }
 
-impl RecordAttrs {
-    pub fn iter(&self) -> impl Iterator<Item = &Def> {
-        self.0.iter()
-    }
-
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Def> {
-        self.0.iter_mut()
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct NormalRecord {
     pub l_brace: Token,
@@ -3550,12 +3540,16 @@ impl DefKind {
         self.is_class() || self.is_trait()
     }
 
-    pub fn is_erg_import(&self) -> bool {
+    pub const fn is_erg_import(&self) -> bool {
         matches!(self, Self::ErgImport)
     }
 
-    pub fn is_py_import(&self) -> bool {
+    pub const fn is_py_import(&self) -> bool {
         matches!(self, Self::PyImport)
+    }
+
+    pub const fn is_import(&self) -> bool {
+        self.is_erg_import() || self.is_py_import()
     }
 }
 

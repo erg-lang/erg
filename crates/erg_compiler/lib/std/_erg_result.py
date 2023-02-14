@@ -6,13 +6,13 @@ class Error:
 
 # T = TypeVar("T")
 # @_SpecialForm
-def Result(self, parameters):
-    """Result type.
-
-    Result[T] is equivalent to Union[T, Error].
-    """
-    # arg = _type_check(parameters, f"{self} requires a single type.")
-    return [arg, Error]
+# def Result(self, parameters):
+#    """Result type.
+#
+#    Result[T] is equivalent to Union[T, Error].
+#    """
+#    arg = _type_check(parameters, f"{self} requires a single type.")
+#    return [arg, Error]
 
 def is_ok(obj) -> bool:
     return not isinstance(obj, Error)

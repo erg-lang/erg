@@ -23,8 +23,7 @@ use lsp_types::{
     CompletionOptions, DidChangeTextDocumentParams, ExecuteCommandOptions, HoverProviderCapability,
     InitializeResult, OneOf, Position, SemanticTokenType, SemanticTokensFullOptions,
     SemanticTokensLegend, SemanticTokensOptions, SemanticTokensServerCapabilities,
-    ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, Url,
-    WorkDoneProgressOptions,
+    ServerCapabilities, Url, WorkDoneProgressOptions,
 };
 
 use crate::file_cache::FileCache;
@@ -171,9 +170,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         }
         let mut result = InitializeResult::default();
         result.capabilities = ServerCapabilities::default();
-        result.capabilities.text_document_sync = Some(TextDocumentSyncCapability::from(
-            TextDocumentSyncKind::INCREMENTAL,
-        ));
+        self.file_cache.set_capabilities(&mut result.capabilities);
         let mut comp_options = CompletionOptions::default();
         comp_options.trigger_characters =
             Some(vec![".".to_string(), ":".to_string(), "(".to_string()]);
@@ -354,6 +351,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             "textDocument/semanticTokens/full" => self.get_semantic_tokens_full(msg),
             "textDocument/inlayHint" => self.get_inlay_hint(msg),
             "textDocument/codeAction" => self.send_code_action(msg),
+            "workspace/willRenameFiles" => self.rename_files(msg),
             other => Self::send_error(Some(id), -32600, format!("{other} is not supported")),
         }
     }

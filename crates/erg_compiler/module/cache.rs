@@ -139,6 +139,12 @@ impl ModuleCache {
     pub fn get_similar_name(&self, name: &str) -> Option<Str> {
         get_similar_name(self.cache.iter().map(|(v, _)| v.to_str().unwrap()), name).map(Str::rc)
     }
+
+    pub fn rename_path(&mut self, old: &PathBuf, new: PathBuf) {
+        if let Some(entry) = self.cache.remove(old) {
+            self.cache.insert(new, entry);
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -219,5 +225,9 @@ impl SharedModuleCache {
             self.remove(&path);
         }
         self.register(builtin_path, None, Rc::try_unwrap(builtin.module).unwrap());
+    }
+
+    pub fn rename_path(&self, path: &PathBuf, new: PathBuf) {
+        self.0.borrow_mut().rename_path(path, new);
     }
 }

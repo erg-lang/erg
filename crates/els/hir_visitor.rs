@@ -1,4 +1,4 @@
-use erg_common::traits::{Locational, Stream};
+use erg_common::traits::Locational;
 use erg_common::Str;
 use erg_compiler::erg_parser::token::Token;
 use erg_compiler::hir::*;

@@ -4,7 +4,7 @@ use serde::Deserialize;
 use serde_json::json;
 use serde_json::Value;
 
-use erg_common::traits::{Locational, Stream};
+use erg_common::traits::Locational;
 use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::erg_parser::token::{Token, TokenKind};
 use erg_compiler::hir::Expr;

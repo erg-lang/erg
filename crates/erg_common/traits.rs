@@ -364,6 +364,15 @@ macro_rules! impl_stream {
                 self.payload().into_iter()
             }
         }
+
+        impl $Strc {
+            pub fn iter(&self) -> std::slice::Iter<'_, $Inner> {
+                self.ref_payload().iter()
+            }
+            pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, $Inner> {
+                self.ref_mut_payload().iter_mut()
+            }
+        }
     };
     ($Strc: ident, $Inner: ident) => {
         impl $Strc {
@@ -425,6 +434,15 @@ macro_rules! impl_stream {
             #[inline]
             fn ref_mut_payload(&mut self) -> &mut Vec<$Inner> {
                 &mut self.0
+            }
+        }
+
+        impl $Strc {
+            pub fn iter(&self) -> std::slice::Iter<'_, $Inner> {
+                self.ref_payload().iter()
+            }
+            pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, $Inner> {
+                self.ref_mut_payload().iter_mut()
             }
         }
     };

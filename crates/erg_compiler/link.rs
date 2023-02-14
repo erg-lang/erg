@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 use erg_common::config::{ErgConfig, Input};
 use erg_common::python_util::BUILTIN_PYTHON_MODS;
-use erg_common::traits::{Locational, Stream};
+use erg_common::traits::Locational;
 use erg_common::Str;
 use erg_common::{enum_unwrap, log};
 

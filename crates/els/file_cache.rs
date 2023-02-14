@@ -1,6 +1,12 @@
 use std::fs::{metadata, Metadata};
 
-use lsp_types::{DidChangeTextDocumentParams, Position, Url};
+use lsp_types::{
+    DidChangeTextDocumentParams, FileOperationFilter, FileOperationPattern,
+    FileOperationPatternKind, FileOperationRegistrationOptions, OneOf, Position, Range,
+    RenameFilesParams, SaveOptions, ServerCapabilities, TextDocumentSyncCapability,
+    TextDocumentSyncKind, TextDocumentSyncOptions, Url, WorkspaceFileOperationsServerCapabilities,
+    WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities,
+};
 
 use erg_common::dict::Dict;
 use erg_common::shared::Shared;
@@ -28,6 +34,47 @@ impl FileCache {
         Self {
             files: Shared::new(Dict::new()),
         }
+    }
+
+    pub(crate) fn set_capabilities(&mut self, capabilities: &mut ServerCapabilities) {
+        let workspace_folders = WorkspaceFoldersServerCapabilities {
+            supported: Some(true),
+            change_notifications: Some(OneOf::Left(true)),
+        };
+        let file_op = FileOperationRegistrationOptions {
+            filters: vec![
+                FileOperationFilter {
+                    scheme: Some(String::from("file")),
+                    pattern: FileOperationPattern {
+                        glob: String::from("**/*.er"),
+                        matches: Some(FileOperationPatternKind::File),
+                        options: None,
+                    },
+                },
+                FileOperationFilter {
+                    scheme: Some(String::from("file")),
+                    pattern: FileOperationPattern {
+                        glob: String::from("**"),
+                        matches: Some(FileOperationPatternKind::Folder),
+                        options: None,
+                    },
+                },
+            ],
+        };
+        capabilities.workspace = Some(WorkspaceServerCapabilities {
+            workspace_folders: Some(workspace_folders),
+            file_operations: Some(WorkspaceFileOperationsServerCapabilities {
+                will_rename: Some(file_op),
+                ..Default::default()
+            }),
+        });
+        let sync_option = TextDocumentSyncOptions {
+            open_close: Some(true),
+            change: Some(TextDocumentSyncKind::INCREMENTAL),
+            save: Some(SaveOptions::default().into()),
+            ..Default::default()
+        };
+        capabilities.text_document_sync = Some(TextDocumentSyncCapability::Options(sync_option));
     }
 
     pub fn get(&self, uri: &Url) -> ELSResult<&FileCacheEntry> {
@@ -120,6 +167,21 @@ impl FileCache {
         );
     }
 
+    pub(crate) fn ranged_update(&self, uri: &Url, old: Range, new_code: &str) {
+        let Some(entry) = unsafe { self.files.as_mut() }.get_mut(uri) else {
+            return;
+        };
+        let metadata = metadata(uri.to_file_path().unwrap()).unwrap();
+        let mut code = entry.code.clone();
+        let start = util::pos_to_index(&code, old.start);
+        let end = util::pos_to_index(&code, old.end);
+        code.replace_range(start..end, new_code);
+        let token_stream = Lexer::from_str(code.clone()).lex().ok();
+        entry.code = code;
+        entry.metadata = metadata;
+        entry.token_stream = token_stream;
+    }
+
     pub(crate) fn incremental_update(&self, params: DidChangeTextDocumentParams) {
         let uri = util::normalize_url(params.text_document.uri);
         let Some(entry) = unsafe { self.files.as_mut() }.get_mut(&uri) else {
@@ -142,5 +204,17 @@ impl FileCache {
     #[allow(unused)]
     pub fn remove(&mut self, uri: &Url) {
         self.files.borrow_mut().remove(uri);
+    }
+
+    pub fn rename_files(&mut self, params: &RenameFilesParams) -> ELSResult<()> {
+        for file in &params.files {
+            let old_uri = util::normalize_url(Url::parse(&file.old_uri).unwrap());
+            let new_uri = util::normalize_url(Url::parse(&file.new_uri).unwrap());
+            let Some(entry) = self.files.borrow_mut().remove(&old_uri) else {
+                continue;
+            };
+            self.files.borrow_mut().insert(new_uri, entry);
+        }
+        Ok(())
     }
 }
