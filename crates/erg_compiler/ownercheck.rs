@@ -264,7 +264,7 @@ impl OwnershipChecker {
     fn check_acc(&mut self, acc: &Accessor, ownership: Ownership, chunk: bool) {
         match acc {
             Accessor::Ident(ident) => {
-                if let Err(e) = self.check_if_dropped(ident.inspect(), ident.loc()) {
+                if let Err(e) = self.check_if_dropped(ident.inspect(), ident) {
                     self.errs.push(e);
                     return;
                 }
@@ -336,7 +336,11 @@ impl OwnershipChecker {
         panic!("variable not found: {ident}");
     }
 
-    fn check_if_dropped(&mut self, name: &Str, loc: Location) -> Result<(), OwnershipError> {
+    fn check_if_dropped(
+        &mut self,
+        name: &Str,
+        loc: &impl Locational,
+    ) -> Result<(), OwnershipError> {
         for n in 0..self.path_stack.len() {
             if let Some(moved_loc) = self.nth_outer_scope(n).dropped_vars.get(name) {
                 let moved_loc = *moved_loc;
@@ -344,7 +348,7 @@ impl OwnershipChecker {
                     self.cfg.input.clone(),
                     line!() as usize,
                     name,
-                    loc,
+                    loc.loc(),
                     moved_loc,
                     self.full_path(),
                 ));

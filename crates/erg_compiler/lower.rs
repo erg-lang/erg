@@ -13,7 +13,7 @@ use erg_common::vis::Visibility;
 use erg_common::{fmt_option, fn_name, log, option_enum_unwrap, switch_lang, Str};
 
 use erg_parser::ast;
-use erg_parser::ast::{OperationKind, VarName, AST};
+use erg_parser::ast::{OperationKind, TypeSpecWithOp, VarName, AST};
 use erg_parser::build_ast::ASTBuilder;
 use erg_parser::token::{Token, TokenKind};
 use erg_parser::Parser;
@@ -528,14 +528,13 @@ impl ASTLowerer {
         let mut union = dict! {};
         let mut new_kvs = vec![];
         for kv in dict.kvs {
-            let loc = kv.loc();
             let key = self.lower_expr(kv.key)?;
             let value = self.lower_expr(kv.value)?;
             if union.insert(key.t(), value.t()).is_some() {
                 return Err(LowerErrors::from(LowerError::syntax_error(
                     self.cfg.input.clone(),
                     line!() as usize,
-                    loc,
+                    Location::concat(&key, &value),
                     String::from(&self.module.context.name[..]),
                     switch_lang!(
                         "japanese" => "Dictの値は全て同じ型である必要があります",
@@ -1333,7 +1332,7 @@ impl ASTLowerer {
         for mut methods in class_def.methods_list.into_iter() {
             let (class, impl_trait) = match &methods.class {
                 ast::TypeSpec::TypeApp { spec, args } => {
-                    let (impl_trait, loc) = match &args.args.pos_args().first().unwrap().expr {
+                    let (impl_trait, t_spec) = match &args.args.pos_args().first().unwrap().expr {
                         // TODO: check `tasc.op`
                         ast::Expr::TypeAscription(tasc) => (
                             self.module.context.instantiate_typespec(
@@ -1343,7 +1342,7 @@ impl ASTLowerer {
                                 RegistrationMode::Normal,
                                 false,
                             )?,
-                            tasc.t_spec.loc(),
+                            &tasc.t_spec,
                         ),
                         _ => return unreachable_error!(LowerErrors, LowerError, self),
                     };
@@ -1355,7 +1354,7 @@ impl ASTLowerer {
                             RegistrationMode::Normal,
                             false,
                         )?,
-                        Some((impl_trait, loc)),
+                        Some((impl_trait, t_spec)),
                     )
                 }
                 other => (
@@ -1601,7 +1600,7 @@ impl ASTLowerer {
         &mut self,
         class: &Type,
         trait_: &Type,
-        trait_loc: Location,
+        trait_loc: &impl Locational,
     ) -> LowerResult<()> {
         // TODO: polymorphic trait
         if let Some(impls) = self.module.context.trait_impls.get_mut(&trait_.qual_name()) {
@@ -1620,7 +1619,7 @@ impl ASTLowerer {
                 return Err(LowerErrors::from(LowerError::no_var_error(
                     self.cfg.input.clone(),
                     line!() as usize,
-                    trait_loc,
+                    trait_loc.loc(),
                     self.module.context.caused_by(),
                     &trait_.local_name(),
                     None,
@@ -1630,7 +1629,7 @@ impl ASTLowerer {
             return Err(LowerErrors::from(LowerError::type_not_found(
                 self.cfg.input.clone(),
                 line!() as usize,
-                trait_loc,
+                trait_loc.loc(),
                 self.module.context.caused_by(),
                 class,
             )));
@@ -1709,10 +1708,10 @@ impl ASTLowerer {
     /// i.e., check that all required attributes are defined and that no extra attributes are defined
     fn check_trait_impl(
         &mut self,
-        impl_trait: Option<(Type, Location)>,
+        impl_trait: Option<(Type, &TypeSpecWithOp)>,
         class: &Type,
     ) -> SingleLowerResult<()> {
-        if let Some((impl_trait, loc)) = impl_trait {
+        if let Some((impl_trait, t_spec)) = impl_trait {
             let mut unverified_names = self.module.context.locals.keys().collect::<Set<_>>();
             if let Some(trait_obj) = self
                 .module
@@ -1814,7 +1813,7 @@ impl ASTLowerer {
                     return Err(LowerError::type_mismatch_error(
                         self.cfg.input.clone(),
                         line!() as usize,
-                        loc,
+                        t_spec.loc(),
                         self.module.context.caused_by(),
                         &impl_trait.qual_name(),
                         None,
@@ -1828,7 +1827,7 @@ impl ASTLowerer {
                 return Err(LowerError::no_var_error(
                     self.cfg.input.clone(),
                     line!() as usize,
-                    loc,
+                    t_spec.loc(),
                     self.module.context.caused_by(),
                     &impl_trait.qual_name(),
                     self.module
@@ -1955,7 +1954,6 @@ impl ASTLowerer {
             RegistrationMode::Normal,
             false,
         )?;
-        let loc = tasc.loc();
         let expr = self.lower_expr(*tasc.expr)?;
         if is_instance_ascription {
             self.module.context.sub_unify(
@@ -1979,7 +1977,7 @@ impl ASTLowerer {
                     line!() as usize,
                     expr.ref_t(), // FIXME:
                     &spec_t,
-                    loc,
+                    Location::concat(&expr, &tasc.t_spec),
                     self.module.context.caused_by(),
                 )));
             }

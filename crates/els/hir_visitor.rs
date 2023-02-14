@@ -452,7 +452,8 @@ impl<'a> HIRVisitor<'a> {
     }
 
     fn get_expr_info(&self, expr: &Expr, token: &Token) -> Option<VarInfo> {
-        if expr.ln_end() < token.ln_begin() || expr.ln_begin() > token.ln_end() {
+        let loc = expr.loc();
+        if loc.ln_end() < token.ln_begin() || loc.ln_begin() > token.ln_end() {
             return None;
         }
         match expr {

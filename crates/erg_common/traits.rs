@@ -1004,11 +1004,13 @@ macro_rules! impl_locational {
     ($T: ty, $begin: ident, $end: ident) => {
         impl Locational for $T {
             fn loc(&self) -> Location {
+                let begin_loc = self.$begin.loc();
+                let end_loc = self.$end.loc();
                 match (
-                    self.$begin.ln_begin(),
-                    self.$begin.col_begin(),
-                    self.$end.ln_end(),
-                    self.$end.col_end(),
+                    begin_loc.ln_begin(),
+                    begin_loc.col_begin(),
+                    end_loc.ln_end(),
+                    end_loc.col_end(),
                 ) {
                     (Some(lb), Some(cb), Some(le), Some(ce)) => Location::range(lb, cb, le, ce),
                     (Some(lb), _, Some(le), _) => Location::LineRange(lb, le),
@@ -1016,19 +1018,33 @@ macro_rules! impl_locational {
                     _ => Location::Unknown,
                 }
             }
+            fn ln_begin(&self) -> Option<u32> {
+                self.$begin.ln_begin()
+            }
+            fn ln_end(&self) -> Option<u32> {
+                self.$end.ln_end()
+            }
+            fn col_begin(&self) -> Option<u32> {
+                self.$begin.col_begin()
+            }
+            fn col_end(&self) -> Option<u32> {
+                self.$end.col_end()
+            }
         }
     };
     ($T: ty, lossy $begin: ident, $end: ident) => {
         impl Locational for $T {
             fn loc(&self) -> Location {
-                if self.$begin.loc().is_unknown() {
-                    return self.$end.loc();
+                let begin_loc = self.$begin.loc();
+                let end_loc = self.$end.loc();
+                if begin_loc.is_unknown() {
+                    return end_loc;
                 }
                 match (
-                    self.$begin.ln_begin(),
-                    self.$begin.col_begin(),
-                    self.$end.ln_end(),
-                    self.$end.col_end(),
+                    begin_loc.ln_begin(),
+                    begin_loc.col_begin(),
+                    end_loc.ln_end(),
+                    end_loc.col_end(),
                 ) {
                     (Some(lb), Some(cb), Some(le), Some(ce)) => Location::range(lb, cb, le, ce),
                     (Some(lb), _, Some(le), _) => Location::LineRange(lb, le),
@@ -1041,20 +1057,34 @@ macro_rules! impl_locational {
     ($T: ty, $begin: ident, $middle: ident, $end: ident) => {
         impl Locational for $T {
             fn loc(&self) -> Location {
-                if self.$begin.loc().is_unknown() && self.$end.loc().is_unknown() {
+                let begin_loc = self.$begin.loc();
+                let end_loc = self.$end.loc();
+                if begin_loc.is_unknown() && end_loc.is_unknown() {
                     return self.$middle.loc();
                 }
                 match (
-                    self.$begin.ln_begin(),
-                    self.$begin.col_begin(),
-                    self.$end.ln_end(),
-                    self.$end.col_end(),
+                    begin_loc.ln_begin(),
+                    begin_loc.col_begin(),
+                    end_loc.ln_end(),
+                    end_loc.col_end(),
                 ) {
                     (Some(lb), Some(cb), Some(le), Some(ce)) => Location::range(lb, cb, le, ce),
                     (Some(lb), _, Some(le), _) => Location::LineRange(lb, le),
                     (Some(l), _, _, _) | (_, _, Some(l), _) => Location::Line(l),
                     _ => Location::Unknown,
                 }
+            }
+            fn ln_begin(&self) -> Option<u32> {
+                self.$begin.ln_begin()
+            }
+            fn ln_end(&self) -> Option<u32> {
+                self.$end.ln_end()
+            }
+            fn col_begin(&self) -> Option<u32> {
+                self.$begin.col_begin()
+            }
+            fn col_end(&self) -> Option<u32> {
+                self.$end.col_end()
             }
         }
     };

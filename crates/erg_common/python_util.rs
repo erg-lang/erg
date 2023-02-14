@@ -636,14 +636,11 @@ pub fn get_python_version(py_command: &str) -> PythonVersion {
         Command::new("cmd")
             .arg("/C")
             .arg(py_command)
-            .arg("-c")
-            .arg("import sys;print(sys.version_info.major, sys.version_info.minor, sys.version_info.micro)")
+            .arg("--version")
             .output()
             .expect("cannot get the python version")
     } else {
-        let exec_command = format!(
-            "{py_command} -c 'import sys;print(sys.version_info.major, sys.version_info.minor, sys.version_info.micro)'",
-        );
+        let exec_command = format!("{py_command} --version");
         Command::new("sh")
             .arg("-c")
             .arg(exec_command)
@@ -652,6 +649,7 @@ pub fn get_python_version(py_command: &str) -> PythonVersion {
     };
     let s_version = String::from_utf8(out.stdout).unwrap();
     let mut iter = s_version.split(' ');
+    let mut iter = iter.nth(1).unwrap().split('.');
     let major = iter.next().and_then(|i| i.parse().ok()).unwrap_or(3);
     let minor = iter.next().and_then(|i| i.parse().ok());
     let micro = iter.next().and_then(|i| i.trim_end().parse().ok());

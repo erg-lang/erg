@@ -2519,9 +2519,10 @@ impl PyCodeGenerator {
     }
 
     fn push_lnotab(&mut self, expr: &Expr) {
-        if expr.ln_begin().unwrap_or_else(|| panic!("{expr}")) > self.cur_block().prev_lineno {
+        let ln_begin = expr.ln_begin().unwrap_or_else(|| panic!("{expr}"));
+        if ln_begin > self.cur_block().prev_lineno {
             let sd = self.lasti() - self.cur_block().prev_lasti;
-            let ld = expr.ln_begin().unwrap() - self.cur_block().prev_lineno;
+            let ld = ln_begin - self.cur_block().prev_lineno;
             if ld != 0 {
                 if sd != 0 {
                     self.mut_cur_block_codeobj().lnotab.push(sd as u8);

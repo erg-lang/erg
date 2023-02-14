@@ -337,7 +337,14 @@ impl PartialOrd for Location {
 
 impl Location {
     pub fn concat<L: Locational, R: Locational>(l: &L, r: &R) -> Self {
-        match (l.ln_begin(), l.col_begin(), r.ln_end(), r.col_end()) {
+        let l_loc = l.loc();
+        let r_loc = r.loc();
+        match (
+            l_loc.ln_begin(),
+            l_loc.col_begin(),
+            r_loc.ln_end(),
+            r_loc.col_end(),
+        ) {
             (Some(lb), Some(cb), Some(le), Some(ce)) => Self::range(lb, cb, le, ce),
             (Some(lb), _, Some(le), _) => Self::LineRange(lb, le),
             (Some(l), _, _, _) | (_, _, Some(l), _) => Self::Line(l),

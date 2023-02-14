@@ -1390,11 +1390,7 @@ impl HasType for Call {
     }
 }
 
-impl Locational for Call {
-    fn loc(&self) -> Location {
-        Location::concat(self.obj.as_ref(), &self.args)
-    }
-}
+impl_locational!(Call, obj, args);
 
 impl Call {
     pub fn new(obj: Expr, attr_name: Option<Identifier>, args: Args) -> Self {

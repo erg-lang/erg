@@ -327,8 +327,7 @@ impl<'a> Linker<'a> {
                 Expr::Accessor(Accessor::private_with_line(Str::ever("#ModuleType"), line));
             let args = Args::new(vec![PosArg::new(mod_name.clone())], None, vec![], None);
             let block = Block::new(vec![module_type.call_expr(args)]);
-            let tmp =
-                Identifier::private_with_line(Str::from(fresh_varname()), expr.ln_begin().unwrap());
+            let tmp = Identifier::private_with_line(Str::from(fresh_varname()), line);
             let mod_def = Expr::Def(Def::new(
                 Signature::Var(VarSignature::new(tmp.clone(), None)),
                 DefBody::new(EQUAL, block, DefId(0)),
