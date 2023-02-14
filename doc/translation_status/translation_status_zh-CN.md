@@ -1,6 +1,6 @@
 # zh-CN translation status
 
-This This file is generated automatically. If you want to edit this, edit [`doc/scripts/sync_to_translation_status.er`](../scripts/sync_to_translation_status.er)
+This file is generated automatically. If you want to edit this, edit [`doc/scripts/sync_to_translation_status.er`](../scripts/sync_to_translation_status.er)
 
 | EN file name | edit icon and badge |
 | --- | --- |
