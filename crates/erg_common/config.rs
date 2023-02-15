@@ -10,7 +10,8 @@ use std::path::{Path, PathBuf};
 use std::process;
 use std::str::FromStr;
 
-use crate::help_messages::{command_message, mode_message};
+use crate::help_messages::{command_message, mode_message, OPTIONS};
+use crate::levenshtein::get_similar_name;
 use crate::normalize_path;
 use crate::python_util::{detect_magic_number, get_python_version, PythonVersion};
 use crate::random::random;
@@ -676,10 +677,13 @@ impl ErgConfig {
                     process::exit(0);
                 }
                 other if other.starts_with('-') => {
+                    if let Some(option) = get_similar_name(OPTIONS.iter().copied(), other) {
+                        eprintln!("invalid option: {other} (did you mean `{option}`?)");
+                    } else {
+                        eprintln!("invalid option: {other}");
+                    }
                     eprintln!(
-                        "\
-invalid option: {other}
-
+                        "
 USAGE:
     erg [OPTIONS] [SUBCOMMAND] [ARGS]...
 
