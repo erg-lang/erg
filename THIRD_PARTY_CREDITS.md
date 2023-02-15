@@ -14,6 +14,11 @@ cargo license --json | \
 
 ----
 
+## `rustc_span`
+
+* Source code is available at [https://github.com/rust-lang/rust](https://github.com/rust-lang/rust/tree/master/compiler/rustc_span)
+* license: MIT/Apache 2.0
+
 ## `crossterm`
 
 * Source code is available at [https://github.com/crossterm-rs/crossterm](https://github.com/crossterm-rs/crossterm)

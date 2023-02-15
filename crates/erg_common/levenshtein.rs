@@ -1,47 +1,54 @@
-/// Calculates the Levenshtein distance (edit distance).
-/// This shows how close the strings are to each other.
-pub fn levenshtein(lhs: &str, rhs: &str) -> usize {
-    let lhs = lhs.chars().collect::<Vec<char>>();
-    let rhs = rhs.chars().collect::<Vec<char>>();
-    let l_len = lhs.len();
-    let r_len = rhs.len();
-    // l_len+1 × r_len+1 array
-    let mut table = vec![vec![0; r_len + 1]; l_len + 1];
-    table
-        .iter_mut()
-        .take(l_len + 1)
-        .enumerate()
-        .for_each(|(i, row)| row[0] = i);
-    table[0]
-        .iter_mut()
-        .take(r_len + 1)
-        .enumerate()
-        .for_each(|(i, elem)| *elem = i);
-    for i1 in 0..l_len {
-        #[allow(clippy::needless_range_loop)]
-        for i2 in 0..r_len {
-            let cost = usize::from(lhs[i1] != rhs[i2]);
-            table[i1 + 1][i2 + 1] = *[
-                table[i1][i2 + 1] + 1, // delete cost
-                table[i1 + 1][i2] + 1, // insert cost
-                table[i1][i2] + cost,  // replace cost
-            ]
-            .iter()
-            .min()
-            .unwrap();
+/// copied and modified from https://doc.rust-lang.org/beta/nightly-rustc/src/rustc_span/lev_distance.rs.html
+///
+/// Finds the Levenshtein distance between two strings.
+///
+/// Returns None if the distance exceeds the limit.
+pub fn levenshtein(a: &str, b: &str, limit: usize) -> Option<usize> {
+    if a == b {
+        return Some(0);
+    }
+
+    let n = a.chars().count();
+    let m = b.chars().count();
+    let min_dist = m.abs_diff(n);
+
+    if min_dist > limit {
+        return None;
+    }
+    if n == 0 || m == 0 {
+        return (min_dist <= limit).then_some(min_dist);
+    }
+
+    let mut dcol: Vec<_> = (0..=m).collect();
+
+    for (i, sc) in a.chars().enumerate() {
+        let mut current = i;
+        dcol[0] = current + 1;
+
+        for (j, tc) in b.chars().enumerate() {
+            let next = dcol[j + 1];
+            if sc == tc {
+                dcol[j + 1] = current;
+            } else {
+                dcol[j + 1] = current.min(next);
+                dcol[j + 1] = dcol[j + 1].min(dcol[j]) + 1;
+            }
+            current = next;
         }
     }
-    table[l_len][r_len]
+
+    (dcol[m] <= limit).then_some(dcol[m])
 }
 
 pub fn get_similar_name<'a, I: Iterator<Item = &'a str> + Clone>(
     candidates: I,
     name: &str,
 ) -> Option<&'a str> {
-    let most_similar_name = candidates.min_by_key(|v| levenshtein(v, name))?;
-    let len = most_similar_name.len();
-    let dist = levenshtein(most_similar_name, name) as f64;
-    if dist >= (len as f64).sqrt() {
+    let limit = (name.len() as f64).sqrt() as usize;
+    let most_similar_name =
+        candidates.min_by_key(|v| levenshtein(v, name, limit).unwrap_or(usize::MAX))?;
+    let dist = levenshtein(most_similar_name, name, limit);
+    if dist.is_none() || dist.unwrap() > limit {
         None
     } else {
         Some(most_similar_name)
