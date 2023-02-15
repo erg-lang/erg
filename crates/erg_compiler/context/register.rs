@@ -57,7 +57,7 @@ impl fmt::Display for PylyzerStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "#[pylyzer] {} {} {}",
+            "##[pylyzer] {} {} {}",
             if self.succeed { "succeed" } else { "failed" },
             self.file.display(),
             self.timestamp
@@ -74,7 +74,7 @@ impl std::str::FromStr for PylyzerStatus {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut iter = s.split_whitespace();
         let pylyzer = iter.next().ok_or("no pylyzer")?;
-        if pylyzer != "#[pylyzer]" {
+        if pylyzer != "##[pylyzer]" {
             return Err("not pylyzer".to_string());
         }
         let succeed = iter.next().ok_or("no succeed")?;
