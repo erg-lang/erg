@@ -1,7 +1,9 @@
+use std::fmt;
 use std::io::BufRead;
 use std::option::Option;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::time::SystemTime;
 
 use erg_common::env::erg_pystd_path;
 use erg_common::erg_util::BUILTIN_ERG_MODS;
@@ -39,6 +41,61 @@ use RegistrationMode::*;
 use Visibility::*;
 
 use super::instantiate::{ParamKind, TyVarCache};
+
+/// format:
+/// ```python
+/// #[pylyzer] succeed foo.py 1234567890
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct PylyzerStatus {
+    pub succeed: bool,
+    pub file: PathBuf,
+    pub timestamp: SystemTime,
+}
+
+impl fmt::Display for PylyzerStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "#[pylyzer] {} {} {}",
+            if self.succeed { "succeed" } else { "failed" },
+            self.file.display(),
+            self.timestamp
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
+        )
+    }
+}
+
+impl std::str::FromStr for PylyzerStatus {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut iter = s.split_whitespace();
+        let pylyzer = iter.next().ok_or("no pylyzer")?;
+        if pylyzer != "#[pylyzer]" {
+            return Err("not pylyzer".to_string());
+        }
+        let succeed = iter.next().ok_or("no succeed")?;
+        let succeed = succeed == "succeed";
+        let file = iter.next().ok_or("no file")?;
+        let file = PathBuf::from(file);
+        let timestamp = iter.next().ok_or("no timestamp")?;
+        let timestamp = SystemTime::UNIX_EPOCH
+            .checked_add(std::time::Duration::from_secs(
+                timestamp
+                    .parse()
+                    .map_err(|e| format!("timestamp parse error: {e}"))?,
+            ))
+            .ok_or("timestamp overflow")?;
+        Ok(PylyzerStatus {
+            succeed,
+            file,
+            timestamp,
+        })
+    }
+}
 
 const UBAR: &Str = &Str::ever("_");
 
@@ -1476,17 +1533,23 @@ impl Context {
         Str::from(name)
     }
 
+    fn can_reuse(path: &Path) -> Option<PylyzerStatus> {
+        let file = std::fs::File::open(path).ok()?;
+        let mut line = "".to_string();
+        std::io::BufReader::new(file).read_line(&mut line).ok()?;
+        let status = line.parse::<PylyzerStatus>().ok()?;
+        if status.timestamp < std::fs::metadata(&status.file).ok()?.modified().ok()? {
+            None
+        } else {
+            Some(status)
+        }
+    }
+
     fn get_path(&self, mod_name: &Literal, __name__: Str) -> CompileResult<PathBuf> {
         match Self::resolve_decl_path(&self.cfg, Path::new(&__name__[..])) {
             Some(path) => {
-                if let Ok(first_line) = std::fs::File::open(&path).and_then(|f| {
-                    let mut line = "".to_string();
-                    std::io::BufReader::new(f).read_line(&mut line)?;
-                    Ok(line)
-                }) {
-                    if first_line.starts_with("# failed") {
-                        let _ = self.try_gen_py_decl_file(&__name__);
-                    }
+                if Self::can_reuse(&path).is_none() {
+                    let _ = self.try_gen_py_decl_file(&__name__);
                 }
                 if self.is_pystd_main_module(path.as_path())
                     && !BUILTIN_PYTHON_MODS.contains(&&__name__[..])
@@ -1529,7 +1592,7 @@ impl Context {
             } else {
                 (Stdio::inherit(), Stdio::inherit())
             };
-            // pylyzer is a static analysis tool for Python.
+            // pylyzer is a static analysis tool for Python (https://github.com/mtshiba/pylyzer).
             // It can convert a Python script to an Erg AST for code analysis.
             // There is also an option to output the analysis result as `d.er`. Use this if the system have pylyzer installed.
             // A type definition file may be generated even if not all type checks succeed.
