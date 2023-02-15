@@ -1870,6 +1870,16 @@ impl PyCodeGenerator {
         if let Some(t_spec) = param.t_spec_as_expr {
             // If it's the last arm, there's no need to inspect it
             if !is_last_arm {
+                // < v3.11:
+                // arg
+                // ↓ LOAD_NAME(in_operator)
+                // arg in_operator
+                // ↓ ROT_TWO
+                // in_operator arg
+                // ↓ load expr
+                // in_operator arg expr
+                //
+                // in v3.11:
                 // arg null
                 // ↓ SWAP 1
                 // null arg
@@ -1877,17 +1887,24 @@ impl PyCodeGenerator {
                 // null arg in_operator
                 // ↓ SWAP 1
                 // null in_operator arg
-                // ↓ LOAD_NAME(typ)
-                // null in_operator arg typ
-                self.emit_push_null();
-                self.rot2();
+                // ↓ load expr
+                // null in_operator arg expr
+                if self.py_version.minor >= Some(11) {
+                    self.emit_push_null();
+                    self.rot2();
+                }
                 if !self.in_op_loaded {
                     self.load_in_op();
                 }
                 self.emit_load_name_instr(Identifier::private("#in_operator"));
                 self.rot2();
                 self.emit_expr(t_spec);
-                self.emit_precall_and_call(2);
+                if self.py_version.minor >= Some(11) {
+                    self.emit_precall_and_call(2);
+                } else {
+                    self.write_instr(Opcode310::CALL_FUNCTION);
+                    self.write_arg(2);
+                }
                 self.stack_dec();
                 pop_jump_points.push(self.lasti());
                 // in 3.11, POP_JUMP_IF_FALSE is replaced with POP_JUMP_FORWARD_IF_FALSE
