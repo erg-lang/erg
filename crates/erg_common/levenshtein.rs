@@ -48,7 +48,7 @@ pub fn get_similar_name<'a, I: Iterator<Item = &'a str> + Clone>(
     let most_similar_name =
         candidates.min_by_key(|v| levenshtein(v, name, limit).unwrap_or(usize::MAX))?;
     let dist = levenshtein(most_similar_name, name, limit);
-    if dist.is_none() || dist.unwrap() > limit {
+    if dist.is_none() || dist.unwrap() >= limit {
         None
     } else {
         Some(most_similar_name)
@@ -71,7 +71,7 @@ mod tests {
             None
         );
         assert_eq!(
-            get_similar_name(["True", "False", "c"].into_iter(), "Felze"),
+            get_similar_name(["True", "False", "c"].into_iter(), "Falze"),
             Some("False")
         );
     }
