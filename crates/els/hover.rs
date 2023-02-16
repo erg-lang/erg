@@ -12,11 +12,32 @@ use lsp_types::{HoverContents, HoverParams, MarkedString, Url};
 use crate::server::{ELSResult, Server};
 use crate::util;
 
+fn eliminate_top_indent(code: String) -> String {
+    let trimmed = code.trim_start_matches('\n');
+    if !trimmed.starts_with(' ') {
+        return code;
+    }
+    let mut indent = 0;
+    let mut result = String::new();
+    for line in trimmed.lines() {
+        if indent == 0 {
+            indent = line.chars().take_while(|c| *c == ' ').count();
+        }
+        if line.len() > indent {
+            result.push_str(&line[indent..]);
+        }
+        result.push('\n');
+    }
+    result
+}
+
 macro_rules! next {
     ($def_pos: ident, $default_code_block: ident, $contents: ident, $prev_token: ident, $token: ident) => {
         if $def_pos.line == 0 {
             if !$default_code_block.is_empty() {
-                $contents.push(MarkedString::from_markdown($default_code_block));
+                $contents.push(MarkedString::from_markdown(eliminate_top_indent(
+                    $default_code_block,
+                )));
             }
             break;
         }
@@ -27,7 +48,9 @@ macro_rules! next {
     ($def_pos: ident, $default_code_block: ident, $contents: ident) => {
         if $def_pos.line == 0 {
             if !$default_code_block.is_empty() {
-                $contents.push(MarkedString::from_markdown($default_code_block));
+                $contents.push(MarkedString::from_markdown(eliminate_top_indent(
+                    $default_code_block,
+                )));
             }
             break;
         }
@@ -174,7 +197,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
                     };
                     if lang.matches_feature() {
                         let code_block = code_block.trim_start_matches(lang.as_str()).to_string();
-                        contents.push(MarkedString::from_markdown(code_block));
+                        contents.push(MarkedString::from_markdown(eliminate_top_indent(
+                            code_block,
+                        )));
                         break;
                     } else {
                         if lang.is_en() {
@@ -190,7 +215,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
                         next!(def_pos, default_code_block, contents, prev_token, token);
                     }
                     if !default_code_block.is_empty() {
-                        contents.push(MarkedString::from_markdown(default_code_block));
+                        contents.push(MarkedString::from_markdown(eliminate_top_indent(
+                            default_code_block,
+                        )));
                     }
                     break;
                 }
