@@ -5,7 +5,7 @@ use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
 
 use erg_parser::ast::{
-    Accessor, ClassAttr, ClassDef, Expr, Methods, Module, PatchDef, PreDeclTypeSpec,
+    Accessor, ClassAttr, ClassDef, Expr, Identifier, Methods, Module, PatchDef, PreDeclTypeSpec,
     TypeAscription, TypeSpec, AST,
 };
 
@@ -123,6 +123,7 @@ impl Reorderer {
     /// ```
     fn flatten_method_decls(&mut self, new: &mut Vec<Expr>, methods: Methods) {
         let class = methods.class_as_expr.as_ref();
+        let vis = methods.vis();
         for method in methods.attrs.into_iter() {
             match method {
                 ClassAttr::Decl(decl) => {
@@ -137,7 +138,12 @@ impl Reorderer {
                         ));
                         continue;
                     };
-                    let expr = class.clone().attr_expr(ident);
+                    let attr = if vis.is_public() {
+                        Identifier::new(Some(methods.vis.clone()), ident.name)
+                    } else {
+                        Identifier::new(None, ident.name)
+                    };
+                    let expr = class.clone().attr_expr(attr);
                     let decl = TypeAscription::new(expr, decl.t_spec);
                     new.push(Expr::TypeAscription(decl));
                 }

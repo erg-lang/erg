@@ -3694,6 +3694,14 @@ impl Methods {
             attrs,
         }
     }
+
+    pub fn vis(&self) -> Visibility {
+        if self.vis.is(TokenKind::Dot) {
+            Visibility::Public
+        } else {
+            Visibility::Private
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
