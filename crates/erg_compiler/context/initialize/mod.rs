@@ -585,7 +585,7 @@ impl Context {
         };
         let muty = Immutable;
         let loc = Location::range(lineno, 0, lineno, name.inspect().len() as u32);
-        let abs_loc = AbsLocation::new(Some(builtins_path()), loc);
+        let abs_loc = AbsLocation::new(Some(builtins_path()), loc, "<builtins>".into());
         self.register_builtin_impl(name, t, muty, vis, py_name, abs_loc);
     }
 

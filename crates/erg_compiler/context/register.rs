@@ -5,18 +5,20 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::SystemTime;
 
+use erg_common::dict::Dict;
 use erg_common::env::erg_pystd_path;
 use erg_common::erg_util::BUILTIN_ERG_MODS;
 use erg_common::levenshtein::get_similar_name;
 use erg_common::python_util::BUILTIN_PYTHON_MODS;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
-use erg_common::vis::Visibility;
+use erg_common::vis::{Field, Visibility};
 use erg_common::Str;
 use erg_common::{enum_unwrap, get_hash, log, set};
 
 use ast::{Decorator, DefId, Identifier, OperationKind, SimpleTypeSpec, VarName};
 use erg_parser::ast::{self, ConstIdentifier};
+use erg_parser::token::Token;
 
 use crate::ty::constructors::{
     free_var, func, func0, func1, proc, ref_, ref_mut, unknown_len_array_t, v_enum,
@@ -35,7 +37,7 @@ use crate::error::{
 };
 use crate::hir;
 use crate::hir::Literal;
-use crate::varinfo::{AbsLocation, Mutability, VarInfo, VarKind};
+use crate::varinfo::{AbsLocation, Mutability, Namespace, VarInfo, VarKind};
 use Mutability::*;
 use RegistrationMode::*;
 use Visibility::*;
@@ -900,6 +902,7 @@ impl Context {
         muty: Mutability,
         vis: Visibility,
         py_name: Option<Str>,
+        ns: Namespace,
     ) {
         let name = VarName::from_static(name);
         if self.locals.get(&name).is_some() {
@@ -913,7 +916,7 @@ impl Context {
                 None,
                 self.impl_of(),
                 py_name,
-                AbsLocation::unknown(),
+                AbsLocation::auto(ns),
             );
             self.locals.insert(name, vi);
         }
@@ -927,6 +930,7 @@ impl Context {
         muty: Mutability,
         vis: Visibility,
         py_name: Option<Str>,
+        ns: Namespace,
     ) {
         let name = VarName::from_static(name);
         if self.locals.get(&name).is_some() {
@@ -942,7 +946,7 @@ impl Context {
                     None,
                     self.impl_of(),
                     py_name,
-                    AbsLocation::unknown(),
+                    AbsLocation::auto(ns),
                 ),
             );
         }
@@ -1062,6 +1066,40 @@ impl Context {
         }
     }
 
+    fn register_fields(&mut self, ident: &Identifier, gen: &GenTypeObj) {
+        if let Some(Type::Record(rec)) = gen.base_or_sup().map(|base| base.typ()) {
+            self.register_record_fields(ident, rec, gen.typ().qual_name());
+        }
+        if let Some(Type::Record(rec)) = gen.additional().map(|additional| additional.typ()) {
+            self.register_record_fields(ident, rec, gen.typ().qual_name());
+        }
+    }
+
+    fn register_record_fields(
+        &mut self,
+        ident: &Identifier,
+        rec: &Dict<Field, Type>,
+        ns: Namespace,
+    ) {
+        for (field, t) in rec.iter() {
+            let muty = Mutability::from(&field.symbol[..]);
+            let def_loc = AbsLocation::new(self.module_path().cloned(), ident.loc(), ns.clone());
+            let vi = VarInfo::new(
+                t.clone(),
+                muty,
+                field.vis(),
+                VarKind::Declared,
+                None,
+                None,
+                None,
+                def_loc,
+            );
+            let symbol = Token::symbol_with_line(&field.symbol, ident.ln_begin().unwrap_or(0));
+            let name = VarName::new(symbol);
+            self.locals.insert(name, vi);
+        }
+    }
+
     pub(crate) fn register_gen_type(&mut self, ident: &Identifier, gen: GenTypeObj) {
         match gen {
             GenTypeObj::Class(_) => {
@@ -1074,6 +1112,7 @@ impl Context {
                         2,
                         self.level,
                     );
+                    ctx.register_fields(ident, &gen);
                     let mut methods =
                         Self::methods(None, self.cfg.clone(), self.shared.clone(), 2, self.level);
                     let new_t = if let Some(base) = gen.base_or_sup() {
@@ -1086,6 +1125,7 @@ impl Context {
                                     Immutable,
                                     Private,
                                     None,
+                                    gen.typ().qual_name(),
                                 );
                             }
                         }
@@ -1099,10 +1139,18 @@ impl Context {
                         Immutable,
                         Private,
                         Some("__call__".into()),
+                        gen.typ().qual_name(),
                     );
                     // 必要なら、ユーザーが独自に上書きする
                     // users can override this if necessary
-                    methods.register_auto_impl("new", new_t, Immutable, Public, None);
+                    methods.register_auto_impl(
+                        "new",
+                        new_t,
+                        Immutable,
+                        Public,
+                        None,
+                        gen.typ().qual_name(),
+                    );
                     ctx.methods_list
                         .push((ClassDefType::Simple(gen.typ().clone()), methods));
                     self.register_gen_mono_type(ident, gen, ctx, Const);
@@ -1121,6 +1169,7 @@ impl Context {
                         2,
                         self.level,
                     );
+                    ctx.register_fields(ident, &gen);
                     for sup in super_classes.into_iter() {
                         let (_, sup_ctx) = self
                             .get_nominal_type_ctx(&sup)
@@ -1151,9 +1200,17 @@ impl Context {
                             Immutable,
                             Private,
                             Some("__call__".into()),
+                            gen.typ().qual_name(),
                         );
                         // 必要なら、ユーザーが独自に上書きする
-                        methods.register_auto_impl("new", new_t, Immutable, Public, None);
+                        methods.register_auto_impl(
+                            "new",
+                            new_t,
+                            Immutable,
+                            Public,
+                            None,
+                            gen.typ().qual_name(),
+                        );
                         ctx.methods_list
                             .push((ClassDefType::Simple(gen.typ().clone()), methods));
                         self.register_gen_mono_type(ident, gen, ctx, Const);
@@ -1173,6 +1230,7 @@ impl Context {
                         2,
                         self.level,
                     );
+                    ctx.register_fields(ident, &gen);
                     let Some(TypeObj::Builtin(Type::Record(req))) = gen.base_or_sup() else { todo!("{gen}") };
                     for (field, t) in req.iter() {
                         let muty = if field.is_const() {
@@ -1210,6 +1268,7 @@ impl Context {
                         2,
                         self.level,
                     );
+                    ctx.register_fields(ident, &gen);
                     let additional = gen.additional().map(
                         |additional| enum_unwrap!(additional, TypeObj::Builtin:(Type::Record:(_))),
                     );

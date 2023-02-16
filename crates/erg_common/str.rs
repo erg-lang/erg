@@ -14,6 +14,12 @@ pub enum Str {
     Static(&'static str),
 }
 
+impl Default for Str {
+    fn default() -> Self {
+        Str::ever("")
+    }
+}
+
 impl PartialEq for Str {
     #[inline]
     fn eq(&self, other: &Str) -> bool {

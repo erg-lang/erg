@@ -78,4 +78,8 @@ impl Field {
     pub fn is_const(&self) -> bool {
         self.symbol.starts_with(char::is_uppercase)
     }
+
+    pub const fn vis(&self) -> Visibility {
+        self.vis
+    }
 }

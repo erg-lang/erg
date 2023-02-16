@@ -4,12 +4,12 @@ print! empty
 
 # Inheritance is prohibited by default. Remove this decorator and check for errors.
 @Inheritable
-Point2D = Class {x = Int; y = Int}
+Point2D = Class {.x = Int; .y = Int}
 Point2D::
     one = 1
 Point2D.
     zero = Point2D::one - 1
-    norm self = self::x**2 + self::y**2
+    norm self = self.x**2 + self.y**2
 
 Point3D = Inherit Point2D, Additional := {z = Int}
 Point3D.
@@ -18,7 +18,7 @@ Point3D.
     new x, y, z =
         Point3D::__new__ {x; y; z}
     @Override
-    norm self = self::x**2 + self::y**2 + self::z**2
+    norm self = self.x**2 + self.y**2 + self::z**2
 
 # `Point2D::__new__` is private, use `Point2D.new` instead
 p = Point2D.new {x = 1; y = 2}

@@ -470,11 +470,11 @@ impl Context {
         let mut params_ = Vec::new();
         for param in params.into_iter() {
             let id = DefId(get_hash(&(&name, &param)));
-            if let Some(name) = param.name {
+            if let Some(p_name) = param.name {
                 let kind = VarKind::parameter(id, param.default_info);
-                let muty = Mutability::from(name);
+                let muty = Mutability::from(p_name);
                 let vi = VarInfo::new(param.t, muty, Private, kind, None, None, None, param.loc);
-                params_.push((Some(VarName::new(Token::static_symbol(name))), vi));
+                params_.push((Some(VarName::new(Token::static_symbol(p_name))), vi));
             } else {
                 let kind = VarKind::parameter(id, param.default_info);
                 let muty = Mutability::Immutable;
@@ -813,7 +813,7 @@ impl Context {
     }
 
     pub(crate) fn absolutize(&self, loc: Location) -> AbsLocation {
-        AbsLocation::new(self.module_path().cloned(), loc)
+        AbsLocation::new(self.module_path().cloned(), loc, self.name.clone())
     }
 
     #[inline]
@@ -928,6 +928,10 @@ impl Context {
             // toplevel
             Some(mem::take(self))
         }
+    }
+
+    pub fn is_sub_namespace(&self, namespace: &str) -> bool {
+        self.name.starts_with(namespace)
     }
 
     pub(crate) fn check_decls_and_pop(&mut self) -> Result<Context, TyCheckErrors> {

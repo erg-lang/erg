@@ -29,7 +29,7 @@ homepage = "https://erg-lang.org/"
 
 [features]
 # when "debug" feature is turned on, that of the following crates will also be turned on.
-debug = ["erg_common/debug", "erg_parser/debug", "erg_compiler/debug", "els/debug"]
+debug = ["erg_common/debug", "erg_parser/debug", "erg_compiler/debug"]
 japanese = [
     "erg_common/japanese",
     "erg_parser/japanese",
@@ -59,6 +59,7 @@ large_thread = [
 ]
 py_compatible = ["erg_compiler/py_compatible", "els/py_compatible"]
 els = ["erg_common/els", "erg_compiler/els", "dep:els"]
+els-debug = ["debug", "els/debug"]
 full-repl = ["erg_common/full-repl"]
 full = ["els", "full-repl", "unicode", "pretty"]
 

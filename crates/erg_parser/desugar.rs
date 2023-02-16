@@ -620,7 +620,10 @@ impl Desugarer {
                     r_brace,
                 )
             }
-            BufIndex::Record(attr) => obj.attr(attr.clone()),
+            BufIndex::Record(attr) => obj.attr(Identifier::new(
+                Some(attr.name.token().clone()),
+                attr.name.clone(),
+            )),
         };
         let id = DefId(get_hash(&(&acc, buf_name)));
         let block = Block::new(vec![Expr::Accessor(acc)]);

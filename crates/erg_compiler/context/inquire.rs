@@ -22,7 +22,7 @@ use erg_parser::token::Token;
 use crate::ty::constructors::{anon, free_var, func, mono, poly, proc, proj, ref_, subr_t};
 use crate::ty::free::Constraint;
 use crate::ty::typaram::TyParam;
-use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
+use crate::ty::value::ValueObj;
 use crate::ty::{HasType, ParamTy, SubrKind, SubrType, Type};
 
 use crate::context::instantiate::ConstTemplate;
@@ -606,18 +606,19 @@ impl Context {
                 self.get_attr_info_from_attributive(&refine.t, ident, namespace)
             }
             Type::Record(record) => {
-                if let Some(attr_t) = record.get(ident.inspect()) {
+                if let Some((field, attr_t)) = record.get_key_value(ident.inspect()) {
                     let muty = Mutability::from(&ident.inspect()[..]);
                     let vi = VarInfo::new(
                         attr_t.clone(),
                         muty,
-                        Public,
+                        field.vis(),
                         VarKind::Builtin,
                         None,
                         None,
                         None,
                         AbsLocation::unknown(),
                     );
+                    self.validate_visibility(ident, &vi, &self.cfg.input, namespace)?;
                     Ok(vi)
                 } else {
                     let t = Type::Record(record.clone());
@@ -632,68 +633,16 @@ impl Context {
                     ))
                 }
             }
-            other => {
-                if let Some(v) = self.rec_get_const_obj(&other.local_name()) {
-                    match v {
-                        ValueObj::Type(TypeObj::Generated(gen)) => self
-                            .get_gen_t_require_attr_t(gen, &ident.inspect()[..])
-                            .map(|attr_t| {
-                                let muty = Mutability::from(&ident.inspect()[..]);
-                                VarInfo::new(
-                                    attr_t.clone(),
-                                    muty,
-                                    Public,
-                                    VarKind::Builtin,
-                                    None,
-                                    None,
-                                    None,
-                                    AbsLocation::unknown(),
-                                )
-                            })
-                            .ok_or_else(|| {
-                                TyCheckError::no_attr_error(
-                                    self.cfg.input.clone(),
-                                    line!() as usize,
-                                    ident.loc(),
-                                    namespace.into(),
-                                    t,
-                                    ident.inspect(),
-                                    self.get_similar_attr(t, ident.inspect()),
-                                )
-                            }),
-                        ValueObj::Type(TypeObj::Builtin(_t)) => {
-                            // FIXME:
-                            Err(TyCheckError::no_attr_error(
-                                self.cfg.input.clone(),
-                                line!() as usize,
-                                ident.loc(),
-                                namespace.into(),
-                                _t,
-                                ident.inspect(),
-                                self.get_similar_attr(_t, ident.inspect()),
-                            ))
-                        }
-                        _other => Err(TyCheckError::no_attr_error(
-                            self.cfg.input.clone(),
-                            line!() as usize,
-                            ident.loc(),
-                            namespace.into(),
-                            t,
-                            ident.inspect(),
-                            self.get_similar_attr(t, ident.inspect()),
-                        )),
-                    }
-                } else {
-                    Err(TyCheckError::no_attr_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        ident.loc(),
-                        namespace.into(),
-                        t,
-                        ident.inspect(),
-                        self.get_similar_attr(t, ident.inspect()),
-                    ))
-                }
+            _other => {
+                Err(TyCheckError::no_attr_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    ident.loc(),
+                    namespace.into(),
+                    t,
+                    ident.inspect(),
+                    self.get_similar_attr(t, ident.inspect()),
+                ))
             }
         }
     }
@@ -879,9 +828,9 @@ impl Context {
         } else if vi.vis.is_private()
             && &self.name[..] != "<builtins>"
             && &self.name[..] != namespace
-            && !namespace.contains(&self.name[..])
+            && !namespace.starts_with(&vi.def_loc.ns[..])
         {
-            log!(err "{namespace}/{}", self.name);
+            log!(err "{ident}/{}/{}/{}", self.name, namespace, vi.def_loc.ns);
             Err(TyCheckError::visibility_error(
                 input.clone(),
                 line!() as usize,
@@ -2307,32 +2256,6 @@ impl Context {
                 None,
             ))
         }
-    }
-
-    fn get_gen_t_require_attr_t<'a>(&'a self, gen: &'a GenTypeObj, attr: &str) -> Option<&'a Type> {
-        match gen.base_or_sup().map(|req_sup| req_sup.typ()) {
-            Some(Type::Record(rec)) => {
-                if let Some(t) = rec.get(attr) {
-                    return Some(t);
-                }
-            }
-            Some(other) => {
-                let obj = self.rec_get_const_obj(&other.local_name());
-                let obj = option_enum_unwrap!(obj, Some:(ValueObj::Type:(TypeObj::Generated:(_))))?;
-                if let Some(t) = self.get_gen_t_require_attr_t(obj, attr) {
-                    return Some(t);
-                }
-            }
-            None => {}
-        }
-        if let Some(additional) = gen.additional() {
-            if let Type::Record(gen) = additional.typ() {
-                if let Some(t) = gen.get(attr) {
-                    return Some(t);
-                }
-            }
-        }
-        None
     }
 
     // TODO: params, polymorphic types

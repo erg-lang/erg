@@ -78,14 +78,15 @@ impl VarKind {
 pub struct AbsLocation {
     pub module: Option<PathBuf>,
     pub loc: Location,
+    pub ns: Namespace,
 }
 
 impl fmt::Display for AbsLocation {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if let Some(module) = &self.module {
-            write!(f, "{}@{}", module.display(), self.loc)
+            write!(f, "{}@{}@{}", module.display(), self.loc, self.ns)
         } else {
-            write!(f, "?@{}", self.loc)
+            write!(f, "?@{}@{}", self.loc, self.ns)
         }
     }
 }
@@ -97,17 +98,22 @@ impl std::str::FromStr for AbsLocation {
         let mut split = s.split('@');
         let module = split.next().map(PathBuf::from);
         let loc = split.next().ok_or(())?.parse().map_err(|_| ())?;
-        Ok(Self { module, loc })
+        let ns = Str::rc(split.next().ok_or(())?);
+        Ok(Self { module, loc, ns })
     }
 }
 
 impl AbsLocation {
-    pub const fn new(module: Option<PathBuf>, loc: Location) -> Self {
-        Self { module, loc }
+    pub const fn new(module: Option<PathBuf>, loc: Location, ns: Namespace) -> Self {
+        Self { module, loc, ns }
     }
 
     pub const fn unknown() -> Self {
-        Self::new(None, Location::Unknown)
+        Self::new(None, Location::Unknown, Str::ever("?"))
+    }
+
+    pub const fn auto(ns: Namespace) -> Self {
+        Self::new(None, Location::Unknown, ns)
     }
 
     pub fn code(&self) -> Option<String> {
@@ -137,6 +143,8 @@ impl AbsLocation {
         })
     }
 }
+
+pub type Namespace = Str;
 
 /// Has information about the type, variability, visibility, and where the variable was defined (or declared, generated)
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -238,5 +246,18 @@ impl VarInfo {
             default: DefaultInfo::NonDefault,
         };
         Self::new(t, Immutable, Private, kind, None, None, None, def_loc)
+    }
+
+    pub const fn dummy_field(vis: Visibility, ns: Namespace) -> Self {
+        Self::new(
+            Type::Failure,
+            Mutability::Immutable,
+            vis,
+            VarKind::Builtin,
+            None,
+            None,
+            None,
+            AbsLocation::auto(ns),
+        )
     }
 }
