@@ -1,6 +1,6 @@
 # 可視性
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/20_visibility.md%26commit_hash%3De959b3e54bfa8cee4929743b0193a129e7525c61)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/20_visibility.md&commit_hash=e959b3e54bfa8cee4929743b0193a129e7525c61)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/20_visibility.md%26commit_hash%3D5fe4ad12075d710910f75c40552b4db621904c57)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/20_visibility.md&commit_hash=5fe4ad12075d710910f75c40552b4db621904c57)
 
 Ergの変数には __可視性__ という概念が存在します。
 今まで見てきた変数は全て __プライベート変数(非公開変数)__ と呼ばれます。これは、外部から不可視の変数です。
@@ -166,12 +166,15 @@ foo.public()
 変数の可視性は完全な公開・非公開しかないわけではありません。
 制限付きで公開することもできます。
 
-```python
+`.`の後に`[]`を付け、その中に「公開する最大の名前空間[<sup id="f1">1</sup>](#1)の識別子」を指定します。
+下の例では、`.[.record]`は`.record`の名前空間内でのみ、`.[module]`はモジュール内でのみ公開されます。
+
+```python,checker_ignore
 # foo.er
 .record = {
     .a = {
-        .(.record)x = 0
-        .(module)y = 0
+        .[.record]x = 0
+        .[module]y = 0
         .z = 0
     }
     _ = .a.x # OK
@@ -179,18 +182,61 @@ foo.public()
     _ = .a.z # OK
 }
 
+func x =
+    _ = .record.a.x # VisibilityError
+    _ = .record.a.y # OK
+    _ = .record.a.z # OK
+    None
+
 _ = .record.a.x # VisibilityError
 _ = .record.a.y # OK
 _ = .record.a.z # OK
 ```
 
-```python
+```python,checker_ignore
 foo = import "foo"
 _ = foo.record.a.x # VisibilityError
 _ = foo.record.a.y # VisibilityError
 _ = foo.record.a.z # OK
 ```
 
+名前空間はコンマ区切りで複数指定することも出来ます。
+
+```python,checker_ignore
+.[.record, func]x = 0
+```
+
+ところで、クラスのプライベート属性はサブクラスからアクセス出来ません。
+
+```python,compile_fail
+C = Class {i = Int}
+
+D = Inherit C
+D.
+    f self = self::i # VisibilityError
+```
+
+あるサブクラスからアクセスできるようにしたい場合は、以下のように指定します。
+
+```python
+C = Class {.[D]i = Int}
+
+D = Inherit C
+D.
+    f self = self.i
+```
+
+サブクラス全体に公開する場合は、`.[<: Self]`とします。
+これは他言語では`protected`に相当するものです。
+
+```python
+C = Class {.[<: C]i = Int}
+```
+
 <p align='center'>
     <a href='./19_ownership.md'>Previous</a> | <a href='./21_naming_rule.md'>Next</a>
 </p>
+
+---
+
+<span id="1" style="font-size:x-small"><sup>1</sup> Ergにおいて名前空間は、名前とオブジェクトの対応の集合を指す。インスタントスコープを作る変数の識別子やモジュール・関数・クラス・レコードが名前空間と同一視される。関数・クラス・レコードは識別子に束縛せずに生成することができるため、これらは本来無名名前空間を作る。しかし識別子に束縛されると、識別子と同名の名前で上書きされる。[↩](#f1) </span>
