@@ -163,18 +163,27 @@ foo.public()
 Variable visibility is not limited to complete public/private.
 You can also publish with restrictions.
 
+Add `.[]` and specify "the identifier of a namespace [<sup id="f1">1</sup>](#1) you want allow accessing" in it.
+In the example below, `.[.record]` is only exposed within the `.record` namespace, and `.[module]` is only exposed within the module.
+
 ```python,checker_ignore
 # foo.er
 .record = {
     .a = {
-        .(.record)x = 0
-        .(module)y = 0
+        .[.record]x = 0
+        .[module]y = 0
         .z = 0
     }
     _ = .a.x # OK
     _ = .a.y # OK
     _ = .a.z # OK
 }
+
+func x =
+    _ = .record.a.x # VisibilityError
+    _ = .record.a.y # OK
+    _ = .record.a.z # OK
+    None
 
 _ = .record.a.x # VisibilityError
 _ = .record.a.y # OK
@@ -188,6 +197,43 @@ _ = foo.record.a.y # VisibilityError
 _ = foo.record.a.z # OK
 ```
 
+Multiple namespaces can be specified by separating them with commas.
+
+```python,checker_ignore
+.[.record, func]x = 0
+```
+
+By the way, private attributes of a class are not accessible to subclasses.
+
+```python,compile_fail
+C = Class {i = Int}
+
+D = Inherit C
+D.
+    f self = self::i # VisibilityError
+```
+
+If you want to be able to access from some subclass, specify as follows.
+
+```python
+C = Class {.[D]i = Int}
+
+D = Inherit C
+D.
+    f self = self.i
+```
+
+If you want to expose it to all subclasses, use `.[<:Self]`.
+This is the equivalent of `protected` in other languages.
+
+```python
+C = Class {.[<: C]i = Int}
+```
+
 <p align='center'>
     <a href='./19_ownership.md'>Previous</a> | <a href='./21_naming_rule.md'>Next</a>
 </p>
+
+---
+
+<span id="1" style="font-size:x-small"><sup>1</sup> In Erg, a namespace refers to a set of correspondences between names and objects. Modules, functions, classes, records, and the identifiers of instant scopes are equated with namespaces. Since records, classes, and functions can be created without binding them to identifiers, they essentially create an anonymous namespace. However, when bound to an identifier, it is overwritten with the same name as the identifier. [↩](#f1) </span>
