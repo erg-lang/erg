@@ -36,7 +36,6 @@ fn exec_repl_for_loop() -> Result<(), ()> {
 }
 
 #[test]
-#[ignore]
 fn exec_repl_auto_indent_dedent_check() -> Result<(), ()> {
     expect_repl_success(
         "repl_auto_indent_dedent",

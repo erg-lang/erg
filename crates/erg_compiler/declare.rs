@@ -548,7 +548,7 @@ impl ASTLowerer {
                     Some(TypeObj::Builtin(Type::Uninited)),
                     None,
                 );
-                self.module.context.register_gen_type(ident, ty_obj);
+                self.module.context.register_gen_type(ident, ty_obj)?;
             }
             Type::TraitType => {
                 let ty_obj = GenTypeObj::trait_(
@@ -556,7 +556,7 @@ impl ASTLowerer {
                     TypeObj::Builtin(Type::Uninited),
                     None,
                 );
-                self.module.context.register_gen_type(ident, ty_obj);
+                self.module.context.register_gen_type(ident, ty_obj)?;
             }
             _ => {}
         }

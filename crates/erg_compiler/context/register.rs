@@ -31,11 +31,11 @@ use crate::context::{
 };
 use crate::error::readable_name;
 use crate::error::{
-    CompileResult, SingleTyCheckResult, TyCheckError, TyCheckErrors, TyCheckResult,
+    CompileError, CompileErrors, CompileResult, TyCheckError, TyCheckErrors, TyCheckResult,
 };
-use crate::hir;
 use crate::hir::Literal;
 use crate::varinfo::{AbsLocation, Mutability, VarInfo, VarKind};
+use crate::{feature_error, hir};
 use Mutability::*;
 use RegistrationMode::*;
 use Visibility::*;
@@ -900,10 +900,16 @@ impl Context {
         muty: Mutability,
         vis: Visibility,
         py_name: Option<Str>,
-    ) {
+    ) -> CompileResult<()> {
         let name = VarName::from_static(name);
         if self.locals.get(&name).is_some() {
-            panic!("already registered: {name}");
+            Err(CompileErrors::from(CompileError::reassign_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                name.loc(),
+                self.caused_by(),
+                name.inspect(),
+            )))
         } else {
             let vi = VarInfo::new(
                 t,
@@ -916,6 +922,7 @@ impl Context {
                 AbsLocation::unknown(),
             );
             self.locals.insert(name, vi);
+            Ok(())
         }
     }
 
@@ -927,10 +934,16 @@ impl Context {
         muty: Mutability,
         vis: Visibility,
         py_name: Option<Str>,
-    ) {
+    ) -> CompileResult<()> {
         let name = VarName::from_static(name);
         if self.locals.get(&name).is_some() {
-            panic!("already registered: {name}");
+            Err(CompileErrors::from(CompileError::reassign_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                name.loc(),
+                self.caused_by(),
+                name.inspect(),
+            )))
         } else {
             self.locals.insert(
                 name,
@@ -945,6 +958,7 @@ impl Context {
                     AbsLocation::unknown(),
                 ),
             );
+            Ok(())
         }
     }
 
@@ -955,9 +969,15 @@ impl Context {
         vis: Visibility,
         impl_of: Option<Type>,
         py_name: Option<Str>,
-    ) {
+    ) -> CompileResult<()> {
         if self.decls.get(&name).is_some() {
-            panic!("already registered: {name}");
+            Err(CompileErrors::from(CompileError::duplicate_decl_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                name.loc(),
+                self.caused_by(),
+                name.inspect(),
+            )))
         } else {
             let vi = VarInfo::new(
                 t,
@@ -970,6 +990,7 @@ impl Context {
                 self.absolutize(name.loc()),
             );
             self.decls.insert(name, vi);
+            Ok(())
         }
     }
 
@@ -981,9 +1002,15 @@ impl Context {
         vis: Visibility,
         impl_of: Option<Type>,
         py_name: Option<Str>,
-    ) {
+    ) -> CompileResult<()> {
         if self.locals.get(&name).is_some() {
-            panic!("already registered: {name}");
+            Err(CompileErrors::from(CompileError::reassign_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                name.loc(),
+                self.caused_by(),
+                name.inspect(),
+            )))
         } else {
             let id = DefId(get_hash(&(&self.name, &name)));
             let vi = VarInfo::new(
@@ -997,6 +1024,7 @@ impl Context {
                 self.absolutize(name.loc()),
             );
             self.locals.insert(name, vi);
+            Ok(())
         }
     }
 
@@ -1004,7 +1032,7 @@ impl Context {
         let trait_ = if let ContextKind::MethodDefs(Some(tr)) = &methods.kind {
             tr.clone()
         } else {
-            todo!()
+            unreachable!()
         };
         self.super_traits.push(trait_.clone());
         self.methods_list
@@ -1019,24 +1047,20 @@ impl Context {
         &mut self,
         ident: &Identifier,
         obj: ValueObj,
-    ) -> SingleTyCheckResult<()> {
+    ) -> CompileResult<()> {
         if self.rec_get_const_obj(ident.inspect()).is_some() && ident.vis().is_private() {
-            Err(TyCheckError::reassign_error(
+            Err(CompileErrors::from(CompileError::reassign_error(
                 self.cfg.input.clone(),
                 line!() as usize,
                 ident.loc(),
                 self.caused_by(),
                 ident.inspect(),
-            ))
+            )))
         } else {
             match obj {
                 ValueObj::Type(t) => match t {
-                    TypeObj::Generated(gen) => {
-                        self.register_gen_type(ident, gen);
-                    }
-                    TypeObj::Builtin(t) => {
-                        self.register_type_alias(ident, t);
-                    }
+                    TypeObj::Generated(gen) => self.register_gen_type(ident, gen),
+                    TypeObj::Builtin(t) => self.register_type_alias(ident, t),
                 },
                 // TODO: not all value objects are comparable
                 other => {
@@ -1056,13 +1080,17 @@ impl Context {
                     }
                     self.decls.insert(ident.name.clone(), vi);
                     self.consts.insert(ident.name.clone(), other);
+                    Ok(())
                 }
             }
-            Ok(())
         }
     }
 
-    pub(crate) fn register_gen_type(&mut self, ident: &Identifier, gen: GenTypeObj) {
+    pub(crate) fn register_gen_type(
+        &mut self,
+        ident: &Identifier,
+        gen: GenTypeObj,
+    ) -> CompileResult<()> {
         match gen {
             GenTypeObj::Class(_) => {
                 if gen.typ().is_monomorphic() {
@@ -1086,7 +1114,7 @@ impl Context {
                                     Immutable,
                                     Private,
                                     None,
-                                );
+                                )?;
                             }
                         }
                         func1(base.typ().clone(), gen.typ().clone())
@@ -1099,15 +1127,21 @@ impl Context {
                         Immutable,
                         Private,
                         Some("__call__".into()),
-                    );
+                    )?;
                     // 必要なら、ユーザーが独自に上書きする
                     // users can override this if necessary
-                    methods.register_auto_impl("new", new_t, Immutable, Public, None);
+                    methods.register_auto_impl("new", new_t, Immutable, Public, None)?;
                     ctx.methods_list
                         .push((ClassDefType::Simple(gen.typ().clone()), methods));
-                    self.register_gen_mono_type(ident, gen, ctx, Const);
+                    self.register_gen_mono_type(ident, gen, ctx, Const)
                 } else {
-                    todo!("polymorphic type definition is not supported yet");
+                    feature_error!(
+                        CompileErrors,
+                        CompileError,
+                        self,
+                        ident.loc(),
+                        "polymorphic class definition"
+                    )
                 }
             }
             GenTypeObj::Subclass(_) => {
@@ -1151,17 +1185,31 @@ impl Context {
                             Immutable,
                             Private,
                             Some("__call__".into()),
-                        );
+                        )?;
                         // 必要なら、ユーザーが独自に上書きする
-                        methods.register_auto_impl("new", new_t, Immutable, Public, None);
+                        methods.register_auto_impl("new", new_t, Immutable, Public, None)?;
                         ctx.methods_list
                             .push((ClassDefType::Simple(gen.typ().clone()), methods));
-                        self.register_gen_mono_type(ident, gen, ctx, Const);
+                        self.register_gen_mono_type(ident, gen, ctx, Const)
                     } else {
-                        todo!("super class not found")
+                        let class_name = gen.base_or_sup().unwrap().typ().local_name();
+                        Err(CompileErrors::from(CompileError::no_type_error(
+                            self.cfg.input.clone(),
+                            line!() as usize,
+                            ident.loc(),
+                            self.caused_by(),
+                            &class_name,
+                            self.get_similar_name(&class_name),
+                        )))
                     }
                 } else {
-                    todo!("polymorphic type definition is not supported yet");
+                    feature_error!(
+                        CompileErrors,
+                        CompileError,
+                        self,
+                        ident.loc(),
+                        "polymorphic class definition"
+                    )
                 }
             }
             GenTypeObj::Trait(_) => {
@@ -1194,9 +1242,15 @@ impl Context {
                         ctx.decls
                             .insert(VarName::from_str(field.symbol.clone()), vi);
                     }
-                    self.register_gen_mono_type(ident, gen, ctx, Const);
+                    self.register_gen_mono_type(ident, gen, ctx, Const)
                 } else {
-                    todo!("polymorphic type definition is not supported yet");
+                    feature_error!(
+                        CompileErrors,
+                        CompileError,
+                        self,
+                        ident.loc(),
+                        "polymorphic trait definition"
+                    )
                 }
             }
             GenTypeObj::Subtrait(_) => {
@@ -1242,9 +1296,15 @@ impl Context {
                             log!(err "{sup} not found");
                         }
                     }
-                    self.register_gen_mono_type(ident, gen, ctx, Const);
+                    self.register_gen_mono_type(ident, gen, ctx, Const)
                 } else {
-                    todo!("polymorphic type definition is not supported yet");
+                    feature_error!(
+                        CompileErrors,
+                        CompileError,
+                        self,
+                        ident.loc(),
+                        "polymorphic trait definition"
+                    )
                 }
             }
             GenTypeObj::Patch(_) => {
@@ -1258,20 +1318,45 @@ impl Context {
                         2,
                         self.level,
                     );
-                    self.register_gen_mono_patch(ident, gen, ctx, Const);
+                    self.register_gen_mono_patch(ident, gen, ctx, Const)
                 } else {
-                    todo!("polymorphic patch definition is not supported yet");
+                    feature_error!(
+                        CompileErrors,
+                        CompileError,
+                        self,
+                        ident.loc(),
+                        "polymorphic patch definition"
+                    )
                 }
             }
-            other => todo!("{other:?}"),
+            other => feature_error!(
+                CompileErrors,
+                CompileError,
+                self,
+                ident.loc(),
+                &format!("{other} definition")
+            ),
         }
     }
 
-    pub(crate) fn register_type_alias(&mut self, ident: &Identifier, t: Type) {
+    pub(crate) fn register_type_alias(&mut self, ident: &Identifier, t: Type) -> CompileResult<()> {
         if self.mono_types.contains_key(ident.inspect()) {
-            panic!("{ident} has already been registered");
+            Err(CompileErrors::from(CompileError::reassign_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                ident.loc(),
+                self.caused_by(),
+                ident.inspect(),
+            )))
         } else if self.rec_get_const_obj(ident.inspect()).is_some() && ident.vis().is_private() {
-            panic!("{ident} has already been registered as const");
+            // TODO: display where defined
+            Err(CompileErrors::from(CompileError::reassign_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                ident.loc(),
+                self.caused_by(),
+                ident.inspect(),
+            )))
         } else {
             let name = &ident.name;
             let muty = Mutability::from(&ident.inspect()[..]);
@@ -1292,6 +1377,7 @@ impl Context {
             self.decls.insert(name.clone(), vi);
             self.consts
                 .insert(name.clone(), ValueObj::Type(TypeObj::Builtin(t)));
+            Ok(())
         }
     }
 
@@ -1301,13 +1387,24 @@ impl Context {
         gen: GenTypeObj,
         ctx: Self,
         muty: Mutability,
-    ) {
-        // FIXME: not panic but error
+    ) -> CompileResult<()> {
         // FIXME: recursive search
         if self.mono_types.contains_key(ident.inspect()) {
-            panic!("{ident} has already been registered");
+            Err(CompileErrors::from(CompileError::reassign_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                ident.loc(),
+                self.caused_by(),
+                ident.inspect(),
+            )))
         } else if self.rec_get_const_obj(ident.inspect()).is_some() && ident.vis().is_private() {
-            panic!("{ident} has already been registered as const");
+            Err(CompileErrors::from(CompileError::reassign_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                ident.loc(),
+                self.caused_by(),
+                ident.inspect(),
+            )))
         } else {
             let t = gen.typ().clone();
             let meta_t = gen.meta_type();
@@ -1360,6 +1457,7 @@ impl Context {
                 }
             }
             self.mono_types.insert(name.clone(), (t, ctx));
+            Ok(())
         }
     }
 
@@ -1369,13 +1467,24 @@ impl Context {
         gen: GenTypeObj,
         ctx: Self,
         muty: Mutability,
-    ) {
-        // FIXME: not panic but error
+    ) -> CompileResult<()> {
         // FIXME: recursive search
         if self.patches.contains_key(ident.inspect()) {
-            panic!("{ident} has already been registered");
+            Err(CompileErrors::from(CompileError::reassign_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                ident.loc(),
+                self.caused_by(),
+                ident.inspect(),
+            )))
         } else if self.rec_get_const_obj(ident.inspect()).is_some() && ident.vis().is_private() {
-            panic!("{ident} has already been registered as const");
+            Err(CompileErrors::from(CompileError::reassign_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                ident.loc(),
+                self.caused_by(),
+                ident.inspect(),
+            )))
         } else {
             let t = gen.typ().clone();
             let meta_t = gen.meta_type();
@@ -1427,6 +1536,7 @@ impl Context {
                 }
             }
             self.patches.insert(name.clone(), ctx);
+            Ok(())
         }
     }
 
