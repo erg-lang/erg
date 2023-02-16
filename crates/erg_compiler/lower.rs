@@ -2150,7 +2150,7 @@ impl ASTLowerer {
             graph.add_node_if_none(path);
         }
         let ast = Reorderer::new(self.cfg.clone())
-            .reorder(ast)
+            .reorder(ast, mode)
             .map_err(|errs| {
                 IncompleteArtifact::new(None, errs, LowerWarnings::from(self.warns.take_all()))
             })?;

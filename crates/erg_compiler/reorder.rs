@@ -4,7 +4,10 @@ use erg_common::log;
 use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
 
-use erg_parser::ast::{ClassDef, Expr, Methods, Module, PatchDef, PreDeclTypeSpec, TypeSpec, AST};
+use erg_parser::ast::{
+    Accessor, ClassAttr, ClassDef, Expr, Methods, Module, PatchDef, PreDeclTypeSpec,
+    TypeAscription, TypeSpec, AST,
+};
 
 use crate::error::{TyCheckError, TyCheckErrors};
 
@@ -28,7 +31,7 @@ impl Reorderer {
         }
     }
 
-    pub fn reorder(mut self, ast: AST) -> Result<AST, TyCheckErrors> {
+    pub fn reorder(mut self, ast: AST, mode: &str) -> Result<AST, TyCheckErrors> {
         log!(info "the reordering process has started.");
         let mut new = vec![];
         for chunk in ast.module.into_iter() {
@@ -66,12 +69,17 @@ impl Reorderer {
                 }
                 Expr::Methods(methods) => match &methods.class {
                     TypeSpec::PreDeclTy(PreDeclTypeSpec::Simple(simple)) => {
-                        self.link_methods(simple.ident.inspect().clone(), &mut new, methods)
+                        self.link_methods(simple.ident.inspect().clone(), &mut new, methods, mode)
                     }
                     TypeSpec::TypeApp { spec, .. } => {
                         if let TypeSpec::PreDeclTy(PreDeclTypeSpec::Simple(simple)) = spec.as_ref()
                         {
-                            self.link_methods(simple.ident.inspect().clone(), &mut new, methods)
+                            self.link_methods(
+                                simple.ident.inspect().clone(),
+                                &mut new,
+                                methods,
+                                mode,
+                            )
                         } else {
                             let similar_name = self
                                 .def_root_pos_map
@@ -103,7 +111,54 @@ impl Reorderer {
         }
     }
 
-    fn link_methods(&mut self, name: Str, new: &mut Vec<Expr>, methods: Methods) {
+    /// ```erg
+    /// C.
+    ///     x: Int
+    ///     f: (self: Self) -> Int
+    /// ```
+    /// ↓
+    /// ```erg
+    /// C.x: Int
+    /// C.y: (self: C) -> Int
+    /// ```
+    fn flatten_method_decls(&mut self, new: &mut Vec<Expr>, methods: Methods) {
+        let class = methods.class_as_expr.as_ref();
+        for method in methods.attrs.into_iter() {
+            match method {
+                ClassAttr::Decl(decl) => {
+                    let Expr::Accessor(Accessor::Ident(ident)) = *decl.expr else {
+                        self.errs.push(TyCheckError::syntax_error(
+                            self.cfg.input.clone(),
+                            line!() as usize,
+                            decl.expr.loc(),
+                            "".into(),
+                            "".into(),
+                            None
+                        ));
+                        continue;
+                    };
+                    let expr = class.clone().attr_expr(ident);
+                    let decl = TypeAscription::new(expr, decl.t_spec);
+                    new.push(Expr::TypeAscription(decl));
+                }
+                ClassAttr::Doc(doc) => {
+                    new.push(Expr::Literal(doc));
+                }
+                ClassAttr::Def(def) => {
+                    self.errs.push(TyCheckError::syntax_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        def.loc(),
+                        "".into(),
+                        "".into(),
+                        None,
+                    ));
+                }
+            }
+        }
+    }
+
+    fn link_methods(&mut self, name: Str, new: &mut Vec<Expr>, methods: Methods, mode: &str) {
         if let Some(pos) = self.def_root_pos_map.get(&name) {
             match new.remove(*pos) {
                 Expr::ClassDef(mut class_def) => {
@@ -116,6 +171,8 @@ impl Reorderer {
                 }
                 _ => unreachable!(),
             }
+        } else if mode == "declare" {
+            self.flatten_method_decls(new, methods);
         } else {
             let similar_name = self
                 .def_root_pos_map

@@ -3670,6 +3670,7 @@ impl ReDef {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Methods {
     pub class: TypeSpec,
+    pub class_as_expr: Box<Expr>,
     pub vis: Token, // `.` or `::`
     pub attrs: ClassAttrs,
 }
@@ -3685,8 +3686,13 @@ impl_display_from_nested!(Methods);
 impl_locational!(Methods, class, attrs);
 
 impl Methods {
-    pub const fn new(class: TypeSpec, vis: Token, attrs: ClassAttrs) -> Self {
-        Self { class, vis, attrs }
+    pub fn new(class: TypeSpec, class_as_expr: Expr, vis: Token, attrs: ClassAttrs) -> Self {
+        Self {
+            class,
+            class_as_expr: Box::new(class_as_expr),
+            vis,
+            attrs,
+        }
     }
 }
 

@@ -303,7 +303,12 @@ impl Desugarer {
                     }
                 }
                 let new_attrs = ClassAttrs::from(new_attrs);
-                Expr::Methods(Methods::new(method_defs.class, method_defs.vis, new_attrs))
+                Expr::Methods(Methods::new(
+                    method_defs.class,
+                    *method_defs.class_as_expr,
+                    method_defs.vis,
+                    new_attrs,
+                ))
             }
             Expr::Accessor(acc) => Expr::Accessor(Self::perform_desugar_acc(desugar, acc)),
             Expr::Dummy(exprs) => {

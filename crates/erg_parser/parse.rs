@@ -1039,6 +1039,9 @@ impl Parser {
                         Expr::TypeAscription(tasc) => {
                             attrs.push(ClassAttr::Decl(tasc));
                         }
+                        Expr::Literal(lit) if lit.is_doc_comment() => {
+                            attrs.push(ClassAttr::Doc(lit));
+                        }
                         other => {
                             self.errs
                                 .push(ParseError::simple_syntax_error(0, other.loc()));
@@ -1054,9 +1057,9 @@ impl Parser {
             }
         }
         let attrs = ClassAttrs::from(attrs);
-        let class = Self::expr_to_type_spec(class).map_err(|e| self.errs.push(e))?;
+        let t_spec = Self::expr_to_type_spec(class.clone()).map_err(|e| self.errs.push(e))?;
         debug_exit_info!(self);
-        Ok(Methods::new(class, vis, attrs))
+        Ok(Methods::new(t_spec, class, vis, attrs))
     }
 
     fn try_reduce_do_block(&mut self) -> ParseResult<Lambda> {
