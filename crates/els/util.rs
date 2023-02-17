@@ -39,6 +39,9 @@ pub fn pos_in_loc<L: Locational>(loc: &L, pos: Position) -> bool {
 }
 
 pub fn pos_to_byte_index(src: &str, pos: Position) -> usize {
+    if src.is_empty() {
+        return 0;
+    }
     let mut line = 0;
     let mut col = 0;
     for (index, c) in src.char_indices() {
@@ -52,7 +55,7 @@ pub fn pos_to_byte_index(src: &str, pos: Position) -> usize {
             col += 1;
         }
     }
-    unreachable!()
+    src.char_indices().last().unwrap().0
 }
 
 pub fn get_token_stream(uri: Url) -> ELSResult<TokenStream> {

@@ -119,16 +119,14 @@ impl FileCache {
         Ok(None)
     }
 
-    pub fn get_token(&self, uri: &Url, pos: Position) -> ELSResult<Option<Token>> {
-        let Some(tokens) = self.get_token_stream(uri) else {
-            return Ok(None);
-        };
+    pub fn get_token(&self, uri: &Url, pos: Position) -> Option<Token> {
+        let tokens = self.get_token_stream(uri)?;
         for tok in tokens.iter() {
             if util::pos_in_loc(tok, pos) {
-                return Ok(Some(tok.clone()));
+                return Some(tok.clone());
             }
         }
-        Ok(None)
+        None
     }
 
     pub fn get_token_relatively(

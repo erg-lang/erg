@@ -104,6 +104,19 @@ cf. https://www.google.co.jp/search?q=answer+to+life+the+universe+and+everything
 ANSWER = 42
 ```
 
+また`erg`と指定すると、Ergのサンプルコードとして表示されます。
+
+```python
+'''
+the identity function, does nothing but returns the argument
+'''
+'''erg
+assert id(1) == 1
+assert id("a") == "a"
+'''
+id x = x
+```
+
 ## 式、セパレータ
 
 スクリプトは、式(expression)の連なりです。式とは計算・評価ができるもので、Ergではほとんどすべてのものが式です。

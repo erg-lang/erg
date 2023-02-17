@@ -221,20 +221,13 @@ impl Context {
             Public,
             Some(FUNC_PRED),
         );
-        int.register_builtin_py_impl(
+        int.register_py_builtin(
             FUNC_BIT_LENGTH,
             fn0_met(Int, Nat),
-            Immutable,
-            Public,
             Some(FUNC_BIT_LENGTH),
+            28,
         );
-        int.register_builtin_py_impl(
-            FUNC_BIT_COUNT,
-            fn0_met(Int, Nat),
-            Immutable,
-            Public,
-            Some(FUNC_BIT_COUNT),
-        );
+        int.register_py_builtin(FUNC_BIT_COUNT, fn0_met(Int, Nat), Some(FUNC_BIT_COUNT), 17);
         let t_from_bytes = func(
             vec![kw(
                 BYTES,

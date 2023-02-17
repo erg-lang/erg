@@ -22,7 +22,15 @@ use crate::util;
 fn mark_to_string(mark: MarkedString) -> String {
     match mark {
         MarkedString::String(s) => s,
-        MarkedString::LanguageString(ls) => ls.value,
+        MarkedString::LanguageString(ls) => format!("```{}\n{}\n```", ls.language, ls.value),
+    }
+}
+
+fn markdown_order(block: &str) -> usize {
+    if block.starts_with("```") {
+        usize::MAX
+    } else {
+        0
     }
 }
 
@@ -149,13 +157,11 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 return Self::send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": item }));
             };
             self.show_doc_comment(None, &mut contents, &def_loc)?;
+            let mut contents = contents.into_iter().map(mark_to_string).collect::<Vec<_>>();
+            contents.sort_by_key(|cont| markdown_order(cont));
             item.documentation = Some(Documentation::MarkupContent(MarkupContent {
                 kind: MarkupKind::Markdown,
-                value: contents
-                    .into_iter()
-                    .map(mark_to_string)
-                    .collect::<Vec<_>>()
-                    .join("\n"),
+                value: contents.join("\n"),
             }));
         }
         Self::send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": item }))

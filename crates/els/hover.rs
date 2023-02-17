@@ -12,6 +12,35 @@ use lsp_types::{HoverContents, HoverParams, MarkedString, Url};
 use crate::server::{ELSResult, Server};
 use crate::util;
 
+fn lang_code(code: &str) -> LanguageCode {
+    code.lines()
+        .next()
+        .unwrap_or("")
+        .parse()
+        .unwrap_or(LanguageCode::English)
+}
+
+fn language(marked: &MarkedString) -> Option<&str> {
+    match marked {
+        MarkedString::String(_) => None,
+        MarkedString::LanguageString(ls) => Some(&ls.language),
+    }
+}
+
+fn sort_hovers(mut contents: Vec<MarkedString>) -> Vec<MarkedString> {
+    // swap "erg" code block (not type definition) and the last element
+    let erg_idx = contents
+        .iter()
+        .rposition(|marked| language(marked) == Some("erg"));
+    if let Some(erg_idx) = erg_idx {
+        let last = contents.len() - 1;
+        if erg_idx != last {
+            contents.swap(erg_idx, last);
+        }
+    }
+    contents
+}
+
 fn eliminate_top_indent(code: String) -> String {
     let trimmed = code.trim_start_matches('\n');
     if !trimmed.starts_with(' ') {
@@ -28,6 +57,9 @@ fn eliminate_top_indent(code: String) -> String {
         }
         result.push('\n');
     }
+    if !result.is_empty() {
+        result.pop();
+    }
     result
 }
 
@@ -35,9 +67,8 @@ macro_rules! next {
     ($def_pos: ident, $default_code_block: ident, $contents: ident, $prev_token: ident, $token: ident) => {
         if $def_pos.line == 0 {
             if !$default_code_block.is_empty() {
-                $contents.push(MarkedString::from_markdown(eliminate_top_indent(
-                    $default_code_block,
-                )));
+                let code_block = eliminate_top_indent($default_code_block);
+                $contents.push(MarkedString::from_markdown(code_block));
             }
             break;
         }
@@ -48,9 +79,8 @@ macro_rules! next {
     ($def_pos: ident, $default_code_block: ident, $contents: ident) => {
         if $def_pos.line == 0 {
             if !$default_code_block.is_empty() {
-                $contents.push(MarkedString::from_markdown(eliminate_top_indent(
-                    $default_code_block,
-                )));
+                let code_block = eliminate_top_indent($default_code_block);
+                $contents.push(MarkedString::from_markdown(code_block));
             }
             break;
         }
@@ -71,7 +101,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let uri = util::normalize_url(params.text_document_position_params.text_document.uri);
         let pos = params.text_document_position_params.position;
         let mut contents = vec![];
-        let opt_tok = self.file_cache.get_token(&uri, pos)?;
+        let opt_tok = self.file_cache.get_token(&uri, pos);
         let opt_token = if let Some(token) = opt_tok {
             match token.category() {
                 TokenCategory::StrInterpRight => {
@@ -152,7 +182,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         } else {
             Self::send_log("lex error")?;
         }
-        let result = json!({ "contents": HoverContents::Array(contents) });
+        let result = json!({ "contents": HoverContents::Array(sort_hovers(contents)) });
         Self::send(
             &json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": result }),
         )
@@ -189,18 +219,22 @@ impl<Checker: BuildRunnable> Server<Checker> {
                         .trim_start_matches("'''")
                         .trim_end_matches("'''")
                         .to_string();
-                    // TODO: support other languages
-                    let lang = if code_block.starts_with("japanese\n") {
-                        LanguageCode::Japanese
-                    } else {
-                        LanguageCode::English
-                    };
+                    let lang = lang_code(&code_block);
                     if lang.matches_feature() {
-                        let code_block = code_block.trim_start_matches(lang.as_str()).to_string();
-                        contents.push(MarkedString::from_markdown(eliminate_top_indent(
-                            code_block,
-                        )));
-                        break;
+                        let code_block = eliminate_top_indent(
+                            code_block.trim_start_matches(lang.as_str()).to_string(),
+                        );
+                        let marked = if lang.is_erg() {
+                            MarkedString::from_language_code("erg".into(), code_block)
+                        } else {
+                            MarkedString::from_markdown(code_block)
+                        };
+                        contents.push(marked);
+                        if lang.is_erg() {
+                            next!(def_pos, default_code_block, contents, prev_token, token);
+                        } else {
+                            break;
+                        }
                     } else {
                         if lang.is_en() {
                             default_code_block = code_block;
@@ -215,9 +249,8 @@ impl<Checker: BuildRunnable> Server<Checker> {
                         next!(def_pos, default_code_block, contents, prev_token, token);
                     }
                     if !default_code_block.is_empty() {
-                        contents.push(MarkedString::from_markdown(eliminate_top_indent(
-                            default_code_block,
-                        )));
+                        let code_block = eliminate_top_indent(default_code_block);
+                        contents.push(MarkedString::from_markdown(code_block));
                     }
                     break;
                 }

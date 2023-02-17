@@ -127,6 +127,19 @@ cf. https://www.google.co.jp/search?q=answer+to+life+the+universe+and+everything
 ANSWER = 42
 ```
 
+Also, if you specify `erg`, it will be displayed as Erg's sample code.
+
+```python
+'''
+the identity function, does nothing but returns the argument
+'''
+'''erg
+assert id(1) == 1
+assert id("a") == "a"
+'''
+id x = x
+```
+
 ## Expressions, separators
 
 A script is a series of expressions. An expression is something that can be calculated or evaluated, and in Erg almost everything is an expression.

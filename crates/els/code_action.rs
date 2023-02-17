@@ -39,7 +39,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             .collect::<Vec<_>>();
         for warn in warns {
             let uri = util::normalize_url(Url::from_file_path(warn.input.full_path()).unwrap());
-            let Some(token) = self.file_cache.get_token(&uri, util::loc_to_pos(warn.core.loc).unwrap())? else {
+            let Some(token) = self.file_cache.get_token(&uri, util::loc_to_pos(warn.core.loc).unwrap()) else {
                 continue;
             };
             match visitor.get_min_expr(&token) {
@@ -75,7 +75,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 }
                 Some(_) => {}
                 None => {
-                    let Some(token) = self.file_cache.get_token(&uri, diag.range.start)? else {
+                    let Some(token) = self.file_cache.get_token(&uri, diag.range.start) else {
                         continue;
                     };
                     let Some(vi) = visitor.get_info(&token) else {
@@ -137,7 +137,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
     ) -> ELSResult<Vec<CodeAction>> {
         let mut actions = vec![];
         let uri = util::normalize_url(params.text_document.uri.clone());
-        if let Some(token) = self.file_cache.get_token(&uri, params.range.start)? {
+        if let Some(token) = self.file_cache.get_token(&uri, params.range.start) {
             if token.is(TokenKind::Symbol) && !token.is_const() && !token.content.is_snake_case() {
                 let action = self.gen_change_case_action(token, &uri, params.clone());
                 actions.extend(action);
