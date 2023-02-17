@@ -1343,9 +1343,9 @@ impl HasType for Call {
     #[inline]
     fn ref_t(&self) -> &Type {
         if let Some(attr) = self.attr_name.as_ref() {
-            attr.ref_t().return_t().unwrap()
+            attr.ref_t().return_t().unwrap_or(Type::FAILURE)
         } else {
-            self.obj.ref_t().return_t().unwrap()
+            self.obj.ref_t().return_t().unwrap_or(Type::FAILURE)
         }
     }
     #[inline]

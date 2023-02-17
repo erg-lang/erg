@@ -22,7 +22,7 @@ use crate::feature_error;
 use crate::ty::constructors::*;
 use crate::ty::free::CanbeFree;
 use crate::ty::free::{Constraint, HasLevel};
-use crate::ty::typaram::{IntervalOp, TyParam, TyParamOrdering};
+use crate::ty::typaram::{IntervalOp, OpKind, TyParam, TyParamOrdering};
 use crate::ty::value::ValueObj;
 use crate::ty::{HasType, ParamTy, Predicate, SubrKind, Type};
 use crate::type_feature_error;
@@ -35,6 +35,35 @@ use crate::error::{TyCheckError, TyCheckErrors, TyCheckResult};
 use crate::hir;
 use crate::AccessKind;
 use RegistrationMode::*;
+
+pub fn token_kind_to_op_kind(kind: TokenKind) -> Option<OpKind> {
+    match kind {
+        TokenKind::Plus => Some(OpKind::Add),
+        TokenKind::Minus => Some(OpKind::Sub),
+        TokenKind::Star => Some(OpKind::Mul),
+        TokenKind::Slash => Some(OpKind::Div),
+        TokenKind::FloorDiv => Some(OpKind::FloorDiv),
+        TokenKind::Mod => Some(OpKind::Mod),
+        TokenKind::Pow => Some(OpKind::Pow),
+        TokenKind::PrePlus => Some(OpKind::Pos),
+        TokenKind::PreMinus => Some(OpKind::Neg),
+        TokenKind::PreBitNot => Some(OpKind::Invert),
+        TokenKind::Equal => Some(OpKind::Eq),
+        TokenKind::NotEq => Some(OpKind::Ne),
+        TokenKind::Less => Some(OpKind::Lt),
+        TokenKind::LessEq => Some(OpKind::Le),
+        TokenKind::Gre => Some(OpKind::Gt),
+        TokenKind::GreEq => Some(OpKind::Ge),
+        TokenKind::AndOp => Some(OpKind::And),
+        TokenKind::OrOp => Some(OpKind::Or),
+        TokenKind::BitAnd => Some(OpKind::BitAnd),
+        TokenKind::BitOr => Some(OpKind::BitOr),
+        TokenKind::BitXor => Some(OpKind::BitXor),
+        TokenKind::Shl => Some(OpKind::Shl),
+        TokenKind::Shr => Some(OpKind::Shr),
+        _ => None,
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ParamKind {
@@ -720,6 +749,29 @@ impl Context {
                     tp_tuple.push(el);
                 }
                 Ok(TyParam::Tuple(tp_tuple))
+            }
+            ast::ConstExpr::BinOp(bin) => {
+                let Some(op) = token_kind_to_op_kind(bin.op.kind) else {
+                    return type_feature_error!(
+                        self,
+                        bin.loc(),
+                        &format!("instantiating const expression {bin}")
+                    )
+                };
+                let lhs = self.instantiate_const_expr(&bin.lhs, erased_idx, tmp_tv_cache)?;
+                let rhs = self.instantiate_const_expr(&bin.rhs, erased_idx, tmp_tv_cache)?;
+                Ok(TyParam::bin(op, lhs, rhs))
+            }
+            ast::ConstExpr::UnaryOp(unary) => {
+                let Some(op) = token_kind_to_op_kind(unary.op.kind) else {
+                    return type_feature_error!(
+                        self,
+                        unary.loc(),
+                        &format!("instantiating const expression {unary}")
+                    )
+                };
+                let val = self.instantiate_const_expr(&unary.expr, erased_idx, tmp_tv_cache)?;
+                Ok(TyParam::unary(op, val))
             }
             other => type_feature_error!(
                 self,

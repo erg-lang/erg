@@ -1,0 +1,13 @@
+.Nat: ClassType
+.Nat.
+    '''
+    Execute `proc!` `self` times.
+    '''
+    '''erg
+    10.times! do!:
+        print! "hello"
+
+    print_hello!() = print! "hello"
+    10.times! print_hello!
+    '''
+    times!: (self: .Nat, proc!: () => NoneType) => NoneType

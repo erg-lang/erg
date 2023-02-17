@@ -315,7 +315,7 @@ impl Context {
         nat.register_superclass(Int, &int);
         // class("Rational"),
         // class("Integral"),
-        nat.register_builtin_py_impl(
+        nat.register_py_builtin(
             PROC_TIMES,
             pr_met(
                 Nat,
@@ -324,9 +324,8 @@ impl Context {
                 vec![],
                 NoneType,
             ),
-            Immutable,
-            Public,
             Some(FUNC_TIMES),
+            13,
         );
         nat.register_marker_trait(mono(NUM));
         let mut nat_eq = Self::builtin_methods(Some(mono(EQ)), 2);
@@ -389,7 +388,7 @@ impl Context {
         bool_show.register_builtin_erg_impl(TO_STR, fn0_met(Bool, Str), Immutable, Public);
         bool_.register_trait(Bool, bool_show);
         let t = fn0_met(Bool, Bool);
-        bool_.register_builtin_py_impl(FUNC_INVERT, t, Immutable, Public, Some(FUNC_INVERT));
+        bool_.register_py_builtin(FUNC_INVERT, t, Some(FUNC_INVERT), 9);
         /* Str */
         let mut str_ = Self::builtin_mono_class(STR, 10);
         str_.register_superclass(Obj, &obj);
@@ -729,10 +728,10 @@ impl Context {
             array_t(T.clone(), N.clone() + M.clone()),
         )
         .quantify();
-        array_.register_builtin_py_impl(FUNC_CONCAT, t.clone(), Immutable, Public, Some(OP_ADD));
+        array_.register_py_builtin(FUNC_CONCAT, t.clone(), Some(OP_ADD), 9);
         let t_count =
             fn_met(arr_t.clone(), vec![kw(KW_X, T.clone())], None, vec![], Nat).quantify();
-        array_.register_builtin_py_impl(FUNC_COUNT, t_count, Immutable, Public, Some(FUNC_COUNT));
+        array_.register_py_builtin(FUNC_COUNT, t_count, Some(FUNC_COUNT), 17);
         // Array(T, N)|<: Add(Array(T, M))|.
         //     Output = Array(T, N + M)
         //     __add__: (self: Array(T, N), other: Array(T, M)) -> Array(T, N + M) = Array.concat
@@ -815,15 +814,18 @@ impl Context {
                 array_t(T.clone(), TyParam::erased(Nat)),
             ]),
         );
-        array_.register_builtin_erg_impl(FUNC_PARTITION, t.quantify(), Immutable, Public);
+        array_.register_py_builtin(FUNC_PARTITION, t.quantify(), Some(FUNC_PARTITION), 37);
         let t = fn_met(
             array_t(T.clone(), TyParam::erased(Nat)),
             vec![],
             None,
-            vec![kw("f", or(func1(T.clone(), Bool), NoneType))],
+            vec![kw(
+                "same_bucket",
+                or(func2(T.clone(), T.clone(), Bool), NoneType),
+            )],
             array_t(T.clone(), TyParam::erased(Nat)),
         );
-        array_.register_builtin_erg_impl(FUNC_DEDUP, t.quantify(), Immutable, Public);
+        array_.register_py_builtin(FUNC_DEDUP, t.quantify(), Some(FUNC_DEDUP), 28);
         /* Set */
         let mut set_ =
             Self::builtin_poly_class(SET, vec![PS::t_nd(TY_T), PS::named_nd(TY_N, Nat)], 10);

@@ -1,0 +1,9 @@
+.Bool: ClassType
+.Bool.
+    '''
+    Same as `not self`.
+    '''
+    '''erg
+    assert False.invert()
+    '''
+    invert: (self: .Bool) -> .Bool

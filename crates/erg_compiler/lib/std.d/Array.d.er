@@ -1,0 +1,37 @@
+.Array: ClassType
+.Array.
+    '''
+    Concatenates two arrays. Same as `self + other`.
+    '''
+    '''erg
+    assert [1, 2].concat([3, 4]) == [1, 2, 3, 4]
+    '''
+    concat: |T: Type, M: Nat, N: Nat|(self: Array(T, M), other: Array(T, N)) -> Array(T, M + N)
+    '''
+    Returns the number of elements in the array.
+    '''
+    '''erg
+    assert [1, 2, 3, 1, 2].count(1) == 2
+    assert ["a", "b", "c"].count("a") == 1
+    '''
+    count: |T: Type, N: Nat|(self: Array(T, N), x: T) -> Nat
+    '''
+    Remove array duplicates.
+
+    If `same_bucket` is not provided, it is used for the equality comparison.
+    If lhs and rhs are considered to be equal, __lhs__ will be removed.
+    '''
+    '''erg
+    assert [1, 1, 2].dedup() == [1, 2]
+    assert [0.0, 0.1, 10.0, 20.0, 20.1].dedup((lhs, rhs) -> abs(lhs - rhs) < 1.0) == [0.0, 10.0, 20.1]
+    '''
+    dedup: |T: Type|(self: Array(T, _), same_bucket := (T, T) -> Bool) -> Array(T, _)
+    '''
+    Create two arrays according to the `predicate` function.
+
+    What is returned is a tuple of two arrays, the first containing the elements judged to be `True` and the second containing the elements `False`.
+    '''
+    '''erg
+    assert [-2, -1, 0, 1, 2].partition(x -> x >= 0) == ([0, 1, 2], [-2, -1])
+    '''
+    partition: |T: Type|(self: Array(T, _), predicate: T -> Bool) -> (Array(T, _), Array(T, _))
