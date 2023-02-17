@@ -175,8 +175,8 @@ impl FileCache {
         };
         let metadata = metadata(uri.to_file_path().unwrap()).unwrap();
         let mut code = entry.code.clone();
-        let start = util::pos_to_index(&code, old.start);
-        let end = util::pos_to_index(&code, old.end);
+        let start = util::pos_to_byte_index(&code, old.start);
+        let end = util::pos_to_byte_index(&code, old.end);
         code.replace_range(start..end, new_code);
         let token_stream = Lexer::from_str(code.clone()).lex().ok();
         entry.code = code;
@@ -193,8 +193,8 @@ impl FileCache {
         let mut code = entry.code.clone();
         for change in params.content_changes {
             let range = change.range.unwrap();
-            let start = util::pos_to_index(&code, range.start);
-            let end = util::pos_to_index(&code, range.end);
+            let start = util::pos_to_byte_index(&code, range.start);
+            let end = util::pos_to_byte_index(&code, range.end);
             code.replace_range(start..end, &change.text);
         }
         let token_stream = Lexer::from_str(code.clone()).lex().ok();

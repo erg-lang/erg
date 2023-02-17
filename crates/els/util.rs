@@ -38,24 +38,21 @@ pub fn pos_in_loc<L: Locational>(loc: &L, pos: Position) -> bool {
     }
 }
 
-pub fn pos_to_index(src: &str, pos: Position) -> usize {
-    let mut index = 0;
+pub fn pos_to_byte_index(src: &str, pos: Position) -> usize {
     let mut line = 0;
     let mut col = 0;
-    for c in src.chars() {
+    for (index, c) in src.char_indices() {
         if line == pos.line && col == pos.character {
             return index;
         }
         if c == '\n' {
             line += 1;
             col = 0;
-            index += 1;
         } else {
             col += 1;
-            index += 1;
         }
     }
-    index
+    unreachable!()
 }
 
 pub fn get_token_stream(uri: Url) -> ELSResult<TokenStream> {
