@@ -134,6 +134,7 @@ const FUNC_UPPER: &str = "upper";
 const FUNC_TO_INT: &str = "to_int";
 const FUNC_STARTSWITH: &str = "startswith";
 const FUNC_ENDSWITH: &str = "endswith";
+const FUNC_CAPITALIZE: &str = "capitalize";
 const FUNC_CONTAINS: &str = "contains";
 const FUNC_SPLIT: &str = "split";
 const FUNC_SPLITLINES: &str = "splitlines";
@@ -438,6 +439,15 @@ pub fn builtins_path() -> PathBuf {
     PathBuf::from("lib/pystd/builtins.d.er")
 }
 
+#[cfg(not(feature = "no_std"))]
+pub fn std_decl_path() -> PathBuf {
+    erg_common::env::erg_std_decl_path()
+}
+#[cfg(feature = "no_std")]
+pub fn builtins_path() -> PathBuf {
+    PathBuf::from("lib/std.d")
+}
+
 impl Context {
     fn register_builtin_decl(
         &mut self,
@@ -578,14 +588,19 @@ impl Context {
         } else {
             VarName::from_static(name)
         };
-        let vis = if cfg!(feature = "py_compatible") {
+        let vis = if cfg!(feature = "py_compatible") || &self.name[..] != "<builtins>" {
             Public
         } else {
             Private
         };
         let muty = Immutable;
         let loc = Location::range(lineno, 0, lineno, name.inspect().len() as u32);
-        let abs_loc = AbsLocation::new(Some(builtins_path()), loc);
+        let module = if &self.name[..] == "<builtins>" {
+            builtins_path()
+        } else {
+            std_decl_path().join(format!("{}.d.er", self.name))
+        };
+        let abs_loc = AbsLocation::new(Some(module), loc);
         self.register_builtin_impl(name, t, muty, vis, py_name, abs_loc);
     }
 

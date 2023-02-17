@@ -1,0 +1,33 @@
+.Str: ClassType
+.Str.
+    '''
+    Return a capitalized version of the string.
+
+    More specifically, make the first character have upper case and the rest lower
+    case.
+    '''
+    '''erg
+    assert "hello".capitalize() == "Hello"
+    assert "HELLO".capitalize() == "Hello"
+    '''
+    capitalize: (self: .Str) -> .Str
+    '''
+    Return a version of the string suitable for caseless comparisons.
+    '''
+    '''erg
+    assert "camelCase".casefold() == "camelcase"
+    assert "CamelCase".casefold() == "camelcase"
+    assert "FULLCAPS".casefold() == "fullcaps"
+    assert "snake_case".casefold() == "snake_case"
+    '''
+    casefold: (self: .Str) -> .Str
+    '''
+    Return a centered string of length width.
+
+    Padding is done using the specified fill character (default is a space).
+    '''
+    '''erg
+    assert "hello".center(10) == "  hello   "
+    assert "hello".center(10, "-") == "--hello---"
+    '''
+    center: (self: .Str, width: Int, fillchar: .Str) -> .Str

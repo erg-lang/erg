@@ -60,8 +60,6 @@ impl<Checker: BuildRunnable> Server<Checker> {
                             }
                             _ => format!("this {kind} cannot be renamed"),
                         };
-                        // identical change (to avoid displaying "no result")
-                        Self::commit_change(&mut changes, &vi.def_loc, tok.content.to_string());
                         let edit = WorkspaceEdit::new(changes);
                         Self::send(
                             &json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": edit }),

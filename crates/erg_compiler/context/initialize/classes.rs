@@ -77,19 +77,17 @@ impl Context {
             Public,
             Some(FUNC_CONJUGATE),
         );
-        float.register_builtin_py_impl(
-            FUNC_IS_INTEGER,
-            fn0_met(Float, Bool),
-            Const,
-            Public,
-            Some(FUNC_IS_INTEGER),
-        );
-        float.register_builtin_py_impl(
+        float.register_py_builtin(
             FUNC_HEX,
             fn0_met(Float, Str),
-            Const,
-            Public,
             Some(FUNC_HEX),
+            24,
+        );
+        float.register_py_builtin(
+            FUNC_IS_INTEGER,
+            fn0_met(Float, Bool),
+            Some(FUNC_IS_INTEGER),
+            32,
         );
         float.register_builtin_py_impl(
             FUNC_FROMHEX,
@@ -562,6 +560,7 @@ impl Context {
             Public,
             Some(FUNC_COUNT),
         );
+        str_.register_py_builtin(FUNC_CAPITALIZE, fn0_met(Str, Str), Some(FUNC_CAPITALIZE), 13);
         str_.register_builtin_erg_impl(FUNC_CONTAINS, fn1_met(Str, Str, Bool), Immutable, Public);
         let str_getitem_t = fn1_kw_met(Str, kw(KW_IDX, Nat), Str);
         str_.register_builtin_erg_impl(FUNDAMENTAL_GETITEM, str_getitem_t, Immutable, Public);

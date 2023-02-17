@@ -1,0 +1,28 @@
+.Int: ClassType
+.Int.
+    '''
+    Number of ones in the binary representation of the absolute value of self.
+
+    Also known as the population count.
+    '''
+    '''japanese
+    2進数表現の絶対値の中の1の数。
+
+    ハミング重みとも呼ばれる。
+    '''
+    '''erg
+    assert bin(13) == "0b1101"
+    assert 13.bit_count() == 3
+    '''
+    bit_count: (self: .Int) -> Nat
+    '''
+    Number of bits necessary to represent self in binary.
+    '''
+    '''japanese
+    2進数表現においてselfを表すのに必要なビット数。
+    '''
+    '''erg
+    assert bin(37) == "0b100101"
+    assert 37.bit_length() == 6
+    '''
+    bit_length: (self: .Int) -> Nat

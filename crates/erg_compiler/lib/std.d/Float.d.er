@@ -1,0 +1,32 @@
+.Float: ClassType
+.Float.
+    '''
+    the real part of a complex number
+    '''
+    '''japanese
+    複素数の実部
+    '''
+    Real: Float
+    '''
+    the imaginary part of a complex number
+    '''
+    '''japanese
+    複素数の虚部
+    '''
+    Imag: Float
+    '''
+    Return a hexadecimal representation of a floating-point number.
+    '''
+    '''erg
+    assert (100.0).hex() == "0x1.9000000000000p+6"
+    assert (12.34).hex() == "0x1.8ae147ae147aep+3"
+    '''
+    hex: (self: .Float) -> Str
+    '''
+    Return True if the float is an integer.
+    '''
+    '''erg
+    assert (1.0).is_integer()
+    assert not (1.1).is_integer()
+    '''
+    is_integer: (self: .Float) -> Bool

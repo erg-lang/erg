@@ -16,6 +16,13 @@ fn _erg_std_path() -> PathBuf {
         .canonicalize()
         .expect("ERG_PATH/lib/std not found")
 }
+fn _erg_std_decl_path() -> PathBuf {
+    _erg_path()
+        .join("lib")
+        .join("std.d")
+        .canonicalize()
+        .expect("ERG_PATH/lib/std.d not found")
+}
 fn _erg_pystd_path() -> PathBuf {
     _erg_path()
         .join("lib")
@@ -34,6 +41,7 @@ fn _erg_external_lib_path() -> PathBuf {
 thread_local! {
     pub static ERG_PATH: PathBuf = normalize_path(_erg_path());
     pub static ERG_STD_PATH: PathBuf = normalize_path(_erg_std_path());
+    pub static ERG_STD_DECL_PATH: PathBuf = normalize_path(_erg_std_decl_path());
     pub static ERG_PYSTD_PATH: PathBuf = normalize_path(_erg_pystd_path());
     pub static ERG_EXTERNAL_LIB_PATH: PathBuf = normalize_path(_erg_external_lib_path());
 }
@@ -44,6 +52,10 @@ pub fn erg_path() -> PathBuf {
 
 pub fn erg_std_path() -> PathBuf {
     ERG_STD_PATH.with(|s| s.clone())
+}
+
+pub fn erg_std_decl_path() -> PathBuf {
+    ERG_STD_DECL_PATH.with(|s| s.clone())
 }
 
 pub fn erg_pystd_path() -> PathBuf {
