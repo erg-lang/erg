@@ -23,7 +23,7 @@
     '''
     '''erg
     assert [1, 1, 2].dedup() == [1, 2]
-    assert [0.0, 0.1, 10.0, 20.0, 20.1].dedup((lhs, rhs) -> abs(lhs - rhs) < 1.0) == [0.0, 10.0, 20.1]
+    assert [0.0, 0.1, 10.0, 20.0, 20.1].dedup((lhs, rhs) -> abs(lhs - rhs) < 1.0) == [0.1, 10.0, 20.1]
     '''
     dedup: |T: Type|(self: Array(T, _), same_bucket := (T, T) -> Bool) -> Array(T, _)
     '''

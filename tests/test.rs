@@ -12,6 +12,11 @@ fn exec_advanced_type_spec() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_array() -> Result<(), ()> {
+    expect_success("tests/should_ok/array.er")
+}
+
+#[test]
 fn exec_assert_cast() -> Result<(), ()> {
     expect_success("examples/assert_cast.er")
 }

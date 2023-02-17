@@ -1,0 +1,9 @@
+assert [1, 2].concat([3, 4]) == [1, 2, 3, 4]
+
+assert [1, 2, 3, 1, 2].count(1) == 2
+assert ["a", "b", "c"].count("a") == 1
+
+assert [1, 1, 2].dedup() == [1, 2]
+assert [0.0, 0.1, 10.0, 20.0, 20.1].dedup((lhs, rhs) -> abs(lhs - rhs) < 1.0) == [0.1, 10.0, 20.1]
+
+assert [-2, -1, 0, 1, 2].partition(x -> x >= 0) == ([0, 1, 2], [-2, -1])

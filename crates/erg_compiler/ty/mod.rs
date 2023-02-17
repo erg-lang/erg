@@ -1879,9 +1879,13 @@ impl Type {
                 let name = fv.unbound_name().unwrap();
                 let level = fv.level().unwrap();
                 if let Some((sub, sup)) = fv.get_subsup() {
+                    // if fv == ?T(:> {1, 2}, <: Sub(?T)), derefine() will cause infinite loop
+                    // so we need to force linking
+                    fv.forced_undoable_link(&sub);
                     let constraint = Constraint::new_sandwiched(sub.derefine(), sup.derefine());
-                    // not `.update_constraint`
-                    Self::FreeVar(Free::new_named_unbound(name, level, constraint))
+                    let free = Self::FreeVar(Free::new_named_unbound(name, level, constraint));
+                    fv.undo();
+                    free
                 } else {
                     let t = fv.get_type().unwrap().derefine();
                     let constraint = Constraint::new_type_of(t);
