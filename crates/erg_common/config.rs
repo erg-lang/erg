@@ -96,7 +96,8 @@ impl DummyStdin {
         if self.current_line >= self.lines.len() {
             stdout.write_all("\n".as_bytes()).unwrap();
             stdout.flush().unwrap();
-            return "".to_string();
+            // workaround: https://github.com/erg-lang/erg/issues/399
+            return "exit()".to_string();
         }
         let mut line = self.lines[self.current_line].clone();
         self.current_line += 1;
