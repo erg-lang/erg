@@ -17,6 +17,7 @@ use erg_compiler::artifact::{BuildRunnable, IncompleteArtifact};
 use erg_compiler::build_hir::HIRBuilder;
 use erg_compiler::context::{Context, ModuleContext};
 use erg_compiler::module::{SharedCompilerResource, SharedModuleIndex};
+use erg_compiler::ty::HasType;
 
 use lsp_types::{
     ClientCapabilities, CodeActionKind, CodeActionOptions, CodeActionProviderCapability,
@@ -453,22 +454,23 @@ impl<Checker: BuildRunnable> Server<Checker> {
             .get_token_relatively(uri, attr_marker_pos, -1)?;
         if let Some(token) = maybe_token {
             Self::send_log(format!("token: {token}"))?;
-            let var_name = token.inspect();
-            let ctxs = module.context.get_receiver_ctxs(var_name);
-            if let Some(typ) = self
-                .get_visitor(uri)
-                .and_then(|visitor| visitor.get_t(&token))
-            {
-                Self::send_log(format!("type: {typ}"))?;
-                let type_ctxs = module
-                    .context
-                    .get_nominal_super_type_ctxs(&typ)
-                    .unwrap_or(vec![]);
-                Ok([ctxs, type_ctxs].concat())
-            } else {
-                Self::send_log("failed to get the type")?;
-                Ok(ctxs)
+            let mut ctxs = vec![];
+            if let Some(visitor) = self.get_visitor(uri) {
+                if let Some(expr) = visitor.get_min_expr(&token) {
+                    let type_ctxs = module
+                        .context
+                        .get_nominal_super_type_ctxs(expr.ref_t())
+                        .unwrap_or(vec![]);
+                    ctxs.extend(type_ctxs);
+                    if let Ok(singular_ctx) = module
+                        .context
+                        .get_singular_ctx_by_hir_expr(expr, &"".into())
+                    {
+                        ctxs.push(singular_ctx);
+                    }
+                }
             }
+            Ok(ctxs)
         } else {
             Self::send_log("token not found")?;
             Ok(vec![])

@@ -38,10 +38,11 @@ impl<Checker: BuildRunnable> Server<Checker> {
             .filter(|warn| warn.core.main_message.ends_with("is not used"))
             .collect::<Vec<_>>();
         for warn in warns {
-            let Some(range) = util::loc_to_range(warn.core.loc) else {
+            let uri = util::normalize_url(Url::from_file_path(warn.input.full_path()).unwrap());
+            let Some(token) = self.file_cache.get_token(&uri, util::loc_to_pos(warn.core.loc).unwrap())? else {
                 continue;
             };
-            match visitor.get_min_expr(range) {
+            match visitor.get_min_expr(&token) {
                 Some(Expr::Def(def)) => {
                     let Some(mut range) = util::loc_to_range(def.loc()) else {
                         Self::send_log("range not found")?;

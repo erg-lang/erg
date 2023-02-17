@@ -2,12 +2,15 @@ use erg_common::traits::Locational;
 use erg_common::Str;
 use erg_compiler::erg_parser::token::Token;
 use erg_compiler::hir::*;
-use erg_compiler::ty::{HasType, Type};
 use erg_compiler::varinfo::VarInfo;
-use lsp_types::{Position, Range, Url};
+use lsp_types::{Position, Url};
 
 use crate::util;
 
+/// This struct provides:
+/// * namespace where the cursor is located (`get_namespace`)
+/// * cursor(`Token`) -> `Expr` mapping (`get_min_expr`)
+/// * cursor(`Token`) -> `VarInfo` mapping (`get_info`)
 pub struct HIRVisitor<'a> {
     hir: &'a HIR,
     uri: Url,
@@ -39,72 +42,6 @@ impl<'a> HIRVisitor<'a> {
         let indent_len = line.len() - line.trim_start_matches(' ').len();
         let cond = ln_end == pos.line && pos.character as usize == indent_len + 1;
         matches!(chunk, Expr::Call(_) | Expr::Lambda(_) | Expr::Def(_) | Expr::ClassDef(_) if cond)
-    }
-
-    pub fn get_min_expr(&self, range: Range) -> Option<&Expr> {
-        self.get_min_expr_from_exprs(self.hir.module.iter(), range)
-    }
-
-    // TODO:
-    fn get_min_expr_from_expr<'e>(&self, expr: &'e Expr, range: Range) -> Option<&'e Expr> {
-        match expr {
-            Expr::Def(def) => {
-                if let Some(expr) = self.get_min_expr_from_exprs(def.body.block.iter(), range) {
-                    Some(expr)
-                } else if util::pos_in_loc(def, range.start) {
-                    Some(expr)
-                } else {
-                    None
-                }
-            }
-            Expr::Lambda(lambda) => {
-                if let Some(expr) = self.get_min_expr_from_exprs(lambda.body.iter(), range) {
-                    Some(expr)
-                } else if util::pos_in_loc(lambda, range.start) {
-                    Some(expr)
-                } else {
-                    None
-                }
-            }
-            Expr::ClassDef(cdef) => {
-                if let Some(expr) = self.get_min_expr_from_exprs(cdef.methods.iter(), range) {
-                    Some(expr)
-                } else if util::pos_in_loc(cdef, range.start) {
-                    Some(expr)
-                } else {
-                    None
-                }
-            }
-            Expr::PatchDef(pdef) => {
-                if let Some(expr) = self.get_min_expr_from_exprs(pdef.methods.iter(), range) {
-                    Some(expr)
-                } else if util::pos_in_loc(pdef, range.start) {
-                    Some(expr)
-                } else {
-                    None
-                }
-            }
-            other => {
-                if util::pos_in_loc(other, range.start) {
-                    Some(expr)
-                } else {
-                    None
-                }
-            }
-        }
-    }
-
-    fn get_min_expr_from_exprs<'e>(
-        &self,
-        iter: impl Iterator<Item = &'e Expr>,
-        range: Range,
-    ) -> Option<&'e Expr> {
-        for chunk in iter {
-            if let Some(expr) = self.get_min_expr_from_expr(chunk, range) {
-                return Some(expr);
-            }
-        }
-        None
     }
 
     fn get_expr_ns(&self, cur_ns: Vec<Str>, chunk: &Expr, pos: Position) -> Option<Vec<Str>> {
@@ -206,180 +143,228 @@ impl<'a> HIRVisitor<'a> {
     }
 
     /// Returns the smallest expression containing `token`. Literals, accessors, containers, etc. are returned.
-    pub fn get_t(&self, token: &Token) -> Option<Type> {
+    pub fn get_min_expr(&self, token: &Token) -> Option<&Expr> {
         for chunk in self.hir.module.iter() {
-            if let Some(expr) = self.get_expr_t(chunk, token) {
+            if let Some(expr) = self.get_expr(chunk, token) {
                 return Some(expr);
             }
         }
         None
     }
 
-    fn return_expr_t_if_same<T: HasType>(&self, expr: &T, l: &Token, r: &Token) -> Option<Type> {
+    fn return_expr_if_same<'e>(&'e self, expr: &'e Expr, l: &Token, r: &Token) -> Option<&Expr> {
         if self.strict_cmp {
             if l.deep_eq(r) {
-                Some(expr.t())
+                Some(expr)
             } else {
                 None
             }
         } else if l == r {
-            Some(expr.t())
+            Some(expr)
         } else {
             None
         }
     }
 
-    fn get_expr_t(&self, expr: &Expr, token: &Token) -> Option<Type> {
+    fn get_expr<'e>(&'e self, expr: &'e Expr, token: &Token) -> Option<&'e Expr> {
         if expr.ln_end() < token.ln_begin() || expr.ln_begin() > token.ln_end() {
             return None;
         }
         match expr {
-            Expr::Lit(lit) => self.return_expr_t_if_same(expr, &lit.token, token),
-            Expr::Accessor(acc) => self.get_acc_t(expr, acc, token),
-            Expr::BinOp(bin) => self.get_bin_t(bin, token),
-            Expr::UnaryOp(unary) => self.get_expr_t(&unary.expr, token),
-            Expr::Call(call) => self.get_call_t(call, token),
-            Expr::ClassDef(class_def) => self.get_class_def_t(class_def, token),
-            Expr::Def(def) => self.get_def_t(def, token),
-            Expr::PatchDef(patch_def) => self.get_patch_def_t(patch_def, token),
-            Expr::Lambda(lambda) => self.get_block_t(&lambda.body, token),
-            Expr::Array(arr) => self.get_array_t(arr, token),
-            Expr::Dict(dict) => self.get_dict_t(dict, token),
-            Expr::Record(record) => self.get_record_t(record, token),
-            Expr::Set(set) => self.get_set_t(set, token),
-            Expr::Tuple(tuple) => self.get_tuple_t(tuple, token),
-            Expr::TypeAsc(type_asc) => self.get_expr_t(&type_asc.expr, token),
-            Expr::Dummy(dummy) => self.get_dummy_t(dummy, token),
-            Expr::Compound(block) | Expr::Code(block) => self.get_block_t(block, token),
-            Expr::ReDef(redef) => self.get_redef_t(expr, redef, token),
+            Expr::Lit(_) => Some(expr),
+            Expr::Accessor(acc) => self.get_expr_from_acc(expr, acc, token),
+            Expr::BinOp(bin) => self.get_expr_from_bin(expr, bin, token),
+            Expr::UnaryOp(unary) => self.get_expr(&unary.expr, token),
+            Expr::Call(call) => self.get_expr_from_call(expr, call, token),
+            Expr::ClassDef(class_def) => self.get_expr_from_class_def(class_def, token),
+            Expr::Def(def) => self.get_expr_from_def(expr, def, token),
+            Expr::PatchDef(patch_def) => self.get_expr_from_patch_def(expr, patch_def, token),
+            Expr::Lambda(lambda) => self.get_expr_from_lambda(expr, lambda, token),
+            Expr::Array(arr) => self.get_expr_from_array(expr, arr, token),
+            Expr::Dict(dict) => self.get_expr_from_dict(expr, dict, token),
+            Expr::Record(record) => self.get_expr_from_record(expr, record, token),
+            Expr::Set(set) => self.get_expr_from_set(expr, set, token),
+            Expr::Tuple(tuple) => self.get_expr_from_tuple(expr, tuple, token),
+            Expr::TypeAsc(type_asc) => self.get_expr(&type_asc.expr, token),
+            Expr::Dummy(dummy) => self.get_expr_from_dummy(dummy, token),
+            Expr::Compound(block) | Expr::Code(block) => self.get_expr_from_block(block, token),
+            Expr::ReDef(redef) => self.get_expr_from_redef(expr, redef, token),
             Expr::Import(_) => None,
         }
     }
 
-    fn get_acc_t(&self, expr: &Expr, acc: &Accessor, token: &Token) -> Option<Type> {
+    fn get_expr_from_acc<'e>(
+        &'e self,
+        expr: &'e Expr,
+        acc: &'e Accessor,
+        token: &Token,
+    ) -> Option<&Expr> {
         match acc {
-            Accessor::Ident(ident) => self.return_expr_t_if_same(expr, ident.name.token(), token),
+            Accessor::Ident(ident) => self.return_expr_if_same(expr, ident.name.token(), token),
             Accessor::Attr(attr) => self
-                .return_expr_t_if_same(expr, attr.ident.name.token(), token)
-                .or_else(|| self.get_expr_t(&attr.obj, token)),
+                .return_expr_if_same(expr, attr.ident.name.token(), token)
+                .or_else(|| self.get_expr(&attr.obj, token)),
         }
     }
 
-    fn get_bin_t(&self, bin: &BinOp, token: &Token) -> Option<Type> {
-        self.get_expr_t(&bin.lhs, token)
-            .or_else(|| self.get_expr_t(&bin.rhs, token))
+    fn get_expr_from_bin<'e>(
+        &'e self,
+        expr: &'e Expr,
+        bin: &'e BinOp,
+        token: &Token,
+    ) -> Option<&Expr> {
+        if &bin.op == token {
+            return Some(expr);
+        }
+        self.get_expr(&bin.lhs, token)
+            .or_else(|| self.get_expr(&bin.rhs, token))
     }
 
-    fn get_call_t(&self, call: &Call, token: &Token) -> Option<Type> {
-        if call.args.paren.is_some() && call.ln_end() == token.ln_end() {
-            // call: `f(x)`, token: `)`
-            return Some(call.t());
-        }
-        if let Some(attr) = &call.attr_name {
-            if let Some(t) = self.return_expr_t_if_same(attr, attr.name.token(), token) {
-                return Some(t);
-            }
-        }
-        self.get_expr_t(&call.obj, token)
-            .or_else(|| self.get_args_t(&call.args, token))
+    fn get_expr_from_call<'e>(
+        &'e self,
+        expr: &'e Expr,
+        call: &'e Call,
+        token: &Token,
+    ) -> Option<&Expr> {
+        // args: `(1, 2)`, token: `)`
+        call.args
+            .paren
+            .as_ref()
+            .and_then(|(_, end)| self.return_expr_if_same(expr, end, token))
+            .or_else(|| {
+                call.attr_name
+                    .as_ref()
+                    .and_then(|attr| self.return_expr_if_same(expr, attr.name.token(), token))
+            })
+            .or_else(|| self.get_expr(&call.obj, token))
+            .or_else(|| self.get_expr_from_args(&call.args, token))
     }
 
-    fn get_args_t(&self, args: &Args, token: &Token) -> Option<Type> {
+    fn get_expr_from_args<'e>(&'e self, args: &'e Args, token: &Token) -> Option<&Expr> {
         for arg in args.pos_args.iter() {
-            if let Some(expr) = self.get_expr_t(&arg.expr, token) {
+            if let Some(expr) = self.get_expr(&arg.expr, token) {
                 return Some(expr);
             }
         }
         if let Some(var) = &args.var_args {
-            if let Some(expr) = self.get_expr_t(&var.expr, token) {
+            if let Some(expr) = self.get_expr(&var.expr, token) {
                 return Some(expr);
             }
         }
         for arg in args.kw_args.iter() {
-            if let Some(expr) = self.get_expr_t(&arg.expr, token) {
+            if let Some(expr) = self.get_expr(&arg.expr, token) {
                 return Some(expr);
             }
         }
         None
     }
 
-    fn get_def_t(&self, def: &Def, token: &Token) -> Option<Type> {
-        self.return_expr_t_if_same(def.sig.ident(), def.sig.ident().name.token(), token)
-            .or_else(|| self.get_block_t(&def.body.block, token))
+    fn get_expr_from_def<'e>(
+        &'e self,
+        expr: &'e Expr,
+        def: &'e Def,
+        token: &Token,
+    ) -> Option<&Expr> {
+        self.return_expr_if_same(expr, def.sig.ident().name.token(), token)
+            .or_else(|| self.get_expr_from_block(&def.body.block, token))
     }
 
-    fn get_class_def_t(&self, class_def: &ClassDef, token: &Token) -> Option<Type> {
+    fn get_expr_from_class_def<'e>(
+        &'e self,
+        class_def: &'e ClassDef,
+        token: &Token,
+    ) -> Option<&Expr> {
         class_def
             .require_or_sup
             .as_ref()
-            .and_then(|req_sup| self.get_expr_t(req_sup, token))
-            .or_else(|| {
-                self.return_expr_t_if_same(
-                    class_def.sig.ident(),
-                    class_def.sig.ident().name.token(),
-                    token,
-                )
-            })
-            .or_else(|| self.get_block_t(&class_def.methods, token))
+            .and_then(|req_sup| self.get_expr(req_sup, token))
+            .or_else(|| self.get_expr_from_block(&class_def.methods, token))
     }
 
-    fn get_block_t(&self, block: &Block, token: &Token) -> Option<Type> {
+    fn get_expr_from_block<'e>(&'e self, block: &'e Block, token: &Token) -> Option<&Expr> {
         for chunk in block.iter() {
-            if let Some(expr) = self.get_expr_t(chunk, token) {
+            if let Some(expr) = self.get_expr(chunk, token) {
                 return Some(expr);
             }
         }
         None
     }
 
-    fn get_redef_t(&self, expr: &Expr, redef: &ReDef, token: &Token) -> Option<Type> {
-        self.get_acc_t(expr, &redef.attr, token)
-            .or_else(|| self.get_block_t(&redef.block, token))
+    fn get_expr_from_redef<'e>(
+        &'e self,
+        expr: &'e Expr,
+        redef: &'e ReDef,
+        token: &Token,
+    ) -> Option<&Expr> {
+        self.get_expr_from_acc(expr, &redef.attr, token)
+            .or_else(|| self.get_expr_from_block(&redef.block, token))
     }
 
-    fn get_dummy_t(&self, dummy: &Dummy, token: &Token) -> Option<Type> {
+    fn get_expr_from_dummy<'e>(&'e self, dummy: &'e Dummy, token: &Token) -> Option<&Expr> {
         for chunk in dummy.iter() {
-            if let Some(expr) = self.get_expr_t(chunk, token) {
+            if let Some(expr) = self.get_expr(chunk, token) {
                 return Some(expr);
             }
         }
         None
     }
 
-    fn get_patch_def_t(&self, patch_def: &PatchDef, token: &Token) -> Option<Type> {
-        self.get_expr_t(&patch_def.base, token)
-            .or_else(|| {
-                self.return_expr_t_if_same(
-                    patch_def.sig.ident(),
-                    patch_def.sig.ident().name.token(),
-                    token,
-                )
-            })
-            .or_else(|| self.get_block_t(&patch_def.methods, token))
+    fn get_expr_from_patch_def<'e>(
+        &'e self,
+        expr: &'e Expr,
+        patch_def: &'e PatchDef,
+        token: &Token,
+    ) -> Option<&Expr> {
+        self.return_expr_if_same(expr, patch_def.sig.ident().name.token(), token)
+            .or_else(|| self.get_expr(&patch_def.base, token))
+            .or_else(|| self.get_expr_from_block(&patch_def.methods, token))
     }
 
-    fn get_array_t(&self, arr: &Array, token: &Token) -> Option<Type> {
+    fn get_expr_from_lambda<'e>(
+        &'e self,
+        expr: &'e Expr,
+        lambda: &'e Lambda,
+        token: &Token,
+    ) -> Option<&Expr> {
+        if util::pos_in_loc(&lambda.params, util::loc_to_pos(token.loc())?) {
+            return Some(expr);
+        }
+        self.get_expr_from_block(&lambda.body, token)
+    }
+
+    fn get_expr_from_array<'e>(
+        &'e self,
+        expr: &'e Expr,
+        arr: &'e Array,
+        token: &Token,
+    ) -> Option<&Expr> {
         if arr.ln_end() == token.ln_end() {
             // arr: `[1, 2]`, token: `]`
-            return Some(arr.t());
+            return Some(expr);
         }
         match arr {
-            Array::Normal(arr) => self.get_args_t(&arr.elems, token),
+            Array::Normal(arr) => self.get_expr_from_args(&arr.elems, token),
             _ => None, // todo!(),
         }
     }
 
-    fn get_dict_t(&self, dict: &Dict, token: &Token) -> Option<Type> {
+    fn get_expr_from_dict<'e>(
+        &'e self,
+        expr: &'e Expr,
+        dict: &'e Dict,
+        token: &Token,
+    ) -> Option<&Expr> {
         if dict.ln_end() == token.ln_end() {
             // arr: `{...}`, token: `}`
-            return Some(dict.t());
+            return Some(expr);
         }
         match dict {
             Dict::Normal(dict) => {
                 for kv in &dict.kvs {
-                    if let Some(expr) = self.get_expr_t(&kv.key, token) {
-                        return Some(expr);
-                    } else if let Some(expr) = self.get_expr_t(&kv.value, token) {
+                    if let Some(expr) = self
+                        .get_expr(&kv.key, token)
+                        .or_else(|| self.get_expr(&kv.value, token))
+                    {
                         return Some(expr);
                     }
                 }
@@ -389,38 +374,55 @@ impl<'a> HIRVisitor<'a> {
         }
     }
 
-    fn get_record_t(&self, record: &Record, token: &Token) -> Option<Type> {
+    fn get_expr_from_record<'e>(
+        &'e self,
+        expr: &'e Expr,
+        record: &'e Record,
+        token: &Token,
+    ) -> Option<&Expr> {
         if record.ln_end() == token.ln_end() {
             // arr: `{...}`, token: `}`
-            return Some(record.t());
+            return Some(expr);
         }
         for field in record.attrs.iter() {
-            if let Some(expr) = self.get_block_t(&field.body.block, token) {
+            if let Some(expr) = self.get_expr_from_block(&field.body.block, token) {
                 return Some(expr);
             }
         }
         None
     }
 
-    fn get_set_t(&self, set: &Set, token: &Token) -> Option<Type> {
+    fn get_expr_from_set<'e>(
+        &'e self,
+        expr: &'e Expr,
+        set: &'e Set,
+        token: &Token,
+    ) -> Option<&Expr> {
         if set.ln_end() == token.ln_end() {
             // arr: `{...}`, token: `}`
-            return Some(set.t());
+            return Some(expr);
         }
         match set {
-            Set::Normal(set) => self.get_args_t(&set.elems, token),
+            Set::Normal(set) => self.get_expr_from_args(&set.elems, token),
             _ => None, // todo!(),
         }
     }
 
-    fn get_tuple_t(&self, tuple: &Tuple, token: &Token) -> Option<Type> {
+    fn get_expr_from_tuple<'e>(
+        &'e self,
+        expr: &'e Expr,
+        tuple: &'e Tuple,
+        token: &Token,
+    ) -> Option<&Expr> {
         match tuple {
             Tuple::Normal(tuple) => {
-                if tuple.elems.paren.is_some() && tuple.ln_end() == token.ln_end() {
-                    // arr: `(1, 2)`, token: `)`
-                    return Some(tuple.t());
-                }
-                self.get_args_t(&tuple.elems, token)
+                // arr: `(1, 2)`, token: `)`
+                tuple
+                    .elems
+                    .paren
+                    .as_ref()
+                    .and_then(|(_, end)| self.return_expr_if_same(expr, end, token))
+                    .or_else(|| self.get_expr_from_args(&tuple.elems, token))
             } // _ => None, // todo!(),
         }
     }

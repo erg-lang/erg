@@ -139,7 +139,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 // not found or not symbol, etc.
                 None => {
                     if let Some(visitor) = self.get_visitor(&uri) {
-                        if let Some(typ) = visitor.get_t(&token) {
+                        if let Some(typ) = visitor.get_min_expr(&token) {
                             let typ = MarkedString::from_language_code(
                                 lang.into(),
                                 format!("{}: {typ}", token.content),

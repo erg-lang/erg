@@ -43,6 +43,30 @@ macro_rules! impl_display_for_enum {
 
 #[macro_export]
 macro_rules! impl_u8_enum {
+    ($Enum: ident; $($Variant: ident $(,)?)*) => {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        #[repr(u8)]
+        pub enum $Enum {
+            $($Variant,)*
+        }
+
+        $crate::impl_display_from_debug!($Enum);
+
+        impl From<u8> for $Enum {
+            fn from(byte: u8) -> Self {
+                match byte {
+                    $(v if v == $Enum::$Variant as u8 => $Enum::$Variant,)*
+                    _ => todo!("unknown: {byte}"),
+                }
+            }
+        }
+
+        impl From<$Enum> for u8 {
+            fn from(op: $Enum) -> u8 {
+                op as u8
+            }
+        }
+    };
     ($Enum: ident; $($Variant: ident = $val: expr $(,)?)*) => {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
         #[repr(u8)]
@@ -72,7 +96,7 @@ macro_rules! impl_u8_enum {
                 90 <= (*self as u8) && (*self as u8) < 220
             }
         }
-    }
+    };
 }
 
 #[macro_export]

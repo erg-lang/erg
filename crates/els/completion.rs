@@ -27,10 +27,11 @@ fn mark_to_string(mark: MarkedString) -> String {
 }
 
 impl_u8_enum! { CompletionOrder;
-    TypeMatched = 0,
-    Normal = 1,
-    Escaped = 2,
-    DoubleEscaped = 3
+    TypeMatched,
+    SingularAttr,
+    Normal,
+    Escaped,
+    DoubleEscaped,
 }
 
 impl CompletionOrder {
@@ -59,6 +60,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         Self::send_log(format!("completion requested: {msg}"))?;
         let params = CompletionParams::deserialize(&msg["params"])?;
         let uri = util::normalize_url(params.text_document_position.text_document.uri);
+        let path = util::uri_to_path(&uri);
         let pos = params.text_document_position.position;
         let trigger = params
             .context
@@ -99,7 +101,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 continue;
             }
             // don't show future defined items
-            if name.ln_begin().unwrap_or(0) > pos.line + 1 {
+            if vi.def_loc.module.as_ref() == Some(&path)
+                && name.ln_begin().unwrap_or(0) > pos.line + 1
+            {
                 continue;
             }
             let readable_t = self

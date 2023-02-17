@@ -24,6 +24,8 @@ pub struct FileCacheEntry {
     pub token_stream: Option<TokenStream>,
 }
 
+/// Stores the contents of the file on-memory.
+/// This struct can save changes in real-time & incrementally.
 #[derive(Debug, Clone)]
 pub struct FileCache {
     pub files: Shared<Dict<Url, FileCacheEntry>>,

@@ -94,7 +94,7 @@ impl Context {
             .or_else(|| self.get_outer().and_then(|ctx| ctx.get_var_kv(name)))
     }
 
-    pub(crate) fn get_singular_ctx_by_hir_expr(
+    pub fn get_singular_ctx_by_hir_expr(
         &self,
         obj: &hir::Expr,
         namespace: &Str,
