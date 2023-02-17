@@ -7,16 +7,17 @@
 .Filter: ClassType
 
 .LogRecord: ClassType
-.LogRecord.name: Str
-.LogRecord.level: Nat
-.LogRecord.pathname: Str
-.LogRecord.lineno: Nat
-.LogRecord.msg: Str
-.LogRecord.args: GenericTuple
-.LogRecord.exc_info: GenericTuple
-.LogRecord.func: Str or NoneType
-.LogRecord.sinfo: Str or NoneType
-.LogRecord.getMessage: (self: .LogRecord) -> Str
+.LogRecord.
+    name: Str
+    level: Nat
+    pathname: Str
+    lineno: Nat
+    msg: Str
+    args: GenericTuple
+    exc_info: GenericTuple
+    func: Str or NoneType
+    sinfo: Str or NoneType
+    getMessage: (self: .LogRecord) -> Str
 
 .LoggerAdaptor: ClassType
 

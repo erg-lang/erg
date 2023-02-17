@@ -1,8 +1,9 @@
 .CompletedProcess: ClassType
-.CompletedProcess.args: Str or [Str; _]
-.CompletedProcess.returncode: Int
-.CompletedProcess.stdout: Bytes or NoneType
-.CompletedProcess.stderr: Bytes or NoneType
+.CompletedProcess.
+    args: Str or [Str; _]
+    returncode: Int
+    stdout: Bytes or NoneType
+    stderr: Bytes or NoneType
 
 .run!: (
     args: Str or [Str; _],

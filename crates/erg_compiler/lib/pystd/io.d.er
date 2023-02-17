@@ -2,16 +2,18 @@
 
 .StringIO!: ClassType
 .StringIO! <: FileLike!
-.StringIO!.read!: (self: RefMut(.StringIO!), ) => Str
-.StringIO!.write!: (self: RefMut(.StringIO!), s: Str) => NoneType
-.StringIO!.getvalue!: (self: Ref(.StringIO!),) => Str
+.StringIO!.
+    read!: (self: RefMut(.StringIO!), ) => Str
+    write!: (self: RefMut(.StringIO!), s: Str) => NoneType
+    getvalue!: (self: Ref(.StringIO!),) => Str
 
 .TextIOWrapper!: ClassType
 
 .BytesIO!: ClassType
 .BytesIO! <: FileLike!
-.BytesIO!.read!: (self: RefMut(.BytesIO!), ) => Bytes
-.BytesIO!.write!: (self: RefMut(.BytesIO!), b: Bytes) => NoneType
+.BytesIO!.
+    read!: (self: RefMut(.BytesIO!), ) => Bytes
+    write!: (self: RefMut(.BytesIO!), b: Bytes) => NoneType
 .newBytesIO = 'BytesIO': (bytes: Bytes,) -> .BytesIO!
 
 .open!: (file: PathLike, mode := Str, buffering := Nat, encoding := Str or NoneType) -> File!

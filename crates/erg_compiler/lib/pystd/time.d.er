@@ -2,14 +2,15 @@
 .time!: () => Float
 
 .StructTime = 'struct_time': ClassType
-.StructTime.tm_year: Nat
-.StructTime.tm_mon: Nat
-.StructTime.tm_mday: Nat
-.StructTime.tm_hour: Nat
-.StructTime.tm_min: Nat
-.StructTime.tm_sec: Nat
-.StructTime.tm_wday: Nat
-.StructTime.tm_yday: Nat
-.StructTime.tm_isdst: Nat
-.StructTime.tm_zone: Str
-.StructTime.tm_gmtoff: Nat
+.StructTime.
+    tm_year: Nat
+    tm_mon: Nat
+    tm_mday: Nat
+    tm_hour: Nat
+    tm_min: Nat
+    tm_sec: Nat
+    tm_wday: Nat
+    tm_yday: Nat
+    tm_isdst: Nat
+    tm_zone: Str
+    tm_gmtoff: Nat

@@ -4,55 +4,62 @@ time = pyimport "time"
 .MAXYEAR: {9999}
 
 .TimeDelta = 'timedelta': ClassType
-.TimeDelta.__call__: (days := Nat, seconds := Nat, microseconds := Nat, milliseconds := Nat, minutes := Nat, hours := Nat, weeks := Nat) -> .TimeDelta
-.TimeDelta.min: .TimeDelta
-.TimeDelta.max: .TimeDelta
-.TimeDelta.resolution: .TimeDelta
-.TimeDelta.total_seconds: (self: .TimeDelta) -> Float
+.TimeDelta.
+    __call__: (days := Nat, seconds := Nat, microseconds := Nat, milliseconds := Nat, minutes := Nat, hours := Nat, weeks := Nat) -> .TimeDelta
+    min: .TimeDelta
+    max: .TimeDelta
+    resolution: .TimeDelta
+    total_seconds: (self: .TimeDelta) -> Float
 .Date = 'date': ClassType
-.Date.__call__: (year: Nat, month: Nat, day: Nat) -> .Date
-.Date.fromtimestamp: (timestamp: Float) -> .Date
-.Date.fromordinal: (ordinal: Nat) -> .Date
-.Date.fromisoformat: (date_string: Str) -> .Date
-.Date.fromisocalendar: (year: Nat, week: Nat, day: Nat) -> .Date
-.Date.replace: (self: .Date, year := Nat, month := Nat, day := Nat) -> .Date
-.Date.timetuple: (self: .Date) -> time.StructTime
-.Date.toordinal: (self: .Date) -> Nat
-.Date.weekday: (self: .Date) -> 0..6
-.Date.isoweekday: (self: .Date) -> 1..7
-.Date.isocalendar: (self: .Date) -> {year = Nat; week = Nat; weekday = 1..7}
-.Date.isoformat: (self: .Date) -> Str
-.Date.strftime: (self: .Date, format: Str) -> Str
-.Date.today!: () => .Date
-.Date.min: .Date
-.Date.max: .Date
-.Date.resolution: .TimeDelta
+.Date.
+    __call__: (year: Nat, month: Nat, day: Nat) -> .Date
+    fromtimestamp: (timestamp: Float) -> .Date
+    fromordinal: (ordinal: Nat) -> .Date
+    fromisoformat: (date_string: Str) -> .Date
+    fromisocalendar: (year: Nat, week: Nat, day: Nat) -> .Date
+    replace: (self: .Date, year := Nat, month := Nat, day := Nat) -> .Date
+    timetuple: (self: .Date) -> time.StructTime
+    toordinal: (self: .Date) -> Nat
+    weekday: (self: .Date) -> 0..6
+    isoweekday: (self: .Date) -> 1..7
+    isocalendar: (self: .Date) -> {year = Nat; week = Nat; weekday = 1..7}
+    isoformat: (self: .Date) -> Str
+    strftime: (self: .Date, format: Str) -> Str
+    '''
+    Current date or datetime:  same as `self.__class__.fromtimestamp(time.time())`.
+    '''
+    today!: () => .Date
+    min: .Date
+    max: .Date
+    resolution: .TimeDelta
 .TZInfo = 'tzinfo': ClassType
 .Time = 'time': ClassType
-.Time.__call__: (hour: Nat, minute: Nat, second := Nat, microsecond := Nat, tzinfo := .TZInfo or NoneType) -> .Time
-.Time.min: .Time
-.Time.max: .Time
-.Time.resolution: .TimeDelta
-.Time.fromisoformat: (time_string: Str) -> .Time
-.Time.replace: (self: .Time, hour := Nat, minute := Nat, second := Nat, microsecond := Nat, tzinfo := .TZInfo or NoneType) -> .Time
-.Time.isoformat: (self: .Time, timespec := Str) -> Str
+.Time.
+    __call__: (hour: Nat, minute: Nat, second := Nat, microsecond := Nat, tzinfo := .TZInfo or NoneType) -> .Time
+    min: .Time
+    max: .Time
+    resolution: .TimeDelta
+    fromisoformat: (time_string: Str) -> .Time
+    replace: (self: .Time, hour := Nat, minute := Nat, second := Nat, microsecond := Nat, tzinfo := .TZInfo or NoneType) -> .Time
+    isoformat: (self: .Time, timespec := Str) -> Str
 .DateTime = 'dateTime': ClassType
-.DateTime.__call__: (year: Nat, month: Nat, day: Nat, hour := Nat, minute := Nat, second := Nat, microsecond := Nat, tzinfo := .TZInfo or NoneType) -> .DateTime
-.DateTime.today!: () => .DateTime
-.DateTime.now!: (tz := .TZInfo or NoneType) => .DateTime
-.DateTime.utcnow!: () => .DateTime
-.DateTime.fromtimestamp: (timestamp: Float, tz := .TZInfo or NoneType) -> .DateTime
-.DateTime.utcfromtimestamp: (timestamp: Float) -> .DateTime
-.DateTime.fromordinal: (ordinal: Nat) -> .DateTime
-.DateTime.combine: (date: .Date, time: .Time, tzinfo := .TZInfo or NoneType) -> .DateTime
-.DateTime.fromisoformat: (date_string: Str) -> .DateTime
-.DateTime.fromisocalendar: (year: Nat, week: Nat, day: Nat) -> .DateTime
-.DateTime.strptime: (date_string: Str, format: Str) -> .DateTime
-.DateTime.min: .DateTime
-.DateTime.max: .DateTime
-.DateTime.resolution: .TimeDelta
-.DateTime.date: (self: .DateTime) -> .Date
-.DateTime.time: (self: .DateTime) -> .Time
-.DateTime.replace: (self: .DateTime, year := Nat, month := Nat, day := Nat, hour := Nat, minute := Nat, second := Nat, microsecond := Nat, tzinfo := .TZInfo or NoneType) -> .DateTime
-.DateTime.utcoffset: (self: .DateTime) -> .TimeDelta or NoneType
+.DateTime.
+    __call__: (year: Nat, month: Nat, day: Nat, hour := Nat, minute := Nat, second := Nat, microsecond := Nat, tzinfo := .TZInfo or NoneType) -> .DateTime
+    today!: () => .DateTime
+    now!: (tz := .TZInfo or NoneType) => .DateTime
+    utcnow!: () => .DateTime
+    fromtimestamp: (timestamp: Float, tz := .TZInfo or NoneType) -> .DateTime
+    utcfromtimestamp: (timestamp: Float) -> .DateTime
+    fromordinal: (ordinal: Nat) -> .DateTime
+    combine: (date: .Date, time: .Time, tzinfo := .TZInfo or NoneType) -> .DateTime
+    fromisoformat: (date_string: Str) -> .DateTime
+    fromisocalendar: (year: Nat, week: Nat, day: Nat) -> .DateTime
+    strptime: (date_string: Str, format: Str) -> .DateTime
+    min: .DateTime
+    max: .DateTime
+    resolution: .TimeDelta
+    date: (self: .DateTime) -> .Date
+    time: (self: .DateTime) -> .Time
+    replace: (self: .DateTime, year := Nat, month := Nat, day := Nat, hour := Nat, minute := Nat, second := Nat, microsecond := Nat, tzinfo := .TZInfo or NoneType) -> .DateTime
+    utcoffset: (self: .DateTime) -> .TimeDelta or NoneType
 .TimeZone = 'timezone': ClassType

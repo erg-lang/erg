@@ -166,7 +166,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
     ) -> ELSResult<()> {
         if let Some(module) = def_loc.module.as_ref() {
             let mut def_pos = match util::loc_to_range(def_loc.loc) {
-                Some(range) => range.start,
+                Some(range) => range.end,
                 None => {
                     return Ok(());
                 }
