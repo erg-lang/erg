@@ -23,7 +23,44 @@
     '''
     hex: (self: .Float) -> Str
     '''
-    Return True if the float is an integer.
+    Return integer ratio.
+
+    Return a pair of integers, whose ratio is exactly equal to the original float
+    and with a positive denominator.
+
+    Raise `OverflowError` on infinities and a `ValueError` on NaNs.
+    '''
+    '''erg
+    assert (10.0).as_integer_ratio() == (10, 1)
+    assert (0.0).as_integer_ratio() == (0, 1)
+    assert (-.25).as_integer_ratio() == (-1, 4)
+    '''
+    as_integer_ratio: (self: .Float) -> (Int, Int)
+    '''
+    Return `self`, the complex conjugate of any float.
+    '''
+    '''erg
+    assert (1.0).conjugate() == 1.0
+    '''
+    conjugate: (self: .Float) -> .Float
+    '''
+    Create a floating-point number from a hexadecimal string.
+    '''
+    '''erg
+    assert Float.fromhex("0x1.ffffp10") == 2047.984375
+    assert Float.fromhex("-0x1p-1074") == -5e-324
+    '''
+    fromhex: (string: Str) -> .Float
+    '''
+    Return a hexadecimal representation of a floating-point number.
+    '''
+    '''erg
+    assert (-0.1).hex() == "-0x1.999999999999ap-4"
+    assert 3.14159.hex() == "0x1.921f9f01b866ep+1"
+    '''
+    hex: (self: .Float) -> Str
+    '''
+    Return `True` if the float is an integer.
     '''
     '''erg
     assert (1.0).is_integer()

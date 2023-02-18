@@ -30,4 +30,4 @@
     assert "hello".center(10) == "  hello   "
     assert "hello".center(10, "-") == "--hello---"
     '''
-    center: (self: .Str, width: Int, fillchar: .Str) -> .Str
+    center: (self: .Str, width: Int, fillchar := .Str) -> .Str

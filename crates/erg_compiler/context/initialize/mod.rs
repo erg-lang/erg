@@ -100,6 +100,7 @@ const REAL: &str = "Real";
 const FUNC_REAL: &str = "real";
 const IMAG: &str = "Imag";
 const FUNC_IMAG: &str = "imag";
+const FUNC_AS_INTEGER_RATIO: &str = "as_integer_ratio";
 const FUNC_CONJUGATE: &str = "conjugate";
 const FUNC_IS_INTEGER: &str = "is_integer";
 const FUNC_HEX: &str = "hex";

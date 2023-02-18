@@ -2,6 +2,7 @@ from _erg_result import Error
 from _erg_control import then__
 
 class Float(float):
+    EPSILON = 2.220446049250313e-16
     def try_new(i): # -> Result[Nat]
         if isinstance(i, float):
             Float(i)
@@ -37,6 +38,7 @@ class Float(float):
 class FloatMut(): # inherits Float
     value: Float
 
+    EPSILON = 2.220446049250313e-16
     def __init__(self, i):
         self.value = Float(i)
     def __repr__(self):

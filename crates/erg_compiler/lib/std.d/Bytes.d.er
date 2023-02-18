@@ -1,0 +1,44 @@
+.Bytes: ClassType
+.Bytes.
+    capitalize: (self: .Bytes) -> .Bytes
+    center: (self: .Bytes, width: Nat, fillchar := .Bytes) -> .Bytes
+    count: (self: .Bytes, sub: .Bytes, start := Nat, end := Nat) -> Nat
+    decode: (self: .Bytes, encoding := Str, errors := Str) -> .Bytes
+    endswith: (self: .Bytes, suffix: .Bytes, start := Nat, end := Nat) -> Bool
+    expandtabs: (self: .Bytes, tabsize: Nat) -> .Bytes
+    find: (self: .Bytes, sub: .Bytes, start := Nat, end := Nat) -> Nat or {-1}
+    fromhex: (string: Str) -> .Bytes
+    hex: (self: .Bytes) -> Str
+    index: (self: .Bytes, sub: .Bytes, start := Nat, end := Nat) -> Nat
+    isalnum: (self: .Bytes) -> Bool
+    isalpha: (self: .Bytes) -> Bool
+    isascii: (self: .Bytes) -> Bool
+    isdigit: (self: .Bytes) -> Bool
+    islower: (self: .Bytes) -> Bool
+    isspace: (self: .Bytes) -> Bool
+    istitle: (self: .Bytes) -> Bool
+    isupper: (self: .Bytes) -> Bool
+    join: (self: .Bytes, iterable_of_bytes: Iterable .Bytes) -> .Bytes
+    ljust: (self: .Bytes, width: Nat, fillchar := .Bytes) -> .Bytes
+    lower: (self: .Bytes) -> .Bytes
+    lstrip: (self: .Bytes, bytes := .Bytes or NoneType) -> .Bytes
+    maketrans: (frm: .Bytes, to: .Bytes) -> .Bytes
+    partition: (self: .Bytes, sep: .Bytes) -> (.Bytes, .Bytes, .Bytes)
+    removeprefix: (self: .Bytes, prefix: .Bytes) -> .Bytes
+    removesuffix: (self: .Bytes, suffix: .Bytes) -> .Bytes
+    replace: (self: .Bytes, old: .Bytes, new: .Bytes, count := Nat or {-1}) -> .Bytes
+    rfind: (self: .Bytes, sub: .Bytes, start := Nat, end := Nat) -> Nat or {-1}
+    rindex: (self: .Bytes, sub: .Bytes, start := Nat, end := Nat) -> Nat
+    rjust: (self: .Bytes, width: Nat, fillchar := .Bytes) -> .Bytes
+    rpartition: (self: .Bytes, sep: .Bytes) -> (.Bytes, .Bytes, .Bytes)
+    rsplit: (self: .Bytes, sep := .Bytes or NoneType, maxsplit := Nat or {-1}) -> [.Bytes; _]
+    rstrip: (self: .Bytes, bytes := .Bytes or NoneType) -> .Bytes
+    split: (self: .Bytes, sep := .Bytes or NoneType, maxsplit := Nat or {-1}) -> [.Bytes; _]
+    splitlines: (self: .Bytes, keepends := Bool) -> [.Bytes; _]
+    startswith: (self: .Bytes, prefix: .Bytes, start := Nat, end := Nat) -> Bool
+    strip: (self: .Bytes, bytes := .Bytes or NoneType) -> .Bytes
+    swapcase: (self: .Bytes) -> .Bytes
+    title: (self: .Bytes) -> .Bytes
+    translate: (self: .Bytes, table: .Bytes, delete := .Bytes) -> .Bytes
+    upper: (self: .Bytes) -> .Bytes
+    zfill: (self: .Bytes, width: Nat) -> .Bytes

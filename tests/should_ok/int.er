@@ -1,0 +1,12 @@
+assert 1.abs() == 1
+assert -1.abs() == 1
+
+assert bin(13) == "0b1101"
+assert 13.bit_count() == 3
+
+assert bin(37) == "0b100101"
+assert 37.bit_length() == 6
+
+assert 1.pred() == 0
+
+assert 1.succ() == 2

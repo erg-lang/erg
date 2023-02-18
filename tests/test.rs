@@ -92,6 +92,11 @@ fn exec_infer_trait() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_int() -> Result<(), ()> {
+    expect_success("tests/should_ok/int.er")
+}
+
+#[test]
 fn exec_interpolation() -> Result<(), ()> {
     expect_success("tests/should_ok/interpolation.er")
 }

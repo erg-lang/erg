@@ -34,23 +34,33 @@ impl Context {
         let mut obj = Self::builtin_mono_class(OBJ, 2);
         let Slf = mono_q(SELF, subtypeof(Obj));
         let t = fn0_met(Slf.clone(), Slf).quantify();
-        obj.register_builtin_erg_impl(FUNC_CLONE, t, Const, Public);
-        obj.register_builtin_erg_impl(FUNDAMENTAL_MODULE, Str, Const, Public);
-        obj.register_builtin_erg_impl(FUNDAMENTAL_SIZEOF, fn0_met(Obj, Nat), Const, Public);
-        obj.register_builtin_erg_impl(FUNDAMENTAL_REPR, fn0_met(Obj, Str), Immutable, Public);
-        obj.register_builtin_erg_impl(FUNDAMENTAL_STR, fn0_met(Obj, Str), Immutable, Public);
-        obj.register_builtin_erg_impl(
+        obj.register_py_builtin(
             FUNDAMENTAL_DICT,
-            fn0_met(Obj, dict! {Str => Obj}.into()),
-            Immutable,
-            Public,
+            dict! {Str => Obj}.into(),
+            Some(FUNDAMENTAL_DICT),
+            3,
         );
-        obj.register_builtin_erg_impl(
+        obj.register_py_builtin(FUNDAMENTAL_MODULE, Str, Some(FUNDAMENTAL_MODULE), 4);
+        obj.register_py_builtin(FUNC_CLONE, t, Some(FUNC_CLONE), 5);
+        obj.register_py_builtin(
             FUNDAMENTAL_BYTES,
             fn0_met(Obj, mono(BYTES)),
-            Immutable,
-            Public,
+            Some(FUNDAMENTAL_BYTES),
+            6,
         );
+        obj.register_py_builtin(
+            FUNDAMENTAL_REPR,
+            fn0_met(Obj, Str),
+            Some(FUNDAMENTAL_REPR),
+            7,
+        );
+        obj.register_py_builtin(
+            FUNDAMENTAL_SIZEOF,
+            fn0_met(Obj, Nat),
+            Some(FUNDAMENTAL_SIZEOF),
+            8,
+        );
+        obj.register_py_builtin(FUNDAMENTAL_STR, fn0_met(Obj, Str), Some(FUNDAMENTAL_STR), 9);
         let mut obj_in = Self::builtin_methods(Some(poly(IN, vec![ty_tp(Type)])), 2);
         obj_in.register_builtin_erg_impl(OP_IN, fn1_met(Obj, Type, Bool), Const, Public);
         obj.register_trait(Obj, obj_in);
@@ -70,26 +80,30 @@ impl Context {
         float.register_builtin_const(EPSILON, Public, ValueObj::Float(2.220446049250313e-16));
         float.register_builtin_py_impl(REAL, Float, Const, Public, Some(FUNC_REAL));
         float.register_builtin_py_impl(IMAG, Float, Const, Public, Some(FUNC_IMAG));
-        float.register_builtin_py_impl(
+        float.register_py_builtin(
+            FUNC_AS_INTEGER_RATIO,
+            fn0_met(Float, tuple_t(vec![Int, Int])),
+            Some(FUNC_AS_INTEGER_RATIO),
+            38,
+        );
+        float.register_py_builtin(
             FUNC_CONJUGATE,
             fn0_met(Float, Float),
-            Const,
-            Public,
             Some(FUNC_CONJUGATE),
+            45,
         );
         float.register_py_builtin(FUNC_HEX, fn0_met(Float, Str), Some(FUNC_HEX), 24);
         float.register_py_builtin(
             FUNC_IS_INTEGER,
             fn0_met(Float, Bool),
             Some(FUNC_IS_INTEGER),
-            32,
+            69,
         );
-        float.register_builtin_py_impl(
+        float.register_py_builtin(
             FUNC_FROMHEX,
             nd_func(vec![kw(KW_S, Str)], None, Float),
-            Const,
-            Public,
             Some(FUNC_FROMHEX),
+            53,
         );
         float.register_marker_trait(mono(NUM));
         float.register_marker_trait(mono(ORD));
@@ -199,28 +213,16 @@ impl Context {
         int.register_marker_trait(mono(NUM));
         // class("Rational"),
         // class("Integral"),
-        int.register_builtin_py_impl(FUNC_ABS, fn0_met(Int, Nat), Immutable, Public, Some(OP_ABS));
-        int.register_builtin_py_impl(
-            FUNC_SUCC,
-            fn0_met(Int, Int),
-            Immutable,
-            Public,
-            Some(FUNC_SUCC),
-        );
-        int.register_builtin_py_impl(
-            FUNC_PRED,
-            fn0_met(Int, Int),
-            Immutable,
-            Public,
-            Some(FUNC_PRED),
-        );
+        int.register_py_builtin(FUNC_ABS, fn0_met(Int, Nat), Some(OP_ABS), 11);
+        int.register_py_builtin(FUNC_SUCC, fn0_met(Int, Int), Some(FUNC_SUCC), 54);
+        int.register_py_builtin(FUNC_PRED, fn0_met(Int, Int), Some(FUNC_PRED), 47);
         int.register_py_builtin(
             FUNC_BIT_LENGTH,
             fn0_met(Int, Nat),
             Some(FUNC_BIT_LENGTH),
-            28,
+            38,
         );
-        int.register_py_builtin(FUNC_BIT_COUNT, fn0_met(Int, Nat), Some(FUNC_BIT_COUNT), 17);
+        int.register_py_builtin(FUNC_BIT_COUNT, fn0_met(Int, Nat), Some(FUNC_BIT_COUNT), 27);
         let t_from_bytes = func(
             vec![kw(
                 BYTES,
@@ -238,13 +240,7 @@ impl Context {
             )],
             Int,
         );
-        int.register_builtin_py_impl(
-            FUNC_FROM_BYTES,
-            t_from_bytes,
-            Const,
-            Public,
-            Some(FUNC_FROM_BYTES),
-        );
+        int.register_py_builtin(FUNC_FROM_BYTES, t_from_bytes, Some(FUNC_FROM_BYTES), 40);
         let t_to_bytes = func(
             vec![kw(KW_SELF, Int)],
             None,
@@ -259,13 +255,7 @@ impl Context {
             ],
             mono(BYTES),
         );
-        int.register_builtin_py_impl(
-            FUNC_TO_BYTES,
-            t_to_bytes,
-            Immutable,
-            Public,
-            Some(FUNC_TO_BYTES),
-        );
+        int.register_py_builtin(FUNC_TO_BYTES, t_to_bytes, Some(FUNC_TO_BYTES), 55);
         let mut int_ord = Self::builtin_methods(Some(mono(ORD)), 2);
         int_ord.register_builtin_erg_impl(
             OP_PARTIAL_CMP,
@@ -909,7 +899,7 @@ impl Context {
             vec![kw(KW_ENCODING, Str), kw(KW_ERRORS, Str)],
             Str,
         );
-        bytes.register_builtin_erg_impl(FUNC_DECODE, decode_t, Immutable, Public);
+        bytes.register_py_builtin(FUNC_DECODE, decode_t, Some(FUNC_DECODE), 6);
         /* GenericTuple */
         let mut generic_tuple = Self::builtin_mono_class(GENERIC_TUPLE, 1);
         generic_tuple.register_superclass(Obj, &obj);
@@ -1439,9 +1429,19 @@ impl Context {
         self.register_builtin_type(Never, never, vis, Const, Some(NEVER));
         self.register_builtin_type(Obj, obj, vis, Const, Some(FUNC_OBJECT));
         // self.register_type(mono(RECORD), vec![], record, Private, Const);
-        self.register_builtin_type(Int, int, vis, Const, Some(FUNC_INT));
+        let name = if cfg!(feature = "py_compatible") {
+            FUNC_INT
+        } else {
+            INT
+        };
+        self.register_builtin_type(Int, int, vis, Const, Some(name));
         self.register_builtin_type(Nat, nat, vis, Const, Some(NAT));
-        self.register_builtin_type(Float, float, vis, Const, Some(FUNC_FLOAT));
+        let name = if cfg!(feature = "py_compatible") {
+            FUNC_FLOAT
+        } else {
+            FLOAT
+        };
+        self.register_builtin_type(Float, float, vis, Const, Some(name));
         self.register_builtin_type(Ratio, ratio, vis, Const, Some(RATIO));
         let name = if cfg!(feature = "py_compatible") {
             FUNC_BOOL

@@ -1,5 +1,15 @@
 .Int: ClassType
 .Int.
+    Real: Float
+    Imag: Float
+    Denominator: Nat
+    Numerator: Int
+    '''erg
+    assert 1.abs() == 1
+    assert -1.abs() == 1
+    '''
+    abs: (self: .Int) -> Nat
+    as_integer_ratio: (self: .Int) -> (Int, Int)
     '''
     Number of ones in the binary representation of the absolute value of self.
 
@@ -26,3 +36,20 @@
     assert 37.bit_length() == 6
     '''
     bit_length: (self: .Int) -> Nat
+    conjugate: (self: .Int) -> .Int
+    from_bytes: (bytes: Bytes, byteorder := {"big", "little"}, signed := Bool) -> .Int
+    '''
+    Predecessor of `self` (`self -1`).
+    '''
+    '''erg
+    assert 1.pred() == 0
+    '''
+    pred: (self: .Int) -> .Int
+    '''
+    Successor of `self` (`self + 1`).
+    '''
+    '''erg
+    assert 1.succ() == 2
+    '''
+    succ: (self: .Int) -> .Int
+    to_bytes: (self: .Int, length := Nat, byteorder := {"big", "little"}, signed := Bool) -> Bytes
