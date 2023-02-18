@@ -14,7 +14,7 @@ def while__(cond_block, body):
 
 def with__(obj, body):
     obj.__enter__()
-    body(e)
+    body(obj)
     obj.__exit__()
 
 def discard__(obj):

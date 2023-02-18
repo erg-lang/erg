@@ -293,10 +293,23 @@ impl Context {
     ) -> Result<Type, (TyCheckErrors, Type)> {
         let mut errs = TyCheckErrors::empty();
         // -> Result<Type, (Type, TyCheckErrors)> {
-        let opt_decl_sig_t = self
+        let opt_decl_sig_t = match self
             .rec_get_decl_info(&sig.ident, AccessKind::Name, &self.cfg.input, &self.name)
             .ok()
-            .map(|vi| enum_unwrap!(vi.t, Type::Subr));
+            .map(|vi| vi.t)
+        {
+            Some(Type::Subr(subr)) => Some(subr),
+            Some(Type::FreeVar(fv)) if fv.is_unbound() => return Ok(Type::FreeVar(fv)),
+            Some(other) => {
+                let err = TyCheckError::unreachable(
+                    self.cfg.input.clone(),
+                    "instantiate_sub_sig_t",
+                    line!(),
+                );
+                return Err((TyCheckErrors::from(err), other));
+            }
+            None => None,
+        };
         let mut tmp_tv_cache = self
             .instantiate_ty_bounds(&sig.bounds, PreRegister)
             .map_err(|errs| (errs, Type::Failure))?;
@@ -1447,26 +1460,17 @@ impl Context {
 
     pub(crate) fn instantiate(&self, quantified: Type, callee: &hir::Expr) -> TyCheckResult<Type> {
         match quantified {
+            FreeVar(fv) if fv.is_linked() => self.instantiate(fv.crack().clone(), callee),
             Quantified(quant) => {
                 let mut tmp_tv_cache = TyVarCache::new(self.level, self);
-                let t = self.instantiate_t_inner(*quant, &mut tmp_tv_cache, callee)?;
-                match &t {
-                    Type::Subr(subr) => {
-                        if let Some(self_t) = subr.self_t() {
-                            self.sub_unify(
-                                callee.ref_t(),
-                                self_t,
-                                callee,
-                                Some(&Str::ever("self")),
-                            )?;
-                        }
-                    }
-                    _ => unreachable!(),
+                let ty = self.instantiate_t_inner(*quant, &mut tmp_tv_cache, callee)?;
+                if let Some(self_t) = ty.self_t() {
+                    self.sub_unify(callee.ref_t(), self_t, callee, Some(&Str::ever("self")))?;
                 }
-                if cfg!(feature = "debug") && t.has_qvar() {
-                    panic!("{t} has qvar")
+                if cfg!(feature = "debug") && ty.has_qvar() {
+                    panic!("{ty} has qvar")
                 }
-                Ok(t)
+                Ok(ty)
             }
             // HACK: {op: |T|(T -> T) | op == F} => ?T -> ?T
             Refinement(refine) if refine.t.is_quantified() => {

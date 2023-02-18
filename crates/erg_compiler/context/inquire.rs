@@ -32,13 +32,20 @@ use crate::error::{
     TyCheckErrors, TyCheckResult,
 };
 use crate::varinfo::{AbsLocation, Mutability, VarInfo, VarKind};
-use crate::AccessKind;
 use crate::{feature_error, hir};
+use crate::{unreachable_error, AccessKind};
 use RegistrationMode::*;
 use Visibility::*;
 
 use super::instantiate::ParamKind;
 use super::{ContextKind, MethodInfo};
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum SubstituteResult {
+    Ok,
+    __Call__(Type),
+    Coerced(Type),
+}
 
 impl Context {
     pub(crate) fn get_ctx_from_path(&self, path: &Path) -> Option<&Context> {
@@ -1047,7 +1054,7 @@ impl Context {
         instance: &Type,
         pos_args: &[hir::PosArg],
         kw_args: &[hir::KwArg],
-    ) -> TyCheckResult<Option<Type>> {
+    ) -> TyCheckResult<SubstituteResult> {
         match instance {
             Type::FreeVar(fv) if fv.is_linked() => {
                 self.substitute_call(obj, attr_name, &fv.crack(), pos_args, kw_args)
@@ -1057,9 +1064,26 @@ impl Context {
                     if !self.subtype_of(&sub, &mono("GenericCallable")) {
                         return Err(self.not_callable_error(obj, attr_name, instance, None));
                     }
+                    if sub != Never {
+                        instance.coerce();
+                        if instance.is_quantified() {
+                            let instance = self.instantiate(instance.clone(), obj)?;
+                            self.substitute_call(obj, attr_name, &instance, pos_args, kw_args)?;
+                            return Ok(SubstituteResult::Coerced(instance));
+                        } else {
+                            return self
+                                .substitute_call(obj, attr_name, instance, pos_args, kw_args);
+                        }
+                    }
                 }
                 if let Some(attr_name) = attr_name {
-                    feature_error!(TyCheckErrors, TyCheckError, self, attr_name.loc(), "")
+                    feature_error!(
+                        TyCheckErrors,
+                        TyCheckError,
+                        self,
+                        attr_name.loc(),
+                        "substitute_call for methods/type-var"
+                    )
                 } else {
                     let is_procedural = obj
                         .show_acc()
@@ -1073,13 +1097,16 @@ impl Context {
                     let ret_t = free_var(self.level, Constraint::new_type_of(Type));
                     let non_default_params = pos_args.iter().map(|a| anon(a.expr.t())).collect();
                     let subr_t = subr_t(kind, non_default_params, None, vec![], ret_t);
+                    self.occur(&subr_t, instance, obj)?;
                     fv.link(&subr_t);
-                    Ok(None)
+                    Ok(SubstituteResult::Ok)
                 }
             }
             Type::Refinement(refine) => {
                 self.substitute_call(obj, attr_name, &refine.t, pos_args, kw_args)
             }
+            // instance must be instantiated
+            Type::Quantified(_) => unreachable_error!(TyCheckErrors, TyCheckError, self),
             Type::Subr(subr) => {
                 let mut errs = TyCheckErrors::empty();
                 let is_method = subr.self_t().is_some();
@@ -1235,7 +1262,7 @@ impl Context {
                     /*if subr.has_qvar() {
                         panic!("{subr} has qvar");
                     }*/
-                    Ok(None)
+                    Ok(SubstituteResult::Ok)
                 } else {
                     Err(errs)
                 }
@@ -1249,7 +1276,7 @@ impl Context {
                         let instance =
                             self.instantiate_t_inner(call_vi.t.clone(), &mut dummy, obj)?;
                         self.substitute_call(obj, attr_name, &instance, pos_args, kw_args)?;
-                        return Ok(Some(instance));
+                        return Ok(SubstituteResult::__Call__(instance));
                     }
                 }
                 let hint = if other == &ClassType {
@@ -1553,12 +1580,12 @@ impl Context {
             fmt_slice(pos_args),
             fmt_slice(kw_args)
         );
-        let res = self.substitute_call(obj, attr_name, &instance, pos_args, kw_args)?;
-        let instance = if let Some(__call__) = res {
-            __call__
-        } else {
-            instance
+        let instance = match self.substitute_call(obj, attr_name, &instance, pos_args, kw_args)? {
+            SubstituteResult::Ok => instance,
+            SubstituteResult::__Call__(__call__) => __call__,
+            SubstituteResult::Coerced(coerced) => coerced,
         };
+        debug_assert!(!instance.is_quantified());
         log!(info "Substituted:\ninstance: {instance}");
         let res = self.eval_t_params(instance, self.level, obj)?;
         log!(info "Params evaluated:\nres: {res}\n");

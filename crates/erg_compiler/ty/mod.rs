@@ -1359,7 +1359,8 @@ impl Type {
                 }
                 ArgsOwnership::new(nd_args, var_args, d_args)
             }
-            _ => todo!(),
+            Self::Quantified(quant) => quant.args_ownership(),
+            other => todo!("{other}"),
         }
     }
 

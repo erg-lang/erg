@@ -91,16 +91,17 @@ impl Context {
     /// ```
     fn generalize_t_inner(&self, free_type: Type, variance: Variance, uninit: bool) -> Type {
         match free_type {
-            FreeVar(fv) if fv.is_generalized() => Type::FreeVar(fv),
             FreeVar(fv) if fv.is_linked() => {
-                let fv_mut = unsafe { fv.as_ptr().as_mut().unwrap() };
+                self.generalize_t_inner(fv.crack().clone(), variance, uninit)
+                /*let fv_mut = unsafe { fv.as_ptr().as_mut().unwrap() };
                 if let FreeKind::Linked(t) = fv_mut {
                     *t = self.generalize_t_inner(t.clone(), variance, uninit);
                 } else {
                     assume_unreachable!()
                 }
-                Type::FreeVar(fv)
+                Type::FreeVar(fv)*/
             }
+            FreeVar(fv) if fv.is_generalized() => Type::FreeVar(fv),
             // TODO: Polymorphic generalization
             FreeVar(fv) if fv.level().unwrap() > self.level => {
                 if uninit {

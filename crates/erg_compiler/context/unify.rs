@@ -24,17 +24,19 @@ use Type::*;
 use ValueObj::{Inf, NegInf};
 
 impl Context {
-    // occur(X -> ?T, ?T) ==> Error
-    // occur(?T, ?T -> X) ==> Error
-    // occur(?T, Option(?T)) ==> Error
-    // occur(?T, ?T.Output) ==> Error
-    fn occur(
+    /// occur(X -> ?T, ?T) ==> Error
+    /// occur(?T, ?T -> X) ==> Error
+    /// occur(?T, Option(?T)) ==> Error
+    /// occur(?T, ?T.Output) ==> Error
+    pub(crate) fn occur(
         &self,
         maybe_sub: &Type,
         maybe_sup: &Type,
         loc: &impl Locational,
     ) -> TyCheckResult<()> {
         match (maybe_sub, maybe_sup) {
+            (Type::FreeVar(fv), _) if fv.is_linked() => self.occur(&fv.crack(), maybe_sup, loc),
+            (_, Type::FreeVar(fv)) if fv.is_linked() => self.occur(maybe_sub, &fv.crack(), loc),
             (Type::FreeVar(sub), Type::FreeVar(sup)) => {
                 if sub.is_unbound() && sup.is_unbound() && sub == sup {
                     Err(TyCheckErrors::from(TyCheckError::subtyping_error(

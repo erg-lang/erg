@@ -206,7 +206,9 @@ impl Context {
                 Some((Type::Never, Type::Obj)) => (Absolutely, true),
                 _ => (Maybe, false),
             },
-            (Type::Mono(n), Subr(_)) if &n[..] == "GenericCallable" => (Absolutely, true),
+            (Type::Mono(n), Subr(_) | Quantified(_)) if &n[..] == "GenericCallable" => {
+                (Absolutely, true)
+            }
             (lhs, rhs) if lhs.is_simple_class() && rhs.is_simple_class() => (Absolutely, false),
             _ => (Maybe, false),
         }
