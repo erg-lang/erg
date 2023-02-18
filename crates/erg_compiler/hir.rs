@@ -15,7 +15,9 @@ use erg_common::{
 };
 
 use erg_parser::ast;
-use erg_parser::ast::{fmt_lines, DefId, DefKind, OperationKind, TypeSpec, VarName};
+use erg_parser::ast::{
+    fmt_lines, DefId, DefKind, OperationKind, TypeBoundSpecs, TypeSpec, VarName,
+};
 use erg_parser::token::{Token, TokenKind, DOT};
 
 use crate::ty::constructors::{array_t, dict_t, set_t, tuple_t};
@@ -1784,6 +1786,7 @@ impl Params {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SubrSignature {
     pub ident: Identifier,
+    pub bounds: TypeBoundSpecs,
     pub params: Params,
     pub return_t_spec: Option<TypeSpec>,
 }
@@ -1833,9 +1836,15 @@ impl HasType for SubrSignature {
 }
 
 impl SubrSignature {
-    pub const fn new(ident: Identifier, params: Params, return_t_spec: Option<TypeSpec>) -> Self {
+    pub const fn new(
+        ident: Identifier,
+        bounds: TypeBoundSpecs,
+        params: Params,
+        return_t_spec: Option<TypeSpec>,
+    ) -> Self {
         Self {
             ident,
+            bounds,
             params,
             return_t_spec,
         }

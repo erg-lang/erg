@@ -56,6 +56,22 @@ fn type_anot<D: std::fmt::Display>(ln_end: u32, col_end: u32, ty: D, return_t: b
     }
 }
 
+fn type_bounds_anot(ln_end: u32, col_end: u32, ty_bounds: String) -> InlayHint {
+    let position = Position::new(ln_end - 1, col_end);
+    let label = InlayHintLabel::String(ty_bounds);
+    let kind = Some(InlayHintKind::TYPE);
+    InlayHint {
+        position,
+        label,
+        kind,
+        text_edits: None,
+        tooltip: None,
+        padding_left: Some(false),
+        padding_right: Some(false),
+        data: None,
+    }
+}
+
 fn param_anot<D: std::fmt::Display>(ln_begin: u32, col_begin: u32, name: D) -> InlayHint {
     let position = Position::new(ln_begin - 1, col_begin);
     let label = InlayHintLabel::String(format!("{name}:= "));
@@ -148,6 +164,16 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let mut result = vec![];
         result.extend(self.get_block_hint(&def.body.block));
         let Signature::Subr(subr) = &def.sig else { unreachable!() };
+        if subr.ref_t().is_quantified() && subr.bounds.is_empty() {
+            let subr = subr.ref_t().to_string();
+            let ty_bounds = format!("|{}|", subr.split('|').nth(1).unwrap_or(""));
+            let hint = type_bounds_anot(
+                def.sig.ident().ln_end().unwrap(),
+                def.sig.ident().col_end().unwrap(),
+                ty_bounds,
+            );
+            result.push(hint);
+        }
         result.extend(self.get_param_hint(&subr.params));
         if def.sig.t_spec().is_none() {
             let Some(return_t) = subr.ref_t().return_t() else {

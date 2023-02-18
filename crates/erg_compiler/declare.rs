@@ -254,7 +254,7 @@ impl ASTLowerer {
             ast::Signature::Subr(subr) => {
                 let ident = hir::Identifier::bare(subr.ident.dot, subr.ident.name);
                 let params = self.fake_lower_params(subr.params)?;
-                let sig = hir::SubrSignature::new(ident, params, subr.return_t_spec);
+                let sig = hir::SubrSignature::new(ident, subr.bounds, params, subr.return_t_spec);
                 Ok(hir::Signature::Subr(sig))
             }
         }

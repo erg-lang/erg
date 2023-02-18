@@ -1280,7 +1280,8 @@ impl ASTLowerer {
                             self.warns.push(warn);
                         }
                         let ident = hir::Identifier::new(sig.ident.dot, sig.ident.name, None, vi);
-                        let sig = hir::SubrSignature::new(ident, params, sig.return_t_spec);
+                        let sig =
+                            hir::SubrSignature::new(ident, sig.bounds, params, sig.return_t_spec);
                         let body = hir::DefBody::new(body.op, block, body.id);
                         Ok(hir::Def::new(hir::Signature::Subr(sig), body))
                     }
@@ -1292,7 +1293,8 @@ impl ASTLowerer {
                         )?;
                         self.errs.extend(errs);
                         let ident = hir::Identifier::new(sig.ident.dot, sig.ident.name, None, vi);
-                        let sig = hir::SubrSignature::new(ident, params, sig.return_t_spec);
+                        let sig =
+                            hir::SubrSignature::new(ident, sig.bounds, params, sig.return_t_spec);
                         let block =
                             hir::Block::new(vec![hir::Expr::Dummy(hir::Dummy::new(vec![]))]);
                         let body = hir::DefBody::new(body.op, block, body.id);
@@ -1316,7 +1318,7 @@ impl ASTLowerer {
                     .fake_subr_assign(&sig.ident, &sig.decorators, Type::Failure)?;
                 let block = self.lower_block(body.block)?;
                 let ident = hir::Identifier::bare(sig.ident.dot, sig.ident.name);
-                let sig = hir::SubrSignature::new(ident, params, sig.return_t_spec);
+                let sig = hir::SubrSignature::new(ident, sig.bounds, params, sig.return_t_spec);
                 let body = hir::DefBody::new(body.op, block, body.id);
                 Ok(hir::Def::new(hir::Signature::Subr(sig), body))
             }
