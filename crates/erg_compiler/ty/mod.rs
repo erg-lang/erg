@@ -805,8 +805,7 @@ impl LimitedDisplay for Type {
                     if i != 0 {
                         write!(f, ", ")?;
                     }
-                    write!(f, "{name}")?;
-                    constr.limited_fmt(f, limit - 1)?;
+                    constr.named_fmt(f, name, limit - 1)?;
                 }
                 write!(f, "|")?;
                 quantified.limited_fmt(f, limit - 1)

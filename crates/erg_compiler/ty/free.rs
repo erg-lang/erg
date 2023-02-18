@@ -170,6 +170,42 @@ impl Constraint {
         Self::Sandwiched { sub, sup }
     }
 
+    pub fn named_fmt(&self, f: &mut fmt::Formatter<'_>, name: &str, limit: usize) -> fmt::Result {
+        if limit == 0 {
+            return write!(f, "...");
+        }
+        match self {
+            Self::Sandwiched { sub, sup } => match (sub == &Type::Never, sup == &Type::Obj) {
+                (true, true) => {
+                    write!(f, "{name}: Type")?;
+                    Ok(())
+                }
+                (true, false) => {
+                    write!(f, "{name} <: ")?;
+                    sup.limited_fmt(f, limit - 1)?;
+                    Ok(())
+                }
+                (false, true) => {
+                    write!(f, "{name} :> ")?;
+                    sub.limited_fmt(f, limit - 1)?;
+                    Ok(())
+                }
+                (false, false) => {
+                    write!(f, "{name} :> ")?;
+                    sub.limited_fmt(f, limit - 1)?;
+                    write!(f, ", {name} <: ")?;
+                    sup.limited_fmt(f, limit - 1)?;
+                    Ok(())
+                }
+            },
+            Self::TypeOf(t) => {
+                write!(f, "{name}: ")?;
+                t.limited_fmt(f, limit - 1)
+            }
+            Self::Uninited => write!(f, "Never"),
+        }
+    }
+
     pub fn new_type_of(t: Type) -> Self {
         if t == Type::Type {
             Self::new_sandwiched(Type::Never, Type::Obj)
