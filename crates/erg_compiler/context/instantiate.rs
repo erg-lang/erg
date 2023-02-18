@@ -1073,9 +1073,9 @@ impl Context {
                         TokenKind::SubtypeOf => Constraint::new_subtype_of(
                             self.instantiate_typespec(&spec.t_spec, None, tv_cache, mode, true)?,
                         ),
-                        TokenKind::SupertypeOf => {
-                            return type_feature_error!(self, spec.loc(), "supertype of");
-                        }
+                        TokenKind::SupertypeOf => Constraint::new_supertype_of(
+                            self.instantiate_typespec(&spec.t_spec, None, tv_cache, mode, true)?,
+                        ),
                         TokenKind::Colon => Constraint::new_type_of(self.instantiate_typespec(
                             &spec.t_spec,
                             None,
