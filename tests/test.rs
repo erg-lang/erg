@@ -157,6 +157,11 @@ fn exec_return() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_subtyping() -> Result<(), ()> {
+    expect_success("tests/should_ok/subtyping.er")
+}
+
+#[test]
 fn exec_trait() -> Result<(), ()> {
     expect_success("examples/trait.er")
 }
@@ -231,7 +236,7 @@ fn exec_side_effect() -> Result<(), ()> {
 }
 
 #[test]
-fn exec_subtyping() -> Result<(), ()> {
+fn exec_subtyping_err() -> Result<(), ()> {
     expect_failure("tests/should_err/subtyping.er", 6)
 }
 

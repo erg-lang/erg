@@ -1,0 +1,9 @@
+higher(f: (Nat -> Nat)): Nat = f(1)
+_abs(x: Int): Nat = x.abs()
+
+print! higher _abs # OK
+
+higher2(f: ((g: Nat -> Nat) -> Nat)): Nat = f((x: Nat) -> x + 1)
+f(g: Bool -> Nat): Nat = g(False)
+
+print! higher2 f # OK
