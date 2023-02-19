@@ -1,10 +1,7 @@
 use std::mem;
 
-use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
-use erg_common::Str;
-use erg_common::{assume_unreachable, fn_name};
-use erg_common::{dict, set};
+use erg_common::{assume_unreachable, dict, fn_name, set};
 #[allow(unused_imports)]
 use erg_common::{fmt_vec, log};
 
@@ -567,19 +564,31 @@ impl Context {
             }
             Type::Subr(mut subr) => {
                 for param in subr.non_default_params.iter_mut() {
-                    *param.typ_mut() =
-                        self.deref_tyvar(mem::take(param.typ_mut()), Contravariant, loc)?;
+                    *param.typ_mut() = self.deref_tyvar(
+                        mem::take(param.typ_mut()),
+                        variance * Contravariant,
+                        loc,
+                    )?;
                 }
                 if let Some(var_args) = &mut subr.var_params {
-                    *var_args.typ_mut() =
-                        self.deref_tyvar(mem::take(var_args.typ_mut()), Contravariant, loc)?;
+                    *var_args.typ_mut() = self.deref_tyvar(
+                        mem::take(var_args.typ_mut()),
+                        variance * Contravariant,
+                        loc,
+                    )?;
                 }
                 for d_param in subr.default_params.iter_mut() {
-                    *d_param.typ_mut() =
-                        self.deref_tyvar(mem::take(d_param.typ_mut()), Contravariant, loc)?;
+                    *d_param.typ_mut() = self.deref_tyvar(
+                        mem::take(d_param.typ_mut()),
+                        variance * Contravariant,
+                        loc,
+                    )?;
                 }
-                subr.return_t =
-                    Box::new(self.deref_tyvar(mem::take(&mut subr.return_t), Covariant, loc)?);
+                subr.return_t = Box::new(self.deref_tyvar(
+                    mem::take(&mut subr.return_t),
+                    variance * Covariant,
+                    loc,
+                )?);
                 Ok(Type::Subr(subr))
             }
             Type::Quantified(subr)
@@ -730,7 +739,7 @@ impl Context {
         self.level = 0;
         let mut errs = TyCheckErrors::empty();
         for chunk in hir.module.iter_mut() {
-            if let Err(es) = self.resolve_expr_t(chunk, &mut set! {}) {
+            if let Err(es) = self.resolve_expr_t(chunk) {
                 errs.extend(es);
             }
         }
@@ -747,12 +756,12 @@ impl Context {
         let mut params = mem::take(&mut self.params);
         let mut methods_list = mem::take(&mut self.methods_list);
         for (name, vi) in locals.iter_mut() {
-            if let Ok(t) = self.deref_tyvar(mem::take(&mut vi.t), Variance::Covariant, name) {
+            if let Ok(t) = self.deref_tyvar(mem::take(&mut vi.t), Covariant, name) {
                 vi.t = t;
             }
         }
         for (name, vi) in params.iter_mut() {
-            if let Ok(t) = self.deref_tyvar(mem::take(&mut vi.t), Variance::Covariant, name) {
+            if let Ok(t) = self.deref_tyvar(mem::take(&mut vi.t), Covariant, name) {
                 vi.t = t;
             }
         }
@@ -764,18 +773,14 @@ impl Context {
         self.methods_list = methods_list;
     }
 
-    fn resolve_params_t(
-        &self,
-        params: &mut hir::Params,
-        qvars: &mut Set<Str>,
-    ) -> TyCheckResult<()> {
+    fn resolve_params_t(&self, params: &mut hir::Params) -> TyCheckResult<()> {
         for param in params.non_defaults.iter_mut() {
-            if !qvars.contains(&param.vi.t.qual_name()) {
+            if !param.vi.t.is_qvar() {
                 param.vi.t = self.deref_tyvar(mem::take(&mut param.vi.t), Contravariant, param)?;
             }
         }
         if let Some(var_params) = &mut params.var_params {
-            if !qvars.contains(&var_params.vi.t.qual_name()) {
+            if !var_params.vi.t.is_qvar() {
                 var_params.vi.t = self.deref_tyvar(
                     mem::take(&mut var_params.vi.t),
                     Contravariant,
@@ -784,20 +789,20 @@ impl Context {
             }
         }
         for param in params.defaults.iter_mut() {
-            if !qvars.contains(&param.sig.vi.t.qual_name()) {
+            if !param.sig.vi.t.is_qvar() {
                 param.sig.vi.t =
                     self.deref_tyvar(mem::take(&mut param.sig.vi.t), Contravariant, param)?;
             }
-            self.resolve_expr_t(&mut param.default_val, qvars)?;
+            self.resolve_expr_t(&mut param.default_val)?;
         }
         Ok(())
     }
 
-    fn resolve_expr_t(&self, expr: &mut hir::Expr, qvars: &mut Set<Str>) -> TyCheckResult<()> {
+    fn resolve_expr_t(&self, expr: &mut hir::Expr) -> TyCheckResult<()> {
         match expr {
             hir::Expr::Lit(_) => Ok(()),
             hir::Expr::Accessor(acc) => {
-                if !qvars.contains(&acc.ref_t().qual_name()) {
+                if !acc.ref_t().is_qvar() {
                     let variance = if acc.var_info().kind.is_parameter() {
                         Contravariant
                     } else {
@@ -807,7 +812,7 @@ impl Context {
                     *acc.ref_mut_t() = self.deref_tyvar(t, variance, acc)?;
                 }
                 if let hir::Accessor::Attr(attr) = acc {
-                    self.resolve_expr_t(&mut attr.obj, qvars)?;
+                    self.resolve_expr_t(&mut attr.obj)?;
                 }
                 Ok(())
             }
@@ -815,14 +820,14 @@ impl Context {
                 hir::Array::Normal(arr) => {
                     arr.t = self.deref_tyvar(mem::take(&mut arr.t), Covariant, arr)?;
                     for elem in arr.elems.pos_args.iter_mut() {
-                        self.resolve_expr_t(&mut elem.expr, qvars)?;
+                        self.resolve_expr_t(&mut elem.expr)?;
                     }
                     Ok(())
                 }
                 hir::Array::WithLength(arr) => {
                     arr.t = self.deref_tyvar(mem::take(&mut arr.t), Covariant, arr)?;
-                    self.resolve_expr_t(&mut arr.elem, qvars)?;
-                    self.resolve_expr_t(&mut arr.len, qvars)?;
+                    self.resolve_expr_t(&mut arr.elem)?;
+                    self.resolve_expr_t(&mut arr.len)?;
                     Ok(())
                 }
                 other => feature_error!(
@@ -837,7 +842,7 @@ impl Context {
                 hir::Tuple::Normal(tup) => {
                     tup.t = self.deref_tyvar(mem::take(&mut tup.t), Covariant, tup)?;
                     for elem in tup.elems.pos_args.iter_mut() {
-                        self.resolve_expr_t(&mut elem.expr, qvars)?;
+                        self.resolve_expr_t(&mut elem.expr)?;
                     }
                     Ok(())
                 }
@@ -846,14 +851,14 @@ impl Context {
                 hir::Set::Normal(st) => {
                     st.t = self.deref_tyvar(mem::take(&mut st.t), Covariant, st)?;
                     for elem in st.elems.pos_args.iter_mut() {
-                        self.resolve_expr_t(&mut elem.expr, qvars)?;
+                        self.resolve_expr_t(&mut elem.expr)?;
                     }
                     Ok(())
                 }
                 hir::Set::WithLength(st) => {
                     st.t = self.deref_tyvar(mem::take(&mut st.t), Covariant, st)?;
-                    self.resolve_expr_t(&mut st.elem, qvars)?;
-                    self.resolve_expr_t(&mut st.len, qvars)?;
+                    self.resolve_expr_t(&mut st.elem)?;
+                    self.resolve_expr_t(&mut st.len)?;
                     Ok(())
                 }
             },
@@ -861,8 +866,8 @@ impl Context {
                 hir::Dict::Normal(dic) => {
                     dic.t = self.deref_tyvar(mem::take(&mut dic.t), Covariant, dic)?;
                     for kv in dic.kvs.iter_mut() {
-                        self.resolve_expr_t(&mut kv.key, qvars)?;
-                        self.resolve_expr_t(&mut kv.value, qvars)?;
+                        self.resolve_expr_t(&mut kv.key)?;
+                        self.resolve_expr_t(&mut kv.value)?;
                     }
                     Ok(())
                 }
@@ -888,7 +893,7 @@ impl Context {
                         }
                     }
                     for chunk in attr.body.block.iter_mut() {
-                        self.resolve_expr_t(chunk, qvars)?;
+                        self.resolve_expr_t(chunk)?;
                     }
                 }
                 Ok(())
@@ -896,14 +901,14 @@ impl Context {
             hir::Expr::BinOp(binop) => {
                 let t = mem::take(binop.signature_mut_t().unwrap());
                 *binop.signature_mut_t().unwrap() = self.deref_tyvar(t, Covariant, binop)?;
-                self.resolve_expr_t(&mut binop.lhs, qvars)?;
-                self.resolve_expr_t(&mut binop.rhs, qvars)?;
+                self.resolve_expr_t(&mut binop.lhs)?;
+                self.resolve_expr_t(&mut binop.rhs)?;
                 Ok(())
             }
             hir::Expr::UnaryOp(unaryop) => {
                 let t = mem::take(unaryop.signature_mut_t().unwrap());
                 *unaryop.signature_mut_t().unwrap() = self.deref_tyvar(t, Covariant, unaryop)?;
-                self.resolve_expr_t(&mut unaryop.expr, qvars)?;
+                self.resolve_expr_t(&mut unaryop.expr)?;
                 Ok(())
             }
             hir::Expr::Call(call) => {
@@ -911,78 +916,68 @@ impl Context {
                     let t = mem::take(t);
                     *call.signature_mut_t().unwrap() = self.deref_tyvar(t, Covariant, call)?;
                 }
-                self.resolve_expr_t(&mut call.obj, qvars)?;
+                self.resolve_expr_t(&mut call.obj)?;
                 for arg in call.args.pos_args.iter_mut() {
-                    self.resolve_expr_t(&mut arg.expr, qvars)?;
+                    self.resolve_expr_t(&mut arg.expr)?;
                 }
                 if let Some(var_args) = &mut call.args.var_args {
-                    self.resolve_expr_t(&mut var_args.expr, qvars)?;
+                    self.resolve_expr_t(&mut var_args.expr)?;
                 }
                 for arg in call.args.kw_args.iter_mut() {
-                    self.resolve_expr_t(&mut arg.expr, qvars)?;
+                    self.resolve_expr_t(&mut arg.expr)?;
                 }
                 Ok(())
             }
             hir::Expr::Def(def) => {
                 *def.sig.ref_mut_t() =
                     self.deref_tyvar(mem::take(def.sig.ref_mut_t()), Covariant, &def.sig)?;
-                let subr_qvars_ = def.sig.ref_t().qvars();
-                let subr_qvars = subr_qvars_.clone().into_iter().map(|(name, _)| name);
-                qvars.extend(subr_qvars);
                 if let Some(params) = def.sig.params_mut() {
-                    self.resolve_params_t(params, qvars)?;
+                    self.resolve_params_t(params)?;
                 }
                 for chunk in def.body.block.iter_mut() {
-                    self.resolve_expr_t(chunk, qvars)?;
-                }
-                for (name, _) in subr_qvars_.into_iter() {
-                    qvars.remove(&name);
+                    self.resolve_expr_t(chunk)?;
                 }
                 Ok(())
             }
             hir::Expr::Lambda(lambda) => {
+                log!(err "{}", lambda.t);
                 lambda.t = self.deref_tyvar(mem::take(&mut lambda.t), Covariant, lambda)?;
-                let subr_qvars_ = lambda.ref_t().qvars();
-                let subr_qvars = subr_qvars_.clone().into_iter().map(|(name, _)| name);
-                qvars.extend(subr_qvars);
-                self.resolve_params_t(&mut lambda.params, qvars)?;
+                log!(err "{}", lambda.t);
+                self.resolve_params_t(&mut lambda.params)?;
                 for chunk in lambda.body.iter_mut() {
-                    self.resolve_expr_t(chunk, qvars)?;
-                }
-                for (name, _) in subr_qvars_.into_iter() {
-                    qvars.remove(&name);
+                    self.resolve_expr_t(chunk)?;
                 }
                 Ok(())
             }
             hir::Expr::ClassDef(class_def) => {
                 for def in class_def.methods.iter_mut() {
-                    self.resolve_expr_t(def, qvars)?;
+                    self.resolve_expr_t(def)?;
                 }
                 Ok(())
             }
             hir::Expr::PatchDef(patch_def) => {
                 for def in patch_def.methods.iter_mut() {
-                    self.resolve_expr_t(def, qvars)?;
+                    self.resolve_expr_t(def)?;
                 }
                 Ok(())
             }
             hir::Expr::ReDef(redef) => {
                 // REVIEW: redef.attr is not dereferenced
                 for chunk in redef.block.iter_mut() {
-                    self.resolve_expr_t(chunk, qvars)?;
+                    self.resolve_expr_t(chunk)?;
                 }
                 Ok(())
             }
-            hir::Expr::TypeAsc(tasc) => self.resolve_expr_t(&mut tasc.expr, qvars),
+            hir::Expr::TypeAsc(tasc) => self.resolve_expr_t(&mut tasc.expr),
             hir::Expr::Code(chunks) | hir::Expr::Compound(chunks) => {
                 for chunk in chunks.iter_mut() {
-                    self.resolve_expr_t(chunk, qvars)?;
+                    self.resolve_expr_t(chunk)?;
                 }
                 Ok(())
             }
             hir::Expr::Dummy(chunks) => {
                 for chunk in chunks.iter_mut() {
-                    self.resolve_expr_t(chunk, qvars)?;
+                    self.resolve_expr_t(chunk)?;
                 }
                 Ok(())
             }

@@ -1066,7 +1066,7 @@ impl Context {
                     }
                     if sub != Never {
                         instance.coerce();
-                        if instance.is_quantified() {
+                        if instance.is_quantified_subr() {
                             let instance = self.instantiate(instance.clone(), obj)?;
                             self.substitute_call(obj, attr_name, &instance, pos_args, kw_args)?;
                             return Ok(SubstituteResult::Coerced(instance));
@@ -1585,7 +1585,7 @@ impl Context {
             SubstituteResult::__Call__(__call__) => __call__,
             SubstituteResult::Coerced(coerced) => coerced,
         };
-        debug_assert!(!instance.is_quantified());
+        debug_assert!(!instance.is_quantified_subr());
         log!(info "Substituted:\ninstance: {instance}");
         let res = self.eval_t_params(instance, self.level, obj)?;
         log!(info "Params evaluated:\nres: {res}\n");

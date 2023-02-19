@@ -112,15 +112,30 @@ impl DefaultInfo {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum Variance {
-    /// Output(T)
-    Covariant, // 共変
-    /// Input(T)
-    Contravariant, // 反変
+    /// Output(T), 共変, +
+    Covariant,
+    /// Input(T), 反変, -
+    Contravariant,
+    /// 不変, 0
     #[default]
-    Invariant, // 不変
+    Invariant,
 }
 
 impl_display_from_debug!(Variance);
+
+impl std::ops::Mul for Variance {
+    type Output = Self;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Variance::Covariant, Variance::Covariant)
+            | (Variance::Contravariant, Variance::Contravariant) => Variance::Covariant,
+            (Variance::Covariant, Variance::Contravariant)
+            | (Variance::Contravariant, Variance::Covariant) => Variance::Contravariant,
+            _ => Variance::Invariant,
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ParamSpec {

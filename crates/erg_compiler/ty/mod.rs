@@ -1291,11 +1291,11 @@ impl Type {
         }
     }
 
-    pub fn is_quantified(&self) -> bool {
+    pub fn is_quantified_subr(&self) -> bool {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_quantified(),
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_quantified_subr(),
             Self::Quantified(_) => true,
-            Self::Refinement(refine) => refine.t.is_quantified(),
+            Self::Refinement(refine) => refine.t.is_quantified_subr(),
             _ => false,
         }
     }
@@ -1601,6 +1601,14 @@ impl Type {
 
     pub fn has_uninited_qvars(&self) -> bool {
         self.qvars().iter().any(|(_, c)| c.is_uninited())
+    }
+
+    pub fn is_qvar(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_qvar(),
+            Self::FreeVar(fv) if fv.is_generalized() => true,
+            _ => false,
+        }
     }
 
     /// if the type is polymorphic

@@ -2313,6 +2313,7 @@ pub struct TypeSpecWithOp {
     pub op: Token,
     pub t_spec: TypeSpec,
     pub t_spec_as_expr: Box<Expr>,
+    pub spec_t: Type,
 }
 
 impl NestedDisplay for TypeSpecWithOp {
@@ -2325,11 +2326,12 @@ impl_display_from_nested!(TypeSpecWithOp);
 impl_locational!(TypeSpecWithOp, lossy op, t_spec);
 
 impl TypeSpecWithOp {
-    pub fn new(op: Token, t_spec: TypeSpec, t_spec_as_expr: Expr) -> Self {
+    pub fn new(op: Token, t_spec: TypeSpec, t_spec_as_expr: Expr, spec_t: Type) -> Self {
         Self {
             op,
             t_spec,
             t_spec_as_expr: Box::new(t_spec_as_expr),
+            spec_t,
         }
     }
 }

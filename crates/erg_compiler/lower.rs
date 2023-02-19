@@ -251,11 +251,23 @@ impl ASTLowerer {
         let mut union = Type::Never;
         for elem in elems {
             let elem = self.lower_expr(elem.expr)?;
-            union = self.module.context.union(&union, elem.ref_t());
-            if let Some((l, r)) = union.union_types() {
+            let union_ = self.module.context.union(&union, elem.ref_t());
+            if let Some((l, r)) = union_.union_types() {
                 match (l.is_unbound_var(), r.is_unbound_var()) {
+                    // e.g. [1, "a"]
                     (false, false) => {
-                        return Err(self.elem_err(&l, &r, &elem));
+                        if let hir::Expr::TypeAsc(type_asc) = &elem {
+                            // e.g. [1, "a": Str or NoneType]
+                            if !self
+                                .module
+                                .context
+                                .supertype_of(&type_asc.spec.spec_t, &union)
+                            {
+                                return Err(self.elem_err(&l, &r, &elem));
+                            } // else(OK): e.g. [1, "a": Str or Int]
+                        } else {
+                            return Err(self.elem_err(&l, &r, &elem));
+                        }
                     }
                     // TODO: check if the type is compatible with the other type
                     (true, false) => {}
@@ -263,6 +275,7 @@ impl ASTLowerer {
                     (true, true) => {}
                 }
             }
+            union = union_;
             new_array.push(elem);
         }
         let elem_t = if union == Type::Never {
@@ -915,12 +928,14 @@ impl ASTLowerer {
     fn lower_type_spec_with_op(
         &mut self,
         type_spec_with_op: ast::TypeSpecWithOp,
+        spec_t: Type,
     ) -> LowerResult<hir::TypeSpecWithOp> {
         let expr = self.fake_lower_expr(*type_spec_with_op.t_spec_as_expr)?;
         Ok(hir::TypeSpecWithOp::new(
             type_spec_with_op.op,
             type_spec_with_op.t_spec,
             expr,
+            spec_t,
         ))
     }
 
@@ -1984,7 +1999,7 @@ impl ASTLowerer {
                 )));
             }
         }
-        let t_spec = self.lower_type_spec_with_op(tasc.t_spec)?;
+        let t_spec = self.lower_type_spec_with_op(tasc.t_spec, spec_t)?;
         Ok(expr.type_asc(t_spec))
     }
 
@@ -2063,7 +2078,7 @@ impl ASTLowerer {
             .map(|ctx| ctx.name.clone());
         let ident = hir::Identifier::new(ident.dot, ident.name, qual_name, ident_vi);
         let expr = hir::Expr::Accessor(hir::Accessor::Ident(ident));
-        let t_spec = self.lower_type_spec_with_op(tasc.t_spec)?;
+        let t_spec = self.lower_type_spec_with_op(tasc.t_spec, spec_t)?;
         Ok(expr.type_asc(t_spec))
     }
 

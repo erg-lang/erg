@@ -455,8 +455,12 @@ impl ASTLowerer {
                 );
                 let ident = hir::Identifier::new(ident.dot, ident.name, None, vi);
                 let t_spec_expr = self.fake_lower_expr(*tasc.t_spec.t_spec_as_expr)?;
-                let t_spec =
-                    hir::TypeSpecWithOp::new(tasc.t_spec.op, tasc.t_spec.t_spec, t_spec_expr);
+                let t_spec = hir::TypeSpecWithOp::new(
+                    tasc.t_spec.op,
+                    tasc.t_spec.t_spec,
+                    t_spec_expr,
+                    Type::Failure,
+                );
                 Ok(hir::Expr::Accessor(hir::Accessor::Ident(ident)).type_asc(t_spec))
             }
             ast::Expr::Accessor(ast::Accessor::Attr(mut attr)) => {
@@ -499,8 +503,12 @@ impl ASTLowerer {
                 let ident = hir::Identifier::new(attr.ident.dot, attr.ident.name, None, vi);
                 let attr = obj.attr_expr(ident);
                 let t_spec_expr = self.fake_lower_expr(*tasc.t_spec.t_spec_as_expr)?;
-                let t_spec =
-                    hir::TypeSpecWithOp::new(tasc.t_spec.op, tasc.t_spec.t_spec, t_spec_expr);
+                let t_spec = hir::TypeSpecWithOp::new(
+                    tasc.t_spec.op,
+                    tasc.t_spec.t_spec,
+                    t_spec_expr,
+                    Type::Failure,
+                );
                 Ok(attr.type_asc(t_spec))
             }
             other => Err(LowerErrors::from(LowerError::declare_error(

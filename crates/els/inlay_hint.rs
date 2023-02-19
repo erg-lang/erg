@@ -164,7 +164,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let mut result = vec![];
         result.extend(self.get_block_hint(&def.body.block));
         let Signature::Subr(subr) = &def.sig else { unreachable!() };
-        if subr.ref_t().is_quantified() && subr.bounds.is_empty() {
+        if subr.ref_t().is_quantified_subr() && subr.bounds.is_empty() {
             let subr = subr.ref_t().to_string();
             let ty_bounds = format!("|{}|", subr.split('|').nth(1).unwrap_or(""));
             let hint = type_bounds_anot(
