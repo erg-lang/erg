@@ -1289,7 +1289,12 @@ impl ASTLowerer {
                                 &self
                                     .module
                                     .context
-                                    .deref_tyvar(return_t.clone(), Variance::Covariant, &())
+                                    .deref_tyvar(
+                                        return_t.clone(),
+                                        Variance::Covariant,
+                                        &set! {},
+                                        &(),
+                                    )
                                     .unwrap_or_else(|_| return_t.clone()),
                             );
                             self.warns.push(warn);

@@ -12,6 +12,19 @@ use crate::context::instantiate::TyVarCache;
 use crate::context::Context;
 
 impl Context {
+    pub fn assert_var_type(&self, varname: &str, ty: &Type) -> Result<(), ()> {
+        let Some((_, vi)) = self.get_var_info(varname) else {
+            panic!("variable not found: {varname}");
+        };
+        println!("{varname}: {}", vi.t);
+        if self.subtype_of(&vi.t, ty) && self.subtype_of(ty, &vi.t) {
+            Ok(())
+        } else {
+            println!("{varname} is not the type of {ty}");
+            Err(())
+        }
+    }
+
     pub fn test_refinement_subtyping(&self) -> Result<(), ()> {
         // Nat :> {I: Int | I >= 1} ?
         let lhs = Nat;

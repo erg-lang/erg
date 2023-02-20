@@ -541,7 +541,7 @@ impl Context {
             }
         }
         let coerced = self
-            .deref_tyvar(obj.t(), Variance::Covariant, &())
+            .deref_tyvar(obj.t(), Variance::Covariant, &set! {}, &())
             .map_err(|mut es| es.remove(0))?;
         if obj.ref_t() != &coerced {
             for ctx in self.get_nominal_super_type_ctxs(&coerced).ok_or_else(|| {
@@ -1406,10 +1406,10 @@ impl Context {
                     arg_t,
                 );
                 let param_t = self
-                    .deref_tyvar(param_t.clone(), Variance::Contravariant, arg)
+                    .deref_tyvar(param_t.clone(), Variance::Contravariant, &set! {}, arg)
                     .unwrap_or_else(|_| param_t.clone());
                 let arg_t = self
-                    .deref_tyvar(arg_t.clone(), Variance::Covariant, arg)
+                    .deref_tyvar(arg_t.clone(), Variance::Covariant, &set! {}, arg)
                     .unwrap_or_else(|_| arg_t.clone());
                 TyCheckErrors::new(
                     errs.into_iter()

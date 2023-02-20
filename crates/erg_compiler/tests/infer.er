@@ -1,0 +1,11 @@
+id x = x
+
+if__ cond, then, else = if cond, then, else
+
+add x, y = x + y
+
+abs_ x = x.abs()
+
+
+Norm = Trait { .norm = (self: Self) -> Nat }
+norm x = x.norm()

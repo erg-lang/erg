@@ -317,6 +317,17 @@ impl SubrType {
         qvars
     }
 
+    pub fn essential_qnames(&self) -> Set<Str> {
+        let param_ts_qnames = self
+            .non_default_params
+            .iter()
+            .flat_map(|pt| pt.typ().qnames())
+            .chain(self.var_params.iter().flat_map(|pt| pt.typ().qnames()))
+            .chain(self.default_params.iter().flat_map(|pt| pt.typ().qnames()));
+        let return_t_qnames = self.return_t.qnames();
+        return_t_qnames.intersec_from_iter(param_ts_qnames)
+    }
+
     pub fn has_qvar(&self) -> bool {
         self.non_default_params.iter().any(|pt| pt.typ().has_qvar())
             || self
@@ -1088,6 +1099,9 @@ impl HasLevel for Type {
                 }
                 subr.return_t.set_level(level);
             }
+            Self::Quantified(quant) => {
+                quant.set_level(level);
+            }
             Self::And(lhs, rhs) | Self::Or(lhs, rhs) => {
                 lhs.set_level(level);
                 rhs.set_level(level);
@@ -1111,9 +1125,6 @@ impl HasLevel for Type {
                 for pred in refine.preds.iter() {
                     pred.set_level(level);
                 }
-            }
-            Self::Quantified(quant) => {
-                quant.set_level(level);
             }
             _ => {}
         }
@@ -1151,6 +1162,13 @@ impl Type {
 
     pub fn quantify(self) -> Self {
         Self::Quantified(Box::new(self))
+    }
+
+    pub fn proj<S: Into<Str>>(self, attr: S) -> Self {
+        Self::Proj {
+            lhs: Box::new(self),
+            rhs: attr.into(),
+        }
     }
 
     pub fn is_simple_class(&self) -> bool {
@@ -1566,9 +1584,14 @@ impl Type {
     pub fn qvars(&self) -> Set<(Str, Constraint)> {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.forced_as_ref().linked().unwrap().qvars(),
-            Self::FreeVar(fv) if !fv.constraint_is_uninited() => set! {
-                (fv.unbound_name().unwrap(), fv.constraint().unwrap())
-            },
+            Self::FreeVar(fv) if !fv.constraint_is_uninited() => {
+                let base = set! {(fv.unbound_name().unwrap(), fv.constraint().unwrap())};
+                if let Some((sub, sup)) = fv.get_subsup() {
+                    base.concat(sub.qvars()).concat(sup.qvars())
+                } else {
+                    base
+                }
+            }
             Self::Ref(ty) => ty.qvars(),
             Self::RefMut { before, after } => before
                 .qvars()
@@ -1599,6 +1622,10 @@ impl Type {
         }
     }
 
+    pub fn qnames(&self) -> Set<Str> {
+        self.qvars().into_iter().map(|(n, _)| n).collect()
+    }
+
     pub fn has_uninited_qvars(&self) -> bool {
         self.qvars().iter().any(|(_, c)| c.is_uninited())
     }
@@ -1614,21 +1641,18 @@ impl Type {
     /// if the type is polymorphic
     pub fn has_qvar(&self) -> bool {
         match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().has_qvar(),
             Self::FreeVar(fv) if fv.is_generalized() => true,
             Self::FreeVar(fv) => {
-                if fv.is_unbound() {
-                    if let Some((sub, sup)) = fv.get_subsup() {
-                        fv.undoable_link(&Type::Obj);
-                        let res_sub = sub.has_qvar();
-                        let res_sup = sup.has_qvar();
-                        fv.undo();
-                        res_sub || res_sup
-                    } else {
-                        let opt_t = fv.get_type();
-                        opt_t.map(|t| t.has_qvar()).unwrap_or(false)
-                    }
+                if let Some((sub, sup)) = fv.get_subsup() {
+                    fv.undoable_link(&Type::Obj);
+                    let res_sub = sub.has_qvar();
+                    let res_sup = sup.has_qvar();
+                    fv.undo();
+                    res_sub || res_sup
                 } else {
-                    fv.crack().has_qvar()
+                    let opt_t = fv.get_type();
+                    opt_t.map(|t| t.has_qvar()).unwrap_or(false)
                 }
             }
             Self::Ref(ty) => ty.has_qvar(),
@@ -1641,11 +1665,11 @@ impl Type {
                 param_ts.iter().any(|t| t.has_qvar()) || return_t.has_qvar()
             }
             Self::Subr(subr) => subr.has_qvar(),
+            Self::Quantified(quant) => quant.has_qvar(),
             Self::Record(r) => r.values().any(|t| t.has_qvar()),
             Self::Refinement(refine) => {
                 refine.t.has_qvar() || refine.preds.iter().any(|pred| pred.has_qvar())
             }
-            Self::Quantified(quant) => quant.has_qvar(),
             Self::Poly { params, .. } => params.iter().any(|tp| tp.has_qvar()),
             Self::Proj { lhs, .. } => lhs.has_qvar(),
             Self::ProjCall { lhs, args, .. } => {
@@ -1732,6 +1756,7 @@ impl Type {
 
     pub fn container_len(&self) -> Option<usize> {
         match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().container_len(),
             Self::Poly { name, params } => match &name[..] {
                 "Array" => {
                     if let TyParam::Value(ValueObj::Nat(n)) = &params[0] {

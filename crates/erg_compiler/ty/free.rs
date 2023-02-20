@@ -45,6 +45,8 @@ pub trait HasLevel {
     }
 }
 
+/// __NOTE__: you should use `Free::get_type/get_subsup` instead of deconstructing the constraint by `match`.
+/// Constraints may contain cycles, in which case using `match` to get the contents will cause memory pollutions.
 #[derive(Clone)]
 pub enum Constraint {
     // : Type --> (:> Never, <: Obj)
@@ -552,14 +554,22 @@ impl<T: Clone> Free<T> {
     }
 }
 
-impl<T: HasLevel> HasLevel for Free<T> {
+impl HasLevel for Free<Type> {
     fn set_level(&self, level: Level) {
-        match unsafe { &mut *self.as_ptr() as &mut FreeKind<T> } {
+        match unsafe { &mut *self.as_ptr() as &mut FreeKind<Type> } {
             FreeKind::Unbound { lev, .. } | FreeKind::NamedUnbound { lev, .. } => {
                 if addr_eq!(*lev, level) {
                     return;
                 }
                 *lev = level;
+                if let Some((sub, sup)) = self.get_subsup() {
+                    self.forced_undoable_link(&sub);
+                    sub.set_level(level);
+                    sup.set_level(level);
+                    self.undo();
+                } else if let Some(t) = self.get_type() {
+                    t.set_level(level);
+                }
             }
             FreeKind::Linked(t) => {
                 t.set_level(level);
@@ -576,7 +586,34 @@ impl<T: HasLevel> HasLevel for Free<T> {
     }
 }
 
-impl<T: Clone + HasLevel + LimitedDisplay> Free<T> {
+impl HasLevel for Free<TyParam> {
+    fn set_level(&self, level: Level) {
+        match unsafe { &mut *self.as_ptr() as &mut FreeKind<TyParam> } {
+            FreeKind::Unbound { lev, .. } | FreeKind::NamedUnbound { lev, .. } => {
+                if addr_eq!(*lev, level) {
+                    return;
+                }
+                *lev = level;
+                if let Some(t) = self.get_type() {
+                    t.set_level(level);
+                }
+            }
+            FreeKind::Linked(t) => {
+                t.set_level(level);
+            }
+            _ => {}
+        }
+    }
+
+    fn level(&self) -> Option<Level> {
+        match &*self.borrow() {
+            FreeKind::Unbound { lev, .. } | FreeKind::NamedUnbound { lev, .. } => Some(*lev),
+            FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => t.level(),
+        }
+    }
+}
+
+impl<T> Free<T> {
     pub fn new(f: FreeKind<T>) -> Self {
         Self(Shared::new(f))
     }
@@ -602,20 +639,53 @@ impl<T: Clone + HasLevel + LimitedDisplay> Free<T> {
         Self(Shared::new(FreeKind::Linked(t)))
     }
 
-    pub fn link(&self, to: &T) {
-        // prevent linking to self
-        if self.is_linked() && addr_eq!(*self.crack(), *to) {
-            return;
-        }
-        *self.borrow_mut() = FreeKind::Linked(to.clone());
-    }
-
     pub fn replace(&self, to: FreeKind<T>) {
         // prevent linking to self
         if self.is_linked() && addr_eq!(*self.borrow(), to) {
             return;
         }
         *self.borrow_mut() = to;
+    }
+
+    /// returns linked type (panic if self is unbounded)
+    /// NOTE: check by `.is_linked` before call
+    pub fn crack(&self) -> Ref<'_, T> {
+        Ref::map(self.borrow(), |f| match f {
+            FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => t,
+            FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => {
+                panic!("the value is unbounded")
+            }
+        })
+    }
+
+    pub fn crack_constraint(&self) -> Ref<'_, Constraint> {
+        Ref::map(self.borrow(), |f| match f {
+            FreeKind::Linked(_) | FreeKind::UndoableLinked { .. } => panic!("the value is linked"),
+            FreeKind::Unbound { constraint, .. } | FreeKind::NamedUnbound { constraint, .. } => {
+                constraint
+            }
+        })
+    }
+
+    pub fn is_linked(&self) -> bool {
+        matches!(
+            &*self.borrow(),
+            FreeKind::Linked(_) | FreeKind::UndoableLinked { .. }
+        )
+    }
+
+    pub fn is_undoable_linked(&self) -> bool {
+        matches!(&*self.borrow(), FreeKind::UndoableLinked { .. })
+    }
+}
+
+impl<T: Clone> Free<T> {
+    pub fn link(&self, to: &T) {
+        // prevent linking to self
+        if self.is_linked() && addr_eq!(*self.crack(), *to) {
+            return;
+        }
+        *self.borrow_mut() = FreeKind::Linked(to.clone());
     }
 
     /// NOTE: Do not use this except to rewrite circular references.
@@ -664,7 +734,7 @@ impl<T: Clone + HasLevel + LimitedDisplay> Free<T> {
                 let prev = *previous.clone();
                 self.force_replace(prev);
             }
-            other => panic!("cannot undo: {other}"),
+            _other => panic!("cannot undo"),
         }
     }
 
@@ -696,37 +766,6 @@ impl<T: Clone + HasLevel + LimitedDisplay> Free<T> {
             (Some(name), lev, constraint) => Self::new_named_unbound(name, lev, constraint),
             (None, lev, constraint) => Self::new_unbound(lev, constraint),
         }
-    }
-
-    /// returns linked type (panic if self is unbounded)
-    /// NOTE: check by `.is_linked` before call
-    pub fn crack(&self) -> Ref<'_, T> {
-        Ref::map(self.borrow(), |f| match f {
-            FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => t,
-            FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => {
-                panic!("the value is unbounded")
-            }
-        })
-    }
-
-    pub fn crack_constraint(&self) -> Ref<'_, Constraint> {
-        Ref::map(self.borrow(), |f| match f {
-            FreeKind::Linked(_) | FreeKind::UndoableLinked { .. } => panic!("the value is linked"),
-            FreeKind::Unbound { constraint, .. } | FreeKind::NamedUnbound { constraint, .. } => {
-                constraint
-            }
-        })
-    }
-
-    pub fn is_linked(&self) -> bool {
-        matches!(
-            &*self.borrow(),
-            FreeKind::Linked(_) | FreeKind::UndoableLinked { .. }
-        )
-    }
-
-    pub fn is_undoable_linked(&self) -> bool {
-        matches!(&*self.borrow(), FreeKind::UndoableLinked { .. })
     }
 }
 
