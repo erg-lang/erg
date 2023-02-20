@@ -3,12 +3,12 @@ use std::mem;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
-use erg_common::{assume_unreachable, dict, fn_name, set};
+use erg_common::{dict, fn_name, set};
 #[allow(unused_imports)]
 use erg_common::{fmt_vec, log};
 
 use crate::ty::constructors::*;
-use crate::ty::free::{Constraint, FreeKind, HasLevel};
+use crate::ty::free::{CanbeFree, Constraint, Free, HasLevel};
 use crate::ty::typaram::TyParam;
 use crate::ty::value::ValueObj;
 use crate::ty::{HasType, Predicate, Type};
@@ -28,17 +28,18 @@ impl Context {
             TyParam::Type(t) => TyParam::t(self.generalize_t_inner(*t, variance, uninit)),
             TyParam::FreeVar(fv) if fv.is_generalized() => TyParam::FreeVar(fv),
             TyParam::FreeVar(fv) if fv.is_linked() => {
-                let fv_mut = unsafe { fv.as_ptr().as_mut().unwrap() };
+                self.generalize_tp(fv.crack().clone(), variance, uninit)
+                /*let fv_mut = unsafe { fv.as_ptr().as_mut().unwrap() };
                 if let FreeKind::Linked(tp) = fv_mut {
                     *tp = self.generalize_tp(tp.clone(), variance, uninit);
                 } else {
                     assume_unreachable!()
                 }
-                TyParam::FreeVar(fv)
+                TyParam::FreeVar(fv)*/
             }
             // TODO: Polymorphic generalization
             TyParam::FreeVar(fv) if fv.level() > Some(self.level) => {
-                let constr = self.generalize_constraint(&fv.crack_constraint(), variance);
+                let constr = self.generalize_constraint(&fv, variance);
                 fv.update_constraint(constr, true);
                 fv.generalize();
                 TyParam::FreeVar(fv)
@@ -64,6 +65,27 @@ impl Context {
                     .collect(),
             ),
             TyParam::FreeVar(_) => free,
+            TyParam::Proj { obj, attr } => {
+                let obj = self.generalize_tp(*obj, variance, uninit);
+                TyParam::proj(obj, attr)
+            }
+            TyParam::Erased(t) => TyParam::erased(self.generalize_t_inner(*t, variance, uninit)),
+            TyParam::App { name, args } => {
+                let args = args
+                    .into_iter()
+                    .map(|tp| self.generalize_tp(tp, variance, uninit))
+                    .collect();
+                TyParam::App { name, args }
+            }
+            TyParam::BinOp { op, lhs, rhs } => {
+                let lhs = self.generalize_tp(*lhs, variance, uninit);
+                let rhs = self.generalize_tp(*rhs, variance, uninit);
+                TyParam::bin(op, lhs, rhs)
+            }
+            TyParam::UnaryOp { op, val } => {
+                let val = self.generalize_tp(*val, variance, uninit);
+                TyParam::unary(op, val)
+            }
             other if other.has_no_unbound_var() => other,
             other => todo!("{other}"),
         }
@@ -111,32 +133,25 @@ impl Context {
                     fv.generalize();
                     return Type::FreeVar(fv);
                 }
-                let constr = fv.constraint().unwrap();
-                if let Some((l, r)) = constr.get_sub_sup() {
+                if let Some((l, r)) = fv.get_subsup() {
                     // |Int <: T <: Int| T -> T ==> Int -> Int
                     if l == r {
-                        fv.forced_link(l);
+                        fv.forced_link(&l);
                         FreeVar(fv)
-                    } else if r != &Obj && self.is_class(r) && variance == Contravariant {
+                    } else if r != Obj && self.is_class(&r) && variance == Contravariant {
                         // |T <: Bool| T -> Int ==> Bool -> Int
-                        r.clone()
-                    } else if l != &Never && self.is_class(l) && variance == Covariant {
+                        r
+                    } else if l != Never && self.is_class(&l) && variance == Covariant {
                         // |T :> Int| X -> T ==> X -> Int
-                        l.clone()
+                        l
                     } else {
-                        fv.update_constraint(
-                            self.generalize_constraint(&fv.crack_constraint(), variance),
-                            true,
-                        );
+                        fv.update_constraint(self.generalize_constraint(&fv, variance), true);
                         fv.generalize();
                         Type::FreeVar(fv)
                     }
                 } else {
                     // ?S(: Str) => 'S
-                    fv.update_constraint(
-                        self.generalize_constraint(&fv.crack_constraint(), variance),
-                        true,
-                    );
+                    fv.update_constraint(self.generalize_constraint(&fv, variance), true);
                     fv.generalize();
                     Type::FreeVar(fv)
                 }
@@ -227,18 +242,16 @@ impl Context {
         }
     }
 
-    fn generalize_constraint(&self, constraint: &Constraint, variance: Variance) -> Constraint {
-        match constraint {
-            Constraint::Sandwiched { sub, sup, .. } => {
-                let sub = self.generalize_t_inner(sub.clone(), variance, true);
-                let sup = self.generalize_t_inner(sup.clone(), variance, true);
-                Constraint::new_sandwiched(sub, sup)
-            }
-            Constraint::TypeOf(t) => {
-                let t = self.generalize_t_inner(t.clone(), variance, true);
-                Constraint::new_type_of(t)
-            }
-            Constraint::Uninited => unreachable!(),
+    fn generalize_constraint<T: CanbeFree>(&self, fv: &Free<T>, variance: Variance) -> Constraint {
+        if let Some((sub, sup)) = fv.get_subsup() {
+            let sub = self.generalize_t_inner(sub, variance, true);
+            let sup = self.generalize_t_inner(sup, variance, true);
+            Constraint::new_sandwiched(sub, sup)
+        } else if let Some(ty) = fv.get_type() {
+            let t = self.generalize_t_inner(ty, variance, true);
+            Constraint::new_type_of(t)
+        } else {
+            unreachable!()
         }
     }
 
@@ -300,6 +313,9 @@ impl Context {
                 TyCheckError::dummy_infer_error(self.cfg.input.clone(), fn_name!(), line!()),
             )),
             TyParam::Type(t) => Ok(TyParam::t(self.deref_tyvar(*t, variance, qnames, loc)?)),
+            TyParam::Erased(t) => Ok(TyParam::erased(
+                self.deref_tyvar(*t, variance, qnames, loc)?,
+            )),
             TyParam::App { name, mut args } => {
                 for param in args.iter_mut() {
                     *param = self.deref_tp(mem::take(param), variance, qnames, loc)?;
@@ -353,7 +369,14 @@ impl Context {
                 }
                 Ok(TyParam::Set(new_set))
             }
-            TyParam::Proj { .. } | TyParam::Failure if self.level == 0 => Err(TyCheckErrors::from(
+            TyParam::Proj { obj, attr } => {
+                let obj = self.deref_tp(*obj, variance, qnames, loc)?;
+                Ok(TyParam::Proj {
+                    obj: Box::new(obj),
+                    attr,
+                })
+            }
+            TyParam::Failure if self.level == 0 => Err(TyCheckErrors::from(
                 TyCheckError::dummy_infer_error(self.cfg.input.clone(), fn_name!(), line!()),
             )),
             t => Ok(t),

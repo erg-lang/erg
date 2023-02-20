@@ -719,14 +719,15 @@ impl TyParam {
 
     pub fn qvars(&self) -> Set<(Str, Constraint)> {
         match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.forced_as_ref().linked().unwrap().qvars(),
             Self::FreeVar(fv) if !fv.constraint_is_uninited() => {
-                if let (Some(name), Some(constraint)) = (fv.unbound_name(), fv.constraint()) {
-                    set! { (name, constraint) }
+                let base = set! {(fv.unbound_name().unwrap(), fv.constraint().unwrap())};
+                if let Some(ty) = fv.get_type() {
+                    base.concat(ty.qvars())
                 } else {
-                    set! {}
+                    base
                 }
             }
-            Self::FreeVar(fv) if fv.is_linked() => fv.forced_as_ref().linked().unwrap().qvars(),
             Self::Type(t) => t.qvars(),
             Self::Proj { obj, .. } => obj.qvars(),
             Self::Array(ts) | Self::Tuple(ts) => {

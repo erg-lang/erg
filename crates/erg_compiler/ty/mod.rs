@@ -1586,11 +1586,16 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.forced_as_ref().linked().unwrap().qvars(),
             Self::FreeVar(fv) if !fv.constraint_is_uninited() => {
                 let base = set! {(fv.unbound_name().unwrap(), fv.constraint().unwrap())};
-                if let Some((sub, sup)) = fv.get_subsup() {
+                fv.forced_undoable_link(&Type::Failure);
+                let res = if let Some((sub, sup)) = fv.get_subsup() {
                     base.concat(sub.qvars()).concat(sup.qvars())
+                } else if let Some(ty) = fv.get_type() {
+                    base.concat(ty.qvars())
                 } else {
                     base
-                }
+                };
+                fv.undo();
+                res
             }
             Self::Ref(ty) => ty.qvars(),
             Self::RefMut { before, after } => before
