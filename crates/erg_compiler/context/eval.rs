@@ -1017,12 +1017,12 @@ impl Context {
                 let sub = if cfg!(feature = "debug") {
                     sub
                 } else {
-                    self.deref_tyvar(sub, Variance::Covariant, t_loc)?
+                    self.deref_tyvar(sub, Variance::Covariant, &set! {}, t_loc)?
                 };
                 let sup = if cfg!(feature = "debug") {
                     sup
                 } else {
-                    self.deref_tyvar(sup, Variance::Covariant, t_loc)?
+                    self.deref_tyvar(sup, Variance::Covariant, &set! {}, t_loc)?
                 };
                 return Err(EvalErrors::from(EvalError::no_trait_impl_error(
                     self.cfg.input.clone(),
@@ -1037,7 +1037,7 @@ impl Context {
         }
         // if the target can't be found in the supertype, the type will be dereferenced.
         // In many cases, it is still better to determine the type variable than if the target is not found.
-        let coerced = self.deref_tyvar(lhs.clone(), Variance::Covariant, t_loc)?;
+        let coerced = self.deref_tyvar(lhs.clone(), Variance::Covariant, &set! {}, t_loc)?;
         if lhs != coerced {
             let proj = proj(coerced, rhs);
             self.eval_t_params(proj, level, t_loc).map(|t| {
@@ -1376,12 +1376,12 @@ impl Context {
                 let sub = if cfg!(feature = "debug") {
                     sub
                 } else {
-                    self.deref_tyvar(sub, Variance::Covariant, t_loc)?
+                    self.deref_tyvar(sub, Variance::Covariant, &set! {}, t_loc)?
                 };
                 let sup = if cfg!(feature = "debug") {
                     sup
                 } else {
-                    self.deref_tyvar(sup, Variance::Covariant, t_loc)?
+                    self.deref_tyvar(sup, Variance::Covariant, &set! {}, t_loc)?
                 };
                 return Err(EvalErrors::from(EvalError::no_trait_impl_error(
                     self.cfg.input.clone(),
@@ -1396,7 +1396,7 @@ impl Context {
         }
         // if the target can't be found in the supertype, the type will be dereferenced.
         // In many cases, it is still better to determine the type variable than if the target is not found.
-        let coerced = self.deref_tp(lhs.clone(), Variance::Covariant, t_loc)?;
+        let coerced = self.deref_tp(lhs.clone(), Variance::Covariant, &set! {}, t_loc)?;
         if lhs != coerced {
             let proj = proj_call(coerced, attr_name, args);
             self.eval_t_params(proj, level, t_loc).map(|t| {

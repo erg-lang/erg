@@ -208,6 +208,10 @@ impl<T: Hash + Eq + Clone> Set<T> {
         self.elems.intersection(&other.elems)
     }
 
+    pub fn intersec_from_iter<I: Iterator<Item = T>>(&self, iter: I) -> Set<T> {
+        self.intersection(&iter.collect())
+    }
+
     pub fn difference(&self, other: &Set<T>) -> Set<T> {
         let u = self.elems.difference(&other.elems);
         Self {

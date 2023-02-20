@@ -409,7 +409,9 @@ impl Context {
                             let rhs_meta = self.meta_type(rhs);
                             self.supertype_of(&lfvt, &rhs_meta)
                         } else {
-                            unreachable!("{lfv} / {rhs}");
+                            // constraint is uninitalized
+                            log!(err "constraint is uninitialized: {lfv}/{rhs}");
+                            true
                         }
                     }
                 }
@@ -425,8 +427,13 @@ impl Context {
                         let res = self.supertype_of(lhs, &sub);
                         rfv.undo();
                         res
+                    } else if let Some(rfvt) = rfv.get_type() {
+                        let lhs_meta = self.meta_type(lhs);
+                        self.supertype_of(&lhs_meta, &rfvt)
                     } else {
-                        unreachable!("{lhs} / {rhs}");
+                        // constraint is uninitalized
+                        log!(err "constraint is uninitialized: {lhs}/{rfv}");
+                        true
                     }
                 }
             },
