@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+
+[project]
+name = "std"
+readme = "README.md"
+license = {file = "LICENSE"}
+authors = [{name = "Erg", email = "moderation@erg-lang.org"}]
+urls = {repository = "https://github.com/erg-lang/erg"}
+
+dynamic = ["version"]
+requires-python = ">=3.7"
+
+# dependencies = []
+
+[project.optional-dependencies]
+test = ["pytest"]
+dev = ["black", "ruff", "mypy"]
