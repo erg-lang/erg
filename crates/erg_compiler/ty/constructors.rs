@@ -360,6 +360,16 @@ pub fn mono_q<S: Into<Str>>(name: S, constr: Constraint) -> Type {
 }
 
 #[inline]
+pub fn type_q<S: Into<Str>>(name: S) -> Type {
+    mono_q(name, instanceof(Type::Type))
+}
+
+#[inline]
+pub fn subtype_q<S: Into<Str>>(name: S, sup: Type) -> Type {
+    mono_q(name, subtypeof(sup))
+}
+
+#[inline]
 pub fn mono<S: Into<Str>>(name: S) -> Type {
     let name = name.into();
     if cfg!(feature = "debug") {

@@ -1164,6 +1164,13 @@ impl Type {
         Self::Quantified(Box::new(self))
     }
 
+    pub fn proj<S: Into<Str>>(self, attr: S) -> Self {
+        Self::Proj {
+            lhs: Box::new(self),
+            rhs: attr.into(),
+        }
+    }
+
     pub fn is_simple_class(&self) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_simple_class(),
