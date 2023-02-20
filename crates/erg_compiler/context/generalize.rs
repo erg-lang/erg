@@ -733,6 +733,10 @@ impl Context {
     }
 
     pub(crate) fn trait_impl_exists(&self, class: &Type, trait_: &Type) -> bool {
+        // `Never` implements any trait
+        if self.subtype_of(class, &Type::Never) {
+            return true;
+        }
         if class.is_monomorphic() {
             self.mono_class_trait_impl_exist(class, trait_)
         } else {
