@@ -72,6 +72,10 @@ impl VarKind {
     pub const fn does_not_exist(&self) -> bool {
         matches!(self, Self::DoesNotExist)
     }
+
+    pub const fn is_builtin(&self) -> bool {
+        matches!(self, Self::Builtin)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

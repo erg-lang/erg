@@ -97,6 +97,30 @@ macro_rules! impl_u8_enum {
             }
         }
     };
+    ($Enum: ident; $size: tt; $($Variant: ident = $val: expr $(,)?)*) => {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        #[repr($size)]
+        pub enum $Enum {
+            $($Variant = $val,)*
+        }
+
+        $crate::impl_display_from_debug!($Enum);
+
+        impl From<$size> for $Enum {
+            fn from(byte: $size) -> Self {
+                match byte {
+                    $($val => $Enum::$Variant,)*
+                    _ => todo!("unknown opcode: {byte}"),
+                }
+            }
+        }
+
+        impl From<$Enum> for $size {
+            fn from(op: $Enum) -> $size {
+                op as $size
+            }
+        }
+    };
 }
 
 #[macro_export]

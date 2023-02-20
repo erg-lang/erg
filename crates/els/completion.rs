@@ -1,3 +1,4 @@
+use erg_compiler::varinfo::VarInfo;
 use serde::Deserialize;
 use serde_json::json;
 use serde_json::Value;
@@ -34,32 +35,36 @@ fn markdown_order(block: &str) -> usize {
     }
 }
 
-impl_u8_enum! { CompletionOrder;
-    TypeMatched,
-    SingularAttr,
-    Normal,
-    Escaped,
-    DoubleEscaped,
+impl_u8_enum! { CompletionOrder; i32;
+    TypeMatched = -8,
+    SingularAttr = -2,
+    Normal = 1000000,
+    Builtin = 1,
+    Escaped = 4,
+    DoubleEscaped = 16,
 }
 
 impl CompletionOrder {
-    pub fn from_label(label: &str) -> Self {
+    pub fn score(vi: &VarInfo, label: &str) -> i32 {
+        let mut orders = vec![Self::Normal];
         if label.starts_with("__") {
-            Self::DoubleEscaped
+            orders.push(Self::DoubleEscaped);
         } else if label.starts_with('_') {
-            Self::Escaped
-        } else {
-            Self::Normal
+            orders.push(Self::Escaped);
         }
+        if vi.kind.is_builtin() {
+            orders.push(Self::Builtin);
+        }
+        orders.into_iter().map(i32::from).sum()
     }
 
-    pub fn mangle(&self, label: &str) -> String {
-        format!("{}_{label}", u8::from(*self))
+    pub fn mangle(vi: &VarInfo, label: &str) -> String {
+        let score = Self::score(vi, label);
+        format!("{}_{}", char::from_u32(score as u32).unwrap(), label)
     }
 
-    fn set(item: &mut CompletionItem) {
-        let order = Self::from_label(&item.label[..]);
-        item.sort_text = Some(order.mangle(&item.label));
+    fn set(vi: &VarInfo, item: &mut CompletionItem) {
+        item.sort_text = Some(Self::mangle(vi, &item.label));
     }
 }
 
@@ -124,7 +129,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 })
                 .unwrap_or_else(|| vi.t.clone());
             let mut item = CompletionItem::new_simple(name.to_string(), readable_t.to_string());
-            CompletionOrder::set(&mut item);
+            CompletionOrder::set(vi, &mut item);
             item.kind = match &vi.t {
                 Type::Subr(subr) if subr.self_t().is_some() => Some(CompletionItemKind::METHOD),
                 Type::Quantified(quant) if quant.self_t().is_some() => {
