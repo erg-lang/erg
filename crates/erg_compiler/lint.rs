@@ -162,25 +162,23 @@ impl ASTLowerer {
         if mode == "eval" {
             return;
         }
-        if let Some(shared) = self.module.context.shared() {
-            for (referee, value) in shared.index.iter() {
-                let code = referee.code();
-                let name = code.as_ref().map(|s| &s[..]).unwrap_or("");
-                let name_is_auto = name == "_"; // || name.starts_with(['%']);
-                if value.referrers.is_empty() && value.vi.vis.is_private() && !name_is_auto {
-                    let input = referee
-                        .module
-                        .as_ref()
-                        .map_or(self.input().clone(), |path| path.as_path().into());
-                    let warn = LowerWarning::unused_warning(
-                        input,
-                        line!() as usize,
-                        referee.loc,
-                        name,
-                        self.module.context.caused_by(),
-                    );
-                    self.warns.push(warn);
-                }
+        for (referee, value) in self.module.context.index().iter() {
+            let code = referee.code();
+            let name = code.as_ref().map(|s| &s[..]).unwrap_or("");
+            let name_is_auto = name == "_"; // || name.starts_with(['%']);
+            if value.referrers.is_empty() && value.vi.vis.is_private() && !name_is_auto {
+                let input = referee
+                    .module
+                    .as_ref()
+                    .map_or(self.input().clone(), |path| path.as_path().into());
+                let warn = LowerWarning::unused_warning(
+                    input,
+                    line!() as usize,
+                    referee.loc,
+                    name,
+                    self.module.context.caused_by(),
+                );
+                self.warns.push(warn);
             }
         }
     }

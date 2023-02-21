@@ -1,5 +1,6 @@
 //! test module for `Context`
 use erg_common::set;
+use erg_common::traits::StructuralEq;
 use erg_common::Str;
 
 use crate::ty::constructors::{func1, mono, mono_q, poly, refinement};
@@ -17,7 +18,7 @@ impl Context {
             panic!("variable not found: {varname}");
         };
         println!("{varname}: {}", vi.t);
-        if self.same_type_of(&vi.t, ty, false) {
+        if vi.t.structural_eq(ty) {
             Ok(())
         } else {
             println!("{varname} is not the type of {ty}");
@@ -34,11 +35,20 @@ impl Context {
             Type::Int,
             set! { Predicate::eq(var, TyParam::value(1)) },
         );
-        if self.supertype_of(&lhs, &rhs, false) {
+        if self.supertype_of(&lhs, &rhs, true) {
             Ok(())
         } else {
             Err(())
         }
+    }
+
+    pub fn test_quant_subtyping(&self) -> Result<(), ()> {
+        let t = crate::ty::constructors::type_q("T");
+        let quant = func1(t.clone(), t).quantify();
+        let subr = func1(Obj, Never);
+        assert!(!self.subtype_of(&quant, &subr, true));
+        assert!(self.subtype_of(&subr, &quant, true));
+        Ok(())
     }
 
     pub fn test_resolve_trait_inner1(&self) -> Result<(), ()> {

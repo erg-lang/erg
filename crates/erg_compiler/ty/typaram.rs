@@ -719,6 +719,14 @@ impl TyParam {
         Self::Erased(Box::new(t))
     }
 
+    pub fn proj_call(self, attr_name: Str, args: Vec<TyParam>) -> Type {
+        Type::ProjCall {
+            lhs: Box::new(self),
+            attr_name,
+            args,
+        }
+    }
+
     // if self: Ratio, Succ(self) => self+ε
     pub fn succ(self) -> Self {
         Self::app("Succ", vec![self])
@@ -904,6 +912,26 @@ impl TyParam {
             Self::Erased(_) => false,
             Self::FreeVar(fv) => !fv.is_unbound(),
             _ => true,
+        }
+    }
+
+    pub fn replace(self, target: &Type, to: &Type) -> TyParam {
+        match self {
+            TyParam::Value(ValueObj::Type(obj)) => {
+                TyParam::t(obj.typ().clone()._replace(target, to))
+            }
+            TyParam::FreeVar(fv) if fv.is_linked() => fv.crack().clone().replace(target, to),
+            TyParam::Type(ty) => TyParam::t(ty._replace(target, to)),
+            self_ => self_,
+        }
+    }
+
+    /// TyParam::Value(ValueObj::Type(_)) => TyParam::Type
+    pub fn normalize(self) -> TyParam {
+        match self {
+            TyParam::Value(ValueObj::Type(obj)) => TyParam::t(obj.typ().clone().normalize()),
+            TyParam::Type(t) => TyParam::t(t.normalize()),
+            other => other,
         }
     }
 }

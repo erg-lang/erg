@@ -665,6 +665,15 @@ impl PyCodeGenerator {
             "int__" | "nat__" | "str__" | "float__" => {
                 self.load_convertors();
             }
+            // NoneType is not defined in the global scope, use `type(None)` instead
+            "NoneType" => {
+                self.emit_push_null();
+                self.emit_load_name_instr(Identifier::public("type"));
+                self.emit_load_const(ValueObj::None);
+                self.emit_precall_and_call(1);
+                self.stack_dec();
+                return;
+            }
             _ => {}
         }
         let name = self

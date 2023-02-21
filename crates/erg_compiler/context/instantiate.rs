@@ -1497,4 +1497,27 @@ impl Context {
             other => Ok(other),
         }
     }
+
+    pub(crate) fn instantiate_dummy(&self, quantified: Type) -> Type {
+        match quantified {
+            FreeVar(fv) if fv.is_linked() => self.instantiate_dummy(fv.crack().clone()),
+            Quantified(quant) => {
+                let mut tmp_tv_cache = TyVarCache::new(self.level, self);
+                let ty = self
+                    .instantiate_t_inner(*quant, &mut tmp_tv_cache, &())
+                    .unwrap();
+                if cfg!(feature = "debug") && ty.has_qvar() {
+                    panic!("{ty} has qvar")
+                }
+                ty
+            }
+            Refinement(refine) if refine.t.is_quantified_subr() => {
+                let quant = enum_unwrap!(*refine.t, Type::Quantified);
+                let mut tmp_tv_cache = TyVarCache::new(self.level, self);
+                self.instantiate_t_inner(*quant, &mut tmp_tv_cache, &())
+                    .unwrap()
+            }
+            other => unreachable!("{other}"),
+        }
+    }
 }

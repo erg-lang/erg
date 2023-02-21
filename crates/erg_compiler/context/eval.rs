@@ -948,6 +948,7 @@ impl Context {
         }
     }
 
+    /// lhs: mainly class
     pub(crate) fn eval_proj(
         &self,
         lhs: Type,

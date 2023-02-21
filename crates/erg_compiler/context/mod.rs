@@ -24,11 +24,10 @@ use erg_common::config::Input;
 use erg_common::dict::Dict;
 use erg_common::error::Location;
 use erg_common::impl_display_from_debug;
-use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
 use erg_common::vis::Visibility;
 use erg_common::Str;
-use erg_common::{fn_name, get_hash, log};
+use erg_common::{fmt_option, fn_name, get_hash, log};
 
 use ast::{DefId, DefKind, VarName};
 use erg_parser::ast;
@@ -217,6 +216,26 @@ impl From<DefKind> for ContextKind {
     }
 }
 
+impl fmt::Display for ContextKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Func => write!(f, "Func"),
+            Self::Proc => write!(f, "Proc"),
+            Self::Class => write!(f, "Class"),
+            Self::MethodDefs(trait_) => write!(f, "MethodDefs({})", fmt_option!(trait_)),
+            Self::PatchMethodDefs(type_) => write!(f, "PatchMethodDefs({type_})"),
+            Self::Trait => write!(f, "Trait"),
+            Self::StructuralTrait => write!(f, "StructuralTrait"),
+            Self::Patch(type_) => write!(f, "Patch({type_})"),
+            Self::StructuralPatch(type_) => write!(f, "StructuralPatch({type_})"),
+            Self::GluePatch(type_) => write!(f, "GluePatch({type_})"),
+            Self::Module => write!(f, "Module"),
+            Self::Instant => write!(f, "Instant"),
+            Self::Dummy => write!(f, "Dummy"),
+        }
+    }
+}
+
 impl ContextKind {
     pub const fn is_method_def(&self) -> bool {
         matches!(self, Self::MethodDefs(_))
@@ -314,10 +333,6 @@ pub struct Context {
     /// K: メソッド名, V: それを実装するパッチたち
     /// 提供メソッドはスコープごとに実装を切り替えることができる
     pub(crate) method_impl_patches: Dict<VarName, Vec<VarName>>,
-    /// K: name of a trait, V: (type, monomorphised trait that the type implements)
-    /// K: トレイトの名前, V: (型, その型が実装する単相化トレイト)
-    /// e.g. { "Named": [(Type, Named), (Func, Named), ...], "Add": [(Nat, Add(Nat)), (Int, Add(Int)), ...], ... }
-    pub(crate) trait_impls: Dict<Str, Set<TraitImpl>>,
     /// stores declared names (not initialized)
     pub(crate) decls: Dict<VarName, VarInfo>,
     /// for error reporting
@@ -510,7 +525,6 @@ impl Context {
             method_to_traits: Dict::default(),
             method_to_classes: Dict::default(),
             method_impl_patches: Dict::default(),
-            trait_impls: Dict::default(),
             params: params_,
             decls: Dict::default(),
             future_defined_locals: Dict::default(),
@@ -795,8 +809,13 @@ impl Context {
     }
 
     #[inline]
-    pub fn builtin_module<S: Into<Str>>(name: S, cfg: ErgConfig, capacity: usize) -> Self {
-        Self::module(name.into(), cfg, None, capacity)
+    pub fn builtin_module<S: Into<Str>>(
+        name: S,
+        cfg: ErgConfig,
+        shared: SharedCompilerResource,
+        capacity: usize,
+    ) -> Self {
+        Self::module(name.into(), cfg, Some(shared), capacity)
     }
 
     #[inline]
@@ -979,20 +998,24 @@ impl Context {
             .collect()
     }
 
-    pub(crate) fn mod_cache(&self) -> Option<&SharedModuleCache> {
-        self.shared.as_ref().map(|shared| &shared.mod_cache)
+    pub(crate) fn mod_cache(&self) -> &SharedModuleCache {
+        &self.shared().mod_cache
     }
 
-    pub(crate) fn py_mod_cache(&self) -> Option<&SharedModuleCache> {
-        self.shared.as_ref().map(|shared| &shared.py_mod_cache)
+    pub(crate) fn py_mod_cache(&self) -> &SharedModuleCache {
+        &self.shared().py_mod_cache
     }
 
-    pub fn index(&self) -> Option<&crate::module::SharedModuleIndex> {
-        self.shared.as_ref().map(|shared| &shared.index)
+    pub fn index(&self) -> &crate::module::SharedModuleIndex {
+        &self.shared().index
     }
 
-    pub fn shared(&self) -> Option<&SharedCompilerResource> {
-        self.shared.as_ref()
+    pub fn trait_impls(&self) -> &crate::module::SharedTraitImpls {
+        &self.shared().trait_impls
+    }
+
+    pub fn shared(&self) -> &SharedCompilerResource {
+        self.shared.as_ref().unwrap()
     }
 }
 

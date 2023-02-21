@@ -1592,7 +1592,7 @@ pub struct NonDefaultParamSignature {
 
 impl NestedDisplay for NonDefaultParamSignature {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, _level: usize) -> std::fmt::Result {
-        write!(f, "{}", self.raw)
+        write!(f, "{}(: {})", self.raw, self.vi.t)
     }
 }
 

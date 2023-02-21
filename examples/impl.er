@@ -7,7 +7,7 @@ Point|Point <: Add(Point)|.
     __add__ self, other: Point =
         Point.new(self::x + other::x, self::y + other::y)
 Point|Point <: Mul(Point)|.
-    Output = Nat
+    Output = Int
     __mul__ self, other: Point =
         self::x * other::x + self::y * other::y
 Point|Point <: Eq|.
@@ -19,7 +19,7 @@ p = Point.new 1, 2
 q = Point.new 3, 4
 
 r: Point = p + q
-s: Nat = p * q
+s: Int = p * q
 assert s == 11
 assert r == Point.new 4, 6
 assert r.norm() == 52

@@ -335,6 +335,12 @@ impl PartialOrd for Location {
     }
 }
 
+impl Locational for Location {
+    fn loc(&self) -> Self {
+        *self
+    }
+}
+
 impl Location {
     pub fn concat<L: Locational, R: Locational>(l: &L, r: &R) -> Self {
         let l_loc = l.loc();

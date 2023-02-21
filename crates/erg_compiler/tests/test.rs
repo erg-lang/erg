@@ -61,9 +61,16 @@ fn test_infer_types() -> Result<(), ()> {
 }
 
 #[test]
-fn test_subtyping() -> Result<(), ()> {
+fn test_refinement_subtyping() -> Result<(), ()> {
     let context = Context::default_with_name("<module>");
     context.test_refinement_subtyping()?;
+    Ok(())
+}
+
+#[test]
+fn test_quant_subtyping() -> Result<(), ()> {
+    let context = Context::default_with_name("<module>");
+    context.test_quant_subtyping()?;
     Ok(())
 }
 

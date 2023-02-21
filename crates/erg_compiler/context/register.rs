@@ -165,9 +165,7 @@ impl Context {
                 py_name,
                 self.absolutize(ident.name.loc()),
             );
-            if let Some(shared) = self.shared() {
-                shared.index.register(&vi);
-            }
+            self.index().register(&vi);
             self.future_defined_locals.insert(ident.name.clone(), vi);
             Ok(())
         }
@@ -213,9 +211,7 @@ impl Context {
             py_name,
             self.absolutize(sig.ident.name.loc()),
         );
-        if let Some(shared) = self.shared() {
-            shared.index.register(&vi);
-        }
+        self.index().register(&vi);
         if let Some(_decl) = self.decls.remove(name) {
             Err(TyCheckErrors::from(TyCheckError::duplicate_decl_error(
                 self.cfg.input.clone(),
@@ -403,9 +399,7 @@ impl Context {
                         None,
                         self.absolutize(name.loc()),
                     );
-                    if let Some(shared) = self.shared() {
-                        shared.index.register(&vi);
-                    }
+                    self.index().register(&vi);
                     sig.vi = vi.clone();
                     self.params.push((Some(name.clone()), vi));
                     if errs.is_empty() {
@@ -1076,9 +1070,7 @@ impl Context {
                         None,
                         self.absolutize(ident.name.loc()),
                     );
-                    if let Some(shared) = self.shared() {
-                        shared.index.register(&vi);
-                    }
+                    self.index().register(&vi);
                     self.decls.insert(ident.name.clone(), vi);
                     self.consts.insert(ident.name.clone(), other);
                     Ok(())
@@ -1372,9 +1364,7 @@ impl Context {
                 None,
                 self.absolutize(name.loc()),
             );
-            if let Some(shared) = self.shared() {
-                shared.index.register(&vi);
-            }
+            self.index().register(&vi);
             self.decls.insert(name.clone(), vi);
             self.consts
                 .insert(name.clone(), ValueObj::Type(TypeObj::Builtin(t)));
@@ -1421,17 +1411,15 @@ impl Context {
                 None,
                 self.absolutize(name.loc()),
             );
-            if let Some(shared) = self.shared() {
-                shared.index.register(&vi);
-            }
+            self.index().register(&vi);
             self.decls.insert(name.clone(), vi);
             self.consts
                 .insert(name.clone(), ValueObj::Type(TypeObj::Generated(gen)));
             for impl_trait in ctx.super_traits.iter() {
-                if let Some(impls) = self.trait_impls.get_mut(&impl_trait.qual_name()) {
+                if let Some(impls) = self.trait_impls().get_mut(&impl_trait.qual_name()) {
                     impls.insert(TraitImpl::new(t.clone(), impl_trait.clone()));
                 } else {
-                    self.trait_impls.insert(
+                    self.trait_impls().register(
                         impl_trait.qual_name(),
                         set![TraitImpl::new(t.clone(), impl_trait.clone())],
                     );
@@ -1507,10 +1495,10 @@ impl Context {
             self.consts
                 .insert(name.clone(), ValueObj::Type(TypeObj::Generated(gen)));
             for impl_trait in ctx.super_traits.iter() {
-                if let Some(impls) = self.trait_impls.get_mut(&impl_trait.qual_name()) {
+                if let Some(impls) = self.trait_impls().get_mut(&impl_trait.qual_name()) {
                     impls.insert(TraitImpl::new(t.clone(), impl_trait.clone()));
                 } else {
-                    self.trait_impls.insert(
+                    self.trait_impls().register(
                         impl_trait.qual_name(),
                         set![TraitImpl::new(t.clone(), impl_trait.clone())],
                     );
@@ -1555,8 +1543,8 @@ impl Context {
 
     fn import_erg_mod(&self, mod_name: &Literal) -> CompileResult<PathBuf> {
         let ValueObj::Str(__name__) = mod_name.value.clone() else { todo!("{mod_name}") };
-        let mod_cache = self.mod_cache().unwrap();
-        let py_mod_cache = self.py_mod_cache().unwrap();
+        let mod_cache = self.mod_cache();
+        let py_mod_cache = self.py_mod_cache();
         let path = match Self::resolve_real_path(&self.cfg, Path::new(&__name__[..])) {
             Some(path) => path,
             None => {
@@ -1687,9 +1675,9 @@ impl Context {
                     mod_name.loc(),
                     self.caused_by(),
                     self.similar_builtin_erg_mod_name(&__name__)
-                        .or_else(|| self.mod_cache().unwrap().get_similar_name(&__name__)),
+                        .or_else(|| self.mod_cache().get_similar_name(&__name__)),
                     self.similar_builtin_py_mod_name(&__name__)
-                        .or_else(|| self.py_mod_cache().unwrap().get_similar_name(&__name__)),
+                        .or_else(|| self.py_mod_cache().get_similar_name(&__name__)),
                 );
                 Err(TyCheckErrors::from(err))
             }
@@ -1725,7 +1713,7 @@ impl Context {
 
     fn import_py_mod(&self, mod_name: &Literal) -> CompileResult<PathBuf> {
         let ValueObj::Str(__name__) = mod_name.value.clone() else { todo!("{mod_name}") };
-        let py_mod_cache = self.py_mod_cache().unwrap();
+        let py_mod_cache = self.py_mod_cache();
         let path = self.get_path(mod_name, __name__)?;
         if let Some(referrer) = self.cfg.input.path() {
             let graph = &self.shared.as_ref().unwrap().graph;
@@ -1888,8 +1876,6 @@ impl Context {
     }
 
     pub fn inc_ref<L: Locational>(&self, vi: &VarInfo, name: &L) {
-        self.index()
-            .unwrap()
-            .inc_ref(vi, self.absolutize(name.loc()));
+        self.index().inc_ref(vi, self.absolutize(name.loc()));
     }
 }

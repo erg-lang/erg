@@ -169,6 +169,7 @@ impl LimitedDisplay for Constraint {
 }
 
 impl Constraint {
+    /// :> Sub, <: Sup
     pub const fn new_sandwiched(sub: Type, sup: Type) -> Self {
         Self::Sandwiched { sub, sup }
     }

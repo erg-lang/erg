@@ -1427,14 +1427,9 @@ impl ASTLowerer {
                 )));
             }
             let kind = ContextKind::MethodDefs(impl_trait.as_ref().map(|(t, _)| t.clone()));
-            let vis = if cfg!(feature = "py_compatible") {
-                Public
-            } else {
-                Private
-            };
             self.module
                 .context
-                .grow(&class.local_name(), kind, vis, None);
+                .grow(&class.local_name(), kind, hir_def.sig.vis(), None);
             for attr in methods.attrs.iter_mut() {
                 match attr {
                     ast::ClassAttr::Def(def) => {
@@ -1636,10 +1631,15 @@ impl ASTLowerer {
         trait_loc: &impl Locational,
     ) -> LowerResult<()> {
         // TODO: polymorphic trait
-        if let Some(impls) = self.module.context.trait_impls.get_mut(&trait_.qual_name()) {
+        if let Some(impls) = self
+            .module
+            .context
+            .trait_impls()
+            .get_mut(&trait_.qual_name())
+        {
             impls.insert(TraitImpl::new(class.clone(), trait_.clone()));
         } else {
-            self.module.context.trait_impls.insert(
+            self.module.context.trait_impls().register(
                 trait_.qual_name(),
                 set! {TraitImpl::new(class.clone(), trait_.clone())},
             );
@@ -1746,6 +1746,7 @@ impl ASTLowerer {
     ) -> SingleLowerResult<()> {
         let allow_cast = true;
         if let Some((impl_trait, t_spec)) = impl_trait {
+            let impl_trait = impl_trait.normalize();
             let mut unverified_names = self.module.context.locals.keys().collect::<Set<_>>();
             if let Some(trait_obj) = self
                 .module
@@ -1763,8 +1764,10 @@ impl ASTLowerer {
                                         let def_t = &vi.t;
                                         //    A(<: Add(R)), R -> A.Output
                                         // => A(<: Int), R -> A.Output
-                                        let replaced_decl_t =
-                                            decl_t.clone().replace(&impl_trait, class);
+                                        let replaced_decl_t = decl_t
+                                            .clone()
+                                            .replace(gen.typ(), &impl_trait)
+                                            .replace(&impl_trait, class);
                                         unverified_names.remove(name);
                                         // def_t must be subtype of decl_t
                                         if !self.module.context.supertype_of(
@@ -1813,8 +1816,11 @@ impl ASTLowerer {
                                     self.module.context.get_var_kv(decl_name.inspect())
                                 {
                                     let def_t = &vi.t;
-                                    let replaced_decl_t =
-                                        decl_vi.t.clone().replace(&impl_trait, class);
+                                    let replaced_decl_t = decl_vi
+                                        .t
+                                        .clone()
+                                        .replace(_typ, &impl_trait)
+                                        .replace(&impl_trait, class);
                                     unverified_names.remove(name);
                                     if !self.module.context.supertype_of(
                                         &replaced_decl_t,
@@ -2042,10 +2048,10 @@ impl ASTLowerer {
                 tasc.expr.loc(),
                 self.module.context.caused_by(),
                 switch_lang!(
-                    "japanese" => "無効な型宣言です".to_string(),
+                    "japanese" => "無効な型宣言です(左辺には記名型のみ使用出来ます)".to_string(),
                     "simplified_chinese" => "无效的类型声明".to_string(),
                     "traditional_chinese" => "無效的型宣告".to_string(),
-                    "english" => "Invalid type declaration".to_string(),
+                    "english" => "Invalid type declaration (currently only nominal types are allowed at LHS)".to_string(),
                 ),
                 None,
             )));
@@ -2073,14 +2079,7 @@ impl ASTLowerer {
                 .sub_unify(&ident_vi.t, &spec_t, &ident, Some(ident.inspect()))?;
         } else {
             // if subtype ascription
-            let ctx = self
-                .module
-                .context
-                .get_singular_ctx_by_ident(&ident, &self.module.context.name)?;
-            // REVIEW: need to use subtype_of?
-            if ctx.super_traits.iter().all(|trait_| trait_ != &spec_t)
-                && ctx.super_classes.iter().all(|class| class != &spec_t)
-            {
+            if self.module.context.subtype_of(&ident_vi.t, &spec_t, true) {
                 return Err(LowerErrors::from(LowerError::subtyping_error(
                     self.cfg.input.clone(),
                     line!() as usize,

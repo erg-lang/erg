@@ -478,31 +478,24 @@ impl<Checker: BuildRunnable> Server<Checker> {
     }
 
     pub(crate) fn get_index(&self) -> &SharedModuleIndex {
-        self.modules
-            .values()
-            .next()
-            .unwrap()
-            .context
-            .index()
-            .unwrap()
+        self.modules.values().next().unwrap().context.index()
     }
 
     pub(crate) fn get_shared(&self) -> Option<&SharedCompilerResource> {
         self.modules
             .values()
             .next()
-            .and_then(|module| module.context.shared())
+            .map(|module| module.context.shared())
     }
 
     pub(crate) fn clear_cache(&mut self, uri: &Url) {
         self.artifacts.remove(uri);
         if let Some(module) = self.modules.remove(uri) {
-            if let Some(shared) = module.context.shared() {
-                let path = util::uri_to_path(uri);
-                shared.mod_cache.remove(&path);
-                shared.index.remove_path(&path);
-                shared.graph.initialize();
-            }
+            let shared = module.context.shared();
+            let path = util::uri_to_path(uri);
+            shared.mod_cache.remove(&path);
+            shared.index.remove_path(&path);
+            shared.graph.initialize();
         }
     }
 }

@@ -50,8 +50,8 @@ pub enum SubstituteResult {
 impl Context {
     pub(crate) fn get_ctx_from_path(&self, path: &Path) -> Option<&Context> {
         self.mod_cache()
-            .and_then(|cache| cache.ref_ctx(path))
-            .or_else(|| self.py_mod_cache().and_then(|cache| cache.ref_ctx(path)))
+            .ref_ctx(path)
+            .or_else(|| self.py_mod_cache().ref_ctx(path))
             .map(|mod_ctx| &mod_ctx.context)
     }
 
@@ -1853,15 +1853,16 @@ impl Context {
             .map(|(_, ctx)| ctx.super_traits.clone().into_iter())
     }
 
+    /// include `typ` itself.
     /// if `typ` is a refinement type, include the base type (refine.t)
     pub(crate) fn _get_super_classes(&self, typ: &Type) -> Option<impl Iterator<Item = Type>> {
-        self.get_nominal_type_ctx(typ).map(|(_, ctx)| {
+        self.get_nominal_type_ctx(typ).map(|(t, ctx)| {
             let super_classes = ctx.super_classes.clone();
             let derefined = typ.derefine();
             if typ != &derefined {
-                vec![derefined].into_iter().chain(super_classes)
+                vec![t.clone(), derefined].into_iter().chain(super_classes)
             } else {
-                vec![].into_iter().chain(super_classes)
+                vec![t.clone()].into_iter().chain(super_classes)
             }
         })
     }
@@ -2054,8 +2055,8 @@ impl Context {
         None
     }
 
-    pub(crate) fn get_trait_impls(&self, t: &Type) -> Set<TraitImpl> {
-        match t {
+    pub(crate) fn get_trait_impls(&self, trait_: &Type) -> Set<TraitImpl> {
+        match trait_ {
             // And(Add, Sub) == intersection({Int <: Add(Int), Bool <: Add(Bool) ...}, {Int <: Sub(Int), ...})
             // == {Int <: Add(Int) and Sub(Int), ...}
             Type::And(l, r) => {
@@ -2079,18 +2080,18 @@ impl Context {
                 // FIXME:
                 l_impls.union(&r_impls)
             }
-            _ => self.get_simple_trait_impls(t),
+            _ => self.get_simple_trait_impls(trait_),
         }
     }
 
-    pub(crate) fn get_simple_trait_impls(&self, t: &Type) -> Set<TraitImpl> {
-        let current = if let Some(impls) = self.trait_impls.get(&t.qual_name()) {
+    pub(crate) fn get_simple_trait_impls(&self, trait_: &Type) -> Set<TraitImpl> {
+        let current = if let Some(impls) = self.trait_impls().get(&trait_.qual_name()) {
             impls.clone()
         } else {
             set! {}
         };
         if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
-            current.union(&outer.get_simple_trait_impls(t))
+            current.union(&outer.get_simple_trait_impls(trait_))
         } else {
             current
         }
@@ -2401,26 +2402,36 @@ impl Context {
     }
 
     fn get_proj_candidates(&self, lhs: &Type, rhs: &Str) -> Set<Type> {
-        let allow_cast = true;
         #[allow(clippy::single_match)]
         match lhs {
             Type::FreeVar(fv) => {
                 if let Some(sup) = fv.get_super() {
-                    let insts = self.get_trait_impls(&sup);
-                    let candidates = insts.into_iter().filter_map(move |inst| {
-                        if self.supertype_of(&inst.sup_trait, &sup, allow_cast) {
-                            self.eval_t_params(proj(inst.sub_type, rhs), self.level, &())
-                                .ok()
-                        } else {
-                            None
-                        }
-                    });
-                    return candidates.collect();
+                    if self.is_trait(&sup) {
+                        return self.get_trait_proj_candidates(&sup, rhs);
+                    } else {
+                        return self
+                            .eval_proj(sup, rhs.clone(), self.level, &())
+                            .map_or(set! {}, |t| set! {t});
+                    }
                 }
             }
             _ => {}
         }
         set! {}
+    }
+
+    fn get_trait_proj_candidates(&self, trait_: &Type, rhs: &Str) -> Set<Type> {
+        let allow_cast = true;
+        let impls = self.get_trait_impls(trait_);
+        let candidates = impls.into_iter().filter_map(move |inst| {
+            if self.supertype_of(&inst.sup_trait, trait_, allow_cast) {
+                self.eval_t_params(proj(inst.sub_type, rhs), self.level, &())
+                    .ok()
+            } else {
+                None
+            }
+        });
+        candidates.collect()
     }
 
     pub(crate) fn is_class(&self, typ: &Type) -> bool {

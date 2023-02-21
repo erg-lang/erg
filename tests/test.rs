@@ -196,6 +196,12 @@ fn exec_args() -> Result<(), ()> {
     expect_failure("tests/should_err/args.er", 16)
 }
 
+/// This file compiles successfully, but causes a run-time error due to incomplete method dispatching
+#[test]
+fn exec_tests_impl() -> Result<(), ()> {
+    expect_end_with("tests/should_ok/impl.er", 1)
+}
+
 #[test]
 fn exec_infer_union_array() -> Result<(), ()> {
     expect_failure("tests/should_err/infer_union_array.er", 1)

@@ -10,7 +10,7 @@ use erg_common::levenshtein::get_similar_name;
 use erg_common::shared::Shared;
 use erg_common::Str;
 
-use crate::context::{Context, ModuleContext};
+use crate::context::ModuleContext;
 use crate::hir::HIR;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -157,10 +157,8 @@ impl fmt::Display for SharedModuleCache {
 }
 
 impl SharedModuleCache {
-    pub fn new(cfg: ErgConfig) -> Self {
-        let self_ = Self(Shared::new(ModuleCache::new()));
-        Context::init_builtins(cfg, &self_);
-        self_
+    pub fn new() -> Self {
+        Self(Shared::new(ModuleCache::new()))
     }
 
     pub fn get<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<&ModuleEntry>

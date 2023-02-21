@@ -29,7 +29,7 @@ use crate::context::instantiate::ConstTemplate;
 use crate::context::{
     ClassDefType, Context, ContextKind, MethodInfo, ModuleContext, ParamSpec, TraitImpl,
 };
-use crate::module::{SharedCompilerResource, SharedModuleCache};
+use crate::module::SharedCompilerResource;
 use crate::ty::free::Constraint;
 use crate::ty::value::ValueObj;
 use crate::ty::Type;
@@ -703,10 +703,10 @@ impl Context {
             self.consts
                 .insert(name.clone(), ValueObj::builtin_t(t.clone()));
             for impl_trait in ctx.super_traits.iter() {
-                if let Some(impls) = self.trait_impls.get_mut(&impl_trait.qual_name()) {
+                if let Some(impls) = self.trait_impls().get_mut(&impl_trait.qual_name()) {
                     impls.insert(TraitImpl::new(t.clone(), impl_trait.clone()));
                 } else {
-                    self.trait_impls.insert(
+                    self.trait_impls().register(
                         impl_trait.qual_name(),
                         set![TraitImpl::new(t.clone(), impl_trait.clone())],
                     );
@@ -773,10 +773,10 @@ impl Context {
             self.consts
                 .insert(name.clone(), ValueObj::builtin_t(t.clone()));
             for impl_trait in ctx.super_traits.iter() {
-                if let Some(impls) = self.trait_impls.get_mut(&impl_trait.qual_name()) {
+                if let Some(impls) = self.trait_impls().get_mut(&impl_trait.qual_name()) {
                     impls.insert(TraitImpl::new(t.clone(), impl_trait.clone()));
                 } else {
-                    self.trait_impls.insert(
+                    self.trait_impls().register(
                         impl_trait.qual_name(),
                         set![TraitImpl::new(t.clone(), impl_trait.clone())],
                     );
@@ -837,11 +837,11 @@ impl Context {
                 }
             }
             if let ContextKind::GluePatch(tr_inst) = &ctx.kind {
-                if let Some(impls) = self.trait_impls.get_mut(&tr_inst.sup_trait.qual_name()) {
+                if let Some(impls) = self.trait_impls().get_mut(&tr_inst.sup_trait.qual_name()) {
                     impls.insert(tr_inst.clone());
                 } else {
-                    self.trait_impls
-                        .insert(tr_inst.sup_trait.qual_name(), set![tr_inst.clone()]);
+                    self.trait_impls()
+                        .register(tr_inst.sup_trait.qual_name(), set![tr_inst.clone()]);
                 }
             }
             self.patches.insert(name, ctx);
@@ -896,8 +896,8 @@ impl Context {
         self.register_builtin_py_impl(ELLIPSIS, Ellipsis, Const, Private, Some(ELLIPSIS));
     }
 
-    pub(crate) fn init_builtins(cfg: ErgConfig, mod_cache: &SharedModuleCache) {
-        let mut ctx = Context::builtin_module("<builtins>", cfg, 100);
+    pub(crate) fn init_builtins(cfg: ErgConfig, shared: SharedCompilerResource) {
+        let mut ctx = Context::builtin_module("<builtins>", cfg, shared.clone(), 100);
         ctx.init_builtin_consts();
         ctx.init_builtin_funcs();
         ctx.init_builtin_const_funcs();
@@ -907,7 +907,9 @@ impl Context {
         ctx.init_builtin_classes();
         ctx.init_builtin_patches();
         let module = ModuleContext::new(ctx, dict! {});
-        mod_cache.register(PathBuf::from("<builtins>"), None, module);
+        shared
+            .mod_cache
+            .register(PathBuf::from("<builtins>"), None, module);
     }
 
     pub fn new_module<S: Into<Str>>(

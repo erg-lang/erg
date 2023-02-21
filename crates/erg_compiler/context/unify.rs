@@ -728,6 +728,20 @@ impl Context {
                 Ok(())
             }
             (Type::Subr(lsub), Type::Subr(rsub)) => {
+                lsub.non_default_params
+                    .iter()
+                    .zip(rsub.non_default_params.iter())
+                    .try_for_each(|(l, r)| {
+                        // contravariant
+                        self.sub_unify(r.typ(), l.typ(), loc, param_name)
+                    })?;
+                lsub.var_params
+                    .iter()
+                    .zip(rsub.var_params.iter())
+                    .try_for_each(|(l, r)| {
+                        // contravariant
+                        self.sub_unify(r.typ(), l.typ(), loc, param_name)
+                    })?;
                 for lpt in lsub.default_params.iter() {
                     if let Some(rpt) = rsub
                         .default_params
@@ -737,16 +751,9 @@ impl Context {
                         // contravariant
                         self.sub_unify(rpt.typ(), lpt.typ(), loc, param_name)?;
                     } else {
-                        todo!()
+                        unreachable!()
                     }
                 }
-                lsub.non_default_params
-                    .iter()
-                    .zip(rsub.non_default_params.iter())
-                    .try_for_each(|(l, r)| {
-                        // contravariant
-                        self.sub_unify(r.typ(), l.typ(), loc, param_name)
-                    })?;
                 // covariant
                 self.sub_unify(&lsub.return_t, &rsub.return_t, loc, param_name)?;
                 Ok(())
@@ -781,9 +788,7 @@ impl Context {
                         }
                     })?;
                 // covariant
-                if !lsub.return_t.is_generalized() {
-                    self.sub_unify(&lsub.return_t, &rsub.return_t, loc, param_name)?;
-                }
+                self.sub_unify(&lsub.return_t, &rsub.return_t, loc, param_name)?;
                 Ok(())
             }
             (Type::Subr(lsub), Type::Quantified(rsub)) => {
@@ -815,9 +820,7 @@ impl Context {
                         }
                     })?;
                 // covariant
-                if !rsub.return_t.is_generalized() {
-                    self.sub_unify(&lsub.return_t, &rsub.return_t, loc, param_name)?;
-                }
+                self.sub_unify(&lsub.return_t, &rsub.return_t, loc, param_name)?;
                 Ok(())
             }
             (

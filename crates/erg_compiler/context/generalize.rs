@@ -872,10 +872,14 @@ impl Context {
 
     fn resolve_params_t(&self, params: &mut hir::Params, qnames: &Set<Str>) -> TyCheckResult<()> {
         for param in params.non_defaults.iter_mut() {
+            // generalization should work properly for the subroutine type, but may not work for the parameters' own types
+            // HACK: so generalize them manually
+            param.vi.t.generalize();
             param.vi.t =
                 self.deref_tyvar(mem::take(&mut param.vi.t), Contravariant, qnames, param)?;
         }
         if let Some(var_params) = &mut params.var_params {
+            var_params.vi.t.generalize();
             var_params.vi.t = self.deref_tyvar(
                 mem::take(&mut var_params.vi.t),
                 Contravariant,
@@ -884,6 +888,7 @@ impl Context {
             )?;
         }
         for param in params.defaults.iter_mut() {
+            param.sig.vi.t.generalize();
             param.sig.vi.t =
                 self.deref_tyvar(mem::take(&mut param.sig.vi.t), Contravariant, qnames, param)?;
             self.resolve_expr_t(&mut param.default_val)?;

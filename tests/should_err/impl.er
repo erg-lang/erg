@@ -1,0 +1,5 @@
+impl = import "../should_ok/impl"
+
+c = impl.C.new()
+print! c + 1
+

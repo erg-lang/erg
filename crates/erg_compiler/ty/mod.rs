@@ -1323,6 +1323,7 @@ impl Type {
     }
 
     pub fn quantify(self) -> Self {
+        debug_assert!(self.is_subr());
         Self::Quantified(Box::new(self))
     }
 
@@ -2130,71 +2131,229 @@ impl Type {
     }
 
     pub fn replace(self, target: &Type, to: &Type) -> Type {
-        if &self == target {
-            return to.clone();
+        let table = ReplaceTable::make(target, to);
+        table.replace(self)
+    }
+
+    fn _replace(mut self, target: &Type, to: &Type) -> Type {
+        if self.structural_eq(target) {
+            self = to.clone();
         }
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().clone().replace(target, to),
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().clone()._replace(target, to),
+            Self::FreeVar(fv) => {
+                if let Some((sub, sup)) = fv.get_subsup() {
+                    fv.forced_undoable_link(&sub);
+                    let sub = sub._replace(target, to);
+                    let sup = sup._replace(target, to);
+                    fv.undo();
+                    fv.update_constraint(Constraint::new_sandwiched(sub, sup), true);
+                } else if let Some(ty) = fv.get_type() {
+                    fv.update_constraint(Constraint::new_type_of(ty._replace(target, to)), true);
+                }
+                Self::FreeVar(fv)
+            }
             Self::Refinement(mut refine) => {
-                refine.t = Box::new(refine.t.replace(target, to));
+                refine.t = Box::new(refine.t._replace(target, to));
                 Self::Refinement(refine)
             }
             Self::Record(mut rec) => {
                 for v in rec.values_mut() {
-                    *v = std::mem::take(v).replace(target, to);
+                    *v = std::mem::take(v)._replace(target, to);
                 }
                 Self::Record(rec)
             }
             Self::Subr(mut subr) => {
                 for nd in subr.non_default_params.iter_mut() {
-                    *nd.typ_mut() = std::mem::take(nd.typ_mut()).replace(target, to);
+                    *nd.typ_mut() = std::mem::take(nd.typ_mut())._replace(target, to);
                 }
                 if let Some(var) = subr.var_params.as_mut() {
                     *var.as_mut().typ_mut() =
-                        std::mem::take(var.as_mut().typ_mut()).replace(target, to);
+                        std::mem::take(var.as_mut().typ_mut())._replace(target, to);
                 }
                 for d in subr.default_params.iter_mut() {
-                    *d.typ_mut() = std::mem::take(d.typ_mut()).replace(target, to);
+                    *d.typ_mut() = std::mem::take(d.typ_mut())._replace(target, to);
                 }
-                subr.return_t = Box::new(subr.return_t.replace(target, to));
+                subr.return_t = Box::new(subr.return_t._replace(target, to));
                 Self::Subr(subr)
             }
             Self::Callable { param_ts, return_t } => {
                 let param_ts = param_ts
                     .into_iter()
-                    .map(|t| t.replace(target, to))
+                    .map(|t| t._replace(target, to))
                     .collect();
-                let return_t = Box::new(return_t.replace(target, to));
+                let return_t = Box::new(return_t._replace(target, to));
                 Self::Callable { param_ts, return_t }
             }
-            Self::Quantified(quant) => quant.replace(target, to).quantify(),
+            Self::Quantified(quant) => quant._replace(target, to).quantify(),
             Self::Poly { name, params } => {
                 let params = params
                     .into_iter()
-                    .map(|tp| match tp {
-                        TyParam::Type(t) => TyParam::t(t.replace(target, to)),
-                        other => other,
-                    })
+                    .map(|tp| tp.replace(target, to))
                     .collect();
                 Self::Poly { name, params }
             }
-            Self::Ref(t) => Self::Ref(Box::new(t.replace(target, to))),
+            Self::Ref(t) => Self::Ref(Box::new(t._replace(target, to))),
             Self::RefMut { before, after } => Self::RefMut {
-                before: Box::new(before.replace(target, to)),
-                after: after.map(|t| Box::new(t.replace(target, to))),
+                before: Box::new(before._replace(target, to)),
+                after: after.map(|t| Box::new(t._replace(target, to))),
             },
             Self::And(l, r) => {
-                let l = l.replace(target, to);
-                let r = r.replace(target, to);
+                let l = l._replace(target, to);
+                let r = r._replace(target, to);
                 Self::And(Box::new(l), Box::new(r))
             }
             Self::Or(l, r) => {
-                let l = l.replace(target, to);
-                let r = r.replace(target, to);
+                let l = l._replace(target, to);
+                let r = r._replace(target, to);
                 Self::Or(Box::new(l), Box::new(r))
             }
-            Self::Not(ty) => Self::Not(Box::new(ty.replace(target, to))),
+            Self::Not(ty) => Self::Not(Box::new(ty._replace(target, to))),
+            Self::Proj { lhs, rhs } => lhs._replace(target, to).proj(rhs),
+            Self::ProjCall {
+                lhs,
+                attr_name,
+                args,
+            } => {
+                let args = args.into_iter().map(|tp| tp.replace(target, to)).collect();
+                lhs.replace(target, to).proj_call(attr_name, args)
+            }
             other => other,
+        }
+    }
+
+    /// TyParam::Value(ValueObj::Type(_)) => TyParam::Type
+    pub fn normalize(self) -> Self {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().clone().normalize(),
+            Self::Poly { name, params } => {
+                let params = params.into_iter().map(|tp| tp.normalize()).collect();
+                Self::Poly { name, params }
+            }
+            Self::Subr(mut subr) => {
+                for nd in subr.non_default_params.iter_mut() {
+                    *nd.typ_mut() = std::mem::take(nd.typ_mut()).normalize();
+                }
+                if let Some(var) = subr.var_params.as_mut() {
+                    *var.as_mut().typ_mut() = std::mem::take(var.as_mut().typ_mut()).normalize();
+                }
+                for d in subr.default_params.iter_mut() {
+                    *d.typ_mut() = std::mem::take(d.typ_mut()).normalize();
+                }
+                subr.return_t = Box::new(subr.return_t.normalize());
+                Self::Subr(subr)
+            }
+            Self::Proj { lhs, rhs } => lhs.normalize().proj(rhs),
+            other => other,
+        }
+    }
+}
+
+pub struct ReplaceTable<'t> {
+    rules: Vec<(&'t Type, &'t Type)>,
+}
+
+impl<'t> ReplaceTable<'t> {
+    pub fn make(target: &'t Type, to: &'t Type) -> Self {
+        let mut self_ = ReplaceTable { rules: vec![] };
+        self_.iterate(target, to);
+        self_
+    }
+
+    pub fn replace(&self, mut ty: Type) -> Type {
+        for (target, to) in self.rules.iter() {
+            log!(err "{target} /=> {to}");
+            ty = ty._replace(target, to);
+        }
+        ty
+    }
+
+    fn iterate(&mut self, target: &'t Type, to: &'t Type) {
+        match (target, to) {
+            (
+                Type::Poly { name, params },
+                Type::Poly {
+                    name: name2,
+                    params: params2,
+                },
+            ) if name == name2 => {
+                for (t1, t2) in params.iter().zip(params2.iter()) {
+                    self.iterate_tp(t1, t2);
+                }
+            }
+            (Type::Subr(lsub), Type::Subr(rsub)) => {
+                for (lnd, rnd) in lsub
+                    .non_default_params
+                    .iter()
+                    .zip(rsub.non_default_params.iter())
+                {
+                    self.iterate(lnd.typ(), rnd.typ());
+                }
+                for (lv, rv) in lsub.var_params.iter().zip(rsub.var_params.iter()) {
+                    self.iterate(lv.typ(), rv.typ());
+                }
+                for (ld, rd) in lsub.default_params.iter().zip(rsub.default_params.iter()) {
+                    self.iterate(ld.typ(), rd.typ());
+                }
+                self.iterate(lsub.return_t.as_ref(), rsub.return_t.as_ref());
+            }
+            (Type::Quantified(quant), Type::Quantified(quant2)) => {
+                self.iterate(quant, quant2);
+            }
+            (
+                Type::Proj { lhs, rhs },
+                Type::Proj {
+                    lhs: lhs2,
+                    rhs: rhs2,
+                },
+            ) if rhs == rhs2 => {
+                self.iterate(lhs, lhs2);
+            }
+            (Type::And(l, r), Type::And(l2, r2)) => {
+                self.iterate(l, l2);
+                self.iterate(r, r2);
+            }
+            (Type::Or(l, r), Type::Or(l2, r2)) => {
+                self.iterate(l, l2);
+                self.iterate(r, r2);
+            }
+            (Type::Not(t), Type::Not(t2)) => {
+                self.iterate(t, t2);
+            }
+            (Type::Ref(t), Type::Ref(t2)) => {
+                self.iterate(t, t2);
+            }
+            (
+                Type::RefMut { before, after },
+                Type::RefMut {
+                    before: before2,
+                    after: after2,
+                },
+            ) => {
+                self.iterate(before, before2);
+                if let (Some(after), Some(after2)) = (after.as_ref(), after2.as_ref()) {
+                    self.iterate(after, after2);
+                }
+            }
+            _ => {}
+        }
+        self.rules.push((target, to));
+    }
+
+    fn iterate_tp(&mut self, target: &'t TyParam, to: &'t TyParam) {
+        match (target, to) {
+            (TyParam::FreeVar(fv), to) if fv.is_linked() => self.iterate_tp(fv.unsafe_crack(), to),
+            (TyParam::Value(ValueObj::Type(target)), TyParam::Value(ValueObj::Type(to))) => {
+                self.iterate(target.typ(), to.typ());
+            }
+            (TyParam::Type(t1), TyParam::Type(t2)) => self.iterate(t1, t2),
+            (TyParam::Value(ValueObj::Type(t1)), TyParam::Type(t2)) => {
+                self.iterate(t1.typ(), t2);
+            }
+            (TyParam::Type(t1), TyParam::Value(ValueObj::Type(t2))) => {
+                self.iterate(t1, t2.typ());
+            }
+            _ => {}
         }
     }
 }

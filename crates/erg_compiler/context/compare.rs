@@ -19,7 +19,7 @@ use TyParamOrdering::*;
 use Type::*;
 
 use crate::context::cache::{SubtypePair, GLOBAL_TYPE_CACHE};
-use crate::context::{Context, TyVarCache, Variance};
+use crate::context::{Context, Variance};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Credibility {
@@ -144,6 +144,7 @@ impl Context {
     /// e.g.
     /// Named :> Module
     /// => Module.super_types == [Named]
+    ///
     /// Seq(T) :> Range(T)
     /// => Range(T).super_types == [Eq, Mutate, Seq('T), Output('T)]
     pub(crate) fn subtype_of(&self, lhs: &Type, rhs: &Type, allow_cast: bool) -> bool {
@@ -218,7 +219,6 @@ impl Context {
                 (Absolutely, true)
             }
             (FreeVar(l), FreeVar(r)) => {
-                log!(err "{l}/{r}/{}", l.structural_eq(r));
                 if l.structural_eq(r) {
                     (Absolutely, true)
                 } else {
@@ -376,6 +376,9 @@ impl Context {
         match (lhs, rhs) {
             // Proc :> Func if params are compatible
             (Subr(ls), Subr(rs)) if ls.kind == rs.kind || ls.kind.is_proc() => {
+                if !allow_cast && ls.kind != rs.kind {
+                    return false;
+                }
                 let kw_check = || {
                     for lpt in ls.default_params.iter() {
                         if let Some(rpt) = rs
@@ -497,7 +500,7 @@ impl Context {
                 }
                 true
             }
-            (Type, Record(rec)) => {
+            (Type, Record(rec)) if allow_cast => {
                 for (_, t) in rec.iter() {
                     if !self.supertype_of(&Type, t, allow_cast) {
                         return false;
@@ -574,11 +577,11 @@ impl Context {
                 }
                 r_preds_clone.is_empty()
             }
-            (Nat, re @ Refinement(_)) => {
+            (Nat, re @ Refinement(_)) if allow_cast => {
                 let nat = Type::Refinement(Nat.into_refinement());
                 self.structural_supertype_of(&nat, re, allow_cast)
             }
-            (re @ Refinement(_), Nat) => {
+            (re @ Refinement(_), Nat) if allow_cast => {
                 let nat = Type::Refinement(Nat.into_refinement());
                 self.structural_supertype_of(re, &nat, allow_cast)
             }
@@ -588,7 +591,7 @@ impl Context {
             // => Eq(Int) :> Eq({1, 2}) :> {1, 2}
             // => true
             // Bool :> {1} == true
-            (l, Refinement(r)) => {
+            (l, Refinement(r)) if allow_cast => {
                 if self.supertype_of(l, &r.t, allow_cast) {
                     return true;
                 }
@@ -600,7 +603,7 @@ impl Context {
                 self.structural_supertype_of(&l, rhs, allow_cast)
             }
             // ({I: Int | True} :> Int) == true, ({N: Nat | ...} :> Int) == false, ({I: Int | I >= 0} :> Int) == false
-            (Refinement(l), r) => {
+            (Refinement(l), r) if allow_cast => {
                 if l.preds
                     .iter()
                     .any(|p| p.mentions(&l.var) && p.can_be_false())
@@ -609,28 +612,19 @@ impl Context {
                 }
                 self.supertype_of(&l.t, r, allow_cast)
             }
-            (Quantified(l), Quantified(r)) => self.structural_subtype_of(l, r, allow_cast),
-            (Quantified(quant), r) => {
-                if quant.has_uninited_qvars() {
-                    let mut tmp_tv_cache = TyVarCache::new(self.level, self);
-                    let inst = self
-                        .instantiate_t_inner(*quant.clone(), &mut tmp_tv_cache, &())
-                        .unwrap();
-                    self.supertype_of(&inst, r, allow_cast)
-                } else {
-                    self.supertype_of(quant, r, allow_cast)
-                }
+            (Quantified(_), Quantified(_)) => {
+                let l = self.instantiate_dummy(lhs.clone());
+                let r = self.instantiate_dummy(rhs.clone());
+                self.sub_unify(&r, &l, &(), None).is_ok()
             }
-            (l, Quantified(quant)) => {
-                if quant.has_uninited_qvars() {
-                    let mut tmp_tv_cache = TyVarCache::new(self.level, self);
-                    let inst = self
-                        .instantiate_t_inner(*quant.clone(), &mut tmp_tv_cache, &())
-                        .unwrap();
-                    self.supertype_of(l, &inst, allow_cast)
-                } else {
-                    self.supertype_of(l, quant, allow_cast)
-                }
+            // (|T: Type| T -> T) !<: Obj -> Never
+            (Quantified(_), r) if allow_cast => {
+                let inst = self.instantiate_dummy(lhs.clone());
+                self.sub_unify(r, &inst, &(), None).is_ok()
+            }
+            (l, Quantified(_)) if allow_cast => {
+                let inst = self.instantiate_dummy(rhs.clone());
+                self.sub_unify(&inst, l, &(), None).is_ok()
             }
             // Int or Str :> Str or Int == (Int :> Str && Str :> Int) || (Int :> Int && Str :> Str) == true
             (Or(l_1, l_2), Or(r_1, r_2)) => {
@@ -642,11 +636,11 @@ impl Context {
             (Not(l), Not(r)) => self.subtype_of(l, r, allow_cast),
             // (Int or Str) :> Nat == Int :> Nat || Str :> Nat == true
             // (Num or Show) :> Show == Num :> Show || Show :> Num == true
-            (Or(l_or, r_or), rhs) => {
+            (Or(l_or, r_or), rhs) if allow_cast => {
                 self.supertype_of(l_or, rhs, allow_cast) || self.supertype_of(r_or, rhs, allow_cast)
             }
             // Int :> (Nat or Str) == Int :> Nat && Int :> Str == false
-            (lhs, Or(l_or, r_or)) => {
+            (lhs, Or(l_or, r_or)) if allow_cast => {
                 self.supertype_of(lhs, l_or, allow_cast) && self.supertype_of(lhs, r_or, allow_cast)
             }
             (And(l_1, l_2), And(r_1, r_2)) => {
@@ -655,12 +649,12 @@ impl Context {
                         && self.supertype_of(l_2, r_1, allow_cast))
             }
             // (Num and Show) :> Show == false
-            (And(l_and, r_and), rhs) => {
+            (And(l_and, r_and), rhs) if allow_cast => {
                 self.supertype_of(l_and, rhs, allow_cast)
                     && self.supertype_of(r_and, rhs, allow_cast)
             }
             // Show :> (Num and Show) == true
-            (lhs, And(l_and, r_and)) => {
+            (lhs, And(l_and, r_and)) if allow_cast => {
                 self.supertype_of(lhs, l_and, allow_cast)
                     || self.supertype_of(lhs, r_and, allow_cast)
             }
@@ -668,8 +662,8 @@ impl Context {
             (Ref(l), Ref(r)) => self.supertype_of(l, r, allow_cast),
             // TはすべてのRef(T)のメソッドを持つので、Ref(T)のサブタイプ
             // REVIEW: RefMut is invariant, maybe
-            (Ref(l), r) => self.supertype_of(l, r, allow_cast),
-            (RefMut { before: l, .. }, r) => self.supertype_of(l, r, allow_cast),
+            (Ref(l), r) if allow_cast => self.supertype_of(l, r, allow_cast),
+            (RefMut { before: l, .. }, r) if allow_cast => self.supertype_of(l, r, allow_cast),
             // `Eq(Set(T, N)) :> Set(T, N)` will be false, such cases are judged by nominal_supertype_of
             (
                 Poly {

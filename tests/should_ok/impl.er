@@ -1,0 +1,20 @@
+.C = Class()
+.C|.C <: Eq|.
+    __eq__ self, other: .C =
+        _ = self
+        _ = other
+        True
+.C|.C <: Add(Nat)|.
+    Output = Nat
+    __add__ self, other: Nat =
+        _ = self
+        other
+.C|.C <: Add(Int)|.
+    Output = .C
+    __add__ self, other: Int =
+        _ = other
+        self
+
+c = .C.new()
+assert c + 1 == 1
+assert c + -1 == c
