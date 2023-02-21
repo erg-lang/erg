@@ -11,7 +11,7 @@ use crate::ty::constructors::*;
 use crate::ty::free::{CanbeFree, Constraint, Free, HasLevel};
 use crate::ty::typaram::TyParam;
 use crate::ty::value::ValueObj;
-use crate::ty::{HasType, Predicate, Type};
+use crate::ty::{HasType, Predicate, SubrType, Type};
 
 use crate::context::{Context, Variance};
 use crate::error::{TyCheckError, TyCheckErrors, TyCheckResult};
@@ -91,14 +91,11 @@ impl Context {
         }
     }
 
+    /// Quantification occurs only once in function types.
+    /// Therefore, this method is called only once at the top level, and `generalize_t_inner` is called inside.
     pub(crate) fn generalize_t(&self, free_type: Type) -> Type {
-        if cfg!(feature = "debug") && free_type.has_qvar() {
-            panic!("{free_type} has qvars")
-        }
         let maybe_unbound_t = self.generalize_t_inner(free_type, Covariant, false);
-        if maybe_unbound_t.has_qvar() {
-            // NOTE: `?T(<: TraitX) -> Int` should be `TraitX -> Int`
-            // However, the current Erg cannot handle existential types, so it quantifies anyway
+        if maybe_unbound_t.is_subr() && maybe_unbound_t.has_qvar() {
             maybe_unbound_t.quantify()
         } else {
             maybe_unbound_t
@@ -136,14 +133,15 @@ impl Context {
                 if let Some((l, r)) = fv.get_subsup() {
                     // |Int <: T <: Int| T -> T ==> Int -> Int
                     if l == r {
-                        fv.forced_link(&l);
+                        let t = self.generalize_t_inner(l, variance, uninit);
+                        fv.forced_link(&t);
                         FreeVar(fv)
                     } else if r != Obj && self.is_class(&r) && variance == Contravariant {
                         // |T <: Bool| T -> Int ==> Bool -> Int
-                        r
+                        self.generalize_t_inner(r, variance, uninit)
                     } else if l != Never && self.is_class(&l) && variance == Covariant {
                         // |T :> Int| X -> T ==> X -> Int
-                        l
+                        self.generalize_t_inner(l, variance, uninit)
                     } else {
                         fv.update_constraint(self.generalize_constraint(&fv, variance), true);
                         fv.generalize();
@@ -705,7 +703,7 @@ impl Context {
         variance: Variance,
         loc: &impl Locational,
     ) -> TyCheckResult<Type> {
-        let Type::Subr(mut subr) = subr else { unreachable!() };
+        let Ok(mut subr) = SubrType::try_from(subr) else { unreachable!() };
         let essential_qnames = subr.essential_qnames();
         for param in subr.non_default_params.iter_mut() {
             *param.typ_mut() = self.deref_tyvar(
@@ -1039,7 +1037,7 @@ impl Context {
                     &def.sig,
                 )?;
                 let qnames = if let Type::Quantified(quant) = def.sig.ref_t() {
-                    let Type::Subr(subr) = quant.as_ref() else { unreachable!() };
+                    let Ok(subr) = <&SubrType>::try_from(quant.as_ref()) else { unreachable!() };
                     subr.essential_qnames()
                 } else {
                     set! {}
@@ -1056,7 +1054,7 @@ impl Context {
                 lambda.t =
                     self.deref_tyvar(mem::take(&mut lambda.t), Covariant, &set! {}, lambda)?;
                 let qnames = if let Type::Quantified(quant) = lambda.ref_t() {
-                    let Type::Subr(subr) = quant.as_ref() else { unreachable!() };
+                    let Ok(subr) = <&SubrType>::try_from(quant.as_ref()) else { unreachable!() };
                     subr.essential_qnames()
                 } else {
                     set! {}

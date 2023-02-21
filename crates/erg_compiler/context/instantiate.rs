@@ -1424,8 +1424,8 @@ impl Context {
                 }
                 Ok(poly(name, params))
             }
-            Quantified(_) => {
-                log!(err "a quantified type should not be instantiated, instantiate the inner type");
+            Quantified(subr) => {
+                log!(err "a quantified type should not be instantiated: {subr}");
                 unreachable_error!(TyCheckErrors, TyCheckError, self)
             }
             FreeVar(fv) if fv.is_linked() => {

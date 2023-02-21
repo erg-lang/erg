@@ -240,6 +240,30 @@ impl fmt::Display for SubrType {
     }
 }
 
+impl TryFrom<Type> for SubrType {
+    type Error = ();
+    fn try_from(t: Type) -> Result<Self, ()> {
+        match t {
+            Type::FreeVar(fv) if fv.is_linked() => Self::try_from(fv.crack().clone()),
+            Type::Subr(st) => Ok(st),
+            Type::Refinement(refine) => Self::try_from(*refine.t),
+            _ => Err(()),
+        }
+    }
+}
+
+impl<'t> TryFrom<&'t Type> for &'t SubrType {
+    type Error = ();
+    fn try_from(t: &'t Type) -> Result<&'t SubrType, ()> {
+        match t {
+            Type::FreeVar(fv) if fv.is_linked() => Self::try_from(fv.unsafe_crack()),
+            Type::Subr(st) => Ok(st),
+            Type::Refinement(refine) => Self::try_from(refine.t.as_ref()),
+            _ => Err(()),
+        }
+    }
+}
+
 impl LimitedDisplay for SubrType {
     fn limited_fmt(&self, f: &mut fmt::Formatter<'_>, limit: usize) -> fmt::Result {
         if limit == 0 {

@@ -13,7 +13,7 @@ use crate::ty::constructors::*;
 use crate::ty::free::{Constraint, FreeKind, HasLevel};
 use crate::ty::typaram::TyParam;
 use crate::ty::value::ValueObj;
-use crate::ty::{Predicate, Type};
+use crate::ty::{Predicate, SubrType, Type};
 
 use crate::context::{Context, Variance};
 use crate::error::{SingleTyCheckResult, TyCheckError, TyCheckErrors, TyCheckResult};
@@ -742,7 +742,7 @@ impl Context {
                 Ok(())
             }
             (Type::Quantified(lsub), Type::Subr(rsub)) => {
-                let Type::Subr(lsub) = lsub.as_ref() else { unreachable!() };
+                let Ok(lsub) = <&SubrType>::try_from(lsub.as_ref()) else { unreachable!() };
                 for lpt in lsub.default_params.iter() {
                     if let Some(rpt) = rsub
                         .default_params
@@ -777,7 +777,7 @@ impl Context {
                 Ok(())
             }
             (Type::Subr(lsub), Type::Quantified(rsub)) => {
-                let Type::Subr(rsub) = rsub.as_ref() else { unreachable!() };
+                let Ok(rsub) = <&SubrType>::try_from(rsub.as_ref()) else { unreachable!() };
                 for lpt in lsub.default_params.iter() {
                     if let Some(rpt) = rsub
                         .default_params

@@ -677,6 +677,15 @@ impl<T> Free<T> {
     pub fn is_undoable_linked(&self) -> bool {
         matches!(&*self.borrow(), FreeKind::UndoableLinked { .. })
     }
+
+    pub fn unsafe_crack(&self) -> &T {
+        match unsafe { self.as_ptr().as_ref().unwrap() } {
+            FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => t,
+            FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => {
+                panic!("the value is unbounded")
+            }
+        }
+    }
 }
 
 impl<T: Clone> Free<T> {
