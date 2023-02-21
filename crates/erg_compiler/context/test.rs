@@ -17,7 +17,7 @@ impl Context {
             panic!("variable not found: {varname}");
         };
         println!("{varname}: {}", vi.t);
-        if self.subtype_of(&vi.t, ty) && self.subtype_of(ty, &vi.t) {
+        if self.same_type_of(&vi.t, ty, false) {
             Ok(())
         } else {
             println!("{varname} is not the type of {ty}");
@@ -34,7 +34,7 @@ impl Context {
             Type::Int,
             set! { Predicate::eq(var, TyParam::value(1)) },
         );
-        if self.supertype_of(&lhs, &rhs) {
+        if self.supertype_of(&lhs, &rhs, false) {
             Ok(())
         } else {
             Err(())
@@ -47,7 +47,7 @@ impl Context {
         let maybe_trait = poly(name, params);
         let mut min = Type::Obj;
         for pair in self.get_trait_impls(&maybe_trait) {
-            if self.supertype_of(&pair.sup_trait, &maybe_trait) {
+            if self.supertype_of(&pair.sup_trait, &maybe_trait, false) {
                 min = self.min(&min, &pair.sub_type).unwrap_or(&min).clone();
             }
         }

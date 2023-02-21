@@ -7,7 +7,7 @@ use erg_compiler::error::CompileErrors;
 use erg_compiler::lower::ASTLowerer;
 
 use erg_compiler::ty::constructors::{
-    func0, func1, func2, kw, mono, nd_func, or, poly, subtype_q, ty_tp, type_q,
+    func0, func1, func2, kw, mono, nd_func, nd_proc, or, poly, proc1, subtype_q, ty_tp, type_q,
 };
 use erg_compiler::ty::Type::*;
 
@@ -39,6 +39,16 @@ fn test_infer_types() -> Result<(), ()> {
     )
     .quantify();
     module.context.assert_var_type("if__", &if_t)?;
+    let for_t = nd_proc(
+        vec![
+            kw("i", poly("Iterable", vec![ty_tp(t.clone())])),
+            kw("proc!", proc1(t.clone(), NoneType)),
+        ],
+        None,
+        NoneType,
+    )
+    .quantify();
+    module.context.assert_var_type("for__!", &for_t)?;
     let a = subtype_q("A", poly("Add", vec![ty_tp(t.clone())]));
     let o = a.clone().proj("Output");
     let add_t = func2(a, t, o).quantify();

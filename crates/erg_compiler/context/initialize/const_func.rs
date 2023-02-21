@@ -235,6 +235,7 @@ pub fn __array_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<
 }
 
 pub fn __dict_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
+    let allow_cast = true;
     let slf = args.remove_left_or_key("Self").unwrap();
     let slf = enum_unwrap!(slf, ValueObj::Dict);
     let index = args.remove_left_or_key("Index").unwrap();
@@ -242,7 +243,7 @@ pub fn __dict_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<V
         for (k, v) in slf.iter() {
             match (&index, k) {
                 (ValueObj::Type(idx), ValueObj::Type(kt)) => {
-                    if ctx.subtype_of(idx.typ(), kt.typ()) {
+                    if ctx.subtype_of(idx.typ(), kt.typ(), allow_cast) {
                         return Some(v);
                     }
                 }

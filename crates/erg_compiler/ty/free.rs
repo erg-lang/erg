@@ -4,7 +4,7 @@ use std::hash::{Hash, Hasher};
 use std::mem;
 
 use erg_common::shared::Shared;
-use erg_common::traits::LimitedDisplay;
+use erg_common::traits::{LimitedDisplay, StructuralEq};
 use erg_common::Str;
 use erg_common::{addr_eq, log};
 
@@ -47,6 +47,7 @@ pub trait HasLevel {
 
 /// __NOTE__: you should use `Free::get_type/get_subsup` instead of deconstructing the constraint by `match`.
 /// Constraints may contain cycles, in which case using `match` to get the contents will cause memory pollutions.
+/// So this does not implement `structural_eq`.
 #[derive(Clone)]
 pub enum Constraint {
     // : Type --> (:> Never, <: Obj)
@@ -545,6 +546,21 @@ impl<T> Free<T> {
     }
     pub fn can_borrow_mut(&self) -> bool {
         self.0.can_borrow_mut()
+    }
+}
+
+impl<T: StructuralEq + CanbeFree + Clone + Default> StructuralEq for Free<T> {
+    fn structural_eq(&self, other: &Self) -> bool {
+        if let (Some((l, r)), Some((l2, r2))) = (self.get_subsup(), other.get_subsup()) {
+            self.forced_undoable_link(&T::default());
+            let res = l.structural_eq(&l2) && r.structural_eq(&r2);
+            self.undo();
+            res
+        } else if let (Some(l), Some(r)) = (self.get_type(), other.get_type()) {
+            l.structural_eq(&r)
+        } else {
+            self.constraint_is_uninited() && other.constraint_is_uninited()
+        }
     }
 }
 

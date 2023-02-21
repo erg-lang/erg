@@ -1005,7 +1005,8 @@ impl Context {
                 let l = self.eval_tp(l)?;
                 let r = self.instantiate_const_expr(rhs, None, tmp_tv_cache)?;
                 let r = self.eval_tp(r)?;
-                if let Some(Greater) = self.try_cmp(&l, &r) {
+                let allow_cast = true;
+                if let Some(Greater) = self.try_cmp(&l, &r, allow_cast) {
                     panic!("{l}..{r} is not a valid interval type (should be lhs <= rhs)")
                 }
                 Ok(int_interval(op, l, r))

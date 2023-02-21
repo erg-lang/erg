@@ -22,7 +22,7 @@ use erg_common::fresh::fresh_varname;
 #[allow(unused_imports)]
 use erg_common::log;
 use erg_common::set::Set;
-use erg_common::traits::LimitedDisplay;
+use erg_common::traits::{LimitedDisplay, StructuralEq};
 use erg_common::vis::Field;
 use erg_common::{enum_unwrap, fmt_option, fmt_set_split_with, set, Str};
 
@@ -293,6 +293,39 @@ impl LimitedDisplay for SubrType {
     }
 }
 
+impl StructuralEq for SubrType {
+    fn structural_eq(&self, other: &Self) -> bool {
+        let kw_check = || {
+            for lpt in self.default_params.iter() {
+                if let Some(rpt) = self
+                    .default_params
+                    .iter()
+                    .find(|rpt| rpt.name() == lpt.name())
+                {
+                    if !lpt.typ().structural_eq(rpt.typ()) {
+                        return false;
+                    }
+                } else {
+                    return false;
+                }
+            }
+            true
+        };
+        let non_defaults_judge = self
+            .non_default_params
+            .iter()
+            .zip(other.non_default_params.iter())
+            .all(|(l, r)| l.typ().structural_eq(r.typ()));
+        let var_params_judge = self
+            .var_params
+            .iter()
+            .zip(other.var_params.iter())
+            .all(|(l, r)| l.typ().structural_eq(r.typ()));
+        let return_t_judge = self.return_t.structural_eq(&other.return_t);
+        non_defaults_judge && var_params_judge && return_t_judge && kw_check()
+    }
+}
+
 impl SubrType {
     pub fn new(
         kind: SubrKind,
@@ -341,15 +374,21 @@ impl SubrType {
         qvars
     }
 
+    /// ```erg
+    /// essential_qnames(|T, U| (T, U) -> Int) == {}
+    /// essential_qnames(|T, U| (T, U) -> (T, U)) == {T, U}
+    /// essential_qnames(|T, A| (T) -> A(<: T)) == {T}
+    /// essential_qnames(|T, U| (T, T) -> U) == {T}
+    /// ```
     pub fn essential_qnames(&self) -> Set<Str> {
-        let param_ts_qnames = self
+        let qnames_sets = self
             .non_default_params
             .iter()
-            .flat_map(|pt| pt.typ().qnames())
-            .chain(self.var_params.iter().flat_map(|pt| pt.typ().qnames()))
-            .chain(self.default_params.iter().flat_map(|pt| pt.typ().qnames()));
-        let return_t_qnames = self.return_t.qnames();
-        return_t_qnames.intersec_from_iter(param_ts_qnames)
+            .map(|pt| pt.typ().qnames())
+            .chain(self.var_params.iter().map(|pt| pt.typ().qnames()))
+            .chain(self.default_params.iter().map(|pt| pt.typ().qnames()))
+            .chain([self.return_t.qnames()]);
+        Set::multi_intersection(qnames_sets)
     }
 
     pub fn has_qvar(&self) -> bool {
@@ -1155,6 +1194,105 @@ impl HasLevel for Type {
     }
 }
 
+impl StructuralEq for Type {
+    fn structural_eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::FreeVar(fv), other) | (other, Self::FreeVar(fv)) if fv.is_linked() => {
+                fv.crack().structural_eq(other)
+            }
+            (Self::FreeVar(fv), Self::FreeVar(fv2)) => fv.structural_eq(fv2),
+            (Self::Refinement(refine), Self::Refinement(refine2)) => {
+                refine.t.structural_eq(&refine2.t) && refine.preds == refine2.preds
+            }
+            (Self::Record(rec), Self::Record(rec2)) => {
+                for (k, v) in rec.iter() {
+                    if let Some(v2) = rec2.get(k) {
+                        if !v.structural_eq(v2) {
+                            return false;
+                        }
+                    } else {
+                        return false;
+                    }
+                }
+                true
+            }
+            (Self::Subr(subr), Self::Subr(subr2)) => subr.structural_eq(subr2),
+            (
+                Self::Callable { param_ts, return_t },
+                Self::Callable {
+                    param_ts: param_ts2,
+                    return_t: return_t2,
+                },
+            ) => {
+                param_ts
+                    .iter()
+                    .zip(param_ts2.iter())
+                    .all(|(t, t2)| t.structural_eq(t2))
+                    && return_t.structural_eq(return_t2)
+            }
+            (Self::Quantified(quant), Self::Quantified(quant2)) => quant.structural_eq(quant2),
+            (
+                Self::Poly { name, params },
+                Self::Poly {
+                    name: name2,
+                    params: params2,
+                },
+            ) => {
+                name == name2
+                    && params
+                        .iter()
+                        .zip(params2)
+                        .all(|(p, p2)| p.structural_eq(p2))
+            }
+            (Self::Ref(t), Self::Ref(t2)) => t.structural_eq(t2),
+            (
+                Self::RefMut { before, after },
+                Self::RefMut {
+                    before: before2,
+                    after: after2,
+                },
+            ) => {
+                before.structural_eq(before2)
+                    && after
+                        .as_ref()
+                        .zip(after2.as_ref())
+                        .map_or(true, |(a, b)| a.structural_eq(b))
+            }
+            (
+                Self::Proj { lhs, rhs },
+                Self::Proj {
+                    lhs: lhs2,
+                    rhs: rhs2,
+                },
+            ) => lhs.structural_eq(lhs2) && rhs == rhs2,
+            (
+                Self::ProjCall {
+                    lhs,
+                    attr_name,
+                    args,
+                },
+                Self::ProjCall {
+                    lhs: lhs2,
+                    attr_name: attr_name2,
+                    args: args2,
+                },
+            ) => {
+                lhs.structural_eq(lhs2)
+                    && attr_name == attr_name2
+                    && args
+                        .iter()
+                        .zip(args2.iter())
+                        .all(|(a, b)| a.structural_eq(b))
+            }
+            // TODO: commutative
+            (Self::And(l, r), Self::And(l2, r2)) => l.structural_eq(l2) && r.structural_eq(r2),
+            (Self::Or(l, r), Self::Or(l2, r2)) => l.structural_eq(l2) && r.structural_eq(r2),
+            (Self::Not(ty), Self::Not(ty2)) => ty.structural_eq(ty2),
+            _ => self == other,
+        }
+    }
+}
+
 impl Type {
     pub const OBJ: &'static Self = &Self::Obj;
     pub const NONE: &'static Self = &Self::NoneType;
@@ -1607,19 +1745,22 @@ impl Type {
 
     pub fn qvars(&self) -> Set<(Str, Constraint)> {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.forced_as_ref().linked().unwrap().qvars(),
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().qvars(),
             Self::FreeVar(fv) if !fv.constraint_is_uninited() => {
                 let base = set! {(fv.unbound_name().unwrap(), fv.constraint().unwrap())};
-                fv.forced_undoable_link(&Type::Failure);
-                let res = if let Some((sub, sup)) = fv.get_subsup() {
-                    base.concat(sub.qvars()).concat(sup.qvars())
+                if let Some((sub, sup)) = fv.get_subsup() {
+                    fv.forced_undoable_link(&Type::Failure);
+                    let res = base.concat(sub.qvars()).concat(sup.qvars());
+                    fv.undo();
+                    res
                 } else if let Some(ty) = fv.get_type() {
-                    base.concat(ty.qvars())
+                    fv.forced_undoable_link(&Type::Failure);
+                    let res = base.concat(ty.qvars());
+                    fv.undo();
+                    res
                 } else {
                     base
-                };
-                fv.undo();
-                res
+                }
             }
             Self::Ref(ty) => ty.qvars(),
             Self::RefMut { before, after } => before

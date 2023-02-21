@@ -456,11 +456,12 @@ impl Context {
         qnames: &Set<Str>,
         loc: &impl Locational,
     ) -> TyCheckResult<Type> {
+        let allow_cast = true;
         if self.is_trait(&super_t) {
             self.check_trait_impl(&sub_t, &super_t, &set! {}, loc)?;
         }
         // REVIEW: Even if type constraints can be satisfied, implementation may not exist
-        if self.subtype_of(&sub_t, &super_t) {
+        if self.subtype_of(&sub_t, &super_t, allow_cast) {
             let sub_t = if cfg!(feature = "debug") {
                 sub_t
             } else {
@@ -476,7 +477,7 @@ impl Context {
                 Variance::Contravariant => Ok(super_t),
                 Variance::Invariant => {
                     // need to check if sub_t == super_t
-                    if self.supertype_of(&sub_t, &super_t) {
+                    if self.supertype_of(&sub_t, &super_t, allow_cast) {
                         Ok(sub_t)
                     } else {
                         Err(TyCheckErrors::from(TyCheckError::subtyping_error(
@@ -754,8 +755,9 @@ impl Context {
     }
 
     pub(crate) fn trait_impl_exists(&self, class: &Type, trait_: &Type) -> bool {
+        let allow_cast = true;
         // `Never` implements any trait
-        if self.subtype_of(class, &Type::Never) {
+        if self.subtype_of(class, &Type::Never, allow_cast) {
             return true;
         }
         if class.is_monomorphic() {
@@ -766,10 +768,11 @@ impl Context {
     }
 
     fn mono_class_trait_impl_exist(&self, class: &Type, trait_: &Type) -> bool {
+        let allow_cast = true;
         let mut super_exists = false;
         for inst in self.get_trait_impls(trait_).into_iter() {
-            if self.supertype_of(&inst.sub_type, class)
-                && self.supertype_of(&inst.sup_trait, trait_)
+            if self.supertype_of(&inst.sub_type, class, allow_cast)
+                && self.supertype_of(&inst.sup_trait, trait_, allow_cast)
             {
                 super_exists = true;
                 break;
@@ -779,10 +782,11 @@ impl Context {
     }
 
     fn poly_class_trait_impl_exists(&self, class: &Type, trait_: &Type) -> bool {
+        let allow_cast = true;
         let mut super_exists = false;
         for inst in self.get_trait_impls(trait_).into_iter() {
-            if self.supertype_of(&inst.sub_type, class)
-                && self.supertype_of(&inst.sup_trait, trait_)
+            if self.supertype_of(&inst.sub_type, class, allow_cast)
+                && self.supertype_of(&inst.sup_trait, trait_, allow_cast)
             {
                 super_exists = true;
                 break;
@@ -1030,18 +1034,14 @@ impl Context {
                 Ok(())
             }
             hir::Expr::Def(def) => {
-                *def.sig.ref_mut_t() = self.deref_tyvar(
-                    mem::take(def.sig.ref_mut_t()),
-                    Covariant,
-                    &set! {},
-                    &def.sig,
-                )?;
                 let qnames = if let Type::Quantified(quant) = def.sig.ref_t() {
                     let Ok(subr) = <&SubrType>::try_from(quant.as_ref()) else { unreachable!() };
                     subr.essential_qnames()
                 } else {
                     set! {}
                 };
+                *def.sig.ref_mut_t() =
+                    self.deref_tyvar(mem::take(def.sig.ref_mut_t()), Covariant, &qnames, &def.sig)?;
                 if let Some(params) = def.sig.params_mut() {
                     self.resolve_params_t(params, &qnames)?;
                 }
@@ -1051,14 +1051,14 @@ impl Context {
                 Ok(())
             }
             hir::Expr::Lambda(lambda) => {
-                lambda.t =
-                    self.deref_tyvar(mem::take(&mut lambda.t), Covariant, &set! {}, lambda)?;
                 let qnames = if let Type::Quantified(quant) = lambda.ref_t() {
                     let Ok(subr) = <&SubrType>::try_from(quant.as_ref()) else { unreachable!() };
                     subr.essential_qnames()
                 } else {
                     set! {}
                 };
+                lambda.t =
+                    self.deref_tyvar(mem::take(&mut lambda.t), Covariant, &qnames, lambda)?;
                 self.resolve_params_t(&mut lambda.params, &qnames)?;
                 for chunk in lambda.body.iter_mut() {
                     self.resolve_expr_t(chunk)?;

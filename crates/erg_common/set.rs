@@ -125,6 +125,14 @@ impl<T: Hash + Eq> Set<T> {
         self.elems.get(value)
     }
 
+    pub fn get_by<Q>(&self, value: &Q, cmp: impl Fn(&Q, &Q) -> bool) -> Option<&T>
+    where
+        T: Borrow<Q>,
+        Q: ?Sized + Hash + Eq,
+    {
+        self.elems.iter().find(|&v| cmp(v.borrow(), value))
+    }
+
     #[inline]
     pub fn fast_eq(&self, other: &Set<T>) -> bool {
         self.elems == other.elems
@@ -192,6 +200,10 @@ impl<T: Hash + Eq + Clone> Set<T> {
         self.elems.union(&other.elems)
     }
 
+    pub fn union_from_iter<I: Iterator<Item = T>>(&self, iter: I) -> Set<T> {
+        self.union(&iter.collect())
+    }
+
     /// ```
     /// # use erg_common::set;
     /// assert_eq!(set!{1, 2, 3}.intersection(&set!{2, 3, 4}), set!{2, 3});
@@ -210,6 +222,27 @@ impl<T: Hash + Eq + Clone> Set<T> {
 
     pub fn intersec_from_iter<I: Iterator<Item = T>>(&self, iter: I) -> Set<T> {
         self.intersection(&iter.collect())
+    }
+
+    /// ```
+    /// # use erg_common::set;
+    /// # use erg_common::set::Set;
+    /// assert_eq!(Set::multi_intersection([set!{1, 3}, set!{1, 2}].into_iter()), set!{1});
+    /// assert_eq!(Set::multi_intersection([set!{1, 3}, set!{1, 2}, set!{2}].into_iter()), set!{1, 2});
+    /// assert_eq!(Set::multi_intersection([set!{1, 3}, set!{1, 2}, set!{2, 3}].into_iter()), set!{1, 2, 3});
+    /// ```
+    pub fn multi_intersection<I>(mut i: I) -> Set<T>
+    where
+        I: Iterator<Item = Set<T>> + Clone,
+    {
+        let mut res = set! {};
+        while let Some(s) = i.next() {
+            res = res.union_from_iter(
+                s.into_iter()
+                    .filter(|x| i.clone().any(|set| set.contains(x))),
+            );
+        }
+        res
     }
 
     pub fn difference(&self, other: &Set<T>) -> Set<T> {

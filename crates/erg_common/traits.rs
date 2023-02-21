@@ -1179,6 +1179,10 @@ pub trait AddrEq {
     }
 }
 
+pub trait StructuralEq {
+    fn structural_eq(&self, other: &Self) -> bool;
+}
+
 pub trait __Str__ {
     fn __str__(&self) -> String;
 }

@@ -6,7 +6,7 @@ use std::rc::Rc;
 use erg_common::dict::Dict;
 use erg_common::set;
 use erg_common::set::Set;
-use erg_common::traits::LimitedDisplay;
+use erg_common::traits::{LimitedDisplay, StructuralEq};
 use erg_common::Str;
 use erg_common::{dict, log};
 
@@ -578,6 +578,74 @@ impl HasLevel for TyParam {
                 obj.set_level(level);
             }
             _ => {}
+        }
+    }
+}
+
+impl StructuralEq for TyParam {
+    fn structural_eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Type(l), Self::Type(r)) => l.structural_eq(r),
+            (Self::Array(l), Self::Array(r)) => l.iter().zip(r).all(|(l, r)| l.structural_eq(r)),
+            (Self::Tuple(l), Self::Tuple(r)) => l.iter().zip(r).all(|(l, r)| l.structural_eq(r)),
+            (Self::Dict(l), Self::Dict(r)) => {
+                for (key, val) in l.iter() {
+                    if let Some(r_val) = r.get_by(key, |l, r| l.structural_eq(r)) {
+                        if !val.structural_eq(r_val) {
+                            return false;
+                        }
+                    } else {
+                        return false;
+                    }
+                }
+                true
+            }
+            (Self::Set(l), Self::Set(r)) => {
+                for l_val in l.iter() {
+                    if r.get_by(l_val, |l, r| l.structural_eq(r)).is_none() {
+                        return false;
+                    }
+                }
+                true
+            }
+            (
+                Self::Proj { obj, attr },
+                Self::Proj {
+                    obj: r_obj,
+                    attr: r_attr,
+                },
+            ) => obj.structural_eq(r_obj) && attr == r_attr,
+            (
+                Self::App {
+                    name: ln,
+                    args: lps,
+                },
+                Self::App {
+                    name: rn,
+                    args: rps,
+                },
+            ) => ln == rn && lps.iter().zip(rps).all(|(l, r)| l.structural_eq(r)),
+            (
+                Self::UnaryOp { op, val },
+                Self::UnaryOp {
+                    op: r_op,
+                    val: r_val,
+                },
+            ) => op == r_op && val.structural_eq(r_val),
+            (
+                Self::BinOp { op, lhs, rhs },
+                Self::BinOp {
+                    op: r_op,
+                    lhs: r_lhs,
+                    rhs: r_rhs,
+                },
+            ) => op == r_op && lhs.structural_eq(r_lhs) && rhs.structural_eq(r_rhs),
+            (Self::Erased(l), Self::Erased(r)) => l.structural_eq(r),
+            (Self::FreeVar(fv), other) | (other, Self::FreeVar(fv)) if fv.is_linked() => {
+                fv.crack().structural_eq(other)
+            }
+            (Self::FreeVar(l), Self::FreeVar(r)) => l.structural_eq(r),
+            _ => self == other,
         }
     }
 }

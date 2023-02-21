@@ -138,6 +138,7 @@ impl Context {
         loc: &impl Locational,
         allow_divergence: bool,
     ) -> TyCheckResult<()> {
+        let allow_cast = true;
         if maybe_sub.has_no_unbound_var()
             && maybe_sup.has_no_unbound_var()
             && maybe_sub == maybe_sup
@@ -169,12 +170,15 @@ impl Context {
                 } // &fv is dropped
                 let fv_t = lfv.constraint().unwrap().get_type().unwrap().clone(); // lfvを参照しないよいにcloneする(あとでborrow_mutするため)
                 let tp_t = self.get_tp_t(tp)?;
-                if self.supertype_of(&fv_t, &tp_t) {
+                if self.supertype_of(&fv_t, &tp_t, allow_cast) {
                     // 外部未連携型変数の場合、linkしないで制約を弱めるだけにする(see compiler/inference.md)
                     if lfv.level() < Some(self.level) {
                         let new_constraint = Constraint::new_subtype_of(tp_t);
-                        if self.is_sub_constraint_of(&lfv.constraint().unwrap(), &new_constraint)
-                            || lfv.constraint().unwrap().get_type() == Some(&Type)
+                        if self.is_sub_constraint_of(
+                            &lfv.constraint().unwrap(),
+                            &new_constraint,
+                            allow_cast,
+                        ) || lfv.constraint().unwrap().get_type() == Some(&Type)
                         {
                             lfv.update_constraint(new_constraint, false);
                         }
@@ -183,9 +187,9 @@ impl Context {
                     }
                     Ok(())
                 } else if allow_divergence
-                    && (self.eq_tp(tp, &TyParam::value(Inf))
-                        || self.eq_tp(tp, &TyParam::value(NegInf)))
-                    && self.subtype_of(&fv_t, &mono("Num"))
+                    && (self.eq_tp(tp, &TyParam::value(Inf), allow_cast)
+                        || self.eq_tp(tp, &TyParam::value(NegInf), allow_cast))
+                    && self.subtype_of(&fv_t, &mono("Num"), allow_cast)
                 {
                     lfv.link(tp);
                     Ok(())
@@ -206,12 +210,15 @@ impl Context {
                 } // &fv is dropped
                 let fv_t = rfv.constraint().unwrap().get_type().unwrap().clone(); // fvを参照しないよいにcloneする(あとでborrow_mutするため)
                 let tp_t = self.get_tp_t(tp)?;
-                if self.supertype_of(&fv_t, &tp_t) {
+                if self.supertype_of(&fv_t, &tp_t, allow_cast) {
                     // 外部未連携型変数の場合、linkしないで制約を弱めるだけにする(see compiler/inference.md)
                     if rfv.level() < Some(self.level) {
                         let new_constraint = Constraint::new_subtype_of(tp_t);
-                        if self.is_sub_constraint_of(&rfv.constraint().unwrap(), &new_constraint)
-                            || rfv.constraint().unwrap().get_type() == Some(&Type)
+                        if self.is_sub_constraint_of(
+                            &rfv.constraint().unwrap(),
+                            &new_constraint,
+                            allow_cast,
+                        ) || rfv.constraint().unwrap().get_type() == Some(&Type)
                         {
                             rfv.update_constraint(new_constraint, false);
                         }
@@ -220,9 +227,9 @@ impl Context {
                     }
                     Ok(())
                 } else if allow_divergence
-                    && (self.eq_tp(tp, &TyParam::value(Inf))
-                        || self.eq_tp(tp, &TyParam::value(NegInf)))
-                    && self.subtype_of(&fv_t, &mono("Num"))
+                    && (self.eq_tp(tp, &TyParam::value(Inf), allow_cast)
+                        || self.eq_tp(tp, &TyParam::value(NegInf), allow_cast))
+                    && self.subtype_of(&fv_t, &mono("Num"), allow_cast)
                 {
                     rfv.link(tp);
                     Ok(())
@@ -252,7 +259,7 @@ impl Context {
             }
             (l, TyParam::Erased(t)) => {
                 let sub_t = self.get_tp_t(l)?;
-                if self.subtype_of(&sub_t, t) {
+                if self.subtype_of(&sub_t, t, allow_cast) {
                     Ok(())
                 } else {
                     Err(TyCheckErrors::from(TyCheckError::subtyping_error(
@@ -310,6 +317,7 @@ impl Context {
         after: &TyParam,
         loc: &impl Locational,
     ) -> SingleTyCheckResult<()> {
+        let allow_cast = true;
         match (before, after) {
             (TyParam::Value(ValueObj::Mut(l)), TyParam::Value(ValueObj::Mut(r))) => {
                 *l.borrow_mut() = r.borrow().clone();
@@ -336,7 +344,7 @@ impl Context {
                 self.reunify_tp(lhs, lhs2, loc)?;
                 self.reunify_tp(rhs, rhs2, loc)
             }
-            (l, r) if self.eq_tp(l, r) => Ok(()),
+            (l, r) if self.eq_tp(l, r, allow_cast) => Ok(()),
             (l, r) => panic!("type-parameter re-unification failed:\nl: {l}\nr: {r}"),
         }
     }
@@ -439,6 +447,7 @@ impl Context {
         after_t: &Type,
         loc: &impl Locational,
     ) -> SingleTyCheckResult<()> {
+        let allow_cast = true;
         match (before_t, after_t) {
             (Type::FreeVar(fv), r) if fv.is_linked() => self.reunify(&fv.crack(), r, loc),
             (l, Type::FreeVar(fv)) if fv.is_linked() => self.reunify(l, &fv.crack(), loc),
@@ -494,7 +503,7 @@ impl Context {
                 }
                 Ok(())
             }
-            (l, r) if self.same_type_of(l, r) => Ok(()),
+            (l, r) if self.same_type_of(l, r, allow_cast) => Ok(()),
             (l, r) => Err(TyCheckError::re_unification_error(
                 self.cfg.input.clone(),
                 line!() as usize,
@@ -526,6 +535,7 @@ impl Context {
         param_name: Option<&Str>,
     ) -> TyCheckResult<()> {
         log!(info "trying sub_unify:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_sup}");
+        let allow_cast = true;
         // In this case, there is no new information to be gained
         // この場合、特に新しく得られる情報はない
         if maybe_sub == &Type::Never || maybe_sup == &Type::Obj || maybe_sup == maybe_sub {
@@ -536,7 +546,7 @@ impl Context {
             return Ok(());
         }
         self.occur(maybe_sub, maybe_sup, loc)?;
-        let maybe_sub_is_sub = self.subtype_of(maybe_sub, maybe_sup);
+        let maybe_sub_is_sub = self.subtype_of(maybe_sub, maybe_sup, allow_cast);
         if !maybe_sub_is_sub {
             log!(err "{maybe_sub} !<: {maybe_sup}");
             return Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
@@ -647,7 +657,7 @@ impl Context {
                         }
                         // sub_unify(Nat, ?T(: Type)): (/* ?T(:> Nat) */)
                         Constraint::TypeOf(ty) => {
-                            if self.supertype_of(&Type, ty) {
+                            if self.supertype_of(&Type, ty, allow_cast) {
                                 *constraint = Constraint::new_supertype_of(maybe_sub.clone());
                             } else {
                                 todo!()
@@ -687,7 +697,7 @@ impl Context {
                         }
                         // sub_unify(?T(: Type), Int): (?T(<: Int))
                         Constraint::TypeOf(ty) => {
-                            if self.supertype_of(&Type, ty) {
+                            if self.supertype_of(&Type, ty, allow_cast) {
                                 *constraint = Constraint::new_subtype_of(maybe_sup.clone());
                             } else {
                                 todo!()
@@ -867,7 +877,7 @@ impl Context {
             // TODO: Judgment for any number of preds
             (Refinement(sub), Refinement(sup)) => {
                 // {I: Int or Str | I == 0} <: {I: Int}
-                if self.subtype_of(&sub.t, &sup.t) {
+                if self.subtype_of(&sub.t, &sup.t, allow_cast) {
                     self.sub_unify(&sub.t, &sup.t, loc, param_name)?;
                 }
                 if sup.preds.is_empty() {
@@ -915,6 +925,7 @@ impl Context {
         sup_params: &[TyParam],
         loc: &impl Locational,
     ) -> TyCheckResult<()> {
+        let allow_cast = true;
         if let Some((sub_def_t, sub_ctx)) = self.get_nominal_type_ctx(maybe_sub) {
             let mut tv_cache = TyVarCache::new(self.level, self);
             let _sub_def_instance =
@@ -931,7 +942,7 @@ impl Context {
             for sup_trait in sub_ctx.super_traits.iter() {
                 let sub_trait_instance =
                     self.instantiate_t_inner(sup_trait.clone(), &mut tv_cache, loc)?;
-                if self.supertype_of(maybe_sup, sup_trait) {
+                if self.supertype_of(maybe_sup, sup_trait, allow_cast) {
                     for (l_maybe_sub, r_maybe_sup) in
                         sub_trait_instance.typarams().iter().zip(sup_params.iter())
                     {

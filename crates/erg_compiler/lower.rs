@@ -246,6 +246,7 @@ impl ASTLowerer {
 
     fn lower_normal_array(&mut self, array: ast::NormalArray) -> LowerResult<hir::NormalArray> {
         log!(info "entered {}({array})", fn_name!());
+        let allow_cast = true;
         let mut new_array = vec![];
         let (elems, _) = array.elems.into_iters();
         let mut union = Type::Never;
@@ -258,11 +259,11 @@ impl ASTLowerer {
                     (false, false) => {
                         if let hir::Expr::TypeAsc(type_asc) = &elem {
                             // e.g. [1, "a": Str or NoneType]
-                            if !self
-                                .module
-                                .context
-                                .supertype_of(&type_asc.spec.spec_t, &union)
-                            {
+                            if !self.module.context.supertype_of(
+                                &type_asc.spec.spec_t,
+                                &union,
+                                allow_cast,
+                            ) {
                                 return Err(self.elem_err(&l, &r, &elem));
                             } // else(OK): e.g. [1, "a": Str or Int]
                         } else {
@@ -483,6 +484,7 @@ impl ASTLowerer {
     }
 
     fn gen_set_with_length_type(&mut self, elem: &hir::Expr, len: &ast::Expr) -> Type {
+        let allow_cast = true;
         let maybe_len = self.module.context.eval_const_expr(len);
         match maybe_len {
             Ok(v @ ValueObj::Nat(_)) => {
@@ -491,7 +493,11 @@ impl ASTLowerer {
                         "SetWithMutType!",
                         vec![TyParam::t(elem.t()), TyParam::Value(v)],
                     )
-                } else if self.module.context.subtype_of(&elem.t(), &Type::Type) {
+                } else if self
+                    .module
+                    .context
+                    .subtype_of(&elem.t(), &Type::Type, allow_cast)
+                {
                     poly("SetType", vec![TyParam::t(elem.t()), TyParam::Value(v)])
                 } else {
                     set_t(elem.t(), TyParam::Value(v))
@@ -1029,8 +1035,13 @@ impl ASTLowerer {
             }
             errs
         })?;
+        let allow_cast = true;
         // suppress warns of lambda types, e.g. `(x: Int, y: Int) -> Int`
-        if self.module.context.subtype_of(body.ref_t(), &Type::Type) {
+        if self
+            .module
+            .context
+            .subtype_of(body.ref_t(), &Type::Type, allow_cast)
+        {
             for param in params.non_defaults.iter() {
                 self.inc_ref(&param.vi, param);
             }
@@ -1733,6 +1744,7 @@ impl ASTLowerer {
         impl_trait: Option<(Type, &TypeSpecWithOp)>,
         class: &Type,
     ) -> SingleLowerResult<()> {
+        let allow_cast = true;
         if let Some((impl_trait, t_spec)) = impl_trait {
             let mut unverified_names = self.module.context.locals.keys().collect::<Set<_>>();
             if let Some(trait_obj) = self
@@ -1755,11 +1767,11 @@ impl ASTLowerer {
                                             decl_t.clone().replace(&impl_trait, class);
                                         unverified_names.remove(name);
                                         // def_t must be subtype of decl_t
-                                        if !self
-                                            .module
-                                            .context
-                                            .supertype_of(&replaced_decl_t, def_t)
-                                        {
+                                        if !self.module.context.supertype_of(
+                                            &replaced_decl_t,
+                                            def_t,
+                                            allow_cast,
+                                        ) {
                                             self.errs.push(LowerError::trait_member_type_error(
                                                 self.cfg.input.clone(),
                                                 line!() as usize,
@@ -1804,7 +1816,11 @@ impl ASTLowerer {
                                     let replaced_decl_t =
                                         decl_vi.t.clone().replace(&impl_trait, class);
                                     unverified_names.remove(name);
-                                    if !self.module.context.supertype_of(&replaced_decl_t, def_t) {
+                                    if !self.module.context.supertype_of(
+                                        &replaced_decl_t,
+                                        def_t,
+                                        allow_cast,
+                                    ) {
                                         self.errs.push(LowerError::trait_member_type_error(
                                             self.cfg.input.clone(),
                                             line!() as usize,

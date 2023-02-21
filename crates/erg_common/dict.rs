@@ -156,6 +156,15 @@ impl<K: Hash + Eq, V> Dict<K, V> {
         self.dict.get(k)
     }
 
+    pub fn get_by(&self, k: &K, cmp: impl Fn(&K, &K) -> bool) -> Option<&V> {
+        for (k_, v) in self.dict.iter() {
+            if cmp(k, k_) {
+                return Some(v);
+            }
+        }
+        None
+    }
+
     #[inline]
     pub fn get_mut<Q: ?Sized>(&mut self, k: &Q) -> Option<&mut V>
     where

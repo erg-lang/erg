@@ -476,7 +476,8 @@ impl Context {
                 return Err(e);
             }
         }
-        for patch in self.find_patches_of(obj.ref_t()) {
+        let allow_cast = true;
+        for patch in self.find_patches_of(obj.ref_t(), allow_cast) {
             if let Some(vi) = patch
                 .locals
                 .get(ident.inspect())
@@ -835,7 +836,8 @@ impl Context {
             }
             _ => {}
         }
-        for patch in self.find_patches_of(obj.ref_t()) {
+        let allow_cast = true;
+        for patch in self.find_patches_of(obj.ref_t(), allow_cast) {
             if let Some(vi) = patch
                 .locals
                 .get(attr_name.inspect())
@@ -1061,7 +1063,8 @@ impl Context {
             }
             Type::FreeVar(fv) => {
                 if let Some(sub) = fv.get_sub() {
-                    if !self.subtype_of(&sub, &mono("GenericCallable")) {
+                    let allow_cast = true;
+                    if !self.subtype_of(&sub, &mono("GenericCallable"), allow_cast) {
                         return Err(self.not_callable_error(obj, attr_name, instance, None));
                     }
                     if sub != Never {
@@ -1748,11 +1751,15 @@ impl Context {
     /// => [Never, Nat, Int, Str!, Str, Module, Obj]
     /// ```
     pub fn sort_types<'a>(&self, types: impl Iterator<Item = &'a Type>) -> Vec<&'a Type> {
+        let allow_cast = true;
         let mut buffers: Vec<Vec<&Type>> = vec![];
         for t in types {
             let mut found = false;
             for buf in buffers.iter_mut() {
-                if buf.iter().all(|buf_inner| self.related(buf_inner, t)) {
+                if buf
+                    .iter()
+                    .all(|buf_inner| self.related(buf_inner, t, allow_cast))
+                {
                     found = true;
                     buf.push(t);
                     break;
@@ -1773,7 +1780,7 @@ impl Context {
             if let Some(pos) = concatenated
                 .iter()
                 .take(len - idx - 1)
-                .rposition(|t| self.supertype_of(maybe_sup, t))
+                .rposition(|t| self.supertype_of(maybe_sup, t, allow_cast))
             {
                 let sup = concatenated.remove(idx);
                 concatenated.insert(pos, sup); // not `pos + 1` because the element was removed at idx
@@ -1864,6 +1871,7 @@ impl Context {
         &'a self,
         typ: &Type,
     ) -> Option<(&'a Type, &'a Context)> {
+        let allow_cast = true;
         match typ {
             Type::FreeVar(fv) if fv.is_linked() => {
                 if let Some(res) = self.get_nominal_type_ctx(&fv.crack()) {
@@ -1952,7 +1960,11 @@ impl Context {
                     }
                 }
             }
-            Type::Record(rec) if rec.values().all(|attr| self.supertype_of(&Type, attr)) => {
+            Type::Record(rec)
+                if rec
+                    .values()
+                    .all(|attr| self.supertype_of(&Type, attr, allow_cast)) =>
+            {
                 return self
                     .get_builtins()
                     .unwrap_or(self)
@@ -2389,13 +2401,14 @@ impl Context {
     }
 
     fn get_proj_candidates(&self, lhs: &Type, rhs: &Str) -> Set<Type> {
+        let allow_cast = true;
         #[allow(clippy::single_match)]
         match lhs {
             Type::FreeVar(fv) => {
                 if let Some(sup) = fv.get_super() {
                     let insts = self.get_trait_impls(&sup);
                     let candidates = insts.into_iter().filter_map(move |inst| {
-                        if self.supertype_of(&inst.sup_trait, &sup) {
+                        if self.supertype_of(&inst.sup_trait, &sup, allow_cast) {
                             self.eval_t_params(proj(inst.sub_type, rhs), self.level, &())
                                 .ok()
                         } else {
