@@ -10,13 +10,6 @@ i: Int = 1
 j = 1 # type specification can be omitted
 ```
 
-You can also specify a type for ordinary expressions.
-
-```python
-i = 1: Int
-f([1, "a"]: [Int or Str])
-```
-
 For simple variable assignments, most type specifications can be omitted.
 Type specifications are more useful when defining subroutines and types.
 
@@ -48,6 +41,8 @@ f x: _, y: Int = x + y # TypeError: + is not implemented between Object and Int
 ## Type ascription
 
 Erg can explicitly indicate the type of any expression as well as variables. This syntax is called type ascription.
+
+Variable type ascription = type specification.
 
 ```python
 x = 1: Nat

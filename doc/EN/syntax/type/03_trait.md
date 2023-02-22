@@ -88,13 +88,13 @@ This corresponds to Inheritance in a class, but unlike Inheritance, multiple bas
 
 ```python
 Add R = Trait {
-    .AddO = Type
-    . `_+_` = Self.(R) -> Self.AddO
+    .Output = Type
+    . `_+_` = (self: Self, R) -> Self.Output
 }
 
 Sub R = Trait {
-    .SubO = Type
-    . `_-_` = Self.(R) -> Self.SubO
+    .Output = Type
+    . `_-_` = (self: Self, R) -> Self.Output
 }
 
 BinAddSub = Subsume Add(Self) and Sub(Self)
@@ -102,7 +102,7 @@ BinAddSub = Subsume Add(Self) and Sub(Self)
 
 ## Structural Traits
 
-Traits can be structured.
+Traits can be structured. This way, there is no need to explicitly declare the implementation, this is a feature that is called duck typing in Python.
 
 ```python
 SAdd = Structural Trait {
@@ -114,17 +114,18 @@ add|A <: SAdd| x, y: A = x.`_+_` y
 C = Class {i = Int}
 C.
     new i = Self.__new__ {i;}
+    # this is an __implicit__ implementation of SAdd
     `_+_` self, other: Self = Self.new {i = self::i + other::i}
 
 assert add(C.new(1), C.new(2)) == C.new(3)
 ```
 
-Nominal traits cannot be used simply by implementing a request method, but must be explicitly declared to have been implemented.
+Regular trait, i.e. nominal traits cannot be used simply by implementing a request method, but must be explicitly declared to have been implemented.
 In the following example, `add` cannot be used with an argument of type `C` because there is no explicit declaration of implementation. It must be `C = Class {i = Int}, Impl := Add`.
 
 ```python
 Add = Trait {
-    .`_+_` = Self.(Self) -> Self
+    .`_+_` = (self: Self, Self) -> Self
 }
 # |A <: Add| can be omitted
 add|A <: Add| x, y: A = x.`_+_` y
@@ -165,11 +166,11 @@ In this case, the type of the overriding method must be a subtype of the base me
 ```python
 # `Self.(R) -> O` is a subtype of ``Self.(R) -> O or Panic
 Div R, O: Type = Trait {
-    . `/` = Self.(R) -> O or Panic
+    . `/` = (self: Self, R) -> O or Panic
 }
 SafeDiv R, O = Subsume Div, {
     @Override
-    . `/` = Self.(R) -> O
+    . `/` = (self: Self, R) -> O
 }
 ```
 
@@ -180,15 +181,15 @@ The actual definitions of `Add`, `Sub`, and `Mul` look like this.
 ```python
 Add R = Trait {
     .Output = Type
-    . `_+_` = Self.(R) -> .Output
+    . `_+_` = (self: Self, R) -> .Output
 }
 Sub R = Trait {
     .Output = Type
-    . `_-_` = Self.(R) -> .Output
+    . `_-_` = (self: Self, R) -> .Output
 }
 Mul R = Trait {
     .Output = Type
-    . `*` = Self.(R) -> .Output
+    . `*` = (self: Self, R) -> .Output
 }
 ```
 
