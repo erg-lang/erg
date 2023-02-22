@@ -1,6 +1,6 @@
 # トレイト
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/03_trait.md%26commit_hash%3Dfcb7cf72ab5293812d4c7c76a136cbfba9fe2bd5)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/03_trait.md&commit_hash=fcb7cf72ab5293812d4c7c76a136cbfba9fe2bd5)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/03_trait.md%26commit_hash%3Dbaf9e9597fbe528ed07a354a2b145e42ceef9e42)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/03_trait.md&commit_hash=baf9e9597fbe528ed07a354a2b145e42ceef9e42)
 
 トレイトは、レコード型に型属性の要求を追加した記名型です。
 Pythonでいう抽象基底クラス(Abstract Base Class, ABC)に類似しますが、代数的演算を行えるという特徴があります。
@@ -29,7 +29,7 @@ Point3D|<: Norm|.
     norm self = self.x**2 + self.y**2 + self.z**2
 ```
 
-`Point2D`と`Point3D`は`Norm`を実装したので、`.norm`メソッドを持つ型として同一視出来ます。
+`Point2D`と`Point3D`は全く別の型ですが、`Norm`を実装したので、`.norm`メソッドを持つ型として同一視出来ます。
 
 ```python
 norm x: Norm = x.norm()
@@ -38,7 +38,7 @@ assert norm(Point2D.new({x = 1; y = 2})) == 5
 assert norm(Point3D.new({x = 1; y = 2; z = 3})) == 14
 ```
 
-要求属性を実装していないとエラーになります。
+トレイトの実装では、要求属性を実装していないとエラーになります。実装していても型が合わない場合はやはりエラーになります。
 
 ```python,compile_fail
 Point3D = Class {.x = Int; .y = Int; .z = Int}
@@ -47,7 +47,7 @@ Point3D|<: Norm|.
     foo self = 1
 ```
 
-トレイトのうま味の一つは、後述するPatchでメソッドを定義できるという点です。
+トレイトのうま味の一つは、後述するPatchでメソッドを自動定義できるという点です。
 
 ```python
 @Attach NotEqual
@@ -90,13 +90,13 @@ assert points.iter().map(x -> x.norm()).collect(Array) == [5, 25]
 
 ```python
 Add R = Trait {
-    .AddO = Type
-    .`_+_` = Self.(R) -> Self.AddO
+    .Output = Type
+    .`_+_` = (self: Self, R) -> Self.Output
 }
 ClosedAdd = Subsume Add(Self)
 Sub R = Trait {
-    .SubO = Type
-    .`_-_` = Self.(R) -> O
+    .Output = Type
+    .`_-_` = (self: Self, R) -> Self.Output
 }
 ClosedSub = Subsume Sub(Self)
 ClosedAddSub = Subsume ClosedAdd and ClosedSub
@@ -104,11 +104,11 @@ ClosedAddSub = Subsume ClosedAdd and ClosedSub
 
 ## 構造的トレイト
 
-トレイトは構造化できます。
+トレイトは構造化できます。こうすると、明示的に実装を宣言する必要がなくなります。Pythonにおけるダックタイピングを実現する機能と言えます。
 
 ```python
 SAdd = Structural Trait {
-    .`_+_` = Self.(Self) -> Self
+    .`_+_` = (self: Self, other: Self) -> Self
 }
 # |A <: SAdd|は省略できない
 add|A <: SAdd| x, y: A = x.`_+_` y
@@ -116,17 +116,18 @@ add|A <: SAdd| x, y: A = x.`_+_` y
 C = Class {i = Int}
 C.
     new i = Self.__new__ {i;}
+    # C|<: Add(C)|で明示的に実装したわけでないことに注意
     `_+_` self, other: Self = Self.new {i = self::i + other::i}
 
 assert add(C.new(1), C.new(2)) == C.new(3)
 ```
 
-記名的トレイトは単に要求メソッドを実装しただけでは使えず、実装したことを明示的に宣言する必要があります。
+通常のトレイト、すなわち記名的トレイトは単に要求メソッドを実装しただけでは使えず、実装したことを明示的に宣言する必要があります。
 以下の例では明示的な実装の宣言がないため、`add`が`C`型の引数で使えません。`C = Class {i = Int}, Impl := Add`としなくてはならないのです。
 
 ```python
 Add = Trait {
-    .`_+_` = Self.(Self) -> Self
+    .`_+_` = (self: Self, other: Self) -> Self
 }
 # |A <: Add|は省略できる
 add|A <: Add| x, y: A = x.`_+_` y

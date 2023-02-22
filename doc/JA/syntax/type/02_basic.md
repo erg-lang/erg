@@ -1,22 +1,17 @@
 # 型に関する基本的な文法
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/02_basic.md%26commit_hash%3Df4fb25b4004bdfa96d2149fac8c4e40b84e8a45f)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/02_basic.md&commit_hash=f4fb25b4004bdfa96d2149fac8c4e40b84e8a45f)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/02_basic.md%26commit_hash%3Dbaf9e9597fbe528ed07a354a2b145e42ceef9e42)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/02_basic.md&commit_hash=baf9e9597fbe528ed07a354a2b145e42ceef9e42)
 
 ## 型指定
 
-Ergでは以下のように`:`の後に変数の型を指定します。代入と同時に行うこともできます。
+Ergでは以下のように`:`の後に変数の型を指定します。これを型指定または型注釈と呼びます。
+
+型指定は代入と同時に行うこともできます。
 
 ```python
 i: Int # これから使う変数iはInt型であると宣言する
 i: Int = 1
 j = 1 # 型指定は省略できる
-```
-
-通常の式に対しても型指定することができます。
-
-```python
-i = 1: Int
-f([1, "a"]: [Int or Str])
 ```
 
 単純な変数代入の場合、ほとんどの型指定は省略可能です。
@@ -50,6 +45,7 @@ f x: _, y: Int = x + y # TypeError: + is not implemented between Object and Int
 ## 型表示
 
 Ergでは変数だけでなく任意の式に対して明示的に型を表示することができます。この構文を型表示(type ascription)と呼びます。
+変数の型表示=型指定です。
 
 ```python
 x = (1: Nat)
