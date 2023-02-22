@@ -845,6 +845,17 @@ impl Context {
                     Ok(())
                 }
             }
+            (sub, Type::Structural(sup)) => {
+                let sub_fields = self.fields(sub);
+                for (sup_field, sup_ty) in self.fields(sup) {
+                    if let Some((_, sub_ty)) = sub_fields.get_key_value(&sup_field) {
+                        self.sub_unify(sub_ty, &sup_ty, loc, param_name)?;
+                    } else {
+                        unreachable!()
+                    }
+                }
+                Ok(())
+            }
             (
                 _,
                 Type::Poly {

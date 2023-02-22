@@ -300,6 +300,7 @@ const INHERIT: &str = "Inherit";
 const INHERITABLE: &str = "Inheritable";
 const DEL: &str = "Del";
 const PATCH: &str = "Patch";
+const STRUCTURAL: &str = "Structural";
 
 const OP_IN: &str = "__in__";
 const OP_NOT_IN: &str = "__notin__";

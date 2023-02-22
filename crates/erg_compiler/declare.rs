@@ -268,23 +268,17 @@ impl ASTLowerer {
     }
 
     fn fake_lower_record(&self, rec: ast::Record) -> LowerResult<hir::Record> {
-        match rec {
-            ast::Record::Normal(rec) => {
-                let mut elems = Vec::new();
-                for elem in rec.attrs.into_iter() {
-                    let elem = self.fake_lower_def(elem)?;
-                    elems.push(elem);
-                }
-                let attrs = hir::RecordAttrs::new(elems);
-                Ok(hir::Record::new(rec.l_brace, rec.r_brace, attrs))
-            }
-            other => Err(LowerErrors::from(LowerError::declare_error(
-                self.cfg().input.clone(),
-                line!() as usize,
-                other.loc(),
-                self.module.context.caused_by(),
-            ))),
+        let rec = match rec {
+            ast::Record::Normal(rec) => rec,
+            ast::Record::Mixed(_mixed) => unreachable!(),
+        };
+        let mut elems = Vec::new();
+        for elem in rec.attrs.into_iter() {
+            let elem = self.fake_lower_def(elem)?;
+            elems.push(elem);
         }
+        let attrs = hir::RecordAttrs::new(elems);
+        Ok(hir::Record::new(rec.l_brace, rec.r_brace, attrs))
     }
 
     fn fake_lower_set(&self, set: ast::Set) -> LowerResult<hir::Set> {

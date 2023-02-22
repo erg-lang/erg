@@ -7,6 +7,7 @@ use erg_common::dict::Dict;
 use erg_common::set;
 use erg_common::set::Set;
 use erg_common::traits::{LimitedDisplay, StructuralEq};
+use erg_common::vis::Field;
 use erg_common::Str;
 use erg_common::{dict, log};
 
@@ -146,6 +147,7 @@ pub enum TyParam {
     Tuple(Vec<TyParam>),
     Set(Set<TyParam>),
     Dict(Dict<TyParam, TyParam>),
+    Record(Dict<Field, TyParam>),
     Mono(Str),
     Proj {
         obj: Box<TyParam>,
@@ -177,6 +179,7 @@ impl PartialEq for TyParam {
             (Self::Array(l), Self::Array(r)) => l == r,
             (Self::Tuple(l), Self::Tuple(r)) => l == r,
             (Self::Dict(l), Self::Dict(r)) => l == r,
+            (Self::Record(l), Self::Record(r)) => l == r,
             (Self::Set(l), Self::Set(r)) => l == r,
             (Self::Mono(l), Self::Mono(r)) => l == r,
             (
@@ -296,6 +299,7 @@ impl LimitedDisplay for TyParam {
                 write!(f, "}}")
             }
             Self::Dict(dict) => write!(f, "{dict}"),
+            Self::Record(rec) => write!(f, "{rec}"),
             Self::Tuple(tuple) => {
                 write!(f, "(")?;
                 for (i, t) in tuple.iter().enumerate() {
@@ -453,6 +457,13 @@ impl TryFrom<TyParam> for ValueObj {
                 }
                 Ok(ValueObj::Dict(vals))
             }
+            TyParam::Record(rec) => {
+                let mut vals = dict! {};
+                for (k, v) in rec {
+                    vals.insert(k, ValueObj::try_from(v)?);
+                }
+                Ok(ValueObj::Record(vals))
+            }
             TyParam::FreeVar(fv) if fv.is_linked() => ValueObj::try_from(fv.crack().clone()),
             TyParam::Type(t) => Ok(ValueObj::builtin_t(*t)),
             TyParam::Value(v) => Ok(v),
@@ -530,6 +541,10 @@ impl HasLevel for TyParam {
                         .min(v.level().unwrap_or(GENERIC_LEVEL))
                 })
                 .min(),
+            Self::Record(rec) => rec
+                .iter()
+                .map(|(_, v)| v.level().unwrap_or(GENERIC_LEVEL))
+                .min(),
             Self::Set(tps) => tps.iter().filter_map(|tp| tp.level()).min(),
             Self::Proj { obj, .. } => obj.level(),
             Self::App { args, .. } => args.iter().filter_map(|tp| tp.level()).min(),
@@ -546,6 +561,11 @@ impl HasLevel for TyParam {
             Self::Dict(tps) => {
                 for (k, v) in tps.iter() {
                     k.set_level(level);
+                    v.set_level(level);
+                }
+            }
+            Self::Record(rec) => {
+                for (_, v) in rec.iter() {
                     v.set_level(level);
                 }
             }
@@ -592,6 +612,18 @@ impl StructuralEq for TyParam {
                 for (key, val) in l.iter() {
                     if let Some(r_val) = r.get_by(key, |l, r| l.structural_eq(r)) {
                         if !val.structural_eq(r_val) {
+                            return false;
+                        }
+                    } else {
+                        return false;
+                    }
+                }
+                true
+            }
+            (Self::Record(l), Self::Record(r)) => {
+                for (l_field, l_val) in l.iter() {
+                    if let Some((r_field, r_val)) = r.get_key_value(l_field) {
+                        if l_field.vis != r_field.vis || !l_val.structural_eq(r_val) {
                             return false;
                         }
                     } else {
@@ -813,6 +845,9 @@ impl TyParam {
             Self::Dict(ts) => ts.iter().fold(set! {}, |acc, (k, v)| {
                 acc.concat(k.qvars().concat(v.qvars()))
             }),
+            Self::Record(rec) => rec
+                .iter()
+                .fold(set! {}, |acc, (_, v)| acc.concat(v.qvars())),
             Self::UnaryOp { val, .. } => val.qvars(),
             Self::BinOp { lhs, rhs, .. } => lhs.qvars().concat(rhs.qvars()),
             Self::App { args, .. } => args.iter().fold(set! {}, |acc, p| acc.concat(p.qvars())),
@@ -836,6 +871,7 @@ impl TyParam {
             Self::Array(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.has_qvar()),
             Self::Set(ts) => ts.iter().any(|t| t.has_qvar()),
             Self::Dict(ts) => ts.iter().any(|(k, v)| k.has_qvar() || v.has_qvar()),
+            Self::Record(rec) => rec.iter().any(|(_, tp)| tp.has_qvar()),
             Self::UnaryOp { val, .. } => val.has_qvar(),
             Self::BinOp { lhs, rhs, .. } => lhs.has_qvar() || rhs.has_qvar(),
             Self::App { args, .. } => args.iter().any(|p| p.has_qvar()),
@@ -858,6 +894,7 @@ impl TyParam {
             Self::Dict(ts) => ts
                 .iter()
                 .any(|(k, v)| k.contains_var(name) || v.contains_var(name)),
+            Self::Record(rec) => rec.iter().any(|(_, tp)| tp.contains_var(name)),
             Self::UnaryOp { val, .. } => val.contains_var(name),
             Self::BinOp { lhs, rhs, .. } => lhs.contains_var(name) || rhs.contains_var(name),
             Self::App { args, .. } => args.iter().any(|p| p.contains_var(name)),
@@ -885,6 +922,7 @@ impl TyParam {
             Self::Dict(kv) => kv
                 .iter()
                 .any(|(k, v)| k.has_unbound_var() || v.has_unbound_var()),
+            Self::Record(rec) => rec.iter().any(|(_, v)| v.has_unbound_var()),
             Self::UnaryOp { val, .. } => val.has_unbound_var(),
             Self::BinOp { lhs, rhs, .. } => lhs.has_unbound_var() || rhs.has_unbound_var(),
             Self::App { args, .. } => args.iter().any(|p| p.has_unbound_var()),

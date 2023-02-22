@@ -1975,11 +1975,12 @@ impl ASTLowerer {
         match expr {
             acc @ hir::Expr::Accessor(_) => Some(acc),
             hir::Expr::Call(mut call) => match call.obj.show_acc().as_ref().map(|s| &s[..]) {
-                Some("Class") => call.args.remove_left_or_key("Requirement"),
+                Some("Class" | "Trait") => call.args.remove_left_or_key("Requirement"),
                 Some("Inherit") => call.args.remove_left_or_key("Super"),
                 Some("Inheritable") => {
                     Self::get_require_or_sup_or_base(call.args.remove_left_or_key("Class").unwrap())
                 }
+                Some("Structural") => call.args.remove_left_or_key("Type"),
                 Some("Patch") => call.args.remove_left_or_key("Base"),
                 _ => todo!(),
             },

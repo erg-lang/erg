@@ -14,6 +14,7 @@ use crate::ty::{Predicate, RefinementType, SubrKind, SubrType, Type};
 use Predicate as Pred;
 
 use erg_common::dict::Dict;
+use erg_common::vis::Field;
 use erg_common::{assume_unreachable, log};
 use TyParamOrdering::*;
 use Type::*;
@@ -716,7 +717,42 @@ impl Context {
                 }
                 false
             }
+            (Structural(l), Structural(r)) => self.structural_supertype_of(l, r, allow_cast),
+            (Structural(l), r) => {
+                log!(err "{l}/{r}");
+                let r_fields = self.fields(r);
+                log!(err "{r_fields}");
+                for (l_field, l_ty) in self.fields(l) {
+                    log!(err "{l_field} = {l_ty}");
+                    if let Some((r_field, r_ty)) = r_fields.get_key_value(&l_field) {
+                        if r_field.vis != l_field.vis || !self.supertype_of(&l_ty, r_ty, allow_cast)
+                        {
+                            return false;
+                        }
+                    } else {
+                        return false;
+                    }
+                }
+                true
+            }
             (_l, _r) => false,
+        }
+    }
+
+    pub fn fields(&self, t: &Type) -> Dict<Field, Type> {
+        match t {
+            Type::FreeVar(fv) if fv.is_linked() => self.fields(&fv.crack()),
+            Type::Record(fields) => fields.clone(),
+            other => {
+                let (_, ctx) = self
+                    .get_nominal_type_ctx(other)
+                    .unwrap_or_else(|| panic!("{other} is not found"));
+                ctx.locals
+                    .iter()
+                    .chain(ctx.decls.iter())
+                    .map(|(name, vi)| (Field::new(vi.vis, name.inspect().clone()), vi.t.clone()))
+                    .collect()
+            }
         }
     }
 

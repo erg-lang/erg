@@ -7,6 +7,7 @@ use erg_common::dict::Dict;
 use erg_common::log;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
+use erg_common::vis::Field;
 use erg_common::Str;
 use erg_common::{assume_unreachable, dict, enum_unwrap, set, try_map_mut};
 
@@ -589,6 +590,21 @@ impl Context {
                 let t = self.instantiate_const_expr_as_type(&first.expr, None, tmp_tv_cache)?;
                 Ok(ref_mut(t, None))
             }
+            "Structural" => {
+                let mut args = simple.args.pos_args();
+                let Some(first) = args.next() else {
+                    return Err(TyCheckErrors::from(TyCheckError::args_missing_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        simple.args.loc(),
+                        "Structural",
+                        self.caused_by(),
+                        vec![Str::from("Type")],
+                    )));
+                };
+                let t = self.instantiate_const_expr_as_type(&first.expr, None, tmp_tv_cache)?;
+                Ok(t.structuralize())
+            }
             "Self" => self.rec_get_self_t().ok_or_else(|| {
                 TyCheckErrors::from(TyCheckError::unreachable(
                     self.cfg.input.clone(),
@@ -763,6 +779,19 @@ impl Context {
                 }
                 Ok(TyParam::Tuple(tp_tuple))
             }
+            ast::ConstExpr::Record(rec) => {
+                let mut tp_rec = dict! {};
+                for attr in rec.attrs.iter() {
+                    let field = Field::new(attr.ident.vis(), attr.ident.inspect().clone());
+                    let val = self.instantiate_const_expr(
+                        attr.body.block.get(0).unwrap(),
+                        None,
+                        tmp_tv_cache,
+                    )?;
+                    tp_rec.insert(field, val);
+                }
+                Ok(TyParam::Record(tp_rec))
+            }
             ast::ConstExpr::BinOp(bin) => {
                 let Some(op) = token_kind_to_op_kind(bin.op.kind) else {
                     return type_feature_error!(
@@ -818,6 +847,22 @@ impl Context {
                     .and_then(|tp| self.get_tp_t(tp).ok())
                     .unwrap_or(Type::Never);
                 Ok(tp_enum(t, set))
+            }
+            TyParam::Tuple(ts) => {
+                let mut tps = vec![];
+                for tp in ts {
+                    let t = self.instantiate_tp_as_type(tp, loc)?;
+                    tps.push(t);
+                }
+                Ok(tuple_t(tps))
+            }
+            TyParam::Record(rec) => {
+                let mut rec_t = dict! {};
+                for (field, tp) in rec {
+                    let t = self.instantiate_tp_as_type(tp, loc)?;
+                    rec_t.insert(field, t);
+                }
+                Ok(Type::Record(rec_t))
             }
             other => {
                 type_feature_error!(self, loc.loc(), &format!("instantiate `{other}` as type"))
@@ -1244,6 +1289,16 @@ impl Context {
                     .map(|v| self.instantiate_tp(v, tmp_tv_cache, loc))
                     .collect::<TyCheckResult<_>>()?;
                 Ok(TyParam::Tuple(tup))
+            }
+            TyParam::Record(rec) => {
+                let rec = rec
+                    .into_iter()
+                    .map(|(k, v)| {
+                        let v = self.instantiate_tp(v, tmp_tv_cache, loc)?;
+                        Ok((k, v))
+                    })
+                    .collect::<TyCheckResult<_>>()?;
+                Ok(TyParam::Record(rec))
             }
             TyParam::UnaryOp { op, val } => {
                 let res = self.instantiate_tp(*val, tmp_tv_cache, loc)?;
