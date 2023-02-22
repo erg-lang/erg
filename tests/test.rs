@@ -157,6 +157,11 @@ fn exec_return() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_structural() -> Result<(), ()> {
+    expect_success("examples/structural.er")
+}
+
+#[test]
 fn exec_subtyping() -> Result<(), ()> {
     expect_success("tests/should_ok/subtyping.er")
 }
@@ -244,6 +249,11 @@ fn exec_set() -> Result<(), ()> {
 #[test]
 fn exec_side_effect() -> Result<(), ()> {
     expect_failure("examples/side_effect.er", 4)
+}
+
+#[test]
+fn exec_structural_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/structural.er", 5)
 }
 
 #[test]

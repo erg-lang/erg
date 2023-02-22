@@ -64,6 +64,11 @@ impl Context {
                     })
                     .collect(),
             ),
+            TyParam::Record(rec) => TyParam::Record(
+                rec.into_iter()
+                    .map(|(field, tp)| (field, self.generalize_tp(tp, variance, uninit)))
+                    .collect(),
+            ),
             TyParam::FreeVar(_) => free,
             TyParam::Proj { obj, attr } => {
                 let obj = self.generalize_tp(*obj, variance, uninit);
@@ -185,6 +190,13 @@ impl Context {
                     return_t,
                 )
             }
+            Record(rec) => {
+                let fields = rec
+                    .into_iter()
+                    .map(|(name, t)| (name, self.generalize_t_inner(t, variance, uninit)))
+                    .collect();
+                Type::Record(fields)
+            }
             Callable { .. } => todo!(),
             Ref(t) => ref_(self.generalize_t_inner(*t, variance, uninit)),
             RefMut { before, after } => {
@@ -235,6 +247,9 @@ impl Context {
                 or(l, r)
             }
             Not(l) => not(self.generalize_t_inner(*l, variance, uninit)),
+            Structural(t) => self
+                .generalize_t_inner(*t, variance, uninit)
+                .structuralize(),
             // REVIEW: その他何でもそのまま通していいのか?
             other => other,
         }
@@ -366,6 +381,13 @@ impl Context {
                     new_set.insert(self.deref_tp(v, variance, qnames, loc)?);
                 }
                 Ok(TyParam::Set(new_set))
+            }
+            TyParam::Record(rec) => {
+                let mut new_rec = dict! {};
+                for (field, tp) in rec.into_iter() {
+                    new_rec.insert(field, self.deref_tp(tp, variance, qnames, loc)?);
+                }
+                Ok(TyParam::Record(new_rec))
             }
             TyParam::Proj { obj, attr } => {
                 let obj = self.deref_tp(*obj, variance, qnames, loc)?;
@@ -685,6 +707,10 @@ impl Context {
                     new_args.push(self.deref_tp(arg, variance, qnames, loc)?);
                 }
                 self.eval_proj_call(lhs, attr_name, new_args, self.level, loc)
+            }
+            Type::Structural(t) => {
+                let t = self.deref_tyvar(*t, variance, qnames, loc)?;
+                Ok(t.structuralize())
             }
             t => Ok(t),
         }

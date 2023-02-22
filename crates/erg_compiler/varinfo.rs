@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use erg_common::error::Location;
 use erg_common::set::Set;
-use erg_common::vis::Visibility;
+use erg_common::vis::{Field, Visibility};
 use erg_common::Str;
 use Visibility::*;
 
@@ -242,5 +242,24 @@ impl VarInfo {
             default: DefaultInfo::NonDefault,
         };
         Self::new(t, Immutable, Private, kind, None, None, None, def_loc)
+    }
+
+    pub fn instance_attr(field: Field, t: Type, impl_of: Option<Type>) -> Self {
+        let muty = if field.is_const() {
+            Mutability::Const
+        } else {
+            Mutability::Immutable
+        };
+        let kind = VarKind::Declared;
+        Self::new(
+            t,
+            muty,
+            field.vis,
+            kind,
+            None,
+            impl_of,
+            None,
+            AbsLocation::unknown(),
+        )
     }
 }

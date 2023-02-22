@@ -1,0 +1,24 @@
+name n: Structural { .name = Str } = n.name
+
+C = Class()
+D = Class { .name = Int; .id = Nat }
+D.
+    new name, id = D::__new__ { .name = name; .id = id }
+
+c = C.new()
+d = D.new 1, 2
+
+print! name(1)
+print! name(c)
+print! name(d)
+
+inner|T: Type| x: Structural { .inner = T } = x.inner
+
+E = Class { .inner = Int }
+E.
+    new inner = E::__new__ { .inner = inner }
+
+e = E.new 1
+
+print! inner(1)
+assert inner(e) == "a"

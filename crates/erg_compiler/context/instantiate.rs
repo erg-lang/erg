@@ -1484,6 +1484,10 @@ impl Context {
                 log!(err "a quantified type should not be instantiated: {subr}");
                 unreachable_error!(TyCheckErrors, TyCheckError, self)
             }
+            Structural(t) => {
+                let t = self.instantiate_t_inner(*t, tmp_tv_cache, loc)?;
+                Ok(t.structuralize())
+            }
             FreeVar(fv) if fv.is_linked() => {
                 self.instantiate_t_inner(fv.crack().clone(), tmp_tv_cache, loc)
             }

@@ -719,11 +719,8 @@ impl Context {
             }
             (Structural(l), Structural(r)) => self.structural_supertype_of(l, r, allow_cast),
             (Structural(l), r) => {
-                log!(err "{l}/{r}");
                 let r_fields = self.fields(r);
-                log!(err "{r_fields}");
                 for (l_field, l_ty) in self.fields(l) {
-                    log!(err "{l_field} = {l_ty}");
                     if let Some((r_field, r_ty)) = r_fields.get_key_value(&l_field) {
                         if r_field.vis != l_field.vis || !self.supertype_of(&l_ty, r_ty, allow_cast)
                         {
@@ -743,6 +740,7 @@ impl Context {
         match t {
             Type::FreeVar(fv) if fv.is_linked() => self.fields(&fv.crack()),
             Type::Record(fields) => fields.clone(),
+            Type::Structural(t) => self.fields(t),
             other => {
                 let (_, ctx) = self
                     .get_nominal_type_ctx(other)
