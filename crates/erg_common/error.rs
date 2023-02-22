@@ -432,6 +432,32 @@ impl Location {
             _ => None,
         }
     }
+
+    /// ```
+    /// # use erg_common::error::Location;
+    /// let loc = Location::range(1, 3, 1, 7);
+    /// assert_eq!(loc.ln_begin(), Some(1));
+    /// assert!(loc.contains(Location::range(1, 4, 1, 5)));
+    /// ```
+    pub fn contains(&self, other: Self) -> bool {
+        match (*self, other) {
+            (
+                Self::Range {
+                    ln_begin: lb1,
+                    col_begin: cb1,
+                    ln_end: le1,
+                    col_end: ce1,
+                },
+                Self::Range {
+                    ln_begin: lb2,
+                    col_begin: cb2,
+                    ln_end: le2,
+                    col_end: ce2,
+                },
+            ) => lb1 <= lb2 && le1 >= le2 && cb1 <= cb2 && ce1 >= ce2,
+            _ => false,
+        }
+    }
 }
 
 #[allow(clippy::too_many_arguments)]

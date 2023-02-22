@@ -24,7 +24,7 @@ use lsp_types::{
     CompletionOptions, DidChangeTextDocumentParams, ExecuteCommandOptions, HoverProviderCapability,
     InitializeResult, OneOf, Position, SemanticTokenType, SemanticTokensFullOptions,
     SemanticTokensLegend, SemanticTokensOptions, SemanticTokensServerCapabilities,
-    ServerCapabilities, Url, WorkDoneProgressOptions,
+    ServerCapabilities, SignatureHelpOptions, Url, WorkDoneProgressOptions,
 };
 
 use crate::file_cache::FileCache;
@@ -236,6 +236,13 @@ impl<Checker: BuildRunnable> Server<Checker> {
             commands: vec![format!("{}.eliminate_unused_vars", self.mode())],
             work_done_progress_options: WorkDoneProgressOptions::default(),
         });
+        result.capabilities.signature_help_provider = Some(SignatureHelpOptions {
+            trigger_characters: Some(vec!["(".to_string(), ",".to_string(), "|".to_string()]),
+            retrigger_characters: None,
+            work_done_progress_options: WorkDoneProgressOptions {
+                work_done_progress: None,
+            },
+        });
         Self::send(&json!({
             "jsonrpc": "2.0",
             "id": id,
@@ -352,6 +359,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             "textDocument/semanticTokens/full" => self.get_semantic_tokens_full(msg),
             "textDocument/inlayHint" => self.get_inlay_hint(msg),
             "textDocument/codeAction" => self.send_code_action(msg),
+            "textDocument/signatureHelp" => self.show_signature_help(msg),
             "workspace/willRenameFiles" => self.rename_files(msg),
             other => Self::send_error(Some(id), -32600, format!("{other} is not supported")),
         }

@@ -171,7 +171,7 @@ impl<'a> HIRVisitor<'a> {
             return None;
         }
         match expr {
-            Expr::Lit(_) => Some(expr),
+            Expr::Lit(lit) => self.return_expr_if_same(expr, &lit.token, token),
             Expr::Accessor(acc) => self.get_expr_from_acc(expr, acc, token),
             Expr::BinOp(bin) => self.get_expr_from_bin(expr, bin, token),
             Expr::UnaryOp(unary) => self.get_expr(&unary.expr, token),
@@ -238,6 +238,7 @@ impl<'a> HIRVisitor<'a> {
             })
             .or_else(|| self.get_expr(&call.obj, token))
             .or_else(|| self.get_expr_from_args(&call.args, token))
+            .or_else(|| call.loc().contains(token.loc()).then_some(expr))
     }
 
     fn get_expr_from_args<'e>(&'e self, args: &'e Args, token: &Token) -> Option<&Expr> {

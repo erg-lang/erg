@@ -11,5 +11,6 @@ mod references;
 mod rename;
 mod semantic;
 mod server;
+mod sig_help;
 mod util;
 pub use server::*;
