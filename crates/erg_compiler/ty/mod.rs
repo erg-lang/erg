@@ -1555,6 +1555,16 @@ impl Type {
         }
     }
 
+    /// full name of the type, if the type is a normal nominal type, then returns the inner `name`
+    /// ```
+    /// # use erg_compiler::ty::constructors::*;
+    /// let i = mono("Int!");
+    /// assert_eq!(&i.qual_name()[..], "Int!");
+    /// assert_eq!(&i.local_name()[..], "Int!");
+    /// let t = mono("http.client.Response");
+    /// assert_eq!(&t.qual_name()[..], "http.client.Response");
+    /// assert_eq!(&t.local_name()[..], "Response");
+    /// ```
     pub fn qual_name(&self) -> Str {
         match self {
             Self::Obj => Str::ever("Obj"),
@@ -1609,6 +1619,16 @@ impl Type {
         }
     }
 
+    /// local name of the type
+    /// ```
+    /// # use erg_compiler::ty::constructors::*;
+    /// let i = mono("Int!");
+    /// assert_eq!(&i.qual_name()[..], "Int!");
+    /// assert_eq!(&i.local_name()[..], "Int!");
+    /// let t = mono("http.client.Response");
+    /// assert_eq!(&t.qual_name()[..], "http.client.Response");
+    /// assert_eq!(&t.local_name()[..], "Response");
+    /// ```
     pub fn local_name(&self) -> Str {
         match self {
             Self::Mono(name) | Self::Poly { name, .. } => {

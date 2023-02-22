@@ -134,7 +134,7 @@ impl Context {
         namespace: &Str,
     ) -> SingleTyCheckResult<&Context> {
         self.get_mod(ident.inspect())
-            .or_else(|| self.rec_get_type(ident.inspect()).map(|(_, ctx)| ctx))
+            .or_else(|| self.rec_local_get_type(ident.inspect()).map(|(_, ctx)| ctx))
             .or_else(|| self.rec_get_patch(ident.inspect()))
             .ok_or_else(|| {
                 TyCheckError::no_var_error(
@@ -1894,7 +1894,7 @@ impl Context {
                 if let Some((t, ctx)) = self
                     .get_builtins()
                     .unwrap_or(self)
-                    .rec_get_mono_type("QuantifiedFunc")
+                    .rec_local_get_mono_type("QuantifiedFunc")
                 {
                     return Some((t, ctx));
                 }
@@ -1904,7 +1904,7 @@ impl Context {
                     if let Some((t, ctx)) = self
                         .get_builtins()
                         .unwrap_or(self)
-                        .rec_get_mono_type("Func")
+                        .rec_local_get_mono_type("Func")
                     {
                         return Some((t, ctx));
                     }
@@ -1913,53 +1913,17 @@ impl Context {
                     if let Some((t, ctx)) = self
                         .get_builtins()
                         .unwrap_or(self)
-                        .rec_get_mono_type("Proc")
+                        .rec_local_get_mono_type("Proc")
                     {
                         return Some((t, ctx));
                     }
                 }
             },
             Type::Mono(name) => {
-                if let Some((t, ctx)) = self.rec_get_mono_type(&typ.local_name()) {
-                    return Some((t, ctx));
-                }
-                // e.g. http.client.Response -> http.client
-                let mut namespaces = name.split_with(&[".", "::"]);
-                if namespaces.len() < 2 {
-                    return None;
-                }
-                let type_name = namespaces.pop().unwrap(); // Response
-                let path = Path::new(namespaces.remove(0));
-                let mut path = Self::resolve_path(&self.cfg, path)?;
-                for p in namespaces.into_iter() {
-                    path = self.push_path(path, Path::new(p));
-                }
-                if let Some(ctx) = self.get_ctx_from_path(path.as_path()) {
-                    if let Some((t, ctx)) = ctx.rec_get_mono_type(type_name) {
-                        return Some((t, ctx));
-                    }
-                }
+                return self.get_mono_type(name);
             }
             Type::Poly { name, .. } => {
-                if let Some((t, ctx)) = self.rec_get_poly_type(&typ.local_name()) {
-                    return Some((t, ctx));
-                }
-                // NOTE: This needs to be changed if we want to be able to define classes/traits outside of the top level
-                let mut namespaces = name.split_with(&[".", "::"]);
-                if namespaces.len() < 2 {
-                    return None;
-                }
-                let type_name = namespaces.pop().unwrap(); // Response
-                let path = Path::new(namespaces.remove(0));
-                let mut path = Self::resolve_path(&self.cfg, path)?;
-                for p in namespaces.into_iter() {
-                    path = self.push_path(path, Path::new(p));
-                }
-                if let Some(ctx) = self.get_ctx_from_path(path.as_path()) {
-                    if let Some((t, ctx)) = ctx.rec_get_poly_type(type_name) {
-                        return Some((t, ctx));
-                    }
-                }
+                return self.get_type(name);
             }
             Type::Record(rec)
                 if rec
@@ -1969,13 +1933,13 @@ impl Context {
                 return self
                     .get_builtins()
                     .unwrap_or(self)
-                    .rec_get_mono_type("RecordType");
+                    .rec_local_get_mono_type("RecordType");
             }
             Type::Record(_) => {
                 return self
                     .get_builtins()
                     .unwrap_or(self)
-                    .rec_get_mono_type("Record");
+                    .rec_local_get_mono_type("Record");
             }
             Type::Or(_l, _r) => {
                 if let Some(ctx) = self.get_nominal_type_ctx(&poly("Or", vec![])) {
@@ -1984,7 +1948,7 @@ impl Context {
             }
             // FIXME: `F()`などの場合、実際は引数が省略されていてもmonomorphicになる
             other if other.is_monomorphic() => {
-                if let Some((t, ctx)) = self.rec_get_mono_type(&other.local_name()) {
+                if let Some((t, ctx)) = self.rec_local_get_mono_type(&other.local_name()) {
                     return Some((t, ctx));
                 }
             }
@@ -2000,6 +1964,7 @@ impl Context {
         None
     }
 
+    /// It is currently not possible to get the type defined in another module
     // TODO: Never
     pub(crate) fn get_mut_nominal_type_ctx<'a>(
         &'a mut self,
@@ -2217,21 +2182,55 @@ impl Context {
         }
     }
 
-    pub(crate) fn rec_get_mono_type(&self, name: &str) -> Option<(&Type, &Context)> {
+    pub(crate) fn get_mono_type(&self, name: &Str) -> Option<(&Type, &Context)> {
+        if let Some((t, ctx)) = self.rec_local_get_mono_type(name) {
+            return Some((t, ctx));
+        }
+        // e.g.
+        //     http.client.Response -> http.client
+        //     ../http/client.Response -> ../http.client
+        let mut namespaces = name.split_with(&[".", "::"]);
+        if namespaces.len() < 2 {
+            return None;
+        }
+        let type_name = namespaces.pop().unwrap(); // "Response"
+        if let Some((t, ctx)) = self.rec_local_get_mono_type(type_name) {
+            return Some((t, ctx));
+        }
+        let mut namespace = namespaces.remove(0).to_string(); // "http" or ""
+        while namespace.is_empty() || namespace.ends_with('.') {
+            namespace.push('.');
+            namespace.push_str(namespaces.remove(0));
+        }
+        let path = Path::new(&namespace);
+        let mut path = Self::resolve_path(&self.cfg, path)?;
+        for p in namespaces.into_iter() {
+            path = self.push_path(path, Path::new(p));
+        }
+        if let Some(ctx) = self.get_ctx_from_path(path.as_path()) {
+            if let Some((t, ctx)) = ctx.rec_local_get_mono_type(type_name) {
+                return Some((t, ctx));
+            }
+        }
+        None
+    }
+
+    /// you should use `get_mono_type` instead of this
+    pub(crate) fn rec_local_get_mono_type(&self, name: &str) -> Option<(&Type, &Context)> {
         if let Some((t, ctx)) = self.mono_types.get(name) {
             Some((t, ctx))
         } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
-            outer.rec_get_mono_type(name)
+            outer.rec_local_get_mono_type(name)
         } else {
             None
         }
     }
 
-    pub(crate) fn rec_get_poly_type(&self, name: &str) -> Option<(&Type, &Context)> {
+    pub(crate) fn _rec_local_get_poly_type(&self, name: &str) -> Option<(&Type, &Context)> {
         if let Some((t, ctx)) = self.poly_types.get(name) {
             Some((t, ctx))
         } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
-            outer.rec_get_poly_type(name)
+            outer._rec_local_get_poly_type(name)
         } else {
             None
         }
@@ -2258,13 +2257,47 @@ impl Context {
         }
     }
 
-    pub(crate) fn rec_get_type(&self, name: &str) -> Option<(&Type, &Context)> {
+    pub(crate) fn get_type(&self, name: &Str) -> Option<(&Type, &Context)> {
+        if let Some((t, ctx)) = self.rec_local_get_type(name) {
+            return Some((t, ctx));
+        }
+        // e.g.
+        //     http.client.Response -> http.client
+        //     ../http/client.Response -> ../http.client
+        let mut namespaces = name.split_with(&[".", "::"]);
+        if namespaces.len() < 2 {
+            return None;
+        }
+        let type_name = namespaces.pop().unwrap(); // "Response"
+        if let Some((t, ctx)) = self.rec_local_get_type(type_name) {
+            return Some((t, ctx));
+        }
+        let mut namespace = namespaces.remove(0).to_string(); // "http" or ""
+        while namespace.is_empty() || namespace.ends_with('.') {
+            namespace.push('.');
+            namespace.push_str(namespaces.remove(0));
+        }
+        let path = Path::new(&namespace);
+        let mut path = Self::resolve_path(&self.cfg, path)?;
+        for p in namespaces.into_iter() {
+            path = self.push_path(path, Path::new(p));
+        }
+        if let Some(ctx) = self.get_ctx_from_path(path.as_path()) {
+            if let Some((t, ctx)) = ctx.rec_local_get_type(type_name) {
+                return Some((t, ctx));
+            }
+        }
+        None
+    }
+
+    /// you should use `get_type` instead of this
+    pub(crate) fn rec_local_get_type(&self, name: &str) -> Option<(&Type, &Context)> {
         if let Some((t, ctx)) = self.mono_types.get(name) {
             Some((t, ctx))
         } else if let Some((t, ctx)) = self.poly_types.get(name) {
             Some((t, ctx))
         } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
-            outer.rec_get_type(name)
+            outer.rec_local_get_type(name)
         } else {
             None
         }

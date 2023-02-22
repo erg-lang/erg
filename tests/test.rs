@@ -203,6 +203,11 @@ fn exec_tests_impl() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_impl_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/impl.er", 2)
+}
+
+#[test]
 fn exec_infer_union_array() -> Result<(), ()> {
     expect_failure("tests/should_err/infer_union_array.er", 1)
 }

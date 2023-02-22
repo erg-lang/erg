@@ -676,7 +676,7 @@ impl Context {
         muty: Mutability,
         py_name: Option<&'static str>,
     ) {
-        if self.rec_get_mono_type(&t.local_name()).is_some() {
+        if self.rec_local_get_mono_type(&t.local_name()).is_some() {
             panic!("{} has already been registered", t.local_name());
         } else if self.rec_get_const_obj(&t.local_name()).is_some() {
             panic!("{} has already been registered as const", t.local_name());

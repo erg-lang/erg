@@ -1,5 +1,7 @@
 impl = import "../should_ok/impl"
 
 c = impl.C.new()
-print! c + 1
-
+assert c + 1 == 1
+assert c + 1 == c # ERR
+assert c + -1 == c
+assert c + -1 == -1 # ERR

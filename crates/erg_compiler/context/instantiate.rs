@@ -500,7 +500,7 @@ impl Context {
                     }
                 }
                 let ctx = self.get_singular_ctx(namespace.as_ref(), &self.name)?;
-                if let Some((typ, _)) = ctx.rec_get_type(t.ident.inspect()) {
+                if let Some((typ, _)) = ctx.rec_local_get_type(t.ident.inspect()) {
                     // TODO: visibility check
                     Ok(typ.clone())
                 } else {
@@ -624,7 +624,7 @@ impl Context {
                 if let Some(decl_t) = opt_decl_t {
                     return Ok(decl_t.typ().clone());
                 }
-                if let Some((typ, _)) = self.rec_get_type(other) {
+                if let Some((typ, _)) = self.get_type(&Str::rc(other)) {
                     Ok(typ.clone())
                 } else if not_found_is_qvar {
                     let tyvar = named_free_var(Str::rc(other), self.level, Constraint::Uninited);
@@ -642,7 +642,7 @@ impl Context {
                 }
             }
             other => {
-                let ctx = if let Some((_, ctx)) = self.rec_get_type(other) {
+                let ctx = if let Some((_, ctx)) = self.get_type(&Str::rc(other)) {
                     ctx
                 } else {
                     return Err(TyCheckErrors::from(TyCheckError::no_type_error(

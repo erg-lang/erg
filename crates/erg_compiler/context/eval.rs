@@ -1145,7 +1145,7 @@ impl Context {
             // obj: [T; N]|<: Add([T; M])|.Output == ValueObj::Type(<type [T; M+N]>)
             if let ValueObj::Type(quant_projected_t) = obj {
                 let projected_t = quant_projected_t.into_typ();
-                let (quant_sub, _) = self.rec_get_type(&sub.local_name()).unwrap();
+                let (quant_sub, _) = self.get_type(&sub.qual_name()).unwrap();
                 if let Some(sup) = opt_sup {
                     if let Some(quant_sup) = methods.impl_of() {
                         // T -> Int, M -> 2
