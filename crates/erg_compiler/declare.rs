@@ -388,6 +388,22 @@ impl ASTLowerer {
         Ok(hir::Dummy::new(dummy_))
     }
 
+    fn fake_lower_type_asc(&self, tasc: ast::TypeAscription) -> LowerResult<hir::TypeAscription> {
+        let expr = self.fake_lower_expr(*tasc.expr)?;
+        let t_spec_as_expr = self.fake_lower_expr(*tasc.t_spec.t_spec_as_expr)?;
+        let mut dummy_tv_cache = TyVarCache::new(self.module.context.level, &self.module.context);
+        let spec_t = self.module.context.instantiate_typespec(
+            &tasc.t_spec.t_spec,
+            None,
+            &mut dummy_tv_cache,
+            RegistrationMode::Normal,
+            false,
+        )?;
+        let spec =
+            hir::TypeSpecWithOp::new(tasc.t_spec.op, tasc.t_spec.t_spec, t_spec_as_expr, spec_t);
+        Ok(hir::TypeAscription::new(expr, spec))
+    }
+
     pub(crate) fn fake_lower_expr(&self, expr: ast::Expr) -> LowerResult<hir::Expr> {
         match expr {
             ast::Expr::Literal(lit) => Ok(hir::Expr::Lit(self.lower_literal(lit)?)),
@@ -401,6 +417,9 @@ impl ASTLowerer {
             ast::Expr::Call(call) => Ok(hir::Expr::Call(self.fake_lower_call(call)?)),
             ast::Expr::Lambda(lambda) => Ok(hir::Expr::Lambda(self.fake_lower_lambda(lambda)?)),
             ast::Expr::Dummy(dummy) => Ok(hir::Expr::Dummy(self.fake_lower_dummy(dummy)?)),
+            ast::Expr::TypeAscription(tasc) => {
+                Ok(hir::Expr::TypeAsc(self.fake_lower_type_asc(tasc)?))
+            }
             other => Err(LowerErrors::from(LowerError::declare_error(
                 self.cfg().input.clone(),
                 line!() as usize,

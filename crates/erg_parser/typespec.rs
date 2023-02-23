@@ -130,13 +130,13 @@ impl Parser {
                     const_fields,
                 )))
             }
-            // TODO: Lambda, ...
+            Expr::TypeAscription(tasc) => {
+                let expr = Self::validate_const_expr(*tasc.expr)?;
+                Ok(ConstExpr::TypeAsc(ConstTypeAsc::new(expr, tasc.t_spec)))
+            }
             other => Err(ParseError::syntax_error(
                 line!() as usize,
-                {
-                    erg_common::log!(err "{other}");
-                    other.loc()
-                },
+                other.loc(),
                 switch_lang!(
                     "japanese" => "この式はコンパイル時計算できないため、型引数には使用できません",
                     "simplified_chinese" => "此表达式在编译时不可计算，因此不能用作类型参数",

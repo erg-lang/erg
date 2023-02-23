@@ -892,6 +892,28 @@ impl Context {
                 let val = self.instantiate_const_expr(&unary.expr, erased_idx, tmp_tv_cache)?;
                 Ok(TyParam::unary(op, val))
             }
+            ast::ConstExpr::TypeAsc(tasc) => {
+                let tp = self.instantiate_const_expr(&tasc.expr, erased_idx, tmp_tv_cache)?;
+                let spec_t = self.instantiate_typespec(
+                    &tasc.t_spec.t_spec,
+                    None,
+                    tmp_tv_cache,
+                    RegistrationMode::Normal,
+                    false,
+                )?;
+                if self.subtype_of(&self.get_tp_t(&tp)?, &spec_t, true) {
+                    Ok(tp)
+                } else {
+                    Err(TyCheckErrors::from(TyCheckError::subtyping_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        &self.get_tp_t(&tp)?,
+                        &spec_t,
+                        tasc.loc(),
+                        self.caused_by(),
+                    )))
+                }
+            }
             other => type_feature_error!(
                 self,
                 other.loc(),

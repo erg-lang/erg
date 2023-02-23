@@ -1773,6 +1773,38 @@ impl ConstApp {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ConstTypeAsc {
+    pub expr: Box<ConstExpr>,
+    pub t_spec: Box<TypeSpecWithOp>,
+}
+
+impl NestedDisplay for ConstTypeAsc {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        writeln!(f, "{}{}", self.expr, self.t_spec)
+    }
+}
+
+impl_display_from_nested!(ConstTypeAsc);
+impl_locational!(ConstTypeAsc, expr, t_spec);
+
+impl ConstTypeAsc {
+    pub fn new(expr: ConstExpr, t_spec: TypeSpecWithOp) -> Self {
+        Self {
+            expr: Box::new(expr),
+            t_spec: Box::new(t_spec),
+        }
+    }
+
+    pub fn is_instance_ascription(&self) -> bool {
+        self.t_spec.op.is(TokenKind::Colon)
+    }
+
+    pub fn is_subtype_ascription(&self) -> bool {
+        self.t_spec.op.is(TokenKind::SubtypeOf)
+    }
+}
+
 /// valid expression for an argument of polymorphic types
 /// 多相型の実引数として有効な式
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -1790,11 +1822,12 @@ pub enum ConstExpr {
     Lambda(ConstLambda),
     BinOp(ConstBinOp),
     UnaryOp(ConstUnaryOp),
+    TypeAsc(ConstTypeAsc),
 }
 
-impl_nested_display_for_chunk_enum!(ConstExpr; Lit, Accessor, App, Array, Set, Dict, Tuple, Record, BinOp, UnaryOp, Def, Lambda, Erased, Set);
+impl_nested_display_for_chunk_enum!(ConstExpr; Lit, Accessor, App, Array, Set, Dict, Tuple, Record, BinOp, UnaryOp, Def, Lambda, Erased, Set, TypeAsc);
 impl_display_from_nested!(ConstExpr);
-impl_locational_for_enum!(ConstExpr; Lit, Accessor, App, Array, Set, Dict, Tuple, Record, BinOp, UnaryOp, Def, Lambda, Erased, Set);
+impl_locational_for_enum!(ConstExpr; Lit, Accessor, App, Array, Set, Dict, Tuple, Record, BinOp, UnaryOp, Def, Lambda, Erased, Set, TypeAsc);
 
 impl ConstExpr {
     pub fn need_to_be_closed(&self) -> bool {
