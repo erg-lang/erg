@@ -1,0 +1,32 @@
+name n: Structural { .name = Str } = n.name
+
+C = Class()
+D = Class { .name = Int; .id = Nat }
+D.
+    __add__ self, _ = 1
+    new name, id = D::__new__ { .name = name; .id = id }
+
+c = C.new()
+d = D.new 1, 2
+
+print! name(1) # ERR
+print! name(c) # ERR
+print! name(d) # ERR
+
+inner|T: Type| x: Structural { .inner = T } = x.inner
+
+E = Class { .inner = Int }
+E.
+    new inner = E::__new__ { .inner = inner }
+    __add__ self, other: E = E::__new__ { .inner = self.inner + other.inner }
+
+e = E.new 1
+
+print! inner(1) # ERR
+assert inner(e) == "a" # ERR
+
+add|T: Type, U: Type, V: Type| x: Structural({ .__add__ = (self: T, other: U) -> V }), other: U =
+    x.__add__(other)
+
+_ = add 1, "a" # ERR
+_ = add e, 1 # ERR

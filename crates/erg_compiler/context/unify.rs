@@ -257,6 +257,9 @@ impl Context {
                 self.sub_unify_tp(lhs, lhs2, _variance, loc, allow_divergence)?;
                 self.sub_unify_tp(rhs, rhs2, _variance, loc, allow_divergence)
             }
+            (TyParam::Lambda(_l), TyParam::Lambda(_r)) => {
+                todo!("{_l}/{_r}")
+            }
             (l, TyParam::Erased(t)) => {
                 let sub_t = self.get_tp_t(l)?;
                 if self.subtype_of(&sub_t, t, allow_cast) {
@@ -343,6 +346,9 @@ impl Context {
             ) if lop == rop => {
                 self.reunify_tp(lhs, lhs2, loc)?;
                 self.reunify_tp(rhs, rhs2, loc)
+            }
+            (TyParam::Lambda(_l), TyParam::Lambda(_r)) => {
+                todo!("{_l}/{_r}")
             }
             (l, r) if self.eq_tp(l, r, allow_cast) => Ok(()),
             (l, r) => panic!("type-parameter re-unification failed:\nl: {l}\nr: {r}"),
@@ -628,6 +634,9 @@ impl Context {
                 }
                 Ok(())
             }
+            // e.g. T/Structural({ .method = (self: T) -> Int })
+            (Type::FreeVar(fv), Type::Structural(_sup)) if fv.is_unbound() => Ok(()),
+            (Type::Structural(_sub), Type::FreeVar(fv)) if fv.is_unbound() => Ok(()),
             (_, Type::FreeVar(rfv)) if rfv.is_unbound() => {
                 // NOTE: cannot `borrow_mut` because of cycle reference
                 let rfv_ref = unsafe { rfv.as_ptr().as_mut().unwrap() };
@@ -844,6 +853,18 @@ impl Context {
                     }
                     Ok(())
                 }
+            }
+            (Type::Structural(l), Type::Structural(r)) => self.sub_unify(l, r, loc, param_name),
+            (sub, Type::Structural(sup)) => {
+                let sub_fields = self.fields(sub);
+                for (sup_field, sup_ty) in self.fields(sup) {
+                    if let Some((_, sub_ty)) = sub_fields.get_key_value(&sup_field) {
+                        self.sub_unify(sub_ty, &sup_ty, loc, param_name)?;
+                    } else {
+                        unreachable!()
+                    }
+                }
+                Ok(())
             }
             (
                 _,

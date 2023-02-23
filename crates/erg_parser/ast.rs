@@ -884,6 +884,14 @@ impl Record {
         })
     }
 
+    pub fn new_normal(l_brace: Token, r_brace: Token, attrs: RecordAttrs) -> Self {
+        Self::Normal(NormalRecord {
+            l_brace,
+            r_brace,
+            attrs,
+        })
+    }
+
     pub fn empty(l_brace: Token, r_brace: Token) -> Self {
         Self::Normal(NormalRecord {
             l_brace,
@@ -1529,6 +1537,150 @@ impl ConstTuple {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ConstBlock(Vec<ConstExpr>);
+
+impl NestedDisplay for ConstBlock {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        fmt_lines(self.0.iter(), f, _level)
+    }
+}
+
+impl_display_from_nested!(ConstBlock);
+
+impl Locational for ConstBlock {
+    fn loc(&self) -> Location {
+        if self.0.is_empty() {
+            Location::Unknown
+        } else {
+            Location::concat(self.0.first().unwrap(), self.0.last().unwrap())
+        }
+    }
+}
+
+impl_stream!(ConstBlock, ConstExpr);
+
+impl ConstBlock {
+    pub fn downcast(self) -> Block {
+        Block::new(self.0.into_iter().map(|e| e.downcast()).collect())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ConstDefBody {
+    pub op: Token,
+    pub block: ConstBlock,
+    pub id: DefId,
+}
+
+impl_locational!(ConstDefBody, lossy op, block);
+
+impl ConstDefBody {
+    pub const fn new(op: Token, block: ConstBlock, id: DefId) -> Self {
+        Self { op, block, id }
+    }
+
+    pub fn downcast(self) -> DefBody {
+        DefBody::new(self.op, self.block.downcast(), self.id)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ConstDef {
+    pub ident: ConstIdentifier,
+    pub body: ConstDefBody,
+}
+
+impl NestedDisplay for ConstDef {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(f, "{} = {}", self.ident, self.body.block)
+    }
+}
+
+impl_display_from_nested!(ConstDef);
+impl_locational!(ConstDef, ident, body);
+
+impl ConstDef {
+    pub const fn new(ident: ConstIdentifier, body: ConstDefBody) -> Self {
+        Self { ident, body }
+    }
+
+    pub fn downcast(self) -> Def {
+        Def::new(Signature::new_var(self.ident), self.body.downcast())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ConstLambda {
+    pub sig: Box<LambdaSignature>,
+    pub op: Token,
+    pub body: ConstBlock,
+    pub id: DefId,
+}
+
+impl NestedDisplay for ConstLambda {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(f, "({}) {} {}", self.sig, self.op.content, self.body)
+    }
+}
+
+impl_display_from_nested!(ConstLambda);
+impl_locational!(ConstLambda, sig, body);
+
+impl ConstLambda {
+    pub fn new(sig: LambdaSignature, op: Token, body: ConstBlock, id: DefId) -> Self {
+        Self {
+            sig: Box::new(sig),
+            op,
+            body,
+            id,
+        }
+    }
+
+    pub fn downcast(self) -> Lambda {
+        Lambda::new(*self.sig, self.op, self.body.downcast(), self.id)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ConstRecord {
+    pub l_brace: Token,
+    pub r_brace: Token,
+    pub attrs: Vec<ConstDef>,
+}
+
+impl NestedDisplay for ConstRecord {
+    fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, _level: usize) -> std::fmt::Result {
+        write!(f, "{{{}}}", fmt_vec_split_with(&self.attrs, "; "))
+    }
+}
+
+impl Locational for ConstRecord {
+    fn loc(&self) -> Location {
+        Location::concat(&self.l_brace, &self.r_brace)
+    }
+}
+
+impl_display_from_nested!(ConstRecord);
+
+impl ConstRecord {
+    pub const fn new(l_brace: Token, r_brace: Token, attrs: Vec<ConstDef>) -> Self {
+        Self {
+            l_brace,
+            r_brace,
+            attrs,
+        }
+    }
+
+    pub fn downcast(self) -> Record {
+        Record::Normal(NormalRecord::new(
+            self.l_brace,
+            self.r_brace,
+            self.attrs.into_iter().map(|d| d.downcast()).collect(),
+        ))
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstBinOp {
     pub op: Token,
     pub lhs: Box<ConstExpr>,
@@ -1633,13 +1785,16 @@ pub enum ConstExpr {
     Set(ConstSet),
     Dict(ConstDict),
     Tuple(ConstTuple),
+    Record(ConstRecord),
+    Def(ConstDef),
+    Lambda(ConstLambda),
     BinOp(ConstBinOp),
     UnaryOp(ConstUnaryOp),
 }
 
-impl_nested_display_for_chunk_enum!(ConstExpr; Lit, Accessor, App, Array, Set, Dict, Tuple, BinOp, UnaryOp, Erased, Set);
+impl_nested_display_for_chunk_enum!(ConstExpr; Lit, Accessor, App, Array, Set, Dict, Tuple, Record, BinOp, UnaryOp, Def, Lambda, Erased, Set);
 impl_display_from_nested!(ConstExpr);
-impl_locational_for_enum!(ConstExpr; Lit, Accessor, App, Array, Set Dict, Tuple, BinOp, UnaryOp, Erased, Set);
+impl_locational_for_enum!(ConstExpr; Lit, Accessor, App, Array, Set, Dict, Tuple, Record, BinOp, UnaryOp, Def, Lambda, Erased, Set);
 
 impl ConstExpr {
     pub fn need_to_be_closed(&self) -> bool {

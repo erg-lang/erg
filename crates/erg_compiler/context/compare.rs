@@ -14,6 +14,7 @@ use crate::ty::{Predicate, RefinementType, SubrKind, SubrType, Type};
 use Predicate as Pred;
 
 use erg_common::dict::Dict;
+use erg_common::vis::Field;
 use erg_common::{assume_unreachable, log};
 use TyParamOrdering::*;
 use Type::*;
@@ -716,7 +717,42 @@ impl Context {
                 }
                 false
             }
+            (Structural(l), Structural(r)) => self.structural_supertype_of(l, r, allow_cast),
+            // TODO: If visibility does not match, it should be reported as a cause of an error
+            (Structural(l), r) => {
+                let r_fields = self.fields(r);
+                for (l_field, l_ty) in self.fields(l) {
+                    if let Some((r_field, r_ty)) = r_fields.get_key_value(&l_field) {
+                        let compatible = self.supertype_of(&l_ty, r_ty, allow_cast);
+                        if r_field.vis != l_field.vis || !compatible {
+                            return false;
+                        }
+                    } else {
+                        return false;
+                    }
+                }
+                true
+            }
             (_l, _r) => false,
+        }
+    }
+
+    // TODO: we need consider duplicating keys
+    pub fn fields(&self, t: &Type) -> Dict<Field, Type> {
+        match t {
+            Type::FreeVar(fv) if fv.is_linked() => self.fields(&fv.crack()),
+            Type::Record(fields) => fields.clone(),
+            Type::Refinement(refine) => self.fields(&refine.t),
+            Type::Structural(t) => self.fields(t),
+            other => {
+                let (_, ctx) = self
+                    .get_nominal_type_ctx(other)
+                    .unwrap_or_else(|| panic!("{other} is not found"));
+                ctx.type_dir()
+                    .into_iter()
+                    .map(|(name, vi)| (Field::new(vi.vis, name.inspect().clone()), vi.t.clone()))
+                    .collect()
+            }
         }
     }
 

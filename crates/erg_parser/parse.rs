@@ -17,6 +17,7 @@ use erg_common::{
 };
 
 use crate::ast::*;
+use crate::desugar::Desugarer;
 use crate::error::{ParseError, ParseErrors, ParseResult, ParserRunnerError, ParserRunnerErrors};
 use crate::lex::Lexer;
 use crate::token::{Token, TokenCategory, TokenKind, TokenStream};
@@ -1169,6 +1170,7 @@ impl Parser {
                     let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                     let t_spec_as_expr = self
                         .try_reduce_expr(false, false, false, false)
+                        .map(Desugarer::desugar_simple_expr)
                         .map_err(|_| self.stack_dec(fn_name!()))?;
                     let t_spec = Self::expr_to_type_spec(t_spec_as_expr.clone())
                         .map_err(|e| self.errs.push(e))?;
@@ -1440,6 +1442,7 @@ impl Parser {
                     let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                     let t_spec_as_expr = self
                         .try_reduce_expr(false, in_type_args, in_brace, false)
+                        .map(Desugarer::desugar_simple_expr)
                         .map_err(|_| self.stack_dec(fn_name!()))?;
                     let t_spec = Self::expr_to_type_spec(t_spec_as_expr.clone())
                         .map_err(|e| self.errs.push(e))?;

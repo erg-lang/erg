@@ -15,8 +15,8 @@ use erg_common::vis::Visibility;
 use erg_common::Str;
 use erg_common::{enum_unwrap, get_hash, log, set};
 
-use ast::{Decorator, DefId, Identifier, OperationKind, SimpleTypeSpec, VarName};
-use erg_parser::ast::{self, ConstIdentifier};
+use ast::{ConstIdentifier, Decorator, DefId, Identifier, OperationKind, SimpleTypeSpec, VarName};
+use erg_parser::ast;
 
 use crate::ty::constructors::{
     free_var, func, func0, func1, proc, ref_, ref_mut, unknown_len_array_t, v_enum,
@@ -671,6 +671,7 @@ impl Context {
         };
         sub_t.lift();
         let found_t = self.generalize_t(sub_t);
+        // let found_t = self.eliminate_needless_quant(found_t, crate::context::Variance::Covariant, sig)?;
         let py_name = if let Some(vi) = self.decls.remove(name) {
             let allow_cast = true;
             if !self.supertype_of(&vi.t, &found_t, allow_cast) {
@@ -716,7 +717,8 @@ impl Context {
             py_name,
             self.absolutize(name.loc()),
         );
-        log!(info "Registered {}::{name}: {}", self.name, &vi.t);
+        let vis = if vi.vis.is_private() { "::" } else { "." };
+        log!(info "Registered {}{}{name}: {}", self.name, vis, &vi.t);
         self.locals.insert(name.clone(), vi.clone());
         errs?;
         Ok(vi)
@@ -1099,7 +1101,17 @@ impl Context {
                         Self::methods(None, self.cfg.clone(), self.shared.clone(), 2, self.level);
                     let new_t = if let Some(base) = gen.base_or_sup() {
                         match base {
-                            TypeObj::Builtin(Type::Record(_)) => {}
+                            TypeObj::Builtin(Type::Record(rec)) => {
+                                for (field, t) in rec.iter() {
+                                    let varname = VarName::from_str(field.symbol.clone());
+                                    let vi = VarInfo::instance_attr(
+                                        field.clone(),
+                                        t.clone(),
+                                        self.impl_of(),
+                                    );
+                                    ctx.decls.insert(varname, vi);
+                                }
+                            }
                             other => {
                                 methods.register_fixed_auto_impl(
                                     "base",
@@ -1167,6 +1179,17 @@ impl Context {
                         // `Super.Requirement := {x = Int}` and `Self.Additional := {y = Int}`
                         // => `Self.Requirement := {x = Int; y = Int}`
                         let param_t = if let Some(additional) = gen.additional() {
+                            if let TypeObj::Builtin(Type::Record(rec)) = additional {
+                                for (field, t) in rec.iter() {
+                                    let varname = VarName::from_str(field.symbol.clone());
+                                    let vi = VarInfo::instance_attr(
+                                        field.clone(),
+                                        t.clone(),
+                                        self.impl_of(),
+                                    );
+                                    ctx.decls.insert(varname, vi);
+                                }
+                            }
                             self.intersection(param_t, additional.typ())
                         } else {
                             param_t.clone()
@@ -1216,22 +1239,7 @@ impl Context {
                     );
                     let Some(TypeObj::Builtin(Type::Record(req))) = gen.base_or_sup() else { todo!("{gen}") };
                     for (field, t) in req.iter() {
-                        let muty = if field.is_const() {
-                            Mutability::Const
-                        } else {
-                            Mutability::Immutable
-                        };
-                        let vi = VarInfo::new(
-                            t.clone(),
-                            muty,
-                            field.vis,
-                            VarKind::Declared,
-                            None,
-                            self.impl_of(),
-                            None,
-                            // TODO:
-                            AbsLocation::unknown(),
-                        );
+                        let vi = VarInfo::instance_attr(field.clone(), t.clone(), self.impl_of());
                         ctx.decls
                             .insert(VarName::from_str(field.symbol.clone()), vi);
                     }
@@ -1262,22 +1270,8 @@ impl Context {
                     );
                     if let Some(additional) = additional {
                         for (field, t) in additional.iter() {
-                            let muty = if field.is_const() {
-                                Mutability::Const
-                            } else {
-                                Mutability::Immutable
-                            };
-                            let vi = VarInfo::new(
-                                t.clone(),
-                                muty,
-                                field.vis,
-                                VarKind::Declared,
-                                None,
-                                self.impl_of(),
-                                None,
-                                // TODO:
-                                AbsLocation::unknown(),
-                            );
+                            let vi =
+                                VarInfo::instance_attr(field.clone(), t.clone(), self.impl_of());
                             ctx.decls
                                 .insert(VarName::from_str(field.symbol.clone()), vi);
                         }

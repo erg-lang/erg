@@ -165,6 +165,21 @@ impl IntersectionTypeObj {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct StructuralTypeObj {
+    pub t: Type,
+    pub base: Box<TypeObj>,
+}
+
+impl StructuralTypeObj {
+    pub fn new(t: Type, base: TypeObj) -> Self {
+        Self {
+            t,
+            base: Box::new(base),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PatchObj {
     pub t: Type,
     pub base: Box<TypeObj>,
@@ -187,7 +202,7 @@ pub enum GenTypeObj {
     Subclass(InheritedTypeObj),
     Trait(TraitTypeObj),
     Subtrait(SubsumedTypeObj),
-    StructuralTrait(TraitTypeObj),
+    Structural(StructuralTypeObj),
     Union(UnionTypeObj),
     Intersection(IntersectionTypeObj),
     Patch(PatchObj),
@@ -238,13 +253,17 @@ impl GenTypeObj {
         GenTypeObj::Intersection(IntersectionTypeObj::new(t, lhs, rhs))
     }
 
+    pub fn structural(t: Type, type_: TypeObj) -> Self {
+        GenTypeObj::Structural(StructuralTypeObj::new(t, type_))
+    }
+
     pub fn base_or_sup(&self) -> Option<&TypeObj> {
         match self {
             Self::Class(class) => class.base.as_ref().map(AsRef::as_ref),
             Self::Subclass(subclass) => Some(subclass.sup.as_ref()),
             Self::Trait(trait_) => Some(trait_.requires.as_ref()),
             Self::Subtrait(subtrait) => Some(subtrait.sup.as_ref()),
-            Self::StructuralTrait(trait_) => Some(trait_.requires.as_ref()),
+            Self::Structural(type_) => Some(type_.base.as_ref()),
             Self::Patch(patch) => Some(patch.base.as_ref()),
             _ => None,
         }
@@ -281,8 +300,9 @@ impl GenTypeObj {
     pub fn meta_type(&self) -> Type {
         match self {
             Self::Class(_) | Self::Subclass(_) => Type::ClassType,
-            Self::Trait(_) | Self::Subtrait(_) | Self::StructuralTrait(_) => Type::TraitType,
+            Self::Trait(_) | Self::Subtrait(_) => Type::TraitType,
             Self::Patch(_) => Type::Patch,
+            Self::Structural(_) => Type::Type,
             _ => Type::Type,
         }
     }
@@ -293,7 +313,7 @@ impl GenTypeObj {
             Self::Subclass(subclass) => &subclass.t,
             Self::Trait(trait_) => &trait_.t,
             Self::Subtrait(subtrait) => &subtrait.t,
-            Self::StructuralTrait(trait_) => &trait_.t,
+            Self::Structural(struct_) => &struct_.t,
             Self::Union(union_) => &union_.t,
             Self::Intersection(intersection) => &intersection.t,
             Self::Patch(patch) => &patch.t,
@@ -306,7 +326,7 @@ impl GenTypeObj {
             Self::Subclass(subclass) => &mut subclass.t,
             Self::Trait(trait_) => &mut trait_.t,
             Self::Subtrait(subtrait) => &mut subtrait.t,
-            Self::StructuralTrait(trait_) => &mut trait_.t,
+            Self::Structural(struct_) => &mut struct_.t,
             Self::Union(union_) => &mut union_.t,
             Self::Intersection(intersection) => &mut intersection.t,
             Self::Patch(patch) => &mut patch.t,
@@ -319,7 +339,7 @@ impl GenTypeObj {
             Self::Subclass(subclass) => subclass.t,
             Self::Trait(trait_) => trait_.t,
             Self::Subtrait(subtrait) => subtrait.t,
-            Self::StructuralTrait(trait_) => trait_.t,
+            Self::Structural(struct_) => struct_.t,
             Self::Union(union_) => union_.t,
             Self::Intersection(intersection) => intersection.t,
             Self::Patch(patch) => patch.t,

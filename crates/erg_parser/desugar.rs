@@ -51,6 +51,12 @@ impl Desugarer {
         module
     }
 
+    pub fn desugar_simple_expr(expr: Expr) -> Expr {
+        let expr = Self::rec_desugar_shortened_record(expr);
+        let expr = Self::rec_desugar_lambda_pattern(&mut Desugarer {}, expr);
+        Self::rec_desugar_acc(expr)
+    }
+
     fn desugar_all_chunks(module: Module, desugar: impl Fn(Expr) -> Expr) -> Module {
         module.into_iter().map(desugar).collect()
     }

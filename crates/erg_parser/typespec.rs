@@ -109,10 +109,34 @@ impl Parser {
                 let args = ConstArgs::pos_only(const_pos_args, paren);
                 Ok(ConstExpr::App(ConstApp::new(acc, args)))
             }
-            // TODO: App, Record,
+            Expr::Def(def) => Self::validate_const_def(def).map(ConstExpr::Def),
+            Expr::Lambda(lambda) => {
+                let body = Self::validate_const_block(lambda.body)?;
+                let lambda = ConstLambda::new(lambda.sig, lambda.op, body, lambda.id);
+                Ok(ConstExpr::Lambda(lambda))
+            }
+            Expr::Record(rec) => {
+                let rec = match rec {
+                    Record::Normal(rec) => rec,
+                    Record::Mixed(_) => unreachable!(),
+                };
+                let mut const_fields = vec![];
+                for attr in rec.attrs.into_iter() {
+                    const_fields.push(Self::validate_const_def(attr)?);
+                }
+                Ok(ConstExpr::Record(ConstRecord::new(
+                    rec.l_brace,
+                    rec.r_brace,
+                    const_fields,
+                )))
+            }
+            // TODO: Lambda, ...
             other => Err(ParseError::syntax_error(
                 line!() as usize,
-                other.loc(),
+                {
+                    erg_common::log!(err "{other}");
+                    other.loc()
+                },
                 switch_lang!(
                     "japanese" => "この式はコンパイル時計算できないため、型引数には使用できません",
                     "simplified_chinese" => "此表达式在编译时不可计算，因此不能用作类型参数",
@@ -122,6 +146,21 @@ impl Parser {
                 None,
             )),
         }
+    }
+
+    pub fn validate_const_block(block: Block) -> Result<ConstBlock, ParseError> {
+        let mut const_block = vec![];
+        for expr in block.into_iter() {
+            let const_expr = Self::validate_const_expr(expr)?;
+            const_block.push(const_expr);
+        }
+        Ok(ConstBlock::new(const_block))
+    }
+
+    fn validate_const_def(def: Def) -> Result<ConstDef, ParseError> {
+        let block = Self::validate_const_block(def.body.block)?;
+        let body = ConstDefBody::new(def.body.op, block, def.body.id);
+        Ok(ConstDef::new(def.sig.ident().unwrap().clone(), body))
     }
 
     fn ident_to_type_spec(ident: Identifier) -> SimpleTypeSpec {

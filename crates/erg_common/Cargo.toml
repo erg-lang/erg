@@ -11,6 +11,7 @@ homepage.workspace = true
 
 [features]
 debug = ["dep:backtrace-on-stack-overflow"]
+backtrace = ["dep:backtrace-on-stack-overflow"]
 japanese = []
 simplified_chinese = []
 traditional_chinese = []

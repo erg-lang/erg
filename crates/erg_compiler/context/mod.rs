@@ -391,21 +391,7 @@ impl fmt::Display for Context {
 
 impl ContextProvider for Context {
     fn dir(&self) -> Vec<(&VarName, &VarInfo)> {
-        let mut vars: Vec<_> = self
-            .locals
-            .iter()
-            .chain(
-                self.params
-                    .iter()
-                    .filter_map(|(k, v)| k.as_ref().map(|k| (k, v))),
-            )
-            .chain(self.methods_list.iter().flat_map(|(_, ctx)| ctx.dir()))
-            .collect();
-        for sup in self.super_classes.iter() {
-            if let Some((_, sup_ctx)) = self.get_nominal_type_ctx(sup) {
-                vars.extend(sup_ctx.type_dir());
-            }
-        }
+        let mut vars = self.type_dir();
         if let Some(outer) = self.get_outer() {
             vars.extend(outer.dir());
         } else if let Some(builtins) = self.get_builtins() {
@@ -992,10 +978,23 @@ impl Context {
     }
 
     fn type_dir(&self) -> Vec<(&VarName, &VarInfo)> {
-        self.locals
+        let mut vars: Vec<_> = self
+            .locals
             .iter()
-            .chain(self.methods_list.iter().flat_map(|(_, ctx)| ctx.dir()))
-            .collect()
+            .chain(self.decls.iter())
+            .chain(
+                self.params
+                    .iter()
+                    .filter_map(|(k, v)| k.as_ref().map(|k| (k, v))),
+            )
+            .chain(self.methods_list.iter().flat_map(|(_, ctx)| ctx.type_dir()))
+            .collect();
+        for sup in self.super_classes.iter() {
+            if let Some((_, sup_ctx)) = self.get_nominal_type_ctx(sup) {
+                vars.extend(sup_ctx.type_dir());
+            }
+        }
+        vars
     }
 
     pub(crate) fn mod_cache(&self) -> &SharedModuleCache {

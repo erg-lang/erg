@@ -628,18 +628,18 @@ impl Context {
                     );
                     Ok(vi)
                 } else {
-                    let t = Type::Record(record.clone());
                     Err(TyCheckError::no_attr_error(
                         self.cfg.input.clone(),
                         line!() as usize,
                         ident.loc(),
                         namespace.into(),
-                        &t,
+                        t,
                         ident.inspect(),
-                        self.get_similar_attr(&t, ident.inspect()),
+                        self.get_similar_attr(t, ident.inspect()),
                     ))
                 }
             }
+            Type::Structural(t) => self.get_attr_info_from_attributive(t, ident, namespace),
             other => {
                 if let Some(v) = self.rec_get_const_obj(&other.local_name()) {
                     match v {
@@ -752,6 +752,9 @@ impl Context {
         input: &Input,
         namespace: &Str,
     ) -> SingleTyCheckResult<VarInfo> {
+        if let Ok(vi) = self.get_attr_info_from_attributive(obj.ref_t(), attr_name, namespace) {
+            return Ok(vi);
+        }
         for ctx in self
             .get_nominal_super_type_ctxs(obj.ref_t())
             .ok_or_else(|| {

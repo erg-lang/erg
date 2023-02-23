@@ -13,7 +13,7 @@ pub mod typaram;
 pub mod value;
 
 use std::fmt;
-use std::ops::{Range, RangeInclusive};
+use std::ops::{BitAnd, BitOr, Deref, Not, Range, RangeInclusive};
 use std::path::PathBuf;
 
 use constructors::dict_t;
@@ -212,6 +212,21 @@ impl ParamTy {
         }
     }
 
+    pub fn try_map_type<F, E>(self, f: F) -> Result<Self, E>
+    where
+        F: FnOnce(Type) -> Result<Type, E>,
+    {
+        match self {
+            Self::Pos { name, ty } => Ok(Self::Pos { name, ty: f(ty)? }),
+            Self::Kw { name, ty } => Ok(Self::Kw { name, ty: f(ty)? }),
+            Self::KwWithDefault { name, ty, default } => Ok(Self::KwWithDefault {
+                name,
+                ty: f(ty)?,
+                default,
+            }),
+        }
+    }
+
     pub fn deconstruct(self) -> (Option<Str>, Type, Option<Type>) {
         match self {
             Self::Pos { name, ty } => (name, ty, None),
@@ -246,6 +261,7 @@ impl TryFrom<Type> for SubrType {
         match t {
             Type::FreeVar(fv) if fv.is_linked() => Self::try_from(fv.crack().clone()),
             Type::Subr(st) => Ok(st),
+            Type::Quantified(quant) => SubrType::try_from(*quant),
             Type::Refinement(refine) => Self::try_from(*refine.t),
             _ => Err(()),
         }
@@ -258,6 +274,7 @@ impl<'t> TryFrom<&'t Type> for &'t SubrType {
         match t {
             Type::FreeVar(fv) if fv.is_linked() => Self::try_from(fv.unsafe_crack()),
             Type::Subr(st) => Ok(st),
+            Type::Quantified(quant) => <&SubrType>::try_from(quant.as_ref()),
             Type::Refinement(refine) => Self::try_from(refine.t.as_ref()),
             _ => Err(()),
         }
@@ -705,6 +722,7 @@ pub enum Type {
         attr_name: Str,
         args: Vec<TyParam>,
     }, // e.g. Ts.__getitem__(N)
+    Structural(Box<Type>),
     FreeVar(FreeTyVar), // a reference to the type of other expression, see docs/compiler/inference.md
     Failure,            // indicates a failure of type inference and behaves as `Never`.
     /// used to represent `TyParam` is not initialized (see `erg_compiler::context::instantiate_tp`)
@@ -749,14 +767,18 @@ impl PartialEq for Type {
             (Self::Subr(l), Self::Subr(r)) => l == r,
             (
                 Self::Callable {
-                    param_ts: _lps,
-                    return_t: _lr,
+                    param_ts: lps,
+                    return_t: lr,
                 },
                 Self::Callable {
-                    param_ts: _rps,
-                    return_t: _rr,
+                    param_ts: rps,
+                    return_t: rr,
                 },
-            ) => todo!(),
+            ) => {
+                lps.len() != rps.len()
+                    && lps.iter().zip(rps.iter()).all(|(l, r)| l == r)
+                    && (lr == rr)
+            }
             (Self::Record(lhs), Self::Record(rhs)) => {
                 for (l_field, l_t) in lhs.iter() {
                     if let Some(r_t) = rhs.get(l_field) {
@@ -804,6 +826,7 @@ impl PartialEq for Type {
                     args: ra,
                 },
             ) => lhs == r && attr_name == rn && args == ra,
+            (Self::Structural(l), Self::Structural(r)) => l == r,
             (Self::FreeVar(fv), other) if fv.is_linked() => &*fv.crack() == other,
             (_self, Self::FreeVar(fv)) if fv.is_linked() => _self == &*fv.crack(),
             (Self::FreeVar(l), Self::FreeVar(r)) => l == r,
@@ -929,6 +952,11 @@ impl LimitedDisplay for Type {
                 }
                 write!(f, ")")
             }
+            Self::Structural(ty) => {
+                write!(f, "Structural(")?;
+                ty.limited_fmt(f, limit - 1)?;
+                write!(f, ")")
+            }
             _ => write!(f, "{}", self.qual_name()),
         }
     }
@@ -997,6 +1025,27 @@ impl From<Dict<Type, Type>> for Type {
             .map(|(k, v)| (TyParam::t(k), TyParam::t(v)))
             .collect();
         dict_t(TyParam::Dict(d))
+    }
+}
+
+impl BitAnd for Type {
+    type Output = Self;
+    fn bitand(self, rhs: Self) -> Self::Output {
+        Self::And(Box::new(self), Box::new(rhs))
+    }
+}
+
+impl BitOr for Type {
+    type Output = Self;
+    fn bitor(self, rhs: Self) -> Self::Output {
+        Self::Or(Box::new(self), Box::new(rhs))
+    }
+}
+
+impl Not for Type {
+    type Output = Self;
+    fn not(self) -> Self::Output {
+        Self::Not(Box::new(self))
     }
 }
 
@@ -1129,6 +1178,7 @@ impl HasLevel for Type {
                     Some(min)
                 }
             }
+            Self::Structural(ty) => ty.level(),
             Self::Quantified(quant) => quant.level(),
             _ => None,
         }
@@ -1189,6 +1239,13 @@ impl HasLevel for Type {
                     pred.set_level(level);
                 }
             }
+            Self::ProjCall { lhs, args, .. } => {
+                lhs.set_level(level);
+                for arg in args.iter() {
+                    arg.set_level(level);
+                }
+            }
+            Self::Structural(ty) => ty.set_level(level),
             _ => {}
         }
     }
@@ -1284,6 +1341,7 @@ impl StructuralEq for Type {
                         .zip(args2.iter())
                         .all(|(a, b)| a.structural_eq(b))
             }
+            (Self::Structural(l), Self::Structural(r)) => l.structural_eq(r),
             // TODO: commutative
             (Self::And(l, r), Self::And(l2, r2)) => l.structural_eq(l2) && r.structural_eq(r2),
             (Self::Or(l, r), Self::Or(l2, r2)) => l.structural_eq(l2) && r.structural_eq(r2),
@@ -1332,6 +1390,10 @@ impl Type {
             lhs: Box::new(self),
             rhs: attr.into(),
         }
+    }
+
+    pub fn structuralize(self) -> Self {
+        Self::Structural(Box::new(self))
     }
 
     pub fn is_simple_class(&self) -> bool {
@@ -1503,10 +1565,25 @@ impl Type {
                         .map(|(sub, sup)| sub.contains_tvar(name) || sup.contains_tvar(name))
                         .unwrap_or(false)
             }
+            Self::Record(rec) => rec.iter().any(|(_, t)| t.contains_tvar(name)),
             Self::Poly { params, .. } => params.iter().any(|tp| tp.contains_var(name)),
+            Self::Quantified(t) => t.contains_tvar(name),
             Self::Subr(subr) => subr.contains_tvar(name),
             // TODO: preds
             Self::Refinement(refine) => refine.t.contains_tvar(name),
+            Self::Structural(ty) => ty.contains_tvar(name),
+            Self::Proj { lhs, .. } => lhs.contains_tvar(name),
+            Self::ProjCall { lhs, args, .. } => {
+                lhs.contains_var(name) || args.iter().any(|t| t.contains_var(name))
+            }
+            Self::And(lhs, rhs) => lhs.contains_tvar(name) || rhs.contains_tvar(name),
+            Self::Or(lhs, rhs) => lhs.contains_tvar(name) || rhs.contains_tvar(name),
+            Self::Not(t) => t.contains_tvar(name),
+            Self::Ref(t) => t.contains_tvar(name),
+            Self::RefMut { before, after } => {
+                before.contains_tvar(name)
+                    || after.as_ref().map_or(false, |t| t.contains_tvar(name))
+            }
             _ => false,
         }
     }
@@ -1614,6 +1691,7 @@ impl Type {
             },
             Self::Proj { .. } => Str::ever("Proj"),
             Self::ProjCall { .. } => Str::ever("ProjCall"),
+            Self::Structural(_) => Str::ever("Structural"),
             Self::Failure => Str::ever("Failure"),
             Self::Uninited => Str::ever("Uninited"),
         }
@@ -1809,6 +1887,7 @@ impl Type {
             Self::ProjCall { lhs, args, .. } => lhs
                 .qvars()
                 .concat(args.iter().fold(set! {}, |acc, tp| acc.concat(tp.qvars()))),
+            Self::Structural(ty) => ty.qvars(),
             _ => set! {},
         }
     }
@@ -1866,6 +1945,7 @@ impl Type {
             Self::ProjCall { lhs, args, .. } => {
                 lhs.has_qvar() || args.iter().any(|tp| tp.has_qvar())
             }
+            Self::Structural(ty) => ty.has_qvar(),
             _ => false,
         }
     }
@@ -1917,6 +1997,10 @@ impl Type {
             Self::Quantified(quant) => quant.has_unbound_var(),
             Self::Poly { params, .. } => params.iter().any(|p| p.has_unbound_var()),
             Self::Proj { lhs, .. } => lhs.has_no_unbound_var(),
+            Self::ProjCall { lhs, args, .. } => {
+                lhs.has_no_unbound_var() && args.iter().all(|t| t.has_no_unbound_var())
+            }
+            Self::Structural(ty) => ty.has_unbound_var(),
             _ => false,
         }
     }
@@ -1941,6 +2025,9 @@ impl Type {
             ),
             Self::Callable { param_ts, .. } => Some(param_ts.len() + 1),
             Self::Poly { params, .. } => Some(params.len()),
+            Self::Proj { lhs, .. } => lhs.typarams_len(),
+            Self::ProjCall { args, .. } => Some(1 + args.len()),
+            Self::Structural(ty) => ty.typarams_len(),
             _ => None,
         }
     }
@@ -1977,6 +2064,11 @@ impl Type {
             Self::Quantified(quant) => quant.typarams(),
             Self::Callable { param_ts: _, .. } => todo!(),
             Self::Poly { params, .. } => params.clone(),
+            Self::Proj { lhs, .. } => lhs.typarams(),
+            Self::ProjCall { lhs, args, .. } => {
+                [vec![*lhs.clone()], args.deref().to_vec()].concat()
+            }
+            Self::Structural(ty) => ty.typarams(),
             _ => vec![],
         }
     }
@@ -2135,17 +2227,11 @@ impl Type {
                 before: Box::new(before.derefine()),
                 after: after.as_ref().map(|t| Box::new(t.derefine())),
             },
-            Self::And(l, r) => {
-                let l = l.derefine();
-                let r = r.derefine();
-                Self::And(Box::new(l), Box::new(r))
-            }
-            Self::Or(l, r) => {
-                let l = l.derefine();
-                let r = r.derefine();
-                Self::Or(Box::new(l), Box::new(r))
-            }
-            Self::Not(ty) => Self::Not(Box::new(ty.derefine())),
+            Self::And(l, r) => l.derefine() & r.derefine(),
+            Self::Or(l, r) => l.derefine() | r.derefine(),
+            Self::Not(ty) => !ty.derefine(),
+            Self::Proj { lhs, rhs } => lhs.derefine().proj(rhs.clone()),
+            Self::Structural(ty) => ty.derefine().structuralize(),
             other => other.clone(),
         }
     }
@@ -2218,17 +2304,9 @@ impl Type {
                 before: Box::new(before._replace(target, to)),
                 after: after.map(|t| Box::new(t._replace(target, to))),
             },
-            Self::And(l, r) => {
-                let l = l._replace(target, to);
-                let r = r._replace(target, to);
-                Self::And(Box::new(l), Box::new(r))
-            }
-            Self::Or(l, r) => {
-                let l = l._replace(target, to);
-                let r = r._replace(target, to);
-                Self::Or(Box::new(l), Box::new(r))
-            }
-            Self::Not(ty) => Self::Not(Box::new(ty._replace(target, to))),
+            Self::And(l, r) => l._replace(target, to) & r._replace(target, to),
+            Self::Or(l, r) => l._replace(target, to) | r._replace(target, to),
+            Self::Not(ty) => !ty._replace(target, to),
             Self::Proj { lhs, rhs } => lhs._replace(target, to).proj(rhs),
             Self::ProjCall {
                 lhs,
@@ -2238,6 +2316,7 @@ impl Type {
                 let args = args.into_iter().map(|tp| tp.replace(target, to)).collect();
                 lhs.replace(target, to).proj_call(attr_name, args)
             }
+            Self::Structural(ty) => ty._replace(target, to).structuralize(),
             other => other,
         }
     }
@@ -2264,6 +2343,23 @@ impl Type {
                 Self::Subr(subr)
             }
             Self::Proj { lhs, rhs } => lhs.normalize().proj(rhs),
+            Self::ProjCall {
+                lhs,
+                attr_name,
+                args,
+            } => {
+                let args = args.into_iter().map(|tp| tp.normalize()).collect();
+                lhs.normalize().proj_call(attr_name, args)
+            }
+            Self::Ref(t) => Self::Ref(Box::new(t.normalize())),
+            Self::RefMut { before, after } => Self::RefMut {
+                before: Box::new(before.normalize()),
+                after: after.map(|t| Box::new(t.normalize())),
+            },
+            Self::And(l, r) => l.normalize() & r.normalize(),
+            Self::Or(l, r) => l.normalize() | r.normalize(),
+            Self::Not(ty) => !ty.normalize(),
+            Self::Structural(ty) => ty.normalize().structuralize(),
             other => other,
         }
     }

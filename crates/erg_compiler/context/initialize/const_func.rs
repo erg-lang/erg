@@ -210,6 +210,32 @@ pub fn subsume_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<Value
     )))
 }
 
+pub fn structural_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<ValueObj> {
+    let type_ = args.remove_left_or_key("Type").ok_or_else(|| {
+        ErrorCore::new(
+            vec![SubMessage::only_loc(Location::Unknown)],
+            format!("{BASE_ERR} is not passed"),
+            line!() as usize,
+            ErrorKind::KeyError,
+            Location::Unknown,
+        )
+    })?;
+    let Some(base) = type_.as_type() else {
+        let type_ = StyledString::new(format!("{type_}"), Some(ERR), None);
+        return Err(ErrorCore::new(
+            vec![SubMessage::only_loc(Location::Unknown)],
+            format!(
+                "non-type object {type_} is passed to {BASE_WARN}",
+            ),
+            line!() as usize,
+            ErrorKind::TypeError,
+            Location::Unknown,
+        ).into());
+    };
+    let t = base.typ().clone().structuralize();
+    Ok(ValueObj::gen_t(GenTypeObj::structural(t, base)))
+}
+
 pub fn __array_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
     let slf = ctx
         .convert_value_into_array(args.remove_left_or_key("Self").unwrap())

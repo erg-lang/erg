@@ -411,6 +411,13 @@ impl Context {
             None,
         ));
         self.register_builtin_const(SUBSUME, vis, ValueObj::Subr(subsume));
+        let structural = ConstSubr::Builtin(BuiltinConstSubr::new(
+            STRUCTURAL,
+            structural_func,
+            func1(Type, Type),
+            None,
+        ));
+        self.register_builtin_const(STRUCTURAL, vis, ValueObj::Subr(structural));
         // decorators
         let inheritable_t = func1(ClassType, ClassType);
         let inheritable = ConstSubr::Builtin(BuiltinConstSubr::new(
