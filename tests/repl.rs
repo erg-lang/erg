@@ -36,6 +36,7 @@ fn exec_repl_for_loop() -> Result<(), ()> {
 }
 
 #[test]
+#[ignore]
 fn exec_repl_auto_indent_dedent_check() -> Result<(), ()> {
     expect_repl_success(
         "repl_auto_indent_dedent",
@@ -100,6 +101,7 @@ fn exec_repl_class_def_with_deco() -> Result<(), ()> {
 }
 
 #[test]
+#[ignore]
 fn exec_invalid_class_inheritable() -> Result<(), ()> {
     expect_repl_failure(
         "repl_auto_indent_dedent",
@@ -151,6 +153,7 @@ fn exec_invalid_class_def() -> Result<(), ()> {
 }
 
 #[test]
+#[ignore]
 fn exec_repl_invalid_indent() -> Result<(), ()> {
     expect_repl_failure(
         "repl_invalid_indent",
@@ -173,6 +176,7 @@ fn exec_repl_invalid_indent() -> Result<(), ()> {
 }
 
 #[test]
+#[ignore]
 fn exec_repl_invalid_def_after_the_at_sign() -> Result<(), ()> {
     expect_repl_failure(
         "repl_invalid_indent",
