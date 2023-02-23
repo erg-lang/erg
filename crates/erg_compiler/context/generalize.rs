@@ -707,6 +707,16 @@ impl Context {
                 )?);
                 Ok(Type::Subr(subr))
             }
+            Type::Callable {
+                mut param_ts,
+                return_t,
+            } => {
+                for param_t in param_ts.iter_mut() {
+                    *param_t = self.deref_tyvar(mem::take(param_t), variance, qnames, loc)?;
+                }
+                let return_t = self.deref_tyvar(*return_t, variance, qnames, loc)?;
+                Ok(callable(param_ts, return_t))
+            }
             Type::Quantified(subr) => self.eliminate_needless_quant(*subr, variance, loc),
             Type::Ref(t) => {
                 let t = self.deref_tyvar(*t, variance, qnames, loc)?;
@@ -721,7 +731,6 @@ impl Context {
                 };
                 Ok(ref_mut(before, after))
             }
-            // Type::Callable { .. } => todo!(),
             Type::Record(mut rec) => {
                 for (_, field) in rec.iter_mut() {
                     *field = self.deref_tyvar(mem::take(field), variance, qnames, loc)?;

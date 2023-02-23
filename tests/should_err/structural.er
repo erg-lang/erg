@@ -30,3 +30,6 @@ add|T: Type, U: Type, V: Type| x: Structural({ .__add__ = (self: T, other: U) ->
 
 _ = add 1, "a" # ERR
 _ = add e, 1 # ERR
+x = add e, e
+_ = add x, 1 # ERR
+_ = add 1, x # ERR

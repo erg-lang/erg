@@ -16,7 +16,6 @@ use std::fmt;
 use std::ops::{BitAnd, BitOr, Deref, Not, Range, RangeInclusive};
 use std::path::PathBuf;
 
-use constructors::dict_t;
 use erg_common::dict::Dict;
 use erg_common::fresh::fresh_varname;
 #[allow(unused_imports)]
@@ -24,12 +23,12 @@ use erg_common::log;
 use erg_common::set::Set;
 use erg_common::traits::{LimitedDisplay, StructuralEq};
 use erg_common::vis::Field;
-use erg_common::{enum_unwrap, fmt_option, fmt_set_split_with, set, Str};
+use erg_common::{enum_unwrap, fmt_option, fmt_set_split_with, ref_addr_eq, set, Str};
 
 use erg_parser::token::TokenKind;
 
 pub use const_subr::*;
-use constructors::{int_interval, mono};
+use constructors::{dict_t, int_interval, mono};
 use free::{CanbeFree, Constraint, Free, FreeKind, FreeTyVar, HasLevel, Level, GENERIC_LEVEL};
 pub use predicate::Predicate;
 use typaram::{IntervalOp, TyParam};
@@ -360,20 +359,20 @@ impl SubrType {
         }
     }
 
-    pub fn contains_tvar(&self, name: &str) -> bool {
+    pub fn contains_tvar(&self, target: &FreeTyVar) -> bool {
         self.non_default_params
             .iter()
-            .any(|pt| pt.typ().contains_tvar(name))
+            .any(|pt| pt.typ().contains_tvar(target))
             || self
                 .var_params
                 .as_ref()
-                .map(|pt| pt.typ().contains_tvar(name))
+                .map(|pt| pt.typ().contains_tvar(target))
                 .unwrap_or(false)
             || self
                 .default_params
                 .iter()
-                .any(|pt| pt.typ().contains_tvar(name))
-            || self.return_t.contains_tvar(name)
+                .any(|pt| pt.typ().contains_tvar(target))
+            || self.return_t.contains_tvar(target)
     }
 
     pub fn qvars(&self) -> Set<(Str, Constraint)> {
@@ -1552,37 +1551,37 @@ impl Type {
         }
     }
 
-    pub fn contains_tvar(&self, name: &str) -> bool {
+    pub fn contains_tvar(&self, target: &FreeTyVar) -> bool {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains_tvar(name),
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains_tvar(target),
             Self::FreeVar(fv) if fv.constraint_is_typeof() => {
-                fv.unbound_name().map(|n| &n[..] == name).unwrap_or(false)
+                ref_addr_eq!(fv.forced_as_ref(), target.forced_as_ref())
             }
             Self::FreeVar(fv) => {
-                fv.unbound_name().map(|n| &n[..] == name).unwrap_or(false)
+                ref_addr_eq!(fv.forced_as_ref(), target.forced_as_ref())
                     || fv
                         .get_subsup()
-                        .map(|(sub, sup)| sub.contains_tvar(name) || sup.contains_tvar(name))
+                        .map(|(sub, sup)| sub.contains_tvar(target) || sup.contains_tvar(target))
                         .unwrap_or(false)
             }
-            Self::Record(rec) => rec.iter().any(|(_, t)| t.contains_tvar(name)),
-            Self::Poly { params, .. } => params.iter().any(|tp| tp.contains_var(name)),
-            Self::Quantified(t) => t.contains_tvar(name),
-            Self::Subr(subr) => subr.contains_tvar(name),
+            Self::Record(rec) => rec.iter().any(|(_, t)| t.contains_tvar(target)),
+            Self::Poly { params, .. } => params.iter().any(|tp| tp.contains_tvar(target)),
+            Self::Quantified(t) => t.contains_tvar(target),
+            Self::Subr(subr) => subr.contains_tvar(target),
             // TODO: preds
-            Self::Refinement(refine) => refine.t.contains_tvar(name),
-            Self::Structural(ty) => ty.contains_tvar(name),
-            Self::Proj { lhs, .. } => lhs.contains_tvar(name),
+            Self::Refinement(refine) => refine.t.contains_tvar(target),
+            Self::Structural(ty) => ty.contains_tvar(target),
+            Self::Proj { lhs, .. } => lhs.contains_tvar(target),
             Self::ProjCall { lhs, args, .. } => {
-                lhs.contains_var(name) || args.iter().any(|t| t.contains_var(name))
+                lhs.contains_tvar(target) || args.iter().any(|t| t.contains_tvar(target))
             }
-            Self::And(lhs, rhs) => lhs.contains_tvar(name) || rhs.contains_tvar(name),
-            Self::Or(lhs, rhs) => lhs.contains_tvar(name) || rhs.contains_tvar(name),
-            Self::Not(t) => t.contains_tvar(name),
-            Self::Ref(t) => t.contains_tvar(name),
+            Self::And(lhs, rhs) => lhs.contains_tvar(target) || rhs.contains_tvar(target),
+            Self::Or(lhs, rhs) => lhs.contains_tvar(target) || rhs.contains_tvar(target),
+            Self::Not(t) => t.contains_tvar(target),
+            Self::Ref(t) => t.contains_tvar(target),
             Self::RefMut { before, after } => {
-                before.contains_tvar(name)
-                    || after.as_ref().map_or(false, |t| t.contains_tvar(name))
+                before.contains_tvar(target)
+                    || after.as_ref().map_or(false, |t| t.contains_tvar(target))
             }
             _ => false,
         }

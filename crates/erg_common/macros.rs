@@ -349,10 +349,18 @@ macro_rules! addr {
     }};
 }
 
+/// do not use for reference types
 #[macro_export]
 macro_rules! addr_eq {
     ($l: expr, $r: expr $(,)*) => {{
         &$l as *const _ == &$r as *const _
+    }};
+}
+
+#[macro_export]
+macro_rules! ref_addr_eq {
+    ($l: expr, $r: expr $(,)*) => {{
+        $l as *const _ == $r as *const _
     }};
 }
 

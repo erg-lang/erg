@@ -634,9 +634,12 @@ impl Context {
                 }
                 Ok(())
             }
-            // e.g. T/Structural({ .method = (self: T) -> Int })
-            (Type::FreeVar(fv), Type::Structural(_sup)) if fv.is_unbound() => Ok(()),
-            (Type::Structural(_sub), Type::FreeVar(fv)) if fv.is_unbound() => Ok(()),
+            // e.g. Structural({ .method = (self: T) -> Int })/T
+            (Type::Structural(sub), Type::FreeVar(fv))
+                if fv.is_unbound() && sub.contains_tvar(fv) =>
+            {
+                Ok(())
+            }
             (_, Type::FreeVar(rfv)) if rfv.is_unbound() => {
                 // NOTE: cannot `borrow_mut` because of cycle reference
                 let rfv_ref = unsafe { rfv.as_ptr().as_mut().unwrap() };
@@ -675,6 +678,18 @@ impl Context {
                         Constraint::Uninited => unreachable!(),
                     },
                     _ => {}
+                }
+                Ok(())
+            }
+            (Type::FreeVar(fv), Type::Structural(sup)) if fv.is_unbound() => {
+                let sub_fields = self.fields(maybe_sub);
+                for (sup_field, sup_ty) in self.fields(sup) {
+                    if let Some((_, sub_ty)) = sub_fields.get_key_value(&sup_field) {
+                        self.sub_unify(sub_ty, &sup_ty, loc, param_name)?;
+                    } else {
+                        maybe_sub.coerce();
+                        return self.sub_unify(maybe_sub, maybe_sup, loc, param_name);
+                    }
                 }
                 Ok(())
             }

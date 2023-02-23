@@ -14,7 +14,9 @@ use erg_common::{dict, log};
 use erg_parser::ast::ConstLambda;
 
 use super::constructors::int_interval;
-use super::free::{CanbeFree, Constraint, FreeKind, FreeTyParam, HasLevel, Level, GENERIC_LEVEL};
+use super::free::{
+    CanbeFree, Constraint, FreeKind, FreeTyParam, FreeTyVar, HasLevel, Level, GENERIC_LEVEL,
+};
 use super::value::ValueObj;
 use super::Type;
 use super::{ConstSubr, ParamTy, UserConstSubr};
@@ -961,25 +963,22 @@ impl TyParam {
         }
     }
 
-    pub fn contains_var(&self, name: &str) -> bool {
+    pub fn contains_tvar(&self, target: &FreeTyVar) -> bool {
         match self {
-            Self::FreeVar(fv) if fv.is_unbound() => {
-                fv.unbound_name().as_ref().map(|s| &s[..]) == Some(name)
-            }
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains_var(name),
-            Self::Type(t) => t.contains_tvar(name),
-            Self::Erased(t) => t.contains_tvar(name),
-            Self::Proj { obj, .. } => obj.contains_var(name),
-            Self::Array(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.contains_var(name)),
-            Self::Set(ts) => ts.iter().any(|t| t.contains_var(name)),
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains_tvar(target),
+            Self::Type(t) => t.contains_tvar(target),
+            Self::Erased(t) => t.contains_tvar(target),
+            Self::Proj { obj, .. } => obj.contains_tvar(target),
+            Self::Array(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.contains_tvar(target)),
+            Self::Set(ts) => ts.iter().any(|t| t.contains_tvar(target)),
             Self::Dict(ts) => ts
                 .iter()
-                .any(|(k, v)| k.contains_var(name) || v.contains_var(name)),
-            Self::Record(rec) => rec.iter().any(|(_, tp)| tp.contains_var(name)),
-            Self::Lambda(lambda) => lambda.body.iter().any(|tp| tp.contains_var(name)),
-            Self::UnaryOp { val, .. } => val.contains_var(name),
-            Self::BinOp { lhs, rhs, .. } => lhs.contains_var(name) || rhs.contains_var(name),
-            Self::App { args, .. } => args.iter().any(|p| p.contains_var(name)),
+                .any(|(k, v)| k.contains_tvar(target) || v.contains_tvar(target)),
+            Self::Record(rec) => rec.iter().any(|(_, tp)| tp.contains_tvar(target)),
+            Self::Lambda(lambda) => lambda.body.iter().any(|tp| tp.contains_tvar(target)),
+            Self::UnaryOp { val, .. } => val.contains_tvar(target),
+            Self::BinOp { lhs, rhs, .. } => lhs.contains_tvar(target) || rhs.contains_tvar(target),
+            Self::App { args, .. } => args.iter().any(|p| p.contains_tvar(target)),
             _ => false,
         }
     }
