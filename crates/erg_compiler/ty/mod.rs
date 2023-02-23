@@ -212,6 +212,21 @@ impl ParamTy {
         }
     }
 
+    pub fn try_map_type<F, E>(self, f: F) -> Result<Self, E>
+    where
+        F: FnOnce(Type) -> Result<Type, E>,
+    {
+        match self {
+            Self::Pos { name, ty } => Ok(Self::Pos { name, ty: f(ty)? }),
+            Self::Kw { name, ty } => Ok(Self::Kw { name, ty: f(ty)? }),
+            Self::KwWithDefault { name, ty, default } => Ok(Self::KwWithDefault {
+                name,
+                ty: f(ty)?,
+                default,
+            }),
+        }
+    }
+
     pub fn deconstruct(self) -> (Option<Str>, Type, Option<Type>) {
         match self {
             Self::Pos { name, ty } => (name, ty, None),
@@ -246,6 +261,7 @@ impl TryFrom<Type> for SubrType {
         match t {
             Type::FreeVar(fv) if fv.is_linked() => Self::try_from(fv.crack().clone()),
             Type::Subr(st) => Ok(st),
+            Type::Quantified(quant) => SubrType::try_from(*quant),
             Type::Refinement(refine) => Self::try_from(*refine.t),
             _ => Err(()),
         }
@@ -258,6 +274,7 @@ impl<'t> TryFrom<&'t Type> for &'t SubrType {
         match t {
             Type::FreeVar(fv) if fv.is_linked() => Self::try_from(fv.unsafe_crack()),
             Type::Subr(st) => Ok(st),
+            Type::Quantified(quant) => <&SubrType>::try_from(quant.as_ref()),
             Type::Refinement(refine) => Self::try_from(refine.t.as_ref()),
             _ => Err(()),
         }
@@ -1548,11 +1565,25 @@ impl Type {
                         .map(|(sub, sup)| sub.contains_tvar(name) || sup.contains_tvar(name))
                         .unwrap_or(false)
             }
+            Self::Record(rec) => rec.iter().any(|(_, t)| t.contains_tvar(name)),
             Self::Poly { params, .. } => params.iter().any(|tp| tp.contains_var(name)),
+            Self::Quantified(t) => t.contains_tvar(name),
             Self::Subr(subr) => subr.contains_tvar(name),
             // TODO: preds
             Self::Refinement(refine) => refine.t.contains_tvar(name),
             Self::Structural(ty) => ty.contains_tvar(name),
+            Self::Proj { lhs, .. } => lhs.contains_tvar(name),
+            Self::ProjCall { lhs, args, .. } => {
+                lhs.contains_var(name) || args.iter().any(|t| t.contains_var(name))
+            }
+            Self::And(lhs, rhs) => lhs.contains_tvar(name) || rhs.contains_tvar(name),
+            Self::Or(lhs, rhs) => lhs.contains_tvar(name) || rhs.contains_tvar(name),
+            Self::Not(t) => t.contains_tvar(name),
+            Self::Ref(t) => t.contains_tvar(name),
+            Self::RefMut { before, after } => {
+                before.contains_tvar(name)
+                    || after.as_ref().map_or(false, |t| t.contains_tvar(name))
+            }
             _ => false,
         }
     }

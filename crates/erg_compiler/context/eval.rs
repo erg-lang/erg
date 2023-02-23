@@ -498,11 +498,20 @@ impl Context {
             default_params.clone(),
             return_t,
         );
+        let block =
+            erg_parser::Parser::validate_const_block(lambda.body.clone()).map_err(|_| {
+                EvalErrors::from(EvalError::not_const_expr(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    lambda.loc(),
+                    self.caused_by(),
+                ))
+            })?;
         let sig_t = self.generalize_t(sig_t);
         let subr = ConstSubr::User(UserConstSubr::new(
             Str::ever("<lambda>"),
             lambda.sig.params.clone(),
-            lambda.body.clone(),
+            block,
             sig_t,
         ));
         Ok(ValueObj::Subr(subr))

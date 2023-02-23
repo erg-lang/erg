@@ -18,7 +18,14 @@ inner|T: Type| x: Structural { .inner = T } = x.inner
 E = Class { .inner = Int }
 E.
     new inner = E::__new__ { .inner = inner }
+    __add__ self, other: E = E::__new__ { .inner = self.inner + other.inner }
 
 e = E.new 1
 
 assert inner(e) == 1
+
+add|T: Type, U: Type, V: Type| x: Structural({ .__add__ = (self: T, other: U) -> V }), other: U =
+    x.__add__(other)
+
+_ = add 1, 2
+_ = add e, e

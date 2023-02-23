@@ -15,8 +15,8 @@ use erg_common::vis::Visibility;
 use erg_common::Str;
 use erg_common::{enum_unwrap, get_hash, log, set};
 
-use ast::{Decorator, DefId, Identifier, OperationKind, SimpleTypeSpec, VarName};
-use erg_parser::ast::{self, ConstIdentifier};
+use ast::{ConstIdentifier, Decorator, DefId, Identifier, OperationKind, SimpleTypeSpec, VarName};
+use erg_parser::ast;
 
 use crate::ty::constructors::{
     free_var, func, func0, func1, proc, ref_, ref_mut, unknown_len_array_t, v_enum,
@@ -671,6 +671,7 @@ impl Context {
         };
         sub_t.lift();
         let found_t = self.generalize_t(sub_t);
+        // let found_t = self.eliminate_needless_quant(found_t, crate::context::Variance::Covariant, sig)?;
         let py_name = if let Some(vi) = self.decls.remove(name) {
             let allow_cast = true;
             if !self.supertype_of(&vi.t, &found_t, allow_cast) {
@@ -716,7 +717,8 @@ impl Context {
             py_name,
             self.absolutize(name.loc()),
         );
-        log!(info "Registered {}::{name}: {}", self.name, &vi.t);
+        let vis = if vi.vis.is_private() { "::" } else { "." };
+        log!(info "Registered {}{}{name}: {}", self.name, vis, &vi.t);
         self.locals.insert(name.clone(), vi.clone());
         errs?;
         Ok(vi)

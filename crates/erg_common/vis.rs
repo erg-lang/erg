@@ -40,10 +40,10 @@ impl std::hash::Hash for Field {
 
 impl fmt::Display for Field {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if self.vis == Visibility::Public {
+        if self.vis.is_public() {
             write!(f, ".{}", self.symbol)
         } else {
-            write!(f, "{}", self.symbol)
+            write!(f, "::{}", self.symbol)
         }
     }
 }

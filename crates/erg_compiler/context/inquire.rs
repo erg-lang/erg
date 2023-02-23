@@ -752,6 +752,9 @@ impl Context {
         input: &Input,
         namespace: &Str,
     ) -> SingleTyCheckResult<VarInfo> {
+        if let Ok(vi) = self.get_attr_info_from_attributive(obj.ref_t(), attr_name, namespace) {
+            return Ok(vi);
+        }
         for ctx in self
             .get_nominal_super_type_ctxs(obj.ref_t())
             .ok_or_else(|| {

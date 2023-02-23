@@ -9,7 +9,7 @@ use erg_common::{fmt_vec, log};
 
 use crate::ty::constructors::*;
 use crate::ty::free::{CanbeFree, Constraint, Free, HasLevel};
-use crate::ty::typaram::TyParam;
+use crate::ty::typaram::{TyParam, TyParamLambda};
 use crate::ty::value::ValueObj;
 use crate::ty::{HasType, Predicate, SubrType, Type};
 
@@ -69,6 +69,33 @@ impl Context {
                     .map(|(field, tp)| (field, self.generalize_tp(tp, variance, uninit)))
                     .collect(),
             ),
+            TyParam::Lambda(lambda) => {
+                let nd_params = lambda
+                    .nd_params
+                    .into_iter()
+                    .map(|pt| pt.map_type(|t| self.generalize_t_inner(t, variance, uninit)))
+                    .collect::<Vec<_>>();
+                let var_params = lambda
+                    .var_params
+                    .map(|pt| pt.map_type(|t| self.generalize_t_inner(t, variance, uninit)));
+                let d_params = lambda
+                    .d_params
+                    .into_iter()
+                    .map(|pt| pt.map_type(|t| self.generalize_t_inner(t, variance, uninit)))
+                    .collect::<Vec<_>>();
+                let body = lambda
+                    .body
+                    .into_iter()
+                    .map(|tp| self.generalize_tp(tp, variance, uninit))
+                    .collect();
+                TyParam::Lambda(TyParamLambda::new(
+                    lambda.const_,
+                    nd_params,
+                    var_params,
+                    d_params,
+                    body,
+                ))
+            }
             TyParam::FreeVar(_) => free,
             TyParam::Proj { obj, attr } => {
                 let obj = self.generalize_tp(*obj, variance, uninit);
@@ -388,6 +415,34 @@ impl Context {
                     new_rec.insert(field, self.deref_tp(tp, variance, qnames, loc)?);
                 }
                 Ok(TyParam::Record(new_rec))
+            }
+            TyParam::Lambda(lambda) => {
+                let nd_params = lambda
+                    .nd_params
+                    .into_iter()
+                    .map(|pt| pt.try_map_type(|t| self.deref_tyvar(t, variance, qnames, loc)))
+                    .collect::<TyCheckResult<_>>()?;
+                let var_params = lambda
+                    .var_params
+                    .map(|pt| pt.try_map_type(|t| self.deref_tyvar(t, variance, qnames, loc)))
+                    .transpose()?;
+                let d_params = lambda
+                    .d_params
+                    .into_iter()
+                    .map(|pt| pt.try_map_type(|t| self.deref_tyvar(t, variance, qnames, loc)))
+                    .collect::<TyCheckResult<_>>()?;
+                let body = lambda
+                    .body
+                    .into_iter()
+                    .map(|tp| self.deref_tp(tp, variance, qnames, loc))
+                    .collect::<TyCheckResult<Vec<_>>>()?;
+                Ok(TyParam::Lambda(TyParamLambda::new(
+                    lambda.const_,
+                    nd_params,
+                    var_params,
+                    d_params,
+                    body,
+                )))
             }
             TyParam::Proj { obj, attr } => {
                 let obj = self.deref_tp(*obj, variance, qnames, loc)?;

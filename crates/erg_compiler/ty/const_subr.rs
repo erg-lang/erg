@@ -5,7 +5,7 @@ use erg_common::dict::Dict;
 use erg_common::log;
 use erg_common::Str;
 
-use erg_parser::ast::{Block, Params};
+use erg_parser::ast::{ConstBlock, Params};
 
 use super::constructors::subr_t;
 use super::value::{EvalValueResult, ValueObj};
@@ -17,12 +17,12 @@ use crate::context::Context;
 pub struct UserConstSubr {
     name: Str,
     params: Params,
-    block: Block,
+    block: ConstBlock,
     sig_t: Type,
 }
 
 impl UserConstSubr {
-    pub const fn new(name: Str, params: Params, block: Block, sig_t: Type) -> Self {
+    pub const fn new(name: Str, params: Params, block: ConstBlock, sig_t: Type) -> Self {
         Self {
             name,
             params,

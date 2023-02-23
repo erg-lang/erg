@@ -1,11 +1,11 @@
-#[cfg(all(unix, feature = "debug"))]
+#[cfg(all(unix, any(feature = "debug", feature = "backtrace")))]
 pub use backtrace_on_stack_overflow;
 use std::thread;
 
 #[macro_export]
 macro_rules! enable_overflow_stacktrace {
     () => {
-        #[cfg(all(unix, feature = "debug"))]
+        #[cfg(all(unix, any(feature = "debug", feature = "backtrace")))]
         unsafe {
             $crate::spawn::backtrace_on_stack_overflow::enable()
         };

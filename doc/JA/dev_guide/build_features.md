@@ -4,8 +4,12 @@
 
 ## debug
 
-デバッグモードにする。これにより、Erg内部での挙動が逐次ログ表示される。
+デバッグモードにする。これにより、Erg内部での挙動が逐次ログ表示される。また、`backtrace_on_stack_overflow`を有効化する。
 Rustの`debug_assertions`フラグとは独立。
+
+## backtrace
+
+`backtrace_on_stack_overflow`だけを有効化する。
 
 ## japanese
 

@@ -1610,6 +1610,38 @@ impl ConstDef {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ConstLambda {
+    pub sig: Box<LambdaSignature>,
+    pub op: Token,
+    pub body: ConstBlock,
+    pub id: DefId,
+}
+
+impl NestedDisplay for ConstLambda {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(f, "({}) {} {}", self.sig, self.op.content, self.body)
+    }
+}
+
+impl_display_from_nested!(ConstLambda);
+impl_locational!(ConstLambda, sig, body);
+
+impl ConstLambda {
+    pub fn new(sig: LambdaSignature, op: Token, body: ConstBlock, id: DefId) -> Self {
+        Self {
+            sig: Box::new(sig),
+            op,
+            body,
+            id,
+        }
+    }
+
+    pub fn downcast(self) -> Lambda {
+        Lambda::new(*self.sig, self.op, self.body.downcast(), self.id)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstRecord {
     pub l_brace: Token,
     pub r_brace: Token,
@@ -1755,13 +1787,14 @@ pub enum ConstExpr {
     Tuple(ConstTuple),
     Record(ConstRecord),
     Def(ConstDef),
+    Lambda(ConstLambda),
     BinOp(ConstBinOp),
     UnaryOp(ConstUnaryOp),
 }
 
-impl_nested_display_for_chunk_enum!(ConstExpr; Lit, Accessor, App, Array, Set, Dict, Tuple, Record, BinOp, UnaryOp, Def, Erased, Set);
+impl_nested_display_for_chunk_enum!(ConstExpr; Lit, Accessor, App, Array, Set, Dict, Tuple, Record, BinOp, UnaryOp, Def, Lambda, Erased, Set);
 impl_display_from_nested!(ConstExpr);
-impl_locational_for_enum!(ConstExpr; Lit, Accessor, App, Array, Set, Dict, Tuple, Record, BinOp, UnaryOp, Def, Erased, Set);
+impl_locational_for_enum!(ConstExpr; Lit, Accessor, App, Array, Set, Dict, Tuple, Record, BinOp, UnaryOp, Def, Lambda, Erased, Set);
 
 impl ConstExpr {
     pub fn need_to_be_closed(&self) -> bool {

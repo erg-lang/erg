@@ -2,8 +2,12 @@
 
 ## debug
 
-Enter debug mode. As a result, the behavior inside Erg is sequentially displayed in the log.
+Enter debug mode. As a result, the behavior inside Erg is sequentially displayed in the log. Also, enable `backtrace_on_stack_overflow`.
 Independent of Rust's `debug_assertions` flag.
+
+## backtrace
+
+Enable only `backtrace_on_stack_overflow`.
 
 ## japanese
 

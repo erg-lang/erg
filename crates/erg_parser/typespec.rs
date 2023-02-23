@@ -110,6 +110,11 @@ impl Parser {
                 Ok(ConstExpr::App(ConstApp::new(acc, args)))
             }
             Expr::Def(def) => Self::validate_const_def(def).map(ConstExpr::Def),
+            Expr::Lambda(lambda) => {
+                let body = Self::validate_const_block(lambda.body)?;
+                let lambda = ConstLambda::new(lambda.sig, lambda.op, body, lambda.id);
+                Ok(ConstExpr::Lambda(lambda))
+            }
             Expr::Record(rec) => {
                 let rec = match rec {
                     Record::Normal(rec) => rec,
@@ -143,13 +148,18 @@ impl Parser {
         }
     }
 
-    fn validate_const_def(def: Def) -> Result<ConstDef, ParseError> {
-        let mut block = vec![];
-        for expr in def.body.block.into_iter() {
+    pub fn validate_const_block(block: Block) -> Result<ConstBlock, ParseError> {
+        let mut const_block = vec![];
+        for expr in block.into_iter() {
             let const_expr = Self::validate_const_expr(expr)?;
-            block.push(const_expr);
+            const_block.push(const_expr);
         }
-        let body = ConstDefBody::new(def.body.op, ConstBlock::new(block), def.body.id);
+        Ok(ConstBlock::new(const_block))
+    }
+
+    fn validate_const_def(def: Def) -> Result<ConstDef, ParseError> {
+        let block = Self::validate_const_block(def.body.block)?;
+        let body = ConstDefBody::new(def.body.op, block, def.body.id);
         Ok(ConstDef::new(def.sig.ident().unwrap().clone(), body))
     }
 

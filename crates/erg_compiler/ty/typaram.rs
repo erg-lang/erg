@@ -11,10 +11,13 @@ use erg_common::vis::Field;
 use erg_common::Str;
 use erg_common::{dict, log};
 
+use erg_parser::ast::ConstLambda;
+
 use super::constructors::int_interval;
 use super::free::{CanbeFree, Constraint, FreeKind, FreeTyParam, HasLevel, Level, GENERIC_LEVEL};
 use super::value::ValueObj;
 use super::Type;
+use super::{ConstSubr, ParamTy, UserConstSubr};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
@@ -125,8 +128,65 @@ impl fmt::Display for IntervalOp {
     }
 }
 
-/// type argument
-/// This is an expression, not a evaluation result
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TyParamLambda {
+    pub const_: ConstLambda,
+    pub nd_params: Vec<ParamTy>,
+    pub var_params: Option<ParamTy>,
+    pub d_params: Vec<ParamTy>,
+    pub body: Vec<TyParam>,
+}
+
+impl fmt::Display for TyParamLambda {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.const_)
+    }
+}
+
+impl HasLevel for TyParamLambda {
+    fn level(&self) -> Option<usize> {
+        self.body.iter().filter_map(|tp| tp.level()).min()
+    }
+    fn set_level(&self, lev: Level) {
+        for tp in self.body.iter() {
+            tp.set_level(lev);
+        }
+    }
+}
+
+impl StructuralEq for TyParamLambda {
+    fn structural_eq(&self, other: &Self) -> bool {
+        self.body.len() == other.body.len()
+            && self
+                .body
+                .iter()
+                .zip(other.body.iter())
+                .all(|(a, b)| a.structural_eq(b))
+    }
+}
+
+impl TyParamLambda {
+    pub const fn new(
+        lambda: ConstLambda,
+        nd_params: Vec<ParamTy>,
+        var_params: Option<ParamTy>,
+        d_params: Vec<ParamTy>,
+        body: Vec<TyParam>,
+    ) -> Self {
+        Self {
+            const_: lambda,
+            nd_params,
+            var_params,
+            d_params,
+            body,
+        }
+    }
+}
+
+/// # type parameter
+/// Unevaluated expressions that types can have inside
+///
+/// The evaluated one becomes `ValueObj`.
 /// * Literal: 1, "aa", True, None, ... (don't use container literals, they can only hold literals)
 /// * Type: Int, Add(?R, ?O), ...
 /// * Mono: I, N, ...
@@ -148,6 +208,7 @@ pub enum TyParam {
     Set(Set<TyParam>),
     Dict(Dict<TyParam, TyParam>),
     Record(Dict<Field, TyParam>),
+    Lambda(TyParamLambda),
     Mono(Str),
     Proj {
         obj: Box<TyParam>,
@@ -181,6 +242,7 @@ impl PartialEq for TyParam {
             (Self::Dict(l), Self::Dict(r)) => l == r,
             (Self::Record(l), Self::Record(r)) => l == r,
             (Self::Set(l), Self::Set(r)) => l == r,
+            (Self::Lambda(l), Self::Lambda(r)) => l == r,
             (Self::Mono(l), Self::Mono(r)) => l == r,
             (
                 Self::Proj { obj, attr },
@@ -300,6 +362,7 @@ impl LimitedDisplay for TyParam {
             }
             Self::Dict(dict) => write!(f, "{dict}"),
             Self::Record(rec) => write!(f, "{rec}"),
+            Self::Lambda(lambda) => write!(f, "{lambda}"),
             Self::Tuple(tuple) => {
                 write!(f, "(")?;
                 for (i, t) in tuple.iter().enumerate() {
@@ -464,6 +527,16 @@ impl TryFrom<TyParam> for ValueObj {
                 }
                 Ok(ValueObj::Record(vals))
             }
+            TyParam::Lambda(lambda) => {
+                // TODO: sig_t
+                let lambda = UserConstSubr::new(
+                    "<lambda>".into(),
+                    lambda.const_.sig.params,
+                    lambda.const_.body,
+                    Type::Never,
+                );
+                Ok(ValueObj::Subr(ConstSubr::User(lambda)))
+            }
             TyParam::FreeVar(fv) if fv.is_linked() => ValueObj::try_from(fv.crack().clone()),
             TyParam::Type(t) => Ok(ValueObj::builtin_t(*t)),
             TyParam::Value(v) => Ok(v),
@@ -545,6 +618,7 @@ impl HasLevel for TyParam {
                 .iter()
                 .map(|(_, v)| v.level().unwrap_or(GENERIC_LEVEL))
                 .min(),
+            Self::Lambda(lambda) => lambda.level(),
             Self::Set(tps) => tps.iter().filter_map(|tp| tp.level()).min(),
             Self::Proj { obj, .. } => obj.level(),
             Self::App { args, .. } => args.iter().filter_map(|tp| tp.level()).min(),
@@ -584,6 +658,7 @@ impl HasLevel for TyParam {
                     tp.set_level(level);
                 }
             }
+            Self::Lambda(lambda) => lambda.set_level(level),
             Self::UnaryOp { val, .. } => val.set_level(level),
             Self::BinOp { lhs, rhs, .. } => {
                 lhs.set_level(level);
@@ -640,6 +715,7 @@ impl StructuralEq for TyParam {
                 }
                 true
             }
+            (Self::Lambda(l), Self::Lambda(r)) => l.structural_eq(r),
             (
                 Self::Proj { obj, attr },
                 Self::Proj {
@@ -695,10 +771,18 @@ impl TyParam {
         Self::named_free_var(name.into(), crate::ty::free::GENERIC_LEVEL, constr)
     }
 
-    pub fn proj<S: Into<Str>>(obj: TyParam, attr: S) -> Self {
+    pub fn proj<S: Into<Str>>(self, attr: S) -> Self {
         Self::Proj {
-            obj: Box::new(obj),
+            obj: Box::new(self),
             attr: attr.into(),
+        }
+    }
+
+    pub fn proj_call(self, attr_name: Str, args: Vec<TyParam>) -> Type {
+        Type::ProjCall {
+            lhs: Box::new(self),
+            attr_name,
+            args,
         }
     }
 
@@ -749,14 +833,6 @@ impl TyParam {
     #[inline]
     pub fn erased(t: Type) -> Self {
         Self::Erased(Box::new(t))
-    }
-
-    pub fn proj_call(self, attr_name: Str, args: Vec<TyParam>) -> Type {
-        Type::ProjCall {
-            lhs: Box::new(self),
-            attr_name,
-            args,
-        }
     }
 
     // if self: Ratio, Succ(self) => self+ε
@@ -848,6 +924,10 @@ impl TyParam {
             Self::Record(rec) => rec
                 .iter()
                 .fold(set! {}, |acc, (_, v)| acc.concat(v.qvars())),
+            Self::Lambda(lambda) => lambda
+                .body
+                .iter()
+                .fold(set! {}, |acc, t| acc.concat(t.qvars())),
             Self::UnaryOp { val, .. } => val.qvars(),
             Self::BinOp { lhs, rhs, .. } => lhs.qvars().concat(rhs.qvars()),
             Self::App { args, .. } => args.iter().fold(set! {}, |acc, p| acc.concat(p.qvars())),
@@ -868,10 +948,11 @@ impl TyParam {
             }
             Self::Type(t) => t.has_qvar(),
             Self::Proj { obj, .. } => obj.has_qvar(),
-            Self::Array(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.has_qvar()),
-            Self::Set(ts) => ts.iter().any(|t| t.has_qvar()),
-            Self::Dict(ts) => ts.iter().any(|(k, v)| k.has_qvar() || v.has_qvar()),
+            Self::Array(tps) | Self::Tuple(tps) => tps.iter().any(|tp| tp.has_qvar()),
+            Self::Set(tps) => tps.iter().any(|tp| tp.has_qvar()),
+            Self::Dict(tps) => tps.iter().any(|(k, v)| k.has_qvar() || v.has_qvar()),
             Self::Record(rec) => rec.iter().any(|(_, tp)| tp.has_qvar()),
+            Self::Lambda(lambda) => lambda.body.iter().any(|tp| tp.has_qvar()),
             Self::UnaryOp { val, .. } => val.has_qvar(),
             Self::BinOp { lhs, rhs, .. } => lhs.has_qvar() || rhs.has_qvar(),
             Self::App { args, .. } => args.iter().any(|p| p.has_qvar()),
@@ -895,6 +976,7 @@ impl TyParam {
                 .iter()
                 .any(|(k, v)| k.contains_var(name) || v.contains_var(name)),
             Self::Record(rec) => rec.iter().any(|(_, tp)| tp.contains_var(name)),
+            Self::Lambda(lambda) => lambda.body.iter().any(|tp| tp.contains_var(name)),
             Self::UnaryOp { val, .. } => val.contains_var(name),
             Self::BinOp { lhs, rhs, .. } => lhs.contains_var(name) || rhs.contains_var(name),
             Self::App { args, .. } => args.iter().any(|p| p.contains_var(name)),
@@ -923,6 +1005,7 @@ impl TyParam {
                 .iter()
                 .any(|(k, v)| k.has_unbound_var() || v.has_unbound_var()),
             Self::Record(rec) => rec.iter().any(|(_, v)| v.has_unbound_var()),
+            Self::Lambda(lambda) => lambda.body.iter().any(|t| t.has_unbound_var()),
             Self::UnaryOp { val, .. } => val.has_unbound_var(),
             Self::BinOp { lhs, rhs, .. } => lhs.has_unbound_var() || rhs.has_unbound_var(),
             Self::App { args, .. } => args.iter().any(|p| p.has_unbound_var()),

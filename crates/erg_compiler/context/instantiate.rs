@@ -23,8 +23,10 @@ use crate::feature_error;
 use crate::ty::constructors::*;
 use crate::ty::free::CanbeFree;
 use crate::ty::free::{Constraint, HasLevel};
+use crate::ty::typaram::TyParamLambda;
 use crate::ty::typaram::{IntervalOp, OpKind, TyParam, TyParamOrdering};
 use crate::ty::value::ValueObj;
+use crate::ty::SubrType;
 use crate::ty::{HasType, ParamTy, Predicate, SubrKind, Type};
 use crate::type_feature_error;
 use crate::unreachable_error;
@@ -125,6 +127,10 @@ impl TyVarCache {
             tyvar_instances: Dict::new(),
             typaram_instances: Dict::new(),
         }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.tyvar_instances.is_empty() && self.typaram_instances.is_empty()
     }
 
     pub fn merge(&mut self, outer: &Self) {
@@ -640,11 +646,11 @@ impl Context {
                 if let Some(decl_t) = opt_decl_t {
                     return Ok(decl_t.typ().clone());
                 }
-                if let Some((typ, _)) = self.get_type(&Str::rc(other)) {
+                if let Some((typ, _)) = self.get_type(simple.ident.inspect()) {
                     Ok(typ.clone())
                 } else if not_found_is_qvar {
                     let tyvar = named_free_var(Str::rc(other), self.level, Constraint::Uninited);
-                    tmp_tv_cache.push_or_init_tyvar(&Str::rc(other), &tyvar);
+                    tmp_tv_cache.push_or_init_tyvar(simple.ident.inspect(), &tyvar);
                     Ok(tyvar)
                 } else {
                     Err(TyCheckErrors::from(TyCheckError::no_type_error(
@@ -699,6 +705,46 @@ impl Context {
         }
     }
 
+    fn instantiate_local(
+        &self,
+        name: &Str,
+        erased_idx: Option<(&Context, usize)>,
+        tmp_tv_cache: &mut TyVarCache,
+        loc: &impl Locational,
+    ) -> TyCheckResult<TyParam> {
+        if &name[..] == "_" {
+            let t = if let Some((ctx, i)) = erased_idx {
+                ctx.params[i].1.t.clone()
+            } else {
+                Type::Uninited
+            };
+            return Ok(TyParam::erased(t));
+        }
+        if let Some(tp) = tmp_tv_cache.get_typaram(name) {
+            return Ok(tp.clone());
+        } else if let Some(t) = tmp_tv_cache.get_tyvar(name) {
+            return Ok(TyParam::t(t.clone()));
+        }
+        if let Some(tv_ctx) = &self.tv_cache {
+            if let Some(t) = tv_ctx.get_tyvar(name) {
+                return Ok(TyParam::t(t.clone()));
+            } else if let Some(tp) = tv_ctx.get_typaram(name) {
+                return Ok(tp.clone());
+            }
+        }
+        if let Some(value) = self.rec_get_const_obj(name) {
+            return Ok(TyParam::Value(value.clone()));
+        }
+        Err(TyCheckErrors::from(TyCheckError::no_var_error(
+            self.cfg.input.clone(),
+            line!() as usize,
+            loc.loc(),
+            self.caused_by(),
+            name,
+            self.get_similar_name(name),
+        )))
+    }
+
     pub(crate) fn instantiate_const_expr(
         &self,
         expr: &ast::ConstExpr,
@@ -707,39 +753,13 @@ impl Context {
     ) -> TyCheckResult<TyParam> {
         match expr {
             ast::ConstExpr::Lit(lit) => Ok(TyParam::Value(self.eval_lit(lit)?)),
+            ast::ConstExpr::Accessor(ast::ConstAccessor::Attr(attr)) => {
+                let obj = self.instantiate_const_expr(&attr.obj, erased_idx, tmp_tv_cache)?;
+                Ok(obj.proj(attr.name.inspect()))
+            }
             ast::ConstExpr::Accessor(ast::ConstAccessor::Local(local)) => {
                 self.inc_ref_const_local(local);
-                if &local.inspect()[..] == "_" {
-                    let t = if let Some((ctx, i)) = erased_idx {
-                        ctx.params[i].1.t.clone()
-                    } else {
-                        Type::Uninited
-                    };
-                    return Ok(TyParam::erased(t));
-                }
-                if let Some(tp) = tmp_tv_cache.get_typaram(local.inspect()) {
-                    return Ok(tp.clone());
-                } else if let Some(t) = tmp_tv_cache.get_tyvar(local.inspect()) {
-                    return Ok(TyParam::t(t.clone()));
-                }
-                if let Some(tv_ctx) = &self.tv_cache {
-                    if let Some(t) = tv_ctx.get_tyvar(local.inspect()) {
-                        return Ok(TyParam::t(t.clone()));
-                    } else if let Some(tp) = tv_ctx.get_typaram(local.inspect()) {
-                        return Ok(tp.clone());
-                    }
-                }
-                if let Some(value) = self.rec_get_const_obj(local.inspect()) {
-                    return Ok(TyParam::Value(value.clone()));
-                }
-                Err(TyCheckErrors::from(TyCheckError::no_var_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    local.loc(),
-                    self.caused_by(),
-                    local.inspect(),
-                    self.get_similar_name(local.inspect()),
-                )))
+                self.instantiate_local(local.inspect(), erased_idx, tmp_tv_cache, local)
             }
             ast::ConstExpr::Array(array) => {
                 let mut tp_arr = vec![];
@@ -791,6 +811,63 @@ impl Context {
                     tp_rec.insert(field, val);
                 }
                 Ok(TyParam::Record(tp_rec))
+            }
+            ast::ConstExpr::Lambda(lambda) => {
+                let mut _tmp_tv_cache =
+                    self.instantiate_ty_bounds(&lambda.sig.bounds, RegistrationMode::Normal)?;
+                let tmp_tv_cache = if tmp_tv_cache.is_empty() {
+                    &mut _tmp_tv_cache
+                } else {
+                    // TODO: prohibit double quantification
+                    tmp_tv_cache
+                };
+                let mut nd_params = Vec::with_capacity(lambda.sig.params.non_defaults.len());
+                for sig in lambda.sig.params.non_defaults.iter() {
+                    let pt = self.instantiate_param_ty(
+                        sig,
+                        None,
+                        tmp_tv_cache,
+                        RegistrationMode::Normal,
+                        ParamKind::NonDefault,
+                    )?;
+                    nd_params.push(pt);
+                }
+                let var_params = if let Some(p) = lambda.sig.params.var_params.as_ref() {
+                    let pt = self.instantiate_param_ty(
+                        p,
+                        None,
+                        tmp_tv_cache,
+                        RegistrationMode::Normal,
+                        ParamKind::VarParams,
+                    )?;
+                    Some(pt)
+                } else {
+                    None
+                };
+                let mut d_params = Vec::with_capacity(lambda.sig.params.defaults.len());
+                for sig in lambda.sig.params.defaults.iter() {
+                    let expr = self.eval_const_expr(&sig.default_val)?;
+                    let pt = self.instantiate_param_ty(
+                        &sig.sig,
+                        None,
+                        tmp_tv_cache,
+                        RegistrationMode::Normal,
+                        ParamKind::Default(expr.t()),
+                    )?;
+                    d_params.push(pt);
+                }
+                let mut body = vec![];
+                for expr in lambda.body.iter() {
+                    let param = self.instantiate_const_expr(expr, None, tmp_tv_cache)?;
+                    body.push(param);
+                }
+                Ok(TyParam::Lambda(TyParamLambda::new(
+                    lambda.clone(),
+                    nd_params,
+                    var_params,
+                    d_params,
+                    body,
+                )))
             }
             ast::ConstExpr::BinOp(bin) => {
                 let Some(op) = token_kind_to_op_kind(bin.op.kind) else {
@@ -863,6 +940,18 @@ impl Context {
                     rec_t.insert(field, t);
                 }
                 Ok(Type::Record(rec_t))
+            }
+            TyParam::Lambda(lambda) => {
+                let return_t = self
+                    .instantiate_tp_as_type(lambda.body.last().unwrap().clone(), &lambda.const_)?;
+                let subr = SubrType::new(
+                    SubrKind::from(lambda.const_.op.kind),
+                    lambda.nd_params,
+                    lambda.var_params,
+                    lambda.d_params,
+                    return_t,
+                );
+                Ok(Type::Subr(subr))
             }
             other => {
                 type_feature_error!(self, loc.loc(), &format!("instantiate `{other}` as type"))
@@ -1299,6 +1388,34 @@ impl Context {
                     })
                     .collect::<TyCheckResult<_>>()?;
                 Ok(TyParam::Record(rec))
+            }
+            TyParam::Lambda(lambda) => {
+                let nd_params = lambda
+                    .nd_params
+                    .into_iter()
+                    .map(|pt| pt.try_map_type(|t| self.instantiate_t_inner(t, tmp_tv_cache, loc)))
+                    .collect::<TyCheckResult<_>>()?;
+                let var_params = lambda
+                    .var_params
+                    .map(|pt| pt.try_map_type(|t| self.instantiate_t_inner(t, tmp_tv_cache, loc)))
+                    .transpose()?;
+                let d_params = lambda
+                    .d_params
+                    .into_iter()
+                    .map(|pt| pt.try_map_type(|t| self.instantiate_t_inner(t, tmp_tv_cache, loc)))
+                    .collect::<TyCheckResult<_>>()?;
+                let body = lambda
+                    .body
+                    .into_iter()
+                    .map(|v| self.instantiate_tp(v, tmp_tv_cache, loc))
+                    .collect::<TyCheckResult<_>>()?;
+                Ok(TyParam::Lambda(TyParamLambda::new(
+                    lambda.const_,
+                    nd_params,
+                    var_params,
+                    d_params,
+                    body,
+                )))
             }
             TyParam::UnaryOp { op, val } => {
                 let res = self.instantiate_tp(*val, tmp_tv_cache, loc)?;
