@@ -363,6 +363,46 @@ impl TyCheckError {
         )
     }
 
+    pub fn default_param_not_found_error(
+        input: Input,
+        errno: usize,
+        loc: Location,
+        caused_by: String,
+        param_name: &str,
+        similar_name: Option<&str>,
+    ) -> Self {
+        let hint = match similar_name {
+            Some(name) => {
+                let mut s = StyledStrings::default();
+                switch_lang!(
+                    "japanese" => s.push_str("似た名前の引数があります: "),
+                    "simplified_chinese" => s.push_str("相似的参数: "),
+                    "traditional_chinese" => s.push_str("相似的參數: "),
+                    "english" => s.push_str("exists a similar name parameter: "),
+                );
+                s.push_str_with_color_and_attribute(name, HINT, ATTR);
+                Some(s.to_string())
+            }
+            None => None,
+        };
+        Self::new(
+            ErrorCore::new(
+                vec![SubMessage::ambiguous_new(loc, vec![], hint)],
+                switch_lang!(
+                    "japanese" => format!("{param_name}という名前のデフォルト引数はありません"),
+                    "simplified_chinese" => format!("没有名为{param_name}的默认参数"),
+                    "traditional_chinese" => format!("沒有名為{param_name}的預設參數"),
+                    "english" => format!("there is no default parameter named {param_name}"),
+                ),
+                errno,
+                TypeError,
+                loc,
+            ),
+            input,
+            caused_by,
+        )
+    }
+
     pub fn match_error(
         input: Input,
         errno: usize,
@@ -540,14 +580,27 @@ passed keyword args:    {kw_args_len}"
         callee_name: &str,
         caused_by: String,
         param_name: &str,
+        similar_name: Option<&str>,
     ) -> Self {
         let name = StyledStr::new(readable_name(callee_name), Some(WARN), Some(ATTR));
         let found = StyledString::new(param_name, Some(ERR), Some(ATTR));
+        let hint = match similar_name {
+            Some(similar_name) => {
+                let similar_name = StyledString::new(similar_name, Some(HINT), Some(ATTR));
+                Some(switch_lang!(
+                    "japanese" => format!("似た名前の引数があります: {similar_name}"),
+                    "simplified_chinese" => format!("有相似的关参数: {similar_name}"),
+                    "traditional_chinese" => format!("有相似的關參數: {similar_name}"),
+                    "english" => format!("exists a similar name parameter: {similar_name}"),
+                ))
+            }
+            None => None,
+        };
         Self::new(
             ErrorCore::new(
-                vec![SubMessage::only_loc(loc)],
+                vec![SubMessage::ambiguous_new(loc, vec![], hint)],
                 switch_lang!(
-                    "japanese" => format!("{name}には予期しないキーワード引数{found}が渡されています"),
+                    "japanese" => format!("{name}に予期しないキーワード引数{found}が渡されています"),
                     "simplified_chinese" => format!("{name}得到了意外的关键字参数{found}"),
                     "traditional_chinese" => format!("{name}得到了意外的關鍵字參數{found}"),
                     "english" => format!("{name} got unexpected keyword argument {found}"),

@@ -463,6 +463,14 @@ impl SubrType {
                 .chain(self.default_params.iter())
         }
     }
+
+    pub fn param_names(&self) -> impl Iterator<Item = &str> + Clone {
+        self.non_default_params
+            .iter()
+            .chain(self.var_params.as_deref().into_iter())
+            .chain(self.default_params.iter())
+            .map(|pt| pt.name().map_or("_", |s| &s[..]))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

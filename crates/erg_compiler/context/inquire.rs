@@ -1347,6 +1347,7 @@ impl Context {
             ))
         } else {
             let unknown_arg_errors = unknown_args.into_iter().map(|arg| {
+                let similar = get_similar_name(subr_ty.param_names(), arg.keyword.inspect());
                 TyCheckError::unexpected_kw_arg_error(
                     self.cfg.input.clone(),
                     line!() as usize,
@@ -1354,6 +1355,7 @@ impl Context {
                     &callee.to_string(),
                     self.caused_by(),
                     arg.keyword.inspect(),
+                    similar,
                 )
             });
             let duplicated_arg_errors = duplicated_args.into_iter().map(|arg| {
@@ -1541,6 +1543,7 @@ impl Context {
                     )
                 })?;
         } else {
+            let similar = get_similar_name(subr_ty.param_names(), arg.keyword.inspect());
             return Err(TyCheckErrors::from(TyCheckError::unexpected_kw_arg_error(
                 self.cfg.input.clone(),
                 line!() as usize,
@@ -1548,6 +1551,7 @@ impl Context {
                 &callee.to_string(),
                 self.caused_by(),
                 kw_name,
+                similar,
             )));
         }
         Ok(())

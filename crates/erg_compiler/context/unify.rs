@@ -775,7 +775,23 @@ impl Context {
                         // contravariant
                         self.sub_unify(rpt.typ(), lpt.typ(), loc, param_name)?;
                     } else {
-                        unreachable!()
+                        let param_name = lpt.name().map_or("_", |s| &s[..]);
+                        let similar_param = erg_common::levenshtein::get_similar_name(
+                            rsub.default_params
+                                .iter()
+                                .map(|pt| pt.name().map_or("_", |s| &s[..])),
+                            param_name,
+                        );
+                        return Err(TyCheckErrors::from(
+                            TyCheckError::default_param_not_found_error(
+                                self.cfg.input.clone(),
+                                line!() as usize,
+                                loc.loc(),
+                                self.caused_by(),
+                                param_name,
+                                similar_param,
+                            ),
+                        ));
                     }
                 }
                 // covariant
@@ -876,7 +892,15 @@ impl Context {
                     if let Some((_, sub_ty)) = sub_fields.get_key_value(&sup_field) {
                         self.sub_unify(sub_ty, &sup_ty, loc, param_name)?;
                     } else {
-                        unreachable!()
+                        return Err(TyCheckErrors::from(TyCheckError::no_attr_error(
+                            self.cfg.input.clone(),
+                            line!() as usize,
+                            loc.loc(),
+                            self.caused_by(),
+                            sub,
+                            &sup_field.symbol,
+                            self.get_similar_attr(sub, &sup_field.symbol),
+                        )));
                     }
                 }
                 Ok(())
