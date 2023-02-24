@@ -209,6 +209,10 @@ impl Str {
         }
         Str::rc(&ret)
     }
+
+    pub fn find_sub<'a>(&self, pats: &[&'a str]) -> Option<&'a str> {
+        pats.iter().find(|&&pat| self.contains(pat)).copied()
+    }
 }
 
 #[cfg(test)]
