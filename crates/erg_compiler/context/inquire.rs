@@ -1276,6 +1276,10 @@ impl Context {
             }
             other => {
                 let one = self.get_singular_ctx_by_hir_expr(obj, &self.name).ok();
+                let one = one
+                    .zip(attr_name.as_ref())
+                    .and_then(|(ctx, attr)| ctx.get_singular_ctx_by_ident(attr, &self.name).ok())
+                    .or(one);
                 let two = obj
                     .qual_name()
                     .and_then(|name| self.get_same_name_context(name));

@@ -1,0 +1,32 @@
+.Tqdm! = 'tqdm': ClassType
+.Tqdm! <: Iterable Int
+.Tqdm!.
+    # TODO: iterable should be Comparable
+    __call__: (
+        iterable: Iterable(Int),
+        desc := Str,
+        total := Int or Float,
+        leave := Bool,
+        file := File!,
+        ncols := Int,
+        mininterval := Float,
+        maxinterval := Float,
+        miniters := Int or Float,
+        ascii := Bool or Str,
+        disable := Bool,
+        unit := Str,
+        unit_scale := Bool or Int or Float,
+        dynamic_ncols := Bool,
+        smoothing := Float,
+        bar_format := Str,
+        initial := Int or Float,
+        position := Int,
+        postfix := {Str: Obj},
+        unit_divisor := Float,
+        write_bytes := Bool,
+        lock_args := [Obj; _],
+        nrows := Int,
+        colour := Str,
+        delay := Float,
+        gui := Bool,
+    ) -> .Tqdm!

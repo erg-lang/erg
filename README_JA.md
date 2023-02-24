@@ -127,10 +127,10 @@
     math, time = pyimport "math", "time"
     {sin; pi} = math
     # Pythonの外部モジュールを使います
-    Tqdm! = pyimport("tqdm").'tqdm'
+    tqdm = pyimport("tqdm")
 
     print! sin pi # 1.2246467991473532e-16
-    for! Tqdm!.'__call__'(0..99), i =>
+    for! tqdm.Tqdm!(0..99), i =>
         time.sleep! 0.01 * i
     ```
 

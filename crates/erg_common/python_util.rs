@@ -577,6 +577,27 @@ pub fn env_magic_number() -> u32 {
     detect_magic_number(&which_python())
 }
 
+pub fn module_exists(py_command: &str, module: &str) -> bool {
+    let code = format!("import importlib; errc = 1 if importlib.util.find_spec('{module}') is None else 0; exit(errc)");
+    let out = if cfg!(windows) {
+        Command::new("cmd")
+            .arg("/C")
+            .arg(py_command)
+            .arg("-c")
+            .arg(code)
+            .output()
+            .expect("cannot get module spec")
+    } else {
+        let exec_command = format!("{py_command} -c '{code}'");
+        Command::new("sh")
+            .arg("-c")
+            .arg(exec_command)
+            .output()
+            .expect("cannot get module spec")
+    };
+    out.status.success()
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PythonVersion {
     pub major: u8,
