@@ -20,6 +20,7 @@ pub mod opcode;
 pub mod opcode308;
 pub mod opcode310;
 pub mod opcode311;
+pub mod pathutil;
 pub mod python_util;
 pub mod random;
 pub mod serialize;

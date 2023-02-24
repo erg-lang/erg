@@ -117,6 +117,16 @@ impl From<&Str> for Str {
     }
 }
 
+impl From<Cow<'_, str>> for Str {
+    #[inline]
+    fn from(s: Cow<'_, str>) -> Self {
+        match s {
+            Cow::Borrowed(s) => Str::rc(s),
+            Cow::Owned(s) => Str::Rc(s.into()),
+        }
+    }
+}
+
 impl Deref for Str {
     type Target = str;
     fn deref(&self) -> &Self::Target {
@@ -187,6 +197,14 @@ impl Str {
         }
         ret.push(&self[start..]);
         ret
+    }
+
+    pub fn multi_replace(&self, paths: &[(&str, &str)]) -> Self {
+        let mut self_ = self.to_string();
+        for (from, to) in paths {
+            self_ = self_.replace(from, to);
+        }
+        Str::rc(&self_)
     }
 
     pub fn is_snake_case(&self) -> bool {

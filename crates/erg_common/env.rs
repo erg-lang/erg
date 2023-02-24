@@ -62,6 +62,6 @@ pub fn erg_pystd_path() -> PathBuf {
     ERG_PYSTD_PATH.with(|s| s.clone())
 }
 
-pub fn erg_external_lib_path() -> PathBuf {
+pub fn erg_py_external_lib_path() -> PathBuf {
     ERG_EXTERNAL_LIB_PATH.with(|s| s.clone())
 }

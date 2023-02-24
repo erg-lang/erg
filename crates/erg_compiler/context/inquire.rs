@@ -3,9 +3,10 @@ use std::option::Option; // conflicting to Type::Option
 use std::path::{Path, PathBuf};
 
 use erg_common::config::{ErgConfig, Input};
-use erg_common::env::{erg_pystd_path, erg_std_path};
+use erg_common::env::{erg_py_external_lib_path, erg_pystd_path, erg_std_path};
 use erg_common::error::{ErrorCore, ErrorKind, Location, SubMessage};
 use erg_common::levenshtein::get_similar_name;
+use erg_common::pathutil::add_postfix_foreach;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, NoTypeDisplay, Stream};
 use erg_common::vis::Visibility;
@@ -2106,15 +2107,30 @@ impl Context {
     }
 
     pub(crate) fn resolve_decl_path(cfg: &ErgConfig, path: &Path) -> Option<PathBuf> {
-        if let Ok(path) = cfg.input.local_resolve(path) {
+        if let Ok(path) = cfg.input.local_decl_resolve(path) {
             Some(path)
-        } else if let Ok(path) = erg_pystd_path()
-            .join(format!("{}.d.er", path.display()))
-            .canonicalize()
-        {
+        } else {
+            let py_roots = [erg_pystd_path, erg_py_external_lib_path];
+            for root in py_roots {
+                if let Some(path) = Self::resolve_std_decl_path(root(), path) {
+                    return Some(path);
+                }
+            }
+            None
+        }
+    }
+
+    pub(crate) fn resolve_std_decl_path(root: PathBuf, path: &Path) -> Option<PathBuf> {
+        let mut path = add_postfix_foreach(path, ".d");
+        path.set_extension("d.er"); // set_extension overrides the previous one
+        if let Ok(path) = root.join(&path).canonicalize() {
             Some(normalize_path(path))
-        } else if let Ok(path) = erg_pystd_path()
-            .join(format!("{}.d", path.display()))
+        // d.er -> .d
+        } else if let Ok(path) = root
+            .join({
+                path.set_extension("");
+                path
+            })
             .join("__init__.d.er")
             .canonicalize()
         {

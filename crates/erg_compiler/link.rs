@@ -2,6 +2,7 @@ use std::mem;
 use std::path::{Path, PathBuf};
 
 use erg_common::config::{ErgConfig, Input};
+use erg_common::pathutil::squash;
 use erg_common::python_util::BUILTIN_PYTHON_MODS;
 use erg_common::traits::Locational;
 use erg_common::Str;
@@ -383,6 +384,7 @@ impl<'a> Linker<'a> {
             &mod_name_str
         };
         dir.push(mod_name_str);
+        let dir = squash(dir);
         let mut comps = dir.components();
         let _first = comps.next().unwrap();
         let path = dir.to_string_lossy().replace(['/', '\\'], ".");

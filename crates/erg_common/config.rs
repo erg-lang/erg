@@ -13,6 +13,7 @@ use std::str::FromStr;
 use crate::help_messages::{command_message, mode_message, OPTIONS};
 use crate::levenshtein::get_similar_name;
 use crate::normalize_path;
+use crate::pathutil::add_postfix_foreach;
 use crate::python_util::{detect_magic_number, get_python_version, PythonVersion};
 use crate::random::random;
 use crate::serialize::{get_magic_num_from_bytes, get_ver_from_magic_num};
@@ -342,39 +343,51 @@ impl Input {
     }
 
     pub fn local_resolve(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
-        let mut dir = if let Self::File(mut path) = self.clone() {
-            path.pop();
-            path
+        let mut dir = if let Self::File(mut file_path) = self.clone() {
+            file_path.pop();
+            file_path
         } else {
             PathBuf::new()
         };
         dir.push(path);
-        dir.set_extension("er");
+        dir.set_extension("er"); // {path}.er
+        let path = dir.canonicalize().or_else(|_| {
+            dir.pop();
+            dir.push(path);
+            dir.push("__init__.er"); // -> {path}/__init__.er
+            dir.canonicalize()
+        })?;
+        Ok(normalize_path(path))
+    }
+
+    pub fn local_decl_resolve(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
+        let mut dir = if let Self::File(mut file_path) = self.clone() {
+            file_path.pop();
+            file_path
+        } else {
+            PathBuf::new()
+        };
+        let path = add_postfix_foreach(path, ".d");
+        let mut comps = path.components();
+        let last = comps.next_back().unwrap();
+        let last_path = Path::new(&last);
+        dir.push(comps);
+        dir.push(last_path);
+        dir.set_extension("d.er"); // {path}.d.er
         let path = dir
             .canonicalize()
             .or_else(|_| {
-                dir.pop();
-                dir.push(path);
-                dir.push("__init__.er"); // {path}/__init__.er
+                dir.pop(); // {path}.d.er -> ./
+                dir.push(last_path); // -> {path}.d
+                dir.push("__init__.d.er"); // -> {path}.d/__init__.d.er
                 dir.canonicalize()
             })
             .or_else(|_| {
-                dir.pop(); // {path}
-                dir.set_extension("d.er");
-                dir.canonicalize()
-            })
-            .or_else(|_| {
-                dir.pop(); // {path}.d.er
-                dir.push(format!("{}.d", path.display())); // {path}.d
-                dir.push("__init__.d.er"); // {path}.d/__init__.d.er
-                dir.canonicalize()
-            })
-            .or_else(|_| {
-                dir.pop(); // {path}.d
-                dir.pop();
+                dir.pop(); // -> {path}.d
+                dir.pop(); // -> ./
                 dir.push("__pycache__");
-                dir.push(path);
-                dir.set_extension("d.er"); // __pycache__/{path}.d.er
+                dir.push(last_path);
+                dir.set_extension("d.er"); // -> __pycache__/{path}.d.er
                 dir.canonicalize()
             })?;
         Ok(normalize_path(path))
