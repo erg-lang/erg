@@ -903,7 +903,11 @@ impl Context {
         ctx.init_builtin_funcs();
         ctx.init_builtin_const_funcs();
         ctx.init_builtin_procs();
-        ctx.init_builtin_operators();
+        if cfg!(feature = "py_compatible") {
+            ctx.init_py_builtin_operators();
+        } else {
+            ctx.init_builtin_operators();
+        }
         ctx.init_builtin_traits();
         ctx.init_builtin_classes();
         ctx.init_builtin_patches();

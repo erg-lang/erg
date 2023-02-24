@@ -1,6 +1,6 @@
 #[allow(unused_imports)]
 use erg_common::log;
-use erg_common::vis::Visibility;
+use erg_common::vis::{Field, Visibility};
 
 use crate::ty::constructors::*;
 use crate::ty::typaram::TyParam;
@@ -509,6 +509,152 @@ impl Context {
         let N = mono_q(TY_N, subtypeof(mono(NUM)));
         let op_t = func1(N.clone(), N).quantify();
         self.register_builtin_erg_decl(OP_POS, op_t.clone(), Private);
+        self.register_builtin_erg_decl(OP_NEG, op_t, Private);
+    }
+
+    pub(super) fn init_py_builtin_operators(&mut self) {
+        /* binary */
+        let R = type_q("R");
+        let O = type_q("O");
+        // Erg    : |L <: Add(R), R: Type|(lhs: L, rhs: R) -> L.Output
+        // Python : |L, R, O: Type|(lhs: Structural({ .__add__ = (L, R) -> O }), rhs: R) -> O
+        let op_t = {
+            let S = Type::from(
+                dict! { Field::public("__add__".into()) => fn1_met(Never, R.clone(), O.clone()) },
+            )
+            .structuralize();
+            bin_op(S, R.clone(), O.clone()).quantify()
+        };
+        self.register_builtin_erg_impl(OP_ADD, op_t, Const, Private);
+        let op_t = {
+            let S = Type::from(
+                dict! { Field::public("__sub__".into()) => fn1_met(Never, R.clone(), O.clone()) },
+            )
+            .structuralize();
+            bin_op(S, R.clone(), O.clone()).quantify()
+        };
+        self.register_builtin_erg_impl(OP_SUB, op_t, Const, Private);
+        let op_t = {
+            let S = Type::from(
+                dict! { Field::public("__mul__".into()) => fn1_met(Never, R.clone(), O.clone()) },
+            )
+            .structuralize();
+            bin_op(S, R.clone(), O.clone()).quantify()
+        };
+        self.register_builtin_erg_impl(OP_MUL, op_t, Const, Private);
+        let op_t = {
+            let S = Type::from(
+                dict! { Field::public("__div__".into()) => fn1_met(Never, R.clone(), O.clone()) },
+            )
+            .structuralize();
+            bin_op(S, R.clone(), O.clone()).quantify()
+        };
+        self.register_builtin_erg_impl(OP_DIV, op_t, Const, Private);
+        let op_t = {
+            let S = Type::from(
+                dict! { Field::public("__floordiv__".into()) => fn1_met(Never, R.clone(), O.clone()) },
+            )
+            .structuralize();
+            bin_op(S, R.clone(), O.clone()).quantify()
+        };
+        self.register_builtin_erg_impl(OP_FLOOR_DIV, op_t, Const, Private);
+        let op_t = {
+            let S = Type::from(
+                dict! { Field::public("__pow__".into()) => fn1_met(Never, R.clone(), O.clone()) },
+            )
+            .structuralize();
+            bin_op(S, R.clone(), O.clone()).quantify()
+        };
+        self.register_builtin_erg_impl(OP_POW, op_t, Const, Private);
+        let op_t = {
+            let S = Type::from(
+                dict! { Field::public("__mod__".into()) => fn1_met(Never, R.clone(), O.clone()) },
+            )
+            .structuralize();
+            bin_op(S, R.clone(), O.clone()).quantify()
+        };
+        self.register_builtin_erg_impl(OP_MOD, op_t, Const, Private);
+        let op_t = nd_proc(vec![kw(KW_LHS, Obj), kw(KW_RHS, Obj)], None, Bool);
+        self.register_builtin_erg_impl(OP_IS, op_t.clone(), Const, Private);
+        self.register_builtin_erg_impl(OP_IS_NOT, op_t, Const, Private);
+        let op_t = {
+            let S = Type::from(
+                dict! { Field::public("__eq__".into()) => fn1_met(Never, R.clone(), Bool) },
+            )
+            .structuralize();
+            bin_op(S, R.clone(), Bool).quantify()
+        };
+        self.register_builtin_erg_impl(OP_EQ, op_t, Const, Private);
+        let op_t = {
+            let S = Type::from(
+                dict! { Field::public("__ne__".into()) => fn1_met(Never, R.clone(), Bool) },
+            )
+            .structuralize();
+            bin_op(S, R.clone(), Bool).quantify()
+        };
+        self.register_builtin_erg_impl(OP_NE, op_t, Const, Private);
+        let op_t = {
+            let S = Type::from(
+                dict! { Field::public("__lt__".into()) => fn1_met(Never, R.clone(), Bool) },
+            )
+            .structuralize();
+            bin_op(S, R.clone(), Bool).quantify()
+        };
+        self.register_builtin_erg_impl(OP_LT, op_t, Const, Private);
+        let op_t = {
+            let S = Type::from(
+                dict! { Field::public("__le__".into()) => fn1_met(Never, R.clone(), Bool) },
+            )
+            .structuralize();
+            bin_op(S, R.clone(), Bool).quantify()
+        };
+        self.register_builtin_erg_impl(OP_LE, op_t, Const, Private);
+        let op_t = {
+            let S = Type::from(
+                dict! { Field::public("__gt__".into()) => fn1_met(Never, R.clone(), Bool) },
+            )
+            .structuralize();
+            bin_op(S, R.clone(), Bool).quantify()
+        };
+        self.register_builtin_erg_impl(OP_GT, op_t, Const, Private);
+        let op_t = {
+            let S = Type::from(
+                dict! { Field::public("__ge__".into()) => fn1_met(Never, R.clone(), Bool) },
+            )
+            .structuralize();
+            bin_op(S, R.clone(), Bool).quantify()
+        };
+        self.register_builtin_erg_impl(OP_GE, op_t, Const, Private);
+        let op_t = {
+            let S = Type::from(
+                dict! { Field::public("__and__".into()) => fn1_met(Never, R.clone(), O.clone()) },
+            )
+            .structuralize();
+            bin_op(S, R.clone(), O.clone()).quantify()
+        };
+        self.register_builtin_erg_impl(OP_AND, op_t, Const, Private);
+        let op_t = {
+            let S = Type::from(
+                dict! { Field::public("__or__".into()) => fn1_met(Never, R.clone(), O.clone()) },
+            )
+            .structuralize();
+            bin_op(S, R.clone(), O).quantify()
+        };
+        self.register_builtin_erg_impl(OP_OR, op_t, Const, Private);
+        /* unary */
+        let op_t = {
+            let S =
+                Type::from(dict! { Field::public("__pos__".into()) => fn0_met(Never, R.clone()) })
+                    .structuralize();
+            func1(S, R.clone()).quantify()
+        };
+        self.register_builtin_erg_decl(OP_POS, op_t, Private);
+        let op_t = {
+            let S =
+                Type::from(dict! { Field::public("__neg__".into()) => fn0_met(Never, R.clone()) })
+                    .structuralize();
+            func1(S, R).quantify()
+        };
         self.register_builtin_erg_decl(OP_NEG, op_t, Private);
     }
 }

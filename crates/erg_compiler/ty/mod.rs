@@ -1051,6 +1051,12 @@ impl From<Dict<Type, Type>> for Type {
     }
 }
 
+impl From<Dict<Field, Type>> for Type {
+    fn from(rec: Dict<Field, Type>) -> Self {
+        Type::Record(rec)
+    }
+}
+
 impl BitAnd for Type {
     type Output = Self;
     fn bitand(self, rhs: Self) -> Self::Output {
