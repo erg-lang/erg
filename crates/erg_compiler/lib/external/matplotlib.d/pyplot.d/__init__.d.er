@@ -1,0 +1,10 @@
+lines = pyimport "../lines"
+text = pyimport "../text"
+legend = pyimport "../legend"
+
+.plot!: (*args: Obj, scaleX := Bool, scaleY := Bool) => [Obj; _]
+.show!: () => NoneType
+.title!: (title: Str) => text.Text
+.xlabel!: (label: Str) => text.Text
+.ylabel!: (label: Str) => text.Text
+.legend!: (labels := [Str; _]) => legend.Legend

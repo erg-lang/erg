@@ -1,0 +1,3 @@
+.Develop = 'develop': ClassType
+.Develop.
+    run!: (self: .Develop) => NoneType

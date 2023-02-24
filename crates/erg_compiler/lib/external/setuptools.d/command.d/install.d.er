@@ -1,0 +1,3 @@
+.Install = 'install': ClassType
+.Install.
+    run!: (self: .Install) => NoneType
