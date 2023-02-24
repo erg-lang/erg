@@ -1,0 +1,14 @@
+add|T: Type, U: Type, V: Type| x: Structural({ .__add__ = (self: T, other: U) -> V }), other: U =
+    x.__add__(other)
+
+a = add 1, 2
+b = add a, 2
+c = add b, 2
+assert c == 7
+
+_add x, y = add x, y
+
+x = _add 1, 2
+y = _add x, 2
+z = _add y, 2
+assert z == 7

@@ -983,6 +983,26 @@ impl TyParam {
         }
     }
 
+    pub fn contains(&self, target: &Type) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains(target),
+            Self::Type(t) => t.contains(target),
+            Self::Erased(t) => t.contains(target),
+            Self::Proj { obj, .. } => obj.contains(target),
+            Self::Array(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.contains(target)),
+            Self::Set(ts) => ts.iter().any(|t| t.contains(target)),
+            Self::Dict(ts) => ts
+                .iter()
+                .any(|(k, v)| k.contains(target) || v.contains(target)),
+            Self::Record(rec) => rec.iter().any(|(_, tp)| tp.contains(target)),
+            Self::Lambda(lambda) => lambda.body.iter().any(|tp| tp.contains(target)),
+            Self::UnaryOp { val, .. } => val.contains(target),
+            Self::BinOp { lhs, rhs, .. } => lhs.contains(target) || rhs.contains(target),
+            Self::App { args, .. } => args.iter().any(|p| p.contains(target)),
+            _ => false,
+        }
+    }
+
     pub fn is_unbound_var(&self) -> bool {
         matches!(self, Self::FreeVar(fv) if fv.is_unbound() || fv.crack().is_unbound_var())
     }

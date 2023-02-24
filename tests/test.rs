@@ -162,6 +162,11 @@ fn exec_structural() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_structural_test() -> Result<(), ()> {
+    expect_success("tests/should_ok/structural_test.er")
+}
+
+#[test]
 fn exec_subtyping() -> Result<(), ()> {
     expect_success("tests/should_ok/subtyping.er")
 }

@@ -1696,26 +1696,23 @@ impl Context {
         }
     }
 
-    pub(crate) fn instantiate_dummy(&self, quantified: Type) -> Type {
+    pub(crate) fn instantiate_dummy(&self, quantified: Type) -> TyCheckResult<Type> {
         match quantified {
             FreeVar(fv) if fv.is_linked() => self.instantiate_dummy(fv.crack().clone()),
             Quantified(quant) => {
                 let mut tmp_tv_cache = TyVarCache::new(self.level, self);
-                let ty = self
-                    .instantiate_t_inner(*quant, &mut tmp_tv_cache, &())
-                    .unwrap();
+                let ty = self.instantiate_t_inner(*quant, &mut tmp_tv_cache, &())?;
                 if cfg!(feature = "debug") && ty.has_qvar() {
                     panic!("{ty} has qvar")
                 }
-                ty
+                Ok(ty)
             }
             Refinement(refine) if refine.t.is_quantified_subr() => {
                 let quant = enum_unwrap!(*refine.t, Type::Quantified);
                 let mut tmp_tv_cache = TyVarCache::new(self.level, self);
                 self.instantiate_t_inner(*quant, &mut tmp_tv_cache, &())
-                    .unwrap()
             }
-            other => unreachable!("{other}"),
+            _other => unreachable_error!(TyCheckErrors, TyCheckError, self),
         }
     }
 }

@@ -772,9 +772,9 @@ impl Context {
                 }
                 self.eval_proj_call(lhs, attr_name, new_args, self.level, loc)
             }
-            Type::Structural(t) => {
-                let t = self.deref_tyvar(*t, variance, qnames, loc)?;
-                Ok(t.structuralize())
+            Type::Structural(inner) => {
+                let inner = self.deref_tyvar(*inner, variance, qnames, loc)?;
+                Ok(inner.structuralize())
             }
             t => Ok(t),
         }

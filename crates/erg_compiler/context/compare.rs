@@ -129,6 +129,7 @@ impl Context {
         self.supertype_of(lhs, rhs, allow_cast) || self.subtype_of(lhs, rhs, allow_cast)
     }
 
+    /// lhs :> rhs ?
     pub(crate) fn supertype_of(&self, lhs: &Type, rhs: &Type, allow_cast: bool) -> bool {
         let res = match Self::cheap_supertype_of(lhs, rhs, allow_cast) {
             (Absolutely, judge) => judge,
@@ -142,12 +143,16 @@ impl Context {
         res
     }
 
+    /// lhs <: rhs ?
+    ///
     /// e.g.
+    /// ```erg
     /// Named :> Module
     /// => Module.super_types == [Named]
     ///
     /// Seq(T) :> Range(T)
-    /// => Range(T).super_types == [Eq, Mutate, Seq('T), Output('T)]
+    /// => Range(T).super_types == [Eq, Mutate, Seq(T), Output(T)]
+    /// ```
     pub(crate) fn subtype_of(&self, lhs: &Type, rhs: &Type, allow_cast: bool) -> bool {
         match Self::cheap_subtype_of(lhs, rhs, allow_cast) {
             (Absolutely, judge) => judge,
@@ -614,17 +619,25 @@ impl Context {
                 self.supertype_of(&l.t, r, allow_cast)
             }
             (Quantified(_), Quantified(_)) => {
-                let l = self.instantiate_dummy(lhs.clone());
-                let r = self.instantiate_dummy(rhs.clone());
+                let Ok(l) = self.instantiate_dummy(lhs.clone()) else {
+                    return false;
+                };
+                let Ok(r) = self.instantiate_dummy(rhs.clone()) else {
+                    return false;
+                };
                 self.sub_unify(&r, &l, &(), None).is_ok()
             }
             // (|T: Type| T -> T) !<: Obj -> Never
             (Quantified(_), r) if allow_cast => {
-                let inst = self.instantiate_dummy(lhs.clone());
+                let Ok(inst) = self.instantiate_dummy(lhs.clone()) else {
+                    return false;
+                };
                 self.sub_unify(r, &inst, &(), None).is_ok()
             }
             (l, Quantified(_)) if allow_cast => {
-                let inst = self.instantiate_dummy(rhs.clone());
+                let Ok(inst) = self.instantiate_dummy(rhs.clone()) else {
+                    return false;
+                };
                 self.sub_unify(&inst, l, &(), None).is_ok()
             }
             // Int or Str :> Str or Int == (Int :> Str && Str :> Int) || (Int :> Int && Str :> Str) == true

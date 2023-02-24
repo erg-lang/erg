@@ -686,9 +686,12 @@ impl Context {
                 for (sup_field, sup_ty) in self.fields(sup) {
                     if let Some((_, sub_ty)) = sub_fields.get_key_value(&sup_field) {
                         self.sub_unify(sub_ty, &sup_ty, loc, param_name)?;
-                    } else {
+                    } else if !self.subtype_of(&fv.get_sub().unwrap(), &Never, allow_cast) {
                         maybe_sub.coerce();
                         return self.sub_unify(maybe_sub, maybe_sup, loc, param_name);
+                    } else {
+                        // e.g. ?T / Structural({ .method = (self: ?T) -> Int })
+                        fv.link(maybe_sup);
                     }
                 }
                 Ok(())
