@@ -119,6 +119,7 @@ impl Context {
         let params = vec![PS::t(TY_R, WithDefault)];
         let ty_params = vec![ty_tp(R.clone())];
         /* Num */
+        /* Add */
         let mut add = Self::builtin_poly_trait(ADD, params.clone(), 2);
         // Covariant with `R` (independent of the type of __add__)
         add.register_superclass(poly(OUTPUT, vec![ty_tp(R.clone())]), &output);
@@ -154,6 +155,18 @@ impl Context {
         let op_t = fn1_met(Slf.clone(), R, proj(Slf.clone(), OUTPUT)).quantify();
         floor_div.register_builtin_erg_decl(OP_FLOOR_DIV, op_t, Public);
         floor_div.register_builtin_erg_decl(OUTPUT, Type, Public);
+        /* Pos */
+        let mut pos = Self::builtin_mono_trait(POS, 2);
+        let _Slf = mono_q(SELF, subtypeof(mono(POS)));
+        let op_t = fn0_met(_Slf.clone(), proj(_Slf, OUTPUT)).quantify();
+        pos.register_builtin_erg_decl(OP_POS, op_t, Public);
+        pos.register_builtin_erg_decl(OUTPUT, Type, Public);
+        /* Neg */
+        let mut neg = Self::builtin_mono_trait(NEG, 2);
+        let _Slf = mono_q(SELF, subtypeof(mono(NEG)));
+        let op_t = fn0_met(_Slf.clone(), proj(_Slf, OUTPUT)).quantify();
+        neg.register_builtin_erg_decl(OP_NEG, op_t, Public);
+        neg.register_builtin_erg_decl(OUTPUT, Type, Public);
         self.register_builtin_type(mono(UNPACK), unpack, vis, Const, None);
         self.register_builtin_type(
             mono(INHERITABLE_TYPE),
@@ -215,6 +228,8 @@ impl Context {
         self.register_builtin_type(poly(MUL, ty_params.clone()), mul, vis, Const, None);
         self.register_builtin_type(poly(DIV, ty_params.clone()), div, vis, Const, None);
         self.register_builtin_type(poly(FLOOR_DIV, ty_params), floor_div, vis, Const, None);
+        self.register_builtin_type(mono(POS), pos, vis, Const, None);
+        self.register_builtin_type(mono(NEG), neg, vis, Const, None);
         self.register_const_param_defaults(
             ADD,
             vec![ConstTemplate::Obj(ValueObj::builtin_t(Slf.clone()))],

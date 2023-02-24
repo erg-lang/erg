@@ -140,6 +140,12 @@ impl Context {
         float_floordiv.register_builtin_erg_impl(OP_FLOOR_DIV, op_t, Const, Public);
         float_floordiv.register_builtin_const(OUTPUT, Public, ValueObj::builtin_t(Float));
         float.register_trait(Float, float_floordiv);
+        let mut float_pos = Self::builtin_methods(Some(mono(POS)), 1);
+        float_pos.register_builtin_erg_impl(OP_POS, fn0_met(Float, Float), Const, Public);
+        float.register_trait(Float, float_pos);
+        let mut float_neg = Self::builtin_methods(Some(mono(NEG)), 1);
+        float_neg.register_builtin_erg_impl(OP_NEG, fn0_met(Float, Float), Const, Public);
+        float.register_trait(Float, float_neg);
         let mut float_mutizable = Self::builtin_methods(Some(mono(MUTIZABLE)), 2);
         float_mutizable.register_builtin_const(
             MUTABLE_MUT_TYPE,
@@ -286,6 +292,12 @@ impl Context {
         int_floordiv.register_builtin_erg_impl(OP_FLOOR_DIV, op_t, Const, Public);
         int_floordiv.register_builtin_const(OUTPUT, Public, ValueObj::builtin_t(Int));
         int.register_trait(Int, int_floordiv);
+        let mut int_pos = Self::builtin_methods(Some(mono(POS)), 2);
+        int_pos.register_builtin_erg_impl(OP_POS, fn0_met(Int, Int), Const, Public);
+        int.register_trait(Int, int_pos);
+        let mut int_neg = Self::builtin_methods(Some(mono(NEG)), 2);
+        int_neg.register_builtin_erg_impl(OP_NEG, fn0_met(Int, Int), Const, Public);
+        int.register_trait(Int, int_neg);
         let mut int_mutizable = Self::builtin_methods(Some(mono(MUTIZABLE)), 2);
         int_mutizable.register_builtin_const(
             MUTABLE_MUT_TYPE,
