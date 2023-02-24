@@ -1274,7 +1274,12 @@ impl Context {
                 }
             }
             other => {
-                if let Ok(typ_ctx) = self.get_singular_ctx_by_hir_expr(obj, &self.name) {
+                let one = self.get_singular_ctx_by_hir_expr(obj, &self.name).ok();
+                let two = obj
+                    .qual_name()
+                    .and_then(|name| self.get_same_name_context(name));
+                let fallbacks = one.iter().chain(two.iter());
+                for &typ_ctx in fallbacks {
                     if let Some(call_vi) =
                         typ_ctx.get_current_scope_var(&VarName::from_static("__call__"))
                     {
