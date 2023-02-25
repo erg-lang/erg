@@ -676,6 +676,7 @@ mod test {
             trait_type,
             class_type,
             hint,
+            Location::Unknown,
         );
         errors.push(err);
 

@@ -1752,7 +1752,7 @@ impl ASTLowerer {
                 .unwrap()
                 .get_nominal_type_ctx(&impl_trait)
             {
-                self.check_methods_compatibility(&impl_trait, class, typ_ctx)
+                self.check_methods_compatibility(&impl_trait, class, typ_ctx, t_spec)
             } else {
                 return Err(LowerError::no_type_error(
                     self.cfg.input.clone(),
@@ -1766,7 +1766,7 @@ impl ASTLowerer {
                 ));
             };
             for unverified in unverified_names {
-                errors.push(LowerError::trait_member_not_defined_error(
+                errors.push(LowerError::not_in_trait_error(
                     self.cfg.input.clone(),
                     line!() as usize,
                     self.module.context.caused_by(),
@@ -1774,6 +1774,7 @@ impl ASTLowerer {
                     &impl_trait,
                     class,
                     None,
+                    unverified.loc(),
                 ));
             }
             self.errs.extend(errors);
@@ -1786,6 +1787,7 @@ impl ASTLowerer {
         impl_trait: &Type,
         class: &Type,
         typ_ctx: (&Type, &Context),
+        t_spec: &TypeSpecWithOp,
     ) -> (Set<&VarName>, CompileErrors) {
         let mut errors = CompileErrors::empty();
         let trait_type = typ_ctx.0;
@@ -1827,6 +1829,7 @@ impl ASTLowerer {
                     impl_trait,
                     class,
                     None,
+                    t_spec.loc(),
                 ));
             }
         }

@@ -964,11 +964,12 @@ passed keyword args:    {kw_args_len}"
         trait_type: &Type,
         class_type: &Type,
         hint: Option<String>,
+        loc: Location,
     ) -> Self {
         let member_name = StyledString::new(member_name, Some(WARN), Some(ATTR));
         Self::new(
             ErrorCore::new(
-                vec![SubMessage::ambiguous_new(Location::Unknown, vec![], hint)],
+                vec![SubMessage::ambiguous_new(loc, vec![], hint)],
                 switch_lang!(
                     "japanese" => format!("{trait_type}の{member_name}が{class_type}で実装されていません"),
                     "simplified_chinese" => format!("{trait_type}中的{member_name}没有在{class_type}中实现"),
@@ -977,7 +978,7 @@ passed keyword args:    {kw_args_len}"
                 ),
                 errno,
                 TypeError,
-                Location::Unknown,
+                loc,
             ),
             input,
             caused_by,
@@ -993,11 +994,12 @@ passed keyword args:    {kw_args_len}"
         trait_type: &Type,
         class_type: &Type,
         hint: Option<String>,
+        loc: Location,
     ) -> Self {
         let member_name = StyledString::new(member_name, Some(WARN), Some(ATTR));
         Self::new(
             ErrorCore::new(
-                vec![SubMessage::ambiguous_new(Location::Unknown, vec![], hint)],
+                vec![SubMessage::ambiguous_new(loc, vec![], hint)],
                 switch_lang!(
                     "japanese" => format!("{class_type}の{member_name}は{trait_type}で宣言されていません"),
                     "simplified_chinese" => format!("{class_type}中的{member_name}没有在{trait_type}中声明"),
@@ -1006,7 +1008,7 @@ passed keyword args:    {kw_args_len}"
                 ),
                 errno,
                 TypeError,
-                Location::Unknown,
+                loc,
             ),
             input,
             caused_by,
