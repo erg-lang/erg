@@ -1,4 +1,6 @@
 mod code_action;
+mod code_lens;
+mod command;
 mod completion;
 mod definition;
 mod diagnostics;

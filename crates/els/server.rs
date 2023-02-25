@@ -21,10 +21,11 @@ use erg_compiler::ty::HasType;
 
 use lsp_types::{
     ClientCapabilities, CodeActionKind, CodeActionOptions, CodeActionProviderCapability,
-    CompletionOptions, DidChangeTextDocumentParams, ExecuteCommandOptions, HoverProviderCapability,
-    InitializeResult, OneOf, Position, SemanticTokenType, SemanticTokensFullOptions,
-    SemanticTokensLegend, SemanticTokensOptions, SemanticTokensServerCapabilities,
-    ServerCapabilities, SignatureHelpOptions, Url, WorkDoneProgressOptions,
+    CodeLensOptions, CompletionOptions, DidChangeTextDocumentParams, ExecuteCommandOptions,
+    HoverProviderCapability, InitializeResult, OneOf, Position, SemanticTokenType,
+    SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions,
+    SemanticTokensServerCapabilities, ServerCapabilities, SignatureHelpOptions, Url,
+    WorkDoneProgressOptions,
 };
 
 use crate::file_cache::FileCache;
@@ -243,6 +244,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 work_done_progress: None,
             },
         });
+        result.capabilities.code_lens_provider = Some(CodeLensOptions {
+            resolve_provider: Some(false),
+        });
         Self::send(&json!({
             "jsonrpc": "2.0",
             "id": id,
@@ -360,7 +364,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
             "textDocument/inlayHint" => self.get_inlay_hint(msg),
             "textDocument/codeAction" => self.send_code_action(msg),
             "textDocument/signatureHelp" => self.show_signature_help(msg),
+            "textDocument/codeLens" => self.show_code_lens(msg),
             "workspace/willRenameFiles" => self.rename_files(msg),
+            "workspace/executeCommand" => self.execute_command(msg),
             other => Self::send_error(Some(id), -32600, format!("{other} is not supported")),
         }
     }

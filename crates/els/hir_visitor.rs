@@ -176,7 +176,7 @@ impl<'a> HIRVisitor<'a> {
             Expr::BinOp(bin) => self.get_expr_from_bin(expr, bin, token),
             Expr::UnaryOp(unary) => self.get_expr(&unary.expr, token),
             Expr::Call(call) => self.get_expr_from_call(expr, call, token),
-            Expr::ClassDef(class_def) => self.get_expr_from_class_def(class_def, token),
+            Expr::ClassDef(class_def) => self.get_expr_from_class_def(expr, class_def, token),
             Expr::Def(def) => self.get_expr_from_def(expr, def, token),
             Expr::PatchDef(patch_def) => self.get_expr_from_patch_def(expr, patch_def, token),
             Expr::Lambda(lambda) => self.get_expr_from_lambda(expr, lambda, token),
@@ -268,10 +268,12 @@ impl<'a> HIRVisitor<'a> {
     ) -> Option<&Expr> {
         self.return_expr_if_same(expr, def.sig.ident().name.token(), token)
             .or_else(|| self.get_expr_from_block(&def.body.block, token))
+            .or_else(|| def.loc().contains(token.loc()).then_some(expr))
     }
 
     fn get_expr_from_class_def<'e>(
         &'e self,
+        expr: &'e Expr,
         class_def: &'e ClassDef,
         token: &Token,
     ) -> Option<&Expr> {
@@ -280,6 +282,7 @@ impl<'a> HIRVisitor<'a> {
             .as_ref()
             .and_then(|req_sup| self.get_expr(req_sup, token))
             .or_else(|| self.get_expr_from_block(&class_def.methods, token))
+            .or_else(|| class_def.loc().contains(token.loc()).then_some(expr))
     }
 
     fn get_expr_from_block<'e>(&'e self, block: &'e Block, token: &Token) -> Option<&Expr> {
@@ -319,6 +322,7 @@ impl<'a> HIRVisitor<'a> {
         self.return_expr_if_same(expr, patch_def.sig.ident().name.token(), token)
             .or_else(|| self.get_expr(&patch_def.base, token))
             .or_else(|| self.get_expr_from_block(&patch_def.methods, token))
+            .or_else(|| patch_def.loc().contains(token.loc()).then_some(expr))
     }
 
     fn get_expr_from_lambda<'e>(

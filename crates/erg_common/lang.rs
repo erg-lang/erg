@@ -7,6 +7,7 @@ pub enum LanguageCode {
     SimplifiedChinese,
     TraditionalChinese,
     Erg,
+    Python,
 }
 
 impl FromStr for LanguageCode {
@@ -18,6 +19,7 @@ impl FromStr for LanguageCode {
             "simplified_chinese" | "zh-CN" => Ok(Self::SimplifiedChinese),
             "traditional_chinese" | "zh-TW" => Ok(Self::TraditionalChinese),
             "erg" => Ok(Self::Erg),
+            "python" => Ok(Self::Python),
             _ => Err(()),
         }
     }
@@ -31,6 +33,7 @@ impl From<LanguageCode> for &str {
             LanguageCode::SimplifiedChinese => "simplified_chinese",
             LanguageCode::TraditionalChinese => "traditional_chinese",
             LanguageCode::Erg => "erg",
+            LanguageCode::Python => "python",
         }
     }
 }
@@ -51,6 +54,9 @@ impl LanguageCode {
     pub const fn erg_patterns() -> [&'static str; 2] {
         ["erg", "erg"]
     }
+    pub const fn python_patterns() -> [&'static str; 2] {
+        ["python", "python"]
+    }
     pub const fn patterns(&self) -> [&'static str; 2] {
         match self {
             Self::English => Self::en_patterns(),
@@ -58,6 +64,7 @@ impl LanguageCode {
             Self::SimplifiedChinese => Self::zh_cn_patterns(),
             Self::TraditionalChinese => Self::zh_tw_patterns(),
             Self::Erg => Self::erg_patterns(),
+            Self::Python => Self::python_patterns(),
         }
     }
 
@@ -76,6 +83,9 @@ impl LanguageCode {
     pub const fn is_erg(&self) -> bool {
         matches!(self, Self::Erg)
     }
+    pub const fn is_python(&self) -> bool {
+        matches!(self, Self::Python)
+    }
 
     pub const fn matches_feature(&self) -> bool {
         match self {
@@ -88,6 +98,7 @@ impl LanguageCode {
             Self::SimplifiedChinese => cfg!(feature = "simplified_chinese"),
             Self::TraditionalChinese => cfg!(feature = "traditional_chinese"),
             Self::Erg => true,
+            Self::Python => cfg!(feature = "py_compatible"),
         }
     }
     pub fn as_str(&self) -> &str {

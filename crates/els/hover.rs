@@ -12,6 +12,14 @@ use lsp_types::{HoverContents, HoverParams, MarkedString, Url};
 use crate::server::{ELSResult, Server};
 use crate::util;
 
+const PROG_LANG: &str = if cfg!(feature = "py_compatible") {
+    "python"
+} else {
+    "erg"
+};
+
+const ERG_LANG: &str = "erg";
+
 fn lang_code(code: &str) -> LanguageCode {
     code.lines()
         .next()
@@ -92,11 +100,6 @@ macro_rules! next {
 impl<Checker: BuildRunnable> Server<Checker> {
     pub(crate) fn show_hover(&mut self, msg: &Value) -> ELSResult<()> {
         Self::send_log(format!("hover requested : {msg}"))?;
-        let lang = if cfg!(feature = "py_compatible") {
-            "python"
-        } else {
-            "erg"
-        };
         let params = HoverParams::deserialize(&msg["params"])?;
         let uri = util::normalize_url(params.text_document_position_params.text_document.uri);
         let pos = params.text_document_position_params.position;
@@ -156,11 +159,12 @@ impl<Checker: BuildRunnable> Server<Checker> {
                                 _ => {}
                             }
                         }
-                        let definition = MarkedString::from_language_code(lang.into(), code_block);
+                        let definition =
+                            MarkedString::from_language_code(PROG_LANG.into(), code_block);
                         contents.push(definition);
                     }
                     let typ = MarkedString::from_language_code(
-                        lang.into(),
+                        ERG_LANG.into(),
                         format!("{}: {}", token.content, vi.t),
                     );
                     contents.push(typ);
@@ -171,7 +175,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                     if let Some(visitor) = self.get_visitor(&uri) {
                         if let Some(typ) = visitor.get_min_expr(&token) {
                             let typ = MarkedString::from_language_code(
-                                lang.into(),
+                                ERG_LANG.into(),
                                 format!("{}: {typ}", token.content),
                             );
                             contents.push(typ);
@@ -224,10 +228,14 @@ impl<Checker: BuildRunnable> Server<Checker> {
                         let code_block = eliminate_top_indent(
                             code_block.trim_start_matches(lang.as_str()).to_string(),
                         );
-                        let marked = if lang.is_erg() {
-                            MarkedString::from_language_code("erg".into(), code_block)
-                        } else {
-                            MarkedString::from_markdown(code_block)
+                        let marked = match lang {
+                            LanguageCode::Erg => {
+                                MarkedString::from_language_code("erg".into(), code_block)
+                            }
+                            LanguageCode::Python => {
+                                MarkedString::from_language_code("python".into(), code_block)
+                            }
+                            _ => MarkedString::from_markdown(code_block),
                         };
                         contents.push(marked);
                         if lang.is_erg() {
