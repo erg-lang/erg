@@ -273,7 +273,6 @@ impl Context {
     pub(crate) fn instantiate_var_sig_t(
         &self,
         t_spec: Option<&TypeSpec>,
-        opt_eval_t: Option<Type>,
         mode: RegistrationMode,
     ) -> TyCheckResult<Type> {
         let mut tmp_tv_cache = TyVarCache::new(self.level, self);
@@ -282,13 +281,6 @@ impl Context {
         } else {
             free_var(self.level, Constraint::new_type_of(Type))
         };
-        if let Some(eval_t) = opt_eval_t {
-            if let Some(t_spec) = t_spec {
-                self.sub_unify(&eval_t, &spec_t, t_spec, None)?;
-            } else {
-                self.sub_unify(&eval_t, &spec_t, &(), None)?;
-            }
-        }
         Ok(spec_t)
     }
 

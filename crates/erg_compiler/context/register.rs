@@ -124,12 +124,7 @@ impl Context {
         }
     }
 
-    fn pre_define_var(
-        &mut self,
-        sig: &ast::VarSignature,
-        opt_t: Option<Type>,
-        id: Option<DefId>,
-    ) -> TyCheckResult<()> {
+    fn pre_define_var(&mut self, sig: &ast::VarSignature, id: Option<DefId>) -> TyCheckResult<()> {
         let muty = Mutability::from(&sig.inspect().unwrap_or(UBAR)[..]);
         let ident = match &sig.pat {
             ast::VarPattern::Ident(ident) => ident,
@@ -140,7 +135,7 @@ impl Context {
         };
         let vis = ident.vis();
         let kind = id.map_or(VarKind::Declared, VarKind::Defined);
-        let sig_t = self.instantiate_var_sig_t(sig.t_spec.as_ref(), opt_t, PreRegister)?;
+        let sig_t = self.instantiate_var_sig_t(sig.t_spec.as_ref(), PreRegister)?;
         let py_name = if let ContextKind::PatchMethodDefs(_base) = &self.kind {
             Some(Str::from(format!("::{}{}", self.name, ident)))
         } else {
@@ -878,11 +873,7 @@ impl Context {
                         self.register_gen_const(ident, obj)?;
                     }
                 } else {
-                    let opt_t = self
-                        .eval_const_block(&def.body.block)
-                        .map(|o| v_enum(set! {o}))
-                        .ok();
-                    self.pre_define_var(sig, opt_t, id)?;
+                    self.pre_define_var(sig, id)?;
                 }
             }
         }

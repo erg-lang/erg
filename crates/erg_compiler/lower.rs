@@ -1206,7 +1206,6 @@ impl ASTLowerer {
                             .context
                             .instantiate_var_sig_t(
                                 sig.t_spec.as_ref(),
-                                None,
                                 RegistrationMode::PreRegister,
                             )
                             .ok();
