@@ -1739,135 +1739,22 @@ impl ASTLowerer {
     /// Inspect the Trait implementation for correctness,
     /// i.e., check that all required attributes are defined and that no extra attributes are defined
     fn check_trait_impl(
-        &mut self,
+        &mut self, //: methods context
         impl_trait: Option<(Type, &TypeSpecWithOp)>,
         class: &Type,
     ) -> SingleLowerResult<()> {
-        let allow_cast = true;
         if let Some((impl_trait, t_spec)) = impl_trait {
             let impl_trait = impl_trait.normalize();
-            let mut unverified_names = self.module.context.locals.keys().collect::<Set<_>>();
-            if let Some(trait_obj) = self
+            let (unverified_names, mut errors) = if let Some(typ_ctx) = self
                 .module
                 .context
-                .rec_get_const_obj(&impl_trait.local_name())
+                .get_outer()
+                .unwrap()
+                .get_nominal_type_ctx(&impl_trait)
             {
-                if let ValueObj::Type(typ) = trait_obj {
-                    match typ {
-                        TypeObj::Generated(gen) => match gen.base_or_sup().unwrap().typ() {
-                            Type::Record(attrs) => {
-                                for (field, decl_t) in attrs.iter() {
-                                    if let Some((name, vi)) =
-                                        self.module.context.get_var_kv(&field.symbol)
-                                    {
-                                        let def_t = &vi.t;
-                                        //    A(<: Add(R)), R -> A.Output
-                                        // => A(<: Int), R -> A.Output
-                                        let replaced_decl_t = decl_t
-                                            .clone()
-                                            .replace(gen.typ(), &impl_trait)
-                                            .replace(&impl_trait, class);
-                                        unverified_names.remove(name);
-                                        // def_t must be subtype of decl_t
-                                        if !self.module.context.supertype_of(
-                                            &replaced_decl_t,
-                                            def_t,
-                                            allow_cast,
-                                        ) {
-                                            self.errs.push(LowerError::trait_member_type_error(
-                                                self.cfg.input.clone(),
-                                                line!() as usize,
-                                                name.loc(),
-                                                self.module.context.caused_by(),
-                                                name.inspect(),
-                                                &impl_trait,
-                                                decl_t,
-                                                &vi.t,
-                                                None,
-                                            ));
-                                        }
-                                    } else {
-                                        self.errs.push(LowerError::trait_member_not_defined_error(
-                                            self.cfg.input.clone(),
-                                            line!() as usize,
-                                            self.module.context.caused_by(),
-                                            &field.symbol,
-                                            &impl_trait,
-                                            class,
-                                            None,
-                                        ));
-                                    }
-                                }
-                            }
-                            other => {
-                                return feature_error!(
-                                    LowerError,
-                                    self.module.context,
-                                    Location::Unknown,
-                                    &format!("Impl {other}")
-                                );
-                            }
-                        },
-                        TypeObj::Builtin(_typ) => {
-                            let (_, ctx) = self.module.context.get_nominal_type_ctx(_typ).unwrap();
-                            for (decl_name, decl_vi) in ctx.decls.iter() {
-                                if let Some((name, vi)) =
-                                    self.module.context.get_var_kv(decl_name.inspect())
-                                {
-                                    let def_t = &vi.t;
-                                    let replaced_decl_t = decl_vi
-                                        .t
-                                        .clone()
-                                        .replace(_typ, &impl_trait)
-                                        .replace(&impl_trait, class);
-                                    unverified_names.remove(name);
-                                    if !self.module.context.supertype_of(
-                                        &replaced_decl_t,
-                                        def_t,
-                                        allow_cast,
-                                    ) {
-                                        self.errs.push(LowerError::trait_member_type_error(
-                                            self.cfg.input.clone(),
-                                            line!() as usize,
-                                            name.loc(),
-                                            self.module.context.caused_by(),
-                                            name.inspect(),
-                                            &impl_trait,
-                                            &decl_vi.t,
-                                            &vi.t,
-                                            None,
-                                        ));
-                                    }
-                                } else {
-                                    self.errs.push(LowerError::trait_member_not_defined_error(
-                                        self.cfg.input.clone(),
-                                        line!() as usize,
-                                        self.module.context.caused_by(),
-                                        decl_name.inspect(),
-                                        &impl_trait,
-                                        class,
-                                        None,
-                                    ));
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    return Err(LowerError::type_mismatch_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        t_spec.loc(),
-                        self.module.context.caused_by(),
-                        &impl_trait.qual_name(),
-                        None,
-                        &Type::TraitType,
-                        &trait_obj.t(),
-                        None,
-                        None,
-                    ));
-                }
+                self.check_methods_compatibility(&impl_trait, class, typ_ctx)
             } else {
-                return Err(LowerError::no_var_error(
+                return Err(LowerError::no_type_error(
                     self.cfg.input.clone(),
                     line!() as usize,
                     t_spec.loc(),
@@ -1877,9 +1764,9 @@ impl ASTLowerer {
                         .context
                         .get_similar_name(&impl_trait.local_name()),
                 ));
-            }
+            };
             for unverified in unverified_names {
-                self.errs.push(LowerError::trait_member_not_defined_error(
+                errors.push(LowerError::trait_member_not_defined_error(
                     self.cfg.input.clone(),
                     line!() as usize,
                     self.module.context.caused_by(),
@@ -1889,8 +1776,61 @@ impl ASTLowerer {
                     None,
                 ));
             }
+            self.errs.extend(errors);
         }
         Ok(())
+    }
+
+    fn check_methods_compatibility(
+        &self,
+        impl_trait: &Type,
+        class: &Type,
+        typ_ctx: (&Type, &Context),
+    ) -> (Set<&VarName>, CompileErrors) {
+        let mut errors = CompileErrors::empty();
+        let trait_type = typ_ctx.0;
+        let trait_ctx = typ_ctx.1;
+        let allow_cast = true;
+        let mut unverified_names = self.module.context.locals.keys().collect::<Set<_>>();
+        for (decl_name, decl_vi) in trait_ctx.decls.iter() {
+            if let Some((name, vi)) = self.module.context.get_var_kv(decl_name.inspect()) {
+                let def_t = &vi.t;
+                let replaced_decl_t = decl_vi
+                    .t
+                    .clone()
+                    .replace(trait_type, impl_trait)
+                    .replace(impl_trait, class);
+                unverified_names.remove(name);
+                if !self
+                    .module
+                    .context
+                    .supertype_of(&replaced_decl_t, def_t, allow_cast)
+                {
+                    errors.push(LowerError::trait_member_type_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        name.loc(),
+                        self.module.context.caused_by(),
+                        name.inspect(),
+                        impl_trait,
+                        &decl_vi.t,
+                        &vi.t,
+                        None,
+                    ));
+                }
+            } else {
+                errors.push(LowerError::trait_member_not_defined_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    self.module.context.caused_by(),
+                    decl_name.inspect(),
+                    impl_trait,
+                    class,
+                    None,
+                ));
+            }
+        }
+        (unverified_names, errors)
     }
 
     fn check_collision_and_push(&mut self, class: Type) {
