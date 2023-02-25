@@ -218,7 +218,9 @@ impl SharedModuleCache {
 
     pub fn initialize(&self) {
         let builtin_path = PathBuf::from("<builtins>");
-        let builtin = self.remove(&builtin_path).unwrap();
+        let Some(builtin) = self.remove(&builtin_path) else {
+            return;
+        };
         for path in self.keys() {
             self.remove(&path);
         }
