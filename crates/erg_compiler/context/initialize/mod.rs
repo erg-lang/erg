@@ -448,7 +448,7 @@ pub fn std_decl_path() -> PathBuf {
     erg_common::env::erg_std_decl_path()
 }
 #[cfg(feature = "no_std")]
-pub fn builtins_path() -> PathBuf {
+pub fn std_decl_path() -> PathBuf {
     PathBuf::from("lib/std.d")
 }
 
