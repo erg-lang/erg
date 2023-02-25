@@ -31,8 +31,7 @@ pub fn pos_in_loc<L: Locational>(loc: &L, pos: Position) -> bool {
     let in_lines = (ln_begin..=ln_end).contains(&(pos.line + 1));
     if ln_begin == ln_end {
         in_lines
-            // FIXME: .., not ..=
-            && (loc.col_begin().unwrap_or(0)..=loc.col_end().unwrap_or(0)).contains(&pos.character)
+            && (loc.col_begin().unwrap_or(0)..loc.col_end().unwrap_or(0)).contains(&pos.character)
     } else {
         in_lines
     }

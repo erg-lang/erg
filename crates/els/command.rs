@@ -32,11 +32,10 @@ impl<Checker: BuildRunnable> Server<Checker> {
         trait_loc: AbsLocation,
     ) -> ELSResult<Command> {
         let refs = self.get_refs_from_abs_loc(&trait_loc);
-        let uri =
-            util::normalize_url(Url::from_file_path(trait_loc.module.as_ref().unwrap()).unwrap());
-        let opt_visitor = self.get_visitor(&uri);
         let filter = |loc: Location| {
-            let token = self.file_cache.get_token(&loc.uri, loc.range.start)?;
+            let uri = util::normalize_url(loc.uri.clone());
+            let token = self.file_cache.get_token(&uri, loc.range.start)?;
+            let opt_visitor = self.get_visitor(&uri);
             let min_expr = opt_visitor
                 .as_ref()
                 .and_then(|visitor| visitor.get_min_expr(&token))?;

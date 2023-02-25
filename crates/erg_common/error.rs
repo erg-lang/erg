@@ -438,6 +438,11 @@ impl Location {
     /// let loc = Location::range(1, 3, 1, 7);
     /// assert_eq!(loc.ln_begin(), Some(1));
     /// assert!(loc.contains(Location::range(1, 4, 1, 5)));
+    /// let loc = Location::range(1, 3, 3, 2);
+    /// assert!(loc.contains(Location::range(1, 4, 1, 5)));
+    /// assert!(!loc.contains(Location::range(1, 4, 3, 5)));
+    /// assert!(loc.contains(Location::range(1, 4, 2, 5)));
+    /// assert!(!loc.contains(Location::range(1, 2, 2, 5)));
     /// ```
     pub fn contains(&self, other: Self) -> bool {
         match (*self, other) {
@@ -454,7 +459,19 @@ impl Location {
                     ln_end: le2,
                     col_end: ce2,
                 },
-            ) => lb1 <= lb2 && le1 >= le2 && cb1 <= cb2 && ce1 >= ce2,
+            ) => {
+                let same_start_line = lb1 == lb2;
+                let same_end_line = le1 == le2;
+                if same_start_line && same_end_line {
+                    cb1 <= cb2 && ce1 >= ce2
+                } else if same_start_line {
+                    cb1 <= cb2 && le1 >= le2
+                } else if same_end_line {
+                    lb1 <= lb2 && ce1 >= ce2
+                } else {
+                    lb1 <= lb2 && le1 >= le2
+                }
+            }
             _ => false,
         }
     }

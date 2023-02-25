@@ -2440,7 +2440,6 @@ impl<'t> ReplaceTable<'t> {
 
     pub fn replace(&self, mut ty: Type) -> Type {
         for (target, to) in self.rules.iter() {
-            log!(err "{target} /=> {to}");
             ty = ty._replace(target, to);
         }
         ty

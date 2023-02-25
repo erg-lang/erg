@@ -500,6 +500,10 @@ impl Context {
                 }
                 let ctx = self.get_singular_ctx(namespace.as_ref(), &self.name)?;
                 if let Some((typ, _)) = ctx.rec_local_get_type(t.ident.inspect()) {
+                    let vi = ctx
+                        .rec_get_var_info(&t.ident, AccessKind::Name, &self.cfg.input, &self.name)
+                        .unwrap();
+                    self.inc_ref(&vi, &t.ident.name);
                     // TODO: visibility check
                     Ok(typ.clone())
                 } else {
