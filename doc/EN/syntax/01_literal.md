@@ -143,7 +143,13 @@ assert 0.0f64 == 0
 assert 0.0f32 == 0.0f64
 ```
 
-Float objects are constructed by multiplying a `Ratio` object by `f64`, which is a `Float 64` unit object.
+This is a `Ratio` object multiplied by `f64`, a `Float 64` unit object. You can also use `f32` to indicate `Float 32`.
+They are basically performant than `Ratio`, but may introduce errors.
+
+```python
+assert 0.1 + 0.2 == 0.3
+assert 0.1f64 + 0.2f64 != 0.3f64 # Oops!
+```
 
 ### Complex Object
 

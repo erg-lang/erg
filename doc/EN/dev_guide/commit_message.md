@@ -15,19 +15,20 @@ There are two rules you should follow:
 BNF for conventional commits is as follows.
 
 ```bnf
-commit ::= type ('('' scope ')')? '!' ? ':' description body? footer*.
+commit ::= type ('(' scope ')')? '!' ? ':' description body? footer*.
 type ::= 'feat' | 'fix' | 'docs' | 'style' | 'refactor' | 'perf' | 'test' | 'build' | 'ci' | 'chore' | 'revert'
 ```
 
 Since we develop on GitHub, we'll extend this a bit and allow issue/PR numbers to be added after the description.
 
 ```bnf
-commit ::= type ('('' scope ')')? '!' ? ':' description ('(' '#' issue ')')? body?
+commit ::= type ('(' scope ')')? '!' ? ':' description ('(' '#' issue ')')? body?
 ```
 
 The meaning of each part is as follows.
 
 * `type` indicates the type of commit. Please write it in lower case (automatic commits start with a capital letter, so this distinguishes whether it is a manual commit or not).
+  * Note that the type of improvement in the message displayed to the user will be `fix`. The Erg development team treats cryptic/off-target messages as bugs.
 
 | type       | description                              |
 | ---------- | ---------------------------------------- |
@@ -47,6 +48,7 @@ The meaning of each part is as follows.
 
   * `parser`
   * `compiler`
+  * `typechecker`
   * `els`
   * `REPL`
   * `linter`

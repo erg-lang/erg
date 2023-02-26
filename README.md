@@ -73,8 +73,7 @@
     assert fib(10) == 55
     ```
 
-    In Erg, there are very few things that are treated as special; there are no reserved words.
-    even for and while expressions are just one of the subroutines, so this is possible.
+    Even for and while expressions are just one of the subroutines, so this is possible.
 
     ```python
     loop! block! = while! do! True, block!

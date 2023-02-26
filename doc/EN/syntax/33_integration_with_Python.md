@@ -37,8 +37,7 @@ time.sleep! 1
 
 ## Type specification for user scripts
 
-Create a `foo.d.er` file that types the Python `foo` module.
-Type hints on the Python side are ignored since they are not 100% guaranteed.
+Type hints on the Python side are ignored. Create a `foo.d.er` file that types the Python `foo` module.
 
 ```python
 # foo.py
@@ -80,7 +79,7 @@ decl_proc proc!: Proc, T =
         y
 ```
 
-Since this is a runtime overhead, a project is planned to statically type analyze Python scripts with Erg's type system.
+This is a runtime overhead, so [a project to statically type analyze Python scripts with Erg's type system](https://github.com/mtshiba/pylyzer) is underway.
 
 <p align='center'>
     <a href='./32_pipeline.md'>Previous</a> | <a href='./34_package_system.md'>Next</a>
