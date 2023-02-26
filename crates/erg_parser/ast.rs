@@ -4002,6 +4002,30 @@ impl Expr {
         )
     }
 
+    pub const fn name(&self) -> &'static str {
+        match self {
+            Self::Literal(_) => "literal",
+            Self::Accessor(_) => "accessor",
+            Self::Array(_) => "array",
+            Self::Tuple(_) => "tuple",
+            Self::Dict(_) => "dict",
+            Self::Set(_) => "set",
+            Self::Record(_) => "record",
+            Self::BinOp(_) => "binary operator call",
+            Self::UnaryOp(_) => "unary operator call",
+            Self::Call(_) => "call",
+            Self::DataPack(_) => "data pack",
+            Self::Lambda(_) => "lambda",
+            Self::TypeAscription(_) => "type ascription",
+            Self::Def(_) => "definition",
+            Self::Methods(_) => "methods",
+            Self::ClassDef(_) => "class definition",
+            Self::PatchDef(_) => "patch definition",
+            Self::ReDef(_) => "re-definition",
+            Self::Dummy(_) => "dummy",
+        }
+    }
+
     pub fn need_to_be_closed(&self) -> bool {
         matches!(
             self,

@@ -2470,6 +2470,31 @@ impl Expr {
         }
     }
 
+    pub const fn name(&self) -> &'static str {
+        match self {
+            Self::Lit(_) => "literal",
+            Self::Accessor(_) => "accessor",
+            Self::Array(_) => "array",
+            Self::Tuple(_) => "tuple",
+            Self::Dict(_) => "dict",
+            Self::Set(_) => "set",
+            Self::Record(_) => "record",
+            Self::BinOp(_) => "binary operator call",
+            Self::UnaryOp(_) => "unary operator call",
+            Self::Call(_) => "call",
+            Self::Lambda(_) => "lambda",
+            Self::TypeAsc(_) => "type ascription",
+            Self::Def(_) => "definition",
+            Self::Code(_) => "code",
+            Self::Compound(_) => "compound expression",
+            Self::Import(_) => "import",
+            Self::ClassDef(_) => "class definition",
+            Self::PatchDef(_) => "patch definition",
+            Self::ReDef(_) => "re-definition",
+            Self::Dummy(_) => "dummy",
+        }
+    }
+
     pub fn call(self, args: Args) -> Call {
         match self {
             Self::Accessor(Accessor::Attr(attr)) => Call::new(*attr.obj, Some(attr.ident), args),

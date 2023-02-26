@@ -850,7 +850,7 @@ impl ASTLowerer {
                         line!() as usize,
                         other.loc(),
                         self.module.context.caused_by(),
-                        "invalid syntax".to_owned(),
+                        format!("expected identifier, but found {}", other.name()),
                         None,
                     )))
                 }
@@ -1376,7 +1376,16 @@ impl ASTLowerer {
                             )?,
                             &tasc.t_spec,
                         ),
-                        _ => return unreachable_error!(LowerErrors, LowerError, self),
+                        other => {
+                            return Err(LowerErrors::from(LowerError::syntax_error(
+                                self.input().clone(),
+                                line!() as usize,
+                                other.loc(),
+                                self.module.context.caused_by(),
+                                format!("expected type ascription, but found {}", other.name()),
+                                None,
+                            )))
+                        }
                     };
                     (
                         self.module.context.instantiate_typespec(
