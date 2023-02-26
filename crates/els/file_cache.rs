@@ -12,7 +12,7 @@ use erg_common::dict::Dict;
 use erg_common::shared::Shared;
 use erg_common::traits::DequeStream;
 use erg_compiler::erg_parser::lex::Lexer;
-use erg_compiler::erg_parser::token::{Token, TokenKind, TokenStream};
+use erg_compiler::erg_parser::token::{Token, TokenStream};
 
 use crate::server::ELSResult;
 use crate::util;
@@ -139,11 +139,6 @@ impl FileCache {
             return Ok(None);
         };
         let Some(index) = self.get_token_index(uri, pos)? else {
-            for token in tokens.iter().rev() {
-                if !matches!(token.kind, TokenKind::EOF | TokenKind::Dedent | TokenKind::Newline) {
-                    return Ok(Some(token.clone()));
-                }
-            }
             return Ok(None);
         };
         let index = (index as isize + offset) as usize;

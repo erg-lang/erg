@@ -54,7 +54,8 @@ pub fn pos_to_byte_index(src: &str, pos: Position) -> usize {
             col += 1;
         }
     }
-    src.char_indices().last().unwrap().0
+    // EOF
+    src.char_indices().last().unwrap().0 + 1
 }
 
 pub fn get_token_stream(uri: Url) -> ELSResult<TokenStream> {

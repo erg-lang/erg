@@ -1516,7 +1516,8 @@ impl Iterator for Lexer /*<'a>*/ {
             }
             None => {
                 if self.indent_stack.is_empty() {
-                    self.accept(EOF, "")
+                    // HACK: EOF has length, so searchable by ELS
+                    self.accept(EOF, "\0")
                 } else {
                     self.indent_stack.pop();
                     self.accept(Dedent, "")

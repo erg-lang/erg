@@ -465,7 +465,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         };
         let maybe_token = self
             .file_cache
-            .get_token_relatively(uri, attr_marker_pos, -1)?;
+            .get_token_relatively(uri, attr_marker_pos, -2)?;
         if let Some(token) = maybe_token {
             Self::send_log(format!("token: {token}"))?;
             let mut ctxs = vec![];
