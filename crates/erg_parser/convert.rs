@@ -211,7 +211,7 @@ impl Parser {
         let mut vars = Vars::empty();
         match tuple {
             Tuple::Normal(tup) => {
-                let (pos_args, _var_args, _kw_args, paren) = tup.elems.deconstruct();
+                let (pos_args, _var_args, _kw_args, paren, _commas) = tup.elems.deconstruct();
                 for arg in pos_args {
                     let sig = self
                         .convert_rhs_to_sig(arg.expr)
@@ -321,7 +321,7 @@ impl Parser {
     ) -> ParseResult<TypeBoundSpecs> {
         debug_call_info!(self);
         let mut bounds = vec![];
-        let (pos_args, _var_args, _kw_args, _paren) = type_args.args.deconstruct();
+        let (pos_args, _var_args, _kw_args, _paren, _commas) = type_args.args.deconstruct();
         for arg in pos_args.into_iter() {
             let bound = self
                 .convert_type_arg_to_bound(arg)
@@ -357,8 +357,8 @@ impl Parser {
 
     pub(crate) fn convert_args_to_params(&mut self, args: Args) -> ParseResult<Params> {
         debug_call_info!(self);
-        let (pos_args, var_args, kw_args, parens) = args.deconstruct();
-        let mut params = Params::new(vec![], None, vec![], parens);
+        let (pos_args, var_args, kw_args, parens, commas) = args.deconstruct();
+        let mut params = Params::new(vec![], None, vec![], parens, commas);
         for (i, arg) in pos_args.into_iter().enumerate() {
             let nd_param = self
                 .convert_pos_arg_to_non_default_param(arg, i == 0)
@@ -519,7 +519,7 @@ impl Parser {
                 for arg in arr.elems.into_iters().0 {
                     params.push(self.convert_pos_arg_to_non_default_param(arg, false)?);
                 }
-                let params = Params::new(params, None, vec![], None);
+                let params = Params::new(params, None, vec![], None, vec![]);
                 debug_exit_info!(self);
                 Ok(ParamArrayPattern::new(arr.l_sqbr, params, arr.r_sqbr))
             }
@@ -598,7 +598,7 @@ impl Parser {
         match tuple {
             Tuple::Normal(tup) => {
                 let mut params = vec![];
-                let (elems, var_args, _, parens) = tup.elems.deconstruct();
+                let (elems, var_args, _, parens, commas) = tup.elems.deconstruct();
                 for arg in elems.into_iter() {
                     params.push(self.convert_pos_arg_to_non_default_param(arg, false)?);
                 }
@@ -608,7 +608,7 @@ impl Parser {
                 } else {
                     None
                 };
-                let params = Params::new(params, var_params, vec![], parens);
+                let params = Params::new(params, var_params, vec![], parens, commas);
                 debug_exit_info!(self);
                 Ok(ParamTuplePattern::new(params))
             }
@@ -634,14 +634,14 @@ impl Parser {
         match rhs {
             Expr::Literal(lit) => {
                 let param = NonDefaultParamSignature::new(ParamPattern::Lit(lit), None);
-                let params = Params::new(vec![param], None, vec![], None);
+                let params = Params::single(param);
                 Ok(LambdaSignature::new(params, None, TypeBoundSpecs::empty()))
             }
             Expr::Accessor(accessor) => {
                 let param = self
                     .convert_accessor_to_param_sig(accessor)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
-                let params = Params::new(vec![param], None, vec![], None);
+                let params = Params::single(param);
                 debug_exit_info!(self);
                 Ok(LambdaSignature::new(params, None, TypeBoundSpecs::empty()))
             }
@@ -657,7 +657,7 @@ impl Parser {
                     .convert_array_to_param_array_pat(array)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
                 let param = NonDefaultParamSignature::new(ParamPattern::Array(arr), None);
-                let params = Params::new(vec![param], None, vec![], None);
+                let params = Params::single(param);
                 debug_exit_info!(self);
                 Ok(LambdaSignature::new(params, None, TypeBoundSpecs::empty()))
             }
@@ -666,7 +666,7 @@ impl Parser {
                     .convert_record_to_param_record_pat(record)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
                 let param = NonDefaultParamSignature::new(ParamPattern::Record(rec), None);
-                let params = Params::new(vec![param], None, vec![], None);
+                let params = Params::single(param);
                 debug_exit_info!(self);
                 Ok(LambdaSignature::new(params, None, TypeBoundSpecs::empty()))
             }
@@ -683,7 +683,7 @@ impl Parser {
                     let param = self
                         .convert_rhs_to_param(*exprs.next().unwrap(), false)
                         .map_err(|_| self.stack_dec(fn_name!()))?;
-                    let params = Params::new(vec![], Some(param), vec![], None);
+                    let params = Params::new(vec![], Some(param), vec![], None, vec![]);
                     debug_exit_info!(self);
                     Ok(LambdaSignature::new(params, None, TypeBoundSpecs::empty()))
                 }
@@ -731,8 +731,8 @@ impl Parser {
         debug_call_info!(self);
         match tuple {
             Tuple::Normal(tup) => {
-                let (pos_args, var_args, kw_args, paren) = tup.elems.deconstruct();
-                let mut params = Params::new(vec![], None, vec![], paren);
+                let (pos_args, var_args, kw_args, paren, commas) = tup.elems.deconstruct();
+                let mut params = Params::new(vec![], None, vec![], paren, commas);
                 for (i, arg) in pos_args.into_iter().enumerate() {
                     let param = self
                         .convert_pos_arg_to_non_default_param(arg, i == 0)
@@ -767,7 +767,7 @@ impl Parser {
             .map_err(|_| self.stack_dec(fn_name!()))?;
         debug_exit_info!(self);
         Ok(LambdaSignature::new(
-            Params::new(vec![sig], None, vec![], None),
+            Params::single(sig),
             None,
             TypeBoundSpecs::empty(),
         ))

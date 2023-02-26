@@ -248,9 +248,9 @@ impl ASTLowerer {
         log!(info "entered {}({array})", fn_name!());
         let allow_cast = true;
         let mut new_array = vec![];
-        let (elems, _) = array.elems.into_iters();
+        let (elems, .., commas) = array.elems.deconstruct();
         let mut union = Type::Never;
-        for elem in elems {
+        for elem in elems.into_iter() {
             let elem = self.lower_expr(elem.expr)?;
             let union_ = self.module.context.union(&union, elem.ref_t());
             if let Some((l, r)) = union_.union_types() {
@@ -291,7 +291,7 @@ impl ASTLowerer {
             array.l_sqbr,
             array.r_sqbr,
             elem_t,
-            hir::Args::values(new_array, None),
+            hir::Args::values(new_array, None, commas),
         ))
     }
 
@@ -355,12 +355,14 @@ impl ASTLowerer {
     fn lower_normal_tuple(&mut self, tuple: ast::NormalTuple) -> LowerResult<hir::NormalTuple> {
         log!(info "entered {}({tuple})", fn_name!());
         let mut new_tuple = vec![];
-        let (elems, .., paren) = tuple.elems.deconstruct();
+        let (elems, .., paren, commas) = tuple.elems.deconstruct();
         for elem in elems {
             let elem = self.lower_expr(elem.expr)?;
             new_tuple.push(elem);
         }
-        Ok(hir::NormalTuple::new(hir::Args::values(new_tuple, paren)))
+        Ok(hir::NormalTuple::new(hir::Args::values(
+            new_tuple, paren, commas,
+        )))
     }
 
     fn lower_record(&mut self, record: ast::Record) -> LowerResult<hir::Record> {
@@ -399,7 +401,7 @@ impl ASTLowerer {
 
     fn lower_normal_set(&mut self, set: ast::NormalSet) -> LowerResult<hir::NormalSet> {
         log!(info "entered {}({set})", fn_name!());
-        let (elems, _) = set.elems.into_iters();
+        let (elems, .., commas) = set.elems.deconstruct();
         let mut union = Type::Never;
         let mut new_set = vec![];
         for elem in elems {
@@ -458,7 +460,7 @@ impl ASTLowerer {
         }
         Ok(normal_set)
         */
-        let elems = hir::Args::values(new_set, None);
+        let elems = hir::Args::values(new_set, None, commas);
         // check if elem_t is Eq
         if let Err(errs) = self
             .module
@@ -720,12 +722,13 @@ impl ASTLowerer {
     }
 
     fn lower_args(&mut self, args: ast::Args, errs: &mut LowerErrors) -> hir::Args {
-        let (pos_args, var_args, kw_args, paren) = args.deconstruct();
+        let (pos_args, var_args, kw_args, paren, commas) = args.deconstruct();
         let mut hir_args = hir::Args::new(
             Vec::with_capacity(pos_args.len()),
             None,
             Vec::with_capacity(kw_args.len()),
             paren,
+            commas,
         );
         for arg in pos_args.into_iter() {
             match self.lower_expr(arg.expr) {
@@ -761,6 +764,8 @@ impl ASTLowerer {
         hir_args
     }
 
+    /// returning `Ok(call)` does not mean the call is valid, just means it is syntactically valid
+    /// `ASTLowerer` is designed to cause as little information loss in HIR as possible
     pub(crate) fn lower_call(&mut self, call: ast::Call) -> LowerResult<hir::Call> {
         log!(info "entered {}({}{}(...))", fn_name!(), call.obj, fmt_option!(call.attr_name));
         if let Some(name) = call.obj.get_name() {
@@ -810,10 +815,10 @@ impl ASTLowerer {
             &self.module.context.name,
         ) {
             Ok(vi) => vi,
-            Err(es) => {
+            Err((vi, es)) => {
                 self.module.context.higher_order_caller.pop();
                 errs.extend(es);
-                return Err(errs);
+                vi.unwrap_or(VarInfo::ILLEGAL.clone())
             }
         };
         let attr_name = if let Some(attr_name) = call.attr_name {
@@ -877,11 +882,8 @@ impl ASTLowerer {
                 }
             }
         }
-        if errs.is_empty() {
-            Ok(call)
-        } else {
-            Err(errs)
-        }
+        self.errs.extend(errs);
+        Ok(call)
     }
 
     fn lower_pack(&mut self, pack: ast::DataPack) -> LowerResult<hir::Call> {
@@ -903,15 +905,21 @@ impl ASTLowerer {
                 pack.connector.col_begin,
             )),
         );
-        let vi = self.module.context.get_call_t(
+        let vi = match self.module.context.get_call_t(
             &class,
             &Some(attr_name.clone()),
             &args,
             &[],
             &self.cfg.input,
             &self.module.context.name,
-        )?;
-        let args = hir::Args::new(args, None, vec![], None);
+        ) {
+            Ok(vi) => vi,
+            Err((vi, errs)) => {
+                self.errs.extend(errs);
+                vi.unwrap_or(VarInfo::ILLEGAL.clone())
+            }
+        };
+        let args = hir::Args::pos_only(args, None, vec![]);
         let attr_name = hir::Identifier::new(attr_name.dot, attr_name.name, None, vi);
         Ok(hir::Call::new(class, Some(attr_name), args))
     }
@@ -983,6 +991,7 @@ impl ASTLowerer {
                 hir_var_params,
                 hir_defaults,
                 params.parens,
+                params.commas,
             );
             Ok(hir_params)
         }

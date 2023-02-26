@@ -25,6 +25,10 @@ pub fn loc_to_pos(loc: erg_common::error::Location) -> Option<Position> {
     Some(start)
 }
 
+pub fn _pos_to_loc(pos: Position) -> erg_common::error::Location {
+    erg_common::error::Location::range(pos.line + 1, pos.character - 1, pos.line + 1, pos.character)
+}
+
 pub fn pos_in_loc<L: Locational>(loc: &L, pos: Position) -> bool {
     let ln_begin = loc.ln_begin().unwrap_or(0);
     let ln_end = loc.ln_end().unwrap_or(0);

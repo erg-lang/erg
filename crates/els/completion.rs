@@ -17,7 +17,7 @@ use lsp_types::{
     MarkupContent, MarkupKind,
 };
 
-use crate::server::{ELSResult, Server};
+use crate::server::{send, send_log, ELSResult, Server};
 use crate::util;
 
 fn mark_to_string(mark: MarkedString) -> String {
@@ -70,7 +70,7 @@ impl CompletionOrder {
 
 impl<Checker: BuildRunnable> Server<Checker> {
     pub(crate) fn show_completion(&mut self, msg: &Value) -> ELSResult<()> {
-        Self::send_log(format!("completion requested: {msg}"))?;
+        send_log(format!("completion requested: {msg}"))?;
         let params = CompletionParams::deserialize(&msg["params"])?;
         let uri = util::normalize_url(params.text_document_position.text_document.uri);
         let path = util::uri_to_path(&uri);
@@ -84,7 +84,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             Some(":") => AccessKind::Attr, // or type ascription
             _ => AccessKind::Name,
         };
-        Self::send_log(format!("AccessKind: {acc_kind:?}"))?;
+        send_log(format!("AccessKind: {acc_kind:?}"))?;
         let mut result: Vec<CompletionItem> = vec![];
         let contexts = if acc_kind.is_local() {
             let prev_token = self.file_cache.get_token_relatively(&uri, pos, -1)?;
@@ -101,7 +101,6 @@ impl<Checker: BuildRunnable> Server<Checker> {
         } else {
             self.get_receiver_ctxs(&uri, pos)?
         };
-        // Self::send_log(format!("contexts: {:?}", contexts.iter().map(|ctx| &ctx.name).collect::<Vec<_>>())).unwrap();
         for (name, vi) in contexts.into_iter().flat_map(|ctx| ctx.dir()) {
             if acc_kind.is_attr() && vi.vis.is_private() {
                 continue;
@@ -147,19 +146,17 @@ impl<Checker: BuildRunnable> Server<Checker> {
             item.data = Some(Value::String(vi.def_loc.to_string()));
             result.push(item);
         }
-        Self::send_log(format!("completion items: {}", result.len()))?;
-        Self::send(
-            &json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": result }),
-        )
+        send_log(format!("completion items: {}", result.len()))?;
+        send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": result }))
     }
 
     pub(crate) fn resolve_completion(&self, msg: &Value) -> ELSResult<()> {
-        Self::send_log(format!("completion resolve requested: {msg}"))?;
+        send_log(format!("completion resolve requested: {msg}"))?;
         let mut item = CompletionItem::deserialize(&msg["params"])?;
         if let Some(data) = &item.data {
             let mut contents = vec![];
             let Ok(def_loc) = data.as_str().unwrap().parse::<AbsLocation>() else {
-                return Self::send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": item }));
+                return send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": item }));
             };
             self.show_doc_comment(None, &mut contents, &def_loc)?;
             let mut contents = contents.into_iter().map(mark_to_string).collect::<Vec<_>>();
@@ -169,6 +166,6 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 value: contents.join("\n"),
             }));
         }
-        Self::send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": item }))
+        send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": item }))
     }
 }

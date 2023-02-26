@@ -11,7 +11,7 @@ use erg_compiler::hir::Expr;
 
 use lsp_types::{CodeAction, CodeActionKind, CodeActionParams, TextEdit, Url, WorkspaceEdit};
 
-use crate::server::{ELSResult, Server};
+use crate::server::{send, send_log, ELSResult, Server};
 use crate::util;
 
 impl<Checker: BuildRunnable> Server<Checker> {
@@ -25,11 +25,11 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let diag = diags.remove(0);
         let mut map = HashMap::new();
         let Some(visitor) = self.get_visitor(&uri) else {
-            Self::send_log("visitor not found")?;
+            send_log("visitor not found")?;
             return Ok(None);
         };
         let Some(artifact) = self.artifacts.get(&uri) else {
-            Self::send_log("artifact not found")?;
+            send_log("artifact not found")?;
             return Ok(None);
         };
         let warns = artifact
@@ -45,7 +45,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             match visitor.get_min_expr(&token) {
                 Some(Expr::Def(def)) => {
                     let Some(mut range) = util::loc_to_range(def.loc()) else {
-                        Self::send_log("range not found")?;
+                        send_log("range not found")?;
                         continue;
                     };
                     let next = lsp_types::Range {
@@ -67,7 +67,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                         }
                         Some(";") => range.end.character += 1,
                         Some(other) => {
-                            Self::send_log(format!("? {other}"))?;
+                            send_log(format!("? {other}"))?;
                         }
                     }
                     let edit = TextEdit::new(range, "".to_string());
@@ -161,7 +161,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
     }
 
     pub(crate) fn send_code_action(&self, msg: &Value) -> ELSResult<()> {
-        Self::send_log(format!("code action requested: {msg}"))?;
+        send_log(format!("code action requested: {msg}"))?;
         let params = CodeActionParams::deserialize(&msg["params"])?;
         let result = match params
             .context
@@ -172,12 +172,10 @@ impl<Checker: BuildRunnable> Server<Checker> {
             Some("quickfix") => self.send_quick_fix(msg, params)?,
             None => self.send_normal_action(msg, params)?,
             Some(other) => {
-                Self::send_log(&format!("Unknown code action requested: {other}"))?;
+                send_log(&format!("Unknown code action requested: {other}"))?;
                 vec![]
             }
         };
-        Self::send(
-            &json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": result }),
-        )
+        send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": result }))
     }
 }

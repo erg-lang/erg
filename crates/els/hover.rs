@@ -9,7 +9,7 @@ use erg_compiler::varinfo::AbsLocation;
 
 use lsp_types::{HoverContents, HoverParams, MarkedString, Url};
 
-use crate::server::{ELSResult, Server};
+use crate::server::{send, send_log, ELSResult, Server};
 use crate::util;
 
 const PROG_LANG: &str = if cfg!(feature = "py_compatible") {
@@ -99,7 +99,7 @@ macro_rules! next {
 
 impl<Checker: BuildRunnable> Server<Checker> {
     pub(crate) fn show_hover(&mut self, msg: &Value) -> ELSResult<()> {
-        Self::send_log(format!("hover requested : {msg}"))?;
+        send_log(format!("hover requested : {msg}"))?;
         let params = HoverParams::deserialize(&msg["params"])?;
         let uri = util::normalize_url(params.text_document_position_params.text_document.uri);
         let pos = params.text_document_position_params.position;
@@ -184,12 +184,10 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 }
             }
         } else {
-            Self::send_log("lex error")?;
+            send_log("lex error")?;
         }
         let result = json!({ "contents": HoverContents::Array(sort_hovers(contents)) });
-        Self::send(
-            &json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": result }),
-        )
+        send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": result }))
     }
 
     pub(crate) fn show_doc_comment(

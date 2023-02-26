@@ -153,7 +153,7 @@ impl ASTLowerer {
     }
 
     fn fake_lower_args(&self, args: ast::Args) -> LowerResult<hir::Args> {
-        let (pos_args_, var_args_, kw_args_, paren) = args.deconstruct();
+        let (pos_args_, var_args_, kw_args_, paren, commas) = args.deconstruct();
         let mut pos_args = vec![];
         for arg in pos_args_.into_iter() {
             let arg = self.fake_lower_expr(arg.expr)?;
@@ -171,7 +171,7 @@ impl ASTLowerer {
             let expr = self.fake_lower_expr(kw_arg.expr)?;
             kw_args.push(hir::KwArg::new(kw_arg.keyword, expr));
         }
-        let args = hir::Args::new(pos_args, var_args, kw_args, paren);
+        let args = hir::Args::new(pos_args, var_args, kw_args, paren, commas);
         Ok(args)
     }
 
@@ -206,12 +206,12 @@ impl ASTLowerer {
             }
             ast::Array::Normal(arr) => {
                 let mut elems = Vec::new();
-                let (elems_, ..) = arr.elems.deconstruct();
+                let (elems_, .., commas) = arr.elems.deconstruct();
                 for elem in elems_.into_iter() {
                     let elem = self.fake_lower_expr(elem.expr)?;
                     elems.push(hir::PosArg::new(elem));
                 }
-                let elems = hir::Args::new(elems, None, vec![], None);
+                let elems = hir::Args::new(elems, None, vec![], None, commas);
                 Ok(hir::Array::Normal(hir::NormalArray::new(
                     arr.l_sqbr,
                     arr.r_sqbr,
@@ -232,12 +232,12 @@ impl ASTLowerer {
         match tup {
             ast::Tuple::Normal(tup) => {
                 let mut elems = Vec::new();
-                let (elems_, _, _, paren) = tup.elems.deconstruct();
+                let (elems_, _, _, paren, commas) = tup.elems.deconstruct();
                 for elem in elems_.into_iter() {
                     let elem = self.fake_lower_expr(elem.expr)?;
                     elems.push(hir::PosArg::new(elem));
                 }
-                let elems = hir::Args::new(elems, None, vec![], paren);
+                let elems = hir::Args::pos_only(elems, paren, commas);
                 Ok(hir::Tuple::Normal(hir::NormalTuple::new(elems)))
             }
         }
@@ -290,7 +290,7 @@ impl ASTLowerer {
                     let elem = self.fake_lower_expr(elem.expr)?;
                     elems.push(hir::PosArg::new(elem));
                 }
-                let elems = hir::Args::new(elems, None, vec![], None);
+                let elems = hir::Args::pos_only(elems, None, vec![]);
                 Ok(hir::Set::Normal(hir::NormalSet::new(
                     set.l_brace,
                     set.r_brace,
@@ -334,7 +334,7 @@ impl ASTLowerer {
     }
 
     fn fake_lower_params(&self, params: ast::Params) -> LowerResult<hir::Params> {
-        let (non_defaults_, var_params_, defaults_, parens) = params.deconstruct();
+        let (non_defaults_, var_params_, defaults_, parens, commas) = params.deconstruct();
         let mut non_defaults = vec![];
         for non_default_ in non_defaults_.into_iter() {
             let non_default =
@@ -355,7 +355,13 @@ impl ASTLowerer {
             let default = hir::DefaultParamSignature::new(sig, default_val);
             defaults.push(default);
         }
-        Ok(hir::Params::new(non_defaults, var_args, defaults, parens))
+        Ok(hir::Params::new(
+            non_defaults,
+            var_args,
+            defaults,
+            parens,
+            commas,
+        ))
     }
 
     fn fake_lower_block(&self, block: ast::Block) -> LowerResult<hir::Block> {

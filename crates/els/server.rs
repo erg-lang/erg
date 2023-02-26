@@ -16,6 +16,7 @@ use erg_common::normalize_path;
 use erg_compiler::artifact::{BuildRunnable, IncompleteArtifact};
 use erg_compiler::build_hir::HIRBuilder;
 use erg_compiler::context::{Context, ModuleContext};
+use erg_compiler::hir::Expr;
 use erg_compiler::module::{SharedCompilerResource, SharedModuleIndex};
 use erg_compiler::ty::HasType;
 
@@ -71,7 +72,7 @@ impl From<&str> for ELSFeatures {
 
 macro_rules! _log {
     ($($arg:tt)*) => {
-        Self::send_log(format!($($arg)*)).unwrap();
+        send_log(format!($($arg)*)).unwrap();
     };
 }
 
@@ -110,6 +111,34 @@ fn read_exact(len: usize) -> io::Result<Vec<u8>> {
     })
 }
 
+pub(crate) fn send<T: ?Sized + Serialize>(message: &T) -> ELSResult<()> {
+    send_stdout(message)
+}
+
+pub(crate) fn send_log<S: Into<String>>(msg: S) -> ELSResult<()> {
+    send(&LogMessage::new(msg))
+}
+
+#[allow(unused)]
+pub(crate) fn send_info<S: Into<String>>(msg: S) -> ELSResult<()> {
+    send(&ShowMessage::info(msg))
+}
+
+pub(crate) fn send_error_info<S: Into<String>>(msg: S) -> ELSResult<()> {
+    send(&ShowMessage::error(msg))
+}
+
+pub(crate) fn send_error<S: Into<String>>(id: Option<i64>, code: i64, msg: S) -> ELSResult<()> {
+    send(&ErrorMessage::new(
+        id,
+        json!({ "code": code, "message": msg.into() }),
+    ))
+}
+
+pub(crate) fn send_invalid_req_error() -> ELSResult<()> {
+    send_error(None, -32601, "received an invalid request")
+}
+
 /// A Language Server, which can be used any object implementing `BuildRunnable` internally by passing it as a generic parameter.
 #[derive(Debug)]
 pub struct Server<Checker: BuildRunnable = HIRBuilder> {
@@ -120,7 +149,8 @@ pub struct Server<Checker: BuildRunnable = HIRBuilder> {
     pub(crate) file_cache: FileCache,
     pub(crate) modules: Dict<Url, ModuleContext>,
     pub(crate) artifacts: Dict<Url, IncompleteArtifact>,
-    _checker: std::marker::PhantomData<Checker>,
+    pub(crate) current_sig: Option<Expr>,
+    pub(crate) _checker: std::marker::PhantomData<Checker>,
 }
 
 impl<Checker: BuildRunnable> Server<Checker> {
@@ -133,6 +163,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             file_cache: FileCache::new(),
             modules: Dict::new(),
             artifacts: Dict::new(),
+            current_sig: None,
             _checker: std::marker::PhantomData,
         }
     }
@@ -155,11 +186,11 @@ impl<Checker: BuildRunnable> Server<Checker> {
 
     #[allow(clippy::field_reassign_with_default)]
     fn init(&mut self, msg: &Value, id: i64) -> ELSResult<()> {
-        Self::send_log("initializing ELS")?;
+        send_log("initializing ELS")?;
         // #[allow(clippy::collapsible_if)]
         if msg.get("params").is_some() && msg["params"].get("capabilities").is_some() {
             self.client_capas = ClientCapabilities::deserialize(&msg["params"]["capabilities"])?;
-            // Self::send_log(format!("set client capabilities: {:?}", self.client_capas))?;
+            // send_log(format!("set client capabilities: {:?}", self.client_capas))?;
         }
         let mut args = self.cfg.runtime_args.iter();
         let mut disabled_features = vec![];
@@ -247,7 +278,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         result.capabilities.code_lens_provider = Some(CodeLensOptions {
             resolve_provider: Some(false),
         });
-        Self::send(&json!({
+        send(&json!({
             "jsonrpc": "2.0",
             "id": id,
             "result": result,
@@ -255,13 +286,13 @@ impl<Checker: BuildRunnable> Server<Checker> {
     }
 
     fn exit(&self) -> ELSResult<()> {
-        Self::send_log("exiting ELS")?;
+        send_log("exiting ELS")?;
         std::process::exit(0);
     }
 
     fn shutdown(&self, id: i64) -> ELSResult<()> {
-        Self::send_log("shutting down ELS")?;
-        Self::send(&json!({
+        send_log("shutting down ELS")?;
+        send(&json!({
             "jsonrpc": "2.0",
             "id": id,
             "result": json!(null),
@@ -346,7 +377,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 Ok(())
             }
             (None, Some(notification)) => self.handle_notification(&msg, notification),
-            _ => Self::send_invalid_req_error(),
+            _ => send_invalid_req_error(),
         }
     }
 
@@ -367,19 +398,19 @@ impl<Checker: BuildRunnable> Server<Checker> {
             "textDocument/codeLens" => self.show_code_lens(msg),
             "workspace/willRenameFiles" => self.rename_files(msg),
             "workspace/executeCommand" => self.execute_command(msg),
-            other => Self::send_error(Some(id), -32600, format!("{other} is not supported")),
+            other => send_error(Some(id), -32600, format!("{other} is not supported")),
         }
     }
 
     fn handle_notification(&mut self, msg: &Value, method: &str) -> ELSResult<()> {
         match method {
-            "initialized" => Self::send_log("successfully bound"),
+            "initialized" => send_log("successfully bound"),
             "exit" => self.exit(),
             "textDocument/didOpen" => {
                 let uri = util::parse_and_normalize_url(
                     msg["params"]["textDocument"]["uri"].as_str().unwrap(),
                 )?;
-                Self::send_log(format!("{method}: {uri}"))?;
+                send_log(format!("{method}: {uri}"))?;
                 let code = msg["params"]["textDocument"]["text"].as_str().unwrap();
                 self.file_cache.update(&uri, code.to_string());
                 self.check_file(uri, code)
@@ -388,47 +419,19 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 let uri = util::parse_and_normalize_url(
                     msg["params"]["textDocument"]["uri"].as_str().unwrap(),
                 )?;
-                Self::send_log(format!("{method}: {uri}"))?;
+                send_log(format!("{method}: {uri}"))?;
                 let code = util::get_code_from_uri(&uri)?;
                 self.clear_cache(&uri);
                 self.check_file(uri, &code)
             }
             "textDocument/didChange" => {
                 let params = DidChangeTextDocumentParams::deserialize(msg["params"].clone())?;
-                // Self::send_log(format!("{method}: {params:?}"))?;
                 self.file_cache.incremental_update(params);
+                send_log("file cache updated")?;
                 Ok(())
             }
-            _ => Self::send_log(format!("received notification: {method}")),
+            _ => send_log(format!("received notification: {method}")),
         }
-    }
-
-    pub(crate) fn send<T: ?Sized + Serialize>(message: &T) -> ELSResult<()> {
-        send_stdout(message)
-    }
-
-    pub(crate) fn send_log<S: Into<String>>(msg: S) -> ELSResult<()> {
-        Self::send(&LogMessage::new(msg))
-    }
-
-    #[allow(unused)]
-    pub(crate) fn send_info<S: Into<String>>(msg: S) -> ELSResult<()> {
-        Self::send(&ShowMessage::info(msg))
-    }
-
-    pub(crate) fn send_error_info<S: Into<String>>(msg: S) -> ELSResult<()> {
-        Self::send(&ShowMessage::error(msg))
-    }
-
-    pub(crate) fn send_error<S: Into<String>>(id: Option<i64>, code: i64, msg: S) -> ELSResult<()> {
-        Self::send(&ErrorMessage::new(
-            id,
-            json!({ "code": code, "message": msg.into() }),
-        ))
-    }
-
-    pub(crate) fn send_invalid_req_error() -> ELSResult<()> {
-        Self::send_error(None, -32601, "received an invalid request")
     }
 
     pub(crate) fn get_visitor(&self, uri: &Url) -> Option<HIRVisitor> {
@@ -440,7 +443,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
     }
 
     pub(crate) fn get_local_ctx(&self, uri: &Url, pos: Position) -> Vec<&Context> {
-        // Self::send_log(format!("scope: {:?}\n", self.module.as_ref().unwrap().scope.keys())).unwrap();
+        // send_log(format!("scope: {:?}\n", self.module.as_ref().unwrap().scope.keys())).unwrap();
         let mut ctxs = vec![];
         if let Some(visitor) = self.get_visitor(uri) {
             let ns = visitor.get_namespace(pos);
@@ -467,7 +470,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             .file_cache
             .get_token_relatively(uri, attr_marker_pos, -2)?;
         if let Some(token) = maybe_token {
-            Self::send_log(format!("token: {token}"))?;
+            // send_log(format!("token: {token}"))?;
             let mut ctxs = vec![];
             if let Some(visitor) = self.get_visitor(uri) {
                 if let Some(expr) = visitor.get_min_expr(&token) {
@@ -482,11 +485,13 @@ impl<Checker: BuildRunnable> Server<Checker> {
                     {
                         ctxs.push(singular_ctx);
                     }
+                } else {
+                    send_log("expr not found: {token}")?;
                 }
             }
             Ok(ctxs)
         } else {
-            Self::send_log("token not found")?;
+            send_log("token not found")?;
             Ok(vec![])
         }
     }

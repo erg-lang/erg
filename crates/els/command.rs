@@ -9,18 +9,18 @@ use erg_compiler::hir::Expr;
 
 use lsp_types::{ExecuteCommandParams, Location, Url};
 
-use crate::server::{ELSResult, Server};
+use crate::server::{send, send_log, ELSResult, Server};
 use crate::util;
 
 impl<Checker: BuildRunnable> Server<Checker> {
     pub(crate) fn execute_command(&mut self, msg: &Value) -> ELSResult<()> {
         let params = ExecuteCommandParams::deserialize(&msg["params"])?;
-        Self::send_log(format!("command requested: {}", params.command))?;
+        send_log(format!("command requested: {}", params.command))?;
         #[allow(clippy::match_single_binding)]
         match &params.command[..] {
             other => {
-                Self::send_log(format!("unknown command: {other}"))?;
-                Self::send(
+                send_log(format!("unknown command: {other}"))?;
+                send(
                     &json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": Value::Null }),
                 )
             }

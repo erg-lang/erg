@@ -161,7 +161,9 @@ pub struct Args {
     pos_args: Vec<PosArg>,
     pub(crate) var_args: Option<Box<PosArg>>,
     kw_args: Vec<KwArg>,
+    // these are for ELS
     pub paren: Option<(Token, Token)>,
+    pub commas: Vec<Token>,
 }
 
 impl NestedDisplay for Args {
@@ -199,21 +201,31 @@ impl Args {
         var_args: Option<PosArg>,
         kw_args: Vec<KwArg>,
         paren: Option<(Token, Token)>,
+        commas: Vec<Token>,
     ) -> Self {
         Self {
             pos_args,
             var_args: var_args.map(Box::new),
             kw_args,
             paren,
+            commas,
         }
     }
 
-    pub fn pos_only(pos_args: Vec<PosArg>, paren: Option<(Token, Token)>) -> Self {
-        Self::new(pos_args, None, vec![], paren)
+    pub fn pos_only(
+        pos_arg: Vec<PosArg>,
+        paren: Option<(Token, Token)>,
+        commas: Vec<Token>,
+    ) -> Self {
+        Self::new(pos_arg, None, vec![], paren, commas)
+    }
+
+    pub fn single(pos_args: PosArg) -> Self {
+        Self::pos_only(vec![pos_args], None, vec![])
     }
 
     pub fn empty() -> Self {
-        Self::new(vec![], None, vec![], None)
+        Self::new(vec![], None, vec![], None, vec![])
     }
 
     // for replacing to hir::Args
@@ -225,12 +237,14 @@ impl Args {
         Option<PosArg>,
         Vec<KwArg>,
         Option<(Token, Token)>,
+        Vec<Token>,
     ) {
         (
             self.pos_args,
             self.var_args.map(|x| *x),
             self.kw_args,
             self.paren,
+            self.commas,
         )
     }
 
@@ -292,6 +306,14 @@ impl Args {
 
     pub fn push_kw(&mut self, arg: KwArg) {
         self.kw_args.push(arg);
+    }
+
+    pub fn push_comma(&mut self, comma: Token) {
+        self.commas.push(comma);
+    }
+
+    pub fn set_parens(&mut self, paren: (Token, Token)) {
+        self.paren = Some(paren);
     }
 
     pub fn get_left_or_key(&self, key: &str) -> Option<&Expr> {
@@ -1894,6 +1916,7 @@ pub struct ConstArgs {
     var_args: Option<Box<ConstPosArg>>,
     kw_args: Vec<ConstKwArg>,
     paren: Option<(Token, Token)>,
+    commas: Vec<Token>,
 }
 
 impl NestedDisplay for ConstArgs {
@@ -1928,17 +1951,23 @@ impl ConstArgs {
         var_args: Option<ConstPosArg>,
         kw_args: Vec<ConstKwArg>,
         paren: Option<(Token, Token)>,
+        commas: Vec<Token>,
     ) -> Self {
         Self {
             pos_args,
             var_args: var_args.map(Box::new),
             kw_args,
             paren,
+            commas,
         }
     }
 
-    pub fn pos_only(pos_args: Vec<ConstPosArg>, paren: Option<(Token, Token)>) -> Self {
-        Self::new(pos_args, None, vec![], paren)
+    pub fn pos_only(
+        pos_args: Vec<ConstPosArg>,
+        paren: Option<(Token, Token)>,
+        commas: Vec<Token>,
+    ) -> Self {
+        Self::new(pos_args, None, vec![], paren, commas)
     }
 
     #[allow(clippy::type_complexity)]
@@ -1949,17 +1978,19 @@ impl ConstArgs {
         Option<ConstPosArg>,
         Vec<ConstKwArg>,
         Option<(Token, Token)>,
+        Vec<Token>,
     ) {
         (
             self.pos_args,
             self.var_args.map(|x| *x),
             self.kw_args,
             self.paren,
+            self.commas,
         )
     }
 
     pub fn empty() -> Self {
-        Self::new(vec![], None, vec![], None)
+        Self::new(vec![], None, vec![], None, vec![])
     }
 
     pub fn is_empty(&self) -> bool {
@@ -1992,7 +2023,7 @@ impl ConstArgs {
     }
 
     pub fn downcast(self) -> Args {
-        let (pos_args, var_args, kw_args, paren) = self.deconstruct();
+        let (pos_args, var_args, kw_args, paren, commas) = self.deconstruct();
         Args::new(
             pos_args
                 .into_iter()
@@ -2005,6 +2036,7 @@ impl ConstArgs {
                 .map(|arg| KwArg::new(arg.keyword, None, arg.expr.downcast()))
                 .collect(),
             paren,
+            commas,
         )
     }
 }
@@ -2417,6 +2449,7 @@ impl TypeSpec {
             None,
             vec![],
             None,
+            vec![],
         ))
     }
 }
@@ -3311,6 +3344,7 @@ pub struct Params {
     pub var_params: Option<Box<NonDefaultParamSignature>>,
     pub defaults: Vec<DefaultParamSignature>,
     pub parens: Option<(Token, Token)>,
+    pub commas: Vec<Token>,
 }
 
 impl fmt::Display for Params {
@@ -3354,6 +3388,7 @@ type RawParams = (
     Option<Box<NonDefaultParamSignature>>,
     Vec<DefaultParamSignature>,
     Option<(Token, Token)>,
+    Vec<Token>,
 );
 
 impl Params {
@@ -3362,13 +3397,19 @@ impl Params {
         var_params: Option<NonDefaultParamSignature>,
         defaults: Vec<DefaultParamSignature>,
         parens: Option<(Token, Token)>,
+        commas: Vec<Token>,
     ) -> Self {
         Self {
             non_defaults,
             var_params: var_params.map(Box::new),
             defaults,
             parens,
+            commas,
         }
+    }
+
+    pub fn single(non_default: NonDefaultParamSignature) -> Self {
+        Self::new(vec![non_default], None, vec![], None, vec![])
     }
 
     pub fn deconstruct(self) -> RawParams {
@@ -3377,6 +3418,7 @@ impl Params {
             self.var_params,
             self.defaults,
             self.parens,
+            self.commas,
         )
     }
 
@@ -3522,7 +3564,7 @@ impl LambdaSignature {
     pub fn do_sig(do_symbol: &Token) -> Self {
         let parens = Some((do_symbol.clone(), do_symbol.clone()));
         Self::new(
-            Params::new(vec![], None, vec![], parens),
+            Params::new(vec![], None, vec![], parens, vec![]),
             None,
             TypeBoundSpecs::empty(),
         )

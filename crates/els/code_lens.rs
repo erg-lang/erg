@@ -7,12 +7,12 @@ use erg_compiler::hir::Expr;
 
 use lsp_types::{CodeLens, CodeLensParams, Url};
 
-use crate::server::{ELSResult, Server};
+use crate::server::{send, send_log, ELSResult, Server};
 use crate::util;
 
 impl<Checker: BuildRunnable> Server<Checker> {
     pub(crate) fn show_code_lens(&mut self, msg: &Value) -> ELSResult<()> {
-        Self::send_log("code lens requested")?;
+        send_log("code lens requested")?;
         let params = CodeLensParams::deserialize(&msg["params"])?;
         let uri = util::normalize_url(params.text_document.uri);
         // TODO: parallelize
@@ -21,9 +21,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             self.send_class_inherits_lens(&uri)?,
         ]
         .concat();
-        Self::send(
-            &json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": result }),
-        )
+        send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": result }))
     }
 
     fn send_trait_impls_lens(&mut self, uri: &Url) -> ELSResult<Vec<CodeLens>> {
