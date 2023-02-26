@@ -117,7 +117,7 @@ fn test_lexer_for_basic() -> ParseResult<()> {
         (Symbol, "twelve"),
         (Semi, ";"),
         (Newline, newline),
-        (EOF, ""),
+        (EOF, "\0"),
     ];
     let mut tok: Token;
     for (id, i) in token_array.into_iter().enumerate() {
@@ -210,7 +210,7 @@ fn test_lexer_for_advanced() -> ParseResult<()> {
         (Symbol, "import"),
         (StrLit, "\"math\""),
         (Newline, newline),
-        (EOF, ""),
+        (EOF, "\0"),
     ];
     let mut tok: Token;
     for (id, i) in token_array.into_iter().enumerate() {
@@ -295,7 +295,7 @@ fn test_lexer_for_literals() -> ParseResult<()> {
         (Newline, newline),
         (Newline, newline),
         (Newline, newline),
-        (EOF, ""),
+        (EOF, "\0"),
     ];
     let mut tok: Token;
     for (id, i) in token_array.into_iter().enumerate() {
@@ -391,7 +391,7 @@ line break\"\"\"",
         (Symbol, "print!"),
         (Symbol, "quotation_marks"),
         (Newline, newline),
-        (EOF, ""),
+        (EOF, "\0"),
     ];
     let mut tok: Token;
     for (id, i) in token_array.into_iter().enumerate() {
@@ -442,7 +442,7 @@ fn for_loop() -> ParseResult<()> {
         (Dedent, ""),
         (Dedent, ""),
         (Dedent, ""),
-        (EOF, ""),
+        (EOF, "\0"),
     ];
     let mut tok: Token;
     for (id, i) in token_array.into_iter().enumerate() {
