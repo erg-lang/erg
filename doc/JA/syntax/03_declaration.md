@@ -22,9 +22,17 @@ i: {2}
 
 ```python
 i = (-1..10).sample!()
+i: Int # -1~10までの整数はすべてIntに属するので、これは通る
+```
+
+```python,compile_fail
+i = (-1..10).sample!()
+i: Nat # これは通らない(-1はNatすなわち0以上の整数ではないため)
+```
+
+```python
+i = (-1..10).sample!()
 assert i in Nat # これは通る可能性がある
-i: Int # これは通る
-i: Nat # これは通らない(-1はNatの要素ではないため)
 ```
 
 関数は以下の2種類の方法で宣言が可能です。
@@ -34,17 +42,7 @@ f: (x: Int, y: Int) -> Int
 f: (Int, Int) -> Int
 ```
 
-引数名を明示して宣言した場合、定義時に名前が違うと型エラーとなります。引数名の任意性を与えたい場合は2番目の方法で宣言すると良いでしょう。その場合、型検査で見られるのはメソッド名とその型のみです。キーワード指定による呼び出しはできなくなります。
-
-```python,compile_fail
-T = Trait {
-    .f = (x: Int, y: Int): Int
-}
-
-C = Class()
-C|<: T|.
-    f(a: Int, b: Int): Int = ... # TypeError: `.f` must be type of `(x: Int, y: Int) -> Int`, not `(a: Int, b: Int) -> Int`
-```
+引数名を明示して宣言した場合、定義時に名前が違うと型エラーとなります。引数名の任意性を与えたい場合は2番目の方法で宣言すると良いでしょう。その場合、型検査で見られるのはメソッド名とその型のみです。代償としてキーワード引数による呼び出しはできなくなります。
 
 <p align='center'>
     <a href='./02_name.md'>Previous</a> | <a href='./04_function.md'>Next</a>

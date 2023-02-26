@@ -30,7 +30,7 @@ Pythonから取り込んだオブジェクトはデフォルトですべて`Obje
 
 ## 標準ライブラリの型指定
 
-Python標準ライブラリにあるAPIはすべてErg開発チームにより型が指定されています。
+Python標準ライブラリにあるAPIは、すべてErg開発チームにより予め型が指定されています。なので、`pyimport`でそのまま呼び出すことが出来ます。
 
 ```python
 time = pyimport "time"
@@ -39,8 +39,9 @@ time.sleep! 1
 
 ## ユーザースクリプトの型指定
 
+Pythonスクリプトの型ヒント(type hint)をErgは関知しません。
+
 Pythonの`foo`モジュールに型を付ける`foo.d.er`ファイルを作成します。
-Python側でのtype hintは100%の保証にならないので無視されます。
 
 ```python
 # foo.py
@@ -81,7 +82,7 @@ decl_proc proc!: Proc, T =
         y
 ```
 
-これは実行時オーバーヘッドとなるので、PythonスクリプトをErgの型システムで静的に型解析するプロジェクトが計画されています。
+これは実行時オーバーヘッドとなるので、[PythonスクリプトをErgの型システムで静的に型解析するプロジェクト](https://github.com/mtshiba/pylyzer)が進められています。
 
 <p align='center'>
     <a href='./32_pipeline.md'>Previous</a> | <a href='./34_package_system.md'>Next</a>

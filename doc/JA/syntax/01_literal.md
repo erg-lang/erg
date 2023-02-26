@@ -1,6 +1,6 @@
 # リテラル
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/01_literal.md%26commit_hash%3D2284988386db7516d7f2d0cb25b27bd8397dd69e)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/01_literal.md&commit_hash=2284988386db7516d7f2d0cb25b27bd8397dd69e)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/01_literal.md%26commit_hash%3D718ae9d7d8118fcf5f36561ebbcfa96af980ec32)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/01_literal.md&commit_hash=718ae9d7d8118fcf5f36561ebbcfa96af980ec32)
 
 ## 基本的なリテラル
 
@@ -34,8 +34,8 @@ assert 0.5 == .5
 
 ### 文字列リテラル(Str Literal)
 
-Unicodeで表現可能な文字列は、すべて使用できます。
-Pythonとは違い、`'`ではクオーテーション(囲み)できません。文字列の中で`"`を使いたいときは`\"`としてください。
+文字列を表すリテラルです。`"`でクオーテーション(囲み)します。Unicodeで表現可能な文字列は、すべて使用できます。
+Pythonとは違い、`'`ではクオーテーションできません。文字列の中で`"`を使いたいときは`\"`としてください。
 
 ```python
 "", "a", "abc", "111", "1# 3f2-3*8$", "こんにちは", "السَّلَامُ عَلَيْكُمْ", ...
@@ -107,6 +107,7 @@ assert 1e-10 == 0.0000000001
 ```
 
 `Array`リテラルとの違いとして、`Set`では重複する要素が取り除かれます。
+集合演算を行うときや、重複を許さないデータを扱うときに便利です。
 
 ```python
 assert {1, 2, 1} == {1, 2}
@@ -146,7 +147,7 @@ assert (0..5).to_set() == {1, 2, 3, 4, 5}
 assert "a" in "a".."z"
 ```
 
-Pythonの`range`とは異なり、IntだけでなくStrオブジェクトなども範囲として扱うことができます。
+Pythonの`range`と似ていますが、IntだけでなくStrオブジェクトなども範囲として扱うことができます。
 
 ## 浮動小数点数オブジェクト(Float Object)
 
@@ -155,8 +156,13 @@ assert 0.0f64 == 0
 assert 0.0f32 == 0.0f64
 ```
 
-`Ratio`オブジェクトに`Float 64`の単位オブジェクトである`f64`を乗算したものです。
-誤差が生じる可能性がありますが、`Ratio`よりも高速に計算できます。
+`Ratio`オブジェクトに`Float 64`(倍精度浮動小数点型)の単位オブジェクトである`f64`を乗算したものです。`f32`をかけることで`Float 32`(単精度浮動小数点型)も指定できます。
+これらは基本的に`Ratio`よりも高速に計算できますが、誤差が生じる可能性があります。
+
+```python
+assert 0.1 + 0.2 == 0.3
+assert 0.1f64 + 0.2f64 != 0.3f64 # Oops!
+```
 
 ## 複素数オブジェクト(Complex Object)
 

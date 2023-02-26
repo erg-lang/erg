@@ -1,6 +1,6 @@
 # 変数
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/02_name.md%26commit_hash%3D14b0c449efc9e9da3e10a09c912a960ecfaf1c9d)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/02_name.md&commit_hash=14b0c449efc9e9da3e10a09c912a960ecfaf1c9d)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/02_name.md%26commit_hash%3Dd6bbb910151e054643ce1a8c01ab7c579db2d705)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/02_name.md&commit_hash=d6bbb910151e054643ce1a8c01ab7c579db2d705)
 
 変数は代数の一種です。Ergにおける代数―紛れがなければ単に変数と呼ばれることもあります―とは、オブジェクトを名前付けしてコード中の別の場所から利用できるようにする機能を指します。
 
@@ -15,7 +15,7 @@ n = 1
 いま`1`はオブジェクトであると述べました。オブジェクトが何であるかは後述しますが、今は代入できるもの、すなわち代入演算子(`=`など)の右側におけるものとしておきます。
 
 変数の「型」を指定したい場合は以下のようにします。型とは、これも後述しますが、大まかにはオブジェクトの属する集合です。
-ここでは`n`は自然数(`Nat`)型であると指定しています。
+ここで`n`は自然数(0以上の整数)に属する、すなわち`Nat`型であると指定しています。
 
 ```python
 n: Nat = 1
@@ -27,6 +27,8 @@ n: Nat = 1
 # NG
 l1 = l2 = [1, 2, 3] # SyntaxError: multiple assignment not allowed
 ```
+
+このようなことをしたい場合、`.clone()`を使います。これはオブジェクトのコピーを作成します。
 
 ```python
 # OK
@@ -43,7 +45,9 @@ i = i + 1 # AssignError: cannot assign twice
 
 内側のスコープで同じ名前の変数を定義できますが、上に被せているだけで、値を破壊的に書き換えているわけではありません。外側のスコープに戻れば値も戻ります。
 これはPythonの「文」のスコープとは違う挙動なので注意してください。
-このような機能は一般にシャドーイングと言います。ただし他言語のシャドーイングとは違い同一スコープではシャドーイングできません。
+このような機能は一般にシャドーイングと言います。ただし他言語のシャドーイングとは違い、同一スコープではシャドーイングできません。
+
+簡単に言うと、Ergでは変数が勝手に書き換えられていないか心配する必要はないのです。
 
 ```python
 x = 0
@@ -108,6 +112,10 @@ X = 1 # OK
 X = !1 # TypeError: cannot define Int! object as a constant
 ```
 
+```python,compile_fail
+X = input!() # SyntaxError: not a constant expression
+```
+
 ## 代数の削除
 
 `Del`関数を使うことで、代数を削除することが出来ます。その代数に依存している(その代数の値を直接参照している)他の代数もまとめて削除されます。
@@ -131,6 +139,8 @@ f(2) # NameError: f is not defined (deleted in line 6)
 Del True # TypeError: cannot delete built-in constants
 Del print! # TypeError: cannot delete built-in variables
 ```
+
+`Del`によって削除した名前は、その後に再利用することが出来ます。
 
 ## 付録: 代入と同値性
 

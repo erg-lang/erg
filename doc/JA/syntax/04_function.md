@@ -1,6 +1,6 @@
 # 関数
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/04_function.md%26commit_hash%3D96b113c47ec6ca7ad91a6b486d55758de00d557d)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/04_function.md&commit_hash=96b113c47ec6ca7ad91a6b486d55758de00d557d)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/04_function.md%26commit_hash%3D23a7e2caf3b89602edaaaf6edbc8fb4b32f9a369)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/04_function.md&commit_hash=23a7e2caf3b89602edaaaf6edbc8fb4b32f9a369)
 
 関数は「引数」を受け取ってそれを加工し、「戻り値」として返すブロックです。以下のように定義します。
 
@@ -110,7 +110,7 @@ math_log x, base: Ratio := math.E = ...
 f [x, y] := [1, 2] = ...
 ```
 
-しかしデフォルト引数内では、後述するプロシージャを呼び出したり、可変オブジェクトを代入したりすることができません。
+しかしデフォルト引数内では、後述するプロシージャを呼び出したり、可変オブジェクトを代入したりすることができません。スクリプトを実行する度にデフォルト引数の値が変わってしまうのは混乱を招くためです。
 
 ```python,compile_fail
 f x := p! 1 = ... # NG
@@ -134,6 +134,7 @@ log "Hello", "World", "!" # Hello World !
 
 ```python
 f *x: Int =
+    # x: [Int; _]
     for x, i ->
         log i
 
@@ -185,6 +186,10 @@ fib: 0..1 -> 0..1
 fib 0 = 0
 fib 1 = 1
 # OK
+```
+
+```python
+fib 2 # TypeError: the first parameter type of fib is 0..1, but got {2}
 ```
 
 ## 再帰関数
@@ -249,7 +254,7 @@ assert add_hundred(1) == 101
 
 ## コンパイル時関数
 
-関数名を大文字で始めるとコンパイル時関数となります。ユーザー定義のコンパイル時関数は、引数がすべて定数で、かつ型を明示する必要があります。
+関数名を大文字で始めると、その関数はコンパイル時関数であると宣言したことになります。ユーザー定義のコンパイル時関数は、引数がすべて定数で、かつ型を明示する必要があります。
 コンパイル関数ができることは限られています。コンパイル時関数内で使えるのは定数式のみ、すなわち、いくつかの演算子(四則演算や比較演算、型構築演算など)とコンパイル時関数のみです。代入する引数も定数式である必要があります。
 そのかわり、計算をコンパイル時に行うことができるというメリットがあります。
 

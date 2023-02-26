@@ -1,6 +1,6 @@
 # コミットメッセージに関するガイドライン
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/dev_guide/commit_message.md%26commit_hash%3D1ea58db851c577805696b61b0b56c7f062d0a941)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/dev_guide/commit_message.md&commit_hash=1ea58db851c577805696b61b0b56c7f062d0a941)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/dev_guide/commit_message.md%26commit_hash%3D718ae9d7d8118fcf5f36561ebbcfa96af980ec32)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/dev_guide/commit_message.md&commit_hash=718ae9d7d8118fcf5f36561ebbcfa96af980ec32)
 
 このガイドラインは、
 
@@ -46,11 +46,13 @@ commit ::= type ('(' scope ')')? '!'? ':' description ('(' '#' issue ')')? body?
 | `revert`   | revert                                 |
 
 複数該当する場合は、より具体的なtypeを選んでください。優先度の低いtypeは`fix`, `refactor`, `style`, `chore`になります。例えば、ドキュメント(docs)の修正(fix)は`docs`、テスト(test)のリファクタリング(refactor)は`test`になります。
+なお、ユーザーに表示されるメッセージの改善は`fix`になります。Erg開発チームは分かりにくい・的を外したメッセージをバグとして扱います。
 
 * `scope`は省略可能で、コミットの影響範囲を表します。例えば、`fix(parser):`というコミットメッセージはパーサーのバグ修正であることを示します。コンマ区切りで複数のスコープを指定することもできますが、その場合コミットを分割することも検討してください。スコープの例は以下の通りです。
 
   * `parser`
   * `compiler`
+  * `typechecker`
   * `els`
   * `REPL`
   * `linter`
