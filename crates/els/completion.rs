@@ -1,4 +1,3 @@
-use erg_compiler::varinfo::VarInfo;
 use serde::Deserialize;
 use serde_json::json;
 use serde_json::Value;
@@ -11,7 +10,7 @@ use erg_compiler::context::Context;
 use erg_compiler::erg_parser::token::TokenKind;
 use erg_compiler::hir::Expr;
 use erg_compiler::ty::{HasType, ParamTy, Type};
-use erg_compiler::varinfo::AbsLocation;
+use erg_compiler::varinfo::{AbsLocation, VarInfo};
 use erg_compiler::AccessKind;
 
 use lsp_types::{
@@ -49,7 +48,7 @@ impl_u8_enum! { CompletionOrder; i32;
 pub struct CompletionOrderSetter<'b> {
     vi: &'b VarInfo,
     arg_pt: Option<&'b ParamTy>,
-    mod_ctx: &'b Context,
+    mod_ctx: &'b Context, // for subtype judgement, not for variable lookup
     label: String,
 }
 
