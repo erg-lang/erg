@@ -36,7 +36,7 @@ macro_rules! debug_call_info {
             "･".repeat(($self.level as f32 / 4.0).floor() as usize),
             $self.level,
             fn_name!(),
-            $self.peek().unwrap()
+            $self.peek().unwrap_or(&$crate::token::Token::DUMMY)
         );
     };
 }
@@ -51,8 +51,48 @@ macro_rules! debug_exit_info {
             "･".repeat(($self.level as f32 / 4.0).floor() as usize),
             $self.level,
             fn_name!(),
-            $self.peek().unwrap()
+            $self.peek().unwrap_or(&$crate::token::Token::DUMMY)
         );
+    };
+}
+
+macro_rules! expect_pop {
+    ($self: ident, category $cate: expr) => {
+        if $self.cur_category_is($cate) {
+            $self.lpop()
+        } else {
+            let loc = $self.peek().map(|t| t.loc()).unwrap_or(Location::Unknown);
+            let got = $self.peek().map(|t| t.kind).unwrap_or(EOF);
+            let err = ParseError::unexpected_token(line!() as usize, loc, $cate, got);
+            $self.errs.push(err);
+            debug_exit_info!($self);
+            return Err(());
+        }
+    };
+    ($self: ident, fail_next $kind: expr) => {
+        if $self.cur_is($kind) {
+            $self.lpop()
+        } else {
+            let loc = $self.peek().map(|t| t.loc()).unwrap_or(Location::Unknown);
+            let got = $self.peek().map(|t| t.kind).unwrap_or(EOF);
+            let err = ParseError::unexpected_token(line!() as usize, loc, $kind, got);
+            $self.next_line();
+            $self.errs.push(err);
+            debug_exit_info!($self);
+            return Err(());
+        }
+    };
+    ($self: ident, $kind: expr) => {
+        if $self.cur_is($kind) {
+            $self.lpop()
+        } else {
+            let loc = $self.peek().map(|t| t.loc()).unwrap_or(Location::Unknown);
+            let got = $self.peek().map(|t| t.kind).unwrap_or(EOF);
+            let err = ParseError::unexpected_token(line!() as usize, loc, $kind, got);
+            $self.errs.push(err);
+            debug_exit_info!($self);
+            return Err(());
+        }
     };
 }
 
@@ -393,22 +433,11 @@ impl Parser {
                 return Ok(block);
             }
         }
-        if !self.cur_is(Newline) {
-            let err = self.skip_and_throw_syntax_err(caused_by!());
-            self.errs.push(err);
-            debug_exit_info!(self);
-            return Err(());
-        }
+        expect_pop!(self, Newline);
         while self.cur_is(Newline) {
             self.skip();
         }
-        if !self.cur_is(Indent) {
-            let err = self.skip_and_throw_syntax_err(caused_by!());
-            self.errs.push(err);
-            debug_exit_info!(self);
-            return Err(());
-        }
-        self.skip(); // Indent
+        expect_pop!(self, Indent);
         loop {
             match self.peek_kind() {
                 Some(Newline) if self.nth_is(1, Dedent) => {
@@ -490,14 +519,7 @@ impl Parser {
             .map_err(|_| self.stack_dec(fn_name!()))?
         {
             decs.insert(deco);
-            if self.cur_is(Newline) {
-                self.skip();
-            } else {
-                let err = self.skip_and_throw_syntax_err(caused_by!());
-                self.errs.push(err);
-                debug_exit_info!(self);
-                return Err(());
-            }
+            expect_pop!(self, fail_next Newline);
         }
         debug_exit_info!(self);
         Ok(decs)
@@ -741,13 +763,7 @@ impl Parser {
                     while self.cur_is(Newline) {
                         self.skip();
                     }
-                    if !self.cur_is(Indent) {
-                        let err = self.skip_and_throw_syntax_err(caused_by!());
-                        self.errs.push(err);
-                        debug_exit_info!(self);
-                        return Err(());
-                    }
-                    self.skip();
+                    expect_pop!(self, fail_next Indent);
                 }
                 Some(Comma) => {
                     self.skip();
@@ -821,13 +837,7 @@ impl Parser {
                             while self.cur_is(Dedent) {
                                 self.skip();
                             }
-                            let rp = self.lpop();
-                            if !rp.is(RParen) {
-                                let err = self.skip_and_throw_syntax_err(caused_by!());
-                                self.errs.push(err);
-                                debug_exit_info!(self);
-                                return Err(());
-                            }
+                            let rp = expect_pop!(self, fail_next RParen);
                             args.set_parens((lp.unwrap(), rp));
                         }
                         break;
@@ -988,14 +998,7 @@ impl Parser {
 
     fn try_reduce_method_defs(&mut self, class: Expr, vis: Token) -> ParseResult<Methods> {
         debug_call_info!(self);
-        if self.cur_is(Indent) {
-            self.skip();
-        } else {
-            let err = self.skip_and_throw_syntax_err(caused_by!());
-            self.errs.push(err);
-            debug_exit_info!(self);
-            return Err(());
-        }
+        expect_pop!(self, fail_next Indent);
         while self.cur_is(Newline) {
             self.skip();
         }
@@ -1310,14 +1313,7 @@ impl Parser {
                     let index = self
                         .try_reduce_expr(false, false, in_brace, false)
                         .map_err(|_| self.stack_dec(fn_name!()))?;
-                    let r_sqbr = self.lpop();
-                    if !r_sqbr.is(RSqBr) {
-                        self.restore(r_sqbr);
-                        let err = self.skip_and_throw_syntax_err(caused_by!());
-                        self.errs.push(err);
-                        debug_exit_info!(self);
-                        return Err(());
-                    }
+                    let r_sqbr = expect_pop!(self, fail_next RSqBr);
                     let acc = Accessor::subscr(obj, index, r_sqbr);
                     stack.push(ExprOrOp::Expr(Expr::Accessor(acc)));
                 }
@@ -1783,14 +1779,8 @@ impl Parser {
                 let params = self
                     .convert_args_to_params(args)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
-                if !self.cur_category_is(TC::LambdaOp) {
-                    let err = self.skip_and_throw_syntax_err(caused_by!());
-                    self.errs.push(err);
-                    debug_exit_info!(self);
-                    return Err(());
-                }
                 let sig = LambdaSignature::new(params, None, bounds);
-                let op = self.lpop();
+                let op = expect_pop!(self, category TC::LambdaOp);
                 let block = self
                     .try_reduce_block()
                     .map_err(|_| self.stack_dec(fn_name!()))?;
@@ -1850,15 +1840,7 @@ impl Parser {
                     let index = self
                         .try_reduce_expr(true, false, false, false)
                         .map_err(|_| self.stack_dec(fn_name!()))?;
-                    let r_sqbr = if self.cur_is(RSqBr) {
-                        self.lpop()
-                    } else {
-                        // TODO: error report: RSqBr not found
-                        let err = self.skip_and_throw_syntax_err(caused_by!());
-                        self.errs.push(err);
-                        debug_exit_info!(self);
-                        return Err(());
-                    };
+                    let r_sqbr = expect_pop!(self, fail_next RSqBr);
                     obj = Expr::Accessor(Accessor::subscr(obj, index, r_sqbr));
                 }
                 Some(t) if t.is(Dot) && obj.col_end() == t.col_begin() => {
@@ -1982,13 +1964,7 @@ impl Parser {
         let inner = self
             .try_reduce_elems()
             .map_err(|_| self.stack_dec(fn_name!()))?;
-        let r_sqbr = self.lpop();
-        if !r_sqbr.is(RSqBr) {
-            self.errs
-                .push(ParseError::simple_syntax_error(0, r_sqbr.loc()));
-            debug_exit_info!(self);
-            return Err(());
-        }
+        let r_sqbr = expect_pop!(self, fail_next RSqBr);
         let arr = match inner {
             ArrayInner::Normal(mut elems) => {
                 let elems = if elems
@@ -2030,14 +2006,7 @@ impl Parser {
         let l_brace = self.lpop();
         if self.cur_is(Newline) {
             self.skip();
-            if self.cur_is(Indent) {
-                self.skip();
-            } else {
-                let err = self.skip_and_throw_syntax_err(caused_by!());
-                self.errs.push(err);
-                debug_exit_info!(self);
-                return Err(());
-            }
+            expect_pop!(self, fail_next Indent);
         }
 
         // Empty brace literals
@@ -2150,18 +2119,9 @@ impl Parser {
                 }
                 Some(Dedent) => {
                     self.skip();
-                    if self.cur_is(RBrace) {
-                        let r_brace = self.lpop();
-                        debug_exit_info!(self);
-                        return Ok(Record::new_mixed(l_brace, r_brace, attrs));
-                    } else {
-                        // TODO: not closed
-                        // self.restore(other);
-                        let err = self.skip_and_throw_syntax_err(caused_by!());
-                        self.errs.push(err);
-                        debug_exit_info!(self);
-                        return Err(());
-                    }
+                    let r_brace = expect_pop!(self, fail_next RBrace);
+                    debug_exit_info!(self);
+                    return Ok(Record::new_mixed(l_brace, r_brace, attrs));
                 }
                 Some(RBrace) => {
                     let r_brace = self.lpop();
@@ -2246,18 +2206,11 @@ impl Parser {
                     let key = self
                         .try_reduce_expr(false, false, true, false)
                         .map_err(|_| self.stack_dec(fn_name!()))?;
-                    if self.cur_is(Colon) {
-                        self.skip();
-                        let value = self
-                            .try_reduce_chunk(false, false)
-                            .map_err(|_| self.stack_dec(fn_name!()))?;
-                        kvs.push(KeyValue::new(key, value));
-                    } else {
-                        let err = self.skip_and_throw_syntax_err(caused_by!());
-                        self.errs.push(err);
-                        debug_exit_info!(self);
-                        return Err(());
-                    }
+                    expect_pop!(self, fail_next Colon);
+                    let value = self
+                        .try_reduce_chunk(false, false)
+                        .map_err(|_| self.stack_dec(fn_name!()))?;
+                    kvs.push(KeyValue::new(key, value));
                 }
                 Some(Newline | Indent | Dedent) => {
                     self.skip();

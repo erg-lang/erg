@@ -11,6 +11,8 @@ use erg_common::style::{Attribute, Color, StyledStr, StyledString, StyledStrings
 use erg_common::traits::Stream;
 use erg_common::{fmt_iter, impl_display_and_error, impl_stream, switch_lang};
 
+use crate::token::TokenKind;
+
 #[derive(Debug)]
 pub struct LexError(Box<ErrorCore>); // ErrorCore is large, so use Box
 
@@ -121,6 +123,26 @@ impl LexError {
         Self::new(ErrorCore::new(
             vec![SubMessage::ambiguous_new(loc, vec![], hint)],
             desc,
+            errno,
+            SyntaxError,
+            loc,
+        ))
+    }
+
+    pub fn unexpected_token<S: fmt::Display>(
+        errno: usize,
+        loc: Location,
+        expected: S,
+        got: TokenKind,
+    ) -> Self {
+        Self::new(ErrorCore::new(
+            vec![SubMessage::ambiguous_new(loc, vec![], None)],
+            switch_lang!(
+                "japanese" => format!("{expected}が期待されましたが、{got}となっています"),
+                "simplified_chinese" => format!("期待: {expected}，得到: {got}"),
+                "traditional_chinese" => format!("期待: {expected}，得到: {got}"),
+                "english" => format!("expected: {expected}, got: {got}"),
+            ),
             errno,
             SyntaxError,
             loc,

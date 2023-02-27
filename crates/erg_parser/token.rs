@@ -214,6 +214,12 @@ pub enum TokenCategory {
     Illegal,
 }
 
+impl fmt::Display for TokenCategory {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{self:?}")
+    }
+}
+
 impl TokenCategory {
     pub const fn is_block_op(&self) -> bool {
         matches!(self, Self::DefOp | Self::LambdaOp)
