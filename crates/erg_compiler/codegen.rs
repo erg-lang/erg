@@ -2799,7 +2799,7 @@ impl PyCodeGenerator {
                 erg_parser::ast::NonDefaultParamSignature::new(ParamPattern::VarName(param), None);
             let vi = VarInfo::parameter(new_first_param.typ().clone(), ident.vi.def_loc.clone());
             let param = NonDefaultParamSignature::new(raw, vi, None);
-            let params = Params::new(vec![self_param, param], None, vec![], None, vec![]);
+            let params = Params::new(vec![self_param, param], None, vec![], None);
             (param_name, params)
         } else {
             ("_".into(), Params::single(self_param))

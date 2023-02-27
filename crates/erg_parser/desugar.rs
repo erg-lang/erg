@@ -62,7 +62,7 @@ impl Desugarer {
     }
 
     fn desugar_args(mut desugar: impl FnMut(Expr) -> Expr, args: Args) -> Args {
-        let (pos_args, var_args, kw_args, paren, commas) = args.deconstruct();
+        let (pos_args, var_args, kw_args, paren) = args.deconstruct();
         let pos_args = pos_args
             .into_iter()
             .map(|arg| PosArg::new(desugar(arg.expr)))
@@ -74,7 +74,7 @@ impl Desugarer {
                 KwArg::new(arg.keyword, arg.t_spec, desugar(arg.expr)) // TODO: t_spec
             })
             .collect();
-        Args::new(pos_args, var_args, kw_args, paren, commas)
+        Args::new(pos_args, var_args, kw_args, paren)
     }
 
     fn perform_desugar_acc(mut desugar: impl FnMut(Expr) -> Expr, acc: Accessor) -> Accessor {
@@ -145,12 +145,12 @@ impl Desugarer {
             }
             Expr::Array(array) => match array {
                 Array::Normal(arr) => {
-                    let (elems, _, _, _, commas) = arr.elems.deconstruct();
+                    let (elems, ..) = arr.elems.deconstruct();
                     let elems = elems
                         .into_iter()
                         .map(|elem| PosArg::new(desugar(elem.expr)))
                         .collect();
-                    let elems = Args::pos_only(elems, None, commas);
+                    let elems = Args::pos_only(elems, None);
                     let arr = NormalArray::new(arr.l_sqbr, arr.r_sqbr, elems);
                     Expr::Array(Array::Normal(arr))
                 }
@@ -175,24 +175,24 @@ impl Desugarer {
             },
             Expr::Tuple(tuple) => match tuple {
                 Tuple::Normal(tup) => {
-                    let (elems, _, _, paren, commas) = tup.elems.deconstruct();
+                    let (elems, _, _, paren) = tup.elems.deconstruct();
                     let elems = elems
                         .into_iter()
                         .map(|elem| PosArg::new(desugar(elem.expr)))
                         .collect();
-                    let new_tup = Args::pos_only(elems, paren, commas);
+                    let new_tup = Args::pos_only(elems, paren);
                     let tup = NormalTuple::new(new_tup);
                     Expr::Tuple(Tuple::Normal(tup))
                 }
             },
             Expr::Set(set) => match set {
                 astSet::Normal(set) => {
-                    let (elems, _, _, _, commas) = set.elems.deconstruct();
+                    let (elems, ..) = set.elems.deconstruct();
                     let elems = elems
                         .into_iter()
                         .map(|elem| PosArg::new(desugar(elem.expr)))
                         .collect();
-                    let elems = Args::pos_only(elems, None, commas);
+                    let elems = Args::pos_only(elems, None);
                     let set = NormalSet::new(set.l_brace, set.r_brace, elems);
                     Expr::Set(astSet::Normal(set))
                 }
@@ -425,7 +425,6 @@ impl Desugarer {
                 PosArg::new(Expr::Lambda(second_branch)),
             ],
             None,
-            vec![],
         );
         let call = match_symbol.call(args);
         (call, return_t_spec)
@@ -880,7 +879,6 @@ impl Desugarer {
                     let t_spec_as_expr = Expr::from(NormalTuple::new(Args::pos_only(
                         ty_exprs,
                         tup.elems.parens.clone(),
-                        tup.elems.commas.clone(),
                     )));
                     param.t_spec = Some(TypeSpecWithOp::new(COLON, t_spec, t_spec_as_expr));
                 }
@@ -1050,7 +1048,6 @@ impl Desugarer {
                     let t_spec_as_expr = Expr::from(NormalTuple::new(Args::pos_only(
                         ty_exprs,
                         tup.elems.parens.clone(),
-                        tup.elems.commas.clone(),
                     )));
                     sig.t_spec = Some(TypeSpecWithOp::new(COLON, t_spec, t_spec_as_expr));
                 }

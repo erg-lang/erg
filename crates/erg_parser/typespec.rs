@@ -16,13 +16,13 @@ impl Parser {
             }
             Expr::Array(array) => match array {
                 Array::Normal(arr) => {
-                    let (elems, .., commas) = arr.elems.deconstruct();
+                    let (elems, ..) = arr.elems.deconstruct();
                     let mut const_elems = vec![];
                     for elem in elems.into_iter() {
                         let const_expr = Self::validate_const_expr(elem.expr)?;
                         const_elems.push(ConstPosArg::new(const_expr));
                     }
-                    let elems = ConstArgs::pos_only(const_elems, None, commas);
+                    let elems = ConstArgs::pos_only(const_elems, None);
                     let const_arr = ConstArray::new(arr.l_sqbr, arr.r_sqbr, elems, None);
                     Ok(ConstExpr::Array(const_arr))
                 }
@@ -34,13 +34,13 @@ impl Parser {
             },
             Expr::Set(set) => match set {
                 Set::Normal(set) => {
-                    let (elems, .., commas) = set.elems.deconstruct();
+                    let (elems, ..) = set.elems.deconstruct();
                     let mut const_elems = vec![];
                     for elem in elems.into_iter() {
                         let const_expr = Self::validate_const_expr(elem.expr)?;
                         const_elems.push(ConstPosArg::new(const_expr));
                     }
-                    let elems = ConstArgs::pos_only(const_elems, None, commas);
+                    let elems = ConstArgs::pos_only(const_elems, None);
                     let const_set = ConstSet::new(set.l_brace, set.r_brace, elems);
                     Ok(ConstExpr::Set(const_set))
                 }
@@ -69,13 +69,13 @@ impl Parser {
             },
             Expr::Tuple(tuple) => match tuple {
                 Tuple::Normal(tup) => {
-                    let (elems, _, _, paren, commas) = tup.elems.deconstruct();
+                    let (elems, _, _, paren) = tup.elems.deconstruct();
                     let mut const_elems = vec![];
                     for elem in elems.into_iter() {
                         let const_expr = Self::validate_const_expr(elem.expr)?;
                         const_elems.push(ConstPosArg::new(const_expr));
                     }
-                    let elems = ConstArgs::pos_only(const_elems, paren, commas);
+                    let elems = ConstArgs::pos_only(const_elems, paren);
                     let const_tup = ConstTuple::new(elems);
                     Ok(ConstExpr::Tuple(const_tup))
                 }
@@ -100,13 +100,13 @@ impl Parser {
                         "complex const function call",
                     ));
                 };
-                let (pos_args, _, _, paren, commas) = call.args.deconstruct();
+                let (pos_args, _, _, paren) = call.args.deconstruct();
                 let mut const_pos_args = vec![];
                 for elem in pos_args.into_iter() {
                     let const_expr = Self::validate_const_expr(elem.expr)?;
                     const_pos_args.push(ConstPosArg::new(const_expr));
                 }
-                let args = ConstArgs::pos_only(const_pos_args, paren, commas);
+                let args = ConstArgs::pos_only(const_pos_args, paren);
                 Ok(ConstExpr::App(ConstApp::new(acc, args)))
             }
             Expr::Def(def) => Self::validate_const_def(def).map(ConstExpr::Def),
@@ -194,7 +194,7 @@ impl Parser {
     fn call_to_predecl_type_spec(call: Call) -> Result<PreDeclTypeSpec, ParseError> {
         match *call.obj {
             Expr::Accessor(Accessor::Ident(ident)) => {
-                let (_pos_args, _var_args, _kw_args, paren, commas) = call.args.deconstruct();
+                let (_pos_args, _var_args, _kw_args, paren) = call.args.deconstruct();
                 let mut pos_args = vec![];
                 for arg in _pos_args.into_iter() {
                     let const_expr = Self::validate_const_expr(arg.expr)?;
@@ -213,7 +213,7 @@ impl Parser {
                 }
                 Ok(PreDeclTypeSpec::Simple(SimpleTypeSpec::new(
                     ident,
-                    ConstArgs::new(pos_args, var_args, kw_args, paren, commas),
+                    ConstArgs::new(pos_args, var_args, kw_args, paren),
                 )))
             }
             _ => todo!(),
@@ -309,12 +309,12 @@ impl Parser {
         match set {
             Set::Normal(set) => {
                 let mut elem_ts = vec![];
-                let (elems, .., paren, commas) = set.elems.deconstruct();
+                let (elems, .., paren) = set.elems.deconstruct();
                 for elem in elems.into_iter() {
                     let const_expr = Self::validate_const_expr(elem.expr)?;
                     elem_ts.push(ConstPosArg::new(const_expr));
                 }
-                Ok(TypeSpec::Enum(ConstArgs::pos_only(elem_ts, paren, commas)))
+                Ok(TypeSpec::Enum(ConstArgs::pos_only(elem_ts, paren)))
             }
             Set::WithLength(set) => {
                 let t_spec = Self::expr_to_type_spec(set.elem.expr)?;
@@ -375,7 +375,7 @@ impl Parser {
         match tuple {
             Tuple::Normal(tup) => {
                 let mut tup_spec = vec![];
-                let (elems, .., parens, _commas) = tup.elems.deconstruct();
+                let (elems, .., parens) = tup.elems.deconstruct();
                 for elem in elems.into_iter() {
                     let value = Self::expr_to_type_spec(elem.expr)?;
                     tup_spec.push(value);

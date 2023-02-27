@@ -691,11 +691,7 @@ impl Parser {
             Some(RParen) => {
                 rp = Some(self.lpop());
                 debug_exit_info!(self);
-                return Ok(Args::pos_only(
-                    vec![],
-                    Some((lp.unwrap(), rp.unwrap())),
-                    vec![],
-                ));
+                return Ok(Args::pos_only(vec![], Some((lp.unwrap(), rp.unwrap()))));
             }
             Some(RBrace | RSqBr | Dedent) => {
                 debug_exit_info!(self);
@@ -718,17 +714,17 @@ impl Parser {
                 expr: Expr::UnaryOp(unary),
             }) if unary.op.is(PreStar) => {
                 let pos_args = PosArg::new(unary.deconstruct().1);
-                Args::new(vec![], Some(pos_args), vec![], None, vec![])
+                Args::new(vec![], Some(pos_args), vec![], None)
             }
             PosOrKwArg::Pos(PosArg {
                 expr: Expr::TypeAscription(TypeAscription { expr, t_spec }),
             }) if matches!(expr.as_ref(), Expr::UnaryOp(unary) if unary.op.is(PreStar)) => {
                 let Expr::UnaryOp(unary) = *expr else { unreachable!() };
                 let var_args = PosArg::new(unary.deconstruct().1.type_asc_expr(t_spec));
-                Args::new(vec![], Some(var_args), vec![], None, vec![])
+                Args::new(vec![], Some(var_args), vec![], None)
             }
             PosOrKwArg::Pos(arg) => Args::single(arg),
-            PosOrKwArg::Kw(arg) => Args::new(vec![], None, vec![arg], None, vec![]),
+            PosOrKwArg::Kw(arg) => Args::new(vec![], None, vec![arg], None),
         };
         loop {
             match self.peek_kind() {
@@ -754,7 +750,7 @@ impl Parser {
                     self.skip();
                 }
                 Some(Comma) => {
-                    args.push_comma(self.lpop());
+                    self.skip();
                     if style.is_colon() || self.cur_is(Comma) {
                         let err = self.skip_and_throw_syntax_err(caused_by!());
                         self.errs.push(err);
@@ -813,8 +809,8 @@ impl Parser {
                         args.set_parens((lp, rp));
                     } else {
                         // e.g. f(g 1)
-                        let (pos_args, var_args, kw_args, _, commas) = args.deconstruct();
-                        args = Args::new(pos_args, var_args, kw_args, None, commas);
+                        let (pos_args, var_args, kw_args, _) = args.deconstruct();
+                        args = Args::new(pos_args, var_args, kw_args, None);
                     }
                     break;
                 }
@@ -1727,7 +1723,7 @@ impl Parser {
                 };
                 if self.cur_is(RParen) {
                     let rparen = self.lpop();
-                    let args = Args::pos_only(vec![], Some((lparen, rparen)), vec![]);
+                    let args = Args::pos_only(vec![], Some((lparen, rparen)));
                     let unit = Tuple::Normal(NormalTuple::new(args));
                     debug_exit_info!(self);
                     return Ok(Expr::Tuple(unit));
@@ -2369,7 +2365,7 @@ impl Parser {
                 expr: Expr::UnaryOp(unary),
             }) if unary.op.is(PreStar) => {
                 let var_args = Some(PosArg::new(unary.deconstruct().1));
-                Args::new(vec![], var_args, vec![], None, vec![])
+                Args::new(vec![], var_args, vec![], None)
             }
             PosOrKwArg::Pos(PosArg {
                 expr: Expr::TypeAscription(TypeAscription { expr, t_spec }),
@@ -2377,10 +2373,10 @@ impl Parser {
                 let Expr::UnaryOp(unary) = *expr else { unreachable!() };
                 let expr = unary.deconstruct().1;
                 let var_args = Some(PosArg::new(expr.type_asc_expr(t_spec)));
-                Args::new(vec![], var_args, vec![], None, vec![])
+                Args::new(vec![], var_args, vec![], None)
             }
             PosOrKwArg::Pos(pos) => Args::single(pos),
-            PosOrKwArg::Kw(kw) => Args::new(vec![], None, vec![kw], None, vec![]),
+            PosOrKwArg::Kw(kw) => Args::new(vec![], None, vec![kw], None),
         };
         #[allow(clippy::while_let_loop)]
         loop {

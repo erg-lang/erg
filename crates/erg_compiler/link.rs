@@ -345,7 +345,7 @@ impl<'a> Linker<'a> {
                 args,
             ));
             let exec = Expr::Accessor(Accessor::public_with_line(Str::ever("exec"), line));
-            let args = Args::pos_only(vec![PosArg::new(code), PosArg::new(m_dict)], None, vec![]);
+            let args = Args::pos_only(vec![PosArg::new(code), PosArg::new(m_dict)], None);
             let exec_code = exec.call_expr(args);
             let compound = Block::new(vec![mod_def, mod_update, exec_code, module]);
             *expr = Expr::Compound(compound);

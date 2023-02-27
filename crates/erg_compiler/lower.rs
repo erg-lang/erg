@@ -248,7 +248,7 @@ impl ASTLowerer {
         log!(info "entered {}({array})", fn_name!());
         let allow_cast = true;
         let mut new_array = vec![];
-        let (elems, .., commas) = array.elems.deconstruct();
+        let (elems, ..) = array.elems.deconstruct();
         let mut union = Type::Never;
         for elem in elems.into_iter() {
             let elem = self.lower_expr(elem.expr)?;
@@ -291,7 +291,7 @@ impl ASTLowerer {
             array.l_sqbr,
             array.r_sqbr,
             elem_t,
-            hir::Args::values(new_array, None, commas),
+            hir::Args::values(new_array, None),
         ))
     }
 
@@ -355,14 +355,12 @@ impl ASTLowerer {
     fn lower_normal_tuple(&mut self, tuple: ast::NormalTuple) -> LowerResult<hir::NormalTuple> {
         log!(info "entered {}({tuple})", fn_name!());
         let mut new_tuple = vec![];
-        let (elems, .., paren, commas) = tuple.elems.deconstruct();
+        let (elems, .., paren) = tuple.elems.deconstruct();
         for elem in elems {
             let elem = self.lower_expr(elem.expr)?;
             new_tuple.push(elem);
         }
-        Ok(hir::NormalTuple::new(hir::Args::values(
-            new_tuple, paren, commas,
-        )))
+        Ok(hir::NormalTuple::new(hir::Args::values(new_tuple, paren)))
     }
 
     fn lower_record(&mut self, record: ast::Record) -> LowerResult<hir::Record> {
@@ -401,7 +399,7 @@ impl ASTLowerer {
 
     fn lower_normal_set(&mut self, set: ast::NormalSet) -> LowerResult<hir::NormalSet> {
         log!(info "entered {}({set})", fn_name!());
-        let (elems, .., commas) = set.elems.deconstruct();
+        let (elems, ..) = set.elems.deconstruct();
         let mut union = Type::Never;
         let mut new_set = vec![];
         for elem in elems {
@@ -460,7 +458,7 @@ impl ASTLowerer {
         }
         Ok(normal_set)
         */
-        let elems = hir::Args::values(new_set, None, commas);
+        let elems = hir::Args::values(new_set, None);
         // check if elem_t is Eq
         if let Err(errs) = self
             .module
@@ -722,13 +720,12 @@ impl ASTLowerer {
     }
 
     fn lower_args(&mut self, args: ast::Args, errs: &mut LowerErrors) -> hir::Args {
-        let (pos_args, var_args, kw_args, paren, commas) = args.deconstruct();
+        let (pos_args, var_args, kw_args, paren) = args.deconstruct();
         let mut hir_args = hir::Args::new(
             Vec::with_capacity(pos_args.len()),
             None,
             Vec::with_capacity(kw_args.len()),
             paren,
-            commas,
         );
         for arg in pos_args.into_iter() {
             match self.lower_expr(arg.expr) {
@@ -919,7 +916,7 @@ impl ASTLowerer {
                 vi.unwrap_or(VarInfo::ILLEGAL.clone())
             }
         };
-        let args = hir::Args::pos_only(args, None, vec![]);
+        let args = hir::Args::pos_only(args, None);
         let attr_name = hir::Identifier::new(attr_name.dot, attr_name.name, None, vi);
         Ok(hir::Call::new(class, Some(attr_name), args))
     }
@@ -991,7 +988,6 @@ impl ASTLowerer {
                 hir_var_params,
                 hir_defaults,
                 params.parens,
-                params.commas,
             );
             Ok(hir_params)
         }
