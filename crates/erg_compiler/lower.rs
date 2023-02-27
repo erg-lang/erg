@@ -685,38 +685,59 @@ impl ASTLowerer {
         Ok(ident)
     }
 
-    fn lower_bin(&mut self, bin: ast::BinOp) -> LowerResult<hir::BinOp> {
+    fn lower_bin(&mut self, bin: ast::BinOp) -> hir::BinOp {
         log!(info "entered {}({bin})", fn_name!());
         let mut args = bin.args.into_iter();
-        let lhs = hir::PosArg::new(self.lower_expr(*args.next().unwrap())?);
-        let rhs = hir::PosArg::new(self.lower_expr(*args.next().unwrap())?);
+        let lhs = self
+            .lower_expr(*args.next().unwrap())
+            .unwrap_or_else(|errs| {
+                self.errs.extend(errs);
+                hir::Expr::Dummy(hir::Dummy::new(vec![]))
+            });
+        let lhs = hir::PosArg::new(lhs);
+        let rhs = self
+            .lower_expr(*args.next().unwrap())
+            .unwrap_or_else(|errs| {
+                self.errs.extend(errs);
+                hir::Expr::Dummy(hir::Dummy::new(vec![]))
+            });
+        let rhs = hir::PosArg::new(rhs);
         let args = [lhs, rhs];
-        let t = self.module.context.get_binop_t(
-            &bin.op,
-            &args,
-            &self.cfg.input,
-            &self.module.context.name,
-        )?;
+        let t = self
+            .module
+            .context
+            .get_binop_t(&bin.op, &args, &self.cfg.input, &self.module.context.name)
+            .unwrap_or_else(|errs| {
+                self.errs.extend(errs);
+                VarInfo::ILLEGAL.clone()
+            });
         let mut args = args.into_iter();
         let lhs = args.next().unwrap().expr;
         let rhs = args.next().unwrap().expr;
-        Ok(hir::BinOp::new(bin.op, lhs, rhs, t))
+        hir::BinOp::new(bin.op, lhs, rhs, t)
     }
 
-    fn lower_unary(&mut self, unary: ast::UnaryOp) -> LowerResult<hir::UnaryOp> {
+    fn lower_unary(&mut self, unary: ast::UnaryOp) -> hir::UnaryOp {
         log!(info "entered {}({unary})", fn_name!());
         let mut args = unary.args.into_iter();
-        let arg = hir::PosArg::new(self.lower_expr(*args.next().unwrap())?);
-        let args = [arg];
-        let t = self.module.context.get_unaryop_t(
-            &unary.op,
-            &args,
-            &self.cfg.input,
-            &self.module.context.name,
-        )?;
+        let arg = self
+            .lower_expr(*args.next().unwrap())
+            .unwrap_or_else(|errs| {
+                self.errs.extend(errs);
+                hir::Expr::Dummy(hir::Dummy::new(vec![]))
+            });
+        let args = [hir::PosArg::new(arg)];
+        let t = self
+            .module
+            .context
+            .get_unaryop_t(&unary.op, &args, &self.cfg.input, &self.module.context.name)
+            .unwrap_or_else(|errs| {
+                self.errs.extend(errs);
+                VarInfo::ILLEGAL.clone()
+            });
         let mut args = args.into_iter();
         let expr = args.next().unwrap().expr;
-        Ok(hir::UnaryOp::new(unary.op, expr, t))
+        hir::UnaryOp::new(unary.op, expr, t)
     }
 
     fn lower_args(&mut self, args: ast::Args, errs: &mut LowerErrors) -> hir::Args {
@@ -2071,8 +2092,8 @@ impl ASTLowerer {
             ast::Expr::Set(set) => Ok(hir::Expr::Set(self.lower_set(set)?)),
             ast::Expr::Dict(dict) => Ok(hir::Expr::Dict(self.lower_dict(dict)?)),
             ast::Expr::Accessor(acc) => Ok(hir::Expr::Accessor(self.lower_acc(acc)?)),
-            ast::Expr::BinOp(bin) => Ok(hir::Expr::BinOp(self.lower_bin(bin)?)),
-            ast::Expr::UnaryOp(unary) => Ok(hir::Expr::UnaryOp(self.lower_unary(unary)?)),
+            ast::Expr::BinOp(bin) => Ok(hir::Expr::BinOp(self.lower_bin(bin))),
+            ast::Expr::UnaryOp(unary) => Ok(hir::Expr::UnaryOp(self.lower_unary(unary))),
             ast::Expr::Call(call) => Ok(hir::Expr::Call(self.lower_call(call)?)),
             ast::Expr::DataPack(pack) => Ok(hir::Expr::Call(self.lower_pack(pack)?)),
             ast::Expr::Lambda(lambda) => Ok(hir::Expr::Lambda(self.lower_lambda(lambda)?)),
