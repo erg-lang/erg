@@ -64,7 +64,35 @@ impl<Checker: BuildRunnable> Server<Checker> {
         send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": result }))
     }
 
-    fn nth(&self, uri: &Url, args_loc: erg_common::error::Location, token: &Token) -> usize {
+    pub(crate) fn get_min_expr(
+        &self,
+        uri: &Url,
+        pos: Position,
+        offset: isize,
+    ) -> Option<(Token, Expr)> {
+        let token = self
+            .file_cache
+            .get_token_relatively(uri, pos, offset)
+            .ok()??;
+        send_log(format!("token: {token}")).unwrap();
+        if let Some(visitor) = self.get_visitor(uri) {
+            #[allow(clippy::single_match)]
+            match visitor.get_min_expr(&token) {
+                Some(expr) => {
+                    return Some((token, expr.clone()));
+                }
+                _ => {}
+            }
+        }
+        None
+    }
+
+    pub(crate) fn nth(
+        &self,
+        uri: &Url,
+        args_loc: erg_common::error::Location,
+        token: &Token,
+    ) -> usize {
         // we should use the latest commas
         let commas = self
             .file_cache
@@ -104,20 +132,8 @@ impl<Checker: BuildRunnable> Server<Checker> {
     }
 
     fn get_first_help(&mut self, uri: &Url, pos: Position) -> Option<SignatureHelp> {
-        if let Some(token) = self.file_cache.get_token_relatively(uri, pos, -2).ok()? {
-            // send_log(format!("token before `(`: {token}")).unwrap();
-            if let Some(visitor) = self.get_visitor(uri) {
-                match visitor.get_min_expr(&token) {
-                    Some(Expr::Call(_call)) => {
-                        // let sig_t = call.signature_t().unwrap();
-                        // send_log(format!("call: {call}")).unwrap();
-                    }
-                    Some(Expr::Accessor(acc)) => {
-                        return self.make_sig_help(acc, 0);
-                    }
-                    _ => {}
-                }
-            }
+        if let Some((_token, Expr::Accessor(acc))) = self.get_min_expr(uri, pos, -2) {
+            return self.make_sig_help(&acc, 0);
         } else {
             send_log("lex error occurred").unwrap();
         }
@@ -125,24 +141,13 @@ impl<Checker: BuildRunnable> Server<Checker> {
     }
 
     fn get_continuous_help(&mut self, uri: &Url, pos: Position) -> Option<SignatureHelp> {
-        if let Some(comma) = self.file_cache.get_token_relatively(uri, pos, -1).ok()? {
-            send_log(format!("comma: {comma}")).unwrap();
-            if let Some(visitor) = self.get_visitor(uri) {
-                #[allow(clippy::single_match)]
-                match visitor.get_min_expr(&comma) {
-                    Some(Expr::Call(call)) => {
-                        let nth = self.nth(uri, call.args.loc(), &comma) as u32 + 1;
-                        let help = self.make_sig_help(call.obj.as_ref(), nth);
-                        self.current_sig = Some(Expr::Call(call.clone()));
-                        return help;
-                    }
-                    _ => {}
-                }
-            } else {
-                // send_log("visitor not found").unwrap();
-            }
+        if let Some((comma, Expr::Call(call))) = self.get_min_expr(uri, pos, -1) {
+            let nth = self.nth(uri, call.args.loc(), &comma) as u32 + 1;
+            let help = self.make_sig_help(call.obj.as_ref(), nth);
+            self.current_sig = Some(Expr::Call(call));
+            return help;
         } else {
-            send_log("lex error occurred").unwrap();
+            send_log("failed to get continuous help").unwrap();
         }
         None
     }

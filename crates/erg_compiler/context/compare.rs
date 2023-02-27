@@ -153,7 +153,7 @@ impl Context {
     /// Seq(T) :> Range(T)
     /// => Range(T).super_types == [Eq, Mutate, Seq(T), Output(T)]
     /// ```
-    pub(crate) fn subtype_of(&self, lhs: &Type, rhs: &Type, allow_cast: bool) -> bool {
+    pub fn subtype_of(&self, lhs: &Type, rhs: &Type, allow_cast: bool) -> bool {
         match Self::cheap_subtype_of(lhs, rhs, allow_cast) {
             (Absolutely, judge) => judge,
             (Maybe, judge) => {
