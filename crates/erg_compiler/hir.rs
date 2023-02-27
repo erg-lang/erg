@@ -254,12 +254,15 @@ impl Args {
     }
 
     pub fn values(exprs: Vec<Expr>, paren: Option<(Token, Token)>) -> Self {
-        Self::new(
-            exprs.into_iter().map(PosArg::new).collect(),
-            None,
-            vec![],
-            paren,
-        )
+        Self::pos_only(exprs.into_iter().map(PosArg::new).collect(), paren)
+    }
+
+    pub fn single(pos_arg: PosArg) -> Self {
+        Self::pos_only(vec![pos_arg], None)
+    }
+
+    pub fn pos_only(pos_args: Vec<PosArg>, paren: Option<(Token, Token)>) -> Self {
+        Self::new(pos_args, None, vec![], paren)
     }
 
     pub fn empty() -> Self {
@@ -1742,16 +1745,24 @@ type RefRawParams<'a> = (
 impl Params {
     pub const fn new(
         non_defaults: Vec<NonDefaultParamSignature>,
-        var_args: Option<Box<NonDefaultParamSignature>>,
+        var_params: Option<Box<NonDefaultParamSignature>>,
         defaults: Vec<DefaultParamSignature>,
         parens: Option<(Token, Token)>,
     ) -> Self {
         Self {
             non_defaults,
-            var_params: var_args,
+            var_params,
             defaults,
             parens,
         }
+    }
+
+    pub fn empty() -> Self {
+        Self::new(vec![], None, vec![], None)
+    }
+
+    pub fn single(sig: NonDefaultParamSignature) -> Self {
+        Self::new(vec![sig], None, vec![], None)
     }
 
     pub const fn ref_deconstruct(&self) -> RefRawParams {

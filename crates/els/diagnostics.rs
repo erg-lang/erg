@@ -8,12 +8,12 @@ use erg_compiler::error::CompileErrors;
 
 use lsp_types::{Diagnostic, DiagnosticSeverity, Position, PublishDiagnosticsParams, Range, Url};
 
-use crate::server::{ELSResult, Server};
+use crate::server::{send, send_log, ELSResult, Server};
 use crate::util;
 
 impl<Checker: BuildRunnable> Server<Checker> {
     pub(crate) fn check_file<S: Into<String>>(&mut self, uri: Url, code: S) -> ELSResult<()> {
-        Self::send_log(format!("checking {uri}"))?;
+        send_log(format!("checking {uri}"))?;
         let path = util::uri_to_path(&uri);
         let mode = if path.to_string_lossy().ends_with(".d.er") {
             "declare"
@@ -27,19 +27,19 @@ impl<Checker: BuildRunnable> Server<Checker> {
         };
         match checker.build(code.into(), mode) {
             Ok(artifact) => {
-                Self::send_log(format!("checking {uri} passed"))?;
+                send_log(format!("checking {uri} passed"))?;
                 let uri_and_diags = self.make_uri_and_diags(uri.clone(), artifact.warns.clone());
                 // clear previous diagnostics
                 self.send_diagnostics(uri.clone(), vec![])?;
                 for (uri, diags) in uri_and_diags.into_iter() {
-                    Self::send_log(format!("{uri}, warns: {}", diags.len()))?;
+                    send_log(format!("{uri}, warns: {}", diags.len()))?;
                     self.send_diagnostics(uri, diags)?;
                 }
                 self.artifacts.insert(uri.clone(), artifact.into());
             }
             Err(artifact) => {
-                Self::send_log(format!("found errors: {}", artifact.errors.len()))?;
-                Self::send_log(format!("found warns: {}", artifact.warns.len()))?;
+                send_log(format!("found errors: {}", artifact.errors.len()))?;
+                send_log(format!("found warns: {}", artifact.warns.len()))?;
                 let diags = artifact
                     .errors
                     .clone()
@@ -51,14 +51,14 @@ impl<Checker: BuildRunnable> Server<Checker> {
                     self.send_diagnostics(uri.clone(), vec![])?;
                 }
                 for (uri, diags) in uri_and_diags.into_iter() {
-                    Self::send_log(format!("{uri}, errs & warns: {}", diags.len()))?;
+                    send_log(format!("{uri}, errs & warns: {}", diags.len()))?;
                     self.send_diagnostics(uri, diags)?;
                 }
                 self.artifacts.insert(uri.clone(), artifact);
             }
         }
         if let Some(module) = checker.pop_context() {
-            Self::send_log(format!("{uri}: {}", module.context.name))?;
+            send_log(format!("{uri}: {}", module.context.name))?;
             self.modules.insert(uri.clone(), module);
         }
         let dependents = self.dependents_of(&uri);
@@ -132,13 +132,13 @@ impl<Checker: BuildRunnable> Server<Checker> {
             .map(|doc| doc.publish_diagnostics.is_some())
             .unwrap_or(false)
         {
-            Self::send(&json!({
+            send(&json!({
                 "jsonrpc": "2.0",
                 "method": "textDocument/publishDiagnostics",
                 "params": params,
             }))?;
         } else {
-            Self::send_log("the client does not support diagnostics")?;
+            send_log("the client does not support diagnostics")?;
         }
         Ok(())
     }

@@ -237,7 +237,7 @@ impl ASTLowerer {
                     let elem = self.fake_lower_expr(elem.expr)?;
                     elems.push(hir::PosArg::new(elem));
                 }
-                let elems = hir::Args::new(elems, None, vec![], paren);
+                let elems = hir::Args::pos_only(elems, paren);
                 Ok(hir::Tuple::Normal(hir::NormalTuple::new(elems)))
             }
         }
@@ -290,7 +290,7 @@ impl ASTLowerer {
                     let elem = self.fake_lower_expr(elem.expr)?;
                     elems.push(hir::PosArg::new(elem));
                 }
-                let elems = hir::Args::new(elems, None, vec![], None);
+                let elems = hir::Args::pos_only(elems, None);
                 Ok(hir::Set::Normal(hir::NormalSet::new(
                     set.l_brace,
                     set.r_brace,

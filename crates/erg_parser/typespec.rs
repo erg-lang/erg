@@ -22,7 +22,7 @@ impl Parser {
                         let const_expr = Self::validate_const_expr(elem.expr)?;
                         const_elems.push(ConstPosArg::new(const_expr));
                     }
-                    let elems = ConstArgs::new(const_elems, None, vec![], None);
+                    let elems = ConstArgs::pos_only(const_elems, None);
                     let const_arr = ConstArray::new(arr.l_sqbr, arr.r_sqbr, elems, None);
                     Ok(ConstExpr::Array(const_arr))
                 }
@@ -40,7 +40,7 @@ impl Parser {
                         let const_expr = Self::validate_const_expr(elem.expr)?;
                         const_elems.push(ConstPosArg::new(const_expr));
                     }
-                    let elems = ConstArgs::new(const_elems, None, vec![], None);
+                    let elems = ConstArgs::pos_only(const_elems, None);
                     let const_set = ConstSet::new(set.l_brace, set.r_brace, elems);
                     Ok(ConstExpr::Set(const_set))
                 }

@@ -2802,10 +2802,7 @@ impl PyCodeGenerator {
             let params = Params::new(vec![self_param, param], None, vec![], None);
             (param_name, params)
         } else {
-            (
-                "_".into(),
-                Params::new(vec![self_param], None, vec![], None),
-            )
+            ("_".into(), Params::single(self_param))
         };
         let bounds = TypeBoundSpecs::empty();
         let subr_sig = SubrSignature::new(ident, bounds, params, sig.t_spec().cloned());
@@ -2883,22 +2880,22 @@ impl PyCodeGenerator {
             let raw =
                 erg_parser::ast::NonDefaultParamSignature::new(ParamPattern::VarName(param), None);
             let param = NonDefaultParamSignature::new(raw, vi, None);
-            let params = Params::new(vec![param], None, vec![], None);
+            let params = Params::single(param);
             let bounds = TypeBoundSpecs::empty();
             let sig = SubrSignature::new(ident, bounds, params, sig.t_spec().cloned());
             let arg = PosArg::new(Expr::Accessor(Accessor::private_with_line(
                 Str::from(param_name),
                 line,
             )));
-            let call = class_new.call_expr(Args::new(vec![arg], None, vec![], None));
+            let call = class_new.call_expr(Args::single(arg));
             let block = Block::new(vec![call]);
             let body = DefBody::new(EQUAL, block, DefId(0));
             self.emit_subr_def(Some(class_ident.inspect()), sig, body);
         } else {
-            let params = Params::new(vec![], None, vec![], None);
+            let params = Params::empty();
             let bounds = TypeBoundSpecs::empty();
             let sig = SubrSignature::new(ident, bounds, params, sig.t_spec().cloned());
-            let call = class_new.call_expr(Args::new(vec![], None, vec![], None));
+            let call = class_new.call_expr(Args::empty());
             let block = Block::new(vec![call]);
             let body = DefBody::new(EQUAL, block, DefId(0));
             self.emit_subr_def(Some(class_ident.inspect()), sig, body);

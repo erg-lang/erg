@@ -560,7 +560,7 @@ impl Parser {
         let first = self
             .try_reduce_elem()
             .map_err(|_| self.stack_dec(fn_name!()))?;
-        let mut elems = Args::pos_only(vec![first], None);
+        let mut elems = Args::single(first);
         match self.peek_kind() {
             Some(Semi) => {
                 self.lpop();
@@ -695,7 +695,7 @@ impl Parser {
             }
             Some(RBrace | RSqBr | Dedent) => {
                 debug_exit_info!(self);
-                return Ok(Args::pos_only(vec![], None));
+                return Ok(Args::empty());
             }
             Some(Newline) if style.needs_parens() => {
                 self.skip();
@@ -723,7 +723,7 @@ impl Parser {
                 let var_args = PosArg::new(unary.deconstruct().1.type_asc_expr(t_spec));
                 Args::new(vec![], Some(var_args), vec![], None)
             }
-            PosOrKwArg::Pos(arg) => Args::pos_only(vec![arg], None),
+            PosOrKwArg::Pos(arg) => Args::single(arg),
             PosOrKwArg::Kw(arg) => Args::new(vec![], None, vec![arg], None),
         };
         loop {
@@ -767,8 +767,7 @@ impl Parser {
                     }
                     if style.needs_parens() && self.cur_is(RParen) {
                         let rp = self.lpop();
-                        let (pos_args, var_args, kw_args, _) = args.deconstruct();
-                        args = Args::new(pos_args, var_args, kw_args, Some((lp.unwrap(), rp)));
+                        args.set_parens((lp.unwrap(), rp));
                         break;
                     }
                     if !args.kw_is_empty() {
@@ -807,8 +806,7 @@ impl Parser {
                 Some(RParen) => {
                     if let Some(lp) = lp {
                         let rp = self.lpop();
-                        let (pos_args, var_args, kw_args, _) = args.deconstruct();
-                        args = Args::new(pos_args, var_args, kw_args, Some((lp, rp)));
+                        args.set_parens((lp, rp));
                     } else {
                         // e.g. f(g 1)
                         let (pos_args, var_args, kw_args, _) = args.deconstruct();
@@ -830,8 +828,7 @@ impl Parser {
                                 debug_exit_info!(self);
                                 return Err(());
                             }
-                            let (pos_args, var_args, kw_args, _) = args.deconstruct();
-                            args = Args::new(pos_args, var_args, kw_args, Some((lp.unwrap(), rp)));
+                            args.set_parens((lp.unwrap(), rp));
                         }
                         break;
                     }
@@ -1690,9 +1687,7 @@ impl Parser {
                     Signature::Var(var) => {
                         let mut last = def.body.block.pop().unwrap();
                         for deco in decos.into_iter() {
-                            last = deco
-                                .into_expr()
-                                .call_expr(Args::pos_only(vec![PosArg::new(last)], None));
+                            last = deco.into_expr().call_expr(Args::single(PosArg::new(last)));
                         }
                         def.body.block.push(last);
                         let expr = Expr::Def(Def::new(Signature::Var(var), def.body));
@@ -2297,7 +2292,7 @@ impl Parser {
                 len,
             )));
         }
-        let mut args = Args::pos_only(vec![PosArg::new(first_elem)], None);
+        let mut args = Args::single(PosArg::new(first_elem));
         loop {
             match self.peek_kind() {
                 Some(Comma) => {
@@ -2380,7 +2375,7 @@ impl Parser {
                 let var_args = Some(PosArg::new(expr.type_asc_expr(t_spec)));
                 Args::new(vec![], var_args, vec![], None)
             }
-            PosOrKwArg::Pos(pos) => Args::pos_only(vec![pos], None),
+            PosOrKwArg::Pos(pos) => Args::single(pos),
             PosOrKwArg::Kw(kw) => Args::new(vec![], None, vec![kw], None),
         };
         #[allow(clippy::while_let_loop)]
@@ -2502,11 +2497,7 @@ impl Parser {
                         mid_expr.ln_begin().unwrap(),
                         mid_expr.col_begin().unwrap(),
                     );
-                    let call = Call::new(
-                        str_func,
-                        None,
-                        Args::pos_only(vec![PosArg::new(mid_expr)], None),
-                    );
+                    let call = Call::new(str_func, None, Args::single(PosArg::new(mid_expr)));
                     let op = Token::new(
                         Plus,
                         "+",

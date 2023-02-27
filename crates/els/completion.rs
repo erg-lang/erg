@@ -7,8 +7,10 @@ use erg_common::impl_u8_enum;
 use erg_common::traits::Locational;
 
 use erg_compiler::artifact::BuildRunnable;
+use erg_compiler::context::Context;
 use erg_compiler::erg_parser::token::TokenKind;
-use erg_compiler::ty::Type;
+use erg_compiler::hir::Expr;
+use erg_compiler::ty::{HasType, ParamTy, Type};
 use erg_compiler::varinfo::AbsLocation;
 use erg_compiler::AccessKind;
 
@@ -17,7 +19,7 @@ use lsp_types::{
     MarkupContent, MarkupKind,
 };
 
-use crate::server::{ELSResult, Server};
+use crate::server::{send, send_log, ELSResult, Server};
 use crate::util;
 
 fn mark_to_string(mark: MarkedString) -> String {
@@ -37,40 +39,72 @@ fn markdown_order(block: &str) -> usize {
 
 impl_u8_enum! { CompletionOrder; i32;
     TypeMatched = -8,
-    SingularAttr = -2,
+    NameMatched = -2,
     Normal = 1000000,
     Builtin = 1,
     Escaped = 4,
     DoubleEscaped = 16,
 }
 
-impl CompletionOrder {
-    pub fn score(vi: &VarInfo, label: &str) -> i32 {
-        let mut orders = vec![Self::Normal];
-        if label.starts_with("__") {
-            orders.push(Self::DoubleEscaped);
-        } else if label.starts_with('_') {
-            orders.push(Self::Escaped);
+pub struct CompletionOrderSetter<'b> {
+    vi: &'b VarInfo,
+    arg_pt: Option<&'b ParamTy>,
+    mod_ctx: &'b Context,
+    label: String,
+}
+
+impl<'b> CompletionOrderSetter<'b> {
+    pub fn new(
+        vi: &'b VarInfo,
+        arg_pt: Option<&'b ParamTy>,
+        mod_ctx: &'b Context,
+        label: String,
+    ) -> Self {
+        Self {
+            vi,
+            arg_pt,
+            mod_ctx,
+            label,
         }
-        if vi.kind.is_builtin() {
-            orders.push(Self::Builtin);
+    }
+
+    pub fn score(&self) -> i32 {
+        let mut orders = vec![CompletionOrder::Normal];
+        if self.label.starts_with("__") {
+            orders.push(CompletionOrder::DoubleEscaped);
+        } else if self.label.starts_with('_') {
+            orders.push(CompletionOrder::Escaped);
+        }
+        if self.vi.kind.is_builtin() {
+            orders.push(CompletionOrder::Builtin);
+        }
+        if self
+            .arg_pt
+            .map_or(false, |pt| pt.name().map(|s| &s[..]) == Some(&self.label))
+        {
+            orders.push(CompletionOrder::NameMatched);
+        }
+        if self.arg_pt.map_or(false, |pt| {
+            self.mod_ctx.subtype_of(&self.vi.t, pt.typ(), true)
+        }) {
+            orders.push(CompletionOrder::TypeMatched);
         }
         orders.into_iter().map(i32::from).sum()
     }
 
-    pub fn mangle(vi: &VarInfo, label: &str) -> String {
-        let score = Self::score(vi, label);
-        format!("{}_{}", char::from_u32(score as u32).unwrap(), label)
+    pub fn mangle(&self) -> String {
+        let score = self.score();
+        format!("{}_{}", char::from_u32(score as u32).unwrap(), self.label)
     }
 
-    fn set(vi: &VarInfo, item: &mut CompletionItem) {
-        item.sort_text = Some(Self::mangle(vi, &item.label));
+    fn set(&self, item: &mut CompletionItem) {
+        item.sort_text = Some(self.mangle());
     }
 }
 
 impl<Checker: BuildRunnable> Server<Checker> {
     pub(crate) fn show_completion(&mut self, msg: &Value) -> ELSResult<()> {
-        Self::send_log(format!("completion requested: {msg}"))?;
+        send_log(format!("completion requested: {msg}"))?;
         let params = CompletionParams::deserialize(&msg["params"])?;
         let uri = util::normalize_url(params.text_document_position.text_document.uri);
         let path = util::uri_to_path(&uri);
@@ -84,7 +118,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             Some(":") => AccessKind::Attr, // or type ascription
             _ => AccessKind::Name,
         };
-        Self::send_log(format!("AccessKind: {acc_kind:?}"))?;
+        send_log(format!("AccessKind: {acc_kind:?}"))?;
         let mut result: Vec<CompletionItem> = vec![];
         let contexts = if acc_kind.is_local() {
             let prev_token = self.file_cache.get_token_relatively(&uri, pos, -1)?;
@@ -101,7 +135,16 @@ impl<Checker: BuildRunnable> Server<Checker> {
         } else {
             self.get_receiver_ctxs(&uri, pos)?
         };
-        // Self::send_log(format!("contexts: {:?}", contexts.iter().map(|ctx| &ctx.name).collect::<Vec<_>>())).unwrap();
+        let arg_pt = self.get_min_expr(&uri, pos, -1).and_then(|(token, expr)| {
+            if let Expr::Call(call) = expr {
+                let sig_t = call.obj.t();
+                let nth = self.nth(&uri, call.args.loc(), &token);
+                sig_t.non_default_params()?.get(nth).cloned()
+            } else {
+                None
+            }
+        });
+        let mod_ctx = &self.modules.get(&uri).unwrap().context;
         for (name, vi) in contexts.into_iter().flat_map(|ctx| ctx.dir()) {
             if acc_kind.is_attr() && vi.vis.is_private() {
                 continue;
@@ -129,7 +172,8 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 })
                 .unwrap_or_else(|| vi.t.clone());
             let mut item = CompletionItem::new_simple(name.to_string(), readable_t.to_string());
-            CompletionOrder::set(vi, &mut item);
+            CompletionOrderSetter::new(vi, arg_pt.as_ref(), mod_ctx, item.label.clone())
+                .set(&mut item);
             item.kind = match &vi.t {
                 Type::Subr(subr) if subr.self_t().is_some() => Some(CompletionItemKind::METHOD),
                 Type::Quantified(quant) if quant.self_t().is_some() => {
@@ -147,19 +191,17 @@ impl<Checker: BuildRunnable> Server<Checker> {
             item.data = Some(Value::String(vi.def_loc.to_string()));
             result.push(item);
         }
-        Self::send_log(format!("completion items: {}", result.len()))?;
-        Self::send(
-            &json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": result }),
-        )
+        send_log(format!("completion items: {}", result.len()))?;
+        send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": result }))
     }
 
     pub(crate) fn resolve_completion(&self, msg: &Value) -> ELSResult<()> {
-        Self::send_log(format!("completion resolve requested: {msg}"))?;
+        send_log(format!("completion resolve requested: {msg}"))?;
         let mut item = CompletionItem::deserialize(&msg["params"])?;
         if let Some(data) = &item.data {
             let mut contents = vec![];
             let Ok(def_loc) = data.as_str().unwrap().parse::<AbsLocation>() else {
-                return Self::send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": item }));
+                return send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": item }));
             };
             self.show_doc_comment(None, &mut contents, &def_loc)?;
             let mut contents = contents.into_iter().map(mark_to_string).collect::<Vec<_>>();
@@ -169,6 +211,6 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 value: contents.join("\n"),
             }));
         }
-        Self::send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": item }))
+        send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": item }))
     }
 }

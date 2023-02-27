@@ -20,17 +20,17 @@ use lsp_types::{
     RenameFilesParams, RenameParams, ResourceOp, TextDocumentEdit, TextEdit, Url, WorkspaceEdit,
 };
 
-use crate::server::{ELSResult, Server};
+use crate::server::{send, send_error_info, send_log, ELSResult, Server};
 use crate::util;
 
 impl<Checker: BuildRunnable> Server<Checker> {
     pub(crate) fn rename(&mut self, msg: &Value) -> ELSResult<()> {
         let params = RenameParams::deserialize(&msg["params"])?;
-        Self::send_log(format!("rename request: {params:?}"))?;
+        send_log(format!("rename request: {params:?}"))?;
         let uri = util::normalize_url(params.text_document_position.text_document.uri);
         let pos = params.text_document_position.position;
         if let Some(tok) = self.file_cache.get_token(&uri, pos) {
-            // Self::send_log(format!("token: {tok}"))?;
+            // send_log(format!("token: {tok}"))?;
             if let Some(visitor) = self.get_visitor(&uri) {
                 if let Some(vi) = visitor.get_info(&tok) {
                     let mut changes: HashMap<Url, Vec<TextEdit>> = HashMap::new();
@@ -61,14 +61,14 @@ impl<Checker: BuildRunnable> Server<Checker> {
                             _ => format!("this {kind} cannot be renamed"),
                         };
                         let edit = WorkspaceEdit::new(changes);
-                        Self::send(
+                        send(
                             &json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": edit }),
                         )?;
-                        return Self::send_error_info(error_reason);
+                        return send_error_info(error_reason);
                     }
                     Self::commit_change(&mut changes, &vi.def_loc, params.new_name.clone());
                     if let Some(value) = self.get_index().get_refs(&vi.def_loc) {
-                        // Self::send_log(format!("referrers: {referrers:?}"))?;
+                        // send_log(format!("referrers: {referrers:?}"))?;
                         for referrer in value.referrers.iter() {
                             Self::commit_change(&mut changes, referrer, params.new_name.clone());
                         }
@@ -79,11 +79,11 @@ impl<Checker: BuildRunnable> Server<Checker> {
                     }
                     let timestamps = self.get_timestamps(changes.keys());
                     let edit = WorkspaceEdit::new(changes);
-                    Self::send(
+                    send(
                         &json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": edit }),
                     )?;
                     for _ in 0..20 {
-                        Self::send_log("waiting for file to be modified...")?;
+                        send_log("waiting for file to be modified...")?;
                         if self.all_changed(&timestamps) {
                             break;
                         }
@@ -99,9 +99,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 }
             }
         }
-        Self::send(
-            &json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": Value::Null }),
-        )
+        send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": Value::Null }))
     }
 
     fn commit_change(
@@ -269,7 +267,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
     }
 
     pub(crate) fn rename_files(&mut self, msg: &Value) -> ELSResult<()> {
-        Self::send_log("workspace/willRenameFiles request")?;
+        send_log("workspace/willRenameFiles request")?;
         let params = RenameFilesParams::deserialize(msg["params"].clone())?;
         let mut edits = HashMap::new();
         let mut renames = vec![];
@@ -307,6 +305,6 @@ impl<Checker: BuildRunnable> Server<Checker> {
             document_changes: Some(changes),
             ..Default::default()
         };
-        Self::send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": edit }))
+        send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": edit }))
     }
 }

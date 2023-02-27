@@ -947,7 +947,7 @@ impl Context {
         )?;
         let op = hir::Expr::Accessor(hir::Accessor::private(symbol, t));
         self.get_call_t(&op, &None, args, &[], input, namespace)
-            .map_err(|errs| {
+            .map_err(|(_, errs)| {
                 let Some(op_ident ) = option_enum_unwrap!(op, hir::Expr::Accessor:(hir::Accessor::Ident:(_))) else {
                     return errs;
                 };
@@ -981,7 +981,7 @@ impl Context {
         )?;
         let op = hir::Expr::Accessor(hir::Accessor::private(symbol, vi));
         self.get_call_t(&op, &None, args, &[], input, namespace)
-            .map_err(|errs| {
+            .map_err(|(_, errs)| {
                 let Some(op_ident) = option_enum_unwrap!(op, hir::Expr::Accessor:(hir::Accessor::Ident:(_))) else {
                     return errs;
                 };
@@ -1575,41 +1575,62 @@ impl Context {
         kw_args: &[hir::KwArg],
         input: &Input,
         namespace: &Str,
-    ) -> TyCheckResult<VarInfo> {
+    ) -> Result<VarInfo, (Option<VarInfo>, TyCheckErrors)> {
         if let hir::Expr::Accessor(hir::Accessor::Ident(local)) = obj {
             if local.vis().is_private() {
                 match &local.inspect()[..] {
                     "match" => {
-                        return self.get_match_call_t(SubrKind::Func, pos_args, kw_args);
+                        return self
+                            .get_match_call_t(SubrKind::Func, pos_args, kw_args)
+                            .map_err(|errs| (None, errs));
                     }
                     "match!" => {
-                        return self.get_match_call_t(SubrKind::Proc, pos_args, kw_args);
+                        return self
+                            .get_match_call_t(SubrKind::Proc, pos_args, kw_args)
+                            .map_err(|errs| (None, errs));
                     }
                     _ => {}
                 }
             }
         }
-        let found = self.search_callee_info(obj, attr_name, input, namespace)?;
+        let found = self
+            .search_callee_info(obj, attr_name, input, namespace)
+            .map_err(|err| (None, TyCheckErrors::from(err)))?;
         log!(
             "Found:\ncallee: {obj}{}\nfound: {found}",
             fmt_option!(pre ".", attr_name.as_ref().map(|ident| &ident.name))
         );
-        let instance = self.instantiate(found.t, obj)?;
+        let instance = self
+            .instantiate(found.t.clone(), obj)
+            .map_err(|errs| (Some(found.clone()), errs))?;
         log!(
             "Instantiated:\ninstance: {instance}\npos_args: ({})\nkw_args: ({})",
             fmt_slice(pos_args),
             fmt_slice(kw_args)
         );
-        let instance = match self.substitute_call(obj, attr_name, &instance, pos_args, kw_args)? {
+        let instance = match self
+            .substitute_call(obj, attr_name, &instance, pos_args, kw_args)
+            .map_err(|errs| (Some(found.clone()), errs))?
+        {
             SubstituteResult::Ok => instance,
             SubstituteResult::__Call__(__call__) => __call__,
             SubstituteResult::Coerced(coerced) => coerced,
         };
         debug_assert!(!instance.is_quantified_subr());
         log!(info "Substituted:\ninstance: {instance}");
-        let res = self.eval_t_params(instance, self.level, obj)?;
+        let res = self
+            .eval_t_params(instance, self.level, obj)
+            .map_err(|errs| (Some(found.clone()), errs))?;
         log!(info "Params evaluated:\nres: {res}\n");
-        self.propagate(&res, obj)?;
+        self.propagate(&res, obj).map_err(|errs| {
+            (
+                Some(VarInfo {
+                    t: res.clone(),
+                    ..found.clone()
+                }),
+                errs,
+            )
+        })?;
         log!(info "Propagated:\nres: {res}\n");
         let res = VarInfo { t: res, ..found };
         Ok(res)

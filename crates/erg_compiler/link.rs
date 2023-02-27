@@ -326,7 +326,7 @@ impl<'a> Linker<'a> {
             let code = Expr::Code(Block::new(Vec::from(hir.module)));
             let module_type =
                 Expr::Accessor(Accessor::private_with_line(Str::ever("#ModuleType"), line));
-            let args = Args::new(vec![PosArg::new(mod_name.clone())], None, vec![], None);
+            let args = Args::single(PosArg::new(mod_name.clone()));
             let block = Block::new(vec![module_type.call_expr(args)]);
             let tmp = Identifier::private_with_line(Str::from(fresh_varname()), line);
             let mod_def = Expr::Def(Def::new(
@@ -338,19 +338,14 @@ impl<'a> Linker<'a> {
             let m_dict = module.clone().attr_expr(__dict__);
             let locals = Expr::Accessor(Accessor::public_with_line(Str::ever("locals"), line));
             let locals_call = locals.call_expr(Args::empty());
-            let args = Args::new(vec![PosArg::new(locals_call)], None, vec![], None);
+            let args = Args::single(PosArg::new(locals_call));
             let mod_update = Expr::Call(Call::new(
                 m_dict.clone(),
                 Some(Identifier::public("update")),
                 args,
             ));
             let exec = Expr::Accessor(Accessor::public_with_line(Str::ever("exec"), line));
-            let args = Args::new(
-                vec![PosArg::new(code), PosArg::new(m_dict)],
-                None,
-                vec![],
-                None,
-            );
+            let args = Args::pos_only(vec![PosArg::new(code), PosArg::new(m_dict)], None);
             let exec_code = exec.call_expr(args);
             let compound = Block::new(vec![mod_def, mod_update, exec_code, module]);
             *expr = Expr::Compound(compound);

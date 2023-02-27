@@ -15,7 +15,7 @@ use erg_compiler::artifact::{BuildRunnable, IncompleteArtifact};
 use erg_compiler::hir::{Block, Call, ClassDef, Def, Expr, Lambda, Params, PatchDef, Signature};
 use lsp_types::{InlayHint, InlayHintKind, InlayHintLabel, InlayHintParams};
 
-use crate::server::{ELSResult, Server};
+use crate::server::{send, send_log, ELSResult, Server};
 use crate::util;
 use crate::util::loc_to_range;
 
@@ -90,7 +90,7 @@ fn param_anot<D: std::fmt::Display>(ln_begin: u32, col_begin: u32, name: D) -> I
 
 impl<Checker: BuildRunnable> Server<Checker> {
     pub(crate) fn get_inlay_hint(&mut self, msg: &Value) -> ELSResult<()> {
-        Self::send_log(format!("inlay hint request: {msg}"))?;
+        send_log(format!("inlay hint request: {msg}"))?;
         let params = InlayHintParams::deserialize(&msg["params"])?;
         let uri = util::normalize_url(params.text_document.uri);
         let mut result = vec![];
@@ -102,9 +102,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 result.extend(self.get_expr_hint(chunk));
             }
         }
-        Self::send(
-            &json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": result }),
-        )
+        send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": result }))
     }
 
     fn get_expr_hint(&self, expr: &Expr) -> Vec<InlayHint> {

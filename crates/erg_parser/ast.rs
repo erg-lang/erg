@@ -161,6 +161,7 @@ pub struct Args {
     pos_args: Vec<PosArg>,
     pub(crate) var_args: Option<Box<PosArg>>,
     kw_args: Vec<KwArg>,
+    // these are for ELS
     pub paren: Option<(Token, Token)>,
 }
 
@@ -208,8 +209,12 @@ impl Args {
         }
     }
 
-    pub fn pos_only(pos_args: Vec<PosArg>, paren: Option<(Token, Token)>) -> Self {
-        Self::new(pos_args, None, vec![], paren)
+    pub fn pos_only(pos_arg: Vec<PosArg>, paren: Option<(Token, Token)>) -> Self {
+        Self::new(pos_arg, None, vec![], paren)
+    }
+
+    pub fn single(pos_args: PosArg) -> Self {
+        Self::pos_only(vec![pos_args], None)
     }
 
     pub fn empty() -> Self {
@@ -292,6 +297,10 @@ impl Args {
 
     pub fn push_kw(&mut self, arg: KwArg) {
         self.kw_args.push(arg);
+    }
+
+    pub fn set_parens(&mut self, paren: (Token, Token)) {
+        self.paren = Some(paren);
     }
 
     pub fn get_left_or_key(&self, key: &str) -> Option<&Expr> {
@@ -3369,6 +3378,10 @@ impl Params {
             defaults,
             parens,
         }
+    }
+
+    pub fn single(non_default: NonDefaultParamSignature) -> Self {
+        Self::new(vec![non_default], None, vec![], None)
     }
 
     pub fn deconstruct(self) -> RawParams {

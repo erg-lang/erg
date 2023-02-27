@@ -634,14 +634,14 @@ impl Parser {
         match rhs {
             Expr::Literal(lit) => {
                 let param = NonDefaultParamSignature::new(ParamPattern::Lit(lit), None);
-                let params = Params::new(vec![param], None, vec![], None);
+                let params = Params::single(param);
                 Ok(LambdaSignature::new(params, None, TypeBoundSpecs::empty()))
             }
             Expr::Accessor(accessor) => {
                 let param = self
                     .convert_accessor_to_param_sig(accessor)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
-                let params = Params::new(vec![param], None, vec![], None);
+                let params = Params::single(param);
                 debug_exit_info!(self);
                 Ok(LambdaSignature::new(params, None, TypeBoundSpecs::empty()))
             }
@@ -657,7 +657,7 @@ impl Parser {
                     .convert_array_to_param_array_pat(array)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
                 let param = NonDefaultParamSignature::new(ParamPattern::Array(arr), None);
-                let params = Params::new(vec![param], None, vec![], None);
+                let params = Params::single(param);
                 debug_exit_info!(self);
                 Ok(LambdaSignature::new(params, None, TypeBoundSpecs::empty()))
             }
@@ -666,7 +666,7 @@ impl Parser {
                     .convert_record_to_param_record_pat(record)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
                 let param = NonDefaultParamSignature::new(ParamPattern::Record(rec), None);
-                let params = Params::new(vec![param], None, vec![], None);
+                let params = Params::single(param);
                 debug_exit_info!(self);
                 Ok(LambdaSignature::new(params, None, TypeBoundSpecs::empty()))
             }
@@ -767,7 +767,7 @@ impl Parser {
             .map_err(|_| self.stack_dec(fn_name!()))?;
         debug_exit_info!(self);
         Ok(LambdaSignature::new(
-            Params::new(vec![sig], None, vec![], None),
+            Params::single(sig),
             None,
             TypeBoundSpecs::empty(),
         ))

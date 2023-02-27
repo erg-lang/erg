@@ -718,6 +718,7 @@ pub enum Type {
         param_ts: Vec<Type>,
         return_t: Box<Type>,
     },
+    // Overloaded(Vec<Type>),
     Record(Dict<Field, Type>), // e.g. {x = Int}
     // e.g. {T -> T | T: Type}, {I: Int | I > 0}, {S | N: Nat; S: Str N; N > 1}
     // 区間型と列挙型は篩型に変換される
