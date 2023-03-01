@@ -1,0 +1,13 @@
+C = Class { .x = Nat }
+C|C <: Add(Int)|.
+    Output = Int
+    __add__ self, other: Int =
+        self.x + other
+C|C <: Add(Nat)|.
+    Output = Nat
+    __add__ self, other: Nat =
+        self.x + other
+
+c = C.new { .x = 1 }
+_: Int = c + -1
+_: Nat = c + 1

@@ -213,6 +213,26 @@ print! P.Output # TypeError: ambiguous type
 print! P|<: Mul(Int)|.Output # <class 'P'>
 ```
 
+## Specialized implementations of traits
+
+Traits can be specialized implementations.
+
+The search for an implementation is done according to the variance of the trait. Since `Add`'s variance is covariant i.e. `Add(Nat) <: Add(Int)`, `Add(Nat)`'s implementation is chosen  as long as possible.
+
+```python
+Natural = Class { .inner = Nat }
+Natural|Self <: Add(Int)|.
+    Output = Int
+    `_+_` self, other = self.inner + other
+Natural|Self <: Add(Nat)|.
+    Output = Nat
+    `_+_` self, other = self.inner + other
+
+n = Natural.new {.inner = 1}
+_: Int = n + -1
+_: Nat = n + 1
+```
+
 ## Appendix: Differences from Rust traits
 
 Erg's trait is faithful to the one proposed by [Schärli et al.](https://www.ptidej.net/courses/ift6251/fall06/presentations/061122/061122.doc.pdf).

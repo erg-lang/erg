@@ -1387,142 +1387,8 @@ impl ASTLowerer {
         let mut hir_def = self.lower_def(class_def.def)?;
         let mut hir_methods = hir::Block::empty();
         let mut dummy_tv_cache = TyVarCache::new(self.module.context.level, &self.module.context);
-        for mut methods in class_def.methods_list.into_iter() {
-            let (class, impl_trait) = match &methods.class {
-                ast::TypeSpec::TypeApp { spec, args } => {
-                    let (impl_trait, t_spec) = match &args.args.pos_args().first().unwrap().expr {
-                        // TODO: check `tasc.op`
-                        ast::Expr::TypeAscription(tasc) => (
-                            self.module.context.instantiate_typespec(
-                                &tasc.t_spec.t_spec,
-                                None,
-                                &mut dummy_tv_cache,
-                                RegistrationMode::Normal,
-                                false,
-                            )?,
-                            &tasc.t_spec,
-                        ),
-                        other => {
-                            return Err(LowerErrors::from(LowerError::syntax_error(
-                                self.input().clone(),
-                                line!() as usize,
-                                other.loc(),
-                                self.module.context.caused_by(),
-                                format!("expected type ascription, but found {}", other.name()),
-                                None,
-                            )))
-                        }
-                    };
-                    (
-                        self.module.context.instantiate_typespec(
-                            spec,
-                            None,
-                            &mut dummy_tv_cache,
-                            RegistrationMode::Normal,
-                            false,
-                        )?,
-                        Some((impl_trait, t_spec)),
-                    )
-                }
-                other => (
-                    self.module.context.instantiate_typespec(
-                        other,
-                        None,
-                        &mut dummy_tv_cache,
-                        RegistrationMode::Normal,
-                        false,
-                    )?,
-                    None,
-                ),
-            };
-            // assume the class has implemented the trait, regardless of whether the implementation is correct
-            if let Some((trait_, trait_loc)) = &impl_trait {
-                self.register_trait_impl(&class, trait_, *trait_loc)?;
-            }
-            if let Some((_, class_root)) = self.module.context.get_nominal_type_ctx(&class) {
-                if !class_root.kind.is_class() {
-                    return Err(LowerErrors::from(LowerError::method_definition_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        methods.loc(),
-                        self.module.context.caused_by(),
-                        &class.qual_name(),
-                        None,
-                    )));
-                }
-            } else {
-                return Err(LowerErrors::from(LowerError::no_var_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    methods.class.loc(),
-                    self.module.context.caused_by(),
-                    &class.qual_name(),
-                    self.module.context.get_similar_name(&class.local_name()),
-                )));
-            }
-            let kind = ContextKind::MethodDefs(impl_trait.as_ref().map(|(t, _)| t.clone()));
-            self.module
-                .context
-                .grow(&class.local_name(), kind, hir_def.sig.vis(), None);
-            for attr in methods.attrs.iter_mut() {
-                match attr {
-                    ast::ClassAttr::Def(def) => {
-                        if methods.vis.is(TokenKind::Dot) {
-                            def.sig.ident_mut().unwrap().dot = Some(Token::new(
-                                TokenKind::Dot,
-                                ".",
-                                def.sig.ln_begin().unwrap_or(0),
-                                def.sig.col_begin().unwrap_or(0),
-                            ));
-                        }
-                        self.module.context.preregister_def(def).map_err(|errs| {
-                            self.pop_append_errs();
-                            errs
-                        })?;
-                    }
-                    ast::ClassAttr::Decl(_) | ast::ClassAttr::Doc(_) => {}
-                }
-            }
-            for attr in methods.attrs.into_iter() {
-                match attr {
-                    ast::ClassAttr::Def(def) => match self.lower_def(def) {
-                        Ok(def) => {
-                            hir_methods.push(hir::Expr::Def(def));
-                        }
-                        Err(errs) => {
-                            self.errs.extend(errs);
-                        }
-                    },
-                    ast::ClassAttr::Decl(decl) => match self.lower_type_asc(decl) {
-                        Ok(decl) => {
-                            hir_methods.push(hir::Expr::TypeAsc(decl));
-                        }
-                        Err(errs) => {
-                            self.errs.extend(errs);
-                        }
-                    },
-                    ast::ClassAttr::Doc(doc) => match self.lower_literal(doc) {
-                        Ok(doc) => {
-                            hir_methods.push(hir::Expr::Lit(doc));
-                        }
-                        Err(errs) => {
-                            self.errs.extend(errs);
-                        }
-                    },
-                }
-            }
-            if let Err(errs) = self.module.context.check_decls() {
-                self.errs.extend(errs);
-            }
-            if let Some((trait_, _)) = &impl_trait {
-                self.check_override(&class, Some(trait_));
-            } else {
-                self.check_override(&class, None);
-            }
-            if let Err(err) = self.check_trait_impl(impl_trait, &class) {
-                self.errs.push(err);
-            }
-            self.check_collision_and_push(class);
+        for methods in class_def.methods_list.into_iter() {
+            self.lower_methods(methods, &hir_def, &mut hir_methods, &mut dummy_tv_cache)?;
         }
         let class = mono(hir_def.sig.ident().inspect());
         let Some((_, class_ctx)) = self.module.context.get_nominal_type_ctx(&class) else {
@@ -1563,6 +1429,155 @@ impl ASTLowerer {
             __new__,
             hir_methods,
         ))
+    }
+
+    fn lower_methods(
+        &mut self,
+        mut methods: ast::Methods,
+        hir_def: &hir::Def,
+        hir_methods: &mut hir::Block,
+        dummy_tv_cache: &mut TyVarCache,
+    ) -> LowerResult<()> {
+        let (class, impl_trait) = match &methods.class {
+            ast::TypeSpec::TypeApp { spec, args } => {
+                let (impl_trait, t_spec) = match &args.args.pos_args().first().unwrap().expr {
+                    // TODO: check `tasc.op`
+                    ast::Expr::TypeAscription(tasc) => (
+                        self.module.context.instantiate_typespec(
+                            &tasc.t_spec.t_spec,
+                            None,
+                            dummy_tv_cache,
+                            RegistrationMode::Normal,
+                            false,
+                        )?,
+                        &tasc.t_spec,
+                    ),
+                    other => {
+                        return Err(LowerErrors::from(LowerError::syntax_error(
+                            self.input().clone(),
+                            line!() as usize,
+                            other.loc(),
+                            self.module.context.caused_by(),
+                            format!("expected type ascription, but found {}", other.name()),
+                            None,
+                        )))
+                    }
+                };
+                (
+                    self.module.context.instantiate_typespec(
+                        spec,
+                        None,
+                        dummy_tv_cache,
+                        RegistrationMode::Normal,
+                        false,
+                    )?,
+                    Some((impl_trait, t_spec)),
+                )
+            }
+            other => (
+                self.module.context.instantiate_typespec(
+                    other,
+                    None,
+                    dummy_tv_cache,
+                    RegistrationMode::Normal,
+                    false,
+                )?,
+                None,
+            ),
+        };
+        // assume the class has implemented the trait, regardless of whether the implementation is correct
+        if let Some((trait_, trait_loc)) = &impl_trait {
+            self.register_trait_impl(&class, trait_, *trait_loc)?;
+        }
+        if let Some((_, class_root)) = self.module.context.get_nominal_type_ctx(&class) {
+            if !class_root.kind.is_class() {
+                return Err(LowerErrors::from(LowerError::method_definition_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    methods.loc(),
+                    self.module.context.caused_by(),
+                    &class.qual_name(),
+                    None,
+                )));
+            }
+        } else {
+            return Err(LowerErrors::from(LowerError::no_var_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                methods.class.loc(),
+                self.module.context.caused_by(),
+                &class.qual_name(),
+                self.module.context.get_similar_name(&class.local_name()),
+            )));
+        }
+        let kind = ContextKind::MethodDefs(impl_trait.as_ref().map(|(t, _)| t.clone()));
+        self.module
+            .context
+            .grow(&class.local_name(), kind, hir_def.sig.vis(), None);
+        for attr in methods.attrs.iter_mut() {
+            match attr {
+                ast::ClassAttr::Def(def) => {
+                    if methods.vis.is(TokenKind::Dot) {
+                        def.sig.ident_mut().unwrap().dot = Some(Token::new(
+                            TokenKind::Dot,
+                            ".",
+                            def.sig.ln_begin().unwrap_or(0),
+                            def.sig.col_begin().unwrap_or(0),
+                        ));
+                    }
+                    self.module.context.preregister_def(def).map_err(|errs| {
+                        self.pop_append_errs();
+                        errs
+                    })?;
+                }
+                ast::ClassAttr::Decl(_) | ast::ClassAttr::Doc(_) => {}
+            }
+        }
+        for attr in methods.attrs.into_iter() {
+            match attr {
+                ast::ClassAttr::Def(def) => match self.lower_def(def) {
+                    Ok(def) => {
+                        hir_methods.push(hir::Expr::Def(def));
+                    }
+                    Err(errs) => {
+                        self.errs.extend(errs);
+                    }
+                },
+                ast::ClassAttr::Decl(decl) => match self.lower_type_asc(decl) {
+                    Ok(decl) => {
+                        hir_methods.push(hir::Expr::TypeAsc(decl));
+                    }
+                    Err(errs) => {
+                        self.errs.extend(errs);
+                    }
+                },
+                ast::ClassAttr::Doc(doc) => match self.lower_literal(doc) {
+                    Ok(doc) => {
+                        hir_methods.push(hir::Expr::Lit(doc));
+                    }
+                    Err(errs) => {
+                        self.errs.extend(errs);
+                    }
+                },
+            }
+        }
+        if let Err(errs) = self.module.context.check_decls() {
+            self.errs.extend(errs);
+        }
+        if let Some((trait_, t_spec)) = &impl_trait {
+            self.check_override(&class, Some(trait_));
+            if let Err(err) = self.check_trait_specialization(trait_, &class) {
+                self.errs.push(err);
+            }
+            if let Err(err) = self.check_trait_impl(trait_, t_spec, &class) {
+                self.errs.push(err);
+            }
+            self.check_collision_and_push(class, Some(trait_.clone()));
+        } else {
+            self.check_override(&class, None);
+            self.check_collision_and_push(class, None);
+        }
+        Ok(())
     }
 
     fn lower_patch_def(&mut self, class_def: ast::PatchDef) -> LowerResult<hir::PatchDef> {
@@ -1771,49 +1786,105 @@ impl ASTLowerer {
         }
     }
 
+    /// Inspect if the specialization is valid.
+    /// Checking there is already a trait implementation with the same content is checked with `check_collision_and_push`.
+    fn check_trait_specialization(
+        &mut self,
+        maybe_specialized_trait: &Type,
+        class: &Type,
+    ) -> SingleLowerResult<()> {
+        let mut errs = LowerErrors::empty();
+        let mod_ctx = self.module.context.get_outer().unwrap();
+        if let Some(sups) = mod_ctx.get_nominal_super_type_ctxs(class) {
+            for ctx in sups.into_iter() {
+                for (kind, methods) in ctx.methods_list.iter() {
+                    if let ClassDefType::ImplTrait {
+                        impl_trait: base_trait,
+                        ..
+                    } = kind
+                    {
+                        if mod_ctx.subtype_of(maybe_specialized_trait, base_trait, true) {
+                            // then, current impl should be specialized
+                            for (base_name, base_vi) in methods.locals.iter() {
+                                if let Some((specialized_name, specialized_vi)) =
+                                    self.module.context.locals.get_key_value(base_name)
+                                {
+                                    let specialized_t = if specialized_vi.t.is_subr() {
+                                        specialized_vi.t.return_t().unwrap()
+                                    } else {
+                                        &specialized_vi.t
+                                    };
+                                    let base_t = if base_vi.t.is_subr() {
+                                        base_vi.t.return_t().unwrap()
+                                    } else {
+                                        &base_vi.t
+                                    };
+                                    if !mod_ctx.subtype_of(specialized_t, base_t, true) {
+                                        errs.push(LowerError::specialization_error(
+                                            self.cfg.input.clone(),
+                                            line!() as usize,
+                                            specialized_name.loc(),
+                                            self.module.context.caused_by(),
+                                            specialized_name.inspect(),
+                                            class,
+                                            base_trait,
+                                            &base_vi.t,
+                                            &specialized_vi.t,
+                                        ));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        self.errs.extend(errs);
+        Ok(())
+    }
+
     /// Inspect the Trait implementation for correctness,
     /// i.e., check that all required attributes are defined and that no extra attributes are defined
     fn check_trait_impl(
         &mut self, //: methods context
-        impl_trait: Option<(Type, &TypeSpecWithOp)>,
+        impl_trait: &Type,
+        t_spec: &TypeSpecWithOp,
         class: &Type,
     ) -> SingleLowerResult<()> {
-        if let Some((impl_trait, t_spec)) = impl_trait {
-            let impl_trait = impl_trait.normalize();
-            let (unverified_names, mut errors) = if let Some(typ_ctx) = self
-                .module
-                .context
-                .get_outer()
-                .unwrap()
-                .get_nominal_type_ctx(&impl_trait)
-            {
-                self.check_methods_compatibility(&impl_trait, class, typ_ctx, t_spec)
-            } else {
-                return Err(LowerError::no_type_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    t_spec.loc(),
-                    self.module.context.caused_by(),
-                    &impl_trait.qual_name(),
-                    self.module
-                        .context
-                        .get_similar_name(&impl_trait.local_name()),
-                ));
-            };
-            for unverified in unverified_names {
-                errors.push(LowerError::not_in_trait_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    self.module.context.caused_by(),
-                    unverified.inspect(),
-                    &impl_trait,
-                    class,
-                    None,
-                    unverified.loc(),
-                ));
-            }
-            self.errs.extend(errors);
+        let impl_trait = impl_trait.clone().normalize();
+        let (unverified_names, mut errors) = if let Some(typ_ctx) = self
+            .module
+            .context
+            .get_outer()
+            .unwrap()
+            .get_nominal_type_ctx(&impl_trait)
+        {
+            self.check_methods_compatibility(&impl_trait, class, typ_ctx, t_spec)
+        } else {
+            return Err(LowerError::no_type_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                t_spec.loc(),
+                self.module.context.caused_by(),
+                &impl_trait.qual_name(),
+                self.module
+                    .context
+                    .get_similar_name(&impl_trait.local_name()),
+            ));
+        };
+        for unverified in unverified_names {
+            errors.push(LowerError::not_in_trait_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                self.module.context.caused_by(),
+                unverified.inspect(),
+                &impl_trait,
+                class,
+                None,
+                unverified.loc(),
+            ));
         }
+        self.errs.extend(errors);
         Ok(())
     }
 
@@ -1871,7 +1942,7 @@ impl ASTLowerer {
         (unverified_names, errors)
     }
 
-    fn check_collision_and_push(&mut self, class: Type) {
+    fn check_collision_and_push(&mut self, class: Type, impl_trait: Option<Type>) {
         let methods = self.module.context.pop();
         let (_, class_root) = self
             .module
@@ -1903,9 +1974,10 @@ impl ASTLowerer {
                 }
             }
         }
-        class_root
-            .methods_list
-            .push((ClassDefType::Simple(class), methods));
+        let def_type = impl_trait.map_or(ClassDefType::Simple(class.clone()), |trait_| {
+            ClassDefType::impl_trait(class, trait_)
+        });
+        class_root.methods_list.push((def_type, methods));
     }
 
     fn push_patch(&mut self) {

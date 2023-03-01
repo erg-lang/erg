@@ -21,6 +21,7 @@ use Type::*;
 
 use crate::context::cache::{SubtypePair, GLOBAL_TYPE_CACHE};
 use crate::context::{Context, Variance};
+use Variance::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Credibility {
@@ -842,14 +843,21 @@ impl Context {
                 }
                 true
             }
-            (TyParam::Type(l), TyParam::Type(r), Variance::Contravariant) => {
+            (TyParam::Type(l), TyParam::Type(r), Contravariant) => {
                 self.subtype_of(l, r, allow_cast)
             }
-            (TyParam::Type(l), TyParam::Type(r), Variance::Covariant) => {
-                self.supertype_of(l, r, allow_cast)
+            (TyParam::Type(l), TyParam::Type(r), Covariant) => self.supertype_of(l, r, allow_cast),
+            (TyParam::Type(l), TyParam::Type(r), Invariant) => self.same_type_of(l, r, allow_cast),
+            (
+                TyParam::Value(ValueObj::Type(l)),
+                TyParam::Value(ValueObj::Type(r)),
+                Contravariant,
+            ) => self.subtype_of(l.typ(), r.typ(), allow_cast),
+            (TyParam::Value(ValueObj::Type(l)), TyParam::Value(ValueObj::Type(r)), Covariant) => {
+                self.supertype_of(l.typ(), r.typ(), allow_cast)
             }
-            (TyParam::Type(l), TyParam::Type(r), Variance::Invariant) => {
-                self.same_type_of(l, r, allow_cast)
+            (TyParam::Value(ValueObj::Type(l)), TyParam::Value(ValueObj::Type(r)), Invariant) => {
+                self.same_type_of(l.typ(), r.typ(), allow_cast)
             }
             (TyParam::FreeVar(fv), _, _) if fv.is_unbound() => {
                 let fv_t = fv.get_type().unwrap();

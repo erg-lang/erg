@@ -894,16 +894,55 @@ passed keyword args:    {kw_args_len}"
 
     #[allow(clippy::too_many_arguments)]
     pub fn specialization_error(
-        _input: Input,
-        _errno: usize,
-        _loc: Location,
-        _caused_by: String,
-        _member_name: &str,
-        _base_trait_type: &Type,
-        _expect: &Type,
-        _found: &Type,
+        input: Input,
+        errno: usize,
+        loc: Location,
+        caused_by: String,
+        member_name: &str,
+        class_type: &Type,
+        base_trait_type: &Type,
+        expect: &Type,
+        found: &Type,
     ) -> Self {
-        todo!()
+        let expct = StyledStrings::default();
+        let expct = switch_lang!(
+            "japanese" => expct.concat_str("期待される型: ").concat_str_with_color(&format!("{expect}"), WARN).concat_str("の部分型"),
+            "simplified_chinese" => expct.concat_str("期望: ").concat_str_with_color(&format!("{expect}"), WARN).concat_str("的子类型"),
+            "traditional_chinese" => expct.concat_str("期望: ").concat_str_with_color(&format!("{expect}"), WARN).concat_str("的子類型"),
+            "english" => expct.concat_str("expected: subtype of ").concat_str_with_color(&format!("{expect}"), WARN),
+        );
+        let fnd = StyledStrings::default();
+        let fnd = switch_lang!(
+            "japanese" => fnd.concat_str("実際の型: ").concat_str_with_color(&format!("{found}"), ERR),
+            "simplified_chinese" => fnd.concat_str("实际的类型: ").concat_str_with_color(&format!("{found}"), ERR),
+            "traditional_chinese" => fnd.concat_str("實際的類型: ").concat_str_with_color(&format!("{found}"), ERR),
+            "english" => fnd.concat_str("but found: ").concat_str_with_color(&format!("{found}"), ERR),
+        );
+        // TODO: specify base implementation location
+        Self::new(
+            ErrorCore::new(
+                vec![SubMessage::ambiguous_new(
+                    loc,
+                    vec![expct.to_string(), fnd.to_string()],
+                    None,
+                )],
+                switch_lang!(
+                    "japanese" => format!("{class_type}には既に{base_trait_type}が実装されています。
+                特殊化を行う場合は、{member_name}の型が{expect}の部分型である必要がありますが、{found}型となっています"),
+                    "simplified_chinese" => format!("{class_type}已经实现了{base_trait_type}。
+                特殊化时，{member_name}的类型必须是{expect}的子类型，但是现在是{found}类型"),
+                    "traditional_chinese" => format!("{class_type}已經實現了{base_trait_type}。
+                特殊化時，{member_name}的類型必須是{expect}的子類型，但是現在是{found}類型"),
+                    "english" => format!("{class_type} already implements {base_trait_type}.
+                To specialize, {member_name} must be a subtype of {expect}, but found {found}"),
+                ),
+                errno,
+                TypeError,
+                loc,
+            ),
+            input,
+            caused_by,
+        )
     }
 
     #[allow(clippy::too_many_arguments)]

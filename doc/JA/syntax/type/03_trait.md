@@ -102,47 +102,6 @@ ClosedSub = Subsume Sub(Self)
 ClosedAddSub = Subsume ClosedAdd and ClosedSub
 ```
 
-## 構造的トレイト
-
-トレイトは構造化できます。こうすると、明示的に実装を宣言する必要がなくなります。Pythonにおけるダックタイピングを実現する機能と言えます。
-
-```python
-SAdd = Structural Trait {
-    .`_+_` = (self: Self, other: Self) -> Self
-}
-# |A <: SAdd|は省略できない
-add|A <: SAdd| x, y: A = x.`_+_` y
-
-C = Class {i = Int}
-C.
-    new i = Self.__new__ {i;}
-    # C|<: Add(C)|で明示的に実装したわけでないことに注意
-    `_+_` self, other: Self = Self.new {i = self::i + other::i}
-
-assert add(C.new(1), C.new(2)) == C.new(3)
-```
-
-通常のトレイト、すなわち記名的トレイトは単に要求メソッドを実装しただけでは使えず、実装したことを明示的に宣言する必要があります。
-以下の例では明示的な実装の宣言がないため、`add`が`C`型の引数で使えません。`C = Class {i = Int}, Impl := Add`としなくてはならないのです。
-
-```python
-Add = Trait {
-    .`_+_` = (self: Self, other: Self) -> Self
-}
-# |A <: Add|は省略できる
-add|A <: Add| x, y: A = x.`_+_` y
-
-C = Class {i = Int}
-C.
-    new i = Self.__new__ {i;}
-    `_+_` self, other: Self = Self.new {i = self::i + other::i}
-
-add C.new(1), C.new(2) # TypeError: C is not subclass of Add
-# hint: inherit or patch 'Add'
-```
-
-構造的トレイトはこの実装の宣言がなくてもよいのですが、そのかわり型推論が効きません。使う際は型指定が必要です。
-
 ## 依存トレイト
 
 トレイトは引数を取ることができます。これは依存型と同じです。
@@ -215,10 +174,44 @@ print! P.Output # TypeError: ambiguous type resolution
 print! P|<: Mul(Int)|.Output # <class 'P'>
 ```
 
+## トレイトの特殊化実装
+
+トレイトは特殊化実装を行うことができます。
+
+実装の探索はトレイトの変性に従って行われます。`Add`の変性は共変なので、`Add(Nat) <: Add(Int)`であり、`Add(Nat)`の実装が可能な限り優先されます。
+
+```python
+Natural = Class { .inner = Nat }
+Natural|Self <: Add(Int)|.
+    Output = Int
+    `_+_` self, other = self.inner + other
+Natural|Self <: Add(Nat)|.
+    Output = Nat
+    `_+_` self, other = self.inner + other
+
+n = Natural.new {.inner = 1}
+_: Nat = n + 1
+_: Int = n + -1
+```
+
+特殊化は、ベースとなる挙動を上書きしないことが前提となります。
+よって、属性の型が特殊化によって部分型に縮小していない場合はエラーとなります。
+
+```python,compile_fail
+Natural|Self <: Add(Int)|.
+    Output = Int
+    `_+_` self, other = self.inner + other
+Natural|Self <: Add(Nat)|.
+    Output = Str # TypeError: Str !<: Int
+    `_+_` self, other = "\{self.inner} + \{other}" # TypeError: (C, Str) -> Str !<: (C, Int) -> Int
+```
+
 ## Appendix: Rustのトレイトとの違い
 
 Ergのトレイトは[Schärli et al.](https://www.ptidej.net/courses/ift6251/fall06/presentations/061122/061122.doc.pdf)の提唱したトレイトに忠実です。
 代数演算を行えるようにするためトレイトは実装を持てないようにして、必要ならばパッチをあてる設計にしています。
+
+また、Rustのトレイトは現在のところ特殊化が行なえません。
 
 <p align='center'>
     <a href='./02_basic.md'>Previous</a> | <a href='./04_class.md'>Next</a>

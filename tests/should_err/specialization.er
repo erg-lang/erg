@@ -1,0 +1,9 @@
+C = Class { .x = Nat }
+C|C <: Add(Int)|.
+    Output = Int
+    __add__ self, other: Int =
+        self.x + other
+C|C <: Add(Nat)|.
+    Output = Str
+    __add__ self, other: Int = # ERR
+        "\{self.x + other}"
