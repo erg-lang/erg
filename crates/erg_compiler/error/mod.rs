@@ -358,27 +358,27 @@ impl EffectError {
                 "japanese" => {
                 let mut s = StyledStrings::default();
                 s.push_str("変数の末尾に");
-                s.push_str_with_color_and_attribute("!", WARN, ATTR);
+                s.push_str_with_color_and_attr("!", WARN, ATTR);
                 s.push_str("をつけてください");
                 s
                 },
                 "simplified_chinese" => {
                 let mut s = StyledStrings::default();
                 s.push_str("请在变量名后加上");
-                s.push_str_with_color_and_attribute("!", WARN, ATTR);
+                s.push_str_with_color_and_attr("!", WARN, ATTR);
                 s
                 },
                 "traditional_chinese" => {
                 let mut s = StyledStrings::default();
                 s.push_str("請在變量名後加上");
-                s.push_str_with_color_and_attribute("!", WARN, ATTR);
+                s.push_str_with_color_and_attr("!", WARN, ATTR);
                 s
                 },
                 "english" => {
 
                 let mut s = StyledStrings::default();
                 s.push_str("add ");
-                s.push_str_with_color_and_attribute("!", WARN, ATTR);
+                s.push_str_with_color_and_attr("!", WARN, ATTR);
                 s.push_str(" to the end of the variable name");
                 s
                 },

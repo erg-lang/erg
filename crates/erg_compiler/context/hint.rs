@@ -93,28 +93,28 @@ impl Context {
                 switch_lang!(
                     "japanese" => {
                         hint.push_str("この仮引数は(副作用のない)関数を受け取りますが、プロシージャは副作用があるため受け取りません。副作用を取り除き、");
-                        hint.push_str_with_color_and_attribute("=>", ERR, ATTR);
+                        hint.push_str_with_color_and_attr("=>", ERR, ATTR);
                         hint.push_str("の代わりに");
-                        hint.push_str_with_color_and_attribute("->", HINT, ATTR);
+                        hint.push_str_with_color_and_attr("->", HINT, ATTR);
                         hint.push_str("を使用する必要があります");
                     },
                     "simplified_chinese" => {
                         hint.push_str("此参数接受函数(无副作用)，但不接受过程，因为过程有副作用。你应该使用");
-                        hint.push_str_with_color_and_attribute("=>", HINT, ATTR);
+                        hint.push_str_with_color_and_attr("=>", HINT, ATTR);
                         hint.push_str("而不是");
-                        hint.push_str_with_color_and_attribute("->", ERR, ATTR);
+                        hint.push_str_with_color_and_attr("->", ERR, ATTR);
                     },
                     "traditional_chinese" => {
                         hint.push_str("此參數接受函數(無副作用)，但不接受過程，因為過程有副作用。你應該使用");
-                        hint.push_str_with_color_and_attribute("=>", HINT, ATTR);
+                        hint.push_str_with_color_and_attr("=>", HINT, ATTR);
                         hint.push_str("而不是");
-                        hint.push_str_with_color_and_attribute("->", ERR, ATTR);
+                        hint.push_str_with_color_and_attr("->", ERR, ATTR);
                     },
                     "english" => {
                         hint.push_str("This param accepts func (without side-effects) but not proc because of side-effects. You should use ");
-                        hint.push_str_with_color_and_attribute("=>", HINT, ATTR);
+                        hint.push_str_with_color_and_attr("=>", HINT, ATTR);
                         hint.push_str(" instead of ");
-                        hint.push_str_with_color_and_attribute("->", ERR, ATTR);
+                        hint.push_str_with_color_and_attr("->", ERR, ATTR);
                     },
                 );
                 return Some(hint.to_string());
@@ -126,28 +126,28 @@ impl Context {
                 switch_lang!(
                     "japanese" => {
                         hint.push_str("Floatは等価関係が定義されていません。");
-                        hint.push_str_with_color_and_attribute("l == R", ERR, ATTR);
+                        hint.push_str_with_color_and_attr("l == R", ERR, ATTR);
                         hint.push_str("ではなく、");
-                        hint.push_str_with_color_and_attribute("l - r <= Float.EPSILON", HINT, ATTR);
+                        hint.push_str_with_color_and_attr("l - r <= Float.EPSILON", HINT, ATTR);
                         hint.push_str("を使用してください");
                     },
                     "simplified_chinese" => {
                         hint.push_str("Float没有定义等价关系。你应该使用");
-                        hint.push_str_with_color_and_attribute("l == R", ERR, ATTR);
+                        hint.push_str_with_color_and_attr("l == R", ERR, ATTR);
                         hint.push_str("而不是");
-                        hint.push_str_with_color_and_attribute("l - r <= Float.EPSILON", HINT, ATTR);
+                        hint.push_str_with_color_and_attr("l - r <= Float.EPSILON", HINT, ATTR);
                     },
                     "traditional_chinese" => {
                         hint.push_str("Float沒有定義等價關係。你應該使用");
-                        hint.push_str_with_color_and_attribute("l == R", ERR, ATTR);
+                        hint.push_str_with_color_and_attr("l == R", ERR, ATTR);
                         hint.push_str(" instead of ");
-                        hint.push_str_with_color_and_attribute("l - r <= Float.EPSILON", HINT, ATTR);
+                        hint.push_str_with_color_and_attr("l - r <= Float.EPSILON", HINT, ATTR);
                     },
                     "english" => {
                         hint.push_str("Float has no equivalence relation defined. you should use ");
-                        hint.push_str_with_color_and_attribute("l == R", ERR, ATTR);
+                        hint.push_str_with_color_and_attr("l == R", ERR, ATTR);
                         hint.push_str(" instead of ");
-                        hint.push_str_with_color_and_attribute("l - r <= Float.EPSILON", HINT, ATTR);
+                        hint.push_str_with_color_and_attr("l - r <= Float.EPSILON", HINT, ATTR);
                     },
                 );
                 Some(hint.to_string())

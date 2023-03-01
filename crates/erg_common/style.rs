@@ -1,6 +1,83 @@
 use self::colors::*;
 use std::borrow::Cow;
 
+/// ```
+/// # use erg_common::style::*;
+/// let new = "hello".stylize();
+/// let old = StyledStr::new("hello", None, None);
+/// assert_eq!(new, old);
+/// let new = "hello".to_string().with_color_and_attr(THEME.colors.warning, Attribute::Bold);
+/// let old = StyledString::new("hello", Some(THEME.colors.warning), Some(Attribute::Bold));
+/// assert_eq!(new, old);
+/// ```
+pub trait Stylize {
+    type Output;
+    fn stylize(self) -> Self::Output;
+    fn with_color(self, color: Color) -> Self::Output;
+    fn with_attr(self, attribute: Attribute) -> Self::Output;
+    fn with_color_and_attr(self, color: Color, attribute: Attribute) -> Self::Output;
+}
+
+impl Stylize for String {
+    type Output = StyledString;
+
+    fn stylize(self) -> StyledString {
+        StyledString::new(self, None, None)
+    }
+
+    fn with_color(self, color: Color) -> StyledString {
+        StyledString::new(self, Some(color), None)
+    }
+
+    fn with_attr(self, attribute: Attribute) -> StyledString {
+        StyledString::new(self, None, Some(attribute))
+    }
+
+    fn with_color_and_attr(self, color: Color, attribute: Attribute) -> StyledString {
+        StyledString::new(self, Some(color), Some(attribute))
+    }
+}
+
+impl<'a> Stylize for &'a str {
+    type Output = StyledStr<'a>;
+
+    fn stylize(self) -> StyledStr<'a> {
+        StyledStr::new(self, None, None)
+    }
+
+    fn with_color(self, color: Color) -> StyledStr<'a> {
+        StyledStr::new(self, Some(color), None)
+    }
+
+    fn with_attr(self, attribute: Attribute) -> StyledStr<'a> {
+        StyledStr::new(self, None, Some(attribute))
+    }
+
+    fn with_color_and_attr(self, color: Color, attribute: Attribute) -> StyledStr<'a> {
+        StyledStr::new(self, Some(color), Some(attribute))
+    }
+}
+
+impl Stylize for crate::Str {
+    type Output = StyledString;
+
+    fn stylize(self) -> StyledString {
+        self.to_string().stylize()
+    }
+
+    fn with_color(self, color: Color) -> StyledString {
+        self.to_string().with_color(color)
+    }
+
+    fn with_attr(self, attribute: Attribute) -> StyledString {
+        self.to_string().with_attr(attribute)
+    }
+
+    fn with_color_and_attr(self, color: Color, attribute: Attribute) -> StyledString {
+        self.to_string().with_color_and_attr(color, attribute)
+    }
+}
+
 pub const ATTR_RESET: &str = "\x1b[0m";
 pub const BOLD: &str = "\x1b[1m";
 pub const UNDERLINE: &str = "\x1b[4m";
@@ -255,7 +332,7 @@ pub const CHARS: Characters = Characters {
 ///    Some(Attribute::Underline),
 /// );
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct StyledStr<'a> {
     text: &'a str,
     color: Option<Color>,
@@ -297,11 +374,27 @@ impl std::fmt::Display for StyledStr<'_> {
 /// `StyledString` is for coloring and attribute text.
 /// String, Color(&str) and Attribute(&str)
 ///
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct StyledString {
     text: String,
     color: Option<Color>,
     attribute: Option<Attribute>,
+}
+
+impl From<StyledStr<'_>> for StyledString {
+    fn from(s: StyledStr) -> Self {
+        Self {
+            text: s.text.to_string(),
+            color: s.color,
+            attribute: s.attribute,
+        }
+    }
+}
+
+impl<S: Into<String>> From<S> for StyledString {
+    fn from(s: S) -> Self {
+        s.into().stylize()
+    }
 }
 
 impl StyledString {
@@ -390,6 +483,25 @@ pub struct StyledStrings {
 }
 
 impl StyledStrings {
+    pub const fn new(texts: Vec<StyledString>) -> Self {
+        Self { texts }
+    }
+
+    pub fn single<S: Into<StyledString>>(s: S) -> Self {
+        Self {
+            texts: vec![s.into()],
+        }
+    }
+
+    pub fn push(&mut self, s: StyledString) {
+        self.texts.push(s)
+    }
+
+    pub fn concat(mut self, s: StyledString) -> Self {
+        self.texts.push(s);
+        self
+    }
+
     ///
     /// It is possible push &str type with gray color to Vector.
     ///
@@ -415,6 +527,11 @@ impl StyledStrings {
         }
     }
 
+    pub fn concat_str(mut self, s: &str) -> Self {
+        self.push_str(s);
+        self
+    }
+
     ///
     /// It is possible to push &str type with specify color to Vector.
     ///
@@ -437,6 +554,11 @@ impl StyledStrings {
         }
     }
 
+    pub fn concat_str_with_color(mut self, s: &str, color: Color) -> Self {
+        self.push_str_with_color(s, color);
+        self
+    }
+
     ///
     /// Text can be pushed color and attribute to Vector.
     /// When color or attribute are different, it will be pushed as different String.
@@ -445,12 +567,12 @@ impl StyledStrings {
     /// ```
     /// # use erg_common::style::{Color, Attribute, StyledStrings};
     /// let mut texts = StyledStrings::default();
-    /// texts.push_str_with_color_and_attribute("Magenta and bold text\n", Color::Magenta, Attribute::Bold);
-    /// texts.push_str_with_color_and_attribute("White and underlined text", Color::White, Attribute::Underline);
-    /// // texts.push_str_with_color_and_attribute("Must be specify the color and attribute", None, Attribute::Underline);
+    /// texts.push_str_with_color_and_attr("Magenta and bold text\n", Color::Magenta, Attribute::Bold);
+    /// texts.push_str_with_color_and_attr("White and underlined text", Color::White, Attribute::Underline);
+    /// // texts.push_str_with_color_and_attr("Must be specify the color and attribute", None, Attribute::Underline);
     /// println!("{}", texts);
     /// ```
-    pub fn push_str_with_color_and_attribute<'a, S: Into<Cow<'a, str>>>(
+    pub fn push_str_with_color_and_attr<'a, S: Into<Cow<'a, str>>>(
         &mut self,
         s: S,
         color: Color,
@@ -463,6 +585,16 @@ impl StyledStrings {
             self.texts
                 .push(StyledString::new(s, Some(color), Some(attr)));
         }
+    }
+
+    pub fn concat_str_with_color_and_attr<'a, S: Into<Cow<'a, str>>>(
+        mut self,
+        s: S,
+        color: Color,
+        attr: Attribute,
+    ) -> Self {
+        self.push_str_with_color_and_attr(s, color, attr);
+        self
     }
 
     ///
@@ -548,17 +680,13 @@ mod tests {
             "It is also possible to change text attribute...\n",
             Color::White,
         );
-        texts.push_str_with_color_and_attribute(
-            "Green and bold text\n",
-            Color::Green,
-            Attribute::Bold,
-        );
-        texts.push_str_with_color_and_attribute(
+        texts.push_str_with_color_and_attr("Green and bold text\n", Color::Green, Attribute::Bold);
+        texts.push_str_with_color_and_attr(
             "Blue and underlined text\n",
             Color::Blue,
             Attribute::Underline,
         );
-        texts.push_str_with_color_and_attribute(
+        texts.push_str_with_color_and_attr(
             "Red and reversed text",
             Color::Red,
             Attribute::Reversed,
