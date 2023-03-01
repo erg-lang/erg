@@ -3,3 +3,7 @@ p! 1, 2, 3
 
 first *x = x[0]
 assert first(1, 2, 3) == 1
+
+sum_ start: Nat, *args: Int =
+    sum(args, start:=start)
+assert sum_(0, 1, 2, 3) == 6

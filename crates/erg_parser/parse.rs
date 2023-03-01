@@ -101,8 +101,9 @@ enum ExprOrOp {
     Op(Token),
 }
 
-enum PosOrKwArg {
+enum ArgKind {
     Pos(PosArg),
+    Var(PosArg),
     Kw(KwArg),
 }
 
@@ -732,21 +733,9 @@ impl Parser {
             .try_reduce_arg(in_type_args)
             .map_err(|_| self.stack_dec(fn_name!()))?
         {
-            PosOrKwArg::Pos(PosArg {
-                expr: Expr::UnaryOp(unary),
-            }) if unary.op.is(PreStar) => {
-                let pos_args = PosArg::new(unary.deconstruct().1);
-                Args::new(vec![], Some(pos_args), vec![], None)
-            }
-            PosOrKwArg::Pos(PosArg {
-                expr: Expr::TypeAscription(TypeAscription { expr, t_spec }),
-            }) if matches!(expr.as_ref(), Expr::UnaryOp(unary) if unary.op.is(PreStar)) => {
-                let Expr::UnaryOp(unary) = *expr else { unreachable!() };
-                let var_args = PosArg::new(unary.deconstruct().1.type_asc_expr(t_spec));
-                Args::new(vec![], Some(var_args), vec![], None)
-            }
-            PosOrKwArg::Pos(arg) => Args::single(arg),
-            PosOrKwArg::Kw(arg) => Args::new(vec![], None, vec![arg], None),
+            ArgKind::Pos(arg) => Args::single(arg),
+            ArgKind::Var(arg) => Args::new(vec![], Some(arg), vec![], None),
+            ArgKind::Kw(arg) => Args::new(vec![], None, vec![arg], None),
         };
         loop {
             match self.peek_kind() {
@@ -796,24 +785,13 @@ impl Parser {
                             .try_reduce_arg(in_type_args)
                             .map_err(|_| self.stack_dec(fn_name!()))?
                         {
-                            PosOrKwArg::Pos(PosArg {
-                                expr: Expr::UnaryOp(unary),
-                            }) if unary.op.is(PreStar) => {
-                                args.set_var_args(PosArg::new(unary.deconstruct().1));
-                            }
-                            PosOrKwArg::Pos(PosArg {
-                                expr: Expr::TypeAscription(TypeAscription { expr, t_spec }),
-                            }) if matches!(expr.as_ref(), Expr::UnaryOp(unary) if unary.op.is(PreStar)) =>
-                            {
-                                let Expr::UnaryOp(unary) = *expr else { unreachable!() };
-                                args.set_var_args(PosArg::new(
-                                    unary.deconstruct().1.type_asc_expr(t_spec),
-                                ));
-                            }
-                            PosOrKwArg::Pos(arg) => {
+                            ArgKind::Pos(arg) => {
                                 args.push_pos(arg);
                             }
-                            PosOrKwArg::Kw(arg) => {
+                            ArgKind::Var(var) => {
+                                args.set_var_args(var);
+                            }
+                            ArgKind::Kw(arg) => {
                                 args.push_kw(arg);
                             }
                         }
@@ -864,10 +842,13 @@ impl Parser {
                             .try_reduce_arg(in_type_args)
                             .map_err(|_| self.stack_dec(fn_name!()))?
                         {
-                            PosOrKwArg::Pos(arg) => {
+                            ArgKind::Pos(arg) => {
                                 args.push_pos(arg);
                             }
-                            PosOrKwArg::Kw(arg) => {
+                            ArgKind::Var(var) => {
+                                args.set_var_args(var);
+                            }
+                            ArgKind::Kw(arg) => {
                                 args.push_kw(arg);
                             }
                         }
@@ -882,7 +863,7 @@ impl Parser {
         Ok(args)
     }
 
-    fn try_reduce_arg(&mut self, in_type_args: bool) -> ParseResult<PosOrKwArg> {
+    fn try_reduce_arg(&mut self, in_type_args: bool) -> ParseResult<ArgKind> {
         debug_call_info!(self);
         match self.peek_kind() {
             Some(Symbol) => {
@@ -905,7 +886,7 @@ impl Parser {
                         .try_reduce_expr(false, in_type_args, false, false)
                         .map_err(|_| self.stack_dec(fn_name!()))?;
                     debug_exit_info!(self);
-                    Ok(PosOrKwArg::Kw(KwArg::new(kw, None, expr)))
+                    Ok(ArgKind::Kw(KwArg::new(kw, None, expr)))
                 } else {
                     let expr = self
                         .try_reduce_expr(false, in_type_args, false, false)
@@ -937,19 +918,27 @@ impl Parser {
                             .try_reduce_expr(false, in_type_args, false, false)
                             .map_err(|_| self.stack_dec(fn_name!()))?;
                         debug_exit_info!(self);
-                        Ok(PosOrKwArg::Kw(KwArg::new(kw, t_spec, expr)))
+                        Ok(ArgKind::Kw(KwArg::new(kw, t_spec, expr)))
                     } else {
                         debug_exit_info!(self);
-                        Ok(PosOrKwArg::Pos(PosArg::new(expr)))
+                        Ok(ArgKind::Pos(PosArg::new(expr)))
                     }
                 }
+            }
+            Some(PreStar) => {
+                self.skip();
+                let expr = self
+                    .try_reduce_expr(false, in_type_args, false, false)
+                    .map_err(|_| self.stack_dec(fn_name!()))?;
+                debug_exit_info!(self);
+                Ok(ArgKind::Var(PosArg::new(expr)))
             }
             Some(_) => {
                 let expr = self
                     .try_reduce_expr(false, in_type_args, false, false)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
                 debug_exit_info!(self);
-                Ok(PosOrKwArg::Pos(PosArg::new(expr)))
+                Ok(ArgKind::Pos(PosArg::new(expr)))
             }
             None => switch_unreachable!(),
         }
@@ -1318,7 +1307,7 @@ impl Parser {
                     stack.push(ExprOrOp::Expr(Expr::Accessor(acc)));
                 }
                 Some(t) if t.is(Comma) && winding => {
-                    let first_elem = PosOrKwArg::Pos(PosArg::new(
+                    let first_elem = ArgKind::Pos(PosArg::new(
                         enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_))),
                     ));
                     let tup = self
@@ -1524,7 +1513,7 @@ impl Parser {
                     stack.push(ExprOrOp::Expr(Expr::Accessor(acc)));
                 }
                 Some(t) if t.is(Comma) && winding => {
-                    let first_elem = PosOrKwArg::Pos(PosArg::new(
+                    let first_elem = ArgKind::Pos(PosArg::new(
                         enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_))),
                     ));
                     let tup = self
@@ -1617,7 +1606,7 @@ impl Parser {
         let rhs = self
             .try_reduce_expr(false, false, in_brace, false)
             .map_err(|_| self.stack_dec(fn_name!()))?;
-        let first_elem = PosOrKwArg::Kw(KwArg::new(keyword, t_spec, rhs));
+        let first_elem = ArgKind::Kw(KwArg::new(keyword, t_spec, rhs));
         let tuple = self
             .try_reduce_nonempty_tuple(first_elem, false)
             .map_err(|_| self.stack_dec(fn_name!()))?;
@@ -2271,7 +2260,7 @@ impl Parser {
                         .try_reduce_arg(false)
                         .map_err(|_| self.stack_dec(fn_name!()))?
                     {
-                        PosOrKwArg::Pos(arg) => match arg.expr {
+                        ArgKind::Pos(arg) => match arg.expr {
                             Expr::Set(Set::Normal(set)) if set.elems.paren.is_none() => {
                                 args.extend_pos(set.elems.into_iters().0);
                             }
@@ -2282,7 +2271,13 @@ impl Parser {
                                 }
                             }
                         },
-                        PosOrKwArg::Kw(arg) => {
+                        ArgKind::Var(var) => {
+                            let err = ParseError::simple_syntax_error(line!() as usize, var.loc());
+                            self.errs.push(err);
+                            debug_exit_info!(self);
+                            return Err(());
+                        }
+                        ArgKind::Kw(arg) => {
                             let err = ParseError::simple_syntax_error(line!() as usize, arg.loc());
                             self.errs.push(err);
                             debug_exit_info!(self);
@@ -2309,27 +2304,14 @@ impl Parser {
 
     fn try_reduce_nonempty_tuple(
         &mut self,
-        first_elem: PosOrKwArg,
+        first_elem: ArgKind,
         line_break: bool,
     ) -> ParseResult<Tuple> {
         debug_call_info!(self);
         let mut args = match first_elem {
-            PosOrKwArg::Pos(PosArg {
-                expr: Expr::UnaryOp(unary),
-            }) if unary.op.is(PreStar) => {
-                let var_args = Some(PosArg::new(unary.deconstruct().1));
-                Args::new(vec![], var_args, vec![], None)
-            }
-            PosOrKwArg::Pos(PosArg {
-                expr: Expr::TypeAscription(TypeAscription { expr, t_spec }),
-            }) if matches!(expr.as_ref(), Expr::UnaryOp(unary) if unary.op.is(PreStar)) => {
-                let Expr::UnaryOp(unary) = *expr else { unreachable!() };
-                let expr = unary.deconstruct().1;
-                let var_args = Some(PosArg::new(expr.type_asc_expr(t_spec)));
-                Args::new(vec![], var_args, vec![], None)
-            }
-            PosOrKwArg::Pos(pos) => Args::single(pos),
-            PosOrKwArg::Kw(kw) => Args::new(vec![], None, vec![kw], None),
+            ArgKind::Pos(pos) => Args::single(pos),
+            ArgKind::Var(var) => Args::new(vec![], Some(var), vec![], None),
+            ArgKind::Kw(kw) => Args::new(vec![], None, vec![kw], None),
         };
         #[allow(clippy::while_let_loop)]
         loop {
@@ -2351,17 +2333,8 @@ impl Parser {
                         .try_reduce_arg(false)
                         .map_err(|_| self.stack_dec(fn_name!()))?
                     {
-                        PosOrKwArg::Pos(arg) if args.kw_is_empty() && args.var_args.is_none() => {
+                        ArgKind::Pos(arg) if args.kw_is_empty() && args.var_args.is_none() => {
                             match arg.expr {
-                                Expr::UnaryOp(unary) if unary.op.is(PreStar) => {
-                                    args.set_var_args(PosArg::new(unary.deconstruct().1));
-                                }
-                                Expr::TypeAscription(TypeAscription { expr, t_spec }) if matches!(expr.as_ref(), Expr::UnaryOp(unary) if unary.op.is(PreStar)) =>
-                                {
-                                    let Expr::UnaryOp(unary) = *expr else { unreachable!() };
-                                    let expr = unary.deconstruct().1;
-                                    args.set_var_args(PosArg::new(expr.type_asc_expr(t_spec)));
-                                }
                                 Expr::Tuple(Tuple::Normal(tup)) if tup.elems.paren.is_none() => {
                                     args.extend_pos(tup.elems.into_iters().0);
                                 }
@@ -2370,7 +2343,10 @@ impl Parser {
                                 }
                             }
                         }
-                        PosOrKwArg::Pos(arg) => {
+                        ArgKind::Var(var) => {
+                            args.set_var_args(var);
+                        }
+                        ArgKind::Pos(arg) => {
                             let err = ParseError::syntax_error(
                                 line!() as usize,
                                 arg.loc(),
@@ -2388,7 +2364,7 @@ impl Parser {
                         }
                         // e.g. (x, y:=1) -> ...
                         // Syntax error will occur when trying to use it as a tuple
-                        PosOrKwArg::Kw(arg) => {
+                        ArgKind::Kw(arg) => {
                             args.push_kw(arg);
                         }
                     }
