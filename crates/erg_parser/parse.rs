@@ -528,21 +528,36 @@ impl Parser {
 
     fn try_reduce_type_app_args(&mut self) -> ParseResult<TypeAppArgs> {
         debug_call_info!(self);
-        assert!(self.cur_is(VBar));
-        let l_vbar = self.lpop();
-        let args = self
-            .try_reduce_args(true)
-            .map_err(|_| self.stack_dec(fn_name!()))?;
-        if self.cur_is(VBar) {
-            let r_vbar = self.lpop();
-            debug_exit_info!(self);
-            Ok(TypeAppArgs::new(l_vbar, args, r_vbar))
-        } else {
-            let err = self.skip_and_throw_syntax_err(caused_by!());
-            self.errs.push(err);
-            debug_exit_info!(self);
-            Err(())
-        }
+        let l_vbar = expect_pop!(self, VBar);
+        let args = match self.peek_kind() {
+            Some(SubtypeOf) => {
+                let op = self.lpop();
+                let t_spec_as_expr = self
+                    .try_reduce_expr(false, true, false, false)
+                    .map_err(|_| self.stack_dec(fn_name!()))?;
+                match Parser::expr_to_type_spec(t_spec_as_expr.clone()) {
+                    Ok(t_spec) => {
+                        let t_spec = TypeSpecWithOp::new(op, t_spec, t_spec_as_expr);
+                        TypeAppArgsKind::SubtypeOf(Box::new(t_spec))
+                    }
+                    Err(_) => {
+                        let err = ParseError::simple_syntax_error(0, t_spec_as_expr.loc());
+                        self.errs.push(err);
+                        debug_exit_info!(self);
+                        return Err(());
+                    }
+                }
+            }
+            _ => {
+                let args = self
+                    .try_reduce_args(true)
+                    .map_err(|_| self.stack_dec(fn_name!()))?;
+                TypeAppArgsKind::Args(args)
+            }
+        };
+        let r_vbar = expect_pop!(self, VBar);
+        debug_exit_info!(self);
+        Ok(TypeAppArgs::new(l_vbar, args, r_vbar))
     }
 
     fn try_reduce_acc_lhs(&mut self) -> ParseResult<Accessor> {

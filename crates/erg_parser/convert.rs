@@ -320,8 +320,12 @@ impl Parser {
         type_args: TypeAppArgs,
     ) -> ParseResult<TypeBoundSpecs> {
         debug_call_info!(self);
+        let TypeAppArgsKind::Args(args) = type_args.args else {
+            debug_exit_info!(self);
+            return Ok(TypeBoundSpecs::empty());
+        };
         let mut bounds = vec![];
-        let (pos_args, _var_args, _kw_args, _paren) = type_args.args.deconstruct();
+        let (pos_args, _var_args, _kw_args, _paren) = args.deconstruct();
         for arg in pos_args.into_iter() {
             let bound = self
                 .convert_type_arg_to_bound(arg)
@@ -345,6 +349,10 @@ impl Parser {
                     return Err(());
                 };
                 let bound = TypeBoundSpec::non_default(lhs.name.into_token(), tasc.t_spec);
+                Ok(bound)
+            }
+            Expr::Accessor(Accessor::Ident(ident)) => {
+                let bound = TypeBoundSpec::Omitted(ident.name);
                 Ok(bound)
             }
             other => {

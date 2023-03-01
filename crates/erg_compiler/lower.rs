@@ -1386,55 +1386,8 @@ impl ASTLowerer {
         log!(info "entered {}({class_def})", fn_name!());
         let mut hir_def = self.lower_def(class_def.def)?;
         let mut hir_methods = hir::Block::empty();
-        let mut dummy_tv_cache = TyVarCache::new(self.module.context.level, &self.module.context);
         for mut methods in class_def.methods_list.into_iter() {
-            let (class, impl_trait) = match &methods.class {
-                ast::TypeSpec::TypeApp { spec, args } => {
-                    let (impl_trait, t_spec) = match &args.args.pos_args().first().unwrap().expr {
-                        // TODO: check `tasc.op`
-                        ast::Expr::TypeAscription(tasc) => (
-                            self.module.context.instantiate_typespec(
-                                &tasc.t_spec.t_spec,
-                                None,
-                                &mut dummy_tv_cache,
-                                RegistrationMode::Normal,
-                                false,
-                            )?,
-                            &tasc.t_spec,
-                        ),
-                        other => {
-                            return Err(LowerErrors::from(LowerError::syntax_error(
-                                self.input().clone(),
-                                line!() as usize,
-                                other.loc(),
-                                self.module.context.caused_by(),
-                                format!("expected type ascription, but found {}", other.name()),
-                                None,
-                            )))
-                        }
-                    };
-                    (
-                        self.module.context.instantiate_typespec(
-                            spec,
-                            None,
-                            &mut dummy_tv_cache,
-                            RegistrationMode::Normal,
-                            false,
-                        )?,
-                        Some((impl_trait, t_spec)),
-                    )
-                }
-                other => (
-                    self.module.context.instantiate_typespec(
-                        other,
-                        None,
-                        &mut dummy_tv_cache,
-                        RegistrationMode::Normal,
-                        false,
-                    )?,
-                    None,
-                ),
-            };
+            let (class, impl_trait) = self.get_class_and_impl_trait(&methods.class)?;
             // assume the class has implemented the trait, regardless of whether the implementation is correct
             if let Some((trait_, trait_loc)) = &impl_trait {
                 self.register_trait_impl(&class, trait_, *trait_loc)?;
@@ -1563,6 +1516,83 @@ impl ASTLowerer {
             __new__,
             hir_methods,
         ))
+    }
+
+    fn get_class_and_impl_trait<'c>(
+        &mut self,
+        class_spec: &'c ast::TypeSpec,
+    ) -> LowerResult<(Type, Option<(Type, &'c TypeSpecWithOp)>)> {
+        let mut dummy_tv_cache = TyVarCache::new(self.module.context.level, &self.module.context);
+        match class_spec {
+            ast::TypeSpec::TypeApp { spec, args } => {
+                match &args.args {
+                    ast::TypeAppArgsKind::Args(args) => {
+                        let (impl_trait, t_spec) = match &args.pos_args().first().unwrap().expr {
+                            // TODO: check `tasc.op`
+                            ast::Expr::TypeAscription(tasc) => (
+                                self.module.context.instantiate_typespec(
+                                    &tasc.t_spec.t_spec,
+                                    None,
+                                    &mut dummy_tv_cache,
+                                    RegistrationMode::Normal,
+                                    false,
+                                )?,
+                                &tasc.t_spec,
+                            ),
+                            other => {
+                                return Err(LowerErrors::from(LowerError::syntax_error(
+                                    self.input().clone(),
+                                    line!() as usize,
+                                    other.loc(),
+                                    self.module.context.caused_by(),
+                                    format!("expected type ascription, but found {}", other.name()),
+                                    None,
+                                )))
+                            }
+                        };
+                        Ok((
+                            self.module.context.instantiate_typespec(
+                                spec,
+                                None,
+                                &mut dummy_tv_cache,
+                                RegistrationMode::Normal,
+                                false,
+                            )?,
+                            Some((impl_trait, t_spec)),
+                        ))
+                    }
+                    ast::TypeAppArgsKind::SubtypeOf(trait_spec) => {
+                        let impl_trait = self.module.context.instantiate_typespec(
+                            &trait_spec.t_spec,
+                            None,
+                            &mut dummy_tv_cache,
+                            RegistrationMode::Normal,
+                            false,
+                        )?;
+                        Ok((
+                            self.module.context.instantiate_typespec(
+                                spec,
+                                None,
+                                &mut dummy_tv_cache,
+                                RegistrationMode::Normal,
+                                false,
+                            )?,
+                            Some((impl_trait, trait_spec.as_ref())),
+                        ))
+                    }
+                }
+            }
+            other => Ok((
+                self.module.context.instantiate_typespec(
+                    other,
+                    None,
+                    &mut dummy_tv_cache,
+                    RegistrationMode::Normal,
+                    false,
+                )?,
+                None,
+            )),
+        }
     }
 
     fn lower_patch_def(&mut self, class_def: ast::PatchDef) -> LowerResult<hir::PatchDef> {

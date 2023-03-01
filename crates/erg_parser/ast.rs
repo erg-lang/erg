@@ -406,9 +406,27 @@ impl Subscript {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum TypeAppArgsKind {
+    SubtypeOf(Box<TypeSpecWithOp>),
+    Args(Args),
+}
+
+impl NestedDisplay for TypeAppArgsKind {
+    fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, _level: usize) -> std::fmt::Result {
+        match self {
+            Self::SubtypeOf(ty) => write!(f, "{ty}"),
+            Self::Args(args) => write!(f, "{args}"),
+        }
+    }
+}
+
+impl_display_from_nested!(TypeAppArgsKind);
+impl_locational_for_enum!(TypeAppArgsKind; SubtypeOf, Args);
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct TypeAppArgs {
     pub l_vbar: Token,
-    pub args: Args,
+    pub args: TypeAppArgsKind,
     pub r_vbar: Token,
 }
 
@@ -422,7 +440,7 @@ impl_display_from_nested!(TypeAppArgs);
 impl_locational!(TypeAppArgs, l_vbar, args, r_vbar);
 
 impl TypeAppArgs {
-    pub const fn new(l_vbar: Token, args: Args, r_vbar: Token) -> Self {
+    pub const fn new(l_vbar: Token, args: TypeAppArgsKind, r_vbar: Token) -> Self {
         Self {
             l_vbar,
             args,
@@ -2458,6 +2476,7 @@ impl TypeSpecWithOp {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum TypeBoundSpec {
+    Omitted(VarName),
     NonDefault {
         lhs: Token,
         spec: TypeSpecWithOp,
@@ -2472,6 +2491,7 @@ pub enum TypeBoundSpec {
 impl NestedDisplay for TypeBoundSpec {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         match self {
+            Self::Omitted(name) => write!(f, "{name}"),
             Self::NonDefault { lhs, spec } => write!(f, "{}{spec}", lhs.content),
             Self::WithDefault { lhs, spec, default } => {
                 write!(f, "{}{} := {}", lhs.content, spec, default)
@@ -2485,6 +2505,7 @@ impl_display_from_nested!(TypeBoundSpec);
 impl Locational for TypeBoundSpec {
     fn loc(&self) -> Location {
         match self {
+            Self::Omitted(name) => name.loc(),
             Self::NonDefault { lhs, spec } => Location::concat(lhs, spec),
             Self::WithDefault { lhs, default, .. } => Location::concat(lhs, default),
         }

@@ -1233,6 +1233,13 @@ impl Context {
         // REVIEW: 型境界の左辺に来れるのは型変数だけか?
         // TODO: 高階型変数
         match bound {
+            TypeBoundSpec::Omitted(name) => {
+                // TODO: other than type `Type`
+                let constr = Constraint::new_type_of(Type);
+                let tv = named_free_var(name.inspect().clone(), self.level, constr);
+                tv_cache.push_or_init_tyvar(name.inspect(), &tv);
+                Ok(())
+            }
             TypeBoundSpec::NonDefault { lhs, spec } => {
                 let constr =
                     match spec.op.kind {
