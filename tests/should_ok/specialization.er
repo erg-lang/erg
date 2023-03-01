@@ -6,6 +6,7 @@ C|C <: Add(Int)|.
 C|C <: Add(Nat)|.
     Output = Nat
     __add__ self, other: Nat =
+        log "Nat"
         self.x + other
 
 c = C.new { .x = 1 }

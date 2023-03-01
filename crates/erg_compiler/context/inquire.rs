@@ -711,7 +711,9 @@ impl Context {
     fn search_callee_info(
         &self,
         obj: &hir::Expr,
-        attr_name: &Option<Identifier>,
+        attr_name: Option<&Identifier>,
+        pos_args: &[hir::PosArg],
+        kw_args: &[hir::KwArg],
         input: &Input,
         namespace: &Str,
     ) -> SingleTyCheckResult<VarInfo> {
@@ -728,8 +730,8 @@ impl Context {
                 ..VarInfo::default()
             });
         }
-        if let Some(attr_name) = attr_name.as_ref() {
-            self.search_method_info(obj, attr_name, input, namespace)
+        if let Some(attr_name) = attr_name {
+            self.search_method_info(obj, attr_name, pos_args, kw_args, input, namespace)
         } else {
             Ok(VarInfo {
                 t: obj.t(),
@@ -750,6 +752,8 @@ impl Context {
         &self,
         obj: &hir::Expr,
         attr_name: &Identifier,
+        pos_args: &[hir::PosArg],
+        kw_args: &[hir::KwArg],
         input: &Input,
         namespace: &Str,
     ) -> SingleTyCheckResult<VarInfo> {
@@ -776,15 +780,10 @@ impl Context {
                 self.validate_visibility(attr_name, vi, input, namespace)?;
                 return Ok(vi.clone());
             }
-            for (_, methods_ctx) in ctx.methods_list.iter() {
-                if let Some(vi) = methods_ctx
-                    .locals
-                    .get(attr_name.inspect())
-                    .or_else(|| methods_ctx.decls.get(attr_name.inspect()))
-                {
-                    self.validate_visibility(attr_name, vi, input, namespace)?;
-                    return Ok(vi.clone());
-                }
+            if let Some(vi) = self
+                .search_min_method_info(ctx, obj, attr_name, pos_args, kw_args, input, namespace)
+            {
+                return Ok(vi);
             }
             if let Some(ctx) = self.get_same_name_context(&ctx.name) {
                 match ctx.rec_get_var_info(attr_name, AccessKind::Method, input, namespace) {
@@ -872,6 +871,63 @@ impl Context {
         ))
     }
 
+    #[allow(clippy::too_many_arguments)]
+    fn search_min_method_info(
+        &self,
+        ctx: &Context,
+        obj: &hir::Expr,
+        attr_name: &Identifier,
+        pos_args: &[hir::PosArg],
+        kw_args: &[hir::KwArg],
+        input: &Input,
+        namespace: &Str,
+    ) -> Option<VarInfo> {
+        let mut found = false;
+        let mut min = VarInfo {
+            t: Obj,
+            ..Default::default()
+        };
+        for (_, methods_ctx) in ctx.methods_list.iter() {
+            if let Some(vi) = methods_ctx
+                .locals
+                .get(attr_name.inspect())
+                .or_else(|| methods_ctx.decls.get(attr_name.inspect()))
+            {
+                // there may be a specialized method
+                if self
+                    .validate_visibility(attr_name, vi, input, namespace)
+                    .is_ok()
+                {
+                    if found {
+                        let min_t = if min.t.is_subr() {
+                            min.t.return_t().unwrap()
+                        } else {
+                            &min.t
+                        };
+                        let vi_t = if vi.t.is_subr() {
+                            vi.t.return_t().unwrap()
+                        } else {
+                            &vi.t
+                        };
+                        if self.subtype_of(vi_t, min_t, true)
+                            && self
+                                .substitute_call(obj, Some(attr_name), &vi.t, pos_args, kw_args)
+                                .is_ok()
+                        {
+                            min = vi.clone();
+                        }
+                    } else {
+                        found = true;
+                        min = vi.clone();
+                    }
+                } else {
+                    // TODO:
+                }
+            }
+        }
+        found.then_some(min)
+    }
+
     fn validate_visibility(
         &self,
         ident: &Identifier,
@@ -935,7 +991,7 @@ impl Context {
         input: &Input,
         namespace: &Str,
     ) -> TyCheckResult<VarInfo> {
-        erg_common::debug_power_assert!(args.len() == 2);
+        erg_common::debug_power_assert!(args.len(), ==, 2);
         let cont = binop_to_dname(op.inspect());
         // not a `Token::from_str(op.kind, cont)` because ops are defined as symbols
         let symbol = Token::symbol(cont);
@@ -946,7 +1002,7 @@ impl Context {
             namespace,
         )?;
         let op = hir::Expr::Accessor(hir::Accessor::private(symbol, t));
-        self.get_call_t(&op, &None, args, &[], input, namespace)
+        self.get_call_t(&op, None, args, &[], input, namespace)
             .map_err(|(_, errs)| {
                 let Some(op_ident ) = option_enum_unwrap!(op, hir::Expr::Accessor:(hir::Accessor::Ident:(_))) else {
                     return errs;
@@ -970,7 +1026,7 @@ impl Context {
         input: &Input,
         namespace: &Str,
     ) -> TyCheckResult<VarInfo> {
-        erg_common::debug_power_assert!(args.len() == 1);
+        erg_common::debug_power_assert!(args.len(), ==, 1);
         let cont = unaryop_to_dname(op.inspect());
         let symbol = Token::symbol(cont);
         let vi = self.rec_get_var_info(
@@ -980,7 +1036,7 @@ impl Context {
             namespace,
         )?;
         let op = hir::Expr::Accessor(hir::Accessor::private(symbol, vi));
-        self.get_call_t(&op, &None, args, &[], input, namespace)
+        self.get_call_t(&op, None, args, &[], input, namespace)
             .map_err(|(_, errs)| {
                 let Some(op_ident) = option_enum_unwrap!(op, hir::Expr::Accessor:(hir::Accessor::Ident:(_))) else {
                     return errs;
@@ -1016,7 +1072,7 @@ impl Context {
     fn not_callable_error(
         &self,
         obj: &hir::Expr,
-        attr_name: &Option<Identifier>,
+        attr_name: Option<&Identifier>,
         other: &Type,
         hint: Option<String>,
     ) -> TyCheckErrors {
@@ -1056,7 +1112,7 @@ impl Context {
     fn substitute_call(
         &self,
         obj: &hir::Expr,
-        attr_name: &Option<Identifier>,
+        attr_name: Option<&Identifier>,
         instance: &Type,
         pos_args: &[hir::PosArg],
         kw_args: &[hir::KwArg],
@@ -1385,7 +1441,7 @@ impl Context {
     fn substitute_pos_arg(
         &self,
         callee: &hir::Expr,
-        attr_name: &Option<Identifier>,
+        attr_name: Option<&Identifier>,
         arg: &hir::Expr,
         nth: usize,
         param: &ParamTy,
@@ -1454,7 +1510,7 @@ impl Context {
     fn substitute_var_arg(
         &self,
         callee: &hir::Expr,
-        attr_name: &Option<Identifier>,
+        attr_name: Option<&Identifier>,
         arg: &hir::Expr,
         nth: usize,
         param: &ParamTy,
@@ -1495,7 +1551,7 @@ impl Context {
     fn substitute_kw_arg(
         &self,
         callee: &hir::Expr,
-        attr_name: &Option<Identifier>,
+        attr_name: Option<&Identifier>,
         arg: &hir::KwArg,
         nth: usize,
         subr_ty: &SubrType,
@@ -1570,7 +1626,7 @@ impl Context {
     pub(crate) fn get_call_t(
         &self,
         obj: &hir::Expr,
-        attr_name: &Option<Identifier>,
+        attr_name: Option<&Identifier>,
         pos_args: &[hir::PosArg],
         kw_args: &[hir::KwArg],
         input: &Input,
@@ -1594,7 +1650,7 @@ impl Context {
             }
         }
         let found = self
-            .search_callee_info(obj, attr_name, input, namespace)
+            .search_callee_info(obj, attr_name, pos_args, kw_args, input, namespace)
             .map_err(|err| (None, TyCheckErrors::from(err)))?;
         log!(
             "Found:\ncallee: {obj}{}\nfound: {found}",

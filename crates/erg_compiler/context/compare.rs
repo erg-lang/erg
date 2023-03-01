@@ -988,7 +988,13 @@ impl Context {
         }
     }
 
-    /// returns union of two types (A or B)
+    /// returns union of two types (`A or B`).
+    /// this can be used as `max(A, B)` if A <: B or B <: A
+    ///
+    /// ```erg
+    /// union(Int, Str) == Or(Int, Str)
+    /// union(Int, Nat) == Int
+    /// ```
     pub(crate) fn union(&self, lhs: &Type, rhs: &Type) -> Type {
         let allow_cast = true;
         if lhs == rhs {
@@ -1060,6 +1066,13 @@ impl Context {
     }
 
     /// returns intersection of two types (A and B)
+    /// this can be used as `min(A, B)` if A <: B or B <: A
+    ///
+    /// ```erg
+    /// intersection(Eq, Ord) == And(Eq, Ord)
+    /// intersection(Int, Str) == Never
+    /// intersection(Int, Nat) == Nat
+    /// ```
     pub(crate) fn intersection(&self, lhs: &Type, rhs: &Type) -> Type {
         let allow_cast = true;
         if lhs == rhs {

@@ -157,6 +157,11 @@ fn exec_return() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_specialization() -> Result<(), ()> {
+    expect_success("tests/should_ok/specialization.er")
+}
+
+#[test]
 fn exec_structural() -> Result<(), ()> {
     expect_success("examples/structural.er")
 }
@@ -257,7 +262,7 @@ fn exec_side_effect() -> Result<(), ()> {
 }
 
 #[test]
-fn exec_specialization() -> Result<(), ()> {
+fn exec_specialization_err() -> Result<(), ()> {
     expect_failure("tests/should_err/specialization.er", 1)
 }
 

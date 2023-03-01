@@ -826,7 +826,7 @@ impl ASTLowerer {
         };
         let vi = match self.module.context.get_call_t(
             &obj,
-            &call.attr_name,
+            call.attr_name.as_ref(),
             &hir_args.pos_args,
             &hir_args.kw_args,
             &self.cfg.input,
@@ -925,7 +925,7 @@ impl ASTLowerer {
         );
         let vi = match self.module.context.get_call_t(
             &class,
-            &Some(attr_name.clone()),
+            Some(&attr_name),
             &args,
             &[],
             &self.cfg.input,

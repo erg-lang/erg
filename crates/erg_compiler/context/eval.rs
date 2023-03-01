@@ -958,6 +958,10 @@ impl Context {
     }
 
     /// lhs: mainly class
+    /// ```erg
+    /// eval_proj(?T(:> Nat, <: Add(Nat)).Output) == Nat
+    /// eval_proj(?T(:> Nat, <: Add(Int)).Output) == Int
+    /// ```
     pub(crate) fn eval_proj(
         &self,
         lhs: Type,
@@ -1004,6 +1008,8 @@ impl Context {
             {
                 return Ok(t);
             }
+            let mut found = false;
+            let mut min = Type::Obj;
             for (class, methods) in ty_ctx.methods_list.iter() {
                 match (&class, &opt_sup) {
                     (ClassDefType::ImplTrait { impl_trait, .. }, Some(sup)) => {
@@ -1021,8 +1027,14 @@ impl Context {
                 if let Some(t) =
                     self.validate_and_project(&sub, opt_sup.as_ref(), &rhs, methods, level, t_loc)
                 {
-                    return Ok(t);
+                    if self.subtype_of(&t, &min, true) {
+                        found = true;
+                        min = t;
+                    }
                 }
+            }
+            if found {
+                return Ok(min);
             }
         }
         if lhs.is_unbound_var() {
@@ -1190,7 +1202,7 @@ impl Context {
                     Self::undo_substitute_typarams(&quant_sup);
                 }
             } else {
-                todo!()
+                todo!("{obj} is not a type");
             }
         }
         None
