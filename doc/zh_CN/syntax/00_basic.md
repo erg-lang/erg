@@ -31,7 +31,7 @@ print! f x # OK, 解释为 `print!(f(x))`
 print!(f(x, y)) # OK
 print! f(x, y) # OK
 print! f(x, g y) # OK
-print! f x, y # NG, 可以理解为 `print!(f(x), y)` 或 `print!(f(x, y))` print!
+print! f x, y # NG, 可以理解为 `print!(f(x), y)` 或 `print!(f(x, y))`
 print!(f x, y) # NG, 可以表示"print！(f(x)，y)"或"print！(f(x，y))"
 print! f(x, g y, z) # NG, 可以表示"print！(x，g(y)，z)"或"print！(x，g(y，z))"
 ```
