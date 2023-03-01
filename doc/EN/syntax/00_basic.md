@@ -35,7 +35,7 @@ print! f x # OK, interpreted as `print!(f(x))`
 print!(f(x, y)) # OK
 print! f(x, y) # OK
 print! f(x, g y) # OK
-print! f x, y # NG, can be taken to mean either `print!(f(x), y)` or `print!(f(x, y))` print!
+print! f x, y # NG, can be taken to mean either `print!(f(x), y)` or `print!(f(x, y))`
 print!(f x, y) # NG, can be taken to mean either `print!(f(x), y)` or `print!(f(x, y))`
 print! f(x, g y, z) # NG, can be taken to mean either `print!(x, g(y), z)` or `print!(x, g(y, z))`
 ```
