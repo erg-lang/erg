@@ -15,8 +15,8 @@ use crate::ast::{
     NonDefaultParamSignature, NormalArray, NormalDict, NormalRecord, NormalSet, NormalTuple,
     ParamPattern, ParamRecordAttr, Params, PatchDef, PosArg, ReDef, Record, RecordAttrOrIdent,
     RecordAttrs, Set as astSet, SetWithLength, Signature, SubrSignature, Tuple, TupleTypeSpec,
-    TypeAppArgs, TypeBoundSpecs, TypeSpec, TypeSpecWithOp, UnaryOp, VarName, VarPattern,
-    VarRecordAttr, VarSignature,
+    TypeAppArgs, TypeAppArgsKind, TypeBoundSpecs, TypeSpec, TypeSpecWithOp, UnaryOp, VarName,
+    VarPattern, VarRecordAttr, VarSignature,
 };
 use crate::token::{Token, TokenKind, COLON, DOT};
 
@@ -92,7 +92,12 @@ impl Desugarer {
             }
             Accessor::TypeApp(tapp) => {
                 let obj = desugar(*tapp.obj);
-                let args = Self::desugar_args(desugar, tapp.type_args.args);
+                let args = match tapp.type_args.args {
+                    TypeAppArgsKind::Args(args) => {
+                        TypeAppArgsKind::Args(Self::desugar_args(desugar, args))
+                    }
+                    other => other,
+                };
                 let type_args =
                     TypeAppArgs::new(tapp.type_args.l_vbar, args, tapp.type_args.r_vbar);
                 obj.type_app(type_args)

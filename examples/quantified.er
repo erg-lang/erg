@@ -1,9 +1,9 @@
-id|T: Type|(x: T): T = x
+id|T|(x: T): T = x
 assert id(1) == 1
 assert id(True) == True
 assert id("hello") == "hello"
 
-const|T: Type, C: Type|(c: C): (T -> C) = (_: T,) -> c
+const|T, C|(c: C): (T -> C) = (_: T,) -> c
 print! const(1)(2)
 assert const(True)(2) == True
 

@@ -13,7 +13,7 @@ d = D.new "bar", 1
 assert name(c) == "foo"
 assert name(d) == "bar"
 
-inner|T: Type| x: Structural { .inner = T } = x.inner
+inner|T| x: Structural { .inner = T } = x.inner
 
 E = Class { .inner = Int }
 E.
@@ -24,7 +24,7 @@ e = E.new 1
 
 assert inner(e) == 1
 
-add|T: Type, U: Type, V: Type| x: Structural({ .__add__ = (self: T, other: U) -> V }), other: U =
+add|T, U, V| x: Structural({ .__add__ = (self: T, other: U) -> V }), other: U =
     x.__add__(other)
 
 _ = add 1, 2

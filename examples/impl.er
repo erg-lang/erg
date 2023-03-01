@@ -2,15 +2,15 @@ Point = Class {x = Int; y = Int}
 Point.
     new x, y = Point::__new__ {x; y}
     norm self = self::x**2 + self::y**2
-Point|Point <: Add(Point)|.
+Point|<: Add(Point)|.
     Output = Point
     __add__ self, other: Point =
         Point.new(self::x + other::x, self::y + other::y)
-Point|Point <: Mul(Point)|.
+Point|<: Mul(Point)|.
     Output = Int
     __mul__ self, other: Point =
         self::x * other::x + self::y * other::y
-Point|Point <: Eq|.
+Point|<: Eq|.
     __eq__ self, other: Point =
         self::x == other::x and self::y == other::y
 
