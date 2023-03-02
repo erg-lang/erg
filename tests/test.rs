@@ -206,6 +206,16 @@ fn exec_args() -> Result<(), ()> {
     expect_failure("tests/should_err/args.er", 16)
 }
 
+#[test]
+fn exec_array_err() -> Result<(), ()> {
+    expect_failure("examples/array.er", 1)
+}
+
+#[test]
+fn exec_dependent() -> Result<(), ()> {
+    expect_failure("tests/should_err/dependent.er", 2)
+}
+
 /// This file compiles successfully, but causes a run-time error due to incomplete method dispatching
 #[test]
 fn exec_tests_impl() -> Result<(), ()> {

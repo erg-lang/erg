@@ -1620,7 +1620,7 @@ impl Context {
         log!(info "Substituted:\ninstance: {instance}");
         let res = self
             .eval_t_params(instance, self.level, obj)
-            .map_err(|errs| (Some(found.clone()), errs))?;
+            .map_err(|(t, errs)| (Some(VarInfo { t, ..found.clone() }), errs))?;
         log!(info "Params evaluated:\nres: {res}\n");
         self.propagate(&res, obj).map_err(|errs| {
             (

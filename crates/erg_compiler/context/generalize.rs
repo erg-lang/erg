@@ -349,6 +349,11 @@ impl Context {
                 let inner = fv.unwrap_linked();
                 self.deref_tp(inner, variance, &set! {}, loc)
             }
+            TyParam::FreeVar(fv)
+                if fv.is_generalized() && qnames.contains(&fv.unbound_name().unwrap()) =>
+            {
+                Ok(TyParam::FreeVar(fv))
+            }
             TyParam::FreeVar(_fv) if self.level == 0 => Err(TyCheckErrors::from(
                 TyCheckError::dummy_infer_error(self.cfg.input.clone(), fn_name!(), line!()),
             )),
@@ -628,7 +633,13 @@ impl Context {
                     fv.forced_undoable_link(&sub_t);
                     let res = self.validate_subsup(sub_t, super_t, variance, qnames, loc);
                     fv.undo();
-                    res
+                    match res {
+                        Ok(ty) => Ok(ty),
+                        Err(errs) => {
+                            fv.link(&Never);
+                            Err(errs)
+                        }
+                    }
                 } else {
                     // no dereference at this point
                     // drop(constraint);

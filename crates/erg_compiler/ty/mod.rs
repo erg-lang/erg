@@ -681,7 +681,7 @@ impl ArgsOwnership {
     }
 }
 
-#[derive(Debug, Clone, Hash)]
+#[derive(Debug, Clone, Hash, Default)]
 pub enum Type {
     /* Monomorphic (builtin) types */
     Obj, // {=}
@@ -748,7 +748,8 @@ pub enum Type {
     }, // e.g. Ts.__getitem__(N)
     Structural(Box<Type>),
     FreeVar(FreeTyVar), // a reference to the type of other expression, see docs/compiler/inference.md
-    Failure,            // indicates a failure of type inference and behaves as `Never`.
+    #[default]
+    Failure, // indicates a failure of type inference and behaves as `Never`.
     /// used to represent `TyParam` is not initialized (see `erg_compiler::context::instantiate_tp`)
     Uninited,
 }
@@ -1007,12 +1008,6 @@ impl CanbeFree for Type {
         if let Self::FreeVar(fv) = self {
             fv.update_constraint(new_constraint, in_instantiation);
         }
-    }
-}
-
-impl Default for Type {
-    fn default() -> Self {
-        Self::Failure
     }
 }
 

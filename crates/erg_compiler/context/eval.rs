@@ -33,6 +33,7 @@ use crate::error::{EvalError, EvalErrors, EvalResult, SingleEvalResult};
 
 use super::instantiate::TyVarCache;
 use super::Variance;
+use Type::{Failure, Never, Subr};
 
 macro_rules! feature_error {
     ($ctx: expr, $loc: expr, $name: expr) => {
@@ -876,57 +877,108 @@ impl Context {
         }
     }
 
+    /// Evaluate `substituted`.
+    /// If an error occurs during evaluation, return a harmless type (filled with `Failure`) and errors
     pub(crate) fn eval_t_params(
         &self,
         substituted: Type,
         level: usize,
         t_loc: &impl Locational,
-    ) -> EvalResult<Type> {
+    ) -> Result<Type, (Type, EvalErrors)> {
         match substituted {
             Type::FreeVar(fv) if fv.is_linked() => {
                 self.eval_t_params(fv.crack().clone(), level, t_loc)
             }
             Type::Subr(mut subr) => {
                 for pt in subr.non_default_params.iter_mut() {
-                    *pt.typ_mut() = self.eval_t_params(mem::take(pt.typ_mut()), level, t_loc)?;
+                    *pt.typ_mut() = match self.eval_t_params(mem::take(pt.typ_mut()), level, t_loc)
+                    {
+                        Ok(t) => t,
+                        Err((_, errs)) => {
+                            // `mem::take` replaces the type with `Type::Failure`, so it can return as is
+                            return Err((Subr(subr), errs));
+                        }
+                    };
                 }
                 if let Some(var_args) = subr.var_params.as_mut() {
                     *var_args.typ_mut() =
-                        self.eval_t_params(mem::take(var_args.typ_mut()), level, t_loc)?;
+                        match self.eval_t_params(mem::take(var_args.typ_mut()), level, t_loc) {
+                            Ok(t) => t,
+                            Err((_, errs)) => return Err((Subr(subr), errs)),
+                        };
                 }
                 for pt in subr.default_params.iter_mut() {
-                    *pt.typ_mut() = self.eval_t_params(mem::take(pt.typ_mut()), level, t_loc)?;
+                    *pt.typ_mut() = match self.eval_t_params(mem::take(pt.typ_mut()), level, t_loc)
+                    {
+                        Ok(t) => t,
+                        Err((_, errs)) => return Err((Subr(subr), errs)),
+                    };
                 }
-                let return_t = self.eval_t_params(*subr.return_t, level, t_loc)?;
-                Ok(subr_t(
-                    subr.kind,
-                    subr.non_default_params,
-                    subr.var_params.map(|v| *v),
-                    subr.default_params,
-                    return_t,
-                ))
+                match self.eval_t_params(*subr.return_t, level, t_loc) {
+                    Ok(return_t) => Ok(subr_t(
+                        subr.kind,
+                        subr.non_default_params,
+                        subr.var_params.map(|v| *v),
+                        subr.default_params,
+                        return_t,
+                    )),
+                    Err((_, errs)) => {
+                        let subr = subr_t(
+                            subr.kind,
+                            subr.non_default_params,
+                            subr.var_params.map(|v| *v),
+                            subr.default_params,
+                            Failure,
+                        );
+                        Err((subr, errs))
+                    }
+                }
             }
             Type::Refinement(refine) => {
                 let mut preds = Set::with_capacity(refine.preds.len());
                 for pred in refine.preds.into_iter() {
-                    preds.insert(self.eval_pred(pred)?);
+                    let pred = match self.eval_pred(pred) {
+                        Ok(pred) => pred,
+                        Err(errs) => {
+                            return Err((refinement(refine.var, *refine.t, preds), errs));
+                        }
+                    };
+                    preds.insert(pred);
                 }
                 Ok(refinement(refine.var, *refine.t, preds))
             }
             // [?T; 0].MutType! == [?T; !0]
             // ?T(<: Add(?R(:> Int))).Output == ?T(<: Add(?R)).Output
             // ?T(:> Int, <: Add(?R(:> Int))).Output == Int
-            Type::Proj { lhs, rhs } => self.eval_proj(*lhs, rhs, level, t_loc),
+            Type::Proj { lhs, rhs } => self
+                .eval_proj(*lhs, rhs, level, t_loc)
+                .map_err(|errs| (Failure, errs)),
             Type::ProjCall {
                 lhs,
                 attr_name,
                 args,
-            } => self.eval_proj_call(*lhs, attr_name, args, level, t_loc),
-            Type::Ref(l) => Ok(ref_(self.eval_t_params(*l, level, t_loc)?)),
+            } => self
+                .eval_proj_call(*lhs, attr_name, args, level, t_loc)
+                .map_err(|errs| (Failure, errs)),
+            Type::Ref(l) => match self.eval_t_params(*l, level, t_loc) {
+                Ok(t) => Ok(ref_(t)),
+                Err((_, errs)) => Err((ref_(Failure), errs)),
+            },
             Type::RefMut { before, after } => {
-                let before = self.eval_t_params(*before, level, t_loc)?;
+                let before = match self.eval_t_params(*before, level, t_loc) {
+                    Ok(before) => before,
+                    Err((_, errs)) => {
+                        return Err((ref_mut(Failure, after.map(|x| *x)), errs));
+                    }
+                };
                 let after = if let Some(after) = after {
-                    Some(self.eval_t_params(*after, level, t_loc)?)
+                    let aft = match self.eval_t_params(*after, level, t_loc) {
+                        Ok(aft) => aft,
+                        Err((_, errs)) => {
+                            return Err((ref_mut(before, Some(Failure)), errs));
+                        }
+                    };
+                    Some(aft)
                 } else {
                     None
                 };
@@ -934,26 +986,54 @@ impl Context {
             }
             Type::Poly { name, mut params } => {
                 for p in params.iter_mut() {
-                    *p = self.eval_tp(mem::take(p))?;
+                    *p = match self.eval_tp(mem::take(p)) {
+                        Ok(p) => p,
+                        Err(errs) => {
+                            // TODO: detoxify `p`
+                            return Err((poly(name, params), errs));
+                        }
+                    };
                 }
                 Ok(poly(name, params))
             }
             Type::And(l, r) => {
-                let l = self.eval_t_params(*l, level, t_loc)?;
-                let r = self.eval_t_params(*r, level, t_loc)?;
+                let l = match self.eval_t_params(*l, level, t_loc) {
+                    Ok(l) => l,
+                    Err((_, errs)) => {
+                        return Err((Failure, errs));
+                    }
+                };
+                let r = match self.eval_t_params(*r, level, t_loc) {
+                    Ok(r) => r,
+                    Err((_, errs)) => {
+                        // L and Never == Never
+                        return Err((Failure, errs));
+                    }
+                };
                 Ok(self.intersection(&l, &r))
             }
             Type::Or(l, r) => {
-                let l = self.eval_t_params(*l, level, t_loc)?;
-                let r = self.eval_t_params(*r, level, t_loc)?;
+                let l = match self.eval_t_params(*l, level, t_loc) {
+                    Ok(l) => l,
+                    Err((_, errs)) => {
+                        return Err((Failure, errs));
+                    }
+                };
+                let r = match self.eval_t_params(*r, level, t_loc) {
+                    Ok(r) => r,
+                    Err((_, errs)) => {
+                        // L or Never == L
+                        return Err((l, errs));
+                    }
+                };
                 Ok(self.union(&l, &r))
             }
-            Type::Not(ty) => {
-                let ty = self.eval_t_params(*ty, level, t_loc)?;
-                Ok(self.complement(&ty))
-            }
+            Type::Not(ty) => match self.eval_t_params(*ty, level, t_loc) {
+                Ok(ty) => Ok(self.complement(&ty)),
+                Err((_, errs)) => Err((Failure, errs)),
+            },
             other if other.is_monomorphic() => Ok(other),
-            _other => feature_error!(self, t_loc.loc(), "???"),
+            other => feature_error!(self, t_loc.loc(), "???").map_err(|errs| (other, errs)),
         }
     }
 
@@ -970,7 +1050,9 @@ impl Context {
         // All type variables will be dereferenced or fail.
         let (sub, opt_sup) = match lhs.clone() {
             Type::FreeVar(fv) if fv.is_linked() => {
-                return self.eval_t_params(proj(fv.crack().clone(), rhs), level, t_loc)
+                return self
+                    .eval_t_params(proj(fv.crack().clone(), rhs), level, t_loc)
+                    .map_err(|(_, errs)| errs)
             }
             Type::FreeVar(fv) if fv.is_unbound() => {
                 let (sub, sup) = fv.get_subsup().unwrap();
@@ -990,15 +1072,20 @@ impl Context {
                 return Ok(t);
             }
         }
-        for ty_ctx in self.get_nominal_super_type_ctxs(&sub).ok_or_else(|| {
-            EvalError::type_not_found(
-                self.cfg.input.clone(),
-                line!() as usize,
-                t_loc.loc(),
-                self.caused_by(),
-                &sub,
-            )
-        })? {
+        let ty_ctxs = match self.get_nominal_super_type_ctxs(&sub) {
+            Some(ty_ctxs) => ty_ctxs,
+            None => {
+                let errs = EvalErrors::from(EvalError::type_not_found(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    t_loc.loc(),
+                    self.caused_by(),
+                    &sub,
+                ));
+                return Err(errs);
+            }
+        };
+        for ty_ctx in ty_ctxs {
             if let Some(t) =
                 self.validate_and_project(&sub, opt_sup.as_ref(), &rhs, ty_ctx, level, t_loc)
             {
@@ -1025,9 +1112,11 @@ impl Context {
                 }
             }
         }
-        if lhs.is_unbound_var() {
-            let (sub, sup) = enum_unwrap!(&lhs, Type::FreeVar).get_subsup().unwrap();
+        if let Type::FreeVar(fv) = &lhs {
+            let (sub, sup) = fv.get_subsup().unwrap();
             if self.is_trait(&sup) && !self.trait_impl_exists(&sub, &sup) {
+                // link to `Never` to prevent double errors from being reported
+                fv.link(&Never);
                 let sub = if cfg!(feature = "debug") {
                     sub
                 } else {
@@ -1054,20 +1143,19 @@ impl Context {
         let coerced = self.deref_tyvar(lhs.clone(), Variance::Covariant, &set! {}, t_loc)?;
         if lhs != coerced {
             let proj = proj(coerced, rhs);
-            self.eval_t_params(proj, level, t_loc).map(|t| {
-                lhs.coerce();
-                t
-            })
+            self.eval_t_params(proj, level, t_loc)
+                .map_err(|(_, errs)| errs)
         } else {
             let proj = proj(lhs, rhs);
-            Err(EvalErrors::from(EvalError::no_candidate_error(
+            let errs = EvalErrors::from(EvalError::no_candidate_error(
                 self.cfg.input.clone(),
                 line!() as usize,
                 &proj,
                 t_loc.loc(),
                 self.caused_by(),
                 self.get_no_candidate_hint(&proj),
-            )))
+            ));
+            Err(errs)
         }
     }
 
@@ -1385,28 +1473,31 @@ impl Context {
                 }
             }
         }
-        if lhs.is_unbound_var() {
-            let (sub, sup) = enum_unwrap!(&lhs, TyParam::FreeVar).get_subsup().unwrap();
-            if self.is_trait(&sup) && !self.trait_impl_exists(&sub, &sup) {
-                let sub = if cfg!(feature = "debug") {
-                    sub
-                } else {
-                    self.deref_tyvar(sub, Variance::Covariant, &set! {}, t_loc)?
-                };
-                let sup = if cfg!(feature = "debug") {
-                    sup
-                } else {
-                    self.deref_tyvar(sup, Variance::Covariant, &set! {}, t_loc)?
-                };
-                return Err(EvalErrors::from(EvalError::no_trait_impl_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    &sub,
-                    &sup,
-                    t_loc.loc(),
-                    self.caused_by(),
-                    self.get_simple_type_mismatch_hint(&sup, &sub),
-                )));
+        if let TyParam::FreeVar(lhs) = &lhs {
+            if let Some((sub, sup)) = lhs.get_subsup() {
+                if self.is_trait(&sup) && !self.trait_impl_exists(&sub, &sup) {
+                    // to prevent double error reporting
+                    lhs.link(&TyParam::t(Never));
+                    let sub = if cfg!(feature = "debug") {
+                        sub
+                    } else {
+                        self.deref_tyvar(sub, Variance::Covariant, &set! {}, t_loc)?
+                    };
+                    let sup = if cfg!(feature = "debug") {
+                        sup
+                    } else {
+                        self.deref_tyvar(sup, Variance::Covariant, &set! {}, t_loc)?
+                    };
+                    return Err(EvalErrors::from(EvalError::no_trait_impl_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        &sub,
+                        &sup,
+                        t_loc.loc(),
+                        self.caused_by(),
+                        self.get_simple_type_mismatch_hint(&sup, &sub),
+                    )));
+                }
             }
         }
         // if the target can't be found in the supertype, the type will be dereferenced.
@@ -1414,10 +1505,12 @@ impl Context {
         let coerced = self.deref_tp(lhs.clone(), Variance::Covariant, &set! {}, t_loc)?;
         if lhs != coerced {
             let proj = proj_call(coerced, attr_name, args);
-            self.eval_t_params(proj, level, t_loc).map(|t| {
-                lhs.coerce();
-                t
-            })
+            self.eval_t_params(proj, level, t_loc)
+                .map(|t| {
+                    lhs.coerce();
+                    t
+                })
+                .map_err(|(_, errs)| errs)
         } else {
             let proj = proj_call(lhs, attr_name, args);
             Err(EvalErrors::from(EvalError::no_candidate_error(
