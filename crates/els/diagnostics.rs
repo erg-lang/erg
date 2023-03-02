@@ -4,6 +4,7 @@ use erg_common::style::*;
 use erg_common::traits::Stream;
 
 use erg_compiler::artifact::BuildRunnable;
+use erg_compiler::erg_parser::Parser;
 use erg_compiler::error::CompileErrors;
 
 use lsp_types::{Diagnostic, DiagnosticSeverity, Position, PublishDiagnosticsParams, Range, Url};
@@ -20,11 +21,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         } else {
             "exec"
         };
-        let mut checker = if let Some(shared) = self.get_shared() {
-            Checker::inherit(self.cfg.inherit(path), shared.clone())
-        } else {
-            Checker::new(self.cfg.inherit(path))
-        };
+        let mut checker = self.get_checker(path);
         match checker.build(code.into(), mode) {
             Ok(artifact) => {
                 send_log(format!("checking {uri} passed"))?;
@@ -66,6 +63,39 @@ impl<Checker: BuildRunnable> Server<Checker> {
             // _log!("dep: {dep}");
             let code = util::get_code_from_uri(&dep)?;
             self.check_file(dep, code)?;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn quick_check_file(&mut self, uri: Url) -> ELSResult<()> {
+        // send_log(format!("checking {uri}"))?;
+        let mut parser = Parser::new(self.file_cache.get_token_stream(&uri).unwrap().clone());
+        if parser.parse().is_err() {
+            return Ok(());
+        }
+        let path = util::uri_to_path(&uri);
+        let code = &self.file_cache.get(&uri).unwrap().code;
+        let mode = if path.to_string_lossy().ends_with(".d.er") {
+            "declare"
+        } else {
+            "exec"
+        };
+        let mut checker = self.get_checker(path);
+        match checker.build(code.into(), mode) {
+            Ok(artifact) => {
+                self.artifacts.insert(uri.clone(), artifact.into());
+            }
+            Err(artifact) => {
+                self.artifacts.insert(uri.clone(), artifact);
+            }
+        }
+        if let Some(module) = checker.pop_context() {
+            self.modules.insert(uri.clone(), module);
+        }
+        let dependents = self.dependents_of(&uri);
+        for dep in dependents {
+            // _log!("dep: {dep}");
+            self.quick_check_file(dep)?;
         }
         Ok(())
     }

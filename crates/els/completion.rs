@@ -11,7 +11,7 @@ use erg_compiler::erg_parser::token::TokenKind;
 use erg_compiler::hir::Expr;
 use erg_compiler::ty::{HasType, ParamTy, Type};
 use erg_compiler::varinfo::{AbsLocation, VarInfo};
-use erg_compiler::AccessKind;
+use TokenKind::*;
 
 use lsp_types::{
     CompletionItem, CompletionItemKind, CompletionParams, Documentation, MarkedString,
@@ -20,6 +20,29 @@ use lsp_types::{
 
 use crate::server::{send, send_log, ELSResult, Server};
 use crate::util;
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum CompletionKind {
+    Local,
+    Space,
+    LParen,
+    Method,
+    // Colon, // :, Type ascription or private access `::`
+}
+
+impl CompletionKind {
+    pub const fn should_be_local(&self) -> bool {
+        matches!(self, Self::Local | Self::Space | Self::LParen)
+    }
+
+    pub const fn should_be_method(&self) -> bool {
+        matches!(self, Self::Method)
+    }
+
+    pub const fn _is_lparen(&self) -> bool {
+        matches!(self, Self::LParen)
+    }
+}
 
 fn mark_to_string(mark: MarkedString) -> String {
     match mark {
@@ -37,12 +60,13 @@ fn markdown_order(block: &str) -> usize {
 }
 
 impl_u8_enum! { CompletionOrder; i32;
-    TypeMatched = -8,
-    NameMatched = -2,
+    TypeMatched = -32,
+    NameMatched = -8,
+    ReturnTypeMatched = -2,
     Normal = 1000000,
     Builtin = 1,
-    Escaped = 4,
-    DoubleEscaped = 16,
+    Escaped = 32,
+    DoubleEscaped = 64,
 }
 
 pub struct CompletionOrderSetter<'b> {
@@ -83,10 +107,19 @@ impl<'b> CompletionOrderSetter<'b> {
         {
             orders.push(CompletionOrder::NameMatched);
         }
+        #[allow(clippy::blocks_in_if_conditions)]
         if self.arg_pt.map_or(false, |pt| {
             self.mod_ctx.subtype_of(&self.vi.t, pt.typ(), true)
         }) {
             orders.push(CompletionOrder::TypeMatched);
+        } else if self.arg_pt.map_or(false, |pt| {
+            let Some(return_t) = self.vi.t.return_t() else { return false; };
+            if return_t.has_qvar() {
+                return false;
+            }
+            self.mod_ctx.subtype_of(return_t, pt.typ(), true)
+        }) {
+            orders.push(CompletionOrder::ReturnTypeMatched);
         }
         orders.into_iter().map(i32::from).sum()
     }
@@ -112,18 +145,20 @@ impl<Checker: BuildRunnable> Server<Checker> {
             .context
             .as_ref()
             .and_then(|comp_ctx| comp_ctx.trigger_character.as_ref().map(|s| &s[..]));
-        let acc_kind = match trigger {
-            Some(".") => AccessKind::Attr,
-            Some(":") => AccessKind::Attr, // or type ascription
-            _ => AccessKind::Name,
+        let comp_kind = match trigger {
+            Some(".") => CompletionKind::Method,
+            Some(":") => CompletionKind::Method,
+            Some(" ") => CompletionKind::Space,
+            Some("(") => CompletionKind::LParen,
+            _ => CompletionKind::Local,
         };
-        send_log(format!("AccessKind: {acc_kind:?}"))?;
+        send_log(format!("CompletionKind: {comp_kind:?}"))?;
         let mut result: Vec<CompletionItem> = vec![];
-        let contexts = if acc_kind.is_local() {
-            let prev_token = self.file_cache.get_token_relatively(&uri, pos, -1)?;
+        let contexts = if comp_kind.should_be_local() {
+            let prev_token = self.file_cache.get_token_relatively(&uri, pos, -1);
             if prev_token
                 .as_ref()
-                .map(|t| t.is(TokenKind::Dot) || t.is(TokenKind::DblColon))
+                .map(|t| matches!(t.kind, Dot | DblColon))
                 .unwrap_or(false)
             {
                 let dot_pos = util::loc_to_pos(prev_token.unwrap().loc()).unwrap();
@@ -134,18 +169,31 @@ impl<Checker: BuildRunnable> Server<Checker> {
         } else {
             self.get_receiver_ctxs(&uri, pos)?
         };
-        let arg_pt = self.get_min_expr(&uri, pos, -1).and_then(|(token, expr)| {
-            if let Expr::Call(call) = expr {
-                let sig_t = call.obj.t();
-                let nth = self.nth(&uri, call.args.loc(), &token);
-                sig_t.non_default_params()?.get(nth).cloned()
-            } else {
-                None
-            }
-        });
+        let offset = match comp_kind {
+            CompletionKind::Local => 0,
+            CompletionKind::Method => -1,
+            CompletionKind::Space => -1,
+            CompletionKind::LParen => 0,
+        };
+        let arg_pt = self
+            .get_min_expr(&uri, pos, offset)
+            .and_then(|(token, expr)| match expr {
+                Expr::Call(call) => {
+                    let sig_t = call.obj.t();
+                    let nth = self.nth(&uri, call.args.loc(), &token);
+                    let additional = if matches!(token.kind, Comma) { 1 } else { 0 };
+                    let nth = nth + additional;
+                    sig_t.non_default_params()?.get(nth).cloned()
+                }
+                other if comp_kind == CompletionKind::Space => {
+                    let sig_t = other.t();
+                    sig_t.non_default_params()?.get(0).cloned()
+                }
+                _ => None,
+            });
         let mod_ctx = &self.modules.get(&uri).unwrap().context;
         for (name, vi) in contexts.into_iter().flat_map(|ctx| ctx.dir()) {
-            if acc_kind.is_attr() && vi.vis.is_private() {
+            if comp_kind.should_be_method() && vi.vis.is_private() {
                 continue;
             }
             // don't show overriden items

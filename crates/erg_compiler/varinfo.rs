@@ -131,7 +131,7 @@ impl AbsLocation {
                     let res = res.ok()?;
                     let begin = self.loc.col_begin().unwrap_or(0) as usize;
                     let end = self.loc.col_end().unwrap_or(0) as usize;
-                    if begin > end {
+                    if begin > res.len() || end > res.len() || begin > end {
                         return None;
                     }
                     let end = end.min(res.len());

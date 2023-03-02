@@ -35,7 +35,7 @@ impl From<String> for Trigger {
 }
 
 fn get_end(start: usize, pt: &ParamTy) -> usize {
-    start + pt.name().unwrap().len() + 2 + pt.typ().to_string().len()
+    start + pt.name().map(|n| n.len() + 2).unwrap_or(0) + pt.typ().to_string().len()
 }
 
 impl<Checker: BuildRunnable> Server<Checker> {
@@ -70,10 +70,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         pos: Position,
         offset: isize,
     ) -> Option<(Token, Expr)> {
-        let token = self
-            .file_cache
-            .get_token_relatively(uri, pos, offset)
-            .ok()??;
+        let token = self.file_cache.get_token_relatively(uri, pos, offset)?;
         send_log(format!("token: {token}")).unwrap();
         if let Some(visitor) = self.get_visitor(uri) {
             #[allow(clippy::single_match)]
@@ -126,7 +123,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 return self.make_sig_help(call.obj.as_ref(), nth);
             }
         } else {
-            send_log("lex error occurred").unwrap();
+            send_log("failed to get the token").unwrap();
         }
         ctx.active_signature_help.clone()
     }
@@ -159,10 +156,12 @@ impl<Checker: BuildRunnable> Server<Checker> {
     ) -> Option<SignatureHelp> {
         let sig_t = sig.ref_t();
         let mut parameters = vec![];
-        let label = format!("{}: {sig_t}", sig.to_string_notype());
+        let sig = sig.to_string_notype();
+        let label = format!("{sig}: {sig_t}");
+        let mut end = sig.len() + 1; // +1: (
         for nd_param in sig_t.non_default_params()? {
-            let start = label.find(&nd_param.name().unwrap()[..]).unwrap();
-            let end = get_end(start, nd_param);
+            let start = end + 2;
+            end = get_end(start, nd_param);
             let param_info = ParameterInformation {
                 label: ParameterLabel::LabelOffsets([start as u32, end as u32]),
                 documentation: None, //Some(Documentation::String(nd_param.typ().to_string())),
@@ -170,15 +169,13 @@ impl<Checker: BuildRunnable> Server<Checker> {
             parameters.push(param_info);
         }
         if let Some(var_params) = sig_t.var_params() {
-            // var_params.name().is_none() => skip
-            if let Some(start) = label.find(var_params.name().map_or("#", |s| &s[..])) {
-                let end = get_end(start, var_params);
-                let param_info = ParameterInformation {
-                    label: ParameterLabel::LabelOffsets([start as u32, end as u32]),
-                    documentation: None, //Some(Documentation::String(var_params.typ().to_string())),
-                };
-                parameters.push(param_info);
-            }
+            let start = end + 2;
+            end = get_end(start, var_params);
+            let param_info = ParameterInformation {
+                label: ParameterLabel::LabelOffsets([start as u32, end as u32]),
+                documentation: None, //Some(Documentation::String(var_params.typ().to_string())),
+            };
+            parameters.push(param_info);
         }
         let nth = (parameters.len() as u32 - 1).min(nth);
         let info = SignatureInformation {
