@@ -878,7 +878,7 @@ impl Context {
     }
 
     /// Evaluate `substituted`.
-    /// If an error occurs during evaluation, return a harmless type (filled with `Failure`) and errors
+    /// If the evaluation fails, return a harmless type (filled with `Failure`) and errors
     pub(crate) fn eval_t_params(
         &self,
         substituted: Type,
