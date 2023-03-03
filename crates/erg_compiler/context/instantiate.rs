@@ -1550,14 +1550,9 @@ impl Context {
             }
             Refinement(mut refine) => {
                 refine.t = Box::new(self.instantiate_t_inner(*refine.t, tmp_tv_cache, loc)?);
-                let mut new_preds = set! {};
-                for mut pred in refine.preds.into_iter() {
-                    for tp in pred.typarams_mut() {
-                        *tp = self.instantiate_tp(mem::take(tp), tmp_tv_cache, loc)?;
-                    }
-                    new_preds.insert(pred);
+                for tp in refine.pred.typarams_mut() {
+                    *tp = self.instantiate_tp(mem::take(tp), tmp_tv_cache, loc)?;
                 }
-                refine.preds = new_preds;
                 Ok(Type::Refinement(refine))
             }
             Subr(mut subr) => {

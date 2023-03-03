@@ -232,12 +232,8 @@ impl Context {
             }
             Refinement(refine) => {
                 let t = self.generalize_t_inner(*refine.t, variance, uninit);
-                let preds = refine
-                    .preds
-                    .into_iter()
-                    .map(|pred| self.generalize_pred(pred, variance, uninit))
-                    .collect();
-                refinement(refine.var, t, preds)
+                let pred = self.generalize_pred(*refine.pred, variance, uninit);
+                refinement(refine.var, t, pred)
             }
             Poly { name, mut params } => {
                 let params = params
@@ -332,7 +328,7 @@ impl Context {
             }
             Predicate::Not(pred) => {
                 let pred = self.generalize_pred(*pred, variance, uninit);
-                Predicate::not(pred)
+                !pred
             }
         }
     }
@@ -750,7 +746,7 @@ impl Context {
             Type::Refinement(refine) => {
                 let t = self.deref_tyvar(*refine.t, variance, qnames, loc)?;
                 // TODO: deref_predicate
-                Ok(refinement(refine.var, t, refine.preds))
+                Ok(refinement(refine.var, t, *refine.pred))
             }
             Type::And(l, r) => {
                 let l = self.deref_tyvar(*l, variance, qnames, loc)?;

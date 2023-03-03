@@ -141,19 +141,16 @@ impl ConstSubr {
             ConstSubr::User(user) => {
                 let Type::Subr(subr) = &user.sig_t else { return None };
                 if let Type::Refinement(refine) = subr.return_t.as_ref() {
-                    if refine.preds.len() == 1 {
-                        let pred = refine.preds.iter().next().unwrap().clone();
-                        if let Predicate::Equal { rhs, .. } = pred {
-                            let return_t = Type::try_from(rhs).ok()?;
-                            let var_params = subr.var_params.as_ref().map(|t| t.as_ref());
-                            return Some(subr_t(
-                                subr.kind,
-                                subr.non_default_params.clone(),
-                                var_params.cloned(),
-                                subr.default_params.clone(),
-                                return_t,
-                            ));
-                        }
+                    if let Predicate::Equal { rhs, .. } = refine.pred.as_ref() {
+                        let return_t = Type::try_from(rhs.clone()).ok()?;
+                        let var_params = subr.var_params.as_ref().map(|t| t.as_ref());
+                        return Some(subr_t(
+                            subr.kind,
+                            subr.non_default_params.clone(),
+                            var_params.cloned(),
+                            subr.default_params.clone(),
+                            return_t,
+                        ));
                     }
                 }
                 None

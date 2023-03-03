@@ -1,5 +1,4 @@
 //! test module for `Context`
-use erg_common::set;
 use erg_common::traits::StructuralEq;
 use erg_common::Str;
 
@@ -33,7 +32,7 @@ impl Context {
         let rhs = refinement(
             var.clone(),
             Type::Int,
-            set! { Predicate::eq(var, TyParam::value(1)) },
+            Predicate::eq(var, TyParam::value(1)),
         );
         if self.supertype_of(&lhs, &rhs) {
             Ok(())

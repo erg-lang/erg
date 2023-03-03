@@ -932,17 +932,10 @@ impl Context {
                 }
             }
             Type::Refinement(refine) => {
-                let mut preds = Set::with_capacity(refine.preds.len());
-                for pred in refine.preds.into_iter() {
-                    let pred = match self.eval_pred(pred) {
-                        Ok(pred) => pred,
-                        Err(errs) => {
-                            return Err((refinement(refine.var, *refine.t, preds), errs));
-                        }
-                    };
-                    preds.insert(pred);
-                }
-                Ok(refinement(refine.var, *refine.t, preds))
+                let pred = self
+                    .eval_pred(*refine.pred)
+                    .map_err(|errs| (Failure, errs))?;
+                Ok(refinement(refine.var, *refine.t, pred))
             }
             // [?T; 0].MutType! == [?T; !0]
             // ?T(<: Add(?R(:> Int))).Output == ?T(<: Add(?R)).Output
@@ -1526,9 +1519,9 @@ impl Context {
             Predicate::NotEqual { lhs, rhs } => Ok(Predicate::ne(lhs, self.eval_tp(rhs)?)),
             Predicate::LessEqual { lhs, rhs } => Ok(Predicate::le(lhs, self.eval_tp(rhs)?)),
             Predicate::GreaterEqual { lhs, rhs } => Ok(Predicate::ge(lhs, self.eval_tp(rhs)?)),
-            Predicate::And(l, r) => Ok(Predicate::and(self.eval_pred(*l)?, self.eval_pred(*r)?)),
-            Predicate::Or(l, r) => Ok(Predicate::or(self.eval_pred(*l)?, self.eval_pred(*r)?)),
-            Predicate::Not(pred) => Ok(Predicate::not(self.eval_pred(*pred)?)),
+            Predicate::And(l, r) => Ok(self.eval_pred(*l)? & self.eval_pred(*r)?),
+            Predicate::Or(l, r) => Ok(self.eval_pred(*l)? | self.eval_pred(*r)?),
+            Predicate::Not(pred) => Ok(!self.eval_pred(*pred)?),
         }
     }
 

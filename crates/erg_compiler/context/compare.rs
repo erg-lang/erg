@@ -531,18 +531,9 @@ impl Context {
                 if !self.supertype_of(&l.t, &r.t) {
                     return false;
                 }
-                let mut r_preds_clone = r.preds.clone();
-                for l_pred in l.preds.iter() {
-                    for r_pred in r.preds.iter() {
-                        if l_pred.subject().unwrap_or("") == &l.var[..]
-                            && r_pred.subject().unwrap_or("") == &r.var[..]
-                            && self.is_super_pred_of(l_pred, r_pred)
-                        {
-                            r_preds_clone.remove(r_pred);
-                        }
-                    }
-                }
-                r_preds_clone.is_empty()
+                l.pred.subject().unwrap_or("") == &l.var[..]
+                    && r.pred.subject().unwrap_or("") == &r.var[..]
+                    && self.is_super_pred_of(&l.pred, &r.pred)
             }
             (Nat, re @ Refinement(_)) => {
                 let nat = Type::Refinement(Nat.into_refinement());
@@ -558,6 +549,7 @@ impl Context {
             // => Eq(Int) :> Eq({1, 2}) :> {1, 2}
             // => true
             // Bool :> {1} == true
+            // Bool :> {2} == false
             (l, Refinement(r)) => {
                 if self.supertype_of(l, &r.t) {
                     return true;
@@ -571,10 +563,7 @@ impl Context {
             }
             // ({I: Int | True} :> Int) == true, ({N: Nat | ...} :> Int) == false, ({I: Int | I >= 0} :> Int) == false
             (Refinement(l), r) => {
-                if l.preds
-                    .iter()
-                    .any(|p| p.mentions(&l.var) && p.can_be_false())
-                {
+                if l.pred.mentions(&l.var) && l.pred.can_be_false() {
                     return false;
                 }
                 self.supertype_of(&l.t, r)
@@ -967,13 +956,9 @@ impl Context {
         // TODO: warn if lhs.t !:> rhs.t && rhs.t !:> lhs.t
         let union = self.union(&lhs.t, &rhs.t);
         let name = lhs.var.clone();
-        let rhs_preds = rhs
-            .preds
-            .iter()
-            .map(|p| p.clone().change_subject_name(name.clone()))
-            .collect();
+        let rhs_pred = rhs.pred.clone().change_subject_name(name);
         // FIXME: predの包含関係も考慮する
-        RefinementType::new(lhs.var.clone(), union, lhs.preds.clone().concat(rhs_preds))
+        RefinementType::new(lhs.var.clone(), union, *lhs.pred.clone() | rhs_pred)
     }
 
     /// returns intersection of two types (A and B)
@@ -1009,6 +994,9 @@ impl Context {
         }
     }
 
+    /// ```erg
+    /// {I: Int | I > 0} and {I: Int | I < 10} == {I: Int | I > 0 and I < 10}
+    /// ```
     fn intersection_refinement(
         &self,
         lhs: &RefinementType,
@@ -1016,16 +1004,8 @@ impl Context {
     ) -> RefinementType {
         let intersec = self.intersection(&lhs.t, &rhs.t);
         let name = lhs.var.clone();
-        let rhs_preds = rhs
-            .preds
-            .iter()
-            .map(|p| p.clone().change_subject_name(name.clone()))
-            .collect();
-        RefinementType::new(
-            lhs.var.clone(),
-            intersec,
-            lhs.preds.clone().concat(rhs_preds),
-        )
+        let rhs_pred = rhs.pred.clone().change_subject_name(name);
+        RefinementType::new(lhs.var.clone(), intersec, *lhs.pred.clone() & rhs_pred)
     }
 
     /// returns complement (not A)
@@ -1046,7 +1026,12 @@ impl Context {
     /// assert !is_super_pred({I < 0}, {I == 0})
     /// ```
     fn is_super_pred_of(&self, lhs: &Predicate, rhs: &Predicate) -> bool {
+        if lhs == rhs {
+            return true;
+        }
         match (lhs, rhs) {
+            (Pred::Value(ValueObj::Bool(b)), _) => *b,
+            (_, Pred::Value(ValueObj::Bool(b))) => !b,
             (Pred::LessEqual { rhs, .. }, _) if !rhs.has_upper_bound() => true,
             (Pred::GreaterEqual { rhs, .. }, _) if !rhs.has_lower_bound() => true,
             (
@@ -1076,13 +1061,11 @@ impl Context {
                 .try_cmp(rhs, rhs2)
                 .map(|ord| ord.canbe_ge())
                 .unwrap_or(false),
-            (lhs @ (Pred::GreaterEqual { .. } | Pred::LessEqual { .. }), Pred::And(l, r)) => {
+            (lhs, Pred::And(l, r)) => {
                 self.is_super_pred_of(lhs, l) || self.is_super_pred_of(lhs, r)
             }
             (lhs, Pred::Or(l, r)) => self.is_super_pred_of(lhs, l) && self.is_super_pred_of(lhs, r),
-            (Pred::Or(l, r), rhs @ (Pred::GreaterEqual { .. } | Pred::LessEqual { .. })) => {
-                self.is_super_pred_of(l, rhs) || self.is_super_pred_of(r, rhs)
-            }
+            (Pred::Or(l, r), rhs) => self.is_super_pred_of(l, rhs) || self.is_super_pred_of(r, rhs),
             (Pred::And(l, r), rhs) => {
                 self.is_super_pred_of(l, rhs) && self.is_super_pred_of(r, rhs)
             }
@@ -1127,7 +1110,7 @@ impl Context {
             Int | Nat | Float => Some(TyParam::value(Inf)),
             Refinement(refine) => {
                 let mut maybe_max = None;
-                for pred in refine.preds.iter() {
+                for pred in refine.pred.ands() {
                     match pred {
                         Pred::LessEqual { lhs, rhs } | Pred::Equal { lhs, rhs }
                             if lhs == &refine.var =>
@@ -1155,7 +1138,7 @@ impl Context {
             Nat => Some(TyParam::value(0usize)),
             Refinement(refine) => {
                 let mut maybe_min = None;
-                for pred in refine.preds.iter() {
+                for pred in refine.pred.ands() {
                     match pred {
                         Predicate::GreaterEqual { lhs, rhs } | Predicate::Equal { lhs, rhs }
                             if lhs == &refine.var =>

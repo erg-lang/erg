@@ -292,6 +292,11 @@ fn exec_quantified_err() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_refinement() -> Result<(), ()> {
+    expect_failure("tests/should_err/refinement.er", 4)
+}
+
+#[test]
 fn exec_var_args() -> Result<(), ()> {
     expect_success("tests/should_ok/var_args.er")
 }

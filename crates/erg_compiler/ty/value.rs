@@ -17,7 +17,7 @@ use erg_common::serialize::*;
 use erg_common::set::Set;
 use erg_common::shared::Shared;
 use erg_common::vis::Field;
-use erg_common::{dict, fmt_iter, impl_display_from_debug, log, set, switch_lang};
+use erg_common::{dict, fmt_iter, impl_display_from_debug, log, switch_lang};
 use erg_common::{RcArray, Str};
 use erg_parser::ast::{ConstArgs, ConstExpr};
 
@@ -702,7 +702,7 @@ impl HasType for ValueObj {
     fn t(&self) -> Type {
         let name = Str::from(fresh_varname());
         let pred = Predicate::eq(name.clone(), TyParam::Value(self.clone()));
-        refinement(name, self.class(), set! {pred})
+        refinement(name, self.class(), pred)
     }
     fn signature_t(&self) -> Option<&Type> {
         None

@@ -17,7 +17,7 @@ use crate::ty::{Predicate, SubrType, Type};
 
 use crate::context::{Context, Variance};
 use crate::error::{SingleTyCheckResult, TyCheckError, TyCheckErrors, TyCheckResult};
-use crate::{feature_error, type_feature_error, unreachable_error};
+use crate::{feature_error, type_feature_error};
 
 use Predicate as Pred;
 use Type::*;
@@ -936,18 +936,11 @@ impl Context {
                 if self.subtype_of(&sub.t, &sup.t) {
                     self.sub_unify(&sub.t, &sup.t, loc, param_name)?;
                 }
-                if sup.preds.is_empty() {
+                if sup.pred.as_ref() == &Predicate::TRUE {
                     self.sub_unify(&sub.t, &sup.t, loc, param_name)?;
                     return Ok(());
                 }
-                if sub.preds.len() == 1 && sup.preds.len() == 1 {
-                    let sub_first = sub.preds.iter().next().unwrap();
-                    let sup_first = sup.preds.iter().next().unwrap();
-                    self.sub_unify_pred(sub_first, sup_first, loc)?;
-                    return Ok(());
-                }
-                log!(err "unification error: {sub} <: {sup}");
-                unreachable_error!(TyCheckErrors, TyCheckError, self)
+                self.sub_unify_pred(&sub.pred, &sup.pred, loc)
             }
             // {I: Int | I >= 1} <: Nat == {I: Int | I >= 0}
             (Type::Refinement(_), sup) => {

@@ -764,7 +764,7 @@ impl Context {
         let input = refinement(
             var.clone(),
             Nat,
-            set! { Predicate::le(var, N.clone() - value(1usize)) },
+            Predicate::le(var, N.clone() - value(1usize)),
         );
         // __getitem__: |T, N|(self: [T; N], _: {I: Nat | I <= N}) -> T
         let array_getitem_t =

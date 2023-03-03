@@ -87,7 +87,7 @@ pub fn v_enum(s: Set<ValueObj>) -> Type {
     let preds = s
         .into_iter()
         .map(|o| Predicate::eq(name.clone(), TyParam::value(o)))
-        .collect();
+        .fold(Predicate::FALSE, |acc, p| acc | p);
     let refine = RefinementType::new(name, t, preds);
     Type::Refinement(refine)
 }
@@ -97,7 +97,7 @@ pub fn tp_enum(ty: Type, s: Set<TyParam>) -> Type {
     let preds = s
         .into_iter()
         .map(|tp| Predicate::eq(name.clone(), tp))
-        .collect();
+        .fold(Predicate::FALSE, |acc, p| acc | p);
     let refine = RefinementType::new(name, ty, preds);
     Type::Refinement(refine)
 }
@@ -132,7 +132,7 @@ where
             Predicate::le(name.clone(), r),
         ),
         IntervalOp::Open if l == TyParam::value(NegInf) && r == TyParam::value(Inf) => {
-            return refinement(name, Type::Int, set! {})
+            return refinement(name, Type::Int, Predicate::TRUE)
         }
         // l<..<r => {I: classof(l) | I >= l+ε and I <= r-ε}
         IntervalOp::Open => Predicate::and(
@@ -140,7 +140,7 @@ where
             Predicate::le(name.clone(), TyParam::pred(r)),
         ),
     };
-    refinement(name, Type::Int, set! {pred})
+    refinement(name, Type::Int, pred)
 }
 
 pub fn iter(t: Type) -> Type {
@@ -416,12 +416,12 @@ pub fn proj_call<S: Into<Str>>(lhs: TyParam, attr_name: S, args: Vec<TyParam>) -
 /// => Refinement{
 ///     layout: TyParam::MonoQ "I",
 ///     bounds: [TyBound::Instance("I", "Int")],
-///     preds: [Predicate::GreaterEqual("I", 0)]
+///     pred: Predicate::GreaterEqual("I", 0)
 /// }
 /// ```
 #[inline]
-pub fn refinement(var: Str, t: Type, preds: Set<Predicate>) -> Type {
-    Type::Refinement(RefinementType::new(var, t, preds))
+pub fn refinement(var: Str, t: Type, pred: Predicate) -> Type {
+    Type::Refinement(RefinementType::new(var, t, pred))
 }
 
 pub fn and(lhs: Type, rhs: Type) -> Type {
