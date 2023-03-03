@@ -41,8 +41,11 @@ use Mutability::*;
 pub enum VarKind {
     Defined(DefId),
     Declared,
-    // TODO: flatten
-    Parameter { def_id: DefId, default: DefaultInfo },
+    Parameter {
+        def_id: DefId,
+        var: bool,
+        default: DefaultInfo,
+    },
     Auto,
     FixedAuto,
     DoesNotExist,
@@ -50,8 +53,12 @@ pub enum VarKind {
 }
 
 impl VarKind {
-    pub const fn parameter(def_id: DefId, default: DefaultInfo) -> Self {
-        Self::Parameter { def_id, default }
+    pub const fn parameter(def_id: DefId, var: bool, default: DefaultInfo) -> Self {
+        Self::Parameter {
+            def_id,
+            var,
+            default,
+        }
     }
 
     pub const fn has_default(&self) -> bool {
@@ -63,6 +70,13 @@ impl VarKind {
 
     pub const fn is_parameter(&self) -> bool {
         matches!(self, Self::Parameter { .. })
+    }
+
+    pub const fn is_var_params(&self) -> bool {
+        match self {
+            Self::Parameter { var, .. } => *var,
+            _ => false,
+        }
     }
 
     pub const fn is_defined(&self) -> bool {
@@ -236,9 +250,10 @@ impl VarInfo {
         }
     }
 
-    pub fn parameter(t: Type, def_loc: AbsLocation) -> Self {
+    pub fn nd_parameter(t: Type, def_loc: AbsLocation) -> Self {
         let kind = VarKind::Parameter {
             def_id: DefId(0),
+            var: false,
             default: DefaultInfo::NonDefault,
         };
         Self::new(t, Immutable, Private, kind, None, None, None, def_loc)

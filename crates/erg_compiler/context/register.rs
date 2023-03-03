@@ -321,7 +321,7 @@ impl Context {
                     Err(errs) => (Type::Failure, errs),
                 };
                 let def_id = DefId(get_hash(&(&self.name, "_")));
-                let kind = VarKind::parameter(def_id, DefaultInfo::NonDefault);
+                let kind = VarKind::parameter(def_id, is_var_params, DefaultInfo::NonDefault);
                 let vi = VarInfo::new(
                     spec_t,
                     Immutable,
@@ -382,7 +382,7 @@ impl Context {
                         }
                     }
                     let def_id = DefId(get_hash(&(&self.name, name)));
-                    let kind = VarKind::parameter(def_id, default);
+                    let kind = VarKind::parameter(def_id, is_var_params, default);
                     let muty = Mutability::from(&name.inspect()[..]);
                     let vi = VarInfo::new(
                         spec_t,
@@ -440,7 +440,11 @@ impl Context {
                             log!(err "self_t is None");
                         }
                     }
-                    let kind = VarKind::parameter(DefId(get_hash(&(&self.name, name))), default);
+                    let kind = VarKind::parameter(
+                        DefId(get_hash(&(&self.name, name))),
+                        is_var_params,
+                        default,
+                    );
                     let vi = VarInfo::new(
                         spec_t,
                         Immutable,
@@ -499,7 +503,11 @@ impl Context {
                             log!(err "self_t is None");
                         }
                     }
-                    let kind = VarKind::parameter(DefId(get_hash(&(&self.name, name))), default);
+                    let kind = VarKind::parameter(
+                        DefId(get_hash(&(&self.name, name))),
+                        is_var_params,
+                        default,
+                    );
                     let vi = VarInfo::new(
                         spec_t,
                         Immutable,
@@ -574,6 +582,11 @@ impl Context {
         } else {
             for non_default in params.non_defaults.iter_mut() {
                 if let Err(es) = self.assign_param(non_default, None, ParamKind::NonDefault) {
+                    errs.extend(es);
+                }
+            }
+            if let Some(var_params) = &mut params.var_params {
+                if let Err(es) = self.assign_param(var_params, None, ParamKind::VarParams) {
                     errs.extend(es);
                 }
             }

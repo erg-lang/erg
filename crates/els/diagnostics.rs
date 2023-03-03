@@ -69,7 +69,10 @@ impl<Checker: BuildRunnable> Server<Checker> {
 
     pub(crate) fn quick_check_file(&mut self, uri: Url) -> ELSResult<()> {
         // send_log(format!("checking {uri}"))?;
-        let mut parser = Parser::new(self.file_cache.get_token_stream(&uri).unwrap().clone());
+        let Some(ts) = self.file_cache.get_token_stream(&uri) else {
+            return Ok(());
+        };
+        let mut parser = Parser::new(ts.clone());
         if parser.parse().is_err() {
             return Ok(());
         }

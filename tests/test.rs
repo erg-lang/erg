@@ -303,7 +303,7 @@ fn exec_var_args() -> Result<(), ()> {
 
 #[test]
 fn exec_var_args_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/var_args.er", 2)
+    expect_failure("tests/should_err/var_args.er", 3)
 }
 
 #[test]

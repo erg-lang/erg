@@ -1703,6 +1703,15 @@ impl Parser {
                 debug_exit_info!(self);
                 Ok(call_or_acc)
             }
+            Some(t) if t.is(PreStar) => {
+                let _ = self.lpop();
+                let expr = self.try_reduce_expr(false, in_type_args, in_brace, false)?;
+                let tuple = self
+                    .try_reduce_nonempty_tuple(ArgKind::Var(PosArg::new(expr)), false)
+                    .map_err(|_| self.stack_dec(fn_name!()))?;
+                debug_exit_info!(self);
+                Ok(Expr::Tuple(tuple))
+            }
             Some(t) if t.category_is(TC::UnaryOp) => {
                 let unaryop = self
                     .try_reduce_unary()

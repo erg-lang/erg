@@ -672,6 +672,9 @@ impl Context {
             (Structural(l), Structural(r)) => self.structural_supertype_of(l, r),
             // TODO: If visibility does not match, it should be reported as a cause of an error
             (Structural(l), r) => {
+                if self.supertype_of(l, r) {
+                    return true;
+                }
                 let r_fields = self.fields(r);
                 for (l_field, l_ty) in self.fields(l) {
                     if let Some((r_field, r_ty)) = r_fields.get_key_value(&l_field) {

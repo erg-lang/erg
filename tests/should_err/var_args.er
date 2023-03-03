@@ -3,3 +3,6 @@ p! 1, 2, "a" # ERR
 
 first *x = x[0]
 assert first(1, 2, 3) == "b" # ERR
+
+f = (*_: Int) -> None
+f "a", 1, 2

@@ -2782,7 +2782,7 @@ impl PyCodeGenerator {
         let mut ident = Identifier::public_with_line(DOT, Str::ever("__init__"), line);
         ident.vi.t = __new__.clone();
         let self_param = VarName::from_str_and_line(Str::ever("self"), line);
-        let vi = VarInfo::parameter(
+        let vi = VarInfo::nd_parameter(
             __new__.return_t().unwrap().clone(),
             ident.vi.def_loc.clone(),
         );
@@ -2797,7 +2797,7 @@ impl PyCodeGenerator {
             let param = VarName::from_str_and_line(Str::from(param_name.clone()), line);
             let raw =
                 erg_parser::ast::NonDefaultParamSignature::new(ParamPattern::VarName(param), None);
-            let vi = VarInfo::parameter(new_first_param.typ().clone(), ident.vi.def_loc.clone());
+            let vi = VarInfo::nd_parameter(new_first_param.typ().clone(), ident.vi.def_loc.clone());
             let param = NonDefaultParamSignature::new(raw, vi, None);
             let params = Params::new(vec![self_param, param], None, vec![], None);
             (param_name, params)
@@ -2876,7 +2876,7 @@ impl PyCodeGenerator {
                 .map(|s| s.to_string())
                 .unwrap_or_else(fresh_varname);
             let param = VarName::from_str_and_line(Str::from(param_name.clone()), line);
-            let vi = VarInfo::parameter(new_first_param.typ().clone(), ident.vi.def_loc.clone());
+            let vi = VarInfo::nd_parameter(new_first_param.typ().clone(), ident.vi.def_loc.clone());
             let raw =
                 erg_parser::ast::NonDefaultParamSignature::new(ParamPattern::VarName(param), None);
             let param = NonDefaultParamSignature::new(raw, vi, None);

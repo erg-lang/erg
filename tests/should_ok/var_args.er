@@ -7,3 +7,6 @@ assert first(1, 2, 3) == 1
 sum_ start: Nat, *args: Int =
     sum(args, start:=start)
 assert sum_(0, 1, 2, 3) == 6
+
+f = (*_: Int) -> None
+f(1, 2, 3)

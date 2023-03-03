@@ -97,7 +97,7 @@ impl ClassDefType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DefaultInfo {
-    NonDefault,
+    NonDefault, // var-args should be non-default
     WithDefault,
 }
 
@@ -141,6 +141,7 @@ pub struct ParamSpec {
     pub(crate) name: Option<&'static str>,
     // TODO: `:` or `<:`
     pub(crate) t: Type,
+    pub is_var_params: bool,
     pub default_info: DefaultInfo,
     loc: AbsLocation,
 }
@@ -149,38 +150,59 @@ impl ParamSpec {
     pub const fn new(
         name: Option<&'static str>,
         t: Type,
+        is_var_params: bool,
         default: DefaultInfo,
         loc: AbsLocation,
     ) -> Self {
         Self {
             name,
             t,
+            is_var_params,
             default_info: default,
             loc,
         }
     }
 
-    pub const fn named(name: &'static str, t: Type, default: DefaultInfo) -> Self {
-        Self::new(Some(name), t, default, AbsLocation::unknown())
+    pub const fn named(
+        name: &'static str,
+        t: Type,
+        is_var_params: bool,
+        default: DefaultInfo,
+    ) -> Self {
+        Self::new(
+            Some(name),
+            t,
+            is_var_params,
+            default,
+            AbsLocation::unknown(),
+        )
     }
 
     pub const fn named_nd(name: &'static str, t: Type) -> Self {
         Self::new(
             Some(name),
             t,
+            false,
             DefaultInfo::NonDefault,
             AbsLocation::unknown(),
         )
     }
 
-    pub const fn t(name: &'static str, default: DefaultInfo) -> Self {
-        Self::new(Some(name), Type, default, AbsLocation::unknown())
+    pub const fn t(name: &'static str, is_var_params: bool, default: DefaultInfo) -> Self {
+        Self::new(
+            Some(name),
+            Type,
+            is_var_params,
+            default,
+            AbsLocation::unknown(),
+        )
     }
 
     pub const fn t_nd(name: &'static str) -> Self {
         Self::new(
             Some(name),
             Type,
+            false,
             DefaultInfo::NonDefault,
             AbsLocation::unknown(),
         )
@@ -487,12 +509,12 @@ impl Context {
         for param in params.into_iter() {
             let id = DefId(get_hash(&(&name, &param)));
             if let Some(name) = param.name {
-                let kind = VarKind::parameter(id, param.default_info);
+                let kind = VarKind::parameter(id, param.is_var_params, param.default_info);
                 let muty = Mutability::from(name);
                 let vi = VarInfo::new(param.t, muty, Private, kind, None, None, None, param.loc);
                 params_.push((Some(VarName::new(Token::static_symbol(name))), vi));
             } else {
-                let kind = VarKind::parameter(id, param.default_info);
+                let kind = VarKind::parameter(id, param.is_var_params, param.default_info);
                 let muty = Mutability::Immutable;
                 let vi = VarInfo::new(param.t, muty, Private, kind, None, None, None, param.loc);
                 params_.push((None, vi));

@@ -67,8 +67,8 @@ impl Context {
         let t_show = fn0_met(ref_(Slf), Str).quantify();
         show.register_builtin_py_decl(TO_STR, t_show, Public, Some(FUNDAMENTAL_STR));
         /* In */
-        let mut in_ = Self::builtin_poly_trait(IN, vec![PS::t(TY_T, NonDefault)], 2);
-        let params = vec![PS::t(TY_T, NonDefault)];
+        let mut in_ = Self::builtin_poly_trait(IN, vec![PS::t_nd(TY_T)], 2);
+        let params = vec![PS::t_nd(TY_T)];
         let input = Self::builtin_poly_trait(INPUT, params.clone(), 2);
         let output = Self::builtin_poly_trait(OUTPUT, params, 2);
         let T = mono_q(TY_T, instanceof(Type));
@@ -100,7 +100,7 @@ impl Context {
             poly(MUL, vec![]),
         ], */
         /* Seq */
-        let mut seq = Self::builtin_poly_trait(SEQ, vec![PS::t(TY_T, NonDefault)], 2);
+        let mut seq = Self::builtin_poly_trait(SEQ, vec![PS::t_nd(TY_T)], 2);
         seq.register_superclass(poly(OUTPUT, vec![ty_tp(T.clone())]), &output);
         let Slf = mono_q(SELF, subtypeof(poly(SEQ, vec![TyParam::erased(Type)])));
         let t = fn0_met(Slf.clone(), Nat).quantify();
@@ -109,14 +109,14 @@ impl Context {
         // Seq.get: |Self <: Seq(T)| Self.(Nat) -> T
         seq.register_builtin_erg_decl(FUNC_GET, t, Public);
         /* Iterable */
-        let mut iterable = Self::builtin_poly_trait(ITERABLE, vec![PS::t(TY_T, NonDefault)], 2);
+        let mut iterable = Self::builtin_poly_trait(ITERABLE, vec![PS::t_nd(TY_T)], 2);
         iterable.register_superclass(poly(OUTPUT, vec![ty_tp(T.clone())]), &output);
         let Slf = mono_q(SELF, subtypeof(poly(ITERABLE, vec![ty_tp(T.clone())])));
         let t = fn0_met(Slf.clone(), proj(Slf, ITER)).quantify();
         iterable.register_builtin_py_decl(FUNC_ITER, t, Public, Some(FUNDAMENTAL_ITER));
         iterable.register_builtin_erg_decl(ITER, Type, Public);
         let R = mono_q(TY_R, instanceof(Type));
-        let params = vec![PS::t(TY_R, WithDefault)];
+        let params = vec![PS::t(TY_R, false, WithDefault)];
         let ty_params = vec![ty_tp(R.clone())];
         /* Num */
         /* Add */

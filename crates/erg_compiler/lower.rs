@@ -1008,7 +1008,6 @@ impl ASTLowerer {
         }
     }
 
-    /// TODO: varargs
     fn lower_lambda(&mut self, lambda: ast::Lambda) -> LowerResult<hir::Lambda> {
         log!(info "entered {}({lambda})", fn_name!());
         let in_statement = cfg!(feature = "py_compatible")
@@ -1074,7 +1073,20 @@ impl ASTLowerer {
             .iter()
             .partition(|(_, vi)| !vi.kind.has_default());
         #[cfg(not(feature = "py_compatible"))]
-        let non_default_params = non_default_params.into_iter();
+        let (var_params, non_default_params) = {
+            let (var_params, non_default_params): (Vec<_>, Vec<_>) = non_default_params
+                .into_iter()
+                .partition(|(_, vi)| vi.kind.is_var_params());
+            // vi.t: `[T; _]`
+            // pt: `name: T`
+            let var_params = var_params.get(0).map(|(name, vi)| {
+                ParamTy::pos(
+                    name.as_ref().map(|n| n.inspect().clone()),
+                    vi.t.inner_ts().remove(0),
+                )
+            });
+            (var_params, non_default_params.into_iter())
+        };
         #[cfg(feature = "py_compatible")]
         let non_default_params = non_default_params.into_iter().filter(|(name, _)| {
             params
@@ -1117,9 +1129,19 @@ impl ASTLowerer {
             self.pop_append_errs();
         }
         let ty = if is_procedural {
-            proc(non_default_param_tys, None, default_param_tys, body.t())
+            proc(
+                non_default_param_tys,
+                var_params,
+                default_param_tys,
+                body.t(),
+            )
         } else {
-            func(non_default_param_tys, None, default_param_tys, body.t())
+            func(
+                non_default_param_tys,
+                var_params,
+                default_param_tys,
+                body.t(),
+            )
         };
         let t = if ty.has_qvar() { ty.quantify() } else { ty };
         Ok(hir::Lambda::new(id, params, lambda.op, body, t))
