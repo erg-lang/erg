@@ -10,10 +10,11 @@ Point3D|<: Norm|.
 
 norm|T <: Norm| x: T = x.norm()
 
-inplicit_norm x = x.norm()
+implicit_norm x = x.norm()
 
 p = Point2D.new {x = 3; y = 4}
 print! norm(p)
 assert norm(p) == 25
 assert norm(Point3D.new {x = 3; y = 4; z = 5}) == 50
 # assert norm(1) # this should be an error
+assert implicit_norm(p) == 25

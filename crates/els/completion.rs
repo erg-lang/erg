@@ -108,16 +108,17 @@ impl<'b> CompletionOrderSetter<'b> {
             orders.push(CompletionOrder::NameMatched);
         }
         #[allow(clippy::blocks_in_if_conditions)]
-        if self.arg_pt.map_or(false, |pt| {
-            self.mod_ctx.subtype_of(&self.vi.t, pt.typ(), true)
-        }) {
+        if self
+            .arg_pt
+            .map_or(false, |pt| self.mod_ctx.subtype_of(&self.vi.t, pt.typ()))
+        {
             orders.push(CompletionOrder::TypeMatched);
         } else if self.arg_pt.map_or(false, |pt| {
             let Some(return_t) = self.vi.t.return_t() else { return false; };
             if return_t.has_qvar() {
                 return false;
             }
-            self.mod_ctx.subtype_of(return_t, pt.typ(), true)
+            self.mod_ctx.subtype_of(return_t, pt.typ())
         }) {
             orders.push(CompletionOrder::ReturnTypeMatched);
         }

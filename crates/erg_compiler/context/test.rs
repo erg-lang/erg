@@ -35,7 +35,7 @@ impl Context {
             Type::Int,
             set! { Predicate::eq(var, TyParam::value(1)) },
         );
-        if self.supertype_of(&lhs, &rhs, true) {
+        if self.supertype_of(&lhs, &rhs) {
             Ok(())
         } else {
             Err(())
@@ -46,8 +46,8 @@ impl Context {
         let t = crate::ty::constructors::type_q("T");
         let quant = func1(t.clone(), t).quantify();
         let subr = func1(Obj, Never);
-        assert!(!self.subtype_of(&quant, &subr, true));
-        assert!(self.subtype_of(&subr, &quant, true));
+        assert!(!self.subtype_of(&quant, &subr));
+        assert!(self.subtype_of(&subr, &quant));
         Ok(())
     }
 
@@ -57,7 +57,7 @@ impl Context {
         let maybe_trait = poly(name, params);
         let mut min = Type::Obj;
         for pair in self.get_trait_impls(&maybe_trait) {
-            if self.supertype_of(&pair.sup_trait, &maybe_trait, false) {
+            if self.supertype_of(&pair.sup_trait, &maybe_trait) {
                 min = self.min(&min, &pair.sub_type).unwrap_or(&min).clone();
             }
         }

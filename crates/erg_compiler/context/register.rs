@@ -668,8 +668,7 @@ impl Context {
         let found_t = self.generalize_t(sub_t);
         // let found_t = self.eliminate_needless_quant(found_t, crate::context::Variance::Covariant, sig)?;
         let py_name = if let Some(vi) = self.decls.remove(name) {
-            let allow_cast = true;
-            if !self.supertype_of(&vi.t, &found_t, allow_cast) {
+            if !self.supertype_of(&vi.t, &found_t) {
                 let err = TyCheckError::violate_decl_error(
                     self.cfg.input.clone(),
                     line!() as usize,
@@ -1774,10 +1773,9 @@ impl Context {
             false,
         )?;
         let Some(hir::Expr::BinOp(hir::BinOp { lhs, .. })) = call.args.get_mut_left_or_key("pred") else { todo!("{}", call.args) };
-        let allow_cast = true;
         match (
-            self.supertype_of(lhs.ref_t(), &cast_to, allow_cast),
-            self.subtype_of(lhs.ref_t(), &cast_to, allow_cast),
+            self.supertype_of(lhs.ref_t(), &cast_to),
+            self.subtype_of(lhs.ref_t(), &cast_to),
         ) {
             // assert 1 in {1}
             (true, true) => Ok(()),

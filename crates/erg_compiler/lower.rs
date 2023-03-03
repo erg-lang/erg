@@ -246,7 +246,6 @@ impl ASTLowerer {
 
     fn lower_normal_array(&mut self, array: ast::NormalArray) -> LowerResult<hir::NormalArray> {
         log!(info "entered {}({array})", fn_name!());
-        let allow_cast = true;
         let mut new_array = vec![];
         let (elems, ..) = array.elems.deconstruct();
         let mut union = Type::Never;
@@ -259,11 +258,11 @@ impl ASTLowerer {
                     (false, false) => {
                         if let hir::Expr::TypeAsc(type_asc) = &elem {
                             // e.g. [1, "a": Str or NoneType]
-                            if !self.module.context.supertype_of(
-                                &type_asc.spec.spec_t,
-                                &union,
-                                allow_cast,
-                            ) {
+                            if !self
+                                .module
+                                .context
+                                .supertype_of(&type_asc.spec.spec_t, &union)
+                            {
                                 return Err(self.elem_err(&l, &r, &elem));
                             } // else(OK): e.g. [1, "a": Str or Int]
                         } else {
@@ -484,7 +483,6 @@ impl ASTLowerer {
     }
 
     fn gen_set_with_length_type(&mut self, elem: &hir::Expr, len: &ast::Expr) -> Type {
-        let allow_cast = true;
         let maybe_len = self.module.context.eval_const_expr(len);
         match maybe_len {
             Ok(v @ ValueObj::Nat(_)) => {
@@ -493,11 +491,7 @@ impl ASTLowerer {
                         "SetWithMutType!",
                         vec![TyParam::t(elem.t()), TyParam::Value(v)],
                     )
-                } else if self
-                    .module
-                    .context
-                    .subtype_of(&elem.t(), &Type::Type, allow_cast)
-                {
+                } else if self.module.context.subtype_of(&elem.t(), &Type::Type) {
                     poly("SetType", vec![TyParam::t(elem.t()), TyParam::Value(v)])
                 } else {
                     set_t(elem.t(), TyParam::Value(v))
@@ -1061,13 +1055,8 @@ impl ASTLowerer {
             }
             errs
         })?;
-        let allow_cast = true;
         // suppress warns of lambda types, e.g. `(x: Int, y: Int) -> Int`
-        if self
-            .module
-            .context
-            .subtype_of(body.ref_t(), &Type::Type, allow_cast)
-        {
+        if self.module.context.subtype_of(body.ref_t(), &Type::Type) {
             for param in params.non_defaults.iter() {
                 self.inc_ref(&param.vi, param);
             }
@@ -1857,7 +1846,6 @@ impl ASTLowerer {
         let mut errors = CompileErrors::empty();
         let trait_type = typ_ctx.0;
         let trait_ctx = typ_ctx.1;
-        let allow_cast = true;
         let mut unverified_names = self.module.context.locals.keys().collect::<Set<_>>();
         for (decl_name, decl_vi) in trait_ctx.decls.iter() {
             if let Some((name, vi)) = self.module.context.get_var_kv(decl_name.inspect()) {
@@ -1868,11 +1856,7 @@ impl ASTLowerer {
                     .replace(trait_type, impl_trait)
                     .replace(impl_trait, class);
                 unverified_names.remove(name);
-                if !self
-                    .module
-                    .context
-                    .supertype_of(&replaced_decl_t, def_t, allow_cast)
-                {
+                if !self.module.context.supertype_of(&replaced_decl_t, def_t) {
                     errors.push(LowerError::trait_member_type_error(
                         self.cfg.input.clone(),
                         line!() as usize,
@@ -2087,7 +2071,7 @@ impl ASTLowerer {
                 .sub_unify(&ident_vi.t, &spec_t, &ident, Some(ident.inspect()))?;
         } else {
             // if subtype ascription
-            if self.module.context.subtype_of(&ident_vi.t, &spec_t, true) {
+            if self.module.context.subtype_of(&ident_vi.t, &spec_t) {
                 return Err(LowerErrors::from(LowerError::subtyping_error(
                     self.cfg.input.clone(),
                     line!() as usize,

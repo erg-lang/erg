@@ -3,7 +3,7 @@ y: Ratio = f 1
 # Erg's type checking does not necessarily enlarge the type. So this is OK.
 z: Int = y
 # But this is invalid.
-invalid: 10..<20 = z
+invalid: 10..<20 = z #ERR
 
 for! [(1, 2)], ((i, j),) =>
     k = i + 1 # OK

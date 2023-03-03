@@ -734,7 +734,6 @@ impl Context {
         lhs: TyParam,
         rhs: TyParam,
     ) -> EvalResult<TyParam> {
-        let allow_cast = true;
         match (lhs, rhs) {
             (TyParam::Value(ValueObj::Mut(lhs)), TyParam::Value(rhs)) => self
                 .eval_bin(op, lhs.borrow().clone(), rhs)
@@ -749,8 +748,7 @@ impl Context {
             // _: Nat <= 10 => true
             // TODO: maybe this is wrong, we should do the type-checking of `<=`
             (TyParam::Erased(t), rhs)
-                if op.is_comparison()
-                    && self.supertype_of(&t, &self.get_tp_t(&rhs).unwrap(), allow_cast) =>
+                if op.is_comparison() && self.supertype_of(&t, &self.get_tp_t(&rhs).unwrap()) =>
             {
                 Ok(TyParam::value(true))
             }
@@ -760,8 +758,7 @@ impl Context {
             (_, TyParam::FreeVar(_)) if op.is_comparison() => Ok(TyParam::value(true)),
             // 10 <= _: Nat => true
             (lhs, TyParam::Erased(t))
-                if op.is_comparison()
-                    && self.supertype_of(&self.get_tp_t(&lhs).unwrap(), &t, allow_cast) =>
+                if op.is_comparison() && self.supertype_of(&self.get_tp_t(&lhs).unwrap(), &t) =>
             {
                 Ok(TyParam::value(true))
             }
@@ -1045,7 +1042,6 @@ impl Context {
         level: usize,
         t_loc: &impl Locational,
     ) -> EvalResult<Type> {
-        let allow_cast = true;
         // Currently Erg does not allow projection-types to be evaluated with type variables included.
         // All type variables will be dereferenced or fail.
         let (sub, opt_sup) = match lhs.clone() {
@@ -1094,12 +1090,12 @@ impl Context {
             for (class, methods) in ty_ctx.methods_list.iter() {
                 match (&class, &opt_sup) {
                     (ClassDefType::ImplTrait { impl_trait, .. }, Some(sup)) => {
-                        if !self.supertype_of(impl_trait, sup, allow_cast) {
+                        if !self.supertype_of(impl_trait, sup) {
                             continue;
                         }
                     }
                     (ClassDefType::ImplTrait { impl_trait, .. }, None) => {
-                        if !self.supertype_of(impl_trait, &sub, allow_cast) {
+                        if !self.supertype_of(impl_trait, &sub) {
                             continue;
                         }
                     }
@@ -1223,7 +1219,6 @@ impl Context {
         level: usize,
         t_loc: &impl Locational,
     ) -> Option<Type> {
-        let allow_cast = true;
         // e.g. sub: Int, opt_sup: Add(?T), rhs: Output, methods: Int.methods
         //      sub: [Int; 4], opt_sup: Add([Int; 2]), rhs: Output, methods: [T; N].methods
         if let Ok(obj) = methods.get_const_local(&Token::symbol(rhs), &self.name) {
@@ -1232,7 +1227,7 @@ impl Context {
             // opt_sup: Add([Int; 2]), methods.impl_of(): Add([T; M])
             match (&opt_sup, methods.impl_of()) {
                 (Some(sup), Some(trait_)) => {
-                    if !self.supertype_of(&trait_, sup, allow_cast) {
+                    if !self.supertype_of(&trait_, sup) {
                         return None;
                     }
                 }
@@ -1630,14 +1625,13 @@ impl Context {
     /// NOTE: If l and r are types, the Context is used to determine the type.
     /// NOTE: lとrが型の場合はContextの方で判定する
     pub(crate) fn shallow_eq_tp(&self, lhs: &TyParam, rhs: &TyParam) -> bool {
-        let allow_cast = true;
         match (lhs, rhs) {
             (TyParam::Type(l), _) if l.is_unbound_var() => {
-                self.subtype_of(&self.get_tp_t(rhs).unwrap(), &Type::Type, allow_cast)
+                self.subtype_of(&self.get_tp_t(rhs).unwrap(), &Type::Type)
             }
             (_, TyParam::Type(r)) if r.is_unbound_var() => {
                 let lhs = self.get_tp_t(lhs).unwrap();
-                self.subtype_of(&lhs, &Type::Type, allow_cast)
+                self.subtype_of(&lhs, &Type::Type)
             }
             (TyParam::Type(l), TyParam::Type(r)) => l == r,
             (TyParam::Value(l), TyParam::Value(r)) => l == r,

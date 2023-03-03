@@ -897,7 +897,7 @@ impl Context {
                     RegistrationMode::Normal,
                     false,
                 )?;
-                if self.subtype_of(&self.get_tp_t(&tp)?, &spec_t, true) {
+                if self.subtype_of(&self.get_tp_t(&tp)?, &spec_t) {
                     Ok(tp)
                 } else {
                     Err(TyCheckErrors::from(TyCheckError::subtyping_error(
@@ -1157,8 +1157,7 @@ impl Context {
                 let l = self.eval_tp(l)?;
                 let r = self.instantiate_const_expr(rhs, None, tmp_tv_cache)?;
                 let r = self.eval_tp(r)?;
-                let allow_cast = true;
-                if let Some(Greater) = self.try_cmp(&l, &r, allow_cast) {
+                if let Some(Greater) = self.try_cmp(&l, &r) {
                     panic!("{l}..{r} is not a valid interval type (should be lhs <= rhs)")
                 }
                 Ok(int_interval(op, l, r))
