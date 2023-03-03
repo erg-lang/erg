@@ -347,9 +347,6 @@ impl Context {
         match (lhs, rhs) {
             // Proc :> Func if params are compatible
             (Subr(ls), Subr(rs)) if ls.kind == rs.kind || ls.kind.is_proc() => {
-                if ls.kind != rs.kind {
-                    return false;
-                }
                 let kw_check = || {
                     for lpt in ls.default_params.iter() {
                         if let Some(rpt) = rs
