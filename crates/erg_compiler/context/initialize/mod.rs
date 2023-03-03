@@ -896,10 +896,10 @@ impl Context {
             NOT_IMPLEMENTED,
             NotImplementedType,
             Const,
-            vis,
+            Private,
             Some(NOT_IMPLEMENTED),
         );
-        self.register_builtin_py_impl(ELLIPSIS, Ellipsis, Const, vis, Some(ELLIPSIS));
+        self.register_builtin_py_impl(ELLIPSIS, Ellipsis, Const, Private, Some(ELLIPSIS));
         self.register_builtin_py_impl(TRUE, Bool, Const, Private, Some(TRUE));
         self.register_builtin_py_impl(FALSE, Bool, Const, Private, Some(FALSE));
         self.register_builtin_py_impl(NONE, NoneType, Const, Private, Some(NONE));
