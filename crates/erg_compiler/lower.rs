@@ -1088,12 +1088,24 @@ impl ASTLowerer {
             (var_params, non_default_params.into_iter())
         };
         #[cfg(feature = "py_compatible")]
-        let non_default_params = non_default_params.into_iter().filter(|(name, _)| {
-            params
-                .non_defaults
-                .iter()
-                .any(|nd| nd.name() == name.as_ref())
-        });
+        let (var_params, non_default_params) = {
+            let (var_params, non_default_params): (Vec<_>, Vec<_>) = non_default_params
+                .into_iter()
+                .partition(|(_, vi)| vi.kind.is_var_params());
+            let var_params = var_params.get(0).map(|(name, vi)| {
+                ParamTy::pos(
+                    name.as_ref().map(|n| n.inspect().clone()),
+                    vi.t.inner_ts().remove(0),
+                )
+            });
+            let non_default_params = non_default_params.into_iter().filter(|(name, _)| {
+                params
+                    .non_defaults
+                    .iter()
+                    .any(|nd| nd.name() == name.as_ref())
+            });
+            (var_params, non_default_params)
+        };
         let non_default_param_tys = non_default_params
             .map(|(name, vi)| {
                 ParamTy::pos(name.as_ref().map(|n| n.inspect().clone()), vi.t.clone())
