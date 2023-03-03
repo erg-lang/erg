@@ -1170,6 +1170,7 @@ impl Context {
         file_mut.register_trait(mono(MUT_FILE), file_mut_writable);
         file_mut.register_marker_trait(mono(FILE_LIKE));
         file_mut.register_marker_trait(mono(MUT_FILE_LIKE));
+        file_mut.register_marker_trait(mono(CONTEXT_MANAGER));
         /* Array! */
         let N_MUT = mono_q_tp(TY_N, instanceof(mono(MUT_NAT)));
         let array_mut_t = poly(MUT_ARRAY, vec![ty_tp(T.clone()), N_MUT.clone()]);

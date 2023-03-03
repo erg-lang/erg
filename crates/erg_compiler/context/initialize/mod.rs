@@ -83,6 +83,10 @@ const ITERATOR: &str = "Iterator";
 const STR_ITERATOR: &str = "StrIterator";
 const FUNC_ITER: &str = "iter";
 const ITER: &str = "Iter";
+const CONTEXT_MANAGER: &str = "ContextManager";
+const EXC_TYPE: &str = "exc_type";
+const EXC_VALUE: &str = "exc_value";
+const TRACEBACK: &str = "traceback";
 const ADD: &str = "Add";
 const SUB: &str = "Sub";
 const MUL: &str = "Mul";
@@ -345,6 +349,8 @@ const FUNDAMENTAL_BYTES: &str = "__bytes__";
 const FUNDAMENTAL_GETITEM: &str = "__getitem__";
 const FUNDAMENTAL_TUPLE_GETITEM: &str = "__Tuple_getitem__";
 const FUNDAMENTAL_IMPORT: &str = "__import__";
+const FUNDAMENTAL_ENTER: &str = "__enter__";
+const FUNDAMENTAL_EXIT: &str = "__exit__";
 
 const LICENSE: &str = "license";
 const CREDITS: &str = "credits";
@@ -893,10 +899,10 @@ impl Context {
             vis,
             Some(NOT_IMPLEMENTED),
         );
+        self.register_builtin_py_impl(ELLIPSIS, Ellipsis, Const, vis, Some(ELLIPSIS));
         self.register_builtin_py_impl(TRUE, Bool, Const, Private, Some(TRUE));
         self.register_builtin_py_impl(FALSE, Bool, Const, Private, Some(FALSE));
         self.register_builtin_py_impl(NONE, NoneType, Const, Private, Some(NONE));
-        self.register_builtin_py_impl(ELLIPSIS, Ellipsis, Const, Private, Some(ELLIPSIS));
     }
 
     pub(crate) fn init_builtins(cfg: ErgConfig, shared: SharedCompilerResource) {

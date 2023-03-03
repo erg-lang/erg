@@ -115,6 +115,33 @@ impl Context {
         let t = fn0_met(Slf.clone(), proj(Slf, ITER)).quantify();
         iterable.register_builtin_py_decl(FUNC_ITER, t, Public, Some(FUNDAMENTAL_ITER));
         iterable.register_builtin_erg_decl(ITER, Type, Public);
+        let mut context_manager = Self::builtin_mono_trait(CONTEXT_MANAGER, 2);
+        let Slf = mono_q(SELF, subtypeof(mono(CONTEXT_MANAGER)));
+        let t = fn0_met(Slf.clone(), NoneType).quantify();
+        context_manager.register_builtin_py_decl(
+            FUNDAMENTAL_ENTER,
+            t,
+            Public,
+            Some(FUNDAMENTAL_ENTER),
+        );
+        let t = fn_met(
+            Slf,
+            vec![
+                kw(EXC_TYPE, ClassType),
+                kw(EXC_VALUE, Obj),
+                kw(TRACEBACK, Obj), // TODO:
+            ],
+            None,
+            vec![],
+            NoneType,
+        )
+        .quantify();
+        context_manager.register_builtin_py_decl(
+            FUNDAMENTAL_EXIT,
+            t,
+            Public,
+            Some(FUNDAMENTAL_EXIT),
+        );
         let R = mono_q(TY_R, instanceof(Type));
         let params = vec![PS::t(TY_R, false, WithDefault)];
         let ty_params = vec![ty_tp(R.clone())];
@@ -223,6 +250,7 @@ impl Context {
             Const,
             None,
         );
+        self.register_builtin_type(mono(CONTEXT_MANAGER), context_manager, Private, Const, None);
         self.register_builtin_type(poly(ADD, ty_params.clone()), add, vis, Const, None);
         self.register_builtin_type(poly(SUB, ty_params.clone()), sub, vis, Const, None);
         self.register_builtin_type(poly(MUL, ty_params.clone()), mul, vis, Const, None);

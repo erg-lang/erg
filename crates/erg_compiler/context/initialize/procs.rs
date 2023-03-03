@@ -105,10 +105,14 @@ impl Context {
             mono("File!"),
         )
         .quantify();
-        // TODO: T <: With
+        let C = if cfg!(feature = "py_compatible") {
+            mono("ContextManager").structuralize()
+        } else {
+            mono("ContextManager")
+        };
         let t_with = nd_proc(
             vec![
-                kw("obj", T.clone()),
+                kw("obj", C),
                 kw("proc!", nd_proc(vec![anon(T)], None, U.clone())),
             ],
             None,
