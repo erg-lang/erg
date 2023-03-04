@@ -6,7 +6,6 @@ use erg_common::error::Location;
 #[allow(unused_imports)]
 use erg_common::log;
 use erg_common::traits::{Locational, NestedDisplay, NoTypeDisplay, Stream};
-use erg_common::vis::{Field, Visibility};
 use erg_common::Str;
 use erg_common::{
     enum_unwrap, fmt_option, fmt_vec, impl_display_for_enum, impl_display_from_nested,
@@ -23,7 +22,7 @@ use erg_parser::token::{Token, TokenKind, DOT};
 use crate::ty::constructors::{array_t, dict_t, set_t, tuple_t};
 use crate::ty::typaram::TyParam;
 use crate::ty::value::{GenTypeObj, ValueObj};
-use crate::ty::{HasType, Type};
+use crate::ty::{Field, HasType, Type, VisibilityModifier};
 
 use crate::context::eval::type_from_token_kind;
 use crate::error::readable_name;
@@ -381,22 +380,14 @@ impl Args {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Identifier {
-    pub dot: Option<Token>,
-    pub name: VarName,
+    pub raw: ast::Identifier,
     pub qual_name: Option<Str>,
     pub vi: VarInfo,
 }
 
 impl NestedDisplay for Identifier {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        match &self.dot {
-            Some(_dot) => {
-                write!(f, ".{}", self.name)?;
-            }
-            None => {
-                write!(f, "::{}", self.name)?;
-            }
-        }
+        write!(f, "{}", self.raw)?;
         if let Some(qn) = &self.qual_name {
             write!(f, "(qual_name: {qn})")?;
         }
@@ -409,10 +400,7 @@ impl NestedDisplay for Identifier {
 
 impl NoTypeDisplay for Identifier {
     fn to_string_notype(&self) -> String {
-        match &self.dot {
-            Some(_dot) => format!(".{}", self.name),
-            None => format!("::{}", self.name),
-        }
+        self.raw.to_string()
     }
 }
 
@@ -439,56 +427,50 @@ impl HasType for Identifier {
 
 impl Locational for Identifier {
     fn loc(&self) -> Location {
-        if let Some(dot) = &self.dot {
-            Location::concat(dot, &self.name)
-        } else {
-            self.name.loc()
-        }
+        self.raw.loc()
     }
 }
 
 impl From<&Identifier> for Field {
     fn from(ident: &Identifier) -> Self {
-        Self::new(ident.vis(), ident.inspect().clone())
+        Self::new(ident.vis().clone(), ident.inspect().clone())
     }
 }
 
 impl Identifier {
-    pub const fn new(
-        dot: Option<Token>,
-        name: VarName,
-        qual_name: Option<Str>,
-        vi: VarInfo,
-    ) -> Self {
-        Self {
-            dot,
-            name,
-            qual_name,
-            vi,
-        }
+    pub const fn new(raw: ast::Identifier, qual_name: Option<Str>, vi: VarInfo) -> Self {
+        Self { raw, qual_name, vi }
     }
 
     pub fn public(name: &'static str) -> Self {
-        Self::bare(
-            Some(Token::from_str(TokenKind::Dot, ".")),
-            VarName::from_static(name),
-        )
+        let ident = ast::Identifier::public_from_token(
+            Token::from_str(TokenKind::Dot, "."),
+            Token::static_symbol(name),
+        );
+        Self::bare(ident)
     }
 
     pub fn private(name: &'static str) -> Self {
-        Self::bare(None, VarName::from_static(name))
+        let ident = ast::Identifier::private_from_token(Token::static_symbol(name));
+        Self::bare(ident)
     }
 
     pub fn private_with_line(name: Str, line: u32) -> Self {
-        Self::bare(None, VarName::from_str_and_line(name, line))
+        let ident = ast::Identifier::private_from_token(Token::symbol_with_line(&name, line));
+        Self::bare(ident)
     }
 
     pub fn public_with_line(dot: Token, name: Str, line: u32) -> Self {
-        Self::bare(Some(dot), VarName::from_str_and_line(name, line))
+        let ident = ast::Identifier::public_from_token(dot, Token::symbol_with_line(&name, line));
+        Self::bare(ident)
     }
 
-    pub const fn bare(dot: Option<Token>, name: VarName) -> Self {
-        Self::new(dot, name, None, VarInfo::const_default())
+    pub const fn bare(ident: ast::Identifier) -> Self {
+        if ident.vis.is_public() {
+            Self::new(ident, None, VarInfo::const_default_public())
+        } else {
+            Self::new(ident, None, VarInfo::const_default_private())
+        }
     }
 
     pub fn is_py_api(&self) -> bool {
@@ -496,18 +478,15 @@ impl Identifier {
     }
 
     pub fn is_const(&self) -> bool {
-        self.name.is_const()
+        self.raw.is_const()
     }
 
-    pub const fn vis(&self) -> Visibility {
-        match &self.dot {
-            Some(_) => Visibility::Public,
-            None => Visibility::Private,
-        }
+    pub fn vis(&self) -> &VisibilityModifier {
+        &self.vi.vis.modifier
     }
 
     pub const fn inspect(&self) -> &Str {
-        self.name.inspect()
+        self.raw.inspect()
     }
 
     /// show dot + name (no qual_name & type)
@@ -516,11 +495,11 @@ impl Identifier {
     }
 
     pub fn is_procedural(&self) -> bool {
-        self.name.is_procedural()
+        self.raw.is_procedural()
     }
 
-    pub fn downcast(self) -> erg_parser::ast::Identifier {
-        erg_parser::ast::Identifier::new(self.dot, self.name)
+    pub fn downcast(self) -> ast::Identifier {
+        self.raw
     }
 }
 
@@ -598,12 +577,20 @@ impl Accessor {
         Self::Ident(Identifier::public_with_line(DOT, name, line))
     }
 
-    pub const fn private(name: Token, vi: VarInfo) -> Self {
-        Self::Ident(Identifier::new(None, VarName::new(name), None, vi))
+    pub fn private(name: Token, vi: VarInfo) -> Self {
+        Self::Ident(Identifier::new(
+            ast::Identifier::private_from_token(name),
+            None,
+            vi,
+        ))
     }
 
     pub fn public(name: Token, vi: VarInfo) -> Self {
-        Self::Ident(Identifier::new(Some(DOT), VarName::new(name), None, vi))
+        Self::Ident(Identifier::new(
+            ast::Identifier::public_from_token(DOT, name),
+            None,
+            vi,
+        ))
     }
 
     pub fn attr(obj: Expr, ident: Identifier) -> Self {
@@ -655,12 +642,12 @@ impl Accessor {
                     seps.remove(seps.len() - 1)
                 })
                 .or_else(|| {
-                    let mut raw_parts = ident.name.inspect().split_with(&["'"]);
+                    let mut raw_parts = ident.inspect().split_with(&["'"]);
                     // "'aaa'".split_with(&["'"]) == ["", "aaa", ""]
                     if raw_parts.len() == 3 || raw_parts.len() == 4 {
                         Some(raw_parts.remove(1))
                     } else {
-                        Some(ident.name.inspect())
+                        Some(ident.inspect())
                     }
                 }),
             _ => None,
@@ -1580,8 +1567,12 @@ impl VarSignature {
         self.ident.inspect()
     }
 
-    pub fn vis(&self) -> Visibility {
+    pub fn vis(&self) -> &VisibilityModifier {
         self.ident.vis()
+    }
+
+    pub const fn name(&self) -> &VarName {
+        &self.ident.raw.name
     }
 }
 
@@ -1864,6 +1855,10 @@ impl SubrSignature {
     pub fn is_procedural(&self) -> bool {
         self.ident.is_procedural()
     }
+
+    pub const fn name(&self) -> &VarName {
+        &self.ident.raw.name
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -1947,10 +1942,17 @@ impl Signature {
         }
     }
 
-    pub const fn vis(&self) -> Visibility {
+    pub fn vis(&self) -> &VisibilityModifier {
         match self {
             Self::Var(v) => v.ident.vis(),
             Self::Subr(s) => s.ident.vis(),
+        }
+    }
+
+    pub const fn inspect(&self) -> &Str {
+        match self {
+            Self::Var(v) => v.ident.inspect(),
+            Self::Subr(s) => s.ident.inspect(),
         }
     }
 
@@ -1972,6 +1974,13 @@ impl Signature {
         match self {
             Self::Var(v) => v.ident,
             Self::Subr(s) => s.ident,
+        }
+    }
+
+    pub const fn name(&self) -> &VarName {
+        match self {
+            Self::Var(v) => v.name(),
+            Self::Subr(s) => s.name(),
         }
     }
 

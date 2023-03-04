@@ -7,7 +7,6 @@ use erg_common::dict::Dict;
 use erg_common::set;
 use erg_common::set::Set;
 use erg_common::traits::{LimitedDisplay, StructuralEq};
-use erg_common::vis::Field;
 use erg_common::Str;
 use erg_common::{dict, log};
 
@@ -19,7 +18,7 @@ use super::free::{
 };
 use super::value::ValueObj;
 use super::Type;
-use super::{ConstSubr, ParamTy, UserConstSubr};
+use super::{ConstSubr, Field, ParamTy, UserConstSubr};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]

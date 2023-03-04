@@ -6,13 +6,11 @@ use erg_common::error::Location;
 use erg_common::set::Set;
 use erg_common::style::colors::DEBUG_MAIN;
 use erg_common::traits::{Locational, Stream};
-use erg_common::vis::Visibility;
 use erg_common::Str;
 use erg_common::{impl_display_from_debug, log};
 use erg_parser::ast::{ParamPattern, VarName};
-use Visibility::*;
 
-use crate::ty::{HasType, Ownership};
+use crate::ty::{HasType, Ownership, Visibility};
 
 use crate::error::{OwnershipError, OwnershipErrors};
 use crate::hir::{self, Accessor, Array, Block, Def, Expr, Identifier, Signature, Tuple, HIR};
@@ -39,7 +37,7 @@ impl_display_from_debug!(LocalVars);
 #[derive(Debug)]
 pub struct OwnershipChecker {
     cfg: ErgConfig,
-    path_stack: Vec<(Str, Visibility)>,
+    path_stack: Vec<Visibility>,
     dict: Dict<Str, LocalVars>,
     errs: OwnershipErrors,
 }
@@ -55,15 +53,13 @@ impl OwnershipChecker {
     }
 
     fn full_path(&self) -> String {
-        self.path_stack
-            .iter()
-            .fold(String::new(), |acc, (path, vis)| {
-                if vis.is_public() {
-                    acc + "." + &path[..]
-                } else {
-                    acc + "::" + &path[..]
-                }
-            })
+        self.path_stack.iter().fold(String::new(), |acc, vis| {
+            if vis.is_public() {
+                acc + "." + &vis.def_namespace[..]
+            } else {
+                acc + "::" + &vis.def_namespace[..]
+            }
+        })
     }
 
     // moveされた後の変数が使用されていないかチェックする
@@ -71,7 +67,7 @@ impl OwnershipChecker {
     pub fn check(&mut self, hir: HIR) -> Result<HIR, (HIR, OwnershipErrors)> {
         log!(info "the ownership checking process has started.{RESET}");
         if self.full_path() != ("::".to_string() + &hir.name[..]) {
-            self.path_stack.push((hir.name.clone(), Private));
+            self.path_stack.push(Visibility::private(hir.name.clone()));
             self.dict
                 .insert(Str::from(self.full_path()), LocalVars::default());
         }
@@ -106,7 +102,8 @@ impl OwnershipChecker {
                     Signature::Var(var) => var.inspect().clone(),
                     Signature::Subr(subr) => subr.ident.inspect().clone(),
                 };
-                self.path_stack.push((name, def.sig.vis()));
+                self.path_stack
+                    .push(Visibility::new(def.sig.vis().clone(), name));
                 self.dict
                     .insert(Str::from(self.full_path()), LocalVars::default());
                 if let Signature::Subr(subr) = &def.sig {
@@ -247,7 +244,8 @@ impl OwnershipChecker {
             },
             // TODO: capturing
             Expr::Lambda(lambda) => {
-                let name_and_vis = (Str::from(format!("<lambda_{}>", lambda.id)), Private);
+                let name_and_vis =
+                    Visibility::private(Str::from(format!("<lambda_{}>", lambda.id)));
                 self.path_stack.push(name_and_vis);
                 self.dict
                     .insert(Str::from(self.full_path()), LocalVars::default());
@@ -289,11 +287,11 @@ impl OwnershipChecker {
     fn nth_outer_scope(&mut self, n: usize) -> &mut LocalVars {
         let path = self.path_stack.iter().take(self.path_stack.len() - n).fold(
             String::new(),
-            |acc, (path, vis)| {
+            |acc, vis| {
                 if vis.is_public() {
-                    acc + "." + &path[..]
+                    acc + "." + &vis.def_namespace[..]
                 } else {
-                    acc + "::" + &path[..]
+                    acc + "::" + &vis.def_namespace[..]
                 }
             },
         );

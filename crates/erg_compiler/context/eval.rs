@@ -7,7 +7,6 @@ use erg_common::log;
 use erg_common::set::Set;
 use erg_common::shared::Shared;
 use erg_common::traits::{Locational, Stream};
-use erg_common::vis::Field;
 use erg_common::{dict, fn_name, option_enum_unwrap, set};
 use erg_common::{enum_unwrap, fmt_vec};
 use erg_common::{RcArray, Str};
@@ -27,7 +26,7 @@ use crate::ty::typaram::{OpKind, TyParam};
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{ConstSubr, HasType, Predicate, SubrKind, Type, UserConstSubr, ValueArgs};
 
-use crate::context::instantiate::ParamKind;
+use crate::context::instantiate_spec::ParamKind;
 use crate::context::{ClassDefType, Context, ContextKind, RegistrationMode};
 use crate::error::{EvalError, EvalErrors, EvalResult, SingleEvalResult};
 
@@ -166,7 +165,10 @@ impl Context {
     }
 
     fn eval_attr(&self, obj: ValueObj, ident: &Identifier) -> SingleEvalResult<ValueObj> {
-        if let Some(val) = obj.try_get_attr(&Field::from(ident)) {
+        let field = self
+            .instantiate_field(ident)
+            .map_err(|mut errs| errs.remove(0))?;
+        if let Some(val) = obj.try_get_attr(&field) {
             return Ok(val);
         }
         if let ValueObj::Type(t) = &obj {
@@ -301,7 +303,7 @@ impl Context {
     fn eval_const_def(&mut self, def: &Def) -> EvalResult<ValueObj> {
         if def.is_const() {
             let __name__ = def.sig.ident().unwrap().inspect();
-            let vis = def.sig.vis();
+            let vis = self.instantiate_vis_modifier(def.sig.vis())?;
             let tv_cache = match &def.sig {
                 Signature::Subr(subr) => {
                     let ty_cache =
@@ -430,7 +432,7 @@ impl Context {
             let elem = record_ctx.eval_const_block(&attr.body.block)?;
             let ident = match &attr.sig {
                 Signature::Var(var) => match &var.pat {
-                    VarPattern::Ident(ident) => Field::new(ident.vis(), ident.inspect().clone()),
+                    VarPattern::Ident(ident) => self.instantiate_field(ident)?,
                     other => {
                         return feature_error!(self, other.loc(), &format!("record field: {other}"))
                     }

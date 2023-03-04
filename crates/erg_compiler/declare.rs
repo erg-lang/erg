@@ -9,7 +9,7 @@ use crate::lower::ASTLowerer;
 use crate::ty::constructors::mono;
 use crate::ty::free::HasLevel;
 use crate::ty::value::{GenTypeObj, TypeObj};
-use crate::ty::{HasType, Type};
+use crate::ty::{HasType, Type, Visibility};
 
 use crate::compile::AccessKind;
 use crate::context::RegistrationMode;
@@ -73,7 +73,7 @@ impl ASTLowerer {
                 .assign_var_sig(&sig, found_body_t, id, py_name.clone())?;
         }
         // FIXME: Identifier::new should be used
-        let mut ident = hir::Identifier::bare(ident.dot.clone(), ident.name.clone());
+        let mut ident = hir::Identifier::bare(ident.clone());
         ident.vi.t = found_body_t.clone();
         ident.vi.py_name = py_name;
         let sig = hir::VarSignature::new(ident, sig.t_spec);
@@ -127,20 +127,15 @@ impl ASTLowerer {
                 let vi = self
                     .module
                     .context
-                    .rec_get_var_info(
-                        &ident,
-                        AccessKind::Name,
-                        self.input(),
-                        &self.module.context.name,
-                    )
+                    .rec_get_var_info(&ident, AccessKind::Name, self.input(), &self.module.context)
                     .unwrap_or(VarInfo::default());
-                let ident = hir::Identifier::new(ident.dot, ident.name, None, vi);
+                let ident = hir::Identifier::new(ident, None, vi);
                 let acc = hir::Accessor::Ident(ident);
                 Ok(acc)
             }
             ast::Accessor::Attr(attr) => {
                 let obj = self.fake_lower_expr(*attr.obj)?;
-                let ident = hir::Identifier::bare(attr.ident.dot, attr.ident.name);
+                let ident = hir::Identifier::bare(attr.ident);
                 Ok(obj.attr(ident))
             }
             other => Err(LowerErrors::from(LowerError::declare_error(
@@ -177,9 +172,7 @@ impl ASTLowerer {
 
     fn fake_lower_call(&self, call: ast::Call) -> LowerResult<hir::Call> {
         let obj = self.fake_lower_expr(*call.obj)?;
-        let attr_name = call
-            .attr_name
-            .map(|ident| hir::Identifier::bare(ident.dot, ident.name));
+        let attr_name = call.attr_name.map(hir::Identifier::bare);
         let args = self.fake_lower_args(call.args)?;
         Ok(hir::Call::new(obj, attr_name, args))
     }
@@ -247,12 +240,12 @@ impl ASTLowerer {
         match sig {
             ast::Signature::Var(var) => {
                 let ident = var.ident().unwrap().clone();
-                let ident = hir::Identifier::bare(ident.dot, ident.name);
+                let ident = hir::Identifier::bare(ident);
                 let sig = hir::VarSignature::new(ident, var.t_spec);
                 Ok(hir::Signature::Var(sig))
             }
             ast::Signature::Subr(subr) => {
-                let ident = hir::Identifier::bare(subr.ident.dot, subr.ident.name);
+                let ident = hir::Identifier::bare(subr.ident);
                 let params = self.fake_lower_params(subr.params)?;
                 let sig = hir::SubrSignature::new(ident, subr.bounds, params, subr.return_t_spec);
                 Ok(hir::Signature::Subr(sig))
@@ -454,19 +447,19 @@ impl ASTLowerer {
                     self.declare_subtype(&ident, &t)?;
                 }
                 let muty = Mutability::from(&ident.inspect()[..]);
-                let vis = ident.vis();
+                let vis = self.module.context.instantiate_vis_modifier(&ident.vis)?;
                 let py_name = Str::rc(ident.inspect().trim_end_matches('!'));
                 let vi = VarInfo::new(
                     t,
                     muty,
-                    vis,
+                    Visibility::new(vis, self.module.context.name.clone()),
                     VarKind::Declared,
                     None,
                     None,
                     Some(py_name),
                     self.module.context.absolutize(ident.loc()),
                 );
-                let ident = hir::Identifier::new(ident.dot, ident.name, None, vi);
+                let ident = hir::Identifier::new(ident, None, vi);
                 let t_spec_expr = self.fake_lower_expr(*tasc.t_spec.t_spec_as_expr)?;
                 let t_spec = hir::TypeSpecWithOp::new(
                     tasc.t_spec.op,
@@ -488,11 +481,10 @@ impl ASTLowerer {
                     RegistrationMode::Normal,
                     false,
                 )?;
-                let namespace = self.module.context.name.clone();
                 let ctx = self
                     .module
                     .context
-                    .get_mut_singular_ctx(attr.obj.as_ref(), &namespace)?;
+                    .get_mut_singular_ctx(attr.obj.as_ref(), &self.module.context.name.clone())?;
                 ctx.assign_var_sig(
                     &ast::VarSignature::new(ast::VarPattern::Ident(attr.ident.clone()), None),
                     &t,
@@ -501,19 +493,22 @@ impl ASTLowerer {
                 )?;
                 let obj = self.fake_lower_expr(*attr.obj)?;
                 let muty = Mutability::from(&attr.ident.inspect()[..]);
-                let vis = attr.ident.vis();
+                let vis = self
+                    .module
+                    .context
+                    .instantiate_vis_modifier(&attr.ident.vis)?;
                 let py_name = Str::rc(attr.ident.inspect().trim_end_matches('!'));
                 let vi = VarInfo::new(
                     t,
                     muty,
-                    vis,
+                    Visibility::new(vis, self.module.context.name.clone()),
                     VarKind::Declared,
                     None,
                     None,
                     Some(py_name),
                     self.module.context.absolutize(attr.ident.loc()),
                 );
-                let ident = hir::Identifier::new(attr.ident.dot, attr.ident.name, None, vi);
+                let ident = hir::Identifier::new(attr.ident, None, vi);
                 let attr = obj.attr_expr(ident);
                 let t_spec_expr = self.fake_lower_expr(*tasc.t_spec.t_spec_as_expr)?;
                 let t_spec = hir::TypeSpecWithOp::new(
@@ -544,10 +539,11 @@ impl ASTLowerer {
             return Ok(());
         }
         if ident.is_const() {
+            let vis = self.module.context.instantiate_vis_modifier(&ident.vis)?;
             let vi = VarInfo::new(
                 t.clone(),
                 Mutability::Const,
-                ident.vis(),
+                Visibility::new(vis, self.module.context.name.clone()),
                 VarKind::Declared,
                 None,
                 None,

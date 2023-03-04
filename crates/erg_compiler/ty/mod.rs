@@ -11,6 +11,7 @@ pub mod free;
 pub mod predicate;
 pub mod typaram;
 pub mod value;
+pub mod vis;
 
 use std::fmt;
 use std::ops::{BitAnd, BitOr, Deref, Not, Range, RangeInclusive};
@@ -22,7 +23,6 @@ use erg_common::fresh::fresh_varname;
 use erg_common::log;
 use erg_common::set::Set;
 use erg_common::traits::{LimitedDisplay, StructuralEq};
-use erg_common::vis::Field;
 use erg_common::{enum_unwrap, fmt_option, ref_addr_eq, set, Str};
 
 use erg_parser::token::TokenKind;
@@ -35,6 +35,7 @@ use typaram::{IntervalOp, TyParam};
 use value::value_set::*;
 use value::ValueObj;
 use value::ValueObj::{Inf, NegInf};
+pub use vis::*;
 
 /// cloneのコストがあるためなるべく.ref_tを使うようにすること
 /// いくつかの構造体は直接Typeを保持していないので、その場合は.tを使う
@@ -534,9 +535,6 @@ impl LimitedDisplay for RefinementType {
                 write!(f, "{rhs}, ")?;
             }
             write!(f, "}}")?;
-            if cfg!(feature = "debug") {
-                write!(f, "(<: {})", self.t)?;
-            }
             Ok(())
         } else {
             write!(f, "{{{}: ", self.var)?;

@@ -560,6 +560,37 @@ impl Parser {
         Ok(TypeAppArgs::new(l_vbar, args, r_vbar))
     }
 
+    fn try_reduce_restriction(&mut self) -> ParseResult<VisRestriction> {
+        debug_call_info!(self);
+        expect_pop!(self, LSqBr);
+        let rest = match self.peek_kind() {
+            Some(SubtypeOf) => {
+                self.lpop();
+                let t_spec_as_expr = self
+                    .try_reduce_expr(false, true, false, false)
+                    .map_err(|_| self.stack_dec(fn_name!()))?;
+                match Parser::expr_to_type_spec(t_spec_as_expr) {
+                    Ok(t_spec) => VisRestriction::SubtypeOf(Box::new(t_spec)),
+                    Err(err) => {
+                        self.errs.push(err);
+                        debug_exit_info!(self);
+                        return Err(());
+                    }
+                }
+            }
+            _ => {
+                // FIXME: reduce namespaces
+                let acc = self
+                    .try_reduce_acc_lhs()
+                    .map_err(|_| self.stack_dec(fn_name!()))?;
+                VisRestriction::Namespaces(Namespaces::new(vec![acc]))
+            }
+        };
+        expect_pop!(self, RSqBr);
+        debug_exit_info!(self);
+        Ok(rest)
+    }
+
     fn try_reduce_acc_lhs(&mut self) -> ParseResult<Accessor> {
         debug_call_info!(self);
         let acc = match self.peek_kind() {
@@ -574,6 +605,19 @@ impl Parser {
                     self.errs.push(err);
                     debug_exit_info!(self);
                     return Err(());
+                }
+            }
+            Some(DblColon) => {
+                let dbl_colon = self.lpop();
+                if let Some(LSqBr) = self.peek_kind() {
+                    let rest = self
+                        .try_reduce_restriction()
+                        .map_err(|_| self.stack_dec(fn_name!()))?;
+                    let symbol = expect_pop!(self, Symbol);
+                    Accessor::restricted(rest, symbol)
+                } else {
+                    let symbol = expect_pop!(self, Symbol);
+                    Accessor::explicit_local(dbl_colon, symbol)
                 }
             }
             _ => {
@@ -1000,7 +1044,11 @@ impl Parser {
         }
     }
 
-    fn try_reduce_method_defs(&mut self, class: Expr, vis: Token) -> ParseResult<Methods> {
+    fn try_reduce_method_defs(
+        &mut self,
+        class: Expr,
+        vis: VisModifierSpec,
+    ) -> ParseResult<Methods> {
         debug_call_info!(self);
         expect_pop!(self, fail_next Indent);
         while self.cur_is(Newline) {
@@ -1205,7 +1253,7 @@ impl Parser {
                     ));
                 }
                 Some(t) if t.is(DblColon) => {
-                    let vis = self.lpop();
+                    let vis = VisModifierSpec::ExplicitPrivate(self.lpop());
                     match self.lpop() {
                         symbol if symbol.is(Symbol) => {
                             let Some(ExprOrOp::Expr(obj)) = stack.pop() else {
@@ -1219,11 +1267,13 @@ impl Parser {
                                 .transpose()
                                 .map_err(|_| self.stack_dec(fn_name!()))?
                             {
-                                let ident = Identifier::new(None, VarName::new(symbol));
+                                let ident =
+                                    Identifier::new(VisModifierSpec::Private, VarName::new(symbol));
                                 let call = Call::new(obj, Some(ident), args);
                                 stack.push(ExprOrOp::Expr(Expr::Call(call)));
                             } else {
-                                let ident = Identifier::new(None, VarName::new(symbol));
+                                let ident =
+                                    Identifier::new(VisModifierSpec::Private, VarName::new(symbol));
                                 stack.push(ExprOrOp::Expr(obj.attr_expr(ident)));
                             }
                         }
@@ -1267,7 +1317,7 @@ impl Parser {
                     }
                 }
                 Some(t) if t.is(Dot) => {
-                    let vis = self.lpop();
+                    let dot = self.lpop();
                     match self.lpop() {
                         symbol if symbol.is(Symbol) => {
                             let Some(ExprOrOp::Expr(obj)) = stack.pop() else {
@@ -1281,15 +1331,16 @@ impl Parser {
                                 .transpose()
                                 .map_err(|_| self.stack_dec(fn_name!()))?
                             {
-                                let ident = Identifier::new(Some(vis), VarName::new(symbol));
+                                let ident = Identifier::public_from_token(dot, symbol);
                                 let call = Expr::Call(Call::new(obj, Some(ident), args));
                                 stack.push(ExprOrOp::Expr(call));
                             } else {
-                                let ident = Identifier::new(Some(vis), VarName::new(symbol));
+                                let ident = Identifier::public_from_token(dot, symbol);
                                 stack.push(ExprOrOp::Expr(obj.attr_expr(ident)));
                             }
                         }
                         line_break if line_break.is(Newline) => {
+                            let vis = VisModifierSpec::Public(dot);
                             let maybe_class = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                             let defs = self
                                 .try_reduce_method_defs(maybe_class, vis)
@@ -1488,11 +1539,17 @@ impl Parser {
                                 .transpose()
                                 .map_err(|_| self.stack_dec(fn_name!()))?
                             {
-                                let ident = Identifier::new(Some(vis), VarName::new(symbol));
+                                let ident = Identifier::new(
+                                    VisModifierSpec::Public(vis),
+                                    VarName::new(symbol),
+                                );
                                 let call = Call::new(obj, Some(ident), args);
                                 stack.push(ExprOrOp::Expr(Expr::Call(call)));
                             } else {
-                                let ident = Identifier::new(Some(vis), VarName::new(symbol));
+                                let ident = Identifier::new(
+                                    VisModifierSpec::Public(vis),
+                                    VarName::new(symbol),
+                                );
                                 stack.push(ExprOrOp::Expr(obj.attr_expr(ident)));
                             }
                         }
@@ -1696,7 +1753,7 @@ impl Parser {
                     }
                 }
             }
-            Some(t) if t.is(Symbol) || t.is(Dot) || t.is(UBar) => {
+            Some(t) if t.is(Symbol) || t.is(Dot) || t.is(DblColon) || t.is(UBar) => {
                 let call_or_acc = self
                     .try_reduce_call_or_acc(in_type_args)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
@@ -1861,7 +1918,8 @@ impl Parser {
                     let token = self.lpop();
                     match token.kind {
                         Symbol => {
-                            let ident = Identifier::new(Some(vis), VarName::new(token));
+                            let ident =
+                                Identifier::new(VisModifierSpec::Public(vis), VarName::new(token));
                             obj = obj.attr_expr(ident);
                         }
                         NatLit => {
@@ -1895,7 +1953,10 @@ impl Parser {
                     let token = self.lpop();
                     match token.kind {
                         Symbol => {
-                            let ident = Identifier::new(None, VarName::new(token));
+                            let ident = Identifier::new(
+                                VisModifierSpec::ExplicitPrivate(vis),
+                                VarName::new(token),
+                            );
                             obj = obj.attr_expr(ident);
                         }
                         LBrace => {
@@ -1905,6 +1966,7 @@ impl Parser {
                                 .map_err(|_| self.stack_dec(fn_name!()))?;
                             match args {
                                 BraceContainer::Record(args) => {
+                                    let vis = VisModifierSpec::ExplicitPrivate(vis);
                                     obj = Expr::DataPack(DataPack::new(obj, vis, args));
                                 }
                                 other => {
@@ -2023,15 +2085,15 @@ impl Parser {
         }
 
         // Empty brace literals
-        if let Some(first) = self.peek() {
-            if first.is(RBrace) {
+        match self.peek_kind() {
+            Some(RBrace) => {
                 let r_brace = self.lpop();
                 let arg = Args::empty();
                 let set = NormalSet::new(l_brace, r_brace, arg);
                 debug_exit_info!(self);
                 return Ok(BraceContainer::Set(Set::Normal(set)));
             }
-            if first.is(Equal) {
+            Some(Equal) => {
                 let _eq = self.lpop();
                 if let Some(t) = self.peek() {
                     if t.is(RBrace) {
@@ -2045,7 +2107,7 @@ impl Parser {
                 debug_exit_info!(self);
                 return Err(());
             }
-            if first.is(Colon) {
+            Some(Colon) => {
                 let _colon = self.lpop();
                 if let Some(t) = self.peek() {
                     if t.is(RBrace) {
@@ -2060,6 +2122,7 @@ impl Parser {
                 debug_exit_info!(self);
                 return Err(());
             }
+            _ => {}
         }
 
         let first = self
@@ -2541,7 +2604,8 @@ impl Parser {
                         .transpose()
                         .map_err(|_| self.stack_dec(fn_name!()))?
                     {
-                        let ident = Identifier::new(Some(vis), VarName::new(symbol));
+                        let ident =
+                            Identifier::new(VisModifierSpec::Public(vis), VarName::new(symbol));
                         let mut call = Expr::Call(Call::new(obj, Some(ident), args));
                         while let Some(res) = self.opt_reduce_args(false) {
                             let args = res.map_err(|_| self.stack_dec(fn_name!()))?;

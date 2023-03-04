@@ -520,7 +520,7 @@ mod test {
         varinfo::{AbsLocation, VarInfo},
     };
     use erg_common::{config::Input, error::Location};
-    use erg_parser::ast::VarName;
+    use erg_parser::ast::{VarName, VisModifierSpec};
 
     // These Erg codes are not correct grammar.
     // This test make sure sub_msg and hint are displayed correctly.
@@ -704,19 +704,17 @@ mod test {
         errors.push(err);
 
         let input = Input::pipe("ambiguous type error".to_string());
-        let expr = Identifier::new(
-            Some(erg_parser::token::Token {
-                kind: erg_parser::token::TokenKind::EOF,
-                content: "expr_content".into(),
-                lineno: 1,
-                col_begin: 1,
-            }),
+        let raw = erg_parser::ast::Identifier::new(
+            VisModifierSpec::Private,
             VarName::from_str("variable_name".into()),
+        );
+        let expr = Identifier::new(
+            raw,
             None,
             VarInfo::new(
                 Type::Nat,
                 crate::varinfo::Mutability::Const,
-                erg_common::vis::Visibility::Private,
+                crate::ty::Visibility::DUMMY_PRIVATE,
                 crate::varinfo::VarKind::Builtin,
                 None,
                 None,
@@ -759,7 +757,7 @@ mod test {
 
         let input = Input::pipe("visibility error".to_string());
         let loc = Location::Line(1);
-        let vis = erg_common::vis::Visibility::Private;
+        let vis = crate::ty::Visibility::DUMMY_PRIVATE;
         let err =
             TyCheckError::visibility_error(input, errno, loc, caused_by.to_string(), name, vis);
         errors.push(err);
