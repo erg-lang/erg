@@ -55,6 +55,7 @@ pub enum DefaultFeatures {
     SignatureHelp,
     /* ELS specific features */
     SmartCompletion,
+    DeepCompletion,
 }
 
 impl From<&str> for DefaultFeatures {
@@ -79,6 +80,9 @@ impl From<&str> for DefaultFeatures {
             "signaturehelp" | "signatureHelp" | "signature-help" => DefaultFeatures::SignatureHelp,
             "smartcompletion" | "smartCompletion" | "smart-completion" => {
                 DefaultFeatures::SmartCompletion
+            }
+            "deepcompletion" | "deepCompletion" | "deep-completion" => {
+                DefaultFeatures::DeepCompletion
             }
             _ => panic!("unknown feature: {s}"),
         }

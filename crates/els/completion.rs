@@ -65,6 +65,7 @@ impl_u8_enum! { CompletionOrder; i32;
     ReturnTypeMatched = -2,
     Normal = 1000000,
     Builtin = 1,
+    OtherNamespace = 2,
     Escaped = 32,
     DoubleEscaped = 64,
 }
@@ -142,6 +143,17 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let uri = util::normalize_url(params.text_document_position.text_document.uri);
         let path = util::uri_to_path(&uri);
         let pos = params.text_document_position.position;
+        // ignore comments
+        // TODO: multiline comments
+        if self
+            .file_cache
+            .get(&uri)
+            .unwrap()
+            .get_line(pos.line)
+            .map_or(false, |line| line.starts_with('#'))
+        {
+            return Ok(());
+        }
         let trigger = params
             .context
             .as_ref()
