@@ -308,7 +308,7 @@ fn exec_var_args_err() -> Result<(), ()> {
 
 #[test]
 fn exec_visibility() -> Result<(), ()> {
-    expect_failure("tests/should_err/visibility.er", 5)
+    expect_failure("tests/should_err/visibility.er", 6)
 }
 
 #[test]

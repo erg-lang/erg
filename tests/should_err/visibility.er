@@ -23,3 +23,11 @@ rec = {
 
 f x = rec::x + x # OK
 g x = rec::x + x  # ERR
+
+unpack {x; y}: {.x = Int; .y = Int} = x + y
+
+private = { x = 1; y = 2 }
+public = { .x = 1; .y = 2 }
+
+_ = unpack public # OK
+_ = unpack private # ERR

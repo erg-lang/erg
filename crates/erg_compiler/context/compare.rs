@@ -454,9 +454,12 @@ impl Context {
                 }
             },
             (Type::Record(lhs), Type::Record(rhs)) => {
-                for (k, l) in lhs.iter() {
-                    if let Some(r) = rhs.get(k) {
-                        if !self.supertype_of(l, r) {
+                for (l_k, l_t) in lhs.iter() {
+                    if let Some((r_k, r_t)) = rhs.get_key_value(l_k) {
+                        // public <: private (private fields cannot be public)
+                        if (l_k.vis.is_public() && r_k.vis.is_private())
+                            || !self.supertype_of(l_t, r_t)
+                        {
                             return false;
                         }
                     } else {
