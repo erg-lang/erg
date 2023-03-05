@@ -117,48 +117,120 @@ impl DummyStdin {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum InputKind {
+    File(PathBuf),
+    REPL,
+    DummyREPL(DummyStdin),
+    /// same content as cfg.command
+    Pipe(String),
+    /// from command option | eval
+    Str(String),
+    Dummy,
+}
+
+impl InputKind {
+    pub const fn is_repl(&self) -> bool {
+        matches!(self, Self::REPL | Self::DummyREPL(_))
+    }
+
+    pub fn path(&self) -> Option<&Path> {
+        match self {
+            Self::File(path) => Some(path),
+            _ => None,
+        }
+    }
+
+    pub fn enclosed_name(&self) -> &str {
+        match self {
+            Self::File(filename) => filename.to_str().unwrap_or("_"),
+            Self::REPL | Self::DummyREPL(_) | Self::Pipe(_) => "<stdin>",
+            Self::Str(_) => "<string>",
+            Self::Dummy => "<dummy>",
+        }
+    }
+
+    pub fn dir(&self) -> PathBuf {
+        if let Self::File(path) = self {
+            let mut path = path.clone();
+            path.pop();
+            path
+        } else {
+            PathBuf::new()
+        }
+    }
+}
+
 /// Since input is not always only from files
 /// Unify operations with `Input`
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Input {
-    File(PathBuf),
-    REPL(u64),
-    DummyREPL(DummyStdin),
-    /// same content as cfg.command
-    Pipe(u64, String),
-    /// from command option | eval
-    Str(u64, String),
-    Dummy,
+pub struct Input {
+    pub(crate) kind: InputKind,
+    /// Unique id to avoid file name collision
+    id: u64,
 }
 
 impl From<PathBuf> for Input {
     fn from(path: PathBuf) -> Self {
-        Self::File(path)
+        Self::file(path)
     }
 }
 
 impl From<&Path> for Input {
     fn from(path: &Path) -> Self {
-        Self::File(path.to_path_buf())
+        Self::file(path.to_path_buf())
     }
 }
 
 impl Input {
-    pub const fn is_repl(&self) -> bool {
-        matches!(self, Input::REPL(_) | Input::DummyREPL(_))
+    pub const fn new(kind: InputKind, id: u64) -> Self {
+        Self { kind, id }
+    }
+
+    pub fn file(path: PathBuf) -> Self {
+        Self::new(InputKind::File(path), random())
     }
 
     pub fn pipe(src: String) -> Self {
-        Self::Pipe(random(), src)
+        Self::new(InputKind::Pipe(src), random())
     }
 
     pub fn str(src: String) -> Self {
-        Self::Str(random(), src)
+        Self::new(InputKind::Str(src), random())
     }
 
     pub fn repl() -> Self {
-        Self::REPL(random())
+        Self::new(InputKind::REPL, random())
     }
+
+    pub fn dummy() -> Self {
+        Self::new(InputKind::Dummy, random())
+    }
+
+    pub fn dummy_repl(stdin: DummyStdin) -> Self {
+        Self::new(InputKind::DummyREPL(stdin), random())
+    }
+
+    pub const fn is_repl(&self) -> bool {
+        self.kind.is_repl()
+    }
+
+    pub const fn id(&self) -> u64 {
+        self.id
+    }
+
+    pub fn path(&self) -> Option<&Path> {
+        self.kind.path()
+    }
+
+    pub fn dir(&self) -> PathBuf {
+        self.kind.dir()
+    }
+
+    pub fn enclosed_name(&self) -> &str {
+        self.kind.enclosed_name()
+    }
+
     pub fn lineno(&self) -> usize {
         GLOBAL_STDIN.lineno()
     }
@@ -179,70 +251,43 @@ impl Input {
         GLOBAL_STDIN.set_indent(indent);
     }
 
-    pub fn path(&self) -> Option<&Path> {
-        match self {
-            Input::File(path) => Some(path),
-            _ => None,
-        }
-    }
-
-    pub const fn id(&self) -> u64 {
-        match self {
-            Input::File(_) | Input::DummyREPL(_) | Input::Dummy => 0,
-            Input::REPL(id) | Input::Pipe(id, _) | Input::Str(id, _) => *id,
-        }
-    }
-
-    pub fn enclosed_name(&self) -> &str {
-        match self {
-            Self::File(filename) => filename.to_str().unwrap_or("_"),
-            Self::REPL(_) | Self::DummyREPL(_) | Self::Pipe(_, _) => "<stdin>",
-            Self::Str(_, _) => "<string>",
-            Self::Dummy => "<dummy>",
+    pub fn file_stem(&self) -> String {
+        match &self.kind {
+            InputKind::File(filename) => format!(
+                "{}_{}",
+                filename.file_stem().and_then(|f| f.to_str()).unwrap_or("_"),
+                self.id
+            ),
+            InputKind::REPL | InputKind::Pipe(_) => format!("stdin_{}", self.id),
+            InputKind::DummyREPL(stdin) => format!("stdin_{}_{}", stdin.name, self.id),
+            InputKind::Str(_) => format!("string_{}", self.id),
+            InputKind::Dummy => "dummy".to_string(),
         }
     }
 
     pub fn full_path(&self) -> PathBuf {
-        match self {
-            Self::File(filename) => filename.clone(),
-            Self::REPL(id) | Self::Pipe(id, _) => PathBuf::from(format!("stdin_{id}")),
-            Self::DummyREPL(dummy) => PathBuf::from(format!("stdin_{}", dummy.name)),
-            Self::Str(id, _) => PathBuf::from(format!("string_{id}")),
-            Self::Dummy => PathBuf::from("dummy"),
-        }
-    }
-
-    pub fn file_stem(&self) -> String {
-        match self {
-            Self::File(filename) => filename
-                .file_stem()
-                .and_then(|f| f.to_str())
-                .unwrap_or("_")
-                .to_string(),
-            Self::REPL(id) | Self::Pipe(id, _) => format!("stdin_{id}"),
-            Self::DummyREPL(stdin) => format!("stdin_{}", stdin.name),
-            Self::Str(id, _) => format!("string_{id}"),
-            Self::Dummy => "dummy".to_string(),
+        match &self.kind {
+            InputKind::File(filename) => {
+                PathBuf::from(format!("{}_{}", filename.display(), self.id))
+            }
+            _ => PathBuf::from(self.file_stem()),
         }
     }
 
     pub fn filename(&self) -> String {
-        match self {
-            Self::File(filename) => filename
-                .file_name()
-                .and_then(|f| f.to_str())
-                .unwrap_or("_")
-                .to_string(),
-            Self::REPL(id) | Self::Pipe(id, _) => format!("stdin_{id}"),
-            Self::DummyREPL(stdin) => format!("stdin_{}", stdin.name),
-            Self::Str(id, _) => format!("string_{id}"),
-            Self::Dummy => "dummy".to_string(),
+        match &self.kind {
+            InputKind::File(filename) => format!(
+                "{}_{}",
+                filename.file_name().and_then(|f| f.to_str()).unwrap_or("_"),
+                self.id
+            ),
+            _ => self.file_stem(),
         }
     }
 
     pub fn read(&mut self) -> String {
-        match self {
-            Self::File(filename) => {
+        match &mut self.kind {
+            InputKind::File(filename) => {
                 let file = match File::open(&filename) {
                     Ok(f) => f,
                     Err(e) => {
@@ -264,16 +309,16 @@ impl Input {
                     }
                 }
             }
-            Self::Pipe(_, s) | Self::Str(_, s) => s.clone(),
-            Self::REPL(_) => GLOBAL_STDIN.read(),
-            Self::DummyREPL(dummy) => dummy.read_line(),
-            Self::Dummy => panic!("cannot read from a dummy file"),
+            InputKind::Pipe(s) | InputKind::Str(s) => s.clone(),
+            InputKind::REPL => GLOBAL_STDIN.read(),
+            InputKind::DummyREPL(dummy) => dummy.read_line(),
+            InputKind::Dummy => panic!("cannot read from a dummy file"),
         }
     }
 
     pub fn read_non_dummy(&self) -> String {
-        match self {
-            Self::File(filename) => {
+        match &self.kind {
+            InputKind::File(filename) => {
                 let file = match File::open(filename) {
                     Ok(f) => f,
                     Err(e) => {
@@ -295,16 +340,16 @@ impl Input {
                     }
                 }
             }
-            Self::Pipe(_, s) | Self::Str(_, s) => s.clone(),
-            Self::REPL(_) => GLOBAL_STDIN.read(),
-            Self::Dummy | Self::DummyREPL(_) => panic!("cannot read from a dummy file"),
+            InputKind::Pipe(s) | InputKind::Str(s) => s.clone(),
+            InputKind::REPL => GLOBAL_STDIN.read(),
+            InputKind::Dummy | InputKind::DummyREPL(_) => panic!("cannot read from a dummy file"),
         }
     }
 
     pub fn reread_lines(&self, ln_begin: usize, ln_end: usize) -> Vec<String> {
         power_assert!(ln_begin, >=, 1);
-        match self {
-            Self::File(filename) => match File::open(filename) {
+        match &self.kind {
+            InputKind::File(filename) => match File::open(filename) {
                 Ok(file) => {
                     let mut codes = vec![];
                     let mut lines = BufReader::new(file).lines().skip(ln_begin - 1);
@@ -315,40 +360,35 @@ impl Input {
                 }
                 Err(_) => vec!["<file not found>".into()],
             },
-            Self::Pipe(_, s) | Self::Str(_, s) => s.split('\n').collect::<Vec<_>>()
+            InputKind::Pipe(s) | InputKind::Str(s) => s.split('\n').collect::<Vec<_>>()
                 [ln_begin - 1..=ln_end - 1]
                 .iter()
                 .map(|s| s.to_string())
                 .collect(),
-            Self::REPL(_) => {
+            InputKind::REPL => {
                 if ln_begin == ln_end {
                     vec![GLOBAL_STDIN.reread()]
                 } else {
                     GLOBAL_STDIN.reread_lines(ln_begin, ln_end)
                 }
             }
-            Self::DummyREPL(dummy) => dummy.reread_lines(ln_begin, ln_end),
-            Self::Dummy => panic!("cannot read lines from a dummy file"),
+            InputKind::DummyREPL(dummy) => dummy.reread_lines(ln_begin, ln_end),
+            InputKind::Dummy => panic!("cannot read lines from a dummy file"),
         }
     }
 
     pub fn reread(&self) -> String {
-        match self {
-            Self::File(_filename) => todo!(),
-            Self::Pipe(_, s) | Self::Str(_, s) => s.clone(),
-            Self::REPL(_) => GLOBAL_STDIN.reread().trim_end().to_owned(),
-            Self::DummyREPL(dummy) => dummy.reread().unwrap_or_default(),
-            Self::Dummy => panic!("cannot read from a dummy file"),
+        match &self.kind {
+            InputKind::File(_filename) => todo!(),
+            InputKind::Pipe(s) | InputKind::Str(s) => s.clone(),
+            InputKind::REPL => GLOBAL_STDIN.reread().trim_end().to_owned(),
+            InputKind::DummyREPL(dummy) => dummy.reread().unwrap_or_default(),
+            InputKind::Dummy => panic!("cannot read from a dummy file"),
         }
     }
 
     pub fn local_resolve(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
-        let mut dir = if let Self::File(mut file_path) = self.clone() {
-            file_path.pop();
-            file_path
-        } else {
-            PathBuf::new()
-        };
+        let mut dir = self.dir();
         dir.push(path);
         dir.set_extension("er"); // {path}.er
         let path = dir.canonicalize().or_else(|_| {
@@ -361,12 +401,7 @@ impl Input {
     }
 
     pub fn local_decl_resolve(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
-        let mut dir = if let Self::File(mut file_path) = self.clone() {
-            file_path.pop();
-            file_path
-        } else {
-            PathBuf::new()
-        };
+        let mut dir = self.dir();
         let path = add_postfix_foreach(path, ".d");
         let mut comps = path.components();
         let last = comps.next_back().unwrap();
@@ -394,12 +429,7 @@ impl Input {
     }
 
     pub fn local_py_resolve(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
-        let mut dir = if let Self::File(mut path) = self.clone() {
-            path.pop();
-            path
-        } else {
-            PathBuf::new()
-        };
+        let mut dir = self.dir();
         dir.push(path);
         dir.set_extension("py");
         let path = dir.canonicalize().or_else(|_| {
@@ -471,7 +501,7 @@ impl ErgConfig {
         let path = normalize_path(path);
         Self {
             module: "<module>",
-            input: Input::File(path),
+            input: Input::file(path),
             ..ErgConfig::default()
         }
     }
@@ -517,7 +547,7 @@ impl ErgConfig {
         let path = normalize_path(path);
         Self {
             module: Box::leak(path.to_str().unwrap().to_string().into_boxed_str()),
-            input: Input::File(path),
+            input: Input::file(path),
             ..self.copy()
         }
     }
@@ -709,7 +739,7 @@ USAGE:
                     let path = PathBuf::from_str(&arg[..])
                         .unwrap_or_else(|_| panic!("invalid file path: {arg}"));
                     let path = normalize_path(path);
-                    cfg.input = Input::File(path);
+                    cfg.input = Input::file(path);
                     if let Some("--") = args.next().as_ref().map(|s| &s[..]) {
                         for arg in args {
                             cfg.runtime_args.push(Box::leak(arg.into_boxed_str()));

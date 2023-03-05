@@ -323,7 +323,7 @@ caused from: {fn_name}"),
                 SystemExit,
                 Location::Unknown,
             ),
-            Input::Dummy,
+            Input::dummy(),
             "".to_owned(),
         )
     }

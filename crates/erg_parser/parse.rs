@@ -6,7 +6,7 @@ use std::fmt::Debug;
 use std::mem;
 
 use erg_common::config::ErgConfig;
-use erg_common::config::Input;
+use erg_common::config::{Input, InputKind};
 use erg_common::error::Location;
 use erg_common::set::Set as HashSet;
 use erg_common::str::Str;
@@ -331,7 +331,7 @@ impl ParserRunner {
     }
 
     pub fn parse(&mut self, src: String) -> Result<Module, ParserRunnerErrors> {
-        let ts = Lexer::new(Input::Str(self.cfg.input.id(), src))
+        let ts = Lexer::new(Input::new(InputKind::Str(src), self.cfg.input.id()))
             .lex()
             .map_err(|errs| ParserRunnerErrors::convert(self.input(), errs))?;
         Parser::new(ts)

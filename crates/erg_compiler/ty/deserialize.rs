@@ -2,7 +2,7 @@
 use std::string::FromUtf8Error;
 
 use erg_common::cache::CacheSet;
-use erg_common::config::{ErgConfig, Input};
+use erg_common::config::ErgConfig;
 use erg_common::dict::Dict;
 use erg_common::error::{ErrorCore, ErrorKind, Location, SubMessage};
 use erg_common::python_util::PythonVersion;
@@ -111,11 +111,11 @@ impl Deserializer {
     }
 
     pub fn run(cfg: ErgConfig) -> ExitStatus {
-        let Input::File(filename) = cfg.input else {
+        let Some(filename) = cfg.input.path() else {
             eprintln!("{:?} is not a filename", cfg.input);
             return ExitStatus::ERR1;
         };
-        match CodeObj::from_pyc(&filename) {
+        match CodeObj::from_pyc(filename) {
             Ok(codeobj) => {
                 println!("{}", codeobj.code_info(None));
                 ExitStatus::OK

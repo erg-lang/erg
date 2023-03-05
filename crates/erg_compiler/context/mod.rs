@@ -21,7 +21,6 @@ use std::option::Option; // conflicting to Type::Option
 use std::path::{Path, PathBuf};
 
 use erg_common::config::ErgConfig;
-use erg_common::config::Input;
 use erg_common::dict::Dict;
 use erg_common::error::Location;
 use erg_common::impl_display_from_debug;
@@ -864,16 +863,12 @@ impl Context {
         )
     }
 
-    pub(crate) fn module_path(&self) -> Option<&PathBuf> {
-        if let Input::File(path) = &self.cfg.input {
-            Some(path)
-        } else {
-            None
-        }
+    pub(crate) fn module_path(&self) -> Option<&Path> {
+        self.cfg.input.path()
     }
 
     pub(crate) fn absolutize(&self, loc: Location) -> AbsLocation {
-        AbsLocation::new(self.module_path().cloned(), loc)
+        AbsLocation::new(self.module_path().map(PathBuf::from), loc)
     }
 
     #[inline]
