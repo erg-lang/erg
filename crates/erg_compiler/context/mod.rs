@@ -10,6 +10,7 @@ pub mod hint;
 pub mod initialize;
 pub mod inquire;
 pub mod instantiate;
+pub mod instantiate_spec;
 pub mod register;
 pub mod test;
 pub mod unify;
@@ -20,12 +21,10 @@ use std::option::Option; // conflicting to Type::Option
 use std::path::{Path, PathBuf};
 
 use erg_common::config::ErgConfig;
-use erg_common::config::Input;
 use erg_common::dict::Dict;
 use erg_common::error::Location;
 use erg_common::impl_display_from_debug;
 use erg_common::traits::{Locational, Stream};
-use erg_common::vis::Visibility;
 use erg_common::Str;
 use erg_common::{fmt_option, fn_name, get_hash, log};
 
@@ -33,14 +32,14 @@ use ast::{DefId, DefKind, VarName};
 use erg_parser::ast;
 use erg_parser::token::Token;
 
-use crate::context::instantiate::{ConstTemplate, TyVarCache};
+use crate::context::instantiate::TyVarCache;
+use crate::context::instantiate_spec::ConstTemplate;
 use crate::error::{TyCheckError, TyCheckErrors};
 use crate::module::{SharedCompilerResource, SharedModuleCache};
 use crate::ty::value::ValueObj;
-use crate::ty::{Predicate, Type};
+use crate::ty::{Predicate, Type, Visibility, VisibilityModifier};
 use crate::varinfo::{AbsLocation, Mutability, VarInfo, VarKind};
 use Type::*;
-use Visibility::*;
 
 /// For implementing LSP or other IDE features
 pub trait ContextProvider {
@@ -511,12 +510,30 @@ impl Context {
             if let Some(name) = param.name {
                 let kind = VarKind::parameter(id, param.is_var_params, param.default_info);
                 let muty = Mutability::from(name);
-                let vi = VarInfo::new(param.t, muty, Private, kind, None, None, None, param.loc);
+                let vi = VarInfo::new(
+                    param.t,
+                    muty,
+                    Visibility::private(name),
+                    kind,
+                    None,
+                    None,
+                    None,
+                    param.loc,
+                );
                 params_.push((Some(VarName::new(Token::static_symbol(name))), vi));
             } else {
                 let kind = VarKind::parameter(id, param.is_var_params, param.default_info);
                 let muty = Mutability::Immutable;
-                let vi = VarInfo::new(param.t, muty, Private, kind, None, None, None, param.loc);
+                let vi = VarInfo::new(
+                    param.t,
+                    muty,
+                    Visibility::private(name.clone()),
+                    kind,
+                    None,
+                    None,
+                    None,
+                    param.loc,
+                );
                 params_.push((None, vi));
             }
         }
@@ -846,16 +863,12 @@ impl Context {
         )
     }
 
-    pub(crate) fn module_path(&self) -> Option<&PathBuf> {
-        if let Input::File(path) = &self.cfg.input {
-            Some(path)
-        } else {
-            None
-        }
+    pub(crate) fn module_path(&self) -> Option<&Path> {
+        self.cfg.input.path()
     }
 
     pub(crate) fn absolutize(&self, loc: Location) -> AbsLocation {
-        AbsLocation::new(self.module_path().cloned(), loc)
+        AbsLocation::new(self.module_path().map(PathBuf::from), loc)
     }
 
     #[inline]
@@ -925,7 +938,7 @@ impl Context {
         &mut self,
         name: &str,
         kind: ContextKind,
-        vis: Visibility,
+        vis: VisibilityModifier,
         tv_cache: Option<TyVarCache>,
     ) {
         let name = if vis.is_public() {
@@ -999,6 +1012,7 @@ impl Context {
         }
     }
 
+    /// enumerates all the variables/methods in the current context & super contexts.
     fn type_dir(&self) -> Vec<(&VarName, &VarInfo)> {
         let mut vars: Vec<_> = self
             .locals

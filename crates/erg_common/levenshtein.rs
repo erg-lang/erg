@@ -40,18 +40,39 @@ pub fn levenshtein(a: &str, b: &str, limit: usize) -> Option<usize> {
     (dcol[m] <= limit).then_some(dcol[m])
 }
 
-pub fn get_similar_name<'a, I: Iterator<Item = &'a str> + Clone>(
+pub fn get_similar_name<'a, S: ?Sized, I: Iterator<Item = &'a S> + Clone>(
     candidates: I,
     name: &str,
-) -> Option<&'a str> {
-    let limit = (name.len() as f64).sqrt() as usize;
+) -> Option<&'a S>
+where
+    S: std::borrow::Borrow<str>,
+{
+    let limit = (name.len() as f64).sqrt().round() as usize;
     let most_similar_name =
-        candidates.min_by_key(|v| levenshtein(v, name, limit).unwrap_or(usize::MAX))?;
-    let dist = levenshtein(most_similar_name, name, limit);
+        candidates.min_by_key(|v| levenshtein(v.borrow(), name, limit).unwrap_or(usize::MAX))?;
+    let dist = levenshtein(most_similar_name.borrow(), name, limit);
     if dist.is_none() || dist.unwrap() >= limit {
         None
     } else {
         Some(most_similar_name)
+    }
+}
+
+pub fn get_similar_name_and_some<'a, S: ?Sized, T, I: Iterator<Item = (&'a T, &'a S)> + Clone>(
+    candidates: I,
+    name: &str,
+) -> Option<(&'a T, &'a S)>
+where
+    S: std::borrow::Borrow<str>,
+{
+    let limit = (name.len() as f64).sqrt().round() as usize;
+    let most_similar_name_and_some = candidates
+        .min_by_key(|(_, v)| levenshtein(v.borrow(), name, limit).unwrap_or(usize::MAX))?;
+    let dist = levenshtein(most_similar_name_and_some.1.borrow(), name, limit);
+    if dist.is_none() || dist.unwrap() >= limit {
+        None
+    } else {
+        Some(most_similar_name_and_some)
     }
 }
 

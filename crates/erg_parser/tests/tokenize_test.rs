@@ -17,7 +17,7 @@ const FILE5: &str = "tests/for.er";
 
 #[test]
 fn test_lexer_for_basic() -> ParseResult<()> {
-    let mut lexer = Lexer::new(Input::File(FILE1.into()));
+    let mut lexer = Lexer::new(Input::file(FILE1.into()));
     let newline = "\n";
     let token_array = vec![
         (Newline, newline),
@@ -131,7 +131,7 @@ fn test_lexer_for_basic() -> ParseResult<()> {
 
 #[test]
 fn test_lexer_for_advanced() -> ParseResult<()> {
-    let mut lexer = Lexer::new(Input::File(FILE2.into()));
+    let mut lexer = Lexer::new(Input::file(FILE2.into()));
     let newline = "\n";
     let token_array = vec![
         (Newline, newline),
@@ -224,7 +224,7 @@ fn test_lexer_for_advanced() -> ParseResult<()> {
 
 #[test]
 fn test_lexer_for_literals() -> ParseResult<()> {
-    let mut lexer = Lexer::new(Input::File(FILE3.into()));
+    let mut lexer = Lexer::new(Input::file(FILE3.into()));
     let newline = "\n";
     let token_array = vec![
         (Newline, newline),
@@ -309,7 +309,7 @@ fn test_lexer_for_literals() -> ParseResult<()> {
 
 #[test]
 fn test_lexer_for_multi_line_str_literal() -> ParseResult<()> {
-    let mut lexer = Lexer::new(Input::File(FILE4.into()));
+    let mut lexer = Lexer::new(Input::file(FILE4.into()));
     let newline = "\n";
     let token_array = [
         (Newline, newline),
@@ -405,7 +405,7 @@ line break\"\"\"",
 
 #[test]
 fn for_loop() -> ParseResult<()> {
-    let mut lexer = Lexer::new(Input::File(FILE5.into()));
+    let mut lexer = Lexer::new(Input::file(FILE5.into()));
     let newline = "\n";
     let token_array = [
         (Symbol, "for!"),

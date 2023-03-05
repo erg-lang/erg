@@ -199,6 +199,30 @@ impl Str {
         ret
     }
 
+    /// ```
+    /// use erg_common::str::Str;
+    /// let s = Str::rc("a.b.c");
+    /// assert_eq!(s.rpartition_with(&[".", "/"]), ("a.b", "c"));
+    /// let s = Str::rc("a::b.c");
+    /// assert_eq!(s.rpartition_with(&["/", "::"]), ("a", "b.c"));
+    /// ```
+    pub fn rpartition_with(&self, seps: &[&str]) -> (&str, &str) {
+        let mut i = self.len();
+        while i > 0 {
+            for sep in seps {
+                if self[i..].starts_with(sep) {
+                    return (&self[..i], &self[i + sep.len()..]);
+                }
+            }
+            i -= 1;
+        }
+        (&self[..], "")
+    }
+
+    pub fn reversed(&self) -> Str {
+        Str::rc(&self.chars().rev().collect::<String>())
+    }
+
     pub fn multi_replace(&self, paths: &[(&str, &str)]) -> Self {
         let mut self_ = self.to_string();
         for (from, to) in paths {
@@ -237,11 +261,6 @@ impl Str {
 mod tests {
     use super::*;
 
-    use crate::dict;
-    // use crate::dict::Dict;
-
-    use crate::vis::Field;
-
     #[test]
     fn test_split_with() {
         assert_eq!(
@@ -260,18 +279,5 @@ mod tests {
             Str::ever("aaxxbbyycc").split_with(&["xx", "yy"]),
             vec!["aa", "bb", "ff"]
         );
-    }
-
-    #[test]
-    fn test_std_key() {
-        let dict = dict! {Str::ever("a") => 1, Str::rc("b") => 2};
-        assert_eq!(dict.get("a"), Some(&1));
-        assert_eq!(dict.get("b"), Some(&2));
-        assert_eq!(dict.get(&Str::ever("b")), Some(&2));
-        assert_eq!(dict.get(&Str::rc("b")), Some(&2));
-
-        let dict = dict! {Field::private(Str::ever("a")) => 1, Field::public(Str::ever("b")) => 2};
-        assert_eq!(dict.get("a"), Some(&1));
-        assert_eq!(dict.get("b"), Some(&2));
     }
 }

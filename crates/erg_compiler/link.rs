@@ -1,7 +1,7 @@
 use std::mem;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use erg_common::config::{ErgConfig, Input};
+use erg_common::config::ErgConfig;
 use erg_common::pathutil::squash;
 use erg_common::python_util::BUILTIN_PYTHON_MODS;
 use erg_common::traits::Locational;
@@ -360,12 +360,7 @@ impl<'a> Linker<'a> {
     /// x = __import__("a.x").x
     /// ```
     fn replace_py_import(&self, expr: &mut Expr) {
-        let mut dir = if let Input::File(mut path) = self.cfg.input.clone() {
-            path.pop();
-            path
-        } else {
-            PathBuf::new()
-        };
+        let mut dir = self.cfg.input.dir();
         let args = &mut enum_unwrap!(expr, Expr::Call).args;
         let mod_name_lit = enum_unwrap!(args.remove_left_or_key("Path").unwrap(), Expr::Lit);
         let mod_name_str = enum_unwrap!(mod_name_lit.value.clone(), ValueObj::Str);

@@ -5,15 +5,12 @@
 use erg_common::config::ErgConfig;
 use erg_common::log;
 use erg_common::traits::{Locational, Stream};
-use erg_common::vis::Visibility;
 use erg_common::Str;
 use erg_parser::token::TokenKind;
-use Visibility::*;
-
-use crate::ty::HasType;
 
 use crate::error::{EffectError, EffectErrors};
 use crate::hir::{Array, Def, Dict, Expr, Params, Set, Signature, Tuple, HIR};
+use crate::ty::{HasType, Visibility};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum BlockKind {
@@ -36,7 +33,7 @@ use BlockKind::*;
 #[derive(Debug)]
 pub struct SideEffectChecker {
     cfg: ErgConfig,
-    path_stack: Vec<(Str, Visibility)>,
+    path_stack: Vec<Visibility>,
     block_stack: Vec<BlockKind>,
     errs: EffectErrors,
 }
@@ -52,15 +49,13 @@ impl SideEffectChecker {
     }
 
     fn full_path(&self) -> String {
-        self.path_stack
-            .iter()
-            .fold(String::new(), |acc, (path, vis)| {
-                if vis.is_public() {
-                    acc + "." + &path[..]
-                } else {
-                    acc + "::" + &path[..]
-                }
-            })
+        self.path_stack.iter().fold(String::new(), |acc, vis| {
+            if vis.is_public() {
+                acc + "." + &vis.def_namespace[..]
+            } else {
+                acc + "::" + &vis.def_namespace[..]
+            }
+        })
     }
 
     /// It is permitted to define a procedure in a function,
@@ -85,7 +80,7 @@ impl SideEffectChecker {
     }
 
     pub fn check(mut self, hir: HIR) -> Result<HIR, (HIR, EffectErrors)> {
-        self.path_stack.push((hir.name.clone(), Private));
+        self.path_stack.push(Visibility::private(hir.name.clone()));
         self.block_stack.push(Module);
         log!(info "the side-effects checking process has started.{RESET}");
         // At the top level, there is no problem with side effects, only check for purity violations.
@@ -150,7 +145,8 @@ impl SideEffectChecker {
                     }
                 },
                 Expr::Record(rec) => {
-                    self.path_stack.push((Str::ever("<record>"), Private));
+                    self.path_stack
+                        .push(Visibility::private(Str::ever("<record>")));
                     self.block_stack.push(Instant);
                     for attr in rec.attrs.iter() {
                         self.check_def(attr);
@@ -184,10 +180,12 @@ impl SideEffectChecker {
                 Expr::Lambda(lambda) => {
                     let is_proc = lambda.is_procedural();
                     if is_proc {
-                        self.path_stack.push((Str::ever("<lambda!>"), Private));
+                        self.path_stack
+                            .push(Visibility::private(Str::ever("<lambda!>")));
                         self.block_stack.push(Proc);
                     } else {
-                        self.path_stack.push((Str::ever("<lambda>"), Private));
+                        self.path_stack
+                            .push(Visibility::private(Str::ever("<lambda>")));
                         self.block_stack.push(Func);
                     }
                     lambda.body.iter().for_each(|chunk| self.check_expr(chunk));
@@ -244,10 +242,7 @@ impl SideEffectChecker {
     }
 
     fn check_def(&mut self, def: &Def) {
-        let name_and_vis = match &def.sig {
-            Signature::Var(var) => (var.inspect().clone(), var.vis()),
-            Signature::Subr(subr) => (subr.ident.inspect().clone(), subr.ident.vis()),
-        };
+        let name_and_vis = Visibility::new(def.sig.vis().clone(), def.sig.inspect().clone());
         self.path_stack.push(name_and_vis);
         let is_procedural = def.sig.is_procedural();
         let is_subr = def.sig.is_subr();
@@ -360,7 +355,8 @@ impl SideEffectChecker {
                 }
             },
             Expr::Record(record) => {
-                self.path_stack.push((Str::ever("<record>"), Private));
+                self.path_stack
+                    .push(Visibility::private(Str::ever("<record>")));
                 self.block_stack.push(Instant);
                 for attr in record.attrs.iter() {
                     self.check_def(attr);
@@ -433,10 +429,12 @@ impl SideEffectChecker {
             Expr::Lambda(lambda) => {
                 let is_proc = lambda.is_procedural();
                 if is_proc {
-                    self.path_stack.push((Str::ever("<lambda!>"), Private));
+                    self.path_stack
+                        .push(Visibility::private(Str::ever("<lambda!>")));
                     self.block_stack.push(Proc);
                 } else {
-                    self.path_stack.push((Str::ever("<lambda>"), Private));
+                    self.path_stack
+                        .push(Visibility::private(Str::ever("<lambda>")));
                     self.block_stack.push(Func);
                 }
                 self.check_params(&lambda.params);

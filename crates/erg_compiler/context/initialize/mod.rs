@@ -18,28 +18,26 @@ use erg_common::error::Location;
 use erg_common::fresh::fresh_varname;
 #[allow(unused_imports)]
 use erg_common::log;
-use erg_common::vis::Visibility;
 use erg_common::Str;
 use erg_common::{set, unique_in_place};
 
 use erg_parser::ast::VarName;
 
 use crate::context::initialize::const_func::*;
-use crate::context::instantiate::ConstTemplate;
+use crate::context::instantiate_spec::ConstTemplate;
 use crate::context::{
     ClassDefType, Context, ContextKind, MethodInfo, ModuleContext, ParamSpec, TraitImpl,
 };
 use crate::module::SharedCompilerResource;
 use crate::ty::free::Constraint;
 use crate::ty::value::ValueObj;
-use crate::ty::Type;
 use crate::ty::{constructors::*, BuiltinConstSubr, ConstSubr, Predicate};
+use crate::ty::{Type, Visibility};
 use crate::varinfo::{AbsLocation, Mutability, VarInfo, VarKind};
 use Mutability::*;
 use ParamSpec as PS;
 use Type::*;
 use VarKind::*;
-use Visibility::*;
 
 const NUM: &str = "Num";
 
@@ -543,7 +541,7 @@ impl Context {
         );
         if let Some(_vi) = self.locals.get(&name) {
             if _vi != &vi {
-                panic!("already registered: {} {name}", self.name);
+                unreachable!("already registered: {} {name}", self.name);
             }
         } else {
             self.locals.insert(name, vi);
@@ -599,9 +597,9 @@ impl Context {
             VarName::from_static(name)
         };
         let vis = if cfg!(feature = "py_compatible") || &self.name[..] != "<builtins>" {
-            Public
+            Visibility::BUILTIN_PUBLIC
         } else {
-            Private
+            Visibility::BUILTIN_PRIVATE
         };
         let muty = Immutable;
         let loc = Location::range(lineno, 0, lineno, name.inspect().len() as u32);
@@ -859,50 +857,56 @@ impl Context {
 
     fn init_builtin_consts(&mut self) {
         let vis = if cfg!(feature = "py_compatible") {
-            Public
+            Visibility::BUILTIN_PUBLIC
         } else {
-            Private
+            Visibility::BUILTIN_PRIVATE
         };
         // TODO: this is not a const, but a special property
         self.register_builtin_py_impl(
             FUNDAMENTAL_NAME,
             Str,
             Immutable,
-            vis,
+            vis.clone(),
             Some(FUNDAMENTAL_NAME),
         );
         self.register_builtin_py_impl(
             LICENSE,
             mono(SITEBUILTINS_PRINTER),
             Immutable,
-            vis,
+            vis.clone(),
             Some(LICENSE),
         );
         self.register_builtin_py_impl(
             CREDITS,
             mono(SITEBUILTINS_PRINTER),
             Immutable,
-            vis,
+            vis.clone(),
             Some(CREDITS),
         );
         self.register_builtin_py_impl(
             COPYRIGHT,
             mono(SITEBUILTINS_PRINTER),
             Immutable,
-            vis,
+            vis.clone(),
             Some(COPYRIGHT),
         );
         self.register_builtin_py_impl(
             NOT_IMPLEMENTED,
             NotImplementedType,
             Const,
-            vis,
+            vis.clone(),
             Some(NOT_IMPLEMENTED),
         );
         self.register_builtin_py_impl(ELLIPSIS, Ellipsis, Const, vis, Some(ELLIPSIS));
-        self.register_builtin_py_impl(TRUE, Bool, Const, Private, Some(TRUE));
-        self.register_builtin_py_impl(FALSE, Bool, Const, Private, Some(FALSE));
-        self.register_builtin_py_impl(NONE, NoneType, Const, Private, Some(NONE));
+        self.register_builtin_py_impl(TRUE, Bool, Const, Visibility::BUILTIN_PRIVATE, Some(TRUE));
+        self.register_builtin_py_impl(FALSE, Bool, Const, Visibility::BUILTIN_PRIVATE, Some(FALSE));
+        self.register_builtin_py_impl(
+            NONE,
+            NoneType,
+            Const,
+            Visibility::BUILTIN_PRIVATE,
+            Some(NONE),
+        );
     }
 
     pub(crate) fn init_builtins(cfg: ErgConfig, shared: SharedCompilerResource) {

@@ -200,9 +200,9 @@ impl<'a> HIRVisitor<'a> {
         token: &Token,
     ) -> Option<&Expr> {
         match acc {
-            Accessor::Ident(ident) => self.return_expr_if_same(expr, ident.name.token(), token),
+            Accessor::Ident(ident) => self.return_expr_if_same(expr, ident.raw.name.token(), token),
             Accessor::Attr(attr) => self
-                .return_expr_if_same(expr, attr.ident.name.token(), token)
+                .return_expr_if_same(expr, attr.ident.raw.name.token(), token)
                 .or_else(|| self.get_expr(&attr.obj, token)),
         }
     }
@@ -234,7 +234,7 @@ impl<'a> HIRVisitor<'a> {
             .or_else(|| {
                 call.attr_name
                     .as_ref()
-                    .and_then(|attr| self.return_expr_if_same(expr, attr.name.token(), token))
+                    .and_then(|attr| self.return_expr_if_same(expr, attr.raw.name.token(), token))
             })
             .or_else(|| self.get_expr(&call.obj, token))
             .or_else(|| self.get_expr_from_args(&call.args, token))
@@ -266,7 +266,7 @@ impl<'a> HIRVisitor<'a> {
         def: &'e Def,
         token: &Token,
     ) -> Option<&Expr> {
-        self.return_expr_if_same(expr, def.sig.ident().name.token(), token)
+        self.return_expr_if_same(expr, def.sig.ident().raw.name.token(), token)
             .or_else(|| self.get_expr_from_block(&def.body.block, token))
             .or_else(|| def.loc().contains(token.loc()).then_some(expr))
     }
@@ -319,7 +319,7 @@ impl<'a> HIRVisitor<'a> {
         patch_def: &'e PatchDef,
         token: &Token,
     ) -> Option<&Expr> {
-        self.return_expr_if_same(expr, patch_def.sig.ident().name.token(), token)
+        self.return_expr_if_same(expr, patch_def.sig.name().token(), token)
             .or_else(|| self.get_expr(&patch_def.base, token))
             .or_else(|| self.get_expr_from_block(&patch_def.methods, token))
             .or_else(|| patch_def.loc().contains(token.loc()).then_some(expr))
@@ -489,10 +489,10 @@ impl<'a> HIRVisitor<'a> {
     fn get_acc_info(&self, acc: &Accessor, token: &Token) -> Option<VarInfo> {
         match acc {
             Accessor::Ident(ident) => {
-                self.return_var_info_if_same(ident, ident.name.token(), token)
+                self.return_var_info_if_same(ident, ident.raw.name.token(), token)
             }
             Accessor::Attr(attr) => self
-                .return_var_info_if_same(&attr.ident, attr.ident.name.token(), token)
+                .return_var_info_if_same(&attr.ident, attr.ident.raw.name.token(), token)
                 .or_else(|| self.get_expr_info(&attr.obj, token)),
         }
     }
@@ -504,7 +504,7 @@ impl<'a> HIRVisitor<'a> {
 
     fn get_call_info(&self, call: &Call, token: &Token) -> Option<VarInfo> {
         if let Some(attr) = &call.attr_name {
-            if let Some(t) = self.return_var_info_if_same(attr, attr.name.token(), token) {
+            if let Some(t) = self.return_var_info_if_same(attr, attr.raw.name.token(), token) {
                 return Some(t);
             }
         }
@@ -534,10 +534,10 @@ impl<'a> HIRVisitor<'a> {
     fn get_sig_info(&self, sig: &Signature, token: &Token) -> Option<VarInfo> {
         match sig {
             Signature::Var(var) => {
-                self.return_var_info_if_same(&var.ident, var.ident.name.token(), token)
+                self.return_var_info_if_same(&var.ident, var.name().token(), token)
             }
             Signature::Subr(subr) => self
-                .return_var_info_if_same(&subr.ident, subr.ident.name.token(), token)
+                .return_var_info_if_same(&subr.ident, subr.name().token(), token)
                 .or_else(|| self.get_params_info(&subr.params, token)),
         }
     }

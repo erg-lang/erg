@@ -11,7 +11,7 @@ use erg_common::levenshtein::get_similar_name;
 use erg_common::python_util::BUILTIN_PYTHON_MODS;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
-use erg_common::vis::Visibility;
+use erg_common::triple::Triple;
 use erg_common::Str;
 use erg_common::{enum_unwrap, get_hash, log, set};
 
@@ -23,7 +23,7 @@ use crate::ty::constructors::{
 };
 use crate::ty::free::{Constraint, FreeKind, HasLevel};
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
-use crate::ty::{HasType, ParamTy, SubrType, Type};
+use crate::ty::{HasType, ParamTy, SubrType, Type, Visibility};
 
 use crate::build_hir::HIRBuilder;
 use crate::context::{
@@ -38,9 +38,9 @@ use crate::varinfo::{AbsLocation, Mutability, VarInfo, VarKind};
 use crate::{feature_error, hir};
 use Mutability::*;
 use RegistrationMode::*;
-use Visibility::*;
 
-use super::instantiate::{ParamKind, TyVarCache};
+use super::instantiate::TyVarCache;
+use super::instantiate_spec::ParamKind;
 
 /// format:
 /// ```python
@@ -133,7 +133,7 @@ impl Context {
             }
             other => unreachable!("{other}"),
         };
-        let vis = ident.vis();
+        let vis = self.instantiate_vis_modifier(&ident.vis)?;
         let kind = id.map_or(VarKind::Declared, VarKind::Defined);
         let sig_t = self.instantiate_var_sig_t(sig.t_spec.as_ref(), PreRegister)?;
         let py_name = if let ContextKind::PatchMethodDefs(_base) = &self.kind {
@@ -153,7 +153,7 @@ impl Context {
             let vi = VarInfo::new(
                 sig_t,
                 muty,
-                vis,
+                Visibility::new(vis, self.name.clone()),
                 kind,
                 None,
                 self.impl_of(),
@@ -172,7 +172,7 @@ impl Context {
         id: Option<DefId>,
     ) -> TyCheckResult<()> {
         let name = sig.ident.inspect();
-        let vis = sig.ident.vis();
+        let vis = self.instantiate_vis_modifier(&sig.ident.vis)?;
         let muty = Mutability::from(&name[..]);
         let kind = id.map_or(VarKind::Declared, VarKind::Defined);
         let comptime_decos = sig
@@ -199,7 +199,7 @@ impl Context {
         let vi = VarInfo::new(
             t,
             muty,
-            vis,
+            Visibility::new(vis, self.name.clone()),
             kind,
             Some(comptime_decos),
             self.impl_of(),
@@ -238,18 +238,19 @@ impl Context {
             ast::VarPattern::Discard(_) => {
                 return Ok(VarInfo {
                     t: body_t.clone(),
-                    ..VarInfo::const_default()
+                    ..VarInfo::const_default_private()
                 });
             }
-            _ => todo!(),
+            _ => unreachable!(),
         };
+        let vis = self.instantiate_vis_modifier(&ident.vis)?;
         // already defined as const
         if sig.is_const() {
             let vi = self.decls.remove(ident.inspect()).unwrap_or_else(|| {
                 VarInfo::new(
                     body_t.clone(),
                     Mutability::Const,
-                    sig.vis(),
+                    Visibility::new(vis, self.name.clone()),
                     VarKind::Declared,
                     None,
                     self.impl_of(),
@@ -270,7 +271,6 @@ impl Context {
         } else {
             py_name
         };
-        let vis = ident.vis();
         let kind = if id.0 == 0 {
             VarKind::Declared
         } else {
@@ -279,14 +279,14 @@ impl Context {
         let vi = VarInfo::new(
             body_t.clone(),
             muty,
-            vis,
+            Visibility::new(vis, self.name.clone()),
             kind,
             None,
             self.impl_of(),
             py_name,
             self.absolutize(ident.name.loc()),
         );
-        log!(info "Registered {}::{}: {}", self.name, ident.name, vi);
+        log!(info "Registered {}{}: {}", self.name, ident, vi);
         self.locals.insert(ident.name.clone(), vi.clone());
         Ok(vi)
     }
@@ -300,9 +300,9 @@ impl Context {
         kind: ParamKind,
     ) -> TyCheckResult<()> {
         let vis = if cfg!(feature = "py_compatible") {
-            Public
+            Visibility::BUILTIN_PUBLIC
         } else {
-            Private
+            Visibility::private(self.name.clone())
         };
         let default = kind.default_info();
         let is_var_params = kind.is_var_params();
@@ -622,6 +622,7 @@ impl Context {
             self.locals.insert(sig.ident.name.clone(), vi.clone());
             return Ok(vi);
         }
+        let vis = self.instantiate_vis_modifier(&sig.ident.vis)?;
         let muty = if sig.ident.is_const() {
             Mutability::Const
         } else {
@@ -717,7 +718,7 @@ impl Context {
         let vi = VarInfo::new(
             found_t,
             muty,
-            sig.ident.vis(),
+            Visibility::new(vis, self.name.clone()),
             VarKind::Defined(id),
             Some(comptime_decos),
             self.impl_of(),
@@ -746,6 +747,7 @@ impl Context {
                 return Ok(());
             }
         }
+        let vis = self.instantiate_vis_modifier(&ident.vis)?;
         let muty = if ident.is_const() {
             Mutability::Const
         } else {
@@ -765,7 +767,7 @@ impl Context {
         let vi = VarInfo::new(
             failure_t,
             muty,
-            ident.vis(),
+            Visibility::new(vis, self.name.clone()),
             VarKind::DoesNotExist,
             Some(comptime_decos),
             self.impl_of(),
@@ -814,7 +816,7 @@ impl Context {
             ast::Signature::Subr(sig) => {
                 if sig.is_const() {
                     let tv_cache = self.instantiate_ty_bounds(&sig.bounds, PreRegister)?;
-                    let vis = def.sig.vis();
+                    let vis = self.instantiate_vis_modifier(sig.vis())?;
                     self.grow(__name__, ContextKind::Proc, vis, Some(tv_cache));
                     let (obj, const_t) = match self.eval_const_block(&def.body.block) {
                         Ok(obj) => (obj.clone(), v_enum(set! {obj})),
@@ -852,7 +854,8 @@ impl Context {
             ast::Signature::Var(sig) => {
                 if sig.is_const() {
                     let kind = ContextKind::from(def.def_kind());
-                    self.grow(__name__, kind, sig.vis(), None);
+                    let vis = self.instantiate_vis_modifier(sig.vis())?;
+                    self.grow(__name__, kind, vis, None);
                     let (obj, const_t) = match self.eval_const_block(&def.body.block) {
                         Ok(obj) => (obj.clone(), v_enum(set! {obj})),
                         Err(errs) => {
@@ -1048,7 +1051,8 @@ impl Context {
         ident: &Identifier,
         obj: ValueObj,
     ) -> CompileResult<()> {
-        if self.rec_get_const_obj(ident.inspect()).is_some() && ident.vis().is_private() {
+        let vis = self.instantiate_vis_modifier(&ident.vis)?;
+        if self.rec_get_const_obj(ident.inspect()).is_some() && vis.is_private() {
             Err(CompileErrors::from(CompileError::reassign_error(
                 self.cfg.input.clone(),
                 line!() as usize,
@@ -1068,7 +1072,7 @@ impl Context {
                     let vi = VarInfo::new(
                         v_enum(set! {other.clone()}),
                         Const,
-                        ident.vis(),
+                        Visibility::new(vis, self.name.clone()),
                         VarKind::Defined(id),
                         None,
                         self.impl_of(),
@@ -1111,6 +1115,7 @@ impl Context {
                                         field.clone(),
                                         t.clone(),
                                         self.impl_of(),
+                                        ctx.name.clone(),
                                     );
                                     ctx.decls.insert(varname, vi);
                                 }
@@ -1120,7 +1125,7 @@ impl Context {
                                     "base",
                                     other.typ().clone(),
                                     Immutable,
-                                    Private,
+                                    Visibility::BUILTIN_PRIVATE,
                                     None,
                                 )?;
                             }
@@ -1133,12 +1138,18 @@ impl Context {
                         "__new__",
                         new_t.clone(),
                         Immutable,
-                        Private,
+                        Visibility::BUILTIN_PRIVATE,
                         Some("__call__".into()),
                     )?;
                     // 必要なら、ユーザーが独自に上書きする
                     // users can override this if necessary
-                    methods.register_auto_impl("new", new_t, Immutable, Public, None)?;
+                    methods.register_auto_impl(
+                        "new",
+                        new_t,
+                        Immutable,
+                        Visibility::BUILTIN_PUBLIC,
+                        None,
+                    )?;
                     ctx.methods_list
                         .push((ClassDefType::Simple(gen.typ().clone()), methods));
                     self.register_gen_mono_type(ident, gen, ctx, Const)
@@ -1189,6 +1200,7 @@ impl Context {
                                         field.clone(),
                                         t.clone(),
                                         self.impl_of(),
+                                        ctx.name.clone(),
                                     );
                                     ctx.decls.insert(varname, vi);
                                 }
@@ -1202,11 +1214,17 @@ impl Context {
                             "__new__",
                             new_t.clone(),
                             Immutable,
-                            Private,
+                            Visibility::BUILTIN_PRIVATE,
                             Some("__call__".into()),
                         )?;
                         // 必要なら、ユーザーが独自に上書きする
-                        methods.register_auto_impl("new", new_t, Immutable, Public, None)?;
+                        methods.register_auto_impl(
+                            "new",
+                            new_t,
+                            Immutable,
+                            Visibility::BUILTIN_PUBLIC,
+                            None,
+                        )?;
                         ctx.methods_list
                             .push((ClassDefType::Simple(gen.typ().clone()), methods));
                         self.register_gen_mono_type(ident, gen, ctx, Const)
@@ -1242,7 +1260,12 @@ impl Context {
                     );
                     let Some(TypeObj::Builtin(Type::Record(req))) = gen.base_or_sup() else { todo!("{gen}") };
                     for (field, t) in req.iter() {
-                        let vi = VarInfo::instance_attr(field.clone(), t.clone(), self.impl_of());
+                        let vi = VarInfo::instance_attr(
+                            field.clone(),
+                            t.clone(),
+                            self.impl_of(),
+                            ctx.name.clone(),
+                        );
                         ctx.decls
                             .insert(VarName::from_str(field.symbol.clone()), vi);
                     }
@@ -1273,8 +1296,12 @@ impl Context {
                     );
                     if let Some(additional) = additional {
                         for (field, t) in additional.iter() {
-                            let vi =
-                                VarInfo::instance_attr(field.clone(), t.clone(), self.impl_of());
+                            let vi = VarInfo::instance_attr(
+                                field.clone(),
+                                t.clone(),
+                                self.impl_of(),
+                                ctx.name.clone(),
+                            );
                             ctx.decls
                                 .insert(VarName::from_str(field.symbol.clone()), vi);
                         }
@@ -1330,6 +1357,7 @@ impl Context {
     }
 
     pub(crate) fn register_type_alias(&mut self, ident: &Identifier, t: Type) -> CompileResult<()> {
+        let vis = self.instantiate_vis_modifier(&ident.vis)?;
         if self.mono_types.contains_key(ident.inspect()) {
             Err(CompileErrors::from(CompileError::reassign_error(
                 self.cfg.input.clone(),
@@ -1338,7 +1366,7 @@ impl Context {
                 self.caused_by(),
                 ident.inspect(),
             )))
-        } else if self.rec_get_const_obj(ident.inspect()).is_some() && ident.vis().is_private() {
+        } else if self.rec_get_const_obj(ident.inspect()).is_some() && vis.is_private() {
             // TODO: display where defined
             Err(CompileErrors::from(CompileError::reassign_error(
                 self.cfg.input.clone(),
@@ -1354,7 +1382,7 @@ impl Context {
             let vi = VarInfo::new(
                 Type::Type,
                 muty,
-                ident.vis(),
+                Visibility::new(vis, self.name.clone()),
                 VarKind::Defined(id),
                 None,
                 self.impl_of(),
@@ -1376,6 +1404,7 @@ impl Context {
         ctx: Self,
         muty: Mutability,
     ) -> CompileResult<()> {
+        let vis = self.instantiate_vis_modifier(&ident.vis)?;
         // FIXME: recursive search
         if self.mono_types.contains_key(ident.inspect()) {
             Err(CompileErrors::from(CompileError::reassign_error(
@@ -1385,7 +1414,7 @@ impl Context {
                 self.caused_by(),
                 ident.inspect(),
             )))
-        } else if self.rec_get_const_obj(ident.inspect()).is_some() && ident.vis().is_private() {
+        } else if self.rec_get_const_obj(ident.inspect()).is_some() && vis.is_private() {
             Err(CompileErrors::from(CompileError::reassign_error(
                 self.cfg.input.clone(),
                 line!() as usize,
@@ -1401,7 +1430,7 @@ impl Context {
             let vi = VarInfo::new(
                 meta_t,
                 muty,
-                ident.vis(),
+                Visibility::new(vis, self.name.clone()),
                 VarKind::Defined(id),
                 None,
                 self.impl_of(),
@@ -1454,6 +1483,7 @@ impl Context {
         ctx: Self,
         muty: Mutability,
     ) -> CompileResult<()> {
+        let vis = self.instantiate_vis_modifier(&ident.vis)?;
         // FIXME: recursive search
         if self.patches.contains_key(ident.inspect()) {
             Err(CompileErrors::from(CompileError::reassign_error(
@@ -1463,7 +1493,7 @@ impl Context {
                 self.caused_by(),
                 ident.inspect(),
             )))
-        } else if self.rec_get_const_obj(ident.inspect()).is_some() && ident.vis().is_private() {
+        } else if self.rec_get_const_obj(ident.inspect()).is_some() && vis.is_private() {
             Err(CompileErrors::from(CompileError::reassign_error(
                 self.cfg.input.clone(),
                 line!() as usize,
@@ -1481,7 +1511,7 @@ impl Context {
                 VarInfo::new(
                     meta_t,
                     muty,
-                    ident.vis(),
+                    Visibility::new(vis, self.name.clone()),
                     VarKind::Defined(id),
                     None,
                     self.impl_of(),
@@ -1758,7 +1788,7 @@ impl Context {
             )))
         } else if self.locals.get(ident.inspect()).is_some() {
             let vi = self.locals.remove(ident.inspect()).unwrap();
-            self.deleted_locals.insert(ident.name.clone(), vi);
+            self.deleted_locals.insert(ident.raw.name.clone(), vi);
             Ok(())
         } else {
             Err(TyCheckErrors::from(TyCheckError::no_var_error(
@@ -1831,7 +1861,7 @@ impl Context {
         #[allow(clippy::single_match)]
         match acc {
             hir::Accessor::Ident(ident) => {
-                if let Some(vi) = self.get_mut_current_scope_var(&ident.name) {
+                if let Some(vi) = self.get_mut_current_scope_var(&ident.raw.name) {
                     vi.t = t;
                 } else {
                     return Err(TyCheckErrors::from(TyCheckError::feature_error(
@@ -1850,22 +1880,22 @@ impl Context {
     }
 
     pub(crate) fn inc_ref_simple_typespec(&self, simple: &SimpleTypeSpec) {
-        if let Ok(vi) = self.rec_get_var_info(
+        if let Triple::Ok(vi) = self.rec_get_var_info(
             &simple.ident,
             crate::compile::AccessKind::Name,
             &self.cfg.input,
-            &self.name,
+            self,
         ) {
             self.inc_ref(&vi, &simple.ident.name);
         }
     }
 
     pub(crate) fn inc_ref_const_local(&self, local: &ConstIdentifier) {
-        if let Ok(vi) = self.rec_get_var_info(
+        if let Triple::Ok(vi) = self.rec_get_var_info(
             local,
             crate::compile::AccessKind::Name,
             &self.cfg.input,
-            &self.name,
+            self,
         ) {
             self.inc_ref(&vi, &local.name);
         }

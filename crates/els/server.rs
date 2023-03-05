@@ -526,7 +526,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                     ctxs.extend(type_ctxs);
                     if let Ok(singular_ctx) = module
                         .context
-                        .get_singular_ctx_by_hir_expr(expr, &"".into())
+                        .get_singular_ctx_by_hir_expr(expr, &module.context)
                     {
                         ctxs.push(singular_ctx);
                     }

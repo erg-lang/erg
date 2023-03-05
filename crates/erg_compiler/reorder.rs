@@ -123,7 +123,6 @@ impl Reorderer {
     /// ```
     fn flatten_method_decls(&mut self, new: &mut Vec<Expr>, methods: Methods) {
         let class = methods.class_as_expr.as_ref();
-        let vis = methods.vis();
         for method in methods.attrs.into_iter() {
             match method {
                 ClassAttr::Decl(decl) => {
@@ -138,11 +137,7 @@ impl Reorderer {
                         ));
                         continue;
                     };
-                    let attr = if vis.is_public() {
-                        Identifier::new(Some(methods.vis.clone()), ident.name)
-                    } else {
-                        Identifier::new(None, ident.name)
-                    };
+                    let attr = Identifier::new(methods.vis.clone(), ident.name);
                     let expr = class.clone().attr_expr(attr);
                     let decl = TypeAscription::new(expr, decl.t_spec);
                     new.push(Expr::TypeAscription(decl));

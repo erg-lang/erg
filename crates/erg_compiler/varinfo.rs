@@ -3,14 +3,12 @@ use std::path::PathBuf;
 
 use erg_common::error::Location;
 use erg_common::set::Set;
-use erg_common::vis::{Field, Visibility};
 use erg_common::Str;
-use Visibility::*;
 
 use erg_parser::ast::DefId;
 
 use crate::context::DefaultInfo;
-use crate::ty::{HasType, Type};
+use crate::ty::{Field, HasType, Type, Visibility};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
@@ -200,18 +198,31 @@ impl HasType for VarInfo {
 
 impl Default for VarInfo {
     fn default() -> Self {
-        Self::const_default()
+        Self::const_default_private()
     }
 }
 
 impl VarInfo {
-    pub const ILLEGAL: &'static Self = &Self::const_default();
+    pub const ILLEGAL: &'static Self = &Self::const_default_private();
 
-    pub const fn const_default() -> Self {
+    pub const fn const_default_private() -> Self {
         Self::new(
             Type::Failure,
             Immutable,
-            Private,
+            Visibility::DUMMY_PRIVATE,
+            VarKind::DoesNotExist,
+            None,
+            None,
+            None,
+            AbsLocation::unknown(),
+        )
+    }
+
+    pub const fn const_default_public() -> Self {
+        Self::new(
+            Type::Failure,
+            Immutable,
+            Visibility::DUMMY_PUBLIC,
             VarKind::DoesNotExist,
             None,
             None,
@@ -250,16 +261,25 @@ impl VarInfo {
         }
     }
 
-    pub fn nd_parameter(t: Type, def_loc: AbsLocation) -> Self {
+    pub fn nd_parameter(t: Type, def_loc: AbsLocation, namespace: Str) -> Self {
         let kind = VarKind::Parameter {
             def_id: DefId(0),
             var: false,
             default: DefaultInfo::NonDefault,
         };
-        Self::new(t, Immutable, Private, kind, None, None, None, def_loc)
+        Self::new(
+            t,
+            Immutable,
+            Visibility::private(namespace),
+            kind,
+            None,
+            None,
+            None,
+            def_loc,
+        )
     }
 
-    pub fn instance_attr(field: Field, t: Type, impl_of: Option<Type>) -> Self {
+    pub fn instance_attr(field: Field, t: Type, impl_of: Option<Type>, namespace: Str) -> Self {
         let muty = if field.is_const() {
             Mutability::Const
         } else {
@@ -269,7 +289,7 @@ impl VarInfo {
         Self::new(
             t,
             muty,
-            field.vis,
+            Visibility::new(field.vis, namespace),
             kind,
             None,
             impl_of,

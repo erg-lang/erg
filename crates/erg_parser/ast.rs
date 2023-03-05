@@ -7,7 +7,6 @@ use erg_common::error::Location;
 use erg_common::set::Set as HashSet;
 // use erg_common::dict::Dict as HashMap;
 use erg_common::traits::{Locational, NestedDisplay, Stream};
-use erg_common::vis::{Field, Visibility};
 use erg_common::{
     fmt_option, fmt_vec, impl_display_for_enum, impl_display_for_single_struct,
     impl_display_from_nested, impl_displayable_stream_for_wrapper, impl_from_trait_for_enum,
@@ -493,11 +492,31 @@ impl_locational_for_enum!(Accessor; Ident, Attr, TupleAttr, Subscr, TypeApp);
 
 impl Accessor {
     pub const fn local(symbol: Token) -> Self {
-        Self::Ident(Identifier::new(None, VarName::new(symbol)))
+        Self::Ident(Identifier::new(
+            VisModifierSpec::Private,
+            VarName::new(symbol),
+        ))
     }
 
     pub const fn public(dot: Token, symbol: Token) -> Self {
-        Self::Ident(Identifier::new(Some(dot), VarName::new(symbol)))
+        Self::Ident(Identifier::new(
+            VisModifierSpec::Public(dot),
+            VarName::new(symbol),
+        ))
+    }
+
+    pub const fn explicit_local(dcolon: Token, symbol: Token) -> Self {
+        Self::Ident(Identifier::new(
+            VisModifierSpec::ExplicitPrivate(dcolon),
+            VarName::new(symbol),
+        ))
+    }
+
+    pub const fn restricted(rest: VisRestriction, symbol: Token) -> Self {
+        Self::Ident(Identifier::new(
+            VisModifierSpec::Restricted(rest),
+            VarName::new(symbol),
+        ))
     }
 
     pub fn attr(obj: Expr, ident: Identifier) -> Self {
@@ -1201,7 +1220,7 @@ impl Call {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct DataPack {
     pub class: Box<Expr>,
-    pub connector: Token,
+    pub connector: VisModifierSpec,
     pub args: Record,
 }
 
@@ -1220,7 +1239,7 @@ impl Locational for DataPack {
 }
 
 impl DataPack {
-    pub fn new(class: Expr, connector: Token, args: Record) -> Self {
+    pub fn new(class: Expr, connector: VisModifierSpec, args: Record) -> Self {
         Self {
             class: Box::new(class),
             connector,
@@ -1392,7 +1411,10 @@ impl_locational_for_enum!(ConstAccessor; Local, SelfDot, Attr, TupleAttr, Subscr
 
 impl ConstAccessor {
     pub const fn local(symbol: Token) -> Self {
-        Self::Local(ConstIdentifier::new(None, VarName::new(symbol)))
+        Self::Local(ConstIdentifier::new(
+            VisModifierSpec::Private,
+            VarName::new(symbol),
+        ))
     }
 
     pub fn attr(obj: ConstExpr, name: ConstIdentifier) -> Self {
@@ -2656,17 +2678,107 @@ impl VarName {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Namespaces(Vec<Accessor>);
+
+impl_displayable_stream_for_wrapper!(Namespaces, Accessor);
+
+impl NestedDisplay for Namespaces {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        for (i, ns) in self.iter().enumerate() {
+            if i > 0 {
+                write!(f, ", ")?;
+            }
+            write!(f, "{ns}")?;
+        }
+        Ok(())
+    }
+}
+
+impl Locational for Namespaces {
+    fn loc(&self) -> Location {
+        Location::concat(self.first().unwrap(), self.last().unwrap())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum VisRestriction {
+    Namespaces(Namespaces),
+    SubtypeOf(Box<TypeSpec>),
+}
+
+impl_locational_for_enum!(VisRestriction; Namespaces, SubtypeOf);
+impl_display_from_nested!(VisRestriction);
+
+impl NestedDisplay for VisRestriction {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        match self {
+            Self::Namespaces(ns) => write!(f, "{ns}"),
+            Self::SubtypeOf(ty) => write!(f, "<: {ty}"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum VisModifierSpec {
+    Private,
+    Auto,
+    Public(Token),
+    ExplicitPrivate(Token),
+    Restricted(VisRestriction),
+}
+
+impl NestedDisplay for VisModifierSpec {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        match self {
+            Self::Private => Ok(()),
+            Self::Auto => write!(f, ":auto:"),
+            Self::Public(_token) => write!(f, "."),
+            Self::ExplicitPrivate(_token) => write!(f, "::"),
+            Self::Restricted(rest) => write!(f, "::[{rest}]"),
+        }
+    }
+}
+
+impl_display_from_nested!(VisModifierSpec);
+
+impl Locational for VisModifierSpec {
+    fn loc(&self) -> Location {
+        match self {
+            Self::Private | Self::Auto => Location::Unknown,
+            Self::Public(token) => token.loc(),
+            Self::ExplicitPrivate(token) => token.loc(),
+            Self::Restricted(rest) => rest.loc(),
+        }
+    }
+}
+
+impl VisModifierSpec {
+    pub const fn is_public(&self) -> bool {
+        matches!(self, Self::Public(_))
+    }
+
+    pub const fn is_private(&self) -> bool {
+        matches!(self, Self::Private | Self::ExplicitPrivate(_))
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum AccessModifier {
+    Private, // `::`
+    Public,  // `.`
+    Auto,    // record unpacking
+    Force,   // can access any identifiers
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Identifier {
-    pub dot: Option<Token>,
+    pub vis: VisModifierSpec,
     pub name: VarName,
 }
 
 impl NestedDisplay for Identifier {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        match &self.dot {
-            Some(_dot) => write!(f, ".{}", self.name),
-            None => write!(f, "::{}", self.name),
-        }
+        write!(f, "{}{}", self.vis, self.name)
     }
 }
 
@@ -2674,21 +2786,13 @@ impl_display_from_nested!(Identifier);
 
 impl Locational for Identifier {
     fn loc(&self) -> Location {
-        if let Some(dot) = &self.dot {
-            if dot.loc().is_unknown() {
-                self.name.loc()
-            } else {
-                Location::concat(dot, &self.name)
+        match &self.vis {
+            VisModifierSpec::Private | VisModifierSpec::Auto => self.name.loc(),
+            VisModifierSpec::ExplicitPrivate(token) | VisModifierSpec::Public(token) => {
+                Location::concat(token, &self.name)
             }
-        } else {
-            self.name.loc()
+            VisModifierSpec::Restricted(args) => Location::concat(args, &self.name),
         }
-    }
-}
-
-impl From<&Identifier> for Field {
-    fn from(ident: &Identifier) -> Self {
-        Self::new(ident.vis(), ident.inspect().clone())
     }
 }
 
@@ -2699,34 +2803,52 @@ impl From<Identifier> for Expr {
 }
 
 impl Identifier {
-    pub const fn new(dot: Option<Token>, name: VarName) -> Self {
-        Self { dot, name }
+    pub const fn new(vis: VisModifierSpec, name: VarName) -> Self {
+        Self { vis, name }
     }
 
     pub fn static_public(name: &'static str) -> Self {
         Self::new(
-            Some(Token::from_str(TokenKind::Dot, ".")),
+            VisModifierSpec::Public(Token::from_str(TokenKind::Dot, ".")),
             VarName::from_static(name),
         )
     }
 
     pub fn public(name: Str) -> Self {
         Self::new(
-            Some(Token::from_str(TokenKind::Dot, ".")),
+            VisModifierSpec::Public(Token::from_str(TokenKind::Dot, ".")),
             VarName::from_str(name),
         )
     }
 
     pub fn private(name: Str) -> Self {
-        Self::new(None, VarName::from_str(name))
+        Self::new(VisModifierSpec::Private, VarName::from_str(name))
+    }
+
+    pub fn private_from_token(symbol: Token) -> Self {
+        Self::new(VisModifierSpec::Private, VarName::new(symbol))
+    }
+
+    pub fn private_from_varname(name: VarName) -> Self {
+        Self::new(VisModifierSpec::Private, name)
     }
 
     pub fn private_with_line(name: Str, line: u32) -> Self {
-        Self::new(None, VarName::from_str_and_line(name, line))
+        Self::new(
+            VisModifierSpec::Private,
+            VarName::from_str_and_line(name, line),
+        )
     }
 
     pub fn public_with_line(dot: Token, name: Str, line: u32) -> Self {
-        Self::new(Some(dot), VarName::from_str_and_line(name, line))
+        Self::new(
+            VisModifierSpec::Public(dot),
+            VarName::from_str_and_line(name, line),
+        )
+    }
+
+    pub fn public_from_token(dot: Token, symbol: Token) -> Self {
+        Self::new(VisModifierSpec::Public(dot), VarName::new(symbol))
     }
 
     pub fn is_const(&self) -> bool {
@@ -2737,10 +2859,13 @@ impl Identifier {
         self.name.is_raw()
     }
 
-    pub const fn vis(&self) -> Visibility {
-        match &self.dot {
-            Some(_) => Visibility::Public,
-            None => Visibility::Private,
+    pub fn acc_kind(&self) -> AccessModifier {
+        match &self.vis {
+            VisModifierSpec::Auto => AccessModifier::Auto,
+            VisModifierSpec::Public(_) => AccessModifier::Public,
+            VisModifierSpec::ExplicitPrivate(_)
+            | VisModifierSpec::Restricted(_)
+            | VisModifierSpec::Private => AccessModifier::Private,
         }
     }
 
@@ -2983,11 +3108,11 @@ impl VarPattern {
         }
     }
 
-    pub const fn vis(&self) -> Visibility {
+    pub fn vis(&self) -> &VisModifierSpec {
         match self {
-            Self::Ident(ident) => ident.vis(),
+            Self::Ident(ident) => &ident.vis,
             // TODO: `[.x, .y]`?
-            _ => Visibility::Private,
+            _ => &VisModifierSpec::Private,
         }
     }
 
@@ -3036,7 +3161,7 @@ impl VarSignature {
         self.pat.is_const()
     }
 
-    pub const fn vis(&self) -> Visibility {
+    pub fn vis(&self) -> &VisModifierSpec {
         self.pat.vis()
     }
 
@@ -3493,8 +3618,8 @@ impl SubrSignature {
         self.ident.is_const()
     }
 
-    pub const fn vis(&self) -> Visibility {
-        self.ident.vis()
+    pub fn vis(&self) -> &VisModifierSpec {
+        &self.ident.vis
     }
 }
 
@@ -3693,7 +3818,7 @@ impl Signature {
         matches!(self, Self::Subr(_))
     }
 
-    pub const fn vis(&self) -> Visibility {
+    pub fn vis(&self) -> &VisModifierSpec {
         match self {
             Self::Var(var) => var.vis(),
             Self::Subr(subr) => subr.vis(),
@@ -3893,13 +4018,13 @@ impl ReDef {
 pub struct Methods {
     pub class: TypeSpec,
     pub class_as_expr: Box<Expr>,
-    pub vis: Token, // `.` or `::`
+    pub vis: VisModifierSpec, // `.` or `::`
     pub attrs: ClassAttrs,
 }
 
 impl NestedDisplay for Methods {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
-        writeln!(f, "{}{}", self.class, self.vis.content)?;
+        writeln!(f, "{}{}", self.class, self.vis)?;
         self.attrs.fmt_nest(f, level + 1)
     }
 }
@@ -3908,20 +4033,17 @@ impl_display_from_nested!(Methods);
 impl_locational!(Methods, class, attrs);
 
 impl Methods {
-    pub fn new(class: TypeSpec, class_as_expr: Expr, vis: Token, attrs: ClassAttrs) -> Self {
+    pub fn new(
+        class: TypeSpec,
+        class_as_expr: Expr,
+        vis: VisModifierSpec,
+        attrs: ClassAttrs,
+    ) -> Self {
         Self {
             class,
             class_as_expr: Box::new(class_as_expr),
             vis,
             attrs,
-        }
-    }
-
-    pub fn vis(&self) -> Visibility {
-        if self.vis.is(TokenKind::Dot) {
-            Visibility::Public
-        } else {
-            Visibility::Private
         }
     }
 }

@@ -17,11 +17,11 @@ use erg_common::opcode311::{BinOpCode, Opcode311};
 use erg_common::option_enum_unwrap;
 use erg_common::python_util::{env_python_version, PythonVersion};
 use erg_common::traits::{Locational, Stream};
-use erg_common::vis::Visibility;
 use erg_common::Str;
 use erg_common::{
     debug_power_assert, enum_unwrap, fn_name, fn_name_full, impl_stream, log, switch_unreachable,
 };
+use erg_parser::ast::VisModifierSpec;
 use erg_parser::ast::{DefId, DefKind};
 use CommonOpcode::*;
 
@@ -38,7 +38,7 @@ use crate::hir::{
     SubrSignature, Tuple, UnaryOp, VarSignature, HIR,
 };
 use crate::ty::value::ValueObj;
-use crate::ty::{HasType, Type, TypeCode, TypePair};
+use crate::ty::{HasType, Type, TypeCode, TypePair, VisibilityModifier};
 use crate::varinfo::VarInfo;
 use erg_common::fresh::fresh_varname;
 use AccessKind::*;
@@ -70,7 +70,7 @@ fn debind(ident: &Identifier) -> Option<Str> {
     }
 }
 
-fn escape_name(name: &str, vis: Visibility) -> Str {
+fn escape_name(name: &str, vis: &VisibilityModifier) -> Str {
     let name = name.replace('!', "__erg_proc__");
     let name = name.replace('$', "__erg_shared__");
     if vis.is_private() {
@@ -908,7 +908,7 @@ impl PyCodeGenerator {
                 if s == "_" {
                     format!("_{i}")
                 } else {
-                    escape_name(s, Visibility::Private).to_string()
+                    escape_name(s, &VisibilityModifier::Private).to_string()
                 }
             })
             .map(|s| self.get_cached(&s))
@@ -930,11 +930,11 @@ impl PyCodeGenerator {
                 // Since Erg does not allow the coexistence of private and public variables with the same name, there is no problem in this trick.
                 let is_record = a.obj.ref_t().is_record();
                 if is_record {
-                    a.ident.dot = Some(DOT);
+                    a.ident.raw.vis = VisModifierSpec::Public(DOT);
                 }
                 if let Some(varname) = debind(&a.ident) {
-                    a.ident.dot = None;
-                    a.ident.name = VarName::from_str(varname);
+                    a.ident.raw.vis = VisModifierSpec::Private;
+                    a.ident.raw.name = VarName::from_str(varname);
                     self.emit_load_name_instr(a.ident);
                 } else {
                     self.emit_expr(*a.obj);
@@ -1153,9 +1153,9 @@ impl PyCodeGenerator {
         self.emit_load_const(code);
         if self.py_version.minor < Some(11) {
             if let Some(class) = class_name {
-                self.emit_load_const(Str::from(format!("{class}.{}", ident.name.inspect())));
+                self.emit_load_const(Str::from(format!("{class}.{}", ident.inspect())));
             } else {
-                self.emit_load_const(ident.name.inspect().clone());
+                self.emit_load_const(ident.inspect().clone());
             }
         } else {
             self.stack_inc();
@@ -1213,8 +1213,8 @@ impl PyCodeGenerator {
                 patch_def.sig.ident().to_string_notype(),
                 def.sig.ident().to_string_notype()
             );
-            def.sig.ident_mut().name = VarName::from_str(Str::from(name));
-            def.sig.ident_mut().dot = None;
+            def.sig.ident_mut().raw.name = VarName::from_str(Str::from(name));
+            def.sig.ident_mut().raw.vis = VisModifierSpec::Private;
             self.emit_def(def);
         }
     }
@@ -1925,7 +1925,8 @@ impl PyCodeGenerator {
         }
         match param.raw.pat {
             ParamPattern::VarName(name) => {
-                let ident = Identifier::bare(None, name);
+                let ident = erg_parser::ast::Identifier::private_from_varname(name);
+                let ident = Identifier::bare(ident);
                 self.emit_store_instr(ident, AccessKind::Name);
             }
             ParamPattern::Discard(_) => {
@@ -2190,7 +2191,7 @@ impl PyCodeGenerator {
             let kw = if is_py_api {
                 arg.keyword.content
             } else {
-                escape_name(&arg.keyword.content, Visibility::Private)
+                escape_name(&arg.keyword.content, &VisibilityModifier::Private)
             };
             kws.push(ValueObj::Str(kw));
             self.emit_expr(arg.expr);
@@ -2301,7 +2302,7 @@ impl PyCodeGenerator {
         mut args: Args,
     ) {
         log!(info "entered {}", fn_name!());
-        method_name.dot = None;
+        method_name.raw.vis = VisModifierSpec::Private;
         method_name.vi.py_name = Some(func_name);
         self.emit_push_null();
         self.emit_load_name_instr(method_name);
@@ -2785,6 +2786,7 @@ impl PyCodeGenerator {
         let vi = VarInfo::nd_parameter(
             __new__.return_t().unwrap().clone(),
             ident.vi.def_loc.clone(),
+            "?".into(),
         );
         let raw =
             erg_parser::ast::NonDefaultParamSignature::new(ParamPattern::VarName(self_param), None);
@@ -2797,7 +2799,11 @@ impl PyCodeGenerator {
             let param = VarName::from_str_and_line(Str::from(param_name.clone()), line);
             let raw =
                 erg_parser::ast::NonDefaultParamSignature::new(ParamPattern::VarName(param), None);
-            let vi = VarInfo::nd_parameter(new_first_param.typ().clone(), ident.vi.def_loc.clone());
+            let vi = VarInfo::nd_parameter(
+                new_first_param.typ().clone(),
+                ident.vi.def_loc.clone(),
+                "?".into(),
+            );
             let param = NonDefaultParamSignature::new(raw, vi, None);
             let params = Params::new(vec![self_param, param], None, vec![], None);
             (param_name, params)
@@ -2818,20 +2824,19 @@ impl PyCodeGenerator {
                 for field in rec.keys() {
                     let obj =
                         Expr::Accessor(Accessor::private_with_line(Str::from(&param_name), line));
-                    let expr = obj.attr_expr(Identifier::bare(
-                        Some(DOT),
-                        VarName::from_str(field.symbol.clone()),
-                    ));
+                    let ident = erg_parser::ast::Identifier::public(field.symbol.clone());
+                    let expr = obj.attr_expr(Identifier::bare(ident));
                     let obj = Expr::Accessor(Accessor::private_with_line(Str::ever("self"), line));
                     let dot = if field.vis.is_private() {
-                        None
+                        VisModifierSpec::Private
                     } else {
-                        Some(DOT)
+                        VisModifierSpec::Public(DOT)
                     };
-                    let attr = obj.attr(Identifier::bare(
+                    let attr = erg_parser::ast::Identifier::new(
                         dot,
                         VarName::from_str(field.symbol.clone()),
-                    ));
+                    );
+                    let attr = obj.attr(Identifier::bare(attr));
                     let redef = ReDef::new(attr, Block::new(vec![expr]));
                     attrs.push(Expr::ReDef(redef));
                 }
@@ -2865,8 +2870,7 @@ impl PyCodeGenerator {
         let line = sig.ln_begin().unwrap();
         let mut ident = Identifier::public_with_line(DOT, Str::ever("new"), line);
         let class = Expr::Accessor(Accessor::Ident(class_ident.clone()));
-        let mut new_ident =
-            Identifier::bare(None, VarName::from_str_and_line(Str::ever("__new__"), line));
+        let mut new_ident = Identifier::private_with_line(Str::ever("__new__"), line);
         new_ident.vi.py_name = Some(Str::ever("__call__"));
         let class_new = class.attr_expr(new_ident);
         ident.vi.t = __new__;
@@ -2876,7 +2880,11 @@ impl PyCodeGenerator {
                 .map(|s| s.to_string())
                 .unwrap_or_else(fresh_varname);
             let param = VarName::from_str_and_line(Str::from(param_name.clone()), line);
-            let vi = VarInfo::nd_parameter(new_first_param.typ().clone(), ident.vi.def_loc.clone());
+            let vi = VarInfo::nd_parameter(
+                new_first_param.typ().clone(),
+                ident.vi.def_loc.clone(),
+                "?".into(),
+            );
             let raw =
                 erg_parser::ast::NonDefaultParamSignature::new(ParamPattern::VarName(param), None);
             let param = NonDefaultParamSignature::new(raw, vi, None);

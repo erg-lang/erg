@@ -1,0 +1,33 @@
+@Inheritable
+Point2D = Class {::[<: Self]x = Int; ::[<: Self]y = Int}
+Point2D.
+    norm self = self::x**2 + self::y**2 #OK
+
+Point3D = Inherit Point2D, Additional := {z = Int}
+Point3D.
+    @Override
+    norm self = self::x**2 + self::y**2 + self::z**2 #OK
+
+C = Class()
+C.
+    method point: Point2D = point::x # ERR
+
+p = Point3D.new {x = 1; y = 2; z = 3}
+p::x # ERR
+p.x  # ERR
+p::z # ERR
+
+rec = {
+    ::[f] x = 1
+}
+
+f x = rec::x + x # OK
+g x = rec::x + x  # ERR
+
+unpack {x; y}: {.x = Int; .y = Int} = x + y
+
+private = { x = 1; y = 2 }
+public = { .x = 1; .y = 2 }
+
+_ = unpack public # OK
+_ = unpack private # ERR

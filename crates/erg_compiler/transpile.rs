@@ -787,9 +787,9 @@ impl ScriptGenerator {
         if let Some(py_name) = ident.vi.py_name {
             return demangle(&py_name);
         }
-        let name = ident.name.into_token().content.to_string();
+        let name = ident.inspect().to_string();
         let name = replace_non_symbolic(name);
-        if ident.dot.is_some() {
+        if ident.vis().is_public() {
             name
         } else {
             format!("{name}__")
@@ -941,7 +941,7 @@ impl ScriptGenerator {
                 demangle(&patch_def.sig.ident().to_string_notype()),
                 demangle(&def.sig.ident().to_string_notype()),
             );
-            def.sig.ident_mut().name = VarName::from_str(Str::from(name));
+            def.sig.ident_mut().raw.name = VarName::from_str(Str::from(name));
             code += &"    ".repeat(self.level);
             code += &self.transpile_def(def);
             code.push('\n');

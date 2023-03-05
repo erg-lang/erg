@@ -2,12 +2,12 @@ use erg_common::config::Input;
 use erg_common::error::{ErrorCore, ErrorKind::*, Location, SubMessage};
 use erg_common::style::{StyledStr, StyledString, StyledStrings, Stylize};
 use erg_common::traits::Locational;
-use erg_common::vis::Visibility;
 use erg_common::{switch_lang, Str};
 
 use crate::error::*;
 use crate::hir::{Expr, Identifier};
-use crate::ty::{HasType, Type};
+use crate::ty::{HasType, Type, Visibility};
+use crate::varinfo::VarInfo;
 
 pub type LowerError = CompileError;
 pub type LowerWarning = LowerError;
@@ -196,7 +196,47 @@ impl LowerError {
                 "english" => format!("exists a similar name variable: {n}"),
             )
         });
-        let found = StyledString::new(name, Some(ERR), Some(ATTR));
+        let found = name.with_color_and_attr(ERR, ATTR);
+        Self::new(
+            ErrorCore::new(
+                vec![SubMessage::ambiguous_new(loc, vec![], hint)],
+                switch_lang!(
+                    "japanese" => format!("{found}という変数は定義されていません"),
+                    "simplified_chinese" => format!("{found}未定义"),
+                    "traditional_chinese" => format!("{found}未定義"),
+                    "english" => format!("{found} is not defined"),
+                ),
+                errno,
+                NameError,
+                loc,
+            ),
+            input,
+            caused_by,
+        )
+    }
+
+    /// TODO: replace `no_var_error` with this function
+    pub fn detailed_no_var_error(
+        input: Input,
+        errno: usize,
+        loc: Location,
+        caused_by: String,
+        name: &str,
+        similar_name: Option<&str>,
+        similar_info: Option<&VarInfo>,
+    ) -> Self {
+        let name = readable_name(name);
+        let hint = similar_name.map(|n| {
+            let vis = similar_info.map_or("".into(), |vi| vi.vis.modifier.display());
+            let n = n.with_color_and_attr(HINT, ATTR);
+            switch_lang!(
+                "japanese" => format!("似た名前の{vis}変数があります: {n}"),
+                "simplified_chinese" => format!("存在相同名称{vis}变量: {n}"),
+                "traditional_chinese" => format!("存在相同名稱{vis}變量: {n}"),
+                "english" => format!("exists a similar name {vis} variable: {n}"),
+            )
+        });
+        let found = name.with_color_and_attr(ERR, ATTR);
         Self::new(
             ErrorCore::new(
                 vec![SubMessage::ambiguous_new(loc, vec![], hint)],
@@ -226,7 +266,7 @@ impl LowerError {
     ) -> Self {
         let name = readable_name(name);
         let hint = similar_name.map(|n| {
-            let n = StyledStr::new(n, Some(HINT), Some(ATTR));
+            let n = n.with_color_and_attr(HINT, ATTR);
             switch_lang!(
                 "japanese" => format!("似た名前の変数があります: {n}"),
                 "simplified_chinese" => format!("存在相同名称变量: {n}"),
@@ -234,7 +274,7 @@ impl LowerError {
                 "english" => format!("exists a similar name variable: {n}"),
             )
         });
-        let found = StyledString::new(name, Some(ERR), Some(ATTR));
+        let found = name.with_color_and_attr(ERR, ATTR);
         Self::new(
             ErrorCore::new(
                 vec![SubMessage::ambiguous_new(loc, vec![], hint)],
@@ -264,7 +304,7 @@ impl LowerError {
     ) -> Self {
         let name = readable_name(name);
         let hint = similar_name.map(|n| {
-            let n = StyledStr::new(n, Some(HINT), Some(ATTR));
+            let n = n.with_color_and_attr(HINT, ATTR);
             switch_lang!(
                 "japanese" => format!("似た名前の変数があります: {n}"),
                 "simplified_chinese" => format!("存在相同名称变量: {n}"),
@@ -272,7 +312,7 @@ impl LowerError {
                 "english" => format!("exists a similar name variable: {n}"),
             )
         });
-        let found = StyledString::new(name, Some(ERR), Some(ATTR));
+        let found = name.with_color_and_attr(ERR, ATTR);
         Self::new(
             ErrorCore::new(
                 vec![SubMessage::ambiguous_new(loc, vec![], hint)],
@@ -375,6 +415,45 @@ impl LowerError {
                 "simplified_chinese" => format!("具有相同名称的属性: {n}"),
                 "traditional_chinese" => format!("具有相同名稱的屬性: {n}"),
                 "english" => format!("has a similar name attribute: {n}"),
+            )
+        });
+        let found = StyledString::new(name, Some(ERR), Some(ATTR));
+        Self::new(
+            ErrorCore::new(
+                vec![SubMessage::ambiguous_new(loc, vec![], hint)],
+                switch_lang!(
+                    "japanese" => format!("{obj_t}型オブジェクトに{found}という属性はありません"),
+                    "simplified_chinese" => format!("{obj_t}对象没有属性{found}"),
+                    "traditional_chinese" => format!("{obj_t}對像沒有屬性{found}"),
+                    "english" => format!("{obj_t} object has no attribute {found}"),
+                ),
+                errno,
+                AttributeError,
+                loc,
+            ),
+            input,
+            caused_by,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn detailed_no_attr_error(
+        input: Input,
+        errno: usize,
+        loc: Location,
+        caused_by: String,
+        obj_t: &Type,
+        name: &str,
+        similar_name: Option<&str>,
+        similar_info: Option<&VarInfo>,
+    ) -> Self {
+        let hint = similar_name.map(|n| {
+            let vis = similar_info.map_or("".into(), |vi| vi.vis.modifier.display());
+            switch_lang!(
+                "japanese" => format!("似た名前の{vis}属性があります: {n}"),
+                "simplified_chinese" => format!("具有相同名称的{vis}属性: {n}"),
+                "traditional_chinese" => format!("具有相同名稱的{vis}屬性: {n}"),
+                "english" => format!("has a similar name {vis} attribute: {n}"),
             )
         });
         let found = StyledString::new(name, Some(ERR), Some(ATTR));
@@ -510,21 +589,7 @@ impl LowerError {
         name: &str,
         vis: Visibility,
     ) -> Self {
-        let visibility = if vis.is_private() {
-            switch_lang!(
-                "japanese" => "非公開",
-                "simplified_chinese" => "私有",
-                "traditional_chinese" => "私有",
-                "english" => "private",
-            )
-        } else {
-            switch_lang!(
-                "japanese" => "公開",
-                "simplified_chinese" => "公有",
-                "traditional_chinese" => "公有",
-                "english" => "public",
-            )
-        };
+        let visibility = vis.modifier.display();
         let found = StyledString::new(readable_name(name), Some(ERR), Some(ATTR));
         Self::new(
             ErrorCore::new(

@@ -1,21 +1,20 @@
 //! provides type-comparison
 use std::option::Option; // conflicting to Type::Option
 
+use erg_common::dict::Dict;
 use erg_common::error::MultiErrorDisplay;
 use erg_common::style::colors::DEBUG_ERROR;
 use erg_common::traits::StructuralEq;
+use erg_common::{assume_unreachable, log};
 
 use crate::ty::constructors::{and, not, or, poly};
 use crate::ty::free::{Constraint, FreeKind};
 use crate::ty::typaram::{OpKind, TyParam, TyParamOrdering};
 use crate::ty::value::ValueObj;
 use crate::ty::value::ValueObj::Inf;
-use crate::ty::{Predicate, RefinementType, SubrKind, SubrType, Type};
+use crate::ty::{Field, Predicate, RefinementType, SubrKind, SubrType, Type};
 use Predicate as Pred;
 
-use erg_common::dict::Dict;
-use erg_common::vis::Field;
-use erg_common::{assume_unreachable, log};
 use TyParamOrdering::*;
 use Type::*;
 
@@ -455,9 +454,12 @@ impl Context {
                 }
             },
             (Type::Record(lhs), Type::Record(rhs)) => {
-                for (k, l) in lhs.iter() {
-                    if let Some(r) = rhs.get(k) {
-                        if !self.supertype_of(l, r) {
+                for (l_k, l_t) in lhs.iter() {
+                    if let Some((r_k, r_t)) = rhs.get_key_value(l_k) {
+                        // public <: private (private fields cannot be public)
+                        if (l_k.vis.is_public() && r_k.vis.is_private())
+                            || !self.supertype_of(l_t, r_t)
+                        {
                             return false;
                         }
                     } else {
@@ -705,7 +707,12 @@ impl Context {
                     .unwrap_or_else(|| panic!("{other} is not found"));
                 ctx.type_dir()
                     .into_iter()
-                    .map(|(name, vi)| (Field::new(vi.vis, name.inspect().clone()), vi.t.clone()))
+                    .map(|(name, vi)| {
+                        (
+                            Field::new(vi.vis.modifier.clone(), name.inspect().clone()),
+                            vi.t.clone(),
+                        )
+                    })
                     .collect()
             }
         }

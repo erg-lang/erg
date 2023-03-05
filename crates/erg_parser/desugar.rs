@@ -16,7 +16,7 @@ use crate::ast::{
     ParamPattern, ParamRecordAttr, Params, PatchDef, PosArg, ReDef, Record, RecordAttrOrIdent,
     RecordAttrs, Set as astSet, SetWithLength, Signature, SubrSignature, Tuple, TupleTypeSpec,
     TypeAppArgs, TypeAppArgsKind, TypeBoundSpecs, TypeSpec, TypeSpecWithOp, UnaryOp, VarName,
-    VarPattern, VarRecordAttr, VarSignature,
+    VarPattern, VarRecordAttr, VarSignature, VisModifierSpec,
 };
 use crate::token::{Token, TokenKind, COLON, DOT};
 
@@ -636,7 +636,10 @@ impl Desugarer {
                     r_brace,
                 )
             }
-            BufIndex::Record(attr) => obj.attr(attr.clone()),
+            BufIndex::Record(attr) => {
+                let attr = Identifier::new(VisModifierSpec::Auto, attr.name.clone());
+                obj.attr(attr)
+            }
         };
         let id = DefId(get_hash(&(&acc, buf_name)));
         let block = Block::new(vec![Expr::Accessor(acc)]);
@@ -1001,7 +1004,10 @@ impl Desugarer {
                     r_brace,
                 )
             }
-            BufIndex::Record(attr) => obj.attr(attr.clone()),
+            BufIndex::Record(attr) => {
+                let attr = Identifier::new(VisModifierSpec::Auto, attr.name.clone());
+                obj.attr(attr)
+            }
         };
         let id = DefId(get_hash(&(&acc, buf_name)));
         let block = Block::new(vec![Expr::Accessor(acc)]);
@@ -1166,7 +1172,7 @@ impl Desugarer {
             }
             */
             ParamPattern::VarName(name) => {
-                let ident = Identifier::new(None, name.clone());
+                let ident = Identifier::new(VisModifierSpec::Private, name.clone());
                 let v = VarSignature::new(
                     VarPattern::Ident(ident),
                     sig.t_spec.as_ref().map(|ts| ts.t_spec.clone()),
