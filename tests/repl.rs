@@ -107,7 +107,7 @@ fn exec_invalid_class_inheritable() -> Result<(), ()> {
         "repl_auto_indent_dedent",
         [
             "@Inheritable",
-            "Point2d = Class{ x = Int; y = Int }",
+            "Point2d = Class{ ::[<: Self]x = Int; ::[<: Self]y = Int }",
             "Point2d::",
             "one = 1",
             "",
