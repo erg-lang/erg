@@ -12,3 +12,6 @@ x = _add 1, 2
 y = _add x, 2
 z = _add y, 2
 assert z == 7
+
+w = _add -1, 2
+assert w == 1

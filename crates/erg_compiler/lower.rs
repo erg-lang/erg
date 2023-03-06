@@ -5,6 +5,7 @@ use std::mem;
 
 use erg_common::config::{ErgConfig, ErgMode};
 use erg_common::dict;
+use erg_common::dict::Dict;
 use erg_common::error::{Location, MultiErrorDisplay};
 use erg_common::set;
 use erg_common::set::Set;
@@ -124,7 +125,7 @@ impl Runnable for ASTLowerer {
 }
 
 impl ContextProvider for ASTLowerer {
-    fn dir(&self) -> Vec<(&VarName, &VarInfo)> {
+    fn dir(&self) -> Dict<&VarName, &VarInfo> {
         self.module.context.dir()
     }
 
@@ -176,7 +177,7 @@ impl ASTLowerer {
         &self.module
     }
 
-    pub fn dir(&self) -> Vec<(&VarName, &VarInfo)> {
+    pub fn dir(&self) -> Dict<&VarName, &VarInfo> {
         ContextProvider::dir(self)
     }
 

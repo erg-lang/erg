@@ -174,7 +174,6 @@ impl Context {
             | (Float | Ratio | Int, Int)
             | (Float | Ratio, Ratio) => (Absolutely, true),
             (Type, ClassType | TraitType) => (Absolutely, true),
-            (Uninited, _) | (_, Uninited) => panic!("used an uninited type variable"),
             (
                 Mono(n),
                 Subr(SubrType {
@@ -542,6 +541,7 @@ impl Context {
                 let nat = Type::Refinement(Nat.into_refinement());
                 self.structural_supertype_of(re, &nat)
             }
+            (Structural(_), Refinement(refine)) => self.supertype_of(lhs, &refine.t),
             // Int :> {I: Int | ...} == true
             // Int :> {I: Str| ...} == false
             // Eq({1, 2}) :> {1, 2} (= {I: Int | I == 1 or I == 2})
@@ -694,7 +694,6 @@ impl Context {
         }
     }
 
-    // TODO: we need consider duplicating keys
     pub fn fields(&self, t: &Type) -> Dict<Field, Type> {
         match t {
             Type::FreeVar(fv) if fv.is_linked() => self.fields(&fv.crack()),
@@ -702,10 +701,10 @@ impl Context {
             Type::Refinement(refine) => self.fields(&refine.t),
             Type::Structural(t) => self.fields(t),
             other => {
-                let (_, ctx) = self
-                    .get_nominal_type_ctx(other)
-                    .unwrap_or_else(|| panic!("{other} is not found"));
-                ctx.type_dir()
+                let Some((_, ctx)) = self.get_nominal_type_ctx(other) else {
+                    return Dict::new();
+                };
+                ctx.type_dir(self)
                     .into_iter()
                     .map(|(name, vi)| {
                         (
@@ -993,7 +992,7 @@ impl Context {
             // not {i = Int} and {i = Int; j = Int} == {j = Int}
             (other @ Record(rec), Not(t)) | (Not(t), other @ Record(rec)) => match t.as_ref() {
                 Type::FreeVar(fv) => self.intersection(&fv.crack(), other),
-                Type::Record(rec2) => Type::Record(rec.clone().diff(rec2.clone())),
+                Type::Record(rec2) => Type::Record(rec.clone().diff(rec2)),
                 _ => Type::Never,
             },
             (l, r) if self.is_trait(l) && self.is_trait(r) => and(l.clone(), r.clone()),

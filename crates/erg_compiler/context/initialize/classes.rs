@@ -85,20 +85,8 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             ValueObj::Float(2.220446049250313e-16),
         );
-        float.register_builtin_py_impl(
-            REAL,
-            Float,
-            Const,
-            Visibility::BUILTIN_PUBLIC,
-            Some(FUNC_REAL),
-        );
-        float.register_builtin_py_impl(
-            IMAG,
-            Float,
-            Const,
-            Visibility::BUILTIN_PUBLIC,
-            Some(FUNC_IMAG),
-        );
+        float.register_builtin_py_impl(REAL, Float, Const, Visibility::BUILTIN_PUBLIC, Some(REAL));
+        float.register_builtin_py_impl(IMAG, Float, Const, Visibility::BUILTIN_PUBLIC, Some(IMAG));
         float.register_py_builtin(
             FUNC_AS_INTEGER_RATIO,
             fn0_met(Float, tuple_t(vec![Int, Int])),
@@ -124,6 +112,10 @@ impl Context {
             Some(FUNC_FROMHEX),
             53,
         );
+        float.register_py_builtin(OP_GT, fn1_met(Float, Float, Bool), Some(OP_GT), 0);
+        float.register_py_builtin(OP_GE, fn1_met(Float, Float, Bool), Some(OP_GE), 0);
+        float.register_py_builtin(OP_LT, fn1_met(Float, Float, Bool), Some(OP_LT), 0);
+        float.register_py_builtin(OP_LE, fn1_met(Float, Float, Bool), Some(OP_LE), 0);
         float.register_marker_trait(mono(NUM));
         float.register_marker_trait(mono(ORD));
         let mut float_ord = Self::builtin_methods(Some(mono(ORD)), 2);
@@ -250,20 +242,8 @@ impl Context {
         // TODO: Int, Nat, Boolの継承元をRatioにする(今はFloat)
         let mut ratio = Self::builtin_mono_class(RATIO, 2);
         ratio.register_superclass(Obj, &obj);
-        ratio.register_builtin_py_impl(
-            REAL,
-            Ratio,
-            Const,
-            Visibility::BUILTIN_PUBLIC,
-            Some(FUNC_REAL),
-        );
-        ratio.register_builtin_py_impl(
-            IMAG,
-            Ratio,
-            Const,
-            Visibility::BUILTIN_PUBLIC,
-            Some(FUNC_IMAG),
-        );
+        ratio.register_builtin_py_impl(REAL, Ratio, Const, Visibility::BUILTIN_PUBLIC, Some(REAL));
+        ratio.register_builtin_py_impl(IMAG, Ratio, Const, Visibility::BUILTIN_PUBLIC, Some(IMAG));
         ratio.register_marker_trait(mono(NUM));
         ratio.register_marker_trait(mono(ORD));
         let mut ratio_ord = Self::builtin_methods(Some(mono(ORD)), 2);
@@ -513,20 +493,8 @@ impl Context {
             Some(FUNDAMENTAL_STR),
         );
         int.register_trait(Int, int_show);
-        int.register_builtin_py_impl(
-            REAL,
-            Int,
-            Const,
-            Visibility::BUILTIN_PUBLIC,
-            Some(FUNC_REAL),
-        );
-        int.register_builtin_py_impl(
-            IMAG,
-            Int,
-            Const,
-            Visibility::BUILTIN_PUBLIC,
-            Some(FUNC_IMAG),
-        );
+        int.register_builtin_py_impl(REAL, Int, Const, Visibility::BUILTIN_PUBLIC, Some(REAL));
+        int.register_builtin_py_impl(IMAG, Int, Const, Visibility::BUILTIN_PUBLIC, Some(IMAG));
 
         /* Nat */
         let mut nat = Self::builtin_mono_class(NAT, 10);

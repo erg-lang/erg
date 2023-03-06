@@ -40,7 +40,7 @@ pub fn levenshtein(a: &str, b: &str, limit: usize) -> Option<usize> {
     (dcol[m] <= limit).then_some(dcol[m])
 }
 
-pub fn get_similar_name<'a, S: ?Sized, I: Iterator<Item = &'a S> + Clone>(
+pub fn get_similar_name<'a, S: ?Sized, I: Iterator<Item = &'a S>>(
     candidates: I,
     name: &str,
 ) -> Option<&'a S>
@@ -58,7 +58,7 @@ where
     }
 }
 
-pub fn get_similar_name_and_some<'a, S: ?Sized, T, I: Iterator<Item = (&'a T, &'a S)> + Clone>(
+pub fn get_similar_name_and_some<'a, S: ?Sized, T, I: Iterator<Item = (&'a T, &'a S)>>(
     candidates: I,
     name: &str,
 ) -> Option<(&'a T, &'a S)>

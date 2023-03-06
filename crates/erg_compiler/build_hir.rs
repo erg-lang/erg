@@ -1,4 +1,5 @@
 use erg_common::config::ErgConfig;
+use erg_common::dict::Dict;
 use erg_common::error::MultiErrorDisplay;
 use erg_common::traits::{Runnable, Stream};
 use erg_common::Str;
@@ -100,7 +101,7 @@ impl Buildable for HIRBuilder {
 impl BuildRunnable for HIRBuilder {}
 
 impl ContextProvider for HIRBuilder {
-    fn dir(&self) -> Vec<(&VarName, &VarInfo)> {
+    fn dir(&self) -> Dict<&VarName, &VarInfo> {
         self.lowerer.dir()
     }
 
@@ -157,7 +158,7 @@ impl HIRBuilder {
         self.lowerer.pop_mod_ctx()
     }
 
-    pub fn dir(&mut self) -> Vec<(&VarName, &VarInfo)> {
+    pub fn dir(&mut self) -> Dict<&VarName, &VarInfo> {
         ContextProvider::dir(self)
     }
 

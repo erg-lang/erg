@@ -396,6 +396,25 @@ impl Context {
         mode: RegistrationMode,
         kind: ParamKind,
     ) -> TyCheckResult<ParamTy> {
+        if let Some(value) = sig
+            .name()
+            .and_then(|name| self.get_const_local(name.token(), &self.name).ok())
+        {
+            return Ok(ParamTy::pos(None, v_enum(set! { value })));
+        } else if let Some(tp) = sig.name().and_then(|name| {
+            self.instantiate_local(name.inspect(), None, tmp_tv_cache, sig)
+                .ok()
+        }) {
+            match tp {
+                TyParam::Type(t) => return Ok(ParamTy::pos(None, *t)),
+                other => {
+                    return Ok(ParamTy::pos(
+                        None,
+                        tp_enum(self.get_tp_t(&other)?, set! { other }),
+                    ))
+                }
+            }
+        }
         let t = self.instantiate_param_sig_t(sig, opt_decl_t, tmp_tv_cache, mode, kind.clone())?;
         match (sig.inspect(), kind) {
             (Some(name), ParamKind::Default(default_t)) => {

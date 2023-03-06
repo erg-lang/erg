@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::Write;
 
 use erg_common::config::ErgConfig;
+use erg_common::dict::Dict as HashMap;
 use erg_common::error::MultiErrorDisplay;
 use erg_common::log;
 use erg_common::traits::{Runnable, Stream};
@@ -167,7 +168,7 @@ impl Runnable for Transpiler {
 }
 
 impl ContextProvider for Transpiler {
-    fn dir(&self) -> Vec<(&VarName, &VarInfo)> {
+    fn dir(&self) -> HashMap<&VarName, &VarInfo> {
         self.builder.dir()
     }
 
@@ -238,7 +239,7 @@ impl Transpiler {
         self.builder.pop_mod_ctx()
     }
 
-    pub fn dir(&mut self) -> Vec<(&VarName, &VarInfo)> {
+    pub fn dir(&mut self) -> HashMap<&VarName, &VarInfo> {
         ContextProvider::dir(self)
     }
 

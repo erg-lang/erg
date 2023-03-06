@@ -4,12 +4,14 @@
 use std::path::Path;
 
 use erg_common::config::ErgConfig;
+use erg_common::dict::Dict;
 use erg_common::error::MultiErrorDisplay;
 use erg_common::log;
 use erg_common::traits::{Runnable, Stream};
+use erg_parser::ast::VarName;
 
 use crate::artifact::{CompleteArtifact, ErrorArtifact};
-use crate::context::ContextProvider;
+use crate::context::{Context, ContextProvider};
 use crate::ty::codeobj::CodeObj;
 
 use crate::build_hir::HIRBuilder;
@@ -19,6 +21,7 @@ use crate::error::{CompileError, CompileErrors, CompileWarnings};
 use crate::hir::Expr;
 use crate::link::Linker;
 use crate::module::{SharedCompilerResource, SharedModuleCache};
+use crate::varinfo::VarInfo;
 
 /// * registered as global -> Global
 /// * defined in the toplevel scope (and called in the inner scope) -> Global
@@ -169,12 +172,8 @@ impl Runnable for Compiler {
     }
 }
 
-use crate::context::Context;
-use crate::varinfo::VarInfo;
-use erg_parser::ast::VarName;
-
 impl ContextProvider for Compiler {
-    fn dir(&self) -> Vec<(&VarName, &VarInfo)> {
+    fn dir(&self) -> Dict<&VarName, &VarInfo> {
         self.builder.dir()
     }
 

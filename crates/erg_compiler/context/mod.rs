@@ -43,7 +43,7 @@ use Type::*;
 
 /// For implementing LSP or other IDE features
 pub trait ContextProvider {
-    fn dir(&self) -> Vec<(&VarName, &VarInfo)>;
+    fn dir(&self) -> Dict<&VarName, &VarInfo>;
     fn get_receiver_ctx(&self, receiver_name: &str) -> Option<&Context>;
     fn get_var_info(&self, name: &str) -> Option<(&VarName, &VarInfo)>;
 }
@@ -411,12 +411,12 @@ impl fmt::Display for Context {
 }
 
 impl ContextProvider for Context {
-    fn dir(&self) -> Vec<(&VarName, &VarInfo)> {
-        let mut vars = self.type_dir();
+    fn dir(&self) -> Dict<&VarName, &VarInfo> {
+        let mut vars = self.type_dir(self);
         if let Some(outer) = self.get_outer() {
-            vars.extend(outer.dir());
+            vars.guaranteed_extend(outer.dir());
         } else if let Some(builtins) = self.get_builtins() {
-            vars.extend(builtins.locals.iter());
+            vars.guaranteed_extend(builtins.locals.iter());
         }
         vars
     }
@@ -439,7 +439,7 @@ impl ContextProvider for Context {
 }
 
 impl Context {
-    pub fn dir(&self) -> Vec<(&VarName, &VarInfo)> {
+    pub fn dir(&self) -> Dict<&VarName, &VarInfo> {
         ContextProvider::dir(self)
     }
 
@@ -1013,24 +1013,25 @@ impl Context {
     }
 
     /// enumerates all the variables/methods in the current context & super contexts.
-    fn type_dir(&self) -> Vec<(&VarName, &VarInfo)> {
-        let mut vars: Vec<_> = self
-            .locals
-            .iter()
-            .chain(self.decls.iter())
-            .chain(
-                self.params
-                    .iter()
-                    .filter_map(|(k, v)| k.as_ref().map(|k| (k, v))),
-            )
-            .chain(self.methods_list.iter().flat_map(|(_, ctx)| ctx.type_dir()))
-            .collect();
+    fn type_dir<'t>(&'t self, namespace: &'t Context) -> Dict<&VarName, &VarInfo> {
+        let mut attrs = self.locals.iter().collect::<Dict<_, _>>();
+        attrs.guaranteed_extend(
+            self.params
+                .iter()
+                .filter_map(|(k, v)| k.as_ref().map(|k| (k, v))),
+        );
+        attrs.guaranteed_extend(self.decls.iter());
+        attrs.guaranteed_extend(
+            self.methods_list
+                .iter()
+                .flat_map(|(_, ctx)| ctx.type_dir(namespace)),
+        );
         for sup in self.super_classes.iter() {
-            if let Some((_, sup_ctx)) = self.get_nominal_type_ctx(sup) {
-                vars.extend(sup_ctx.type_dir());
+            if let Some((_, sup_ctx)) = namespace.get_nominal_type_ctx(sup) {
+                attrs.guaranteed_extend(sup_ctx.type_dir(namespace));
             }
         }
-        vars
+        attrs
     }
 
     pub(crate) fn mod_cache(&self) -> &SharedModuleCache {

@@ -273,6 +273,13 @@ Option T: Type = T or NoneType
 Option: Type -> Type
 ```
 
+Compile-time function parameters must have different names from any constants already defined. If the names are the same, it will be interpreted as a constant pattern.
+
+```python
+# Int is not a parameter but a constant (type Int)
+K Int = None
+```
+
 ## Appendix: Function Comparison
 
 Erg does not define `==` for functions. This is because there is no structural equivalence algorithm for functions in general.

@@ -157,13 +157,13 @@ fn exec_return() -> Result<(), ()> {
 }
 
 #[test]
-fn exec_structural() -> Result<(), ()> {
+fn exec_structural_example() -> Result<(), ()> {
     expect_success("examples/structural.er")
 }
 
 #[test]
-fn exec_structural_test() -> Result<(), ()> {
-    expect_success("tests/should_ok/structural_test.er")
+fn exec_structural() -> Result<(), ()> {
+    expect_success("tests/should_ok/structural.er")
 }
 
 #[test]
