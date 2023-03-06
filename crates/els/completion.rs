@@ -2,7 +2,10 @@ use serde::Deserialize;
 use serde_json::json;
 use serde_json::Value;
 
+use erg_common::erg_util::BUILTIN_ERG_MODS;
 use erg_common::impl_u8_enum;
+use erg_common::python_util::BUILTIN_PYTHON_MODS;
+use erg_common::set::Set;
 use erg_common::traits::Locational;
 
 use erg_compiler::artifact::BuildRunnable;
@@ -15,7 +18,7 @@ use TokenKind::*;
 
 use lsp_types::{
     CompletionItem, CompletionItemKind, CompletionParams, Documentation, MarkedString,
-    MarkupContent, MarkupKind,
+    MarkupContent, MarkupKind, Position, Range, TextEdit,
 };
 
 use crate::server::{send, send_log, ELSResult, Server};
@@ -68,6 +71,17 @@ impl_u8_enum! { CompletionOrder; i32;
     OtherNamespace = 2,
     Escaped = 32,
     DoubleEscaped = 64,
+}
+
+impl CompletionOrder {
+    pub const BUILTIN_MOD: char = match char::from_u32(
+        CompletionOrder::Normal as u32
+            + CompletionOrder::Builtin as u32
+            + CompletionOrder::OtherNamespace as u32,
+    ) {
+        Some(c) => c,
+        None => unreachable!(),
+    };
 }
 
 pub struct CompletionOrderSetter<'b> {
@@ -167,6 +181,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         };
         send_log(format!("CompletionKind: {comp_kind:?}"))?;
         let mut result: Vec<CompletionItem> = vec![];
+        let mut already_appeared = Set::new();
         let contexts = if comp_kind.should_be_local() {
             let prev_token = self.file_cache.get_token_relatively(&uri, pos, -1);
             if prev_token
@@ -209,11 +224,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
             if comp_kind.should_be_method() && vi.vis.is_private() {
                 continue;
             }
+            let label = name.to_string();
             // don't show overriden items
-            if result
-                .iter()
-                .any(|item| item.label[..] == name.inspect()[..])
-            {
+            if already_appeared.contains(&label) {
                 continue;
             }
             // don't show future defined items
@@ -231,7 +244,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                         .readable_type(vi.t.clone(), vi.kind.is_parameter())
                 })
                 .unwrap_or_else(|| vi.t.clone());
-            let mut item = CompletionItem::new_simple(name.to_string(), readable_t.to_string());
+            let mut item = CompletionItem::new_simple(label, readable_t.to_string());
             CompletionOrderSetter::new(vi, arg_pt.as_ref(), mod_ctx, item.label.clone())
                 .set(&mut item);
             item.kind = match &vi.t {
@@ -249,10 +262,62 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 _ => Some(CompletionItemKind::VARIABLE),
             };
             item.data = Some(Value::String(vi.def_loc.to_string()));
+            already_appeared.insert(item.label.clone());
             result.push(item);
+        }
+        if comp_kind.should_be_local() {
+            self.show_module_completion(&mut result, &already_appeared);
         }
         send_log(format!("completion items: {}", result.len()))?;
         send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": result }))
+    }
+
+    fn show_module_completion(
+        &self,
+        comps: &mut Vec<CompletionItem>,
+        already_appeared: &Set<String>,
+    ) {
+        for mod_name in BUILTIN_PYTHON_MODS {
+            if already_appeared.contains(mod_name) {
+                continue;
+            }
+            let mut item = CompletionItem::new_simple(
+                format!("{mod_name} (import from std)"),
+                "PyModule".to_string(),
+            );
+            item.sort_text = Some(format!("{}_{}", CompletionOrder::BUILTIN_MOD, item.label));
+            item.kind = Some(CompletionItemKind::MODULE);
+            let import = if cfg!(feature = "py_compatible") {
+                format!("import {mod_name}\n")
+            } else {
+                format!("{mod_name} = pyimport \"{mod_name}\"\n")
+            };
+            item.additional_text_edits = Some(vec![TextEdit {
+                range: Range::new(Position::new(0, 0), Position::new(0, 0)),
+                new_text: import,
+            }]);
+            item.insert_text = Some(mod_name.to_string());
+            comps.push(item);
+        }
+        #[cfg(not(feature = "py_compatible"))]
+        for mod_name in BUILTIN_ERG_MODS {
+            if already_appeared.contains(mod_name) {
+                continue;
+            }
+            let mut item = CompletionItem::new_simple(
+                format!("{mod_name} (import from std)"),
+                "Module".to_string(),
+            );
+            item.sort_text = Some(format!("{}_{}", CompletionOrder::BUILTIN_MOD, item.label));
+            item.kind = Some(CompletionItemKind::MODULE);
+            let import = format!("{mod_name} = import \"{mod_name}\"\n");
+            item.additional_text_edits = Some(vec![TextEdit {
+                range: Range::new(Position::new(0, 0), Position::new(0, 0)),
+                new_text: import,
+            }]);
+            item.insert_text = Some(mod_name.to_string());
+            comps.push(item);
+        }
     }
 
     pub(crate) fn resolve_completion(&self, msg: &Value) -> ELSResult<()> {

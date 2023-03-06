@@ -9,6 +9,7 @@ ELS is a language server for the [Erg](https://github.com/erg-lang/erg) programm
   - [x] Variable completion
   - [x] Method/attribute completion
   - [x] Smart completion (considering type, parameter names, etc.)
+  - [x] Auto-import
 - [x] Diagnostics
 - [x] Hover
 - [x] Go to definition
@@ -17,8 +18,11 @@ ELS is a language server for the [Erg](https://github.com/erg-lang/erg) programm
 - [x] Renaming
 - [x] Inlay hint
 - [x] Semantic tokens
-- [ ] Code actions
-- [ ] Code lens
+- [x] Code actions
+  - [x] eliminate unused variables
+  - [x] change variable case
+- [x] Code lens
+  - [x] show trait implementations
 
 ## Installation
 
