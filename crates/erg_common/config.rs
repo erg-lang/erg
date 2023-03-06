@@ -285,6 +285,28 @@ impl Input {
         }
     }
 
+    pub fn unescaped_filename(&self) -> &str {
+        match &self.kind {
+            InputKind::File(filename) => {
+                filename.file_name().and_then(|f| f.to_str()).unwrap_or("_")
+            }
+            InputKind::REPL | InputKind::Pipe(_) => "stdin",
+            InputKind::DummyREPL(_stdin) => "stdin",
+            InputKind::Str(_) => "string",
+            InputKind::Dummy => "dummy",
+        }
+    }
+
+    pub fn unescaped_path(&self) -> &Path {
+        match &self.kind {
+            InputKind::File(filename) => filename.as_path(),
+            InputKind::REPL | InputKind::Pipe(_) => Path::new("stdin"),
+            InputKind::DummyREPL(_stdin) => Path::new("stdin"),
+            InputKind::Str(_) => Path::new("string"),
+            InputKind::Dummy => Path::new("dummy"),
+        }
+    }
+
     pub fn read(&mut self) -> String {
         match &mut self.kind {
             InputKind::File(filename) => {
