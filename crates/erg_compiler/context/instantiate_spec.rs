@@ -3,8 +3,8 @@ use std::option::Option; // conflicting to Type::Option
 #[allow(unused)]
 use erg_common::log;
 use erg_common::traits::{Locational, Stream};
-use erg_common::Str;
 use erg_common::{assume_unreachable, dict, enum_unwrap, set, try_map_mut};
+use erg_common::{Str, Triple};
 
 use ast::{
     NonDefaultParamSignature, ParamTySpec, PreDeclTypeSpec, SimpleTypeSpec, TypeBoundSpec,
@@ -428,10 +428,11 @@ impl Context {
                 }
                 let ctx = self.get_singular_ctx(namespace.as_ref(), self)?;
                 if let Some((typ, _)) = ctx.rec_local_get_type(t.ident.inspect()) {
-                    let vi = ctx
-                        .rec_get_var_info(&t.ident, AccessKind::Name, &self.cfg.input, self)
-                        .unwrap();
-                    self.inc_ref(&vi, &t.ident.name);
+                    if let Triple::Ok(vi) =
+                        ctx.rec_get_var_info(&t.ident, AccessKind::Name, &self.cfg.input, self)
+                    {
+                        self.inc_ref(&vi, &t.ident.name);
+                    }
                     // TODO: visibility check
                     Ok(typ.clone())
                 } else {

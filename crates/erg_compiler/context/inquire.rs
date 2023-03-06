@@ -897,14 +897,22 @@ impl Context {
         let cont = binop_to_dname(op.inspect());
         // not a `Token::from_str(op.kind, cont)` because ops are defined as symbols
         let symbol = Token::symbol(cont);
+        let ident = Identifier::private_from_token(symbol.clone());
         let t = self
-            .rec_get_var_info(
-                &Identifier::private_from_token(symbol.clone()),
-                AccessKind::Name,
-                input,
-                namespace,
-            )
-            .unwrap_to_result()?;
+            .rec_get_var_info(&ident, AccessKind::Name, input, namespace)
+            .none_or_result(|| {
+                let (similar_info, similar_name) =
+                    namespace.get_similar_name_and_info(ident.inspect()).unzip();
+                TyCheckError::detailed_no_var_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    ident.loc(),
+                    namespace.caused_by(),
+                    ident.inspect(),
+                    similar_name,
+                    similar_info,
+                )
+            })?;
         let op = hir::Expr::Accessor(hir::Accessor::private(symbol, t));
         self.get_call_t(&op, &None, args, &[], input, namespace)
             .map_err(|(_, errs)| {
@@ -933,14 +941,22 @@ impl Context {
         erg_common::debug_power_assert!(args.len() == 1);
         let cont = unaryop_to_dname(op.inspect());
         let symbol = Token::symbol(cont);
+        let ident = Identifier::private_from_token(symbol.clone());
         let vi = self
-            .rec_get_var_info(
-                &Identifier::private_from_token(symbol.clone()),
-                AccessKind::Name,
-                input,
-                namespace,
-            )
-            .unwrap_to_result()?;
+            .rec_get_var_info(&ident, AccessKind::Name, input, namespace)
+            .none_or_result(|| {
+                let (similar_info, similar_name) =
+                    namespace.get_similar_name_and_info(ident.inspect()).unzip();
+                TyCheckError::detailed_no_var_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    ident.loc(),
+                    namespace.caused_by(),
+                    ident.inspect(),
+                    similar_name,
+                    similar_info,
+                )
+            })?;
         let op = hir::Expr::Accessor(hir::Accessor::private(symbol, vi));
         self.get_call_t(&op, &None, args, &[], input, namespace)
             .map_err(|(_, errs)| {

@@ -30,6 +30,7 @@ impl<T, E> Triple<T, E> {
         }
     }
 
+    #[track_caller]
     pub fn unwrap_to_result(self) -> Result<T, E> {
         match self {
             Triple::None => panic!("unwrapping Triple::None"),
@@ -62,6 +63,7 @@ impl<T, E> Triple<T, E> {
         }
     }
 
+    #[track_caller]
     pub fn unwrap_err(self) -> E {
         match self {
             Triple::None => panic!("unwrapping Triple::None"),
@@ -72,6 +74,7 @@ impl<T, E> Triple<T, E> {
 }
 
 impl<T, E: std::error::Error> Triple<T, E> {
+    #[track_caller]
     pub fn unwrap(self) -> T {
         match self {
             Triple::None => panic!("unwrapping Triple::None"),

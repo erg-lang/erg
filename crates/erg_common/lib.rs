@@ -37,6 +37,7 @@ pub mod tty;
 
 use crate::set::Set;
 pub use crate::str::Str;
+pub use crate::triple::Triple;
 
 pub type RcArray<T> = std::rc::Rc<[T]>;
 
