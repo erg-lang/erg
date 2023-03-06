@@ -15,3 +15,6 @@ assert z == 7
 
 w = _add -1, 2
 assert w == 1
+
+gt|T, U| x: Structural({.__gt__ = (self: T, U) -> Bool}), y: U = x.__gt__ y
+assert gt(2, True)
