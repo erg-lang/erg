@@ -285,6 +285,18 @@ impl Input {
         }
     }
 
+    pub fn unescaped_file_stem(&self) -> &str {
+        match &self.kind {
+            InputKind::File(filename) => {
+                filename.file_stem().and_then(|f| f.to_str()).unwrap_or("_")
+            }
+            InputKind::REPL | InputKind::Pipe(_) => "stdin",
+            InputKind::DummyREPL(_stdin) => "stdin",
+            InputKind::Str(_) => "string",
+            InputKind::Dummy => "dummy",
+        }
+    }
+
     pub fn unescaped_filename(&self) -> &str {
         match &self.kind {
             InputKind::File(filename) => {
