@@ -1271,7 +1271,7 @@ impl Context {
                 let one = attr_name
                     .as_ref()
                     .map(|attr| {
-                        ctxs.into_iter()
+                        ctxs.iter()
                             .flat_map(|ctx| {
                                 ctx.get_singular_ctxs_by_ident(attr, self)
                                     .ok()
@@ -1279,7 +1279,7 @@ impl Context {
                             })
                             .collect()
                     })
-                    .unwrap_or(vec![]);
+                    .unwrap_or(ctxs);
                 let two = obj
                     .qual_name()
                     .map(|name| {

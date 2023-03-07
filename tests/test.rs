@@ -82,6 +82,11 @@ fn exec_import() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_inherit() -> Result<(), ()> {
+    expect_success("tests/should_ok/inherit.er")
+}
+
+#[test]
 fn exec_infer_class() -> Result<(), ()> {
     expect_success("tests/should_ok/infer_class.er")
 }
