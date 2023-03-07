@@ -445,25 +445,26 @@ impl Context {
                         return Ok(proj(receiver_t, rhs));
                     }
                 }
-                let ctx = self.get_singular_ctx(namespace.as_ref(), self)?;
-                if let Some((typ, _)) = ctx.rec_local_get_type(t.ident.inspect()) {
-                    if let Triple::Ok(vi) =
-                        ctx.rec_get_var_info(&t.ident, AccessKind::Name, &self.cfg.input, self)
-                    {
-                        self.inc_ref(&vi, &t.ident.name);
+                let ctxs = self.get_singular_ctxs(namespace.as_ref(), self)?;
+                for ctx in ctxs {
+                    if let Some((typ, _)) = ctx.rec_local_get_type(t.ident.inspect()) {
+                        if let Triple::Ok(vi) =
+                            ctx.rec_get_var_info(&t.ident, AccessKind::Name, &self.cfg.input, self)
+                        {
+                            self.inc_ref(&vi, &t.ident.name);
+                        }
+                        // TODO: visibility check
+                        return Ok(typ.clone());
                     }
-                    // TODO: visibility check
-                    Ok(typ.clone())
-                } else {
-                    Err(TyCheckErrors::from(TyCheckError::no_var_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        t.loc(),
-                        self.caused_by(),
-                        t.ident.inspect(),
-                        self.get_similar_name(t.ident.inspect()),
-                    )))
                 }
+                Err(TyCheckErrors::from(TyCheckError::no_var_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    t.loc(),
+                    self.caused_by(),
+                    t.ident.inspect(),
+                    self.get_similar_name(t.ident.inspect()),
+                )))
             }
             other => type_feature_error!(self, other.loc(), &format!("instantiating type {other}")),
         }

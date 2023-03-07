@@ -100,20 +100,23 @@ impl Context {
             .or_else(|| self.get_outer().and_then(|ctx| ctx.get_var_kv(name)))
     }
 
-    pub fn get_singular_ctx_by_hir_expr(
+    pub fn get_singular_ctxs_by_hir_expr(
         &self,
         obj: &hir::Expr,
         namespace: &Context,
-    ) -> SingleTyCheckResult<&Context> {
+    ) -> SingleTyCheckResult<Vec<&Context>> {
         match obj {
             hir::Expr::Accessor(hir::Accessor::Ident(ident)) => {
-                self.get_singular_ctx_by_ident(&ident.clone().downcast(), namespace)
+                self.get_singular_ctxs_by_ident(&ident.clone().downcast(), namespace)
             }
             hir::Expr::Accessor(hir::Accessor::Attr(attr)) => {
+                let local_attr = hir::Expr::Accessor(hir::Accessor::Ident(attr.ident.clone()));
                 // REVIEW: 両方singularとは限らない?
-                let ctx = self.get_singular_ctx_by_hir_expr(&attr.obj, namespace)?;
-                let attr = hir::Expr::Accessor(hir::Accessor::Ident(attr.ident.clone()));
-                ctx.get_singular_ctx_by_hir_expr(&attr, namespace)
+                let mut ctxs = vec![];
+                for ctx in self.get_singular_ctxs_by_hir_expr(&attr.obj, namespace)? {
+                    ctxs.extend(ctx.get_singular_ctxs_by_hir_expr(&local_attr, namespace)?);
+                }
+                Ok(ctxs)
             }
             // TODO: change error
             _ => Err(TyCheckError::no_var_error(
@@ -127,14 +130,16 @@ impl Context {
         }
     }
 
-    pub(crate) fn get_singular_ctx_by_ident(
+    pub(crate) fn get_singular_ctxs_by_ident(
         &self,
         ident: &ast::Identifier,
         namespace: &Context,
-    ) -> SingleTyCheckResult<&Context> {
+    ) -> SingleTyCheckResult<Vec<&Context>> {
         self.get_mod(ident.inspect())
-            .or_else(|| self.rec_local_get_type(ident.inspect()).map(|(_, ctx)| ctx))
-            .or_else(|| self.rec_get_patch(ident.inspect()))
+            .map(|ctx| vec![ctx])
+            // TODO: builtin types
+            .or_else(|| self.get_nominal_super_type_ctxs(&mono(ident.inspect())))
+            .or_else(|| self.rec_get_patch(ident.inspect()).map(|ctx| vec![ctx]))
             .ok_or_else(|| {
                 let (similar_info, similar_name) =
                     self.get_similar_name_and_info(ident.inspect()).unzip();
@@ -150,7 +155,7 @@ impl Context {
             })
     }
 
-    pub(crate) fn get_mut_singular_ctx_by_ident(
+    pub(crate) fn get_mut_singular_ctxs_by_ident(
         &mut self,
         ident: &ast::Identifier,
         namespace: &Str,
@@ -168,20 +173,23 @@ impl Context {
             .ok_or(err)
     }
 
-    pub(crate) fn get_singular_ctx(
+    pub(crate) fn get_singular_ctxs(
         &self,
         obj: &ast::Expr,
         namespace: &Context,
-    ) -> SingleTyCheckResult<&Context> {
+    ) -> SingleTyCheckResult<Vec<&Context>> {
         match obj {
             ast::Expr::Accessor(ast::Accessor::Ident(ident)) => {
-                self.get_singular_ctx_by_ident(ident, namespace)
+                self.get_singular_ctxs_by_ident(ident, namespace)
             }
             ast::Expr::Accessor(ast::Accessor::Attr(attr)) => {
+                let local_attr = ast::Expr::Accessor(ast::Accessor::Ident(attr.ident.clone()));
+                let mut ctxs = vec![];
                 // REVIEW: 両方singularとは限らない?
-                let ctx = self.get_singular_ctx(&attr.obj, namespace)?;
-                let attr = ast::Expr::Accessor(ast::Accessor::Ident(attr.ident.clone()));
-                ctx.get_singular_ctx(&attr, namespace)
+                for ctx in self.get_singular_ctxs(&attr.obj, namespace)? {
+                    ctxs.extend(ctx.get_singular_ctxs(&local_attr, namespace)?);
+                }
+                Ok(ctxs)
             }
             _ => Err(TyCheckError::no_var_error(
                 self.cfg.input.clone(),
@@ -201,7 +209,7 @@ impl Context {
     ) -> SingleTyCheckResult<&mut Context> {
         match obj {
             ast::Expr::Accessor(ast::Accessor::Ident(ident)) => {
-                self.get_mut_singular_ctx_by_ident(ident, namespace)
+                self.get_mut_singular_ctxs_by_ident(ident, namespace)
             }
             ast::Expr::Accessor(ast::Accessor::Attr(attr)) => {
                 // REVIEW: 両方singularとは限らない?
@@ -456,15 +464,17 @@ impl Context {
             }
             _ => {}
         }
-        if let Ok(singular_ctx) = self.get_singular_ctx_by_hir_expr(obj, namespace) {
-            match singular_ctx.rec_get_var_info(ident, AccessKind::Attr, input, namespace) {
-                Triple::Ok(vi) => {
-                    return Triple::Ok(vi);
+        if let Ok(singular_ctxs) = self.get_singular_ctxs_by_hir_expr(obj, namespace) {
+            for ctx in singular_ctxs {
+                match ctx.rec_get_var_info(ident, AccessKind::Attr, input, namespace) {
+                    Triple::Ok(vi) => {
+                        return Triple::Ok(vi);
+                    }
+                    Triple::Err(e) => {
+                        return Triple::Err(e);
+                    }
+                    Triple::None => {}
                 }
-                Triple::Err(e) => {
-                    return Triple::Err(e);
-                }
-                Triple::None => {}
             }
         }
         match self.get_attr_from_nominal_t(obj, ident, input, namespace) {
@@ -772,23 +782,25 @@ impl Context {
                 }
             }
         }
-        if let Ok(singular_ctx) = self.get_singular_ctx_by_hir_expr(obj, namespace) {
-            if let Some(vi) = singular_ctx
-                .locals
-                .get(attr_name.inspect())
-                .or_else(|| singular_ctx.decls.get(attr_name.inspect()))
-            {
-                self.validate_visibility(attr_name, vi, input, namespace)?;
-                return Ok(vi.clone());
-            }
-            for (_, method_ctx) in singular_ctx.methods_list.iter() {
-                if let Some(vi) = method_ctx
+        if let Ok(singular_ctxs) = self.get_singular_ctxs_by_hir_expr(obj, namespace) {
+            for ctx in singular_ctxs {
+                if let Some(vi) = ctx
                     .locals
                     .get(attr_name.inspect())
-                    .or_else(|| method_ctx.decls.get(attr_name.inspect()))
+                    .or_else(|| ctx.decls.get(attr_name.inspect()))
                 {
                     self.validate_visibility(attr_name, vi, input, namespace)?;
                     return Ok(vi.clone());
+                }
+                for (_, method_ctx) in ctx.methods_list.iter() {
+                    if let Some(vi) = method_ctx
+                        .locals
+                        .get(attr_name.inspect())
+                        .or_else(|| method_ctx.decls.get(attr_name.inspect()))
+                    {
+                        self.validate_visibility(attr_name, vi, input, namespace)?;
+                        return Ok(vi.clone());
+                    }
                 }
             }
             return Err(TyCheckError::singular_no_attr_error(
@@ -1250,16 +1262,31 @@ impl Context {
                 }
             }
             other => {
-                let one = self.get_singular_ctx_by_hir_expr(obj, self).ok();
-                let one = one
-                    .zip(attr_name.as_ref())
-                    .and_then(|(ctx, attr)| ctx.get_singular_ctx_by_ident(attr, self).ok())
-                    .or(one);
+                let ctxs = self
+                    .get_singular_ctxs_by_hir_expr(obj, self)
+                    .ok()
+                    .unwrap_or(vec![]);
+                let one = attr_name
+                    .as_ref()
+                    .map(|attr| {
+                        ctxs.into_iter()
+                            .flat_map(|ctx| {
+                                ctx.get_singular_ctxs_by_ident(attr, self)
+                                    .ok()
+                                    .unwrap_or(vec![])
+                            })
+                            .collect()
+                    })
+                    .unwrap_or(vec![]);
                 let two = obj
                     .qual_name()
-                    .and_then(|name| self.get_same_name_context(name));
-                let fallbacks = one.iter().chain(two.iter());
-                for &typ_ctx in fallbacks {
+                    .map(|name| {
+                        self.get_same_name_context(name)
+                            .map_or(vec![], |ctx| vec![ctx])
+                    })
+                    .unwrap_or(vec![]);
+                let fallbacks = one.into_iter().chain(two.into_iter());
+                for typ_ctx in fallbacks {
                     if let Some(call_vi) =
                         typ_ctx.get_current_scope_var(&VarName::from_static("__call__"))
                     {
@@ -1692,9 +1719,11 @@ impl Context {
         obj: &hir::Expr,
         name: &str,
     ) -> Option<&'a str> {
-        if let Ok(ctx) = self.get_singular_ctx_by_hir_expr(obj, self) {
-            if let Some(name) = ctx.get_similar_name(name) {
-                return Some(name);
+        if let Ok(ctxs) = self.get_singular_ctxs_by_hir_expr(obj, self) {
+            for ctx in ctxs {
+                if let Some(name) = ctx.get_similar_name(name) {
+                    return Some(name);
+                }
             }
         }
         None

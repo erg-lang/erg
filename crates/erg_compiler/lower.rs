@@ -722,9 +722,9 @@ impl ASTLowerer {
                 res,
                 self.module
                     .context
-                    .get_singular_ctx_by_ident(&ident, &self.module.context)
+                    .get_singular_ctxs_by_ident(&ident, &self.module.context)
                     .ok()
-                    .map(|ctx| ctx.name.clone()),
+                    .map(|ctx| ctx.first().unwrap().name.clone()),
             )
         };
         self.inc_ref(&vi, &ident.name);
@@ -2088,10 +2088,12 @@ impl ASTLowerer {
             )?;
         } else {
             // if subtype ascription
-            let ctx = self
+            let &ctx = self
                 .module
                 .context
-                .get_singular_ctx_by_hir_expr(&expr, &self.module.context)?;
+                .get_singular_ctxs_by_hir_expr(&expr, &self.module.context)?
+                .first()
+                .unwrap();
             // REVIEW: need to use subtype_of?
             if ctx.super_traits.iter().all(|trait_| trait_ != &spec_t)
                 && ctx.super_classes.iter().all(|class| class != &spec_t)
@@ -2189,9 +2191,9 @@ impl ASTLowerer {
         let qual_name = self
             .module
             .context
-            .get_singular_ctx_by_ident(&ident, &self.module.context)
+            .get_singular_ctxs_by_ident(&ident, &self.module.context)
             .ok()
-            .map(|ctx| ctx.name.clone());
+            .map(|ctx| ctx.first().unwrap().name.clone());
         let ident = hir::Identifier::new(ident, qual_name, ident_vi);
         let expr = hir::Expr::Accessor(hir::Accessor::Ident(ident));
         let t_spec = self.lower_type_spec_with_op(tasc.t_spec, spec_t)?;

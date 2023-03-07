@@ -528,11 +528,11 @@ impl<Checker: BuildRunnable> Server<Checker> {
                         .get_nominal_super_type_ctxs(expr.ref_t())
                         .unwrap_or(vec![]);
                     ctxs.extend(type_ctxs);
-                    if let Ok(singular_ctx) = module
+                    if let Ok(singular_ctxs) = module
                         .context
-                        .get_singular_ctx_by_hir_expr(expr, &module.context)
+                        .get_singular_ctxs_by_hir_expr(expr, &module.context)
                     {
-                        ctxs.push(singular_ctx);
+                        ctxs.extend(singular_ctxs);
                     }
                 } else {
                     send_log("expr not found: {token}")?;
