@@ -204,7 +204,12 @@ impl Context {
             ValueObj::builtin_t(Float),
         );
         float.register_trait(Float, float_floordiv);
-        let mut float_pos = Self::builtin_methods(Some(mono(POS)), 1);
+        let mut float_pos = Self::builtin_methods(Some(mono(POS)), 2);
+        float_pos.register_builtin_const(
+            OUTPUT,
+            Visibility::BUILTIN_PUBLIC,
+            ValueObj::builtin_t(Float),
+        );
         float_pos.register_builtin_erg_impl(
             OP_POS,
             fn0_met(Float, Float),
@@ -212,7 +217,12 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
         );
         float.register_trait(Float, float_pos);
-        let mut float_neg = Self::builtin_methods(Some(mono(NEG)), 1);
+        let mut float_neg = Self::builtin_methods(Some(mono(NEG)), 2);
+        float_neg.register_builtin_const(
+            OUTPUT,
+            Visibility::BUILTIN_PUBLIC,
+            ValueObj::builtin_t(Float),
+        );
         float_neg.register_builtin_erg_impl(
             OP_NEG,
             fn0_met(Float, Float),
@@ -461,6 +471,11 @@ impl Context {
         );
         int.register_trait(Int, int_floordiv);
         let mut int_pos = Self::builtin_methods(Some(mono(POS)), 2);
+        int_pos.register_builtin_const(
+            OUTPUT,
+            Visibility::BUILTIN_PUBLIC,
+            ValueObj::builtin_t(Int),
+        );
         int_pos.register_builtin_erg_impl(
             OP_POS,
             fn0_met(Int, Int),
@@ -469,6 +484,11 @@ impl Context {
         );
         int.register_trait(Int, int_pos);
         let mut int_neg = Self::builtin_methods(Some(mono(NEG)), 2);
+        int_neg.register_builtin_const(
+            OUTPUT,
+            Visibility::BUILTIN_PUBLIC,
+            ValueObj::builtin_t(Int),
+        );
         int_neg.register_builtin_erg_impl(
             OP_NEG,
             fn0_met(Int, Int),

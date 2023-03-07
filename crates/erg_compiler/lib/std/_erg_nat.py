@@ -25,6 +25,8 @@ class Nat(Int):
         return then__(super().__add__(other), Nat)
     def __mul__(self, other):
         return then__(super().__mul__(other), Nat)
+    def __pos__(self):
+        return self
 
 class NatMut(IntMut): # and Nat
     value: Nat
@@ -90,6 +92,8 @@ class NatMut(IntMut): # and Nat
             return NatMut(self.value ** other)
         else:
             return NatMut(self.value ** other.value)
+    def __pos__(self):
+        return self
     def try_new(i): # -> Result[Nat]
         if i >= 0:
             return NatMut(i)

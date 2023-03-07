@@ -564,9 +564,11 @@ impl Context {
         let M = mono_q(TY_M, subtypeof(mono(MUTIZABLE)));
         let op_t = func1(M.clone(), proj(M, MUTABLE_MUT_TYPE)).quantify();
         self.register_builtin_erg_impl(OP_MUTATE, op_t, Const, Visibility::BUILTIN_PRIVATE);
-        let N = mono_q(TY_N, subtypeof(mono(NUM)));
-        let op_t = func1(N.clone(), N).quantify();
-        self.register_builtin_erg_decl(OP_POS, op_t.clone(), Visibility::BUILTIN_PRIVATE);
+        let P = mono_q(TY_N, subtypeof(mono(POS)));
+        let op_t = func1(P.clone(), proj(P, OUTPUT)).quantify();
+        self.register_builtin_erg_decl(OP_POS, op_t, Visibility::BUILTIN_PRIVATE);
+        let N = mono_q(TY_N, subtypeof(mono(NEG)));
+        let op_t = func1(N.clone(), proj(N, OUTPUT)).quantify();
         self.register_builtin_erg_decl(OP_NEG, op_t, Visibility::BUILTIN_PRIVATE);
     }
 
