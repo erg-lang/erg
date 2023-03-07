@@ -1185,10 +1185,36 @@ impl Context {
                     if let Some(sup) =
                         self.rec_get_const_obj(&gen.base_or_sup().unwrap().typ().local_name())
                     {
-                        let ValueObj::Type(sup) = sup else { todo!("{sup}") };
+                        let ValueObj::Type(sup) = sup else {
+                            return Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
+                                self.cfg.input.clone(),
+                                line!() as usize,
+                                ident.loc(),
+                                self.caused_by(),
+                                "",
+                                Some(1),
+                                &Type::Type,
+                                &sup.class(),
+                                None,
+                                None
+                            )));
+                        };
                         let param_t = match sup {
                             TypeObj::Builtin(t) => t,
-                            TypeObj::Generated(t) => t.base_or_sup().unwrap().typ(),
+                            TypeObj::Generated(t) => {
+                                if let Some(t) = t.base_or_sup() {
+                                    t.typ()
+                                } else {
+                                    return Err(TyCheckErrors::from(TyCheckError::param_error(
+                                        self.cfg.input.clone(),
+                                        line!() as usize,
+                                        ident.loc(),
+                                        self.caused_by(),
+                                        1,
+                                        0,
+                                    )));
+                                }
+                            }
                         };
                         // `Super.Requirement := {x = Int}` and `Self.Additional := {y = Int}`
                         // => `Self.Requirement := {x = Int; y = Int}`
