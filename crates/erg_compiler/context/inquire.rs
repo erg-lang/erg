@@ -137,8 +137,10 @@ impl Context {
     ) -> SingleTyCheckResult<Vec<&Context>> {
         self.get_mod(ident.inspect())
             .map(|ctx| vec![ctx])
-            // TODO: builtin types
-            .or_else(|| self.get_nominal_super_type_ctxs(&mono(ident.inspect())))
+            .or_else(|| {
+                let (typ, _) = self.get_type(ident.inspect())?;
+                self.get_nominal_super_type_ctxs(typ)
+            })
             .or_else(|| self.rec_get_patch(ident.inspect()).map(|ctx| vec![ctx]))
             .ok_or_else(|| {
                 let (similar_info, similar_name) =
