@@ -2786,13 +2786,8 @@ impl_display_from_nested!(Identifier);
 
 impl Locational for Identifier {
     fn loc(&self) -> Location {
-        match &self.vis {
-            VisModifierSpec::Private | VisModifierSpec::Auto => self.name.loc(),
-            VisModifierSpec::ExplicitPrivate(token) | VisModifierSpec::Public(token) => {
-                Location::concat(token, &self.name)
-            }
-            VisModifierSpec::Restricted(args) => Location::concat(args, &self.name),
-        }
+        // `ASTLinker` generates `vis` for the methods, so `vis.loc()` information cannot be relied upon.
+        self.name.loc()
     }
 }
 

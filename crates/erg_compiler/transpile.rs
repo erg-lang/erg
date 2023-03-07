@@ -23,7 +23,7 @@ use crate::hir::{
     Accessor, Args, Array, BinOp, Block, Call, ClassDef, Def, Dict, Expr, Identifier, Lambda,
     Literal, Params, PatchDef, ReDef, Record, Set, Signature, Tuple, UnaryOp, HIR,
 };
-use crate::link::Linker;
+use crate::link_hir::HIRLinker;
 use crate::module::SharedCompilerResource;
 use crate::ty::value::ValueObj;
 use crate::ty::Type;
@@ -229,7 +229,7 @@ impl Transpiler {
         mode: &str,
     ) -> Result<CompleteArtifact, ErrorArtifact> {
         let artifact = self.builder.build(src, mode)?;
-        let linker = Linker::new(&self.cfg, &self.shared.mod_cache);
+        let linker = HIRLinker::new(&self.cfg, &self.shared.mod_cache);
         let hir = linker.link(artifact.object);
         let desugared = HIRDesugarer::desugar(hir);
         Ok(CompleteArtifact::new(desugared, artifact.warns))

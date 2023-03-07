@@ -40,7 +40,7 @@ use crate::error::{
 };
 use crate::hir;
 use crate::hir::HIR;
-use crate::reorder::Reorderer;
+use crate::link_ast::ASTLinker;
 use crate::varinfo::{VarInfo, VarKind};
 use crate::AccessKind;
 use crate::{feature_error, unreachable_error};
@@ -1494,14 +1494,6 @@ impl ASTLowerer {
             for attr in methods.attrs.iter_mut() {
                 match attr {
                     ast::ClassAttr::Def(def) => {
-                        if methods.vis.is_public() {
-                            def.sig.ident_mut().unwrap().vis = VisModifierSpec::Public(Token::new(
-                                TokenKind::Dot,
-                                ".",
-                                def.sig.ln_begin().unwrap_or(0),
-                                def.sig.col_begin().unwrap_or(0),
-                            ));
-                        }
                         self.module.context.preregister_def(def).map_err(|errs| {
                             self.pop_append_errs();
                             errs
@@ -2284,8 +2276,8 @@ impl ASTLowerer {
             let graph = &self.module.context.shared.as_ref().unwrap().graph;
             graph.add_node_if_none(path);
         }
-        let ast = Reorderer::new(self.cfg.clone())
-            .reorder(ast, mode)
+        let ast = ASTLinker::new(self.cfg.clone())
+            .link(ast, mode)
             .map_err(|errs| {
                 IncompleteArtifact::new(None, errs, LowerWarnings::from(self.warns.take_all()))
             })?;

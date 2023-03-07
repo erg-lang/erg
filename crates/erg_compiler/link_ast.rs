@@ -13,7 +13,7 @@ use crate::error::{TyCheckError, TyCheckErrors};
 
 /// Combine method definitions across multiple modules, specialized class contexts, etc.
 #[derive(Debug, Default)]
-pub struct Reorderer {
+pub struct ASTLinker {
     cfg: ErgConfig,
     // TODO: inner scope types
     pub def_root_pos_map: Dict<Str, usize>,
@@ -21,7 +21,7 @@ pub struct Reorderer {
     pub errs: TyCheckErrors,
 }
 
-impl Reorderer {
+impl ASTLinker {
     pub fn new(cfg: ErgConfig) -> Self {
         Self {
             cfg,
@@ -31,8 +31,8 @@ impl Reorderer {
         }
     }
 
-    pub fn reorder(mut self, ast: AST, mode: &str) -> Result<AST, TyCheckErrors> {
-        log!(info "the reordering process has started.");
+    pub fn link(mut self, ast: AST, mode: &str) -> Result<AST, TyCheckErrors> {
+        log!(info "the AST-linking process has started.");
         let mut new = vec![];
         for chunk in ast.module.into_iter() {
             match chunk {
@@ -67,43 +67,57 @@ impl Reorderer {
                         }
                     }
                 }
-                Expr::Methods(methods) => match &methods.class {
-                    TypeSpec::PreDeclTy(PreDeclTypeSpec::Simple(simple)) => {
-                        self.link_methods(simple.ident.inspect().clone(), &mut new, methods, mode)
-                    }
-                    TypeSpec::TypeApp { spec, .. } => {
-                        if let TypeSpec::PreDeclTy(PreDeclTypeSpec::Simple(simple)) = spec.as_ref()
-                        {
-                            self.link_methods(
-                                simple.ident.inspect().clone(),
-                                &mut new,
-                                methods,
-                                mode,
-                            )
-                        } else {
-                            let similar_name = self
-                                .def_root_pos_map
-                                .keys()
-                                .fold("".to_string(), |acc, key| acc + &key[..] + ",");
-                            self.errs.push(TyCheckError::no_var_error(
-                                self.cfg.input.clone(),
-                                line!() as usize,
-                                methods.class.loc(),
-                                "".into(),
-                                &methods.class.to_string(),
-                                Some(&Str::from(similar_name)),
-                            ));
+                Expr::Methods(mut methods) => {
+                    for attr in methods.attrs.iter_mut() {
+                        match attr {
+                            ClassAttr::Def(def) => {
+                                def.sig.ident_mut().unwrap().vis = methods.vis.clone();
+                            }
+                            ClassAttr::Decl(_) | ClassAttr::Doc(_) => {}
                         }
                     }
-                    other => todo!("{other}"),
-                },
+                    match &methods.class {
+                        TypeSpec::PreDeclTy(PreDeclTypeSpec::Simple(simple)) => self.link_methods(
+                            simple.ident.inspect().clone(),
+                            &mut new,
+                            methods,
+                            mode,
+                        ),
+                        TypeSpec::TypeApp { spec, .. } => {
+                            if let TypeSpec::PreDeclTy(PreDeclTypeSpec::Simple(simple)) =
+                                spec.as_ref()
+                            {
+                                self.link_methods(
+                                    simple.ident.inspect().clone(),
+                                    &mut new,
+                                    methods,
+                                    mode,
+                                )
+                            } else {
+                                let similar_name = self
+                                    .def_root_pos_map
+                                    .keys()
+                                    .fold("".to_string(), |acc, key| acc + &key[..] + ",");
+                                self.errs.push(TyCheckError::no_var_error(
+                                    self.cfg.input.clone(),
+                                    line!() as usize,
+                                    methods.class.loc(),
+                                    "".into(),
+                                    &methods.class.to_string(),
+                                    Some(&Str::from(similar_name)),
+                                ));
+                            }
+                        }
+                        other => todo!("{other}"),
+                    }
+                }
                 other => {
                     new.push(other);
                 }
             }
         }
         let ast = AST::new(ast.name, Module::new(new));
-        log!(info "the reordering process has completed:\n{}", ast);
+        log!(info "the AST-linking process has completed:\n{}", ast);
         if self.errs.is_empty() {
             Ok(ast)
         } else {

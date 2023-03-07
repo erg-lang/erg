@@ -19,7 +19,7 @@ use crate::codegen::PyCodeGenerator;
 use crate::desugar_hir::HIRDesugarer;
 use crate::error::{CompileError, CompileErrors, CompileWarnings};
 use crate::hir::Expr;
-use crate::link::Linker;
+use crate::link_hir::HIRLinker;
 use crate::module::{SharedCompilerResource, SharedModuleCache};
 use crate::varinfo::VarInfo;
 
@@ -246,7 +246,7 @@ impl Compiler {
         mode: &str,
     ) -> Result<CompleteArtifact, ErrorArtifact> {
         let artifact = self.builder.build(src, mode)?;
-        let linker = Linker::new(&self.cfg, &self.mod_cache);
+        let linker = HIRLinker::new(&self.cfg, &self.mod_cache);
         let hir = linker.link(artifact.object);
         let desugared = HIRDesugarer::desugar(hir);
         Ok(CompleteArtifact::new(desugared, artifact.warns))

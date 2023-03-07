@@ -22,12 +22,12 @@ use crate::module::SharedModuleCache;
 
 /// Link code using the module cache.
 /// Erg links all non-Python modules into a single pyc file.
-pub struct Linker<'a> {
+pub struct HIRLinker<'a> {
     cfg: &'a ErgConfig,
     mod_cache: &'a SharedModuleCache,
 }
 
-impl<'a> Linker<'a> {
+impl<'a> HIRLinker<'a> {
     pub fn new(cfg: &'a ErgConfig, mod_cache: &'a SharedModuleCache) -> Self {
         Self { cfg, mod_cache }
     }
@@ -321,7 +321,7 @@ impl<'a> Linker<'a> {
         // let sig = option_enum_unwrap!(&def.sig, Signature::Var)
         //    .unwrap_or_else(|| todo!("module subroutines are not allowed"));
         if let Some((hir, cfg)) = hir_cfg {
-            let linker = Linker::new(&cfg, self.mod_cache);
+            let linker = HIRLinker::new(&cfg, self.mod_cache);
             let hir = linker.link(hir);
             let code = Expr::Code(Block::new(Vec::from(hir.module)));
             let module_type =
