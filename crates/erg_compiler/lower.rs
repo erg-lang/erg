@@ -895,6 +895,18 @@ impl ASTLowerer {
         };
         let mut call = hir::Call::new(obj, attr_name, hir_args);
         self.module.context.higher_order_caller.pop();
+        if errs.is_empty() {
+            self.exec_additional_op(&mut call, opt_cast_to)?;
+        }
+        self.errs.extend(errs);
+        Ok(call)
+    }
+
+    fn exec_additional_op(
+        &mut self,
+        call: &mut hir::Call,
+        opt_cast_to: Option<ast::TypeSpec>,
+    ) -> LowerResult<()> {
         match call.additional_operation() {
             Some(kind @ (OperationKind::Import | OperationKind::PyImport)) => {
                 let Some(mod_name) =
@@ -904,10 +916,12 @@ impl ASTLowerer {
                 if let Err(errs) = self.module.context.import_mod(kind, mod_name) {
                     self.errs.extend(errs);
                 };
+                Ok(())
             }
             Some(OperationKind::Del) => match call.args.get_left_or_key("obj").unwrap() {
                 hir::Expr::Accessor(hir::Accessor::Ident(ident)) => {
                     self.module.context.del(ident)?;
+                    Ok(())
                 }
                 other => {
                     return Err(LowerErrors::from(LowerError::syntax_error(
@@ -934,16 +948,16 @@ impl ASTLowerer {
                     }
                 };
                 let arg_t = call.args.get(0).unwrap().ref_t();
-                self.module.context.sub_unify(arg_t, &ret_t, &call, None)?;
+                self.module.context.sub_unify(arg_t, &ret_t, call, None)?;
+                Ok(())
             }
             _ => {
                 if let Some(type_spec) = opt_cast_to {
-                    self.module.context.cast(type_spec, &mut call)?;
+                    self.module.context.cast(type_spec, call)?;
                 }
+                Ok(())
             }
         }
-        self.errs.extend(errs);
-        Ok(call)
     }
 
     fn lower_pack(&mut self, pack: ast::DataPack) -> LowerResult<hir::Call> {

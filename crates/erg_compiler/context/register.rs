@@ -1595,7 +1595,20 @@ impl Context {
     }
 
     fn import_erg_mod(&self, mod_name: &Literal) -> CompileResult<PathBuf> {
-        let ValueObj::Str(__name__) = mod_name.value.clone() else { todo!("{mod_name}") };
+        let ValueObj::Str(__name__) = mod_name.value.clone() else {
+            return Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                mod_name.loc(),
+                self.caused_by(),
+                "import",
+                None,
+                &Type::Str,
+                &mod_name.t(),
+                None,
+                None,
+            )));
+        };
         let mod_cache = self.mod_cache();
         let py_mod_cache = self.py_mod_cache();
         let path = match Self::resolve_real_path(&self.cfg, Path::new(&__name__[..])) {
@@ -1765,7 +1778,20 @@ impl Context {
     }
 
     fn import_py_mod(&self, mod_name: &Literal) -> CompileResult<PathBuf> {
-        let ValueObj::Str(__name__) = mod_name.value.clone() else { todo!("{mod_name}") };
+        let ValueObj::Str(__name__) = mod_name.value.clone() else {
+            return Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                mod_name.loc(),
+                self.caused_by(),
+                "pyimport",
+                None,
+                &Type::Str,
+                &mod_name.t(),
+                None,
+                None,
+            )));
+        };
         let py_mod_cache = self.py_mod_cache();
         let path = self.get_path(mod_name, __name__)?;
         if let Some(referrer) = self.cfg.input.path() {

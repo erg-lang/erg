@@ -413,7 +413,12 @@ impl Input {
 
     pub fn reread(&self) -> String {
         match &self.kind {
-            InputKind::File(_filename) => todo!(),
+            InputKind::File(path) => {
+                let mut reader = BufReader::new(File::open(path).unwrap());
+                let mut buf = String::new();
+                reader.read_to_string(&mut buf).unwrap();
+                buf
+            }
             InputKind::Pipe(s) | InputKind::Str(s) => s.clone(),
             InputKind::REPL => GLOBAL_STDIN.reread().trim_end().to_owned(),
             InputKind::DummyREPL(dummy) => dummy.reread().unwrap_or_default(),
@@ -438,7 +443,9 @@ impl Input {
         let mut dir = self.dir();
         let path = add_postfix_foreach(path, ".d");
         let mut comps = path.components();
-        let last = comps.next_back().unwrap();
+        let last = comps
+            .next_back()
+            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "path is empty"))?;
         let last_path = Path::new(&last);
         dir.push(comps);
         dir.push(last_path);
