@@ -121,25 +121,46 @@ impl TyVarCache {
         self.already_appeared.insert(name);
     }
 
-    pub(crate) fn push_or_init_tyvar(&mut self, name: &Str, tv: &Type) {
+    pub(crate) fn push_or_init_tyvar(&mut self, name: &Str, tv: &Type, ctx: &Context) {
         if let Some(inst) = self.tyvar_instances.get(name) {
-            // T<tv> <: Eq(T<inst>)
-            // T<inst> is uninitialized
-            // T<inst>.link(T<tv>);
-            // T <: Eq(T <: Eq(T <: ...))
-            let inst = enum_unwrap!(inst, Type::FreeVar);
-            inst.link(tv);
+            self.update_tv(inst, tv, ctx);
         } else if let Some(inst) = self.typaram_instances.get(name) {
             if let TyParam::Type(inst) = inst {
-                let fv_inst = enum_unwrap!(inst.as_ref(), Type::FreeVar);
-                fv_inst.link(tv);
+                self.update_tv(inst, tv, ctx);
             } else if let TyParam::FreeVar(fv) = inst {
                 fv.link(&TyParam::t(tv.clone()));
             } else {
                 unreachable!()
             }
+        } else {
+            self.tyvar_instances.insert(name.clone(), tv.clone());
         }
-        self.tyvar_instances.insert(name.clone(), tv.clone());
+    }
+
+    fn update_tv(&self, inst: &Type, tv: &Type, ctx: &Context) {
+        // T<tv> <: Eq(T<inst>)
+        // T<inst> is uninitialized
+        // T<inst>.link(T<tv>);
+        // T <: Eq(T <: Eq(T <: ...))
+        let inst = enum_unwrap!(inst, Type::FreeVar);
+        if inst.constraint_is_uninited() {
+            inst.link(tv);
+        } else {
+            // inst: ?T(<: Int) => old_sub: Never, old_sup: Int
+            // tv: ?T(:> Nat) => new_sub: Nat, new_sup: Obj
+            // => ?T(:> Nat, <: Int)
+            // inst: ?T(:> Str)
+            // tv: ?T(:> Nat)
+            // => ?T(:> Nat or Str)
+            let (old_sub, old_sup) = inst.get_subsup().unwrap();
+            let tv = enum_unwrap!(tv, Type::FreeVar);
+            let (new_sub, new_sup) = tv.get_subsup().unwrap();
+            let new_constraint = Constraint::new_sandwiched(
+                ctx.union(&old_sub, &new_sub),
+                ctx.intersection(&old_sup, &new_sup),
+            );
+            inst.update_constraint(new_constraint, true);
+        }
     }
 
     pub(crate) fn push_or_init_typaram(&mut self, name: &Str, tp: &TyParam) {
@@ -147,12 +168,12 @@ impl TyVarCache {
         if let Some(_tp) = self.typaram_instances.get(name) {
             panic!("{_tp} {tp}");
             // return;
-        }
-        if let Some(_t) = self.tyvar_instances.get(name) {
+        } else if let Some(_t) = self.tyvar_instances.get(name) {
             panic!("{_t} {tp}");
             // return;
+        } else {
+            self.typaram_instances.insert(name.clone(), tp.clone());
         }
-        self.typaram_instances.insert(name.clone(), tp.clone());
     }
 
     pub(crate) fn appeared(&self, name: &Str) -> bool {
@@ -386,7 +407,7 @@ impl Context {
                 } else {
                     if tmp_tv_cache.appeared(&name) {
                         let tyvar = named_free_var(name.clone(), self.level, Constraint::Uninited);
-                        tmp_tv_cache.push_or_init_tyvar(&name, &tyvar);
+                        tmp_tv_cache.push_or_init_tyvar(&name, &tyvar, self);
                         return Ok(tyvar);
                     }
                     if let Some(tv_ctx) = &self.tv_cache {
@@ -407,7 +428,7 @@ impl Context {
                     tmp_tv_cache.push_appeared(name.clone());
                     let constr = tmp_tv_cache.instantiate_constraint(constr, self, loc)?;
                     let tyvar = named_free_var(name.clone(), self.level, constr);
-                    tmp_tv_cache.push_or_init_tyvar(&name, &tyvar);
+                    tmp_tv_cache.push_or_init_tyvar(&name, &tyvar, self);
                     Ok(tyvar)
                 }
             }

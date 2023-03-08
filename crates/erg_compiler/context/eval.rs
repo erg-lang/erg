@@ -1287,7 +1287,7 @@ impl Context {
                     t.clone()
                 } else {
                     let tv = Type::FreeVar(new_fv);
-                    tv_cache.push_or_init_tyvar(&name, &tv);
+                    tv_cache.push_or_init_tyvar(&name, &tv, self);
                     tv
                 }
             }

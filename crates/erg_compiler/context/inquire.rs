@@ -848,15 +848,23 @@ impl Context {
                 }
             }
         }
-        Err(TyCheckError::no_attr_error(
-            self.cfg.input.clone(),
-            line!() as usize,
-            attr_name.loc(),
-            namespace.name.to_string(),
-            obj.ref_t(),
-            attr_name.inspect(),
-            self.get_similar_attr(obj.ref_t(), attr_name.inspect()),
-        ))
+        let coerced = self
+            .deref_tyvar(obj.t(), Variance::Covariant, &set! {}, obj)
+            .map_err(|mut errs| errs.remove(0))?;
+        if &coerced == obj.ref_t() {
+            Err(TyCheckError::no_attr_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                attr_name.loc(),
+                namespace.name.to_string(),
+                obj.ref_t(),
+                attr_name.inspect(),
+                self.get_similar_attr(obj.ref_t(), attr_name.inspect()),
+            ))
+        } else {
+            obj.ref_t().coerce();
+            self.search_method_info(obj, attr_name, input, namespace)
+        }
     }
 
     fn validate_visibility(

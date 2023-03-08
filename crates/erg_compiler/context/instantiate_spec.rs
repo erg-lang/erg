@@ -124,7 +124,7 @@ impl Context {
                 // TODO: other than type `Type`
                 let constr = Constraint::new_type_of(Type);
                 let tv = named_free_var(name.inspect().clone(), self.level, constr);
-                tv_cache.push_or_init_tyvar(name.inspect(), &tv);
+                tv_cache.push_or_init_tyvar(name.inspect(), &tv, self);
                 Ok(())
             }
             TypeBoundSpec::NonDefault { lhs, spec } => {
@@ -150,7 +150,7 @@ impl Context {
                     tv_cache.push_or_init_typaram(lhs.inspect(), &tp);
                 } else {
                     let tv = named_free_var(lhs.inspect().clone(), self.level, constr);
-                    tv_cache.push_or_init_tyvar(lhs.inspect(), &tv);
+                    tv_cache.push_or_init_tyvar(lhs.inspect(), &tv, self);
                 }
                 Ok(())
             }
@@ -595,7 +595,7 @@ impl Context {
                     Ok(typ.clone())
                 } else if not_found_is_qvar {
                     let tyvar = named_free_var(Str::rc(other), self.level, Constraint::Uninited);
-                    tmp_tv_cache.push_or_init_tyvar(simple.ident.inspect(), &tyvar);
+                    tmp_tv_cache.push_or_init_tyvar(simple.ident.inspect(), &tyvar, self);
                     Ok(tyvar)
                 } else {
                     Err(TyCheckErrors::from(TyCheckError::no_type_error(

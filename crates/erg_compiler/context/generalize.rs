@@ -350,6 +350,7 @@ impl Context {
             {
                 Ok(TyParam::FreeVar(fv))
             }
+            // REVIEW: most likely the result of an error already made
             TyParam::FreeVar(_fv) if self.level == 0 => Err(TyCheckErrors::from(
                 TyCheckError::dummy_infer_error(self.cfg.input.clone(), fn_name!(), line!()),
             )),
@@ -629,7 +630,11 @@ impl Context {
                     let res = self.validate_subsup(sub_t, super_t, variance, qnames, loc);
                     fv.undo();
                     match res {
-                        Ok(ty) => Ok(ty),
+                        Ok(ty) => {
+                            // TODO: T(:> Nat <: Int) -> T(:> Nat, <: Int) ==> Int -> Nat
+                            // fv.link(&ty);
+                            Ok(ty)
+                        }
                         Err(errs) => {
                             fv.link(&Never);
                             Err(errs)
@@ -637,7 +642,6 @@ impl Context {
                     }
                 } else {
                     // no dereference at this point
-                    // drop(constraint);
                     Ok(Type::FreeVar(fv))
                 }
             }
