@@ -916,7 +916,10 @@ impl Context {
                         {
                             min = vi.clone();
                         }
-                    } else {
+                    } else if self
+                        .substitute_call(obj, Some(attr_name), &vi.t, pos_args, kw_args)
+                        .is_ok()
+                    {
                         found = true;
                         min = vi.clone();
                     }

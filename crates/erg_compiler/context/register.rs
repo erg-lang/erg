@@ -124,6 +124,22 @@ impl Context {
         }
     }
 
+    fn mangle_name(&self, ident: &Identifier) -> Option<Str> {
+        match &self.kind {
+            ContextKind::PatchMethodDefs(_base) =>
+            // this means, The body of the patch method is just a function (not a method)
+            {
+                Some(Str::from(format!("{}::<Patch {}>", ident.name, self.name)))
+            }
+            ContextKind::MethodDefs(Some(trait_)) =>
+            // in contrast, a specialized method is real, but mangled
+            {
+                Some(Str::from(format!("{}::<{trait_}>", ident.name)))
+            }
+            _ => None,
+        }
+    }
+
     fn pre_define_var(&mut self, sig: &ast::VarSignature, id: Option<DefId>) -> TyCheckResult<()> {
         let muty = Mutability::from(&sig.inspect().unwrap_or(UBAR)[..]);
         let ident = match &sig.pat {
@@ -136,11 +152,7 @@ impl Context {
         let vis = ident.vis();
         let kind = id.map_or(VarKind::Declared, VarKind::Defined);
         let sig_t = self.instantiate_var_sig_t(sig.t_spec.as_ref(), PreRegister)?;
-        let py_name = if let ContextKind::PatchMethodDefs(_base) = &self.kind {
-            Some(Str::from(format!("::{}{}", self.name, ident)))
-        } else {
-            None
-        };
+        let py_name = self.mangle_name(ident);
         if let Some(_decl) = self.decls.remove(&ident.name) {
             Err(TyCheckErrors::from(TyCheckError::duplicate_decl_error(
                 self.cfg.input.clone(),
@@ -191,11 +203,7 @@ impl Context {
             Ok(t) => (TyCheckErrors::empty(), t),
             Err((errs, t)) => (errs, t),
         };
-        let py_name = if let ContextKind::PatchMethodDefs(_base) = &self.kind {
-            Some(Str::from(format!("::{}{}", self.name, sig.ident)))
-        } else {
-            None
-        };
+        let py_name = self.mangle_name(&sig.ident);
         let vi = VarInfo::new(
             t,
             muty,
@@ -241,7 +249,7 @@ impl Context {
                     ..VarInfo::const_default()
                 });
             }
-            _ => todo!(),
+            other => unreachable!("{other}"),
         };
         // already defined as const
         if sig.is_const() {

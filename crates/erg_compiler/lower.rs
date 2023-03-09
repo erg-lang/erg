@@ -1980,14 +1980,15 @@ impl ASTLowerer {
             .unwrap_or_else(|| todo!("{class} not found"));
         for (newly_defined_name, vi) in methods.locals.clone().into_iter() {
             for (_, already_defined_methods) in class_root.methods_list.iter_mut() {
-                // TODO: 特殊化なら同じ名前でもOK
                 // TODO: 定義のメソッドもエラー表示
                 if let Some((_already_defined_name, already_defined_vi)) =
                     already_defined_methods.get_var_kv(newly_defined_name.inspect())
                 {
-                    if already_defined_vi.kind != VarKind::Auto
-                        && already_defined_vi.impl_of == vi.impl_of
-                    {
+                    if already_defined_vi.kind == VarKind::Auto {
+                        already_defined_methods
+                            .locals
+                            .remove(&newly_defined_name.inspect()[..]);
+                    } else if already_defined_vi.impl_of == vi.impl_of {
                         self.errs.push(LowerError::duplicate_definition_error(
                             self.cfg.input.clone(),
                             line!() as usize,
@@ -1996,9 +1997,7 @@ impl ASTLowerer {
                             newly_defined_name.inspect(),
                         ));
                     } else {
-                        already_defined_methods
-                            .locals
-                            .remove(&newly_defined_name.inspect()[..]);
+                        // specialization
                     }
                 }
             }

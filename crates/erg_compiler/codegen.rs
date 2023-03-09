@@ -63,9 +63,7 @@ fn debind(ident: &Identifier) -> Option<Str> {
         Some(name) if name.starts_with("Function::") => {
             Some(Str::from(name.replace("Function::", "")))
         }
-        Some(patch_method) if patch_method.contains("::") || patch_method.contains('.') => {
-            Some(Str::rc(patch_method))
-        }
+        Some(patch_method) if patch_method.contains("::<Patch ") => Some(Str::rc(patch_method)),
         _ => None,
     }
 }
