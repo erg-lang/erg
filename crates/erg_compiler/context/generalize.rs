@@ -232,12 +232,8 @@ impl Context {
             }
             Refinement(refine) => {
                 let t = self.generalize_t_inner(*refine.t, variance, uninit);
-                let preds = refine
-                    .preds
-                    .into_iter()
-                    .map(|pred| self.generalize_pred(pred, variance, uninit))
-                    .collect();
-                refinement(refine.var, t, preds)
+                let pred = self.generalize_pred(*refine.pred, variance, uninit);
+                refinement(refine.var, t, pred)
             }
             Poly { name, mut params } => {
                 let params = params
@@ -332,7 +328,7 @@ impl Context {
             }
             Predicate::Not(pred) => {
                 let pred = self.generalize_pred(*pred, variance, uninit);
-                Predicate::not(pred)
+                !pred
             }
         }
     }
@@ -349,6 +345,12 @@ impl Context {
                 let inner = fv.unwrap_linked();
                 self.deref_tp(inner, variance, &set! {}, loc)
             }
+            TyParam::FreeVar(fv)
+                if fv.is_generalized() && qnames.contains(&fv.unbound_name().unwrap()) =>
+            {
+                Ok(TyParam::FreeVar(fv))
+            }
+            // REVIEW: most likely the result of an error already made
             TyParam::FreeVar(_fv) if self.level == 0 => Err(TyCheckErrors::from(
                 TyCheckError::dummy_infer_error(self.cfg.input.clone(), fn_name!(), line!()),
             )),
@@ -533,12 +535,11 @@ impl Context {
         qnames: &Set<Str>,
         loc: &impl Locational,
     ) -> TyCheckResult<Type> {
-        let allow_cast = true;
         if self.is_trait(&super_t) {
             self.check_trait_impl(&sub_t, &super_t, &set! {}, loc)?;
         }
         // REVIEW: Even if type constraints can be satisfied, implementation may not exist
-        if self.subtype_of(&sub_t, &super_t, allow_cast) {
+        if self.subtype_of(&sub_t, &super_t) {
             let sub_t = if cfg!(feature = "debug") {
                 sub_t
             } else {
@@ -554,7 +555,7 @@ impl Context {
                 Variance::Contravariant => Ok(super_t),
                 Variance::Invariant => {
                     // need to check if sub_t == super_t
-                    if self.supertype_of(&sub_t, &super_t, allow_cast) {
+                    if self.supertype_of(&sub_t, &super_t) {
                         Ok(sub_t)
                     } else {
                         Err(TyCheckErrors::from(TyCheckError::subtyping_error(
@@ -628,10 +629,19 @@ impl Context {
                     fv.forced_undoable_link(&sub_t);
                     let res = self.validate_subsup(sub_t, super_t, variance, qnames, loc);
                     fv.undo();
-                    res
+                    match res {
+                        Ok(ty) => {
+                            // TODO: T(:> Nat <: Int) -> T(:> Nat, <: Int) ==> Int -> Nat
+                            // fv.link(&ty);
+                            Ok(ty)
+                        }
+                        Err(errs) => {
+                            fv.link(&Never);
+                            Err(errs)
+                        }
+                    }
                 } else {
                     // no dereference at this point
-                    // drop(constraint);
                     Ok(Type::FreeVar(fv))
                 }
             }
@@ -740,7 +750,7 @@ impl Context {
             Type::Refinement(refine) => {
                 let t = self.deref_tyvar(*refine.t, variance, qnames, loc)?;
                 // TODO: deref_predicate
-                Ok(refinement(refine.var, t, refine.preds))
+                Ok(refinement(refine.var, t, *refine.pred))
             }
             Type::And(l, r) => {
                 let l = self.deref_tyvar(*l, variance, qnames, loc)?;
@@ -845,9 +855,8 @@ impl Context {
     }
 
     pub(crate) fn trait_impl_exists(&self, class: &Type, trait_: &Type) -> bool {
-        let allow_cast = true;
         // `Never` implements any trait
-        if self.subtype_of(class, &Type::Never, allow_cast) {
+        if self.subtype_of(class, &Type::Never) {
             return true;
         }
         if class.is_monomorphic() {
@@ -858,11 +867,10 @@ impl Context {
     }
 
     fn mono_class_trait_impl_exist(&self, class: &Type, trait_: &Type) -> bool {
-        let allow_cast = true;
         let mut super_exists = false;
         for inst in self.get_trait_impls(trait_).into_iter() {
-            if self.supertype_of(&inst.sub_type, class, allow_cast)
-                && self.supertype_of(&inst.sup_trait, trait_, allow_cast)
+            if self.supertype_of(&inst.sub_type, class)
+                && self.supertype_of(&inst.sup_trait, trait_)
             {
                 super_exists = true;
                 break;
@@ -872,11 +880,10 @@ impl Context {
     }
 
     fn poly_class_trait_impl_exists(&self, class: &Type, trait_: &Type) -> bool {
-        let allow_cast = true;
         let mut super_exists = false;
         for inst in self.get_trait_impls(trait_).into_iter() {
-            if self.supertype_of(&inst.sub_type, class, allow_cast)
-                && self.supertype_of(&inst.sup_trait, trait_, allow_cast)
+            if self.supertype_of(&inst.sub_type, class)
+                && self.supertype_of(&inst.sup_trait, trait_)
             {
                 super_exists = true;
                 break;

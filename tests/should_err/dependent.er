@@ -1,0 +1,5 @@
+dic = {"a": 1, "b": 2}
+print!(dic["c"]) # ERR
+
+arr = [1, 2, 3]
+print!(arr[5]) # ERR

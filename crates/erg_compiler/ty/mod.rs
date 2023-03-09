@@ -11,6 +11,7 @@ pub mod free;
 pub mod predicate;
 pub mod typaram;
 pub mod value;
+pub mod vis;
 
 use std::fmt;
 use std::ops::{BitAnd, BitOr, Deref, Not, Range, RangeInclusive};
@@ -22,8 +23,7 @@ use erg_common::fresh::fresh_varname;
 use erg_common::log;
 use erg_common::set::Set;
 use erg_common::traits::{LimitedDisplay, StructuralEq};
-use erg_common::vis::Field;
-use erg_common::{enum_unwrap, fmt_option, fmt_set_split_with, ref_addr_eq, set, Str};
+use erg_common::{enum_unwrap, fmt_option, ref_addr_eq, set, Str};
 
 use erg_parser::token::TokenKind;
 
@@ -35,6 +35,7 @@ use typaram::{IntervalOp, TyParam};
 use value::value_set::*;
 use value::ValueObj;
 use value::ValueObj::{Inf, NegInf};
+pub use vis::*;
 
 /// cloneのコストがあるためなるべく.ref_tを使うようにすること
 /// いくつかの構造体は直接Typeを保持していないので、その場合は.tを使う
@@ -506,7 +507,7 @@ pub enum RefineKind {
 pub struct RefinementType {
     pub var: Str,
     pub t: Box<Type>,
-    pub preds: Set<Predicate>,
+    pub pred: Box<Predicate>,
 }
 
 impl fmt::Display for RefinementType {
@@ -520,63 +521,54 @@ impl LimitedDisplay for RefinementType {
         if limit == 0 {
             return write!(f, "...");
         }
-        let first_subj = self.preds.iter().next().and_then(|p| p.subject());
+        let first_subj = self.pred.ors().iter().next().and_then(|p| p.subject());
         let is_simple_type = self.t.is_simple_class();
         let is_simple_preds = self
-            .preds
+            .pred
+            .ors()
             .iter()
             .all(|p| p.is_equal() && p.subject() == first_subj);
         if is_simple_type && is_simple_preds {
             write!(f, "{{")?;
-            for pred in self.preds.iter() {
+            for pred in self.pred.ors() {
                 let (_, rhs) = enum_unwrap!(pred, Predicate::Equal { lhs, rhs });
                 write!(f, "{rhs}, ")?;
             }
             write!(f, "}}")?;
-            if cfg!(feature = "debug") {
-                write!(f, "(<: {})", self.t)?;
-            }
             Ok(())
         } else {
             write!(f, "{{{}: ", self.var)?;
             self.t.limited_fmt(f, limit - 1)?;
-            write!(f, " | {}}}", fmt_set_split_with(&self.preds, "; "))
+            write!(f, " | {}}}", self.pred)
         }
     }
 }
 
 impl RefinementType {
-    pub fn new(var: Str, t: Type, preds: Set<Predicate>) -> Self {
+    pub fn new(var: Str, t: Type, pred: Predicate) -> Self {
         match t.deconstruct_refinement() {
             Ok((inner_var, inner_t, inner_preds)) => {
-                let new_preds = preds
-                    .into_iter()
-                    .map(|pred| pred.change_subject_name(inner_var.clone()))
-                    .collect::<Set<_>>();
+                let new_preds = pred.change_subject_name(inner_var.clone());
                 Self {
                     var: inner_var,
                     t: Box::new(inner_t),
-                    preds: inner_preds.concat(new_preds),
+                    pred: Box::new(inner_preds | new_preds),
                 }
             }
             Err(t) => Self {
                 var,
                 t: Box::new(t),
-                preds,
+                pred: Box::new(pred),
             },
         }
     }
 
-    pub fn deconstruct(self) -> (Str, Type, Set<Predicate>) {
-        (self.var, *self.t, self.preds)
+    pub fn deconstruct(self) -> (Str, Type, Predicate) {
+        (self.var, *self.t, *self.pred)
     }
 
     pub fn invert(self) -> Self {
-        Self::new(
-            self.var,
-            *self.t,
-            self.preds.into_iter().map(|p| p.invert()).collect(),
-        )
+        Self::new(self.var, *self.t, !*self.pred)
     }
 }
 
@@ -681,7 +673,7 @@ impl ArgsOwnership {
     }
 }
 
-#[derive(Debug, Clone, Hash)]
+#[derive(Debug, Clone, Hash, Default)]
 pub enum Type {
     /* Monomorphic (builtin) types */
     Obj, // {=}
@@ -748,7 +740,8 @@ pub enum Type {
     }, // e.g. Ts.__getitem__(N)
     Structural(Box<Type>),
     FreeVar(FreeTyVar), // a reference to the type of other expression, see docs/compiler/inference.md
-    Failure,            // indicates a failure of type inference and behaves as `Never`.
+    #[default]
+    Failure, // indicates a failure of type inference and behaves as `Never`.
     /// used to represent `TyParam` is not initialized (see `erg_compiler::context::instantiate_tp`)
     Uninited,
 }
@@ -1010,12 +1003,6 @@ impl CanbeFree for Type {
     }
 }
 
-impl Default for Type {
-    fn default() -> Self {
-        Self::Failure
-    }
-}
-
 impl From<Range<TyParam>> for Type {
     fn from(r: Range<TyParam>) -> Self {
         int_interval(IntervalOp::RightOpen, r.start, r.end)
@@ -1195,12 +1182,7 @@ impl HasLevel for Type {
             }
             Self::Refinement(refine) => {
                 let lev = refine.t.level().unwrap_or(GENERIC_LEVEL);
-                let min = refine
-                    .preds
-                    .iter()
-                    .filter_map(|p| p.level())
-                    .min()
-                    .unwrap_or(GENERIC_LEVEL);
+                let min = refine.pred.level().unwrap_or(GENERIC_LEVEL);
                 let min = lev.min(min);
                 if min == GENERIC_LEVEL {
                     None
@@ -1265,9 +1247,7 @@ impl HasLevel for Type {
             }
             Self::Refinement(refine) => {
                 refine.t.set_level(level);
-                for pred in refine.preds.iter() {
-                    pred.set_level(level);
-                }
+                refine.pred.set_level(level);
             }
             Self::ProjCall { lhs, args, .. } => {
                 lhs.set_level(level);
@@ -1289,7 +1269,7 @@ impl StructuralEq for Type {
             }
             (Self::FreeVar(fv), Self::FreeVar(fv2)) => fv.structural_eq(fv2),
             (Self::Refinement(refine), Self::Refinement(refine2)) => {
-                refine.t.structural_eq(&refine2.t) && refine.preds == refine2.preds
+                refine.t.structural_eq(&refine2.t) && refine.pred == refine2.pred
             }
             (Self::Record(rec), Self::Record(rec2)) => {
                 for (k, v) in rec.iter() {
@@ -1461,7 +1441,7 @@ impl Type {
             Self::Quantified(t) => t.is_procedure(),
             Self::Subr(subr) if subr.kind == SubrKind::Proc => true,
             Self::Refinement(refine) =>
-                refine.t.is_procedure() || refine.preds.iter().any(|pred|
+                refine.t.is_procedure() || refine.pred.ands().iter().any(|pred|
                     matches!(pred, Predicate::Equal{ rhs, .. } if pred.mentions(&refine.var) && rhs.qual_name().map(|n| n.ends_with('!')).unwrap_or(false))
                 ),
             _ => false,
@@ -1854,7 +1834,7 @@ impl Type {
                 RefinementType::new(
                     var.clone(),
                     Type::Int,
-                    set! {Predicate::ge(var, TyParam::value(0))},
+                    Predicate::ge(var, TyParam::value(0)),
                 )
             }
             Type::Bool => {
@@ -1862,18 +1842,19 @@ impl Type {
                 RefinementType::new(
                     var.clone(),
                     Type::Int,
-                    set! {Predicate::ge(var.clone(), TyParam::value(true)), Predicate::le(var, TyParam::value(false))},
+                    Predicate::le(var.clone(), TyParam::value(true))
+                        & Predicate::ge(var, TyParam::value(false)),
                 )
             }
             Type::Refinement(r) => r,
             t => {
                 let var = Str::from(fresh_varname());
-                RefinementType::new(var, t, set! {})
+                RefinementType::new(var, t, Predicate::TRUE)
             }
         }
     }
 
-    pub fn deconstruct_refinement(self) -> Result<(Str, Type, Set<Predicate>), Type> {
+    pub fn deconstruct_refinement(self) -> Result<(Str, Type, Predicate), Type> {
         match self {
             Type::FreeVar(fv) if fv.is_linked() => fv.crack().clone().deconstruct_refinement(),
             Type::Refinement(r) => Ok(r.deconstruct()),
@@ -1936,12 +1917,7 @@ impl Type {
                 .concat(return_t.qvars()),
             Self::Subr(subr) => subr.qvars(),
             Self::Record(r) => r.values().fold(set! {}, |acc, t| acc.concat(t.qvars())),
-            Self::Refinement(refine) => refine.t.qvars().concat(
-                refine
-                    .preds
-                    .iter()
-                    .fold(set! {}, |acc, pred| acc.concat(pred.qvars())),
-            ),
+            Self::Refinement(refine) => refine.t.qvars().concat(refine.pred.qvars()),
             Self::Quantified(quant) => quant.qvars(),
             Self::Poly { params, .. } => params
                 .iter()
@@ -2000,9 +1976,7 @@ impl Type {
             Self::Subr(subr) => subr.has_qvar(),
             Self::Quantified(quant) => quant.has_qvar(),
             Self::Record(r) => r.values().any(|t| t.has_qvar()),
-            Self::Refinement(refine) => {
-                refine.t.has_qvar() || refine.preds.iter().any(|pred| pred.has_qvar())
-            }
+            Self::Refinement(refine) => refine.t.has_qvar() || refine.pred.has_qvar(),
             Self::Poly { params, .. } => params.iter().any(|tp| tp.has_qvar()),
             Self::Proj { lhs, .. } => lhs.has_qvar(),
             Self::ProjCall { lhs, args, .. } => {
@@ -2054,9 +2028,7 @@ impl Type {
                     || subr.return_t.has_unbound_var()
             }
             Self::Record(r) => r.values().any(|t| t.has_unbound_var()),
-            Self::Refinement(refine) => {
-                refine.t.has_unbound_var() || refine.preds.iter().any(|p| p.has_unbound_var())
-            }
+            Self::Refinement(refine) => refine.t.has_unbound_var() || refine.pred.has_unbound_var(),
             Self::Quantified(quant) => quant.has_unbound_var(),
             Self::Poly { params, .. } => params.iter().any(|p| p.has_unbound_var()),
             Self::Proj { lhs, .. } => lhs.has_no_unbound_var(),

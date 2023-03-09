@@ -24,6 +24,14 @@ pub struct FileCacheEntry {
     pub token_stream: Option<TokenStream>,
 }
 
+impl FileCacheEntry {
+    /// line: 0-based
+    pub fn get_line(&self, line: u32) -> Option<&str> {
+        let mut lines = self.code.lines();
+        lines.nth(line as usize)
+    }
+}
+
 /// Stores the contents of the file on-memory.
 /// This struct can save changes in real-time & incrementally.
 #[derive(Debug, Clone)]
@@ -107,16 +115,14 @@ impl FileCache {
         self.get(uri).ok().and_then(|ent| ent.token_stream.as_ref())
     }
 
-    pub fn get_token_index(&self, uri: &Url, pos: Position) -> ELSResult<Option<usize>> {
-        let Some(tokens) = self.get_token_stream(uri) else {
-            return Ok(None);
-        };
+    pub fn get_token_index(&self, uri: &Url, pos: Position) -> Option<usize> {
+        let tokens = self.get_token_stream(uri)?;
         for (i, tok) in tokens.iter().enumerate() {
             if util::pos_in_loc(tok, pos) {
-                return Ok(Some(i));
+                return Some(i);
             }
         }
-        Ok(None)
+        None
     }
 
     pub fn get_token(&self, uri: &Url, pos: Position) -> Option<Token> {
@@ -129,23 +135,14 @@ impl FileCache {
         None
     }
 
-    pub fn get_token_relatively(
-        &self,
-        uri: &Url,
-        pos: Position,
-        offset: isize,
-    ) -> ELSResult<Option<Token>> {
-        let Some(tokens) = self.get_token_stream(uri) else {
-            return Ok(None);
-        };
-        let Some(index) = self.get_token_index(uri, pos)? else {
-            return Ok(None);
-        };
+    pub fn get_token_relatively(&self, uri: &Url, pos: Position, offset: isize) -> Option<Token> {
+        let tokens = self.get_token_stream(uri)?;
+        let index = self.get_token_index(uri, pos)?;
         let index = (index as isize + offset) as usize;
         if index < tokens.len() {
-            Ok(Some(tokens[index].clone()))
+            Some(tokens[index].clone())
         } else {
-            Ok(None)
+            None
         }
     }
 

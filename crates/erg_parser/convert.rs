@@ -685,23 +685,6 @@ impl Parser {
                 debug_exit_info!(self);
                 Ok(sig)
             }
-            Expr::UnaryOp(unary) => match unary.op.kind {
-                TokenKind::PreStar => {
-                    let mut exprs = unary.args.into_iter();
-                    let param = self
-                        .convert_rhs_to_param(*exprs.next().unwrap(), false)
-                        .map_err(|_| self.stack_dec(fn_name!()))?;
-                    let params = Params::new(vec![], Some(param), vec![], None);
-                    debug_exit_info!(self);
-                    Ok(LambdaSignature::new(params, None, TypeBoundSpecs::empty()))
-                }
-                _ => {
-                    let err = ParseError::simple_syntax_error(line!() as usize, unary.op.loc());
-                    self.errs.push(err);
-                    debug_exit_info!(self);
-                    Err(())
-                }
-            },
             other => {
                 let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
                 self.errs.push(err);

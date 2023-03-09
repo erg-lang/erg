@@ -1,24 +1,22 @@
 #[allow(unused_imports)]
 use erg_common::log;
-use erg_common::vis::Visibility;
 
 use crate::ty::constructors::*;
 use crate::ty::typaram::TyParam;
-use crate::ty::Type;
+use crate::ty::{Type, Visibility};
 use Type::*;
 
 use crate::context::initialize::*;
 use crate::context::Context;
 use crate::varinfo::Mutability;
 use Mutability::*;
-use Visibility::*;
 
 impl Context {
     pub(super) fn init_builtin_procs(&mut self) {
         let vis = if cfg!(feature = "py_compatible") {
-            Public
+            Visibility::BUILTIN_PUBLIC
         } else {
-            Private
+            Visibility::BUILTIN_PRIVATE
         };
         let T = mono_q("T", instanceof(Type));
         let U = mono_q("U", instanceof(Type));
@@ -105,42 +103,52 @@ impl Context {
             mono("File!"),
         )
         .quantify();
-        // TODO: T <: With
+        let C = if cfg!(feature = "py_compatible") {
+            mono("ContextManager").structuralize()
+        } else {
+            mono("ContextManager")
+        };
         let t_with = nd_proc(
             vec![
-                kw("obj", T.clone()),
+                kw("obj", C),
                 kw("proc!", nd_proc(vec![anon(T)], None, U.clone())),
             ],
             None,
             U,
         )
         .quantify();
-        self.register_builtin_py_impl("dir!", t_dir, Immutable, vis, Some("dir"));
+        self.register_builtin_py_impl("dir!", t_dir, Immutable, vis.clone(), Some("dir"));
         self.register_py_builtin("print!", t_print, Some("print"), 81);
-        self.register_builtin_py_impl("id!", t_id, Immutable, vis, Some("id"));
-        self.register_builtin_py_impl("input!", t_input, Immutable, vis, Some("input"));
-        self.register_builtin_py_impl("globals!", t_globals, Immutable, vis, Some("globals"));
-        self.register_builtin_py_impl("locals!", t_locals, Immutable, vis, Some("locals"));
-        self.register_builtin_py_impl("next!", t_next, Immutable, vis, Some("next"));
+        self.register_builtin_py_impl("id!", t_id, Immutable, vis.clone(), Some("id"));
+        self.register_builtin_py_impl("input!", t_input, Immutable, vis.clone(), Some("input"));
+        self.register_builtin_py_impl(
+            "globals!",
+            t_globals,
+            Immutable,
+            vis.clone(),
+            Some("globals"),
+        );
+        self.register_builtin_py_impl("locals!", t_locals, Immutable, vis.clone(), Some("locals"));
+        self.register_builtin_py_impl("next!", t_next, Immutable, vis.clone(), Some("next"));
         self.register_py_builtin("open!", t_open, Some("open"), 198);
         let name = if cfg!(feature = "py_compatible") {
             "if"
         } else {
             "if__"
         };
-        self.register_builtin_py_impl("if!", t_if, Immutable, vis, Some(name));
+        self.register_builtin_py_impl("if!", t_if, Immutable, vis.clone(), Some(name));
         let name = if cfg!(feature = "py_compatible") {
             "for"
         } else {
             "for__"
         };
-        self.register_builtin_py_impl("for!", t_for, Immutable, vis, Some(name));
+        self.register_builtin_py_impl("for!", t_for, Immutable, vis.clone(), Some(name));
         let name = if cfg!(feature = "py_compatible") {
             "while"
         } else {
             "while__"
         };
-        self.register_builtin_py_impl("while!", t_while, Immutable, vis, Some(name));
+        self.register_builtin_py_impl("while!", t_while, Immutable, vis.clone(), Some(name));
         let name = if cfg!(feature = "py_compatible") {
             "with"
         } else {

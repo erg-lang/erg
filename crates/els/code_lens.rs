@@ -32,9 +32,12 @@ impl<Checker: BuildRunnable> Server<Checker> {
                     match chunk {
                         Expr::Def(def) if def.def_kind().is_trait() => {
                             let trait_loc = &def.sig.ident().vi.def_loc;
+                            let Some(range) = util::loc_to_range(trait_loc.loc) else {
+                                continue;
+                            };
                             let command = self.gen_show_trait_impls_command(trait_loc.clone())?;
                             let lens = CodeLens {
-                                range: util::loc_to_range(trait_loc.loc).unwrap(),
+                                range,
                                 command: Some(command),
                                 data: None,
                             };

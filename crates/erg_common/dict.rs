@@ -205,9 +205,18 @@ impl<K: Hash + Eq, V> Dict<K, V> {
         self.dict.remove(k)
     }
 
+    /// NOTE: This method does not consider pairing with values and keys. That is, a value may be paired with a different key (can be considered equal).
+    /// If you need to consider the pairing of the keys and values, use `guaranteed_extend` instead.
     #[inline]
     pub fn extend<I: IntoIterator<Item = (K, V)>>(&mut self, iter: I) {
         self.dict.extend(iter);
+    }
+
+    #[inline]
+    pub fn guaranteed_extend<I: IntoIterator<Item = (K, V)>>(&mut self, other: I) {
+        for (k, v) in other {
+            self.dict.entry(k).or_insert(v);
+        }
     }
 
     #[inline]
@@ -222,9 +231,9 @@ impl<K: Hash + Eq, V> Dict<K, V> {
     }
 
     #[inline]
-    pub fn diff(mut self, other: Self) -> Self {
-        for (k, _) in other.dict {
-            self.dict.remove(&k);
+    pub fn diff(mut self, other: &Self) -> Self {
+        for k in other.dict.keys() {
+            self.dict.remove(k);
         }
         self
     }

@@ -34,6 +34,10 @@ class Float(float):
         return then__(float.__pow__(self, other), Float)
     def __rpow__(self, other):
         return then__(float.__pow__(float(other), self), Float)
+    def __pos__(self):
+        return self
+    def __neg__(self):
+        return then__(float.__neg__(self), Float)
 
 class FloatMut(): # inherits Float
     value: Float
@@ -102,3 +106,7 @@ class FloatMut(): # inherits Float
             return FloatMut(self.value ** other)
         else:
             return FloatMut(self.value ** other.value)
+    def __pos__(self):
+        return self
+    def __neg__(self):
+        return FloatMut(-self.value)

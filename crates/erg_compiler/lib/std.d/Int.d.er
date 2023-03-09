@@ -24,6 +24,10 @@
     assert bin(13) == "0b1101"
     assert 13.bit_count() == 3
     '''
+    '''python
+    assert bin(13) == "0b1101"
+    assert (13).bit_count() == 3
+    '''
     bit_count: (self: .Int) -> Nat
     '''
     Number of bits necessary to represent self in binary.
@@ -34,6 +38,10 @@
     '''erg
     assert bin(37) == "0b100101"
     assert 37.bit_length() == 6
+    '''
+    '''python
+    assert bin(37) == "0b100101"
+    assert (37).bit_length() == 6
     '''
     bit_length: (self: .Int) -> Nat
     conjugate: (self: .Int) -> .Int

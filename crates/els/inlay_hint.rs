@@ -264,6 +264,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
             result.extend(self.get_expr_hint(&pos_arg.expr));
             let index = if is_method { i + 1 } else { i };
             if let Some(name) = param_ts.clone().nth(index).and_then(|pt| pt.name()) {
+                if name.starts_with(['%']) {
+                    continue;
+                }
                 let disp_arg = pos_arg.expr.to_string_notype();
                 // if param_name is same as arg_name
                 if disp_arg.trim_start_matches("::") == &name[..] {

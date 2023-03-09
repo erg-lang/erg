@@ -16,8 +16,7 @@ use erg_common::python_util::PythonVersion;
 use erg_common::serialize::*;
 use erg_common::set::Set;
 use erg_common::shared::Shared;
-use erg_common::vis::Field;
-use erg_common::{dict, fmt_iter, impl_display_from_debug, log, set, switch_lang};
+use erg_common::{dict, fmt_iter, impl_display_from_debug, log, switch_lang};
 use erg_common::{RcArray, Str};
 use erg_parser::ast::{ConstArgs, ConstExpr};
 
@@ -28,7 +27,7 @@ use self::value_set::inner_class;
 use super::codeobj::CodeObj;
 use super::constructors::{array_t, dict_t, mono, poly, refinement, set_t, tuple_t};
 use super::typaram::TyParam;
-use super::{ConstSubr, HasType, Predicate, Type};
+use super::{ConstSubr, Field, HasType, Predicate, Type};
 
 pub struct EvalValueError(pub Box<ErrorCore>);
 
@@ -702,7 +701,7 @@ impl HasType for ValueObj {
     fn t(&self) -> Type {
         let name = Str::from(fresh_varname());
         let pred = Predicate::eq(name.clone(), TyParam::Value(self.clone()));
-        refinement(name, self.class(), set! {pred})
+        refinement(name, self.class(), pred)
     }
     fn signature_t(&self) -> Option<&Type> {
         None
@@ -1311,11 +1310,11 @@ impl ValueObj {
             }
             Self::Subr(subr) => subr.as_type().map(TypeObj::Builtin),
             Self::Array(elems) | Self::Tuple(elems) => {
-                erg_common::log!(err "as_type({})", erg_common::fmt_vec(elems));
+                log!(err "as_type({})", erg_common::fmt_vec(elems));
                 None
             }
             Self::Dict(elems) => {
-                erg_common::log!(err "as_type({elems})");
+                log!(err "as_type({elems})");
                 None
             }
             _other => None,

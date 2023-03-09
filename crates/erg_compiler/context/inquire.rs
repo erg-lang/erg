@@ -5,28 +5,27 @@ use std::path::{Path, PathBuf};
 use erg_common::config::{ErgConfig, Input};
 use erg_common::env::{erg_py_external_lib_path, erg_pystd_path, erg_std_path};
 use erg_common::error::{ErrorCore, ErrorKind, Location, SubMessage};
-use erg_common::levenshtein::get_similar_name;
+use erg_common::levenshtein;
 use erg_common::pathutil::add_postfix_foreach;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, NoTypeDisplay, Stream};
-use erg_common::vis::Visibility;
+use erg_common::triple::Triple;
 use erg_common::Str;
 use erg_common::{
     fmt_option, fmt_slice, log, normalize_path, option_enum_unwrap, set, switch_lang,
 };
-use Type::*;
 
-use ast::VarName;
-use erg_parser::ast::{self, Identifier};
+use erg_parser::ast::{self, Identifier, VarName};
 use erg_parser::token::Token;
 
 use crate::ty::constructors::{anon, free_var, func, mono, poly, proc, proj, ref_, subr_t};
 use crate::ty::free::Constraint;
 use crate::ty::typaram::TyParam;
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
-use crate::ty::{HasType, ParamTy, SubrKind, SubrType, Type};
+use crate::ty::{HasType, ParamTy, SubrKind, SubrType, Type, Visibility};
+use Type::*;
 
-use crate::context::instantiate::ConstTemplate;
+use crate::context::instantiate_spec::ConstTemplate;
 use crate::context::{Context, RegistrationMode, TraitImpl, TyVarCache, Variance};
 use crate::error::{
     binop_to_dname, readable_name, unaryop_to_dname, SingleTyCheckResult, TyCheckError,
@@ -36,9 +35,8 @@ use crate::varinfo::{AbsLocation, Mutability, VarInfo, VarKind};
 use crate::{feature_error, hir};
 use crate::{unreachable_error, AccessKind};
 use RegistrationMode::*;
-use Visibility::*;
 
-use super::instantiate::ParamKind;
+use super::instantiate_spec::ParamKind;
 use super::{ContextKind, MethodInfo};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -102,20 +100,23 @@ impl Context {
             .or_else(|| self.get_outer().and_then(|ctx| ctx.get_var_kv(name)))
     }
 
-    pub fn get_singular_ctx_by_hir_expr(
+    pub fn get_singular_ctxs_by_hir_expr(
         &self,
         obj: &hir::Expr,
-        namespace: &Str,
-    ) -> SingleTyCheckResult<&Context> {
+        namespace: &Context,
+    ) -> SingleTyCheckResult<Vec<&Context>> {
         match obj {
             hir::Expr::Accessor(hir::Accessor::Ident(ident)) => {
-                self.get_singular_ctx_by_ident(&ident.clone().downcast(), namespace)
+                self.get_singular_ctxs_by_ident(&ident.clone().downcast(), namespace)
             }
             hir::Expr::Accessor(hir::Accessor::Attr(attr)) => {
+                let local_attr = hir::Expr::Accessor(hir::Accessor::Ident(attr.ident.clone()));
                 // REVIEW: 両方singularとは限らない?
-                let ctx = self.get_singular_ctx_by_hir_expr(&attr.obj, namespace)?;
-                let attr = hir::Expr::Accessor(hir::Accessor::Ident(attr.ident.clone()));
-                ctx.get_singular_ctx_by_hir_expr(&attr, namespace)
+                let mut ctxs = vec![];
+                for ctx in self.get_singular_ctxs_by_hir_expr(&attr.obj, namespace)? {
+                    ctxs.extend(ctx.get_singular_ctxs_by_hir_expr(&local_attr, namespace)?);
+                }
+                Ok(ctxs)
             }
             // TODO: change error
             _ => Err(TyCheckError::no_var_error(
@@ -129,27 +130,34 @@ impl Context {
         }
     }
 
-    pub(crate) fn get_singular_ctx_by_ident(
+    pub(crate) fn get_singular_ctxs_by_ident(
         &self,
         ident: &ast::Identifier,
-        namespace: &Str,
-    ) -> SingleTyCheckResult<&Context> {
+        namespace: &Context,
+    ) -> SingleTyCheckResult<Vec<&Context>> {
         self.get_mod(ident.inspect())
-            .or_else(|| self.rec_local_get_type(ident.inspect()).map(|(_, ctx)| ctx))
-            .or_else(|| self.rec_get_patch(ident.inspect()))
+            .map(|ctx| vec![ctx])
+            .or_else(|| {
+                let (typ, _) = self.get_type(ident.inspect())?;
+                self.get_nominal_super_type_ctxs(typ)
+            })
+            .or_else(|| self.rec_get_patch(ident.inspect()).map(|ctx| vec![ctx]))
             .ok_or_else(|| {
-                TyCheckError::no_var_error(
+                let (similar_info, similar_name) =
+                    self.get_similar_name_and_info(ident.inspect()).unzip();
+                TyCheckError::detailed_no_var_error(
                     self.cfg.input.clone(),
                     line!() as usize,
                     ident.loc(),
-                    namespace.into(),
+                    namespace.name.to_string(),
                     ident.inspect(),
-                    self.get_similar_name(ident.inspect()),
+                    similar_name,
+                    similar_info,
                 )
             })
     }
 
-    pub(crate) fn get_mut_singular_ctx_by_ident(
+    pub(crate) fn get_mut_singular_ctxs_by_ident(
         &mut self,
         ident: &ast::Identifier,
         namespace: &Str,
@@ -167,20 +175,23 @@ impl Context {
             .ok_or(err)
     }
 
-    pub(crate) fn get_singular_ctx(
+    pub(crate) fn get_singular_ctxs(
         &self,
         obj: &ast::Expr,
-        namespace: &Str,
-    ) -> SingleTyCheckResult<&Context> {
+        namespace: &Context,
+    ) -> SingleTyCheckResult<Vec<&Context>> {
         match obj {
             ast::Expr::Accessor(ast::Accessor::Ident(ident)) => {
-                self.get_singular_ctx_by_ident(ident, namespace)
+                self.get_singular_ctxs_by_ident(ident, namespace)
             }
             ast::Expr::Accessor(ast::Accessor::Attr(attr)) => {
+                let local_attr = ast::Expr::Accessor(ast::Accessor::Ident(attr.ident.clone()));
+                let mut ctxs = vec![];
                 // REVIEW: 両方singularとは限らない?
-                let ctx = self.get_singular_ctx(&attr.obj, namespace)?;
-                let attr = ast::Expr::Accessor(ast::Accessor::Ident(attr.ident.clone()));
-                ctx.get_singular_ctx(&attr, namespace)
+                for ctx in self.get_singular_ctxs(&attr.obj, namespace)? {
+                    ctxs.extend(ctx.get_singular_ctxs(&local_attr, namespace)?);
+                }
+                Ok(ctxs)
             }
             _ => Err(TyCheckError::no_var_error(
                 self.cfg.input.clone(),
@@ -200,7 +211,7 @@ impl Context {
     ) -> SingleTyCheckResult<&mut Context> {
         match obj {
             ast::Expr::Accessor(ast::Accessor::Ident(ident)) => {
-                self.get_mut_singular_ctx_by_ident(ident, namespace)
+                self.get_mut_singular_ctxs_by_ident(ident, namespace)
             }
             ast::Expr::Accessor(ast::Accessor::Attr(attr)) => {
                 // REVIEW: 両方singularとは限らない?
@@ -342,16 +353,16 @@ impl Context {
         ident: &Identifier,
         acc_kind: AccessKind,
         input: &Input,
-        namespace: &Str,
-    ) -> SingleTyCheckResult<VarInfo> {
+        namespace: &Context,
+    ) -> Triple<VarInfo, TyCheckError> {
         if let Some(vi) = self.get_current_scope_var(&ident.name) {
             match self.validate_visibility(ident, vi, input, namespace) {
                 Ok(()) => {
-                    return Ok(vi.clone());
+                    return Triple::Ok(vi.clone());
                 }
                 Err(err) => {
                     if !acc_kind.is_local() {
-                        return Err(err);
+                        return Triple::Err(err);
                     }
                 }
             }
@@ -359,21 +370,21 @@ impl Context {
             .future_defined_locals
             .get_key_value(&ident.inspect()[..])
         {
-            return Err(TyCheckError::access_before_def_error(
+            return Triple::Err(TyCheckError::access_before_def_error(
                 input.clone(),
                 line!() as usize,
                 ident.loc(),
-                namespace.into(),
+                namespace.name.to_string(),
                 ident.inspect(),
                 name.ln_begin().unwrap_or(0),
                 self.get_similar_name(ident.inspect()),
             ));
         } else if let Some((name, _vi)) = self.deleted_locals.get_key_value(&ident.inspect()[..]) {
-            return Err(TyCheckError::access_deleted_var_error(
+            return Triple::Err(TyCheckError::access_deleted_var_error(
                 input.clone(),
                 line!() as usize,
                 ident.loc(),
-                namespace.into(),
+                namespace.name.to_string(),
                 ident.inspect(),
                 name.ln_begin().unwrap_or(0),
                 self.get_similar_name(ident.inspect()),
@@ -381,20 +392,22 @@ impl Context {
         }
         if acc_kind.is_local() {
             if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
-                return match parent.rec_get_var_info(ident, acc_kind, input, namespace) {
-                    Ok(vi) => Ok(vi),
-                    Err(err) => Err(err),
-                };
+                return parent.rec_get_var_info(ident, acc_kind, input, namespace);
             }
         }
-        Err(TyCheckError::no_var_error(
+        /*
+        let (similar_info, similar_name) = self.get_similar_name_and_info(ident.inspect()).unzip();
+        Err(TyCheckError::detailed_no_var_error(
             input.clone(),
             line!() as usize,
             ident.loc(),
             namespace.into(),
             ident.inspect(),
-            self.get_similar_name(ident.inspect()),
+            similar_name,
+            similar_info,
         ))
+        */
+        Triple::None
     }
 
     pub(crate) fn rec_get_decl_info(
@@ -402,8 +415,8 @@ impl Context {
         ident: &Identifier,
         acc_kind: AccessKind,
         input: &Input,
-        namespace: &Str,
-    ) -> SingleTyCheckResult<VarInfo> {
+        namespace: &Context,
+    ) -> Triple<VarInfo, TyCheckError> {
         if let Some(vi) = self
             .decls
             .get(&ident.inspect()[..])
@@ -411,11 +424,11 @@ impl Context {
         {
             match self.validate_visibility(ident, vi, input, namespace) {
                 Ok(()) => {
-                    return Ok(vi.clone());
+                    return Triple::Ok(vi.clone());
                 }
                 Err(err) => {
                     if !acc_kind.is_local() {
-                        return Err(err);
+                        return Triple::Err(err);
                     }
                 }
             }
@@ -425,14 +438,15 @@ impl Context {
                 return parent.rec_get_decl_info(ident, acc_kind, input, namespace);
             }
         }
-        Err(TyCheckError::no_var_error(
+        /*Err(TyCheckError::no_var_error(
             input.clone(),
             line!() as usize,
             ident.loc(),
             namespace.into(),
             ident.inspect(),
             self.get_similar_name(ident.inspect()),
-        ))
+        ))*/
+        Triple::None
     }
 
     pub(crate) fn get_attr_info(
@@ -440,52 +454,61 @@ impl Context {
         obj: &hir::Expr,
         ident: &Identifier,
         input: &Input,
-        namespace: &Str,
-    ) -> SingleTyCheckResult<VarInfo> {
+        namespace: &Context,
+    ) -> Triple<VarInfo, TyCheckError> {
         let self_t = obj.t();
-        let name = ident.name.token();
-        match self.get_attr_info_from_attributive(&self_t, ident, namespace) {
-            Ok(vi) => {
-                return Ok(vi);
+        match self.get_attr_info_from_attributive(&self_t, ident) {
+            Triple::Ok(vi) => {
+                return Triple::Ok(vi);
             }
-            Err(e) if e.core.kind == ErrorKind::AttributeError => {}
-            Err(e) => {
-                return Err(e);
+            Triple::Err(e) => {
+                return Triple::Err(e);
             }
+            _ => {}
         }
-        if let Ok(singular_ctx) = self.get_singular_ctx_by_hir_expr(obj, namespace) {
-            match singular_ctx.rec_get_var_info(ident, AccessKind::Attr, input, namespace) {
-                Ok(vi) => {
-                    return Ok(vi);
-                }
-                Err(e) if e.core.kind == ErrorKind::NameError => {}
-                Err(e) => {
-                    return Err(e);
+        if let Ok(singular_ctxs) = self.get_singular_ctxs_by_hir_expr(obj, namespace) {
+            for ctx in singular_ctxs {
+                match ctx.rec_get_var_info(ident, AccessKind::Attr, input, namespace) {
+                    Triple::Ok(vi) => {
+                        return Triple::Ok(vi);
+                    }
+                    Triple::Err(e) => {
+                        return Triple::Err(e);
+                    }
+                    Triple::None => {}
                 }
             }
         }
         match self.get_attr_from_nominal_t(obj, ident, input, namespace) {
-            Ok(vi) => {
+            Triple::Ok(vi) => {
                 if let Some(self_t) = vi.t.self_t() {
-                    self.sub_unify(obj.ref_t(), self_t, obj, Some(&"self".into()))
-                        .map_err(|mut e| e.remove(0))?;
+                    match self
+                        .sub_unify(obj.ref_t(), self_t, obj, Some(&"self".into()))
+                        .map_err(|mut e| e.remove(0))
+                    {
+                        Ok(_) => {}
+                        Err(e) => {
+                            return Triple::Err(e);
+                        }
+                    }
                 }
-                return Ok(vi);
+                return Triple::Ok(vi);
             }
-            Err(e) if e.core.kind == ErrorKind::AttributeError => {}
-            Err(e) => {
-                return Err(e);
+            Triple::Err(e) => {
+                return Triple::Err(e);
             }
+            _ => {}
         }
-        let allow_cast = true;
-        for patch in self.find_patches_of(obj.ref_t(), allow_cast) {
+        for patch in self.find_patches_of(obj.ref_t()) {
             if let Some(vi) = patch
                 .locals
                 .get(ident.inspect())
                 .or_else(|| patch.decls.get(ident.inspect()))
             {
-                self.validate_visibility(ident, vi, input, namespace)?;
-                return Ok(vi.clone());
+                return match self.validate_visibility(ident, vi, input, namespace) {
+                    Ok(_) => Triple::Ok(vi.clone()),
+                    Err(e) => Triple::Err(e),
+                };
             }
             for (_, methods_ctx) in patch.methods_list.iter() {
                 if let Some(vi) = methods_ctx
@@ -493,12 +516,15 @@ impl Context {
                     .get(ident.inspect())
                     .or_else(|| methods_ctx.decls.get(ident.inspect()))
                 {
-                    self.validate_visibility(ident, vi, input, namespace)?;
-                    return Ok(vi.clone());
+                    return match self.validate_visibility(ident, vi, input, namespace) {
+                        Ok(_) => Triple::Ok(vi.clone()),
+                        Err(e) => Triple::Err(e),
+                    };
                 }
             }
         }
-        Err(TyCheckError::no_attr_error(
+        Triple::None
+        /*Err(TyCheckError::no_attr_error(
             input.clone(),
             line!() as usize,
             name.loc(),
@@ -506,7 +532,7 @@ impl Context {
             &self_t,
             name.inspect(),
             self.get_similar_attr(&self_t, name.inspect()),
-        ))
+        ))*/
     }
 
     fn get_attr_from_nominal_t(
@@ -514,39 +540,45 @@ impl Context {
         obj: &hir::Expr,
         ident: &Identifier,
         input: &Input,
-        namespace: &Str,
-    ) -> SingleTyCheckResult<VarInfo> {
+        namespace: &Context,
+    ) -> Triple<VarInfo, TyCheckError> {
         let self_t = obj.t();
         if let Some(sups) = self.get_nominal_super_type_ctxs(&self_t) {
             for ctx in sups {
                 match ctx.rec_get_var_info(ident, AccessKind::Attr, input, namespace) {
-                    Ok(vi) => {
-                        return Ok(vi);
+                    Triple::Ok(vi) => {
+                        return Triple::Ok(vi);
                     }
-                    Err(e) if e.core.kind == ErrorKind::NameError => {}
-                    Err(e) => {
-                        return Err(e);
+                    Triple::Err(e) => {
+                        return Triple::Err(e);
                     }
+                    _ => {}
                 }
                 // if self is a methods context
                 if let Some(ctx) = self.get_same_name_context(&ctx.name) {
                     match ctx.rec_get_var_info(ident, AccessKind::Method, input, namespace) {
-                        Ok(vi) => {
-                            return Ok(vi);
+                        Triple::Ok(vi) => {
+                            return Triple::Ok(vi);
                         }
-                        Err(e) if e.core.kind == ErrorKind::NameError => {}
-                        Err(e) => {
-                            return Err(e);
+                        Triple::Err(e) => {
+                            return Triple::Err(e);
                         }
+                        _ => {}
                     }
                 }
             }
         }
-        let coerced = self
+        let coerced = match self
             .deref_tyvar(obj.t(), Variance::Covariant, &set! {}, &())
-            .map_err(|mut es| es.remove(0))?;
+            .map_err(|mut es| es.remove(0))
+        {
+            Ok(t) => t,
+            Err(e) => {
+                return Triple::Err(e);
+            }
+        };
         if obj.ref_t() != &coerced {
-            for ctx in self.get_nominal_super_type_ctxs(&coerced).ok_or_else(|| {
+            let ctxs = match self.get_nominal_super_type_ctxs(&coerced).ok_or_else(|| {
                 TyCheckError::type_not_found(
                     self.cfg.input.clone(),
                     line!() as usize,
@@ -554,31 +586,37 @@ impl Context {
                     self.caused_by(),
                     &coerced,
                 )
-            })? {
+            }) {
+                Ok(ctxs) => ctxs,
+                Err(e) => {
+                    return Triple::Err(e);
+                }
+            };
+            for ctx in ctxs {
                 match ctx.rec_get_var_info(ident, AccessKind::Attr, input, namespace) {
-                    Ok(vi) => {
+                    Triple::Ok(vi) => {
                         obj.ref_t().coerce();
-                        return Ok(vi);
+                        return Triple::Ok(vi);
                     }
-                    Err(e) if e.core.kind == ErrorKind::NameError => {}
-                    Err(e) => {
-                        return Err(e);
+                    Triple::Err(e) => {
+                        return Triple::Err(e);
                     }
+                    _ => {}
                 }
                 if let Some(ctx) = self.get_same_name_context(&ctx.name) {
                     match ctx.rec_get_var_info(ident, AccessKind::Method, input, namespace) {
-                        Ok(vi) => {
-                            return Ok(vi);
+                        Triple::Ok(vi) => {
+                            return Triple::Ok(vi);
                         }
-                        Err(e) if e.core.kind == ErrorKind::NameError => {}
-                        Err(e) => {
-                            return Err(e);
+                        Triple::Err(e) => {
+                            return Triple::Err(e);
                         }
+                        _ => {}
                     }
                 }
             }
         }
-        Err(TyCheckError::no_attr_error(
+        /*Err(TyCheckError::no_attr_error(
             self.cfg.input.clone(),
             line!() as usize,
             ident.loc(),
@@ -586,7 +624,8 @@ impl Context {
             &self_t,
             ident.inspect(),
             self.get_similar_attr(&self_t, ident.inspect()),
-        ))
+        ))*/
+        Triple::None
     }
 
     /// get type from given attributive type (Record).
@@ -595,105 +634,43 @@ impl Context {
         &self,
         t: &Type,
         ident: &Identifier,
-        namespace: &Str,
-    ) -> SingleTyCheckResult<VarInfo> {
+    ) -> Triple<VarInfo, TyCheckError> {
         match t {
             // (obj: Never).foo: Never
-            Type::Never => Ok(VarInfo::ILLEGAL.clone()),
+            Type::Never => Triple::Ok(VarInfo::ILLEGAL.clone()),
             Type::FreeVar(fv) if fv.is_linked() => {
-                self.get_attr_info_from_attributive(&fv.crack(), ident, namespace)
+                self.get_attr_info_from_attributive(&fv.crack(), ident)
             }
             Type::FreeVar(fv) /* if fv.is_unbound() */ => {
                 let sup = fv.get_super().unwrap();
-                self.get_attr_info_from_attributive(&sup, ident, namespace)
+                self.get_attr_info_from_attributive(&sup, ident)
             }
-            Type::Ref(t) => self.get_attr_info_from_attributive(t, ident, namespace),
+            Type::Ref(t) => self.get_attr_info_from_attributive(t, ident),
             Type::RefMut { before, .. } => {
-                self.get_attr_info_from_attributive(before, ident, namespace)
+                self.get_attr_info_from_attributive(before, ident)
             }
             Type::Refinement(refine) => {
-                self.get_attr_info_from_attributive(&refine.t, ident, namespace)
+                self.get_attr_info_from_attributive(&refine.t, ident)
             }
             Type::Record(record) => {
-                if let Some(attr_t) = record.get(ident.inspect()) {
+                if let Some((field, attr_t)) = record.get_key_value(ident.inspect()) {
                     let muty = Mutability::from(&ident.inspect()[..]);
                     let vi = VarInfo::new(
                         attr_t.clone(),
                         muty,
-                        Public,
+                        Visibility::new(field.vis.clone(), Str::ever("<dummy>")),
                         VarKind::Builtin,
                         None,
                         None,
                         None,
                         AbsLocation::unknown(),
                     );
-                    Ok(vi)
-                } else {
-                    Err(TyCheckError::no_attr_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        ident.loc(),
-                        namespace.into(),
-                        t,
-                        ident.inspect(),
-                        self.get_similar_attr(t, ident.inspect()),
-                    ))
-                }
-            }
-            Type::Structural(t) => self.get_attr_info_from_attributive(t, ident, namespace),
-            other => {
-                if let Some(v) = self.rec_get_const_obj(&other.local_name()) {
-                    match v {
-                        ValueObj::Type(TypeObj::Generated(gen)) => self
-                            .get_gen_t_require_attr_t(gen, &ident.inspect()[..])
-                            .map(|attr_t| {
-                                let muty = Mutability::from(&ident.inspect()[..]);
-                                VarInfo::new(
-                                    attr_t.clone(),
-                                    muty,
-                                    Public,
-                                    VarKind::Builtin,
-                                    None,
-                                    None,
-                                    None,
-                                    AbsLocation::unknown(),
-                                )
-                            })
-                            .ok_or_else(|| {
-                                TyCheckError::no_attr_error(
-                                    self.cfg.input.clone(),
-                                    line!() as usize,
-                                    ident.loc(),
-                                    namespace.into(),
-                                    t,
-                                    ident.inspect(),
-                                    self.get_similar_attr(t, ident.inspect()),
-                                )
-                            }),
-                        ValueObj::Type(TypeObj::Builtin(_t)) => {
-                            // FIXME:
-                            Err(TyCheckError::no_attr_error(
-                                self.cfg.input.clone(),
-                                line!() as usize,
-                                ident.loc(),
-                                namespace.into(),
-                                _t,
-                                ident.inspect(),
-                                self.get_similar_attr(_t, ident.inspect()),
-                            ))
-                        }
-                        _other => Err(TyCheckError::no_attr_error(
-                            self.cfg.input.clone(),
-                            line!() as usize,
-                            ident.loc(),
-                            namespace.into(),
-                            t,
-                            ident.inspect(),
-                            self.get_similar_attr(t, ident.inspect()),
-                        )),
+                    if let Err(err) = self.validate_visibility(ident, &vi, &self.cfg.input, self) {
+                        return Triple::Err(err);
                     }
+                    Triple::Ok(vi)
                 } else {
-                    Err(TyCheckError::no_attr_error(
+                    /*Err(TyCheckError::no_attr_error(
                         self.cfg.input.clone(),
                         line!() as usize,
                         ident.loc(),
@@ -701,9 +678,12 @@ impl Context {
                         t,
                         ident.inspect(),
                         self.get_similar_attr(t, ident.inspect()),
-                    ))
+                    ))*/
+                    Triple::None
                 }
             }
+            Type::Structural(t) => self.get_attr_info_from_attributive(t, ident),
+            _other => Triple::None,
         }
     }
 
@@ -715,7 +695,7 @@ impl Context {
         pos_args: &[hir::PosArg],
         kw_args: &[hir::KwArg],
         input: &Input,
-        namespace: &Str,
+        namespace: &Context,
     ) -> SingleTyCheckResult<VarInfo> {
         if obj.ref_t() == Type::FAILURE {
             // (...Obj) -> Failure
@@ -755,10 +735,16 @@ impl Context {
         pos_args: &[hir::PosArg],
         kw_args: &[hir::KwArg],
         input: &Input,
-        namespace: &Str,
+        namespace: &Context,
     ) -> SingleTyCheckResult<VarInfo> {
-        if let Ok(vi) = self.get_attr_info_from_attributive(obj.ref_t(), attr_name, namespace) {
-            return Ok(vi);
+        match self.get_attr_info_from_attributive(obj.ref_t(), attr_name) {
+            Triple::Ok(vi) => {
+                return Ok(vi);
+            }
+            Triple::Err(e) => {
+                return Err(e);
+            }
+            _ => {}
         }
         for ctx in self
             .get_nominal_super_type_ctxs(obj.ref_t())
@@ -787,40 +773,42 @@ impl Context {
             }
             if let Some(ctx) = self.get_same_name_context(&ctx.name) {
                 match ctx.rec_get_var_info(attr_name, AccessKind::Method, input, namespace) {
-                    Ok(t) => {
+                    Triple::Ok(t) => {
                         return Ok(t);
                     }
-                    Err(e) if e.core.kind == ErrorKind::NameError => {}
-                    Err(e) => {
+                    Triple::Err(e) => {
                         return Err(e);
                     }
+                    Triple::None => {}
                 }
             }
         }
-        if let Ok(singular_ctx) = self.get_singular_ctx_by_hir_expr(obj, namespace) {
-            if let Some(vi) = singular_ctx
-                .locals
-                .get(attr_name.inspect())
-                .or_else(|| singular_ctx.decls.get(attr_name.inspect()))
-            {
-                self.validate_visibility(attr_name, vi, input, namespace)?;
-                return Ok(vi.clone());
-            }
-            for (_, method_ctx) in singular_ctx.methods_list.iter() {
-                if let Some(vi) = method_ctx
+        if let Ok(singular_ctxs) = self.get_singular_ctxs_by_hir_expr(obj, namespace) {
+            for ctx in singular_ctxs {
+                if let Some(vi) = ctx
                     .locals
                     .get(attr_name.inspect())
-                    .or_else(|| method_ctx.decls.get(attr_name.inspect()))
+                    .or_else(|| ctx.decls.get(attr_name.inspect()))
                 {
                     self.validate_visibility(attr_name, vi, input, namespace)?;
                     return Ok(vi.clone());
+                }
+                for (_, method_ctx) in ctx.methods_list.iter() {
+                    if let Some(vi) = method_ctx
+                        .locals
+                        .get(attr_name.inspect())
+                        .or_else(|| method_ctx.decls.get(attr_name.inspect()))
+                    {
+                        self.validate_visibility(attr_name, vi, input, namespace)?;
+                        return Ok(vi.clone());
+                    }
                 }
             }
             return Err(TyCheckError::singular_no_attr_error(
                 self.cfg.input.clone(),
                 line!() as usize,
                 attr_name.loc(),
-                namespace.into(),
+                namespace.name.to_string(),
                 obj.qual_name().unwrap_or("?"),
                 obj.ref_t(),
                 attr_name.inspect(),
@@ -839,8 +827,7 @@ impl Context {
             }
             _ => {}
         }
-        let allow_cast = true;
-        for patch in self.find_patches_of(obj.ref_t(), allow_cast) {
+        for patch in self.find_patches_of(obj.ref_t()) {
             if let Some(vi) = patch
                 .locals
                 .get(attr_name.inspect())
@@ -860,15 +847,23 @@ impl Context {
                 }
             }
         }
-        Err(TyCheckError::no_attr_error(
-            self.cfg.input.clone(),
-            line!() as usize,
-            attr_name.loc(),
-            namespace.into(),
-            obj.ref_t(),
-            attr_name.inspect(),
-            self.get_similar_attr(obj.ref_t(), attr_name.inspect()),
-        ))
+        let coerced = self
+            .deref_tyvar(obj.t(), Variance::Covariant, &set! {}, obj)
+            .map_err(|mut errs| errs.remove(0))?;
+        if &coerced == obj.ref_t() {
+            Err(TyCheckError::no_attr_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                attr_name.loc(),
+                namespace.name.to_string(),
+                obj.ref_t(),
+                attr_name.inspect(),
+                self.get_similar_attr(obj.ref_t(), attr_name.inspect()),
+            ))
+        } else {
+            obj.ref_t().coerce();
+            self.search_method_info(obj, attr_name, pos_args, kw_args, input, namespace)
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -880,7 +875,7 @@ impl Context {
         pos_args: &[hir::PosArg],
         kw_args: &[hir::KwArg],
         input: &Input,
-        namespace: &Str,
+        namespace: &Context,
     ) -> Option<VarInfo> {
         let mut found = false;
         let mut min = VarInfo {
@@ -909,7 +904,7 @@ impl Context {
                         } else {
                             &vi.t
                         };
-                        if self.subtype_of(vi_t, min_t, true)
+                        if self.subtype_of(vi_t, min_t)
                             && self
                                 .substitute_call(obj, Some(attr_name), &vi.t, pos_args, kw_args)
                                 .is_ok()
@@ -936,34 +931,19 @@ impl Context {
         ident: &Identifier,
         vi: &VarInfo,
         input: &Input,
-        namespace: &str,
+        namespace: &Context,
     ) -> SingleTyCheckResult<()> {
-        if ident.vis() != vi.vis {
-            Err(TyCheckError::visibility_error(
-                input.clone(),
-                line!() as usize,
-                ident.loc(),
-                self.caused_by(),
-                ident.inspect(),
-                vi.vis,
-            ))
-        // check if the private variable is loaded from the other scope
-        } else if vi.vis.is_private()
-            && &self.name[..] != "<builtins>"
-            && &self.name[..] != namespace
-            && !namespace.contains(&self.name[..])
-        {
-            log!(err "{namespace}/{}", self.name);
-            Err(TyCheckError::visibility_error(
-                input.clone(),
-                line!() as usize,
-                ident.loc(),
-                self.caused_by(),
-                ident.inspect(),
-                Private,
-            ))
-        } else {
+        if vi.vis.compatible(&ident.acc_kind(), namespace) {
             Ok(())
+        } else {
+            Err(TyCheckError::visibility_error(
+                input.clone(),
+                line!() as usize,
+                ident.loc(),
+                self.caused_by(),
+                ident.inspect(),
+                vi.vis.clone(),
+            ))
         }
     }
 
@@ -992,18 +972,28 @@ impl Context {
         op: &Token,
         args: &[hir::PosArg],
         input: &Input,
-        namespace: &Str,
+        namespace: &Context,
     ) -> TyCheckResult<VarInfo> {
         erg_common::debug_power_assert!(args.len(), ==, 2);
         let cont = binop_to_dname(op.inspect());
         // not a `Token::from_str(op.kind, cont)` because ops are defined as symbols
         let symbol = Token::symbol(cont);
-        let t = self.rec_get_var_info(
-            &Identifier::new(None, VarName::new(symbol.clone())),
-            AccessKind::Name,
-            input,
-            namespace,
-        )?;
+        let ident = Identifier::private_from_token(symbol.clone());
+        let t = self
+            .rec_get_var_info(&ident, AccessKind::Name, input, namespace)
+            .none_or_result(|| {
+                let (similar_info, similar_name) =
+                    namespace.get_similar_name_and_info(ident.inspect()).unzip();
+                TyCheckError::detailed_no_var_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    ident.loc(),
+                    namespace.caused_by(),
+                    ident.inspect(),
+                    similar_name,
+                    similar_info,
+                )
+            })?;
         let op = hir::Expr::Accessor(hir::Accessor::private(symbol, t));
         self.get_call_t(&op, None, args, &[], input, namespace)
             .map_err(|(_, errs)| {
@@ -1013,7 +1003,7 @@ impl Context {
                 let vi = op_ident.vi.clone();
                 let lhs = args[0].expr.clone();
                 let rhs = args[1].expr.clone();
-                let bin = hir::BinOp::new(op_ident.name.into_token(), lhs, rhs, vi);
+                let bin = hir::BinOp::new(op_ident.raw.name.into_token(), lhs, rhs, vi);
                 let errs = errs
                     .into_iter()
                     .map(|e| self.append_loc_info(e, bin.loc()))
@@ -1027,17 +1017,27 @@ impl Context {
         op: &Token,
         args: &[hir::PosArg],
         input: &Input,
-        namespace: &Str,
+        namespace: &Context,
     ) -> TyCheckResult<VarInfo> {
         erg_common::debug_power_assert!(args.len(), ==, 1);
         let cont = unaryop_to_dname(op.inspect());
         let symbol = Token::symbol(cont);
-        let vi = self.rec_get_var_info(
-            &Identifier::new(None, VarName::new(symbol.clone())),
-            AccessKind::Name,
-            input,
-            namespace,
-        )?;
+        let ident = Identifier::private_from_token(symbol.clone());
+        let vi = self
+            .rec_get_var_info(&ident, AccessKind::Name, input, namespace)
+            .none_or_result(|| {
+                let (similar_info, similar_name) =
+                    namespace.get_similar_name_and_info(ident.inspect()).unzip();
+                TyCheckError::detailed_no_var_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    ident.loc(),
+                    namespace.caused_by(),
+                    ident.inspect(),
+                    similar_name,
+                    similar_info,
+                )
+            })?;
         let op = hir::Expr::Accessor(hir::Accessor::private(symbol, vi));
         self.get_call_t(&op, None, args, &[], input, namespace)
             .map_err(|(_, errs)| {
@@ -1046,7 +1046,7 @@ impl Context {
                 };
                 let vi = op_ident.vi.clone();
                 let expr = args[0].expr.clone();
-                let unary = hir::UnaryOp::new(op_ident.name.into_token(), expr, vi);
+                let unary = hir::UnaryOp::new(op_ident.raw.name.into_token(), expr, vi);
                 let errs = errs
                     .into_iter()
                     .map(|e| self.append_loc_info(e, unary.loc()))
@@ -1126,8 +1126,7 @@ impl Context {
             }
             Type::FreeVar(fv) => {
                 if let Some(sub) = fv.get_sub() {
-                    let allow_cast = true;
-                    if !self.subtype_of(&sub, &mono("GenericCallable"), allow_cast) {
+                    if !self.subtype_of(&sub, &mono("GenericCallable")) {
                         return Err(self.not_callable_error(obj, attr_name, instance, None));
                     }
                     if sub != Never {
@@ -1180,10 +1179,8 @@ impl Context {
                     if is_method {
                         obj.clone()
                     } else {
-                        let attr = hir::Attribute::new(
-                            obj.clone(),
-                            hir::Identifier::bare(ident.dot.clone(), ident.name.clone()),
-                        );
+                        let attr =
+                            hir::Attribute::new(obj.clone(), hir::Identifier::bare(ident.clone()));
                         hir::Expr::Accessor(hir::Accessor::Attr(attr))
                     }
                 } else {
@@ -1334,16 +1331,31 @@ impl Context {
                 }
             }
             other => {
-                let one = self.get_singular_ctx_by_hir_expr(obj, &self.name).ok();
-                let one = one
-                    .zip(attr_name.as_ref())
-                    .and_then(|(ctx, attr)| ctx.get_singular_ctx_by_ident(attr, &self.name).ok())
-                    .or(one);
+                let ctxs = self
+                    .get_singular_ctxs_by_hir_expr(obj, self)
+                    .ok()
+                    .unwrap_or(vec![]);
+                let one = attr_name
+                    .as_ref()
+                    .map(|attr| {
+                        ctxs.iter()
+                            .flat_map(|ctx| {
+                                ctx.get_singular_ctxs_by_ident(attr, self)
+                                    .ok()
+                                    .unwrap_or(vec![])
+                            })
+                            .collect()
+                    })
+                    .unwrap_or(ctxs);
                 let two = obj
                     .qual_name()
-                    .and_then(|name| self.get_same_name_context(name));
-                let fallbacks = one.iter().chain(two.iter());
-                for &typ_ctx in fallbacks {
+                    .map(|name| {
+                        self.get_same_name_context(name)
+                            .map_or(vec![], |ctx| vec![ctx])
+                    })
+                    .unwrap_or(vec![]);
+                let fallbacks = one.into_iter().chain(two.into_iter());
+                for typ_ctx in fallbacks {
                     if let Some(call_vi) =
                         typ_ctx.get_current_scope_var(&VarName::from_static("__call__"))
                     {
@@ -1416,7 +1428,8 @@ impl Context {
             ))
         } else {
             let unknown_arg_errors = unknown_args.into_iter().map(|arg| {
-                let similar = get_similar_name(subr_ty.param_names(), arg.keyword.inspect());
+                let similar =
+                    levenshtein::get_similar_name(subr_ty.param_names(), arg.keyword.inspect());
                 TyCheckError::unexpected_kw_arg_error(
                     self.cfg.input.clone(),
                     line!() as usize,
@@ -1612,7 +1625,8 @@ impl Context {
                     )
                 })?;
         } else {
-            let similar = get_similar_name(subr_ty.param_names(), arg.keyword.inspect());
+            let similar =
+                levenshtein::get_similar_name(subr_ty.param_names(), arg.keyword.inspect());
             return Err(TyCheckErrors::from(TyCheckError::unexpected_kw_arg_error(
                 self.cfg.input.clone(),
                 line!() as usize,
@@ -1633,7 +1647,7 @@ impl Context {
         pos_args: &[hir::PosArg],
         kw_args: &[hir::KwArg],
         input: &Input,
-        namespace: &Str,
+        namespace: &Context,
     ) -> Result<VarInfo, (Option<VarInfo>, TyCheckErrors)> {
         if let hir::Expr::Accessor(hir::Accessor::Ident(local)) = obj {
             if local.vis().is_private() {
@@ -1679,7 +1693,7 @@ impl Context {
         log!(info "Substituted:\ninstance: {instance}");
         let res = self
             .eval_t_params(instance, self.level, obj)
-            .map_err(|errs| (Some(found.clone()), errs))?;
+            .map_err(|(t, errs)| (Some(VarInfo { t, ..found.clone() }), errs))?;
         log!(info "Params evaluated:\nres: {res}\n");
         self.propagate(&res, obj).map_err(|errs| {
             (
@@ -1754,8 +1768,17 @@ impl Context {
     }
 
     pub(crate) fn get_similar_name(&self, name: &str) -> Option<&str> {
-        get_similar_name(
+        levenshtein::get_similar_name(
             self.dir().into_iter().map(|(vn, _)| &vn.inspect()[..]),
+            name,
+        )
+    }
+
+    pub(crate) fn get_similar_name_and_info(&self, name: &str) -> Option<(&VarInfo, &str)> {
+        levenshtein::get_similar_name_and_some(
+            self.dir()
+                .into_iter()
+                .map(|(vn, vi)| (vi, &vn.inspect()[..])),
             name,
         )
     }
@@ -1765,9 +1788,11 @@ impl Context {
         obj: &hir::Expr,
         name: &str,
     ) -> Option<&'a str> {
-        if let Ok(ctx) = self.get_singular_ctx_by_hir_expr(obj, &self.name) {
-            if let Some(name) = ctx.get_similar_name(name) {
-                return Some(name);
+        if let Ok(ctxs) = self.get_singular_ctxs_by_hir_expr(obj, self) {
+            for ctx in ctxs {
+                if let Some(name) = ctx.get_similar_name(name) {
+                    return Some(name);
+                }
             }
         }
         None
@@ -1777,6 +1802,19 @@ impl Context {
         for ctx in self.get_nominal_super_type_ctxs(self_t)? {
             if let Some(name) = ctx.get_similar_name(name) {
                 return Some(name);
+            }
+        }
+        None
+    }
+
+    pub(crate) fn get_similar_attr_and_info<'a>(
+        &'a self,
+        self_t: &'a Type,
+        name: &str,
+    ) -> Option<(&'a VarInfo, &'a str)> {
+        for ctx in self.get_nominal_super_type_ctxs(self_t)? {
+            if let Some((vi, name)) = ctx.get_similar_name_and_info(name) {
+                return Some((vi, name));
             }
         }
         None
@@ -1848,15 +1886,11 @@ impl Context {
     /// => [Never, Nat, Int, Str!, Str, Module, Obj]
     /// ```
     pub fn sort_types<'a>(&self, types: impl Iterator<Item = &'a Type>) -> Vec<&'a Type> {
-        let allow_cast = true;
         let mut buffers: Vec<Vec<&Type>> = vec![];
         for t in types {
             let mut found = false;
             for buf in buffers.iter_mut() {
-                if buf
-                    .iter()
-                    .all(|buf_inner| self.related(buf_inner, t, allow_cast))
-                {
+                if buf.iter().all(|buf_inner| self.related(buf_inner, t)) {
                     found = true;
                     buf.push(t);
                     break;
@@ -1877,7 +1911,7 @@ impl Context {
             if let Some(pos) = concatenated
                 .iter()
                 .take(len - idx - 1)
-                .rposition(|t| self.supertype_of(maybe_sup, t, allow_cast))
+                .rposition(|t| self.supertype_of(maybe_sup, t))
             {
                 let sup = concatenated.remove(idx);
                 concatenated.insert(pos, sup); // not `pos + 1` because the element was removed at idx
@@ -1969,7 +2003,6 @@ impl Context {
         &'a self,
         typ: &Type,
     ) -> Option<(&'a Type, &'a Context)> {
-        let allow_cast = true;
         match typ {
             Type::FreeVar(fv) if fv.is_linked() => {
                 if let Some(res) = self.get_nominal_type_ctx(&fv.crack()) {
@@ -2022,11 +2055,7 @@ impl Context {
             Type::Poly { name, .. } => {
                 return self.get_type(name);
             }
-            Type::Record(rec)
-                if rec
-                    .values()
-                    .all(|attr| self.supertype_of(&Type, attr, allow_cast)) =>
-            {
+            Type::Record(rec) if rec.values().all(|attr| self.supertype_of(&Type, attr)) => {
                 return self
                     .get_builtins()
                     .unwrap_or(self)
@@ -2237,7 +2266,7 @@ impl Context {
         {
             normalize_path(path)
         } else {
-            todo!("{} {}", path.display(), add.display())
+            todo!("{} // {}", path.display(), add.display())
         }
     }
 
@@ -2494,7 +2523,11 @@ impl Context {
         }
     }
 
-    fn get_gen_t_require_attr_t<'a>(&'a self, gen: &'a GenTypeObj, attr: &str) -> Option<&'a Type> {
+    fn _get_gen_t_require_attr_t<'a>(
+        &'a self,
+        gen: &'a GenTypeObj,
+        attr: &str,
+    ) -> Option<&'a Type> {
         match gen.base_or_sup().map(|req_sup| req_sup.typ()) {
             Some(Type::Record(rec)) => {
                 if let Some(t) = rec.get(attr) {
@@ -2504,7 +2537,7 @@ impl Context {
             Some(other) => {
                 let obj = self.rec_get_const_obj(&other.local_name());
                 let obj = option_enum_unwrap!(obj, Some:(ValueObj::Type:(TypeObj::Generated:(_))))?;
-                if let Some(t) = self.get_gen_t_require_attr_t(obj, attr) {
+                if let Some(t) = self._get_gen_t_require_attr_t(obj, attr) {
                     return Some(t);
                 }
             }
@@ -2566,10 +2599,9 @@ impl Context {
     }
 
     fn get_trait_proj_candidates(&self, trait_: &Type, rhs: &Str) -> Set<Type> {
-        let allow_cast = true;
         let impls = self.get_trait_impls(trait_);
         let candidates = impls.into_iter().filter_map(move |inst| {
-            if self.supertype_of(&inst.sup_trait, trait_, allow_cast) {
+            if self.supertype_of(&inst.sup_trait, trait_) {
                 self.eval_t_params(proj(inst.sub_type, rhs), self.level, &())
                     .ok()
             } else {

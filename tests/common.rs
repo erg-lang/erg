@@ -140,7 +140,7 @@ fn _exec_file(file_path: &'static str) -> Result<i32, CompileErrors> {
 pub fn _exec_repl(name: &'static str, lines: Vec<String>) -> Result<ExitStatus, CompileErrors> {
     println!("{DEBUG_MAIN}[test] exec dummy REPL: {lines:?}{RESET}");
     let cfg = ErgConfig {
-        input: Input::DummyREPL(DummyStdin::new(name.to_string(), lines)),
+        input: Input::dummy_repl(DummyStdin::new(name.to_string(), lines)),
         quiet_repl: true,
         ..Default::default()
     };

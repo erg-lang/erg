@@ -108,11 +108,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let opt_token = if let Some(token) = opt_tok {
             match token.category() {
                 TokenCategory::StrInterpRight => {
-                    self.file_cache.get_token_relatively(&uri, pos, -1)?
+                    self.file_cache.get_token_relatively(&uri, pos, -1)
                 }
-                TokenCategory::StrInterpLeft => {
-                    self.file_cache.get_token_relatively(&uri, pos, 1)?
-                }
+                TokenCategory::StrInterpLeft => self.file_cache.get_token_relatively(&uri, pos, 1),
                 // TODO: StrInterpMid
                 _ => Some(token),
             }

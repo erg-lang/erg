@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::io;
 use std::io::{stdin, stdout, BufRead, Read, StdinLock, StdoutLock, Write};
+use std::ops::Not;
 use std::path::PathBuf;
 use std::str::FromStr;
 
@@ -39,8 +40,10 @@ pub type ELSResult<T> = Result<T, Box<dyn std::error::Error>>;
 pub type ErgLanguageServer = Server<HIRBuilder>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ELSFeatures {
+pub enum DefaultFeatures {
+    /* LSP features */
     CodeAction,
+    CodeLens,
     Completion,
     Diagnostic,
     FindReferences,
@@ -49,22 +52,52 @@ pub enum ELSFeatures {
     InlayHint,
     Rename,
     SemanticTokens,
+    SignatureHelp,
+    /* ELS specific features */
+    SmartCompletion,
+    DeepCompletion,
 }
 
-impl From<&str> for ELSFeatures {
+impl From<&str> for DefaultFeatures {
     fn from(s: &str) -> Self {
         match s {
-            "codeaction" | "codeAction" | "code-action" => ELSFeatures::CodeAction,
-            "completion" => ELSFeatures::Completion,
-            "diagnostic" => ELSFeatures::Diagnostic,
-            "hover" => ELSFeatures::Hover,
+            "codeaction" | "codeAction" | "code-action" => DefaultFeatures::CodeAction,
+            "codelens" | "codeLens" | "code-lens" => DefaultFeatures::CodeLens,
+            "completion" => DefaultFeatures::Completion,
+            "diagnostic" => DefaultFeatures::Diagnostic,
+            "hover" => DefaultFeatures::Hover,
             "semantictoken" | "semantictokens" | "semanticToken" | "semanticTokens"
-            | "semantic-tokens" => ELSFeatures::SemanticTokens,
-            "rename" => ELSFeatures::Rename,
+            | "semantic-tokens" => DefaultFeatures::SemanticTokens,
+            "rename" => DefaultFeatures::Rename,
             "inlayhint" | "inlayhints" | "inlayHint" | "inlayHints" | "inlay-hint"
-            | "inlay-hints" => ELSFeatures::InlayHint,
-            "findreferences" | "findReferences" | "find-references" => ELSFeatures::FindReferences,
-            "gotodefinition" | "gotoDefinition" | "goto-completion" => ELSFeatures::GotoDefinition,
+            | "inlay-hints" => DefaultFeatures::InlayHint,
+            "findreferences" | "findReferences" | "find-references" => {
+                DefaultFeatures::FindReferences
+            }
+            "gotodefinition" | "gotoDefinition" | "goto-completion" => {
+                DefaultFeatures::GotoDefinition
+            }
+            "signaturehelp" | "signatureHelp" | "signature-help" => DefaultFeatures::SignatureHelp,
+            "smartcompletion" | "smartCompletion" | "smart-completion" => {
+                DefaultFeatures::SmartCompletion
+            }
+            "deepcompletion" | "deepCompletion" | "deep-completion" => {
+                DefaultFeatures::DeepCompletion
+            }
+            _ => panic!("unknown feature: {s}"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum OptionalFeatures {
+    CheckOnType,
+}
+
+impl From<&str> for OptionalFeatures {
+    fn from(s: &str) -> Self {
+        match s {
+            "checkontype" | "checkOnType" | "check-on-type" => OptionalFeatures::CheckOnType,
             _ => panic!("unknown feature: {s}"),
         }
     }
@@ -146,6 +179,7 @@ pub struct Server<Checker: BuildRunnable = HIRBuilder> {
     pub(crate) home: PathBuf,
     pub(crate) erg_path: PathBuf,
     pub(crate) client_capas: ClientCapabilities,
+    pub(crate) opt_features: Vec<OptionalFeatures>,
     pub(crate) file_cache: FileCache,
     pub(crate) modules: Dict<Url, ModuleContext>,
     pub(crate) artifacts: Dict<Url, IncompleteArtifact>,
@@ -160,6 +194,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             home: normalize_path(std::env::current_dir().unwrap()),
             erg_path: erg_path(), // already normalized
             client_capas: ClientCapabilities::default(),
+            opt_features: vec![],
             file_cache: FileCache::new(),
             modules: Dict::new(),
             artifacts: Dict::new(),
@@ -197,7 +232,11 @@ impl<Checker: BuildRunnable> Server<Checker> {
         while let Some(&arg) = args.next() {
             if arg == "--disable" {
                 if let Some(&feature) = args.next() {
-                    disabled_features.push(ELSFeatures::from(feature));
+                    disabled_features.push(DefaultFeatures::from(feature));
+                }
+            } else if arg == "--enable" {
+                if let Some(&feature) = args.next() {
+                    self.opt_features.push(OptionalFeatures::from(feature));
                 }
             }
         }
@@ -206,23 +245,20 @@ impl<Checker: BuildRunnable> Server<Checker> {
         self.file_cache.set_capabilities(&mut result.capabilities);
         let mut comp_options = CompletionOptions::default();
         comp_options.trigger_characters =
-            Some(vec![".".to_string(), ":".to_string(), "(".to_string()]);
+            Some(vec![".".into(), ":".into(), "(".into(), " ".into()]);
         comp_options.resolve_provider = Some(true);
         result.capabilities.completion_provider = Some(comp_options);
         result.capabilities.rename_provider = Some(OneOf::Left(true));
         result.capabilities.references_provider = Some(OneOf::Left(true));
         result.capabilities.definition_provider = Some(OneOf::Left(true));
-        result.capabilities.hover_provider = if disabled_features.contains(&ELSFeatures::Hover) {
-            None
-        } else {
-            Some(HoverProviderCapability::Simple(true))
-        };
-        result.capabilities.inlay_hint_provider =
-            if disabled_features.contains(&ELSFeatures::InlayHint) {
-                None
-            } else {
-                Some(OneOf::Left(true))
-            };
+        result.capabilities.hover_provider = disabled_features
+            .contains(&DefaultFeatures::Hover)
+            .not()
+            .then_some(HoverProviderCapability::Simple(true));
+        result.capabilities.inlay_hint_provider = disabled_features
+            .contains(&DefaultFeatures::InlayHint)
+            .not()
+            .then_some(OneOf::Left(true));
         let mut sema_options = SemanticTokensOptions::default();
         sema_options.range = Some(false);
         sema_options.full = Some(SemanticTokensFullOptions::Bool(true));
@@ -244,16 +280,14 @@ impl<Checker: BuildRunnable> Server<Checker> {
             ],
             token_modifiers: vec![],
         };
-        result.capabilities.semantic_tokens_provider =
-            if disabled_features.contains(&ELSFeatures::SemanticTokens) {
-                None
-            } else {
-                Some(SemanticTokensServerCapabilities::SemanticTokensOptions(
-                    sema_options,
-                ))
-            };
+        result.capabilities.semantic_tokens_provider = disabled_features
+            .contains(&DefaultFeatures::SemanticTokens)
+            .not()
+            .then_some(SemanticTokensServerCapabilities::SemanticTokensOptions(
+                sema_options,
+            ));
         result.capabilities.code_action_provider = if disabled_features
-            .contains(&ELSFeatures::CodeAction)
+            .contains(&DefaultFeatures::CodeAction)
         {
             None
         } else {
@@ -268,13 +302,16 @@ impl<Checker: BuildRunnable> Server<Checker> {
             commands: vec![format!("{}.eliminate_unused_vars", self.mode())],
             work_done_progress_options: WorkDoneProgressOptions::default(),
         });
-        result.capabilities.signature_help_provider = Some(SignatureHelpOptions {
-            trigger_characters: Some(vec!["(".to_string(), ",".to_string(), "|".to_string()]),
-            retrigger_characters: None,
-            work_done_progress_options: WorkDoneProgressOptions {
-                work_done_progress: None,
-            },
-        });
+        result.capabilities.signature_help_provider = disabled_features
+            .contains(&DefaultFeatures::SignatureHelp)
+            .not()
+            .then_some(SignatureHelpOptions {
+                trigger_characters: Some(vec!["(".to_string(), ",".to_string(), "|".to_string()]),
+                retrigger_characters: None,
+                work_done_progress_options: WorkDoneProgressOptions {
+                    work_done_progress: None,
+                },
+            });
         result.capabilities.code_lens_provider = Some(CodeLensOptions {
             resolve_provider: Some(false),
         });
@@ -426,11 +463,23 @@ impl<Checker: BuildRunnable> Server<Checker> {
             }
             "textDocument/didChange" => {
                 let params = DidChangeTextDocumentParams::deserialize(msg["params"].clone())?;
-                self.file_cache.incremental_update(params);
+                self.file_cache.incremental_update(params.clone());
                 send_log("file cache updated")?;
+                if self.opt_features.contains(&OptionalFeatures::CheckOnType) {
+                    let uri = util::normalize_url(params.text_document.uri);
+                    self.quick_check_file(uri)?;
+                }
                 Ok(())
             }
             _ => send_log(format!("received notification: {method}")),
+        }
+    }
+
+    pub(crate) fn get_checker(&self, path: PathBuf) -> Checker {
+        if let Some(shared) = self.get_shared() {
+            Checker::inherit(self.cfg.inherit(path), shared.clone())
+        } else {
+            Checker::new(self.cfg.inherit(path))
         }
     }
 
@@ -468,7 +517,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         };
         let maybe_token = self
             .file_cache
-            .get_token_relatively(uri, attr_marker_pos, -2)?;
+            .get_token_relatively(uri, attr_marker_pos, -2);
         if let Some(token) = maybe_token {
             // send_log(format!("token: {token}"))?;
             let mut ctxs = vec![];
@@ -479,11 +528,11 @@ impl<Checker: BuildRunnable> Server<Checker> {
                         .get_nominal_super_type_ctxs(expr.ref_t())
                         .unwrap_or(vec![]);
                     ctxs.extend(type_ctxs);
-                    if let Ok(singular_ctx) = module
+                    if let Ok(singular_ctxs) = module
                         .context
-                        .get_singular_ctx_by_hir_expr(expr, &"".into())
+                        .get_singular_ctxs_by_hir_expr(expr, &module.context)
                     {
-                        ctxs.push(singular_ctx);
+                        ctxs.extend(singular_ctxs);
                     }
                 } else {
                     send_log("expr not found: {token}")?;

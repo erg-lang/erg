@@ -1,4 +1,5 @@
 use std::fmt;
+use std::ops::{BitAnd, BitOr, Not};
 
 #[allow(unused_imports)]
 use erg_common::log;
@@ -47,7 +48,7 @@ impl fmt::Display for Predicate {
             Self::NotEqual { lhs, rhs } => write!(f, "{lhs} != {rhs}"),
             Self::Or(l, r) => write!(f, "({l}) or ({r})"),
             Self::And(l, r) => write!(f, "({l}) and ({r})"),
-            Self::Not(pred) => write!(f, "not({pred})"),
+            Self::Not(p) => write!(f, "not ({p})"),
         }
     }
 }
@@ -63,7 +64,7 @@ impl HasLevel for Predicate {
             Self::And(lhs, rhs) | Self::Or(lhs, rhs) => {
                 lhs.level().zip(rhs.level()).map(|(a, b)| a.min(b))
             }
-            Self::Not(pred) => pred.level(),
+            Self::Not(p) => p.level(),
         }
     }
 
@@ -80,14 +81,41 @@ impl HasLevel for Predicate {
                 lhs.set_level(level);
                 rhs.set_level(level);
             }
-            Self::Not(pred) => {
-                pred.set_level(level);
+            Self::Not(p) => {
+                p.set_level(level);
             }
         }
     }
 }
 
+impl BitAnd for Predicate {
+    type Output = Self;
+
+    fn bitand(self, rhs: Self) -> Self::Output {
+        Self::and(self, rhs)
+    }
+}
+
+impl BitOr for Predicate {
+    type Output = Self;
+
+    fn bitor(self, rhs: Self) -> Self::Output {
+        Self::or(self, rhs)
+    }
+}
+
+impl Not for Predicate {
+    type Output = Self;
+
+    fn not(self) -> Self::Output {
+        Self::Not(Box::new(self))
+    }
+}
+
 impl Predicate {
+    pub const TRUE: Predicate = Predicate::Value(ValueObj::Bool(true));
+    pub const FALSE: Predicate = Predicate::Value(ValueObj::Bool(false));
+
     pub const fn eq(lhs: Str, rhs: TyParam) -> Self {
         Self::Equal { lhs, rhs }
     }
@@ -115,20 +143,60 @@ impl Predicate {
     }
 
     pub fn and(lhs: Predicate, rhs: Predicate) -> Self {
-        Self::And(Box::new(lhs), Box::new(rhs))
+        match (lhs, rhs) {
+            (Predicate::Value(ValueObj::Bool(true)), p) => p,
+            (p, Predicate::Value(ValueObj::Bool(true))) => p,
+            (Predicate::Value(ValueObj::Bool(false)), _)
+            | (_, Predicate::Value(ValueObj::Bool(false))) => Predicate::FALSE,
+            (p1, p2) => Self::And(Box::new(p1), Box::new(p2)),
+        }
     }
 
     pub fn or(lhs: Predicate, rhs: Predicate) -> Self {
-        Self::Or(Box::new(lhs), Box::new(rhs))
-    }
-
-    #[allow(clippy::should_implement_trait)]
-    pub fn not(pred: Predicate) -> Self {
-        Self::Not(Box::new(pred))
+        match (lhs, rhs) {
+            (Predicate::Value(ValueObj::Bool(true)), _)
+            | (_, Predicate::Value(ValueObj::Bool(true))) => Predicate::TRUE,
+            (Predicate::Value(ValueObj::Bool(false)), p) => p,
+            (p, Predicate::Value(ValueObj::Bool(false))) => p,
+            (p1, p2) => Self::Or(Box::new(p1), Box::new(p2)),
+        }
     }
 
     pub fn is_equal(&self) -> bool {
         matches!(self, Self::Equal { .. })
+    }
+
+    pub fn consist_of_equal(&self) -> bool {
+        match self {
+            Self::Equal { .. } => true,
+            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => {
+                lhs.consist_of_equal() && rhs.consist_of_equal()
+            }
+            Self::Not(pred) => pred.consist_of_equal(),
+            _ => false,
+        }
+    }
+
+    pub fn ands(&self) -> Set<&Predicate> {
+        match self {
+            Self::And(lhs, rhs) => {
+                let mut set = lhs.ands();
+                set.extend(rhs.ands());
+                set
+            }
+            _ => set! { self },
+        }
+    }
+
+    pub fn ors(&self) -> Set<&Predicate> {
+        match self {
+            Self::Or(lhs, rhs) => {
+                let mut set = lhs.ors();
+                set.extend(rhs.ors());
+                set
+            }
+            _ => set! { self },
+        }
     }
 
     pub fn subject(&self) -> Option<&str> {
@@ -178,7 +246,6 @@ impl Predicate {
             | Self::GreaterEqual { lhs, .. }
             | Self::NotEqual { lhs, .. } => &lhs[..] == name,
             Self::And(lhs, rhs) | Self::Or(lhs, rhs) => lhs.mentions(name) || rhs.mentions(name),
-            Self::Not(pred) => pred.mentions(name),
             _ => false,
         }
     }

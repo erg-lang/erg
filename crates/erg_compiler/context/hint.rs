@@ -45,13 +45,9 @@ impl Context {
     ) -> Option<String> {
         if &callee_t.qual_name()[..] == "Array" && attr == Some("__getitem__") && nth == 1 {
             let len = &callee_t.typarams().get(1).cloned()?;
-            let (_, _, preds) = found.clone().deconstruct_refinement().ok()?;
-            if let Predicate::Equal {
-                lhs: _,
-                rhs: accessed,
-            } = preds.iter().next()?
-            {
-                let accessed = if let TyParam::Value(value) = accessed {
+            let (_, _, pred) = found.clone().deconstruct_refinement().ok()?;
+            if let Predicate::Equal { rhs: accessed, .. } = pred {
+                let accessed = if let TyParam::Value(value) = &accessed {
                     value
                         .clone()
                         .try_add(ValueObj::Nat(1))

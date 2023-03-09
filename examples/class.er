@@ -4,7 +4,7 @@ print! empty
 
 # Inheritance is prohibited by default. Remove this decorator and check for errors.
 @Inheritable
-Point2D = Class {x = Int; y = Int}
+Point2D = Class {::[<: Self]x = Int; ::[<: Self]y = Int}
 Point2D::
     one = 1
 Point2D.

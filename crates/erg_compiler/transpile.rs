@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::Write;
 
 use erg_common::config::ErgConfig;
+use erg_common::dict::Dict as HashMap;
 use erg_common::error::MultiErrorDisplay;
 use erg_common::log;
 use erg_common::traits::{Runnable, Stream};
@@ -22,7 +23,7 @@ use crate::hir::{
     Accessor, Args, Array, BinOp, Block, Call, ClassDef, Def, Dict, Expr, Identifier, Lambda,
     Literal, Params, PatchDef, ReDef, Record, Set, Signature, Tuple, UnaryOp, HIR,
 };
-use crate::link::Linker;
+use crate::link_hir::HIRLinker;
 use crate::module::SharedCompilerResource;
 use crate::ty::value::ValueObj;
 use crate::ty::Type;
@@ -167,7 +168,7 @@ impl Runnable for Transpiler {
 }
 
 impl ContextProvider for Transpiler {
-    fn dir(&self) -> Vec<(&VarName, &VarInfo)> {
+    fn dir(&self) -> HashMap<&VarName, &VarInfo> {
         self.builder.dir()
     }
 
@@ -228,7 +229,7 @@ impl Transpiler {
         mode: &str,
     ) -> Result<CompleteArtifact, ErrorArtifact> {
         let artifact = self.builder.build(src, mode)?;
-        let linker = Linker::new(&self.cfg, &self.shared.mod_cache);
+        let linker = HIRLinker::new(&self.cfg, &self.shared.mod_cache);
         let hir = linker.link(artifact.object);
         let desugared = HIRDesugarer::desugar(hir);
         Ok(CompleteArtifact::new(desugared, artifact.warns))
@@ -238,7 +239,7 @@ impl Transpiler {
         self.builder.pop_mod_ctx()
     }
 
-    pub fn dir(&mut self) -> Vec<(&VarName, &VarInfo)> {
+    pub fn dir(&mut self) -> HashMap<&VarName, &VarInfo> {
         ContextProvider::dir(self)
     }
 
@@ -787,9 +788,9 @@ impl ScriptGenerator {
         if let Some(py_name) = ident.vi.py_name {
             return demangle(&py_name);
         }
-        let name = ident.name.into_token().content.to_string();
+        let name = ident.inspect().to_string();
         let name = replace_non_symbolic(name);
-        if ident.dot.is_some() {
+        if ident.vis().is_public() {
             name
         } else {
             format!("{name}__")
@@ -941,7 +942,7 @@ impl ScriptGenerator {
                 demangle(&patch_def.sig.ident().to_string_notype()),
                 demangle(&def.sig.ident().to_string_notype()),
             );
-            def.sig.ident_mut().name = VarName::from_str(Str::from(name));
+            def.sig.ident_mut().raw.name = VarName::from_str(Str::from(name));
             code += &"    ".repeat(self.level);
             code += &self.transpile_def(def);
             code.push('\n');

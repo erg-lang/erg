@@ -82,6 +82,11 @@ fn exec_import() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_inherit() -> Result<(), ()> {
+    expect_success("tests/should_ok/inherit.er")
+}
+
+#[test]
 fn exec_infer_class() -> Result<(), ()> {
     expect_success("tests/should_ok/infer_class.er")
 }
@@ -162,13 +167,13 @@ fn exec_specialization() -> Result<(), ()> {
 }
 
 #[test]
-fn exec_structural() -> Result<(), ()> {
+fn exec_structural_example() -> Result<(), ()> {
     expect_success("examples/structural.er")
 }
 
 #[test]
-fn exec_structural_test() -> Result<(), ()> {
-    expect_success("tests/should_ok/structural_test.er")
+fn exec_structural() -> Result<(), ()> {
+    expect_success("tests/should_ok/structural.er")
 }
 
 #[test]
@@ -209,6 +214,16 @@ fn exec_addition_err() -> Result<(), ()> {
 #[test]
 fn exec_args() -> Result<(), ()> {
     expect_failure("tests/should_err/args.er", 16)
+}
+
+#[test]
+fn exec_array_err() -> Result<(), ()> {
+    expect_failure("examples/array.er", 1)
+}
+
+#[test]
+fn exec_dependent() -> Result<(), ()> {
+    expect_failure("tests/should_err/dependent.er", 2)
 }
 
 /// This file compiles successfully, but causes a run-time error due to incomplete method dispatching
@@ -273,7 +288,7 @@ fn exec_structural_err() -> Result<(), ()> {
 
 #[test]
 fn exec_subtyping_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/subtyping.er", 6)
+    expect_failure("tests/should_err/subtyping.er", 7)
 }
 
 #[test]
@@ -292,13 +307,23 @@ fn exec_quantified_err() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_refinement() -> Result<(), ()> {
+    expect_failure("tests/should_err/refinement.er", 4)
+}
+
+#[test]
 fn exec_var_args() -> Result<(), ()> {
     expect_success("tests/should_ok/var_args.er")
 }
 
 #[test]
 fn exec_var_args_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/var_args.er", 2)
+    expect_failure("tests/should_err/var_args.er", 3)
+}
+
+#[test]
+fn exec_visibility() -> Result<(), ()> {
+    expect_failure("tests/should_err/visibility.er", 6)
 }
 
 #[test]

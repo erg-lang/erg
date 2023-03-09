@@ -838,6 +838,7 @@ impl<T: CanbeFree> Free<T> {
         self.constraint().map(|c| c.is_uninited()).unwrap_or(false)
     }
 
+    /// if `in_inst_or_gen` is true, constraint will be updated forcibly
     pub fn update_constraint(&self, new_constraint: Constraint, in_inst_or_gen: bool) {
         match unsafe { &mut *self.as_ptr() as &mut FreeKind<T> } {
             FreeKind::Unbound {

@@ -39,7 +39,10 @@ impl<Checker: BuildRunnable> Server<Checker> {
             .collect::<Vec<_>>();
         for warn in warns {
             let uri = util::normalize_url(Url::from_file_path(warn.input.full_path()).unwrap());
-            let Some(token) = self.file_cache.get_token(&uri, util::loc_to_pos(warn.core.loc).unwrap()) else {
+            let Some(pos) = util::loc_to_pos(warn.core.loc) else {
+                continue;
+            };
+            let Some(token) = self.file_cache.get_token(&uri, pos) else {
                 continue;
             };
             match visitor.get_min_expr(&token) {
@@ -109,12 +112,12 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let mut map = HashMap::new();
         let visitor = self.get_visitor(uri)?;
         let def_loc = visitor.get_info(&token)?.def_loc;
-        let edit = TextEdit::new(util::loc_to_range(def_loc.loc).unwrap(), new_text.clone());
+        let edit = TextEdit::new(util::loc_to_range(def_loc.loc)?, new_text.clone());
         map.insert(uri.clone(), vec![edit]);
         if let Some(value) = self.get_index().get_refs(&def_loc) {
             for refer in value.referrers.iter() {
-                let url = Url::from_file_path(refer.module.as_ref().unwrap()).unwrap();
-                let range = util::loc_to_range(refer.loc).unwrap();
+                let url = Url::from_file_path(refer.module.as_ref()?).ok()?;
+                let range = util::loc_to_range(refer.loc)?;
                 let edit = TextEdit::new(range, new_text.clone());
                 map.entry(url).or_insert(vec![]).push(edit);
             }
