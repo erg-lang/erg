@@ -2,18 +2,23 @@ use serde::Deserialize;
 use serde_json::json;
 use serde_json::Value;
 
+use erg_common::config::ErgConfig;
+use erg_common::dict::Dict;
 use erg_common::erg_util::BUILTIN_ERG_MODS;
 use erg_common::impl_u8_enum;
 use erg_common::python_util::BUILTIN_PYTHON_MODS;
 use erg_common::set::Set;
+use erg_common::shared::AtomicShared;
 use erg_common::traits::Locational;
 
-use erg_compiler::artifact::BuildRunnable;
+use erg_compiler::artifact::{BuildRunnable, Buildable};
 use erg_compiler::context::Context;
 use erg_compiler::erg_parser::token::TokenKind;
 use erg_compiler::hir::Expr;
+use erg_compiler::module::SharedCompilerResource;
 use erg_compiler::ty::{HasType, ParamTy, Type};
 use erg_compiler::varinfo::{AbsLocation, VarInfo};
+use erg_compiler::HIRBuilder;
 use TokenKind::*;
 
 use lsp_types::{
@@ -23,6 +28,21 @@ use lsp_types::{
 
 use crate::server::{send, send_log, ELSResult, Server};
 use crate::util;
+
+fn comp_item_kind(vi: &VarInfo) -> CompletionItemKind {
+    match &vi.t {
+        Type::Subr(subr) if subr.self_t().is_some() => CompletionItemKind::METHOD,
+        Type::Quantified(quant) if quant.self_t().is_some() => CompletionItemKind::METHOD,
+        Type::Subr(_) | Type::Quantified(_) => CompletionItemKind::FUNCTION,
+        Type::ClassType => CompletionItemKind::CLASS,
+        Type::TraitType => CompletionItemKind::INTERFACE,
+        t if &t.qual_name()[..] == "Module" || &t.qual_name()[..] == "GenericModule" => {
+            CompletionItemKind::MODULE
+        }
+        _ if vi.muty.is_const() => CompletionItemKind::CONSTANT,
+        _ => CompletionItemKind::VARIABLE,
+    }
+}
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum CompletionKind {
@@ -74,7 +94,7 @@ impl_u8_enum! { CompletionOrder; i32;
 }
 
 impl CompletionOrder {
-    pub const BUILTIN_MOD: char = match char::from_u32(
+    pub const STD_ITEM: char = match char::from_u32(
         CompletionOrder::Normal as u32
             + CompletionOrder::Builtin as u32
             + CompletionOrder::OtherNamespace as u32,
@@ -147,6 +167,138 @@ impl<'b> CompletionOrderSetter<'b> {
 
     fn set(&self, item: &mut CompletionItem) {
         item.sort_text = Some(self.mangle());
+    }
+}
+
+type Cache = AtomicShared<Dict<String, Vec<CompletionItem>>>;
+
+#[derive(Debug)]
+pub struct CompletionCache {
+    cache: Cache,
+}
+
+fn external_item(name: &str, vi: &VarInfo, mod_name: &str) -> CompletionItem {
+    let mut item =
+        CompletionItem::new_simple(format!("{name} (import from {mod_name})"), vi.t.to_string());
+    item.sort_text = Some(format!("{}_{}", CompletionOrder::STD_ITEM, item.label));
+    item.kind = Some(comp_item_kind(vi));
+    let import = if cfg!(feature = "py_compatible") {
+        format!("from {mod_name} import {name}\n")
+    } else {
+        format!("{{{name};}} = pyimport \"{mod_name}\"\n")
+    };
+    item.additional_text_edits = Some(vec![TextEdit {
+        range: Range::new(Position::new(0, 0), Position::new(0, 0)),
+        new_text: import,
+    }]);
+    item.insert_text = Some(name.to_string());
+    item.filter_text = Some(name.to_string());
+    item
+}
+
+fn module_completions() -> Vec<CompletionItem> {
+    let mut comps = Vec::with_capacity(BUILTIN_PYTHON_MODS.len());
+    for mod_name in BUILTIN_PYTHON_MODS {
+        let mut item = CompletionItem::new_simple(
+            format!("{mod_name} (import from std)"),
+            "PyModule".to_string(),
+        );
+        item.sort_text = Some(format!("{}_{}", CompletionOrder::STD_ITEM, item.label));
+        item.kind = Some(CompletionItemKind::MODULE);
+        let import = if cfg!(feature = "py_compatible") {
+            format!("import {mod_name}\n")
+        } else {
+            format!("{mod_name} = pyimport \"{mod_name}\"\n")
+        };
+        item.additional_text_edits = Some(vec![TextEdit {
+            range: Range::new(Position::new(0, 0), Position::new(0, 0)),
+            new_text: import,
+        }]);
+        item.insert_text = Some(mod_name.to_string());
+        item.filter_text = Some(mod_name.to_string());
+        comps.push(item);
+    }
+    #[cfg(not(feature = "py_compatible"))]
+    for mod_name in BUILTIN_ERG_MODS {
+        let mut item = CompletionItem::new_simple(
+            format!("{mod_name} (import from std)"),
+            "Module".to_string(),
+        );
+        item.sort_text = Some(format!("{}_{}", CompletionOrder::STD_ITEM, item.label));
+        item.kind = Some(CompletionItemKind::MODULE);
+        let import = format!("{mod_name} = import \"{mod_name}\"\n");
+        item.additional_text_edits = Some(vec![TextEdit {
+            range: Range::new(Position::new(0, 0), Position::new(0, 0)),
+            new_text: import,
+        }]);
+        item.insert_text = Some(mod_name.to_string());
+        item.filter_text = Some(mod_name.to_string());
+        comps.push(item);
+    }
+    comps
+}
+
+fn load_modules(cache: Cache) {
+    let major_mods = [
+        "datetime", "http", "io", "json", "math", "os", "random", "re", "sys", "time", "urllib",
+    ];
+    let src = major_mods.into_iter().fold("".to_string(), |acc, module| {
+        acc + &format!("_ = pyimport \"{module}\"\n")
+    });
+    let cfg = ErgConfig::string(src.clone());
+    let shared = SharedCompilerResource::new(cfg.clone());
+    let mut checker = HIRBuilder::inherit(cfg, shared.clone());
+    let _res = checker.build(src, "exec");
+    let mut cache = cache.borrow_mut();
+    if cache.get("<module>").is_none() {
+        cache.insert("<module>".into(), module_completions());
+    }
+    for (path, entry) in shared.py_mod_cache.iter() {
+        let dir = entry.module.context.local_dir();
+        let mod_name = path
+            .file_stem()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .trim_end_matches(".d");
+        let items = dir
+            .into_iter()
+            .map(|(name, vi)| external_item(name.inspect(), vi, mod_name));
+        cache.get_mut("<module>").unwrap().extend(items)
+    }
+}
+
+impl CompletionCache {
+    pub fn new() -> Self {
+        let cache = AtomicShared::new(Dict::default());
+        let clone = cache.clone();
+        std::thread::spawn(move || {
+            send_log("load_modules").unwrap();
+            load_modules(clone)
+        });
+        Self { cache }
+    }
+
+    pub fn get(&mut self, namespace: &str) -> Option<&Vec<CompletionItem>> {
+        self.cache.get_mut().and_then(|cache| cache.get(namespace))
+    }
+
+    pub fn insert(&self, namespace: String, items: Vec<CompletionItem>) {
+        self.cache.borrow_mut().insert(namespace, items);
+    }
+
+    pub fn _clear(&self, namespace: &str) {
+        self.cache.borrow_mut().remove(namespace);
+    }
+
+    pub fn _append(&self, cache: Dict<String, Vec<CompletionItem>>) {
+        for (k, v) in cache {
+            if let Some(comps) = self.cache.borrow_mut().get_mut(&k) {
+                comps.extend(v);
+            } else {
+                self.cache.borrow_mut().insert(k, v);
+            }
+        }
     }
 }
 
@@ -247,77 +399,22 @@ impl<Checker: BuildRunnable> Server<Checker> {
             let mut item = CompletionItem::new_simple(label, readable_t.to_string());
             CompletionOrderSetter::new(vi, arg_pt.as_ref(), mod_ctx, item.label.clone())
                 .set(&mut item);
-            item.kind = match &vi.t {
-                Type::Subr(subr) if subr.self_t().is_some() => Some(CompletionItemKind::METHOD),
-                Type::Quantified(quant) if quant.self_t().is_some() => {
-                    Some(CompletionItemKind::METHOD)
-                }
-                Type::Subr(_) | Type::Quantified(_) => Some(CompletionItemKind::FUNCTION),
-                Type::ClassType => Some(CompletionItemKind::CLASS),
-                Type::TraitType => Some(CompletionItemKind::INTERFACE),
-                t if &t.qual_name()[..] == "Module" || &t.qual_name()[..] == "GenericModule" => {
-                    Some(CompletionItemKind::MODULE)
-                }
-                _ if vi.muty.is_const() => Some(CompletionItemKind::CONSTANT),
-                _ => Some(CompletionItemKind::VARIABLE),
-            };
+            item.kind = Some(comp_item_kind(vi));
             item.data = Some(Value::String(vi.def_loc.to_string()));
             already_appeared.insert(item.label.clone());
             result.push(item);
         }
         if comp_kind.should_be_local() {
-            self.show_module_completion(&mut result, &already_appeared);
+            if let Some(comps) = self.comp_cache.get("<module>") {
+                result.extend(comps.clone());
+            } else {
+                let comps = module_completions();
+                self.comp_cache.insert("<module>".into(), comps.clone());
+                result.extend(comps);
+            }
         }
         send_log(format!("completion items: {}", result.len()))?;
         send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": result }))
-    }
-
-    fn show_module_completion(
-        &self,
-        comps: &mut Vec<CompletionItem>,
-        already_appeared: &Set<String>,
-    ) {
-        for mod_name in BUILTIN_PYTHON_MODS {
-            if already_appeared.contains(mod_name) {
-                continue;
-            }
-            let mut item = CompletionItem::new_simple(
-                format!("{mod_name} (import from std)"),
-                "PyModule".to_string(),
-            );
-            item.sort_text = Some(format!("{}_{}", CompletionOrder::BUILTIN_MOD, item.label));
-            item.kind = Some(CompletionItemKind::MODULE);
-            let import = if cfg!(feature = "py_compatible") {
-                format!("import {mod_name}\n")
-            } else {
-                format!("{mod_name} = pyimport \"{mod_name}\"\n")
-            };
-            item.additional_text_edits = Some(vec![TextEdit {
-                range: Range::new(Position::new(0, 0), Position::new(0, 0)),
-                new_text: import,
-            }]);
-            item.insert_text = Some(mod_name.to_string());
-            comps.push(item);
-        }
-        #[cfg(not(feature = "py_compatible"))]
-        for mod_name in BUILTIN_ERG_MODS {
-            if already_appeared.contains(mod_name) {
-                continue;
-            }
-            let mut item = CompletionItem::new_simple(
-                format!("{mod_name} (import from std)"),
-                "Module".to_string(),
-            );
-            item.sort_text = Some(format!("{}_{}", CompletionOrder::BUILTIN_MOD, item.label));
-            item.kind = Some(CompletionItemKind::MODULE);
-            let import = format!("{mod_name} = import \"{mod_name}\"\n");
-            item.additional_text_edits = Some(vec![TextEdit {
-                range: Range::new(Position::new(0, 0), Position::new(0, 0)),
-                new_text: import,
-            }]);
-            item.insert_text = Some(mod_name.to_string());
-            comps.push(item);
-        }
     }
 
     pub(crate) fn resolve_completion(&self, msg: &Value) -> ELSResult<()> {

@@ -547,6 +547,13 @@ impl ErgConfig {
         }
     }
 
+    pub fn string(src: String) -> Self {
+        Self {
+            input: Input::str(src),
+            ..ErgConfig::default()
+        }
+    }
+
     /// clone alias (since the actual clone cost is low)
     #[inline]
     pub fn copy(&self) -> Self {

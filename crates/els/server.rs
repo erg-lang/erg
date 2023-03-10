@@ -30,6 +30,7 @@ use lsp_types::{
     WorkDoneProgressOptions,
 };
 
+use crate::completion::CompletionCache;
 use crate::file_cache::FileCache;
 use crate::hir_visitor::HIRVisitor;
 use crate::message::{ErrorMessage, LogMessage, ShowMessage};
@@ -181,6 +182,7 @@ pub struct Server<Checker: BuildRunnable = HIRBuilder> {
     pub(crate) client_capas: ClientCapabilities,
     pub(crate) opt_features: Vec<OptionalFeatures>,
     pub(crate) file_cache: FileCache,
+    pub(crate) comp_cache: CompletionCache,
     pub(crate) modules: Dict<Url, ModuleContext>,
     pub(crate) artifacts: Dict<Url, IncompleteArtifact>,
     pub(crate) current_sig: Option<Expr>,
@@ -195,6 +197,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             erg_path: erg_path(), // already normalized
             client_capas: ClientCapabilities::default(),
             opt_features: vec![],
+            comp_cache: CompletionCache::new(),
             file_cache: FileCache::new(),
             modules: Dict::new(),
             artifacts: Dict::new(),

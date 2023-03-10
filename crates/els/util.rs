@@ -13,20 +13,25 @@ use lsp_types::{Position, Range, Url};
 use crate::server::ELSResult;
 
 pub fn loc_to_range(loc: erg_common::error::Location) -> Option<Range> {
-    let start = Position::new(loc.ln_begin()? - 1, loc.col_begin()?);
-    let end = Position::new(loc.ln_end()? - 1, loc.col_end()?);
+    let start = Position::new(loc.ln_begin()?.saturating_sub(1), loc.col_begin()?);
+    let end = Position::new(loc.ln_end()?.saturating_sub(1), loc.col_end()?);
     Some(Range::new(start, end))
 }
 
 pub fn loc_to_pos(loc: erg_common::error::Location) -> Option<Position> {
     // FIXME: should `Position::new(loc.ln_begin()? - 1, loc.col_begin()?)`
     // but completion doesn't work (because the newline will be included)
-    let start = Position::new(loc.ln_begin()? - 1, loc.col_begin()? + 1);
+    let start = Position::new(loc.ln_begin()?.saturating_sub(1), loc.col_begin()? + 1);
     Some(start)
 }
 
 pub fn _pos_to_loc(pos: Position) -> erg_common::error::Location {
-    erg_common::error::Location::range(pos.line + 1, pos.character - 1, pos.line + 1, pos.character)
+    erg_common::error::Location::range(
+        pos.line + 1,
+        pos.character.saturating_sub(1),
+        pos.line + 1,
+        pos.character,
+    )
 }
 
 pub fn pos_in_loc<L: Locational>(loc: &L, pos: Position) -> bool {

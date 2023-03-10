@@ -1034,6 +1034,10 @@ impl Context {
         attrs
     }
 
+    pub fn local_dir(&self) -> Dict<&VarName, &VarInfo> {
+        self.type_dir(self)
+    }
+
     pub(crate) fn mod_cache(&self) -> &SharedModuleCache {
         &self.shared().mod_cache
     }
