@@ -401,10 +401,10 @@ impl Context {
             .and_then(|name| self.get_const_local(name.token(), &self.name).ok())
         {
             return Ok(ParamTy::pos(None, v_enum(set! { value })));
-        } else if let Some(tp) = sig.name().and_then(|name| {
-            self.instantiate_local(name.inspect(), None, tmp_tv_cache, sig)
-                .ok()
-        }) {
+        } else if let Some(tp) = sig
+            .name()
+            .and_then(|name| self.get_tp_from_name(name.inspect(), tmp_tv_cache))
+        {
             match tp {
                 TyParam::Type(t) => return Ok(ParamTy::pos(None, *t)),
                 other => {
@@ -665,17 +665,8 @@ impl Context {
             };
             return Ok(TyParam::erased(t));
         }
-        if let Some(tp) = tmp_tv_cache.get_typaram(name) {
-            return Ok(tp.clone());
-        } else if let Some(t) = tmp_tv_cache.get_tyvar(name) {
-            return Ok(TyParam::t(t.clone()));
-        }
-        if let Some(tv_ctx) = &self.tv_cache {
-            if let Some(t) = tv_ctx.get_tyvar(name) {
-                return Ok(TyParam::t(t.clone()));
-            } else if let Some(tp) = tv_ctx.get_typaram(name) {
-                return Ok(tp.clone());
-            }
+        if let Some(tp) = self.get_tp_from_name(name, tmp_tv_cache) {
+            return Ok(tp);
         }
         if let Some(value) = self.rec_get_const_obj(name) {
             return Ok(TyParam::Value(value.clone()));

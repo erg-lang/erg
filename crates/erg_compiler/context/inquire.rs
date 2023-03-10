@@ -2620,4 +2620,24 @@ impl Context {
             _ => Type,
         }
     }
+
+    pub(crate) fn get_tp_from_name(
+        &self,
+        name: &Str,
+        tmp_tv_cache: &TyVarCache,
+    ) -> Option<TyParam> {
+        if let Some(tp) = tmp_tv_cache.get_typaram(name) {
+            Some(tp.clone())
+        } else if let Some(t) = tmp_tv_cache.get_tyvar(name) {
+            Some(TyParam::t(t.clone()))
+        } else if let Some(tv_ctx) = &self.tv_cache {
+            if let Some(t) = tv_ctx.get_tyvar(name) {
+                Some(TyParam::t(t.clone()))
+            } else {
+                tv_ctx.get_typaram(name).cloned()
+            }
+        } else {
+            None
+        }
+    }
 }
