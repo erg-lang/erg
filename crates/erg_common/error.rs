@@ -556,8 +556,8 @@ pub struct SubMessage {
 
 impl SubMessage {
     ///
-    /// Used when the msg or hint si empty.
-    /// `msg` is Vec\<String\> instead of Option\<String\> because it can be used when there are multiple `msg`s as well as multiple lines.
+    /// Used when the msg or hint is empty.
+    /// `msg` is type of `Vec<String>` instead of `Option<String>` because it can be used when there are multiple `msg`s as well as multiple lines.
     /// # Example
     /// ```
     /// # use erg_common::error::{Location, SubMessage};
