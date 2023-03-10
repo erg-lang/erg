@@ -263,6 +263,7 @@ fn load_modules(cache: Cache) {
             .trim_end_matches(".d");
         let items = dir
             .into_iter()
+            .filter(|(name, _)| !name.inspect().starts_with('%'))
             .map(|(name, vi)| external_item(name.inspect(), vi, mod_name));
         cache.get_mut("<module>").unwrap().extend(items)
     }
@@ -379,6 +380,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
             let label = name.to_string();
             // don't show overriden items
             if already_appeared.contains(&label) {
+                continue;
+            }
+            if label.starts_with('%') {
                 continue;
             }
             // don't show future defined items
