@@ -1,7 +1,7 @@
 //! defines `Type` (type kind).
 //!
 //! Type(コンパイラ等で使われる「型」を表現する)を定義する
-#![allow(clippy::derive_hash_xor_eq)]
+#![allow(clippy::derived_hash_with_manual_eq)]
 #![allow(clippy::large_enum_variant)]
 pub mod codeobj;
 pub mod const_subr;
