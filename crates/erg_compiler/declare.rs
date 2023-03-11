@@ -76,6 +76,7 @@ impl ASTLowerer {
         let mut ident = hir::Identifier::bare(ident.clone());
         ident.vi.t = found_body_t.clone();
         ident.vi.py_name = py_name;
+        ident.vi.def_loc = self.module.context.absolutize(ident.raw.name.loc());
         let sig = hir::VarSignature::new(ident, sig.t_spec);
         let body = hir::DefBody::new(body.op, block, body.id);
         Ok(hir::Def::new(hir::Signature::Var(sig), body))

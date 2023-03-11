@@ -16,7 +16,7 @@ use erg_common::Str;
 use erg_common::{enum_unwrap, get_hash, log, set};
 
 use ast::{ConstIdentifier, Decorator, DefId, Identifier, OperationKind, SimpleTypeSpec, VarName};
-use erg_parser::ast;
+use erg_parser::ast::{self, PreDeclTypeSpec};
 
 use crate::ty::constructors::{
     free_var, func, func0, func1, proc, ref_, ref_mut, unknown_len_array_t, v_enum,
@@ -1978,29 +1978,69 @@ impl Context {
         Ok(())
     }
 
-    pub(crate) fn inc_ref_simple_typespec(&self, simple: &SimpleTypeSpec) {
+    fn inc_ref_acc(&self, acc: &ast::Accessor, namespace: &Context) {
+        match acc {
+            ast::Accessor::Ident(ident) => self.inc_ref_local(ident, namespace),
+            ast::Accessor::Attr(attr) => {
+                self.inc_ref_expr(&attr.obj, namespace);
+                if let Ok(ctxs) = self.get_singular_ctxs(&attr.obj, self) {
+                    if let Some(first) = ctxs.first() {
+                        first.inc_ref_local(&attr.ident, namespace);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn inc_ref_expr(&self, expr: &ast::Expr, namespace: &Context) {
+        #[allow(clippy::single_match)]
+        match expr {
+            ast::Expr::Accessor(acc) => self.inc_ref_acc(acc, namespace),
+            // TODO:
+            _ => {}
+        }
+    }
+
+    pub(crate) fn inc_ref_predecl_typespec(&self, predecl: &PreDeclTypeSpec, namespace: &Context) {
+        match predecl {
+            PreDeclTypeSpec::Attr { namespace: obj, t } => {
+                self.inc_ref_expr(obj, namespace);
+                if let Ok(ctxs) = self.get_singular_ctxs(obj, self) {
+                    if let Some(first) = ctxs.first() {
+                        first.inc_ref_simple_typespec(t, namespace);
+                    }
+                }
+            }
+            PreDeclTypeSpec::Simple(simple) => self.inc_ref_simple_typespec(simple, namespace),
+            // TODO:
+            _ => {}
+        }
+    }
+
+    pub(crate) fn inc_ref_simple_typespec(&self, simple: &SimpleTypeSpec, namespace: &Context) {
         if let Triple::Ok(vi) = self.rec_get_var_info(
             &simple.ident,
             crate::compile::AccessKind::Name,
             &self.cfg.input,
             self,
         ) {
-            self.inc_ref(&vi, &simple.ident.name);
+            self.inc_ref(&vi, &simple.ident.name, namespace);
         }
     }
 
-    pub(crate) fn inc_ref_const_local(&self, local: &ConstIdentifier) {
+    pub(crate) fn inc_ref_local(&self, local: &ConstIdentifier, namespace: &Context) {
         if let Triple::Ok(vi) = self.rec_get_var_info(
             local,
             crate::compile::AccessKind::Name,
             &self.cfg.input,
             self,
         ) {
-            self.inc_ref(&vi, &local.name);
+            self.inc_ref(&vi, &local.name, namespace);
         }
     }
 
-    pub fn inc_ref<L: Locational>(&self, vi: &VarInfo, name: &L) {
-        self.index().inc_ref(vi, self.absolutize(name.loc()));
+    pub fn inc_ref<L: Locational>(&self, vi: &VarInfo, name: &L, namespace: &Context) {
+        self.index().inc_ref(vi, namespace.absolutize(name.loc()));
     }
 }

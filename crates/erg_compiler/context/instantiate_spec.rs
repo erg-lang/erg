@@ -3,8 +3,8 @@ use std::option::Option; // conflicting to Type::Option
 #[allow(unused)]
 use erg_common::log;
 use erg_common::traits::{Locational, Stream};
+use erg_common::Str;
 use erg_common::{assume_unreachable, dict, enum_unwrap, set, try_map_mut};
-use erg_common::{Str, Triple};
 
 use ast::{
     NonDefaultParamSignature, ParamTySpec, PreDeclTypeSpec, SimpleTypeSpec, TypeBoundSpec,
@@ -432,6 +432,7 @@ impl Context {
         tmp_tv_cache: &mut TyVarCache,
         not_found_is_qvar: bool,
     ) -> TyCheckResult<Type> {
+        self.inc_ref_predecl_typespec(predecl, self);
         match predecl {
             ast::PreDeclTypeSpec::Simple(simple) => {
                 self.instantiate_simple_t(simple, opt_decl_t, tmp_tv_cache, not_found_is_qvar)
@@ -448,11 +449,6 @@ impl Context {
                 let ctxs = self.get_singular_ctxs(namespace.as_ref(), self)?;
                 for ctx in ctxs {
                     if let Some((typ, _)) = ctx.rec_local_get_type(t.ident.inspect()) {
-                        if let Triple::Ok(vi) =
-                            ctx.rec_get_var_info(&t.ident, AccessKind::Name, &self.cfg.input, self)
-                        {
-                            self.inc_ref(&vi, &t.ident.name);
-                        }
                         // TODO: visibility check
                         return Ok(typ.clone());
                     }
@@ -477,7 +473,6 @@ impl Context {
         tmp_tv_cache: &mut TyVarCache,
         not_found_is_qvar: bool,
     ) -> TyCheckResult<Type> {
-        self.inc_ref_simple_typespec(simple);
         match &simple.ident.inspect()[..] {
             "_" | "Obj" => Ok(Type::Obj),
             "Nat" => Ok(Type::Nat),
@@ -689,12 +684,13 @@ impl Context {
     ) -> TyCheckResult<TyParam> {
         match expr {
             ast::ConstExpr::Lit(lit) => Ok(TyParam::Value(self.eval_lit(lit)?)),
+            // TODO: inc_ref
             ast::ConstExpr::Accessor(ast::ConstAccessor::Attr(attr)) => {
                 let obj = self.instantiate_const_expr(&attr.obj, erased_idx, tmp_tv_cache)?;
                 Ok(obj.proj(attr.name.inspect()))
             }
             ast::ConstExpr::Accessor(ast::ConstAccessor::Local(local)) => {
-                self.inc_ref_const_local(local);
+                self.inc_ref_local(local, self);
                 self.instantiate_local(local.inspect(), erased_idx, tmp_tv_cache, local)
             }
             ast::ConstExpr::Array(array) => {
