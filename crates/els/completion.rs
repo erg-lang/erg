@@ -178,6 +178,10 @@ pub struct CompletionCache {
 }
 
 fn external_item(name: &str, vi: &VarInfo, mod_name: &str) -> CompletionItem {
+    let name = match vi.py_name.as_ref() {
+        Some(py_name) if cfg!(feature = "py_compatible") => py_name,
+        _ => name,
+    };
     let mut item =
         CompletionItem::new_simple(format!("{name} (import from {mod_name})"), vi.t.to_string());
     item.sort_text = Some(format!("{}_{}", CompletionOrder::STD_ITEM, item.label));
@@ -377,7 +381,10 @@ impl<Checker: BuildRunnable> Server<Checker> {
             if comp_kind.should_be_method() && vi.vis.is_private() {
                 continue;
             }
-            let label = name.to_string();
+            let label = match vi.py_name.as_ref() {
+                Some(py_name) if cfg!(feature = "py_compatible") => py_name.to_string(),
+                _ => name.to_string(),
+            };
             // don't show overriden items
             if already_appeared.contains(&label) {
                 continue;
