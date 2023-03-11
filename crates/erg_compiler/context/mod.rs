@@ -385,6 +385,7 @@ pub struct Context {
     pub(crate) tv_cache: Option<TyVarCache>,
     // for pylyzer, ignore this
     pub(crate) higher_order_caller: Vec<Str>,
+    pub(crate) erg_to_py_names: Dict<Str, Str>,
     pub(crate) level: usize,
 }
 
@@ -565,6 +566,7 @@ impl Context {
             tv_cache: None,
             patches: Dict::default(),
             higher_order_caller: vec![],
+            erg_to_py_names: Dict::default(),
             level,
         }
     }

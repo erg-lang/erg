@@ -1,8 +1,7 @@
 use erg_common::traits::{Locational, Runnable, Stream};
 use erg_common::{enum_unwrap, fn_name, log, Str};
 
-use erg_parser::ast;
-use erg_parser::ast::AST;
+use erg_parser::ast::{self, Identifier, VarName, AST};
 
 use crate::context::instantiate::TyVarCache;
 use crate::lower::ASTLowerer;
@@ -458,7 +457,7 @@ impl ASTLowerer {
                     None,
                     None,
                     Some(py_name),
-                    self.module.context.absolutize(ident.loc()),
+                    self.module.context.absolutize(ident.name.loc()),
                 );
                 let ident = hir::Identifier::new(ident, None, vi);
                 let t_spec_expr = self.fake_lower_expr(*tasc.t_spec.t_spec_as_expr)?;
@@ -507,7 +506,7 @@ impl ASTLowerer {
                     None,
                     None,
                     Some(py_name),
-                    self.module.context.absolutize(attr.ident.loc()),
+                    self.module.context.absolutize(attr.ident.name.loc()),
                 );
                 let ident = hir::Identifier::new(attr.ident, None, vi);
                 let attr = obj.attr_expr(ident);
@@ -549,10 +548,28 @@ impl ASTLowerer {
                 None,
                 None,
                 Some(py_name.clone()),
-                self.module.context.absolutize(ident.loc()),
+                self.module.context.absolutize(ident.name.loc()),
             );
-            self.module.context.decls.insert(ident.name.clone(), vi);
+            let name = if cfg!(feature = "py_compatible") {
+                let mut symbol = ident.name.clone().into_token();
+                symbol.content = py_name.clone();
+                VarName::new(symbol)
+            } else {
+                ident.name.clone()
+            };
+            self.module.context.decls.insert(name, vi);
         }
+        let ident = if cfg!(feature = "py_compatible") {
+            self.module
+                .context
+                .erg_to_py_names
+                .insert(ident.inspect().clone(), py_name.clone());
+            let mut symbol = ident.name.clone().into_token();
+            symbol.content = py_name.clone();
+            Identifier::new(ident.vis.clone(), VarName::new(symbol))
+        } else {
+            ident.clone()
+        };
         self.module.context.assign_var_sig(
             &ast::VarSignature::new(ast::VarPattern::Ident(ident.clone()), None),
             t,
@@ -566,7 +583,7 @@ impl ASTLowerer {
                     Some(TypeObj::Builtin(Type::Uninited)),
                     None,
                 );
-                self.module.context.register_gen_type(ident, ty_obj)?;
+                self.module.context.register_gen_type(&ident, ty_obj)?;
             }
             Type::TraitType => {
                 let ty_obj = GenTypeObj::trait_(
@@ -574,7 +591,7 @@ impl ASTLowerer {
                     TypeObj::Builtin(Type::Uninited),
                     None,
                 );
-                self.module.context.register_gen_type(ident, ty_obj)?;
+                self.module.context.register_gen_type(&ident, ty_obj)?;
             }
             _ => {}
         }
@@ -585,7 +602,16 @@ impl ASTLowerer {
         if ident.is_raw() {
             return Ok(());
         }
-        if let Some((_, ctx)) = self.module.context.get_mut_type(ident.inspect()) {
+        let name = if cfg!(feature = "py_compatible") {
+            self.module
+                .context
+                .erg_to_py_names
+                .get(ident.inspect())
+                .map_or(Str::ever("?"), |s| s.clone())
+        } else {
+            ident.inspect().clone()
+        };
+        if let Some((_, ctx)) = self.module.context.get_mut_type(&name) {
             ctx.register_marker_trait(trait_.clone());
             Ok(())
         } else {
