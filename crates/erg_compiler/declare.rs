@@ -626,6 +626,7 @@ impl ASTLowerer {
 
     pub(crate) fn declare_module(&mut self, ast: AST) -> HIR {
         let mut module = hir::Module::with_capacity(ast.module.len());
+        let _ = self.module.context.preregister(ast.module.block());
         for chunk in ast.module.into_iter() {
             match self.declare_chunk(chunk) {
                 Ok(chunk) => {

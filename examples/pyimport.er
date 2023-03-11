@@ -10,9 +10,14 @@ _socket = pyimport "socket"
 sub = pyimport "subprocess"
 sys = pyimport "sys"
 urllib = pyimport "urllib"
+{DateTime;} = pyimport "datetime"
 
 print! math.pi
 print! importlib.util.MAGIC_NUMBER
 _ = importlib.util.find_spec "os"
 discard sub.run! ["echo", "hello"], shell := True
 sys.exit 111
+print! DateTime.max
+print! DateTime.today!()
+initial_commit = DateTime 2022, 8, 10
+print! initial_commit

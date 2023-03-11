@@ -1506,11 +1506,11 @@ impl Type {
         }
     }
 
-    pub fn is_module(&self) -> bool {
+    pub fn is_erg_module(&self) -> bool {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_module(),
-            Self::Refinement(refine) => refine.t.is_module(),
-            Self::Poly { name, .. } => &name[..] == "PyModule" || &name[..] == "Module",
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_erg_module(),
+            Self::Refinement(refine) => refine.t.is_erg_module(),
+            Self::Poly { name, .. } => &name[..] == "Module",
             _ => false,
         }
     }

@@ -22,6 +22,7 @@ use crate::ty::constructors::{
     free_var, func, func0, func1, proc, ref_, ref_mut, unknown_len_array_t, v_enum,
 };
 use crate::ty::free::{Constraint, FreeKind, HasLevel};
+use crate::ty::typaram::TyParam;
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{HasType, ParamTy, SubrType, Type, Visibility};
 
@@ -788,6 +789,34 @@ impl Context {
                     if let Err(errs) = self.preregister_def(def) {
                         total_errs.extend(errs.into_iter());
                     }
+                    // HACK: The constant expression evaluator can evaluate attributes when the type of the receiver is known.
+                    // import/pyimport is not a constant function, but specially assumes that the type of the module is known in the eval phase.
+                    if def.def_kind().is_import() {
+                        let ast::Expr::Call(call) = def.body.block.first().unwrap() else { unreachable!() };
+                        let ast::Expr::Literal(mod_name) = call.args.get_left_or_key("Path").unwrap() else { todo!() };
+                        let mod_name = hir::Literal::try_from(mod_name.token.clone()).unwrap();
+                        let _ = self.import_mod(call.additional_operation().unwrap(), &mod_name);
+                        let arg = TyParam::Value(ValueObj::Str(
+                            mod_name.token.content.replace('\"', "").into(),
+                        ));
+                        let typ = if def.def_kind().is_erg_import() {
+                            Type::Poly {
+                                name: Str::ever("Module"),
+                                params: vec![arg],
+                            }
+                        } else {
+                            Type::Poly {
+                                name: Str::ever("PyModule"),
+                                params: vec![arg],
+                            }
+                        };
+                        let (_, vi) = self
+                            .get_var_info(def.sig.ident().unwrap().inspect())
+                            .unwrap();
+                        if let Type::FreeVar(fv) = &vi.t {
+                            fv.link(&typ);
+                        }
+                    }
                 }
                 ast::Expr::ClassDef(class_def) => {
                     if let Err(errs) = self.preregister_def(&class_def.def) {
@@ -846,7 +875,11 @@ impl Context {
                             })?;
                     }
                     self.pop();
-                    self.register_gen_const(def.sig.ident().unwrap(), obj)?;
+                    self.register_gen_const(
+                        def.sig.ident().unwrap(),
+                        obj,
+                        def.def_kind().is_other(),
+                    )?;
                 } else {
                     self.declare_sub(sig, id)?;
                 }
@@ -885,7 +918,7 @@ impl Context {
                     }
                     self.pop();
                     if let Some(ident) = sig.ident() {
-                        self.register_gen_const(ident, obj)?;
+                        self.register_gen_const(ident, obj, def.def_kind().is_other())?;
                     }
                 } else {
                     self.pre_define_var(sig, id)?;
@@ -1050,6 +1083,7 @@ impl Context {
         &mut self,
         ident: &Identifier,
         obj: ValueObj,
+        alias: bool,
     ) -> CompileResult<()> {
         let vis = self.instantiate_vis_modifier(&ident.vis)?;
         if self.rec_get_const_obj(ident.inspect()).is_some() && vis.is_private() {
@@ -1063,6 +1097,9 @@ impl Context {
         } else {
             match obj {
                 ValueObj::Type(t) => match t {
+                    TypeObj::Generated(gen) if alias => {
+                        self.register_type_alias(ident, gen.into_typ())
+                    }
                     TypeObj::Generated(gen) => self.register_gen_type(ident, gen),
                     TypeObj::Builtin(t) => self.register_type_alias(ident, t),
                 },
@@ -1405,8 +1442,9 @@ impl Context {
             let name = &ident.name;
             let muty = Mutability::from(&ident.inspect()[..]);
             let id = DefId(get_hash(&(&self.name, &name)));
+            let val = ValueObj::Type(TypeObj::Builtin(t));
             let vi = VarInfo::new(
-                Type::Type,
+                v_enum(set! { val.clone() }),
                 muty,
                 Visibility::new(vis, self.name.clone()),
                 VarKind::Defined(id),
@@ -1417,8 +1455,7 @@ impl Context {
             );
             self.index().register(&vi);
             self.decls.insert(name.clone(), vi);
-            self.consts
-                .insert(name.clone(), ValueObj::Type(TypeObj::Builtin(t)));
+            self.consts.insert(name.clone(), val);
             Ok(())
         }
     }

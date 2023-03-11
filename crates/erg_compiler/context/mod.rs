@@ -233,6 +233,8 @@ impl From<DefKind> for ContextKind {
             DefKind::StructuralTrait => Self::StructuralTrait,
             DefKind::ErgImport | DefKind::PyImport => Self::Module,
             DefKind::Other => Self::Instant,
+            // FIXME: Patch(Type),
+            DefKind::Patch => Self::Instant,
         }
     }
 }
@@ -430,6 +432,7 @@ impl ContextProvider for Context {
             })
     }
 
+    // this is internally recursive
     fn get_var_info(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
         self.get_var_kv(name).or_else(|| {
             self.get_builtins()

@@ -2083,6 +2083,7 @@ impl Def {
                         DefKind::Other
                     }
                 }
+                Some("Patch") => DefKind::Patch,
                 Some("import") => DefKind::ErgImport,
                 Some("pyimport") | Some("__import__") => DefKind::PyImport,
                 #[cfg(feature = "debug")]

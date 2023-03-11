@@ -22,7 +22,7 @@ use crate::ty::constructors::{anon, free_var, func, mono, poly, proc, proj, ref_
 use crate::ty::free::Constraint;
 use crate::ty::typaram::TyParam;
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
-use crate::ty::{HasType, ParamTy, SubrKind, SubrType, Type, Visibility};
+use crate::ty::{HasType, ParamTy, Predicate, SubrKind, SubrType, Type, Visibility};
 use Type::*;
 
 use crate::context::instantiate_spec::ConstTemplate;
@@ -97,6 +97,8 @@ impl Context {
     pub(crate) fn get_var_kv(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
         self.locals
             .get_key_value(name)
+            .or_else(|| self.decls.get_key_value(name))
+            .or_else(|| self.future_defined_locals.get_key_value(name))
             .or_else(|| self.get_outer().and_then(|ctx| ctx.get_var_kv(name)))
     }
 
@@ -107,14 +109,23 @@ impl Context {
     ) -> SingleTyCheckResult<Vec<&Context>> {
         match obj {
             hir::Expr::Accessor(hir::Accessor::Ident(ident)) => {
-                self.get_singular_ctxs_by_ident(&ident.clone().downcast(), namespace)
+                // e.g. ident.t: {Int}
+                if let Type::Refinement(refine) = ident.ref_t() {
+                    if let Predicate::Equal { rhs, .. } = refine.pred.as_ref() {
+                        if let Ok(t) = <&Type>::try_from(rhs) {
+                            if let Some(ctxs) = self.get_nominal_super_type_ctxs(t) {
+                                return Ok(ctxs);
+                            }
+                        }
+                    }
+                }
+                self.get_singular_ctxs_by_ident(&ident.raw, namespace)
             }
             hir::Expr::Accessor(hir::Accessor::Attr(attr)) => {
-                let local_attr = hir::Expr::Accessor(hir::Accessor::Ident(attr.ident.clone()));
                 // REVIEW: 両方singularとは限らない?
                 let mut ctxs = vec![];
                 for ctx in self.get_singular_ctxs_by_hir_expr(&attr.obj, namespace)? {
-                    ctxs.extend(ctx.get_singular_ctxs_by_hir_expr(&local_attr, namespace)?);
+                    ctxs.extend(ctx.get_singular_ctxs_by_ident(&attr.ident.raw, namespace)?);
                 }
                 Ok(ctxs)
             }
@@ -2213,11 +2224,16 @@ impl Context {
 
     // FIXME: 現在の実装だとimportしたモジュールはどこからでも見れる
     pub(crate) fn get_mod(&self, name: &str) -> Option<&Context> {
-        let t = self.get_var_info(name).map(|(_, vi)| vi.t.clone())?;
-        if t.is_module() {
+        let t = self.get_var_info(name).map(|(_, vi)| &vi.t)?;
+        if t.is_erg_module() {
             let path =
                 option_enum_unwrap!(t.typarams().remove(0), TyParam::Value:(ValueObj::Str:(_)))?;
             let path = Self::resolve_path(&self.cfg, Path::new(&path[..]))?;
+            self.get_ctx_from_path(path.as_path())
+        } else if t.is_py_module() {
+            let path =
+                option_enum_unwrap!(t.typarams().remove(0), TyParam::Value:(ValueObj::Str:(_)))?;
+            let path = Self::resolve_decl_path(&self.cfg, Path::new(&path[..]))?;
             self.get_ctx_from_path(path.as_path())
         } else {
             None

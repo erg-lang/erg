@@ -3865,6 +3865,7 @@ pub enum DefKind {
     StructuralTrait,
     ErgImport,
     PyImport,
+    Patch,
     /// type alias included
     Other,
 }
@@ -3892,6 +3893,10 @@ impl DefKind {
 
     pub const fn is_import(&self) -> bool {
         self.is_erg_import() || self.is_py_import()
+    }
+
+    pub const fn is_other(&self) -> bool {
+        matches!(self, Self::Other)
     }
 }
 
@@ -3931,6 +3936,7 @@ impl DefBody {
                         DefKind::Other
                     }
                 }
+                Some("Patch") => DefKind::Patch,
                 Some("import") => DefKind::ErgImport,
                 Some("pyimport") | Some("py") | Some("__import__") => DefKind::PyImport,
                 _ => DefKind::Other,

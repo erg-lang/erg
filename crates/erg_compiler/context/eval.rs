@@ -131,36 +131,45 @@ impl Context {
 
     fn eval_const_acc(&self, acc: &Accessor) -> EvalResult<ValueObj> {
         match acc {
-            Accessor::Ident(ident) => {
-                if let Some(val) = self.rec_get_const_obj(ident.inspect()) {
-                    Ok(val.clone())
-                } else if self.kind.is_subr() {
-                    feature_error!(self, ident.loc(), "const parameters")
-                } else if ident.is_const() {
-                    Err(EvalErrors::from(EvalError::no_var_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        ident.loc(),
-                        self.caused_by(),
-                        ident.inspect(),
-                        self.get_similar_name(ident.inspect()),
-                    )))
-                } else {
-                    Err(EvalErrors::from(EvalError::not_const_expr(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        acc.loc(),
-                        self.caused_by(),
-                    )))
+            Accessor::Ident(ident) => self.eval_const_ident(ident),
+            Accessor::Attr(attr) => match self.eval_const_expr(&attr.obj) {
+                Ok(obj) => Ok(self.eval_attr(obj, &attr.ident)?),
+                Err(err) => {
+                    if let Expr::Accessor(Accessor::Ident(ident)) = attr.obj.as_ref() {
+                        if let Some(mod_ctx) = self.get_mod(ident.inspect()) {
+                            return mod_ctx.eval_const_ident(&attr.ident);
+                        }
+                    }
+                    Err(err)
                 }
-            }
-            Accessor::Attr(attr) => {
-                let obj = self.eval_const_expr(&attr.obj)?;
-                Ok(self.eval_attr(obj, &attr.ident)?)
-            }
+            },
             other => {
                 feature_error!(self, other.loc(), &format!("eval {other}")).map_err(Into::into)
             }
+        }
+    }
+
+    fn eval_const_ident(&self, ident: &Identifier) -> EvalResult<ValueObj> {
+        if let Some(val) = self.rec_get_const_obj(ident.inspect()) {
+            Ok(val.clone())
+        } else if self.kind.is_subr() {
+            feature_error!(self, ident.loc(), "const parameters")
+        } else if ident.is_const() {
+            Err(EvalErrors::from(EvalError::no_var_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                ident.loc(),
+                self.caused_by(),
+                ident.inspect(),
+                self.get_similar_name(ident.inspect()),
+            )))
+        } else {
+            Err(EvalErrors::from(EvalError::not_const_expr(
+                self.cfg.input.clone(),
+                line!() as usize,
+                ident.loc(),
+                self.caused_by(),
+            )))
         }
     }
 
@@ -321,11 +330,19 @@ impl Context {
             })?;
             match self.check_decls_and_pop() {
                 Ok(_) => {
-                    self.register_gen_const(def.sig.ident().unwrap(), obj)?;
+                    self.register_gen_const(
+                        def.sig.ident().unwrap(),
+                        obj,
+                        def.def_kind().is_other(),
+                    )?;
                     Ok(ValueObj::None)
                 }
                 Err(errs) => {
-                    self.register_gen_const(def.sig.ident().unwrap(), obj)?;
+                    self.register_gen_const(
+                        def.sig.ident().unwrap(),
+                        obj,
+                        def.def_kind().is_other(),
+                    )?;
                     Err(errs)
                 }
             }

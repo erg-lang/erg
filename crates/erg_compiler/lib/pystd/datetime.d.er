@@ -42,7 +42,7 @@ time = pyimport "time"
     fromisoformat: (time_string: Str) -> .Time
     replace: (self: .Time, hour := Nat, minute := Nat, second := Nat, microsecond := Nat, tzinfo := .TZInfo or NoneType) -> .Time
     isoformat: (self: .Time, timespec := Str) -> Str
-.DateTime = 'dateTime': ClassType
+.DateTime = 'datetime': ClassType
 .DateTime.
     __call__: (year: Nat, month: Nat, day: Nat, hour := Nat, minute := Nat, second := Nat, microsecond := Nat, tzinfo := .TZInfo or NoneType) -> .DateTime
     today!: () => .DateTime
