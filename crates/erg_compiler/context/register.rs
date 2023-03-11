@@ -43,6 +43,10 @@ use RegistrationMode::*;
 use super::instantiate::TyVarCache;
 use super::instantiate_spec::ParamKind;
 
+pub fn valid_mod_name(name: &str) -> bool {
+    !name.is_empty() && name.trim() == name
+}
+
 /// format:
 /// ```python
 /// #[pylyzer] succeed foo.py 1234567890
@@ -789,33 +793,8 @@ impl Context {
                     if let Err(errs) = self.preregister_def(def) {
                         total_errs.extend(errs.into_iter());
                     }
-                    // HACK: The constant expression evaluator can evaluate attributes when the type of the receiver is known.
-                    // import/pyimport is not a constant function, but specially assumes that the type of the module is known in the eval phase.
                     if def.def_kind().is_import() {
-                        let ast::Expr::Call(call) = def.body.block.first().unwrap() else { unreachable!() };
-                        let ast::Expr::Literal(mod_name) = call.args.get_left_or_key("Path").unwrap() else { todo!() };
-                        let mod_name = hir::Literal::try_from(mod_name.token.clone()).unwrap();
-                        let _ = self.import_mod(call.additional_operation().unwrap(), &mod_name);
-                        let arg = TyParam::Value(ValueObj::Str(
-                            mod_name.token.content.replace('\"', "").into(),
-                        ));
-                        let typ = if def.def_kind().is_erg_import() {
-                            Type::Poly {
-                                name: Str::ever("Module"),
-                                params: vec![arg],
-                            }
-                        } else {
-                            Type::Poly {
-                                name: Str::ever("PyModule"),
-                                params: vec![arg],
-                            }
-                        };
-                        let (_, vi) = self
-                            .get_var_info(def.sig.ident().unwrap().inspect())
-                            .unwrap();
-                        if let Type::FreeVar(fv) = &vi.t {
-                            fv.link(&typ);
-                        }
+                        self.pre_import(def);
                     }
                 }
                 ast::Expr::ClassDef(class_def) => {
@@ -835,6 +814,40 @@ impl Context {
             Ok(())
         } else {
             Err(total_errs)
+        }
+    }
+
+    /// HACK: The constant expression evaluator can evaluate attributes when the type of the receiver is known.
+    /// import/pyimport is not a constant function, but specially assumes that the type of the module is known in the eval phase.
+    fn pre_import(&mut self, def: &ast::Def) {
+        let Some(ast::Expr::Call(call)) = def.body.block.first() else { unreachable!() };
+        let Some(ast::Expr::Literal(mod_name)) = call.args.get_left_or_key("Path") else {
+            return;
+        };
+        let Ok(mod_name) = hir::Literal::try_from(mod_name.token.clone()) else {
+            return;
+        };
+        let _ = self.import_mod(call.additional_operation().unwrap(), &mod_name);
+        let arg = TyParam::Value(ValueObj::Str(
+            mod_name.token.content.replace('\"', "").into(),
+        ));
+        let typ = if def.def_kind().is_erg_import() {
+            Type::Poly {
+                name: Str::ever("Module"),
+                params: vec![arg],
+            }
+        } else {
+            Type::Poly {
+                name: Str::ever("PyModule"),
+                params: vec![arg],
+            }
+        };
+        let Some(ident) = def.sig.ident() else { return  };
+        let Some((_, vi)) = self.get_var_info(ident.inspect()) else {
+            return;
+        };
+        if let Type::FreeVar(fv) = &vi.t {
+            fv.link(&typ);
         }
     }
 
@@ -1624,28 +1637,39 @@ impl Context {
         kind: OperationKind,
         mod_name: &Literal,
     ) -> CompileResult<PathBuf> {
-        if kind.is_erg_import() {
-            self.import_erg_mod(mod_name)
-        } else {
-            self.import_py_mod(mod_name)
-        }
-    }
-
-    fn import_erg_mod(&self, mod_name: &Literal) -> CompileResult<PathBuf> {
-        let ValueObj::Str(__name__) = mod_name.value.clone() else {
+        let ValueObj::Str(__name__) = &mod_name.value else {
+            let name = if kind.is_erg_import() { "import" } else { "pyimport" };
             return Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
                 self.cfg.input.clone(),
                 line!() as usize,
                 mod_name.loc(),
                 self.caused_by(),
-                "import",
-                None,
+                name,
+                Some(1),
                 &Type::Str,
                 &mod_name.t(),
                 None,
                 None,
             )));
         };
+        if !valid_mod_name(__name__) {
+            return Err(TyCheckErrors::from(TyCheckError::syntax_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                mod_name.loc(),
+                self.caused_by(),
+                format!("{__name__} is not a valid module name"),
+                None,
+            )));
+        }
+        if kind.is_erg_import() {
+            self.import_erg_mod(__name__, mod_name)
+        } else {
+            self.import_py_mod(__name__, mod_name)
+        }
+    }
+
+    fn import_erg_mod(&self, __name__: &Str, loc: &impl Locational) -> CompileResult<PathBuf> {
         let mod_cache = self.mod_cache();
         let py_mod_cache = self.py_mod_cache();
         let path = match Self::resolve_real_path(&self.cfg, Path::new(&__name__[..])) {
@@ -1655,12 +1679,12 @@ impl Context {
                     self.cfg.input.clone(),
                     line!() as usize,
                     format!("module {__name__} not found"),
-                    mod_name.loc(),
+                    loc.loc(),
                     self.caused_by(),
-                    self.similar_builtin_erg_mod_name(&__name__)
-                        .or_else(|| mod_cache.get_similar_name(&__name__)),
-                    self.similar_builtin_py_mod_name(&__name__)
-                        .or_else(|| py_mod_cache.get_similar_name(&__name__)),
+                    self.similar_builtin_erg_mod_name(__name__)
+                        .or_else(|| mod_cache.get_similar_name(__name__)),
+                    self.similar_builtin_py_mod_name(__name__)
+                        .or_else(|| py_mod_cache.get_similar_name(__name__)),
                 ));
                 return Err(err);
             }
@@ -1747,11 +1771,11 @@ impl Context {
         }
     }
 
-    fn get_path(&self, mod_name: &Literal, __name__: Str) -> CompileResult<PathBuf> {
+    fn get_path(&self, __name__: &Str, loc: &impl Locational) -> CompileResult<PathBuf> {
         match Self::resolve_decl_path(&self.cfg, Path::new(&__name__[..])) {
             Some(path) => {
                 if Self::can_reuse(&path).is_none() {
-                    let _ = self.try_gen_py_decl_file(&__name__);
+                    let _ = self.try_gen_py_decl_file(__name__);
                 }
                 if self.is_pystd_main_module(path.as_path())
                     && !BUILTIN_PYTHON_MODS.contains(&&__name__[..])
@@ -1759,8 +1783,8 @@ impl Context {
                     let err = TyCheckError::module_env_error(
                         self.cfg.input.clone(),
                         line!() as usize,
-                        &__name__,
-                        mod_name.loc(),
+                        __name__,
+                        loc.loc(),
                         self.caused_by(),
                     );
                     return Err(TyCheckErrors::from(err));
@@ -1768,19 +1792,19 @@ impl Context {
                 Ok(path)
             }
             None => {
-                if let Ok(path) = self.try_gen_py_decl_file(&__name__) {
+                if let Ok(path) = self.try_gen_py_decl_file(__name__) {
                     return Ok(path);
                 }
                 let err = TyCheckError::import_error(
                     self.cfg.input.clone(),
                     line!() as usize,
                     format!("module {__name__} not found"),
-                    mod_name.loc(),
+                    loc.loc(),
                     self.caused_by(),
-                    self.similar_builtin_erg_mod_name(&__name__)
-                        .or_else(|| self.mod_cache().get_similar_name(&__name__)),
-                    self.similar_builtin_py_mod_name(&__name__)
-                        .or_else(|| self.py_mod_cache().get_similar_name(&__name__)),
+                    self.similar_builtin_erg_mod_name(__name__)
+                        .or_else(|| self.mod_cache().get_similar_name(__name__)),
+                    self.similar_builtin_py_mod_name(__name__)
+                        .or_else(|| self.py_mod_cache().get_similar_name(__name__)),
                 );
                 Err(TyCheckErrors::from(err))
             }
@@ -1814,23 +1838,9 @@ impl Context {
         Err(())
     }
 
-    fn import_py_mod(&self, mod_name: &Literal) -> CompileResult<PathBuf> {
-        let ValueObj::Str(__name__) = mod_name.value.clone() else {
-            return Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
-                self.cfg.input.clone(),
-                line!() as usize,
-                mod_name.loc(),
-                self.caused_by(),
-                "pyimport",
-                None,
-                &Type::Str,
-                &mod_name.t(),
-                None,
-                None,
-            )));
-        };
+    fn import_py_mod(&self, __name__: &Str, loc: &impl Locational) -> CompileResult<PathBuf> {
         let py_mod_cache = self.py_mod_cache();
-        let path = self.get_path(mod_name, __name__)?;
+        let path = self.get_path(__name__, loc)?;
         if let Some(referrer) = self.cfg.input.path() {
             let graph = &self.shared.as_ref().unwrap().graph;
             graph.inc_ref(referrer, path.clone());
