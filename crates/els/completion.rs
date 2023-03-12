@@ -4,7 +4,6 @@ use serde_json::Value;
 
 use erg_common::config::ErgConfig;
 use erg_common::dict::Dict;
-use erg_common::erg_util::BUILTIN_ERG_MODS;
 use erg_common::impl_u8_enum;
 use erg_common::python_util::BUILTIN_PYTHON_MODS;
 use erg_common::set::Set;
@@ -219,7 +218,7 @@ fn module_completions() -> Vec<CompletionItem> {
         comps.push(item);
     }
     #[cfg(not(feature = "py_compatible"))]
-    for mod_name in BUILTIN_ERG_MODS {
+    for mod_name in erg_common::erg_util::BUILTIN_ERG_MODS {
         let mut item = CompletionItem::new_simple(
             format!("{mod_name} (import from std)"),
             "Module".to_string(),

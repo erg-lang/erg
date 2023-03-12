@@ -55,13 +55,25 @@ impl Context {
     }
 
     pub(crate) fn get_current_scope_var(&self, name: &VarName) -> Option<&VarInfo> {
+        #[cfg(feature = "py_compatible")]
+        let search_name = self
+            .erg_to_py_names
+            .get(name.inspect())
+            .unwrap_or(name.inspect());
+        #[cfg(not(feature = "py_compatible"))]
+        let search_name = name.inspect();
         self.locals
-            .get(name)
-            .or_else(|| self.decls.get(name))
+            .get(search_name)
+            .or_else(|| self.decls.get(search_name))
             .or_else(|| {
                 self.params
                     .iter()
-                    .find(|(opt_name, _)| opt_name.as_ref().map(|n| n == name).unwrap_or(false))
+                    .find(|(opt_name, _)| {
+                        opt_name
+                            .as_ref()
+                            .map(|n| n.inspect() == search_name)
+                            .unwrap_or(false)
+                    })
                     .map(|(_, vi)| vi)
             })
             .or_else(|| {
@@ -75,13 +87,25 @@ impl Context {
     }
 
     pub(crate) fn get_mut_current_scope_var(&mut self, name: &VarName) -> Option<&mut VarInfo> {
+        #[cfg(feature = "py_compatible")]
+        let search_name = self
+            .erg_to_py_names
+            .get(name.inspect())
+            .unwrap_or(name.inspect());
+        #[cfg(not(feature = "py_compatible"))]
+        let search_name = name.inspect();
         self.locals
-            .get_mut(name)
-            .or_else(|| self.decls.get_mut(name))
+            .get_mut(search_name)
+            .or_else(|| self.decls.get_mut(search_name))
             .or_else(|| {
                 self.params
                     .iter_mut()
-                    .find(|(opt_name, _)| opt_name.as_ref().map(|n| n == name).unwrap_or(false))
+                    .find(|(opt_name, _)| {
+                        opt_name
+                            .as_ref()
+                            .map(|n| n.inspect() == search_name)
+                            .unwrap_or(false)
+                    })
                     .map(|(_, vi)| vi)
             })
             .or_else(|| {
@@ -95,6 +119,8 @@ impl Context {
     }
 
     pub(crate) fn get_var_kv(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
+        #[cfg(feature = "py_compatible")]
+        let name = self.erg_to_py_names.get(name).map_or(name, |s| &s[..]);
         self.locals
             .get_key_value(name)
             .or_else(|| self.decls.get_key_value(name))
@@ -902,12 +928,12 @@ impl Context {
     // HACK: dname.loc()はダミーLocationしか返さないので、エラーならop.loc()で上書きする
     fn append_loc_info(&self, e: TyCheckError, loc: Location) -> TyCheckError {
         if e.core.loc == Location::Unknown {
-            let mut sub_msges = Vec::new();
+            let mut sub_msgs = Vec::new();
             for sub_msg in e.core.sub_messages {
-                sub_msges.push(SubMessage::ambiguous_new(loc, sub_msg.msg, sub_msg.hint));
+                sub_msgs.push(SubMessage::ambiguous_new(loc, sub_msg.msg, sub_msg.hint));
             }
             let core = ErrorCore::new(
-                sub_msges,
+                sub_msgs,
                 e.core.main_message,
                 e.core.errno,
                 e.core.kind,
@@ -2390,6 +2416,8 @@ impl Context {
 
     /// you should use `get_type` instead of this
     pub(crate) fn rec_local_get_type(&self, name: &str) -> Option<(&Type, &Context)> {
+        #[cfg(feature = "py_compatible")]
+        let name = self.erg_to_py_names.get(name).map_or(name, |s| &s[..]);
         if let Some((t, ctx)) = self.mono_types.get(name) {
             Some((t, ctx))
         } else if let Some((t, ctx)) = self.poly_types.get(name) {
@@ -2402,6 +2430,8 @@ impl Context {
     }
 
     pub(crate) fn get_mut_type(&mut self, name: &str) -> Option<(&Type, &mut Context)> {
+        #[cfg(feature = "py_compatible")]
+        let name = self.erg_to_py_names.get(name).map_or(name, |s| &s[..]);
         if let Some((t, ctx)) = self.mono_types.get_mut(name) {
             Some((t, ctx))
         } else if let Some((t, ctx)) = self.poly_types.get_mut(name) {
