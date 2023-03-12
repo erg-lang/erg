@@ -252,6 +252,13 @@ impl Context {
             self.erg_to_py_names
                 .insert(ident.inspect().clone(), py_name.clone());
         }
+        let ident = if cfg!(feature = "py_compatible") && py_name.is_some() {
+            let mut symbol = ident.name.clone().into_token();
+            symbol.content = py_name.clone().unwrap();
+            Identifier::new(ident.vis.clone(), VarName::new(symbol))
+        } else {
+            ident.clone()
+        };
         let vis = self.instantiate_vis_modifier(&ident.vis)?;
         // already defined as const
         if sig.is_const() {

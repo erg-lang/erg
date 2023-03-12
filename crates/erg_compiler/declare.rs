@@ -69,7 +69,7 @@ impl ASTLowerer {
         } else {
             self.module
                 .context
-                .assign_var_sig(&sig, found_body_t, id, py_name.clone())?;
+                .assign_var_sig(&sig, found_body_t, id, None)?;
         }
         // FIXME: Identifier::new should be used
         let mut ident = hir::Identifier::bare(ident.clone());
@@ -551,7 +551,7 @@ impl ASTLowerer {
             };
             self.module.context.decls.insert(name, vi);
         }
-        let ident = if cfg!(feature = "py_compatible") {
+        let new_ident = if cfg!(feature = "py_compatible") {
             let mut symbol = ident.name.clone().into_token();
             symbol.content = py_name.clone();
             Identifier::new(ident.vis.clone(), VarName::new(symbol))
@@ -571,7 +571,7 @@ impl ASTLowerer {
                     Some(TypeObj::Builtin(Type::Uninited)),
                     None,
                 );
-                self.module.context.register_gen_type(&ident, ty_obj)?;
+                self.module.context.register_gen_type(&new_ident, ty_obj)?;
             }
             Type::TraitType => {
                 let ty_obj = GenTypeObj::trait_(
@@ -579,7 +579,7 @@ impl ASTLowerer {
                     TypeObj::Builtin(Type::Uninited),
                     None,
                 );
-                self.module.context.register_gen_type(&ident, ty_obj)?;
+                self.module.context.register_gen_type(&new_ident, ty_obj)?;
             }
             _ => {}
         }
