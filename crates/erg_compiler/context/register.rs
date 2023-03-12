@@ -248,6 +248,10 @@ impl Context {
             }
             _ => unreachable!(),
         };
+        if let Some(py_name) = &py_name {
+            self.erg_to_py_names
+                .insert(ident.inspect().clone(), py_name.clone());
+        }
         let vis = self.instantiate_vis_modifier(&ident.vis)?;
         // already defined as const
         if sig.is_const() {

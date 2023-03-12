@@ -427,10 +427,7 @@ impl ASTLowerer {
         let is_instance_ascription = tasc.is_instance_ascription();
         let mut dummy_tv_cache = TyVarCache::new(self.module.context.level, &self.module.context);
         match *tasc.expr {
-            ast::Expr::Accessor(ast::Accessor::Ident(mut ident)) => {
-                if cfg!(feature = "py_compatible") {
-                    ident.trim_end_proc_mark();
-                }
+            ast::Expr::Accessor(ast::Accessor::Ident(ident)) => {
                 let py_name = Str::rc(ident.inspect().trim_end_matches('!'));
                 let t = self.module.context.instantiate_typespec(
                     &tasc.t_spec.t_spec,
@@ -442,13 +439,12 @@ impl ASTLowerer {
                 t.lift();
                 let t = self.module.context.generalize_t(t);
                 if is_instance_ascription {
-                    self.declare_instance(&ident, &t, py_name)?;
+                    self.declare_instance(&ident, &t, py_name.clone())?;
                 } else {
                     self.declare_subtype(&ident, &t)?;
                 }
                 let muty = Mutability::from(&ident.inspect()[..]);
                 let vis = self.module.context.instantiate_vis_modifier(&ident.vis)?;
-                let py_name = Str::rc(ident.inspect().trim_end_matches('!'));
                 let vi = VarInfo::new(
                     t,
                     muty,
@@ -469,10 +465,7 @@ impl ASTLowerer {
                 );
                 Ok(hir::Expr::Accessor(hir::Accessor::Ident(ident)).type_asc(t_spec))
             }
-            ast::Expr::Accessor(ast::Accessor::Attr(mut attr)) => {
-                if cfg!(feature = "py_compatible") {
-                    attr.ident.trim_end_proc_mark();
-                }
+            ast::Expr::Accessor(ast::Accessor::Attr(attr)) => {
                 let py_name = Str::rc(attr.ident.inspect().trim_end_matches('!'));
                 let t = self.module.context.instantiate_typespec(
                     &tasc.t_spec.t_spec,
@@ -489,7 +482,7 @@ impl ASTLowerer {
                     &ast::VarSignature::new(ast::VarPattern::Ident(attr.ident.clone()), None),
                     &t,
                     ast::DefId(0),
-                    Some(py_name),
+                    Some(py_name.clone()),
                 )?;
                 let obj = self.fake_lower_expr(*attr.obj)?;
                 let muty = Mutability::from(&attr.ident.inspect()[..]);
@@ -497,7 +490,6 @@ impl ASTLowerer {
                     .module
                     .context
                     .instantiate_vis_modifier(&attr.ident.vis)?;
-                let py_name = Str::rc(attr.ident.inspect().trim_end_matches('!'));
                 let vi = VarInfo::new(
                     t,
                     muty,
@@ -560,10 +552,6 @@ impl ASTLowerer {
             self.module.context.decls.insert(name, vi);
         }
         let ident = if cfg!(feature = "py_compatible") {
-            self.module
-                .context
-                .erg_to_py_names
-                .insert(ident.inspect().clone(), py_name.clone());
             let mut symbol = ident.name.clone().into_token();
             symbol.content = py_name.clone();
             Identifier::new(ident.vis.clone(), VarName::new(symbol))

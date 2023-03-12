@@ -315,6 +315,15 @@ impl Context {
             FUNC_INT__
         };
         self.register_builtin_py_impl(FUNC_INT, t_int, Immutable, vis.clone(), Some(name));
+        if cfg!(feature = "debug") {
+            self.register_builtin_py_impl(
+                PY,
+                t_pyimport.clone(),
+                Immutable,
+                vis.clone(),
+                Some(FUNDAMENTAL_IMPORT),
+            );
+        }
         if !cfg!(feature = "py_compatible") {
             self.register_builtin_py_impl(FUNC_IF, t_if, Immutable, vis.clone(), Some(FUNC_IF__));
             self.register_builtin_py_impl(
@@ -352,15 +361,6 @@ impl Context {
                 vis.clone(),
                 Some(FUNC_QUIT),
             );
-            if cfg!(feature = "debug") {
-                self.register_builtin_py_impl(
-                    PY,
-                    t_pyimport,
-                    Immutable,
-                    vis.clone(),
-                    Some(FUNDAMENTAL_IMPORT),
-                );
-            }
             self.register_builtin_py_impl(
                 PYCOMPILE,
                 t_pycompile,
@@ -417,7 +417,14 @@ impl Context {
                 dict! { T => U }.into(),
             )
             .quantify();
-            self.register_builtin_py_impl(FUNC_DICT, t_dict, Immutable, vis, Some(FUNC_DICT));
+            self.register_builtin_py_impl(
+                FUNC_DICT,
+                t_dict,
+                Immutable,
+                vis.clone(),
+                Some(FUNC_DICT),
+            );
+            self.register_builtin_py_impl(PYIMPORT, t_pyimport, Immutable, vis, None);
         }
     }
 
