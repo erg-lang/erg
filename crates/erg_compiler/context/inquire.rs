@@ -2268,6 +2268,8 @@ impl Context {
 
     // rec_get_const_localとは違い、位置情報を持たないしエラーとならない
     pub(crate) fn rec_get_const_obj(&self, name: &str) -> Option<&ValueObj> {
+        #[cfg(feature = "py_compatible")]
+        let name = self.erg_to_py_names.get(name).map_or(name, |s| &s[..]);
         if let Some(val) = self.consts.get(name) {
             return Some(val);
         }
