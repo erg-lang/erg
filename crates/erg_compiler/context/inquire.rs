@@ -2343,6 +2343,8 @@ impl Context {
 
     /// you should use `get_mono_type` instead of this
     pub(crate) fn rec_local_get_mono_type(&self, name: &str) -> Option<(&Type, &Context)> {
+        #[cfg(feature = "py_compatible")]
+        let name = self.erg_to_py_names.get(name).map_or(name, |s| &s[..]);
         if let Some((t, ctx)) = self.mono_types.get(name) {
             Some((t, ctx))
         } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
@@ -2353,6 +2355,8 @@ impl Context {
     }
 
     pub(crate) fn _rec_local_get_poly_type(&self, name: &str) -> Option<(&Type, &Context)> {
+        #[cfg(feature = "py_compatible")]
+        let name = self.erg_to_py_names.get(name).map_or(name, |s| &s[..]);
         if let Some((t, ctx)) = self.poly_types.get(name) {
             Some((t, ctx))
         } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
@@ -2363,6 +2367,8 @@ impl Context {
     }
 
     fn rec_get_mut_mono_type(&mut self, name: &str) -> Option<(&mut Type, &mut Context)> {
+        #[cfg(feature = "py_compatible")]
+        let name = self.erg_to_py_names.get(name).map_or(name, |s| &s[..]);
         if let Some((t, ctx)) = self.mono_types.get_mut(name) {
             Some((t, ctx))
         } else if let Some(outer) = self.outer.as_mut() {
@@ -2374,6 +2380,8 @@ impl Context {
     }
 
     fn rec_get_mut_poly_type(&mut self, name: &str) -> Option<(&mut Type, &mut Context)> {
+        #[cfg(feature = "py_compatible")]
+        let name = self.erg_to_py_names.get(name).map_or(name, |s| &s[..]);
         if let Some((t, ctx)) = self.poly_types.get_mut(name) {
             Some((t, ctx))
         } else if let Some(outer) = self.outer.as_mut() {

@@ -417,14 +417,14 @@ impl Context {
                 dict! { T => U }.into(),
             )
             .quantify();
+            self.register_builtin_py_impl(FUNC_DICT, t_dict, Immutable, vis, Some(FUNC_DICT));
             self.register_builtin_py_impl(
-                FUNC_DICT,
-                t_dict,
+                PYIMPORT,
+                t_pyimport,
                 Immutable,
-                vis.clone(),
-                Some(FUNC_DICT),
+                Visibility::BUILTIN_PRIVATE,
+                None,
             );
-            self.register_builtin_py_impl(PYIMPORT, t_pyimport, Immutable, vis, None);
         }
     }
 
