@@ -29,10 +29,10 @@ use crate::context::{
     ClassDefType, Context, ContextKind, MethodInfo, ModuleContext, ParamSpec, TraitImpl,
 };
 use crate::module::SharedCompilerResource;
+use crate::ty::constructors::*;
 use crate::ty::free::Constraint;
 use crate::ty::value::ValueObj;
-use crate::ty::{constructors::*, BuiltinConstSubr, ConstSubr, Predicate};
-use crate::ty::{Type, Visibility};
+use crate::ty::{BuiltinConstSubr, ConstSubr, Predicate, Type, Visibility};
 use crate::varinfo::{AbsLocation, Mutability, VarInfo, VarKind};
 use Mutability::*;
 use ParamSpec as PS;
@@ -686,12 +686,13 @@ impl Context {
         } else if self.rec_get_const_obj(&t.local_name()).is_some() {
             panic!("{} has already been registered as const", t.local_name());
         } else {
-            let name = VarName::from_str(t.local_name());
-            let meta_t = match ctx.kind {
-                ContextKind::Class => Type::ClassType,
-                ContextKind::Trait => Type::TraitType,
-                _ => Type::Type,
+            let val = match ctx.kind {
+                ContextKind::Class => ValueObj::builtin_class(t.clone()),
+                ContextKind::Trait => ValueObj::builtin_trait(t.clone()),
+                _ => ValueObj::builtin_type(t.clone()),
             };
+            let name = VarName::from_str(t.local_name());
+            let meta_t = v_enum(set! { val.clone() });
             self.locals.insert(
                 name.clone(),
                 VarInfo::new(
@@ -705,8 +706,7 @@ impl Context {
                     AbsLocation::unknown(),
                 ),
             );
-            self.consts
-                .insert(name.clone(), ValueObj::builtin_t(t.clone()));
+            self.consts.insert(name.clone(), val);
             for impl_trait in ctx.super_traits.iter() {
                 if let Some(impls) = self.trait_impls().get_mut(&impl_trait.qual_name()) {
                     impls.insert(TraitImpl::new(t.clone(), impl_trait.clone()));
@@ -754,12 +754,13 @@ impl Context {
         if let Some((_, root_ctx)) = self.poly_types.get_mut(&t.local_name()) {
             root_ctx.methods_list.push((ClassDefType::Simple(t), ctx));
         } else {
-            let name = VarName::from_str(t.local_name());
-            let meta_t = match ctx.kind {
-                ContextKind::Class => Type::ClassType,
-                ContextKind::Trait => Type::TraitType,
-                _ => Type::Type,
+            let val = match ctx.kind {
+                ContextKind::Class => ValueObj::builtin_class(t.clone()),
+                ContextKind::Trait => ValueObj::builtin_trait(t.clone()),
+                _ => ValueObj::builtin_type(t.clone()),
             };
+            let name = VarName::from_str(t.local_name());
+            let meta_t = v_enum(set! { val.clone() });
             if !cfg!(feature = "py_compatible") {
                 self.locals.insert(
                     name.clone(),
@@ -775,8 +776,7 @@ impl Context {
                     ),
                 );
             }
-            self.consts
-                .insert(name.clone(), ValueObj::builtin_t(t.clone()));
+            self.consts.insert(name.clone(), val);
             for impl_trait in ctx.super_traits.iter() {
                 if let Some(impls) = self.trait_impls().get_mut(&impl_trait.qual_name()) {
                     impls.insert(TraitImpl::new(t.clone(), impl_trait.clone()));

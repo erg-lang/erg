@@ -40,7 +40,7 @@ impl Context {
         interval_add.register_builtin_const(
             "Output",
             Visibility::BUILTIN_PUBLIC,
-            ValueObj::builtin_t(Type::from(m.clone() + o.clone()..=n.clone() + p.clone())),
+            ValueObj::builtin_class(Type::from(m.clone() + o.clone()..=n.clone() + p.clone())),
         );
         interval.register_trait(class.clone(), interval_add);
         let mut interval_sub =
@@ -55,7 +55,7 @@ impl Context {
         interval_sub.register_builtin_const(
             "Output",
             Visibility::BUILTIN_PUBLIC,
-            ValueObj::builtin_t(Type::from(m - p..=n - o)),
+            ValueObj::builtin_class(Type::from(m - p..=n - o)),
         );
         interval.register_trait(class, interval_sub);
         self.register_builtin_patch("Interval", interval, Visibility::BUILTIN_PRIVATE, Const);

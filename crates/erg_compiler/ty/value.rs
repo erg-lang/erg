@@ -348,14 +348,14 @@ impl GenTypeObj {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum TypeObj {
-    Builtin(Type),
+    Builtin { t: Type, meta_t: Type },
     Generated(GenTypeObj),
 }
 
 impl fmt::Display for TypeObj {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            TypeObj::Builtin(t) => {
+            TypeObj::Builtin { t, .. } => {
                 if cfg!(feature = "debug") {
                     write!(f, "<type {t}>")
                 } else {
@@ -374,30 +374,44 @@ impl fmt::Display for TypeObj {
 }
 
 impl TypeObj {
+    pub fn builtin_type(t: Type) -> Self {
+        TypeObj::Builtin {
+            t,
+            meta_t: Type::Type,
+        }
+    }
+
+    pub fn builtin_trait(t: Type) -> Self {
+        TypeObj::Builtin {
+            t,
+            meta_t: Type::TraitType,
+        }
+    }
+
     pub fn typ(&self) -> &Type {
         match self {
-            TypeObj::Builtin(t) => t,
+            TypeObj::Builtin { t, .. } => t,
             TypeObj::Generated(t) => t.typ(),
         }
     }
 
     pub fn typ_mut(&mut self) -> &mut Type {
         match self {
-            TypeObj::Builtin(t) => t,
+            TypeObj::Builtin { t, .. } => t,
             TypeObj::Generated(t) => t.typ_mut(),
         }
     }
 
     pub fn into_typ(self) -> Type {
         match self {
-            TypeObj::Builtin(t) => t,
+            TypeObj::Builtin { t, .. } => t,
             TypeObj::Generated(t) => t.into_typ(),
         }
     }
 
     pub fn contains_intersec(&self, other: &Type) -> bool {
         match self {
-            TypeObj::Builtin(t) => t.contains_intersec(other),
+            TypeObj::Builtin { t, .. } => t.contains_intersec(other),
             TypeObj::Generated(t) => t.typ().contains_intersec(other),
         }
     }
@@ -667,7 +681,7 @@ impl TryFrom<ValueObj> for Type {
     fn try_from(val: ValueObj) -> Result<Type, ()> {
         match val {
             ValueObj::Type(t) => match t {
-                TypeObj::Builtin(t) => Ok(t),
+                TypeObj::Builtin { t, .. } => Ok(t),
                 TypeObj::Generated(gen) => Ok(gen.into_typ()),
             },
             ValueObj::Mut(v) => Type::try_from(v.borrow().clone()).map_err(|_| ()),
@@ -681,7 +695,7 @@ impl<'a> TryFrom<&'a ValueObj> for &'a Type {
     fn try_from(val: &'a ValueObj) -> Result<Self, ()> {
         match val {
             ValueObj::Type(t) => match t {
-                TypeObj::Builtin(t) => Ok(t),
+                TypeObj::Builtin { t, .. } => Ok(t),
                 TypeObj::Generated(gen) => Ok(gen.typ()),
             },
             _ => Err(()),
@@ -712,8 +726,25 @@ impl HasType for ValueObj {
 }
 
 impl ValueObj {
-    pub fn builtin_t(t: Type) -> Self {
-        ValueObj::Type(TypeObj::Builtin(t))
+    pub fn builtin_class(t: Type) -> Self {
+        ValueObj::Type(TypeObj::Builtin {
+            t,
+            meta_t: Type::ClassType,
+        })
+    }
+
+    pub fn builtin_trait(t: Type) -> Self {
+        ValueObj::Type(TypeObj::Builtin {
+            t,
+            meta_t: Type::TraitType,
+        })
+    }
+
+    pub fn builtin_type(t: Type) -> Self {
+        ValueObj::Type(TypeObj::Builtin {
+            t,
+            meta_t: Type::Type,
+        })
     }
 
     pub fn gen_t(gen: GenTypeObj) -> Self {
@@ -916,8 +947,7 @@ impl ValueObj {
             Self::DataClass { name, .. } => Type::Mono(name.clone()),
             Self::Subr(subr) => subr.sig_t().clone(),
             Self::Type(t_obj) => match t_obj {
-                // TODO: builtin
-                TypeObj::Builtin(_t) => Type::Type,
+                TypeObj::Builtin { meta_t, .. } => meta_t.clone(),
                 TypeObj::Generated(gen_t) => gen_t.meta_type(),
             },
             Self::None => Type::NoneType,
@@ -962,6 +992,9 @@ impl ValueObj {
     }
 
     pub fn try_cmp(&self, other: &Self) -> Option<Ordering> {
+        if self == other {
+            return Some(Ordering::Equal);
+        }
         match (self, other) {
             (l, r) if l.is_num() && r.is_num() => {
                 f64::try_from(l).ok()?.partial_cmp(&f64::try_from(r).ok()?)
@@ -1278,14 +1311,14 @@ impl ValueObj {
     pub fn try_get_attr(&self, attr: &Field) -> Option<Self> {
         match self {
             Self::Type(typ) => match typ {
-                TypeObj::Builtin(builtin) => {
+                TypeObj::Builtin { t: builtin, .. } => {
                     log!(err "TODO: {builtin}{attr}");
                     None
                 }
                 TypeObj::Generated(gen) => match gen.typ() {
                     Type::Record(rec) => {
                         let t = rec.get(attr)?;
-                        Some(ValueObj::builtin_t(t.clone()))
+                        Some(ValueObj::builtin_type(t.clone()))
                     }
                     _ => None,
                 },
@@ -1306,9 +1339,9 @@ impl ValueObj {
                 for (k, v) in rec.iter() {
                     attr_ts.insert(k.clone(), v.as_type()?.typ().clone());
                 }
-                Some(TypeObj::Builtin(Type::Record(attr_ts)))
+                Some(TypeObj::builtin_type(Type::Record(attr_ts)))
             }
-            Self::Subr(subr) => subr.as_type().map(TypeObj::Builtin),
+            Self::Subr(subr) => subr.as_type().map(TypeObj::builtin_type),
             Self::Array(elems) | Self::Tuple(elems) => {
                 log!(err "as_type({})", erg_common::fmt_vec(elems));
                 None

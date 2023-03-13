@@ -539,7 +539,7 @@ impl TryFrom<TyParam> for ValueObj {
                 Ok(ValueObj::Subr(ConstSubr::User(lambda)))
             }
             TyParam::FreeVar(fv) if fv.is_linked() => ValueObj::try_from(fv.crack().clone()),
-            TyParam::Type(t) => Ok(ValueObj::builtin_t(*t)),
+            TyParam::Type(t) => Ok(ValueObj::builtin_type(*t)),
             TyParam::Value(v) => Ok(v),
             _ => {
                 log!(err "Expected value, got {:?}", tp);

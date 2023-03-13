@@ -308,23 +308,23 @@ impl Context {
         self.register_builtin_type(mono(NEG), neg, vis, Const, None);
         self.register_const_param_defaults(
             ADD,
-            vec![ConstTemplate::Obj(ValueObj::builtin_t(Slf.clone()))],
+            vec![ConstTemplate::Obj(ValueObj::builtin_type(Slf.clone()))],
         );
         self.register_const_param_defaults(
             SUB,
-            vec![ConstTemplate::Obj(ValueObj::builtin_t(Slf.clone()))],
+            vec![ConstTemplate::Obj(ValueObj::builtin_type(Slf.clone()))],
         );
         self.register_const_param_defaults(
             MUL,
-            vec![ConstTemplate::Obj(ValueObj::builtin_t(Slf.clone()))],
+            vec![ConstTemplate::Obj(ValueObj::builtin_type(Slf.clone()))],
         );
         self.register_const_param_defaults(
             DIV,
-            vec![ConstTemplate::Obj(ValueObj::builtin_t(Slf.clone()))],
+            vec![ConstTemplate::Obj(ValueObj::builtin_type(Slf.clone()))],
         );
         self.register_const_param_defaults(
             FLOOR_DIV,
-            vec![ConstTemplate::Obj(ValueObj::builtin_t(Slf))],
+            vec![ConstTemplate::Obj(ValueObj::builtin_type(Slf))],
         );
     }
 }

@@ -1,13 +1,13 @@
 use erg_common::traits::{Locational, Runnable, Stream};
-use erg_common::{enum_unwrap, fn_name, log, Str};
+use erg_common::{enum_unwrap, fn_name, log, set, Str};
 
 use erg_parser::ast::{self, Identifier, VarName, AST};
 
 use crate::context::instantiate::TyVarCache;
 use crate::lower::ASTLowerer;
-use crate::ty::constructors::mono;
+use crate::ty::constructors::{mono, v_enum};
 use crate::ty::free::HasLevel;
-use crate::ty::value::{GenTypeObj, TypeObj};
+use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{HasType, Type, Visibility};
 
 use crate::compile::AccessKind;
@@ -526,6 +526,7 @@ impl ASTLowerer {
         t: &Type,
         py_name: Str,
     ) -> LowerResult<()> {
+        log!(err "{ident}(= {py_name}): {t}");
         // .X = 'x': Type
         if ident.is_raw() {
             return Ok(());
@@ -558,30 +559,30 @@ impl ASTLowerer {
         } else {
             ident.clone()
         };
+        let (t, ty_obj) = match t {
+            Type::ClassType => {
+                let t = mono(format!("{}{ident}", self.module.context.path()));
+                let ty_obj = GenTypeObj::class(t.clone(), None, None);
+                let t = v_enum(set! { ValueObj::builtin_class(t) });
+                (t, Some(ty_obj))
+            }
+            Type::TraitType => {
+                let t = mono(format!("{}{ident}", self.module.context.path()));
+                let ty_obj =
+                    GenTypeObj::trait_(t.clone(), TypeObj::builtin_type(Type::Uninited), None);
+                let t = v_enum(set! { ValueObj::builtin_trait(t) });
+                (t, Some(ty_obj))
+            }
+            _ => (t.clone(), None),
+        };
         self.module.context.assign_var_sig(
             &ast::VarSignature::new(ast::VarPattern::Ident(ident.clone()), None),
-            t,
+            &t,
             ast::DefId(0),
             Some(py_name),
         )?;
-        match t {
-            Type::ClassType => {
-                let ty_obj = GenTypeObj::class(
-                    mono(format!("{}{ident}", self.module.context.path())),
-                    Some(TypeObj::Builtin(Type::Uninited)),
-                    None,
-                );
-                self.module.context.register_gen_type(&new_ident, ty_obj)?;
-            }
-            Type::TraitType => {
-                let ty_obj = GenTypeObj::trait_(
-                    mono(format!("{}{ident}", self.module.context.path())),
-                    TypeObj::Builtin(Type::Uninited),
-                    None,
-                );
-                self.module.context.register_gen_type(&new_ident, ty_obj)?;
-            }
-            _ => {}
+        if let Some(gen) = ty_obj {
+            self.module.context.register_gen_type(&new_ident, gen)?;
         }
         Ok(())
     }

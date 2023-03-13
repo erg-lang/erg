@@ -717,7 +717,29 @@ impl Context {
 
     fn eval_or_type(&self, lhs: TypeObj, rhs: TypeObj) -> ValueObj {
         match (lhs, rhs) {
-            (TypeObj::Builtin(l), TypeObj::Builtin(r)) => ValueObj::builtin_t(self.union(&l, &r)),
+            (
+                TypeObj::Builtin {
+                    t: l,
+                    meta_t: Type::ClassType,
+                },
+                TypeObj::Builtin {
+                    t: r,
+                    meta_t: Type::ClassType,
+                },
+            ) => ValueObj::builtin_class(self.union(&l, &r)),
+            (
+                TypeObj::Builtin {
+                    t: l,
+                    meta_t: Type::TraitType,
+                },
+                TypeObj::Builtin {
+                    t: r,
+                    meta_t: Type::TraitType,
+                },
+            ) => ValueObj::builtin_trait(self.union(&l, &r)),
+            (TypeObj::Builtin { t: l, meta_t: _ }, TypeObj::Builtin { t: r, meta_t: _ }) => {
+                ValueObj::builtin_type(self.union(&l, &r))
+            }
             (lhs, rhs) => ValueObj::gen_t(GenTypeObj::union(
                 self.union(lhs.typ(), rhs.typ()),
                 lhs,
@@ -728,8 +750,28 @@ impl Context {
 
     fn eval_and_type(&self, lhs: TypeObj, rhs: TypeObj) -> ValueObj {
         match (lhs, rhs) {
-            (TypeObj::Builtin(l), TypeObj::Builtin(r)) => {
-                ValueObj::builtin_t(self.intersection(&l, &r))
+            (
+                TypeObj::Builtin {
+                    t: l,
+                    meta_t: Type::ClassType,
+                },
+                TypeObj::Builtin {
+                    t: r,
+                    meta_t: Type::ClassType,
+                },
+            ) => ValueObj::builtin_class(self.intersection(&l, &r)),
+            (
+                TypeObj::Builtin {
+                    t: l,
+                    meta_t: Type::TraitType,
+                },
+                TypeObj::Builtin {
+                    t: r,
+                    meta_t: Type::TraitType,
+                },
+            ) => ValueObj::builtin_trait(self.intersection(&l, &r)),
+            (TypeObj::Builtin { t: l, meta_t: _ }, TypeObj::Builtin { t: r, meta_t: _ }) => {
+                ValueObj::builtin_type(self.intersection(&l, &r))
             }
             (lhs, rhs) => ValueObj::gen_t(GenTypeObj::intersection(
                 self.intersection(lhs.typ(), rhs.typ()),
@@ -741,7 +783,15 @@ impl Context {
 
     fn eval_not_type(&self, ty: TypeObj) -> ValueObj {
         match ty {
-            TypeObj::Builtin(l) => ValueObj::builtin_t(self.complement(&l)),
+            TypeObj::Builtin {
+                t,
+                meta_t: Type::ClassType,
+            } => ValueObj::builtin_class(self.complement(&t)),
+            TypeObj::Builtin {
+                t,
+                meta_t: Type::TraitType,
+            } => ValueObj::builtin_trait(self.complement(&t)),
+            TypeObj::Builtin { t, meta_t: _ } => ValueObj::builtin_type(self.complement(&t)),
             // FIXME:
             _ => ValueObj::Illegal,
         }
@@ -1208,7 +1258,7 @@ impl Context {
             Type::Poly { name, params } if &name[..] == "Array" || &name[..] == "Array!" => {
                 let t = self.convert_tp_into_ty(params[0].clone())?;
                 let len = enum_unwrap!(params[1], TyParam::Value:(ValueObj::Nat:(_)));
-                Ok(vec![ValueObj::builtin_t(t); len as usize])
+                Ok(vec![ValueObj::builtin_type(t); len as usize])
             }
             _ => Err(()),
         }

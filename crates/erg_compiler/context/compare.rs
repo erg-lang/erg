@@ -529,9 +529,7 @@ impl Context {
                 if !self.supertype_of(&l.t, &r.t) {
                     return false;
                 }
-                l.pred.subject().unwrap_or("") == &l.var[..]
-                    && r.pred.subject().unwrap_or("") == &r.var[..]
-                    && self.is_super_pred_of(&l.pred, &r.pred)
+                self.is_super_pred_of(&l.pred, &r.pred)
             }
             (Nat, re @ Refinement(_)) => {
                 let nat = Type::Refinement(Nat.into_refinement());
@@ -811,6 +809,9 @@ impl Context {
     }
 
     pub(crate) fn try_cmp(&self, l: &TyParam, r: &TyParam) -> Option<TyParamOrdering> {
+        if l == r {
+            return Some(Equal);
+        }
         match (l, r) {
             (TyParam::Value(l), TyParam::Value(r)) =>
                 l.try_cmp(r).map(Into::into),

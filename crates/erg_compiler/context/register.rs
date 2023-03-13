@@ -13,7 +13,7 @@ use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
 use erg_common::triple::Triple;
 use erg_common::Str;
-use erg_common::{enum_unwrap, get_hash, log, set};
+use erg_common::{get_hash, log, set};
 
 use ast::{ConstIdentifier, Decorator, DefId, Identifier, OperationKind, SimpleTypeSpec, VarName};
 use erg_parser::ast::{self, PreDeclTypeSpec};
@@ -1122,10 +1122,11 @@ impl Context {
             match obj {
                 ValueObj::Type(t) => match t {
                     TypeObj::Generated(gen) if alias => {
-                        self.register_type_alias(ident, gen.into_typ())
+                        let meta_t = gen.meta_type();
+                        self.register_type_alias(ident, gen.into_typ(), meta_t)
                     }
                     TypeObj::Generated(gen) => self.register_gen_type(ident, gen),
-                    TypeObj::Builtin(t) => self.register_type_alias(ident, t),
+                    TypeObj::Builtin { t, meta_t } => self.register_type_alias(ident, t, meta_t),
                 },
                 // TODO: not all value objects are comparable
                 other => {
@@ -1169,7 +1170,10 @@ impl Context {
                         Self::methods(None, self.cfg.clone(), self.shared.clone(), 2, self.level);
                     let new_t = if let Some(base) = gen.base_or_sup() {
                         match base {
-                            TypeObj::Builtin(Type::Record(rec)) => {
+                            TypeObj::Builtin {
+                                t: Type::Record(rec),
+                                ..
+                            } => {
                                 for (field, t) in rec.iter() {
                                     let varname = VarName::from_str(field.symbol.clone());
                                     let vi = VarInfo::instance_attr(
@@ -1261,7 +1265,7 @@ impl Context {
                             )));
                         };
                         let param_t = match sup {
-                            TypeObj::Builtin(t) => t,
+                            TypeObj::Builtin { t, .. } => t,
                             TypeObj::Generated(t) => {
                                 if let Some(t) = t.base_or_sup() {
                                     t.typ()
@@ -1280,7 +1284,11 @@ impl Context {
                         // `Super.Requirement := {x = Int}` and `Self.Additional := {y = Int}`
                         // => `Self.Requirement := {x = Int; y = Int}`
                         let param_t = if let Some(additional) = gen.additional() {
-                            if let TypeObj::Builtin(Type::Record(rec)) = additional {
+                            if let TypeObj::Builtin {
+                                t: Type::Record(rec),
+                                ..
+                            } = additional
+                            {
                                 for (field, t) in rec.iter() {
                                     let varname = VarName::from_str(field.symbol.clone());
                                     let vi = VarInfo::instance_attr(
@@ -1345,7 +1353,7 @@ impl Context {
                         2,
                         self.level,
                     );
-                    let Some(TypeObj::Builtin(Type::Record(req))) = gen.base_or_sup() else { todo!("{gen}") };
+                    let Some(TypeObj::Builtin{ t: Type::Record(req), .. }) = gen.base_or_sup() else { todo!("{gen}") };
                     for (field, t) in req.iter() {
                         let vi = VarInfo::instance_attr(
                             field.clone(),
@@ -1378,9 +1386,15 @@ impl Context {
                         2,
                         self.level,
                     );
-                    let additional = gen.additional().map(
-                        |additional| enum_unwrap!(additional, TypeObj::Builtin:(Type::Record:(_))),
-                    );
+                    let additional = if let Some(TypeObj::Builtin {
+                        t: Type::Record(additional),
+                        ..
+                    }) = gen.additional()
+                    {
+                        Some(additional)
+                    } else {
+                        None
+                    };
                     if let Some(additional) = additional {
                         for (field, t) in additional.iter() {
                             let vi = VarInfo::instance_attr(
@@ -1413,7 +1427,7 @@ impl Context {
             }
             GenTypeObj::Patch(_) => {
                 if gen.typ().is_monomorphic() {
-                    let Some(TypeObj::Builtin(base)) = gen.base_or_sup() else { todo!("{gen}") };
+                    let Some(TypeObj::Builtin{ t: base, .. }) = gen.base_or_sup() else { todo!("{gen}") };
                     let ctx = Self::mono_patch(
                         gen.typ().qual_name(),
                         base.clone(),
@@ -1443,7 +1457,12 @@ impl Context {
         }
     }
 
-    pub(crate) fn register_type_alias(&mut self, ident: &Identifier, t: Type) -> CompileResult<()> {
+    pub(crate) fn register_type_alias(
+        &mut self,
+        ident: &Identifier,
+        t: Type,
+        meta_t: Type,
+    ) -> CompileResult<()> {
         let vis = self.instantiate_vis_modifier(&ident.vis)?;
         if self.mono_types.contains_key(ident.inspect()) {
             Err(CompileErrors::from(CompileError::reassign_error(
@@ -1466,7 +1485,7 @@ impl Context {
             let name = &ident.name;
             let muty = Mutability::from(&ident.inspect()[..]);
             let id = DefId(get_hash(&(&self.name, &name)));
-            let val = ValueObj::Type(TypeObj::Builtin(t));
+            let val = ValueObj::Type(TypeObj::Builtin { t, meta_t });
             let vi = VarInfo::new(
                 v_enum(set! { val.clone() }),
                 muty,
@@ -1511,7 +1530,8 @@ impl Context {
             )))
         } else {
             let t = gen.typ().clone();
-            let meta_t = gen.meta_type();
+            let val = ValueObj::Type(TypeObj::Generated(gen));
+            let meta_t = v_enum(set! { val.clone() });
             let name = &ident.name;
             let id = DefId(get_hash(&(&self.name, &name)));
             let vi = VarInfo::new(
@@ -1526,8 +1546,7 @@ impl Context {
             );
             self.index().register(&vi);
             self.decls.insert(name.clone(), vi);
-            self.consts
-                .insert(name.clone(), ValueObj::Type(TypeObj::Generated(gen)));
+            self.consts.insert(name.clone(), val);
             for impl_trait in ctx.super_traits.iter() {
                 if let Some(impls) = self.trait_impls().get_mut(&impl_trait.qual_name()) {
                     impls.insert(TraitImpl::new(t.clone(), impl_trait.clone()));

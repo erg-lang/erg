@@ -137,6 +137,11 @@ fn exec_pattern() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_pyimport_test() -> Result<(), ()> {
+    expect_success("tests/should_ok/pyimport.er")
+}
+
+#[test]
 fn exec_quantified() -> Result<(), ()> {
     expect_success("examples/quantified.er")
 }

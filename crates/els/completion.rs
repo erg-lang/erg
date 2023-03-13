@@ -190,7 +190,7 @@ fn external_item(name: &str, vi: &VarInfo, mod_name: &str) -> CompletionItem {
         range: Range::new(Position::new(0, 0), Position::new(0, 0)),
         new_text: import,
     }]);
-    item.insert_text = Some(name.to_string());
+    item.insert_text = Some(name.trim_end_matches('\0').to_string());
     item.filter_text = Some(name.to_string());
     item
 }
@@ -213,7 +213,7 @@ fn module_completions() -> Vec<CompletionItem> {
             range: Range::new(Position::new(0, 0), Position::new(0, 0)),
             new_text: import,
         }]);
-        item.insert_text = Some(mod_name.to_string());
+        item.insert_text = Some(mod_name.trim_end_matches('\0').to_string());
         item.filter_text = Some(mod_name.to_string());
         comps.push(item);
     }
@@ -376,14 +376,15 @@ impl<Checker: BuildRunnable> Server<Checker> {
             if comp_kind.should_be_method() && vi.vis.is_private() {
                 continue;
             }
-            let label = name.to_string();
+            let label = name.inspect();
             // don't show overriden items
-            if already_appeared.contains(&label) {
+            if already_appeared.contains(&label[..]) {
                 continue;
             }
             if label.starts_with('%') {
                 continue;
             }
+            let label = label.trim_end_matches('\0').to_string();
             // don't show future defined items
             if vi.def_loc.module.as_ref() == Some(&path)
                 && name.ln_begin().unwrap_or(0) > pos.line + 1
