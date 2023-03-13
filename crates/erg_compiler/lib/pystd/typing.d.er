@@ -1,12 +1,18 @@
-.Any: Type
-.LiteralString: Type
-.Never: Type
-.NoReturn: Type
-.Self: Type
-.TypeAlias: Type
-.Tuple: (*Type) -> Type
-.Union: (*Type) -> Type
-.Optional: (Type) -> Type
+.Any: ClassType
+.LiteralString: ClassType
+.Never: ClassType
+.NoReturn: ClassType
+.Self: ClassType
+.TypeAlias: ClassType
+.Tuple: ClassType
+.Tuple.
+    __call__: (*Type) -> Type
+.Union: ClassType
+.Union.
+    __call__: (*Type) -> Type
+.Optional: ClassType
+.Optional.
+    __call__: (Type) -> Type
 .Callable: (*Type) -> Type
 .Concatenate: (*Type) -> Type
 .Type: (Type) -> Type
@@ -17,14 +23,20 @@
 .NotRequired: (Type) -> Type
 .Annotated: (Type, *Obj) -> Type
 .TypeGuard: (Type) -> Type
-.Generic: (Type) -> Type
-.TypeVar: (Str) -> Type
-.TypeVarTuple: (Str) -> Type
+.Generic: ClassType
+.Generic.
+    __call__: (Type) -> Type
+.TypeVar: ClassType
+.TypeVar.
+    __call__: (Str) -> Type
+.TypeVarTuple: ClassType
+.TypeVarTuple.
+    __call__: (Str) -> Type
 .Unpack: (Type) -> Type
 .ParamSpec: (Str) -> Type
-.AnyStr: Type
+.AnyStr: ClassType
 .Protocol: (Type := NoneType) -> Type
-.NamedTuple: Type
+.NamedTuple: ClassType
 .NewType: (Str, Type) -> Type
 .TypedDict: (Str, Type) -> Type
 .Dict: (Type, Type) -> Type
@@ -35,10 +47,15 @@
 .ChainMap: (Type, Type) -> Type
 .Counter: (Type, Int) -> Type
 .Deque: (Type) -> Type
-.IO: Type
-.TextIO: Type
-.BinaryIO: Type
-.Pattern: Type
-.Match: Type
-.Text: Type
+.IO: ClassType
+.TextIO: ClassType
+.BinaryIO: ClassType
+.Pattern: ClassType
+.Match: ClassType
+.Text: ClassType
 .Sequence: (Type) -> Type
+
+.cast: (typ: Type, val: Obj) -> Obj
+.assert_type: (val: Obj, typ: Type) -> NoneType
+.assert_never: (arg: Obj) -> NoneType
+.reveal_type: (obj: Obj) -> NoneType
