@@ -55,8 +55,7 @@ impl ASTLowerer {
         } else {
             sig.inspect().cloned()
         };
-        let block = hir::Block::new(vec![chunk]);
-        let found_body_t = block.ref_t();
+        let found_body_t = chunk.ref_t();
         let ast::VarPattern::Ident(ident) = &sig.pat else { unreachable!() };
         let id = body.id;
         if let Some(spec_t) = opt_spec_t {
@@ -71,13 +70,35 @@ impl ASTLowerer {
                 .context
                 .assign_var_sig(&sig, found_body_t, id, None)?;
         }
-        // FIXME: Identifier::new should be used
         let mut ident = hir::Identifier::bare(ident.clone());
-        ident.vi.t = found_body_t.clone();
+        let t = match found_body_t {
+            Type::ClassType => {
+                let t = mono(format!("{}{}", self.module.context.path(), ident.raw));
+                v_enum(set! { ValueObj::builtin_class(t) })
+            }
+            Type::TraitType => {
+                let t = mono(format!("{}{}", self.module.context.path(), ident.raw));
+                v_enum(set! { ValueObj::builtin_trait(t) })
+            }
+            _ => found_body_t.clone(),
+        };
+        // Typ = 'typ': ClassType
+        // => 'typ': {<type Typ>}
+        if let hir::Expr::TypeAsc(hir::TypeAscription { expr, .. }) = &chunk {
+            if let hir::Expr::Accessor(acc) = expr.as_ref() {
+                if let Some(name) = acc.local_name() {
+                    let name = VarName::from_str(Str::rc(name));
+                    if let Some(vi) = self.module.context.get_mut_current_scope_var(&name) {
+                        vi.t = t.clone();
+                    }
+                }
+            }
+        }
+        ident.vi.t = t;
         ident.vi.py_name = py_name;
         ident.vi.def_loc = self.module.context.absolutize(ident.raw.name.loc());
         let sig = hir::VarSignature::new(ident, sig.t_spec);
-        let body = hir::DefBody::new(body.op, block, body.id);
+        let body = hir::DefBody::new(body.op, hir::Block::new(vec![chunk]), body.id);
         Ok(hir::Def::new(hir::Signature::Var(sig), body))
     }
 
@@ -526,7 +547,6 @@ impl ASTLowerer {
         t: &Type,
         py_name: Str,
     ) -> LowerResult<()> {
-        log!(err "{ident}(= {py_name}): {t}");
         // .X = 'x': Type
         if ident.is_raw() {
             return Ok(());

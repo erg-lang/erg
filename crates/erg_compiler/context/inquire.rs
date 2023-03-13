@@ -1344,7 +1344,7 @@ impl Context {
                         return Ok(SubstituteResult::__Call__(instance));
                     }
                 }
-                let hint = if other == &ClassType {
+                let hint = if self.subtype_of(other, &ClassType) {
                     Some(switch_lang! {
                         "japanese" => format!("インスタンスを生成したい場合は、{}.newを使用してください", obj.to_string_notype()),
                         "simplified_chinese" => format!("如果要生成实例，请使用 {}.new", obj.to_string_notype()),
