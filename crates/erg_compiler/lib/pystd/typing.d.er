@@ -6,13 +6,13 @@
 .TypeAlias: ClassType
 .Tuple: ClassType
 .Tuple.
-    __call__: (*Type) -> Type
+    __getitem__: (*Type) -> Type
 .Union: ClassType
 .Union.
-    __call__: (*Type) -> Type
+    __getitem__: (*Type) -> Type
 .Optional: ClassType
 .Optional.
-    __call__: (Type) -> Type
+    __getitem__: (Type) -> Type
 .Callable: (*Type) -> Type
 .Concatenate: (*Type) -> Type
 .Type: (Type) -> Type
@@ -25,13 +25,13 @@
 .TypeGuard: (Type) -> Type
 .Generic: ClassType
 .Generic.
-    __call__: (Type) -> Type
+    __getitem__: (Type) -> Type
 .TypeVar: ClassType
 .TypeVar.
-    __call__: (Str) -> Type
+    __getitem__: (Str) -> Type
 .TypeVarTuple: ClassType
 .TypeVarTuple.
-    __call__: (Str) -> Type
+    __getitem__: (Str) -> Type
 .Unpack: (Type) -> Type
 .ParamSpec: (Str) -> Type
 .AnyStr: ClassType
@@ -53,7 +53,9 @@
 .Pattern: ClassType
 .Match: ClassType
 .Text: ClassType
-.Sequence: (Type) -> Type
+.Sequence: ClassType
+.Sequence.
+    __getitem__: (Type) -> Type
 
 .cast: (typ: Type, val: Obj) -> Obj
 .assert_type: (val: Obj, typ: Type) -> NoneType
