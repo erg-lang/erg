@@ -1,3 +1,4 @@
+use erg_common::env::erg_pystd_path;
 use serde::Deserialize;
 use serde_json::json;
 use serde_json::Value;
@@ -177,6 +178,8 @@ pub struct CompletionCache {
 }
 
 fn external_item(name: &str, vi: &VarInfo, mod_name: &str) -> CompletionItem {
+    #[cfg(feature = "py_compatible")]
+    let mod_name = mod_name.replace('/', ".");
     let mut item =
         CompletionItem::new_simple(format!("{name} (import from {mod_name})"), vi.t.to_string());
     item.sort_text = Some(format!("{}_{}", CompletionOrder::STD_ITEM, item.label));
@@ -239,7 +242,21 @@ fn module_completions() -> Vec<CompletionItem> {
 
 fn load_modules(cache: Cache) {
     let major_mods = [
-        "datetime", "http", "io", "json", "math", "os", "random", "re", "sys", "time", "urllib",
+        "datetime",
+        "glob",
+        "http",
+        "http/client",
+        "http/server",
+        "io",
+        "json",
+        "math",
+        "os",
+        "os/path",
+        "random",
+        "re",
+        "sys",
+        "time",
+        "urllib",
     ];
     let src = major_mods.into_iter().fold("".to_string(), |acc, module| {
         acc + &format!("_ = pyimport \"{module}\"\n")
@@ -252,18 +269,20 @@ fn load_modules(cache: Cache) {
     if cache.get("<module>").is_none() {
         cache.insert("<module>".into(), module_completions());
     }
+    let std_path = erg_pystd_path().display().to_string().replace('\\', "/");
     for (path, entry) in shared.py_mod_cache.iter() {
         let dir = entry.module.context.local_dir();
-        let mod_name = path
-            .file_stem()
-            .unwrap()
-            .to_str()
-            .unwrap()
-            .trim_end_matches(".d");
+        let mod_name = path.display().to_string().replace('\\', "/");
+        let mod_name = mod_name
+            .trim_start_matches(&std_path)
+            .trim_start_matches('/')
+            .trim_end_matches("/__init__.d.er")
+            .trim_end_matches(".d.er")
+            .replace(".d", "");
         let items = dir
             .into_iter()
             .filter(|(name, _)| !name.inspect().starts_with('%'))
-            .map(|(name, vi)| external_item(name.inspect(), vi, mod_name));
+            .map(|(name, vi)| external_item(name.inspect(), vi, &mod_name));
         cache.get_mut("<module>").unwrap().extend(items)
     }
 }
