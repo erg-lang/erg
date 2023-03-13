@@ -1068,6 +1068,15 @@ impl Context {
                 .try_cmp(rhs, rhs2)
                 .map(|ord| ord.canbe_ge())
                 .unwrap_or(false),
+            // 0..59 :> 1..20 == { I >= 0 and I < 60 } :> { I >= 1 and I < 20 }
+            (Pred::And(l1, r1), Pred::And(l2, r2)) => {
+                (self.is_super_pred_of(l1, l2) && self.is_super_pred_of(r1, r2))
+                    || (self.is_super_pred_of(l1, r2) && self.is_super_pred_of(r1, l2))
+            }
+            (Pred::Or(l1, r1), Pred::Or(l2, r2)) => {
+                (self.is_super_pred_of(l1, l2) && self.is_super_pred_of(r1, r2))
+                    || (self.is_super_pred_of(l1, r2) && self.is_super_pred_of(r1, l2))
+            }
             (lhs, Pred::And(l, r)) => {
                 self.is_super_pred_of(lhs, l) || self.is_super_pred_of(lhs, r)
             }
