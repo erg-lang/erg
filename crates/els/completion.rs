@@ -391,7 +391,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 _ => None,
             });
         let mod_ctx = &self.modules.get(&uri).unwrap().context;
-        for (name, vi) in contexts.into_iter().flat_map(|ctx| ctx.dir()) {
+        for (name, vi) in contexts.into_iter().flat_map(|ctx| ctx.local_dir()) {
             if comp_kind.should_be_method() && vi.vis.is_private() {
                 continue;
             }
@@ -410,15 +410,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             {
                 continue;
             }
-            let readable_t = self
-                .modules
-                .get(&uri)
-                .map(|module| {
-                    module
-                        .context
-                        .readable_type(vi.t.clone(), vi.kind.is_parameter())
-                })
-                .unwrap_or_else(|| vi.t.clone());
+            let readable_t = mod_ctx.readable_type(vi.t.clone(), vi.kind.is_parameter());
             let mut item = CompletionItem::new_simple(label, readable_t.to_string());
             CompletionOrderSetter::new(vi, arg_pt.as_ref(), mod_ctx, item.label.clone())
                 .set(&mut item);

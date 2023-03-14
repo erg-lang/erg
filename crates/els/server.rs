@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::io;
 use std::io::{stdin, stdout, BufRead, Read, StdinLock, StdoutLock, Write};
 use std::ops::Not;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use erg_common::env::erg_path;
@@ -506,7 +506,10 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 }
             }
         }
-        ctxs.push(&self.modules.get(uri).unwrap().context);
+        let mod_ctx = &self.modules.get(uri).unwrap().context;
+        let builtin_ctx = self.get_builtin_module();
+        ctxs.push(mod_ctx);
+        ctxs.extend(builtin_ctx);
         ctxs
     }
 
@@ -557,6 +560,12 @@ impl<Checker: BuildRunnable> Server<Checker> {
             .values()
             .next()
             .map(|module| module.context.shared())
+    }
+
+    pub(crate) fn get_builtin_module(&self) -> Option<&Context> {
+        self.get_shared()
+            .and_then(|mode| mode.mod_cache.ref_ctx(Path::new("<builtins>")))
+            .map(|mc| &mc.context)
     }
 
     pub(crate) fn clear_cache(&mut self, uri: &Url) {
