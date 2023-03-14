@@ -129,14 +129,26 @@ impl Context {
         }
     }
 
+    fn get_mod_ctx_from_acc(&self, acc: &Accessor) -> Option<&Context> {
+        match acc {
+            Accessor::Ident(ident) => self.get_mod(ident.inspect()),
+            Accessor::Attr(attr) => {
+                let Expr::Accessor(acc) = attr.obj.as_ref() else { return None; };
+                self.get_mod_ctx_from_acc(acc)
+                    .and_then(|ctx| ctx.get_mod(attr.ident.inspect()))
+            }
+            _ => None,
+        }
+    }
+
     fn eval_const_acc(&self, acc: &Accessor) -> EvalResult<ValueObj> {
         match acc {
             Accessor::Ident(ident) => self.eval_const_ident(ident),
             Accessor::Attr(attr) => match self.eval_const_expr(&attr.obj) {
                 Ok(obj) => Ok(self.eval_attr(obj, &attr.ident)?),
                 Err(err) => {
-                    if let Expr::Accessor(Accessor::Ident(ident)) = attr.obj.as_ref() {
-                        if let Some(mod_ctx) = self.get_mod(ident.inspect()) {
+                    if let Expr::Accessor(acc) = attr.obj.as_ref() {
+                        if let Some(mod_ctx) = self.get_mod_ctx_from_acc(acc) {
                             return mod_ctx.eval_const_ident(&attr.ident);
                         }
                     }
