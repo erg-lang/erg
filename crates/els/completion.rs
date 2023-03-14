@@ -198,6 +198,26 @@ fn external_item(name: &str, vi: &VarInfo, mod_name: &str) -> CompletionItem {
     item
 }
 
+fn module_item(name: &str, mistype: bool, insert: Option<u32>) -> CompletionItem {
+    let mut item =
+        CompletionItem::new_simple(format!("{name} (magic completion)"), "Module".to_string());
+    item.kind = Some(CompletionItemKind::MODULE);
+    // `import datetime`
+    // => `datetime = pyimport "datetime"`
+    if let Some(line) = insert {
+        let prefix = if mistype { "py" } else { "" };
+        let import = format!("{} = {prefix}", name.split('/').last().unwrap_or("module"));
+        item.additional_text_edits = Some(vec![TextEdit {
+            range: Range::new(Position::new(line - 1, 0), Position::new(line - 1, 0)),
+            new_text: import,
+        }]);
+    }
+    item.sort_text = mistype.then(|| format!("{}_{}", CompletionOrder::STD_ITEM, item.label));
+    item.insert_text = Some(format!("\"{name}\""));
+    item.filter_text = Some(name.to_string());
+    item
+}
+
 fn module_completions() -> Vec<CompletionItem> {
     let mut comps = Vec::with_capacity(BUILTIN_PYTHON_MODS.len());
     for mod_name in BUILTIN_PYTHON_MODS {
@@ -385,6 +405,28 @@ impl<Checker: BuildRunnable> Server<Checker> {
                     sig_t.non_default_params()?.get(nth).cloned()
                 }
                 other if comp_kind == CompletionKind::Space => {
+                    match other.show_acc().as_deref() {
+                        Some("import") => {
+                            let insert = other
+                                .col_begin()
+                                .and_then(|cb| (cb == 0).then(|| other.ln_begin().unwrap_or(0)));
+                            for erg_mod in erg_common::erg_util::BUILTIN_ERG_MODS {
+                                result.push(module_item(erg_mod, false, insert));
+                            }
+                            for py_mod in BUILTIN_PYTHON_MODS {
+                                result.push(module_item(py_mod, true, insert));
+                            }
+                        }
+                        Some("pyimport") => {
+                            let insert = other
+                                .col_begin()
+                                .and_then(|cb| (cb == 0).then(|| other.ln_begin().unwrap_or(0)));
+                            for py_mod in BUILTIN_PYTHON_MODS {
+                                result.push(module_item(py_mod, false, insert));
+                            }
+                        }
+                        _ => {}
+                    }
                     let sig_t = other.t();
                     sig_t.non_default_params()?.get(0).cloned()
                 }
