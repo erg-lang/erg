@@ -36,7 +36,7 @@ fn comp_item_kind(vi: &VarInfo) -> CompletionItemKind {
         Type::Subr(_) | Type::Quantified(_) => CompletionItemKind::FUNCTION,
         Type::ClassType => CompletionItemKind::CLASS,
         Type::TraitType => CompletionItemKind::INTERFACE,
-        t if &t.qual_name()[..] == "Module" || &t.qual_name()[..] == "GenericModule" => {
+        t if matches!(&t.qual_name()[..], "Module" | "PyModule" | "GenericModule") => {
             CompletionItemKind::MODULE
         }
         _ if vi.muty.is_const() => CompletionItemKind::CONSTANT,
@@ -390,9 +390,22 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 }
                 _ => None,
             });
+        let receiver_t = comp_kind
+            .should_be_method()
+            .then(|| self.get_min_expr(&uri, pos, -2))
+            .flatten()
+            .map(|(_, expr)| expr.t());
         let mod_ctx = &self.modules.get(&uri).unwrap().context;
         for (name, vi) in contexts.into_iter().flat_map(|ctx| ctx.local_dir()) {
             if comp_kind.should_be_method() && vi.vis.is_private() {
+                continue;
+            }
+            // only show static methods, if the receiver is a type
+            if vi.t.is_method()
+                && receiver_t
+                    .as_ref()
+                    .map_or(true, |t| mod_ctx.subtype_of(t, &Type::Type))
+            {
                 continue;
             }
             let label = name.inspect();
