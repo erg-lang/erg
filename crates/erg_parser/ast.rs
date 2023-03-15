@@ -2783,6 +2783,14 @@ impl VisModifierSpec {
     pub const fn is_private(&self) -> bool {
         matches!(self, Self::Private | Self::ExplicitPrivate(_))
     }
+
+    pub const fn display_as_accessor(&self) -> &'static str {
+        match self {
+            Self::Auto => ":auto:",
+            Self::Public(_) => ".",
+            Self::Private | Self::Restricted(_) | Self::ExplicitPrivate(_) => "::",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

@@ -2308,6 +2308,11 @@ impl Context {
         }
     }
 
+    pub(crate) fn gen_type(&self, ident: &ast::Identifier) -> Type {
+        let vis = ident.vis.display_as_accessor();
+        mono(format!("{}{vis}{}", self.name, ident.inspect()))
+    }
+
     pub(crate) fn get_mono_type(&self, name: &Str) -> Option<(&Type, &Context)> {
         if let Some((t, ctx)) = self.rec_local_get_mono_type(name) {
             return Some((t, ctx));

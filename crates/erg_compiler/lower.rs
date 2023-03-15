@@ -1557,7 +1557,7 @@ impl ASTLowerer {
             }
             self.check_collision_and_push(class);
         }
-        let class = mono(hir_def.sig.ident().inspect());
+        let class = self.module.context.gen_type(&hir_def.sig.ident().raw);
         let Some((_, class_ctx)) = self.module.context.get_nominal_type_ctx(&class) else {
             return Err(LowerErrors::from(LowerError::type_not_found(
                 self.cfg.input.clone(),
