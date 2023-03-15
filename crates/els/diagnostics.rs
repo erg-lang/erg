@@ -9,7 +9,7 @@ use erg_compiler::error::CompileErrors;
 
 use lsp_types::{Diagnostic, DiagnosticSeverity, Position, PublishDiagnosticsParams, Range, Url};
 
-use crate::server::{send, send_log, ELSResult, Server};
+use crate::server::{send, send_log, DefaultFeatures, ELSResult, Server};
 use crate::util;
 
 impl<Checker: BuildRunnable> Server<Checker> {
@@ -157,6 +157,12 @@ impl<Checker: BuildRunnable> Server<Checker> {
     }
 
     fn send_diagnostics(&self, uri: Url, diagnostics: Vec<Diagnostic>) -> ELSResult<()> {
+        if self
+            .disabled_features
+            .contains(&DefaultFeatures::Diagnostics)
+        {
+            return Ok(());
+        }
         let params = PublishDiagnosticsParams::new(uri, diagnostics, None);
         if self
             .client_capas

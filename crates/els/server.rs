@@ -46,7 +46,7 @@ pub enum DefaultFeatures {
     CodeAction,
     CodeLens,
     Completion,
-    Diagnostic,
+    Diagnostics,
     FindReferences,
     GotoDefinition,
     Hover,
@@ -65,7 +65,7 @@ impl From<&str> for DefaultFeatures {
             "codeaction" | "codeAction" | "code-action" => DefaultFeatures::CodeAction,
             "codelens" | "codeLens" | "code-lens" => DefaultFeatures::CodeLens,
             "completion" => DefaultFeatures::Completion,
-            "diagnostic" => DefaultFeatures::Diagnostic,
+            "diagnostic" | "diagnostics" => DefaultFeatures::Diagnostics,
             "hover" => DefaultFeatures::Hover,
             "semantictoken" | "semantictokens" | "semanticToken" | "semanticTokens"
             | "semantic-tokens" => DefaultFeatures::SemanticTokens,
@@ -180,6 +180,7 @@ pub struct Server<Checker: BuildRunnable = HIRBuilder> {
     pub(crate) home: PathBuf,
     pub(crate) erg_path: PathBuf,
     pub(crate) client_capas: ClientCapabilities,
+    pub(crate) disabled_features: Vec<DefaultFeatures>,
     pub(crate) opt_features: Vec<OptionalFeatures>,
     pub(crate) file_cache: FileCache,
     pub(crate) comp_cache: CompletionCache,
@@ -196,6 +197,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             home: normalize_path(std::env::current_dir().unwrap()),
             erg_path: erg_path(), // already normalized
             client_capas: ClientCapabilities::default(),
+            disabled_features: vec![],
             opt_features: vec![],
             comp_cache: CompletionCache::new(),
             file_cache: FileCache::new(),
@@ -231,11 +233,10 @@ impl<Checker: BuildRunnable> Server<Checker> {
             // send_log(format!("set client capabilities: {:?}", self.client_capas))?;
         }
         let mut args = self.cfg.runtime_args.iter();
-        let mut disabled_features = vec![];
         while let Some(&arg) = args.next() {
             if arg == "--disable" {
                 if let Some(&feature) = args.next() {
-                    disabled_features.push(DefaultFeatures::from(feature));
+                    self.disabled_features.push(DefaultFeatures::from(feature));
                 }
             } else if arg == "--enable" {
                 if let Some(&feature) = args.next() {
@@ -254,11 +255,13 @@ impl<Checker: BuildRunnable> Server<Checker> {
         result.capabilities.rename_provider = Some(OneOf::Left(true));
         result.capabilities.references_provider = Some(OneOf::Left(true));
         result.capabilities.definition_provider = Some(OneOf::Left(true));
-        result.capabilities.hover_provider = disabled_features
+        result.capabilities.hover_provider = self
+            .disabled_features
             .contains(&DefaultFeatures::Hover)
             .not()
             .then_some(HoverProviderCapability::Simple(true));
-        result.capabilities.inlay_hint_provider = disabled_features
+        result.capabilities.inlay_hint_provider = self
+            .disabled_features
             .contains(&DefaultFeatures::InlayHint)
             .not()
             .then_some(OneOf::Left(true));
@@ -283,13 +286,15 @@ impl<Checker: BuildRunnable> Server<Checker> {
             ],
             token_modifiers: vec![],
         };
-        result.capabilities.semantic_tokens_provider = disabled_features
+        result.capabilities.semantic_tokens_provider = self
+            .disabled_features
             .contains(&DefaultFeatures::SemanticTokens)
             .not()
             .then_some(SemanticTokensServerCapabilities::SemanticTokensOptions(
                 sema_options,
             ));
-        result.capabilities.code_action_provider = if disabled_features
+        result.capabilities.code_action_provider = if self
+            .disabled_features
             .contains(&DefaultFeatures::CodeAction)
         {
             None
@@ -305,7 +310,8 @@ impl<Checker: BuildRunnable> Server<Checker> {
             commands: vec![format!("{}.eliminate_unused_vars", self.mode())],
             work_done_progress_options: WorkDoneProgressOptions::default(),
         });
-        result.capabilities.signature_help_provider = disabled_features
+        result.capabilities.signature_help_provider = self
+            .disabled_features
             .contains(&DefaultFeatures::SignatureHelp)
             .not()
             .then_some(SignatureHelpOptions {
