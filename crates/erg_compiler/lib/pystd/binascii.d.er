@@ -1,0 +1,4 @@
+.a2b_uu: (string: Str or Bytes) -> Bytes
+
+.hexlify: (string: Bytes) -> Bytes
+.unhexlify: (string: Bytes or Str) -> Bytes

@@ -1,0 +1,3 @@
+.bisect: |T|(a: [T; _], x: T) -> Nat
+.bisect_left: |T|(a: [T; _], x: T) -> Nat
+.bisect_right: |T|(a: [T; _], x: T) -> Nat

@@ -1,5 +1,5 @@
 use std::borrow::Borrow;
-use std::collections::hash_map::{IntoValues, Iter, IterMut, Keys, Values, ValuesMut};
+use std::collections::hash_map::{Entry, IntoValues, Iter, IterMut, Keys, Values, ValuesMut};
 use std::fmt::{self, Write};
 use std::hash::{Hash, Hasher};
 use std::iter::FromIterator;
@@ -236,5 +236,9 @@ impl<K: Hash + Eq, V> Dict<K, V> {
             self.dict.remove(k);
         }
         self
+    }
+
+    pub fn entry(&mut self, k: K) -> Entry<K, V> {
+        self.dict.entry(k)
     }
 }

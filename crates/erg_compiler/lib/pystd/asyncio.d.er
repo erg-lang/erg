@@ -1,0 +1,4 @@
+# TODO: return value
+.run!: (coro: GenericCallable, debug := Bool) => NoneType
+.sleep!: (delay: Float) => NoneType
+.gather!: (*coros: GenericCallable) => NoneType

@@ -1,0 +1,8 @@
+.Calendar: ClassType
+.TextCalendar: ClassType
+.HTMLCalendar: ClassType
+.LocaleTextCalendar: ClassType
+.LocaleHTMLCalendar: ClassType
+
+.month: (theyear: Nat, themonth: Nat, w := Nat, l := Nat) -> Str
+.calendar: (year: Nat, w := Nat, l := Nat, c := Nat, m := Nat) -> Str

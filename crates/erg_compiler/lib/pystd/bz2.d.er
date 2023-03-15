@@ -1,0 +1,14 @@
+.BZ2File: ClassType
+.BZ2File.
+    # TODO: should be a procedure
+    __call__: (filename: Str, mode := Str) -> .BZ2File
+    peek: (self: Ref(.BZ2File), n := Nat) -> Str
+    read!: (self: RefMut(.BZ2File), size := Nat or {-1}) => Str
+    readline!: (self: RefMut(.BZ2File), size := Nat or {-1}) => Str
+    close!: (self: RefMut(.BZ2File)) => NoneType
+    closed: (self: Ref(.BZ2File)) -> Bool
+    write!: (self: RefMut(.BZ2File), data: Str) => Nat
+    flush!: (self: RefMut(.BZ2File)) => NoneType
+    seek!: (self: RefMut(.BZ2File), offset: Nat, whence := Nat) => Nat
+
+.open!: (filename: Str, mode := Str, compresslevel := Nat, encoding := Str) => .BZ2File

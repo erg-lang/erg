@@ -1,0 +1,66 @@
+.AST: ClassType
+
+.Constant: ClassType
+.FormattedValue: ClassType
+.JoinedStr: ClassType
+.List: ClassType
+.Tuple: ClassType
+.Set: ClassType
+.Dict: ClassType
+.Name: ClassType
+.Load: ClassType
+.Store: ClassType
+.Del: ClassType
+.Starred: ClassType
+.Expr: ClassType
+.UnaryOp: ClassType
+.UAdd: ClassType
+.USub: ClassType
+.Not: ClassType
+.Invert: ClassType
+.BinOp: ClassType
+.Add: ClassType
+.Sub: ClassType
+.Mult: ClassType
+.Div: ClassType
+.FloorDiv: ClassType
+.Mod: ClassType
+.Pow: ClassType
+.LShift: ClassType
+.RShift: ClassType
+.BitOr: ClassType
+.BitXor: ClassType
+.BitAnd: ClassType
+.MatMult: ClassType
+.BoolOp: ClassType
+.And: ClassType
+.Or: ClassType
+.Compare: ClassType
+.Eq: ClassType
+.NotEq: ClassType
+.Lt: ClassType
+.LtE: ClassType
+.Gt: ClassType
+.GtE: ClassType
+.Is: ClassType
+.IsNot: ClassType
+.In: ClassType
+.NotIn: ClassType
+.Call: ClassType
+.Keyword = 'keyword': ClassType
+.IfExp: ClassType
+.Attribute: ClassType
+.NamedExpr: ClassType
+.Subscript: ClassType
+.Slice: ClassType
+.ListComp: ClassType
+.SetComp: ClassType
+.GeneratorExp: ClassType
+.DictComp: ClassType
+.Comprehension = 'comprehension': ClassType
+.Assign: ClassType
+.AnnAssign: ClassType
+
+.parse: (source: Str, filename := Str, mode := Str) -> .AST
+.unparse: (ast_obj: .AST) -> Str
+.literal_eval: (node_or_string: .AST or Str) -> Obj

@@ -1,0 +1,23 @@
+.Array! = 'array': ClassType
+.Array!.
+    __call__: (typecode: Str, initializer := [Obj; _] or Iterable(Obj)) -> .Array
+    typecode: Str
+    itemsize: Nat
+    append: (self: RefMut(.Array!), x: Obj) => NoneType
+    buffer_info: (self: Ref(.Array!)) -> (Nat, Nat)
+    byteswap: (self: RefMut(.Array!)) => NoneType
+    count: (self: Ref(.Array!), x: Obj) -> Nat
+    extend: (self: RefMut(.Array!), iterable: Iterable(Obj)) => NoneType
+    frombytes: (self: RefMut(.Array!), bytes: Bytes) => NoneType
+    fromfile: (self: RefMut(.Array!), f: File!, n: Nat) => NoneType
+    fromlist: (self: RefMut(.Array!), list: [Obj; _]) => NoneType
+    fromunicode: (self: RefMut(.Array!), s: Str) => NoneType
+    index: (self: Ref(.Array!), x: Obj) -> Nat
+    insert: (self: RefMut(.Array!), i: Nat, x: Obj) => NoneType
+    pop: (self: RefMut(.Array!), i := Nat) -> Obj
+    remove: (self: RefMut(.Array!), x: Obj) => NoneType
+    reverse: (self: RefMut(.Array!)) => NoneType
+    tobytes: (self: Ref(.Array!)) -> Bytes
+    tofile: (self: Ref(.Array!), f: File!) => NoneType
+    tolist: (self: Ref(.Array!)) -> [Obj; _]
+    tounicode: (self: Ref(.Array!)) -> Str

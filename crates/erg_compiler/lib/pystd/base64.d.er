@@ -1,0 +1,6 @@
+.b64encode: (s: Bytes, altchars := Bytes) -> Bytes
+.b64decode: (s: Bytes, altchars := Bytes, validate := Bool) -> Bytes
+.b32encode: (s: Bytes) -> Bytes
+.b32decode: (s: Bytes, casefold := Bool, map01 := { Str : Str }) -> Bytes
+.b16encode: (s: Bytes) -> Bytes
+.b16decode: (s: Bytes, casefold := Bool) -> Bytes
