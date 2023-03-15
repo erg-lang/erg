@@ -61,7 +61,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let dependents = self.dependents_of(&uri);
         for dep in dependents {
             // _log!("dep: {dep}");
-            let code = util::get_code_from_uri(&dep)?;
+            let code = self.file_cache.get_code(&dep)?.to_string();
             self.check_file(dep, code)?;
         }
         Ok(())

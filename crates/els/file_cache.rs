@@ -1,4 +1,5 @@
-use std::fs::{metadata, Metadata};
+use std::fs::{metadata, File, Metadata};
+use std::io::Read;
 
 use lsp_types::{
     DidChangeTextDocumentParams, FileOperationFilter, FileOperationPattern,
@@ -16,6 +17,13 @@ use erg_compiler::erg_parser::token::{Token, TokenStream};
 
 use crate::server::ELSResult;
 use crate::util;
+
+pub fn _get_code_from_uri(uri: &Url) -> ELSResult<String> {
+    let path = uri.to_file_path().unwrap();
+    let mut code = String::new();
+    File::open(path.as_path())?.read_to_string(&mut code)?;
+    Ok(code)
+}
 
 #[derive(Debug, Clone)]
 pub struct FileCacheEntry {
@@ -87,9 +95,13 @@ impl FileCache {
         capabilities.text_document_sync = Some(TextDocumentSyncCapability::Options(sync_option));
     }
 
+    pub fn get_code(&self, uri: &Url) -> ELSResult<&str> {
+        Ok(self.get(uri)?.code.as_str())
+    }
+
     pub fn get(&self, uri: &Url) -> ELSResult<&FileCacheEntry> {
         let Some(entry) = unsafe { self.files.as_ref() }.get(uri) else {
-            let code = util::get_code_from_uri(uri)?;
+            let code = _get_code_from_uri(uri)?;
             self.update(uri, code);
             let entry = unsafe { self.files.as_ref() }.get(uri).ok_or("not found")?;
             return Ok(entry);
@@ -100,7 +112,7 @@ impl FileCache {
             .modified()
             .unwrap();
         if last_modified != current_modified {
-            let code = util::get_code_from_uri(uri)?;
+            let code = _get_code_from_uri(uri)?;
             self.update(uri, code);
             unsafe { self.files.as_ref() }
                 .get(uri)

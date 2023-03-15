@@ -466,9 +466,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
                     msg["params"]["textDocument"]["uri"].as_str().unwrap(),
                 )?;
                 send_log(format!("{method}: {uri}"))?;
-                let code = util::get_code_from_uri(&uri)?;
+                let code = self.file_cache.get_code(&uri)?.to_string();
                 self.clear_cache(&uri);
-                self.check_file(uri, &code)
+                self.check_file(uri, code)
             }
             "textDocument/didChange" => {
                 let params = DidChangeTextDocumentParams::deserialize(msg["params"].clone())?;

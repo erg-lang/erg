@@ -204,10 +204,12 @@ impl<Checker: BuildRunnable> Server<Checker> {
             def_pos.line = def_pos.line.saturating_sub(1);
             let def_uri = util::normalize_url(Url::from_file_path(module).unwrap());
             let mut default_code_block = "".to_string();
-            let stream = util::get_token_stream(def_uri)?;
+            let Some(stream) = self.file_cache.get_token_stream(&def_uri) else {
+                return Ok(());
+            };
             let mut prev_token = Token::DUMMY;
             loop {
-                let Some(token) = util::get_token_from_stream(&stream, def_pos)? else {
+                let Some(token) = util::get_token_from_stream(stream, def_pos)? else {
                     next!(def_pos, default_code_block, contents);
                 };
                 if token.deep_eq(&prev_token) {

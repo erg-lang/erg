@@ -5,11 +5,11 @@ use std::path::Path;
 use erg_common::normalize_path;
 use erg_common::traits::{DequeStream, Locational};
 
-use erg_compiler::erg_parser::lex::Lexer;
 use erg_compiler::erg_parser::token::{Token, TokenStream};
 
 use lsp_types::{Position, Range, Url};
 
+use crate::file_cache::_get_code_from_uri;
 use crate::server::ELSResult;
 
 pub fn loc_to_range(loc: erg_common::error::Location) -> Option<Range> {
@@ -67,13 +67,6 @@ pub fn pos_to_byte_index(src: &str, pos: Position) -> usize {
     src.char_indices().last().unwrap().0 + 1
 }
 
-pub fn get_token_stream(uri: Url) -> ELSResult<TokenStream> {
-    let mut code = String::new();
-    let path = uri.to_file_path().unwrap();
-    File::open(path.as_path())?.read_to_string(&mut code)?;
-    Ok(Lexer::from_str(code).lex()?)
-}
-
 pub fn get_token_from_stream(stream: &TokenStream, pos: Position) -> ELSResult<Option<Token>> {
     for token in stream.iter() {
         if pos_in_loc(token, pos) {
@@ -81,13 +74,6 @@ pub fn get_token_from_stream(stream: &TokenStream, pos: Position) -> ELSResult<O
         }
     }
     Ok(None)
-}
-
-pub fn get_code_from_uri(uri: &Url) -> ELSResult<String> {
-    let path = uri.to_file_path().unwrap();
-    let mut code = String::new();
-    File::open(path.as_path())?.read_to_string(&mut code)?;
-    Ok(code)
 }
 
 pub fn get_ranged_code_from_uri(uri: &Url, range: Range) -> ELSResult<Option<String>> {
@@ -121,7 +107,7 @@ pub fn get_ranged_code_from_uri(uri: &Url, range: Range) -> ELSResult<Option<Str
 }
 
 pub fn get_line_from_uri(uri: &Url, line: u32) -> ELSResult<String> {
-    let code = get_code_from_uri(uri)?;
+    let code = _get_code_from_uri(uri)?;
     let line = code
         .lines()
         .nth(line.saturating_sub(1) as usize)
