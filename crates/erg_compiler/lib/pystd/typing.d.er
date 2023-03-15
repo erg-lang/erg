@@ -28,10 +28,10 @@
     __getitem__: (Type) -> Type
 .TypeVar: ClassType
 .TypeVar.
-    __getitem__: (Str) -> Type
+    __call__: (Str, *types: Type, bound := Str) -> Type
 .TypeVarTuple: ClassType
 .TypeVarTuple.
-    __getitem__: (Str) -> Type
+    __call__: (Str) -> Type
 .Unpack: (Type) -> Type
 .ParamSpec: (Str) -> Type
 .AnyStr: ClassType
