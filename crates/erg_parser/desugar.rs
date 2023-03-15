@@ -606,6 +606,11 @@ impl Desugarer {
                     let def = Def::new(Signature::Subr(subr), body);
                     new.push(Expr::Def(def));
                 }
+                Expr::Dummy(dummy) => {
+                    let loc = dummy.loc;
+                    let new_dummy = self.desugar_pattern(dummy.into_iter());
+                    new.push(Expr::Dummy(Dummy::new(loc, new_dummy)));
+                }
                 other => {
                     new.push(self.rec_desugar_lambda_pattern(other));
                 }
