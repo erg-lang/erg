@@ -818,6 +818,11 @@ impl Context {
                         total_errs.extend(errs.into_iter());
                     }
                 }
+                ast::Expr::Dummy(dummy) => {
+                    if let Err(errs) = self.preregister(&dummy.exprs) {
+                        total_errs.extend(errs.into_iter());
+                    }
+                }
                 _ => {}
             }
         }

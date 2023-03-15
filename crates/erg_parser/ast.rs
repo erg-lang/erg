@@ -1274,13 +1274,14 @@ impl_stream!(Block, Expr);
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Dummy {
     pub loc: Option<Location>,
-    exprs: Vec<Expr>,
+    pub exprs: Block,
 }
 
 impl NestedDisplay for Dummy {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
-        writeln!(f, "Dummy:")?;
-        fmt_lines(self.exprs.iter(), f, level)
+        writeln!(f, "Dummy: [")?;
+        fmt_lines(self.exprs.iter(), f, level)?;
+        writeln!(f, "]")
     }
 }
 
@@ -1298,11 +1299,33 @@ impl Locational for Dummy {
     }
 }
 
-impl_stream!(Dummy, Expr, exprs);
+impl IntoIterator for Dummy {
+    type Item = Expr;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.payload().into_iter()
+    }
+}
+
+impl Stream<Expr> for Dummy {
+    fn ref_payload(&self) -> &Vec<Expr> {
+        &self.exprs.0
+    }
+    fn ref_mut_payload(&mut self) -> &mut Vec<Expr> {
+        &mut self.exprs.0
+    }
+    fn payload(self) -> Vec<Expr> {
+        self.exprs.0
+    }
+}
 
 impl Dummy {
     pub const fn new(loc: Option<Location>, exprs: Vec<Expr>) -> Self {
-        Self { loc, exprs }
+        Self {
+            loc,
+            exprs: Block(exprs),
+        }
     }
 }
 
