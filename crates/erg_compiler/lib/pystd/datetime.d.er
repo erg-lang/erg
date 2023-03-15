@@ -6,6 +6,12 @@ time = pyimport "time"
 .TimeDelta = 'timedelta': ClassType
 .TimeDelta.
     __call__: (days := Nat, seconds := Nat, microseconds := Nat, milliseconds := Nat, minutes := Nat, hours := Nat, weeks := Nat) -> .TimeDelta
+    __eq__: (self: .TimeDelta, other: .TimeDelta) -> Bool
+    __ne__: (self: .TimeDelta, other: .TimeDelta) -> Bool
+    __lt__: (self: .TimeDelta, other: .TimeDelta) -> Bool
+    __le__: (self: .TimeDelta, other: .TimeDelta) -> Bool
+    __gt__: (self: .TimeDelta, other: .TimeDelta) -> Bool
+    __ge__: (self: .TimeDelta, other: .TimeDelta) -> Bool
     min: .TimeDelta
     max: .TimeDelta
     resolution: .TimeDelta
@@ -13,6 +19,12 @@ time = pyimport "time"
 .Date = 'date': ClassType
 .Date.
     __call__: (year: Nat, month: Nat, day: Nat) -> .Date
+    __eq__: (self: .Date, other: .Date) -> Bool
+    __ne__: (self: .Date, other: .Date) -> Bool
+    __lt__: (self: .Date, other: .Date) -> Bool
+    __le__: (self: .Date, other: .Date) -> Bool
+    __gt__: (self: .Date, other: .Date) -> Bool
+    __ge__: (self: .Date, other: .Date) -> Bool
     fromtimestamp: (timestamp: Float) -> .Date
     fromordinal: (ordinal: Nat) -> .Date
     fromisoformat: (date_string: Str) -> .Date
@@ -35,16 +47,28 @@ time = pyimport "time"
 .TZInfo = 'tzinfo': ClassType
 .Time = 'time': ClassType
 .Time.
-    __call__: (hour: Nat, minute: Nat, second := Nat, microsecond := Nat, tzinfo := .TZInfo or NoneType) -> .Time
+    __call__: (hour: 0..23, minute: 0..59, second := 0..59, microsecond := Nat, tzinfo := .TZInfo or NoneType) -> .Time
+    __eq__: (self: .Time, other: .Time) -> Bool
+    __ne__: (self: .Time, other: .Time) -> Bool
+    __lt__: (self: .Time, other: .Time) -> Bool
+    __le__: (self: .Time, other: .Time) -> Bool
+    __gt__: (self: .Time, other: .Time) -> Bool
+    __ge__: (self: .Time, other: .Time) -> Bool
     min: .Time
     max: .Time
     resolution: .TimeDelta
     fromisoformat: (time_string: Str) -> .Time
-    replace: (self: .Time, hour := Nat, minute := Nat, second := Nat, microsecond := Nat, tzinfo := .TZInfo or NoneType) -> .Time
+    replace: (self: .Time, hour := 0..23, minute := 0..59, second := 0..59, microsecond := Nat, tzinfo := .TZInfo or NoneType) -> .Time
     isoformat: (self: .Time, timespec := Str) -> Str
-.DateTime = 'dateTime': ClassType
+.DateTime = 'datetime': ClassType
 .DateTime.
-    __call__: (year: Nat, month: Nat, day: Nat, hour := Nat, minute := Nat, second := Nat, microsecond := Nat, tzinfo := .TZInfo or NoneType) -> .DateTime
+    __call__: (year: 0..9999, month: 1..12, day: 1..31, hour := 0..23, minute := 0..59, second := 0..59, microsecond := Nat, tzinfo := .TZInfo or NoneType) -> .DateTime
+    __eq__: (self: .DateTime, other: .DateTime) -> Bool
+    __ne__: (self: .DateTime, other: .DateTime) -> Bool
+    __lt__: (self: .DateTime, other: .DateTime) -> Bool
+    __le__: (self: .DateTime, other: .DateTime) -> Bool
+    __gt__: (self: .DateTime, other: .DateTime) -> Bool
+    __ge__: (self: .DateTime, other: .DateTime) -> Bool
     today!: () => .DateTime
     now!: (tz := .TZInfo or NoneType) => .DateTime
     utcnow!: () => .DateTime
@@ -60,6 +84,13 @@ time = pyimport "time"
     resolution: .TimeDelta
     date: (self: .DateTime) -> .Date
     time: (self: .DateTime) -> .Time
-    replace: (self: .DateTime, year := Nat, month := Nat, day := Nat, hour := Nat, minute := Nat, second := Nat, microsecond := Nat, tzinfo := .TZInfo or NoneType) -> .DateTime
+    replace: (self: .DateTime, year := 0..9999, month := 1..12, day := 1..31, hour := 0..23, minute := 0..59, second := 0..59, microsecond := Nat, tzinfo := .TZInfo or NoneType) -> .DateTime
     utcoffset: (self: .DateTime) -> .TimeDelta or NoneType
 .TimeZone = 'timezone': ClassType
+.TimeZone.
+    __eq__: (self: .TimeZone, other: .TimeZone) -> Bool
+    __ne__: (self: .TimeZone, other: .TimeZone) -> Bool
+    __lt__: (self: .TimeZone, other: .TimeZone) -> Bool
+    __le__: (self: .TimeZone, other: .TimeZone) -> Bool
+    __gt__: (self: .TimeZone, other: .TimeZone) -> Bool
+    __ge__: (self: .TimeZone, other: .TimeZone) -> Bool

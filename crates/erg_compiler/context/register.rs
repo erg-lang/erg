@@ -11,19 +11,20 @@ use erg_common::levenshtein::get_similar_name;
 use erg_common::python_util::BUILTIN_PYTHON_MODS;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
-use erg_common::vis::Visibility;
+use erg_common::triple::Triple;
 use erg_common::Str;
-use erg_common::{enum_unwrap, get_hash, log, set};
+use erg_common::{get_hash, log, set};
 
 use ast::{ConstIdentifier, Decorator, DefId, Identifier, OperationKind, SimpleTypeSpec, VarName};
-use erg_parser::ast;
+use erg_parser::ast::{self, PreDeclTypeSpec};
 
 use crate::ty::constructors::{
     free_var, func, func0, func1, proc, ref_, ref_mut, unknown_len_array_t, v_enum,
 };
 use crate::ty::free::{Constraint, FreeKind, HasLevel};
+use crate::ty::typaram::TyParam;
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
-use crate::ty::{HasType, ParamTy, SubrType, Type};
+use crate::ty::{HasType, ParamTy, SubrType, Type, Visibility};
 
 use crate::build_hir::HIRBuilder;
 use crate::context::{
@@ -38,9 +39,13 @@ use crate::varinfo::{AbsLocation, Mutability, VarInfo, VarKind};
 use crate::{feature_error, hir};
 use Mutability::*;
 use RegistrationMode::*;
-use Visibility::*;
 
-use super::instantiate::{ParamKind, TyVarCache};
+use super::instantiate::TyVarCache;
+use super::instantiate_spec::ParamKind;
+
+pub fn valid_mod_name(name: &str) -> bool {
+    !name.is_empty() && name.trim() == name
+}
 
 /// format:
 /// ```python
@@ -133,7 +138,7 @@ impl Context {
             }
             other => unreachable!("{other}"),
         };
-        let vis = ident.vis();
+        let vis = self.instantiate_vis_modifier(&ident.vis)?;
         let kind = id.map_or(VarKind::Declared, VarKind::Defined);
         let sig_t = self.instantiate_var_sig_t(sig.t_spec.as_ref(), PreRegister)?;
         let py_name = if let ContextKind::PatchMethodDefs(_base) = &self.kind {
@@ -153,7 +158,7 @@ impl Context {
             let vi = VarInfo::new(
                 sig_t,
                 muty,
-                vis,
+                Visibility::new(vis, self.name.clone()),
                 kind,
                 None,
                 self.impl_of(),
@@ -172,7 +177,7 @@ impl Context {
         id: Option<DefId>,
     ) -> TyCheckResult<()> {
         let name = sig.ident.inspect();
-        let vis = sig.ident.vis();
+        let vis = self.instantiate_vis_modifier(&sig.ident.vis)?;
         let muty = Mutability::from(&name[..]);
         let kind = id.map_or(VarKind::Declared, VarKind::Defined);
         let comptime_decos = sig
@@ -199,7 +204,7 @@ impl Context {
         let vi = VarInfo::new(
             t,
             muty,
-            vis,
+            Visibility::new(vis, self.name.clone()),
             kind,
             Some(comptime_decos),
             self.impl_of(),
@@ -238,18 +243,30 @@ impl Context {
             ast::VarPattern::Discard(_) => {
                 return Ok(VarInfo {
                     t: body_t.clone(),
-                    ..VarInfo::const_default()
+                    ..VarInfo::const_default_private()
                 });
             }
-            _ => todo!(),
+            _ => unreachable!(),
         };
+        if let Some(py_name) = &py_name {
+            self.erg_to_py_names
+                .insert(ident.inspect().clone(), py_name.clone());
+        }
+        let ident = if cfg!(feature = "py_compatible") && py_name.is_some() {
+            let mut symbol = ident.name.clone().into_token();
+            symbol.content = py_name.clone().unwrap();
+            Identifier::new(ident.vis.clone(), VarName::new(symbol))
+        } else {
+            ident.clone()
+        };
+        let vis = self.instantiate_vis_modifier(&ident.vis)?;
         // already defined as const
         if sig.is_const() {
             let vi = self.decls.remove(ident.inspect()).unwrap_or_else(|| {
                 VarInfo::new(
                     body_t.clone(),
                     Mutability::Const,
-                    sig.vis(),
+                    Visibility::new(vis, self.name.clone()),
                     VarKind::Declared,
                     None,
                     self.impl_of(),
@@ -270,7 +287,6 @@ impl Context {
         } else {
             py_name
         };
-        let vis = ident.vis();
         let kind = if id.0 == 0 {
             VarKind::Declared
         } else {
@@ -279,14 +295,14 @@ impl Context {
         let vi = VarInfo::new(
             body_t.clone(),
             muty,
-            vis,
+            Visibility::new(vis, self.name.clone()),
             kind,
             None,
             self.impl_of(),
             py_name,
             self.absolutize(ident.name.loc()),
         );
-        log!(info "Registered {}::{}: {}", self.name, ident.name, vi);
+        log!(info "Registered {}{}: {}", self.name, ident, vi);
         self.locals.insert(ident.name.clone(), vi.clone());
         Ok(vi)
     }
@@ -300,9 +316,9 @@ impl Context {
         kind: ParamKind,
     ) -> TyCheckResult<()> {
         let vis = if cfg!(feature = "py_compatible") {
-            Public
+            Visibility::BUILTIN_PUBLIC
         } else {
-            Private
+            Visibility::private(self.name.clone())
         };
         let default = kind.default_info();
         let is_var_params = kind.is_var_params();
@@ -622,6 +638,7 @@ impl Context {
             self.locals.insert(sig.ident.name.clone(), vi.clone());
             return Ok(vi);
         }
+        let vis = self.instantiate_vis_modifier(&sig.ident.vis)?;
         let muty = if sig.ident.is_const() {
             Mutability::Const
         } else {
@@ -717,7 +734,7 @@ impl Context {
         let vi = VarInfo::new(
             found_t,
             muty,
-            sig.ident.vis(),
+            Visibility::new(vis, self.name.clone()),
             VarKind::Defined(id),
             Some(comptime_decos),
             self.impl_of(),
@@ -746,6 +763,7 @@ impl Context {
                 return Ok(());
             }
         }
+        let vis = self.instantiate_vis_modifier(&ident.vis)?;
         let muty = if ident.is_const() {
             Mutability::Const
         } else {
@@ -765,7 +783,7 @@ impl Context {
         let vi = VarInfo::new(
             failure_t,
             muty,
-            ident.vis(),
+            Visibility::new(vis, self.name.clone()),
             VarKind::DoesNotExist,
             Some(comptime_decos),
             self.impl_of(),
@@ -786,6 +804,9 @@ impl Context {
                     if let Err(errs) = self.preregister_def(def) {
                         total_errs.extend(errs.into_iter());
                     }
+                    if def.def_kind().is_import() {
+                        self.pre_import(def);
+                    }
                 }
                 ast::Expr::ClassDef(class_def) => {
                     if let Err(errs) = self.preregister_def(&class_def.def) {
@@ -794,6 +815,11 @@ impl Context {
                 }
                 ast::Expr::PatchDef(patch_def) => {
                     if let Err(errs) = self.preregister_def(&patch_def.def) {
+                        total_errs.extend(errs.into_iter());
+                    }
+                }
+                ast::Expr::Dummy(dummy) => {
+                    if let Err(errs) = self.preregister(&dummy.exprs) {
                         total_errs.extend(errs.into_iter());
                     }
                 }
@@ -807,6 +833,40 @@ impl Context {
         }
     }
 
+    /// HACK: The constant expression evaluator can evaluate attributes when the type of the receiver is known.
+    /// import/pyimport is not a constant function, but specially assumes that the type of the module is known in the eval phase.
+    fn pre_import(&mut self, def: &ast::Def) {
+        let Some(ast::Expr::Call(call)) = def.body.block.first() else { unreachable!() };
+        let Some(ast::Expr::Literal(mod_name)) = call.args.get_left_or_key("Path") else {
+            return;
+        };
+        let Ok(mod_name) = hir::Literal::try_from(mod_name.token.clone()) else {
+            return;
+        };
+        let _ = self.import_mod(call.additional_operation().unwrap(), &mod_name);
+        let arg = TyParam::Value(ValueObj::Str(
+            mod_name.token.content.replace('\"', "").into(),
+        ));
+        let typ = if def.def_kind().is_erg_import() {
+            Type::Poly {
+                name: Str::ever("Module"),
+                params: vec![arg],
+            }
+        } else {
+            Type::Poly {
+                name: Str::ever("PyModule"),
+                params: vec![arg],
+            }
+        };
+        let Some(ident) = def.sig.ident() else { return  };
+        let Some((_, vi)) = self.get_var_info(ident.inspect()) else {
+            return;
+        };
+        if let Type::FreeVar(fv) = &vi.t {
+            fv.link(&typ);
+        }
+    }
+
     pub(crate) fn preregister_def(&mut self, def: &ast::Def) -> TyCheckResult<()> {
         let id = Some(def.body.id);
         let __name__ = def.sig.ident().map(|i| i.inspect()).unwrap_or(UBAR);
@@ -814,7 +874,7 @@ impl Context {
             ast::Signature::Subr(sig) => {
                 if sig.is_const() {
                     let tv_cache = self.instantiate_ty_bounds(&sig.bounds, PreRegister)?;
-                    let vis = def.sig.vis();
+                    let vis = self.instantiate_vis_modifier(sig.vis())?;
                     self.grow(__name__, ContextKind::Proc, vis, Some(tv_cache));
                     let (obj, const_t) = match self.eval_const_block(&def.body.block) {
                         Ok(obj) => (obj.clone(), v_enum(set! {obj})),
@@ -844,7 +904,11 @@ impl Context {
                             })?;
                     }
                     self.pop();
-                    self.register_gen_const(def.sig.ident().unwrap(), obj)?;
+                    self.register_gen_const(
+                        def.sig.ident().unwrap(),
+                        obj,
+                        def.def_kind().is_other(),
+                    )?;
                 } else {
                     self.declare_sub(sig, id)?;
                 }
@@ -852,7 +916,8 @@ impl Context {
             ast::Signature::Var(sig) => {
                 if sig.is_const() {
                     let kind = ContextKind::from(def.def_kind());
-                    self.grow(__name__, kind, sig.vis(), None);
+                    let vis = self.instantiate_vis_modifier(sig.vis())?;
+                    self.grow(__name__, kind, vis, None);
                     let (obj, const_t) = match self.eval_const_block(&def.body.block) {
                         Ok(obj) => (obj.clone(), v_enum(set! {obj})),
                         Err(errs) => {
@@ -882,7 +947,7 @@ impl Context {
                     }
                     self.pop();
                     if let Some(ident) = sig.ident() {
-                        self.register_gen_const(ident, obj)?;
+                        self.register_gen_const(ident, obj, def.def_kind().is_other())?;
                     }
                 } else {
                     self.pre_define_var(sig, id)?;
@@ -1047,8 +1112,10 @@ impl Context {
         &mut self,
         ident: &Identifier,
         obj: ValueObj,
+        alias: bool,
     ) -> CompileResult<()> {
-        if self.rec_get_const_obj(ident.inspect()).is_some() && ident.vis().is_private() {
+        let vis = self.instantiate_vis_modifier(&ident.vis)?;
+        if self.rec_get_const_obj(ident.inspect()).is_some() && vis.is_private() {
             Err(CompileErrors::from(CompileError::reassign_error(
                 self.cfg.input.clone(),
                 line!() as usize,
@@ -1059,8 +1126,12 @@ impl Context {
         } else {
             match obj {
                 ValueObj::Type(t) => match t {
+                    TypeObj::Generated(gen) if alias => {
+                        let meta_t = gen.meta_type();
+                        self.register_type_alias(ident, gen.into_typ(), meta_t)
+                    }
                     TypeObj::Generated(gen) => self.register_gen_type(ident, gen),
-                    TypeObj::Builtin(t) => self.register_type_alias(ident, t),
+                    TypeObj::Builtin { t, meta_t } => self.register_type_alias(ident, t, meta_t),
                 },
                 // TODO: not all value objects are comparable
                 other => {
@@ -1068,7 +1139,7 @@ impl Context {
                     let vi = VarInfo::new(
                         v_enum(set! {other.clone()}),
                         Const,
-                        ident.vis(),
+                        Visibility::new(vis, self.name.clone()),
                         VarKind::Defined(id),
                         None,
                         self.impl_of(),
@@ -1104,13 +1175,17 @@ impl Context {
                         Self::methods(None, self.cfg.clone(), self.shared.clone(), 2, self.level);
                     let new_t = if let Some(base) = gen.base_or_sup() {
                         match base {
-                            TypeObj::Builtin(Type::Record(rec)) => {
+                            TypeObj::Builtin {
+                                t: Type::Record(rec),
+                                ..
+                            } => {
                                 for (field, t) in rec.iter() {
                                     let varname = VarName::from_str(field.symbol.clone());
                                     let vi = VarInfo::instance_attr(
                                         field.clone(),
                                         t.clone(),
                                         self.impl_of(),
+                                        ctx.name.clone(),
                                     );
                                     ctx.decls.insert(varname, vi);
                                 }
@@ -1120,7 +1195,7 @@ impl Context {
                                     "base",
                                     other.typ().clone(),
                                     Immutable,
-                                    Private,
+                                    Visibility::BUILTIN_PRIVATE,
                                     None,
                                 )?;
                             }
@@ -1133,12 +1208,18 @@ impl Context {
                         "__new__",
                         new_t.clone(),
                         Immutable,
-                        Private,
+                        Visibility::BUILTIN_PRIVATE,
                         Some("__call__".into()),
                     )?;
                     // 必要なら、ユーザーが独自に上書きする
                     // users can override this if necessary
-                    methods.register_auto_impl("new", new_t, Immutable, Public, None)?;
+                    methods.register_auto_impl(
+                        "new",
+                        new_t,
+                        Immutable,
+                        Visibility::BUILTIN_PUBLIC,
+                        None,
+                    )?;
                     ctx.methods_list
                         .push((ClassDefType::Simple(gen.typ().clone()), methods));
                     self.register_gen_mono_type(ident, gen, ctx, Const)
@@ -1174,21 +1255,52 @@ impl Context {
                     if let Some(sup) =
                         self.rec_get_const_obj(&gen.base_or_sup().unwrap().typ().local_name())
                     {
-                        let ValueObj::Type(sup) = sup else { todo!("{sup}") };
+                        let ValueObj::Type(sup) = sup else {
+                            return Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
+                                self.cfg.input.clone(),
+                                line!() as usize,
+                                ident.loc(),
+                                self.caused_by(),
+                                "",
+                                Some(1),
+                                &Type::Type,
+                                &sup.class(),
+                                None,
+                                None
+                            )));
+                        };
                         let param_t = match sup {
-                            TypeObj::Builtin(t) => t,
-                            TypeObj::Generated(t) => t.base_or_sup().unwrap().typ(),
+                            TypeObj::Builtin { t, .. } => t,
+                            TypeObj::Generated(t) => {
+                                if let Some(t) = t.base_or_sup() {
+                                    t.typ()
+                                } else {
+                                    return Err(TyCheckErrors::from(TyCheckError::param_error(
+                                        self.cfg.input.clone(),
+                                        line!() as usize,
+                                        ident.loc(),
+                                        self.caused_by(),
+                                        1,
+                                        0,
+                                    )));
+                                }
+                            }
                         };
                         // `Super.Requirement := {x = Int}` and `Self.Additional := {y = Int}`
                         // => `Self.Requirement := {x = Int; y = Int}`
                         let param_t = if let Some(additional) = gen.additional() {
-                            if let TypeObj::Builtin(Type::Record(rec)) = additional {
+                            if let TypeObj::Builtin {
+                                t: Type::Record(rec),
+                                ..
+                            } = additional
+                            {
                                 for (field, t) in rec.iter() {
                                     let varname = VarName::from_str(field.symbol.clone());
                                     let vi = VarInfo::instance_attr(
                                         field.clone(),
                                         t.clone(),
                                         self.impl_of(),
+                                        ctx.name.clone(),
                                     );
                                     ctx.decls.insert(varname, vi);
                                 }
@@ -1202,11 +1314,17 @@ impl Context {
                             "__new__",
                             new_t.clone(),
                             Immutable,
-                            Private,
+                            Visibility::BUILTIN_PRIVATE,
                             Some("__call__".into()),
                         )?;
                         // 必要なら、ユーザーが独自に上書きする
-                        methods.register_auto_impl("new", new_t, Immutable, Public, None)?;
+                        methods.register_auto_impl(
+                            "new",
+                            new_t,
+                            Immutable,
+                            Visibility::BUILTIN_PUBLIC,
+                            None,
+                        )?;
                         ctx.methods_list
                             .push((ClassDefType::Simple(gen.typ().clone()), methods));
                         self.register_gen_mono_type(ident, gen, ctx, Const)
@@ -1240,9 +1358,14 @@ impl Context {
                         2,
                         self.level,
                     );
-                    let Some(TypeObj::Builtin(Type::Record(req))) = gen.base_or_sup() else { todo!("{gen}") };
+                    let Some(TypeObj::Builtin{ t: Type::Record(req), .. }) = gen.base_or_sup() else { todo!("{gen}") };
                     for (field, t) in req.iter() {
-                        let vi = VarInfo::instance_attr(field.clone(), t.clone(), self.impl_of());
+                        let vi = VarInfo::instance_attr(
+                            field.clone(),
+                            t.clone(),
+                            self.impl_of(),
+                            ctx.name.clone(),
+                        );
                         ctx.decls
                             .insert(VarName::from_str(field.symbol.clone()), vi);
                     }
@@ -1268,13 +1391,23 @@ impl Context {
                         2,
                         self.level,
                     );
-                    let additional = gen.additional().map(
-                        |additional| enum_unwrap!(additional, TypeObj::Builtin:(Type::Record:(_))),
-                    );
+                    let additional = if let Some(TypeObj::Builtin {
+                        t: Type::Record(additional),
+                        ..
+                    }) = gen.additional()
+                    {
+                        Some(additional)
+                    } else {
+                        None
+                    };
                     if let Some(additional) = additional {
                         for (field, t) in additional.iter() {
-                            let vi =
-                                VarInfo::instance_attr(field.clone(), t.clone(), self.impl_of());
+                            let vi = VarInfo::instance_attr(
+                                field.clone(),
+                                t.clone(),
+                                self.impl_of(),
+                                ctx.name.clone(),
+                            );
                             ctx.decls
                                 .insert(VarName::from_str(field.symbol.clone()), vi);
                         }
@@ -1299,7 +1432,7 @@ impl Context {
             }
             GenTypeObj::Patch(_) => {
                 if gen.typ().is_monomorphic() {
-                    let Some(TypeObj::Builtin(base)) = gen.base_or_sup() else { todo!("{gen}") };
+                    let Some(TypeObj::Builtin{ t: base, .. }) = gen.base_or_sup() else { todo!("{gen}") };
                     let ctx = Self::mono_patch(
                         gen.typ().qual_name(),
                         base.clone(),
@@ -1329,7 +1462,13 @@ impl Context {
         }
     }
 
-    pub(crate) fn register_type_alias(&mut self, ident: &Identifier, t: Type) -> CompileResult<()> {
+    pub(crate) fn register_type_alias(
+        &mut self,
+        ident: &Identifier,
+        t: Type,
+        meta_t: Type,
+    ) -> CompileResult<()> {
+        let vis = self.instantiate_vis_modifier(&ident.vis)?;
         if self.mono_types.contains_key(ident.inspect()) {
             Err(CompileErrors::from(CompileError::reassign_error(
                 self.cfg.input.clone(),
@@ -1338,7 +1477,7 @@ impl Context {
                 self.caused_by(),
                 ident.inspect(),
             )))
-        } else if self.rec_get_const_obj(ident.inspect()).is_some() && ident.vis().is_private() {
+        } else if self.rec_get_const_obj(ident.inspect()).is_some() && vis.is_private() {
             // TODO: display where defined
             Err(CompileErrors::from(CompileError::reassign_error(
                 self.cfg.input.clone(),
@@ -1351,10 +1490,11 @@ impl Context {
             let name = &ident.name;
             let muty = Mutability::from(&ident.inspect()[..]);
             let id = DefId(get_hash(&(&self.name, &name)));
+            let val = ValueObj::Type(TypeObj::Builtin { t, meta_t });
             let vi = VarInfo::new(
-                Type::Type,
+                v_enum(set! { val.clone() }),
                 muty,
-                ident.vis(),
+                Visibility::new(vis, self.name.clone()),
                 VarKind::Defined(id),
                 None,
                 self.impl_of(),
@@ -1363,8 +1503,7 @@ impl Context {
             );
             self.index().register(&vi);
             self.decls.insert(name.clone(), vi);
-            self.consts
-                .insert(name.clone(), ValueObj::Type(TypeObj::Builtin(t)));
+            self.consts.insert(name.clone(), val);
             Ok(())
         }
     }
@@ -1376,6 +1515,7 @@ impl Context {
         ctx: Self,
         muty: Mutability,
     ) -> CompileResult<()> {
+        let vis = self.instantiate_vis_modifier(&ident.vis)?;
         // FIXME: recursive search
         if self.mono_types.contains_key(ident.inspect()) {
             Err(CompileErrors::from(CompileError::reassign_error(
@@ -1385,7 +1525,7 @@ impl Context {
                 self.caused_by(),
                 ident.inspect(),
             )))
-        } else if self.rec_get_const_obj(ident.inspect()).is_some() && ident.vis().is_private() {
+        } else if self.rec_get_const_obj(ident.inspect()).is_some() && vis.is_private() {
             Err(CompileErrors::from(CompileError::reassign_error(
                 self.cfg.input.clone(),
                 line!() as usize,
@@ -1395,13 +1535,14 @@ impl Context {
             )))
         } else {
             let t = gen.typ().clone();
-            let meta_t = gen.meta_type();
+            let val = ValueObj::Type(TypeObj::Generated(gen));
+            let meta_t = v_enum(set! { val.clone() });
             let name = &ident.name;
             let id = DefId(get_hash(&(&self.name, &name)));
             let vi = VarInfo::new(
                 meta_t,
                 muty,
-                ident.vis(),
+                Visibility::new(vis, self.name.clone()),
                 VarKind::Defined(id),
                 None,
                 self.impl_of(),
@@ -1410,8 +1551,7 @@ impl Context {
             );
             self.index().register(&vi);
             self.decls.insert(name.clone(), vi);
-            self.consts
-                .insert(name.clone(), ValueObj::Type(TypeObj::Generated(gen)));
+            self.consts.insert(name.clone(), val);
             for impl_trait in ctx.super_traits.iter() {
                 if let Some(impls) = self.trait_impls().get_mut(&impl_trait.qual_name()) {
                     impls.insert(TraitImpl::new(t.clone(), impl_trait.clone()));
@@ -1454,6 +1594,7 @@ impl Context {
         ctx: Self,
         muty: Mutability,
     ) -> CompileResult<()> {
+        let vis = self.instantiate_vis_modifier(&ident.vis)?;
         // FIXME: recursive search
         if self.patches.contains_key(ident.inspect()) {
             Err(CompileErrors::from(CompileError::reassign_error(
@@ -1463,7 +1604,7 @@ impl Context {
                 self.caused_by(),
                 ident.inspect(),
             )))
-        } else if self.rec_get_const_obj(ident.inspect()).is_some() && ident.vis().is_private() {
+        } else if self.rec_get_const_obj(ident.inspect()).is_some() && vis.is_private() {
             Err(CompileErrors::from(CompileError::reassign_error(
                 self.cfg.input.clone(),
                 line!() as usize,
@@ -1481,7 +1622,7 @@ impl Context {
                 VarInfo::new(
                     meta_t,
                     muty,
-                    ident.vis(),
+                    Visibility::new(vis, self.name.clone()),
                     VarKind::Defined(id),
                     None,
                     self.impl_of(),
@@ -1531,15 +1672,39 @@ impl Context {
         kind: OperationKind,
         mod_name: &Literal,
     ) -> CompileResult<PathBuf> {
+        let ValueObj::Str(__name__) = &mod_name.value else {
+            let name = if kind.is_erg_import() { "import" } else { "pyimport" };
+            return Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                mod_name.loc(),
+                self.caused_by(),
+                name,
+                Some(1),
+                &Type::Str,
+                &mod_name.t(),
+                None,
+                None,
+            )));
+        };
+        if !valid_mod_name(__name__) {
+            return Err(TyCheckErrors::from(TyCheckError::syntax_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                mod_name.loc(),
+                self.caused_by(),
+                format!("{__name__} is not a valid module name"),
+                None,
+            )));
+        }
         if kind.is_erg_import() {
-            self.import_erg_mod(mod_name)
+            self.import_erg_mod(__name__, mod_name)
         } else {
-            self.import_py_mod(mod_name)
+            self.import_py_mod(__name__, mod_name)
         }
     }
 
-    fn import_erg_mod(&self, mod_name: &Literal) -> CompileResult<PathBuf> {
-        let ValueObj::Str(__name__) = mod_name.value.clone() else { todo!("{mod_name}") };
+    fn import_erg_mod(&self, __name__: &Str, loc: &impl Locational) -> CompileResult<PathBuf> {
         let mod_cache = self.mod_cache();
         let py_mod_cache = self.py_mod_cache();
         let path = match Self::resolve_real_path(&self.cfg, Path::new(&__name__[..])) {
@@ -1549,12 +1714,12 @@ impl Context {
                     self.cfg.input.clone(),
                     line!() as usize,
                     format!("module {__name__} not found"),
-                    mod_name.loc(),
+                    loc.loc(),
                     self.caused_by(),
-                    self.similar_builtin_erg_mod_name(&__name__)
-                        .or_else(|| mod_cache.get_similar_name(&__name__)),
-                    self.similar_builtin_py_mod_name(&__name__)
-                        .or_else(|| py_mod_cache.get_similar_name(&__name__)),
+                    self.similar_builtin_erg_mod_name(__name__)
+                        .or_else(|| mod_cache.get_similar_name(__name__)),
+                    self.similar_builtin_py_mod_name(__name__)
+                        .or_else(|| py_mod_cache.get_similar_name(__name__)),
                 ));
                 return Err(err);
             }
@@ -1641,11 +1806,11 @@ impl Context {
         }
     }
 
-    fn get_path(&self, mod_name: &Literal, __name__: Str) -> CompileResult<PathBuf> {
+    fn get_path(&self, __name__: &Str, loc: &impl Locational) -> CompileResult<PathBuf> {
         match Self::resolve_decl_path(&self.cfg, Path::new(&__name__[..])) {
             Some(path) => {
                 if Self::can_reuse(&path).is_none() {
-                    let _ = self.try_gen_py_decl_file(&__name__);
+                    let _ = self.try_gen_py_decl_file(__name__);
                 }
                 if self.is_pystd_main_module(path.as_path())
                     && !BUILTIN_PYTHON_MODS.contains(&&__name__[..])
@@ -1653,8 +1818,8 @@ impl Context {
                     let err = TyCheckError::module_env_error(
                         self.cfg.input.clone(),
                         line!() as usize,
-                        &__name__,
-                        mod_name.loc(),
+                        __name__,
+                        loc.loc(),
                         self.caused_by(),
                     );
                     return Err(TyCheckErrors::from(err));
@@ -1662,19 +1827,19 @@ impl Context {
                 Ok(path)
             }
             None => {
-                if let Ok(path) = self.try_gen_py_decl_file(&__name__) {
+                if let Ok(path) = self.try_gen_py_decl_file(__name__) {
                     return Ok(path);
                 }
                 let err = TyCheckError::import_error(
                     self.cfg.input.clone(),
                     line!() as usize,
                     format!("module {__name__} not found"),
-                    mod_name.loc(),
+                    loc.loc(),
                     self.caused_by(),
-                    self.similar_builtin_erg_mod_name(&__name__)
-                        .or_else(|| self.mod_cache().get_similar_name(&__name__)),
-                    self.similar_builtin_py_mod_name(&__name__)
-                        .or_else(|| self.py_mod_cache().get_similar_name(&__name__)),
+                    self.similar_builtin_erg_mod_name(__name__)
+                        .or_else(|| self.mod_cache().get_similar_name(__name__)),
+                    self.similar_builtin_py_mod_name(__name__)
+                        .or_else(|| self.py_mod_cache().get_similar_name(__name__)),
                 );
                 Err(TyCheckErrors::from(err))
             }
@@ -1708,10 +1873,9 @@ impl Context {
         Err(())
     }
 
-    fn import_py_mod(&self, mod_name: &Literal) -> CompileResult<PathBuf> {
-        let ValueObj::Str(__name__) = mod_name.value.clone() else { todo!("{mod_name}") };
+    fn import_py_mod(&self, __name__: &Str, loc: &impl Locational) -> CompileResult<PathBuf> {
         let py_mod_cache = self.py_mod_cache();
-        let path = self.get_path(mod_name, __name__)?;
+        let path = self.get_path(__name__, loc)?;
         if let Some(referrer) = self.cfg.input.path() {
             let graph = &self.shared.as_ref().unwrap().graph;
             graph.inc_ref(referrer, path.clone());
@@ -1758,7 +1922,7 @@ impl Context {
             )))
         } else if self.locals.get(ident.inspect()).is_some() {
             let vi = self.locals.remove(ident.inspect()).unwrap();
-            self.deleted_locals.insert(ident.name.clone(), vi);
+            self.deleted_locals.insert(ident.raw.name.clone(), vi);
             Ok(())
         } else {
             Err(TyCheckErrors::from(TyCheckError::no_var_error(
@@ -1831,7 +1995,7 @@ impl Context {
         #[allow(clippy::single_match)]
         match acc {
             hir::Accessor::Ident(ident) => {
-                if let Some(vi) = self.get_mut_current_scope_var(&ident.name) {
+                if let Some(vi) = self.get_mut_current_scope_var(&ident.raw.name) {
                     vi.t = t;
                 } else {
                     return Err(TyCheckErrors::from(TyCheckError::feature_error(
@@ -1849,29 +2013,69 @@ impl Context {
         Ok(())
     }
 
-    pub(crate) fn inc_ref_simple_typespec(&self, simple: &SimpleTypeSpec) {
-        if let Ok(vi) = self.rec_get_var_info(
+    fn inc_ref_acc(&self, acc: &ast::Accessor, namespace: &Context) {
+        match acc {
+            ast::Accessor::Ident(ident) => self.inc_ref_local(ident, namespace),
+            ast::Accessor::Attr(attr) => {
+                self.inc_ref_expr(&attr.obj, namespace);
+                if let Ok(ctxs) = self.get_singular_ctxs(&attr.obj, self) {
+                    if let Some(first) = ctxs.first() {
+                        first.inc_ref_local(&attr.ident, namespace);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn inc_ref_expr(&self, expr: &ast::Expr, namespace: &Context) {
+        #[allow(clippy::single_match)]
+        match expr {
+            ast::Expr::Accessor(acc) => self.inc_ref_acc(acc, namespace),
+            // TODO:
+            _ => {}
+        }
+    }
+
+    pub(crate) fn inc_ref_predecl_typespec(&self, predecl: &PreDeclTypeSpec, namespace: &Context) {
+        match predecl {
+            PreDeclTypeSpec::Attr { namespace: obj, t } => {
+                self.inc_ref_expr(obj, namespace);
+                if let Ok(ctxs) = self.get_singular_ctxs(obj, self) {
+                    if let Some(first) = ctxs.first() {
+                        first.inc_ref_simple_typespec(t, namespace);
+                    }
+                }
+            }
+            PreDeclTypeSpec::Simple(simple) => self.inc_ref_simple_typespec(simple, namespace),
+            // TODO:
+            _ => {}
+        }
+    }
+
+    pub(crate) fn inc_ref_simple_typespec(&self, simple: &SimpleTypeSpec, namespace: &Context) {
+        if let Triple::Ok(vi) = self.rec_get_var_info(
             &simple.ident,
             crate::compile::AccessKind::Name,
             &self.cfg.input,
-            &self.name,
+            self,
         ) {
-            self.inc_ref(&vi, &simple.ident.name);
+            self.inc_ref(&vi, &simple.ident.name, namespace);
         }
     }
 
-    pub(crate) fn inc_ref_const_local(&self, local: &ConstIdentifier) {
-        if let Ok(vi) = self.rec_get_var_info(
+    pub(crate) fn inc_ref_local(&self, local: &ConstIdentifier, namespace: &Context) {
+        if let Triple::Ok(vi) = self.rec_get_var_info(
             local,
             crate::compile::AccessKind::Name,
             &self.cfg.input,
-            &self.name,
+            self,
         ) {
-            self.inc_ref(&vi, &local.name);
+            self.inc_ref(&vi, &local.name, namespace);
         }
     }
 
-    pub fn inc_ref<L: Locational>(&self, vi: &VarInfo, name: &L) {
-        self.index().inc_ref(vi, self.absolutize(name.loc()));
+    pub fn inc_ref<L: Locational>(&self, vi: &VarInfo, name: &L, namespace: &Context) {
+        self.index().inc_ref(vi, namespace.absolutize(name.loc()));
     }
 }

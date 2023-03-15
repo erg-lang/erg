@@ -5,7 +5,7 @@ use std::cmp::{self, Ordering};
 use std::fmt;
 use std::io::{stderr, BufWriter, Write as _};
 
-use crate::config::Input;
+use crate::config::{Input, InputKind};
 use crate::style::Attribute;
 use crate::style::Characters;
 use crate::style::Color;
@@ -556,8 +556,8 @@ pub struct SubMessage {
 
 impl SubMessage {
     ///
-    /// Used when the msg or hint si empty.
-    /// `msg` is Vec\<String\> instead of Option\<String\> because it can be used when there are multiple `msg`s as well as multiple lines.
+    /// Used when the msg or hint is empty.
+    /// `msg` is type of `Vec<String>` instead of `Option<String>` because it can be used when there are multiple `msg`s as well as multiple lines.
     /// # Example
     /// ```
     /// # use erg_common::error::{Location, SubMessage};
@@ -707,13 +707,13 @@ impl SubMessage {
                 cxt.push_str("\n");
                 cxt.to_string()
             }
-            Location::Unknown => match e.input() {
-                Input::File(_) => "\n".to_string(),
-                other => {
+            Location::Unknown => match &e.input().kind {
+                InputKind::File(_) => "\n".to_string(),
+                _other => {
                     let (_, vbar) = chars.gutters();
                     let mut cxt = StyledStrings::default();
                     cxt.push_str_with_color(&format!(" ? {vbar} "), gutter_color);
-                    cxt.push_str(&other.reread());
+                    cxt.push_str(&e.input().reread());
                     cxt.push_str("\n");
                     for msg in self.msg.iter() {
                         cxt.push_str(msg);
@@ -910,7 +910,7 @@ pub trait ErrorDisplay {
         let (color, mark) = core.specified_theme();
         let (gutter_color, chars) = core.theme.characters();
         let mut msg = String::new();
-        msg += &core.fmt_header(color, self.caused_by(), self.input().enclosed_name());
+        msg += &core.fmt_header(color, self.caused_by(), self.input().kind.enclosed_name());
         msg += "\n\n";
         for sub_msg in &core.sub_messages {
             msg += &sub_msg.format_code_and_pointer(self, color, gutter_color, mark, chars);
@@ -930,7 +930,7 @@ pub trait ErrorDisplay {
         write!(
             f,
             "{}\n\n",
-            core.fmt_header(color, self.caused_by(), self.input().enclosed_name())
+            core.fmt_header(color, self.caused_by(), self.input().kind.enclosed_name())
         )?;
         for sub_msg in &core.sub_messages {
             write!(

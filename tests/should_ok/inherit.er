@@ -1,0 +1,15 @@
+@Inheritable
+C = Class { .x = Int }
+C.
+    const = 0
+C.
+    new x: Int = C::__new__ { .x = x }
+
+D = Inherit C
+D.
+    @Override
+    new x: Int = D::__new__ { .x = x }
+
+d: D = D.new(1)
+print! d
+assert D.const == 0

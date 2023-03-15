@@ -37,6 +37,10 @@ class Int(int):
         return then__(int.__pow__(self, other), Int)
     def __rpow__(self, other):
         return then__(int.__pow__(other, self), Int)
+    def __pos__(self):
+        return self
+    def __neg__(self):
+        return then__(int.__neg__(self), Int)
 
 class IntMut(): # inherits Int
     value: Int
@@ -102,6 +106,10 @@ class IntMut(): # inherits Int
             return IntMut(self.value ** other)
         else:
             return IntMut(self.value ** other.value)
+    def __pos__(self):
+        return self
+    def __neg__(self):
+        return IntMut(-self.value)
     def inc(self, i=1):
         self.value = Int(self.value + i)
     def dec(self, i=1):

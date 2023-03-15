@@ -31,12 +31,13 @@ pub mod stdin;
 pub mod str;
 pub mod style;
 pub mod traits;
+pub mod triple;
 pub mod tsort;
 pub mod tty;
-pub mod vis;
 
 use crate::set::Set;
 pub use crate::str::Str;
+pub use crate::triple::Triple;
 
 pub type RcArray<T> = std::rc::Rc<[T]>;
 

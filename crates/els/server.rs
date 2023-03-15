@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::io;
 use std::io::{stdin, stdout, BufRead, Read, StdinLock, StdoutLock, Write};
 use std::ops::Not;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use erg_common::env::erg_path;
@@ -30,6 +30,7 @@ use lsp_types::{
     WorkDoneProgressOptions,
 };
 
+use crate::completion::CompletionCache;
 use crate::file_cache::FileCache;
 use crate::hir_visitor::HIRVisitor;
 use crate::message::{ErrorMessage, LogMessage, ShowMessage};
@@ -55,6 +56,7 @@ pub enum DefaultFeatures {
     SignatureHelp,
     /* ELS specific features */
     SmartCompletion,
+    DeepCompletion,
 }
 
 impl From<&str> for DefaultFeatures {
@@ -79,6 +81,9 @@ impl From<&str> for DefaultFeatures {
             "signaturehelp" | "signatureHelp" | "signature-help" => DefaultFeatures::SignatureHelp,
             "smartcompletion" | "smartCompletion" | "smart-completion" => {
                 DefaultFeatures::SmartCompletion
+            }
+            "deepcompletion" | "deepCompletion" | "deep-completion" => {
+                DefaultFeatures::DeepCompletion
             }
             _ => panic!("unknown feature: {s}"),
         }
@@ -177,6 +182,7 @@ pub struct Server<Checker: BuildRunnable = HIRBuilder> {
     pub(crate) client_capas: ClientCapabilities,
     pub(crate) opt_features: Vec<OptionalFeatures>,
     pub(crate) file_cache: FileCache,
+    pub(crate) comp_cache: CompletionCache,
     pub(crate) modules: Dict<Url, ModuleContext>,
     pub(crate) artifacts: Dict<Url, IncompleteArtifact>,
     pub(crate) current_sig: Option<Expr>,
@@ -191,6 +197,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             erg_path: erg_path(), // already normalized
             client_capas: ClientCapabilities::default(),
             opt_features: vec![],
+            comp_cache: CompletionCache::new(),
             file_cache: FileCache::new(),
             modules: Dict::new(),
             artifacts: Dict::new(),
@@ -499,7 +506,10 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 }
             }
         }
-        ctxs.push(&self.modules.get(uri).unwrap().context);
+        let mod_ctx = &self.modules.get(uri).unwrap().context;
+        let builtin_ctx = self.get_builtin_module();
+        ctxs.push(mod_ctx);
+        ctxs.extend(builtin_ctx);
         ctxs
     }
 
@@ -524,11 +534,11 @@ impl<Checker: BuildRunnable> Server<Checker> {
                         .get_nominal_super_type_ctxs(expr.ref_t())
                         .unwrap_or(vec![]);
                     ctxs.extend(type_ctxs);
-                    if let Ok(singular_ctx) = module
+                    if let Ok(singular_ctxs) = module
                         .context
-                        .get_singular_ctx_by_hir_expr(expr, &"".into())
+                        .get_singular_ctxs_by_hir_expr(expr, &module.context)
                     {
-                        ctxs.push(singular_ctx);
+                        ctxs.extend(singular_ctxs);
                     }
                 } else {
                     send_log("expr not found: {token}")?;
@@ -550,6 +560,12 @@ impl<Checker: BuildRunnable> Server<Checker> {
             .values()
             .next()
             .map(|module| module.context.shared())
+    }
+
+    pub(crate) fn get_builtin_module(&self) -> Option<&Context> {
+        self.get_shared()
+            .and_then(|mode| mode.mod_cache.ref_ctx(Path::new("<builtins>")))
+            .map(|mc| &mc.context)
     }
 
     pub(crate) fn clear_cache(&mut self, uri: &Url) {

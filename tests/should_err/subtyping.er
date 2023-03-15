@@ -33,3 +33,7 @@ for! "aaa", a =>
     print! a # OK
 for! "aaa", a =>
     print! a + 1 # ERR
+
+inty|T :> Nat, T <: Int|(x: T) = x + x
+inty 0 # OK
+inty 1.1 # ERR

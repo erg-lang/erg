@@ -68,7 +68,7 @@ fn exec_invalid_chunk_prs_err() -> Result<(), ()> {
 }
 
 fn _parse_test_from_code(file_path: &'static str) -> Result<(), ParserRunnerErrors> {
-    let input = Input::File(file_path.into());
+    let input = Input::file(file_path.into());
     let cfg = ErgConfig {
         input: input.clone(),
         py_server_timeout: 100,

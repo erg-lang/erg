@@ -1,0 +1,7 @@
+{Union; Optional} = pyimport "typing"
+{DateTime;} = pyimport "datetime"
+dt = DateTime
+
+print! dt.max
+print! dt.today!()
+print! dt 2022, 8, 10

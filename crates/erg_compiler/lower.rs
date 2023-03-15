@@ -5,14 +5,15 @@ use std::mem;
 
 use erg_common::config::{ErgConfig, ErgMode};
 use erg_common::dict;
+use erg_common::dict::Dict;
 use erg_common::error::{Location, MultiErrorDisplay};
 use erg_common::set;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, NoTypeDisplay, Runnable, Stream};
-use erg_common::vis::Visibility;
+use erg_common::triple::Triple;
 use erg_common::{fmt_option, fn_name, log, option_enum_unwrap, switch_lang, Str};
 
-use erg_parser::ast;
+use erg_parser::ast::{self, VisModifierSpec};
 use erg_parser::ast::{OperationKind, TypeSpecWithOp, VarName, AST};
 use erg_parser::build_ast::ASTBuilder;
 use erg_parser::token::{Token, TokenKind};
@@ -27,7 +28,7 @@ use crate::ty::constructors::{
 use crate::ty::free::Constraint;
 use crate::ty::typaram::TyParam;
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
-use crate::ty::{HasType, ParamTy, Type};
+use crate::ty::{HasType, ParamTy, Type, VisibilityModifier};
 
 use crate::context::{
     ClassDefType, Context, ContextKind, ContextProvider, ModuleContext, RegistrationMode,
@@ -39,11 +40,12 @@ use crate::error::{
 };
 use crate::hir;
 use crate::hir::HIR;
-use crate::reorder::Reorderer;
+use crate::link_ast::ASTLinker;
 use crate::varinfo::{VarInfo, VarKind};
 use crate::AccessKind;
 use crate::{feature_error, unreachable_error};
-use Visibility::*;
+
+use VisibilityModifier::*;
 
 /// Checks & infers types of an AST, and convert (lower) it into a HIR
 #[derive(Debug)]
@@ -123,7 +125,7 @@ impl Runnable for ASTLowerer {
 }
 
 impl ContextProvider for ASTLowerer {
-    fn dir(&self) -> Vec<(&VarName, &VarInfo)> {
+    fn dir(&self) -> Dict<&VarName, &VarInfo> {
         self.module.context.dir()
     }
 
@@ -175,7 +177,7 @@ impl ASTLowerer {
         &self.module
     }
 
-    pub fn dir(&self) -> Vec<(&VarName, &VarInfo)> {
+    pub fn dir(&self) -> Dict<&VarName, &VarInfo> {
         ContextProvider::dir(self)
     }
 
@@ -624,14 +626,40 @@ impl ASTLowerer {
             }
             ast::Accessor::Attr(attr) => {
                 let obj = self.lower_expr(*attr.obj)?;
-                let vi = self.module.context.get_attr_info(
+                let vi = match self.module.context.get_attr_info(
                     &obj,
                     &attr.ident,
                     &self.cfg.input,
-                    &self.module.context.name,
-                )?;
+                    &self.module.context,
+                ) {
+                    Triple::Ok(vi) => vi,
+                    Triple::Err(errs) => {
+                        self.errs.push(errs);
+                        VarInfo::ILLEGAL.clone()
+                    }
+                    Triple::None => {
+                        let self_t = obj.t();
+                        let (similar_info, similar_name) = self
+                            .module
+                            .context
+                            .get_similar_attr_and_info(&self_t, attr.ident.inspect())
+                            .unzip();
+                        let err = LowerError::detailed_no_attr_error(
+                            self.cfg.input.clone(),
+                            line!() as usize,
+                            attr.ident.loc(),
+                            self.module.context.caused_by(),
+                            &self_t,
+                            attr.ident.inspect(),
+                            similar_name,
+                            similar_info,
+                        );
+                        self.errs.push(err);
+                        VarInfo::ILLEGAL.clone()
+                    }
+                };
                 self.inc_ref(&vi, &attr.ident.name);
-                let ident = hir::Identifier::new(attr.ident.dot, attr.ident.name, None, vi);
+                let ident = hir::Identifier::new(attr.ident, None, vi);
                 let acc = hir::Accessor::Attr(hir::Attribute::new(obj, ident));
                 Ok(acc)
             }
@@ -649,7 +677,7 @@ impl ASTLowerer {
 
     fn lower_ident(&mut self, ident: ast::Identifier) -> LowerResult<hir::Identifier> {
         // `match` is a special form, typing is magic
-        let (vi, __name__) = if ident.vis().is_private()
+        let (vi, __name__) = if ident.vis.is_private()
             && (&ident.inspect()[..] == "match" || &ident.inspect()[..] == "match!")
         {
             (
@@ -660,22 +688,47 @@ impl ASTLowerer {
                 None,
             )
         } else {
+            let res = match self.module.context.rec_get_var_info(
+                &ident,
+                AccessKind::Name,
+                &self.cfg.input,
+                &self.module.context,
+            ) {
+                Triple::Ok(vi) => vi,
+                Triple::Err(err) => {
+                    self.errs.push(err);
+                    VarInfo::ILLEGAL.clone()
+                }
+                Triple::None => {
+                    let (similar_info, similar_name) = self
+                        .module
+                        .context
+                        .get_similar_name_and_info(ident.inspect())
+                        .unzip();
+                    let err = LowerError::detailed_no_var_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        ident.loc(),
+                        self.module.context.caused_by(),
+                        ident.inspect(),
+                        similar_name,
+                        similar_info,
+                    );
+                    self.errs.push(err);
+                    VarInfo::ILLEGAL.clone()
+                }
+            };
             (
-                self.module.context.rec_get_var_info(
-                    &ident,
-                    AccessKind::Name,
-                    &self.cfg.input,
-                    &self.module.context.name,
-                )?,
+                res,
                 self.module
                     .context
-                    .get_singular_ctx_by_ident(&ident, &self.module.context.name)
+                    .get_singular_ctxs_by_ident(&ident, &self.module.context)
                     .ok()
-                    .map(|ctx| ctx.name.clone()),
+                    .map(|ctx| ctx.first().unwrap().name.clone()),
             )
         };
         self.inc_ref(&vi, &ident.name);
-        let ident = hir::Identifier::new(ident.dot, ident.name, __name__, vi);
+        let ident = hir::Identifier::new(ident, __name__, vi);
         Ok(ident)
     }
 
@@ -700,7 +753,7 @@ impl ASTLowerer {
         let t = self
             .module
             .context
-            .get_binop_t(&bin.op, &args, &self.cfg.input, &self.module.context.name)
+            .get_binop_t(&bin.op, &args, &self.cfg.input, &self.module.context)
             .unwrap_or_else(|errs| {
                 self.errs.extend(errs);
                 VarInfo::ILLEGAL.clone()
@@ -724,7 +777,7 @@ impl ASTLowerer {
         let t = self
             .module
             .context
-            .get_unaryop_t(&unary.op, &args, &self.cfg.input, &self.module.context.name)
+            .get_unaryop_t(&unary.op, &args, &self.cfg.input, &self.module.context)
             .unwrap_or_else(|errs| {
                 self.errs.extend(errs);
                 VarInfo::ILLEGAL.clone()
@@ -824,7 +877,7 @@ impl ASTLowerer {
             &hir_args.pos_args,
             &hir_args.kw_args,
             &self.cfg.input,
-            &self.module.context.name,
+            &self.module.context,
         ) {
             Ok(vi) => vi,
             Err((vi, es)) => {
@@ -835,18 +888,25 @@ impl ASTLowerer {
         };
         let attr_name = if let Some(attr_name) = call.attr_name {
             self.inc_ref(&vi, &attr_name.name);
-            Some(hir::Identifier::new(
-                attr_name.dot,
-                attr_name.name,
-                None,
-                vi,
-            ))
+            Some(hir::Identifier::new(attr_name, None, vi))
         } else {
             *obj.ref_mut_t() = vi.t;
             None
         };
         let mut call = hir::Call::new(obj, attr_name, hir_args);
         self.module.context.higher_order_caller.pop();
+        if errs.is_empty() {
+            self.exec_additional_op(&mut call, opt_cast_to)?;
+        }
+        self.errs.extend(errs);
+        Ok(call)
+    }
+
+    fn exec_additional_op(
+        &mut self,
+        call: &mut hir::Call,
+        opt_cast_to: Option<ast::TypeSpec>,
+    ) -> LowerResult<()> {
         match call.additional_operation() {
             Some(kind @ (OperationKind::Import | OperationKind::PyImport)) => {
                 let Some(mod_name) =
@@ -856,10 +916,12 @@ impl ASTLowerer {
                 if let Err(errs) = self.module.context.import_mod(kind, mod_name) {
                     self.errs.extend(errs);
                 };
+                Ok(())
             }
             Some(OperationKind::Del) => match call.args.get_left_or_key("obj").unwrap() {
                 hir::Expr::Accessor(hir::Accessor::Ident(ident)) => {
                     self.module.context.del(ident)?;
+                    Ok(())
                 }
                 other => {
                     return Err(LowerErrors::from(LowerError::syntax_error(
@@ -886,16 +948,16 @@ impl ASTLowerer {
                     }
                 };
                 let arg_t = call.args.get(0).unwrap().ref_t();
-                self.module.context.sub_unify(arg_t, &ret_t, &call, None)?;
+                self.module.context.sub_unify(arg_t, &ret_t, call, None)?;
+                Ok(())
             }
             _ => {
                 if let Some(type_spec) = opt_cast_to {
-                    self.module.context.cast(type_spec, &mut call)?;
+                    self.module.context.cast(type_spec, call)?;
                 }
+                Ok(())
             }
         }
-        self.errs.extend(errs);
-        Ok(call)
     }
 
     fn lower_pack(&mut self, pack: ast::DataPack) -> LowerResult<hir::Call> {
@@ -904,17 +966,17 @@ impl ASTLowerer {
         let args = self.lower_record(pack.args)?;
         let args = vec![hir::PosArg::new(hir::Expr::Record(args))];
         let attr_name = ast::Identifier::new(
-            Some(Token::new(
+            VisModifierSpec::Public(Token::new(
                 TokenKind::Dot,
                 Str::ever("."),
-                pack.connector.lineno,
-                pack.connector.col_begin,
+                pack.connector.ln_begin().unwrap(),
+                pack.connector.col_begin().unwrap(),
             )),
             ast::VarName::new(Token::new(
                 TokenKind::Symbol,
                 Str::ever("new"),
-                pack.connector.lineno,
-                pack.connector.col_begin,
+                pack.connector.ln_begin().unwrap(),
+                pack.connector.col_begin().unwrap(),
             )),
         );
         let vi = match self.module.context.get_call_t(
@@ -923,7 +985,7 @@ impl ASTLowerer {
             &args,
             &[],
             &self.cfg.input,
-            &self.module.context.name,
+            &self.module.context,
         ) {
             Ok(vi) => vi,
             Err((vi, errs)) => {
@@ -932,7 +994,7 @@ impl ASTLowerer {
             }
         };
         let args = hir::Args::pos_only(args, None);
-        let attr_name = hir::Identifier::new(attr_name.dot, attr_name.name, None, vi);
+        let attr_name = hir::Identifier::new(attr_name, None, vi);
         Ok(hir::Call::new(class, Some(attr_name), args))
     }
 
@@ -1209,7 +1271,10 @@ impl ASTLowerer {
             ));
         }
         let kind = ContextKind::from(def.def_kind());
-        let vis = def.sig.vis();
+        let vis = self
+            .module
+            .context
+            .instantiate_vis_modifier(def.sig.vis())?;
         let res = match def.sig {
             ast::Signature::Subr(sig) => {
                 let tv_cache = self
@@ -1263,7 +1328,7 @@ impl ASTLowerer {
                 let ident = match &sig.pat {
                     ast::VarPattern::Ident(ident) => ident.clone(),
                     ast::VarPattern::Discard(token) => {
-                        ast::Identifier::new(None, VarName::new(token.clone()))
+                        ast::Identifier::private_from_token(token.clone())
                     }
                     _ => unreachable!(),
                 };
@@ -1287,7 +1352,7 @@ impl ASTLowerer {
                     body.id,
                     None,
                 )?;
-                let ident = hir::Identifier::new(ident.dot, ident.name, None, vi);
+                let ident = hir::Identifier::new(ident, None, vi);
                 let sig = hir::VarSignature::new(ident, sig.t_spec);
                 let body = hir::DefBody::new(body.op, block, body.id);
                 Ok(hir::Def::new(hir::Signature::Var(sig), body))
@@ -1358,7 +1423,7 @@ impl ASTLowerer {
                             );
                             self.warns.push(warn);
                         }
-                        let ident = hir::Identifier::new(sig.ident.dot, sig.ident.name, None, vi);
+                        let ident = hir::Identifier::new(sig.ident, None, vi);
                         let sig =
                             hir::SubrSignature::new(ident, sig.bounds, params, sig.return_t_spec);
                         let body = hir::DefBody::new(body.op, block, body.id);
@@ -1371,7 +1436,7 @@ impl ASTLowerer {
                             &Type::Failure,
                         )?;
                         self.errs.extend(errs);
-                        let ident = hir::Identifier::new(sig.ident.dot, sig.ident.name, None, vi);
+                        let ident = hir::Identifier::new(sig.ident, None, vi);
                         let sig =
                             hir::SubrSignature::new(ident, sig.bounds, params, sig.return_t_spec);
                         let block =
@@ -1396,7 +1461,7 @@ impl ASTLowerer {
                     .unwrap()
                     .fake_subr_assign(&sig.ident, &sig.decorators, Type::Failure)?;
                 let block = self.lower_block(body.block)?;
-                let ident = hir::Identifier::bare(sig.ident.dot, sig.ident.name);
+                let ident = hir::Identifier::bare(sig.ident);
                 let sig = hir::SubrSignature::new(ident, sig.bounds, params, sig.return_t_spec);
                 let body = hir::DefBody::new(body.op, block, body.id);
                 Ok(hir::Def::new(hir::Signature::Subr(sig), body))
@@ -1439,18 +1504,10 @@ impl ASTLowerer {
             let kind = ContextKind::MethodDefs(impl_trait.as_ref().map(|(t, _)| t.clone()));
             self.module
                 .context
-                .grow(&class.local_name(), kind, hir_def.sig.vis(), None);
+                .grow(&class.local_name(), kind, hir_def.sig.vis().clone(), None);
             for attr in methods.attrs.iter_mut() {
                 match attr {
                     ast::ClassAttr::Def(def) => {
-                        if methods.vis.is(TokenKind::Dot) {
-                            def.sig.ident_mut().unwrap().dot = Some(Token::new(
-                                TokenKind::Dot,
-                                ".",
-                                def.sig.ln_begin().unwrap_or(0),
-                                def.sig.col_begin().unwrap_or(0),
-                            ));
-                        }
                         self.module.context.preregister_def(def).map_err(|errs| {
                             self.pop_append_errs();
                             errs
@@ -1641,14 +1698,17 @@ impl ASTLowerer {
         let mut hir_methods = hir::Block::empty();
         for mut methods in class_def.methods_list.into_iter() {
             let kind = ContextKind::PatchMethodDefs(base_t.clone());
-            self.module
-                .context
-                .grow(hir_def.sig.ident().inspect(), kind, hir_def.sig.vis(), None);
+            self.module.context.grow(
+                hir_def.sig.ident().inspect(),
+                kind,
+                hir_def.sig.vis().clone(),
+                None,
+            );
             for attr in methods.attrs.iter_mut() {
                 match attr {
                     ast::ClassAttr::Def(def) => {
-                        if methods.vis.is(TokenKind::Dot) {
-                            def.sig.ident_mut().unwrap().dot = Some(Token::new(
+                        if methods.vis.is_public() {
+                            def.sig.ident_mut().unwrap().vis = VisModifierSpec::Public(Token::new(
                                 TokenKind::Dot,
                                 ".",
                                 def.sig.ln_begin().unwrap(),
@@ -2034,10 +2094,12 @@ impl ASTLowerer {
             )?;
         } else {
             // if subtype ascription
-            let ctx = self
+            let &ctx = self
                 .module
                 .context
-                .get_singular_ctx_by_hir_expr(&expr, &self.module.context.name)?;
+                .get_singular_ctxs_by_hir_expr(&expr, &self.module.context)?
+                .first()
+                .unwrap();
             // REVIEW: need to use subtype_of?
             if ctx.super_traits.iter().all(|trait_| trait_ != &spec_t)
                 && ctx.super_classes.iter().all(|class| class != &spec_t)
@@ -2089,14 +2151,30 @@ impl ASTLowerer {
                 &ident,
                 AccessKind::Name,
                 &self.cfg.input,
-                &self.module.context.name,
+                &self.module.context,
             )
-            .or_else(|_e| {
+            .none_or_else(|| {
                 self.module.context.rec_get_var_info(
                     &ident,
                     AccessKind::Name,
                     &self.cfg.input,
-                    &self.module.context.name,
+                    &self.module.context,
+                )
+            })
+            .none_or_result(|| {
+                let (similar_info, similar_name) = self
+                    .module
+                    .context
+                    .get_similar_name_and_info(ident.inspect())
+                    .unzip();
+                LowerError::detailed_no_var_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    ident.loc(),
+                    self.module.context.caused_by(),
+                    ident.inspect(),
+                    similar_name,
+                    similar_info,
                 )
             })?;
         if is_instance_ascription {
@@ -2119,10 +2197,10 @@ impl ASTLowerer {
         let qual_name = self
             .module
             .context
-            .get_singular_ctx_by_ident(&ident, &self.module.context.name)
+            .get_singular_ctxs_by_ident(&ident, &self.module.context)
             .ok()
-            .map(|ctx| ctx.name.clone());
-        let ident = hir::Identifier::new(ident.dot, ident.name, qual_name, ident_vi);
+            .map(|ctx| ctx.first().unwrap().name.clone());
+        let ident = hir::Identifier::new(ident, qual_name, ident_vi);
         let expr = hir::Expr::Accessor(hir::Accessor::Ident(ident));
         let t_spec = self.lower_type_spec_with_op(tasc.t_spec, spec_t)?;
         Ok(expr.type_asc(t_spec))
@@ -2212,8 +2290,8 @@ impl ASTLowerer {
             let graph = &self.module.context.shared.as_ref().unwrap().graph;
             graph.add_node_if_none(path);
         }
-        let ast = Reorderer::new(self.cfg.clone())
-            .reorder(ast, mode)
+        let ast = ASTLinker::new(self.cfg.clone())
+            .link(ast, mode)
             .map_err(|errs| {
                 IncompleteArtifact::new(None, errs, LowerWarnings::from(self.warns.take_all()))
             })?;

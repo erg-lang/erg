@@ -30,7 +30,7 @@ src: [erg_parser/desugar.rs](../../../crates/erg_parser/desugar.rs)
 
 ### 2.2 `AST`の並び替え・結合
 
-src: [erg_compiler/reorder.rs](../../../crates\erg_compiler\reorder.rs)
+src: [erg_compiler/link_ast.rs](../../../crates/erg_compiler/link_ast.rs)
 
 * クラスメソッドをクラス定義に結合する
   * メソッド定義は定義ファイル外でも可能となっている
@@ -74,7 +74,7 @@ src: [erg_compiler/reorder.rs](../../../crates\erg_compiler\reorder.rs)
 
 ## 7. リンク
 
-ソースコード: [erg_compiler/link.rs](../../../crates/erg_compiler/link.rs)
+ソースコード: [erg_compiler/link_hir.rs](../../../crates/erg_compiler/link_hir.rs)
 
 * 全てのモジュールを読み込み、依存関係を解決し、単一のHIRに結合する
 

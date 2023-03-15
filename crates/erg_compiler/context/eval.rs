@@ -7,7 +7,6 @@ use erg_common::log;
 use erg_common::set::Set;
 use erg_common::shared::Shared;
 use erg_common::traits::{Locational, Stream};
-use erg_common::vis::Field;
 use erg_common::{dict, fn_name, option_enum_unwrap, set};
 use erg_common::{enum_unwrap, fmt_vec};
 use erg_common::{RcArray, Str};
@@ -27,7 +26,7 @@ use crate::ty::typaram::{OpKind, TyParam};
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{ConstSubr, HasType, Predicate, SubrKind, Type, UserConstSubr, ValueArgs};
 
-use crate::context::instantiate::ParamKind;
+use crate::context::instantiate_spec::ParamKind;
 use crate::context::{ClassDefType, Context, ContextKind, RegistrationMode};
 use crate::error::{EvalError, EvalErrors, EvalResult, SingleEvalResult};
 
@@ -130,43 +129,67 @@ impl Context {
         }
     }
 
+    fn get_mod_ctx_from_acc(&self, acc: &Accessor) -> Option<&Context> {
+        match acc {
+            Accessor::Ident(ident) => self.get_mod(ident.inspect()),
+            Accessor::Attr(attr) => {
+                let Expr::Accessor(acc) = attr.obj.as_ref() else { return None; };
+                self.get_mod_ctx_from_acc(acc)
+                    .and_then(|ctx| ctx.get_mod(attr.ident.inspect()))
+            }
+            _ => None,
+        }
+    }
+
     fn eval_const_acc(&self, acc: &Accessor) -> EvalResult<ValueObj> {
         match acc {
-            Accessor::Ident(ident) => {
-                if let Some(val) = self.rec_get_const_obj(ident.inspect()) {
-                    Ok(val.clone())
-                } else if self.kind.is_subr() {
-                    feature_error!(self, ident.loc(), "const parameters")
-                } else if ident.is_const() {
-                    Err(EvalErrors::from(EvalError::no_var_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        ident.loc(),
-                        self.caused_by(),
-                        ident.inspect(),
-                        self.get_similar_name(ident.inspect()),
-                    )))
-                } else {
-                    Err(EvalErrors::from(EvalError::not_const_expr(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        acc.loc(),
-                        self.caused_by(),
-                    )))
+            Accessor::Ident(ident) => self.eval_const_ident(ident),
+            Accessor::Attr(attr) => match self.eval_const_expr(&attr.obj) {
+                Ok(obj) => Ok(self.eval_attr(obj, &attr.ident)?),
+                Err(err) => {
+                    if let Expr::Accessor(acc) = attr.obj.as_ref() {
+                        if let Some(mod_ctx) = self.get_mod_ctx_from_acc(acc) {
+                            return mod_ctx.eval_const_ident(&attr.ident);
+                        }
+                    }
+                    Err(err)
                 }
-            }
-            Accessor::Attr(attr) => {
-                let obj = self.eval_const_expr(&attr.obj)?;
-                Ok(self.eval_attr(obj, &attr.ident)?)
-            }
+            },
             other => {
                 feature_error!(self, other.loc(), &format!("eval {other}")).map_err(Into::into)
             }
         }
     }
 
+    fn eval_const_ident(&self, ident: &Identifier) -> EvalResult<ValueObj> {
+        if let Some(val) = self.rec_get_const_obj(ident.inspect()) {
+            Ok(val.clone())
+        } else if self.kind.is_subr() {
+            feature_error!(self, ident.loc(), "const parameters")
+        } else if ident.is_const() {
+            Err(EvalErrors::from(EvalError::no_var_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                ident.loc(),
+                self.caused_by(),
+                ident.inspect(),
+                self.get_similar_name(ident.inspect()),
+            )))
+        } else {
+            Err(EvalErrors::from(EvalError::not_const_expr(
+                self.cfg.input.clone(),
+                line!() as usize,
+                ident.loc(),
+                self.caused_by(),
+            )))
+        }
+    }
+
     fn eval_attr(&self, obj: ValueObj, ident: &Identifier) -> SingleEvalResult<ValueObj> {
-        if let Some(val) = obj.try_get_attr(&Field::from(ident)) {
+        let field = self
+            .instantiate_field(ident)
+            .map_err(|mut errs| errs.remove(0))?;
+        if let Some(val) = obj.try_get_attr(&field) {
             return Ok(val);
         }
         if let ValueObj::Type(t) = &obj {
@@ -301,7 +324,7 @@ impl Context {
     fn eval_const_def(&mut self, def: &Def) -> EvalResult<ValueObj> {
         if def.is_const() {
             let __name__ = def.sig.ident().unwrap().inspect();
-            let vis = def.sig.vis();
+            let vis = self.instantiate_vis_modifier(def.sig.vis())?;
             let tv_cache = match &def.sig {
                 Signature::Subr(subr) => {
                     let ty_cache =
@@ -319,11 +342,19 @@ impl Context {
             })?;
             match self.check_decls_and_pop() {
                 Ok(_) => {
-                    self.register_gen_const(def.sig.ident().unwrap(), obj)?;
+                    self.register_gen_const(
+                        def.sig.ident().unwrap(),
+                        obj,
+                        def.def_kind().is_other(),
+                    )?;
                     Ok(ValueObj::None)
                 }
                 Err(errs) => {
-                    self.register_gen_const(def.sig.ident().unwrap(), obj)?;
+                    self.register_gen_const(
+                        def.sig.ident().unwrap(),
+                        obj,
+                        def.def_kind().is_other(),
+                    )?;
                     Err(errs)
                 }
             }
@@ -430,7 +461,7 @@ impl Context {
             let elem = record_ctx.eval_const_block(&attr.body.block)?;
             let ident = match &attr.sig {
                 Signature::Var(var) => match &var.pat {
-                    VarPattern::Ident(ident) => Field::new(ident.vis(), ident.inspect().clone()),
+                    VarPattern::Ident(ident) => self.instantiate_field(ident)?,
                     other => {
                         return feature_error!(self, other.loc(), &format!("record field: {other}"))
                     }
@@ -698,7 +729,29 @@ impl Context {
 
     fn eval_or_type(&self, lhs: TypeObj, rhs: TypeObj) -> ValueObj {
         match (lhs, rhs) {
-            (TypeObj::Builtin(l), TypeObj::Builtin(r)) => ValueObj::builtin_t(self.union(&l, &r)),
+            (
+                TypeObj::Builtin {
+                    t: l,
+                    meta_t: Type::ClassType,
+                },
+                TypeObj::Builtin {
+                    t: r,
+                    meta_t: Type::ClassType,
+                },
+            ) => ValueObj::builtin_class(self.union(&l, &r)),
+            (
+                TypeObj::Builtin {
+                    t: l,
+                    meta_t: Type::TraitType,
+                },
+                TypeObj::Builtin {
+                    t: r,
+                    meta_t: Type::TraitType,
+                },
+            ) => ValueObj::builtin_trait(self.union(&l, &r)),
+            (TypeObj::Builtin { t: l, meta_t: _ }, TypeObj::Builtin { t: r, meta_t: _ }) => {
+                ValueObj::builtin_type(self.union(&l, &r))
+            }
             (lhs, rhs) => ValueObj::gen_t(GenTypeObj::union(
                 self.union(lhs.typ(), rhs.typ()),
                 lhs,
@@ -709,8 +762,28 @@ impl Context {
 
     fn eval_and_type(&self, lhs: TypeObj, rhs: TypeObj) -> ValueObj {
         match (lhs, rhs) {
-            (TypeObj::Builtin(l), TypeObj::Builtin(r)) => {
-                ValueObj::builtin_t(self.intersection(&l, &r))
+            (
+                TypeObj::Builtin {
+                    t: l,
+                    meta_t: Type::ClassType,
+                },
+                TypeObj::Builtin {
+                    t: r,
+                    meta_t: Type::ClassType,
+                },
+            ) => ValueObj::builtin_class(self.intersection(&l, &r)),
+            (
+                TypeObj::Builtin {
+                    t: l,
+                    meta_t: Type::TraitType,
+                },
+                TypeObj::Builtin {
+                    t: r,
+                    meta_t: Type::TraitType,
+                },
+            ) => ValueObj::builtin_trait(self.intersection(&l, &r)),
+            (TypeObj::Builtin { t: l, meta_t: _ }, TypeObj::Builtin { t: r, meta_t: _ }) => {
+                ValueObj::builtin_type(self.intersection(&l, &r))
             }
             (lhs, rhs) => ValueObj::gen_t(GenTypeObj::intersection(
                 self.intersection(lhs.typ(), rhs.typ()),
@@ -722,7 +795,15 @@ impl Context {
 
     fn eval_not_type(&self, ty: TypeObj) -> ValueObj {
         match ty {
-            TypeObj::Builtin(l) => ValueObj::builtin_t(self.complement(&l)),
+            TypeObj::Builtin {
+                t,
+                meta_t: Type::ClassType,
+            } => ValueObj::builtin_class(self.complement(&t)),
+            TypeObj::Builtin {
+                t,
+                meta_t: Type::TraitType,
+            } => ValueObj::builtin_trait(self.complement(&t)),
+            TypeObj::Builtin { t, meta_t: _ } => ValueObj::builtin_type(self.complement(&t)),
             // FIXME:
             _ => ValueObj::Illegal,
         }
@@ -1189,7 +1270,7 @@ impl Context {
             Type::Poly { name, params } if &name[..] == "Array" || &name[..] == "Array!" => {
                 let t = self.convert_tp_into_ty(params[0].clone())?;
                 let len = enum_unwrap!(params[1], TyParam::Value:(ValueObj::Nat:(_)));
-                Ok(vec![ValueObj::builtin_t(t); len as usize])
+                Ok(vec![ValueObj::builtin_type(t); len as usize])
             }
             _ => Err(()),
         }
@@ -1285,7 +1366,7 @@ impl Context {
                     t.clone()
                 } else {
                     let tv = Type::FreeVar(new_fv);
-                    tv_cache.push_or_init_tyvar(&name, &tv);
+                    tv_cache.push_or_init_tyvar(&name, &tv, self);
                     tv
                 }
             }

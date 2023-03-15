@@ -229,11 +229,12 @@ impl Parser {
                 (ParamPattern::VarName(name), Some(t_spec_with_op)) => {
                     ParamTySpec::new(Some(name.into_token()), t_spec_with_op.t_spec)
                 }
-                (ParamPattern::VarName(name), None) => {
-                    ParamTySpec::anonymous(TypeSpec::PreDeclTy(PreDeclTypeSpec::Simple(
-                        SimpleTypeSpec::new(Identifier::new(None, name), ConstArgs::empty()),
-                    )))
-                }
+                (ParamPattern::VarName(name), None) => ParamTySpec::anonymous(TypeSpec::PreDeclTy(
+                    PreDeclTypeSpec::Simple(SimpleTypeSpec::new(
+                        Identifier::new(VisModifierSpec::Private, name),
+                        ConstArgs::empty(),
+                    )),
+                )),
                 _ => todo!(),
             };
             non_defaults.push(param);
@@ -247,11 +248,12 @@ impl Parser {
                     (ParamPattern::VarName(name), Some(t_spec_with_op)) => {
                         ParamTySpec::new(Some(name.into_token()), t_spec_with_op.t_spec)
                     }
-                    (ParamPattern::VarName(name), None) => {
-                        ParamTySpec::anonymous(TypeSpec::PreDeclTy(PreDeclTypeSpec::Simple(
-                            SimpleTypeSpec::new(Identifier::new(None, name), ConstArgs::empty()),
-                        )))
-                    }
+                    (ParamPattern::VarName(name), None) => ParamTySpec::anonymous(
+                        TypeSpec::PreDeclTy(PreDeclTypeSpec::Simple(SimpleTypeSpec::new(
+                            Identifier::new(VisModifierSpec::Private, name),
+                            ConstArgs::empty(),
+                        ))),
+                    ),
                     _ => todo!(),
                 });
         let mut defaults = vec![];

@@ -1,15 +1,14 @@
 use erg_common::traits::{Locational, Runnable, Stream};
-use erg_common::{enum_unwrap, fn_name, log, Str};
+use erg_common::{enum_unwrap, fn_name, log, set, Str};
 
-use erg_parser::ast;
-use erg_parser::ast::AST;
+use erg_parser::ast::{self, Identifier, VarName, AST};
 
 use crate::context::instantiate::TyVarCache;
 use crate::lower::ASTLowerer;
-use crate::ty::constructors::mono;
+use crate::ty::constructors::{mono, v_enum};
 use crate::ty::free::HasLevel;
-use crate::ty::value::{GenTypeObj, TypeObj};
-use crate::ty::{HasType, Type};
+use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
+use crate::ty::{HasType, Type, Visibility};
 
 use crate::compile::AccessKind;
 use crate::context::RegistrationMode;
@@ -56,8 +55,7 @@ impl ASTLowerer {
         } else {
             sig.inspect().cloned()
         };
-        let block = hir::Block::new(vec![chunk]);
-        let found_body_t = block.ref_t();
+        let found_body_t = chunk.ref_t();
         let ast::VarPattern::Ident(ident) = &sig.pat else { unreachable!() };
         let id = body.id;
         if let Some(spec_t) = opt_spec_t {
@@ -70,14 +68,37 @@ impl ASTLowerer {
         } else {
             self.module
                 .context
-                .assign_var_sig(&sig, found_body_t, id, py_name.clone())?;
+                .assign_var_sig(&sig, found_body_t, id, None)?;
         }
-        // FIXME: Identifier::new should be used
-        let mut ident = hir::Identifier::bare(ident.dot.clone(), ident.name.clone());
-        ident.vi.t = found_body_t.clone();
+        let mut ident = hir::Identifier::bare(ident.clone());
+        let t = match found_body_t {
+            Type::ClassType => {
+                let t = mono(format!("{}{}", self.module.context.path(), ident.raw));
+                v_enum(set! { ValueObj::builtin_class(t) })
+            }
+            Type::TraitType => {
+                let t = mono(format!("{}{}", self.module.context.path(), ident.raw));
+                v_enum(set! { ValueObj::builtin_trait(t) })
+            }
+            _ => found_body_t.clone(),
+        };
+        // Typ = 'typ': ClassType
+        // => 'typ': {<type Typ>}
+        if let hir::Expr::TypeAsc(hir::TypeAscription { expr, .. }) = &chunk {
+            if let hir::Expr::Accessor(acc) = expr.as_ref() {
+                if let Some(name) = acc.local_name() {
+                    let name = VarName::from_str(Str::rc(name));
+                    if let Some(vi) = self.module.context.get_mut_current_scope_var(&name) {
+                        vi.t = t.clone();
+                    }
+                }
+            }
+        }
+        ident.vi.t = t;
         ident.vi.py_name = py_name;
+        ident.vi.def_loc = self.module.context.absolutize(ident.raw.name.loc());
         let sig = hir::VarSignature::new(ident, sig.t_spec);
-        let body = hir::DefBody::new(body.op, block, body.id);
+        let body = hir::DefBody::new(body.op, hir::Block::new(vec![chunk]), body.id);
         Ok(hir::Def::new(hir::Signature::Var(sig), body))
     }
 
@@ -127,20 +148,15 @@ impl ASTLowerer {
                 let vi = self
                     .module
                     .context
-                    .rec_get_var_info(
-                        &ident,
-                        AccessKind::Name,
-                        self.input(),
-                        &self.module.context.name,
-                    )
+                    .rec_get_var_info(&ident, AccessKind::Name, self.input(), &self.module.context)
                     .unwrap_or(VarInfo::default());
-                let ident = hir::Identifier::new(ident.dot, ident.name, None, vi);
+                let ident = hir::Identifier::new(ident, None, vi);
                 let acc = hir::Accessor::Ident(ident);
                 Ok(acc)
             }
             ast::Accessor::Attr(attr) => {
                 let obj = self.fake_lower_expr(*attr.obj)?;
-                let ident = hir::Identifier::bare(attr.ident.dot, attr.ident.name);
+                let ident = hir::Identifier::bare(attr.ident);
                 Ok(obj.attr(ident))
             }
             other => Err(LowerErrors::from(LowerError::declare_error(
@@ -177,9 +193,7 @@ impl ASTLowerer {
 
     fn fake_lower_call(&self, call: ast::Call) -> LowerResult<hir::Call> {
         let obj = self.fake_lower_expr(*call.obj)?;
-        let attr_name = call
-            .attr_name
-            .map(|ident| hir::Identifier::bare(ident.dot, ident.name));
+        let attr_name = call.attr_name.map(hir::Identifier::bare);
         let args = self.fake_lower_args(call.args)?;
         Ok(hir::Call::new(obj, attr_name, args))
     }
@@ -247,12 +261,12 @@ impl ASTLowerer {
         match sig {
             ast::Signature::Var(var) => {
                 let ident = var.ident().unwrap().clone();
-                let ident = hir::Identifier::bare(ident.dot, ident.name);
+                let ident = hir::Identifier::bare(ident);
                 let sig = hir::VarSignature::new(ident, var.t_spec);
                 Ok(hir::Signature::Var(sig))
             }
             ast::Signature::Subr(subr) => {
-                let ident = hir::Identifier::bare(subr.ident.dot, subr.ident.name);
+                let ident = hir::Identifier::bare(subr.ident);
                 let params = self.fake_lower_params(subr.params)?;
                 let sig = hir::SubrSignature::new(ident, subr.bounds, params, subr.return_t_spec);
                 Ok(hir::Signature::Subr(sig))
@@ -434,10 +448,7 @@ impl ASTLowerer {
         let is_instance_ascription = tasc.is_instance_ascription();
         let mut dummy_tv_cache = TyVarCache::new(self.module.context.level, &self.module.context);
         match *tasc.expr {
-            ast::Expr::Accessor(ast::Accessor::Ident(mut ident)) => {
-                if cfg!(feature = "py_compatible") {
-                    ident.trim_end_proc_mark();
-                }
+            ast::Expr::Accessor(ast::Accessor::Ident(ident)) => {
                 let py_name = Str::rc(ident.inspect().trim_end_matches('!'));
                 let t = self.module.context.instantiate_typespec(
                     &tasc.t_spec.t_spec,
@@ -449,24 +460,23 @@ impl ASTLowerer {
                 t.lift();
                 let t = self.module.context.generalize_t(t);
                 if is_instance_ascription {
-                    self.declare_instance(&ident, &t, py_name)?;
+                    self.declare_instance(&ident, &t, py_name.clone())?;
                 } else {
                     self.declare_subtype(&ident, &t)?;
                 }
                 let muty = Mutability::from(&ident.inspect()[..]);
-                let vis = ident.vis();
-                let py_name = Str::rc(ident.inspect().trim_end_matches('!'));
+                let vis = self.module.context.instantiate_vis_modifier(&ident.vis)?;
                 let vi = VarInfo::new(
                     t,
                     muty,
-                    vis,
+                    Visibility::new(vis, self.module.context.name.clone()),
                     VarKind::Declared,
                     None,
                     None,
                     Some(py_name),
-                    self.module.context.absolutize(ident.loc()),
+                    self.module.context.absolutize(ident.name.loc()),
                 );
-                let ident = hir::Identifier::new(ident.dot, ident.name, None, vi);
+                let ident = hir::Identifier::new(ident, None, vi);
                 let t_spec_expr = self.fake_lower_expr(*tasc.t_spec.t_spec_as_expr)?;
                 let t_spec = hir::TypeSpecWithOp::new(
                     tasc.t_spec.op,
@@ -476,10 +486,7 @@ impl ASTLowerer {
                 );
                 Ok(hir::Expr::Accessor(hir::Accessor::Ident(ident)).type_asc(t_spec))
             }
-            ast::Expr::Accessor(ast::Accessor::Attr(mut attr)) => {
-                if cfg!(feature = "py_compatible") {
-                    attr.ident.trim_end_proc_mark();
-                }
+            ast::Expr::Accessor(ast::Accessor::Attr(attr)) => {
                 let py_name = Str::rc(attr.ident.inspect().trim_end_matches('!'));
                 let t = self.module.context.instantiate_typespec(
                     &tasc.t_spec.t_spec,
@@ -488,32 +495,33 @@ impl ASTLowerer {
                     RegistrationMode::Normal,
                     false,
                 )?;
-                let namespace = self.module.context.name.clone();
                 let ctx = self
                     .module
                     .context
-                    .get_mut_singular_ctx(attr.obj.as_ref(), &namespace)?;
+                    .get_mut_singular_ctx(attr.obj.as_ref(), &self.module.context.name.clone())?;
                 ctx.assign_var_sig(
                     &ast::VarSignature::new(ast::VarPattern::Ident(attr.ident.clone()), None),
                     &t,
                     ast::DefId(0),
-                    Some(py_name),
+                    Some(py_name.clone()),
                 )?;
                 let obj = self.fake_lower_expr(*attr.obj)?;
                 let muty = Mutability::from(&attr.ident.inspect()[..]);
-                let vis = attr.ident.vis();
-                let py_name = Str::rc(attr.ident.inspect().trim_end_matches('!'));
+                let vis = self
+                    .module
+                    .context
+                    .instantiate_vis_modifier(&attr.ident.vis)?;
                 let vi = VarInfo::new(
                     t,
                     muty,
-                    vis,
+                    Visibility::new(vis, self.module.context.name.clone()),
                     VarKind::Declared,
                     None,
                     None,
                     Some(py_name),
-                    self.module.context.absolutize(attr.ident.loc()),
+                    self.module.context.absolutize(attr.ident.name.loc()),
                 );
-                let ident = hir::Identifier::new(attr.ident.dot, attr.ident.name, None, vi);
+                let ident = hir::Identifier::new(attr.ident, None, vi);
                 let attr = obj.attr_expr(ident);
                 let t_spec_expr = self.fake_lower_expr(*tasc.t_spec.t_spec_as_expr)?;
                 let t_spec = hir::TypeSpecWithOp::new(
@@ -544,42 +552,57 @@ impl ASTLowerer {
             return Ok(());
         }
         if ident.is_const() {
+            let vis = self.module.context.instantiate_vis_modifier(&ident.vis)?;
             let vi = VarInfo::new(
                 t.clone(),
                 Mutability::Const,
-                ident.vis(),
+                Visibility::new(vis, self.module.context.name.clone()),
                 VarKind::Declared,
                 None,
                 None,
                 Some(py_name.clone()),
-                self.module.context.absolutize(ident.loc()),
+                self.module.context.absolutize(ident.name.loc()),
             );
-            self.module.context.decls.insert(ident.name.clone(), vi);
+            let name = if cfg!(feature = "py_compatible") {
+                let mut symbol = ident.name.clone().into_token();
+                symbol.content = py_name.clone();
+                VarName::new(symbol)
+            } else {
+                ident.name.clone()
+            };
+            self.module.context.decls.insert(name, vi);
         }
+        let new_ident = if cfg!(feature = "py_compatible") {
+            let mut symbol = ident.name.clone().into_token();
+            symbol.content = py_name.clone();
+            Identifier::new(ident.vis.clone(), VarName::new(symbol))
+        } else {
+            ident.clone()
+        };
+        let (t, ty_obj) = match t {
+            Type::ClassType => {
+                let t = mono(format!("{}{ident}", self.module.context.path()));
+                let ty_obj = GenTypeObj::class(t.clone(), None, None);
+                let t = v_enum(set! { ValueObj::builtin_class(t) });
+                (t, Some(ty_obj))
+            }
+            Type::TraitType => {
+                let t = mono(format!("{}{ident}", self.module.context.path()));
+                let ty_obj =
+                    GenTypeObj::trait_(t.clone(), TypeObj::builtin_type(Type::Uninited), None);
+                let t = v_enum(set! { ValueObj::builtin_trait(t) });
+                (t, Some(ty_obj))
+            }
+            _ => (t.clone(), None),
+        };
         self.module.context.assign_var_sig(
             &ast::VarSignature::new(ast::VarPattern::Ident(ident.clone()), None),
-            t,
+            &t,
             ast::DefId(0),
             Some(py_name),
         )?;
-        match t {
-            Type::ClassType => {
-                let ty_obj = GenTypeObj::class(
-                    mono(format!("{}{ident}", self.module.context.path())),
-                    Some(TypeObj::Builtin(Type::Uninited)),
-                    None,
-                );
-                self.module.context.register_gen_type(ident, ty_obj)?;
-            }
-            Type::TraitType => {
-                let ty_obj = GenTypeObj::trait_(
-                    mono(format!("{}{ident}", self.module.context.path())),
-                    TypeObj::Builtin(Type::Uninited),
-                    None,
-                );
-                self.module.context.register_gen_type(ident, ty_obj)?;
-            }
-            _ => {}
+        if let Some(gen) = ty_obj {
+            self.module.context.register_gen_type(&new_ident, gen)?;
         }
         Ok(())
     }
@@ -588,7 +611,16 @@ impl ASTLowerer {
         if ident.is_raw() {
             return Ok(());
         }
-        if let Some((_, ctx)) = self.module.context.get_mut_type(ident.inspect()) {
+        let name = if cfg!(feature = "py_compatible") {
+            self.module
+                .context
+                .erg_to_py_names
+                .get(ident.inspect())
+                .map_or(Str::ever("?"), |s| s.clone())
+        } else {
+            ident.inspect().clone()
+        };
+        if let Some((_, ctx)) = self.module.context.get_mut_type(&name) {
             ctx.register_marker_trait(trait_.clone());
             Ok(())
         } else {
@@ -630,6 +662,7 @@ impl ASTLowerer {
 
     pub(crate) fn declare_module(&mut self, ast: AST) -> HIR {
         let mut module = hir::Module::with_capacity(ast.module.len());
+        let _ = self.module.context.preregister(ast.module.block());
         for chunk in ast.module.into_iter() {
             match self.declare_chunk(chunk) {
                 Ok(chunk) => {

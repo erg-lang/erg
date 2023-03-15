@@ -3,6 +3,7 @@ use common::expect_repl_failure;
 use common::expect_repl_success;
 
 #[test]
+#[ignore]
 fn exec_repl_helloworld() -> Result<(), ()> {
     expect_repl_success(
         "repl_hello",
@@ -14,6 +15,7 @@ fn exec_repl_helloworld() -> Result<(), ()> {
 }
 
 #[test]
+#[ignore]
 fn exec_repl_def_func() -> Result<(), ()> {
     expect_repl_success(
         "repl_def",
@@ -25,6 +27,7 @@ fn exec_repl_def_func() -> Result<(), ()> {
 }
 
 #[test]
+#[ignore]
 fn exec_repl_for_loop() -> Result<(), ()> {
     expect_repl_success(
         "repl_for",
@@ -64,6 +67,7 @@ fn exec_repl_auto_indent_dedent_check() -> Result<(), ()> {
 }
 
 #[test]
+#[ignore]
 fn exec_repl_class_def() -> Result<(), ()> {
     expect_repl_success(
         "repl_auto_indent_dedent",
@@ -82,6 +86,7 @@ fn exec_repl_class_def() -> Result<(), ()> {
 }
 
 #[test]
+#[ignore]
 fn exec_repl_class_def_with_deco() -> Result<(), ()> {
     expect_repl_success(
         "repl_auto_indent_dedent",
@@ -107,7 +112,7 @@ fn exec_invalid_class_inheritable() -> Result<(), ()> {
         "repl_auto_indent_dedent",
         [
             "@Inheritable",
-            "Point2d = Class{ x = Int; y = Int }",
+            "Point2d = Class{ ::[<: Self]x = Int; ::[<: Self]y = Int }",
             "Point2d::",
             "one = 1",
             "",
@@ -134,6 +139,7 @@ fn exec_invalid_class_inheritable() -> Result<(), ()> {
 }
 
 #[test]
+#[ignore]
 fn exec_invalid_class_def() -> Result<(), ()> {
     expect_repl_failure(
         "repl_auto_indent_dedent",

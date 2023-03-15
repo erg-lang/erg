@@ -1,21 +1,20 @@
 //! provides type-comparison
 use std::option::Option; // conflicting to Type::Option
 
+use erg_common::dict::Dict;
 use erg_common::error::MultiErrorDisplay;
 use erg_common::style::colors::DEBUG_ERROR;
 use erg_common::traits::StructuralEq;
+use erg_common::{assume_unreachable, log};
 
 use crate::ty::constructors::{and, not, or, poly};
 use crate::ty::free::{Constraint, FreeKind};
 use crate::ty::typaram::{OpKind, TyParam, TyParamOrdering};
 use crate::ty::value::ValueObj;
 use crate::ty::value::ValueObj::Inf;
-use crate::ty::{Predicate, RefinementType, SubrKind, SubrType, Type};
+use crate::ty::{Field, Predicate, RefinementType, SubrKind, SubrType, Type};
 use Predicate as Pred;
 
-use erg_common::dict::Dict;
-use erg_common::vis::Field;
-use erg_common::{assume_unreachable, log};
 use TyParamOrdering::*;
 use Type::*;
 
@@ -175,7 +174,6 @@ impl Context {
             | (Float | Ratio | Int, Int)
             | (Float | Ratio, Ratio) => (Absolutely, true),
             (Type, ClassType | TraitType) => (Absolutely, true),
-            (Uninited, _) | (_, Uninited) => panic!("used an uninited type variable"),
             (
                 Mono(n),
                 Subr(SubrType {
@@ -455,9 +453,12 @@ impl Context {
                 }
             },
             (Type::Record(lhs), Type::Record(rhs)) => {
-                for (k, l) in lhs.iter() {
-                    if let Some(r) = rhs.get(k) {
-                        if !self.supertype_of(l, r) {
+                for (l_k, l_t) in lhs.iter() {
+                    if let Some((r_k, r_t)) = rhs.get_key_value(l_k) {
+                        // public <: private (private fields cannot be public)
+                        if (l_k.vis.is_public() && r_k.vis.is_private())
+                            || !self.supertype_of(l_t, r_t)
+                        {
                             return false;
                         }
                     } else {
@@ -528,9 +529,7 @@ impl Context {
                 if !self.supertype_of(&l.t, &r.t) {
                     return false;
                 }
-                l.pred.subject().unwrap_or("") == &l.var[..]
-                    && r.pred.subject().unwrap_or("") == &r.var[..]
-                    && self.is_super_pred_of(&l.pred, &r.pred)
+                self.is_super_pred_of(&l.pred, &r.pred)
             }
             (Nat, re @ Refinement(_)) => {
                 let nat = Type::Refinement(Nat.into_refinement());
@@ -540,6 +539,7 @@ impl Context {
                 let nat = Type::Refinement(Nat.into_refinement());
                 self.structural_supertype_of(re, &nat)
             }
+            (Structural(_), Refinement(refine)) => self.supertype_of(lhs, &refine.t),
             // Int :> {I: Int | ...} == true
             // Int :> {I: Str| ...} == false
             // Eq({1, 2}) :> {1, 2} (= {I: Int | I == 1 or I == 2})
@@ -692,7 +692,6 @@ impl Context {
         }
     }
 
-    // TODO: we need consider duplicating keys
     pub fn fields(&self, t: &Type) -> Dict<Field, Type> {
         match t {
             Type::FreeVar(fv) if fv.is_linked() => self.fields(&fv.crack()),
@@ -700,12 +699,17 @@ impl Context {
             Type::Refinement(refine) => self.fields(&refine.t),
             Type::Structural(t) => self.fields(t),
             other => {
-                let (_, ctx) = self
-                    .get_nominal_type_ctx(other)
-                    .unwrap_or_else(|| panic!("{other} is not found"));
-                ctx.type_dir()
+                let Some((_, ctx)) = self.get_nominal_type_ctx(other) else {
+                    return Dict::new();
+                };
+                ctx.type_dir(self)
                     .into_iter()
-                    .map(|(name, vi)| (Field::new(vi.vis, name.inspect().clone()), vi.t.clone()))
+                    .map(|(name, vi)| {
+                        (
+                            Field::new(vi.vis.modifier.clone(), name.inspect().clone()),
+                            vi.t.clone(),
+                        )
+                    })
                     .collect()
             }
         }
@@ -805,6 +809,9 @@ impl Context {
     }
 
     pub(crate) fn try_cmp(&self, l: &TyParam, r: &TyParam) -> Option<TyParamOrdering> {
+        if l == r {
+            return Some(Equal);
+        }
         match (l, r) {
             (TyParam::Value(l), TyParam::Value(r)) =>
                 l.try_cmp(r).map(Into::into),
@@ -986,7 +993,7 @@ impl Context {
             // not {i = Int} and {i = Int; j = Int} == {j = Int}
             (other @ Record(rec), Not(t)) | (Not(t), other @ Record(rec)) => match t.as_ref() {
                 Type::FreeVar(fv) => self.intersection(&fv.crack(), other),
-                Type::Record(rec2) => Type::Record(rec.clone().diff(rec2.clone())),
+                Type::Record(rec2) => Type::Record(rec.clone().diff(rec2)),
                 _ => Type::Never,
             },
             (l, r) if self.is_trait(l) && self.is_trait(r) => and(l.clone(), r.clone()),
@@ -1061,6 +1068,15 @@ impl Context {
                 .try_cmp(rhs, rhs2)
                 .map(|ord| ord.canbe_ge())
                 .unwrap_or(false),
+            // 0..59 :> 1..20 == { I >= 0 and I < 60 } :> { I >= 1 and I < 20 }
+            (Pred::And(l1, r1), Pred::And(l2, r2)) => {
+                (self.is_super_pred_of(l1, l2) && self.is_super_pred_of(r1, r2))
+                    || (self.is_super_pred_of(l1, r2) && self.is_super_pred_of(r1, l2))
+            }
+            (Pred::Or(l1, r1), Pred::Or(l2, r2)) => {
+                (self.is_super_pred_of(l1, l2) && self.is_super_pred_of(r1, r2))
+                    || (self.is_super_pred_of(l1, r2) && self.is_super_pred_of(r1, l2))
+            }
             (lhs, Pred::And(l, r)) => {
                 self.is_super_pred_of(lhs, l) || self.is_super_pred_of(lhs, r)
             }

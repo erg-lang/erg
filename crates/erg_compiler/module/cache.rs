@@ -145,6 +145,10 @@ impl ModuleCache {
             self.cache.insert(new, entry);
         }
     }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&PathBuf, &ModuleEntry)> {
+        self.cache.iter()
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -159,6 +163,14 @@ impl fmt::Display for SharedModuleCache {
 impl SharedModuleCache {
     pub fn new() -> Self {
         Self(Shared::new(ModuleCache::new()))
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.borrow().cache.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.borrow().cache.len()
     }
 
     pub fn get<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<&ModuleEntry>
@@ -229,5 +241,10 @@ impl SharedModuleCache {
 
     pub fn rename_path(&self, path: &PathBuf, new: PathBuf) {
         self.0.borrow_mut().rename_path(path, new);
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&PathBuf, &ModuleEntry)> {
+        let ref_ = unsafe { self.0.as_ptr().as_ref().unwrap() };
+        ref_.iter()
     }
 }

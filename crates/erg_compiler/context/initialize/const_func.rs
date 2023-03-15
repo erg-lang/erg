@@ -100,11 +100,11 @@ pub fn inheritable_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<
                     Some(TypeObj::Generated(gen)) => {
                         *gen.typ_mut() = and(mem::take(gen.typ_mut()), mono("InheritableType"));
                     }
-                    Some(TypeObj::Builtin(t)) => {
+                    Some(TypeObj::Builtin { t, .. }) => {
                         *t = and(mem::take(t), mono("InheritableType"));
                     }
                     _ => {
-                        *typ = Some(Box::new(TypeObj::Builtin(mono("InheritableType"))));
+                        *typ = Some(Box::new(TypeObj::builtin_trait(mono("InheritableType"))));
                     }
                 }
             }
@@ -285,7 +285,7 @@ pub fn __dict_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<V
     } else {
         let index = if let ValueObj::Type(t) = &index {
             let derefed = ctx.readable_type(t.typ().clone(), false);
-            ValueObj::builtin_t(derefed)
+            ValueObj::builtin_type(derefed)
         } else {
             index
         };

@@ -24,6 +24,14 @@ pub struct FileCacheEntry {
     pub token_stream: Option<TokenStream>,
 }
 
+impl FileCacheEntry {
+    /// line: 0-based
+    pub fn get_line(&self, line: u32) -> Option<&str> {
+        let mut lines = self.code.lines();
+        lines.nth(line as usize)
+    }
+}
+
 /// Stores the contents of the file on-memory.
 /// This struct can save changes in real-time & incrementally.
 #[derive(Debug, Clone)]

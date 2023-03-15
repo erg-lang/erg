@@ -1,4 +1,5 @@
 use erg_common::config::ErgConfig;
+use erg_common::dict::Dict;
 use erg_common::error::MultiErrorDisplay;
 use erg_common::traits::{Runnable, Stream};
 use erg_common::Str;
@@ -83,7 +84,7 @@ impl Runnable for HIRBuilder {
 
 impl Buildable for HIRBuilder {
     fn inherit(cfg: ErgConfig, shared: SharedCompilerResource) -> Self {
-        let mod_name = Str::rc(&cfg.input.file_stem());
+        let mod_name = Str::rc(cfg.input.unescaped_file_stem());
         Self::new_with_cache(cfg, mod_name, shared)
     }
     fn build(&mut self, src: String, mode: &str) -> Result<CompleteArtifact, IncompleteArtifact> {
@@ -100,7 +101,7 @@ impl Buildable for HIRBuilder {
 impl BuildRunnable for HIRBuilder {}
 
 impl ContextProvider for HIRBuilder {
-    fn dir(&self) -> Vec<(&VarName, &VarInfo)> {
+    fn dir(&self) -> Dict<&VarName, &VarInfo> {
         self.lowerer.dir()
     }
 
@@ -157,7 +158,7 @@ impl HIRBuilder {
         self.lowerer.pop_mod_ctx()
     }
 
-    pub fn dir(&mut self) -> Vec<(&VarName, &VarInfo)> {
+    pub fn dir(&mut self) -> Dict<&VarName, &VarInfo> {
         ContextProvider::dir(self)
     }
 

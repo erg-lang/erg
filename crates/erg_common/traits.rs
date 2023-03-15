@@ -9,7 +9,7 @@ use std::mem;
 use std::process;
 use std::slice::{Iter, IterMut};
 
-use crate::config::{ErgConfig, Input};
+use crate::config::{ErgConfig, Input, InputKind};
 use crate::consts::{BUILD_DATE, GIT_HASH_SHORT, SEMVER};
 use crate::error::{ErrorDisplay, ErrorKind, Location, MultiErrorDisplay};
 use crate::{addr_eq, chomp, log, switch_unreachable};
@@ -713,9 +713,9 @@ pub trait Runnable: Sized + Default {
         let quiet_repl = cfg.quiet_repl;
         let mut num_errors = 0;
         let mut instance = Self::new(cfg);
-        let res = match instance.input() {
-            Input::File(_) | Input::Pipe(_, _) | Input::Str(_, _) => instance.exec(),
-            Input::REPL(_) | Input::DummyREPL(_) => {
+        let res = match &instance.input().kind {
+            InputKind::File(_) | InputKind::Pipe(_) | InputKind::Str(_) => instance.exec(),
+            InputKind::REPL | InputKind::DummyREPL(_) => {
                 let output = stdout();
                 let mut output = BufWriter::new(output.lock());
                 if !quiet_repl {
@@ -907,7 +907,7 @@ pub trait Runnable: Sized + Default {
                     }
                 }
             }
-            Input::Dummy => switch_unreachable!(),
+            InputKind::Dummy => switch_unreachable!(),
         };
         match res {
             Ok(i) => ExitStatus::new(i, num_errors),

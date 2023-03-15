@@ -18,28 +18,26 @@ use erg_common::error::Location;
 use erg_common::fresh::fresh_varname;
 #[allow(unused_imports)]
 use erg_common::log;
-use erg_common::vis::Visibility;
 use erg_common::Str;
 use erg_common::{set, unique_in_place};
 
 use erg_parser::ast::VarName;
 
 use crate::context::initialize::const_func::*;
-use crate::context::instantiate::ConstTemplate;
+use crate::context::instantiate_spec::ConstTemplate;
 use crate::context::{
     ClassDefType, Context, ContextKind, MethodInfo, ModuleContext, ParamSpec, TraitImpl,
 };
 use crate::module::SharedCompilerResource;
+use crate::ty::constructors::*;
 use crate::ty::free::Constraint;
 use crate::ty::value::ValueObj;
-use crate::ty::Type;
-use crate::ty::{constructors::*, BuiltinConstSubr, ConstSubr, Predicate};
+use crate::ty::{BuiltinConstSubr, ConstSubr, Predicate, Type, Visibility};
 use crate::varinfo::{AbsLocation, Mutability, VarInfo, VarKind};
 use Mutability::*;
 use ParamSpec as PS;
 use Type::*;
 use VarKind::*;
-use Visibility::*;
 
 const NUM: &str = "Num";
 
@@ -102,10 +100,8 @@ const BYTES: &str = "Bytes";
 const FLOAT: &str = "Float";
 const MUT_FLOAT: &str = "Float!";
 const EPSILON: &str = "EPSILON";
-const REAL: &str = "Real";
-const FUNC_REAL: &str = "real";
-const IMAG: &str = "Imag";
-const FUNC_IMAG: &str = "imag";
+const REAL: &str = "real";
+const IMAG: &str = "imag";
 const FUNC_AS_INTEGER_RATIO: &str = "as_integer_ratio";
 const FUNC_CONJUGATE: &str = "conjugate";
 const FUNC_IS_INTEGER: &str = "is_integer";
@@ -543,7 +539,7 @@ impl Context {
         );
         if let Some(_vi) = self.locals.get(&name) {
             if _vi != &vi {
-                panic!("already registered: {} {name}", self.name);
+                unreachable!("already registered: {} {name}", self.name);
             }
         } else {
             self.locals.insert(name, vi);
@@ -599,9 +595,9 @@ impl Context {
             VarName::from_static(name)
         };
         let vis = if cfg!(feature = "py_compatible") || &self.name[..] != "<builtins>" {
-            Public
+            Visibility::BUILTIN_PUBLIC
         } else {
-            Private
+            Visibility::BUILTIN_PRIVATE
         };
         let muty = Immutable;
         let loc = Location::range(lineno, 0, lineno, name.inspect().len() as u32);
@@ -690,12 +686,13 @@ impl Context {
         } else if self.rec_get_const_obj(&t.local_name()).is_some() {
             panic!("{} has already been registered as const", t.local_name());
         } else {
-            let name = VarName::from_str(t.local_name());
-            let meta_t = match ctx.kind {
-                ContextKind::Class => Type::ClassType,
-                ContextKind::Trait => Type::TraitType,
-                _ => Type::Type,
+            let val = match ctx.kind {
+                ContextKind::Class => ValueObj::builtin_class(t.clone()),
+                ContextKind::Trait => ValueObj::builtin_trait(t.clone()),
+                _ => ValueObj::builtin_type(t.clone()),
             };
+            let name = VarName::from_str(t.local_name());
+            let meta_t = v_enum(set! { val.clone() });
             self.locals.insert(
                 name.clone(),
                 VarInfo::new(
@@ -709,8 +706,7 @@ impl Context {
                     AbsLocation::unknown(),
                 ),
             );
-            self.consts
-                .insert(name.clone(), ValueObj::builtin_t(t.clone()));
+            self.consts.insert(name.clone(), val);
             for impl_trait in ctx.super_traits.iter() {
                 if let Some(impls) = self.trait_impls().get_mut(&impl_trait.qual_name()) {
                     impls.insert(TraitImpl::new(t.clone(), impl_trait.clone()));
@@ -758,12 +754,13 @@ impl Context {
         if let Some((_, root_ctx)) = self.poly_types.get_mut(&t.local_name()) {
             root_ctx.methods_list.push((ClassDefType::Simple(t), ctx));
         } else {
-            let name = VarName::from_str(t.local_name());
-            let meta_t = match ctx.kind {
-                ContextKind::Class => Type::ClassType,
-                ContextKind::Trait => Type::TraitType,
-                _ => Type::Type,
+            let val = match ctx.kind {
+                ContextKind::Class => ValueObj::builtin_class(t.clone()),
+                ContextKind::Trait => ValueObj::builtin_trait(t.clone()),
+                _ => ValueObj::builtin_type(t.clone()),
             };
+            let name = VarName::from_str(t.local_name());
+            let meta_t = v_enum(set! { val.clone() });
             if !cfg!(feature = "py_compatible") {
                 self.locals.insert(
                     name.clone(),
@@ -779,8 +776,7 @@ impl Context {
                     ),
                 );
             }
-            self.consts
-                .insert(name.clone(), ValueObj::builtin_t(t.clone()));
+            self.consts.insert(name.clone(), val);
             for impl_trait in ctx.super_traits.iter() {
                 if let Some(impls) = self.trait_impls().get_mut(&impl_trait.qual_name()) {
                     impls.insert(TraitImpl::new(t.clone(), impl_trait.clone()));
@@ -859,50 +855,56 @@ impl Context {
 
     fn init_builtin_consts(&mut self) {
         let vis = if cfg!(feature = "py_compatible") {
-            Public
+            Visibility::BUILTIN_PUBLIC
         } else {
-            Private
+            Visibility::BUILTIN_PRIVATE
         };
         // TODO: this is not a const, but a special property
         self.register_builtin_py_impl(
             FUNDAMENTAL_NAME,
             Str,
             Immutable,
-            vis,
+            vis.clone(),
             Some(FUNDAMENTAL_NAME),
         );
         self.register_builtin_py_impl(
             LICENSE,
             mono(SITEBUILTINS_PRINTER),
             Immutable,
-            vis,
+            vis.clone(),
             Some(LICENSE),
         );
         self.register_builtin_py_impl(
             CREDITS,
             mono(SITEBUILTINS_PRINTER),
             Immutable,
-            vis,
+            vis.clone(),
             Some(CREDITS),
         );
         self.register_builtin_py_impl(
             COPYRIGHT,
             mono(SITEBUILTINS_PRINTER),
             Immutable,
-            vis,
+            vis.clone(),
             Some(COPYRIGHT),
         );
         self.register_builtin_py_impl(
             NOT_IMPLEMENTED,
             NotImplementedType,
             Const,
-            Private,
+            vis.clone(),
             Some(NOT_IMPLEMENTED),
         );
-        self.register_builtin_py_impl(ELLIPSIS, Ellipsis, Const, Private, Some(ELLIPSIS));
-        self.register_builtin_py_impl(TRUE, Bool, Const, Private, Some(TRUE));
-        self.register_builtin_py_impl(FALSE, Bool, Const, Private, Some(FALSE));
-        self.register_builtin_py_impl(NONE, NoneType, Const, Private, Some(NONE));
+        self.register_builtin_py_impl(ELLIPSIS, Ellipsis, Const, vis, Some(ELLIPSIS));
+        self.register_builtin_py_impl(TRUE, Bool, Const, Visibility::BUILTIN_PRIVATE, Some(TRUE));
+        self.register_builtin_py_impl(FALSE, Bool, Const, Visibility::BUILTIN_PRIVATE, Some(FALSE));
+        self.register_builtin_py_impl(
+            NONE,
+            NoneType,
+            Const,
+            Visibility::BUILTIN_PRIVATE,
+            Some(NONE),
+        );
     }
 
     pub(crate) fn init_builtins(cfg: ErgConfig, shared: SharedCompilerResource) {

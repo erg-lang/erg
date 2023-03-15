@@ -10,6 +10,7 @@ pub mod hint;
 pub mod initialize;
 pub mod inquire;
 pub mod instantiate;
+pub mod instantiate_spec;
 pub mod register;
 pub mod test;
 pub mod unify;
@@ -20,12 +21,10 @@ use std::option::Option; // conflicting to Type::Option
 use std::path::{Path, PathBuf};
 
 use erg_common::config::ErgConfig;
-use erg_common::config::Input;
 use erg_common::dict::Dict;
 use erg_common::error::Location;
 use erg_common::impl_display_from_debug;
 use erg_common::traits::{Locational, Stream};
-use erg_common::vis::Visibility;
 use erg_common::Str;
 use erg_common::{fmt_option, fn_name, get_hash, log};
 
@@ -33,18 +32,18 @@ use ast::{DefId, DefKind, VarName};
 use erg_parser::ast;
 use erg_parser::token::Token;
 
-use crate::context::instantiate::{ConstTemplate, TyVarCache};
+use crate::context::instantiate::TyVarCache;
+use crate::context::instantiate_spec::ConstTemplate;
 use crate::error::{TyCheckError, TyCheckErrors};
 use crate::module::{SharedCompilerResource, SharedModuleCache};
 use crate::ty::value::ValueObj;
-use crate::ty::{Predicate, Type};
+use crate::ty::{Predicate, Type, Visibility, VisibilityModifier};
 use crate::varinfo::{AbsLocation, Mutability, VarInfo, VarKind};
 use Type::*;
-use Visibility::*;
 
 /// For implementing LSP or other IDE features
 pub trait ContextProvider {
-    fn dir(&self) -> Vec<(&VarName, &VarInfo)>;
+    fn dir(&self) -> Dict<&VarName, &VarInfo>;
     fn get_receiver_ctx(&self, receiver_name: &str) -> Option<&Context>;
     fn get_var_info(&self, name: &str) -> Option<(&VarName, &VarInfo)>;
 }
@@ -234,6 +233,8 @@ impl From<DefKind> for ContextKind {
             DefKind::StructuralTrait => Self::StructuralTrait,
             DefKind::ErgImport | DefKind::PyImport => Self::Module,
             DefKind::Other => Self::Instant,
+            // FIXME: Patch(Type),
+            DefKind::Patch => Self::Instant,
         }
     }
 }
@@ -384,6 +385,7 @@ pub struct Context {
     pub(crate) tv_cache: Option<TyVarCache>,
     // for pylyzer, ignore this
     pub(crate) higher_order_caller: Vec<Str>,
+    pub(crate) erg_to_py_names: Dict<Str, Str>,
     pub(crate) level: usize,
 }
 
@@ -412,12 +414,12 @@ impl fmt::Display for Context {
 }
 
 impl ContextProvider for Context {
-    fn dir(&self) -> Vec<(&VarName, &VarInfo)> {
-        let mut vars = self.type_dir();
+    fn dir(&self) -> Dict<&VarName, &VarInfo> {
+        let mut vars = self.type_dir(self);
         if let Some(outer) = self.get_outer() {
-            vars.extend(outer.dir());
+            vars.guaranteed_extend(outer.dir());
         } else if let Some(builtins) = self.get_builtins() {
-            vars.extend(builtins.locals.iter());
+            vars.guaranteed_extend(builtins.locals.iter());
         }
         vars
     }
@@ -431,6 +433,7 @@ impl ContextProvider for Context {
             })
     }
 
+    // this is internally recursive
     fn get_var_info(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
         self.get_var_kv(name).or_else(|| {
             self.get_builtins()
@@ -440,7 +443,7 @@ impl ContextProvider for Context {
 }
 
 impl Context {
-    pub fn dir(&self) -> Vec<(&VarName, &VarInfo)> {
+    pub fn dir(&self) -> Dict<&VarName, &VarInfo> {
         ContextProvider::dir(self)
     }
 
@@ -511,12 +514,30 @@ impl Context {
             if let Some(name) = param.name {
                 let kind = VarKind::parameter(id, param.is_var_params, param.default_info);
                 let muty = Mutability::from(name);
-                let vi = VarInfo::new(param.t, muty, Private, kind, None, None, None, param.loc);
+                let vi = VarInfo::new(
+                    param.t,
+                    muty,
+                    Visibility::private(name),
+                    kind,
+                    None,
+                    None,
+                    None,
+                    param.loc,
+                );
                 params_.push((Some(VarName::new(Token::static_symbol(name))), vi));
             } else {
                 let kind = VarKind::parameter(id, param.is_var_params, param.default_info);
                 let muty = Mutability::Immutable;
-                let vi = VarInfo::new(param.t, muty, Private, kind, None, None, None, param.loc);
+                let vi = VarInfo::new(
+                    param.t,
+                    muty,
+                    Visibility::private(name.clone()),
+                    kind,
+                    None,
+                    None,
+                    None,
+                    param.loc,
+                );
                 params_.push((None, vi));
             }
         }
@@ -545,6 +566,7 @@ impl Context {
             tv_cache: None,
             patches: Dict::default(),
             higher_order_caller: vec![],
+            erg_to_py_names: Dict::default(),
             level,
         }
     }
@@ -846,16 +868,12 @@ impl Context {
         )
     }
 
-    pub(crate) fn module_path(&self) -> Option<&PathBuf> {
-        if let Input::File(path) = &self.cfg.input {
-            Some(path)
-        } else {
-            None
-        }
+    pub(crate) fn module_path(&self) -> Option<&Path> {
+        self.cfg.input.path()
     }
 
     pub(crate) fn absolutize(&self, loc: Location) -> AbsLocation {
-        AbsLocation::new(self.module_path().cloned(), loc)
+        AbsLocation::new(self.module_path().map(PathBuf::from), loc)
     }
 
     #[inline]
@@ -925,7 +943,7 @@ impl Context {
         &mut self,
         name: &str,
         kind: ContextKind,
-        vis: Visibility,
+        vis: VisibilityModifier,
         tv_cache: Option<TyVarCache>,
     ) {
         let name = if vis.is_public() {
@@ -999,24 +1017,30 @@ impl Context {
         }
     }
 
-    fn type_dir(&self) -> Vec<(&VarName, &VarInfo)> {
-        let mut vars: Vec<_> = self
-            .locals
-            .iter()
-            .chain(self.decls.iter())
-            .chain(
-                self.params
-                    .iter()
-                    .filter_map(|(k, v)| k.as_ref().map(|k| (k, v))),
-            )
-            .chain(self.methods_list.iter().flat_map(|(_, ctx)| ctx.type_dir()))
-            .collect();
+    /// enumerates all the variables/methods in the current context & super contexts.
+    fn type_dir<'t>(&'t self, namespace: &'t Context) -> Dict<&VarName, &VarInfo> {
+        let mut attrs = self.locals.iter().collect::<Dict<_, _>>();
+        attrs.guaranteed_extend(
+            self.params
+                .iter()
+                .filter_map(|(k, v)| k.as_ref().map(|k| (k, v))),
+        );
+        attrs.guaranteed_extend(self.decls.iter());
+        attrs.guaranteed_extend(
+            self.methods_list
+                .iter()
+                .flat_map(|(_, ctx)| ctx.type_dir(namespace)),
+        );
         for sup in self.super_classes.iter() {
-            if let Some((_, sup_ctx)) = self.get_nominal_type_ctx(sup) {
-                vars.extend(sup_ctx.type_dir());
+            if let Some((_, sup_ctx)) = namespace.get_nominal_type_ctx(sup) {
+                attrs.guaranteed_extend(sup_ctx.type_dir(namespace));
             }
         }
-        vars
+        attrs
+    }
+
+    pub fn local_dir(&self) -> Dict<&VarName, &VarInfo> {
+        self.type_dir(self)
     }
 
     pub(crate) fn mod_cache(&self) -> &SharedModuleCache {

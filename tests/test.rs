@@ -82,6 +82,11 @@ fn exec_import() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_inherit() -> Result<(), ()> {
+    expect_success("tests/should_ok/inherit.er")
+}
+
+#[test]
 fn exec_infer_class() -> Result<(), ()> {
     expect_success("tests/should_ok/infer_class.er")
 }
@@ -132,6 +137,11 @@ fn exec_pattern() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_pyimport_test() -> Result<(), ()> {
+    expect_success("tests/should_ok/pyimport.er")
+}
+
+#[test]
 fn exec_quantified() -> Result<(), ()> {
     expect_success("examples/quantified.er")
 }
@@ -157,13 +167,13 @@ fn exec_return() -> Result<(), ()> {
 }
 
 #[test]
-fn exec_structural() -> Result<(), ()> {
+fn exec_structural_example() -> Result<(), ()> {
     expect_success("examples/structural.er")
 }
 
 #[test]
-fn exec_structural_test() -> Result<(), ()> {
-    expect_success("tests/should_ok/structural_test.er")
+fn exec_structural() -> Result<(), ()> {
+    expect_success("tests/should_ok/structural.er")
 }
 
 #[test]
@@ -273,7 +283,7 @@ fn exec_structural_err() -> Result<(), ()> {
 
 #[test]
 fn exec_subtyping_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/subtyping.er", 6)
+    expect_failure("tests/should_err/subtyping.er", 7)
 }
 
 #[test]
@@ -304,6 +314,11 @@ fn exec_var_args() -> Result<(), ()> {
 #[test]
 fn exec_var_args_err() -> Result<(), ()> {
     expect_failure("tests/should_err/var_args.er", 3)
+}
+
+#[test]
+fn exec_visibility() -> Result<(), ()> {
+    expect_failure("tests/should_err/visibility.er", 6)
 }
 
 #[test]

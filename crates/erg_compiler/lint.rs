@@ -155,7 +155,7 @@ impl ASTLowerer {
     }
 
     pub(crate) fn inc_ref<L: Locational>(&self, vi: &VarInfo, name: &L) {
-        self.module.context.inc_ref(vi, name);
+        self.module.context.inc_ref(vi, name, &self.module.context);
     }
 
     pub(crate) fn warn_unused_vars(&mut self, mode: &str) {
