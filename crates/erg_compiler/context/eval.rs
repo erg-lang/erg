@@ -149,7 +149,9 @@ impl Context {
                 Err(err) => {
                     if let Expr::Accessor(acc) = attr.obj.as_ref() {
                         if let Some(mod_ctx) = self.get_mod_ctx_from_acc(acc) {
-                            return mod_ctx.eval_const_ident(&attr.ident);
+                            if let Ok(obj) = mod_ctx.eval_const_ident(&attr.ident) {
+                                return Ok(obj);
+                            }
                         }
                     }
                     Err(err)
