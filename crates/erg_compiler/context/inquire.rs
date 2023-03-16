@@ -352,7 +352,7 @@ impl Context {
         let branch_ts = pos_args
             .iter()
             .skip(1)
-            .map(|a| ParamTy::anonymous(a.expr.ref_t().clone()))
+            .map(|a| ParamTy::Pos(a.expr.ref_t().clone()))
             .collect::<Vec<_>>();
         let Some(mut return_t) = branch_ts.get(0).and_then(|branch| {
             branch.typ()
@@ -372,7 +372,7 @@ impl Context {
             // TODO: handle unwrap errors
             return_t = self.union(&return_t, arg_t.typ().return_t().unwrap_or(&Type::Never));
         }
-        let param_ty = ParamTy::anonymous(match_target_expr_t.clone());
+        let param_ty = ParamTy::Pos(match_target_expr_t.clone());
         let param_ts = [vec![param_ty], branch_ts.to_vec()].concat();
         let t = if kind.is_func() {
             func(param_ts, None, vec![], return_t)
@@ -738,7 +738,7 @@ impl Context {
                 t: Type::Subr(SubrType::new(
                     SubrKind::Func,
                     vec![],
-                    Some(ParamTy::pos(None, ref_(Obj))),
+                    Some(ParamTy::Pos(ref_(Obj))),
                     vec![],
                     Failure,
                 )),

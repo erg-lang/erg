@@ -139,7 +139,7 @@ macro_rules! impl_t_for_enum {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ParamTy {
-    Pos { name: Option<Str>, ty: Type },
+    Pos(Type),
     Kw { name: Str, ty: Type },
     KwWithDefault { name: Str, ty: Type, default: Type },
 }
@@ -147,12 +147,7 @@ pub enum ParamTy {
 impl fmt::Display for ParamTy {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Pos { name, ty } => {
-                if let Some(name) = name {
-                    write!(f, "{name}")?;
-                }
-                write!(f, ": {ty}")
-            }
+            Self::Pos(ty) => write!(f, "{ty}"),
             Self::Kw { name, ty } => write!(f, "{name}: {ty}"),
             Self::KwWithDefault { name, ty, default } => {
                 write!(f, "{name}: {ty} := {default}")
@@ -162,38 +157,41 @@ impl fmt::Display for ParamTy {
 }
 
 impl ParamTy {
-    pub const fn pos(name: Option<Str>, ty: Type) -> Self {
-        Self::Pos { name, ty }
+    pub fn kw(name: Str, ty: Type) -> Self {
+        if &name[..] == "_" {
+            Self::Pos(ty)
+        } else {
+            Self::Kw { name, ty }
+        }
     }
 
-    pub const fn kw(name: Str, ty: Type) -> Self {
-        Self::Kw { name, ty }
+    pub fn pos_or_kw(name: Option<Str>, ty: Type) -> Self {
+        match name {
+            Some(name) => Self::kw(name, ty),
+            None => Self::Pos(ty),
+        }
     }
 
     pub const fn kw_default(name: Str, ty: Type, default: Type) -> Self {
         Self::KwWithDefault { name, ty, default }
     }
 
-    pub const fn anonymous(ty: Type) -> Self {
-        Self::pos(None, ty)
-    }
-
     pub fn name(&self) -> Option<&Str> {
         match self {
-            Self::Pos { name, .. } => name.as_ref(),
+            Self::Pos(_) => None,
             Self::Kw { name, .. } | Self::KwWithDefault { name, .. } => Some(name),
         }
     }
 
     pub const fn typ(&self) -> &Type {
         match self {
-            Self::Pos { ty, .. } | Self::Kw { ty, .. } | Self::KwWithDefault { ty, .. } => ty,
+            Self::Pos(ty) | Self::Kw { ty, .. } | Self::KwWithDefault { ty, .. } => ty,
         }
     }
 
     pub fn typ_mut(&mut self) -> &mut Type {
         match self {
-            Self::Pos { ty, .. } | Self::Kw { ty, .. } | Self::KwWithDefault { ty, .. } => ty,
+            Self::Pos(ty) | Self::Kw { ty, .. } | Self::KwWithDefault { ty, .. } => ty,
         }
     }
 
@@ -202,7 +200,7 @@ impl ParamTy {
         F: FnOnce(Type) -> Type,
     {
         match self {
-            Self::Pos { name, ty } => Self::Pos { name, ty: f(ty) },
+            Self::Pos(ty) => Self::Pos(f(ty)),
             Self::Kw { name, ty } => Self::Kw { name, ty: f(ty) },
             Self::KwWithDefault { name, ty, default } => Self::KwWithDefault {
                 name,
@@ -217,7 +215,7 @@ impl ParamTy {
         F: FnOnce(Type) -> Result<Type, E>,
     {
         match self {
-            Self::Pos { name, ty } => Ok(Self::Pos { name, ty: f(ty)? }),
+            Self::Pos(ty) => Ok(Self::Pos(f(ty)?)),
             Self::Kw { name, ty } => Ok(Self::Kw { name, ty: f(ty)? }),
             Self::KwWithDefault { name, ty, default } => Ok(Self::KwWithDefault {
                 name,
@@ -229,7 +227,7 @@ impl ParamTy {
 
     pub fn deconstruct(self) -> (Option<Str>, Type, Option<Type>) {
         match self {
-            Self::Pos { name, ty } => (name, ty, None),
+            Self::Pos(ty) => (None, ty, None),
             Self::Kw { name, ty } => (Some(name), ty, None),
             Self::KwWithDefault { name, ty, default } => (Some(name), ty, Some(default)),
         }

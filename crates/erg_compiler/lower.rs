@@ -1142,7 +1142,7 @@ impl ASTLowerer {
             // vi.t: `[T; _]`
             // pt: `name: T`
             let var_params = var_params.get(0).map(|(name, vi)| {
-                ParamTy::pos(
+                ParamTy::pos_or_kw(
                     name.as_ref().map(|n| n.inspect().clone()),
                     vi.t.inner_ts().remove(0),
                 )
@@ -1170,7 +1170,7 @@ impl ASTLowerer {
         };
         let non_default_param_tys = non_default_params
             .map(|(name, vi)| {
-                ParamTy::pos(name.as_ref().map(|n| n.inspect().clone()), vi.t.clone())
+                ParamTy::pos_or_kw(name.as_ref().map(|n| n.inspect().clone()), vi.t.clone())
             })
             .collect();
         #[cfg(not(feature = "py_compatible"))]

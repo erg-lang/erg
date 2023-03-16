@@ -255,7 +255,7 @@ impl Context {
                 Ok(pt) => non_defaults.push(pt),
                 Err(es) => {
                     errs.extend(es);
-                    non_defaults.push(ParamTy::pos(param.inspect().cloned(), Type::Failure));
+                    non_defaults.push(ParamTy::pos_or_kw(param.inspect().cloned(), Type::Failure));
                 }
             }
         }
@@ -273,7 +273,7 @@ impl Context {
                 Ok(pt) => pt,
                 Err(es) => {
                     errs.extend(es);
-                    ParamTy::pos(var_args.inspect().cloned(), Type::Failure)
+                    ParamTy::pos_or_kw(var_args.inspect().cloned(), Type::Failure)
                 }
             };
             Some(pt)
@@ -295,14 +295,14 @@ impl Context {
                 Ok(pt) => defaults.push(pt),
                 Err(es) => {
                     errs.extend(es);
-                    defaults.push(ParamTy::pos(p.sig.inspect().cloned(), Type::Failure));
+                    defaults.push(ParamTy::pos_or_kw(p.sig.inspect().cloned(), Type::Failure));
                 }
             }
         }
         let spec_return_t = if let Some(t_spec) = sig.return_t_spec.as_ref() {
             let opt_decl_t = opt_decl_sig_t
                 .as_ref()
-                .map(|subr| ParamTy::anonymous(subr.return_t.as_ref().clone()));
+                .map(|subr| ParamTy::Pos(subr.return_t.as_ref().clone()));
             match self.instantiate_typespec(
                 t_spec,
                 opt_decl_t.as_ref(),
@@ -400,18 +400,18 @@ impl Context {
             .name()
             .and_then(|name| self.get_const_local(name.token(), &self.name).ok())
         {
-            return Ok(ParamTy::pos(None, v_enum(set! { value })));
+            return Ok(ParamTy::Pos(v_enum(set! { value })));
         } else if let Some(tp) = sig
             .name()
             .and_then(|name| self.get_tp_from_name(name.inspect(), tmp_tv_cache))
         {
             match tp {
-                TyParam::Type(t) => return Ok(ParamTy::pos(None, *t)),
+                TyParam::Type(t) => return Ok(ParamTy::Pos(*t)),
                 other => {
-                    return Ok(ParamTy::pos(
-                        None,
-                        tp_enum(self.get_tp_t(&other)?, set! { other }),
-                    ))
+                    return Ok(ParamTy::Pos(tp_enum(
+                        self.get_tp_t(&other)?,
+                        set! { other },
+                    )))
                 }
             }
         }
@@ -421,7 +421,7 @@ impl Context {
                 Ok(ParamTy::kw_default(name.clone(), t, default_t))
             }
             (Some(name), _) => Ok(ParamTy::kw(name.clone(), t)),
-            (None, _) => Ok(ParamTy::anonymous(t)),
+            (None, _) => Ok(ParamTy::Pos(t)),
         }
     }
 
@@ -929,7 +929,7 @@ impl Context {
                 self.instantiate_typespec(default_t, opt_decl_t, tmp_tv_cache, mode, false)?,
             ))
         } else {
-            Ok(ParamTy::pos(
+            Ok(ParamTy::pos_or_kw(
                 p.name.as_ref().map(|t| t.inspect().to_owned()),
                 t,
             ))

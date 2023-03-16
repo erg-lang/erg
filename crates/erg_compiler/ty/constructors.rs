@@ -3,7 +3,7 @@ use std::convert::TryInto;
 use crate::ty::*;
 
 #[inline]
-pub const fn kw(name: &'static str, ty: Type) -> ParamTy {
+pub fn kw(name: &'static str, ty: Type) -> ParamTy {
     ParamTy::kw(Str::ever(name), ty)
 }
 
@@ -14,7 +14,7 @@ pub const fn kw_default(name: &'static str, ty: Type, default: Type) -> ParamTy 
 
 #[inline]
 pub const fn anon(ty: Type) -> ParamTy {
-    ParamTy::anonymous(ty)
+    ParamTy::Pos(ty)
 }
 
 #[inline]
@@ -202,7 +202,7 @@ pub fn func0(return_t: Type) -> Type {
 }
 
 pub fn func1(param_t: Type, return_t: Type) -> Type {
-    func(vec![ParamTy::anonymous(param_t)], None, vec![], return_t)
+    func(vec![ParamTy::Pos(param_t)], None, vec![], return_t)
 }
 
 pub fn kind1(param: Type) -> Type {
@@ -211,7 +211,7 @@ pub fn kind1(param: Type) -> Type {
 
 pub fn func2(l: Type, r: Type, return_t: Type) -> Type {
     func(
-        vec![ParamTy::anonymous(l), ParamTy::anonymous(r)],
+        vec![ParamTy::Pos(l), ParamTy::Pos(r)],
         None,
         vec![],
         return_t,
@@ -249,12 +249,12 @@ pub fn proc0(return_t: Type) -> Type {
 }
 
 pub fn proc1(param_t: Type, return_t: Type) -> Type {
-    proc(vec![ParamTy::anonymous(param_t)], None, vec![], return_t)
+    proc(vec![ParamTy::Pos(param_t)], None, vec![], return_t)
 }
 
 pub fn proc2(l: Type, r: Type, return_t: Type) -> Type {
     proc(
-        vec![ParamTy::anonymous(l), ParamTy::anonymous(r)],
+        vec![ParamTy::Pos(l), ParamTy::Pos(r)],
         None,
         vec![],
         return_t,
@@ -283,13 +283,7 @@ pub fn fn0_met(self_t: Type, return_t: Type) -> Type {
 }
 
 pub fn fn1_met(self_t: Type, input_t: Type, return_t: Type) -> Type {
-    fn_met(
-        self_t,
-        vec![ParamTy::anonymous(input_t)],
-        None,
-        vec![],
-        return_t,
-    )
+    fn_met(self_t, vec![ParamTy::Pos(input_t)], None, vec![], return_t)
 }
 
 pub fn fn1_kw_met(self_t: Type, input: ParamTy, return_t: Type) -> Type {
@@ -318,13 +312,7 @@ pub fn pr0_met(self_t: Type, return_t: Type) -> Type {
 }
 
 pub fn pr1_met(self_t: Type, input_t: Type, return_t: Type) -> Type {
-    pr_met(
-        self_t,
-        vec![ParamTy::anonymous(input_t)],
-        None,
-        vec![],
-        return_t,
-    )
+    pr_met(self_t, vec![ParamTy::Pos(input_t)], None, vec![], return_t)
 }
 
 pub fn pr1_kw_met(self_t: Type, input: ParamTy, return_t: Type) -> Type {
