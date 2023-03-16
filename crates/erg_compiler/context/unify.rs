@@ -77,6 +77,31 @@ impl Context {
                 self.occur(maybe_sub, &subr.return_t, loc)?;
                 Ok(())
             }
+            (Type::Subr(lhs), Type::Subr(rhs)) => {
+                for (lhs, rhs) in lhs
+                    .default_params
+                    .iter()
+                    .map(|pt| pt.typ())
+                    .zip(rhs.default_params.iter().map(|pt| pt.typ()))
+                {
+                    self.occur(lhs, rhs, loc)?;
+                }
+                if let Some(lhs) = lhs.var_params.as_ref() {
+                    if let Some(rhs) = rhs.var_params.as_ref() {
+                        self.occur(lhs.typ(), rhs.typ(), loc)?;
+                    }
+                }
+                for (lhs, rhs) in lhs
+                    .non_default_params
+                    .iter()
+                    .map(|pt| pt.typ())
+                    .zip(rhs.non_default_params.iter().map(|pt| pt.typ()))
+                {
+                    self.occur(lhs, rhs, loc)?;
+                }
+                self.occur(&lhs.return_t, &rhs.return_t, loc)?;
+                Ok(())
+            }
             (Type::Poly { params, .. }, Type::FreeVar(fv)) if fv.is_unbound() => {
                 for param in params.iter().filter_map(|tp| {
                     if let TyParam::Type(t) = tp {
@@ -124,6 +149,14 @@ impl Context {
                     }
                 }
                 Ok(())
+            }
+            (lhs, Type::Or(l, r)) | (lhs, Type::And(l, r)) => {
+                self.occur(lhs, l, loc)?;
+                self.occur(lhs, r, loc)
+            }
+            (Type::Or(l, r), rhs) | (Type::And(l, r), rhs) => {
+                self.occur(l, rhs, loc)?;
+                self.occur(r, rhs, loc)
             }
             _ => Ok(()),
         }
