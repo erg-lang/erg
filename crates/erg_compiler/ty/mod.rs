@@ -695,7 +695,7 @@ pub enum Type {
     TraitType,
     Patch,
     NotImplementedType,
-    Ellipsis,  // これはクラスのほうで型推論用のマーカーではない
+    Ellipsis,  // == classof(...), これはクラスのほうで型推論用のマーカーではない
     Never,     // {}
     Mono(Str), // the name is fully qualified (e.g. <module>::C, foo.D)
     /* Polymorphic types */
@@ -1725,7 +1725,7 @@ impl Type {
             Self::Refinement(refine) => refine.t.qual_name(),
             Self::Quantified(_) => Str::ever("Quantified"),
             Self::Ellipsis => Str::ever("Ellipsis"),
-            Self::NotImplementedType => Str::ever("NotImplemented"),
+            Self::NotImplementedType => Str::ever("NotImplementedType"),
             Self::Never => Str::ever("Never"),
             Self::FreeVar(fv) => match &*fv.borrow() {
                 FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => t.qual_name(),

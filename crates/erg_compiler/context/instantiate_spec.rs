@@ -483,7 +483,7 @@ impl Context {
             "Bool" => Ok(Type::Bool),
             "NoneType" => Ok(Type::NoneType),
             "Ellipsis" => Ok(Type::Ellipsis),
-            "NotImplemented" => Ok(Type::NotImplementedType),
+            "NotImplementedType" => Ok(Type::NotImplementedType),
             "Inf" => Ok(Type::Inf),
             "NegInf" => Ok(Type::NegInf),
             "Never" => Ok(Type::Never),

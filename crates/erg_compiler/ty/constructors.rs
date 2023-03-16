@@ -377,7 +377,7 @@ pub fn mono<S: Into<Str>>(name: S) -> Type {
         match &name[..] {
             "Obj" | "Int" | "Nat" | "Ratio" | "Float" | "Bool" | "Str" | "NoneType" | "Code"
             | "Frame" | "Error" | "Inf" | "NegInf" | "Type" | "ClassType" | "TraitType"
-            | "Patch" | "NotImplemented" | "Ellipsis" | "Never" => {
+            | "Patch" | "NotImplementedType" | "Ellipsis" | "Never" => {
                 unreachable!("built-in type: {name}")
             }
             _ => {}
