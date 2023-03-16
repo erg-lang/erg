@@ -1,0 +1,4 @@
+/Scripts/
+/Lib/
+std.egg-info/
+pyvenv.cfg
