@@ -6,7 +6,7 @@ Align file prefixes when they are not numbered consecutively.
 existing files: 01_foo.md, 03_bar.md, 04_baz.md
 result: 01_foo.md, 02_bar.md, 03_baz.md
 """
-if __name__ == '__main__':
+if __name__ == "__main__":
     prev = None
     diff = None
     for f in sorted(glob.glob("[0-9][0-9]_*")):

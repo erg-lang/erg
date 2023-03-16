@@ -10,11 +10,11 @@ example:
     2nd arg(file no): 2
     result: 01_foo.md, 02_qux.md, 03_bar.md, 04_baz.md
 """
-if __name__ == '__main__':
+if __name__ == "__main__":
     file = sys.argv[1]
     file_no = sys.argv[2]
     if not file_no.isdigit():
-        raise ValueError('File number must be a number')
+        raise ValueError("File number must be a number")
     else:
         file_no = int(file_no)
 
@@ -22,8 +22,10 @@ if __name__ == '__main__':
         raise Exception("Escaped file already exists, rename it")
     # escaping
     for esc in sorted(glob.glob("[0-9][0-9]_*")):
-        if int(esc.split("_")[0]) < file_no: continue
-        else: os.rename(esc, "_" + esc)
+        if int(esc.split("_")[0]) < file_no:
+            continue
+        else:
+            os.rename(esc, "_" + esc)
 
     target = f"{file_no:02d}_" + file
     if os.path.exists(target):
