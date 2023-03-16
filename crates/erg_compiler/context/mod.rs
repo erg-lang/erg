@@ -1033,6 +1033,9 @@ impl Context {
         );
         for sup in self.super_classes.iter() {
             if let Some((_, sup_ctx)) = namespace.get_nominal_type_ctx(sup) {
+                if sup_ctx.name == self.name {
+                    continue;
+                }
                 attrs.guaranteed_extend(sup_ctx.type_dir(namespace));
             }
         }
