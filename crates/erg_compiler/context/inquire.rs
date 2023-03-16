@@ -304,6 +304,7 @@ impl Context {
         let match_target_expr_t = pos_args[0].expr.ref_t();
         // Never or T => T
         let mut union_pat_t = Type::Never;
+        let mut arm_ts = vec![];
         for (i, pos_arg) in pos_args.iter().skip(1).enumerate() {
             let lambda = erg_common::enum_unwrap!(&pos_arg.expr, hir::Expr::Lambda); // already checked
             if !lambda.params.defaults.is_empty() {
@@ -334,6 +335,7 @@ impl Context {
                 ParamKind::NonDefault,
             )?;
             union_pat_t = self.union(&union_pat_t, &rhs);
+            arm_ts.push(rhs);
         }
         // NG: expr_t: Nat, union_pat_t: {1, 2}
         // OK: expr_t: Int, union_pat_t: {1} or 'T
@@ -347,6 +349,8 @@ impl Context {
                 pos_args[0].loc(),
                 self.caused_by(),
                 match_target_expr_t,
+                &union_pat_t,
+                arm_ts,
             )));
         }
         let branch_ts = pos_args

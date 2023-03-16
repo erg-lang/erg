@@ -409,15 +409,23 @@ impl TyCheckError {
         loc: Location,
         caused_by: String,
         expr_t: &Type,
+        union_pat_t: &Type,
+        arm_ts: Vec<Type>,
     ) -> Self {
+        let arms = arm_ts
+            .into_iter()
+            .enumerate()
+            .fold("".to_string(), |acc, (i, t)| {
+                acc + &format!("{} arm type: {t}\n", ordinal_num(i + 1))
+            });
         Self::new(
             ErrorCore::new(
                 vec![SubMessage::only_loc(loc)],
                 switch_lang!(
-                    "japanese" => format!("{expr_t}型の全パターンを網羅していません"),
-                    "simplified_chinese" => format!("并非所有{expr_t}类型的模式都被涵盖"),
-                    "traditional_chinese" => format!("並非所有{expr_t}類型的模式都被涵蓋"),
-                    "english" => format!("not all patterns of type {expr_t} are covered"),
+                    "japanese" => format!("{expr_t}型の全パターンを網羅していません\nunion type: {union_pat_t}\n{arms}"),
+                    "simplified_chinese" => format!("并非所有{expr_t}类型的模式都被涵盖\nunion type: {union_pat_t}\n{arms}"),
+                    "traditional_chinese" => format!("並非所有{expr_t}類型的模式都被涵蓋\nunion type: {union_pat_t}\n{arms}"),
+                    "english" => format!("not all patterns of type {expr_t} are covered\nunion type: {union_pat_t}\n{arms}"),
                 ),
                 errno,
                 TypeError,
