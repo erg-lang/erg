@@ -5,7 +5,7 @@ use crate::ast::*;
 use crate::debug_call_info;
 use crate::debug_exit_info;
 use crate::error::{ParseError, ParseResult};
-use crate::token::TokenKind;
+use crate::token::{Token, TokenKind};
 use crate::Parser;
 
 impl Parser {
@@ -653,6 +653,14 @@ impl Parser {
                 debug_exit_info!(self);
                 Ok(LambdaSignature::new(params, None, TypeBoundSpecs::empty()))
             }
+            Expr::Call(call) => {
+                let param = self
+                    .convert_call_to_param_sig(call)
+                    .map_err(|_| self.stack_dec(fn_name!()))?;
+                let params = Params::single(param);
+                debug_exit_info!(self);
+                Ok(LambdaSignature::new(params, None, TypeBoundSpecs::empty()))
+            }
             Expr::Tuple(tuple) => {
                 let params = self
                     .convert_tuple_to_params(tuple)
@@ -716,6 +724,16 @@ impl Parser {
                 Err(())
             }
         }
+    }
+
+    fn convert_call_to_param_sig(&mut self, call: Call) -> ParseResult<NonDefaultParamSignature> {
+        let predecl = Self::call_to_predecl_type_spec(call.clone()).map_err(|_| ())?;
+        let t_spec =
+            TypeSpecWithOp::new(Token::DUMMY, TypeSpec::PreDeclTy(predecl), Expr::Call(call));
+        Ok(NonDefaultParamSignature::new(
+            ParamPattern::Discard(Token::DUMMY),
+            Some(t_spec),
+        ))
     }
 
     fn convert_tuple_to_params(&mut self, tuple: Tuple) -> ParseResult<Params> {

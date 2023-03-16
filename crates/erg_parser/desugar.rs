@@ -743,7 +743,7 @@ impl Desugarer {
         }
     }
 
-    fn desugar_shortened_record_inner(record: MixedRecord) -> NormalRecord {
+    pub(crate) fn desugar_shortened_record_inner(record: MixedRecord) -> NormalRecord {
         let attrs = record
             .attrs
             .into_iter()

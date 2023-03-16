@@ -2,6 +2,7 @@ use erg_common::switch_lang;
 use erg_common::traits::{Locational, Stream};
 
 use crate::ast::*;
+use crate::desugar::Desugarer;
 use crate::error::ParseError;
 use crate::token::TokenKind;
 use crate::Parser;
@@ -118,7 +119,7 @@ impl Parser {
             Expr::Record(rec) => {
                 let rec = match rec {
                     Record::Normal(rec) => rec,
-                    Record::Mixed(_) => unreachable!(),
+                    Record::Mixed(mixed) => Desugarer::desugar_shortened_record_inner(mixed),
                 };
                 let mut const_fields = vec![];
                 for attr in rec.attrs.into_iter() {
@@ -191,7 +192,7 @@ impl Parser {
         Ok(t_spec)
     }
 
-    fn call_to_predecl_type_spec(call: Call) -> Result<PreDeclTypeSpec, ParseError> {
+    pub(crate) fn call_to_predecl_type_spec(call: Call) -> Result<PreDeclTypeSpec, ParseError> {
         match *call.obj {
             Expr::Accessor(Accessor::Ident(ident)) => {
                 let (_pos_args, _var_args, _kw_args, paren) = call.args.deconstruct();
@@ -216,7 +217,10 @@ impl Parser {
                     ConstArgs::new(pos_args, var_args, kw_args, paren),
                 )))
             }
-            _ => todo!(),
+            other => {
+                let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
+                Err(err)
+            }
         }
     }
 
@@ -235,7 +239,14 @@ impl Parser {
                         ConstArgs::empty(),
                     )),
                 )),
-                _ => todo!(),
+                (ParamPattern::Discard(_), Some(t_spec_with_op)) => {
+                    ParamTySpec::anonymous(t_spec_with_op.t_spec)
+                }
+                (param, _t_spec) => {
+                    let err =
+                        ParseError::feature_error(line!() as usize, param.loc(), "param pattern");
+                    return Err(err);
+                }
             };
             non_defaults.push(param);
         }
@@ -254,7 +265,10 @@ impl Parser {
                             ConstArgs::empty(),
                         ))),
                     ),
-                    _ => todo!(),
+                    (ParamPattern::Discard(_), Some(t_spec_with_op)) => {
+                        ParamTySpec::anonymous(t_spec_with_op.t_spec)
+                    }
+                    (param, t_spec) => todo!("{param}: {t_spec:?}"),
                 });
         let mut defaults = vec![];
         for param in lambda.sig.params.defaults.into_iter() {
@@ -271,7 +285,11 @@ impl Parser {
                         ParamTySpec::new(Some(name.into_token()), default_spec.clone());
                     DefaultParamTySpec::new(param_spec, default_spec)
                 }
-                (l, r) => todo!("{:?} {:?}", l, r),
+                (param, _t_spec) => {
+                    let err =
+                        ParseError::feature_error(line!() as usize, param.loc(), "param pattern");
+                    return Err(err);
+                }
             };
             defaults.push(param);
         }
@@ -337,7 +355,10 @@ impl Parser {
                 }
                 Ok(kvs)
             }
-            _ => todo!(),
+            other => {
+                let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
+                Err(err)
+            }
         }
     }
 
