@@ -1155,7 +1155,7 @@ impl ASTLowerer {
                 .into_iter()
                 .partition(|(_, vi)| vi.kind.is_var_params());
             let var_params = var_params.get(0).map(|(name, vi)| {
-                ParamTy::pos(
+                ParamTy::pos_or_kw(
                     name.as_ref().map(|n| n.inspect().clone()),
                     vi.t.inner_ts().remove(0),
                 )
