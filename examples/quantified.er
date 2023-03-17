@@ -19,3 +19,4 @@ then|T|(x: T or NoneType, f: (a: T) -> T) =
         None -> x
         (y: T) -> f y
 assert then(1, add1) == 2
+assert then(None, add1) == None

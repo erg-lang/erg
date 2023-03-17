@@ -658,6 +658,24 @@ impl Context {
                 }
                 Ok(())
             }
+            // NG: Nat <: ?T or Int ==> Nat or Int (?T = Nat)
+            // OK: Nat <: ?T or Int ==> ?T or Int
+            (sub, Type::Or(l, r))
+                if l.is_unbound_var()
+                    && !sub.is_unbound_var()
+                    && !r.is_unbound_var()
+                    && self.subtype_of(sub, r) =>
+            {
+                Ok(())
+            }
+            (sub, Type::Or(l, r))
+                if r.is_unbound_var()
+                    && !sub.is_unbound_var()
+                    && !l.is_unbound_var()
+                    && self.subtype_of(sub, l) =>
+            {
+                Ok(())
+            }
             // e.g. Structural({ .method = (self: T) -> Int })/T
             (Type::Structural(sub), Type::FreeVar(fv))
                 if fv.is_unbound() && sub.contains_tvar(fv) =>
