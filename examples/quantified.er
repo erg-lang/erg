@@ -12,3 +12,10 @@ print_to_str!|S <: Show|(s: S): Str =
     s.to_str()
 
 discard print_to_str!(1)
+
+add1 x: Int = x + 1
+then|T|(x: T or NoneType, f: (a: T) -> T) =
+    match x:
+        None -> x
+        (y: T) -> f y
+assert then(1, add1) == 2

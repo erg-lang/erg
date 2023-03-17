@@ -339,10 +339,10 @@ impl Context {
         }
         // NG: expr_t: Nat, union_pat_t: {1, 2}
         // OK: expr_t: Int, union_pat_t: {1} or 'T
-        if self
-            .sub_unify(match_target_expr_t, &union_pat_t, &pos_args[0], None)
-            .is_err()
-        {
+        if let Err(err) = self.sub_unify(match_target_expr_t, &union_pat_t, &pos_args[0], None) {
+            if cfg!(feature = "debug") {
+                eprintln!("match error: {err}");
+            }
             return Err(TyCheckErrors::from(TyCheckError::match_error(
                 self.cfg.input.clone(),
                 line!() as usize,

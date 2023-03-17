@@ -809,7 +809,7 @@ impl PartialEq for Type {
             (Self::Refinement(l), Self::Refinement(r)) => l == r,
             (Self::Quantified(l), Self::Quantified(r)) => l == r,
             (Self::And(ll, lr), Self::And(rl, rr)) | (Self::Or(ll, lr), Self::Or(rl, rr)) => {
-                ll == rl && lr == rr
+                (ll == rl && lr == rr) || (ll == rr && lr == rl)
             }
             (Self::Not(l), Self::Not(r)) => l == r,
             (
@@ -846,6 +846,17 @@ impl PartialEq for Type {
             (_self, Self::FreeVar(fv)) if fv.is_linked() => _self == &*fv.crack(),
             (Self::FreeVar(l), Self::FreeVar(r)) => l == r,
             (Self::Failure, Self::Failure) | (Self::Uninited, Self::Uninited) => true,
+            // NoneType == {None}
+            (Self::NoneType, Self::Refinement(refine))
+            | (Self::Refinement(refine), Self::NoneType) => {
+                matches!(
+                    refine.pred.as_ref(),
+                    Predicate::Equal {
+                        rhs: TyParam::Value(ValueObj::None),
+                        ..
+                    }
+                )
+            }
             _ => false,
         }
     }
@@ -1350,9 +1361,10 @@ impl StructuralEq for Type {
                         .all(|(a, b)| a.structural_eq(b))
             }
             (Self::Structural(l), Self::Structural(r)) => l.structural_eq(r),
-            // TODO: commutative
-            (Self::And(l, r), Self::And(l2, r2)) => l.structural_eq(l2) && r.structural_eq(r2),
-            (Self::Or(l, r), Self::Or(l2, r2)) => l.structural_eq(l2) && r.structural_eq(r2),
+            (Self::And(l, r), Self::And(l2, r2)) | (Self::Or(l, r), Self::Or(l2, r2)) => {
+                (l.structural_eq(l2) && r.structural_eq(r2))
+                    || (l.structural_eq(r2) && r.structural_eq(l2))
+            }
             (Self::Not(ty), Self::Not(ty2)) => ty.structural_eq(ty2),
             _ => self == other,
         }

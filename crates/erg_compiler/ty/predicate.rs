@@ -148,7 +148,22 @@ impl Predicate {
             (p, Predicate::Value(ValueObj::Bool(true))) => p,
             (Predicate::Value(ValueObj::Bool(false)), _)
             | (_, Predicate::Value(ValueObj::Bool(false))) => Predicate::FALSE,
-            (p1, p2) => Self::And(Box::new(p1), Box::new(p2)),
+            (Predicate::And(l, r), other) | (other, Predicate::And(l, r)) => {
+                if l.as_ref() == &other {
+                    *r & other
+                } else if r.as_ref() == &other {
+                    *l & other
+                } else {
+                    Self::And(Box::new(Self::And(l, r)), Box::new(other))
+                }
+            }
+            (p1, p2) => {
+                if p1 == p2 {
+                    p1
+                } else {
+                    Self::And(Box::new(p1), Box::new(p2))
+                }
+            }
         }
     }
 
@@ -158,7 +173,22 @@ impl Predicate {
             | (_, Predicate::Value(ValueObj::Bool(true))) => Predicate::TRUE,
             (Predicate::Value(ValueObj::Bool(false)), p) => p,
             (p, Predicate::Value(ValueObj::Bool(false))) => p,
-            (p1, p2) => Self::Or(Box::new(p1), Box::new(p2)),
+            (Predicate::Or(l, r), other) | (other, Predicate::Or(l, r)) => {
+                if l.as_ref() == &other {
+                    *r | other
+                } else if r.as_ref() == &other {
+                    *l | other
+                } else {
+                    Self::Or(Box::new(Self::Or(l, r)), Box::new(other))
+                }
+            }
+            (p1, p2) => {
+                if p1 == p2 {
+                    p1
+                } else {
+                    Self::Or(Box::new(p1), Box::new(p2))
+                }
+            }
         }
     }
 

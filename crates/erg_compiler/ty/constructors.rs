@@ -413,11 +413,33 @@ pub fn refinement(var: Str, t: Type, pred: Predicate) -> Type {
 }
 
 pub fn and(lhs: Type, rhs: Type) -> Type {
-    Type::And(Box::new(lhs), Box::new(rhs))
+    match (lhs, rhs) {
+        (Type::And(l, r), other) | (other, Type::And(l, r)) => {
+            if l.as_ref() == &other {
+                and(*r, other)
+            } else if r.as_ref() == &other {
+                and(*l, other)
+            } else {
+                Type::And(Box::new(Type::And(l, r)), Box::new(other))
+            }
+        }
+        (lhs, rhs) => Type::And(Box::new(lhs), Box::new(rhs)),
+    }
 }
 
 pub fn or(lhs: Type, rhs: Type) -> Type {
-    Type::Or(Box::new(lhs), Box::new(rhs))
+    match (lhs, rhs) {
+        (Type::Or(l, r), other) | (other, Type::Or(l, r)) => {
+            if l.as_ref() == &other {
+                or(*r, other)
+            } else if r.as_ref() == &other {
+                or(*l, other)
+            } else {
+                Type::Or(Box::new(Type::Or(l, r)), Box::new(other))
+            }
+        }
+        (lhs, rhs) => Type::Or(Box::new(lhs), Box::new(rhs)),
+    }
 }
 
 pub fn not(ty: Type) -> Type {

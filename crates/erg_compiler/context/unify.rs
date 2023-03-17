@@ -24,6 +24,7 @@ use Type::*;
 use ValueObj::{Inf, NegInf};
 
 impl Context {
+    /// occur(?T, ?T) ==> Error
     /// occur(X -> ?T, ?T) ==> Error
     /// occur(?T, ?T -> X) ==> Error
     /// occur(?T, Option(?T)) ==> Error
@@ -937,6 +938,15 @@ impl Context {
                     params: sup_params, ..
                 },
             ) => self.nominal_sub_unify(maybe_sub, maybe_sup, sup_params, loc),
+            (Type::Or(l1, r1), Type::Or(l2, r2)) | (Type::And(l1, r1), Type::And(l2, r2)) => {
+                if self.subtype_of(l1, l2) && self.subtype_of(r1, r2) {
+                    self.sub_unify(l1, l2, loc, param_name)?;
+                    self.sub_unify(r1, r2, loc, param_name)
+                } else {
+                    self.sub_unify(l1, r2, loc, param_name)?;
+                    self.sub_unify(r1, l2, loc, param_name)
+                }
+            }
             // (X or Y) <: Z is valid when X <: Z and Y <: Z
             (Type::Or(l, r), _) => {
                 self.sub_unify(l, maybe_sup, loc, param_name)?;
