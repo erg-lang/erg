@@ -738,6 +738,9 @@ impl Context {
                 }
                 Ok(())
             }
+            (Type::FreeVar(lfv), Ref(t)) if lfv.is_unbound() => {
+                self.sub_unify(maybe_sub, t, loc, param_name)
+            }
             (Type::FreeVar(lfv), _) if lfv.is_unbound() => {
                 let lfv_ref = unsafe { lfv.as_ptr().as_mut().unwrap() };
                 match lfv_ref {
@@ -752,15 +755,16 @@ impl Context {
                         // sub <: r, sup :> r => sup = min(sup, r) if min exists
                         // * sub_unify(?T(:> Never, <: Nat), Int): (/* OK */)
                         // * sub_unify(?T(:> Nat,   <: Obj), Int): (?T(:> Nat,   <: Int))
-                        // sup = union(sup, r) if min does not exist
-                        // * sub_unify(?T(:> Never, <: {1}), {0}): (?T(:> Never, <: {0, 1}))
+                        // sup = intersection(sup, r) if min does not exist
+                        // * sub_unify(?T(<: {1}), {0}): (* ?T == Never *)
+                        // * sub_unify(?T(<: Eq and Ord), Show): (?T(<: Eq and Ord and Show))
                         Constraint::Sandwiched { sub, sup } => {
                             // REVIEW: correct?
                             if let Some(new_sup) = self.min(sup, maybe_sup) {
                                 *constraint =
                                     Constraint::new_sandwiched(mem::take(sub), new_sup.clone());
                             } else {
-                                let new_sup = self.union(sup, maybe_sup);
+                                let new_sup = self.intersection(sup, maybe_sup);
                                 *constraint = Constraint::new_sandwiched(mem::take(sub), new_sup);
                             }
                         }
