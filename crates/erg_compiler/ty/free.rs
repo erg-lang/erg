@@ -16,12 +16,9 @@ pub type Id = usize;
 
 /// HACK: see doc/compiler/inference.md for details
 pub const GENERIC_LEVEL: usize = usize::MAX;
-/// Recursion limit for `Constraint`'s `Hash` and `PartialEq` impls
-pub const REC_LIMIT: usize = 15;
 
 thread_local! {
     static UNBOUND_ID: Shared<usize> = Shared::new(0);
-    static TIMEOUT: Shared<usize> = Shared::new(REC_LIMIT);
 }
 
 pub trait HasLevel {
@@ -45,10 +42,13 @@ pub trait HasLevel {
     }
 }
 
+/// Represents constraints on type variables and type parameters.
+///
+/// Note that constraints can have circular references. However, type variable (`FreeTyVar`) is defined with various operations avoiding infinite recursion.
+///
 /// __NOTE__: you should use `Free::get_type/get_subsup` instead of deconstructing the constraint by `match`.
-/// Constraints may contain cycles, in which case using `match` to get the contents will cause memory pollutions.
-/// So this does not implement `structural_eq`.
-#[derive(Clone)]
+/// Constraints may contain cycles, in which case using `match` to get the contents will cause memory destructions.
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Constraint {
     // : Type --> (:> Never, <: Obj)
     // :> Sub --> (:> Sub, <: Obj)
@@ -62,58 +62,6 @@ pub enum Constraint {
     TypeOf(Type),
     Uninited,
 }
-
-// HACK: `Constraint` may be cyclic, so need to limit the recursion depth
-impl Hash for Constraint {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        if TIMEOUT.with(|t| *t.borrow() == 0) {
-            return;
-        }
-        match self {
-            Self::Sandwiched { sub, sup } => {
-                TIMEOUT.with(|t| *t.borrow_mut() -= 1);
-                sub.hash(state);
-                sup.hash(state);
-            }
-            Self::TypeOf(t) => {
-                TIMEOUT.with(|t| *t.borrow_mut() -= 1);
-                t.hash(state);
-            }
-            Self::Uninited => {}
-        }
-        TIMEOUT.with(|t| *t.borrow_mut() = REC_LIMIT);
-    }
-}
-
-impl PartialEq for Constraint {
-    fn eq(&self, other: &Self) -> bool {
-        if TIMEOUT.with(|t| *t.borrow() == 0) {
-            return true; //addr_eq!(self, other);
-        }
-        let res = match (self, other) {
-            (
-                Self::Sandwiched { sub, sup },
-                Self::Sandwiched {
-                    sub: sub2,
-                    sup: sup2,
-                },
-            ) => {
-                TIMEOUT.with(|t| *t.borrow_mut() -= 1);
-                sub == sub2 && sup == sup2
-            }
-            (Self::TypeOf(t), Self::TypeOf(t2)) => {
-                TIMEOUT.with(|t| *t.borrow_mut() -= 1);
-                t == t2
-            }
-            (Self::Uninited, Self::Uninited) => true,
-            _ => false,
-        };
-        TIMEOUT.with(|t| *t.borrow_mut() = REC_LIMIT);
-        res
-    }
-}
-
-impl Eq for Constraint {}
 
 impl fmt::Display for Constraint {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -504,8 +452,97 @@ impl<T> FreeKind<T> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub struct Free<T>(Shared<FreeKind<T>>);
+
+impl Hash for Free<Type> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        if let Some(name) = self.unbound_name() {
+            name.hash(state);
+        }
+        if let Some(lev) = self.level() {
+            lev.hash(state);
+        }
+        if let Some((sub, sup)) = self.get_subsup() {
+            self.forced_undoable_link(&sub);
+            sub.hash(state);
+            sup.hash(state);
+            self.undo();
+        } else if let Some(t) = self.get_type() {
+            t.hash(state);
+        } else if self.is_linked() {
+            self.crack().hash(state);
+        }
+    }
+}
+
+impl Hash for Free<TyParam> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        if let Some(name) = self.unbound_name() {
+            name.hash(state);
+        }
+        if let Some(lev) = self.level() {
+            lev.hash(state);
+        }
+        if let Some(t) = self.get_type() {
+            t.hash(state);
+        } else if self.is_linked() {
+            self.crack().hash(state);
+        }
+    }
+}
+
+impl PartialEq for Free<Type> {
+    fn eq(&self, other: &Self) -> bool {
+        if let Some((self_name, other_name)) = self.unbound_name().zip(other.unbound_name()) {
+            if self_name != other_name {
+                return false;
+            }
+        }
+        if let Some((self_lev, other_lev)) = self.level().zip(other.level()) {
+            if self_lev != other_lev {
+                return false;
+            }
+        }
+        if let Some((sub, sup)) = self.get_subsup() {
+            if let Some((other_sub, other_sup)) = other.get_subsup() {
+                self.forced_undoable_link(&sub);
+                let res = sub == other_sub && sup == other_sup;
+                self.undo();
+                return res;
+            }
+        } else if let Some((self_t, other_t)) = self.get_type().zip(other.get_type()) {
+            return self_t == other_t;
+        } else if self.is_linked() && other.is_linked() {
+            return self.crack().eq(&other.crack());
+        }
+        false
+    }
+}
+
+impl PartialEq for Free<TyParam> {
+    fn eq(&self, other: &Self) -> bool {
+        if let Some((self_name, other_name)) = self.unbound_name().zip(other.unbound_name()) {
+            if self_name != other_name {
+                return false;
+            }
+        }
+        if let Some((self_lev, other_lev)) = self.level().zip(other.level()) {
+            if self_lev != other_lev {
+                return false;
+            }
+        }
+        if let Some((self_t, other_t)) = self.get_type().zip(other.get_type()) {
+            return self_t == other_t;
+        } else if self.is_linked() && other.is_linked() {
+            return self.crack().eq(&other.crack());
+        }
+        false
+    }
+}
+
+impl Eq for Free<Type> {}
+impl Eq for Free<TyParam> {}
 
 impl<T: LimitedDisplay> fmt::Display for Free<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
