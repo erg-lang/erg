@@ -83,38 +83,63 @@ impl Context {
             expected.clone()
         };
         let mut hint = StyledStrings::default();
-
-        if let (Type::Subr(expt), Type::Subr(fnd)) = (&expected, &found) {
-            if let (SubrKind::Func, SubrKind::Proc) = (expt.kind, fnd.kind) {
-                switch_lang!(
-                    "japanese" => {
-                        hint.push_str("この仮引数は(副作用のない)関数を受け取りますが、プロシージャは副作用があるため受け取りません。副作用を取り除き、");
-                        hint.push_str_with_color_and_attr("=>", ERR, ATTR);
-                        hint.push_str("の代わりに");
-                        hint.push_str_with_color_and_attr("->", HINT, ATTR);
-                        hint.push_str("を使用する必要があります");
-                    },
-                    "simplified_chinese" => {
-                        hint.push_str("此参数接受函数(无副作用)，但不接受过程，因为过程有副作用。你应该使用");
-                        hint.push_str_with_color_and_attr("=>", HINT, ATTR);
-                        hint.push_str("而不是");
-                        hint.push_str_with_color_and_attr("->", ERR, ATTR);
-                    },
-                    "traditional_chinese" => {
-                        hint.push_str("此參數接受函數(無副作用)，但不接受過程，因為過程有副作用。你應該使用");
-                        hint.push_str_with_color_and_attr("=>", HINT, ATTR);
-                        hint.push_str("而不是");
-                        hint.push_str_with_color_and_attr("->", ERR, ATTR);
-                    },
-                    "english" => {
-                        hint.push_str("This param accepts func (without side-effects) but not proc because of side-effects. You should use ");
-                        hint.push_str_with_color_and_attr("=>", HINT, ATTR);
-                        hint.push_str(" instead of ");
-                        hint.push_str_with_color_and_attr("->", ERR, ATTR);
-                    },
-                );
-                return Some(hint.to_string());
+        match (&expected, &found) {
+            (Type::Subr(expt), Type::Subr(fnd)) => {
+                if let (SubrKind::Func, SubrKind::Proc) = (expt.kind, fnd.kind) {
+                    switch_lang!(
+                        "japanese" => {
+                            hint.push_str("この仮引数は(副作用のない)関数を受け取りますが、プロシージャは副作用があるため受け取りません。副作用を取り除き、");
+                            hint.push_str_with_color_and_attr("=>", ERR, ATTR);
+                            hint.push_str("の代わりに");
+                            hint.push_str_with_color_and_attr("->", HINT, ATTR);
+                            hint.push_str("を使用する必要があります");
+                        },
+                        "simplified_chinese" => {
+                            hint.push_str("此参数接受函数(无副作用)，但不接受过程，因为过程有副作用。你应该使用");
+                            hint.push_str_with_color_and_attr("=>", HINT, ATTR);
+                            hint.push_str("而不是");
+                            hint.push_str_with_color_and_attr("->", ERR, ATTR);
+                        },
+                        "traditional_chinese" => {
+                            hint.push_str("此參數接受函數(無副作用)，但不接受過程，因為過程有副作用。你應該使用");
+                            hint.push_str_with_color_and_attr("=>", HINT, ATTR);
+                            hint.push_str("而不是");
+                            hint.push_str_with_color_and_attr("->", ERR, ATTR);
+                        },
+                        "english" => {
+                            hint.push_str("This param accepts func (without side-effects) but not proc because of side-effects. You should use ");
+                            hint.push_str_with_color_and_attr("=>", HINT, ATTR);
+                            hint.push_str(" instead of ");
+                            hint.push_str_with_color_and_attr("->", ERR, ATTR);
+                        },
+                    );
+                    return Some(hint.to_string());
+                }
             }
+            (Type::And(l, r), found) => {
+                let left = self.readable_type(l.as_ref().clone(), false);
+                let right = self.readable_type(r.as_ref().clone(), false);
+                if self.supertype_of(l, found) {
+                    let msg = switch_lang!(
+                        "japanese" => format!("型{found}は{left}のサブタイプですが、{right}のサブタイプではありません"),
+                        "simplified_chinese" => format!("类型{found}是{left}的子类型但不是{right}的子类型"),
+                        "traditional_chinese" => format!("型別{found}是{left}的子型別但不是{right}的子型別"),
+                        "english" => format!("Type {found} is a subtype of {left} but not of {right}"),
+                    );
+                    hint.push_str(&msg);
+                    return Some(hint.to_string());
+                } else if self.supertype_of(r, found) {
+                    let msg = switch_lang!(
+                        "japanese" => format!("型{found}は{right}のサブタイプですが、{left}のサブタイプではありません"),
+                        "simplified_chinese" => format!("类型{found}是{right}的子类型但不是{left}的子类型"),
+                        "traditional_chinese" => format!("型別{found}是{right}的子型別但不是{left}の子型別"),
+                        "english" =>format!("Type {found} is a subtype of {right} but not of {left}"),
+                    );
+                    hint.push_str(&msg);
+                    return Some(hint.to_string());
+                }
+            }
+            _ => {}
         }
 
         match (&expected.qual_name()[..], &found.qual_name()[..]) {
