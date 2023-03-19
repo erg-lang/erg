@@ -619,21 +619,25 @@ impl Context {
                 // ?T(<: Add(?T))
                 // ?U(:> {1, 2}, <: Add(?U)) ==> {1, 2}
                 rfv.forced_undoable_link(&rsub);
-                for (lps, rps) in lsub.typarams().iter().zip(rsub.typarams().iter()) {
-                    self.sub_unify_tp(lps, rps, None, loc, false)
-                        .map_err(|errs| {
-                            rfv.undo();
-                            errs
-                        })?;
+                if lsub.qual_name() == rsub.qual_name() {
+                    for (lps, rps) in lsub.typarams().iter().zip(rsub.typarams().iter()) {
+                        self.sub_unify_tp(lps, rps, None, loc, false)
+                            .map_err(|errs| {
+                                rfv.undo();
+                                errs
+                            })?;
+                    }
                 }
                 // lsup: Add(?X(:> Int)), rsup: Add(?Y(:> Nat))
                 //   => lsup: Add(?X(:> Int)), rsup: Add((?X(:> Int)))
-                for (lps, rps) in lsup.typarams().iter().zip(rsup.typarams().iter()) {
-                    self.sub_unify_tp(lps, rps, None, loc, false)
-                        .map_err(|errs| {
-                            rfv.undo();
-                            errs
-                        })?;
+                if lsup.qual_name() == rsup.qual_name() {
+                    for (lps, rps) in lsup.typarams().iter().zip(rsup.typarams().iter()) {
+                        self.sub_unify_tp(lps, rps, None, loc, false)
+                            .map_err(|errs| {
+                                rfv.undo();
+                                errs
+                            })?;
+                    }
                 }
                 rfv.undo();
                 let intersec = self.intersection(&lsup, &rsup);

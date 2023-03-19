@@ -925,6 +925,7 @@ impl Context {
                 self.union(&fv.crack(), other)
             }
             (Refinement(l), Refinement(r)) => Type::Refinement(self.union_refinement(l, r)),
+            (Structural(l), Structural(r)) => self.union(l, r).structuralize(),
             (t, Type::Never) | (Type::Never, t) => t.clone(),
             // Array({1, 2}, 2), Array({3, 4}, 2) ==> Array({1, 2, 3, 4}, 2)
             (
@@ -987,6 +988,7 @@ impl Context {
                 self.intersection(&fv.crack(), other)
             }
             (Refinement(l), Refinement(r)) => Type::Refinement(self.intersection_refinement(l, r)),
+            (Structural(l), Structural(r)) => self.intersection(l, r).structuralize(),
             // {.i = Int} and {.s = Str} == {.i = Int; .s = Str}
             (Record(l), Record(r)) => Type::Record(l.clone().concat(r.clone())),
             // {i = Int; j = Int} and not {i = Int} == {j = Int}

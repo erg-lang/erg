@@ -560,6 +560,20 @@ impl Context {
             ValueObj::builtin_class(Nat),
         );
         nat.register_trait(Nat, nat_add);
+        /*
+        Since `Int <: Sub(Int)`, the fact that `Nat <: Sub(Nat)` is not inherently necessary.
+        However, if there were a constraint `T <: Sub(T)`, we would not be able to let `T = Nat`, so we temporarily insert this trait implementation.
+        In the future, it will be implemented automatically by glue patch.
+        */
+        let op_t_ = fn1_met(Nat, Nat, Int);
+        let mut nat_sub = Self::builtin_methods(Some(poly(SUB, vec![ty_tp(Nat)])), 2);
+        nat_sub.register_builtin_erg_impl(OP_SUB, op_t_, Const, Visibility::BUILTIN_PUBLIC);
+        nat_sub.register_builtin_const(
+            OUTPUT,
+            Visibility::BUILTIN_PUBLIC,
+            ValueObj::builtin_class(Int),
+        );
+        nat.register_trait(Nat, nat_sub);
         let mut nat_mul = Self::builtin_methods(Some(poly(MUL, vec![ty_tp(Nat)])), 2);
         nat_mul.register_builtin_erg_impl(OP_MUL, op_t.clone(), Const, Visibility::BUILTIN_PUBLIC);
         nat_mul.register_builtin_const(

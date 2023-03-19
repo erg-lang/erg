@@ -74,5 +74,8 @@ impl Context {
         option_eq_impl.register_builtin_erg_impl("__eq__", op_t, Const, Visibility::BUILTIN_PUBLIC);
         option_eq.register_trait(base, option_eq_impl);
         self.register_builtin_patch("OptionEq", option_eq, Visibility::BUILTIN_PRIVATE, Const);
+        /* SuperSub (U <: T <: Sub(T) ==> U <: Sub(U)) */
+        // SuperSub|T <: Sub(T)| U <: T = Patch U
+        // SuperSub|U <: Sub(U)|
     }
 }

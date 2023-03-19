@@ -338,9 +338,6 @@ impl Context {
                 let t = self.instantiate_t_inner(*t, tmp_tv_cache, loc)?;
                 Ok(TyParam::t(t))
             }
-            TyParam::FreeVar(fv) if fv.is_linked() => {
-                self.instantiate_tp(fv.crack().clone(), tmp_tv_cache, loc)
-            }
             p @ (TyParam::Value(_)
             | TyParam::Mono(_)
             | TyParam::FreeVar(_)
@@ -370,32 +367,10 @@ impl Context {
                 let (name, constr) = (fv.unbound_name().unwrap(), fv.constraint().unwrap());
                 if let Some(t) = tmp_tv_cache.get_tyvar(&name) {
                     let t = t.clone();
-                    if let Type::FreeVar(fv) = &t {
-                        if fv
-                            .constraint()
-                            .map(|cons| cons.is_uninited())
-                            .unwrap_or(false)
-                        {
-                            let new_constr =
-                                tmp_tv_cache.instantiate_constraint(constr, self, loc)?;
-                            fv.update_constraint(new_constr, true);
-                        }
-                    }
                     Ok(t)
                 } else if let Some(tp) = tmp_tv_cache.get_typaram(&name) {
                     if let TyParam::Type(t) = tp {
                         let t = *t.clone();
-                        if let Type::FreeVar(fv) = &t {
-                            if fv
-                                .constraint()
-                                .map(|cons| cons.is_uninited())
-                                .unwrap_or(false)
-                            {
-                                let new_constr =
-                                    tmp_tv_cache.instantiate_constraint(constr, self, loc)?;
-                                fv.update_constraint(new_constr, true);
-                            }
-                        }
                         Ok(t)
                     } else {
                         todo!(
@@ -507,9 +482,6 @@ impl Context {
             Structural(t) => {
                 let t = self.instantiate_t_inner(*t, tmp_tv_cache, loc)?;
                 Ok(t.structuralize())
-            }
-            FreeVar(fv) if fv.is_linked() => {
-                self.instantiate_t_inner(fv.crack().clone(), tmp_tv_cache, loc)
             }
             FreeVar(fv) => {
                 let (sub, sup) = fv.get_subsup().unwrap();

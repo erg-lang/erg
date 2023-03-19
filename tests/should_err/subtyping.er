@@ -47,3 +47,12 @@ g x =
 
 g 1 # OK
 g None # ERR
+
+h x, y =
+    _ = x == y
+    _ = x - y
+    x + y
+
+_ = h -1, -2 # OK
+_ = h 1, 2 # OK
+_ = h "a", "b" # ERR
