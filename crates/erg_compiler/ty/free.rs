@@ -930,7 +930,7 @@ mod tests {
     #[test]
     fn cmp_freevar() {
         enable_overflow_stacktrace!();
-        let t = named_free_var("T".into(), 1, Constraint::Uninited);
+        let t = named_uninit_var("T".into());
         let Type::FreeVar(fv) = t.clone() else { unreachable!() };
         let constraint = Constraint::new_subtype_of(poly("Add", vec![ty_tp(t.clone())]));
         fv.update_constraint(constraint.clone(), true);

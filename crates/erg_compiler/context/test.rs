@@ -2,7 +2,7 @@
 use erg_common::traits::StructuralEq;
 use erg_common::Str;
 
-use crate::ty::constructors::{func1, mono, mono_q, poly, refinement};
+use crate::ty::constructors::{func1, mono, mono_q, poly, refinement, ty_tp};
 use crate::ty::free::Constraint;
 use crate::ty::typaram::TyParam;
 use crate::ty::{Predicate, Type};
@@ -83,6 +83,16 @@ impl Context {
         let quantified_again = self.generalize_t(inst);
         println!("quantified_again: {quantified_again}");
         assert_eq!(quantified, quantified_again);
+        Ok(())
+    }
+
+    pub fn test_patch(&self) -> Result<(), ()> {
+        use crate::ty::constructors::or;
+        assert!(self.subtype_of(&Int, &mono("Eq")));
+        assert!(self.subtype_of(&or(Int, NoneType), &mono("Eq")));
+        assert!(!self.subtype_of(&or(Int, Float), &mono("Eq")));
+        assert!(self.subtype_of(&Int, &poly("Sub", vec![ty_tp(Int)])));
+        assert!(self.subtype_of(&Nat, &poly("Sub", vec![ty_tp(Nat)])));
         Ok(())
     }
 }

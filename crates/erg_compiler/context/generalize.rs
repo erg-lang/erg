@@ -868,9 +868,8 @@ impl Context {
 
     fn mono_class_trait_impl_exist(&self, class: &Type, trait_: &Type) -> bool {
         let mut super_exists = false;
-        for inst in self.get_trait_impls(trait_).into_iter() {
-            if self.supertype_of(&inst.sub_type, class)
-                && self.supertype_of(&inst.sup_trait, trait_)
+        for imp in self.get_trait_impls(trait_).into_iter() {
+            if self.supertype_of(&imp.sub_type, class) && self.supertype_of(&imp.sup_trait, trait_)
             {
                 super_exists = true;
                 break;
@@ -881,9 +880,8 @@ impl Context {
 
     fn poly_class_trait_impl_exists(&self, class: &Type, trait_: &Type) -> bool {
         let mut super_exists = false;
-        for inst in self.get_trait_impls(trait_).into_iter() {
-            if self.supertype_of(&inst.sub_type, class)
-                && self.supertype_of(&inst.sup_trait, trait_)
+        for imp in self.get_trait_impls(trait_).into_iter() {
+            if self.supertype_of(&imp.sub_type, class) && self.supertype_of(&imp.sup_trait, trait_)
             {
                 super_exists = true;
                 break;

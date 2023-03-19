@@ -2606,9 +2606,9 @@ impl Context {
 
     fn get_trait_proj_candidates(&self, trait_: &Type, rhs: &Str) -> Set<Type> {
         let impls = self.get_trait_impls(trait_);
-        let candidates = impls.into_iter().filter_map(move |inst| {
-            if self.supertype_of(&inst.sup_trait, trait_) {
-                self.eval_t_params(proj(inst.sub_type, rhs), self.level, &())
+        let candidates = impls.into_iter().filter_map(move |imp| {
+            if self.supertype_of(&imp.sup_trait, trait_) {
+                self.eval_t_params(proj(imp.sub_type, rhs), self.level, &())
                     .ok()
             } else {
                 None

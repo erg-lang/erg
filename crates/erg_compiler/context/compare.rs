@@ -260,9 +260,9 @@ impl Context {
 
     fn _find_compatible_glue_patch(&self, sup: &Type, sub: &Type) -> Option<&Context> {
         for patch in self.all_patches().into_iter() {
-            if let ContextKind::GluePatch(tr_inst) = &patch.kind {
-                if self.subtype_of(sub, &tr_inst.sub_type)
-                    && self.subtype_of(&tr_inst.sup_trait, sup)
+            if let ContextKind::GluePatch(tr_impl) = &patch.kind {
+                if self.subtype_of(sub, &tr_impl.sub_type)
+                    && self.subtype_of(&tr_impl.sup_trait, sup)
                 {
                     return Some(patch);
                 }

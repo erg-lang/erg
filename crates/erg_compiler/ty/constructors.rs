@@ -27,6 +27,11 @@ pub fn named_free_var(name: Str, level: usize, constraint: Constraint) -> Type {
     Type::FreeVar(Free::new_named_unbound(name, level, constraint))
 }
 
+#[inline]
+pub fn named_uninit_var(name: Str) -> Type {
+    Type::FreeVar(Free::new_named_unbound(name, 1, Constraint::Uninited))
+}
+
 pub fn array_t(elem_t: Type, len: TyParam) -> Type {
     poly("Array", vec![TyParam::t(elem_t), len])
 }

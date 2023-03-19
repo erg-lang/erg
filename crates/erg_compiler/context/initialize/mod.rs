@@ -841,12 +841,12 @@ impl Context {
                         .insert(method_name.clone(), vec![name.clone()]);
                 }
             }
-            if let ContextKind::GluePatch(tr_inst) = &ctx.kind {
-                if let Some(impls) = self.trait_impls().get_mut(&tr_inst.sup_trait.qual_name()) {
-                    impls.insert(tr_inst.clone());
+            if let ContextKind::GluePatch(tr_impl) = &ctx.kind {
+                if let Some(impls) = self.trait_impls().get_mut(&tr_impl.sup_trait.qual_name()) {
+                    impls.insert(tr_impl.clone());
                 } else {
                     self.trait_impls()
-                        .register(tr_inst.sup_trait.qual_name(), set![tr_inst.clone()]);
+                        .register(tr_impl.sup_trait.qual_name(), set![tr_impl.clone()]);
                 }
             }
             self.patches.insert(name, ctx);

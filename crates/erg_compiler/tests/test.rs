@@ -83,6 +83,13 @@ fn test_instantiation_and_generalization() -> Result<(), ()> {
 
 /*
 #[test]
+fn test_patch() -> Result<(), ()> {
+    let shared = SharedCompilerResource::new(ErgConfig::default());
+    shared.mod_cache.get(Path::new("<builtins>")).unwrap().module.context.test_patch()?;
+    Ok(())
+}
+
+#[test]
 fn test_resolve_trait() -> Result<(), ()> {
     let context = Context::new_main_module();
     context.test_resolve_trait()?;
