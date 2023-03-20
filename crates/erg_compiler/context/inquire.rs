@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use erg_common::config::{ErgConfig, Input};
 use erg_common::dict;
 use erg_common::env::{erg_py_external_lib_path, erg_pystd_path, erg_std_path};
-use erg_common::error::{ErrorCore, ErrorKind, Location, SubMessage};
+use erg_common::error::{ErrorCore, Location, SubMessage};
 use erg_common::levenshtein;
 use erg_common::pathutil::add_postfix_foreach;
 use erg_common::set::Set;
@@ -545,6 +545,20 @@ impl Context {
                 }
             }
         }
+        match self.get_attr_type_by_name(ident) {
+            Triple::Ok(method) => {
+                if let Err(mut errs) =
+                    self.sub_unify(obj.ref_t(), &method.definition_type, obj, None)
+                {
+                    return Triple::Err(errs.remove(0));
+                }
+                return Triple::Ok(method.method_type.clone());
+            }
+            Triple::Err(err) if !cfg!(feature = "py_compatible") => {
+                return Triple::Err(err);
+            }
+            _ => {}
+        }
         // get_attr_info(?T, aaa) == None
         // => ?T(<: Structural({ .aaa = ?U }))
         if self.in_subr() && cfg!(feature = "py_compatible") {
@@ -838,14 +852,14 @@ impl Context {
                 self.get_similar_attr_from_singular(obj, attr_name.inspect()),
             ));
         }
-        match self.get_method_type_by_name(attr_name) {
-            Ok(method) => {
+        match self.get_attr_type_by_name(attr_name) {
+            Triple::Ok(method) => {
                 self.sub_unify(obj.ref_t(), &method.definition_type, obj, None)
                     // HACK: change this func's return type to TyCheckResult<Type>
                     .map_err(|mut errs| errs.remove(0))?;
                 return Ok(method.method_type.clone());
             }
-            Err(err) if err.core.kind == ErrorKind::TypeError => {
+            Triple::Err(err) => {
                 return Err(err);
             }
             _ => {}
@@ -2455,7 +2469,9 @@ impl Context {
         }
     }
 
-    fn get_method_type_by_name(&self, name: &Identifier) -> SingleTyCheckResult<&MethodInfo> {
+    /// Infer the receiver type from the attribute name.
+    /// Returns an error if multiple candidates are found. If nothing is found, returns None.
+    fn get_attr_type_by_name(&self, name: &Identifier) -> Triple<&MethodInfo, TyCheckError> {
         // TODO: min_by
         if let Some(candidates) = self.method_to_traits.get(name.inspect()) {
             let first_method_type = &candidates.first().unwrap().method_type;
@@ -2464,9 +2480,9 @@ impl Context {
                 .skip(1)
                 .all(|t| &t.method_type == first_method_type)
             {
-                return Ok(&candidates[0]);
+                return Triple::Ok(&candidates[0]);
             } else {
-                return Err(TyCheckError::ambiguous_type_error(
+                return Triple::Err(TyCheckError::ambiguous_type_error(
                     self.cfg.input.clone(),
                     line!() as usize,
                     name,
@@ -2485,9 +2501,9 @@ impl Context {
                 .skip(1)
                 .all(|t| &t.method_type == first_method_type)
             {
-                return Ok(&candidates[0]);
+                return Triple::Ok(&candidates[0]);
             } else {
-                return Err(TyCheckError::ambiguous_type_error(
+                return Triple::Err(TyCheckError::ambiguous_type_error(
                     self.cfg.input.clone(),
                     line!() as usize,
                     name,
@@ -2500,17 +2516,9 @@ impl Context {
             }
         }
         if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
-            outer.get_method_type_by_name(name)
+            outer.get_attr_type_by_name(name)
         } else {
-            Err(TyCheckError::no_attr_error(
-                self.cfg.input.clone(),
-                line!() as usize,
-                name.loc(),
-                self.caused_by(),
-                &Type::Failure,
-                name.inspect(),
-                None,
-            ))
+            Triple::None
         }
     }
 

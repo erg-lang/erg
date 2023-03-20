@@ -1,4 +1,4 @@
-.dis!: (x: Code or ClassType or TraitType or Proc or Str or Bytes or NoneType := NoneType) => NoneType
+.dis!: (x: Code or ClassType or TraitType or GenericCallable or Str or Bytes or NoneType := NoneType) => NoneType
 .code_info: (x: Code or ClassType or TraitType or GenericCallable or Str or Bytes) -> Str
 .show_code!: (x: Code or ClassType or TraitType or GenericCallable or Str or Bytes) => NoneType
 
