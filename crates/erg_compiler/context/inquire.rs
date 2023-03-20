@@ -19,7 +19,7 @@ use erg_common::{
 use erg_parser::ast::{self, Identifier, VarName};
 use erg_parser::token::Token;
 
-use crate::ty::constructors::{anon, free_var, func, mono, poly, proc, proj, ref_, subr_t};
+use crate::ty::constructors::{anon, fn_met, free_var, func, mono, poly, proc, proj, ref_, subr_t};
 use crate::ty::free::Constraint;
 use crate::ty::typaram::TyParam;
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
@@ -675,6 +675,7 @@ impl Context {
 
     /// get type from given attributive type (Record).
     /// not ModuleType or ClassType etc.
+    /// if `t == Never`, returns `VarInfo::ILLEGAL`
     fn get_attr_info_from_attributive(
         &self,
         t: &Type,
@@ -728,6 +729,8 @@ impl Context {
         &self,
         obj: &hir::Expr,
         attr_name: &Option<Identifier>,
+        pos_args: &[hir::PosArg],
+        kw_args: &[hir::KwArg],
         input: &Input,
         namespace: &Context,
     ) -> SingleTyCheckResult<VarInfo> {
@@ -745,7 +748,7 @@ impl Context {
             });
         }
         if let Some(attr_name) = attr_name.as_ref() {
-            self.search_method_info(obj, attr_name, input, namespace)
+            self.search_method_info(obj, attr_name, pos_args, kw_args, input, namespace)
         } else {
             Ok(VarInfo {
                 t: obj.t(),
@@ -766,6 +769,8 @@ impl Context {
         &self,
         obj: &hir::Expr,
         attr_name: &Identifier,
+        pos_args: &[hir::PosArg],
+        kw_args: &[hir::KwArg],
         input: &Input,
         namespace: &Context,
     ) -> SingleTyCheckResult<VarInfo> {
@@ -887,6 +892,47 @@ impl Context {
         let coerced = self
             .deref_tyvar(obj.t(), Variance::Covariant, &set! {}, obj)
             .map_err(|mut errs| errs.remove(0))?;
+        // search_method_info(?T, aaa, pos_args: [1, 2]) == None
+        // => ?T(<: Structural({ .aaa = (self: ?T, ?U, ?V) -> ?W }))
+        if coerced == Never && cfg!(feature = "py_compatible") && self.in_subr() {
+            let nd_params = pos_args
+                .iter()
+                .map(|_| ParamTy::Pos(free_var(self.level, Constraint::new_type_of(Type))))
+                .collect::<Vec<_>>();
+            let d_params = kw_args
+                .iter()
+                .map(|arg| {
+                    ParamTy::kw(
+                        arg.keyword.inspect().clone(),
+                        free_var(self.level, Constraint::new_type_of(Type)),
+                    )
+                })
+                .collect::<Vec<_>>();
+            let return_t = free_var(self.level, Constraint::new_type_of(Type));
+            let subr_t = fn_met(obj.t(), nd_params, None, d_params, return_t);
+            if let Type::FreeVar(fv) = obj.ref_t() {
+                if fv.get_sub().is_some() {
+                    let vis = self.instantiate_vis_modifier(&attr_name.vis).unwrap();
+                    let structural = Type::Record(
+                        dict! { Field::new(vis, attr_name.inspect().clone()) => subr_t.clone() },
+                    )
+                    .structuralize();
+                    fv.update_super(|_| structural);
+                }
+            }
+            let muty = Mutability::from(&attr_name.inspect()[..]);
+            let vi = VarInfo::new(
+                subr_t,
+                muty,
+                Visibility::DUMMY_PUBLIC,
+                VarKind::Builtin,
+                None,
+                None,
+                None,
+                AbsLocation::unknown(),
+            );
+            return Ok(vi);
+        }
         if &coerced == obj.ref_t() {
             Err(TyCheckError::no_attr_error(
                 self.cfg.input.clone(),
@@ -899,7 +945,7 @@ impl Context {
             ))
         } else {
             obj.ref_t().coerce();
-            self.search_method_info(obj, attr_name, input, namespace)
+            self.search_method_info(obj, attr_name, pos_args, kw_args, input, namespace)
         }
     }
 
@@ -1644,7 +1690,7 @@ impl Context {
             }
         }
         let found = self
-            .search_callee_info(obj, attr_name, input, namespace)
+            .search_callee_info(obj, attr_name, pos_args, kw_args, input, namespace)
             .map_err(|err| (None, TyCheckErrors::from(err)))?;
         log!(
             "Found:\ncallee: {obj}{}\nfound: {found}",

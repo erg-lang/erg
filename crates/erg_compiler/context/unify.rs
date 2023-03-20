@@ -687,47 +687,40 @@ impl Context {
                 Ok(())
             }
             (_, Type::FreeVar(rfv)) if rfv.is_unbound() => {
-                // NOTE: cannot `borrow_mut` because of cycle reference
-                let rfv_ref = unsafe { rfv.as_ptr().as_mut().unwrap() };
-                match rfv_ref {
-                    FreeKind::NamedUnbound { constraint, .. }
-                    | FreeKind::Unbound { constraint, .. } => match constraint {
-                        // * sub_unify(Nat, ?E(<: Eq(?E)))
-                        // sub !<: l => OK (sub will widen)
-                        // sup !:> l => Error
-                        // * sub_unify(Str,   ?T(:> _,     <: Int)): (/* Error */)
-                        // * sub_unify(Ratio, ?T(:> _,     <: Int)): (/* Error */)
-                        // sub = max(l, sub) if max exists
-                        // * sub_unify(Nat,   ?T(:> Int,   <: _)): (/* OK */)
-                        // * sub_unify(Int,   ?T(:> Nat,   <: Obj)): (?T(:> Int, <: Obj))
-                        // * sub_unify(Nat,   ?T(:> Never, <: Add(?R))): (?T(:> Nat, <: Add(?R))
-                        // sub = union(l, sub) if max does not exist
-                        // * sub_unify(Str,   ?T(:> Int,   <: Obj)): (?T(:> Str or Int, <: Obj))
-                        // * sub_unify({0},   ?T(:> {1},   <: Nat)): (?T(:> {0, 1}, <: Nat))
-                        // * sub_unify(Bool,  ?T(<: Bool or Y)): (?T == Bool)
-                        // * sub_unify(Float, ?T(<: Structural{ .imag = ?U })) ==> ?U == Float
-                        Constraint::Sandwiched { sub, sup } => {
-                            if sup.is_structural() {
-                                self.sub_unify(maybe_sub, sup, loc, param_name)?;
-                            }
-                            let new_sub = self.union(maybe_sub, sub);
-                            if sup.contains_union(&new_sub) {
-                                rfv.link(&new_sub); // Bool <: ?T <: Bool or Y ==> ?T == Bool
-                            } else {
-                                *constraint = Constraint::new_sandwiched(new_sub, mem::take(sup));
-                            }
-                        }
-                        // sub_unify(Nat, ?T(: Type)): (/* ?T(:> Nat) */)
-                        Constraint::TypeOf(ty) => {
-                            if self.supertype_of(&Type, ty) {
-                                *constraint = Constraint::new_supertype_of(maybe_sub.clone());
-                            } else {
-                                todo!()
-                            }
-                        }
-                        Constraint::Uninited => unreachable!(),
-                    },
-                    _ => {}
+                // * sub_unify(Nat, ?E(<: Eq(?E)))
+                // sub !<: l => OK (sub will widen)
+                // sup !:> l => Error
+                // * sub_unify(Str,   ?T(:> _,     <: Int)): (/* Error */)
+                // * sub_unify(Ratio, ?T(:> _,     <: Int)): (/* Error */)
+                // sub = max(l, sub) if max exists
+                // * sub_unify(Nat,   ?T(:> Int,   <: _)): (/* OK */)
+                // * sub_unify(Int,   ?T(:> Nat,   <: Obj)): (?T(:> Int, <: Obj))
+                // * sub_unify(Nat,   ?T(:> Never, <: Add(?R))): (?T(:> Nat, <: Add(?R))
+                // sub = union(l, sub) if max does not exist
+                // * sub_unify(Str,   ?T(:> Int,   <: Obj)): (?T(:> Str or Int, <: Obj))
+                // * sub_unify({0},   ?T(:> {1},   <: Nat)): (?T(:> {0, 1}, <: Nat))
+                // * sub_unify(Bool,  ?T(<: Bool or Y)): (?T == Bool)
+                // * sub_unify(Float, ?T(<: Structural{ .imag = ?U })) ==> ?U == Float
+                if let Some((sub, mut sup)) = rfv.get_subsup() {
+                    if sup.is_structural() {
+                        self.sub_unify(maybe_sub, &sup, loc, param_name)?;
+                    }
+                    let new_sub = self.union(maybe_sub, &sub);
+                    if sup.contains_union(&new_sub) {
+                        rfv.link(&new_sub); // Bool <: ?T <: Bool or Y ==> ?T == Bool
+                    } else {
+                        let constr = Constraint::new_sandwiched(new_sub, mem::take(&mut sup));
+                        rfv.update_constraint(constr, true);
+                    }
+                }
+                // sub_unify(Nat, ?T(: Type)): (/* ?T(:> Nat) */)
+                else if let Some(ty) = rfv.get_type() {
+                    if self.supertype_of(&Type, &ty) {
+                        let constr = Constraint::new_supertype_of(maybe_sub.clone());
+                        rfv.update_constraint(constr, true);
+                    } else {
+                        todo!()
+                    }
                 }
                 Ok(())
             }
@@ -750,43 +743,41 @@ impl Context {
                 self.sub_unify(maybe_sub, t, loc, param_name)
             }
             (Type::FreeVar(lfv), _) if lfv.is_unbound() => {
-                let lfv_ref = unsafe { lfv.as_ptr().as_mut().unwrap() };
-                match lfv_ref {
-                    FreeKind::NamedUnbound { constraint, .. }
-                    | FreeKind::Unbound { constraint, .. } => match constraint {
-                        // sub !<: r => Error
-                        // * sub_unify(?T(:> Int,   <: _), Nat): (/* Error */)
-                        // * sub_unify(?T(:> Nat,   <: _), Str): (/* Error */)
-                        // sup !:> r => Error
-                        // * sub_unify(?T(:> _, <: Str), Int): (/* Error */)
-                        // * sub_unify(?T(:> _, <: Int), Nat): (/* Error */)
-                        // sub <: r, sup :> r => sup = min(sup, r) if min exists
-                        // * sub_unify(?T(:> Never, <: Nat), Int): (/* OK */)
-                        // * sub_unify(?T(:> Nat,   <: Obj), Int): (?T(:> Nat,   <: Int))
-                        // sup = intersection(sup, r) if min does not exist
-                        // * sub_unify(?T(<: {1}), {0}): (* ?T == Never *)
-                        // * sub_unify(?T(<: Eq and Ord), Show): (?T(<: Eq and Ord and Show))
-                        Constraint::Sandwiched { sub, sup } => {
-                            // REVIEW: correct?
-                            if let Some(new_sup) = self.min(sup, maybe_sup) {
-                                *constraint =
-                                    Constraint::new_sandwiched(mem::take(sub), new_sup.clone());
-                            } else {
-                                let new_sup = self.intersection(sup, maybe_sup);
-                                *constraint = Constraint::new_sandwiched(mem::take(sub), new_sup);
-                            }
-                        }
-                        // sub_unify(?T(: Type), Int): (?T(<: Int))
-                        Constraint::TypeOf(ty) => {
-                            if self.supertype_of(&Type, ty) {
-                                *constraint = Constraint::new_subtype_of(maybe_sup.clone());
-                            } else {
-                                todo!()
-                            }
-                        }
-                        Constraint::Uninited => unreachable!(),
-                    },
-                    _ => {}
+                // sub !<: r => Error
+                // * sub_unify(?T(:> Int,   <: _), Nat): (/* Error */)
+                // * sub_unify(?T(:> Nat,   <: _), Str): (/* Error */)
+                // sup !:> r => Error
+                // * sub_unify(?T(:> _, <: Str), Int): (/* Error */)
+                // * sub_unify(?T(:> _, <: Int), Nat): (/* Error */)
+                // sub <: r, sup :> r => sup = min(sup, r) if min exists
+                // * sub_unify(?T(:> Never, <: Nat), Int): (/* OK */)
+                // * sub_unify(?T(:> Nat,   <: Obj), Int): (?T(:> Nat,   <: Int))
+                // sup = intersection(sup, r) if min does not exist
+                // * sub_unify(?T(<: {1}), {0}): (* ?T == Never *)
+                // * sub_unify(?T(<: Eq and Ord), Show): (?T(<: Eq and Ord and Show))
+                if let Some((mut sub, sup)) = lfv.get_subsup() {
+                    if sup.is_structural() {
+                        return Ok(());
+                    }
+                    // REVIEW: correct?
+                    if let Some(new_sup) = self.min(&sup, maybe_sup) {
+                        let constr =
+                            Constraint::new_sandwiched(mem::take(&mut sub), new_sup.clone());
+                        lfv.update_constraint(constr, true);
+                    } else {
+                        let new_sup = self.intersection(&sup, maybe_sup);
+                        let constr = Constraint::new_sandwiched(mem::take(&mut sub), new_sup);
+                        lfv.update_constraint(constr, true);
+                    }
+                }
+                // sub_unify(?T(: Type), Int): (?T(<: Int))
+                else if let Some(ty) = lfv.get_type() {
+                    if self.supertype_of(&Type, &ty) {
+                        let constr = Constraint::new_subtype_of(maybe_sup.clone());
+                        lfv.update_constraint(constr, true);
+                    } else {
+                        todo!()
+                    }
                 }
                 Ok(())
             }
