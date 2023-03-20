@@ -705,7 +705,11 @@ impl Context {
                         // * sub_unify(Str,   ?T(:> Int,   <: Obj)): (?T(:> Str or Int, <: Obj))
                         // * sub_unify({0},   ?T(:> {1},   <: Nat)): (?T(:> {0, 1}, <: Nat))
                         // * sub_unify(Bool,  ?T(<: Bool or Y)): (?T == Bool)
+                        // * sub_unify(Float, ?T(<: Structural{ .imag = ?U })) ==> ?U == Float
                         Constraint::Sandwiched { sub, sup } => {
+                            if sup.is_structural() {
+                                self.sub_unify(maybe_sub, sup, loc, param_name)?;
+                            }
                             let new_sub = self.union(maybe_sub, sub);
                             if sup.contains_union(&new_sub) {
                                 rfv.link(&new_sub); // Bool <: ?T <: Bool or Y ==> ?T == Bool
@@ -737,7 +741,7 @@ impl Context {
                         return self.sub_unify(maybe_sub, maybe_sup, loc, param_name);
                     } else {
                         // e.g. ?T / Structural({ .method = (self: ?T) -> Int })
-                        fv.link(maybe_sup);
+                        fv.update_super(|sup| self.intersection(&sup, maybe_sup));
                     }
                 }
                 Ok(())

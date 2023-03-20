@@ -30,6 +30,7 @@ use erg_common::{fmt_option, fn_name, get_hash, log};
 
 use ast::{DefId, DefKind, VarName};
 use erg_parser::ast;
+use erg_parser::ast::Def;
 use erg_parser::token::Token;
 
 use crate::context::instantiate::TyVarCache;
@@ -225,14 +226,24 @@ pub enum ContextKind {
     Dummy,
 }
 
-impl From<DefKind> for ContextKind {
-    fn from(kind: DefKind) -> Self {
-        match kind {
+impl From<&Def> for ContextKind {
+    fn from(def: &Def) -> Self {
+        match def.def_kind() {
             DefKind::Class | DefKind::Inherit => Self::Class,
             DefKind::Trait | DefKind::Subsume => Self::Trait,
             DefKind::StructuralTrait => Self::StructuralTrait,
             DefKind::ErgImport | DefKind::PyImport => Self::Module,
-            DefKind::Other => Self::Instant,
+            DefKind::Other => {
+                if def.is_subr() {
+                    if def.sig.ident().unwrap().is_procedural() {
+                        Self::Proc
+                    } else {
+                        Self::Func
+                    }
+                } else {
+                    Self::Instant
+                }
+            }
             // FIXME: Patch(Type),
             DefKind::Patch => Self::Instant,
         }

@@ -1270,7 +1270,7 @@ impl ASTLowerer {
                 &name,
             ));
         }
-        let kind = ContextKind::from(def.def_kind());
+        let kind = ContextKind::from(&def);
         let vis = self
             .module
             .context

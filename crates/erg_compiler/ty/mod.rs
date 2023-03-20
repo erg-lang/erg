@@ -1572,6 +1572,10 @@ impl Type {
         }
     }
 
+    pub const fn is_structural(&self) -> bool {
+        matches!(self, Self::Structural(_))
+    }
+
     pub fn contains_tvar(&self, target: &FreeTyVar) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains_tvar(target),

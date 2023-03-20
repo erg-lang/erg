@@ -3,6 +3,7 @@ use std::option::Option; // conflicting to Type::Option
 use std::path::{Path, PathBuf};
 
 use erg_common::config::{ErgConfig, Input};
+use erg_common::dict;
 use erg_common::env::{erg_py_external_lib_path, erg_pystd_path, erg_std_path};
 use erg_common::error::{ErrorCore, ErrorKind, Location, SubMessage};
 use erg_common::levenshtein;
@@ -22,7 +23,7 @@ use crate::ty::constructors::{anon, free_var, func, mono, poly, proc, proj, ref_
 use crate::ty::free::Constraint;
 use crate::ty::typaram::TyParam;
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
-use crate::ty::{HasType, ParamTy, Predicate, SubrKind, SubrType, Type, Visibility};
+use crate::ty::{Field, HasType, ParamTy, Predicate, SubrKind, SubrType, Type, Visibility};
 use Type::*;
 
 use crate::context::instantiate_spec::ConstTemplate;
@@ -436,18 +437,6 @@ impl Context {
                 return parent.rec_get_var_info(ident, acc_kind, input, namespace);
             }
         }
-        /*
-        let (similar_info, similar_name) = self.get_similar_name_and_info(ident.inspect()).unzip();
-        Err(TyCheckError::detailed_no_var_error(
-            input.clone(),
-            line!() as usize,
-            ident.loc(),
-            namespace.into(),
-            ident.inspect(),
-            similar_name,
-            similar_info,
-        ))
-        */
         Triple::None
     }
 
@@ -479,14 +468,6 @@ impl Context {
                 return parent.rec_get_decl_info(ident, acc_kind, input, namespace);
             }
         }
-        /*Err(TyCheckError::no_var_error(
-            input.clone(),
-            line!() as usize,
-            ident.loc(),
-            namespace.into(),
-            ident.inspect(),
-            self.get_similar_name(ident.inspect()),
-        ))*/
         Triple::None
     }
 
@@ -564,16 +545,34 @@ impl Context {
                 }
             }
         }
+        // get_attr_info(?T, aaa) == None
+        // => ?T(<: Structural({ .aaa = ?U }))
+        if self.in_subr() && cfg!(feature = "py_compatible") {
+            let t = free_var(self.level, Constraint::new_type_of(Type));
+            if let Type::FreeVar(fv) = obj.ref_t() {
+                if fv.get_sub().is_some() {
+                    let vis = self.instantiate_vis_modifier(&ident.vis).unwrap();
+                    let structural = Type::Record(
+                        dict! { Field::new(vis, ident.inspect().clone()) => t.clone() },
+                    )
+                    .structuralize();
+                    fv.update_super(|_| structural);
+                }
+            }
+            let muty = Mutability::from(&ident.inspect()[..]);
+            let vi = VarInfo::new(
+                t,
+                muty,
+                Visibility::DUMMY_PUBLIC,
+                VarKind::Builtin,
+                None,
+                None,
+                None,
+                AbsLocation::unknown(),
+            );
+            return Triple::Ok(vi);
+        }
         Triple::None
-        /*Err(TyCheckError::no_attr_error(
-            input.clone(),
-            line!() as usize,
-            name.loc(),
-            namespace.into(),
-            &self_t,
-            name.inspect(),
-            self.get_similar_attr(&self_t, name.inspect()),
-        ))*/
     }
 
     fn get_attr_from_nominal_t(
@@ -657,15 +656,6 @@ impl Context {
                 }
             }
         }
-        /*Err(TyCheckError::no_attr_error(
-            self.cfg.input.clone(),
-            line!() as usize,
-            ident.loc(),
-            namespace.into(),
-            &self_t,
-            ident.inspect(),
-            self.get_similar_attr(&self_t, ident.inspect()),
-        ))*/
         Triple::None
     }
 
@@ -711,15 +701,6 @@ impl Context {
                     }
                     Triple::Ok(vi)
                 } else {
-                    /*Err(TyCheckError::no_attr_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        ident.loc(),
-                        namespace.into(),
-                        t,
-                        ident.inspect(),
-                        self.get_similar_attr(t, ident.inspect()),
-                    ))*/
                     Triple::None
                 }
             }
@@ -2310,6 +2291,10 @@ impl Context {
         } else {
             None
         }
+    }
+
+    pub(crate) fn in_subr(&self) -> bool {
+        self.kind.is_subr() || self.get_outer().map_or(false, |ctx| ctx.in_subr())
     }
 
     pub(crate) fn gen_type(&self, ident: &ast::Identifier) -> Type {

@@ -915,7 +915,7 @@ impl Context {
             }
             ast::Signature::Var(sig) => {
                 if sig.is_const() {
-                    let kind = ContextKind::from(def.def_kind());
+                    let kind = ContextKind::from(def);
                     let vis = self.instantiate_vis_modifier(sig.vis())?;
                     self.grow(__name__, kind, vis, None);
                     let (obj, const_t) = match self.eval_const_block(&def.body.block) {

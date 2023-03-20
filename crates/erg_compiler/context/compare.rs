@@ -905,7 +905,8 @@ impl Context {
         }
     }
 
-    /// returns union of two types (A or B)
+    /// Returns union of two types (`A or B`).
+    /// If `A` and `B` have a subtype relationship, it is equal to `max(A, B)`.
     pub(crate) fn union(&self, lhs: &Type, rhs: &Type) -> Type {
         if lhs == rhs {
             return lhs.clone();
@@ -969,7 +970,8 @@ impl Context {
         RefinementType::new(lhs.var.clone(), union, *lhs.pred.clone() | rhs_pred)
     }
 
-    /// returns intersection of two types (A and B)
+    /// Returns intersection of two types (`A and B`).
+    /// If `A` and `B` have a subtype relationship, it is equal to `min(A, B)`.
     pub(crate) fn intersection(&self, lhs: &Type, rhs: &Type) -> Type {
         if lhs == rhs {
             return lhs.clone();

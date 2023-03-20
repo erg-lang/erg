@@ -898,6 +898,24 @@ impl<T: CanbeFree> Free<T> {
             }
         }
     }
+
+    pub fn update_sub<F>(&self, f: F)
+    where
+        F: FnOnce(Type) -> Type,
+    {
+        let (sub, sup) = self.get_subsup().unwrap();
+        let new_constraint = Constraint::new_sandwiched(f(sub), sup);
+        self.update_constraint(new_constraint, true);
+    }
+
+    pub fn update_super<F>(&self, f: F)
+    where
+        F: FnOnce(Type) -> Type,
+    {
+        let (sub, sup) = self.get_subsup().unwrap();
+        let new_constraint = Constraint::new_sandwiched(sub, f(sup));
+        self.update_constraint(new_constraint, true);
+    }
 }
 
 impl Free<TyParam> {
