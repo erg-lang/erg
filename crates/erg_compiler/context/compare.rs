@@ -589,6 +589,12 @@ impl Context {
             }
             // Int or Str :> Str or Int == (Int :> Str && Str :> Int) || (Int :> Int && Str :> Str) == true
             (Or(l_1, l_2), Or(r_1, r_2)) => {
+                if l_1.is_union_type() && self.supertype_of(l_1, rhs) {
+                    return true;
+                }
+                if l_2.is_union_type() && self.supertype_of(l_2, rhs) {
+                    return true;
+                }
                 (self.supertype_of(l_1, r_1) && self.supertype_of(l_2, r_2))
                     || (self.supertype_of(l_1, r_2) && self.supertype_of(l_2, r_1))
             }
@@ -600,6 +606,12 @@ impl Context {
             // Int :> (Nat or Str) == Int :> Nat && Int :> Str == false
             (lhs, Or(l_or, r_or)) => self.supertype_of(lhs, l_or) && self.supertype_of(lhs, r_or),
             (And(l_1, l_2), And(r_1, r_2)) => {
+                if l_1.is_intersection_type() && self.supertype_of(l_1, rhs) {
+                    return true;
+                }
+                if l_2.is_intersection_type() && self.supertype_of(l_2, rhs) {
+                    return true;
+                }
                 (self.supertype_of(l_1, r_1) && self.supertype_of(l_2, r_2))
                     || (self.supertype_of(l_1, r_2) && self.supertype_of(l_2, r_1))
             }

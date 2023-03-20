@@ -95,4 +95,10 @@ impl Context {
         assert!(self.subtype_of(&Nat, &poly("Sub", vec![ty_tp(Nat)])));
         Ok(())
     }
+
+    pub fn test_intersection(&self) -> Result<(), ()> {
+        assert!(self.subtype_of(&Code, &(Int | Str | Code | NoneType)));
+        assert!(self.subtype_of(&(Int | Str), &(Int | Str | Code | NoneType)));
+        Ok(())
+    }
 }

@@ -81,6 +81,13 @@ fn test_instantiation_and_generalization() -> Result<(), ()> {
     Ok(())
 }
 
+#[test]
+fn test_intersection() -> Result<(), ()> {
+    let context = Context::default_with_name("<module>");
+    context.test_intersection()?;
+    Ok(())
+}
+
 /*
 #[test]
 fn test_patch() -> Result<(), ()> {

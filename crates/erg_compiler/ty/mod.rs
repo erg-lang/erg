@@ -1490,10 +1490,19 @@ impl Type {
         }
     }
 
+    pub fn is_union_type(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_union_type(),
+            Self::Or(_, _) => true,
+            Self::Refinement(refine) => refine.t.is_union_type(),
+            _ => false,
+        }
+    }
+
     pub fn is_intersection_type(&self) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_intersection_type(),
-            Self::Or(_, _) => true,
+            Self::And(_, _) => true,
             Self::Refinement(refine) => refine.t.is_intersection_type(),
             _ => false,
         }

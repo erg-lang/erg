@@ -406,7 +406,7 @@ impl ASTLowerer {
         for elem in elems {
             let elem = self.lower_expr(elem.expr)?;
             union = self.module.context.union(&union, elem.ref_t());
-            if union.is_intersection_type() {
+            if union.is_union_type() {
                 return Err(LowerErrors::from(LowerError::syntax_error(
                     self.cfg.input.clone(),
                     line!() as usize,
