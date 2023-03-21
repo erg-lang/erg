@@ -1057,7 +1057,7 @@ impl ValueObj {
     pub fn try_sub(self, other: Self) -> Option<Self> {
         match (self, other) {
             (Self::Int(l), Self::Int(r)) => Some(Self::Int(l - r)),
-            (Self::Nat(l), Self::Nat(r)) => Some(Self::Int((l - r) as i32)),
+            (Self::Nat(l), Self::Nat(r)) => Some(Self::Int(l as i32 - r as i32)),
             (Self::Float(l), Self::Float(r)) => Some(Self::Float(l - r)),
             (Self::Int(l), Self::Nat(r)) => Some(Self::from(l - r as i32)),
             (Self::Nat(l), Self::Int(r)) => Some(Self::from(l as i32 - r)),
@@ -1263,6 +1263,7 @@ impl ValueObj {
             (Self::Int(l), Self::Float(r)) => Some(Self::from(l as f64 == r)),
             (Self::Str(l), Self::Str(r)) => Some(Self::from(l == r)),
             (Self::Bool(l), Self::Bool(r)) => Some(Self::from(l == r)),
+            (Self::Type(l), Self::Type(r)) => Some(Self::from(l == r)),
             (Self::Mut(m), other) => {
                 {
                     let ref_m = &mut *m.borrow_mut();
@@ -1289,6 +1290,7 @@ impl ValueObj {
             (Self::Int(l), Self::Float(r)) => Some(Self::from(l as f64 != r)),
             (Self::Str(l), Self::Str(r)) => Some(Self::from(l != r)),
             (Self::Bool(l), Self::Bool(r)) => Some(Self::from(l != r)),
+            (Self::Type(l), Self::Type(r)) => Some(Self::from(l != r)),
             (Self::Mut(m), other) => {
                 {
                     let ref_m = &mut *m.borrow_mut();

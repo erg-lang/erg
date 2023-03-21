@@ -208,7 +208,7 @@ impl Context {
             ident.inspect(),
             self.get_similar_name(ident.inspect()),
         );
-        self.get_mut_type(ident.inspect())
+        self.rec_get_mut_type(ident.inspect())
             .map(|(_, ctx)| ctx)
             .ok_or(err)
     }
@@ -2445,6 +2445,20 @@ impl Context {
         }
     }
 
+    pub(crate) fn rec_get_mut_type(&mut self, name: &str) -> Option<(&Type, &mut Context)> {
+        #[cfg(feature = "py_compatible")]
+        let name = self.erg_to_py_names.get(name).map_or(name, |s| &s[..]);
+        if let Some((t, ctx)) = self.mono_types.get_mut(name) {
+            Some((t, ctx))
+        } else if let Some((t, ctx)) = self.poly_types.get_mut(name) {
+            Some((t, ctx))
+        } else if let Some(outer) = self.outer.as_mut() {
+            outer.rec_get_mut_type(name)
+        } else {
+            None
+        }
+    }
+
     pub(crate) fn get_type(&self, name: &Str) -> Option<(&Type, &Context)> {
         if let Some((t, ctx)) = self.rec_local_get_type(name) {
             return Some((t, ctx));
@@ -2488,18 +2502,6 @@ impl Context {
             Some((t, ctx))
         } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
             outer.rec_local_get_type(name)
-        } else {
-            None
-        }
-    }
-
-    pub(crate) fn get_mut_type(&mut self, name: &str) -> Option<(&Type, &mut Context)> {
-        #[cfg(feature = "py_compatible")]
-        let name = self.erg_to_py_names.get(name).map_or(name, |s| &s[..]);
-        if let Some((t, ctx)) = self.mono_types.get_mut(name) {
-            Some((t, ctx))
-        } else if let Some((t, ctx)) = self.poly_types.get_mut(name) {
-            Some((t, ctx))
         } else {
             None
         }

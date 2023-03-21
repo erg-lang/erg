@@ -288,6 +288,8 @@ impl PartialEq for TyParam {
                 _ => false,
             },
             (Self::Failure, Self::Failure) => true,
+            (Self::Type(l), Self::Value(ValueObj::Type(r))) => l.as_ref() == r.typ(),
+            (Self::Value(ValueObj::Type(l)), Self::Type(r)) => l.typ() == r.as_ref(),
             _ => false,
         }
     }
@@ -383,6 +385,7 @@ impl CanbeFree for TyParam {
         match self {
             TyParam::FreeVar(fv) => fv.unbound_name(),
             TyParam::Type(t) => t.unbound_name(),
+            TyParam::Value(ValueObj::Type(ty)) => ty.typ().unbound_name(),
             _ => None,
         }
     }
@@ -391,6 +394,7 @@ impl CanbeFree for TyParam {
         match self {
             TyParam::FreeVar(fv) => fv.constraint(),
             TyParam::Type(t) => t.constraint(),
+            TyParam::Value(ValueObj::Type(ty)) => ty.typ().constraint(),
             _ => None,
         }
     }
@@ -402,6 +406,9 @@ impl CanbeFree for TyParam {
             }
             Self::Type(t) => {
                 t.update_constraint(new_constraint, in_instantiation);
+            }
+            Self::Value(ValueObj::Type(ty)) => {
+                ty.typ().update_constraint(new_constraint, in_instantiation);
             }
             _ => {}
         }
@@ -591,7 +598,7 @@ impl TryFrom<TyParam> for Type {
     fn try_from(tp: TyParam) -> Result<Type, ()> {
         match tp {
             TyParam::FreeVar(fv) if fv.is_linked() => {
-                Type::try_from(fv.forced_as_ref().linked().unwrap().clone()).map_err(|_| ())
+                Type::try_from(fv.crack().clone()).map_err(|_| ())
             }
             TyParam::Type(t) => Ok(*t),
             TyParam::Value(v) => Type::try_from(v),
@@ -625,6 +632,7 @@ impl HasLevel for TyParam {
             Self::App { args, .. } => args.iter().filter_map(|tp| tp.level()).min(),
             Self::UnaryOp { val, .. } => val.level(),
             Self::BinOp { lhs, rhs, .. } => lhs.level().and_then(|l| rhs.level().map(|r| l.min(r))),
+            Self::Value(ValueObj::Type(ty)) => ty.typ().level(),
             _ => None,
         }
     }
@@ -673,6 +681,7 @@ impl HasLevel for TyParam {
             Self::Proj { obj, .. } => {
                 obj.set_level(level);
             }
+            Self::Value(ValueObj::Type(ty)) => ty.typ().set_level(level),
             _ => {}
         }
     }
@@ -754,6 +763,8 @@ impl StructuralEq for TyParam {
                 fv.crack().structural_eq(other)
             }
             (Self::FreeVar(l), Self::FreeVar(r)) => l.structural_eq(r),
+            (Self::Type(l), Self::Value(ValueObj::Type(r))) => l.structural_eq(r.typ()),
+            (Self::Value(ValueObj::Type(l)), Self::Type(r)) => l.typ().structural_eq(r),
             _ => self == other,
         }
     }
@@ -852,6 +863,7 @@ impl TyParam {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().qual_name(),
             Self::FreeVar(fv) if fv.is_generalized() => fv.unbound_name(),
             Self::Mono(name) => Some(name.clone()),
+            Self::Value(ValueObj::Type(t)) => Some(t.typ().qual_name()),
             _ => None,
         }
     }
@@ -861,6 +873,7 @@ impl TyParam {
             Self::Type(t) => t.tvar_name(),
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().tvar_name(),
             Self::FreeVar(fv) => fv.unbound_name(),
+            Self::Value(ValueObj::Type(t)) => t.typ().tvar_name(),
             _ => None,
         }
     }
@@ -898,6 +911,7 @@ impl TyParam {
                 fv.crack().coerce();
             }
             TyParam::Type(t) => t.coerce(),
+            TyParam::Value(ValueObj::Type(t)) => t.typ().coerce(),
             _ => {}
         }
     }
@@ -933,6 +947,7 @@ impl TyParam {
             Self::BinOp { lhs, rhs, .. } => lhs.qvars().concat(rhs.qvars()),
             Self::App { args, .. } => args.iter().fold(set! {}, |acc, p| acc.concat(p.qvars())),
             Self::Erased(t) => t.qvars(),
+            Self::Value(ValueObj::Type(t)) => t.typ().qvars(),
             _ => set! {},
         }
     }
@@ -940,13 +955,7 @@ impl TyParam {
     pub fn has_qvar(&self) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_generalized() => true,
-            Self::FreeVar(fv) => {
-                if fv.is_unbound() {
-                    false
-                } else {
-                    fv.crack().has_qvar()
-                }
-            }
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().has_qvar(),
             Self::Type(t) => t.has_qvar(),
             Self::Proj { obj, .. } => obj.has_qvar(),
             Self::Array(tps) | Self::Tuple(tps) => tps.iter().any(|tp| tp.has_qvar()),
@@ -958,6 +967,7 @@ impl TyParam {
             Self::BinOp { lhs, rhs, .. } => lhs.has_qvar() || rhs.has_qvar(),
             Self::App { args, .. } => args.iter().any(|p| p.has_qvar()),
             Self::Erased(t) => t.has_qvar(),
+            Self::Value(ValueObj::Type(t)) => t.typ().has_qvar(),
             _ => false,
         }
     }
@@ -978,6 +988,7 @@ impl TyParam {
             Self::UnaryOp { val, .. } => val.contains_tvar(target),
             Self::BinOp { lhs, rhs, .. } => lhs.contains_tvar(target) || rhs.contains_tvar(target),
             Self::App { args, .. } => args.iter().any(|p| p.contains_tvar(target)),
+            Self::Value(ValueObj::Type(t)) => t.typ().contains_tvar(target),
             _ => false,
         }
     }
@@ -998,12 +1009,18 @@ impl TyParam {
             Self::UnaryOp { val, .. } => val.contains(target),
             Self::BinOp { lhs, rhs, .. } => lhs.contains(target) || rhs.contains(target),
             Self::App { args, .. } => args.iter().any(|p| p.contains(target)),
+            Self::Value(ValueObj::Type(t)) => t.typ().contains(target),
             _ => false,
         }
     }
 
     pub fn is_unbound_var(&self) -> bool {
-        matches!(self, Self::FreeVar(fv) if fv.is_unbound() || fv.crack().is_unbound_var())
+        match self {
+            Self::FreeVar(fv) => fv.is_unbound() || fv.crack().is_unbound_var(),
+            Self::Type(t) => t.is_unbound_var(),
+            Self::Value(ValueObj::Type(t)) => t.typ().is_unbound_var(),
+            _ => false,
+        }
     }
 
     pub fn has_unbound_var(&self) -> bool {
@@ -1028,6 +1045,7 @@ impl TyParam {
             Self::BinOp { lhs, rhs, .. } => lhs.has_unbound_var() || rhs.has_unbound_var(),
             Self::App { args, .. } => args.iter().any(|p| p.has_unbound_var()),
             Self::Erased(t) => t.has_unbound_var(),
+            Self::Value(ValueObj::Type(t)) => t.typ().has_unbound_var(),
             _ => false,
         }
     }

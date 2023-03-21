@@ -1981,11 +1981,13 @@ impl ASTLowerer {
 
     fn check_collision_and_push(&mut self, class: Type) {
         let methods = self.module.context.pop();
-        let (_, class_root) = self
+        let Some((_, class_root)) = self
             .module
             .context
-            .get_mut_nominal_type_ctx(&class)
-            .unwrap_or_else(|| todo!("{class} not found"));
+            .get_mut_nominal_type_ctx(&class) else {
+                log!(err "{class} not found");
+                return;
+            };
         for (newly_defined_name, vi) in methods.locals.clone().into_iter() {
             for (_, already_defined_methods) in class_root.methods_list.iter_mut() {
                 // TODO: 特殊化なら同じ名前でもOK

@@ -1450,10 +1450,7 @@ impl Type {
             Self::Callable { .. } => true,
             Self::Quantified(t) => t.is_procedure(),
             Self::Subr(subr) if subr.kind == SubrKind::Proc => true,
-            Self::Refinement(refine) =>
-                refine.t.is_procedure() || refine.pred.ands().iter().any(|pred|
-                    matches!(pred, Predicate::Equal{ rhs, .. } if pred.mentions(&refine.var) && rhs.qual_name().map(|n| n.ends_with('!')).unwrap_or(false))
-                ),
+            Self::Refinement(refine) => refine.t.is_procedure(),
             _ => false,
         }
     }
@@ -1628,10 +1625,11 @@ impl Type {
         }
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains(target),
-            Self::FreeVar(fv) => fv
-                .get_subsup()
-                .map(|(sub, sup)| sub.contains(target) || sup.contains(target))
-                .unwrap_or(false),
+            Self::FreeVar(fv) => {
+                fv.get_subsup().map_or(false, |(sub, sup)| {
+                    sub.contains(target) || sup.contains(target)
+                }) || fv.get_type().map_or(false, |t| t.contains(target))
+            }
             Self::Record(rec) => rec.iter().any(|(_, t)| t.contains(target)),
             Self::Poly { params, .. } => params.iter().any(|tp| tp.contains(target)),
             Self::Quantified(t) => t.contains(target),
@@ -1649,6 +1647,33 @@ impl Type {
             Self::Ref(t) => t.contains(target),
             Self::RefMut { before, after } => {
                 before.contains(target) || after.as_ref().map_or(false, |t| t.contains(target))
+            }
+            _ => false,
+        }
+    }
+
+    pub fn is_recursive(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_recursive(),
+            Self::FreeVar(fv) => fv
+                .get_subsup()
+                .map(|(sub, sup)| sub.contains(self) || sup.contains(self))
+                .unwrap_or(false),
+            Self::Record(rec) => rec.iter().any(|(_, t)| t.contains(self)),
+            Self::Poly { params, .. } => params.iter().any(|tp| tp.contains(self)),
+            Self::Quantified(t) => t.contains(self),
+            Self::Subr(subr) => subr.contains(self),
+            Self::Refinement(refine) => refine.t.contains(self),
+            Self::Structural(ty) => ty.contains(self),
+            Self::Proj { lhs, .. } => lhs.contains(self),
+            Self::ProjCall { lhs, args, .. } => {
+                lhs.contains(self) || args.iter().any(|t| t.contains(self))
+            }
+            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => lhs.contains(self) || rhs.contains(self),
+            Self::Not(t) => t.contains(self),
+            Self::Ref(t) => t.contains(self),
+            Self::RefMut { before, after } => {
+                before.contains(self) || after.as_ref().map_or(false, |t| t.contains(self))
             }
             _ => false,
         }
@@ -1984,7 +2009,7 @@ impl Type {
                     res_sub || res_sup
                 } else {
                     let opt_t = fv.get_type();
-                    opt_t.map(|t| t.has_qvar()).unwrap_or(false)
+                    opt_t.map_or(false, |t| t.has_qvar())
                 }
             }
             Self::Ref(ty) => ty.has_qvar(),

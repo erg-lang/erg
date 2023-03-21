@@ -797,8 +797,16 @@ impl Context {
             (TyParam::Type(l), TyParam::Type(r), Variance::Covariant) => self.supertype_of(l, r),
             (TyParam::Type(l), TyParam::Type(r), Variance::Invariant) => self.same_type_of(l, r),
             (TyParam::FreeVar(fv), _, _) if fv.is_unbound() => {
-                let fv_t = fv.get_type().unwrap();
-                let rp_t = self.get_tp_t(rp).unwrap();
+                let Some(fv_t) = fv.get_type() else {
+                    return false;
+                };
+                let rp_t = match self.get_tp_t(rp) {
+                    Ok(t) => t,
+                    Err(err) => {
+                        log!("supertype_of_tp: {err}");
+                        return false;
+                    }
+                };
                 if variance == Variance::Contravariant {
                     self.subtype_of(&fv_t, &rp_t)
                 } else if variance == Variance::Covariant {

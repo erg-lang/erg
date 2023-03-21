@@ -22,6 +22,7 @@ impl ModuleGraph {
     }
 
     pub fn get_node(&self, path: &Path) -> Option<&Node<PathBuf, ()>> {
+        let path = normalize_path(path.to_path_buf());
         self.0.iter().find(|n| n.id == path)
     }
 
@@ -34,6 +35,7 @@ impl ModuleGraph {
     }
 
     pub fn inc_ref(&mut self, referrer: &Path, depends_on: PathBuf) {
+        let referrer = normalize_path(referrer.to_path_buf());
         let depends_on = normalize_path(depends_on);
         if let Some(node) = self.0.iter_mut().find(|n| n.id == referrer) {
             if referrer == depends_on {

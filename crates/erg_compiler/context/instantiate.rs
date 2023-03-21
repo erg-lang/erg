@@ -35,6 +35,7 @@ pub struct TyVarCache {
     pub(crate) already_appeared: Set<Str>,
     pub(crate) tyvar_instances: Dict<Str, Type>,
     pub(crate) typaram_instances: Dict<Str, TyParam>,
+    pub(crate) structural_inner: bool,
 }
 
 impl fmt::Display for TyVarCache {
@@ -54,6 +55,7 @@ impl TyVarCache {
             already_appeared: Set::new(),
             tyvar_instances: Dict::new(),
             typaram_instances: Dict::new(),
+            structural_inner: false,
         }
     }
 
@@ -480,15 +482,28 @@ impl Context {
                 unreachable_error!(TyCheckErrors, TyCheckError, self)
             }
             Structural(t) => {
-                let t = self.instantiate_t_inner(*t, tmp_tv_cache, loc)?;
-                Ok(t.structuralize())
+                // avoid infinite recursion
+                if tmp_tv_cache.structural_inner {
+                    Ok(t.structuralize())
+                } else {
+                    if t.is_recursive() {
+                        tmp_tv_cache.structural_inner = true;
+                    }
+                    let t = self.instantiate_t_inner(*t, tmp_tv_cache, loc)?;
+                    Ok(t.structuralize())
+                }
             }
             FreeVar(fv) => {
-                let (sub, sup) = fv.get_subsup().unwrap();
-                let sub = self.instantiate_t_inner(sub, tmp_tv_cache, loc)?;
-                let sup = self.instantiate_t_inner(sup, tmp_tv_cache, loc)?;
-                let new_constraint = Constraint::new_sandwiched(sub, sup);
-                fv.update_constraint(new_constraint, true);
+                if let Some((sub, sup)) = fv.get_subsup() {
+                    let sub = self.instantiate_t_inner(sub, tmp_tv_cache, loc)?;
+                    let sup = self.instantiate_t_inner(sup, tmp_tv_cache, loc)?;
+                    let new_constraint = Constraint::new_sandwiched(sub, sup);
+                    fv.update_constraint(new_constraint, true);
+                } else if let Some(ty) = fv.get_type() {
+                    let ty = self.instantiate_t_inner(ty, tmp_tv_cache, loc)?;
+                    let new_constraint = Constraint::new_type_of(ty);
+                    fv.update_constraint(new_constraint, true);
+                }
                 Ok(FreeVar(fv))
             }
             And(l, r) => {

@@ -1245,9 +1245,15 @@ impl Context {
                         self.level,
                     );
                     for sup in super_classes.into_iter() {
-                        let (_, sup_ctx) = self
-                            .get_nominal_type_ctx(&sup)
-                            .unwrap_or_else(|| todo!("{sup} not found"));
+                        let (_, sup_ctx) = self.get_nominal_type_ctx(&sup).ok_or_else(|| {
+                            TyCheckErrors::from(TyCheckError::type_not_found(
+                                self.cfg.input.clone(),
+                                line!() as usize,
+                                ident.loc(),
+                                self.caused_by(),
+                                &sup,
+                            ))
+                        })?;
                         ctx.register_superclass(sup, sup_ctx);
                     }
                     let mut methods =

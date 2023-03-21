@@ -620,7 +620,7 @@ impl ASTLowerer {
         } else {
             ident.inspect().clone()
         };
-        if let Some((_, ctx)) = self.module.context.get_mut_type(&name) {
+        if let Some((_, ctx)) = self.module.context.rec_get_mut_type(&name) {
             ctx.register_marker_trait(trait_.clone());
             Ok(())
         } else {
