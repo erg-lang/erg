@@ -1184,7 +1184,7 @@ impl Context {
                 }
             }
         }
-        if let Type::FreeVar(fv) = &lhs {
+        if let Some(fv) = lhs.as_free() {
             let (sub, sup) = fv.get_subsup().unwrap();
             if self.is_trait(&sup) && !self.trait_impl_exists(&sub, &sup) {
                 // link to `Never` to prevent double errors from being reported

@@ -224,7 +224,7 @@ impl Context {
                     Ok(tp)
                 } else if let Some(t) = tmp_tv_cache.get_tyvar(&name) {
                     let t = t.clone();
-                    if let Type::FreeVar(fv) = &t {
+                    if let Some(fv) = t.as_free() {
                         if fv
                             .constraint()
                             .map(|cons| cons.is_uninited())

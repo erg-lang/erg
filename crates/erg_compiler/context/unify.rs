@@ -28,7 +28,7 @@ impl Context {
     /// occur(X -> ?T, ?T) ==> Error
     /// occur(?T, ?T -> X) ==> Error
     /// occur(?T, Option(?T)) ==> Error
-    /// occur(?T, ?T.Output) ==> Error
+    /// occur(?T, ?T.Output) ==> OK
     pub(crate) fn occur(
         &self,
         maybe_sub: &Type,
@@ -124,30 +124,6 @@ impl Context {
                     }
                 }) {
                     self.occur(maybe_sub, param, loc)?;
-                }
-                Ok(())
-            }
-            (Type::Proj { lhs, .. }, rhs) => self.occur(lhs, rhs, loc),
-            (Type::ProjCall { lhs, args, .. }, rhs) => {
-                if let TyParam::Type(t) = lhs.as_ref() {
-                    self.occur(t, rhs, loc)?;
-                }
-                for arg in args.iter() {
-                    if let TyParam::Type(t) = arg {
-                        self.occur(t, rhs, loc)?;
-                    }
-                }
-                Ok(())
-            }
-            (lhs, Type::Proj { lhs: rhs, .. }) => self.occur(lhs, rhs, loc),
-            (lhs, Type::ProjCall { lhs: rhs, args, .. }) => {
-                if let TyParam::Type(t) = rhs.as_ref() {
-                    self.occur(lhs, t, loc)?;
-                }
-                for arg in args.iter() {
-                    if let TyParam::Type(t) = arg {
-                        self.occur(lhs, t, loc)?;
-                    }
                 }
                 Ok(())
             }
@@ -759,7 +735,6 @@ impl Context {
                     if sup.is_structural() {
                         return Ok(());
                     }
-                    // REVIEW: correct?
                     if let Some(new_sup) = self.min(&sup, maybe_sup) {
                         let constr =
                             Constraint::new_sandwiched(mem::take(&mut sub), new_sup.clone());
@@ -781,7 +756,6 @@ impl Context {
                 }
                 Ok(())
             }
-            (Type::FreeVar(_fv), _r) => todo!(),
             (Type::Record(lrec), Type::Record(rrec)) => {
                 for (k, l) in lrec.iter() {
                     if let Some(r) = rrec.get(k) {
@@ -992,8 +966,18 @@ impl Context {
                 self.sub_unify(l, r, loc, param_name)
             }
             (_, Type::RefMut { before, .. }) => self.sub_unify(maybe_sub, before, loc, param_name),
-            (Type::Proj { .. }, _) => todo!(),
-            (_, Type::Proj { .. }) => todo!(),
+            (_, Type::Proj { lhs, rhs }) => {
+                if let Ok(evaled) = self.eval_proj(*lhs.clone(), rhs.clone(), self.level, loc) {
+                    self.sub_unify(maybe_sub, &evaled, loc, param_name)?;
+                }
+                Ok(())
+            }
+            (Type::Proj { lhs, rhs }, _) => {
+                if let Ok(evaled) = self.eval_proj(*lhs.clone(), rhs.clone(), self.level, loc) {
+                    self.sub_unify(&evaled, maybe_sup, loc, param_name)?;
+                }
+                Ok(())
+            }
             // TODO: Judgment for any number of preds
             (Refinement(sub), Refinement(sup)) => {
                 // {I: Int or Str | I == 0} <: {I: Int}

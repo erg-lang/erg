@@ -563,7 +563,7 @@ impl Context {
         // => ?T(<: Structural({ .aaa = ?U }))
         if self.in_subr() && cfg!(feature = "py_compatible") {
             let t = free_var(self.level, Constraint::new_type_of(Type));
-            if let Type::FreeVar(fv) = obj.ref_t() {
+            if let Some(fv) = obj.ref_t().as_free() {
                 if fv.get_sub().is_some() {
                     let vis = self.instantiate_vis_modifier(&ident.vis).unwrap();
                     let structural = Type::Record(
@@ -910,7 +910,7 @@ impl Context {
                 .collect::<Vec<_>>();
             let return_t = free_var(self.level, Constraint::new_type_of(Type));
             let subr_t = fn_met(obj.t(), nd_params, None, d_params, return_t);
-            if let Type::FreeVar(fv) = obj.ref_t() {
+            if let Some(fv) = obj.ref_t().as_free() {
                 if fv.get_sub().is_some() {
                     let vis = self.instantiate_vis_modifier(&attr_name.vis).unwrap();
                     let structural = Type::Record(

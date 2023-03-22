@@ -307,6 +307,27 @@ impl Context {
         Ok(vi)
     }
 
+    fn type_self_param(
+        &self,
+        pat: &ast::ParamPattern,
+        name: &VarName,
+        spec_t: &Type,
+        errs: &mut TyCheckErrors,
+    ) {
+        if let Some(self_t) = self.rec_get_self_t() {
+            let self_t = match pat {
+                ast::ParamPattern::Ref(_) => ref_(self_t),
+                ast::ParamPattern::RefMut(_) => ref_mut(self_t, None),
+                _ => self_t,
+            };
+            if let Err(es) = self.sub_unify(spec_t, &self_t, name, Some(name.inspect())) {
+                errs.extend(es);
+            }
+        } else {
+            log!(err "self_t is None");
+        }
+    }
+
     /// TODO: sig should be immutable
     /// 宣言が既にある場合、opt_decl_tに宣言の型を渡す
     fn assign_param(
@@ -387,15 +408,7 @@ impl Context {
                         spec_t
                     };
                     if &name.inspect()[..] == "self" {
-                        if let Some(self_t) = self.rec_get_self_t() {
-                            if let Err(es) =
-                                self.sub_unify(&spec_t, &self_t, name, Some(name.inspect()))
-                            {
-                                errs.extend(es);
-                            }
-                        } else {
-                            log!(err "self_t is None");
-                        }
+                        self.type_self_param(&sig.raw.pat, name, &spec_t, &mut errs);
                     }
                     let def_id = DefId(get_hash(&(&self.name, name)));
                     let kind = VarKind::parameter(def_id, is_var_params, default);
@@ -446,15 +459,7 @@ impl Context {
                         Err(errs) => (Type::Failure, errs),
                     };
                     if &name.inspect()[..] == "self" {
-                        if let Some(self_t) = self.rec_get_self_t() {
-                            if let Err(es) =
-                                self.sub_unify(&spec_t, &ref_(self_t), name, Some(name.inspect()))
-                            {
-                                errs.extend(es);
-                            }
-                        } else {
-                            log!(err "self_t is None");
-                        }
+                        self.type_self_param(&sig.raw.pat, name, &spec_t, &mut errs);
                     }
                     let kind = VarKind::parameter(
                         DefId(get_hash(&(&self.name, name))),
@@ -506,18 +511,7 @@ impl Context {
                         Err(errs) => (Type::Failure, errs),
                     };
                     if &name.inspect()[..] == "self" {
-                        if let Some(self_t) = self.rec_get_self_t() {
-                            if let Err(es) = self.sub_unify(
-                                &spec_t,
-                                &ref_mut(self_t, None),
-                                name,
-                                Some(name.inspect()),
-                            ) {
-                                errs.extend(es);
-                            }
-                        } else {
-                            log!(err "self_t is None");
-                        }
+                        self.type_self_param(&sig.raw.pat, name, &spec_t, &mut errs);
                     }
                     let kind = VarKind::parameter(
                         DefId(get_hash(&(&self.name, name))),
@@ -862,7 +856,7 @@ impl Context {
         let Some((_, vi)) = self.get_var_info(ident.inspect()) else {
             return;
         };
-        if let Type::FreeVar(fv) = &vi.t {
+        if let Some(fv) = vi.t.as_free() {
             fv.link(&typ);
         }
     }

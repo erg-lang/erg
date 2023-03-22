@@ -587,6 +587,25 @@ impl<T> Free<T> {
     }
 }
 
+impl Free<Type> {
+    pub fn deep_clone(&self) -> Self {
+        Self::new_named_unbound(
+            self.unbound_name().unwrap(),
+            self.level().unwrap(),
+            self.constraint().unwrap(),
+        )
+    }
+}
+impl Free<TyParam> {
+    pub fn deep_clone(&self) -> Self {
+        Self::new_named_unbound(
+            self.unbound_name().unwrap(),
+            self.level().unwrap(),
+            self.constraint().unwrap(),
+        )
+    }
+}
+
 impl<T: StructuralEq + CanbeFree + Clone + Default> StructuralEq for Free<T> {
     fn structural_eq(&self, other: &Self) -> bool {
         if let (Some((l, r)), Some((l2, r2))) = (self.get_subsup(), other.get_subsup()) {

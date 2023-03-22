@@ -72,7 +72,7 @@ impl Context {
         expected: &Type,
         found: &Type,
     ) -> Option<String> {
-        let expected = if let Type::FreeVar(fv) = expected {
+        let expected = if let Some(fv) = expected.as_free() {
             if fv.is_linked() {
                 fv.crack().clone()
             } else {
@@ -191,7 +191,7 @@ impl Context {
     pub(crate) fn get_no_candidate_hint(&self, proj: &Type) -> Option<String> {
         match proj {
             Type::Proj { lhs, rhs: _ } => {
-                if let Type::FreeVar(fv) = lhs.as_ref() {
+                if let Some(fv) = lhs.as_free() {
                     let (sub, sup) = fv.get_subsup()?;
                     let (verb, preposition, sequence) = Self::get_verb_and_preposition(&sup)?;
                     let sup = *option_enum_unwrap!(sup.typarams().get(0)?.clone(), TyParam::Type)?;

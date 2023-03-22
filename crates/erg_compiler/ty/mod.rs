@@ -990,7 +990,7 @@ impl LimitedDisplay for Type {
 
 impl CanbeFree for Type {
     fn unbound_name(&self) -> Option<Str> {
-        if let Type::FreeVar(fv) = self {
+        if let Some(fv) = self.as_free() {
             fv.unbound_name()
         } else {
             None
@@ -998,7 +998,7 @@ impl CanbeFree for Type {
     }
 
     fn constraint(&self) -> Option<Constraint> {
-        if let Type::FreeVar(fv) = self {
+        if let Some(fv) = self.as_free() {
             fv.constraint()
         } else {
             None
@@ -1006,7 +1006,7 @@ impl CanbeFree for Type {
     }
 
     fn update_constraint(&self, new_constraint: Constraint, in_instantiation: bool) {
-        if let Self::FreeVar(fv) = self {
+        if let Some(fv) = self.as_free() {
             fv.update_constraint(new_constraint, in_instantiation);
         }
     }
@@ -1045,6 +1045,17 @@ impl From<Dict<Type, Type>> for Type {
             .map(|(k, v)| (TyParam::t(k), TyParam::t(v)))
             .collect();
         dict_t(TyParam::Dict(d))
+    }
+}
+
+impl<'t> TryFrom<&'t Type> for &'t FreeTyVar {
+    type Error = ();
+    fn try_from(t: &'t Type) -> Result<&'t FreeTyVar, ()> {
+        match t {
+            Type::FreeVar(fv) => Ok(fv),
+            Type::Refinement(refine) => Self::try_from(refine.t.as_ref()),
+            _ => Err(()),
+        }
     }
 }
 
@@ -1580,6 +1591,10 @@ impl Type {
 
     pub const fn is_structural(&self) -> bool {
         matches!(self, Self::Structural(_))
+    }
+
+    pub fn as_free(&self) -> Option<&FreeTyVar> {
+        <&FreeTyVar>::try_from(self).ok()
     }
 
     pub fn contains_tvar(&self, target: &FreeTyVar) -> bool {
@@ -2331,6 +2346,7 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().clone()._replace(target, to),
             Self::FreeVar(fv) => {
+                let fv = fv.deep_clone();
                 if let Some((sub, sup)) = fv.get_subsup() {
                     fv.forced_undoable_link(&sub);
                     let sub = sub._replace(target, to);

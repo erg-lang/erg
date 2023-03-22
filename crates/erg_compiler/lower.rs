@@ -1934,12 +1934,10 @@ impl ASTLowerer {
         &self,
         impl_trait: &Type,
         class: &Type,
-        typ_ctx: (&Type, &Context),
+        (trait_type, trait_ctx): (&Type, &Context),
         t_spec: &TypeSpecWithOp,
     ) -> (Set<&VarName>, CompileErrors) {
         let mut errors = CompileErrors::empty();
-        let trait_type = typ_ctx.0;
-        let trait_ctx = typ_ctx.1;
         let mut unverified_names = self.module.context.locals.keys().collect::<Set<_>>();
         for (decl_name, decl_vi) in trait_ctx.decls.iter() {
             if let Some((name, vi)) = self.module.context.get_var_kv(decl_name.inspect()) {
