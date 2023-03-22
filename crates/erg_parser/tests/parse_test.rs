@@ -93,7 +93,7 @@ fn _parse_test_from_code(file_path: &'static str) -> Result<(), ParserRunnerErro
 }
 
 fn parse_test_from_code(file_path: &'static str) -> Result<(), ParserRunnerErrors> {
-    exec_new_thread(move || _parse_test_from_code(file_path))
+    exec_new_thread(move || _parse_test_from_code(file_path), file_path)
 }
 
 fn expect_success(file_path: &'static str) -> Result<(), ()> {

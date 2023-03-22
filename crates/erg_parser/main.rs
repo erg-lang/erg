@@ -26,5 +26,5 @@ fn run() {
 }
 
 fn main() {
-    exec_new_thread(run);
+    exec_new_thread(run, "parser");
 }

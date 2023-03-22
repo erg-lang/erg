@@ -149,12 +149,12 @@ pub fn _exec_repl(name: &'static str, lines: Vec<String>) -> Result<ExitStatus, 
 }
 
 pub(crate) fn exec_file(file_path: &'static str) -> Result<i32, CompileErrors> {
-    exec_new_thread(move || _exec_file(file_path))
+    exec_new_thread(move || _exec_file(file_path), file_path)
 }
 
 pub(crate) fn exec_repl(
     name: &'static str,
     lines: Vec<String>,
 ) -> Result<ExitStatus, CompileErrors> {
-    exec_new_thread(move || _exec_repl(name, lines))
+    exec_new_thread(move || _exec_repl(name, lines), name)
 }
