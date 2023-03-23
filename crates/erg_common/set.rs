@@ -166,6 +166,11 @@ impl<T: Hash + Eq> Set<T> {
         self.elems.extend(iter);
     }
 
+    pub fn extended<I: IntoIterator<Item = T>>(mut self, iter: I) -> Self {
+        self.elems.extend(iter);
+        self
+    }
+
     #[inline]
     pub fn is_superset(&self, other: &Set<T>) -> bool {
         self.elems.is_superset(&other.elems)

@@ -1393,7 +1393,7 @@ impl Context {
                     tp.clone()
                 } else {
                     let tp = TyParam::FreeVar(new_fv);
-                    tv_cache.push_or_init_typaram(&name, &tp);
+                    tv_cache.push_or_init_typaram(&name, &tp, self);
                     tp
                 }
             }

@@ -2033,7 +2033,7 @@ impl Context {
                 }
             }
             Type::FreeVar(fv) => {
-                let sup = fv.get_super().unwrap();
+                let sup = fv.get_super()?;
                 if let Some(res) = self.get_nominal_type_ctx(&sup) {
                     return Some(res);
                 }
@@ -2727,9 +2727,9 @@ impl Context {
         }
     }
 
-    pub(crate) fn get_tp_from_name(
+    pub(crate) fn get_tp_from_tv_cache(
         &self,
-        name: &Str,
+        name: &str,
         tmp_tv_cache: &TyVarCache,
     ) -> Option<TyParam> {
         if let Some(tp) = tmp_tv_cache.get_typaram(name) {

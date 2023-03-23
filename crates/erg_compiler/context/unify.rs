@@ -968,13 +968,17 @@ impl Context {
             (_, Type::RefMut { before, .. }) => self.sub_unify(maybe_sub, before, loc, param_name),
             (_, Type::Proj { lhs, rhs }) => {
                 if let Ok(evaled) = self.eval_proj(*lhs.clone(), rhs.clone(), self.level, loc) {
-                    self.sub_unify(maybe_sub, &evaled, loc, param_name)?;
+                    if maybe_sup != &evaled {
+                        self.sub_unify(maybe_sub, &evaled, loc, param_name)?;
+                    }
                 }
                 Ok(())
             }
             (Type::Proj { lhs, rhs }, _) => {
                 if let Ok(evaled) = self.eval_proj(*lhs.clone(), rhs.clone(), self.level, loc) {
-                    self.sub_unify(&evaled, maybe_sup, loc, param_name)?;
+                    if maybe_sub != &evaled {
+                        self.sub_unify(&evaled, maybe_sup, loc, param_name)?;
+                    }
                 }
                 Ok(())
             }

@@ -412,6 +412,12 @@ impl SubrType {
     /// essential_qnames(|T, U| (T, T) -> U) == {T}
     /// ```
     pub fn essential_qnames(&self) -> Set<Str> {
+        let structural_qname = self.non_default_params.iter().find_map(|pt| {
+            pt.typ()
+                .get_super()
+                .map_or(false, |t| t.is_structural())
+                .then(|| pt.typ().unbound_name().unwrap())
+        });
         let qnames_sets = self
             .non_default_params
             .iter()
@@ -419,7 +425,7 @@ impl SubrType {
             .chain(self.var_params.iter().map(|pt| pt.typ().qnames()))
             .chain(self.default_params.iter().map(|pt| pt.typ().qnames()))
             .chain([self.return_t.qnames()]);
-        Set::multi_intersection(qnames_sets)
+        Set::multi_intersection(qnames_sets).extended(structural_qname)
     }
 
     pub fn has_qvar(&self) -> bool {
@@ -746,6 +752,9 @@ pub enum Type {
 
 impl PartialEq for Type {
     fn eq(&self, other: &Self) -> bool {
+        if ref_addr_eq!(self, other) {
+            return true;
+        }
         match (self, other) {
             (Self::Obj, Self::Obj)
             | (Self::Int, Self::Int)
@@ -1589,8 +1598,13 @@ impl Type {
         }
     }
 
-    pub const fn is_structural(&self) -> bool {
-        matches!(self, Self::Structural(_))
+    pub fn is_structural(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_structural(),
+            Self::Structural(_) => true,
+            Self::Refinement(refine) => refine.t.is_structural(),
+            _ => false,
+        }
     }
 
     pub fn as_free(&self) -> Option<&FreeTyVar> {
@@ -1607,7 +1621,12 @@ impl Type {
                 ref_addr_eq!(fv.forced_as_ref(), target.forced_as_ref())
                     || fv
                         .get_subsup()
-                        .map(|(sub, sup)| sub.contains_tvar(target) || sup.contains_tvar(target))
+                        .map(|(sub, sup)| {
+                            fv.forced_undoable_link(&Type::Never);
+                            let res = sub.contains_tvar(target) || sup.contains_tvar(target);
+                            fv.undo();
+                            res
+                        })
                         .unwrap_or(false)
             }
             Self::Record(rec) => rec.iter().any(|(_, t)| t.contains_tvar(target)),
@@ -1642,7 +1661,10 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains(target),
             Self::FreeVar(fv) => {
                 fv.get_subsup().map_or(false, |(sub, sup)| {
-                    sub.contains(target) || sup.contains(target)
+                    fv.forced_undoable_link(&Type::Never);
+                    let res = sub.contains(target) || sup.contains(target);
+                    fv.undo();
+                    res
                 }) || fv.get_type().map_or(false, |t| t.contains(target))
             }
             Self::Record(rec) => rec.iter().any(|(_, t)| t.contains(target)),
@@ -1866,6 +1888,22 @@ impl Type {
         }
     }
 
+    pub fn get_super(&self) -> Option<Type> {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().get_super(),
+            Self::FreeVar(fv) if fv.is_unbound() => fv.get_super(),
+            _ => None,
+        }
+    }
+
+    pub fn get_sub(&self) -> Option<Type> {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().get_sub(),
+            Self::FreeVar(fv) if fv.is_unbound() => fv.get_sub(),
+            _ => None,
+        }
+    }
+
     pub const fn is_free_var(&self) -> bool {
         matches!(self, Self::FreeVar(_))
     }
@@ -2017,7 +2055,7 @@ impl Type {
             Self::FreeVar(fv) if fv.is_generalized() => true,
             Self::FreeVar(fv) => {
                 if let Some((sub, sup)) = fv.get_subsup() {
-                    fv.undoable_link(&Type::Obj);
+                    fv.undoable_link(&Type::Never);
                     let res_sub = sub.has_qvar();
                     let res_sup = sup.has_qvar();
                     fv.undo();
