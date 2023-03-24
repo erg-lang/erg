@@ -685,6 +685,7 @@ pub enum Type {
     Nat,
     Ratio,
     Float,
+    Complex,
     Bool,
     Str,
     NoneType,
@@ -1413,6 +1414,7 @@ impl Type {
             Self::Nat => mono("Nat!"),
             Self::Ratio => mono("Ratio!"),
             Self::Float => mono("Float!"),
+            Self::Complex => mono("Complex!"),
             Self::Bool => mono("Bool!"),
             Self::Str => mono("Str!"),
             other if other.is_mut_type() => other,
@@ -1444,6 +1446,7 @@ impl Type {
             | Self::Nat
             | Self::Ratio
             | Self::Float
+            | Self::Complex
             | Self::Bool
             | Self::Str
             | Self::NoneType
@@ -1777,6 +1780,7 @@ impl Type {
             Self::Nat => Str::ever("Nat"),
             Self::Ratio => Str::ever("Ratio"),
             Self::Float => Str::ever("Float"),
+            Self::Complex => Str::ever("Complex"),
             Self::Bool => Str::ever("Bool"),
             Self::Str => Str::ever("Str"),
             Self::NoneType => Str::ever("NoneType"),

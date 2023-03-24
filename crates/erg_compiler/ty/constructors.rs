@@ -373,9 +373,9 @@ pub fn mono<S: Into<Str>>(name: S) -> Type {
     if cfg!(feature = "debug") {
         // do not use for: `Int`, `Nat`, ...
         match &name[..] {
-            "Obj" | "Int" | "Nat" | "Ratio" | "Float" | "Bool" | "Str" | "NoneType" | "Code"
-            | "Frame" | "Error" | "Inf" | "NegInf" | "Type" | "ClassType" | "TraitType"
-            | "Patch" | "NotImplementedType" | "Ellipsis" | "Never" => {
+            "Obj" | "Int" | "Nat" | "Ratio" | "Float" | "Complex" | "Bool" | "Str" | "NoneType"
+            | "Code" | "Frame" | "Error" | "Inf" | "NegInf" | "Type" | "ClassType"
+            | "TraitType" | "Patch" | "NotImplementedType" | "Ellipsis" | "Never" => {
                 unreachable!("built-in type: {name}")
             }
             _ => {}

@@ -75,18 +75,51 @@ impl Context {
         );
         obj.register_trait(Obj, obj_mutizable);
         // Obj does not implement Eq
-
-        /* Float */
-        let mut float = Self::builtin_mono_class(FLOAT, 2);
-        float.register_superclass(Obj, &obj);
+        let mut complex = Self::builtin_mono_class(COMPLEX, 2);
+        complex.register_superclass(Obj, &obj);
         // TODO: support multi platform
-        float.register_builtin_const(
+        complex.register_builtin_const(
             EPSILON,
             Visibility::BUILTIN_PUBLIC,
             ValueObj::Float(2.220446049250313e-16),
         );
-        float.register_builtin_py_impl(REAL, Float, Const, Visibility::BUILTIN_PUBLIC, Some(REAL));
-        float.register_builtin_py_impl(IMAG, Float, Const, Visibility::BUILTIN_PUBLIC, Some(IMAG));
+        complex.register_builtin_py_impl(
+            REAL,
+            Float,
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+            Some(REAL),
+        );
+        complex.register_builtin_py_impl(
+            IMAG,
+            Float,
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+            Some(IMAG),
+        );
+        complex.register_builtin_py_impl(
+            FUNC_CONJUGATE,
+            fn0_met(Complex, Complex),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_CONJUGATE),
+        );
+        let t = func(
+            vec![],
+            None,
+            vec![kw(REAL, Float), kw(IMAG, Float)],
+            Complex,
+        );
+        complex.register_builtin_py_impl(
+            FUNDAMENTAL_CALL,
+            t,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNDAMENTAL_CALL),
+        );
+        /* Float */
+        let mut float = Self::builtin_mono_class(FLOAT, 2);
+        float.register_superclass(Complex, &complex);
         float.register_py_builtin(
             FUNC_AS_INTEGER_RATIO,
             fn0_met(Float, tuple_t(vec![Int, Int])),
@@ -1123,10 +1156,32 @@ impl Context {
         if !cfg!(feature = "py_compatible") {
             py_module.register_superclass(g_module_t.clone(), &generic_module);
         }
+        /* GenericArray */
+        let mut generic_array = Self::builtin_mono_class(GENERIC_ARRAY, 1);
+        generic_array.register_superclass(Obj, &obj);
+        let mut arr_eq = Self::builtin_methods(Some(mono(EQ)), 2);
+        arr_eq.register_builtin_erg_impl(
+            OP_EQ,
+            fn1_met(mono(GENERIC_ARRAY), mono(GENERIC_ARRAY), Bool),
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        generic_array.register_trait(mono(GENERIC_ARRAY), arr_eq);
+        let t_call = func1(
+            poly(ITERABLE, vec![ty_tp(T.clone())]),
+            array_t(T.clone(), TyParam::erased(Nat)),
+        )
+        .quantify();
+        generic_array.register_builtin_erg_impl(
+            FUNDAMENTAL_CALL,
+            t_call,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
         /* Array */
         let mut array_ =
             Self::builtin_poly_class(ARRAY, vec![PS::t_nd(TY_T), PS::named_nd(TY_N, Nat)], 10);
-        array_.register_superclass(Obj, &obj);
+        array_.register_superclass(mono(GENERIC_ARRAY), &generic_array);
         array_.register_marker_trait(poly(OUTPUT, vec![ty_tp(T.clone())]));
         let arr_t = array_t(T.clone(), N.clone());
         let t = fn_met(
@@ -1149,7 +1204,7 @@ impl Context {
             2,
         );
         array_add.register_builtin_erg_impl(OP_ADD, t, Immutable, Visibility::BUILTIN_PUBLIC);
-        let out_t = array_t(T.clone(), N.clone() + M.clone());
+        let out_t = array_t(T.clone(), N.clone() + M);
         array_add.register_builtin_const(
             OUTPUT,
             Visibility::BUILTIN_PUBLIC,
@@ -1243,26 +1298,52 @@ impl Context {
             array_t(T.clone(), TyParam::erased(Nat)),
         );
         array_.register_py_builtin(FUNC_DEDUP, t.quantify(), Some(FUNC_DEDUP), 28);
+        /* GenericSet */
+        let mut generic_set = Self::builtin_mono_class(GENERIC_SET, 1);
+        generic_set.register_superclass(Obj, &obj);
+        let mut set_eq = Self::builtin_methods(Some(mono(EQ)), 2);
+        set_eq.register_builtin_erg_impl(
+            OP_EQ,
+            fn1_met(mono(GENERIC_SET), mono(GENERIC_SET), Bool),
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        generic_set.register_trait(mono(GENERIC_SET), set_eq);
+        let t_call = func1(
+            poly(ITERABLE, vec![ty_tp(T.clone())]),
+            set_t(T.clone(), TyParam::erased(Nat)),
+        )
+        .quantify();
+        generic_set.register_builtin_erg_impl(
+            FUNDAMENTAL_CALL,
+            t_call,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
         /* Set */
         let mut set_ =
             Self::builtin_poly_class(SET, vec![PS::t_nd(TY_T), PS::named_nd(TY_N, Nat)], 10);
-        let set_t = set_t(T.clone(), N.clone());
-        set_.register_superclass(Obj, &obj);
+        let set_t = set_t(T.clone(), TyParam::erased(Nat));
+        set_.register_superclass(mono(GENERIC_SET), &generic_set);
         set_.register_marker_trait(poly(OUTPUT, vec![ty_tp(T.clone())]));
         let t = fn_met(
             set_t.clone(),
-            vec![kw(KW_RHS, array_t(T.clone(), M.clone()))],
+            vec![kw(KW_RHS, set_t.clone())],
             None,
             vec![],
-            array_t(T.clone(), N.clone() + M),
+            set_t.clone(),
         )
         .quantify();
         set_.register_builtin_erg_impl(FUNC_CONCAT, t, Immutable, Visibility::BUILTIN_PUBLIC);
-        let mut_type = ValueObj::builtin_class(poly(
-            MUT_SET,
-            vec![TyParam::t(T.clone()), N.clone().mutate()],
-        ));
+        let mut_type = ValueObj::builtin_class(poly(MUT_SET, vec![TyParam::t(T.clone())]));
         set_.register_builtin_const(MUTABLE_MUT_TYPE, Visibility::BUILTIN_PUBLIC, mut_type);
+        let t_call = func1(poly(ITERABLE, vec![ty_tp(T.clone())]), set_t.clone()).quantify();
+        set_.register_builtin_erg_impl(
+            FUNDAMENTAL_CALL,
+            t_call,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
         let mut set_eq = Self::builtin_methods(Some(mono(EQ)), 2);
         set_eq.register_builtin_erg_impl(
             OP_EQ,
@@ -1298,6 +1379,18 @@ impl Context {
         generic_dict.register_builtin_erg_impl(
             FUNC_GET,
             dict_get_t,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        let inner = ty_tp(tuple_t(vec![T.clone(), U.clone()]));
+        let t_call = func1(
+            poly(ITERABLE, vec![inner]),
+            dict! { T.clone() => U.clone() }.into(),
+        )
+        .quantify();
+        generic_dict.register_builtin_erg_impl(
+            FUNDAMENTAL_CALL,
+            t_call,
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
@@ -1343,6 +1436,17 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
         );
         generic_tuple.register_trait(mono(GENERIC_TUPLE), tuple_eq);
+        let t_call = func1(
+            poly(ITERABLE, vec![ty_tp(T.clone())]),
+            array_t(T.clone(), TyParam::erased(Nat)),
+        )
+        .quantify();
+        generic_tuple.register_builtin_erg_impl(
+            FUNDAMENTAL_CALL,
+            t_call,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
         let Ts = mono_q_tp(TY_TS, instanceof(array_t(Type, N.clone())));
         // Ts <: GenericArray
         let _tuple_t = poly(TUPLE, vec![Ts.clone()]);
@@ -2043,6 +2147,7 @@ impl Context {
         } else {
             FLOAT
         };
+        self.register_builtin_type(Complex, complex, vis.clone(), Const, Some(COMPLEX));
         self.register_builtin_type(Float, float, vis.clone(), Const, Some(name));
         self.register_builtin_type(Ratio, ratio, vis.clone(), Const, Some(RATIO));
         let name = if cfg!(feature = "py_compatible") {
@@ -2076,7 +2181,21 @@ impl Context {
             Const,
             Some(MODULE_TYPE),
         );
+        self.register_builtin_type(
+            mono(GENERIC_ARRAY),
+            generic_array,
+            vis.clone(),
+            Const,
+            Some(FUNC_LIST),
+        );
         self.register_builtin_type(arr_t, array_, vis.clone(), Const, Some(FUNC_LIST));
+        self.register_builtin_type(
+            mono(GENERIC_SET),
+            generic_set,
+            vis.clone(),
+            Const,
+            Some(FUNC_SET),
+        );
         self.register_builtin_type(set_t, set_, vis.clone(), Const, Some(FUNC_SET));
         self.register_builtin_type(g_dict_t, generic_dict, vis.clone(), Const, Some(FUNC_DICT));
         self.register_builtin_type(dict_t, dict_, vis.clone(), Const, Some(FUNC_DICT));
@@ -2084,7 +2203,7 @@ impl Context {
         self.register_builtin_type(
             mono(GENERIC_TUPLE),
             generic_tuple,
-            Visibility::BUILTIN_PRIVATE,
+            vis.clone(),
             Const,
             Some(FUNC_TUPLE),
         );

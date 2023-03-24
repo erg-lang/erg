@@ -463,6 +463,7 @@ impl Context {
                 );
                 Ok(res)
             }
+            Quantified(subr) => self.instantiate_t_inner(*subr, tmp_tv_cache, loc),
             Record(mut dict) => {
                 for v in dict.values_mut() {
                     *v = self.instantiate_t_inner(mem::take(v), tmp_tv_cache, loc)?;
@@ -500,10 +501,6 @@ impl Context {
                     *param = self.instantiate_tp(mem::take(param), tmp_tv_cache, loc)?;
                 }
                 Ok(poly(name, params))
-            }
-            Quantified(subr) => {
-                log!(err "a quantified type should not be instantiated: {subr}");
-                unreachable_error!(TyCheckErrors, TyCheckError, self)
             }
             Structural(t) => {
                 // avoid infinite recursion
