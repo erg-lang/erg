@@ -87,23 +87,23 @@ macro_rules! impl_t {
             }
         }
     };
-    ($T: ty, $sig_t: ident) => {
-        impl $crate::HasType for $T {
+    ($T: ty, delegate $attr: ident) => {
+        impl $crate::ty::HasType for $T {
             #[inline]
             fn ref_t(&self) -> &Type {
-                &self.t
+                &self.$attr.ref_t()
             }
             #[inline]
             fn ref_mut_t(&mut self) -> &mut Type {
-                &mut self.t
+                self.$attr.ref_mut_t()
             }
             #[inline]
             fn signature_t(&self) -> Option<&Type> {
-                Some(&self.$sig_t)
+                self.$attr.signature_t()
             }
             #[inline]
             fn signature_mut_t(&mut self) -> Option<&mut Type> {
-                &mut self.$sig_t
+                self.$attr.signature_mut_t()
             }
         }
     };
@@ -1543,6 +1543,10 @@ impl Type {
             Self::Refinement(refine) => refine.t.is_record(),
             _ => false,
         }
+    }
+
+    pub fn is_module(&self) -> bool {
+        self.is_py_module() || self.is_erg_module()
     }
 
     pub fn is_erg_module(&self) -> bool {

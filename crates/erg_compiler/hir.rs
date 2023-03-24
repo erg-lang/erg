@@ -2007,6 +2007,7 @@ pub struct DefBody {
 }
 
 impl_locational!(DefBody, lossy op, block);
+impl_t!(DefBody, delegate block);
 
 impl DefBody {
     pub const fn new(op: Token, block: Block, id: DefId) -> Self {

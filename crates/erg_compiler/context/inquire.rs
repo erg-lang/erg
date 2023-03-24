@@ -2296,16 +2296,22 @@ impl Context {
     // FIXME: 現在の実装だとimportしたモジュールはどこからでも見れる
     pub(crate) fn get_mod(&self, name: &str) -> Option<&Context> {
         let t = self.get_var_info(name).map(|(_, vi)| &vi.t)?;
-        if t.is_erg_module() {
-            let path =
-                option_enum_unwrap!(t.typarams().remove(0), TyParam::Value:(ValueObj::Str:(_)))?;
-            let path = Self::resolve_path(&self.cfg, Path::new(&path[..]))?;
-            self.get_ctx_from_path(path.as_path())
-        } else if t.is_py_module() {
-            let path =
-                option_enum_unwrap!(t.typarams().remove(0), TyParam::Value:(ValueObj::Str:(_)))?;
-            let path = Self::resolve_decl_path(&self.cfg, Path::new(&path[..]))?;
-            self.get_ctx_from_path(path.as_path())
+        self.get_mod_from_t(t)
+    }
+
+    pub fn get_mod_from_t(&self, mod_t: &Type) -> Option<&Context> {
+        self.get_ctx_from_path(&self.get_path_from_mod_t(mod_t)?)
+    }
+
+    pub fn get_path_from_mod_t(&self, mod_t: &Type) -> Option<PathBuf> {
+        let tps = mod_t.typarams();
+        let Some(TyParam::Value(ValueObj::Str(path))) = tps.get(0) else {
+            return None;
+        };
+        if mod_t.is_erg_module() {
+            Self::resolve_path(&self.cfg, Path::new(&path[..]))
+        } else if mod_t.is_py_module() {
+            Self::resolve_decl_path(&self.cfg, Path::new(&path[..]))
         } else {
             None
         }
