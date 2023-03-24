@@ -20,7 +20,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.6.8"
+version = "0.6.9-nightly.0"
 authors = ["erg-lang team <moderation.erglang@gmail.com>"]
 license = "MIT OR Apache-2.0"
 edition = "2021"
@@ -64,10 +64,10 @@ full-repl = ["erg_common/full-repl"]
 full = ["els", "full-repl", "unicode", "pretty"]
 
 [workspace.dependencies]
-erg_common = { version = "0.6.8", path = "./crates/erg_common" }
-erg_parser = { version = "0.6.8", path = "./crates/erg_parser" }
-erg_compiler = { version = "0.6.8", path = "./crates/erg_compiler" }
-els = { version = "0.1.20", path = "./crates/els" }
+erg_common = { version = "0.6.9-nightly.0", path = "./crates/erg_common" }
+erg_parser = { version = "0.6.9-nightly.0", path = "./crates/erg_parser" }
+erg_compiler = { version = "0.6.9-nightly.0", path = "./crates/erg_compiler" }
+els = { version = "0.1.21-nightly.0", path = "./crates/els" }
 
 [dependencies]
 erg_common = { workspace = true }
