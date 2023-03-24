@@ -765,6 +765,7 @@ impl Context {
         }
     }
 
+    // Note that the method may be static.
     fn search_method_info(
         &self,
         obj: &hir::Expr,
@@ -1134,6 +1135,8 @@ impl Context {
     /// substitute_call(instance: ((?M(: Nat)..?N(: Nat)) -> ?M+?N), [1..2], []) => instance: (1..2) -> {3}
     /// substitute_call(instance: ((?L(: Add(?R, ?O)), ?R) -> ?O), [1, 2], []) => instance: (Nat, Nat) -> Nat
     /// substitute_call(instance: ((Failure, ?T) -> ?T), [Int, Int]) => instance: (Failure, Int) -> Int
+    /// ↓ don't substitute `Int` to `self`
+    /// substitute_call(obj: Int, instance: ((self: Int, other: Int) -> Int), [1, 2]) => instance: (Int, Int) -> Int
     /// ```
     fn substitute_call(
         &self,
@@ -1197,7 +1200,11 @@ impl Context {
             Type::Quantified(_) => unreachable_error!(TyCheckErrors, TyCheckError, self),
             Type::Subr(subr) => {
                 let mut errs = TyCheckErrors::empty();
-                let is_method = subr.self_t().is_some();
+                // method: obj: 1, subr: (self: Int, other: Int) -> Int
+                // non-method: obj: Int, subr: (self: Int, other: Int) -> Int
+                let is_method = subr
+                    .self_t()
+                    .map_or(false, |self_t| self.subtype_of(obj.ref_t(), self_t));
                 let callee = if let Some(ident) = attr_name {
                     if is_method {
                         obj.clone()
