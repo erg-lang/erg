@@ -3,6 +3,11 @@ use std::convert::TryInto;
 use crate::ty::*;
 
 #[inline]
+pub fn pos(ty: Type) -> ParamTy {
+    ParamTy::Pos(ty)
+}
+
+#[inline]
 pub fn kw(name: &'static str, ty: Type) -> ParamTy {
     ParamTy::kw(Str::ever(name), ty)
 }

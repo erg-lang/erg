@@ -116,6 +116,13 @@ impl Context {
         float.register_py_builtin(OP_GE, fn1_met(Float, Float, Bool), Some(OP_GE), 0);
         float.register_py_builtin(OP_LT, fn1_met(Float, Float, Bool), Some(OP_LT), 0);
         float.register_py_builtin(OP_LE, fn1_met(Float, Float, Bool), Some(OP_LE), 0);
+        let t_call = func1(Obj, Float);
+        float.register_builtin_erg_impl(
+            FUNDAMENTAL_CALL,
+            t_call,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
         float.register_marker_trait(mono(NUM));
         float.register_marker_trait(mono(ORD));
         let mut float_ord = Self::builtin_methods(Some(mono(ORD)), 2);
@@ -410,6 +417,13 @@ impl Context {
             mono(BYTES),
         );
         int.register_py_builtin(FUNC_TO_BYTES, t_to_bytes, Some(FUNC_TO_BYTES), 55);
+        let t_call = func(vec![pos(Obj)], None, vec![kw("base", Nat)], Int);
+        int.register_builtin_erg_impl(
+            FUNDAMENTAL_CALL,
+            t_call,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
         let mut int_ord = Self::builtin_methods(Some(mono(ORD)), 2);
         int_ord.register_builtin_erg_impl(
             OP_PARTIAL_CMP,
@@ -533,6 +547,13 @@ impl Context {
             Some(FUNC_TIMES),
             13,
         );
+        let t_call = func(vec![pos(Obj)], None, vec![kw("base", Nat)], Nat);
+        nat.register_builtin_erg_impl(
+            FUNDAMENTAL_CALL,
+            t_call,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
         nat.register_marker_trait(mono(NUM));
         let mut nat_eq = Self::builtin_methods(Some(mono(EQ)), 2);
         nat_eq.register_builtin_erg_impl(
@@ -620,6 +641,13 @@ impl Context {
             OP_OR,
             fn1_met(Bool, Bool, Bool),
             Const,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        let t_call = func1(Obj, Bool);
+        bool_.register_builtin_erg_impl(
+            FUNDAMENTAL_CALL,
+            t_call,
+            Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
         bool_.register_marker_trait(mono(NUM));
@@ -837,6 +865,13 @@ impl Context {
         str_.register_builtin_erg_impl(
             FUNDAMENTAL_GETITEM,
             str_getitem_t,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        let t_call = func(vec![], None, vec![kw("object", Obj)], Str);
+        str_.register_builtin_erg_impl(
+            FUNDAMENTAL_CALL,
+            t_call,
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );

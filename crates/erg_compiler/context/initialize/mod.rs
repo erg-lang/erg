@@ -334,6 +334,7 @@ const OP_MUTATE: &str = "__mutate__";
 const OP_POS: &str = "__pos__";
 const OP_NEG: &str = "__neg__";
 
+const FUNDAMENTAL_CALL: &str = "__call__";
 const FUNDAMENTAL_NAME: &str = "__name__";
 const FUNDAMENTAL_STR: &str = "__str__";
 const FUNDAMENTAL_ITER: &str = "__iter__";
