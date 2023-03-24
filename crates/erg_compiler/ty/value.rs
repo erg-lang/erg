@@ -346,10 +346,22 @@ impl GenTypeObj {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Eq)]
 pub enum TypeObj {
     Builtin { t: Type, meta_t: Type },
     Generated(GenTypeObj),
+}
+
+impl PartialEq for TypeObj {
+    fn eq(&self, other: &Self) -> bool {
+        self.typ() == other.typ()
+    }
+}
+
+impl Hash for TypeObj {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.typ().hash(state);
+    }
 }
 
 impl fmt::Display for TypeObj {
@@ -468,10 +480,14 @@ impl fmt::Debug for ValueObj {
             Self::Float(fl) => {
                 // In Rust, .0 is shown omitted.
                 if fl.fract() < 1e-10 {
-                    write!(f, "{fl:.1}f")
+                    write!(f, "{fl:.1}")?;
                 } else {
-                    write!(f, "{fl}f")
+                    write!(f, "{fl}")?;
                 }
+                if cfg!(feature = "debug") {
+                    write!(f, "f64")?;
+                }
+                Ok(())
             }
             Self::Str(s) => write!(f, "\"{s}\""),
             Self::Bool(b) => {
@@ -677,15 +693,30 @@ impl TryFrom<&ValueObj> for f64 {
 }
 
 impl TryFrom<ValueObj> for Type {
-    type Error = ();
-    fn try_from(val: ValueObj) -> Result<Type, ()> {
+    type Error = ValueObj;
+    fn try_from(val: ValueObj) -> Result<Type, ValueObj> {
         match val {
             ValueObj::Type(t) => match t {
                 TypeObj::Builtin { t, .. } => Ok(t),
                 TypeObj::Generated(gen) => Ok(gen.into_typ()),
             },
-            ValueObj::Mut(v) => Type::try_from(v.borrow().clone()).map_err(|_| ()),
-            _ => Err(()),
+            ValueObj::Record(rec) => {
+                let mut fields = dict! {};
+                for (name, val) in rec.into_iter() {
+                    fields.insert(name, Type::try_from(val)?);
+                }
+                Ok(Type::Record(fields))
+            }
+            ValueObj::Tuple(ts) => {
+                let mut new_ts = vec![];
+                for v in ts.iter() {
+                    new_ts.push(Type::try_from(v.clone())?);
+                }
+                Ok(tuple_t(new_ts))
+            }
+            ValueObj::Subr(subr) => subr.as_type().ok_or(ValueObj::Subr(subr)),
+            ValueObj::Mut(v) => Type::try_from(v.borrow().clone()),
+            other => Err(other),
         }
     }
 }

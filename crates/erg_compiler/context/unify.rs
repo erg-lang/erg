@@ -24,8 +24,9 @@ use Type::*;
 use ValueObj::{Inf, NegInf};
 
 impl Context {
-    /// occur(?T, ?T) ==> Error
+    /// occur(?T, ?T) ==> OK
     /// occur(X -> ?T, ?T) ==> Error
+    /// occur(X -> ?T, X -> ?T) ==> OK
     /// occur(?T, ?T -> X) ==> Error
     /// occur(?T, Option(?T)) ==> Error
     /// occur(?T, ?T.Output) ==> OK
@@ -35,47 +36,36 @@ impl Context {
         maybe_sup: &Type,
         loc: &impl Locational,
     ) -> TyCheckResult<()> {
+        if maybe_sub == maybe_sup {
+            return Ok(());
+        }
         match (maybe_sub, maybe_sup) {
             (Type::FreeVar(fv), _) if fv.is_linked() => self.occur(&fv.crack(), maybe_sup, loc),
             (_, Type::FreeVar(fv)) if fv.is_linked() => self.occur(maybe_sub, &fv.crack(), loc),
-            (Type::FreeVar(sub), Type::FreeVar(sup)) => {
-                if sub.is_unbound() && sup.is_unbound() && sub == sup {
-                    Err(TyCheckErrors::from(TyCheckError::subtyping_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        maybe_sub,
-                        maybe_sup,
-                        loc.loc(),
-                        self.caused_by(),
-                    )))
-                } else {
-                    Ok(())
-                }
-            }
             (Type::Subr(subr), Type::FreeVar(fv)) if fv.is_unbound() => {
                 for default_t in subr.default_params.iter().map(|pt| pt.typ()) {
-                    self.occur(default_t, maybe_sup, loc)?;
+                    self.occur_inner(default_t, maybe_sup, loc)?;
                 }
                 if let Some(var_params) = subr.var_params.as_ref() {
-                    self.occur(var_params.typ(), maybe_sup, loc)?;
+                    self.occur_inner(var_params.typ(), maybe_sup, loc)?;
                 }
                 for non_default_t in subr.non_default_params.iter().map(|pt| pt.typ()) {
-                    self.occur(non_default_t, maybe_sup, loc)?;
+                    self.occur_inner(non_default_t, maybe_sup, loc)?;
                 }
-                self.occur(&subr.return_t, maybe_sup, loc)?;
+                self.occur_inner(&subr.return_t, maybe_sup, loc)?;
                 Ok(())
             }
             (Type::FreeVar(fv), Type::Subr(subr)) if fv.is_unbound() => {
                 for default_t in subr.default_params.iter().map(|pt| pt.typ()) {
-                    self.occur(maybe_sub, default_t, loc)?;
+                    self.occur_inner(maybe_sub, default_t, loc)?;
                 }
                 if let Some(var_params) = subr.var_params.as_ref() {
-                    self.occur(maybe_sub, var_params.typ(), loc)?;
+                    self.occur_inner(maybe_sub, var_params.typ(), loc)?;
                 }
                 for non_default_t in subr.non_default_params.iter().map(|pt| pt.typ()) {
-                    self.occur(maybe_sub, non_default_t, loc)?;
+                    self.occur_inner(maybe_sub, non_default_t, loc)?;
                 }
-                self.occur(maybe_sub, &subr.return_t, loc)?;
+                self.occur_inner(maybe_sub, &subr.return_t, loc)?;
                 Ok(())
             }
             (Type::Subr(lhs), Type::Subr(rhs)) => {
@@ -111,7 +101,7 @@ impl Context {
                         None
                     }
                 }) {
-                    self.occur(param, maybe_sup, loc)?;
+                    self.occur_inner(param, maybe_sup, loc)?;
                 }
                 Ok(())
             }
@@ -123,17 +113,131 @@ impl Context {
                         None
                     }
                 }) {
-                    self.occur(maybe_sub, param, loc)?;
+                    self.occur_inner(maybe_sub, param, loc)?;
                 }
                 Ok(())
             }
             (lhs, Type::Or(l, r)) | (lhs, Type::And(l, r)) => {
-                self.occur(lhs, l, loc)?;
-                self.occur(lhs, r, loc)
+                self.occur_inner(lhs, l, loc)?;
+                self.occur_inner(lhs, r, loc)
             }
             (Type::Or(l, r), rhs) | (Type::And(l, r), rhs) => {
-                self.occur(l, rhs, loc)?;
-                self.occur(r, rhs, loc)
+                self.occur_inner(l, rhs, loc)?;
+                self.occur_inner(r, rhs, loc)
+            }
+            _ => Ok(()),
+        }
+    }
+
+    pub(crate) fn occur_inner(
+        &self,
+        maybe_sub: &Type,
+        maybe_sup: &Type,
+        loc: &impl Locational,
+    ) -> TyCheckResult<()> {
+        match (maybe_sub, maybe_sup) {
+            (Type::FreeVar(fv), _) if fv.is_linked() => {
+                self.occur_inner(&fv.crack(), maybe_sup, loc)
+            }
+            (_, Type::FreeVar(fv)) if fv.is_linked() => {
+                self.occur_inner(maybe_sub, &fv.crack(), loc)
+            }
+            (Type::FreeVar(sub), Type::FreeVar(sup)) => {
+                if sub.is_unbound() && sup.is_unbound() && sub == sup {
+                    Err(TyCheckErrors::from(TyCheckError::subtyping_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        maybe_sub,
+                        maybe_sup,
+                        loc.loc(),
+                        self.caused_by(),
+                    )))
+                } else {
+                    Ok(())
+                }
+            }
+            (Type::Subr(subr), Type::FreeVar(fv)) if fv.is_unbound() => {
+                for default_t in subr.default_params.iter().map(|pt| pt.typ()) {
+                    self.occur_inner(default_t, maybe_sup, loc)?;
+                }
+                if let Some(var_params) = subr.var_params.as_ref() {
+                    self.occur_inner(var_params.typ(), maybe_sup, loc)?;
+                }
+                for non_default_t in subr.non_default_params.iter().map(|pt| pt.typ()) {
+                    self.occur_inner(non_default_t, maybe_sup, loc)?;
+                }
+                self.occur_inner(&subr.return_t, maybe_sup, loc)?;
+                Ok(())
+            }
+            (Type::FreeVar(fv), Type::Subr(subr)) if fv.is_unbound() => {
+                for default_t in subr.default_params.iter().map(|pt| pt.typ()) {
+                    self.occur_inner(maybe_sub, default_t, loc)?;
+                }
+                if let Some(var_params) = subr.var_params.as_ref() {
+                    self.occur_inner(maybe_sub, var_params.typ(), loc)?;
+                }
+                for non_default_t in subr.non_default_params.iter().map(|pt| pt.typ()) {
+                    self.occur_inner(maybe_sub, non_default_t, loc)?;
+                }
+                self.occur_inner(maybe_sub, &subr.return_t, loc)?;
+                Ok(())
+            }
+            (Type::Subr(lhs), Type::Subr(rhs)) => {
+                for (lhs, rhs) in lhs
+                    .default_params
+                    .iter()
+                    .map(|pt| pt.typ())
+                    .zip(rhs.default_params.iter().map(|pt| pt.typ()))
+                {
+                    self.occur_inner(lhs, rhs, loc)?;
+                }
+                if let Some(lhs) = lhs.var_params.as_ref() {
+                    if let Some(rhs) = rhs.var_params.as_ref() {
+                        self.occur_inner(lhs.typ(), rhs.typ(), loc)?;
+                    }
+                }
+                for (lhs, rhs) in lhs
+                    .non_default_params
+                    .iter()
+                    .map(|pt| pt.typ())
+                    .zip(rhs.non_default_params.iter().map(|pt| pt.typ()))
+                {
+                    self.occur_inner(lhs, rhs, loc)?;
+                }
+                self.occur_inner(&lhs.return_t, &rhs.return_t, loc)?;
+                Ok(())
+            }
+            (Type::Poly { params, .. }, Type::FreeVar(fv)) if fv.is_unbound() => {
+                for param in params.iter().filter_map(|tp| {
+                    if let TyParam::Type(t) = tp {
+                        Some(t)
+                    } else {
+                        None
+                    }
+                }) {
+                    self.occur_inner(param, maybe_sup, loc)?;
+                }
+                Ok(())
+            }
+            (Type::FreeVar(fv), Type::Poly { params, .. }) if fv.is_unbound() => {
+                for param in params.iter().filter_map(|tp| {
+                    if let TyParam::Type(t) = tp {
+                        Some(t)
+                    } else {
+                        None
+                    }
+                }) {
+                    self.occur_inner(maybe_sub, param, loc)?;
+                }
+                Ok(())
+            }
+            (lhs, Type::Or(l, r)) | (lhs, Type::And(l, r)) => {
+                self.occur_inner(lhs, l, loc)?;
+                self.occur_inner(lhs, r, loc)
+            }
+            (Type::Or(l, r), rhs) | (Type::And(l, r), rhs) => {
+                self.occur_inner(l, rhs, loc)?;
+                self.occur_inner(r, rhs, loc)
             }
             _ => Ok(()),
         }

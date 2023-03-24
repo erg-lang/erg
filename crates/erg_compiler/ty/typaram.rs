@@ -601,7 +601,7 @@ impl TryFrom<TyParam> for Type {
                 Type::try_from(fv.crack().clone()).map_err(|_| ())
             }
             TyParam::Type(t) => Ok(*t),
-            TyParam::Value(v) => Type::try_from(v),
+            TyParam::Value(v) => Type::try_from(v).or(Err(())),
             // TODO: Array, Dict, Set
             _ => Err(()),
         }

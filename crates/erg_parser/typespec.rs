@@ -12,9 +12,20 @@ impl Parser {
     pub fn validate_const_expr(expr: Expr) -> Result<ConstExpr, ParseError> {
         match expr {
             Expr::Literal(l) => Ok(ConstExpr::Lit(l)),
-            Expr::Accessor(Accessor::Ident(local)) => {
-                Ok(ConstExpr::Accessor(ConstAccessor::Local(local)))
-            }
+            Expr::Accessor(acc) => match acc {
+                Accessor::Ident(local) => Ok(ConstExpr::Accessor(ConstAccessor::Local(local))),
+                Accessor::Attr(attr) => {
+                    let expr = Self::validate_const_expr(*attr.obj)?;
+                    Ok(ConstExpr::Accessor(ConstAccessor::Attr(
+                        ConstAttribute::new(expr, attr.ident),
+                    )))
+                }
+                other => Err(ParseError::feature_error(
+                    line!() as usize,
+                    other.loc(),
+                    "complex const accessor",
+                )),
+            },
             Expr::Array(array) => match array {
                 Array::Normal(arr) => {
                     let (elems, ..) = arr.elems.deconstruct();

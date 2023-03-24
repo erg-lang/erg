@@ -1245,7 +1245,7 @@ impl Context {
             }
             TyParam::FreeVar(fv) if fv.is_linked() => self.convert_tp_into_ty(fv.crack().clone()),
             TyParam::Type(t) => Ok(t.as_ref().clone()),
-            TyParam::Value(v) => Type::try_from(v),
+            TyParam::Value(v) => Type::try_from(v).or(Err(())),
             // TODO: Array, Dict, Set
             _ => Err(()),
         }

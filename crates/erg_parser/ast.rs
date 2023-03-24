@@ -1340,9 +1340,9 @@ pub struct ConstAttribute {
 impl NestedDisplay for ConstAttribute {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         if self.obj.need_to_be_closed() {
-            write!(f, "({}).{}", self.obj, self.name)
+            write!(f, "({}){}", self.obj, self.name)
         } else {
-            write!(f, "{}.{}", self.obj, self.name)
+            write!(f, "{}{}", self.obj, self.name)
         }
     }
 }
@@ -1552,6 +1552,10 @@ impl ConstKeyValue {
     pub const fn new(key: ConstExpr, value: ConstExpr) -> Self {
         Self { key, value }
     }
+
+    pub fn downcast(self) -> KeyValue {
+        KeyValue::new(self.key.downcast(), self.value.downcast())
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -1579,9 +1583,13 @@ impl ConstDict {
         }
     }
 
-    /*pub fn downcast(self) -> Dict {
-        Dict::Normal(NormalDict::new(self.l_brace, self.r_brace, self.attrs.downcast()))
-    }*/
+    pub fn downcast(self) -> Dict {
+        Dict::Normal(NormalDict::new(
+            self.l_brace,
+            self.r_brace,
+            self.kvs.into_iter().map(|kv| kv.downcast()).collect(),
+        ))
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -1875,6 +1883,10 @@ impl ConstTypeAsc {
     pub fn is_subtype_ascription(&self) -> bool {
         self.t_spec.op.is(TokenKind::SubtypeOf)
     }
+
+    pub fn downcast(self) -> TypeAscription {
+        TypeAscription::new(self.expr.downcast(), *self.t_spec)
+    }
 }
 
 /// valid expression for an argument of polymorphic types
@@ -1912,11 +1924,16 @@ impl ConstExpr {
             Self::Accessor(acc) => Expr::Accessor(acc.downcast()),
             Self::App(app) => Expr::Call(app.downcast()),
             Self::Array(arr) => Expr::Array(arr.downcast()),
-            // Self::Set(set) => Expr::Set(set.downcast()),
-            // Self::Dict(dict) => Expr::Dict(dict.downcast()),
+            Self::Set(set) => Expr::Set(set.downcast()),
+            Self::Dict(dict) => Expr::Dict(dict.downcast()),
+            Self::Tuple(tuple) => Expr::Tuple(tuple.downcast()),
+            Self::Record(record) => Expr::Record(record.downcast()),
+            Self::Lambda(lambda) => Expr::Lambda(lambda.downcast()),
+            Self::Def(def) => Expr::Def(def.downcast()),
             Self::BinOp(binop) => Expr::BinOp(binop.downcast()),
             Self::UnaryOp(unop) => Expr::UnaryOp(unop.downcast()),
-            _ => todo!(),
+            Self::TypeAsc(type_asc) => Expr::TypeAscription(type_asc.downcast()),
+            Self::Erased(lit) => Expr::Dummy(Dummy::new(Some(lit.loc()), vec![])),
         }
     }
 }

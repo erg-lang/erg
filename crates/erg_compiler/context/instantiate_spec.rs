@@ -669,6 +669,41 @@ impl Context {
         }
     }
 
+    fn instantiate_acc(
+        &self,
+        acc: &ast::ConstAccessor,
+        erased_idx: Option<(&Context, usize)>,
+        tmp_tv_cache: &mut TyVarCache,
+        not_found_is_qvar: bool,
+    ) -> TyCheckResult<TyParam> {
+        match acc {
+            ast::ConstAccessor::Attr(attr) => {
+                let obj = self.instantiate_const_expr(
+                    &attr.obj,
+                    erased_idx,
+                    tmp_tv_cache,
+                    not_found_is_qvar,
+                )?;
+                Ok(obj.proj(attr.name.inspect()))
+            }
+            ast::ConstAccessor::Local(local) => {
+                self.inc_ref_local(local, self);
+                self.instantiate_local(
+                    local.inspect(),
+                    erased_idx,
+                    tmp_tv_cache,
+                    local,
+                    not_found_is_qvar,
+                )
+            }
+            other => type_feature_error!(
+                self,
+                other.loc(),
+                &format!("instantiating const expression {other}")
+            ),
+        }
+    }
+
     fn instantiate_local(
         &self,
         name: &Str,
@@ -713,27 +748,14 @@ impl Context {
         tmp_tv_cache: &mut TyVarCache,
         not_found_is_qvar: bool,
     ) -> TyCheckResult<TyParam> {
+        if let Ok(value) = self.eval_const_expr(&expr.clone().downcast()) {
+            return Ok(TyParam::Value(value));
+        }
         match expr {
             ast::ConstExpr::Lit(lit) => Ok(TyParam::Value(self.eval_lit(lit)?)),
             // TODO: inc_ref
-            ast::ConstExpr::Accessor(ast::ConstAccessor::Attr(attr)) => {
-                let obj = self.instantiate_const_expr(
-                    &attr.obj,
-                    erased_idx,
-                    tmp_tv_cache,
-                    not_found_is_qvar,
-                )?;
-                Ok(obj.proj(attr.name.inspect()))
-            }
-            ast::ConstExpr::Accessor(ast::ConstAccessor::Local(local)) => {
-                self.inc_ref_local(local, self);
-                self.instantiate_local(
-                    local.inspect(),
-                    erased_idx,
-                    tmp_tv_cache,
-                    local,
-                    not_found_is_qvar,
-                )
+            ast::ConstExpr::Accessor(acc) => {
+                self.instantiate_acc(acc, erased_idx, tmp_tv_cache, not_found_is_qvar)
             }
             ast::ConstExpr::Array(array) => {
                 let mut tp_arr = vec![];
@@ -953,7 +975,10 @@ impl Context {
                 self.instantiate_tp_as_type(fv.crack().clone(), loc)
             }
             TyParam::Type(t) => Ok(*t),
-            TyParam::Value(ValueObj::Type(t)) => Ok(t.into_typ()),
+            #[allow(clippy::bind_instead_of_map)]
+            TyParam::Value(value) => Type::try_from(value).or_else(|value| {
+                type_feature_error!(self, loc.loc(), &format!("instantiate `{value}` as type"))
+            }),
             TyParam::Set(set) => {
                 let t = set
                     .iter()

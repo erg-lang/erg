@@ -139,18 +139,32 @@ impl ConstSubr {
     pub fn as_type(&self) -> Option<Type> {
         match self {
             ConstSubr::User(user) => {
-                let Type::Subr(subr) = &user.sig_t else { return None };
+                // TODO: quantified types
+                let subr = match &user.sig_t {
+                    Type::Subr(subr) => subr,
+                    Type::Quantified(subr) => {
+                        if let Type::Subr(subr) = subr.as_ref() {
+                            subr
+                        } else {
+                            return None;
+                        }
+                    }
+                    _ => {
+                        return None;
+                    }
+                };
                 if let Type::Refinement(refine) = subr.return_t.as_ref() {
                     if let Predicate::Equal { rhs, .. } = refine.pred.as_ref() {
                         let return_t = Type::try_from(rhs.clone()).ok()?;
                         let var_params = subr.var_params.as_ref().map(|t| t.as_ref());
-                        return Some(subr_t(
+                        let subr_t = subr_t(
                             subr.kind,
                             subr.non_default_params.clone(),
                             var_params.cloned(),
                             subr.default_params.clone(),
                             return_t,
-                        ));
+                        );
+                        return Some(subr_t);
                     }
                 }
                 None
