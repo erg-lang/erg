@@ -31,9 +31,9 @@ pub use const_subr::*;
 use constructors::{dict_t, int_interval, mono};
 use free::{CanbeFree, Constraint, Free, FreeKind, FreeTyVar, HasLevel, Level, GENERIC_LEVEL};
 pub use predicate::Predicate;
-use typaram::{IntervalOp, TyParam};
+pub use typaram::{IntervalOp, TyParam};
 use value::value_set::*;
-use value::ValueObj;
+pub use value::ValueObj;
 use value::ValueObj::{Inf, NegInf};
 pub use vis::*;
 

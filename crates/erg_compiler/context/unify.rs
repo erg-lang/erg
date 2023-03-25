@@ -383,16 +383,28 @@ impl Context {
                 }
             }
             (l, TyParam::Type(r)) => {
-                let l = self
-                    .convert_tp_into_ty(l.clone())
-                    .unwrap_or_else(|_| todo!("{l} cannot be a type"));
+                let l = self.convert_tp_into_ty(l.clone()).map_err(|_| {
+                    TyCheckError::tp_to_type_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        l,
+                        loc.loc(),
+                        self.caused_by(),
+                    )
+                })?;
                 self.sub_unify(&l, r, loc, None)?;
                 Ok(())
             }
             (TyParam::Type(l), r) => {
-                let r = self
-                    .convert_tp_into_ty(r.clone())
-                    .unwrap_or_else(|_| todo!("{r} cannot be a type"));
+                let r = self.convert_tp_into_ty(r.clone()).map_err(|_| {
+                    TyCheckError::tp_to_type_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        r,
+                        loc.loc(),
+                        self.caused_by(),
+                    )
+                })?;
                 self.sub_unify(l, &r, loc, None)?;
                 Ok(())
             }
@@ -417,7 +429,7 @@ impl Context {
                 }
                 Ok(())
             }
-            (l, r) => panic!("type-parameter unification failed:\nl:{l}\nr: {r}"),
+            (l, r) => type_feature_error!(self, loc.loc(), &format!("unifying {l} and {r}")),
         }
     }
 
@@ -457,7 +469,9 @@ impl Context {
                 todo!("{_l}/{_r}")
             }
             (l, r) if self.eq_tp(l, r) => Ok(()),
-            (l, r) => panic!("type-parameter re-unification failed:\nl: {l}\nr: {r}"),
+            (l, r) => {
+                type_feature_error!(error self, loc.loc(), &format!("re-unifying {l} and {r}"))
+            }
         }
     }
 

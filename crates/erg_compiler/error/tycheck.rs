@@ -8,7 +8,7 @@ use erg_common::traits::Locational;
 use erg_common::{fmt_iter, fmt_option_map, fmt_vec, switch_lang, Str};
 
 use crate::error::*;
-use crate::ty::{Predicate, Type};
+use crate::ty::{Predicate, TyParam, Type};
 
 pub type TyCheckError = CompileError;
 pub type TyCheckErrors = CompileErrors;
@@ -1132,6 +1132,31 @@ passed keyword args:    {kw_args_len}"
                 errno,
                 TypeError,
                 expr.loc(),
+            ),
+            input,
+            caused_by,
+        )
+    }
+
+    pub fn tp_to_type_error(
+        input: Input,
+        errno: usize,
+        tp: &TyParam,
+        loc: Location,
+        caused_by: String,
+    ) -> Self {
+        Self::new(
+            ErrorCore::new(
+                vec![SubMessage::only_loc(loc)],
+                switch_lang!(
+                    "japanese" => format!("型が期待されましたが、{tp}は型ではありません"),
+                    "simplified_chinese" => format!("期望一个类型，但是得到了{tp}"),
+                    "traditional_chinese" => format!("期望一個類型，但是得到了{tp}"),
+                    "english" => format!("expected a type, but got {tp}"),
+                ),
+                errno,
+                TypeError,
+                loc,
             ),
             input,
             caused_by,

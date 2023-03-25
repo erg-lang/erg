@@ -714,7 +714,19 @@ impl Context {
     ) -> TyCheckResult<TyParam> {
         if &name[..] == "_" {
             let t = if let Some((ctx, i)) = erased_idx {
-                ctx.params[i].1.t.clone()
+                let param = ctx.params.get(i).ok_or_else(|| {
+                    TyCheckErrors::from(TyCheckError::too_many_args_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        loc.loc(),
+                        &ctx.name,
+                        self.caused_by(),
+                        ctx.params.len(),
+                        i,
+                        0,
+                    ))
+                })?;
+                param.1.t.clone()
             } else {
                 Type::Uninited
             };
