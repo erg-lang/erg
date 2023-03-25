@@ -12,8 +12,8 @@ use erg_common::set::Set as HashSet;
 use erg_common::str::Str;
 use erg_common::traits::{DequeStream, Locational, Runnable, Stream};
 use erg_common::{
-    caused_by, debug_power_assert, enum_unwrap, fn_name, impl_locational_for_enum, log,
-    option_enum_unwrap, set, switch_lang, switch_unreachable,
+    caused_by, debug_power_assert, enum_unwrap, fn_name, impl_locational_for_enum, log, set,
+    switch_lang, switch_unreachable,
 };
 
 use crate::ast::*;
@@ -1727,7 +1727,7 @@ impl Parser {
             Some(t) if t.is(AtSign) => {
                 let decos = self.opt_reduce_decorators()?;
                 let expr = self.try_reduce_chunk(false, in_brace)?;
-                let Some(mut def) = option_enum_unwrap!(expr, Expr::Def) else {
+                let Expr::Def(mut def) = expr else {
                     // self.restore(other);
                     let err = self.skip_and_throw_syntax_err(caused_by!());
                     self.errs.push(err);

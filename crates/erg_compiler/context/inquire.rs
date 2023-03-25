@@ -1021,7 +1021,7 @@ impl Context {
         let op = hir::Expr::Accessor(hir::Accessor::private(symbol, t));
         self.get_call_t(&op, &None, args, &[], input, namespace)
             .map_err(|(_, errs)| {
-                let Some(op_ident ) = option_enum_unwrap!(op, hir::Expr::Accessor:(hir::Accessor::Ident:(_))) else {
+                let hir::Expr::Accessor(hir::Accessor::Ident(op_ident)) = op else {
                     return errs;
                 };
                 let vi = op_ident.vi.clone();
@@ -1065,7 +1065,7 @@ impl Context {
         let op = hir::Expr::Accessor(hir::Accessor::private(symbol, vi));
         self.get_call_t(&op, &None, args, &[], input, namespace)
             .map_err(|(_, errs)| {
-                let Some(op_ident) = option_enum_unwrap!(op, hir::Expr::Accessor:(hir::Accessor::Ident:(_))) else {
+                let hir::Expr::Accessor(hir::Accessor::Ident(op_ident)) = op else {
                     return errs;
                 };
                 let vi = op_ident.vi.clone();

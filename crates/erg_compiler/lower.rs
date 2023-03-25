@@ -11,7 +11,7 @@ use erg_common::set;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, NoTypeDisplay, Runnable, Stream};
 use erg_common::triple::Triple;
-use erg_common::{fmt_option, fn_name, log, option_enum_unwrap, switch_lang, Str};
+use erg_common::{fmt_option, fn_name, log, switch_lang, Str};
 
 use erg_parser::ast::{self, VisModifierSpec};
 use erg_parser::ast::{OperationKind, TypeSpecWithOp, VarName, AST};
@@ -260,14 +260,15 @@ impl ASTLowerer {
                     (false, false) => {
                         if let hir::Expr::TypeAsc(type_asc) = &elem {
                             // e.g. [1, "a": Str or NoneType]
-                            if !self
-                                .module
-                                .context
-                                .supertype_of(&type_asc.spec.spec_t, &union)
+                            if !cfg!(feature = "py_compatible")
+                                && !self
+                                    .module
+                                    .context
+                                    .supertype_of(&type_asc.spec.spec_t, &union)
                             {
                                 return Err(self.elem_err(&l, &r, &elem));
                             } // else(OK): e.g. [1, "a": Str or Int]
-                        } else {
+                        } else if !cfg!(feature = "py_compatible") {
                             return Err(self.elem_err(&l, &r, &elem));
                         }
                     }
@@ -406,7 +407,7 @@ impl ASTLowerer {
         for elem in elems {
             let elem = self.lower_expr(elem.expr)?;
             union = self.module.context.union(&union, elem.ref_t());
-            if union.is_union_type() {
+            if !cfg!(feature = "py_compatible") && union.is_union_type() {
                 return Err(LowerErrors::from(LowerError::syntax_error(
                     self.cfg.input.clone(),
                     line!() as usize,
@@ -545,29 +546,34 @@ impl ASTLowerer {
         for kv in dict.kvs {
             let key = self.lower_expr(kv.key)?;
             let value = self.lower_expr(kv.value)?;
-            if union.insert(key.t(), value.t()).is_some() {
-                return Err(LowerErrors::from(LowerError::syntax_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    Location::concat(&key, &value),
-                    String::from(&self.module.context.name[..]),
-                    switch_lang!(
-                        "japanese" => "Dictの値は全て同じ型である必要があります",
-                        "simplified_chinese" => "Dict的值必须是同一类型",
-                        "traditional_chinese" => "Dict的值必須是同一類型",
-                        "english" => "Values of Dict must be the same type",
-                    )
-                    .to_owned(),
-                    Some(
+            if let Some(popped_val_t) = union.insert(key.t(), value.t()) {
+                if cfg!(feature = "py_compatible") {
+                    let val_t = union.get_mut(key.ref_t()).unwrap();
+                    *val_t = self.module.context.union(&mem::take(val_t), &popped_val_t);
+                } else {
+                    return Err(LowerErrors::from(LowerError::syntax_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        Location::concat(&key, &value),
+                        String::from(&self.module.context.name[..]),
                         switch_lang!(
-                            "japanese" => "Int or Strなど明示的に型を指定してください",
-                            "simplified_chinese" => "明确指定类型，例如: Int or Str",
-                            "traditional_chinese" => "明確指定類型，例如: Int or Str",
-                            "english" => "please specify the type explicitly, e.g. Int or Str",
+                            "japanese" => "Dictの値は全て同じ型である必要があります",
+                            "simplified_chinese" => "Dict的值必须是同一类型",
+                            "traditional_chinese" => "Dict的值必須是同一類型",
+                            "english" => "Values of Dict must be the same type",
                         )
                         .to_owned(),
-                    ),
-                )));
+                        Some(
+                            switch_lang!(
+                                "japanese" => "Int or Strなど明示的に型を指定してください",
+                                "simplified_chinese" => "明确指定类型，例如: Int or Str",
+                                "traditional_chinese" => "明確指定類型，例如: Int or Str",
+                                "english" => "please specify the type explicitly, e.g. Int or Str",
+                            )
+                            .to_owned(),
+                        ),
+                    )));
+                }
             }
             new_kvs.push(hir::KeyValue::new(key, value));
         }
@@ -909,10 +915,9 @@ impl ASTLowerer {
     ) -> LowerResult<()> {
         match call.additional_operation() {
             Some(kind @ (OperationKind::Import | OperationKind::PyImport)) => {
-                let Some(mod_name) =
-                    option_enum_unwrap!(call.args.get_left_or_key("Path").unwrap(), hir::Expr::Lit) else {
-                        return unreachable_error!(LowerErrors, LowerError, self);
-                    };
+                let hir::Expr::Lit(mod_name) = call.args.get_left_or_key("Path").unwrap() else {
+                    return unreachable_error!(LowerErrors, LowerError, self);
+                };
                 if let Err(errs) = self.module.context.import_mod(kind, mod_name) {
                     self.errs.extend(errs);
                 };
@@ -1570,10 +1575,10 @@ impl ASTLowerer {
         let Some(class_type) = self.module.context.rec_get_const_obj(hir_def.sig.ident().inspect()) else {
             return unreachable_error!(LowerErrors, LowerError, self);
         };
-        let Some(type_obj) = option_enum_unwrap!(class_type, ValueObj::Type:(TypeObj::Generated:(_))) else {
+        let ValueObj::Type(TypeObj::Generated(type_obj)) = class_type else {
             return unreachable_error!(LowerErrors, LowerError, self);
         };
-        let Some(call) = option_enum_unwrap!(&hir_def.body.block.first().unwrap(), hir::Expr::Call) else {
+        let Some(hir::Expr::Call(call)) = hir_def.body.block.first() else {
             return unreachable_error!(LowerErrors, LowerError, self);
         };
         if let Some(sup_type) = call.args.get_left_or_key("Super") {
@@ -1678,7 +1683,7 @@ impl ASTLowerer {
     fn lower_patch_def(&mut self, class_def: ast::PatchDef) -> LowerResult<hir::PatchDef> {
         log!(info "entered {}({class_def})", fn_name!());
         let base_t = {
-            let Some(call) = option_enum_unwrap!(class_def.def.body.block.get(0).unwrap(), ast::Expr::Call) else {
+            let Some(ast::Expr::Call(call)) = class_def.def.body.block.get(0) else {
                 return unreachable_error!(LowerErrors, LowerError, self);
             };
             let base_t_expr = call.args.get_left_or_key("Base").unwrap();
