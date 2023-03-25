@@ -1,0 +1,12 @@
+.DictItems: ClassType
+.DictKeys: ClassType
+.DictValues: ClassType
+
+.Dict: ClassType
+.Dict.
+    copy: |D <: .Dict|(self: D) -> D
+    fromkeys: |K, V| (iterable: Iterable K, value: V := NoneType) -> .Dict K, V
+    get: |K, V, Default|(self: .Dict(K, V), key: K, default: Default := NoneType) -> V or Default
+    items: |K, V|(self: .Dict(K, V)) -> .DictItems(K, V)
+    keys: |K, V|(self: .Dict(K, V)) -> .DictKeys(K, V)
+    values: |K, V|(self: .Dict(K, V)) -> .DictValues(K, V)

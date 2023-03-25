@@ -7,7 +7,7 @@
 (), (X,), (X, Y), (X, Y, Z), ...
 ```
 
-Tuples have a partial type rule for length as well as type inside.
+Tuples have a subtype rule for length as well as type inside.
 For any Tuple `T`, `U`, the following holds.
 
 ```erg
@@ -37,13 +37,13 @@ The same subtype rules exist for arrays as for tuples.
 * forall N in 0..<Len(T) (Len(T) <= Len(U)), U[N] == T[N] => U <: T (oblivion rule)
 ```
 
-Arrays like the one below are not valid types. It is an intentional design to emphasize that the elements of the array are equalized.
+Arrays like the one below are not valid types. It is an intentional design to emphasize that the elements of the array are homogenized.
 
 ```erg
 [Int, Str]
 ```
 
-Because of this, detailed information about each element is lost. To preserve this, a Refinement type is used.
+Because of this, detailed information about each element is lost. To preserve this, refinement types can be used.
 
 ```erg
 a = [1, "a"]: {A: [Int or Str; 2] | A[0] == Int}
@@ -53,12 +53,13 @@ a[0]: Int
 ## Set Type
 
 ```erg
-{}, {X}, ...
+{}, {X; _}, ...
 ```
 
-The Set type itself has no length information. This is because duplicate elements are eliminated in sets, but duplicate elements cannot generally be determined at compile time. In the first place, the length of the information is not very meaningful in a Set.
+Set types have length information, but mostly useless. This is because duplicate elements are eliminated in sets, but duplicate elements cannot generally be determined at compile time.
+In the first place, the length of the information is not very meaningful in a Set.
 
-`{}` is the empty set, a subtype of all types.
+`{}` is the empty set, a subtype of all types. Note that `{X}` is not a set type, but a type that contains only one constant `X`.
 
 ## Dict Type
 
@@ -66,18 +67,17 @@ The Set type itself has no length information. This is because duplicate element
 {:}, {X: Y}, {X: Y, Z: W}, ...
 ```
 
+All dict types are subtypes of `Dict K, V`. `{X: Y} <: Dict X, Y` and `{X: Y, Z: W} <: Dict X or Z, Y or W`.
+
 ## Record Type
 
 ```erg
 {=}, {i = Int}, {i = Int; j = Int}, {.i = Int; .j = Int}, ...
 ```
 
-There is no subtype relationship between private and public type of attribute, however they can be converted to each other by `.Into`.
+A private record type is a super type of a public record type.
 
-```erg
-r = {i = 1}.Into {.i = Int}
-assert r.i == 1
-```
+e.g. `{.i = Int} <: {i = Int}`
 
 ## Function Type
 
@@ -85,13 +85,28 @@ assert r.i == 1
 () -> ()
 Int -> Int
 (Int, Str) -> Bool
+# named parameter
 (x: Int, y: Int) -> Int
+# default parameter
 (x := Int, y := Int) -> Int
-(...objs: Obj) -> Str
+# variable-length parameter
+(*objs: Obj) -> Str
 (Int, Ref Str!) -> Int
+# qualified parameter
 |T: Type|(x: T) -> T
+# qualified parameter with default type
 |T: Type|(x: T := NoneType) -> T # |T: Type|(x: T := X, y: T := Y) -> T (X != Y) is invalid
 ```
+
+## Bound Method Type
+
+```erg
+Int.() -> Int
+Int.(other: Int) -> Int
+# e.g. 1.__add__: Int.(Int) -> Int
+```
+
+The type `C.(T) -> U` is a subtype of `T -> U`. They are almost the same, but ``C.(T) -> U`` is the type of a method whose receiver type is `C`, and the receiver is accessible via an attribute `__self__`.
 
 <p align='center'>
     <a href='./19_bound.md'>Previous</a> | Next
