@@ -74,6 +74,21 @@ impl Context {
             poly(ENUMERATE, vec![ty_tp(T.clone())]),
         )
         .quantify();
+        let t_filter = nd_func(
+            vec![
+                kw(KW_FUNC, nd_func(vec![anon(T.clone())], None, T.clone())),
+                kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())])),
+            ],
+            None,
+            poly(FILTER, vec![ty_tp(T.clone())]),
+        )
+        .quantify();
+        let t_frozenset = nd_func(
+            vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())]))],
+            None,
+            poly(FROZENSET, vec![ty_tp(T.clone())]),
+        )
+        .quantify();
         let t_if = func(
             vec![
                 kw(KW_COND, Bool),
@@ -131,7 +146,7 @@ impl Context {
         );
         let t_map = nd_func(
             vec![
-                kw(KW_PROC, nd_proc(vec![anon(T.clone())], None, T.clone())),
+                kw(KW_FUNC, nd_func(vec![anon(T.clone())], None, T.clone())),
                 kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())])),
             ],
             None,
@@ -146,6 +161,14 @@ impl Context {
             O.clone(),
         )
         .quantify();
+        let t_memoryview = nd_func(
+            vec![kw(
+                KW_OBJ,
+                mono(BYTES) | mono(BYTEARRAY) | mono("array.Array!"),
+            )],
+            None,
+            mono(MEMORYVIEW),
+        );
         let t_min = nd_func(
             vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(O.clone())]))],
             None,
@@ -254,6 +277,14 @@ impl Context {
         );
         self.register_builtin_py_impl(FUNC_EXIT, t_exit, Immutable, vis.clone(), Some(FUNC_EXIT));
         self.register_builtin_py_impl(
+            FUNC_FILTER,
+            t_filter,
+            Immutable,
+            vis.clone(),
+            Some(FUNC_FILTER),
+        );
+        self.register_builtin_py_impl(FUNC_FROZENSET, t_frozenset, Immutable, vis.clone(), None);
+        self.register_builtin_py_impl(
             FUNC_ISINSTANCE,
             t_isinstance,
             Immutable,
@@ -271,6 +302,13 @@ impl Context {
         self.register_builtin_py_impl(FUNC_LEN, t_len, Immutable, vis.clone(), Some(FUNC_LEN));
         self.register_builtin_py_impl(FUNC_MAP, t_map, Immutable, vis.clone(), Some(FUNC_MAP));
         self.register_builtin_py_impl(FUNC_MAX, t_max, Immutable, vis.clone(), Some(FUNC_MAX));
+        self.register_builtin_py_impl(
+            FUNC_MEMORYVIEW,
+            t_memoryview,
+            Immutable,
+            vis.clone(),
+            Some(FUNC_MEMORYVIEW),
+        );
         self.register_builtin_py_impl(FUNC_MIN, t_min, Immutable, vis.clone(), Some(FUNC_MIN));
         self.register_builtin_py_impl(FUNC_NOT, t_not, Immutable, vis.clone(), None); // `not` is not a function in Python
         self.register_builtin_py_impl(FUNC_OCT, t_oct, Immutable, vis.clone(), Some(FUNC_OCT));

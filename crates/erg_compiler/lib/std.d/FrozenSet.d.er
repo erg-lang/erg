@@ -1,0 +1,10 @@
+.FrozenSet = 'frozenset': ClassType
+.FrozenSet.
+    copy: (self: .FrozenSet) -> .FrozenSet
+    difference: (self: .FrozenSet, *args: .FrozenSet) -> .FrozenSet
+    intersection: (self: .FrozenSet, *args: .FrozenSet) -> .FrozenSet
+    isdisjoint: (self: .FrozenSet, other: .FrozenSet) -> Bool
+    issubset: (self: .FrozenSet, other: .FrozenSet) -> Bool
+    issuperset: (self: .FrozenSet, other: .FrozenSet) -> Bool
+    symmetric_difference: (self: .FrozenSet, other: .FrozenSet) -> .FrozenSet
+    union: (self: .FrozenSet, *args: .FrozenSet) -> .FrozenSet

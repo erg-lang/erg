@@ -1,6 +1,6 @@
 .Array! = 'array': ClassType
 .Array!.
-    __call__: (typecode: Str, initializer := [Obj; _] or Iterable(Obj)) -> .Array
+    __call__: (typecode: Str, initializer := [Obj; _] or Iterable(Obj)) -> .Array!
     typecode: Str
     itemsize: Nat
     append: (self: RefMut(.Array!), x: Obj) => NoneType

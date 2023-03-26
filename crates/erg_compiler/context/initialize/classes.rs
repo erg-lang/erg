@@ -1526,6 +1526,30 @@ impl Context {
         ));
         zip.register_marker_trait(poly(OUTPUT, vec![ty_tp(T.clone())]));
         zip.register_marker_trait(poly(OUTPUT, vec![ty_tp(U.clone())]));
+        let fset_t = poly(FROZENSET, vec![ty_tp(T.clone())]);
+        let mut frozenset = Self::builtin_poly_class(FROZENSET, vec![PS::t_nd(TY_T)], 2);
+        frozenset.register_superclass(Obj, &obj);
+        frozenset.register_marker_trait(poly(ITERABLE, vec![ty_tp(T.clone())]));
+        frozenset.register_marker_trait(poly(OUTPUT, vec![ty_tp(T.clone())]));
+        let t = fn0_met(fset_t.clone(), fset_t.clone()).quantify();
+        frozenset.register_py_builtin(COPY, t, Some(COPY), 3);
+        let bin_t = fn1_met(fset_t.clone(), fset_t.clone(), fset_t.clone()).quantify();
+        frozenset.register_py_builtin(DIFFERENCE, bin_t.clone(), Some(DIFFERENCE), 3);
+        frozenset.register_py_builtin(INTERSECTION, bin_t.clone(), Some(INTERSECTION), 3);
+        let bool_t = fn1_met(fset_t.clone(), fset_t.clone(), Bool).quantify();
+        frozenset.register_py_builtin(ISDISJOINT, bool_t.clone(), Some(ISDISJOINT), 3);
+        frozenset.register_py_builtin(ISSUBSET, bool_t.clone(), Some(ISSUBSET), 3);
+        frozenset.register_py_builtin(ISSUPERSET, bool_t, Some(ISSUPERSET), 3);
+        frozenset.register_py_builtin(
+            SYMMETRIC_DIFFERENCE,
+            bin_t.clone(),
+            Some(SYMMETRIC_DIFFERENCE),
+            3,
+        );
+        frozenset.register_py_builtin(UNION_FUNC, bin_t, Some(UNION_FUNC), 3);
+        let memview_t = mono(MEMORYVIEW);
+        let mut memoryview = Self::builtin_mono_class(MEMORYVIEW, 2);
+        memoryview.register_superclass(Obj, &obj);
         let mut obj_mut = Self::builtin_mono_class(MUTABLE_OBJ, 2);
         obj_mut.register_superclass(Obj, &obj);
         let mut obj_mut_mutable = Self::builtin_methods(Some(mono(MUTABLE)), 2);
@@ -2265,6 +2289,20 @@ impl Context {
             Visibility::BUILTIN_PRIVATE,
             Const,
             Some(FUNC_ZIP),
+        );
+        self.register_builtin_type(
+            fset_t,
+            frozenset,
+            Visibility::BUILTIN_PRIVATE,
+            Const,
+            Some(FUNC_FROZENSET),
+        );
+        self.register_builtin_type(
+            memview_t,
+            memoryview,
+            Visibility::BUILTIN_PRIVATE,
+            Const,
+            Some(MEMORYVIEW),
         );
         self.register_builtin_type(mono(MUT_FILE), file_mut, vis.clone(), Const, Some(FILE));
         self.register_builtin_type(array_mut_t, array_mut_, vis.clone(), Const, Some(FUNC_LIST));
