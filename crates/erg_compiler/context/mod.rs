@@ -38,6 +38,7 @@ use crate::context::instantiate_spec::ConstTemplate;
 use crate::error::{TyCheckError, TyCheckErrors};
 use crate::module::{SharedCompilerResource, SharedModuleCache};
 use crate::ty::value::ValueObj;
+use crate::ty::GuardType;
 use crate::ty::{Predicate, Type, Visibility, VisibilityModifier};
 use crate::varinfo::{AbsLocation, Mutability, VarInfo, VarKind};
 use Type::*;
@@ -394,8 +395,8 @@ pub struct Context {
     pub(crate) patches: Dict<VarName, Context>,
     pub(crate) shared: Option<SharedCompilerResource>,
     pub(crate) tv_cache: Option<TyVarCache>,
-    // for pylyzer, ignore this
     pub(crate) higher_order_caller: Vec<Str>,
+    pub(crate) guards: Vec<GuardType>,
     pub(crate) erg_to_py_names: Dict<Str, Str>,
     pub(crate) level: usize,
 }
@@ -577,6 +578,7 @@ impl Context {
             tv_cache: None,
             patches: Dict::default(),
             higher_order_caller: vec![],
+            guards: vec![],
             erg_to_py_names: Dict::default(),
             level,
         }

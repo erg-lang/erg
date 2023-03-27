@@ -23,12 +23,12 @@ use crate::artifact::{CompleteArtifact, IncompleteArtifact};
 use crate::context::instantiate::TyVarCache;
 use crate::module::SharedCompilerResource;
 use crate::ty::constructors::{
-    array_mut, array_t, free_var, func, mono, poly, proc, set_mut, set_t, ty_tp,
+    array_mut, array_t, free_var, func, guard, mono, poly, proc, set_mut, set_t, ty_tp,
 };
 use crate::ty::free::Constraint;
 use crate::ty::typaram::TyParam;
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
-use crate::ty::{HasType, ParamTy, Type, VisibilityModifier};
+use crate::ty::{HasType, ParamTy, Type, Variable, VisibilityModifier};
 
 use crate::context::{
     ClassDefType, Context, ContextKind, ContextProvider, ModuleContext, RegistrationMode,
@@ -46,6 +46,24 @@ use crate::AccessKind;
 use crate::{feature_error, unreachable_error};
 
 use VisibilityModifier::*;
+
+pub fn acc_to_variable(acc: &ast::Accessor) -> Option<Variable> {
+    match acc {
+        ast::Accessor::Ident(ident) => Some(Variable::Var(ident.inspect().clone())),
+        ast::Accessor::Attr(attr) => Some(Variable::attr(
+            expr_to_variable(&attr.obj)?,
+            attr.ident.inspect().clone(),
+        )),
+        _ => None,
+    }
+}
+
+pub fn expr_to_variable(expr: &ast::Expr) -> Option<Variable> {
+    match expr {
+        ast::Expr::Accessor(acc) => acc_to_variable(acc),
+        _ => None,
+    }
+}
 
 /// Checks & infers types of an AST, and convert (lower) it into a HIR
 #[derive(Debug)]
@@ -741,22 +759,33 @@ impl ASTLowerer {
     fn lower_bin(&mut self, bin: ast::BinOp) -> hir::BinOp {
         log!(info "entered {}({bin})", fn_name!());
         let mut args = bin.args.into_iter();
-        let lhs = self
-            .lower_expr(*args.next().unwrap())
-            .unwrap_or_else(|errs| {
-                self.errs.extend(errs);
-                hir::Expr::Dummy(hir::Dummy::new(vec![]))
-            });
+        let lhs = *args.next().unwrap();
+        let rhs = *args.next().unwrap();
+        let guard = if let Some(var) = expr_to_variable(&lhs) {
+            match bin.op.kind {
+                TokenKind::InOp => self
+                    .module
+                    .context
+                    .expr_to_type(rhs.clone())
+                    .map(|to| guard(var, to)),
+                TokenKind::IsOp => None,
+                _ => None,
+            }
+        } else {
+            None
+        };
+        let lhs = self.lower_expr(lhs).unwrap_or_else(|errs| {
+            self.errs.extend(errs);
+            hir::Expr::Dummy(hir::Dummy::new(vec![]))
+        });
         let lhs = hir::PosArg::new(lhs);
-        let rhs = self
-            .lower_expr(*args.next().unwrap())
-            .unwrap_or_else(|errs| {
-                self.errs.extend(errs);
-                hir::Expr::Dummy(hir::Dummy::new(vec![]))
-            });
+        let rhs = self.lower_expr(rhs).unwrap_or_else(|errs| {
+            self.errs.extend(errs);
+            hir::Expr::Dummy(hir::Dummy::new(vec![]))
+        });
         let rhs = hir::PosArg::new(rhs);
         let args = [lhs, rhs];
-        let t = self
+        let mut vi = self
             .module
             .context
             .get_binop_t(&bin.op, &args, &self.cfg.input, &self.module.context)
@@ -764,10 +793,17 @@ impl ASTLowerer {
                 self.errs.extend(errs);
                 VarInfo::ILLEGAL.clone()
             });
+        if let Some(guard) = guard {
+            debug_assert!(self
+                .module
+                .context
+                .subtype_of(vi.t.return_t().unwrap(), &Type::Bool));
+            *vi.t.mut_return_t().unwrap() = guard;
+        }
         let mut args = args.into_iter();
         let lhs = args.next().unwrap().expr;
         let rhs = args.next().unwrap().expr;
-        hir::BinOp::new(bin.op, lhs, rhs, t)
+        hir::BinOp::new(bin.op, lhs, rhs, vi)
     }
 
     fn lower_unary(&mut self, unary: ast::UnaryOp) -> hir::UnaryOp {
@@ -801,9 +837,25 @@ impl ASTLowerer {
             Vec::with_capacity(kw_args.len()),
             paren,
         );
-        for arg in pos_args.into_iter() {
+        for (i, arg) in pos_args.into_iter().enumerate() {
             match self.lower_expr(arg.expr) {
-                Ok(expr) => hir_args.pos_args.push(hir::PosArg::new(expr)),
+                Ok(expr) => {
+                    if i == 0
+                        && self
+                            .module
+                            .context
+                            .higher_order_caller
+                            .last()
+                            .map_or(false, |last| {
+                                &last[..] == "if" || &last[..] == "if!" || &last[..] == "while!"
+                            })
+                    {
+                        if let Type::Guard(guard) = expr.t() {
+                            self.module.context.guards.push(guard);
+                        }
+                    }
+                    hir_args.pos_args.push(hir::PosArg::new(expr))
+                }
                 Err(es) => {
                     errs.extend(es);
                     hir_args.push_pos(hir::PosArg::new(hir::Expr::Dummy(hir::Dummy::empty())));
@@ -1111,6 +1163,33 @@ impl ASTLowerer {
         })?;
         if let Err(errs) = self.module.context.assign_params(&mut params, None) {
             self.errs.extend(errs);
+        }
+        if !in_statement {
+            for guard in self
+                .module
+                .context
+                .get_outer()
+                .unwrap()
+                .guards
+                .clone()
+                .into_iter()
+            {
+                if let Variable::Var(name) = &guard.var {
+                    if let Some(vi) = self.module.context.locals.get_mut(name) {
+                        vi.t = *guard.to;
+                    } else {
+                        let vi = VarInfo::nd_parameter(
+                            *guard.to,
+                            self.module.context.absolutize(Location::Unknown),
+                            self.module.context.name.clone(),
+                        );
+                        self.module
+                            .context
+                            .locals
+                            .insert(VarName::from_str(name.clone()), vi);
+                    }
+                }
+            }
         }
         if let Err(errs) = self.module.context.preregister(&lambda.body) {
             self.errs.extend(errs);

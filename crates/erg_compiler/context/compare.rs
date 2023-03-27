@@ -475,6 +475,7 @@ impl Context {
                 }
                 true
             }
+            (Bool, Guard { .. }) => true,
             (Type, Subr(subr)) => self.supertype_of(&Type, &subr.return_t),
             (Type, Poly { name, params }) | (Poly { name, params }, Type)
                 if &name[..] == "Array" || &name[..] == "Set" =>
