@@ -23,12 +23,12 @@ use crate::artifact::{CompleteArtifact, IncompleteArtifact};
 use crate::context::instantiate::TyVarCache;
 use crate::module::SharedCompilerResource;
 use crate::ty::constructors::{
-    array_mut, array_t, free_var, func, guard, mono, poly, proc, set_mut, set_t, ty_tp,
+    array_mut, array_t, free_var, func, guard, mono, poly, proc, set_mut, set_t, ty_tp, v_enum,
 };
 use crate::ty::free::Constraint;
 use crate::ty::typaram::TyParam;
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
-use crate::ty::{HasType, ParamTy, Type, Variable, VisibilityModifier};
+use crate::ty::{GuardType, HasType, ParamTy, Type, Variable, VisibilityModifier};
 
 use crate::context::{
     ClassDefType, Context, ContextKind, ContextProvider, ModuleContext, RegistrationMode,
@@ -272,7 +272,7 @@ impl ASTLowerer {
         for elem in elems.into_iter() {
             let elem = self.lower_expr(elem.expr)?;
             let union_ = self.module.context.union(&union, elem.ref_t());
-            if let Some((l, r)) = union_.union_types() {
+            if let Some((l, r)) = union_.union_pair() {
                 match (l.is_unbound_var(), r.is_unbound_var()) {
                     // e.g. [1, "a"]
                     (false, false) => {
@@ -756,24 +756,41 @@ impl ASTLowerer {
         Ok(ident)
     }
 
+    fn get_type_from_bin_rhs(&self, op: TokenKind, var: Variable, rhs: &ast::Expr) -> Option<Type> {
+        match op {
+            TokenKind::InOp => self
+                .module
+                .context
+                .expr_to_type(rhs.clone())
+                .map(|to| guard(var, to)),
+            TokenKind::NotInOp => {
+                let ty = self
+                    .module
+                    .context
+                    .expr_to_type(rhs.clone())
+                    .map(|to| guard(var, to))?;
+                Some(self.module.context.complement(&ty))
+            }
+            TokenKind::IsOp | TokenKind::DblEq => {
+                let value = self.module.context.expr_to_value(rhs.clone())?;
+                Some(guard(var, v_enum(set! { value })))
+            }
+            TokenKind::IsNotOp | TokenKind::NotEq => {
+                let value = self.module.context.expr_to_value(rhs.clone())?;
+                let ty = guard(var, v_enum(set! { value }));
+                Some(self.module.context.complement(&ty))
+            }
+            _ => None,
+        }
+    }
+
     fn lower_bin(&mut self, bin: ast::BinOp) -> hir::BinOp {
         log!(info "entered {}({bin})", fn_name!());
         let mut args = bin.args.into_iter();
         let lhs = *args.next().unwrap();
         let rhs = *args.next().unwrap();
-        let guard = if let Some(var) = expr_to_variable(&lhs) {
-            match bin.op.kind {
-                TokenKind::InOp => self
-                    .module
-                    .context
-                    .expr_to_type(rhs.clone())
-                    .map(|to| guard(var, to)),
-                TokenKind::IsOp => None,
-                _ => None,
-            }
-        } else {
-            None
-        };
+        let guard = expr_to_variable(&lhs)
+            .and_then(|var| self.get_type_from_bin_rhs(bin.op.kind, var, &rhs));
         let lhs = self.lower_expr(lhs).unwrap_or_else(|errs| {
             self.errs.extend(errs);
             hir::Expr::Dummy(hir::Dummy::new(vec![]))
@@ -840,18 +857,21 @@ impl ASTLowerer {
         for (i, arg) in pos_args.into_iter().enumerate() {
             match self.lower_expr(arg.expr) {
                 Ok(expr) => {
-                    if i == 0
-                        && self
-                            .module
-                            .context
-                            .higher_order_caller
-                            .last()
-                            .map_or(false, |last| {
-                                &last[..] == "if" || &last[..] == "if!" || &last[..] == "while!"
-                            })
-                    {
-                        if let Type::Guard(guard) = expr.t() {
-                            self.module.context.guards.push(guard);
+                    if let Some(kind) = self.module.context.control_kind() {
+                        if let Type::Guard(guard) = expr.ref_t() {
+                            match i {
+                                0 if kind.is_conditional() => {
+                                    self.module.context.guards.push(guard.clone());
+                                }
+                                1 if kind.is_if() => {
+                                    let guard = GuardType::new(
+                                        guard.var.clone(),
+                                        self.module.context.complement(&guard.to),
+                                    );
+                                    self.module.context.guards.push(guard);
+                                }
+                                _ => {}
+                            }
                         }
                     }
                     hir_args.pos_args.push(hir::PosArg::new(expr))
@@ -1175,19 +1195,31 @@ impl ASTLowerer {
                 .into_iter()
             {
                 if let Variable::Var(name) = &guard.var {
-                    if let Some(vi) = self.module.context.locals.get_mut(name) {
-                        vi.t = *guard.to;
-                    } else {
-                        let vi = VarInfo::nd_parameter(
-                            *guard.to,
-                            self.module.context.absolutize(Location::Unknown),
-                            self.module.context.name.clone(),
-                        );
-                        self.module
-                            .context
-                            .locals
-                            .insert(VarName::from_str(name.clone()), vi);
-                    }
+                    let vi = self
+                        .module
+                        .context
+                        .locals
+                        .remove(name)
+                        .map(|vi| {
+                            let t = self.module.context.intersection(&vi.t, &guard.to);
+                            VarInfo { t, ..vi }
+                        })
+                        .unwrap_or_else(|| {
+                            if let Some((_, vi)) = self.module.context.get_var_kv(name) {
+                                let t = self.module.context.intersection(&vi.t, &guard.to);
+                                VarInfo { t, ..vi.clone() }
+                            } else {
+                                VarInfo::nd_parameter(
+                                    *guard.to,
+                                    self.module.context.absolutize(Location::Unknown),
+                                    self.module.context.name.clone(),
+                                )
+                            }
+                        });
+                    self.module
+                        .context
+                        .locals
+                        .insert(VarName::from_str(name.clone()), vi);
                 }
             }
         }
@@ -1487,7 +1519,7 @@ impl ASTLowerer {
                             found_body_t,
                         )?;
                         let return_t = vi.t.return_t().unwrap();
-                        if return_t.union_types().is_some() && sig.return_t_spec.is_none() {
+                        if return_t.union_pair().is_some() && sig.return_t_spec.is_none() {
                             let warn = LowerWarning::union_return_type_warning(
                                 self.input().clone(),
                                 line!() as usize,

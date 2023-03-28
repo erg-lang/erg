@@ -1,3 +1,10 @@
 i: Int = 2 - 1
 assert i in Nat
 i: Nat
+
+f(opt_i: Int or NoneType) =
+    if opt_i != None, do:
+        log opt_i + 1 # OK
+    log opt_i + 1 # ERR
+
+f(1)

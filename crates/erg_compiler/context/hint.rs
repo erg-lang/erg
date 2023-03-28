@@ -176,7 +176,7 @@ impl Context {
             _ => {
                 let (verb, preposition, _sequence) = Self::get_verb_and_preposition(&expected)?;
                 found
-                    .union_types()
+                    .union_pair()
                     .map(|(t1, t2)| format!("cannot {verb} {t1} {preposition} {t2}"))
                     .or_else(|| {
                         expected.inner_ts().get(0).map(|expected_inner| {

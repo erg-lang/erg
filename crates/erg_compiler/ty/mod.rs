@@ -571,8 +571,9 @@ impl RefinementType {
         (self.var, *self.t, *self.pred)
     }
 
+    /// {None}.invert() == {x: Obj | x != None}
     pub fn invert(self) -> Self {
-        Self::new(self.var, *self.t, !*self.pred)
+        Self::new(self.var, Type::Obj, !*self.pred)
     }
 }
 
@@ -679,11 +680,26 @@ impl ArgsOwnership {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Variable {
+    Param { nth: usize, name: Str },
     Var(Str),
     Attr { receiver: Box<Variable>, attr: Str },
 }
 
+impl fmt::Display for Variable {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Param { nth, name } => write!(f, "{name}#{nth}"),
+            Self::Var(name) => write!(f, "{name}"),
+            Self::Attr { receiver, attr } => write!(f, "{receiver}.{attr}"),
+        }
+    }
+}
+
 impl Variable {
+    pub const fn param(nth: usize, name: Str) -> Self {
+        Self::Param { nth, name }
+    }
+
     pub fn attr(receiver: Variable, attr: Str) -> Self {
         Self::Attr {
             receiver: Box::new(receiver),
@@ -696,6 +712,12 @@ impl Variable {
 pub struct GuardType {
     pub var: Variable,
     pub to: Box<Type>,
+}
+
+impl fmt::Display for GuardType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{{{} in {}}}", self.var, self.to)
+    }
 }
 
 impl StructuralEq for GuardType {
@@ -1033,6 +1055,9 @@ impl LimitedDisplay for Type {
                 ty.limited_fmt(f, limit - 1)?;
                 write!(f, ")")
             }
+            Self::Guard(guard) if cfg!(feature = "debug") => {
+                write!(f, "Guard({guard})")
+            }
             _ => write!(f, "{}", self.qual_name()),
         }
     }
@@ -1095,6 +1120,18 @@ impl From<Dict<Type, Type>> for Type {
             .map(|(k, v)| (TyParam::t(k), TyParam::t(v)))
             .collect();
         dict_t(TyParam::Dict(d))
+    }
+}
+
+impl From<SubrType> for Type {
+    fn from(subr: SubrType) -> Self {
+        Self::Subr(subr)
+    }
+}
+
+impl From<RefinementType> for Type {
+    fn from(refine: RefinementType) -> Self {
+        Self::Refinement(refine)
     }
 }
 
@@ -1905,12 +1942,25 @@ impl Type {
         }
     }
 
-    pub fn union_types(&self) -> Option<(Type, Type)> {
+    pub fn union_pair(&self) -> Option<(Type, Type)> {
+        match self {
+            Type::FreeVar(fv) if fv.is_linked() => fv.crack().union_pair(),
+            Type::Refinement(refine) => refine.t.union_pair(),
+            Type::Or(t1, t2) => Some((*t1.clone(), *t2.clone())),
+            _ => None,
+        }
+    }
+
+    pub fn union_types(&self) -> Vec<Type> {
         match self {
             Type::FreeVar(fv) if fv.is_linked() => fv.crack().union_types(),
             Type::Refinement(refine) => refine.t.union_types(),
-            Type::Or(t1, t2) => Some((*t1.clone(), *t2.clone())),
-            _ => None,
+            Type::Or(t1, t2) => {
+                let mut types = t1.union_types();
+                types.extend(t2.union_types());
+                types
+            }
+            _ => vec![self.clone()],
         }
     }
 
@@ -1979,6 +2029,12 @@ impl Type {
             || (self.has_no_qvar() && self.has_no_unbound_var())
     }
 
+    /// TODO:
+    /// ```erg
+    /// Nat == {x: Int | x >= 0}
+    /// Nat or {-1} == {x: Int | x >= 0 or x == -1}
+    /// Int == {_: Int | True}
+    /// ```
     pub fn into_refinement(self) -> RefinementType {
         match self {
             Type::FreeVar(fv) if fv.is_linked() => fv.crack().clone().into_refinement(),
@@ -2000,10 +2056,7 @@ impl Type {
                 )
             }
             Type::Refinement(r) => r,
-            t => {
-                let var = Str::from(fresh_varname());
-                RefinementType::new(var, t, Predicate::TRUE)
-            }
+            t => RefinementType::new(Str::ever("_"), t, Predicate::TRUE),
         }
     }
 

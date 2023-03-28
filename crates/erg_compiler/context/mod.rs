@@ -52,6 +52,40 @@ pub trait ContextProvider {
 
 const BUILTINS: &Str = &Str::ever("<builtins>");
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ControlKind {
+    If,
+    While,
+    For,
+    Match,
+    Try,
+    With,
+}
+
+impl TryFrom<&str> for ControlKind {
+    type Error = ();
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        match s {
+            "if" | "if!" => Ok(ControlKind::If),
+            "while!" => Ok(ControlKind::While),
+            "for" | "for!" => Ok(ControlKind::For),
+            "match" | "match!" => Ok(ControlKind::Match),
+            "try" | "try!" => Ok(ControlKind::Try),
+            "with" | "with!" => Ok(ControlKind::With),
+            _ => Err(()),
+        }
+    }
+}
+
+impl ControlKind {
+    pub const fn is_if(&self) -> bool {
+        matches!(self, ControlKind::If)
+    }
+    pub const fn is_conditional(&self) -> bool {
+        matches!(self, ControlKind::If | ControlKind::While)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TraitImpl {
     pub sub_type: Type,
@@ -1077,6 +1111,12 @@ impl Context {
 
     pub fn shared(&self) -> &SharedCompilerResource {
         self.shared.as_ref().unwrap()
+    }
+
+    pub fn control_kind(&self) -> Option<ControlKind> {
+        self.higher_order_caller
+            .last()
+            .and_then(|caller| ControlKind::try_from(&caller[..]).ok())
     }
 }
 

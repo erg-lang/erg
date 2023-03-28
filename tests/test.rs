@@ -18,7 +18,7 @@ fn exec_array() -> Result<(), ()> {
 
 #[test]
 fn exec_assert_cast() -> Result<(), ()> {
-    expect_success("examples/assert_cast.er")
+    expect_failure("examples/assert_cast.er", 1)
 }
 
 #[test]
