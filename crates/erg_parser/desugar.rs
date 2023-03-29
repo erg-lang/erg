@@ -652,7 +652,7 @@ impl Desugarer {
         };
         let id = DefId(get_hash(&(&acc, buf_name)));
         let block = Block::new(vec![Expr::Accessor(acc)]);
-        let op = Token::from_str(TokenKind::Equal, "=");
+        let op = Token::from_str(TokenKind::Assign, "=");
         let body = DefBody::new(op, block, id);
         match &sig.pat {
             VarPattern::Tuple(tup) => {
@@ -753,7 +753,7 @@ impl Desugarer {
                     let var = VarSignature::new(VarPattern::Ident(ident.clone()), None);
                     let sig = Signature::Var(var);
                     let body = DefBody::new(
-                        Token::from_str(TokenKind::Equal, "="),
+                        Token::from_str(TokenKind::Assign, "="),
                         Block::new(vec![Expr::local(
                             ident.inspect(),
                             ident.ln_begin().unwrap_or(1),
@@ -1027,7 +1027,7 @@ impl Desugarer {
         };
         let id = DefId(get_hash(&(&acc, buf_name)));
         let block = Block::new(vec![Expr::Accessor(acc)]);
-        let op = Token::from_str(TokenKind::Equal, "=");
+        let op = Token::from_str(TokenKind::Assign, "=");
         let body = DefBody::new(op, block, id);
         let line = sig.ln_begin().unwrap_or(1);
         match &mut sig.pat {

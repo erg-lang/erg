@@ -42,7 +42,7 @@ pub fn token_kind_to_op_kind(kind: TokenKind) -> Option<OpKind> {
         TokenKind::PrePlus => Some(OpKind::Pos),
         TokenKind::PreMinus => Some(OpKind::Neg),
         TokenKind::PreBitNot => Some(OpKind::Invert),
-        TokenKind::Equal => Some(OpKind::Eq),
+        TokenKind::DblEq => Some(OpKind::Eq),
         TokenKind::NotEq => Some(OpKind::Ne),
         TokenKind::Less => Some(OpKind::Lt),
         TokenKind::LessEq => Some(OpKind::Le),

@@ -119,7 +119,7 @@ pub enum TokenKind {
     /// `ref!` (special unary)
     RefMutOp,
     /// =
-    Equal,
+    Assign,
     /// <-
     Inclusion,
     /// :=
@@ -241,7 +241,7 @@ impl TokenKind {
             Try => TokenCategory::PostfixOp,
             Comma | Colon | DblColon | SupertypeOf | SubtypeOf | Dot | Pipe | Walrus
             | Inclusion => TokenCategory::SpecialBinOp,
-            Equal => TokenCategory::DefOp,
+            Assign => TokenCategory::DefOp,
             FuncArrow | ProcArrow => TokenCategory::LambdaOp,
             Semi | Newline => TokenCategory::Separator,
             LParen | LBrace | LSqBr | Indent => TokenCategory::LEnclosure,
@@ -275,7 +275,7 @@ impl TokenKind {
             FuncArrow | ProcArrow | Inclusion => 60, // -> => <-
             Colon | SupertypeOf | SubtypeOf => 50,   // : :> <:
             Comma => 40,                             // ,
-            Equal | Walrus => 20,                    // = :=
+            Assign | Walrus => 20,                   // = :=
             Newline | Semi => 10,                    // \n ;
             LParen | LBrace | LSqBr | Indent => 0,   // ( { [ Indent
             _ => return None,
@@ -286,7 +286,7 @@ impl TokenKind {
     pub const fn is_right_associative(&self) -> bool {
         matches!(
             self,
-            FuncArrow | ProcArrow | Equal /* | PreDollar | PreAt */
+            FuncArrow | ProcArrow | Assign /* | PreDollar | PreAt */
         )
     }
 
@@ -335,7 +335,7 @@ pub struct Token {
 
 pub const COLON: Token = Token::dummy(TokenKind::Colon, ":");
 pub const DOT: Token = Token::dummy(TokenKind::Dot, ".");
-pub const EQUAL: Token = Token::dummy(TokenKind::Equal, "=");
+pub const EQUAL: Token = Token::dummy(TokenKind::Assign, "=");
 
 impl fmt::Debug for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

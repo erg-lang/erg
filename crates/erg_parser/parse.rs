@@ -2093,7 +2093,7 @@ impl Parser {
                 debug_exit_info!(self);
                 return Ok(BraceContainer::Set(Set::Normal(set)));
             }
-            Some(Equal) => {
+            Some(Assign) => {
                 let _eq = self.lpop();
                 if let Some(t) = self.peek() {
                     if t.is(RBrace) {

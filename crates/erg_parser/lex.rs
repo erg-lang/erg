@@ -1265,7 +1265,7 @@ impl Iterator for Lexer /*<'a>*/ {
                     self.consume();
                     self.accept(ProcArrow, "=>")
                 }
-                _ => self.accept(Equal, "="),
+                _ => self.accept(Assign, "="),
             },
             Some('!') => {
                 if let Some('=') = self.peek_cur_ch() {
