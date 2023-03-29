@@ -252,7 +252,7 @@ impl Context {
             self.erg_to_py_names
                 .insert(ident.inspect().clone(), py_name.clone());
         }
-        let ident = if cfg!(feature = "py_compatible") && py_name.is_some() {
+        let ident = if cfg!(feature = "py_compat") && py_name.is_some() {
             let mut symbol = ident.name.clone().into_token();
             symbol.content = py_name.clone().unwrap();
             Identifier::new(ident.vis.clone(), VarName::new(symbol))
@@ -336,7 +336,7 @@ impl Context {
         opt_decl_t: Option<&ParamTy>,
         kind: ParamKind,
     ) -> TyCheckResult<()> {
-        let vis = if cfg!(feature = "py_compatible") {
+        let vis = if cfg!(feature = "py_compat") {
             Visibility::BUILTIN_PUBLIC
         } else {
             Visibility::private(self.name.clone())

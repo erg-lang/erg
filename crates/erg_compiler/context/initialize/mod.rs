@@ -583,7 +583,7 @@ impl Context {
         vis: Visibility,
         py_name: Option<&'static str>,
     ) {
-        let name = if cfg!(feature = "py_compatible") {
+        let name = if cfg!(feature = "py_compat") {
             if let Some(py_name) = py_name {
                 VarName::from_static(py_name)
             } else {
@@ -602,7 +602,7 @@ impl Context {
         py_name: Option<&'static str>,
         lineno: u32,
     ) {
-        let name = if cfg!(feature = "py_compatible") {
+        let name = if cfg!(feature = "py_compat") {
             if let Some(py_name) = py_name {
                 VarName::from_static(py_name)
             } else {
@@ -611,7 +611,7 @@ impl Context {
         } else {
             VarName::from_static(name)
         };
-        let vis = if cfg!(feature = "py_compatible") || &self.name[..] != "<builtins>" {
+        let vis = if cfg!(feature = "py_compat") || &self.name[..] != "<builtins>" {
             Visibility::BUILTIN_PUBLIC
         } else {
             Visibility::BUILTIN_PRIVATE
@@ -778,7 +778,7 @@ impl Context {
             };
             let name = VarName::from_str(t.local_name());
             let meta_t = v_enum(set! { val.clone() });
-            if !cfg!(feature = "py_compatible") {
+            if !cfg!(feature = "py_compat") {
                 self.locals.insert(
                     name.clone(),
                     VarInfo::new(
@@ -871,7 +871,7 @@ impl Context {
     }
 
     fn init_builtin_consts(&mut self) {
-        let vis = if cfg!(feature = "py_compatible") {
+        let vis = if cfg!(feature = "py_compat") {
             Visibility::BUILTIN_PUBLIC
         } else {
             Visibility::BUILTIN_PRIVATE
@@ -930,8 +930,8 @@ impl Context {
         ctx.init_builtin_funcs();
         ctx.init_builtin_const_funcs();
         ctx.init_builtin_procs();
-        if cfg!(feature = "py_compatible") {
-            ctx.init_py_builtin_operators();
+        if cfg!(feature = "py_compat") {
+            ctx.init_py_compat_builtin_operators();
         } else {
             ctx.init_builtin_operators();
         }

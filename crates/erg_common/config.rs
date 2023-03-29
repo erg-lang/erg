@@ -751,8 +751,8 @@ impl ErgConfig {
                     print!("debug ");
                     #[cfg(feature = "els")]
                     print!("els ");
-                    #[cfg(feature = "py_compatible")]
-                    print!("py_compatible ");
+                    #[cfg(feature = "py_compat")]
+                    print!("py_compat ");
                     #[cfg(feature = "japanese")]
                     print!("japanese ");
                     #[cfg(feature = "simplified_chinese")]

@@ -563,7 +563,7 @@ impl ASTLowerer {
                 Some(py_name.clone()),
                 self.module.context.absolutize(ident.name.loc()),
             );
-            let name = if cfg!(feature = "py_compatible") {
+            let name = if cfg!(feature = "py_compat") {
                 let mut symbol = ident.name.clone().into_token();
                 symbol.content = py_name.clone();
                 VarName::new(symbol)
@@ -572,7 +572,7 @@ impl ASTLowerer {
             };
             self.module.context.decls.insert(name, vi);
         }
-        let new_ident = if cfg!(feature = "py_compatible") {
+        let new_ident = if cfg!(feature = "py_compat") {
             let mut symbol = ident.name.clone().into_token();
             symbol.content = py_name.clone();
             Identifier::new(ident.vis.clone(), VarName::new(symbol))
@@ -611,7 +611,7 @@ impl ASTLowerer {
         if ident.is_raw() {
             return Ok(());
         }
-        let name = if cfg!(feature = "py_compatible") {
+        let name = if cfg!(feature = "py_compat") {
             self.module
                 .context
                 .erg_to_py_names

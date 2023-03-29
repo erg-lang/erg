@@ -19,7 +19,7 @@ unicode = []
 pretty = []
 large_thread = []
 els = []
-py_compatible = []
+py_compat = []
 no_std = []
 full-repl = ["dep:crossterm"]
 

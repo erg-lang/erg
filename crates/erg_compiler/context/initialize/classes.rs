@@ -16,7 +16,7 @@ use Mutability::*;
 
 impl Context {
     pub(super) fn init_builtin_classes(&mut self) {
-        let vis = if cfg!(feature = "py_compatible") {
+        let vis = if cfg!(feature = "py_compat") {
             Visibility::BUILTIN_PUBLIC
         } else {
             Visibility::BUILTIN_PRIVATE
@@ -1153,7 +1153,7 @@ impl Context {
         let mut module = Self::builtin_poly_class(MODULE, vec![PS::named_nd(PATH, Str)], 2);
         module.register_superclass(g_module_t.clone(), &generic_module);
         let mut py_module = Self::builtin_poly_class(PY_MODULE, vec![PS::named_nd(PATH, Str)], 2);
-        if !cfg!(feature = "py_compatible") {
+        if !cfg!(feature = "py_compat") {
             py_module.register_superclass(g_module_t.clone(), &generic_module);
         }
         /* GenericArray */
@@ -2159,14 +2159,14 @@ impl Context {
         self.register_builtin_type(Never, never, vis.clone(), Const, Some(NEVER));
         self.register_builtin_type(Obj, obj, vis.clone(), Const, Some(FUNC_OBJECT));
         // self.register_type(mono(RECORD), vec![], record, Visibility::BUILTIN_PRIVATE, Const);
-        let name = if cfg!(feature = "py_compatible") {
+        let name = if cfg!(feature = "py_compat") {
             FUNC_INT
         } else {
             INT
         };
         self.register_builtin_type(Int, int, vis.clone(), Const, Some(name));
         self.register_builtin_type(Nat, nat, vis.clone(), Const, Some(NAT));
-        let name = if cfg!(feature = "py_compatible") {
+        let name = if cfg!(feature = "py_compat") {
             FUNC_FLOAT
         } else {
             FLOAT
@@ -2174,13 +2174,13 @@ impl Context {
         self.register_builtin_type(Complex, complex, vis.clone(), Const, Some(COMPLEX));
         self.register_builtin_type(Float, float, vis.clone(), Const, Some(name));
         self.register_builtin_type(Ratio, ratio, vis.clone(), Const, Some(RATIO));
-        let name = if cfg!(feature = "py_compatible") {
+        let name = if cfg!(feature = "py_compat") {
             FUNC_BOOL
         } else {
             BOOL
         };
         self.register_builtin_type(Bool, bool_, vis.clone(), Const, Some(name));
-        let name = if cfg!(feature = "py_compatible") {
+        let name = if cfg!(feature = "py_compat") {
             FUNC_STR
         } else {
             STR
@@ -2324,7 +2324,7 @@ impl Context {
         self.register_builtin_type(mono(PROC), proc, vis.clone(), Const, Some(PROC));
         self.register_builtin_type(mono(FUNC), func, vis.clone(), Const, Some(FUNC));
         self.register_builtin_type(range_t, range, vis.clone(), Const, Some(FUNC_RANGE));
-        if !cfg!(feature = "py_compatible") {
+        if !cfg!(feature = "py_compat") {
             self.register_builtin_type(module_t, module, vis.clone(), Const, Some(MODULE_TYPE));
             self.register_builtin_type(
                 mono(MUTABLE_OBJ),

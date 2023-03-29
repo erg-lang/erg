@@ -58,7 +58,7 @@ large_thread = [
     "erg_compiler/large_thread",
     "els/large_thread",
 ]
-py_compatible = ["erg_compiler/py_compatible", "els/py_compatible"]
+py_compat = ["erg_compiler/py_compat", "els/py_compat"]
 els = ["erg_common/els", "erg_compiler/els", "dep:els"]
 full-repl = ["erg_common/full-repl"]
 full = ["els", "full-repl", "unicode", "pretty"]

@@ -12,7 +12,7 @@ use lsp_types::{HoverContents, HoverParams, MarkedString, Url};
 use crate::server::{send, send_log, ELSResult, Server};
 use crate::util;
 
-const PROG_LANG: &str = if cfg!(feature = "py_compatible") {
+const PROG_LANG: &str = if cfg!(feature = "py_compat") {
     "python"
 } else {
     "erg"

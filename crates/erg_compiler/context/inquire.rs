@@ -56,12 +56,12 @@ impl Context {
     }
 
     pub(crate) fn get_current_scope_var(&self, name: &VarName) -> Option<&VarInfo> {
-        #[cfg(feature = "py_compatible")]
+        #[cfg(feature = "py_compat")]
         let search_name = self
             .erg_to_py_names
             .get(name.inspect())
             .unwrap_or(name.inspect());
-        #[cfg(not(feature = "py_compatible"))]
+        #[cfg(not(feature = "py_compat"))]
         let search_name = name.inspect();
         self.locals
             .get(search_name)
@@ -88,12 +88,12 @@ impl Context {
     }
 
     pub(crate) fn get_mut_current_scope_var(&mut self, name: &VarName) -> Option<&mut VarInfo> {
-        #[cfg(feature = "py_compatible")]
+        #[cfg(feature = "py_compat")]
         let search_name = self
             .erg_to_py_names
             .get(name.inspect())
             .unwrap_or(name.inspect());
-        #[cfg(not(feature = "py_compatible"))]
+        #[cfg(not(feature = "py_compat"))]
         let search_name = name.inspect();
         self.locals
             .get_mut(search_name)
@@ -120,7 +120,7 @@ impl Context {
     }
 
     pub(crate) fn get_var_kv(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
-        #[cfg(feature = "py_compatible")]
+        #[cfg(feature = "py_compat")]
         let name = self.erg_to_py_names.get(name).map_or(name, |s| &s[..]);
         self.locals
             .get_key_value(name)
@@ -131,7 +131,7 @@ impl Context {
     }
 
     fn get_param_kv(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
-        #[cfg(feature = "py_compatible")]
+        #[cfg(feature = "py_compat")]
         let name = self.erg_to_py_names.get(name).map_or(name, |s| &s[..]);
         self.params
             .iter()
@@ -569,14 +569,14 @@ impl Context {
                 }
                 return Triple::Ok(method.method_type.clone());
             }
-            Triple::Err(err) if !cfg!(feature = "py_compatible") => {
+            Triple::Err(err) if !cfg!(feature = "py_compat") => {
                 return Triple::Err(err);
             }
             _ => {}
         }
         // get_attr_info(?T, aaa) == None
         // => ?T(<: Structural({ .aaa = ?U }))
-        if self.in_subr() && cfg!(feature = "py_compatible") {
+        if self.in_subr() && cfg!(feature = "py_compat") {
             let t = free_var(self.level, Constraint::new_type_of(Type));
             if let Some(fv) = obj.ref_t().as_free() {
                 if fv.get_sub().is_some() {
@@ -910,7 +910,7 @@ impl Context {
             .map_err(|mut errs| errs.remove(0))?;
         // search_method_info(?T, aaa, pos_args: [1, 2]) == None
         // => ?T(<: Structural({ .aaa = (self: ?T, ?U, ?V) -> ?W }))
-        if coerced == Never && cfg!(feature = "py_compatible") && self.in_subr() {
+        if coerced == Never && cfg!(feature = "py_compat") && self.in_subr() {
             let nd_params = pos_args
                 .iter()
                 .map(|_| ParamTy::Pos(free_var(self.level, Constraint::new_type_of(Type))))
@@ -2341,7 +2341,7 @@ impl Context {
 
     // rec_get_const_localとは違い、位置情報を持たないしエラーとならない
     pub(crate) fn rec_get_const_obj(&self, name: &str) -> Option<&ValueObj> {
-        #[cfg(feature = "py_compatible")]
+        #[cfg(feature = "py_compat")]
         let name = self.erg_to_py_names.get(name).map_or(name, |s| &s[..]);
         if let Some(val) = self.consts.get(name) {
             return Some(val);
@@ -2425,7 +2425,7 @@ impl Context {
 
     /// you should use `get_mono_type` instead of this
     pub(crate) fn rec_local_get_mono_type(&self, name: &str) -> Option<(&Type, &Context)> {
-        #[cfg(feature = "py_compatible")]
+        #[cfg(feature = "py_compat")]
         let name = self.erg_to_py_names.get(name).map_or(name, |s| &s[..]);
         if let Some((t, ctx)) = self.mono_types.get(name) {
             Some((t, ctx))
@@ -2437,7 +2437,7 @@ impl Context {
     }
 
     pub(crate) fn _rec_local_get_poly_type(&self, name: &str) -> Option<(&Type, &Context)> {
-        #[cfg(feature = "py_compatible")]
+        #[cfg(feature = "py_compat")]
         let name = self.erg_to_py_names.get(name).map_or(name, |s| &s[..]);
         if let Some((t, ctx)) = self.poly_types.get(name) {
             Some((t, ctx))
@@ -2449,7 +2449,7 @@ impl Context {
     }
 
     fn rec_get_mut_mono_type(&mut self, name: &str) -> Option<(&mut Type, &mut Context)> {
-        #[cfg(feature = "py_compatible")]
+        #[cfg(feature = "py_compat")]
         let name = self.erg_to_py_names.get(name).map_or(name, |s| &s[..]);
         if let Some((t, ctx)) = self.mono_types.get_mut(name) {
             Some((t, ctx))
@@ -2462,7 +2462,7 @@ impl Context {
     }
 
     fn rec_get_mut_poly_type(&mut self, name: &str) -> Option<(&mut Type, &mut Context)> {
-        #[cfg(feature = "py_compatible")]
+        #[cfg(feature = "py_compat")]
         let name = self.erg_to_py_names.get(name).map_or(name, |s| &s[..]);
         if let Some((t, ctx)) = self.poly_types.get_mut(name) {
             Some((t, ctx))
@@ -2474,7 +2474,7 @@ impl Context {
     }
 
     pub(crate) fn rec_get_mut_type(&mut self, name: &str) -> Option<(&Type, &mut Context)> {
-        #[cfg(feature = "py_compatible")]
+        #[cfg(feature = "py_compat")]
         let name = self.erg_to_py_names.get(name).map_or(name, |s| &s[..]);
         if let Some((t, ctx)) = self.mono_types.get_mut(name) {
             Some((t, ctx))
@@ -2522,7 +2522,7 @@ impl Context {
 
     /// you should use `get_type` instead of this
     pub(crate) fn rec_local_get_type(&self, name: &str) -> Option<(&Type, &Context)> {
-        #[cfg(feature = "py_compatible")]
+        #[cfg(feature = "py_compat")]
         let name = self.erg_to_py_names.get(name).map_or(name, |s| &s[..]);
         if let Some((t, ctx)) = self.mono_types.get(name) {
             Some((t, ctx))

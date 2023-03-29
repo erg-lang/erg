@@ -14,7 +14,7 @@ use Mutability::*;
 
 impl Context {
     pub(super) fn init_builtin_funcs(&mut self) {
-        let vis = if cfg!(feature = "py_compatible") {
+        let vis = if cfg!(feature = "py_compat") {
             Visibility::BUILTIN_PUBLIC
         } else {
             Visibility::BUILTIN_PRIVATE
@@ -347,7 +347,7 @@ impl Context {
         self.register_builtin_py_impl(FUNC_STR, t_str, Immutable, vis.clone(), Some(FUNC_STR__));
         self.register_builtin_py_impl(FUNC_SUM, t_sum, Immutable, vis.clone(), Some(FUNC_SUM));
         self.register_builtin_py_impl(FUNC_ZIP, t_zip, Immutable, vis.clone(), Some(FUNC_ZIP));
-        let name = if cfg!(feature = "py_compatible") {
+        let name = if cfg!(feature = "py_compat") {
             FUNC_INT
         } else {
             FUNC_INT__
@@ -362,7 +362,7 @@ impl Context {
                 Some(FUNDAMENTAL_IMPORT),
             );
         }
-        if !cfg!(feature = "py_compatible") {
+        if !cfg!(feature = "py_compat") {
             self.register_builtin_py_impl(FUNC_IF, t_if, Immutable, vis.clone(), Some(FUNC_IF__));
             self.register_builtin_py_impl(
                 FUNC_DISCARD,
@@ -467,7 +467,7 @@ impl Context {
     }
 
     pub(super) fn init_builtin_const_funcs(&mut self) {
-        let vis = if cfg!(feature = "py_compatible") {
+        let vis = if cfg!(feature = "py_compat") {
             Visibility::BUILTIN_PUBLIC
         } else {
             Visibility::BUILTIN_PRIVATE
@@ -617,7 +617,7 @@ impl Context {
         self.register_builtin_erg_decl(OP_NEG, op_t, Visibility::BUILTIN_PRIVATE);
     }
 
-    pub(super) fn init_py_builtin_operators(&mut self) {
+    pub(super) fn init_py_compat_builtin_operators(&mut self) {
         /* binary */
         let R = type_q("R");
         let O = type_q("O");
@@ -682,21 +682,8 @@ impl Context {
         let op_t = nd_proc(vec![kw(KW_LHS, Obj), kw(KW_RHS, Obj)], None, Bool);
         self.register_builtin_erg_impl(OP_IS, op_t.clone(), Const, Visibility::BUILTIN_PRIVATE);
         self.register_builtin_erg_impl(OP_IS_NOT, op_t, Const, Visibility::BUILTIN_PRIVATE);
-        let op_t = {
-            let S = Type::from(
-                dict! { Field::public("__eq__".into()) => fn1_met(Never, R.clone(), Bool) },
-            )
-            .structuralize();
-            bin_op(S, R.clone(), Bool).quantify()
-        };
-        self.register_builtin_erg_impl(OP_EQ, op_t, Const, Visibility::BUILTIN_PRIVATE);
-        let op_t = {
-            let S = Type::from(
-                dict! { Field::public("__ne__".into()) => fn1_met(Never, R.clone(), Bool) },
-            )
-            .structuralize();
-            bin_op(S, R.clone(), Bool).quantify()
-        };
+        let op_t = bin_op(Obj, Obj, Bool);
+        self.register_builtin_erg_impl(OP_EQ, op_t.clone(), Const, Visibility::BUILTIN_PRIVATE);
         self.register_builtin_erg_impl(OP_NE, op_t, Const, Visibility::BUILTIN_PRIVATE);
         let op_t = {
             let S = Type::from(

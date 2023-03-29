@@ -98,7 +98,7 @@ impl LanguageCode {
             Self::SimplifiedChinese => cfg!(feature = "simplified_chinese"),
             Self::TraditionalChinese => cfg!(feature = "traditional_chinese"),
             Self::Erg => true,
-            Self::Python => cfg!(feature = "py_compatible"),
+            Self::Python => cfg!(feature = "py_compat"),
         }
     }
     pub fn as_str(&self) -> &str {

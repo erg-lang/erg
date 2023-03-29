@@ -69,7 +69,7 @@ impl TryFrom<&str> for ControlKind {
         match s {
             "if" | "if!" => Ok(ControlKind::If),
             "while!" => Ok(ControlKind::While),
-            "while" if cfg!(feature = "py_compatible") => Ok(ControlKind::While),
+            "while" if cfg!(feature = "py_compat") => Ok(ControlKind::While),
             "for" | "for!" => Ok(ControlKind::For),
             "match" | "match!" => Ok(ControlKind::Match),
             "try" | "try!" => Ok(ControlKind::Try),

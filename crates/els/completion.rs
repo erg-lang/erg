@@ -178,13 +178,13 @@ pub struct CompletionCache {
 }
 
 fn external_item(name: &str, vi: &VarInfo, mod_name: &str) -> CompletionItem {
-    #[cfg(feature = "py_compatible")]
+    #[cfg(feature = "py_compat")]
     let mod_name = mod_name.replace('/', ".");
     let mut item =
         CompletionItem::new_simple(format!("{name} (import from {mod_name})"), vi.t.to_string());
     item.sort_text = Some(format!("{}_{}", CompletionOrder::STD_ITEM, item.label));
     item.kind = Some(comp_item_kind(vi));
-    let import = if cfg!(feature = "py_compatible") {
+    let import = if cfg!(feature = "py_compat") {
         format!("from {mod_name} import {name}\n")
     } else {
         format!("{{{name};}} = pyimport \"{mod_name}\"\n")
@@ -227,7 +227,7 @@ fn module_completions() -> Vec<CompletionItem> {
         );
         item.sort_text = Some(format!("{}_{}", CompletionOrder::STD_ITEM, item.label));
         item.kind = Some(CompletionItemKind::MODULE);
-        let import = if cfg!(feature = "py_compatible") {
+        let import = if cfg!(feature = "py_compat") {
             format!("import {mod_name}\n")
         } else {
             format!("{mod_name} = pyimport \"{mod_name}\"\n")
@@ -240,7 +240,7 @@ fn module_completions() -> Vec<CompletionItem> {
         item.filter_text = Some(mod_name.to_string());
         comps.push(item);
     }
-    #[cfg(not(feature = "py_compatible"))]
+    #[cfg(not(feature = "py_compat"))]
     for mod_name in erg_common::erg_util::BUILTIN_ERG_MODS {
         let mut item = CompletionItem::new_simple(
             format!("{mod_name} (import from std)"),

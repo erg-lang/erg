@@ -217,7 +217,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
     }
 
     pub const fn mode(&self) -> &str {
-        if cfg!(feature = "py_compatible") {
+        if cfg!(feature = "py_compat") {
             "pylyzer"
         } else {
             "erg"
@@ -497,7 +497,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             .get(uri)?
             .object
             .as_ref()
-            .map(|hir| HIRVisitor::new(hir, uri.clone(), !cfg!(feature = "py_compatible")))
+            .map(|hir| HIRVisitor::new(hir, uri.clone(), !cfg!(feature = "py_compat")))
     }
 
     pub(crate) fn get_local_ctx(&self, uri: &Url, pos: Position) -> Vec<&Context> {
