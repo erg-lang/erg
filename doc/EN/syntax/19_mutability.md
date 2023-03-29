@@ -99,5 +99,5 @@ In C, types and functions cannot be assigned to variables; int and main are iden
 However, in Erg, "everything is an object". Not only functions and types, but even operators can be assigned to variables.
 
 <p align='center'>
-    <a href='./17_iterator.md'>Previous</a> | <a href='./19_ownership.md'>Next</a>
+    <a href='./18_iterator.md'>Previous</a> | <a href='./20_ownership.md'>Next</a>
 </p>

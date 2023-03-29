@@ -231,7 +231,7 @@ C = Class {.[<: C]i = Int}
 ```
 
 <p align='center'>
-    <a href='./19_ownership.md'>Previous</a> | <a href='./21_naming_rule.md'>Next</a>
+    <a href='./20_ownership.md'>Previous</a> | <a href='./22_naming_rule.md'>Next</a>
 </p>
 
 ---

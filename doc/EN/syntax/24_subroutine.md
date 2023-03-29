@@ -58,5 +58,5 @@ and(x, y, z) = x and y and z
 ```
 
 <p align='center'>
-    <a href='./22_lambda.md'>Previous</a> | <a href='./24_closure.md'>Next</a>
+    <a href='./23_lambda.md'>Previous</a> | <a href='./25_closure.md'>Next</a>
 </p>

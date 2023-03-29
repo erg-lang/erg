@@ -82,5 +82,5 @@ decl_proc proc!: Proc, T =
 This is a runtime overhead, so [a project to statically type analyze Python scripts with Erg's type system](https://github.com/mtshiba/pylyzer) is underway.
 
 <p align='center'>
-    <a href='./32_pipeline.md'>Previous</a> | <a href='./34_package_system.md'>Next</a>
+    <a href='./33_pipeline.md'>Previous</a> | <a href='./35_package_system.md'>Next</a>
 </p>

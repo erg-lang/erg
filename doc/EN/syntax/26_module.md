@@ -115,5 +115,5 @@ print! foo.x
 In addition, An Erg module that is an entry point (i.e., a module that `__name__ == "__main__"`) cannot be the subject of circular references.
 
 <p align='center'>
-     <a href='./24_closure.md'>Previous</a> | <a href='./26_object_system.md'>Next</a>
+     <a href='./25_closure.md'>Previous</a> | <a href='./27_object_system.md'>Next</a>
 </p>

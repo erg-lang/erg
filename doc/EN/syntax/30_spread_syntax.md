@@ -37,5 +37,5 @@ assert x == 1 and y == 2
 ```
 
 <p align='center'>
-    <a href='./28_comprehension.md'>Previous</a> | <a href='./30_decorator.md'>Next</a>
+    <a href='./29_comprehension.md'>Previous</a> | <a href='./31_decorator.md'>Next</a>
 </p>

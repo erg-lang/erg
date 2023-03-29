@@ -46,5 +46,5 @@ Furthermore, literal identifiers can contain both symbols and spaces, so strings
 ```
 
 <p align='center'>
-    <a href='./20_visibility.md'>Previous</a> | <a href='./22_lambda.md'>Next</a>
+    <a href='./21_visibility.md'>Previous</a> | <a href='./23_lambda.md'>Next</a>
 </p>

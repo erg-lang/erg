@@ -1,4 +1,6 @@
-# Object
+# Object System
+
+## Object
 
 All data that can be assigned to a variable. The attributes of the `Object` class are as follows.
 
@@ -78,5 +80,5 @@ Objects that are not subroutines and types.
 Monomorphic entities (`1`, `"a"`, etc.) are also called value objects, polymorphic entities (`[1, 2, 3], {"a": 1}`) are also called container objects .
 
 <p align='center'>
-    <a href='./25_module.md'>Previous</a> | <a href='./27_pattern_matching.md'>Next</a>
+    <a href='./26_module.md'>Previous</a> | <a href='./28_pattern_matching.md'>Next</a>
 </p>

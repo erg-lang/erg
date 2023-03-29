@@ -102,3 +102,7 @@ x: Int or NoneType
 assert x != None
 x: Int
 ```
+
+<p align='center'>
+    <a href='./16_type.md'>Previous</a> | <a href='./18_iterator.md'>Next</a>
+</p>

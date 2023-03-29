@@ -84,5 +84,5 @@ baz = import "baz"
 ```
 
 <p align='center'>
-    <a href='./33_integration_with_Python.md'>Previous</a> | <a href='./35_generator.md'>Next</a>
+    <a href='./34_integration_with_Python.md'>Previous</a> | <a href='./36_generator.md'>Next</a>
 </p>
