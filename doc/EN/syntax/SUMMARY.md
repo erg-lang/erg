@@ -82,4 +82,5 @@ This file is for generating The Erg Book. Do not add badges, etc.
 - [Generator](./35_generator.md)
 - [The Grammar of Erg (ver 0.1.0, provisional)](./grammar.md)
 - [index](./indexes.md)
+- [Type Narrowing](./narrowing.md)
 - [Quick Tour](./quick_tour.md)
