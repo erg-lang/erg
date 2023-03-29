@@ -60,6 +60,7 @@ pub enum ControlKind {
     Match,
     Try,
     With,
+    Assert,
 }
 
 impl TryFrom<&str> for ControlKind {
@@ -68,10 +69,12 @@ impl TryFrom<&str> for ControlKind {
         match s {
             "if" | "if!" => Ok(ControlKind::If),
             "while!" => Ok(ControlKind::While),
+            "while" if cfg!(feature = "py_compatible") => Ok(ControlKind::While),
             "for" | "for!" => Ok(ControlKind::For),
             "match" | "match!" => Ok(ControlKind::Match),
             "try" | "try!" => Ok(ControlKind::Try),
             "with" | "with!" => Ok(ControlKind::With),
+            "assert" => Ok(ControlKind::Assert),
             _ => Err(()),
         }
     }
@@ -79,10 +82,14 @@ impl TryFrom<&str> for ControlKind {
 
 impl ControlKind {
     pub const fn is_if(&self) -> bool {
-        matches!(self, ControlKind::If)
+        matches!(self, Self::If)
     }
+    /// if | if! | while!
     pub const fn is_conditional(&self) -> bool {
-        matches!(self, ControlKind::If | ControlKind::While)
+        matches!(self, Self::If | Self::While)
+    }
+    pub const fn makes_scope(&self) -> bool {
+        !matches!(self, Self::Assert)
     }
 }
 

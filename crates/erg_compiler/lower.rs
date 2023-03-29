@@ -7,6 +7,7 @@ use erg_common::config::{ErgConfig, ErgMode};
 use erg_common::dict;
 use erg_common::dict::Dict;
 use erg_common::error::{Location, MultiErrorDisplay};
+use erg_common::fresh::fresh_varname;
 use erg_common::set;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, NoTypeDisplay, Runnable, Stream};
@@ -23,16 +24,17 @@ use crate::artifact::{CompleteArtifact, IncompleteArtifact};
 use crate::context::instantiate::TyVarCache;
 use crate::module::SharedCompilerResource;
 use crate::ty::constructors::{
-    array_mut, array_t, free_var, func, guard, mono, poly, proc, set_mut, set_t, ty_tp, v_enum,
+    array_mut, array_t, free_var, func, guard, mono, poly, proc, refinement, set_mut, set_t, ty_tp,
+    v_enum,
 };
 use crate::ty::free::Constraint;
 use crate::ty::typaram::TyParam;
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
-use crate::ty::{GuardType, HasType, ParamTy, Type, Variable, VisibilityModifier};
+use crate::ty::{GuardType, HasType, ParamTy, Predicate, Type, Variable, VisibilityModifier};
 
 use crate::context::{
-    ClassDefType, Context, ContextKind, ContextProvider, ModuleContext, RegistrationMode,
-    TraitImpl, Variance,
+    ClassDefType, Context, ContextKind, ContextProvider, ControlKind, ModuleContext,
+    RegistrationMode, TraitImpl, Variance,
 };
 use crate::error::{
     CompileError, CompileErrors, LowerError, LowerErrors, LowerResult, LowerWarning, LowerWarnings,
@@ -781,6 +783,38 @@ impl ASTLowerer {
                 let ty = guard(var, v_enum(set! { value }));
                 Some(self.module.context.complement(&ty))
             }
+            TokenKind::Gre => {
+                let value = self.module.context.expr_to_value(rhs.clone())?;
+                let t = value.class();
+                let varname = Str::from(fresh_varname());
+                let pred = Predicate::gt(varname.clone(), TyParam::value(value));
+                let refine = refinement(varname, t, pred);
+                Some(guard(var, refine))
+            }
+            TokenKind::GreEq => {
+                let value = self.module.context.expr_to_value(rhs.clone())?;
+                let t = value.class();
+                let varname = Str::from(fresh_varname());
+                let pred = Predicate::ge(varname.clone(), TyParam::value(value));
+                let refine = refinement(varname, t, pred);
+                Some(guard(var, refine))
+            }
+            TokenKind::Less => {
+                let value = self.module.context.expr_to_value(rhs.clone())?;
+                let t = value.class();
+                let varname = Str::from(fresh_varname());
+                let pred = Predicate::lt(varname.clone(), TyParam::value(value));
+                let refine = refinement(varname, t, pred);
+                Some(guard(var, refine))
+            }
+            TokenKind::LessEq => {
+                let value = self.module.context.expr_to_value(rhs.clone())?;
+                let t = value.class();
+                let varname = Str::from(fresh_varname());
+                let pred = Predicate::le(varname.clone(), TyParam::value(value));
+                let refine = refinement(varname, t, pred);
+                Some(guard(var, refine))
+            }
             _ => None,
         }
     }
@@ -854,25 +888,11 @@ impl ASTLowerer {
             Vec::with_capacity(kw_args.len()),
             paren,
         );
-        for (i, arg) in pos_args.into_iter().enumerate() {
+        for (nth, arg) in pos_args.into_iter().enumerate() {
             match self.lower_expr(arg.expr) {
                 Ok(expr) => {
                     if let Some(kind) = self.module.context.control_kind() {
-                        if let Type::Guard(guard) = expr.ref_t() {
-                            match i {
-                                0 if kind.is_conditional() => {
-                                    self.module.context.guards.push(guard.clone());
-                                }
-                                1 if kind.is_if() => {
-                                    let guard = GuardType::new(
-                                        guard.var.clone(),
-                                        self.module.context.complement(&guard.to),
-                                    );
-                                    self.module.context.guards.push(guard);
-                                }
-                                _ => {}
-                            }
-                        }
+                        self.push_guard(nth, kind, expr.ref_t());
                     }
                     hir_args.pos_args.push(hir::PosArg::new(expr))
                 }
@@ -907,11 +927,34 @@ impl ASTLowerer {
         hir_args
     }
 
+    fn push_guard(&mut self, nth: usize, kind: ControlKind, t: &Type) {
+        match t {
+            Type::Guard(guard) => match nth {
+                0 if kind.is_conditional() => {
+                    self.module.context.guards.push(guard.clone());
+                }
+                1 if kind.is_if() => {
+                    let guard = GuardType::new(
+                        guard.var.clone(),
+                        self.module.context.complement(&guard.to),
+                    );
+                    self.module.context.guards.push(guard);
+                }
+                _ => {}
+            },
+            Type::And(lhs, rhs) => {
+                self.push_guard(nth, kind, lhs);
+                self.push_guard(nth, kind, rhs);
+            }
+            _ => {}
+        }
+    }
+
     /// returning `Ok(call)` does not mean the call is valid, just means it is syntactically valid
     /// `ASTLowerer` is designed to cause as little information loss in HIR as possible
     pub(crate) fn lower_call(&mut self, call: ast::Call) -> LowerResult<hir::Call> {
         log!(info "entered {}({}{}(...))", fn_name!(), call.obj, fmt_option!(call.attr_name));
-        if let Some(name) = call.obj.get_name() {
+        if let (Some(name), None) = (call.obj.get_name(), &call.attr_name) {
             self.module.context.higher_order_caller.push(name.clone());
         }
         let mut errs = LowerErrors::empty();
@@ -1172,14 +1215,11 @@ impl ASTLowerer {
     fn lower_lambda(&mut self, lambda: ast::Lambda) -> LowerResult<hir::Lambda> {
         log!(info "entered {}({lambda})", fn_name!());
         let in_statement = cfg!(feature = "py_compatible")
-            && matches!(
-                self.module
-                    .context
-                    .higher_order_caller
-                    .last()
-                    .map(|s| &s[..]),
-                Some("if" | "while" | "for" | "with" | "try")
-            );
+            && self
+                .module
+                .context
+                .control_kind()
+                .map_or(false, |k| k.makes_scope());
         let is_procedural = lambda.is_procedural();
         let id = lambda.id.0;
         let name = format!("<lambda_{id}>");
