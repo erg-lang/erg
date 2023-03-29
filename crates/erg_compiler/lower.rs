@@ -756,19 +756,20 @@ impl ASTLowerer {
         Ok(ident)
     }
 
-    fn get_type_from_bin_rhs(&self, op: TokenKind, var: Variable, rhs: &ast::Expr) -> Option<Type> {
-        match op {
-            TokenKind::InOp => self
-                .module
-                .context
-                .expr_to_type(rhs.clone())
-                .map(|to| guard(var, to)),
+    fn get_guard_type(&self, op: &Token, lhs: &ast::Expr, rhs: &ast::Expr) -> Option<Type> {
+        let var = expr_to_variable(lhs)?;
+        match op.kind {
+            TokenKind::InOp => {
+                let to = self.module.context.expr_to_type(rhs.clone())?;
+                Some(guard(var, to))
+            }
+            TokenKind::Symbol if &op.content[..] == "isinstance" => {
+                let to = self.module.context.expr_to_type(rhs.clone())?;
+                Some(guard(var, to))
+            }
             TokenKind::NotInOp => {
-                let ty = self
-                    .module
-                    .context
-                    .expr_to_type(rhs.clone())
-                    .map(|to| guard(var, to))?;
+                let to = self.module.context.expr_to_type(rhs.clone())?;
+                let ty = guard(var, to);
                 Some(self.module.context.complement(&ty))
             }
             TokenKind::IsOp | TokenKind::DblEq => {
@@ -789,8 +790,7 @@ impl ASTLowerer {
         let mut args = bin.args.into_iter();
         let lhs = *args.next().unwrap();
         let rhs = *args.next().unwrap();
-        let guard = expr_to_variable(&lhs)
-            .and_then(|var| self.get_type_from_bin_rhs(bin.op.kind, var, &rhs));
+        let guard = self.get_guard_type(&bin.op, &lhs, &rhs);
         let lhs = self.lower_expr(lhs).unwrap_or_else(|errs| {
             self.errs.extend(errs);
             hir::Expr::Dummy(hir::Dummy::new(vec![]))
@@ -915,6 +915,21 @@ impl ASTLowerer {
             self.module.context.higher_order_caller.push(name.clone());
         }
         let mut errs = LowerErrors::empty();
+        let guard = if let (
+            ast::Expr::Accessor(ast::Accessor::Ident(ident)),
+            None,
+            Some(lhs),
+            Some(rhs),
+        ) = (
+            call.obj.as_ref(),
+            &call.attr_name,
+            call.args.nth_or_key(0, "object"),
+            call.args.nth_or_key(1, "classinfo"),
+        ) {
+            self.get_guard_type(ident.name.token(), lhs, rhs)
+        } else {
+            None
+        };
         let opt_cast_to = if call.is_assert_cast() {
             if let Some(typ) = call.assert_cast_target_type() {
                 Some(Parser::expr_to_type_spec(typ.clone()).map_err(|e| {
@@ -949,7 +964,7 @@ impl ASTLowerer {
                 return Err(errs);
             }
         };
-        let vi = match self.module.context.get_call_t(
+        let mut vi = match self.module.context.get_call_t(
             &obj,
             &call.attr_name,
             &hir_args.pos_args,
@@ -964,6 +979,13 @@ impl ASTLowerer {
                 vi.unwrap_or(VarInfo::ILLEGAL.clone())
             }
         };
+        if let Some(guard) = guard {
+            debug_assert!(self
+                .module
+                .context
+                .subtype_of(vi.t.return_t().unwrap(), &Type::Bool));
+            *vi.t.mut_return_t().unwrap() = guard;
+        }
         let attr_name = if let Some(attr_name) = call.attr_name {
             self.inc_ref(&vi, &attr_name.name);
             Some(hir::Identifier::new(attr_name, None, vi))
@@ -1185,15 +1207,8 @@ impl ASTLowerer {
             self.errs.extend(errs);
         }
         if !in_statement {
-            for guard in self
-                .module
-                .context
-                .get_outer()
-                .unwrap()
-                .guards
-                .clone()
-                .into_iter()
-            {
+            let guards = mem::take(&mut self.module.context.get_mut_outer().unwrap().guards);
+            for guard in guards.into_iter() {
                 if let Variable::Var(name) = &guard.var {
                     let vi = self
                         .module

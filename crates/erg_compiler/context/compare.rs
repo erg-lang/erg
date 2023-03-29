@@ -1019,6 +1019,7 @@ impl Context {
                     .unwrap_or_else(Type::Refinement)
             }
             (Structural(l), Structural(r)) => self.intersection(l, r).structuralize(),
+            (Guard(_), Guard(_)) => and(lhs.clone(), rhs.clone()),
             // {.i = Int} and {.s = Str} == {.i = Int; .s = Str}
             (Record(l), Record(r)) => Type::Record(l.clone().concat(r.clone())),
             // {i = Int; j = Int} and not {i = Int} == {j = Int}
@@ -1113,6 +1114,8 @@ impl Context {
                 guard.var.clone(),
                 self.complement(&guard.to),
             )),
+            Or(l, r) => self.intersection(&self.complement(l), &self.complement(r)),
+            And(l, r) => self.union(&self.complement(l), &self.complement(r)),
             other => not(other.clone()),
         }
     }

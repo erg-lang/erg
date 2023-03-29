@@ -932,6 +932,10 @@ impl Context {
         self.outer.as_ref().map(|x| x.as_ref())
     }
 
+    pub(crate) fn get_mut_outer(&mut self) -> Option<&mut Context> {
+        self.outer.as_mut().map(|x| x.as_mut())
+    }
+
     pub(crate) fn impl_of(&self) -> Option<Type> {
         if let ContextKind::MethodDefs(Some(tr)) = &self.kind {
             Some(tr.clone())
