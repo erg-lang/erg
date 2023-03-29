@@ -99,5 +99,5 @@ match! x:
 しかし、Ergでは「全てがオブジェクト」です。関数や型は勿論、演算子でさえ変数に代入可能です。
 
 <p align='center'>
-    <a href='./15_iterator.md'>Previous</a> | <a href='./19_ownership.md'>Next</a>
+    <a href='./18_iterator.md'>Previous</a> | <a href='./20_ownership.md'>Next</a>
 </p>

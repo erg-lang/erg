@@ -57,7 +57,7 @@ greet! child # "Hello from Child"
 ```python
 assert 1 == 1.0
 assert Ratio.from(1) == 1.0
-assert 1.into<Ratio>() == 1.0
+assert 1.into(Ratio) == 1.0
 ```
 
 ## ダウンキャスト
@@ -72,6 +72,7 @@ IntTryFromFloat.
             then: r.ceil()
             else: Error "conversion failed"
 ```
+
 <p align='center'>
     <a href='./16_subtyping.md'>Previous</a> | <a href='./18_mut.md'>Next</a>
 </p>

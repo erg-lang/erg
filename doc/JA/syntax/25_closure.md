@@ -95,5 +95,5 @@ assert sum == 45
 不変オブジェクトによるプログラミングで自然と簡潔な記述となるように、Ergは設計されています。
 
 <p align='center'>
-    <a href='./23_subroutine.md'>Previous</a> | <a href='./25_module.md'>Next</a>
+    <a href='./24_subroutine.md'>Previous</a> | <a href='./26_module.md'>Next</a>
 </p>

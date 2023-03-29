@@ -118,5 +118,5 @@ assert Y in U.attaches
 テスト用サブルーチンであることを示します。テスト用サブルーチンは`erg test`コマンドで実行されます。
 
 <p align='center'>
-    <a href='./29_spread_syntax.md'>Previous</a> | <a href='./31_error_handling.md'>Next</a>
+    <a href='./30_spread_syntax.md'>Previous</a> | <a href='./32_error_handling.md'>Next</a>
 </p>

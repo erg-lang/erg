@@ -48,5 +48,5 @@ Ergでも有効な識別子の場合は、''で囲む必要はありません。
 ```
 
 <p align='center'>
-    <a href='./20_visibility.md'>Previous</a> | <a href='./22_lambda.md'>Next</a>
+    <a href='./21_visibility.md'>Previous</a> | <a href='./23_lambda.md'>Next</a>
 </p>

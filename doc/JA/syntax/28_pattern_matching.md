@@ -189,5 +189,5 @@ match i
 イテレータで取り出すことはできますが、順番は保証されません。
 
 <p align='center'>
-    <a href='./26_object_system.md'>Previous</a> | <a href='./28_comprehension.md'>Next</a>
+    <a href='./27_object_system.md'>Previous</a> | <a href='./29_comprehension.md'>Next</a>
 </p>

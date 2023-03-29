@@ -85,5 +85,5 @@ decl_proc proc!: Proc, T =
 これは実行時オーバーヘッドとなるので、[PythonスクリプトをErgの型システムで静的に型解析するプロジェクト](https://github.com/mtshiba/pylyzer)が進められています。
 
 <p align='center'>
-    <a href='./32_pipeline.md'>Previous</a> | <a href='./34_package_system.md'>Next</a>
+    <a href='./33_pipeline.md'>Previous</a> | <a href='./35_package_system.md'>Next</a>
 </p>

@@ -30,5 +30,5 @@ __evens = 1..100 \
 ```
 
 <p align='center'>
-    <a href='./31_error_handling.md'>Previous</a> | <a href='./33_integration_with_Python.md'>Next</a>
+    <a href='./32_error_handling.md'>Previous</a> | <a href='./34_integration_with_Python.md'>Next</a>
 </p>

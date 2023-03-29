@@ -106,5 +106,5 @@ Ergの参照はRustより制約が強いです。参照は言語上第一級の�
 Ergでは意図せずメモリリークを起こせないように設計されており、メモリーチェッカーが循環参照を検知するとエラーを出します。ほとんどの場合、このエラーは弱参照`Weak`で解消できます。しかし、これでは巡回グラフなどの循環構造を持つオブジェクトを生成できないため、unsafe操作として循環参照を生成できるAPIを実装予定です。
 
 <p align='center'>
-    <a href='./18_mutability.md'>Previous</a> | <a href='./20_visibility.md'>Next</a>
+    <a href='./19_mutability.md'>Previous</a> | <a href='./21_visibility.md'>Next</a>
 </p>

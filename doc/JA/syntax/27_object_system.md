@@ -80,5 +80,5 @@ Ergの関数(Function)は副作用を許さないので、Pythonのそれとは�
 単相型エンティティ(`1`, `"a"`など)は値オブジェクト、多相型エンティティ(`[1, 2, 3], {"a": 1}`)はコンテナオブジェクトとも呼ばれます。
 
 <p align='center'>
-    <a href='./25_module.md'>Previous</a> | <a href='./27_pattern_matching.md'>Next</a>
+    <a href='./26_module.md'>Previous</a> | <a href='./28_pattern_matching.md'>Next</a>
 </p>
