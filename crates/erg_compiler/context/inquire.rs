@@ -124,9 +124,24 @@ impl Context {
         let name = self.erg_to_py_names.get(name).map_or(name, |s| &s[..]);
         self.locals
             .get_key_value(name)
+            .or_else(|| self.get_param_kv(name))
             .or_else(|| self.decls.get_key_value(name))
             .or_else(|| self.future_defined_locals.get_key_value(name))
             .or_else(|| self.get_outer().and_then(|ctx| ctx.get_var_kv(name)))
+    }
+
+    fn get_param_kv(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
+        #[cfg(feature = "py_compatible")]
+        let name = self.erg_to_py_names.get(name).map_or(name, |s| &s[..]);
+        self.params
+            .iter()
+            .find(|(opt_name, _)| {
+                opt_name
+                    .as_ref()
+                    .map(|n| &n.inspect()[..] == name)
+                    .unwrap_or(false)
+            })
+            .map(|(opt_name, vi)| (opt_name.as_ref().unwrap(), vi))
     }
 
     pub fn get_singular_ctxs_by_hir_expr(
@@ -1983,7 +1998,7 @@ impl Context {
                 (Type::Refinement(l), Type::Refinement(r)) if l.t == r.t => {
                     self.get_nominal_super_type_ctxs(&l.t)
                 }
-                _ => None,
+                _ => self.get_nominal_type_ctx(&Obj).map(|(_, ctx)| vec![ctx]),
             },
             _ => self
                 .get_simple_nominal_super_type_ctxs(t)

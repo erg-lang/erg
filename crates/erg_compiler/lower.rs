@@ -7,6 +7,7 @@ use erg_common::config::{ErgConfig, ErgMode};
 use erg_common::dict;
 use erg_common::dict::Dict;
 use erg_common::error::{Location, MultiErrorDisplay};
+use erg_common::fresh::fresh_varname;
 use erg_common::set;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, NoTypeDisplay, Runnable, Stream};
@@ -23,16 +24,17 @@ use crate::artifact::{CompleteArtifact, IncompleteArtifact};
 use crate::context::instantiate::TyVarCache;
 use crate::module::SharedCompilerResource;
 use crate::ty::constructors::{
-    array_mut, array_t, free_var, func, mono, poly, proc, set_mut, set_t, ty_tp,
+    array_mut, array_t, free_var, func, guard, mono, poly, proc, refinement, set_mut, set_t, ty_tp,
+    v_enum,
 };
 use crate::ty::free::Constraint;
 use crate::ty::typaram::TyParam;
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
-use crate::ty::{HasType, ParamTy, Type, VisibilityModifier};
+use crate::ty::{GuardType, HasType, ParamTy, Predicate, Type, Variable, VisibilityModifier};
 
 use crate::context::{
-    ClassDefType, Context, ContextKind, ContextProvider, ModuleContext, RegistrationMode,
-    TraitImpl, Variance,
+    ClassDefType, Context, ContextKind, ContextProvider, ControlKind, ModuleContext,
+    RegistrationMode, TraitImpl, Variance,
 };
 use crate::error::{
     CompileError, CompileErrors, LowerError, LowerErrors, LowerResult, LowerWarning, LowerWarnings,
@@ -46,6 +48,24 @@ use crate::AccessKind;
 use crate::{feature_error, unreachable_error};
 
 use VisibilityModifier::*;
+
+pub fn acc_to_variable(acc: &ast::Accessor) -> Option<Variable> {
+    match acc {
+        ast::Accessor::Ident(ident) => Some(Variable::Var(ident.inspect().clone())),
+        ast::Accessor::Attr(attr) => Some(Variable::attr(
+            expr_to_variable(&attr.obj)?,
+            attr.ident.inspect().clone(),
+        )),
+        _ => None,
+    }
+}
+
+pub fn expr_to_variable(expr: &ast::Expr) -> Option<Variable> {
+    match expr {
+        ast::Expr::Accessor(acc) => acc_to_variable(acc),
+        _ => None,
+    }
+}
 
 /// Checks & infers types of an AST, and convert (lower) it into a HIR
 #[derive(Debug)]
@@ -254,7 +274,7 @@ impl ASTLowerer {
         for elem in elems.into_iter() {
             let elem = self.lower_expr(elem.expr)?;
             let union_ = self.module.context.union(&union, elem.ref_t());
-            if let Some((l, r)) = union_.union_types() {
+            if let Some((l, r)) = union_.union_pair() {
                 match (l.is_unbound_var(), r.is_unbound_var()) {
                     // e.g. [1, "a"]
                     (false, false) => {
@@ -738,25 +758,85 @@ impl ASTLowerer {
         Ok(ident)
     }
 
+    fn get_guard_type(&self, op: &Token, lhs: &ast::Expr, rhs: &ast::Expr) -> Option<Type> {
+        let var = expr_to_variable(lhs)?;
+        match op.kind {
+            TokenKind::InOp => {
+                let to = self.module.context.expr_to_type(rhs.clone())?;
+                Some(guard(var, to))
+            }
+            TokenKind::Symbol if &op.content[..] == "isinstance" => {
+                let to = self.module.context.expr_to_type(rhs.clone())?;
+                Some(guard(var, to))
+            }
+            TokenKind::NotInOp => {
+                let to = self.module.context.expr_to_type(rhs.clone())?;
+                let ty = guard(var, to);
+                Some(self.module.context.complement(&ty))
+            }
+            TokenKind::IsOp | TokenKind::DblEq => {
+                let value = self.module.context.expr_to_value(rhs.clone())?;
+                Some(guard(var, v_enum(set! { value })))
+            }
+            TokenKind::IsNotOp | TokenKind::NotEq => {
+                let value = self.module.context.expr_to_value(rhs.clone())?;
+                let ty = guard(var, v_enum(set! { value }));
+                Some(self.module.context.complement(&ty))
+            }
+            TokenKind::Gre => {
+                let value = self.module.context.expr_to_value(rhs.clone())?;
+                let t = value.class();
+                let varname = Str::from(fresh_varname());
+                let pred = Predicate::gt(varname.clone(), TyParam::value(value));
+                let refine = refinement(varname, t, pred);
+                Some(guard(var, refine))
+            }
+            TokenKind::GreEq => {
+                let value = self.module.context.expr_to_value(rhs.clone())?;
+                let t = value.class();
+                let varname = Str::from(fresh_varname());
+                let pred = Predicate::ge(varname.clone(), TyParam::value(value));
+                let refine = refinement(varname, t, pred);
+                Some(guard(var, refine))
+            }
+            TokenKind::Less => {
+                let value = self.module.context.expr_to_value(rhs.clone())?;
+                let t = value.class();
+                let varname = Str::from(fresh_varname());
+                let pred = Predicate::lt(varname.clone(), TyParam::value(value));
+                let refine = refinement(varname, t, pred);
+                Some(guard(var, refine))
+            }
+            TokenKind::LessEq => {
+                let value = self.module.context.expr_to_value(rhs.clone())?;
+                let t = value.class();
+                let varname = Str::from(fresh_varname());
+                let pred = Predicate::le(varname.clone(), TyParam::value(value));
+                let refine = refinement(varname, t, pred);
+                Some(guard(var, refine))
+            }
+            _ => None,
+        }
+    }
+
     fn lower_bin(&mut self, bin: ast::BinOp) -> hir::BinOp {
         log!(info "entered {}({bin})", fn_name!());
         let mut args = bin.args.into_iter();
-        let lhs = self
-            .lower_expr(*args.next().unwrap())
-            .unwrap_or_else(|errs| {
-                self.errs.extend(errs);
-                hir::Expr::Dummy(hir::Dummy::new(vec![]))
-            });
+        let lhs = *args.next().unwrap();
+        let rhs = *args.next().unwrap();
+        let guard = self.get_guard_type(&bin.op, &lhs, &rhs);
+        let lhs = self.lower_expr(lhs).unwrap_or_else(|errs| {
+            self.errs.extend(errs);
+            hir::Expr::Dummy(hir::Dummy::new(vec![]))
+        });
         let lhs = hir::PosArg::new(lhs);
-        let rhs = self
-            .lower_expr(*args.next().unwrap())
-            .unwrap_or_else(|errs| {
-                self.errs.extend(errs);
-                hir::Expr::Dummy(hir::Dummy::new(vec![]))
-            });
+        let rhs = self.lower_expr(rhs).unwrap_or_else(|errs| {
+            self.errs.extend(errs);
+            hir::Expr::Dummy(hir::Dummy::new(vec![]))
+        });
         let rhs = hir::PosArg::new(rhs);
         let args = [lhs, rhs];
-        let t = self
+        let mut vi = self
             .module
             .context
             .get_binop_t(&bin.op, &args, &self.cfg.input, &self.module.context)
@@ -764,10 +844,17 @@ impl ASTLowerer {
                 self.errs.extend(errs);
                 VarInfo::ILLEGAL.clone()
             });
+        if let Some(guard) = guard {
+            debug_assert!(self
+                .module
+                .context
+                .subtype_of(vi.t.return_t().unwrap(), &Type::Bool));
+            *vi.t.mut_return_t().unwrap() = guard;
+        }
         let mut args = args.into_iter();
         let lhs = args.next().unwrap().expr;
         let rhs = args.next().unwrap().expr;
-        hir::BinOp::new(bin.op, lhs, rhs, t)
+        hir::BinOp::new(bin.op, lhs, rhs, vi)
     }
 
     fn lower_unary(&mut self, unary: ast::UnaryOp) -> hir::UnaryOp {
@@ -801,9 +888,14 @@ impl ASTLowerer {
             Vec::with_capacity(kw_args.len()),
             paren,
         );
-        for arg in pos_args.into_iter() {
+        for (nth, arg) in pos_args.into_iter().enumerate() {
             match self.lower_expr(arg.expr) {
-                Ok(expr) => hir_args.pos_args.push(hir::PosArg::new(expr)),
+                Ok(expr) => {
+                    if let Some(kind) = self.module.context.control_kind() {
+                        self.push_guard(nth, kind, expr.ref_t());
+                    }
+                    hir_args.pos_args.push(hir::PosArg::new(expr))
+                }
                 Err(es) => {
                     errs.extend(es);
                     hir_args.push_pos(hir::PosArg::new(hir::Expr::Dummy(hir::Dummy::empty())));
@@ -835,14 +927,52 @@ impl ASTLowerer {
         hir_args
     }
 
+    fn push_guard(&mut self, nth: usize, kind: ControlKind, t: &Type) {
+        match t {
+            Type::Guard(guard) => match nth {
+                0 if kind.is_conditional() => {
+                    self.module.context.guards.push(guard.clone());
+                }
+                1 if kind.is_if() => {
+                    let guard = GuardType::new(
+                        guard.var.clone(),
+                        self.module.context.complement(&guard.to),
+                    );
+                    self.module.context.guards.push(guard);
+                }
+                _ => {}
+            },
+            Type::And(lhs, rhs) => {
+                self.push_guard(nth, kind, lhs);
+                self.push_guard(nth, kind, rhs);
+            }
+            _ => {}
+        }
+    }
+
     /// returning `Ok(call)` does not mean the call is valid, just means it is syntactically valid
     /// `ASTLowerer` is designed to cause as little information loss in HIR as possible
     pub(crate) fn lower_call(&mut self, call: ast::Call) -> LowerResult<hir::Call> {
         log!(info "entered {}({}{}(...))", fn_name!(), call.obj, fmt_option!(call.attr_name));
-        if let Some(name) = call.obj.get_name() {
+        if let (Some(name), None) = (call.obj.get_name(), &call.attr_name) {
             self.module.context.higher_order_caller.push(name.clone());
         }
         let mut errs = LowerErrors::empty();
+        let guard = if let (
+            ast::Expr::Accessor(ast::Accessor::Ident(ident)),
+            None,
+            Some(lhs),
+            Some(rhs),
+        ) = (
+            call.obj.as_ref(),
+            &call.attr_name,
+            call.args.nth_or_key(0, "object"),
+            call.args.nth_or_key(1, "classinfo"),
+        ) {
+            self.get_guard_type(ident.name.token(), lhs, rhs)
+        } else {
+            None
+        };
         let opt_cast_to = if call.is_assert_cast() {
             if let Some(typ) = call.assert_cast_target_type() {
                 Some(Parser::expr_to_type_spec(typ.clone()).map_err(|e| {
@@ -877,7 +1007,7 @@ impl ASTLowerer {
                 return Err(errs);
             }
         };
-        let vi = match self.module.context.get_call_t(
+        let mut vi = match self.module.context.get_call_t(
             &obj,
             &call.attr_name,
             &hir_args.pos_args,
@@ -892,6 +1022,13 @@ impl ASTLowerer {
                 vi.unwrap_or(VarInfo::ILLEGAL.clone())
             }
         };
+        if let Some(guard) = guard {
+            debug_assert!(self
+                .module
+                .context
+                .subtype_of(vi.t.return_t().unwrap(), &Type::Bool));
+            *vi.t.mut_return_t().unwrap() = guard;
+        }
         let attr_name = if let Some(attr_name) = call.attr_name {
             self.inc_ref(&vi, &attr_name.name);
             Some(hir::Identifier::new(attr_name, None, vi))
@@ -1078,14 +1215,11 @@ impl ASTLowerer {
     fn lower_lambda(&mut self, lambda: ast::Lambda) -> LowerResult<hir::Lambda> {
         log!(info "entered {}({lambda})", fn_name!());
         let in_statement = cfg!(feature = "py_compatible")
-            && matches!(
-                self.module
-                    .context
-                    .higher_order_caller
-                    .last()
-                    .map(|s| &s[..]),
-                Some("if" | "while" | "for" | "with" | "try")
-            );
+            && self
+                .module
+                .context
+                .control_kind()
+                .map_or(false, |k| k.makes_scope());
         let is_procedural = lambda.is_procedural();
         let id = lambda.id.0;
         let name = format!("<lambda_{id}>");
@@ -1112,6 +1246,46 @@ impl ASTLowerer {
         if let Err(errs) = self.module.context.assign_params(&mut params, None) {
             self.errs.extend(errs);
         }
+        let overwritten = {
+            let mut overwritten = vec![];
+            let guards = if in_statement {
+                mem::take(&mut self.module.context.guards)
+            } else {
+                mem::take(&mut self.module.context.get_mut_outer().unwrap().guards)
+            };
+            for guard in guards.into_iter() {
+                if let Variable::Var(name) = &guard.var {
+                    let vi = self
+                        .module
+                        .context
+                        .locals
+                        .remove_entry(name)
+                        .map(|(name, vi)| {
+                            overwritten.push((name, vi.clone()));
+                            let t = self.module.context.intersection(&vi.t, &guard.to);
+                            VarInfo { t, ..vi }
+                        })
+                        .unwrap_or_else(|| {
+                            if let Some((n, vi)) = self.module.context.get_var_kv(name) {
+                                overwritten.push((n.clone(), vi.clone()));
+                                let t = self.module.context.intersection(&vi.t, &guard.to);
+                                VarInfo { t, ..vi.clone() }
+                            } else {
+                                VarInfo::nd_parameter(
+                                    *guard.to,
+                                    self.module.context.absolutize(Location::Unknown),
+                                    self.module.context.name.clone(),
+                                )
+                            }
+                        });
+                    self.module
+                        .context
+                        .locals
+                        .insert(VarName::from_str(name.clone()), vi);
+                }
+            }
+            overwritten
+        };
         if let Err(errs) = self.module.context.preregister(&lambda.body) {
             self.errs.extend(errs);
         }
@@ -1121,6 +1295,16 @@ impl ASTLowerer {
             }
             errs
         })?;
+        if in_statement {
+            for (var, vi) in overwritten.into_iter() {
+                if vi.kind.is_parameter() {
+                    // removed from `locals` and remains in `params`
+                    self.module.context.locals.remove(&var);
+                } else {
+                    self.module.context.locals.insert(var, vi);
+                }
+            }
+        }
         // suppress warns of lambda types, e.g. `(x: Int, y: Int) -> Int`
         if self.module.context.subtype_of(body.ref_t(), &Type::Type) {
             for param in params.non_defaults.iter() {
@@ -1408,7 +1592,7 @@ impl ASTLowerer {
                             found_body_t,
                         )?;
                         let return_t = vi.t.return_t().unwrap();
-                        if return_t.union_types().is_some() && sig.return_t_spec.is_none() {
+                        if return_t.union_pair().is_some() && sig.return_t_spec.is_none() {
                             let warn = LowerWarning::union_return_type_warning(
                                 self.input().clone(),
                                 line!() as usize,

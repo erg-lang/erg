@@ -1344,4 +1344,19 @@ impl Context {
             },
         }
     }
+
+    pub(crate) fn expr_to_type(&self, expr: ast::Expr) -> Option<Type> {
+        let t_spec = Parser::expr_to_type_spec(expr).ok()?;
+        let mut dummy = TyVarCache::new(self.level, self);
+        self.instantiate_typespec(&t_spec, None, &mut dummy, RegistrationMode::Normal, false)
+            .ok()
+    }
+
+    pub(crate) fn expr_to_value(&self, expr: ast::Expr) -> Option<ValueObj> {
+        let const_expr = Parser::validate_const_expr(expr).ok()?;
+        let mut dummy = TyVarCache::new(self.level, self);
+        self.instantiate_const_expr(&const_expr, None, &mut dummy, false)
+            .ok()
+            .and_then(|tp| ValueObj::try_from(tp).ok())
+    }
 }

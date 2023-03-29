@@ -108,7 +108,7 @@ impl Not for Predicate {
     type Output = Self;
 
     fn not(self) -> Self::Output {
-        Self::Not(Box::new(self))
+        self.invert()
     }
 }
 

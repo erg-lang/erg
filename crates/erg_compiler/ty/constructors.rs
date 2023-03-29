@@ -456,6 +456,10 @@ pub fn not(ty: Type) -> Type {
     Type::Not(Box::new(ty))
 }
 
+pub fn guard(var: Variable, to: Type) -> Type {
+    Type::Guard(GuardType::new(var, to))
+}
+
 #[inline]
 pub fn instanceof(t: Type) -> Constraint {
     Constraint::new_type_of(t)

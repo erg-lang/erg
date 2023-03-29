@@ -5,6 +5,7 @@ use erg_common::dict::Dict;
 use erg_common::error::MultiErrorDisplay;
 use erg_common::style::colors::DEBUG_ERROR;
 use erg_common::traits::StructuralEq;
+use erg_common::Str;
 use erg_common::{assume_unreachable, log};
 
 use crate::ty::constructors::{and, not, or, poly};
@@ -12,7 +13,7 @@ use crate::ty::free::{Constraint, FreeKind};
 use crate::ty::typaram::{OpKind, TyParam, TyParamOrdering};
 use crate::ty::value::ValueObj;
 use crate::ty::value::ValueObj::Inf;
-use crate::ty::{Field, Predicate, RefinementType, SubrKind, SubrType, Type};
+use crate::ty::{Field, GuardType, Predicate, RefinementType, SubrKind, SubrType, Type};
 use Predicate as Pred;
 
 use TyParamOrdering::*;
@@ -475,6 +476,7 @@ impl Context {
                 }
                 true
             }
+            (Bool, Guard { .. }) => true,
             (Type, Subr(subr)) => self.supertype_of(&Type, &subr.return_t),
             (Type, Poly { name, params }) | (Poly { name, params }, Type)
                 if &name[..] == "Array" || &name[..] == "Set" =>
@@ -1010,7 +1012,14 @@ impl Context {
                 self.intersection(&fv.crack(), other)
             }
             (Refinement(l), Refinement(r)) => Type::Refinement(self.intersection_refinement(l, r)),
+            (other, Refinement(refine)) | (Refinement(refine), other) => {
+                let other = other.clone().into_refinement();
+                let intersec = self.intersection_refinement(&other, refine);
+                self.try_squash_refinement(intersec)
+                    .unwrap_or_else(Type::Refinement)
+            }
             (Structural(l), Structural(r)) => self.intersection(l, r).structuralize(),
+            (Guard(_), Guard(_)) => and(lhs.clone(), rhs.clone()),
             // {.i = Int} and {.s = Str} == {.i = Int; .s = Str}
             (Record(l), Record(r)) => Type::Record(l.clone().concat(r.clone())),
             // {i = Int; j = Int} and not {i = Int} == {j = Int}
@@ -1021,12 +1030,15 @@ impl Context {
                 _ => Type::Never,
             },
             (l, r) if self.is_trait(l) && self.is_trait(r) => and(l.clone(), r.clone()),
+            (_, Not(r)) => self.diff(lhs, r),
+            (Not(l), _) => self.diff(rhs, l),
             (_l, _r) => Type::Never,
         }
     }
 
     /// ```erg
     /// {I: Int | I > 0} and {I: Int | I < 10} == {I: Int | I > 0 and I < 10}
+    /// {x: Int or NoneType | True} and {x: Obj | x != None} == {x: Int or NoneType | x != None} (== Int)
     /// ```
     fn intersection_refinement(
         &self,
@@ -1039,6 +1051,58 @@ impl Context {
         RefinementType::new(lhs.var.clone(), intersec, *lhs.pred.clone() & rhs_pred)
     }
 
+    /// ```erg
+    /// {x: Int | True}.try_squash() == Ok(Int)
+    /// {x: Int or NoneType | x != None}.squash() == Ok(Int)
+    /// {x: Str or Bool | x != False}.squash() == Err({x: Str or Bool | x != False})
+    /// {x: Str or Bool | x != True and x != False}.squash() == Ok(Str)
+    /// {x: Nat or {-1} | x != 2}.squash() == Err({x: Int | (x >= 0 or x == -1) and x != 2 })
+    /// ```
+    pub(crate) fn try_squash_refinement(
+        &self,
+        refine: RefinementType,
+    ) -> Result<Type, RefinementType> {
+        let unions = refine.t.union_types();
+        let complement = Type::from(self.type_from_pred(refine.pred.clone().invert()));
+        let union = unions
+            .into_iter()
+            .filter(|t| !self.subtype_of(t, &complement))
+            .fold(Never, |union, t| self.union(&union, &t));
+        if &union != refine.t.as_ref() {
+            Ok(union)
+        } else {
+            Err(refine)
+        }
+    }
+
+    /// (x == 1) => {x: Int | x == 1}
+    /// (x == c) where c: Str => {x: Str | x == c}
+    fn type_from_pred(&self, pred: Predicate) -> RefinementType {
+        let t = self.get_pred_type(&pred);
+        let name = pred.subject().unwrap_or("_");
+        RefinementType::new(Str::rc(name), t, pred)
+    }
+
+    fn get_pred_type(&self, pred: &Predicate) -> Type {
+        match pred {
+            Predicate::Equal { rhs, .. }
+            | Predicate::NotEqual { rhs, .. }
+            | Predicate::GreaterEqual { rhs, .. }
+            | Predicate::LessEqual { rhs, .. } => self.get_tp_t(rhs).unwrap_or(Obj),
+            Predicate::Not(pred) => self.get_pred_type(pred),
+            Predicate::Value(val) => val.class(),
+            // x == 1 or x == "a" => Int or Str
+            Predicate::Or(lhs, rhs) => {
+                self.union(&self.get_pred_type(lhs), &self.get_pred_type(rhs))
+            }
+            // REVIEW:
+            Predicate::And(lhs, rhs) => {
+                self.intersection(&self.get_pred_type(lhs), &self.get_pred_type(rhs))
+            }
+            Predicate::Const(name) => todo!("get_pred_type({name})"),
+        }
+    }
+
     /// returns complement (not A)
     #[allow(clippy::only_used_in_recursion)]
     pub(crate) fn complement(&self, ty: &Type) -> Type {
@@ -1046,7 +1110,31 @@ impl Context {
             FreeVar(fv) if fv.is_linked() => self.complement(&fv.crack()),
             Not(t) => *t.clone(),
             Refinement(r) => Type::Refinement(r.clone().invert()),
+            Guard(guard) => Type::Guard(GuardType::new(
+                guard.var.clone(),
+                self.complement(&guard.to),
+            )),
+            Or(l, r) => self.intersection(&self.complement(l), &self.complement(r)),
+            And(l, r) => self.union(&self.complement(l), &self.complement(r)),
             other => not(other.clone()),
+        }
+    }
+
+    /// Returns difference of two types (`A - B` == `A and not B`).
+    /// ```erg
+    /// (A or B).diff(B) == A
+    /// ```
+    pub fn diff(&self, lhs: &Type, rhs: &Type) -> Type {
+        match (self.supertype_of(lhs, rhs), self.subtype_of(lhs, rhs)) {
+            (true, true) => return Type::Never, // lhs = rhs
+            (false, false) => return lhs.clone(),
+            _ => {}
+        }
+        match lhs {
+            Type::FreeVar(fv) if fv.is_linked() => self.diff(&fv.crack(), rhs),
+            // Type::And(l, r) => self.intersection(&self.diff(l, rhs), &self.diff(r, rhs)),
+            Type::Or(l, r) => self.union(&self.diff(l, rhs), &self.diff(r, rhs)),
+            _ => lhs.clone(),
         }
     }
 

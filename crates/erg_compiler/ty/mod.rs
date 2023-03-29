@@ -571,8 +571,9 @@ impl RefinementType {
         (self.var, *self.t, *self.pred)
     }
 
+    /// {None}.invert() == {x: Obj | x != None}
     pub fn invert(self) -> Self {
-        Self::new(self.var, *self.t, !*self.pred)
+        Self::new(self.var, Type::Obj, !*self.pred)
     }
 }
 
@@ -677,6 +678,63 @@ impl ArgsOwnership {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Variable {
+    Param { nth: usize, name: Str },
+    Var(Str),
+    Attr { receiver: Box<Variable>, attr: Str },
+}
+
+impl fmt::Display for Variable {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Param { nth, name } => write!(f, "{name}#{nth}"),
+            Self::Var(name) => write!(f, "{name}"),
+            Self::Attr { receiver, attr } => write!(f, "{receiver}.{attr}"),
+        }
+    }
+}
+
+impl Variable {
+    pub const fn param(nth: usize, name: Str) -> Self {
+        Self::Param { nth, name }
+    }
+
+    pub fn attr(receiver: Variable, attr: Str) -> Self {
+        Self::Attr {
+            receiver: Box::new(receiver),
+            attr,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct GuardType {
+    pub var: Variable,
+    pub to: Box<Type>,
+}
+
+impl fmt::Display for GuardType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{{{} in {}}}", self.var, self.to)
+    }
+}
+
+impl StructuralEq for GuardType {
+    fn structural_eq(&self, other: &Self) -> bool {
+        self.var == other.var && self.to.structural_eq(&other.to)
+    }
+}
+
+impl GuardType {
+    pub fn new(var: Variable, to: Type) -> Self {
+        Self {
+            var,
+            to: Box::new(to),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Hash, Default)]
 pub enum Type {
     /* Monomorphic (builtin) types */
@@ -744,6 +802,9 @@ pub enum Type {
         args: Vec<TyParam>,
     }, // e.g. Ts.__getitem__(N)
     Structural(Box<Type>),
+    // used for narrowing the type of a variable. It is treated as a subtype of Bool
+    // e.g. `isinstance(x: Obj, Cls: ClassType) -> {x in Cls}`
+    Guard(GuardType),
     FreeVar(FreeTyVar), // a reference to the type of other expression, see docs/compiler/inference.md
     #[default]
     Failure, // indicates a failure of type inference and behaves as `Never`.
@@ -852,6 +913,7 @@ impl PartialEq for Type {
                 },
             ) => lhs == r && attr_name == rn && args == ra,
             (Self::Structural(l), Self::Structural(r)) => l == r,
+            (Self::Guard(l), Self::Guard(r)) => l == r,
             (Self::FreeVar(fv), other) if fv.is_linked() => &*fv.crack() == other,
             (_self, Self::FreeVar(fv)) if fv.is_linked() => _self == &*fv.crack(),
             (Self::FreeVar(l), Self::FreeVar(r)) => l == r,
@@ -993,6 +1055,9 @@ impl LimitedDisplay for Type {
                 ty.limited_fmt(f, limit - 1)?;
                 write!(f, ")")
             }
+            Self::Guard(guard) if cfg!(feature = "debug") => {
+                write!(f, "Guard({guard})")
+            }
             _ => write!(f, "{}", self.qual_name()),
         }
     }
@@ -1055,6 +1120,18 @@ impl From<Dict<Type, Type>> for Type {
             .map(|(k, v)| (TyParam::t(k), TyParam::t(v)))
             .collect();
         dict_t(TyParam::Dict(d))
+    }
+}
+
+impl From<SubrType> for Type {
+    fn from(subr: SubrType) -> Self {
+        Self::Subr(subr)
+    }
+}
+
+impl From<RefinementType> for Type {
+    fn from(refine: RefinementType) -> Self {
+        Self::Refinement(refine)
     }
 }
 
@@ -1221,6 +1298,7 @@ impl HasLevel for Type {
                 }
             }
             Self::Structural(ty) => ty.level(),
+            Self::Guard(guard) => guard.to.level(),
             Self::Quantified(quant) => quant.level(),
             _ => None,
         }
@@ -1286,6 +1364,7 @@ impl HasLevel for Type {
                 }
             }
             Self::Structural(ty) => ty.set_level(level),
+            Self::Guard(guard) => guard.to.set_level(level),
             _ => {}
         }
     }
@@ -1382,6 +1461,7 @@ impl StructuralEq for Type {
                         .all(|(a, b)| a.structural_eq(b))
             }
             (Self::Structural(l), Self::Structural(r)) => l.structural_eq(r),
+            (Self::Guard(l), Self::Guard(r)) => l.structural_eq(r),
             (Self::And(l, r), Self::And(l2, r2)) | (Self::Or(l, r), Self::Or(l2, r2)) => {
                 (l.structural_eq(l2) && r.structural_eq(r2))
                     || (l.structural_eq(r2) && r.structural_eq(l2))
@@ -1828,6 +1908,7 @@ impl Type {
             Self::Proj { .. } => Str::ever("Proj"),
             Self::ProjCall { .. } => Str::ever("ProjCall"),
             Self::Structural(_) => Str::ever("Structural"),
+            Self::Guard { .. } => Str::ever("Bool"),
             Self::Failure => Str::ever("Failure"),
             Self::Uninited => Str::ever("Uninited"),
         }
@@ -1861,12 +1942,25 @@ impl Type {
         }
     }
 
-    pub fn union_types(&self) -> Option<(Type, Type)> {
+    pub fn union_pair(&self) -> Option<(Type, Type)> {
+        match self {
+            Type::FreeVar(fv) if fv.is_linked() => fv.crack().union_pair(),
+            Type::Refinement(refine) => refine.t.union_pair(),
+            Type::Or(t1, t2) => Some((*t1.clone(), *t2.clone())),
+            _ => None,
+        }
+    }
+
+    pub fn union_types(&self) -> Vec<Type> {
         match self {
             Type::FreeVar(fv) if fv.is_linked() => fv.crack().union_types(),
             Type::Refinement(refine) => refine.t.union_types(),
-            Type::Or(t1, t2) => Some((*t1.clone(), *t2.clone())),
-            _ => None,
+            Type::Or(t1, t2) => {
+                let mut types = t1.union_types();
+                types.extend(t2.union_types());
+                types
+            }
+            _ => vec![self.clone()],
         }
     }
 
@@ -1935,6 +2029,12 @@ impl Type {
             || (self.has_no_qvar() && self.has_no_unbound_var())
     }
 
+    /// TODO:
+    /// ```erg
+    /// Nat == {x: Int | x >= 0}
+    /// Nat or {-1} == {x: Int | x >= 0 or x == -1}
+    /// Int == {_: Int | True}
+    /// ```
     pub fn into_refinement(self) -> RefinementType {
         match self {
             Type::FreeVar(fv) if fv.is_linked() => fv.crack().clone().into_refinement(),
@@ -1956,10 +2056,7 @@ impl Type {
                 )
             }
             Type::Refinement(r) => r,
-            t => {
-                let var = Str::from(fresh_varname());
-                RefinementType::new(var, t, Predicate::TRUE)
-            }
+            t => RefinementType::new(Str::ever("_"), t, Predicate::TRUE),
         }
     }
 
@@ -2036,6 +2133,7 @@ impl Type {
                 .qvars()
                 .concat(args.iter().fold(set! {}, |acc, tp| acc.concat(tp.qvars()))),
             Self::Structural(ty) => ty.qvars(),
+            Self::Guard(guard) => guard.to.qvars(),
             _ => set! {},
         }
     }
@@ -2092,6 +2190,7 @@ impl Type {
                 lhs.has_qvar() || args.iter().any(|tp| tp.has_qvar())
             }
             Self::Structural(ty) => ty.has_qvar(),
+            Self::Guard(guard) => guard.to.has_qvar(),
             _ => false,
         }
     }
@@ -2145,6 +2244,7 @@ impl Type {
                 lhs.has_no_unbound_var() && args.iter().all(|t| t.has_no_unbound_var())
             }
             Self::Structural(ty) => ty.has_unbound_var(),
+            Self::Guard(guard) => guard.to.has_unbound_var(),
             _ => false,
         }
     }
@@ -2376,6 +2476,9 @@ impl Type {
             Self::Not(ty) => !ty.derefine(),
             Self::Proj { lhs, rhs } => lhs.derefine().proj(rhs.clone()),
             Self::Structural(ty) => ty.derefine().structuralize(),
+            Self::Guard(guard) => {
+                Self::Guard(GuardType::new(guard.var.clone(), guard.to.derefine()))
+            }
             other => other.clone(),
         }
     }
@@ -2462,6 +2565,10 @@ impl Type {
                 lhs.replace(target, to).proj_call(attr_name, args)
             }
             Self::Structural(ty) => ty._replace(target, to).structuralize(),
+            Self::Guard(guard) => Self::Guard(GuardType::new(
+                guard.var.clone(),
+                guard.to._replace(target, to),
+            )),
             other => other,
         }
     }
@@ -2505,6 +2612,7 @@ impl Type {
             Self::Or(l, r) => l.normalize() | r.normalize(),
             Self::Not(ty) => !ty.normalize(),
             Self::Structural(ty) => ty.normalize().structuralize(),
+            Self::Guard(guard) => Self::Guard(GuardType::new(guard.var, guard.to.normalize())),
             other => other,
         }
     }

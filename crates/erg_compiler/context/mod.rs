@@ -38,6 +38,7 @@ use crate::context::instantiate_spec::ConstTemplate;
 use crate::error::{TyCheckError, TyCheckErrors};
 use crate::module::{SharedCompilerResource, SharedModuleCache};
 use crate::ty::value::ValueObj;
+use crate::ty::GuardType;
 use crate::ty::{Predicate, Type, Visibility, VisibilityModifier};
 use crate::varinfo::{AbsLocation, Mutability, VarInfo, VarKind};
 use Type::*;
@@ -50,6 +51,47 @@ pub trait ContextProvider {
 }
 
 const BUILTINS: &Str = &Str::ever("<builtins>");
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ControlKind {
+    If,
+    While,
+    For,
+    Match,
+    Try,
+    With,
+    Assert,
+}
+
+impl TryFrom<&str> for ControlKind {
+    type Error = ();
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        match s {
+            "if" | "if!" => Ok(ControlKind::If),
+            "while!" => Ok(ControlKind::While),
+            "while" if cfg!(feature = "py_compatible") => Ok(ControlKind::While),
+            "for" | "for!" => Ok(ControlKind::For),
+            "match" | "match!" => Ok(ControlKind::Match),
+            "try" | "try!" => Ok(ControlKind::Try),
+            "with" | "with!" => Ok(ControlKind::With),
+            "assert" => Ok(ControlKind::Assert),
+            _ => Err(()),
+        }
+    }
+}
+
+impl ControlKind {
+    pub const fn is_if(&self) -> bool {
+        matches!(self, Self::If)
+    }
+    /// if | if! | while!
+    pub const fn is_conditional(&self) -> bool {
+        matches!(self, Self::If | Self::While)
+    }
+    pub const fn makes_scope(&self) -> bool {
+        !matches!(self, Self::Assert)
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TraitImpl {
@@ -394,8 +436,8 @@ pub struct Context {
     pub(crate) patches: Dict<VarName, Context>,
     pub(crate) shared: Option<SharedCompilerResource>,
     pub(crate) tv_cache: Option<TyVarCache>,
-    // for pylyzer, ignore this
     pub(crate) higher_order_caller: Vec<Str>,
+    pub(crate) guards: Vec<GuardType>,
     pub(crate) erg_to_py_names: Dict<Str, Str>,
     pub(crate) level: usize,
 }
@@ -577,6 +619,7 @@ impl Context {
             tv_cache: None,
             patches: Dict::default(),
             higher_order_caller: vec![],
+            guards: vec![],
             erg_to_py_names: Dict::default(),
             level,
         }
@@ -896,6 +939,10 @@ impl Context {
         self.outer.as_ref().map(|x| x.as_ref())
     }
 
+    pub(crate) fn get_mut_outer(&mut self) -> Option<&mut Context> {
+        self.outer.as_mut().map(|x| x.as_mut())
+    }
+
     pub(crate) fn impl_of(&self) -> Option<Type> {
         if let ContextKind::MethodDefs(Some(tr)) = &self.kind {
             Some(tr.clone())
@@ -1075,6 +1122,12 @@ impl Context {
 
     pub fn shared(&self) -> &SharedCompilerResource {
         self.shared.as_ref().unwrap()
+    }
+
+    pub fn control_kind(&self) -> Option<ControlKind> {
+        self.higher_order_caller
+            .last()
+            .and_then(|caller| ControlKind::try_from(&caller[..]).ok())
     }
 }
 

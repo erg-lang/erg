@@ -315,6 +315,20 @@ impl Args {
             })
         }
     }
+
+    pub fn nth_or_key(&self, nth: usize, key: &str) -> Option<&Expr> {
+        if !self.pos_args.is_empty() {
+            self.pos_args.get(nth).map(|a| &a.expr)
+        } else {
+            self.kw_args.iter().find_map(|a| {
+                if &a.keyword.content[..] == key {
+                    Some(&a.expr)
+                } else {
+                    None
+                }
+            })
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
