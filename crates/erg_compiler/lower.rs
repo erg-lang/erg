@@ -1246,21 +1246,28 @@ impl ASTLowerer {
         if let Err(errs) = self.module.context.assign_params(&mut params, None) {
             self.errs.extend(errs);
         }
-        if !in_statement {
-            let guards = mem::take(&mut self.module.context.get_mut_outer().unwrap().guards);
+        let overwritten = {
+            let mut overwritten = vec![];
+            let guards = if in_statement {
+                mem::take(&mut self.module.context.guards)
+            } else {
+                mem::take(&mut self.module.context.get_mut_outer().unwrap().guards)
+            };
             for guard in guards.into_iter() {
                 if let Variable::Var(name) = &guard.var {
                     let vi = self
                         .module
                         .context
                         .locals
-                        .remove(name)
-                        .map(|vi| {
+                        .remove_entry(name)
+                        .map(|(name, vi)| {
+                            overwritten.push((name, vi.clone()));
                             let t = self.module.context.intersection(&vi.t, &guard.to);
                             VarInfo { t, ..vi }
                         })
                         .unwrap_or_else(|| {
-                            if let Some((_, vi)) = self.module.context.get_var_kv(name) {
+                            if let Some((n, vi)) = self.module.context.get_var_kv(name) {
+                                overwritten.push((n.clone(), vi.clone()));
                                 let t = self.module.context.intersection(&vi.t, &guard.to);
                                 VarInfo { t, ..vi.clone() }
                             } else {
@@ -1277,7 +1284,8 @@ impl ASTLowerer {
                         .insert(VarName::from_str(name.clone()), vi);
                 }
             }
-        }
+            overwritten
+        };
         if let Err(errs) = self.module.context.preregister(&lambda.body) {
             self.errs.extend(errs);
         }
@@ -1287,6 +1295,16 @@ impl ASTLowerer {
             }
             errs
         })?;
+        if in_statement {
+            for (var, vi) in overwritten.into_iter() {
+                if vi.kind.is_parameter() {
+                    // removed from `locals` and remains in `params`
+                    self.module.context.locals.remove(&var);
+                } else {
+                    self.module.context.locals.insert(var, vi);
+                }
+            }
+        }
         // suppress warns of lambda types, e.g. `(x: Int, y: Int) -> Int`
         if self.module.context.subtype_of(body.ref_t(), &Type::Type) {
             for param in params.non_defaults.iter() {

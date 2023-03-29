@@ -1998,7 +1998,7 @@ impl Context {
                 (Type::Refinement(l), Type::Refinement(r)) if l.t == r.t => {
                     self.get_nominal_super_type_ctxs(&l.t)
                 }
-                _ => None,
+                _ => self.get_nominal_type_ctx(&Obj).map(|(_, ctx)| vec![ctx]),
             },
             _ => self
                 .get_simple_nominal_super_type_ctxs(t)

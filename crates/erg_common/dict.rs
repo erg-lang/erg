@@ -205,6 +205,14 @@ impl<K: Hash + Eq, V> Dict<K, V> {
         self.dict.remove(k)
     }
 
+    pub fn remove_entry<Q: ?Sized>(&mut self, k: &Q) -> Option<(K, V)>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq,
+    {
+        self.dict.remove_entry(k)
+    }
+
     /// NOTE: This method does not consider pairing with values and keys. That is, a value may be paired with a different key (can be considered equal).
     /// If you need to consider the pairing of the keys and values, use `guaranteed_extend` instead.
     #[inline]
