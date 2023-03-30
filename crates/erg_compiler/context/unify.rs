@@ -2,11 +2,11 @@
 use std::mem;
 use std::option::Option;
 
-use erg_common::fn_name;
 use erg_common::traits::Locational;
 use erg_common::Str;
 #[allow(unused_imports)]
 use erg_common::{fmt_vec, log};
+use erg_common::{fn_name, switch_lang};
 
 use crate::context::instantiate::TyVarCache;
 use crate::ty::constructors::*;
@@ -800,6 +800,33 @@ impl Context {
                         self.sub_unify(maybe_sub, &sup, loc, param_name)?;
                     }
                     let new_sub = self.union(maybe_sub, &sub);
+                    // Expanding to an Or-type is prohibited by default
+                    // This increases the quality of error reporting
+                    // (Try commenting out this part and run tests/should_err/subtyping.er to see the error report changes on lines 29-30)
+                    if !maybe_sub.is_union_type() && !sub.is_union_type() && new_sub.is_union_type()
+                    {
+                        let (l, r) = new_sub.union_pair().unwrap();
+                        if self.unify(&l, &r).is_none() {
+                            let hint = switch_lang!(
+                                "japanese" => format!("{maybe_sub}から{new_sub}への暗黙の型拡大はデフォルトでは禁止されています。明示的に型指定してください"),
+                                "simplified_chinese" => format!("隐式扩展{maybe_sub}到{new_sub}被默认禁止。请明确指定类型。"),
+                                "traditional_chinese" => format!("隱式擴展{maybe_sub}到{new_sub}被默認禁止。請明確指定類型。"),
+                                "english" => format!("Implicitly widening {maybe_sub} to {new_sub} is prohibited by default. Consider specifying the type explicitly."),
+                            );
+                            return Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
+                                self.cfg.input.clone(),
+                                line!() as usize,
+                                loc.loc(),
+                                self.caused_by(),
+                                "",
+                                None,
+                                maybe_sub,
+                                maybe_sup,
+                                None,
+                                Some(hint),
+                            )));
+                        }
+                    }
                     if sup.contains_union(&new_sub) {
                         rfv.link(&new_sub); // Bool <: ?T <: Bool or Y ==> ?T == Bool
                     } else {
@@ -1184,5 +1211,21 @@ impl Context {
             loc.loc(),
             self.caused_by(),
         )))
+    }
+
+    /// Unify two types into a single type based on the subtype relation.
+    ///
+    /// Error if they can't unify without upcasting both types (derefining is allowed) or using the Or type
+    /// ```erg
+    /// unify(Int, Nat) == Ok(Int)
+    /// unify(Int, Str) == Err
+    /// unify({1.2}, Nat) == Ok(Float)
+    /// unify(Eq, Int) == Ok(Eq)
+    /// unify(Eq, Float) == Err
+    /// ```
+    pub fn unify(&self, lhs: &Type, rhs: &Type) -> Option<Type> {
+        let lhs = lhs.derefine();
+        let rhs = rhs.derefine();
+        self.max(&lhs, &rhs).cloned()
     }
 }

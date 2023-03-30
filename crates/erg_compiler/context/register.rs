@@ -625,6 +625,7 @@ impl Context {
         sig: &ast::SubrSignature,
         id: DefId,
         body_t: &Type,
+        body_loc: &impl Locational,
     ) -> TyCheckResult<VarInfo> {
         // already defined as const
         if sig.ident.is_const() {
@@ -645,25 +646,31 @@ impl Context {
         let var_args = t.var_params();
         let default_params = t.default_params().unwrap();
         let mut errs = if let Some(spec_ret_t) = t.return_t() {
-            let return_t_loc = sig.return_t_spec.as_ref().ok_or(sig);
-            self.sub_unify(body_t, spec_ret_t, &return_t_loc, None)
-                .map_err(|errs| {
-                    TyCheckErrors::new(
-                        errs.into_iter()
-                            .map(|e| {
-                                TyCheckError::return_type_error(
-                                    self.cfg.input.clone(),
-                                    line!() as usize,
-                                    e.core.get_loc_with_fallback(),
-                                    e.caused_by,
-                                    readable_name(name.inspect()),
-                                    spec_ret_t,
-                                    body_t,
-                                )
-                            })
-                            .collect(),
-                    )
-                })
+            let unify_result = if let Some(t_spec) = sig.return_t_spec.as_ref() {
+                self.sub_unify(body_t, spec_ret_t, t_spec, None)
+            } else {
+                self.sub_unify(body_t, spec_ret_t, body_loc, None)
+            };
+            unify_result.map_err(|errs| {
+                TyCheckErrors::new(
+                    errs.into_iter()
+                        .map(|e| {
+                            let expect = self.readable_type(spec_ret_t.clone(), false);
+                            let found = self.readable_type(body_t.clone(), false);
+                            TyCheckError::return_type_error(
+                                self.cfg.input.clone(),
+                                line!() as usize,
+                                e.core.get_loc_with_fallback(),
+                                e.caused_by,
+                                readable_name(name.inspect()),
+                                &expect,
+                                &found,
+                                e.core.get_hint().map(|s| s.to_string()),
+                            )
+                        })
+                        .collect(),
+                )
+            })
         } else {
             Ok(())
         };

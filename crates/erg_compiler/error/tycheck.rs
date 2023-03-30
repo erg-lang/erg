@@ -167,6 +167,7 @@ impl TyCheckError {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn return_type_error(
         input: Input,
         errno: usize,
@@ -175,6 +176,7 @@ impl TyCheckError {
         name: &str,
         expect: &Type,
         found: &Type,
+        hint: Option<String>,
     ) -> Self {
         let mut expct = StyledStrings::default();
         switch_lang!(
@@ -199,7 +201,7 @@ impl TyCheckError {
                 vec![SubMessage::ambiguous_new(
                     loc,
                     vec![expct.to_string(), fnd.to_string()],
-                    None,
+                    hint,
                 )],
                 switch_lang!(
                     "japanese" => format!("{name}の戻り値の型が違います"),

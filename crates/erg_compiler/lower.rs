@@ -1587,6 +1587,7 @@ impl ASTLowerer {
                             &sig,
                             body.id,
                             found_body_t,
+                            block.last().unwrap(),
                         )?;
                         let return_t = vi.t.return_t().unwrap();
                         if return_t.union_pair().is_some() && sig.return_t_spec.is_none() {
@@ -1620,6 +1621,7 @@ impl ASTLowerer {
                             &sig,
                             ast::DefId(0),
                             &Type::Failure,
+                            &sig,
                         )?;
                         self.errs.extend(errs);
                         let ident = hir::Identifier::new(sig.ident, None, vi);

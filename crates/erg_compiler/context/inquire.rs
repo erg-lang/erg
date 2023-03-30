@@ -1540,12 +1540,8 @@ impl Context {
                     param_t,
                     arg_t,
                 );
-                let param_t = self
-                    .deref_tyvar(param_t.clone(), Variance::Contravariant, &set! {}, arg)
-                    .unwrap_or_else(|_| param_t.clone());
-                let arg_t = self
-                    .deref_tyvar(arg_t.clone(), Variance::Covariant, &set! {}, arg)
-                    .unwrap_or_else(|_| arg_t.clone());
+                let param_t = self.readable_type(param_t.clone(), true);
+                let arg_t = self.readable_type(arg_t.clone(), false);
                 TyCheckErrors::new(
                     errs.into_iter()
                         .map(|e| {
@@ -1559,7 +1555,10 @@ impl Context {
                                 &param_t,
                                 &arg_t,
                                 self.get_candidates(&arg_t),
-                                std::mem::take(&mut hint),
+                                e.core
+                                    .get_hint()
+                                    .map(|s| s.to_string())
+                                    .or(std::mem::take(&mut hint)),
                             )
                         })
                         .collect(),

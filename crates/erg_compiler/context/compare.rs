@@ -625,6 +625,9 @@ impl Context {
             (lhs, And(l_and, r_and)) => {
                 self.supertype_of(lhs, l_and) || self.supertype_of(lhs, r_and)
             }
+            // Not(Eq) :> Float == !(Eq :> Float) == true
+            (Not(_), Obj) => false,
+            (Not(l), rhs) => !self.supertype_of(l, rhs),
             // RefMut are invariant
             (Ref(l), Ref(r)) => self.supertype_of(l, r),
             // TはすべてのRef(T)のメソッドを持つので、Ref(T)のサブタイプ
@@ -1301,7 +1304,7 @@ impl Context {
         }
     }
 
-    pub(crate) fn _max<'t>(&self, lhs: &'t Type, rhs: &'t Type) -> Option<&'t Type> {
+    pub(crate) fn max<'t>(&self, lhs: &'t Type, rhs: &'t Type) -> Option<&'t Type> {
         // If they are the same, either one can be returned.
         match (self.supertype_of(lhs, rhs), self.subtype_of(lhs, rhs)) {
             (true, true) | (true, false) => Some(lhs),

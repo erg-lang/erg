@@ -818,6 +818,15 @@ impl ErrorCore {
         }
     }
 
+    pub fn get_hint(&self) -> Option<&str> {
+        for sub in self.sub_messages.iter() {
+            if let Some(hint) = &sub.hint {
+                return Some(hint);
+            }
+        }
+        None
+    }
+
     pub fn fmt_header(&self, color: Color, caused_by: &str, input: &str) -> String {
         let loc = match self.loc {
             Location::Range {

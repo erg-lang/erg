@@ -5,8 +5,8 @@ fib n: Int =
 
 assert fib(10) == 55
 
-# Int -> Int or Str
-invalid_fib n: Int =
+# Need to specify the return type
+invalid_fib(n: Int): Int or Str =
     if n <= 1, do:
         invalid_fib.return n
-    "string" # Warning
+    "string"
