@@ -10,11 +10,11 @@ use erg_compiler::ty::{HasType, ParamTy};
 
 use lsp_types::{
     ParameterInformation, ParameterLabel, Position, SignatureHelp, SignatureHelpContext,
-    SignatureHelpParams, SignatureHelpTriggerKind, SignatureInformation, Url,
+    SignatureHelpParams, SignatureHelpTriggerKind, SignatureInformation,
 };
 
 use crate::server::{send, send_log, ELSResult, Server};
-use crate::util;
+use crate::util::NormalizedUrl;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Trigger {
@@ -42,7 +42,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
     pub(crate) fn show_signature_help(&mut self, msg: &Value) -> ELSResult<()> {
         send_log(format!("signature help requested: {msg}"))?;
         let params = SignatureHelpParams::deserialize(&msg["params"])?;
-        let uri = util::normalize_url(params.text_document_position_params.text_document.uri);
+        let uri = NormalizedUrl::new(params.text_document_position_params.text_document.uri);
         let pos = params.text_document_position_params.position;
         if params.context.as_ref().map(|ctx| &ctx.trigger_kind)
             == Some(&SignatureHelpTriggerKind::CONTENT_CHANGE)
@@ -66,7 +66,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
 
     pub(crate) fn get_min_expr(
         &self,
-        uri: &Url,
+        uri: &NormalizedUrl,
         pos: Position,
         offset: isize,
     ) -> Option<(Token, Expr)> {
@@ -86,7 +86,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
 
     pub(crate) fn nth(
         &self,
-        uri: &Url,
+        uri: &NormalizedUrl,
         args_loc: erg_common::error::Location,
         token: &Token,
     ) -> usize {
@@ -108,7 +108,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
 
     fn resend_help(
         &mut self,
-        uri: &Url,
+        uri: &NormalizedUrl,
         pos: Position,
         ctx: &SignatureHelpContext,
     ) -> Option<SignatureHelp> {
@@ -128,7 +128,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         ctx.active_signature_help.clone()
     }
 
-    fn get_first_help(&mut self, uri: &Url, pos: Position) -> Option<SignatureHelp> {
+    fn get_first_help(&mut self, uri: &NormalizedUrl, pos: Position) -> Option<SignatureHelp> {
         if let Some((_token, Expr::Accessor(acc))) = self.get_min_expr(uri, pos, -2) {
             return self.make_sig_help(&acc, 0);
         } else {
@@ -137,7 +137,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         None
     }
 
-    fn get_continuous_help(&mut self, uri: &Url, pos: Position) -> Option<SignatureHelp> {
+    fn get_continuous_help(&mut self, uri: &NormalizedUrl, pos: Position) -> Option<SignatureHelp> {
         if let Some((comma, Expr::Call(call))) = self.get_min_expr(uri, pos, -1) {
             let nth = self.nth(uri, call.args.loc(), &comma) as u32 + 1;
             let help = self.make_sig_help(call.obj.as_ref(), nth);

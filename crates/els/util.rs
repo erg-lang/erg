@@ -1,3 +1,4 @@
+use std::fmt;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
@@ -11,6 +12,45 @@ use lsp_types::{Position, Range, Url};
 
 use crate::file_cache::_get_code_from_uri;
 use crate::server::ELSResult;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct NormalizedUrl(Url);
+
+impl fmt::Display for NormalizedUrl {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl std::ops::Deref for NormalizedUrl {
+    type Target = Url;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl AsRef<Url> for NormalizedUrl {
+    fn as_ref(&self) -> &Url {
+        &self.0
+    }
+}
+
+impl NormalizedUrl {
+    pub fn new(url: Url) -> NormalizedUrl {
+        Self(Url::parse(&url.as_str().replace("c%3A", "C:").to_lowercase()).unwrap())
+    }
+
+    pub fn parse(uri: &str) -> ELSResult<NormalizedUrl> {
+        Ok(NormalizedUrl(Url::parse(
+            &uri.replace("c%3A", "C:").to_lowercase(),
+        )?))
+    }
+
+    pub fn raw(self) -> Url {
+        self.0
+    }
+}
 
 pub fn loc_to_range(loc: erg_common::error::Location) -> Option<Range> {
     let start = Position::new(loc.ln_begin()?.saturating_sub(1), loc.col_begin()?);
@@ -130,14 +170,6 @@ pub fn get_line_from_path(path: &Path, line: u32) -> ELSResult<String> {
     Ok(line.to_string())
 }
 
-pub fn parse_and_normalize_url(uri: &str) -> ELSResult<Url> {
-    Ok(Url::parse(&uri.replace("c%3A", "C:").to_lowercase())?)
-}
-
-pub fn normalize_url(url: Url) -> Url {
-    Url::parse(&url.as_str().replace("c%3A", "C:").to_lowercase()).unwrap()
-}
-
-pub fn uri_to_path(uri: &Url) -> std::path::PathBuf {
+pub fn uri_to_path(uri: &NormalizedUrl) -> std::path::PathBuf {
     normalize_path(uri.to_file_path().unwrap())
 }

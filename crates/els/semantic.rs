@@ -18,7 +18,7 @@ use erg_compiler::ASTBuilder;
 use lsp_types::{SemanticTokenType, SemanticTokens, SemanticTokensParams};
 
 use crate::server::{send, send_log, ELSResult, Server};
-use crate::util;
+use crate::util::{self, NormalizedUrl};
 
 #[derive(Debug)]
 struct ASTSemanticState {
@@ -286,7 +286,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
     pub(crate) fn get_semantic_tokens_full(&mut self, msg: &Value) -> ELSResult<()> {
         send_log(format!("full semantic tokens request: {msg}"))?;
         let params = SemanticTokensParams::deserialize(&msg["params"])?;
-        let uri = util::normalize_url(params.text_document.uri);
+        let uri = NormalizedUrl::new(params.text_document.uri);
         let path = util::uri_to_path(&uri);
         let src = self.file_cache.get_code(&uri)?;
         let mut builder = ASTBuilder::new(self.cfg.inherit(path));

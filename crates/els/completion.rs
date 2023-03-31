@@ -27,7 +27,7 @@ use lsp_types::{
 };
 
 use crate::server::{send, send_log, ELSResult, Server};
-use crate::util;
+use crate::util::{self, NormalizedUrl};
 
 fn comp_item_kind(vi: &VarInfo) -> CompletionItemKind {
     match &vi.t {
@@ -345,7 +345,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
     pub(crate) fn show_completion(&mut self, msg: &Value) -> ELSResult<()> {
         send_log(format!("completion requested: {msg}"))?;
         let params = CompletionParams::deserialize(&msg["params"])?;
-        let uri = util::normalize_url(params.text_document_position.text_document.uri);
+        let uri = NormalizedUrl::new(params.text_document_position.text_document.uri);
         let path = util::uri_to_path(&uri);
         let pos = params.text_document_position.position;
         // ignore comments

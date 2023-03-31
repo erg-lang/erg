@@ -10,10 +10,14 @@ use erg_compiler::error::CompileErrors;
 use lsp_types::{Diagnostic, DiagnosticSeverity, Position, PublishDiagnosticsParams, Range, Url};
 
 use crate::server::{send, send_log, DefaultFeatures, ELSResult, Server};
-use crate::util;
+use crate::util::{self, NormalizedUrl};
 
 impl<Checker: BuildRunnable> Server<Checker> {
-    pub(crate) fn check_file<S: Into<String>>(&mut self, uri: Url, code: S) -> ELSResult<()> {
+    pub(crate) fn check_file<S: Into<String>>(
+        &mut self,
+        uri: NormalizedUrl,
+        code: S,
+    ) -> ELSResult<()> {
         send_log(format!("checking {uri}"))?;
         let path = util::uri_to_path(&uri);
         let mode = if path.to_string_lossy().ends_with(".d.er") {
@@ -27,7 +31,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 send_log(format!("checking {uri} passed"))?;
                 let uri_and_diags = self.make_uri_and_diags(uri.clone(), artifact.warns.clone());
                 // clear previous diagnostics
-                self.send_diagnostics(uri.clone(), vec![])?;
+                self.send_diagnostics(uri.clone().raw(), vec![])?;
                 for (uri, diags) in uri_and_diags.into_iter() {
                     send_log(format!("{uri}, warns: {}", diags.len()))?;
                     self.send_diagnostics(uri, diags)?;
@@ -45,7 +49,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                     .collect();
                 let uri_and_diags = self.make_uri_and_diags(uri.clone(), diags);
                 if uri_and_diags.is_empty() {
-                    self.send_diagnostics(uri.clone(), vec![])?;
+                    self.send_diagnostics(uri.clone().raw(), vec![])?;
                 }
                 for (uri, diags) in uri_and_diags.into_iter() {
                     send_log(format!("{uri}, errs & warns: {}", diags.len()))?;
@@ -67,7 +71,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         Ok(())
     }
 
-    pub(crate) fn quick_check_file(&mut self, uri: Url) -> ELSResult<()> {
+    pub(crate) fn quick_check_file(&mut self, uri: NormalizedUrl) -> ELSResult<()> {
         // send_log(format!("checking {uri}"))?;
         let Some(ts) = self.file_cache.get_token_stream(&uri) else {
             return Ok(());
@@ -105,16 +109,16 @@ impl<Checker: BuildRunnable> Server<Checker> {
 
     fn make_uri_and_diags(
         &mut self,
-        uri: Url,
+        uri: NormalizedUrl,
         errors: CompileErrors,
     ) -> Vec<(Url, Vec<Diagnostic>)> {
         let mut uri_and_diags: Vec<(Url, Vec<Diagnostic>)> = vec![];
         for err in errors.into_iter() {
             let loc = err.core.get_loc_with_fallback();
             let err_uri = if let Some(path) = err.input.path() {
-                util::normalize_url(Url::from_file_path(path).unwrap())
+                Url::from_file_path(path).unwrap()
             } else {
-                uri.clone()
+                uri.clone().raw()
             };
             let mut message = remove_style(&err.core.main_message);
             for sub in err.core.sub_messages {

@@ -12,7 +12,7 @@ use erg_compiler::hir::Expr;
 use lsp_types::{CodeAction, CodeActionKind, CodeActionParams, TextEdit, Url, WorkspaceEdit};
 
 use crate::server::{send, send_log, ELSResult, Server};
-use crate::util;
+use crate::util::{self, NormalizedUrl};
 
 impl<Checker: BuildRunnable> Server<Checker> {
     fn gen_eliminate_unused_vars_action(
@@ -20,7 +20,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         _msg: &Value,
         params: CodeActionParams,
     ) -> ELSResult<Option<CodeAction>> {
-        let uri = util::normalize_url(params.text_document.uri);
+        let uri = NormalizedUrl::new(params.text_document.uri);
         let mut diags = params.context.diagnostics;
         let diag = diags.remove(0);
         let mut map = HashMap::new();
@@ -38,7 +38,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             .filter(|warn| warn.core.main_message.ends_with("is not used"))
             .collect::<Vec<_>>();
         for warn in warns {
-            let uri = util::normalize_url(Url::from_file_path(warn.input.full_path()).unwrap());
+            let uri = NormalizedUrl::new(Url::from_file_path(warn.input.full_path()).unwrap());
             let Some(pos) = util::loc_to_pos(warn.core.loc) else {
                 continue;
             };
@@ -74,7 +74,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                         }
                     }
                     let edit = TextEdit::new(range, "".to_string());
-                    map.entry(uri.clone()).or_insert(vec![]).push(edit);
+                    map.entry(uri.clone().raw()).or_insert(vec![]).push(edit);
                 }
                 Some(_) => {}
                 None => {
@@ -86,7 +86,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                     };
                     if vi.kind.is_parameter() {
                         let edit = TextEdit::new(diag.range, "_".to_string());
-                        map.entry(uri.clone()).or_insert(vec![]).push(edit);
+                        map.entry(uri.clone().raw()).or_insert(vec![]).push(edit);
                     }
                 }
             }
@@ -105,7 +105,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
     fn gen_change_case_action(
         &self,
         token: Token,
-        uri: &Url,
+        uri: &NormalizedUrl,
         params: CodeActionParams,
     ) -> Option<CodeAction> {
         let new_text = token.content.to_snake_case().to_string();
@@ -113,7 +113,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let visitor = self.get_visitor(uri)?;
         let def_loc = visitor.get_info(&token)?.def_loc;
         let edit = TextEdit::new(util::loc_to_range(def_loc.loc)?, new_text.clone());
-        map.insert(uri.clone(), vec![edit]);
+        map.insert(uri.clone().raw(), vec![edit]);
         if let Some(value) = self.get_index().get_refs(&def_loc) {
             for refer in value.referrers.iter() {
                 let url = Url::from_file_path(refer.module.as_ref()?).ok()?;
@@ -139,7 +139,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         params: CodeActionParams,
     ) -> ELSResult<Vec<CodeAction>> {
         let mut actions = vec![];
-        let uri = util::normalize_url(params.text_document.uri.clone());
+        let uri = NormalizedUrl::new(params.text_document.uri.clone());
         if let Some(token) = self.file_cache.get_token(&uri, params.range.start) {
             if token.is(TokenKind::Symbol) && !token.is_const() && !token.content.is_snake_case() {
                 let action = self.gen_change_case_action(token, &uri, params.clone());

@@ -16,8 +16,7 @@ use erg_compiler::hir::{Block, Call, ClassDef, Def, Expr, Lambda, Params, PatchD
 use lsp_types::{InlayHint, InlayHintKind, InlayHintLabel, InlayHintParams};
 
 use crate::server::{send, send_log, ELSResult, Server};
-use crate::util;
-use crate::util::loc_to_range;
+use crate::util::{self, loc_to_range, NormalizedUrl};
 
 fn anot(ln: u32, col: u32, cont: String) -> InlayHint {
     let position = Position::new(ln - 1, col);
@@ -92,7 +91,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
     pub(crate) fn get_inlay_hint(&mut self, msg: &Value) -> ELSResult<()> {
         send_log(format!("inlay hint request: {msg}"))?;
         let params = InlayHintParams::deserialize(&msg["params"])?;
-        let uri = util::normalize_url(params.text_document.uri);
+        let uri = NormalizedUrl::new(params.text_document.uri);
         let mut result = vec![];
         if let Some(IncompleteArtifact {
             object: Some(hir), ..

@@ -12,10 +12,14 @@ use erg_compiler::varinfo::VarInfo;
 use lsp_types::{GotoDefinitionParams, GotoDefinitionResponse, Url};
 
 use crate::server::{send, send_log, ELSResult, Server};
-use crate::util;
+use crate::util::{self, NormalizedUrl};
 
 impl<Checker: BuildRunnable> Server<Checker> {
-    pub(crate) fn get_definition(&self, uri: &Url, token: &Token) -> ELSResult<Option<VarInfo>> {
+    pub(crate) fn get_definition(
+        &self,
+        uri: &NormalizedUrl,
+        token: &Token,
+    ) -> ELSResult<Option<VarInfo>> {
         if !token.category_is(TokenCategory::Symbol) {
             send_log(format!("not symbol: {token}"))?;
             Ok(None)
@@ -31,7 +35,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         &self,
         params: GotoDefinitionParams,
     ) -> ELSResult<GotoDefinitionResponse> {
-        let uri = util::normalize_url(params.text_document_position_params.text_document.uri);
+        let uri = NormalizedUrl::new(params.text_document_position_params.text_document.uri);
         let pos = params.text_document_position_params.position;
         if let Some(token) = self.file_cache.get_token(&uri, pos) {
             if let Some(vi) = self.get_definition(&uri, &token)? {
@@ -50,8 +54,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                                     .first()
                                     .and_then(|ctx| ctx.get_path_from_mod_t(&vi.t))
                                 {
-                                    let mod_uri =
-                                        util::normalize_url(Url::from_file_path(path).unwrap());
+                                    let mod_uri = Url::from_file_path(path).unwrap();
                                     let resp = GotoDefinitionResponse::Array(vec![
                                         lsp_types::Location::new(
                                             mod_uri,
@@ -69,10 +72,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
                                     .and_then(|ctx| ctx.get_mod_from_t(mod_t))
                                     .and_then(|mod_ctx| mod_ctx.get_var_info(token.inspect()))
                                 {
-                                    let def_uri = util::normalize_url(
+                                    let def_uri =
                                         Url::from_file_path(vi.def_loc.module.as_ref().unwrap())
-                                            .unwrap(),
-                                    );
+                                            .unwrap();
                                     let resp = GotoDefinitionResponse::Array(vec![
                                         lsp_types::Location::new(
                                             def_uri,
@@ -86,8 +88,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                             let vi = acc.var_info();
                             match (&vi.def_loc.module, util::loc_to_range(vi.def_loc.loc)) {
                                 (Some(path), Some(range)) => {
-                                    let def_uri =
-                                        util::normalize_url(Url::from_file_path(path).unwrap());
+                                    let def_uri = Url::from_file_path(path).unwrap();
                                     let resp = GotoDefinitionResponse::Array(vec![
                                         lsp_types::Location::new(def_uri, range),
                                     ]);
@@ -103,7 +104,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 }
                 match (vi.def_loc.module, util::loc_to_range(vi.def_loc.loc)) {
                     (Some(path), Some(range)) => {
-                        let def_uri = util::normalize_url(Url::from_file_path(path).unwrap());
+                        let def_uri = Url::from_file_path(path).unwrap();
                         Ok(GotoDefinitionResponse::Array(vec![
                             lsp_types::Location::new(def_uri, range),
                         ]))

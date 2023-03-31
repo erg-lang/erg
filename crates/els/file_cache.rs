@@ -16,7 +16,7 @@ use erg_compiler::erg_parser::lex::Lexer;
 use erg_compiler::erg_parser::token::{Token, TokenStream};
 
 use crate::server::ELSResult;
-use crate::util;
+use crate::util::{self, NormalizedUrl};
 
 pub fn _get_code_from_uri(uri: &Url) -> ELSResult<String> {
     let path = uri.to_file_path().unwrap();
@@ -44,7 +44,7 @@ impl FileCacheEntry {
 /// This struct can save changes in real-time & incrementally.
 #[derive(Debug, Clone)]
 pub struct FileCache {
-    pub files: Shared<Dict<Url, FileCacheEntry>>,
+    pub files: Shared<Dict<NormalizedUrl, FileCacheEntry>>,
 }
 
 impl FileCache {
@@ -95,11 +95,11 @@ impl FileCache {
         capabilities.text_document_sync = Some(TextDocumentSyncCapability::Options(sync_option));
     }
 
-    pub fn get_code(&self, uri: &Url) -> ELSResult<&str> {
+    pub fn get_code(&self, uri: &NormalizedUrl) -> ELSResult<&str> {
         Ok(self.get(uri)?.code.as_str())
     }
 
-    pub fn get(&self, uri: &Url) -> ELSResult<&FileCacheEntry> {
+    pub fn get(&self, uri: &NormalizedUrl) -> ELSResult<&FileCacheEntry> {
         let Some(entry) = unsafe { self.files.as_ref() }.get(uri) else {
             let code = _get_code_from_uri(uri)?;
             self.update(uri, code);
@@ -123,11 +123,11 @@ impl FileCache {
         }
     }
 
-    pub fn get_token_stream(&self, uri: &Url) -> Option<&TokenStream> {
+    pub fn get_token_stream(&self, uri: &NormalizedUrl) -> Option<&TokenStream> {
         self.get(uri).ok().and_then(|ent| ent.token_stream.as_ref())
     }
 
-    pub fn get_token_index(&self, uri: &Url, pos: Position) -> Option<usize> {
+    pub fn get_token_index(&self, uri: &NormalizedUrl, pos: Position) -> Option<usize> {
         let tokens = self.get_token_stream(uri)?;
         for (i, tok) in tokens.iter().enumerate() {
             if util::pos_in_loc(tok, pos) {
@@ -137,7 +137,7 @@ impl FileCache {
         None
     }
 
-    pub fn get_token(&self, uri: &Url, pos: Position) -> Option<Token> {
+    pub fn get_token(&self, uri: &NormalizedUrl, pos: Position) -> Option<Token> {
         let tokens = self.get_token_stream(uri)?;
         for tok in tokens.iter() {
             if util::pos_in_loc(tok, pos) {
@@ -147,7 +147,12 @@ impl FileCache {
         None
     }
 
-    pub fn get_token_relatively(&self, uri: &Url, pos: Position, offset: isize) -> Option<Token> {
+    pub fn get_token_relatively(
+        &self,
+        uri: &NormalizedUrl,
+        pos: Position,
+        offset: isize,
+    ) -> Option<Token> {
         let tokens = self.get_token_stream(uri)?;
         let index = self.get_token_index(uri, pos)?;
         let index = (index as isize + offset) as usize;
@@ -158,7 +163,7 @@ impl FileCache {
         }
     }
 
-    pub(crate) fn update(&self, uri: &Url, code: String) {
+    pub(crate) fn update(&self, uri: &NormalizedUrl, code: String) {
         let metadata = metadata(uri.to_file_path().unwrap()).unwrap();
         let token_stream = Lexer::from_str(code.clone()).lex().ok();
         self.files.borrow_mut().insert(
@@ -171,7 +176,7 @@ impl FileCache {
         );
     }
 
-    pub(crate) fn ranged_update(&self, uri: &Url, old: Range, new_code: &str) {
+    pub(crate) fn ranged_update(&self, uri: &NormalizedUrl, old: Range, new_code: &str) {
         let Some(entry) = unsafe { self.files.as_mut() }.get_mut(uri) else {
             return;
         };
@@ -187,7 +192,7 @@ impl FileCache {
     }
 
     pub(crate) fn incremental_update(&self, params: DidChangeTextDocumentParams) {
-        let uri = util::normalize_url(params.text_document.uri);
+        let uri = NormalizedUrl::new(params.text_document.uri);
         let Some(entry) = unsafe { self.files.as_mut() }.get_mut(&uri) else {
             return;
         };
@@ -206,14 +211,14 @@ impl FileCache {
     }
 
     #[allow(unused)]
-    pub fn remove(&mut self, uri: &Url) {
+    pub fn remove(&mut self, uri: &NormalizedUrl) {
         self.files.borrow_mut().remove(uri);
     }
 
     pub fn rename_files(&mut self, params: &RenameFilesParams) -> ELSResult<()> {
         for file in &params.files {
-            let old_uri = util::normalize_url(Url::parse(&file.old_uri).unwrap());
-            let new_uri = util::normalize_url(Url::parse(&file.new_uri).unwrap());
+            let old_uri = NormalizedUrl::parse(&file.old_uri).unwrap();
+            let new_uri = NormalizedUrl::parse(&file.new_uri).unwrap();
             let Some(entry) = self.files.borrow_mut().remove(&old_uri) else {
                 continue;
             };

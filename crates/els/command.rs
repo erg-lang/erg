@@ -10,7 +10,7 @@ use erg_compiler::hir::Expr;
 use lsp_types::{ExecuteCommandParams, Location, Url};
 
 use crate::server::{send, send_log, ELSResult, Server};
-use crate::util;
+use crate::util::{self, NormalizedUrl};
 
 impl<Checker: BuildRunnable> Server<Checker> {
     pub(crate) fn execute_command(&mut self, msg: &Value) -> ELSResult<()> {
@@ -33,7 +33,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
     ) -> ELSResult<Command> {
         let refs = self.get_refs_from_abs_loc(&trait_loc);
         let filter = |loc: Location| {
-            let uri = util::normalize_url(loc.uri.clone());
+            let uri = NormalizedUrl::new(loc.uri.clone());
             let token = self.file_cache.get_token(&uri, loc.range.start)?;
             let opt_visitor = self.get_visitor(&uri);
             let min_expr = opt_visitor
@@ -44,7 +44,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let impls = refs.into_iter().filter_map(filter).collect::<Vec<_>>();
         let impl_len = impls.len();
         let locations = serde_json::to_value(impls)?;
-        let uri = util::normalize_url(Url::from_file_path(trait_loc.module.unwrap()).unwrap());
+        let uri = Url::from_file_path(trait_loc.module.unwrap()).unwrap();
         let uri = serde_json::to_value(uri)?;
         let position = util::loc_to_pos(trait_loc.loc).unwrap();
         let position = serde_json::to_value(position)?;

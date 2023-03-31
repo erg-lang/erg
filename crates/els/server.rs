@@ -26,7 +26,7 @@ use lsp_types::{
     CodeLensOptions, CompletionOptions, DidChangeTextDocumentParams, ExecuteCommandOptions,
     HoverProviderCapability, InitializeResult, OneOf, Position, SemanticTokenType,
     SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions,
-    SemanticTokensServerCapabilities, ServerCapabilities, SignatureHelpOptions, Url,
+    SemanticTokensServerCapabilities, ServerCapabilities, SignatureHelpOptions,
     WorkDoneProgressOptions,
 };
 
@@ -34,7 +34,7 @@ use crate::completion::CompletionCache;
 use crate::file_cache::FileCache;
 use crate::hir_visitor::HIRVisitor;
 use crate::message::{ErrorMessage, LogMessage, ShowMessage};
-use crate::util;
+use crate::util::{self, NormalizedUrl};
 
 pub type ELSResult<T> = Result<T, Box<dyn std::error::Error>>;
 
@@ -184,8 +184,8 @@ pub struct Server<Checker: BuildRunnable = HIRBuilder> {
     pub(crate) opt_features: Vec<OptionalFeatures>,
     pub(crate) file_cache: FileCache,
     pub(crate) comp_cache: CompletionCache,
-    pub(crate) modules: Dict<Url, ModuleContext>,
-    pub(crate) artifacts: Dict<Url, IncompleteArtifact>,
+    pub(crate) modules: Dict<NormalizedUrl, ModuleContext>,
+    pub(crate) artifacts: Dict<NormalizedUrl, IncompleteArtifact>,
     pub(crate) current_sig: Option<Expr>,
     pub(crate) _checker: std::marker::PhantomData<Checker>,
 }
@@ -453,18 +453,16 @@ impl<Checker: BuildRunnable> Server<Checker> {
             "initialized" => send_log("successfully bound"),
             "exit" => self.exit(),
             "textDocument/didOpen" => {
-                let uri = util::parse_and_normalize_url(
-                    msg["params"]["textDocument"]["uri"].as_str().unwrap(),
-                )?;
+                let uri =
+                    NormalizedUrl::parse(msg["params"]["textDocument"]["uri"].as_str().unwrap())?;
                 send_log(format!("{method}: {uri}"))?;
                 let code = msg["params"]["textDocument"]["text"].as_str().unwrap();
                 self.file_cache.update(&uri, code.to_string());
                 self.check_file(uri, code)
             }
             "textDocument/didSave" => {
-                let uri = util::parse_and_normalize_url(
-                    msg["params"]["textDocument"]["uri"].as_str().unwrap(),
-                )?;
+                let uri =
+                    NormalizedUrl::parse(msg["params"]["textDocument"]["uri"].as_str().unwrap())?;
                 send_log(format!("{method}: {uri}"))?;
                 let code = self.file_cache.get_code(&uri)?.to_string();
                 self.clear_cache(&uri);
@@ -475,7 +473,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 self.file_cache.incremental_update(params.clone());
                 send_log("file cache updated")?;
                 if self.opt_features.contains(&OptionalFeatures::CheckOnType) {
-                    let uri = util::normalize_url(params.text_document.uri);
+                    let uri = NormalizedUrl::new(params.text_document.uri);
                     self.quick_check_file(uri)?;
                 }
                 Ok(())
@@ -492,7 +490,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         }
     }
 
-    pub(crate) fn get_visitor(&self, uri: &Url) -> Option<HIRVisitor> {
+    pub(crate) fn get_visitor(&self, uri: &NormalizedUrl) -> Option<HIRVisitor> {
         self.artifacts
             .get(uri)?
             .object
@@ -500,7 +498,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             .map(|hir| HIRVisitor::new(hir, uri.clone(), !cfg!(feature = "py_compat")))
     }
 
-    pub(crate) fn get_local_ctx(&self, uri: &Url, pos: Position) -> Vec<&Context> {
+    pub(crate) fn get_local_ctx(&self, uri: &NormalizedUrl, pos: Position) -> Vec<&Context> {
         // send_log(format!("scope: {:?}\n", self.module.as_ref().unwrap().scope.keys())).unwrap();
         let mut ctxs = vec![];
         if let Some(mod_ctx) = &self.modules.get(uri) {
@@ -522,7 +520,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
 
     pub(crate) fn get_receiver_ctxs(
         &self,
-        uri: &Url,
+        uri: &NormalizedUrl,
         attr_marker_pos: Position,
     ) -> ELSResult<Vec<&Context>> {
         let Some(module) = self.modules.get(uri) else {
@@ -575,7 +573,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             .map(|mc| &mc.context)
     }
 
-    pub(crate) fn clear_cache(&mut self, uri: &Url) {
+    pub(crate) fn clear_cache(&mut self, uri: &NormalizedUrl) {
         self.artifacts.remove(uri);
         if let Some(module) = self.modules.remove(uri) {
             let shared = module.context.shared();

@@ -5,16 +5,16 @@ use serde_json::Value;
 use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::hir::Expr;
 
-use lsp_types::{CodeLens, CodeLensParams, Url};
+use lsp_types::{CodeLens, CodeLensParams};
 
 use crate::server::{send, send_log, ELSResult, Server};
-use crate::util;
+use crate::util::{self, NormalizedUrl};
 
 impl<Checker: BuildRunnable> Server<Checker> {
     pub(crate) fn show_code_lens(&mut self, msg: &Value) -> ELSResult<()> {
         send_log("code lens requested")?;
         let params = CodeLensParams::deserialize(&msg["params"])?;
-        let uri = util::normalize_url(params.text_document.uri);
+        let uri = NormalizedUrl::new(params.text_document.uri);
         // TODO: parallelize
         let result = [
             self.send_trait_impls_lens(&uri)?,
@@ -24,7 +24,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": result }))
     }
 
-    fn send_trait_impls_lens(&mut self, uri: &Url) -> ELSResult<Vec<CodeLens>> {
+    fn send_trait_impls_lens(&mut self, uri: &NormalizedUrl) -> ELSResult<Vec<CodeLens>> {
         let mut result = vec![];
         if let Some(artifact) = self.artifacts.get(uri) {
             if let Some(hir) = &artifact.object {
@@ -51,7 +51,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         Ok(result)
     }
 
-    fn send_class_inherits_lens(&mut self, _uri: &Url) -> ELSResult<Vec<CodeLens>> {
+    fn send_class_inherits_lens(&mut self, _uri: &NormalizedUrl) -> ELSResult<Vec<CodeLens>> {
         Ok(vec![])
     }
 }

@@ -3,9 +3,9 @@ use erg_common::Str;
 use erg_compiler::erg_parser::token::Token;
 use erg_compiler::hir::*;
 use erg_compiler::varinfo::VarInfo;
-use lsp_types::{Position, Url};
+use lsp_types::Position;
 
-use crate::util;
+use crate::util::{self, NormalizedUrl};
 
 /// This struct provides:
 /// * namespace where the cursor is located (`get_namespace`)
@@ -13,12 +13,12 @@ use crate::util;
 /// * cursor(`Token`) -> `VarInfo` mapping (`get_info`)
 pub struct HIRVisitor<'a> {
     hir: &'a HIR,
-    uri: Url,
+    uri: NormalizedUrl,
     strict_cmp: bool,
 }
 
 impl<'a> HIRVisitor<'a> {
-    pub fn new(hir: &'a HIR, uri: Url, strict_cmp: bool) -> Self {
+    pub fn new(hir: &'a HIR, uri: NormalizedUrl, strict_cmp: bool) -> Self {
         Self {
             hir,
             uri,

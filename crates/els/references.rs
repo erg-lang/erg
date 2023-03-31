@@ -8,18 +8,18 @@ use erg_compiler::varinfo::AbsLocation;
 use lsp_types::{Position, ReferenceParams, Url};
 
 use crate::server::{send, ELSResult, Server};
-use crate::util;
+use crate::util::{self, NormalizedUrl};
 
 impl<Checker: BuildRunnable> Server<Checker> {
     pub(crate) fn show_references(&mut self, msg: &Value) -> ELSResult<()> {
         let params = ReferenceParams::deserialize(&msg["params"])?;
-        let uri = util::normalize_url(params.text_document_position.text_document.uri);
+        let uri = NormalizedUrl::new(params.text_document_position.text_document.uri);
         let pos = params.text_document_position.position;
         let result = self.show_refs_inner(&uri, pos);
         send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": result }))
     }
 
-    fn show_refs_inner(&self, uri: &Url, pos: Position) -> Vec<lsp_types::Location> {
+    fn show_refs_inner(&self, uri: &NormalizedUrl, pos: Position) -> Vec<lsp_types::Location> {
         if let Some(tok) = self.file_cache.get_token(uri, pos) {
             // send_log(format!("token: {tok}"))?;
             if let Some(visitor) = self.get_visitor(uri) {
@@ -39,7 +39,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 if let (Some(path), Some(range)) =
                     (&referrer.module, util::loc_to_range(referrer.loc))
                 {
-                    let ref_uri = util::normalize_url(Url::from_file_path(path).unwrap());
+                    let ref_uri = Url::from_file_path(path).unwrap();
                     refs.push(lsp_types::Location::new(ref_uri, range));
                 }
             }

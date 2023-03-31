@@ -10,7 +10,7 @@ use erg_compiler::varinfo::AbsLocation;
 use lsp_types::{HoverContents, HoverParams, MarkedString, Url};
 
 use crate::server::{send, send_log, ELSResult, Server};
-use crate::util;
+use crate::util::{self, NormalizedUrl};
 
 const PROG_LANG: &str = if cfg!(feature = "py_compat") {
     "python"
@@ -101,7 +101,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
     pub(crate) fn show_hover(&mut self, msg: &Value) -> ELSResult<()> {
         send_log(format!("hover requested : {msg}"))?;
         let params = HoverParams::deserialize(&msg["params"])?;
-        let uri = util::normalize_url(params.text_document_position_params.text_document.uri);
+        let uri = NormalizedUrl::new(params.text_document_position_params.text_document.uri);
         let pos = params.text_document_position_params.position;
         let mut contents = vec![];
         let opt_tok = self.file_cache.get_token(&uri, pos);
@@ -202,7 +202,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 }
             };
             def_pos.line = def_pos.line.saturating_sub(1);
-            let def_uri = util::normalize_url(Url::from_file_path(module).unwrap());
+            let def_uri = NormalizedUrl::new(Url::from_file_path(module).unwrap());
             let mut default_code_block = "".to_string();
             let Some(stream) = self.file_cache.get_token_stream(&def_uri) else {
                 return Ok(());
