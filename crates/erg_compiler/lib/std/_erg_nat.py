@@ -40,6 +40,9 @@ class NatMut(IntMut):  # and Nat
     def __init__(self, n: Nat):
         self.value = n
 
+    def __int__(self):
+        return self.value.__int__()
+
     def __repr__(self):
         return self.value.__repr__()
 

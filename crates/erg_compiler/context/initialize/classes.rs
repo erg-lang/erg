@@ -117,6 +117,13 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNDAMENTAL_CALL),
         );
+        complex.register_builtin_py_impl(
+            FUNDAMENTAL_HASH,
+            fn0_met(Float, Nat),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNDAMENTAL_HASH),
+        );
         /* Float */
         let mut float = Self::builtin_mono_class(FLOAT, 2);
         float.register_superclass(Complex, &complex);
@@ -144,6 +151,12 @@ impl Context {
             nd_func(vec![kw(KW_S, Str)], None, Float),
             Some(FUNC_FROMHEX),
             53,
+        );
+        float.register_py_builtin(
+            FUNDAMENTAL_INT,
+            fn0_met(Float, Int),
+            Some(FUNDAMENTAL_INT),
+            0,
         );
         float.register_py_builtin(OP_GT, fn1_met(Float, Float, Bool), Some(OP_GT), 0);
         float.register_py_builtin(OP_GE, fn1_met(Float, Float, Bool), Some(OP_GE), 0);

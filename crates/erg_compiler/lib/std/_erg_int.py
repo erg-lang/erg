@@ -66,6 +66,8 @@ class IntMut:  # inherits Int
 
     def __init__(self, i):
         self.value = Int(i)
+    def __int__(self):
+        return self.value.__int__()
 
     def __repr__(self):
         return self.value.__repr__()

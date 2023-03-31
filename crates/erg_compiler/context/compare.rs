@@ -170,10 +170,11 @@ impl Context {
             (Obj, _) | (_, Never | Failure) => (Absolutely, true),
             (_, Obj) if lhs.is_simple_class() => (Absolutely, false),
             (Never | Failure, _) if rhs.is_simple_class() => (Absolutely, false),
-            (Float | Ratio | Int | Nat | Bool, Bool)
-            | (Float | Ratio | Int | Nat, Nat)
-            | (Float | Ratio | Int, Int)
-            | (Float | Ratio, Ratio) => (Absolutely, true),
+            (Complex | Float | Ratio | Int | Nat | Bool, Bool)
+            | (Complex | Float | Ratio | Int | Nat, Nat)
+            | (Complex | Float | Ratio | Int, Int)
+            | (Complex | Float | Ratio, Ratio)
+            | (Complex | Float, Float) => (Absolutely, true),
             (Type, ClassType | TraitType) => (Absolutely, true),
             (
                 Mono(n),

@@ -1965,6 +1965,32 @@ impl Context {
         concatenated
     }
 
+    /// Returns the smallest type among the iterators of a given type.
+    /// If there is no subtype relationship, returns `None`.
+    /// ```erg
+    /// min_type([Int, Int]) == Int
+    /// min_type([Int, Nat]) == Nat
+    /// min_type([Int, Str]) == None
+    /// min_type([Int, Str, Nat]) == None
+    /// ```
+    pub fn min_type<'a>(&self, types: impl Iterator<Item = &'a Type>) -> Option<&'a Type> {
+        let mut opt_min = None;
+        for t in types {
+            if let Some(min) = opt_min {
+                if self.subtype_of(min, t) {
+                    continue;
+                } else if self.subtype_of(t, min) {
+                    opt_min = Some(t);
+                } else {
+                    return None;
+                }
+            } else {
+                opt_min = Some(t);
+            }
+        }
+        opt_min
+    }
+
     pub fn get_nominal_super_type_ctxs<'a>(&'a self, t: &Type) -> Option<Vec<&'a Context>> {
         match t {
             Type::FreeVar(fv) if fv.is_linked() => self.get_nominal_super_type_ctxs(&fv.crack()),
@@ -2544,51 +2570,46 @@ impl Context {
         }
     }
 
+    fn get_attr_type<'m>(
+        &self,
+        name: &Identifier,
+        candidates: &'m [MethodInfo],
+    ) -> Triple<&'m MethodInfo, TyCheckError> {
+        let first_method_type = &candidates[0].method_type;
+        if candidates
+            .iter()
+            .skip(1)
+            .all(|t| &t.method_type == first_method_type)
+        {
+            Triple::Ok(&candidates[0])
+        } else if let Some(min) = self.min_type(candidates.iter().map(|mi| &mi.definition_type)) {
+            let min_info = candidates
+                .iter()
+                .find(|mi| &mi.definition_type == min)
+                .unwrap();
+            Triple::Ok(min_info)
+        } else {
+            Triple::Err(TyCheckError::ambiguous_type_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                name,
+                &candidates
+                    .iter()
+                    .map(|t| t.definition_type.clone())
+                    .collect::<Vec<_>>(),
+                self.caused_by(),
+            ))
+        }
+    }
+
     /// Infer the receiver type from the attribute name.
     /// Returns an error if multiple candidates are found. If nothing is found, returns None.
     fn get_attr_type_by_name(&self, name: &Identifier) -> Triple<&MethodInfo, TyCheckError> {
-        // TODO: min_by
         if let Some(candidates) = self.method_to_traits.get(name.inspect()) {
-            let first_method_type = &candidates.first().unwrap().method_type;
-            if candidates
-                .iter()
-                .skip(1)
-                .all(|t| &t.method_type == first_method_type)
-            {
-                return Triple::Ok(&candidates[0]);
-            } else {
-                return Triple::Err(TyCheckError::ambiguous_type_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    name,
-                    &candidates
-                        .iter()
-                        .map(|t| t.definition_type.clone())
-                        .collect::<Vec<_>>(),
-                    self.caused_by(),
-                ));
-            }
+            return self.get_attr_type(name, candidates);
         }
         if let Some(candidates) = self.method_to_classes.get(name.inspect()) {
-            let first_method_type = &candidates.first().unwrap().method_type;
-            if candidates
-                .iter()
-                .skip(1)
-                .all(|t| &t.method_type == first_method_type)
-            {
-                return Triple::Ok(&candidates[0]);
-            } else {
-                return Triple::Err(TyCheckError::ambiguous_type_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    name,
-                    &candidates
-                        .iter()
-                        .map(|t| t.definition_type.clone())
-                        .collect::<Vec<_>>(),
-                    self.caused_by(),
-                ));
-            }
+            return self.get_attr_type(name, candidates);
         }
         if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
             outer.get_attr_type_by_name(name)
