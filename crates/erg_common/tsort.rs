@@ -22,7 +22,7 @@ impl std::error::Error for TopoSortError {}
 pub struct Node<T: Eq + Hash, U> {
     pub id: T,
     pub data: U,
-    depends_on: Set<T>,
+    pub depends_on: Set<T>,
 }
 
 impl<T: Eq + Hash, U> Node<T, U> {

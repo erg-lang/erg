@@ -28,6 +28,7 @@ pub fn _get_code_from_uri(uri: &Url) -> ELSResult<String> {
 #[derive(Debug, Clone)]
 pub struct FileCacheEntry {
     pub code: String,
+    pub ver: i32,
     pub metadata: Metadata,
     pub token_stream: Option<TokenStream>,
 }
@@ -102,25 +103,11 @@ impl FileCache {
     pub fn get(&self, uri: &NormalizedUrl) -> ELSResult<&FileCacheEntry> {
         let Some(entry) = unsafe { self.files.as_ref() }.get(uri) else {
             let code = _get_code_from_uri(uri)?;
-            self.update(uri, code);
+            self.update(uri, code, None);
             let entry = unsafe { self.files.as_ref() }.get(uri).ok_or("not found")?;
             return Ok(entry);
         };
-        let last_modified = entry.metadata.modified().unwrap();
-        let current_modified = metadata(uri.to_file_path().unwrap())
-            .unwrap()
-            .modified()
-            .unwrap();
-        if last_modified != current_modified {
-            let code = _get_code_from_uri(uri)?;
-            self.update(uri, code);
-            unsafe { self.files.as_ref() }
-                .get(uri)
-                .ok_or("not found".into())
-        } else {
-            let entry = unsafe { self.files.as_ref() }.get(uri).ok_or("not found")?;
-            Ok(entry)
-        }
+        Ok(entry)
     }
 
     pub fn get_token_stream(&self, uri: &NormalizedUrl) -> Option<&TokenStream> {
@@ -163,13 +150,28 @@ impl FileCache {
         }
     }
 
-    pub(crate) fn update(&self, uri: &NormalizedUrl, code: String) {
+    pub(crate) fn update(&self, uri: &NormalizedUrl, code: String, ver: Option<i32>) {
+        let entry = unsafe { self.files.as_ref() }.get(uri);
+        if let Some(entry) = entry {
+            if ver.map_or(false, |ver| ver <= entry.ver) {
+                // crate::_log!("171: double update detected: {ver:?}, {}, code:\n{}", entry.ver, entry.code);
+                return;
+            }
+        }
         let metadata = metadata(uri.to_file_path().unwrap()).unwrap();
         let token_stream = Lexer::from_str(code.clone()).lex().ok();
+        let ver = ver.unwrap_or({
+            if let Some(entry) = entry {
+                entry.ver
+            } else {
+                1
+            }
+        });
         self.files.borrow_mut().insert(
             uri.clone(),
             FileCacheEntry {
                 code,
+                ver,
                 metadata,
                 token_stream,
             },
@@ -187,6 +189,7 @@ impl FileCache {
         code.replace_range(start..end, new_code);
         let token_stream = Lexer::from_str(code.clone()).lex().ok();
         entry.code = code;
+        // entry.ver += 1;
         entry.metadata = metadata;
         entry.token_stream = token_stream;
     }
@@ -196,6 +199,10 @@ impl FileCache {
         let Some(entry) = unsafe { self.files.as_mut() }.get_mut(&uri) else {
             return;
         };
+        if entry.ver >= params.text_document.version {
+            // crate::_log!("212: double update detected {}, {}, code:\n{}", entry.ver, params.text_document.version, entry.code);
+            return;
+        }
         let metadata = metadata(uri.to_file_path().unwrap()).unwrap();
         let mut code = entry.code.clone();
         for change in params.content_changes {
@@ -206,6 +213,7 @@ impl FileCache {
         }
         let token_stream = Lexer::from_str(code.clone()).lex().ok();
         entry.code = code;
+        entry.ver = params.text_document.version;
         entry.metadata = metadata;
         entry.token_stream = token_stream;
     }

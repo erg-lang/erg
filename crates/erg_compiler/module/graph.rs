@@ -1,3 +1,4 @@
+use std::fmt;
 use std::path::{Path, PathBuf};
 
 use erg_common::shared::Shared;
@@ -6,6 +7,19 @@ use erg_common::{normalize_path, set};
 
 #[derive(Debug, Clone, Default)]
 pub struct ModuleGraph(Graph<PathBuf, ()>);
+
+impl fmt::Display for ModuleGraph {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for node in self.0.iter() {
+            writeln!(f, "{} depends on {{", node.id.display())?;
+            for dep in node.depends_on.iter() {
+                writeln!(f, "{}, ", dep.display())?;
+            }
+            writeln!(f, "}}, ")?;
+        }
+        Ok(())
+    }
+}
 
 impl IntoIterator for ModuleGraph {
     type Item = Node<PathBuf, ()>;
@@ -62,6 +76,11 @@ impl ModuleGraph {
         Ok(())
     }
 
+    pub fn remove(&mut self, path: &Path) {
+        let path = normalize_path(path.to_path_buf());
+        self.0.retain(|n| n.id != path);
+    }
+
     pub fn initialize(&mut self) {
         self.0.clear();
     }
@@ -69,6 +88,12 @@ impl ModuleGraph {
 
 #[derive(Debug, Clone, Default)]
 pub struct SharedModuleGraph(Shared<ModuleGraph>);
+
+impl fmt::Display for SharedModuleGraph {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0.borrow())
+    }
+}
 
 impl IntoIterator for SharedModuleGraph {
     type Item = Node<PathBuf, ()>;
@@ -102,6 +127,10 @@ impl SharedModuleGraph {
     pub fn iter(&self) -> impl Iterator<Item = &Node<PathBuf, ()>> {
         let ref_graph = unsafe { self.0.as_ptr().as_ref().unwrap() };
         ref_graph.iter()
+    }
+
+    pub fn remove(&self, path: &Path) {
+        self.0.borrow_mut().remove(path);
     }
 
     #[allow(clippy::result_unit_err)]

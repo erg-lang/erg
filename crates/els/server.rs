@@ -23,9 +23,9 @@ use erg_compiler::ty::HasType;
 
 use lsp_types::{
     ClientCapabilities, CodeActionKind, CodeActionOptions, CodeActionProviderCapability,
-    CodeLensOptions, CompletionOptions, DidChangeTextDocumentParams, ExecuteCommandOptions,
-    HoverProviderCapability, InitializeResult, OneOf, Position, SemanticTokenType,
-    SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions,
+    CodeLensOptions, CompletionOptions, DidChangeTextDocumentParams, DidOpenTextDocumentParams,
+    ExecuteCommandOptions, HoverProviderCapability, InitializeResult, OneOf, Position,
+    SemanticTokenType, SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions,
     SemanticTokensServerCapabilities, ServerCapabilities, SignatureHelpOptions,
     WorkDoneProgressOptions,
 };
@@ -104,9 +104,10 @@ impl From<&str> for OptionalFeatures {
     }
 }
 
+#[macro_export]
 macro_rules! _log {
     ($($arg:tt)*) => {
-        send_log(format!($($arg)*)).unwrap();
+        $crate::server::send_log(format!($($arg)*)).unwrap();
     };
 }
 
@@ -453,11 +454,12 @@ impl<Checker: BuildRunnable> Server<Checker> {
             "initialized" => send_log("successfully bound"),
             "exit" => self.exit(),
             "textDocument/didOpen" => {
-                let uri =
-                    NormalizedUrl::parse(msg["params"]["textDocument"]["uri"].as_str().unwrap())?;
+                let params = DidOpenTextDocumentParams::deserialize(msg["params"].clone())?;
+                let uri = NormalizedUrl::new(params.text_document.uri);
                 send_log(format!("{method}: {uri}"))?;
-                let code = msg["params"]["textDocument"]["text"].as_str().unwrap();
-                self.file_cache.update(&uri, code.to_string());
+                let code = params.text_document.text;
+                let ver = params.text_document.version;
+                self.file_cache.update(&uri, code.clone(), Some(ver));
                 self.check_file(uri, code)
             }
             "textDocument/didSave" => {
@@ -471,7 +473,6 @@ impl<Checker: BuildRunnable> Server<Checker> {
             "textDocument/didChange" => {
                 let params = DidChangeTextDocumentParams::deserialize(msg["params"].clone())?;
                 self.file_cache.incremental_update(params.clone());
-                send_log("file cache updated")?;
                 if self.opt_features.contains(&OptionalFeatures::CheckOnType) {
                     let uri = NormalizedUrl::new(params.text_document.uri);
                     self.quick_check_file(uri)?;
@@ -580,7 +581,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             let path = util::uri_to_path(uri);
             shared.mod_cache.remove(&path);
             shared.index.remove_path(&path);
-            shared.graph.initialize();
+            shared.graph.remove(&path);
         }
     }
 }
