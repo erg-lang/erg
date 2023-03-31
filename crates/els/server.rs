@@ -503,18 +503,19 @@ impl<Checker: BuildRunnable> Server<Checker> {
     pub(crate) fn get_local_ctx(&self, uri: &Url, pos: Position) -> Vec<&Context> {
         // send_log(format!("scope: {:?}\n", self.module.as_ref().unwrap().scope.keys())).unwrap();
         let mut ctxs = vec![];
-        if let Some(visitor) = self.get_visitor(uri) {
-            let ns = visitor.get_namespace(pos);
-            for i in 1..ns.len() {
-                let ns = ns[..=ns.len() - i].join("");
-                if let Some(ctx) = self.modules.get(uri).unwrap().scope.get(&ns[..]) {
-                    ctxs.push(ctx);
+        if let Some(mod_ctx) = &self.modules.get(uri) {
+            if let Some(visitor) = self.get_visitor(uri) {
+                let ns = visitor.get_namespace(pos);
+                for i in 1..ns.len() {
+                    let ns = ns[..=ns.len() - i].join("");
+                    if let Some(ctx) = mod_ctx.scope.get(&ns[..]) {
+                        ctxs.push(ctx);
+                    }
                 }
             }
+            ctxs.push(&mod_ctx.context);
         }
-        let mod_ctx = &self.modules.get(uri).unwrap().context;
         let builtin_ctx = self.get_builtin_module();
-        ctxs.push(mod_ctx);
         ctxs.extend(builtin_ctx);
         ctxs
     }

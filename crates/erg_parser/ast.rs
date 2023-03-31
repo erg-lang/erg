@@ -2840,7 +2840,7 @@ pub struct Identifier {
 
 impl NestedDisplay for Identifier {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "{}{}", self.vis, self.name)
+        write!(f, "{}{}", self.vis.display_as_accessor(), self.name)
     }
 }
 

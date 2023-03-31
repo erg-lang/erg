@@ -27,8 +27,16 @@ impl<'a> HIRVisitor<'a> {
     }
 
     pub fn get_namespace(&self, pos: Position) -> Vec<Str> {
-        // TODO: other than <module>
-        let namespace = vec![Str::ever("<module>")];
+        let name = self
+            .uri
+            .path()
+            .split('/')
+            .last()
+            .unwrap()
+            .split('.')
+            .next()
+            .unwrap();
+        let namespace = vec![Str::rc(name)];
         if let Some(ns) = self.get_exprs_ns(namespace.clone(), self.hir.module.iter(), pos) {
             ns
         } else {

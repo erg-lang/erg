@@ -61,15 +61,15 @@ impl ASTBuilder {
         let module = self.runner.parse(src)?;
         let mut desugarer = Desugarer::new();
         let module = desugarer.desugar(module);
-        let path = self.runner.cfg().input.full_path();
-        let ast = AST::new(Str::rc(path.to_str().unwrap()), module);
+        let name = self.runner.cfg().input.unescaped_filename();
+        let ast = AST::new(Str::rc(name), module);
         Ok(ast)
     }
 
     pub fn build_without_desugaring(&mut self, src: String) -> Result<AST, ParserRunnerErrors> {
         let module = self.runner.parse(src)?;
-        let path = self.runner.cfg().input.full_path();
-        let ast = AST::new(Str::rc(path.to_str().unwrap()), module);
+        let name = self.runner.cfg().input.unescaped_filename();
+        let ast = AST::new(Str::rc(name), module);
         Ok(ast)
     }
 }
