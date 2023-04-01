@@ -2168,10 +2168,11 @@ impl Parser {
                             obj = obj.attr_expr(ident);
                         }
                         NatLit => {
-                            let index = Literal::from(self.lpop());
+                            let index = Literal::from(token);
                             obj = obj.tuple_attr_expr(index);
                         }
                         Newline => {
+                            self.restore(token);
                             self.restore(vis);
                             break;
                         }
@@ -3017,7 +3018,6 @@ impl Parser {
                         debug_exit_info!(self);
                         return Err(());
                     };
-                    self.skip();
                     if let Some(args) = self
                         .opt_reduce_args(false)
                         .transpose()

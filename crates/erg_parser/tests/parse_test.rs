@@ -69,7 +69,7 @@ fn exec_invalid_chunk_prs_err() -> Result<(), ()> {
 
 #[test]
 fn expect_failure_collections_err() -> Result<(), ()> {
-    expect_failure("tests/invalid_collections.er", 33)
+    expect_failure("tests/invalid_collections.er", 30)
 }
 
 #[test]
