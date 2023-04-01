@@ -460,11 +460,11 @@ pub fn guard(var: Variable, to: Type) -> Type {
     Type::Guard(GuardType::new(var, to))
 }
 
-pub fn fluctuation(sub: Type, sup: Type) -> Type {
+pub fn bounded(sub: Type, sup: Type) -> Type {
     if sub == Type::Never {
         sup
     } else {
-        Type::Fluctuation {
+        Type::Bounded {
             sub: Box::new(sub),
             sup: Box::new(sup),
         }

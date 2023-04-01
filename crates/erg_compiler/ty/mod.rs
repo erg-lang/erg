@@ -805,7 +805,7 @@ pub enum Type {
     // used for narrowing the type of a variable. It is treated as a subtype of Bool
     // e.g. `isinstance(x: Obj, Cls: ClassType) -> {x in Cls}`
     Guard(GuardType),
-    Fluctuation {
+    Bounded {
         sub: Box<Type>,
         sup: Box<Type>,
     },
@@ -934,8 +934,8 @@ impl PartialEq for Type {
                 )
             }
             (
-                Self::Fluctuation { sub, sup },
-                Self::Fluctuation {
+                Self::Bounded { sub, sup },
+                Self::Bounded {
                     sub: rsub,
                     sup: rsup,
                 },
@@ -1073,7 +1073,7 @@ impl LimitedDisplay for Type {
             Self::Guard(guard) if cfg!(feature = "debug") => {
                 write!(f, "Guard({guard})")
             }
-            Self::Fluctuation { sub, sup } => {
+            Self::Bounded { sub, sup } => {
                 if sub.is_union_type() || sub.is_intersection_type() {
                     write!(f, "(")?;
                     sub.limited_fmt(f, limit - 1)?;
@@ -1333,7 +1333,7 @@ impl HasLevel for Type {
             Self::Structural(ty) => ty.level(),
             Self::Guard(guard) => guard.to.level(),
             Self::Quantified(quant) => quant.level(),
-            Self::Fluctuation { sub, sup } => {
+            Self::Bounded { sub, sup } => {
                 let sub_min = sub.level().unwrap_or(GENERIC_LEVEL);
                 let sup_min = sup.level().unwrap_or(GENERIC_LEVEL);
                 let min = sub_min.min(sup_min);
@@ -1408,7 +1408,7 @@ impl HasLevel for Type {
             }
             Self::Structural(ty) => ty.set_level(level),
             Self::Guard(guard) => guard.to.set_level(level),
-            Self::Fluctuation { sub, sup } => {
+            Self::Bounded { sub, sup } => {
                 sub.set_level(level);
                 sup.set_level(level);
             }
@@ -1515,8 +1515,8 @@ impl StructuralEq for Type {
             }
             (Self::Not(ty), Self::Not(ty2)) => ty.structural_eq(ty2),
             (
-                Self::Fluctuation { sub, sup },
-                Self::Fluctuation {
+                Self::Bounded { sub, sup },
+                Self::Bounded {
                     sub: sub2,
                     sup: sup2,
                 },
@@ -1640,7 +1640,7 @@ impl Type {
             }
             Self::Poly { name, params, .. } if &name[..] == "Tuple" => params.is_empty(),
             Self::Refinement(refine) => refine.t.is_nonelike(),
-            Self::Fluctuation { sup, .. } => sup.is_nonelike(),
+            Self::Bounded { sup, .. } => sup.is_nonelike(),
             _ => false,
         }
     }
@@ -1790,9 +1790,7 @@ impl Type {
                 before.contains_tvar(target)
                     || after.as_ref().map_or(false, |t| t.contains_tvar(target))
             }
-            Self::Fluctuation { sub, sup } => {
-                sub.contains_tvar(target) || sup.contains_tvar(target)
-            }
+            Self::Bounded { sub, sup } => sub.contains_tvar(target) || sup.contains_tvar(target),
             _ => false,
         }
     }
@@ -1830,7 +1828,7 @@ impl Type {
             Self::RefMut { before, after } => {
                 before.contains(target) || after.as_ref().map_or(false, |t| t.contains(target))
             }
-            Self::Fluctuation { sub, sup } => sub.contains(target) || sup.contains(target),
+            Self::Bounded { sub, sup } => sub.contains(target) || sup.contains(target),
             _ => false,
         }
     }
@@ -1858,7 +1856,7 @@ impl Type {
             Self::RefMut { before, after } => {
                 before.contains(self) || after.as_ref().map_or(false, |t| t.contains(self))
             }
-            Self::Fluctuation { sub, sup } => sub.contains(self) || sup.contains(self),
+            Self::Bounded { sub, sup } => sub.contains(self) || sup.contains(self),
             _ => false,
         }
     }
@@ -1969,7 +1967,7 @@ impl Type {
             Self::ProjCall { .. } => Str::ever("ProjCall"),
             Self::Structural(_) => Str::ever("Structural"),
             Self::Guard { .. } => Str::ever("Bool"),
-            Self::Fluctuation { sub, .. } => sub.qual_name(),
+            Self::Bounded { sub, .. } => sub.qual_name(),
             Self::Failure => Str::ever("Failure"),
             Self::Uninited => Str::ever("Uninited"),
         }
@@ -2202,7 +2200,7 @@ impl Type {
                 .concat(args.iter().fold(set! {}, |acc, tp| acc.concat(tp.qvars()))),
             Self::Structural(ty) => ty.qvars(),
             Self::Guard(guard) => guard.to.qvars(),
-            Self::Fluctuation { sub, sup } => sub.qvars().concat(sup.qvars()),
+            Self::Bounded { sub, sup } => sub.qvars().concat(sup.qvars()),
             _ => set! {},
         }
     }
@@ -2260,7 +2258,7 @@ impl Type {
             }
             Self::Structural(ty) => ty.has_qvar(),
             Self::Guard(guard) => guard.to.has_qvar(),
-            Self::Fluctuation { sub, sup } => sub.has_qvar() || sup.has_qvar(),
+            Self::Bounded { sub, sup } => sub.has_qvar() || sup.has_qvar(),
             _ => false,
         }
     }
@@ -2315,7 +2313,7 @@ impl Type {
             }
             Self::Structural(ty) => ty.has_unbound_var(),
             Self::Guard(guard) => guard.to.has_unbound_var(),
-            Self::Fluctuation { sub, sup } => sub.has_unbound_var() || sup.has_unbound_var(),
+            Self::Bounded { sub, sup } => sub.has_unbound_var() || sup.has_unbound_var(),
             _ => false,
         }
     }
@@ -2568,7 +2566,7 @@ impl Type {
             Self::Guard(guard) => {
                 Self::Guard(GuardType::new(guard.var.clone(), guard.to.derefine()))
             }
-            Self::Fluctuation { sub, sup } => Self::Fluctuation {
+            Self::Bounded { sub, sup } => Self::Bounded {
                 sub: Box::new(sub.derefine()),
                 sup: Box::new(sup.derefine()),
             },
@@ -2662,7 +2660,7 @@ impl Type {
                 guard.var.clone(),
                 guard.to._replace(target, to),
             )),
-            Self::Fluctuation { sub, sup } => Self::Fluctuation {
+            Self::Bounded { sub, sup } => Self::Bounded {
                 sub: Box::new(sub._replace(target, to)),
                 sup: Box::new(sup._replace(target, to)),
             },
@@ -2710,7 +2708,7 @@ impl Type {
             Self::Not(ty) => !ty.normalize(),
             Self::Structural(ty) => ty.normalize().structuralize(),
             Self::Guard(guard) => Self::Guard(GuardType::new(guard.var, guard.to.normalize())),
-            Self::Fluctuation { sub, sup } => Self::Fluctuation {
+            Self::Bounded { sub, sup } => Self::Bounded {
                 sub: Box::new(sub.normalize()),
                 sup: Box::new(sup.normalize()),
             },
@@ -2811,8 +2809,8 @@ impl<'t> ReplaceTable<'t> {
                 self.iterate(&guard.to, &guard2.to);
             }
             (
-                Type::Fluctuation { sub, sup },
-                Type::Fluctuation {
+                Type::Bounded { sub, sup },
+                Type::Bounded {
                     sub: sub2,
                     sup: sup2,
                 },

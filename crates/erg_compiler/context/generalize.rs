@@ -740,7 +740,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
             match self.variance {
                 Variance::Covariant if self.coerce => Ok(sub_t),
                 Variance::Contravariant if self.coerce => Ok(super_t),
-                Variance::Covariant | Variance::Contravariant => Ok(fluctuation(sub_t, super_t)),
+                Variance::Covariant | Variance::Contravariant => Ok(bounded(sub_t, super_t)),
                 Variance::Invariant => {
                     // need to check if sub_t == super_t (sub_t <: super_t is already checked)
                     if self.ctx.supertype_of(&sub_t, &super_t) {

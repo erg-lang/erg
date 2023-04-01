@@ -2176,7 +2176,7 @@ impl Context {
                     return Some(res);
                 }
             }
-            Type::Fluctuation { sup, .. } => {
+            Type::Bounded { sup, .. } => {
                 if let Some(res) = self.get_nominal_type_ctx(sup) {
                     return Some(res);
                 }
@@ -2237,7 +2237,7 @@ impl Context {
                     return Some(res);
                 }
             }
-            Type::Fluctuation { sup, .. } => {
+            Type::Bounded { sup, .. } => {
                 if let Some(res) = self.get_mut_nominal_type_ctx(sup) {
                     return Some(res);
                 }
