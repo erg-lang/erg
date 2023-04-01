@@ -173,50 +173,27 @@ impl Str {
             .unwrap_or(false)
     }
 
+    /// split string with multiple separators
+    /// ```rust
+    /// # use erg_common::str::Str;
+    /// let s = Str::rc("a.b::c");
+    /// assert_eq!(s.split_with(&[".", "::"]), vec!["a", "b", "c"]);
+    /// let s = Str::rc("ああ.いい::うう");
+    /// assert_eq!(s.split_with(&[".", "::"]), vec!["ああ", "いい", "うう"]);
+    /// ```
     pub fn split_with(&self, seps: &[&str]) -> Vec<&str> {
-        let mut ret = vec![];
-        let mut start = 0;
-        #[allow(unused_assignments)]
-        let mut end = 0;
-        let mut i = 0;
-        while i < self.len() {
-            let mut found = false;
+        let mut result = vec![];
+        let mut last_offset = 0;
+        for (offset, _c) in self.char_indices() {
             for sep in seps {
-                if self[i..].starts_with(sep) {
-                    end = i;
-                    ret.push(&self[start..end]);
-                    start = i + sep.len();
-                    i = start;
-                    found = true;
-                    break;
+                if self[offset..].starts_with(sep) {
+                    result.push(&self[last_offset..offset]);
+                    last_offset = offset + sep.len();
                 }
             }
-            if !found {
-                i += 1;
-            }
         }
-        ret.push(&self[start..]);
-        ret
-    }
-
-    /// ```
-    /// use erg_common::str::Str;
-    /// let s = Str::rc("a.b.c");
-    /// assert_eq!(s.rpartition_with(&[".", "/"]), ("a.b", "c"));
-    /// let s = Str::rc("a::b.c");
-    /// assert_eq!(s.rpartition_with(&["/", "::"]), ("a", "b.c"));
-    /// ```
-    pub fn rpartition_with(&self, seps: &[&str]) -> (&str, &str) {
-        let mut i = self.len();
-        while i > 0 {
-            for sep in seps {
-                if self[i..].starts_with(sep) {
-                    return (&self[..i], &self[i + sep.len()..]);
-                }
-            }
-            i -= 1;
-        }
-        (&self[..], "")
+        result.push(&self[last_offset..]);
+        result
     }
 
     pub fn reversed(&self) -> Str {

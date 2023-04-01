@@ -823,10 +823,11 @@ impl PartialEq for Type {
         }
         match (self, other) {
             (Self::Obj, Self::Obj)
+            | (Self::Complex, Self::Complex)
+            | (Self::Float, Self::Float)
+            | (Self::Ratio, Self::Ratio)
             | (Self::Int, Self::Int)
             | (Self::Nat, Self::Nat)
-            | (Self::Ratio, Self::Ratio)
-            | (Self::Float, Self::Float)
             | (Self::Bool, Self::Bool)
             | (Self::Str, Self::Str)
             | (Self::NoneType, Self::NoneType)
