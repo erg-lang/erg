@@ -465,7 +465,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             {
                 continue;
             }
-            let readable_t = mod_ctx.readable_type(vi.t.clone(), vi.kind.is_parameter());
+            let readable_t = mod_ctx.readable_type(vi.t.clone());
             let mut item = CompletionItem::new_simple(label, readable_t.to_string());
             CompletionOrderSetter::new(vi, arg_pt.as_ref(), mod_ctx, item.label.clone())
                 .set(&mut item);

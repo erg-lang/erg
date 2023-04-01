@@ -117,8 +117,8 @@ impl Context {
                 }
             }
             (Type::And(l, r), found) => {
-                let left = self.readable_type(l.as_ref().clone(), false);
-                let right = self.readable_type(r.as_ref().clone(), false);
+                let left = self.readable_type(l.as_ref().clone());
+                let right = self.readable_type(r.as_ref().clone());
                 if self.supertype_of(l, found) {
                     let msg = switch_lang!(
                         "japanese" => format!("型{found}は{left}のサブタイプですが、{right}のサブタイプではありません"),
@@ -180,7 +180,7 @@ impl Context {
                     .map(|(t1, t2)| format!("cannot {verb} {t1} {preposition} {t2}"))
                     .or_else(|| {
                         expected.inner_ts().get(0).map(|expected_inner| {
-                            let expected_inner = self.readable_type(expected_inner.clone(), false);
+                            let expected_inner = self.readable_type(expected_inner.clone());
                             format!("cannot {verb} {found} {preposition} {expected_inner}")
                         })
                     })
@@ -195,7 +195,7 @@ impl Context {
                     let (sub, sup) = fv.get_subsup()?;
                     let (verb, preposition, sequence) = Self::get_verb_and_preposition(&sup)?;
                     let sup = *option_enum_unwrap!(sup.typarams().get(0)?.clone(), TyParam::Type)?;
-                    let sup = self.readable_type(sup, false);
+                    let sup = self.readable_type(sup);
                     let (l, r) = if sequence == Sequence::Forward {
                         (sub, sup)
                     } else {

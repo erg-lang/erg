@@ -284,7 +284,7 @@ pub fn __dict_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<V
         Ok(v.clone())
     } else {
         let index = if let ValueObj::Type(t) = &index {
-            let derefed = ctx.readable_type(t.typ().clone(), false);
+            let derefed = ctx.coerce(t.typ().clone(), &()).unwrap_or(t.typ().clone());
             ValueObj::builtin_type(derefed)
         } else {
             index

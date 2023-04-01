@@ -493,6 +493,33 @@ impl Context {
         input: &Input,
         namespace: &Context,
     ) -> Triple<VarInfo, TyCheckError> {
+        // get_attr_info(?T, aaa) == None
+        // => ?T(<: Structural({ .aaa = ?U }))
+        if self.in_subr() && cfg!(feature = "py_compat") {
+            let t = free_var(self.level, Constraint::new_type_of(Type));
+            if let Some(fv) = obj.ref_t().as_free() {
+                if fv.get_sub().is_some() {
+                    let vis = self.instantiate_vis_modifier(&ident.vis).unwrap();
+                    let structural = Type::Record(
+                        dict! { Field::new(vis, ident.inspect().clone()) => t.clone() },
+                    )
+                    .structuralize();
+                    fv.update_super(|_| structural);
+                }
+            }
+            let muty = Mutability::from(&ident.inspect()[..]);
+            let vi = VarInfo::new(
+                t,
+                muty,
+                Visibility::DUMMY_PUBLIC,
+                VarKind::Builtin,
+                None,
+                None,
+                None,
+                AbsLocation::unknown(),
+            );
+            return Triple::Ok(vi);
+        }
         let self_t = obj.t();
         match self.get_attr_info_from_attributive(&self_t, ident) {
             Triple::Ok(vi) => {
@@ -574,33 +601,6 @@ impl Context {
             }
             _ => {}
         }
-        // get_attr_info(?T, aaa) == None
-        // => ?T(<: Structural({ .aaa = ?U }))
-        if self.in_subr() && cfg!(feature = "py_compat") {
-            let t = free_var(self.level, Constraint::new_type_of(Type));
-            if let Some(fv) = obj.ref_t().as_free() {
-                if fv.get_sub().is_some() {
-                    let vis = self.instantiate_vis_modifier(&ident.vis).unwrap();
-                    let structural = Type::Record(
-                        dict! { Field::new(vis, ident.inspect().clone()) => t.clone() },
-                    )
-                    .structuralize();
-                    fv.update_super(|_| structural);
-                }
-            }
-            let muty = Mutability::from(&ident.inspect()[..]);
-            let vi = VarInfo::new(
-                t,
-                muty,
-                Visibility::DUMMY_PUBLIC,
-                VarKind::Builtin,
-                None,
-                None,
-                None,
-                AbsLocation::unknown(),
-            );
-            return Triple::Ok(vi);
-        }
         Triple::None
     }
 
@@ -637,10 +637,7 @@ impl Context {
                 }
             }
         }
-        let coerced = match self
-            .deref_tyvar(obj.t(), Variance::Covariant, &set! {}, &())
-            .map_err(|mut es| es.remove(0))
-        {
+        let coerced = match self.coerce(obj.t(), &()).map_err(|mut es| es.remove(0)) {
             Ok(t) => t,
             Err(e) => {
                 return Triple::Err(e);
@@ -790,6 +787,47 @@ impl Context {
         input: &Input,
         namespace: &Context,
     ) -> SingleTyCheckResult<VarInfo> {
+        // search_method_info(?T, aaa, pos_args: [1, 2]) == None
+        // => ?T(<: Structural({ .aaa = (self: ?T, ?U, ?V) -> ?W }))
+        if cfg!(feature = "py_compat") && self.in_subr() {
+            let nd_params = pos_args
+                .iter()
+                .map(|_| ParamTy::Pos(free_var(self.level, Constraint::new_type_of(Type))))
+                .collect::<Vec<_>>();
+            let d_params = kw_args
+                .iter()
+                .map(|arg| {
+                    ParamTy::kw(
+                        arg.keyword.inspect().clone(),
+                        free_var(self.level, Constraint::new_type_of(Type)),
+                    )
+                })
+                .collect::<Vec<_>>();
+            let return_t = free_var(self.level, Constraint::new_type_of(Type));
+            let subr_t = fn_met(obj.t(), nd_params, None, d_params, return_t);
+            if let Some(fv) = obj.ref_t().as_free() {
+                if fv.get_sub().is_some() {
+                    let vis = self.instantiate_vis_modifier(&attr_name.vis).unwrap();
+                    let structural = Type::Record(
+                        dict! { Field::new(vis, attr_name.inspect().clone()) => subr_t.clone() },
+                    )
+                    .structuralize();
+                    fv.update_super(|_| structural);
+                }
+            }
+            let muty = Mutability::from(&attr_name.inspect()[..]);
+            let vi = VarInfo::new(
+                subr_t,
+                muty,
+                Visibility::DUMMY_PUBLIC,
+                VarKind::Builtin,
+                None,
+                None,
+                None,
+                AbsLocation::unknown(),
+            );
+            return Ok(vi);
+        }
         match self.get_attr_info_from_attributive(obj.ref_t(), attr_name) {
             Triple::Ok(vi) => {
                 return Ok(vi);
@@ -906,49 +944,8 @@ impl Context {
             }
         }
         let coerced = self
-            .deref_tyvar(obj.t(), Variance::Covariant, &set! {}, obj)
+            .coerce(obj.t(), &())
             .map_err(|mut errs| errs.remove(0))?;
-        // search_method_info(?T, aaa, pos_args: [1, 2]) == None
-        // => ?T(<: Structural({ .aaa = (self: ?T, ?U, ?V) -> ?W }))
-        if coerced == Never && cfg!(feature = "py_compat") && self.in_subr() {
-            let nd_params = pos_args
-                .iter()
-                .map(|_| ParamTy::Pos(free_var(self.level, Constraint::new_type_of(Type))))
-                .collect::<Vec<_>>();
-            let d_params = kw_args
-                .iter()
-                .map(|arg| {
-                    ParamTy::kw(
-                        arg.keyword.inspect().clone(),
-                        free_var(self.level, Constraint::new_type_of(Type)),
-                    )
-                })
-                .collect::<Vec<_>>();
-            let return_t = free_var(self.level, Constraint::new_type_of(Type));
-            let subr_t = fn_met(obj.t(), nd_params, None, d_params, return_t);
-            if let Some(fv) = obj.ref_t().as_free() {
-                if fv.get_sub().is_some() {
-                    let vis = self.instantiate_vis_modifier(&attr_name.vis).unwrap();
-                    let structural = Type::Record(
-                        dict! { Field::new(vis, attr_name.inspect().clone()) => subr_t.clone() },
-                    )
-                    .structuralize();
-                    fv.update_super(|_| structural);
-                }
-            }
-            let muty = Mutability::from(&attr_name.inspect()[..]);
-            let vi = VarInfo::new(
-                subr_t,
-                muty,
-                Visibility::DUMMY_PUBLIC,
-                VarKind::Builtin,
-                None,
-                None,
-                None,
-                AbsLocation::unknown(),
-            );
-            return Ok(vi);
-        }
         if &coerced == obj.ref_t() {
             Err(TyCheckError::no_attr_error(
                 self.cfg.input.clone(),
@@ -1126,7 +1123,7 @@ impl Context {
         } else {
             (obj.loc(), obj.to_string())
         };
-        let other = self.readable_type(other.clone(), false);
+        let other = self.readable_type(other.clone());
         TyCheckErrors::from(TyCheckError::type_mismatch_error(
             self.cfg.input.clone(),
             line!() as usize,
@@ -1540,8 +1537,8 @@ impl Context {
                     param_t,
                     arg_t,
                 );
-                let param_t = self.readable_type(param_t.clone(), true);
-                let arg_t = self.readable_type(arg_t.clone(), false);
+                let param_t = self.readable_type(param_t.clone());
+                let arg_t = self.readable_type(arg_t.clone());
                 TyCheckErrors::new(
                     errs.into_iter()
                         .map(|e| {
@@ -1647,8 +1644,8 @@ impl Context {
                     };
                     let name = name + "::" + readable_name(kw_name);
                     let hint = self.get_simple_type_mismatch_hint(param_t, arg_t);
-                    let param_t = self.readable_type(param_t.clone(), true);
-                    let arg_t = self.readable_type(arg_t.clone(), false);
+                    let param_t = self.readable_type(param_t.clone());
+                    let arg_t = self.readable_type(arg_t.clone());
                     TyCheckErrors::new(
                         errs.into_iter()
                             .map(|e| {
@@ -1991,6 +1988,32 @@ impl Context {
         opt_min
     }
 
+    /// Returns the largest type among the iterators of a given type.
+    /// If there is no subtype relationship, returns `None`.
+    /// ```erg
+    /// max_type([Int, Int]) == Int
+    /// max_type([Int, Nat]) == Int
+    /// max_type([Int, Str]) == None
+    /// max_type([Int, Str, Nat]) == None
+    /// ```
+    pub fn max_type<'a>(&self, types: impl Iterator<Item = &'a Type>) -> Option<&'a Type> {
+        let mut opt_max = None;
+        for t in types {
+            if let Some(max) = opt_max {
+                if self.supertype_of(max, t) {
+                    continue;
+                } else if self.supertype_of(t, max) {
+                    opt_max = Some(t);
+                } else {
+                    return None;
+                }
+            } else {
+                opt_max = Some(t);
+            }
+        }
+        opt_max
+    }
+
     pub fn get_nominal_super_type_ctxs<'a>(&'a self, t: &Type) -> Option<Vec<&'a Context>> {
         match t {
             Type::FreeVar(fv) if fv.is_linked() => self.get_nominal_super_type_ctxs(&fv.crack()),
@@ -2153,6 +2176,11 @@ impl Context {
                     return Some(res);
                 }
             }
+            Type::Fluctuation { sup, .. } => {
+                if let Some(res) = self.get_nominal_type_ctx(sup) {
+                    return Some(res);
+                }
+            }
             other => {
                 log!("{other} has no nominal definition");
             }
@@ -2206,6 +2234,11 @@ impl Context {
             }
             Type::Ref(t) | Type::RefMut { before: t, .. } => {
                 if let Some(res) = self.get_mut_nominal_type_ctx(t) {
+                    return Some(res);
+                }
+            }
+            Type::Fluctuation { sup, .. } => {
+                if let Some(res) = self.get_mut_nominal_type_ctx(sup) {
                     return Some(res);
                 }
             }
@@ -2582,12 +2615,12 @@ impl Context {
             .all(|t| &t.method_type == first_method_type)
         {
             Triple::Ok(&candidates[0])
-        } else if let Some(min) = self.min_type(candidates.iter().map(|mi| &mi.definition_type)) {
-            let min_info = candidates
+        } else if let Some(max) = self.max_type(candidates.iter().map(|mi| &mi.definition_type)) {
+            let max_info = candidates
                 .iter()
-                .find(|mi| &mi.definition_type == min)
+                .find(|mi| &mi.definition_type == max)
                 .unwrap();
-            Triple::Ok(min_info)
+            Triple::Ok(max_info)
         } else {
             Triple::Err(TyCheckError::ambiguous_type_error(
                 self.cfg.input.clone(),

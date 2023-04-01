@@ -34,7 +34,7 @@ use crate::ty::{GuardType, HasType, ParamTy, Predicate, Type, Variable, Visibili
 
 use crate::context::{
     ClassDefType, Context, ContextKind, ContextProvider, ControlKind, ModuleContext,
-    RegistrationMode, TraitImpl, Variance,
+    RegistrationMode, TraitImpl,
 };
 use crate::error::{
     CompileError, CompileErrors, LowerError, LowerErrors, LowerResult, LowerWarning, LowerWarnings,
@@ -243,8 +243,8 @@ impl ASTLowerer {
 
     fn elem_err(&self, l: &Type, r: &Type, elem: &hir::Expr) -> LowerErrors {
         let elem_disp_notype = elem.to_string_notype();
-        let l = self.module.context.readable_type(l.clone(), false);
-        let r = self.module.context.readable_type(r.clone(), false);
+        let l = self.module.context.readable_type(l.clone());
+        let r = self.module.context.readable_type(r.clone());
         LowerErrors::from(LowerError::syntax_error(
             self.cfg.input.clone(),
             line!() as usize,
@@ -1597,16 +1597,7 @@ impl ASTLowerer {
                                 sig.loc(),
                                 self.module.context.caused_by(),
                                 sig.ident.inspect(),
-                                &self
-                                    .module
-                                    .context
-                                    .deref_tyvar(
-                                        return_t.clone(),
-                                        Variance::Covariant,
-                                        &set! {},
-                                        &(),
-                                    )
-                                    .unwrap_or_else(|_| return_t.clone()),
+                                &self.module.context.readable_type(return_t.clone()),
                             );
                             self.warns.push(warn);
                         }

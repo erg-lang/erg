@@ -321,55 +321,72 @@ impl Generalizer {
     }
 }
 
-impl Context {
-    pub const TOP_LEVEL: usize = 1;
+pub struct Dereferencer<'c, 'q, 'l, L: Locational> {
+    ctx: &'c Context,
+    variance: Variance,
+    coerce: bool,
+    stash: Variance,
+    qnames: &'q Set<Str>,
+    loc: &'l L,
+}
 
-    /// Quantification occurs only once in function types.
-    /// Therefore, this method is called only once at the top level, and `generalize_t_inner` is called inside.
-    pub(crate) fn generalize_t(&self, free_type: Type) -> Type {
-        let mut generalizer = Generalizer::new(self.level);
-        let maybe_unbound_t = generalizer.generalize_t(free_type, false);
-        if maybe_unbound_t.is_subr() && maybe_unbound_t.has_qvar() {
-            maybe_unbound_t.quantify()
-        } else {
-            maybe_unbound_t
+impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
+    pub fn new(
+        ctx: &'c Context,
+        variance: Variance,
+        coerce: bool,
+        qnames: &'q Set<Str>,
+        loc: &'l L,
+    ) -> Self {
+        Self {
+            ctx,
+            variance,
+            coerce,
+            stash: Variance::Invariant,
+            qnames,
+            loc,
         }
     }
 
-    pub(crate) fn deref_tp(
-        &self,
-        tp: TyParam,
-        variance: Variance,
-        qnames: &Set<Str>,
-        loc: &impl Locational,
-    ) -> TyCheckResult<TyParam> {
+    pub fn simple(ctx: &'c Context, qnames: &'q Set<Str>, loc: &'l L) -> Self {
+        Self::new(ctx, Variance::Covariant, true, qnames, loc)
+    }
+
+    fn push_variance(&mut self, variance: Variance) {
+        self.stash = self.variance;
+        self.variance = self.variance * variance;
+    }
+
+    fn pop_variance(&mut self) {
+        self.variance = self.stash;
+    }
+
+    pub(crate) fn deref_tp(&mut self, tp: TyParam) -> TyCheckResult<TyParam> {
         match tp {
             TyParam::FreeVar(fv) if fv.is_linked() => {
                 let inner = fv.unwrap_linked();
-                self.deref_tp(inner, variance, qnames, loc)
+                self.deref_tp(inner)
             }
             TyParam::FreeVar(fv)
-                if fv.is_generalized() && qnames.contains(&fv.unbound_name().unwrap()) =>
+                if fv.is_generalized() && self.qnames.contains(&fv.unbound_name().unwrap()) =>
             {
                 Ok(TyParam::FreeVar(fv))
             }
             // REVIEW: most likely the result of an error already made
-            TyParam::FreeVar(_fv) if self.level == 0 => Err(TyCheckErrors::from(
-                TyCheckError::dummy_infer_error(self.cfg.input.clone(), fn_name!(), line!()),
+            TyParam::FreeVar(_fv) if self.ctx.level == 0 => Err(TyCheckErrors::from(
+                TyCheckError::dummy_infer_error(self.ctx.cfg.input.clone(), fn_name!(), line!()),
             )),
-            TyParam::Type(t) => Ok(TyParam::t(self.deref_tyvar(*t, variance, qnames, loc)?)),
-            TyParam::Erased(t) => Ok(TyParam::erased(
-                self.deref_tyvar(*t, variance, qnames, loc)?,
-            )),
+            TyParam::Type(t) => Ok(TyParam::t(self.deref_tyvar(*t)?)),
+            TyParam::Erased(t) => Ok(TyParam::erased(self.deref_tyvar(*t)?)),
             TyParam::App { name, mut args } => {
                 for param in args.iter_mut() {
-                    *param = self.deref_tp(mem::take(param), variance, qnames, loc)?;
+                    *param = self.deref_tp(mem::take(param))?;
                 }
                 Ok(TyParam::App { name, args })
             }
             TyParam::BinOp { op, lhs, rhs } => {
-                let lhs = self.deref_tp(*lhs, variance, qnames, loc)?;
-                let rhs = self.deref_tp(*rhs, variance, qnames, loc)?;
+                let lhs = self.deref_tp(*lhs)?;
+                let rhs = self.deref_tp(*rhs)?;
                 Ok(TyParam::BinOp {
                     op,
                     lhs: Box::new(lhs),
@@ -377,7 +394,7 @@ impl Context {
                 })
             }
             TyParam::UnaryOp { op, val } => {
-                let val = self.deref_tp(*val, variance, qnames, loc)?;
+                let val = self.deref_tp(*val)?;
                 Ok(TyParam::UnaryOp {
                     op,
                     val: Box::new(val),
@@ -386,38 +403,35 @@ impl Context {
             TyParam::Array(tps) => {
                 let mut new_tps = vec![];
                 for tp in tps {
-                    new_tps.push(self.deref_tp(tp, variance, qnames, loc)?);
+                    new_tps.push(self.deref_tp(tp)?);
                 }
                 Ok(TyParam::Array(new_tps))
             }
             TyParam::Tuple(tps) => {
                 let mut new_tps = vec![];
                 for tp in tps {
-                    new_tps.push(self.deref_tp(tp, variance, qnames, loc)?);
+                    new_tps.push(self.deref_tp(tp)?);
                 }
                 Ok(TyParam::Tuple(new_tps))
             }
             TyParam::Dict(dic) => {
                 let mut new_dic = dict! {};
                 for (k, v) in dic.into_iter() {
-                    new_dic.insert(
-                        self.deref_tp(k, variance, qnames, loc)?,
-                        self.deref_tp(v, variance, qnames, loc)?,
-                    );
+                    new_dic.insert(self.deref_tp(k)?, self.deref_tp(v)?);
                 }
                 Ok(TyParam::Dict(new_dic))
             }
             TyParam::Set(set) => {
                 let mut new_set = set! {};
                 for v in set.into_iter() {
-                    new_set.insert(self.deref_tp(v, variance, qnames, loc)?);
+                    new_set.insert(self.deref_tp(v)?);
                 }
                 Ok(TyParam::Set(new_set))
             }
             TyParam::Record(rec) => {
                 let mut new_rec = dict! {};
                 for (field, tp) in rec.into_iter() {
-                    new_rec.insert(field, self.deref_tp(tp, variance, qnames, loc)?);
+                    new_rec.insert(field, self.deref_tp(tp)?);
                 }
                 Ok(TyParam::Record(new_rec))
             }
@@ -425,21 +439,21 @@ impl Context {
                 let nd_params = lambda
                     .nd_params
                     .into_iter()
-                    .map(|pt| pt.try_map_type(|t| self.deref_tyvar(t, variance, qnames, loc)))
+                    .map(|pt| pt.try_map_type(|t| self.deref_tyvar(t)))
                     .collect::<TyCheckResult<_>>()?;
                 let var_params = lambda
                     .var_params
-                    .map(|pt| pt.try_map_type(|t| self.deref_tyvar(t, variance, qnames, loc)))
+                    .map(|pt| pt.try_map_type(|t| self.deref_tyvar(t)))
                     .transpose()?;
                 let d_params = lambda
                     .d_params
                     .into_iter()
-                    .map(|pt| pt.try_map_type(|t| self.deref_tyvar(t, variance, qnames, loc)))
+                    .map(|pt| pt.try_map_type(|t| self.deref_tyvar(t)))
                     .collect::<TyCheckResult<_>>()?;
                 let body = lambda
                     .body
                     .into_iter()
-                    .map(|tp| self.deref_tp(tp, variance, qnames, loc))
+                    .map(|tp| self.deref_tp(tp))
                     .collect::<TyCheckResult<Vec<_>>>()?;
                 Ok(TyParam::Lambda(TyParamLambda::new(
                     lambda.const_,
@@ -450,147 +464,27 @@ impl Context {
                 )))
             }
             TyParam::Proj { obj, attr } => {
-                let obj = self.deref_tp(*obj, variance, qnames, loc)?;
+                let obj = self.deref_tp(*obj)?;
                 Ok(TyParam::Proj {
                     obj: Box::new(obj),
                     attr,
                 })
             }
-            TyParam::Failure if self.level == 0 => Err(TyCheckErrors::from(
-                TyCheckError::dummy_infer_error(self.cfg.input.clone(), fn_name!(), line!()),
+            TyParam::Failure if self.ctx.level == 0 => Err(TyCheckErrors::from(
+                TyCheckError::dummy_infer_error(self.ctx.cfg.input.clone(), fn_name!(), line!()),
             )),
             t => Ok(t),
         }
     }
 
-    fn deref_constraint(
-        &self,
-        constraint: Constraint,
-        variance: Variance,
-        qnames: &Set<Str>,
-        loc: &impl Locational,
-    ) -> TyCheckResult<Constraint> {
+    fn deref_constraint(&mut self, constraint: Constraint) -> TyCheckResult<Constraint> {
         match constraint {
             Constraint::Sandwiched { sub, sup } => Ok(Constraint::new_sandwiched(
-                self.deref_tyvar(sub, variance, qnames, loc)?,
-                self.deref_tyvar(sup, variance, qnames, loc)?,
+                self.deref_tyvar(sub)?,
+                self.deref_tyvar(sup)?,
             )),
-            Constraint::TypeOf(t) => Ok(Constraint::new_type_of(
-                self.deref_tyvar(t, variance, qnames, loc)?,
-            )),
+            Constraint::TypeOf(t) => Ok(Constraint::new_type_of(self.deref_tyvar(t)?)),
             _ => unreachable!(),
-        }
-    }
-
-    fn validate_subsup(
-        &self,
-        sub_t: Type,
-        super_t: Type,
-        variance: Variance,
-        qnames: &Set<Str>,
-        loc: &impl Locational,
-    ) -> TyCheckResult<Type> {
-        // TODO: Subr, ...
-        match (sub_t, super_t) {
-            // See tests\should_err\subtyping.er:8~13
-            (
-                Type::Poly {
-                    name: ln,
-                    params: lps,
-                },
-                Type::Poly {
-                    name: rn,
-                    params: rps,
-                },
-            ) if ln == rn => {
-                let typ = poly(ln, lps.clone());
-                let (_, ctx) = self.get_nominal_type_ctx(&typ).ok_or_else(|| {
-                    TyCheckError::type_not_found(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        loc.loc(),
-                        self.caused_by(),
-                        &typ,
-                    )
-                })?;
-                let variances = ctx.type_params_variance();
-                let mut tps = vec![];
-                for ((lp, rp), variance) in lps
-                    .into_iter()
-                    .zip(rps.into_iter())
-                    .zip(variances.into_iter())
-                {
-                    self.sub_unify_tp(&lp, &rp, Some(variance), loc, false)?;
-                    let param = if variance == Covariant { lp } else { rp };
-                    tps.push(param);
-                }
-                Ok(poly(rn, tps))
-            }
-            (sub_t, super_t) => self.validate_simple_subsup(sub_t, super_t, variance, qnames, loc),
-        }
-    }
-
-    fn validate_simple_subsup(
-        &self,
-        sub_t: Type,
-        super_t: Type,
-        variance: Variance,
-        qnames: &Set<Str>,
-        loc: &impl Locational,
-    ) -> TyCheckResult<Type> {
-        if self.is_trait(&super_t) {
-            self.check_trait_impl(&sub_t, &super_t, qnames, loc)?;
-        }
-        // REVIEW: Even if type constraints can be satisfied, implementation may not exist
-        if self.subtype_of(&sub_t, &super_t) {
-            let sub_t = if cfg!(feature = "debug") {
-                sub_t
-            } else {
-                self.deref_tyvar(sub_t, variance, qnames, loc)?
-            };
-            let super_t = if cfg!(feature = "debug") {
-                super_t
-            } else {
-                self.deref_tyvar(super_t, variance, qnames, loc)?
-            };
-            match variance {
-                Variance::Covariant => Ok(sub_t),
-                Variance::Contravariant => Ok(super_t),
-                Variance::Invariant => {
-                    // need to check if sub_t == super_t
-                    if self.supertype_of(&sub_t, &super_t) {
-                        Ok(sub_t)
-                    } else {
-                        Err(TyCheckErrors::from(TyCheckError::subtyping_error(
-                            self.cfg.input.clone(),
-                            line!() as usize,
-                            &sub_t,
-                            &super_t,
-                            loc.loc(),
-                            self.caused_by(),
-                        )))
-                    }
-                }
-            }
-        } else {
-            let sub_t = if cfg!(feature = "debug") {
-                sub_t
-            } else {
-                self.deref_tyvar(sub_t, variance, qnames, loc)?
-            };
-            let super_t = if cfg!(feature = "debug") {
-                super_t
-            } else {
-                self.deref_tyvar(super_t, variance, qnames, loc)?
-            };
-            Err(TyCheckErrors::from(TyCheckError::subtyping_error(
-                self.cfg.input.clone(),
-                line!() as usize,
-                &sub_t,
-                &super_t,
-                loc.loc(),
-                self.caused_by(),
-            )))
         }
     }
 
@@ -602,20 +496,14 @@ impl Context {
     // ?T(:> Nat, <: Sub(Str)) ==> Error!
     // ?T(:> {1, "a"}, <: Eq(?T(:> {1, "a"}, ...)) ==> Error!
     // ```
-    pub(crate) fn deref_tyvar(
-        &self,
-        t: Type,
-        variance: Variance,
-        qnames: &Set<Str>,
-        loc: &impl Locational,
-    ) -> TyCheckResult<Type> {
+    pub(crate) fn deref_tyvar(&mut self, t: Type) -> TyCheckResult<Type> {
         match t {
             Type::FreeVar(fv) if fv.is_linked() => {
                 let t = fv.unwrap_linked();
-                self.deref_tyvar(t, variance, qnames, loc)
+                self.deref_tyvar(t)
             }
             Type::FreeVar(fv)
-                if fv.is_generalized() && qnames.contains(&fv.unbound_name().unwrap()) =>
+                if fv.is_generalized() && self.qnames.contains(&fv.unbound_name().unwrap()) =>
             {
                 Ok(Type::FreeVar(fv))
             }
@@ -626,11 +514,11 @@ impl Context {
             // ?T(:> {1, "a"}, <: Eq(?T(:> {1, "a"}, ...)) ==> Error!
             Type::FreeVar(fv) if fv.constraint_is_sandwiched() => {
                 let (sub_t, super_t) = fv.get_subsup().unwrap();
-                if self.level <= fv.level().unwrap() {
+                if self.ctx.level <= fv.level().unwrap() {
                     // if fv == ?T(<: Int, :> Add(?T)), deref_tyvar(super_t) will cause infinite loop
                     // so we need to force linking
                     fv.forced_undoable_link(&sub_t);
-                    let res = self.validate_subsup(sub_t, super_t, variance, qnames, loc);
+                    let res = self.validate_subsup(sub_t, super_t);
                     fv.undo();
                     match res {
                         Ok(ty) => {
@@ -649,12 +537,12 @@ impl Context {
                 }
             }
             Type::FreeVar(fv) if fv.is_unbound() => {
-                if self.level == 0 {
+                if self.ctx.level == 0 {
                     #[allow(clippy::single_match)]
                     match &*fv.crack_constraint() {
                         Constraint::TypeOf(_) => {
                             return Err(TyCheckErrors::from(TyCheckError::dummy_infer_error(
-                                self.cfg.input.clone(),
+                                self.ctx.cfg.input.clone(),
                                 fn_name!(),
                                 line!(),
                             )));
@@ -664,60 +552,49 @@ impl Context {
                     Ok(Type::FreeVar(fv))
                 } else {
                     let new_constraint = fv.crack_constraint().clone();
-                    let new_constraint =
-                        self.deref_constraint(new_constraint, variance, qnames, loc)?;
+                    let new_constraint = self.deref_constraint(new_constraint)?;
                     fv.update_constraint(new_constraint, true);
                     Ok(Type::FreeVar(fv))
                 }
             }
             Type::Poly { name, mut params } => {
                 let typ = poly(&name, params.clone());
-                let (_, ctx) = self.get_nominal_type_ctx(&typ).ok_or_else(|| {
+                let (_, ctx) = self.ctx.get_nominal_type_ctx(&typ).ok_or_else(|| {
                     TyCheckError::type_not_found(
-                        self.cfg.input.clone(),
+                        self.ctx.cfg.input.clone(),
                         line!() as usize,
-                        loc.loc(),
-                        self.caused_by(),
+                        self.loc.loc(),
+                        self.ctx.caused_by(),
                         &typ,
                     )
                 })?;
                 let variances = ctx.type_params_variance();
                 for (param, variance) in params.iter_mut().zip(variances.into_iter()) {
-                    *param = self.deref_tp(mem::take(param), variance, qnames, loc)?;
+                    self.push_variance(variance);
+                    *param = self.deref_tp(mem::take(param))?;
+                    self.pop_variance();
                 }
                 Ok(Type::Poly { name, params })
             }
             Type::Subr(mut subr) => {
                 for param in subr.non_default_params.iter_mut() {
-                    *param.typ_mut() = self.deref_tyvar(
-                        mem::take(param.typ_mut()),
-                        variance * Contravariant,
-                        qnames,
-                        loc,
-                    )?;
+                    self.push_variance(Contravariant);
+                    *param.typ_mut() = self.deref_tyvar(mem::take(param.typ_mut()))?;
+                    self.pop_variance();
                 }
                 if let Some(var_args) = &mut subr.var_params {
-                    *var_args.typ_mut() = self.deref_tyvar(
-                        mem::take(var_args.typ_mut()),
-                        variance * Contravariant,
-                        qnames,
-                        loc,
-                    )?;
+                    self.push_variance(Contravariant);
+                    *var_args.typ_mut() = self.deref_tyvar(mem::take(var_args.typ_mut()))?;
+                    self.pop_variance();
                 }
                 for d_param in subr.default_params.iter_mut() {
-                    *d_param.typ_mut() = self.deref_tyvar(
-                        mem::take(d_param.typ_mut()),
-                        variance * Contravariant,
-                        qnames,
-                        loc,
-                    )?;
+                    self.push_variance(Contravariant);
+                    *d_param.typ_mut() = self.deref_tyvar(mem::take(d_param.typ_mut()))?;
+                    self.pop_variance();
                 }
-                subr.return_t = Box::new(self.deref_tyvar(
-                    mem::take(&mut subr.return_t),
-                    variance * Covariant,
-                    qnames,
-                    loc,
-                )?);
+                self.push_variance(Covariant);
+                subr.return_t = Box::new(self.deref_tyvar(mem::take(&mut subr.return_t))?);
+                self.pop_variance();
                 Ok(Type::Subr(subr))
             }
             Type::Callable {
@@ -725,20 +602,20 @@ impl Context {
                 return_t,
             } => {
                 for param_t in param_ts.iter_mut() {
-                    *param_t = self.deref_tyvar(mem::take(param_t), variance, qnames, loc)?;
+                    *param_t = self.deref_tyvar(mem::take(param_t))?;
                 }
-                let return_t = self.deref_tyvar(*return_t, variance, qnames, loc)?;
+                let return_t = self.deref_tyvar(*return_t)?;
                 Ok(callable(param_ts, return_t))
             }
-            Type::Quantified(subr) => self.eliminate_needless_quant(*subr, variance, loc),
+            Type::Quantified(subr) => self.eliminate_needless_quant(*subr),
             Type::Ref(t) => {
-                let t = self.deref_tyvar(*t, variance, qnames, loc)?;
+                let t = self.deref_tyvar(*t)?;
                 Ok(ref_(t))
             }
             Type::RefMut { before, after } => {
-                let before = self.deref_tyvar(*before, variance, qnames, loc)?;
+                let before = self.deref_tyvar(*before)?;
                 let after = if let Some(after) = after {
-                    Some(self.deref_tyvar(*after, variance, qnames, loc)?)
+                    Some(self.deref_tyvar(*after)?)
                 } else {
                     None
                 };
@@ -746,50 +623,159 @@ impl Context {
             }
             Type::Record(mut rec) => {
                 for (_, field) in rec.iter_mut() {
-                    *field = self.deref_tyvar(mem::take(field), variance, qnames, loc)?;
+                    *field = self.deref_tyvar(mem::take(field))?;
                 }
                 Ok(Type::Record(rec))
             }
             Type::Refinement(refine) => {
-                let t = self.deref_tyvar(*refine.t, variance, qnames, loc)?;
+                let t = self.deref_tyvar(*refine.t)?;
                 // TODO: deref_predicate
                 Ok(refinement(refine.var, t, *refine.pred))
             }
             Type::And(l, r) => {
-                let l = self.deref_tyvar(*l, variance, qnames, loc)?;
-                let r = self.deref_tyvar(*r, variance, qnames, loc)?;
-                Ok(self.intersection(&l, &r))
+                let l = self.deref_tyvar(*l)?;
+                let r = self.deref_tyvar(*r)?;
+                Ok(self.ctx.intersection(&l, &r))
             }
             Type::Or(l, r) => {
-                let l = self.deref_tyvar(*l, variance, qnames, loc)?;
-                let r = self.deref_tyvar(*r, variance, qnames, loc)?;
-                Ok(self.union(&l, &r))
+                let l = self.deref_tyvar(*l)?;
+                let r = self.deref_tyvar(*r)?;
+                Ok(self.ctx.union(&l, &r))
             }
             Type::Not(ty) => {
-                let ty = self.deref_tyvar(*ty, variance, qnames, loc)?;
-                Ok(self.complement(&ty))
+                let ty = self.deref_tyvar(*ty)?;
+                Ok(self.ctx.complement(&ty))
             }
             Type::Proj { lhs, rhs } => {
-                let lhs = self.deref_tyvar(*lhs, variance, qnames, loc)?;
-                self.eval_proj(lhs, rhs, self.level, loc)
+                let lhs = self.deref_tyvar(*lhs)?;
+                let proj = self
+                    .ctx
+                    .eval_proj(lhs, rhs, self.ctx.level, self.loc)
+                    .unwrap_or(Failure);
+                Ok(proj)
             }
             Type::ProjCall {
                 lhs,
                 attr_name,
                 args,
             } => {
-                let lhs = self.deref_tp(*lhs, variance, qnames, loc)?;
+                let lhs = self.deref_tp(*lhs)?;
                 let mut new_args = vec![];
                 for arg in args.into_iter() {
-                    new_args.push(self.deref_tp(arg, variance, qnames, loc)?);
+                    new_args.push(self.deref_tp(arg)?);
                 }
-                self.eval_proj_call(lhs, attr_name, new_args, self.level, loc)
+                let proj = self
+                    .ctx
+                    .eval_proj_call(lhs, attr_name, new_args, self.ctx.level, self.loc)
+                    .unwrap_or(Failure);
+                Ok(proj)
             }
             Type::Structural(inner) => {
-                let inner = self.deref_tyvar(*inner, variance, qnames, loc)?;
+                let inner = self.deref_tyvar(*inner)?;
                 Ok(inner.structuralize())
             }
             t => Ok(t),
+        }
+    }
+
+    fn validate_subsup(&mut self, sub_t: Type, super_t: Type) -> TyCheckResult<Type> {
+        // TODO: Subr, ...
+        match (sub_t, super_t) {
+            // See tests\should_err\subtyping.er:8~13
+            (
+                Type::Poly {
+                    name: ln,
+                    params: lps,
+                },
+                Type::Poly {
+                    name: rn,
+                    params: rps,
+                },
+            ) if ln == rn => {
+                let typ = poly(ln, lps.clone());
+                let (_, ctx) = self.ctx.get_nominal_type_ctx(&typ).ok_or_else(|| {
+                    TyCheckError::type_not_found(
+                        self.ctx.cfg.input.clone(),
+                        line!() as usize,
+                        self.loc.loc(),
+                        self.ctx.caused_by(),
+                        &typ,
+                    )
+                })?;
+                let variances = ctx.type_params_variance();
+                let mut tps = vec![];
+                for ((lp, rp), variance) in lps
+                    .into_iter()
+                    .zip(rps.into_iter())
+                    .zip(variances.into_iter())
+                {
+                    self.ctx
+                        .sub_unify_tp(&lp, &rp, Some(variance), self.loc, false)?;
+                    let param = if variance == Covariant { lp } else { rp };
+                    tps.push(param);
+                }
+                Ok(poly(rn, tps))
+            }
+            (sub_t, super_t) => self.validate_simple_subsup(sub_t, super_t),
+        }
+    }
+
+    fn validate_simple_subsup(&mut self, sub_t: Type, super_t: Type) -> TyCheckResult<Type> {
+        if self.ctx.is_trait(&super_t) {
+            self.ctx
+                .check_trait_impl(&sub_t, &super_t, self.qnames, self.loc)?;
+        }
+        // REVIEW: Even if type constraints can be satisfied, implementation may not exist
+        if self.ctx.subtype_of(&sub_t, &super_t) {
+            let sub_t = if cfg!(feature = "debug") {
+                sub_t
+            } else {
+                self.deref_tyvar(sub_t)?
+            };
+            let super_t = if cfg!(feature = "debug") {
+                super_t
+            } else {
+                self.deref_tyvar(super_t)?
+            };
+            match self.variance {
+                Variance::Covariant if self.coerce => Ok(sub_t),
+                Variance::Contravariant if self.coerce => Ok(super_t),
+                Variance::Covariant | Variance::Contravariant => Ok(fluctuation(sub_t, super_t)),
+                Variance::Invariant => {
+                    // need to check if sub_t == super_t (sub_t <: super_t is already checked)
+                    if self.ctx.supertype_of(&sub_t, &super_t) {
+                        Ok(sub_t)
+                    } else {
+                        Err(TyCheckErrors::from(TyCheckError::subtyping_error(
+                            self.ctx.cfg.input.clone(),
+                            line!() as usize,
+                            &sub_t,
+                            &super_t,
+                            self.loc.loc(),
+                            self.ctx.caused_by(),
+                        )))
+                    }
+                }
+            }
+        } else {
+            let sub_t = if cfg!(feature = "debug") {
+                sub_t
+            } else {
+                self.deref_tyvar(sub_t)?
+            };
+            let super_t = if cfg!(feature = "debug") {
+                super_t
+            } else {
+                self.deref_tyvar(super_t)?
+            };
+            Err(TyCheckErrors::from(TyCheckError::subtyping_error(
+                self.ctx.cfg.input.clone(),
+                line!() as usize,
+                &sub_t,
+                &super_t,
+                self.loc.loc(),
+                self.ctx.caused_by(),
+            )))
         }
     }
 
@@ -801,44 +787,30 @@ impl Context {
     //     ?T -> ?T
     //     ?T -> K(?T)
     //     ?T -> ?U(:> ?T)
-    fn eliminate_needless_quant(
-        &self,
-        subr: Type,
-        variance: Variance,
-        loc: &impl Locational,
-    ) -> TyCheckResult<Type> {
+    fn eliminate_needless_quant(&mut self, subr: Type) -> TyCheckResult<Type> {
         let Ok(mut subr) = SubrType::try_from(subr) else { unreachable!() };
         let essential_qnames = subr.essential_qnames();
+        let stash = self.qnames;
+        self.qnames = Box::leak(Box::new(essential_qnames));
         for param in subr.non_default_params.iter_mut() {
-            *param.typ_mut() = self.deref_tyvar(
-                mem::take(param.typ_mut()),
-                variance * Contravariant,
-                &essential_qnames,
-                loc,
-            )?;
+            self.push_variance(Contravariant);
+            *param.typ_mut() = self.deref_tyvar(mem::take(param.typ_mut()))?;
+            self.pop_variance();
         }
         if let Some(var_args) = &mut subr.var_params {
-            *var_args.typ_mut() = self.deref_tyvar(
-                mem::take(var_args.typ_mut()),
-                variance * Contravariant,
-                &essential_qnames,
-                loc,
-            )?;
+            self.push_variance(Contravariant);
+            *var_args.typ_mut() = self.deref_tyvar(mem::take(var_args.typ_mut()))?;
+            self.pop_variance();
         }
         for d_param in subr.default_params.iter_mut() {
-            *d_param.typ_mut() = self.deref_tyvar(
-                mem::take(d_param.typ_mut()),
-                variance * Contravariant,
-                &essential_qnames,
-                loc,
-            )?;
+            self.push_variance(Contravariant);
+            *d_param.typ_mut() = self.deref_tyvar(mem::take(d_param.typ_mut()))?;
+            self.pop_variance();
         }
-        subr.return_t = Box::new(self.deref_tyvar(
-            mem::take(&mut subr.return_t),
-            variance * Covariant,
-            &essential_qnames,
-            loc,
-        )?);
+        self.push_variance(Covariant);
+        subr.return_t = Box::new(self.deref_tyvar(mem::take(&mut subr.return_t))?);
+        self.pop_variance();
+        self.qnames = stash;
         let subr = Type::Subr(subr);
         if subr.has_qvar() {
             Ok(subr.quantify())
@@ -846,15 +818,39 @@ impl Context {
             Ok(subr)
         }
     }
+}
 
-    pub fn readable_type(&self, t: Type, is_parameter: bool) -> Type {
-        let variance = if is_parameter {
-            Contravariant
+impl Context {
+    pub const TOP_LEVEL: usize = 1;
+
+    /// Quantification occurs only once in function types.
+    /// Therefore, this method is called only once at the top level, and `generalize_t_inner` is called inside.
+    pub(crate) fn generalize_t(&self, free_type: Type) -> Type {
+        let mut generalizer = Generalizer::new(self.level);
+        let maybe_unbound_t = generalizer.generalize_t(free_type, false);
+        if maybe_unbound_t.is_subr() && maybe_unbound_t.has_qvar() {
+            maybe_unbound_t.quantify()
         } else {
-            Covariant
-        };
-        self.deref_tyvar(t.clone(), variance, &set! {}, &())
-            .unwrap_or(t)
+            maybe_unbound_t
+        }
+    }
+
+    pub fn readable_type(&self, t: Type) -> Type {
+        let qnames = set! {};
+        let mut dereferencer = Dereferencer::new(self, Covariant, false, &qnames, &());
+        dereferencer.deref_tyvar(t.clone()).unwrap_or(t)
+    }
+
+    pub(crate) fn coerce(&self, t: Type, t_loc: &impl Locational) -> TyCheckResult<Type> {
+        let qnames = set! {};
+        let mut dereferencer = Dereferencer::new(self, Covariant, true, &qnames, t_loc);
+        dereferencer.deref_tyvar(t)
+    }
+
+    pub(crate) fn coerce_tp(&self, tp: TyParam, t_loc: &impl Locational) -> TyCheckResult<TyParam> {
+        let qnames = set! {};
+        let mut dereferencer = Dereferencer::new(self, Covariant, true, &qnames, t_loc);
+        dereferencer.deref_tp(tp)
     }
 
     pub(crate) fn trait_impl_exists(&self, class: &Type, trait_: &Type) -> bool {
@@ -901,15 +897,16 @@ impl Context {
         loc: &impl Locational,
     ) -> TyCheckResult<()> {
         if !self.trait_impl_exists(class, trait_) {
+            let mut dereferencer = Dereferencer::new(self, Variance::Covariant, false, qnames, loc);
             let class = if cfg!(feature = "debug") {
                 class.clone()
             } else {
-                self.deref_tyvar(class.clone(), Variance::Covariant, qnames, loc)?
+                dereferencer.deref_tyvar(class.clone())?
             };
             let trait_ = if cfg!(feature = "debug") {
                 trait_.clone()
             } else {
-                self.deref_tyvar(trait_.clone(), Variance::Covariant, qnames, loc)?
+                dereferencer.deref_tyvar(trait_.clone())?
             };
             Err(TyCheckErrors::from(TyCheckError::no_trait_impl_error(
                 self.cfg.input.clone(),
@@ -951,12 +948,16 @@ impl Context {
         let mut params = mem::take(&mut self.params);
         let mut methods_list = mem::take(&mut self.methods_list);
         for (name, vi) in locals.iter_mut() {
-            if let Ok(t) = self.deref_tyvar(mem::take(&mut vi.t), Covariant, &set! {}, name) {
+            let qnames = set! {};
+            let mut derferencer = Dereferencer::simple(self, &qnames, name);
+            if let Ok(t) = derferencer.deref_tyvar(mem::take(&mut vi.t)) {
                 vi.t = t;
             }
         }
         for (name, vi) in params.iter_mut() {
-            if let Ok(t) = self.deref_tyvar(mem::take(&mut vi.t), Covariant, &set! {}, name) {
+            let qnames = set! {};
+            let mut derferencer = Dereferencer::simple(self, &qnames, name);
+            if let Ok(t) = derferencer.deref_tyvar(mem::take(&mut vi.t)) {
                 vi.t = t;
             }
         }
@@ -973,22 +974,22 @@ impl Context {
             // generalization should work properly for the subroutine type, but may not work for the parameters' own types
             // HACK: so generalize them manually
             param.vi.t.generalize();
-            param.vi.t =
-                self.deref_tyvar(mem::take(&mut param.vi.t), Contravariant, qnames, param)?;
+            let t = mem::take(&mut param.vi.t);
+            let mut dereferencer = Dereferencer::new(self, Contravariant, false, qnames, param);
+            param.vi.t = dereferencer.deref_tyvar(t)?;
         }
         if let Some(var_params) = &mut params.var_params {
             var_params.vi.t.generalize();
-            var_params.vi.t = self.deref_tyvar(
-                mem::take(&mut var_params.vi.t),
-                Contravariant,
-                qnames,
-                var_params.as_ref(),
-            )?;
+            let t = mem::take(&mut var_params.vi.t);
+            let mut dereferencer =
+                Dereferencer::new(self, Contravariant, false, qnames, var_params.as_ref());
+            var_params.vi.t = dereferencer.deref_tyvar(t)?;
         }
         for param in params.defaults.iter_mut() {
             param.sig.vi.t.generalize();
-            param.sig.vi.t =
-                self.deref_tyvar(mem::take(&mut param.sig.vi.t), Contravariant, qnames, param)?;
+            let t = mem::take(&mut param.sig.vi.t);
+            let mut dereferencer = Dereferencer::new(self, Contravariant, false, qnames, param);
+            param.sig.vi.t = dereferencer.deref_tyvar(t)?;
             self.resolve_expr_t(&mut param.default_val, qnames)?;
         }
         Ok(())
@@ -1003,14 +1004,9 @@ impl Context {
                     .unbound_name()
                     .map_or(false, |name| !qnames.contains(&name))
                 {
-                    /*let variance = if acc.var_info().kind.is_parameter() {
-                        Contravariant
-                    } else {
-                        Covariant
-                    };*/
-                    let variance = Covariant;
                     let t = mem::take(acc.ref_mut_t());
-                    *acc.ref_mut_t() = self.deref_tyvar(t, variance, qnames, acc)?;
+                    let mut dereferencer = Dereferencer::simple(self, qnames, acc);
+                    *acc.ref_mut_t() = dereferencer.deref_tyvar(t)?;
                 }
                 if let hir::Accessor::Attr(attr) = acc {
                     self.resolve_expr_t(&mut attr.obj, qnames)?;
@@ -1019,14 +1015,18 @@ impl Context {
             }
             hir::Expr::Array(array) => match array {
                 hir::Array::Normal(arr) => {
-                    arr.t = self.deref_tyvar(mem::take(&mut arr.t), Covariant, qnames, arr)?;
+                    let t = mem::take(&mut arr.t);
+                    let mut dereferencer = Dereferencer::simple(self, qnames, arr);
+                    arr.t = dereferencer.deref_tyvar(t)?;
                     for elem in arr.elems.pos_args.iter_mut() {
                         self.resolve_expr_t(&mut elem.expr, qnames)?;
                     }
                     Ok(())
                 }
                 hir::Array::WithLength(arr) => {
-                    arr.t = self.deref_tyvar(mem::take(&mut arr.t), Covariant, qnames, arr)?;
+                    let t = mem::take(&mut arr.t);
+                    let mut dereferencer = Dereferencer::simple(self, qnames, arr);
+                    arr.t = dereferencer.deref_tyvar(t)?;
                     self.resolve_expr_t(&mut arr.elem, qnames)?;
                     self.resolve_expr_t(&mut arr.len, qnames)?;
                     Ok(())
@@ -1041,7 +1041,9 @@ impl Context {
             },
             hir::Expr::Tuple(tuple) => match tuple {
                 hir::Tuple::Normal(tup) => {
-                    tup.t = self.deref_tyvar(mem::take(&mut tup.t), Covariant, qnames, tup)?;
+                    let t = mem::take(&mut tup.t);
+                    let mut dereferencer = Dereferencer::simple(self, qnames, tup);
+                    tup.t = dereferencer.deref_tyvar(t)?;
                     for elem in tup.elems.pos_args.iter_mut() {
                         self.resolve_expr_t(&mut elem.expr, qnames)?;
                     }
@@ -1050,14 +1052,18 @@ impl Context {
             },
             hir::Expr::Set(set) => match set {
                 hir::Set::Normal(st) => {
-                    st.t = self.deref_tyvar(mem::take(&mut st.t), Covariant, qnames, st)?;
+                    let t = mem::take(&mut st.t);
+                    let mut dereferencer = Dereferencer::simple(self, qnames, st);
+                    st.t = dereferencer.deref_tyvar(t)?;
                     for elem in st.elems.pos_args.iter_mut() {
                         self.resolve_expr_t(&mut elem.expr, qnames)?;
                     }
                     Ok(())
                 }
                 hir::Set::WithLength(st) => {
-                    st.t = self.deref_tyvar(mem::take(&mut st.t), Covariant, qnames, st)?;
+                    let t = mem::take(&mut st.t);
+                    let mut dereferencer = Dereferencer::simple(self, qnames, st);
+                    st.t = dereferencer.deref_tyvar(t)?;
                     self.resolve_expr_t(&mut st.elem, qnames)?;
                     self.resolve_expr_t(&mut st.len, qnames)?;
                     Ok(())
@@ -1065,7 +1071,9 @@ impl Context {
             },
             hir::Expr::Dict(dict) => match dict {
                 hir::Dict::Normal(dic) => {
-                    dic.t = self.deref_tyvar(mem::take(&mut dic.t), Covariant, qnames, dic)?;
+                    let t = mem::take(&mut dic.t);
+                    let mut dereferencer = Dereferencer::simple(self, qnames, dic);
+                    dic.t = dereferencer.deref_tyvar(t)?;
                     for kv in dic.kvs.iter_mut() {
                         self.resolve_expr_t(&mut kv.key, qnames)?;
                         self.resolve_expr_t(&mut kv.value, qnames)?;
@@ -1081,26 +1089,14 @@ impl Context {
                 ),
             },
             hir::Expr::Record(record) => {
-                record.t = self.deref_tyvar(mem::take(&mut record.t), Covariant, qnames, record)?;
+                let t = mem::take(&mut record.t);
+                let mut dereferencer = Dereferencer::simple(self, qnames, record);
+                record.t = dereferencer.deref_tyvar(t)?;
                 for attr in record.attrs.iter_mut() {
-                    match &mut attr.sig {
-                        hir::Signature::Var(var) => {
-                            *var.ref_mut_t() = self.deref_tyvar(
-                                mem::take(var.ref_mut_t()),
-                                Covariant,
-                                qnames,
-                                var,
-                            )?;
-                        }
-                        hir::Signature::Subr(subr) => {
-                            *subr.ref_mut_t() = self.deref_tyvar(
-                                mem::take(subr.ref_mut_t()),
-                                Covariant,
-                                qnames,
-                                subr,
-                            )?;
-                        }
-                    }
+                    let t = mem::take(attr.sig.ref_mut_t());
+                    let mut dereferencer = Dereferencer::simple(self, qnames, &attr.sig);
+                    let t = dereferencer.deref_tyvar(t)?;
+                    *attr.sig.ref_mut_t() = t;
                     for chunk in attr.body.block.iter_mut() {
                         self.resolve_expr_t(chunk, qnames)?;
                     }
@@ -1109,24 +1105,24 @@ impl Context {
             }
             hir::Expr::BinOp(binop) => {
                 let t = mem::take(binop.signature_mut_t().unwrap());
-                *binop.signature_mut_t().unwrap() =
-                    self.deref_tyvar(t, Covariant, qnames, binop)?;
+                let mut dereferencer = Dereferencer::simple(self, qnames, binop);
+                *binop.signature_mut_t().unwrap() = dereferencer.deref_tyvar(t)?;
                 self.resolve_expr_t(&mut binop.lhs, qnames)?;
                 self.resolve_expr_t(&mut binop.rhs, qnames)?;
                 Ok(())
             }
             hir::Expr::UnaryOp(unaryop) => {
                 let t = mem::take(unaryop.signature_mut_t().unwrap());
-                *unaryop.signature_mut_t().unwrap() =
-                    self.deref_tyvar(t, Covariant, qnames, unaryop)?;
+                let mut dereferencer = Dereferencer::simple(self, qnames, unaryop);
+                *unaryop.signature_mut_t().unwrap() = dereferencer.deref_tyvar(t)?;
                 self.resolve_expr_t(&mut unaryop.expr, qnames)?;
                 Ok(())
             }
             hir::Expr::Call(call) => {
                 if let Some(t) = call.signature_mut_t() {
                     let t = mem::take(t);
-                    *call.signature_mut_t().unwrap() =
-                        self.deref_tyvar(t, Covariant, qnames, call)?;
+                    let mut dereferencer = Dereferencer::simple(self, qnames, call);
+                    *call.signature_mut_t().unwrap() = dereferencer.deref_tyvar(t)?;
                 }
                 self.resolve_expr_t(&mut call.obj, qnames)?;
                 for arg in call.args.pos_args.iter_mut() {
@@ -1148,8 +1144,9 @@ impl Context {
                 } else {
                     qnames.clone()
                 };
-                *def.sig.ref_mut_t() =
-                    self.deref_tyvar(mem::take(def.sig.ref_mut_t()), Covariant, &qnames, &def.sig)?;
+                let t = mem::take(def.sig.ref_mut_t());
+                let mut dereferencer = Dereferencer::simple(self, &qnames, &def.sig);
+                *def.sig.ref_mut_t() = dereferencer.deref_tyvar(t)?;
                 if let Some(params) = def.sig.params_mut() {
                     self.resolve_params_t(params, &qnames)?;
                 }
@@ -1165,8 +1162,9 @@ impl Context {
                 } else {
                     qnames.clone()
                 };
-                lambda.t =
-                    self.deref_tyvar(mem::take(&mut lambda.t), Covariant, &qnames, lambda)?;
+                let t = mem::take(&mut lambda.t);
+                let mut dereferencer = Dereferencer::simple(self, &qnames, lambda);
+                lambda.t = dereferencer.deref_tyvar(t)?;
                 self.resolve_params_t(&mut lambda.params, &qnames)?;
                 for chunk in lambda.body.iter_mut() {
                     self.resolve_expr_t(chunk, &qnames)?;

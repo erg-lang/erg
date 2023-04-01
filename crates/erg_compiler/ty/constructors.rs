@@ -460,6 +460,17 @@ pub fn guard(var: Variable, to: Type) -> Type {
     Type::Guard(GuardType::new(var, to))
 }
 
+pub fn fluctuation(sub: Type, sup: Type) -> Type {
+    if sub == Type::Never {
+        sup
+    } else {
+        Type::Fluctuation {
+            sub: Box::new(sub),
+            sup: Box::new(sup),
+        }
+    }
+}
+
 #[inline]
 pub fn instanceof(t: Type) -> Constraint {
     Constraint::new_type_of(t)

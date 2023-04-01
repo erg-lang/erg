@@ -655,8 +655,8 @@ impl Context {
                 TyCheckErrors::new(
                     errs.into_iter()
                         .map(|e| {
-                            let expect = self.readable_type(spec_ret_t.clone(), false);
-                            let found = self.readable_type(body_t.clone(), false);
+                            let expect = self.readable_type(spec_ret_t.clone());
+                            let found = self.readable_type(body_t.clone());
                             TyCheckError::return_type_error(
                                 self.cfg.input.clone(),
                                 line!() as usize,

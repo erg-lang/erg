@@ -53,6 +53,12 @@ impl<T: Hash + Eq> From<Vec<T>> for Set<T> {
     }
 }
 
+impl<T: Hash + Eq, const N: usize> From<[T; N]> for Set<T> {
+    fn from(arr: [T; N]) -> Self {
+        arr.into_iter().collect()
+    }
+}
+
 impl<T: fmt::Debug> fmt::Debug for Set<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{{{}}}", debug_fmt_iter(self.elems.iter()))

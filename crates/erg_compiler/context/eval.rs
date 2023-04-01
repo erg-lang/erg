@@ -31,7 +31,6 @@ use crate::context::{ClassDefType, Context, ContextKind, RegistrationMode};
 use crate::error::{EvalError, EvalErrors, EvalResult, SingleEvalResult};
 
 use super::instantiate::TyVarCache;
-use super::Variance;
 use Type::{Failure, Never, Subr};
 
 macro_rules! feature_error {
@@ -1118,6 +1117,9 @@ impl Context {
         level: usize,
         t_loc: &impl Locational,
     ) -> EvalResult<Type> {
+        if lhs == Never {
+            return Ok(Never);
+        }
         // Currently Erg does not allow projection-types to be evaluated with type variables included.
         // All type variables will be dereferenced or fail.
         let (sub, opt_sup) = match lhs.clone() {
@@ -1192,12 +1194,12 @@ impl Context {
                 let sub = if cfg!(feature = "debug") {
                     sub
                 } else {
-                    self.deref_tyvar(sub, Variance::Covariant, &set! {}, t_loc)?
+                    self.coerce(sub, t_loc)?
                 };
                 let sup = if cfg!(feature = "debug") {
                     sup
                 } else {
-                    self.deref_tyvar(sup, Variance::Covariant, &set! {}, t_loc)?
+                    self.coerce(sup, t_loc)?
                 };
                 return Err(EvalErrors::from(EvalError::no_trait_impl_error(
                     self.cfg.input.clone(),
@@ -1212,7 +1214,7 @@ impl Context {
         }
         // if the target can't be found in the supertype, the type will be dereferenced.
         // In many cases, it is still better to determine the type variable than if the target is not found.
-        let coerced = self.deref_tyvar(lhs.clone(), Variance::Covariant, &set! {}, t_loc)?;
+        let coerced = self.coerce(lhs.clone(), t_loc)?;
         if lhs != coerced {
             let proj = proj(coerced, rhs);
             self.eval_t_params(proj, level, t_loc)
@@ -1552,12 +1554,12 @@ impl Context {
                     let sub = if cfg!(feature = "debug") {
                         sub
                     } else {
-                        self.deref_tyvar(sub, Variance::Covariant, &set! {}, t_loc)?
+                        self.readable_type(sub)
                     };
                     let sup = if cfg!(feature = "debug") {
                         sup
                     } else {
-                        self.deref_tyvar(sup, Variance::Covariant, &set! {}, t_loc)?
+                        self.readable_type(sup)
                     };
                     return Err(EvalErrors::from(EvalError::no_trait_impl_error(
                         self.cfg.input.clone(),
@@ -1573,7 +1575,7 @@ impl Context {
         }
         // if the target can't be found in the supertype, the type will be dereferenced.
         // In many cases, it is still better to determine the type variable than if the target is not found.
-        let coerced = self.deref_tp(lhs.clone(), Variance::Covariant, &set! {}, t_loc)?;
+        let coerced = self.coerce_tp(lhs.clone(), t_loc)?;
         if lhs != coerced {
             let proj = proj_call(coerced, attr_name, args);
             self.eval_t_params(proj, level, t_loc)
