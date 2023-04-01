@@ -329,43 +329,6 @@ impl LexError {
         Self::syntax_error(errno, loc, msg, Some(hint))
     }
 
-    pub fn invalid_syntax_after_at_sign(errno: usize, loc: Location) -> Self {
-        Self::new(ErrorCore::new(
-            vec![SubMessage::only_loc(loc)],
-            switch_lang!(
-                "japanese" => "アットマークの後ろに不正な構文があります",
-                "simplified_chinese" => "at 符号后的语法无效",
-                "traditional_chinese" => "at 符號後的語法無效",
-                "english" => "invalid syntax after at-sign",
-            ),
-            errno,
-            SyntaxError,
-            loc,
-        ))
-    }
-
-    pub fn invalid_class_def(errno: usize, loc: Location) -> ParseError {
-        let msg = switch_lang!(
-            "japanese" => "無効なクラスの定義です",
-            "simplified_chinese" => "类定义无效",
-            "traditional_chinese" => "類定義無效",
-            "english" => "invalid Class definition",
-        );
-        let sub = SubMessage::only_loc(loc);
-        Self::new(ErrorCore::new(vec![sub], msg, errno, SyntaxError, loc))
-    }
-
-    pub fn invalid_class_attr_def(errno: usize, loc: Location) -> ParseError {
-        let msg = switch_lang!(
-            "japanese" => "クラス属性を定義するのに失敗しました",
-            "simplified_chinese" => "定义类实例属性失败",
-            "traditional_chinese" => "定義類實例屬性失敗",
-            "english" => "failed to define a Class attribute",
-        );
-        let sub = SubMessage::only_loc(loc);
-        Self::new(ErrorCore::new(vec![sub], msg, errno, SyntaxError, loc))
-    }
-
     pub fn invalid_data_pack_definition(errno: usize, loc: Location, fnd: &str) -> ParseError {
         let msg = switch_lang!(
             "japanese" => "データクラスの中身が異なります",
@@ -426,61 +389,6 @@ impl LexError {
         );
         let sub = SubMessage::ambiguous_new(loc, vec![sub_msg], None);
         Self::new(ErrorCore::new(vec![sub], msg, errno, SyntaxError, loc))
-    }
-
-    pub fn expect_dict_key(errno: usize, loc: Location) -> ParseError {
-        let msg = switch_lang!(
-            "japanese" => "無効な辞書型の要素の宣言です",
-            "simplified_chinese" => "无效的字典类型声明",
-            "traditional_chinese" => "無效的字典類型聲明",
-            "english" => "invalid declaration of dict type",
-        );
-        let colon = StyledStr::new(":", Some(HINT), Some(ATTR));
-        let hint = switch_lang!(
-            "japanese" => format!("{colon}を追加する必要があります"),
-            "simplified_chinese" => format!("{colon}应该被添加"),
-            "traditional_chinese" => format!("{colon}應該被添加"),
-            "english" => format!("{colon} should be added"),
-        );
-        Self::syntax_error(errno, loc, msg, Some(hint))
-    }
-
-    pub fn invalid_dict_value(errno: usize, loc: Location) -> ParseError {
-        let colon = StyledStr::new(":", Some(HINT), Some(ATTR));
-        let hint = switch_lang!(
-            "japanese" => format!("{colon}を追加してください"),
-            "simplified_chinese" => format!("{colon}应该被添加"),
-            "traditional_chinese" => format!("{colon}應該被添加"),
-            "english" => format!("{colon} should be added"),
-        );
-        let sub_msg = SubMessage::ambiguous_new(loc, vec![], Some(hint));
-        let main_msg = switch_lang!(
-            "japanese" => "辞書型の値の宣言が異なります",
-            "simplified_chinese" => "声明Dict类型失败",
-            "traditional_chinese" => "聲明Dict類型失敗",
-            "english" => "failed to declare Dict type",
-        );
-        Self::new(ErrorCore::new(
-            vec![sub_msg],
-            main_msg,
-            errno,
-            SyntaxError,
-            loc,
-        ))
-    }
-
-    pub fn invalid_type_specified_error(
-        errno: usize,
-        loc: Location,
-        hint: Option<String>,
-    ) -> ParseError {
-        let main_msg = switch_lang!(
-            "japanese" => "タプル型の要素ではタイプを宣言することはできません",
-            "simplified_chinese" => "无法声明Tuple类型元素指定的类型",
-            "traditional_chinese" => "無法聲明Tuple類型元素指定的類型",
-            "english" => "cannot declare type specified by Tuple Type element",
-        );
-        Self::syntax_error(errno, loc, main_msg, hint)
     }
 
     pub fn unclosed_error(errno: usize, loc: Location, closer: &str, ty: &str) -> ParseError {
@@ -602,24 +510,6 @@ impl LexError {
         )
         .to_string();
         Self::new(ErrorCore::new(vec![sub], msg, errno, SyntaxError, loc))
-    }
-
-    pub fn no_indention(errno: usize, loc: Location, place: &str) -> ParseError {
-        let sub_msg = switch_lang!(
-            "japanese" => "インデントを追加してください",
-            "simplified_chinese" => "缩进应该被添加",
-            "traditional_chinese" => "缩縮進應該被添加",
-            "english" => "indent should be added",
-        )
-        .to_string();
-        let sub = SubMessage::ambiguous_new(loc, vec![sub_msg], None);
-        let msg = switch_lang!(
-            "japanese" => format!("{place}のインデントが不正です"),
-            "traditional_chinese" => format!("{place}缩进无效"),
-            "simplified_chinese" => format!("{place}缩进无效"),
-            "english" => format!("invalid the {place} indent"),
-        );
-        Self::new(ErrorCore::new(vec![sub], msg, errno, IndentationError, loc))
     }
 
     pub fn expect_type_specified(errno: usize, loc: Location) -> ParseError {
