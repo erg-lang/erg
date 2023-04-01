@@ -1,6 +1,7 @@
 //! defines and implements `Lexer` (Tokenizer).
 use std::cmp::Ordering;
 
+use erg_common::traits::ExitStatus;
 use unicode_xid::UnicodeXID;
 
 use erg_common::cache::CacheSet;
@@ -64,7 +65,7 @@ impl Runnable for LexerRunner {
     #[inline]
     fn clear(&mut self) {}
 
-    fn exec(&mut self) -> Result<i32, Self::Errs> {
+    fn exec(&mut self) -> Result<ExitStatus, Self::Errs> {
         let lexer = Lexer::from_str(self.cfg_mut().input.read());
         let ts = lexer
             .lex()
@@ -74,7 +75,7 @@ impl Runnable for LexerRunner {
         } else {
             println!("{ts}");
         }
-        Ok(0)
+        Ok(ExitStatus::OK)
     }
 
     fn eval(&mut self, src: String) -> Result<String, LexerRunnerErrors> {

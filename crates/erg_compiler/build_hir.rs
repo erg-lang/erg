@@ -1,7 +1,7 @@
 use erg_common::config::ErgConfig;
 use erg_common::dict::Dict;
 use erg_common::error::MultiErrorDisplay;
-use erg_common::traits::{Runnable, Stream};
+use erg_common::traits::{ExitStatus, Runnable, Stream};
 use erg_common::Str;
 
 use erg_parser::ast::{VarName, AST};
@@ -64,13 +64,13 @@ impl Runnable for HIRBuilder {
         // don't initialize the ownership checker
     }
 
-    fn exec(&mut self) -> Result<i32, Self::Errs> {
+    fn exec(&mut self) -> Result<ExitStatus, Self::Errs> {
         let mut builder = ASTBuilder::new(self.cfg().copy());
         let ast = builder.build(self.cfg_mut().input.read())?;
         let artifact = self.check(ast, "exec").map_err(|arti| arti.errors)?;
         artifact.warns.fmt_all_stderr();
         println!("{}", artifact.object);
-        Ok(0)
+        Ok(ExitStatus::compile_passed(artifact.warns.len()))
     }
 
     fn eval(&mut self, src: String) -> Result<String, Self::Errs> {

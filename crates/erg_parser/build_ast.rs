@@ -1,5 +1,5 @@
 use erg_common::config::ErgConfig;
-use erg_common::traits::Runnable;
+use erg_common::traits::{ExitStatus, Runnable};
 use erg_common::Str;
 
 use crate::ast::AST;
@@ -43,11 +43,11 @@ impl Runnable for ASTBuilder {
     #[inline]
     fn clear(&mut self) {}
 
-    fn exec(&mut self) -> Result<i32, Self::Errs> {
+    fn exec(&mut self) -> Result<ExitStatus, Self::Errs> {
         let src = self.cfg_mut().input.read();
         let ast = self.build(src)?;
         println!("{ast}");
-        Ok(0)
+        Ok(ExitStatus::OK)
     }
 
     fn eval(&mut self, src: String) -> Result<String, ParserRunnerErrors> {

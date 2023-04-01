@@ -8,7 +8,7 @@ use std::time::Duration;
 use erg_common::config::ErgConfig;
 use erg_common::error::MultiErrorDisplay;
 use erg_common::python_util::{exec_pyc, spawn_py};
-use erg_common::traits::Runnable;
+use erg_common::traits::{ExitStatus, Runnable, Stream};
 
 use erg_compiler::hir::Expr;
 use erg_compiler::ty::HasType;
@@ -133,7 +133,7 @@ impl Runnable for DummyVM {
         self.compiler.clear();
     }
 
-    fn exec(&mut self) -> Result<i32, Self::Errs> {
+    fn exec(&mut self) -> Result<ExitStatus, Self::Errs> {
         // Parallel execution is not possible without dumping with a unique file name.
         let filename = self.cfg().dump_pyc_filename();
         let src = self.cfg_mut().input.read();
@@ -147,7 +147,7 @@ impl Runnable for DummyVM {
         warns.fmt_all_stderr();
         let code = exec_pyc(&filename, self.cfg().py_command, &self.cfg().runtime_args);
         remove_file(&filename).unwrap();
-        Ok(code.unwrap_or(1))
+        Ok(ExitStatus::new(code.unwrap_or(1), warns.len(), 0))
     }
 
     fn eval(&mut self, src: String) -> Result<String, EvalErrors> {
@@ -207,7 +207,7 @@ impl Runnable for DummyVM {
 
 impl DummyVM {
     /// Execute the script specified in the configuration.
-    pub fn exec(&mut self) -> Result<i32, EvalErrors> {
+    pub fn exec(&mut self) -> Result<ExitStatus, EvalErrors> {
         Runnable::exec(self)
     }
 

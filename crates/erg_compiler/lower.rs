@@ -10,7 +10,7 @@ use erg_common::error::{Location, MultiErrorDisplay};
 use erg_common::fresh::fresh_varname;
 use erg_common::set;
 use erg_common::set::Set;
-use erg_common::traits::{Locational, NoTypeDisplay, Runnable, Stream};
+use erg_common::traits::{ExitStatus, Locational, NoTypeDisplay, Runnable, Stream};
 use erg_common::triple::Triple;
 use erg_common::{fmt_option, fn_name, log, switch_lang, Str};
 
@@ -122,7 +122,7 @@ impl Runnable for ASTLowerer {
         self.warns.clear();
     }
 
-    fn exec(&mut self) -> Result<i32, Self::Errs> {
+    fn exec(&mut self) -> Result<ExitStatus, Self::Errs> {
         let mut ast_builder = ASTBuilder::new(self.cfg.copy());
         let ast = ast_builder.build(self.cfg.input.read())?;
         let artifact = self
@@ -130,7 +130,7 @@ impl Runnable for ASTLowerer {
             .map_err(|artifact| artifact.errors)?;
         artifact.warns.fmt_all_stderr();
         println!("{}", artifact.object);
-        Ok(0)
+        Ok(ExitStatus::compile_passed(artifact.warns.len()))
     }
 
     fn eval(&mut self, src: String) -> Result<String, Self::Errs> {

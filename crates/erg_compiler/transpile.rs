@@ -5,7 +5,7 @@ use erg_common::config::ErgConfig;
 use erg_common::dict::Dict as HashMap;
 use erg_common::error::MultiErrorDisplay;
 use erg_common::log;
-use erg_common::traits::{Runnable, Stream};
+use erg_common::traits::{ExitStatus, Runnable, Stream};
 use erg_common::Str;
 
 use erg_parser::ast::{ParamPattern, TypeSpec, VarName};
@@ -143,7 +143,7 @@ impl Runnable for Transpiler {
         self.builder.clear();
     }
 
-    fn exec(&mut self) -> Result<i32, Self::Errs> {
+    fn exec(&mut self) -> Result<ExitStatus, Self::Errs> {
         let mut path = self.cfg.dump_path();
         path.set_extension("py");
         let src = self.cfg.input.read();
@@ -154,7 +154,7 @@ impl Runnable for Transpiler {
         artifact.warns.fmt_all_stderr();
         let mut f = File::create(path).unwrap();
         f.write_all(artifact.object.code.as_bytes()).unwrap();
-        Ok(0)
+        Ok(ExitStatus::compile_passed(artifact.warns.len()))
     }
 
     fn eval(&mut self, src: String) -> Result<String, CompileErrors> {

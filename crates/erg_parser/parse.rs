@@ -10,7 +10,7 @@ use erg_common::config::{Input, InputKind};
 use erg_common::error::Location;
 use erg_common::set::Set as HashSet;
 use erg_common::str::Str;
-use erg_common::traits::{DequeStream, Locational, Runnable, Stream};
+use erg_common::traits::{DequeStream, ExitStatus, Locational, Runnable, Stream};
 use erg_common::{
     caused_by, debug_power_assert, enum_unwrap, fn_name, impl_locational_for_enum, log, set,
     switch_lang, switch_unreachable,
@@ -310,11 +310,11 @@ impl Runnable for ParserRunner {
     #[inline]
     fn clear(&mut self) {}
 
-    fn exec(&mut self) -> Result<i32, Self::Errs> {
+    fn exec(&mut self) -> Result<ExitStatus, Self::Errs> {
         let src = self.cfg_mut().input.read();
         let ast = self.parse(src)?;
         println!("{ast}");
-        Ok(0)
+        Ok(ExitStatus::OK)
     }
 
     fn eval(&mut self, src: String) -> Result<String, ParserRunnerErrors> {

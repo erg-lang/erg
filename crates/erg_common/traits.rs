@@ -607,15 +607,27 @@ impl VirtualMachine {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct ExitStatus {
     pub code: i32,
+    pub num_warns: usize,
     pub num_errors: usize,
 }
 
 impl ExitStatus {
-    pub const OK: ExitStatus = ExitStatus::new(0, 0);
-    pub const ERR1: ExitStatus = ExitStatus::new(1, 0);
+    pub const OK: ExitStatus = ExitStatus::new(0, 0, 0);
+    pub const ERR1: ExitStatus = ExitStatus::new(1, 0, 0);
 
-    pub const fn new(code: i32, num_errors: usize) -> Self {
-        Self { code, num_errors }
+    pub const fn new(code: i32, num_warns: usize, num_errors: usize) -> Self {
+        Self {
+            code,
+            num_warns,
+            num_errors,
+        }
+    }
+    pub const fn compile_passed(num_warns: usize) -> Self {
+        Self::new(0, num_warns, 0)
+    }
+
+    pub const fn succeed(&self) -> bool {
+        self.code == 0 && self.num_errors == 0
     }
 }
 
@@ -634,7 +646,7 @@ pub trait Runnable: Sized + Default {
     /// Erase information that will no longer be meaningful in the next iteration
     fn clear(&mut self);
     fn eval(&mut self, src: String) -> Result<String, Self::Errs>;
-    fn exec(&mut self) -> Result<i32, Self::Errs>;
+    fn exec(&mut self) -> Result<ExitStatus, Self::Errs>;
     fn expect_block(&self, src: &str) -> BlockKind {
         let multi_line_str = "\"\"\"";
         if src.contains(multi_line_str) && src.rfind(multi_line_str) == src.find(multi_line_str) {
@@ -895,7 +907,7 @@ pub trait Runnable: Sized + Default {
                                     .map(|e| e.core().kind == ErrorKind::SystemExit)
                                     .unwrap_or(false)
                                 {
-                                    return ExitStatus::new(0, num_errors);
+                                    return ExitStatus::new(0, 0, num_errors);
                                 }
                                 num_errors += errs.len();
                                 errs.fmt_all_stderr();
@@ -910,11 +922,11 @@ pub trait Runnable: Sized + Default {
             InputKind::Dummy => switch_unreachable!(),
         };
         match res {
-            Ok(i) => ExitStatus::new(i, num_errors),
+            Ok(status) => status,
             Err(errs) => {
                 num_errors += errs.len();
                 errs.fmt_all_stderr();
-                ExitStatus::new(1, num_errors)
+                ExitStatus::new(1, 0, num_errors)
             }
         }
     }

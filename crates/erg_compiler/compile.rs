@@ -7,7 +7,7 @@ use erg_common::config::ErgConfig;
 use erg_common::dict::Dict;
 use erg_common::error::MultiErrorDisplay;
 use erg_common::log;
-use erg_common::traits::{Runnable, Stream};
+use erg_common::traits::{ExitStatus, Runnable, Stream};
 use erg_parser::ast::VarName;
 
 use crate::artifact::{CompleteArtifact, ErrorArtifact};
@@ -149,7 +149,7 @@ impl Runnable for Compiler {
         self.code_generator.clear();
     }
 
-    fn exec(&mut self) -> Result<i32, Self::Errs> {
+    fn exec(&mut self) -> Result<ExitStatus, Self::Errs> {
         let path = self.cfg.dump_pyc_path();
         let src = self.cfg.input.read();
         let warns = self
@@ -159,7 +159,7 @@ impl Runnable for Compiler {
                 eart.errors
             })?;
         warns.fmt_all_stderr();
-        Ok(0)
+        Ok(ExitStatus::compile_passed(warns.len()))
     }
 
     fn eval(&mut self, src: String) -> Result<String, CompileErrors> {

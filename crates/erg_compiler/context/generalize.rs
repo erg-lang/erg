@@ -354,7 +354,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
 
     fn push_variance(&mut self, variance: Variance) {
         self.stash = self.variance;
-        self.variance = self.variance * variance;
+        self.variance = variance; // self.variance * variance;
     }
 
     fn pop_variance(&mut self) {

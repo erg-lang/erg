@@ -14,7 +14,7 @@ use erg::DummyVM;
 
 pub(crate) fn expect_repl_success(name: &'static str, lines: Vec<String>) -> Result<(), ()> {
     match exec_repl(name, lines) {
-        Ok(ExitStatus::OK) => Ok(()),
+        Ok(stat) if stat.succeed() => Ok(()),
         Ok(stat) => {
             println!("err: should succeed, but got: {stat:?}");
             Err(())
@@ -27,11 +27,21 @@ pub(crate) fn expect_repl_success(name: &'static str, lines: Vec<String>) -> Res
     }
 }
 
-pub(crate) fn expect_success(file_path: &'static str) -> Result<(), ()> {
+pub(crate) fn expect_success(file_path: &'static str, num_warns: usize) -> Result<(), ()> {
     match exec_file(file_path) {
-        Ok(0) => Ok(()),
-        Ok(i) => {
-            println!("err: should succeed, but end with {i}");
+        Ok(stat) if stat.succeed() => {
+            if stat.num_warns == num_warns {
+                Ok(())
+            } else {
+                println!(
+                    "err: number of warnings should be {num_warns}, but got {}",
+                    stat.num_warns
+                );
+                Err(())
+            }
+        }
+        Ok(stat) => {
+            println!("err: should succeed, but end with {}", stat.code);
             Err(())
         }
         Err(errs) => {
@@ -45,15 +55,18 @@ pub(crate) fn expect_success(file_path: &'static str) -> Result<(), ()> {
 pub(crate) fn expect_repl_failure(
     name: &'static str,
     lines: Vec<String>,
-    errs_len: usize,
+    num_errs: usize,
 ) -> Result<(), ()> {
     match exec_repl(name, lines) {
         Ok(ExitStatus::OK) => Err(()),
-        Ok(ExitStatus { num_errors, .. }) => {
-            if num_errors == errs_len {
+        Ok(stat) => {
+            if stat.num_errors == num_errs {
                 Ok(())
             } else {
-                println!("err: number of errors should be {errs_len}, but got {num_errors}");
+                println!(
+                    "err: number of errors should be {num_errs}, but got {}",
+                    stat.num_errors
+                );
                 Err(())
             }
         }
@@ -67,15 +80,15 @@ pub(crate) fn expect_repl_failure(
 
 pub(crate) fn expect_end_with(file_path: &'static str, code: i32) -> Result<(), ()> {
     match exec_file(file_path) {
-        Ok(0) => {
+        Ok(stat) if stat.succeed() => {
             println!("err: should end with {code}, but end with 0");
             Err(())
         }
-        Ok(i) => {
-            if i == code {
+        Ok(stat) => {
+            if stat.code == code {
                 Ok(())
             } else {
-                println!("err: end with {i}");
+                println!("err: end with {}", stat.code);
                 Err(())
             }
         }
@@ -87,20 +100,34 @@ pub(crate) fn expect_end_with(file_path: &'static str, code: i32) -> Result<(), 
     }
 }
 
-pub(crate) fn expect_failure(file_path: &'static str, errs_len: usize) -> Result<(), ()> {
+pub(crate) fn expect_failure(
+    file_path: &'static str,
+    num_warns: usize,
+    num_errs: usize,
+) -> Result<(), ()> {
     match exec_file(file_path) {
-        Ok(0) => {
+        Ok(stat) if stat.succeed() => {
             println!("err: should fail, but end with 0");
             Err(())
         }
-        Ok(_) => Ok(()),
-        Err(errs) => {
-            errs.fmt_all_stderr();
-            if errs.len() == errs_len {
+        Ok(stat) => {
+            if stat.num_warns == num_warns {
                 Ok(())
             } else {
                 println!(
-                    "err: number of errors should be {errs_len}, but got {}",
+                    "err: number of warnings should be {num_warns}, but got {}",
+                    stat.num_warns
+                );
+                Err(())
+            }
+        }
+        Err(errs) => {
+            errs.fmt_all_stderr();
+            if errs.len() == num_errs {
+                Ok(())
+            } else {
+                println!(
+                    "err: number of errors should be {num_errs}, but got {}",
                     errs.len()
                 );
                 Err(())
@@ -129,7 +156,7 @@ fn set_cfg(mut cfg: ErgConfig) -> ErgConfig {
 
 /// The test is intend to run only on 3.11 for fast execution.
 /// To execute on other versions, change the version and magic number.
-fn _exec_file(file_path: &'static str) -> Result<i32, CompileErrors> {
+fn _exec_file(file_path: &'static str) -> Result<ExitStatus, CompileErrors> {
     println!("{DEBUG_MAIN}[test] exec {file_path}{RESET}");
     let cfg = ErgConfig::with_main_path(PathBuf::from(file_path));
     let mut vm = DummyVM::new(set_cfg(cfg));
@@ -148,7 +175,7 @@ pub fn _exec_repl(name: &'static str, lines: Vec<String>) -> Result<ExitStatus, 
     Ok(stat)
 }
 
-pub(crate) fn exec_file(file_path: &'static str) -> Result<i32, CompileErrors> {
+pub(crate) fn exec_file(file_path: &'static str) -> Result<ExitStatus, CompileErrors> {
     exec_new_thread(move || _exec_file(file_path), file_path)
 }
 
