@@ -94,7 +94,7 @@ dependencies = [
 
 [[package]]
 name = "els"
-version = "0.1.21"
+version = "0.1.22-nightly.0"
 dependencies = [
  "erg_common",
  "erg_compiler",
@@ -105,7 +105,7 @@ dependencies = [
 
 [[package]]
 name = "erg"
-version = "0.6.9"
+version = "0.6.10-nightly.0"
 dependencies = [
  "els",
  "erg_common",
@@ -115,7 +115,7 @@ dependencies = [
 
 [[package]]
 name = "erg_common"
-version = "0.6.9"
+version = "0.6.10-nightly.0"
 dependencies = [
  "backtrace-on-stack-overflow",
  "crossterm",
@@ -126,7 +126,7 @@ dependencies = [
 
 [[package]]
 name = "erg_compiler"
-version = "0.6.9"
+version = "0.6.10-nightly.0"
 dependencies = [
  "erg_common",
  "erg_parser",
@@ -134,7 +134,7 @@ dependencies = [
 
 [[package]]
 name = "erg_parser"
-version = "0.6.9"
+version = "0.6.10-nightly.0"
 dependencies = [
  "erg_common",
  "unicode-xid",
