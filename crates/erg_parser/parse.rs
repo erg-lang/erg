@@ -782,10 +782,10 @@ impl Parser {
                     self.skip();
                     if self.cur_is(Comma) {
                         let hint = switch_lang!(
-                            "japanese" => "カンマの代わりに要素か右括弧を追加してください",
-                            "simplified_chinese" => "应该添加一个元素，而不是逗号",
-                            "traditional_chinese" => "應該添加一個元素，而不是逗號",
-                            "english" => "instead of comma, a element should be added",
+                            "japanese" => "カンマの代わりに要素か括弧を追加してください",
+                            "simplified_chinese" => "应添加一个元素或括号，而不是逗号",
+                            "traditional_chinese" => "應添加一個元素或括號，而不是逗號",
+                            "english" => "a element or bracket should be added instead of comma",
                         );
                         let err = self.skip_and_throw_invalid_seq_err(
                             caused_by!(),
@@ -1088,10 +1088,10 @@ impl Parser {
                                     (n.name.into_token(), Some(tasc.t_spec))
                                 } else {
                                     let hint = switch_lang!(
-                                    "japanese" => "カンマの代わりに要素を追加してください",
-                                    "simplified_chinese" => "应该添加一个元素而不是逗号",
-                                    "traditional_chinese" => "應該添加一個元素而不是逗號",
-                                    "english" => "a element may be added instead of comma",
+                                    "japanese" => "カンマの代わりに要素か括弧を追加してください",
+                                    "simplified_chinese" => "可以添加元素或括号而不是逗号",
+                                    "traditional_chinese" => "可以添加元素或括號而不是逗號",
+                                    "english" => "a element or bracket may be added instead of comma",
                                     );
                                     let err = self.skip_and_throw_invalid_seq_err(
                                         caused_by!(),
@@ -1233,7 +1233,7 @@ impl Parser {
                     "japanese" => "メソッドか属性値のみ定義できます",
                     "simplified_chinese" => "可以定义方法或属性值",
                     "traditional_chinese" => "可以定義方法或屬性值",
-                    "english" => "method or attribute value can be defined",
+                    "english" => "a method or attribute value can be defined",
                 )
                 .to_string();
                 let err = ParseError::syntax_error(
@@ -1243,7 +1243,7 @@ impl Parser {
                         "japanese" => "クラス属性を定義するのに失敗しました",
                         "simplified_chinese" => "定义类属性失败",
                         "traditional_chinese" => "定義類屬性失敗",
-                        "english" => "failed to define a Class attribute",
+                        "english" => "failed to define a class attribute",
                     ),
                     Some(hint),
                 );
@@ -1293,7 +1293,7 @@ impl Parser {
                                     "japanese" => "クラス属性を定義するのに失敗しました",
                                     "simplified_chinese" => "定义类属性失败",
                                     "traditional_chinese" => "定義類屬性失敗",
-                                    "english" => "failed to define a Class attribute",
+                                    "english" => "failed to define a class attribute",
                                 ),
                                 None,
                             );
@@ -2352,6 +2352,11 @@ impl Parser {
                         debug_exit_info!(self);
                         return Ok(BraceContainer::Record(Record::empty(l_brace, r_brace)));
                     }
+                } else {
+                    let caused_by = caused_by!();
+                    let err = self.unexpected_none(line!(), caused_by);
+                    self.errs.push(err);
+                    return Err(());
                 }
                 let t = self.lpop();
                 let mut err = ParseError::invalid_token_error(
@@ -2385,6 +2390,11 @@ impl Parser {
                         debug_exit_info!(self);
                         return Ok(BraceContainer::Dict(Dict::Normal(dict)));
                     }
+                } else {
+                    let caused_by = caused_by!();
+                    let err = self.unexpected_none(line!(), caused_by);
+                    self.errs.push(err);
+                    return Err(());
                 }
                 let t = self.lpop();
                 let mut err = ParseError::invalid_token_error(
@@ -2495,10 +2505,10 @@ impl Parser {
                     match self.peek() {
                         Some(t) if t.is(Semi) => {
                             let hint = switch_lang!(
-                                "japanese" => "セミコロンの代わりに要素を追加してください",
-                                "simplified_chinese" => "应该添加一个元素而不是分号",
-                                "traditional_chinese" => "應該添加一個元素而不是分號",
-                                "english" => "a element may be added instead of semicolon",
+                                "japanese" => "セミコロンの代わりに要素か括弧を追加してください",
+                                "simplified_chinese" => "可以添加元素或括号而不是分号",
+                                "traditional_chinese" => "可以添加元素或括號而不是分號",
+                                "english" => "a element or bracket may be added instead of semicolon",
                             );
                             let err = self.skip_and_throw_invalid_seq_err(
                                 caused_by!(),
@@ -2593,10 +2603,10 @@ impl Parser {
                     match self.peek_kind() {
                         Some(Comma) => {
                             let hint = switch_lang!(
-                                "japanese" => "カンマの代わりに要素",
-                                "simplified_chinese" => "应该添加一个元素而不是逗号",
-                                "traditional_chinese" => "應該添加一個元素而不是逗號",
-                                "english" => "a element may be added instead of comma",
+                                "japanese" => "カンマの代わりに要素か括弧を追加してください",
+                                "simplified_chinese" => "可以添加元素或括号而不是逗号",
+                                "traditional_chinese" => "可以添加元素或括號而不是逗號",
+                                "english" => "a element or bracket may be added instead of comma",
                             );
                             let err = self.skip_and_throw_invalid_seq_err(
                                 caused_by!(),
@@ -2701,10 +2711,10 @@ impl Parser {
                             let caused_by = caused_by!();
                             log!(err "error caused by: {caused_by}");
                             let hint = switch_lang!(
-                                    "japanese" => "カンマの代わりに要素",
-                                    "simplified_chinese" => "应该添加一个元素而不是逗号",
-                                    "traditional_chinese" => "應該添加一個元素而不是逗號",
-                                    "english" => "a element may be added instead of comma",
+                                    "japanese" => "カンマの代わりに要素か括弧を追加してください",
+                                    "simplified_chinese" => "可以添加一個元素而不是逗號或括號",
+                                    "traditional_chinese" => "可以添加元素或括號而不是逗號",
+                                    "english" => "a element or bracket may be added instead of comma",
                             );
                             let err = self.skip_and_throw_invalid_seq_err(
                                 caused_by!(),
@@ -2765,9 +2775,9 @@ impl Parser {
                 Some(_) => {
                     let hint = switch_lang!(
                         "japanese" => "セミコロンか括弧を追加してください",
-                        "simplified_chinese" => "应该添加分号或右括号",
-                        "traditional_chinese" => "應該添加分號或右括號",
-                        "english" => "semicolon or right bracket may be added",
+                        "simplified_chinese" => "可以添加分号或括号",
+                        "traditional_chinese" => "可以添加分號或括號",
+                        "english" => "semicolon or bracket may be added",
                     );
                     let err = self.skip_and_throw_invalid_seq_err(
                         caused_by!(),
@@ -2808,10 +2818,10 @@ impl Parser {
                     }
                     if self.cur_is(Comma) {
                         let hint = switch_lang!(
-                            "japanese" => "カンマの代わりに要素",
-                            "simplified_chinese" => "不应该是逗号，而应该是元素",
-                            "traditional_chinese" => "不应该是逗號，而应该是元素",
-                            "english" => "instead of a comma, a element",
+                            "japanese" => "カンマの代わりに要素か括弧を追加してください",
+                            "simplified_chinese" => "元素或括号而不是逗号",
+                            "traditional_chinese" => "元素或括號而不是逗號",
+                            "english" => "a element or bracket instead of a comma",
                         );
                         let err = self.skip_and_throw_invalid_seq_err(
                             caused_by!(),
@@ -2847,9 +2857,9 @@ impl Parser {
                                 arg.loc(),
                                 switch_lang!(
                                     "japanese" => "非デフォルト引数はデフォルト引数の後に指定できません",
-                                    "simplified_chinese" => "默认实参后面跟着非默认实参",
-                                    "traditional_chinese" => "默認實參後面跟著非默認實參",
-                                    "english" => "non-default argument follows default argument",
+                                    "simplified_chinese" => "不能在默认参数之后指定非默认参数",
+                                    "traditional_chinese" => "不能在默認參數之後指定非默認參數",
+                                    "english" => "Non-default arguments cannot be specified after default arguments",
                                 ),
                                 None,
                             );

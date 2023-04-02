@@ -115,7 +115,7 @@ impl LexError {
     pub fn unexpected_token_error(errno: usize, loc: Location, found: &str) -> ParseError {
         let mut fnd = StyledStrings::default();
         switch_lang!(
-            "japanese" =>fnd.push_str("予期しないトークン: "),
+            "japanese" =>fnd.push_str("予期しないトークンです: "),
             "simplified_chinese" => fnd.push_str("意外的token: "),
             "traditional_chinese" => fnd.push_str("意外的token: "),
             "english" => fnd.push_str("unexpected token: "),
@@ -256,7 +256,7 @@ impl LexError {
     ) -> LexError {
         let expect = StyledStr::new(expect, Some(HINT), Some(ATTR));
         let expect = switch_lang!(
-                "japanese" => format!("expect: {expect}"),
+                "japanese" => format!("予期したトークン: {expect}"),
                 "simplified_chinese" => format!("期望: {expect}"),
                 "traditional_chinese" => format!("期望: {expect}"),
                 "english" => format!("expect: {expect}"),
@@ -306,16 +306,16 @@ impl LexError {
             },
             "simplified_chinese" => {
                 let record = StyledStr::new("Record类型", Some(HINT), Some(ATTR));
-                let var = StyledStr::new("attr", Some(HINT), Some(ATTR));
-                let def = StyledStr::new("attr=lit", Some(HINT), Some(ATTR));
-                let obj = StyledStr::new("attr=object", Some(HINT), Some(ATTR));
+                let var = StyledStr::new("属性", Some(HINT), Some(ATTR));
+                let def = StyledStr::new("属性=lit", Some(HINT), Some(ATTR));
+                let obj = StyledStr::new("属性=object", Some(HINT), Some(ATTR));
                 format!("{record}中只能声明 {var}、{def} 或 {obj}")
             },
             "traditional_chinese" => {
                 let record = StyledStr::new("Record類型", Some(HINT), Some(ATTR));
-                let var = StyledStr::new("attr", Some(HINT), Some(ATTR));
-                let def = StyledStr::new("attr=lit", Some(HINT), Some(ATTR));
-                let obj = StyledStr::new("attr=object", Some(HINT), Some(ATTR));
+                let var = StyledStr::new("屬性", Some(HINT), Some(ATTR));
+                let def = StyledStr::new("屬性=lit", Some(HINT), Some(ATTR));
+                let obj = StyledStr::new("屬性=object", Some(HINT), Some(ATTR));
                 format!("{record}中只能声明 {var}、{def} 或 {obj}")
             },
             "english" => {
