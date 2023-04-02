@@ -587,14 +587,14 @@ impl Context {
                 }
             }
         }
-        match self.get_attr_type_by_name(ident) {
+        match self.get_attr_type_by_name(obj, ident) {
             Triple::Ok(method) => {
                 if let Err(mut errs) =
                     self.sub_unify(obj.ref_t(), &method.definition_type, obj, None)
                 {
                     return Triple::Err(errs.remove(0));
                 }
-                return Triple::Ok(method.method_type.clone());
+                return Triple::Ok(method.method_info.clone());
             }
             Triple::Err(err) if !cfg!(feature = "py_compat") => {
                 return Triple::Err(err);
@@ -911,12 +911,12 @@ impl Context {
                 self.get_similar_attr_from_singular(obj, attr_name.inspect()),
             ));
         }
-        match self.get_attr_type_by_name(attr_name) {
+        match self.get_attr_type_by_name(obj, attr_name) {
             Triple::Ok(method) => {
                 self.sub_unify(obj.ref_t(), &method.definition_type, obj, None)
                     // HACK: change this func's return type to TyCheckResult<Type>
                     .map_err(|mut errs| errs.remove(0))?;
-                return Ok(method.method_type.clone());
+                return Ok(method.method_info.clone());
             }
             Triple::Err(err) => {
                 return Err(err);
@@ -2603,29 +2603,90 @@ impl Context {
         }
     }
 
+    // TODO: `Override` decorator should also be used
+    /// e.g.
+    /// ```erg
+    /// [Int -> Bool, Float -> Bool] => true
+    /// [Int -> Bool, (Float, Str) -> Bool] => false
+    /// [Int -> Bool, Int -> Str] => false
+    /// [] => true
+    /// ```
+    fn same_shape<'t>(&self, mut candidates: impl Iterator<Item = &'t Type>) -> bool {
+        let Some(first) = candidates.next() else {
+            return true;
+        };
+        for cand in candidates {
+            if cand
+                .return_t()
+                .zip(first.return_t())
+                .map_or(true, |(a, b)| a != b)
+            {
+                return false;
+            }
+            if cand
+                .non_default_params()
+                .zip(first.non_default_params())
+                .map_or(true, |(a, b)| a.len() != b.len())
+            {
+                return false;
+            }
+            if cand.var_params().is_some() != first.var_params().is_some() {
+                return false;
+            }
+            if cand
+                .default_params()
+                .zip(first.default_params())
+                .map_or(true, |(a, b)| {
+                    a.len() != b.len() || a.iter().zip(b.iter()).any(|(a, b)| a.name() != b.name())
+                })
+            {
+                return false;
+            }
+        }
+        true
+    }
+
     fn get_attr_type<'m>(
         &self,
-        name: &Identifier,
+        obj: &hir::Expr,
+        attr: &Identifier,
         candidates: &'m [MethodInfo],
     ) -> Triple<&'m MethodInfo, TyCheckError> {
-        let first_method_type = &candidates[0].method_type;
+        let Some(first) = candidates.first() else {
+            return Triple::None;
+        };
         if candidates
             .iter()
             .skip(1)
-            .all(|t| &t.method_type == first_method_type)
+            .all(|mi| mi.method_info == first.method_info)
         {
-            Triple::Ok(&candidates[0])
-        } else if let Some(max) = self.max_type(candidates.iter().map(|mi| &mi.definition_type)) {
-            let max_info = candidates
-                .iter()
-                .find(|mi| &mi.definition_type == max)
-                .unwrap();
-            Triple::Ok(max_info)
+            if first.method_info.vis.compatible(&attr.acc_kind(), self) {
+                Triple::Ok(first)
+            } else {
+                Triple::None
+            }
+        } else if self.same_shape(candidates.iter().map(|mi| &mi.method_info.t)) {
+            // if all methods have the same return type, the minimum type (has biggest param types) is selected
+            // e.g. [Float -> Bool, Int -> Bool] => Float -> Bool
+            if let Some(min) = self.min_type(candidates.iter().map(|mi| &mi.method_info.t)) {
+                let min_info = candidates
+                    .iter()
+                    .find(|mi| &mi.method_info.t == min)
+                    .unwrap();
+                if min_info.method_info.vis.compatible(&attr.acc_kind(), self) {
+                    Triple::Ok(min_info)
+                } else {
+                    Triple::None
+                }
+            } else {
+                Triple::None
+            }
         } else {
-            Triple::Err(TyCheckError::ambiguous_type_error(
+            Triple::Err(TyCheckError::ambiguous_method_error(
                 self.cfg.input.clone(),
                 line!() as usize,
-                name,
+                obj,
+                attr,
                 &candidates
                     .iter()
                     .map(|t| t.definition_type.clone())
@@ -2637,15 +2698,19 @@ impl Context {
 
     /// Infer the receiver type from the attribute name.
     /// Returns an error if multiple candidates are found. If nothing is found, returns None.
-    fn get_attr_type_by_name(&self, name: &Identifier) -> Triple<&MethodInfo, TyCheckError> {
-        if let Some(candidates) = self.method_to_traits.get(name.inspect()) {
-            return self.get_attr_type(name, candidates);
+    fn get_attr_type_by_name(
+        &self,
+        receiver: &hir::Expr,
+        attr: &Identifier,
+    ) -> Triple<&MethodInfo, TyCheckError> {
+        if let Some(candidates) = self.method_to_traits.get(attr.inspect()) {
+            return self.get_attr_type(receiver, attr, candidates);
         }
-        if let Some(candidates) = self.method_to_classes.get(name.inspect()) {
-            return self.get_attr_type(name, candidates);
+        if let Some(candidates) = self.method_to_classes.get(attr.inspect()) {
+            return self.get_attr_type(receiver, attr, candidates);
         }
         if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
-            outer.get_attr_type_by_name(name)
+            outer.get_attr_type_by_name(receiver, attr)
         } else {
             Triple::None
         }

@@ -4,7 +4,7 @@ use erg_common::config::Input;
 use erg_common::error::{ErrorCore, ErrorKind::*, Location, SubMessage};
 use erg_common::set::Set;
 use erg_common::style::{StyledStr, StyledString, StyledStrings, Stylize};
-use erg_common::traits::Locational;
+use erg_common::traits::{Locational, NoTypeDisplay};
 use erg_common::{fmt_iter, fmt_option_map, fmt_vec, switch_lang, Str};
 
 use crate::error::*;
@@ -1134,6 +1134,57 @@ passed keyword args:    {kw_args_len}"
                 errno,
                 TypeError,
                 expr.loc(),
+            ),
+            input,
+            caused_by,
+        )
+    }
+
+    pub fn ambiguous_method_error(
+        input: Input,
+        errno: usize,
+        receiver: &(impl Locational + NoTypeDisplay),
+        attr: &(impl Locational + Display),
+        candidates: &[Type],
+        caused_by: String,
+    ) -> Self {
+        let first = &candidates[0];
+        let hint = switch_lang!(
+            "japanese" => format!("例: ({}: {first}){attr}", receiver.to_string_notype()),
+            "simplified_chinese" => format!("例如: ({}: {first}){attr}", receiver.to_string_notype()),
+            "traditional_chinese" => format!("例如: ({}: {first}){attr}", receiver.to_string_notype()),
+            "english" => format!("e.g. ({}: {first}){attr}", receiver.to_string_notype()),
+        );
+        let sub_msg = switch_lang!(
+            "japanese" => format!("{}の型を指定してください", receiver.to_string_notype()),
+            "simplified_chinese" => format!("请指定{}的类型", receiver.to_string_notype()),
+            "traditional_chinese" => format!("請指定{}的類型", receiver.to_string_notype()),
+            "english" => format!("specify the type of {}", receiver.to_string_notype()),
+        );
+        let mut candidate = StyledStrings::default();
+        switch_lang!(
+            "japanese" => candidate.push_str("候補: "),
+            "simplified_chinese" => candidate.push_str("候选: "),
+            "traditional_chinese" => candidate.push_str("候選: "),
+            "english" => candidate.push_str("candidates: "),
+        );
+        candidate.push_str_with_color_and_attr(&fmt_vec(candidates), WARN, ATTR);
+        Self::new(
+            ErrorCore::new(
+                vec![SubMessage::ambiguous_new(
+                    attr.loc(),
+                    vec![sub_msg, candidate.to_string()],
+                    Some(hint),
+                )],
+                switch_lang!(
+                    "japanese" => format!("属性{attr}の型を一意に決定できませんでした"),
+                    "simplified_chinese" => format!("无法确定{attr}的类型"),
+                    "traditional_chinese" => format!("無法確定{attr}的類型"),
+                    "english" => format!("cannot determine the type of attribute {attr}"),
+                ),
+                errno,
+                TypeError,
+                attr.loc(),
             ),
             input,
             caused_by,

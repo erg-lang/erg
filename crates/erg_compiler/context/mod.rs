@@ -358,7 +358,7 @@ pub struct ContextInfo {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MethodInfo {
     definition_type: Type,
-    method_type: VarInfo,
+    method_info: VarInfo,
 }
 
 impl fmt::Display for MethodInfo {
@@ -366,16 +366,16 @@ impl fmt::Display for MethodInfo {
         write!(
             f,
             "{{ def: {} info: {} }}",
-            self.definition_type, self.method_type
+            self.definition_type, self.method_info
         )
     }
 }
 
 impl MethodInfo {
-    pub const fn new(definition_type: Type, method_type: VarInfo) -> Self {
+    pub const fn new(definition_type: Type, method_info: VarInfo) -> Self {
         Self {
             definition_type,
-            method_type,
+            method_info,
         }
     }
 }

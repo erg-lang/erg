@@ -40,9 +40,9 @@ impl Context {
             return Ok(());
         }
         match (maybe_sub, maybe_sup) {
-            (Type::FreeVar(fv), _) if fv.is_linked() => self.occur(&fv.crack(), maybe_sup, loc),
-            (_, Type::FreeVar(fv)) if fv.is_linked() => self.occur(maybe_sub, &fv.crack(), loc),
-            (Type::Subr(subr), Type::FreeVar(fv)) if fv.is_unbound() => {
+            (FreeVar(fv), _) if fv.is_linked() => self.occur(&fv.crack(), maybe_sup, loc),
+            (_, FreeVar(fv)) if fv.is_linked() => self.occur(maybe_sub, &fv.crack(), loc),
+            (Subr(subr), FreeVar(fv)) if fv.is_unbound() => {
                 for default_t in subr.default_params.iter().map(|pt| pt.typ()) {
                     self.occur_inner(default_t, maybe_sup, loc)?;
                 }
@@ -55,7 +55,7 @@ impl Context {
                 self.occur_inner(&subr.return_t, maybe_sup, loc)?;
                 Ok(())
             }
-            (Type::FreeVar(fv), Type::Subr(subr)) if fv.is_unbound() => {
+            (FreeVar(fv), Subr(subr)) if fv.is_unbound() => {
                 for default_t in subr.default_params.iter().map(|pt| pt.typ()) {
                     self.occur_inner(maybe_sub, default_t, loc)?;
                 }
@@ -68,7 +68,7 @@ impl Context {
                 self.occur_inner(maybe_sub, &subr.return_t, loc)?;
                 Ok(())
             }
-            (Type::Subr(lhs), Type::Subr(rhs)) => {
+            (Subr(lhs), Subr(rhs)) => {
                 for (lhs, rhs) in lhs
                     .default_params
                     .iter()
@@ -93,7 +93,7 @@ impl Context {
                 self.occur(&lhs.return_t, &rhs.return_t, loc)?;
                 Ok(())
             }
-            (Type::Poly { params, .. }, Type::FreeVar(fv)) if fv.is_unbound() => {
+            (Poly { params, .. }, FreeVar(fv)) if fv.is_unbound() => {
                 for param in params.iter().filter_map(|tp| {
                     if let TyParam::Type(t) = tp {
                         Some(t)
@@ -105,7 +105,7 @@ impl Context {
                 }
                 Ok(())
             }
-            (Type::FreeVar(fv), Type::Poly { params, .. }) if fv.is_unbound() => {
+            (FreeVar(fv), Poly { params, .. }) if fv.is_unbound() => {
                 for param in params.iter().filter_map(|tp| {
                     if let TyParam::Type(t) = tp {
                         Some(t)
@@ -117,11 +117,11 @@ impl Context {
                 }
                 Ok(())
             }
-            (lhs, Type::Or(l, r)) | (lhs, Type::And(l, r)) => {
+            (lhs, Or(l, r)) | (lhs, And(l, r)) => {
                 self.occur_inner(lhs, l, loc)?;
                 self.occur_inner(lhs, r, loc)
             }
-            (Type::Or(l, r), rhs) | (Type::And(l, r), rhs) => {
+            (Or(l, r), rhs) | (And(l, r), rhs) => {
                 self.occur_inner(l, rhs, loc)?;
                 self.occur_inner(r, rhs, loc)
             }
@@ -136,13 +136,9 @@ impl Context {
         loc: &impl Locational,
     ) -> TyCheckResult<()> {
         match (maybe_sub, maybe_sup) {
-            (Type::FreeVar(fv), _) if fv.is_linked() => {
-                self.occur_inner(&fv.crack(), maybe_sup, loc)
-            }
-            (_, Type::FreeVar(fv)) if fv.is_linked() => {
-                self.occur_inner(maybe_sub, &fv.crack(), loc)
-            }
-            (Type::FreeVar(sub), Type::FreeVar(sup)) => {
+            (FreeVar(fv), _) if fv.is_linked() => self.occur_inner(&fv.crack(), maybe_sup, loc),
+            (_, FreeVar(fv)) if fv.is_linked() => self.occur_inner(maybe_sub, &fv.crack(), loc),
+            (FreeVar(sub), FreeVar(sup)) => {
                 if sub.is_unbound() && sup.is_unbound() && sub == sup {
                     Err(TyCheckErrors::from(TyCheckError::subtyping_error(
                         self.cfg.input.clone(),
@@ -156,7 +152,7 @@ impl Context {
                     Ok(())
                 }
             }
-            (Type::Subr(subr), Type::FreeVar(fv)) if fv.is_unbound() => {
+            (Subr(subr), FreeVar(fv)) if fv.is_unbound() => {
                 for default_t in subr.default_params.iter().map(|pt| pt.typ()) {
                     self.occur_inner(default_t, maybe_sup, loc)?;
                 }
@@ -169,7 +165,7 @@ impl Context {
                 self.occur_inner(&subr.return_t, maybe_sup, loc)?;
                 Ok(())
             }
-            (Type::FreeVar(fv), Type::Subr(subr)) if fv.is_unbound() => {
+            (FreeVar(fv), Subr(subr)) if fv.is_unbound() => {
                 for default_t in subr.default_params.iter().map(|pt| pt.typ()) {
                     self.occur_inner(maybe_sub, default_t, loc)?;
                 }
@@ -182,7 +178,7 @@ impl Context {
                 self.occur_inner(maybe_sub, &subr.return_t, loc)?;
                 Ok(())
             }
-            (Type::Subr(lhs), Type::Subr(rhs)) => {
+            (Subr(lhs), Subr(rhs)) => {
                 for (lhs, rhs) in lhs
                     .default_params
                     .iter()
@@ -207,7 +203,7 @@ impl Context {
                 self.occur_inner(&lhs.return_t, &rhs.return_t, loc)?;
                 Ok(())
             }
-            (Type::Poly { params, .. }, Type::FreeVar(fv)) if fv.is_unbound() => {
+            (Poly { params, .. }, FreeVar(fv)) if fv.is_unbound() => {
                 for param in params.iter().filter_map(|tp| {
                     if let TyParam::Type(t) = tp {
                         Some(t)
@@ -219,7 +215,7 @@ impl Context {
                 }
                 Ok(())
             }
-            (Type::FreeVar(fv), Type::Poly { params, .. }) if fv.is_unbound() => {
+            (FreeVar(fv), Poly { params, .. }) if fv.is_unbound() => {
                 for param in params.iter().filter_map(|tp| {
                     if let TyParam::Type(t) = tp {
                         Some(t)
@@ -231,11 +227,11 @@ impl Context {
                 }
                 Ok(())
             }
-            (lhs, Type::Or(l, r)) | (lhs, Type::And(l, r)) => {
+            (lhs, Or(l, r)) | (lhs, And(l, r)) => {
                 self.occur_inner(lhs, l, loc)?;
                 self.occur_inner(lhs, r, loc)
             }
-            (Type::Or(l, r), rhs) | (Type::And(l, r), rhs) => {
+            (Or(l, r), rhs) | (And(l, r), rhs) => {
                 self.occur_inner(l, rhs, loc)?;
                 self.occur_inner(r, rhs, loc)
             }
@@ -574,15 +570,15 @@ impl Context {
         loc: &impl Locational,
     ) -> SingleTyCheckResult<()> {
         match (before_t, after_t) {
-            (Type::FreeVar(fv), r) if fv.is_linked() => self.reunify(&fv.crack(), r, loc),
-            (l, Type::FreeVar(fv)) if fv.is_linked() => self.reunify(l, &fv.crack(), loc),
-            (Type::Ref(l), Type::Ref(r)) => self.reunify(l, r, loc),
+            (FreeVar(fv), r) if fv.is_linked() => self.reunify(&fv.crack(), r, loc),
+            (l, FreeVar(fv)) if fv.is_linked() => self.reunify(l, &fv.crack(), loc),
+            (Ref(l), Ref(r)) => self.reunify(l, r, loc),
             (
-                Type::RefMut {
+                RefMut {
                     before: lbefore,
                     after: lafter,
                 },
-                Type::RefMut {
+                RefMut {
                     before: rbefore,
                     after: rafter,
                 },
@@ -597,17 +593,17 @@ impl Context {
                 }
                 Ok(())
             }
-            (Type::Ref(l), r) => self.reunify(l, r, loc),
+            (Ref(l), r) => self.reunify(l, r, loc),
             // REVIEW:
-            (Type::RefMut { before, .. }, r) => self.reunify(before, r, loc),
-            (l, Type::Ref(r)) => self.reunify(l, r, loc),
-            (l, Type::RefMut { before, .. }) => self.reunify(l, before, loc),
+            (RefMut { before, .. }, r) => self.reunify(before, r, loc),
+            (l, Ref(r)) => self.reunify(l, r, loc),
+            (l, RefMut { before, .. }) => self.reunify(l, before, loc),
             (
-                Type::Poly {
+                Poly {
                     name: ln,
                     params: lps,
                 },
-                Type::Poly {
+                Poly {
                     name: rn,
                     params: rps,
                 },
@@ -689,11 +685,11 @@ impl Context {
             return Ok(());
         }
         match (maybe_sub, maybe_sup) {
-            (Type::FreeVar(lfv), _) if lfv.is_linked() => {
-                self.sub_unify(&lfv.crack(), maybe_sup, loc, param_name)
+            (FreeVar(sub_fv), _) if sub_fv.is_linked() => {
+                self.sub_unify(&sub_fv.crack(), maybe_sup, loc, param_name)
             }
-            (_, Type::FreeVar(rfv)) if rfv.is_linked() => {
-                self.sub_unify(maybe_sub, &rfv.crack(), loc, param_name)
+            (_, FreeVar(sup_fv)) if sup_fv.is_linked() => {
+                self.sub_unify(maybe_sub, &sup_fv.crack(), loc, param_name)
             }
             // lfv's sup can be shrunk (take min), rfv's sub can be expanded (take union)
             // lfvのsupは縮小可能(minを取る)、rfvのsubは拡大可能(unionを取る)
@@ -702,22 +698,22 @@ impl Context {
             // sub_unify(?T[0](:> Never, <: Str), ?U[1](:> Never, <: Int)): (?T[0](:> Never, <: Str and Int) --> Error!)
             // sub_unify(?T[0](:> Int, <: Add()), ?U[1](:> Never, <: Mul())): (?T[0](:> Int, <: Add() and Mul()))
             // sub_unify(?T[0](:> Str, <: Obj), ?U[1](:> Int, <: Obj)): (/* ?U[1] --> ?T[0](:> Str or Int) */)
-            (Type::FreeVar(lfv), Type::FreeVar(rfv))
-                if lfv.constraint_is_sandwiched() && rfv.constraint_is_sandwiched() =>
+            (FreeVar(sub_fv), FreeVar(sup_fv))
+                if sub_fv.constraint_is_sandwiched() && sup_fv.constraint_is_sandwiched() =>
             {
-                if lfv.is_generalized() || rfv.is_generalized() {
+                if sub_fv.is_generalized() || sup_fv.is_generalized() {
                     return Ok(());
                 }
-                let (lsub, lsup) = lfv.get_subsup().unwrap();
-                let (rsub, rsup) = rfv.get_subsup().unwrap();
+                let (lsub, lsup) = sub_fv.get_subsup().unwrap();
+                let (rsub, rsup) = sup_fv.get_subsup().unwrap();
                 // ?T(<: Add(?T))
                 // ?U(:> {1, 2}, <: Add(?U)) ==> {1, 2}
-                rfv.forced_undoable_link(&rsub);
+                sup_fv.forced_undoable_link(&rsub);
                 if lsub.qual_name() == rsub.qual_name() {
                     for (lps, rps) in lsub.typarams().iter().zip(rsub.typarams().iter()) {
                         self.sub_unify_tp(lps, rps, None, loc, false)
                             .map_err(|errs| {
-                                rfv.undo();
+                                sup_fv.undo();
                                 errs
                             })?;
                     }
@@ -728,12 +724,12 @@ impl Context {
                     for (lps, rps) in lsup.typarams().iter().zip(rsup.typarams().iter()) {
                         self.sub_unify_tp(lps, rps, None, loc, false)
                             .map_err(|errs| {
-                                rfv.undo();
+                                sup_fv.undo();
                                 errs
                             })?;
                     }
                 }
-                rfv.undo();
+                sup_fv.undo();
                 let intersec = self.intersection(&lsup, &rsup);
                 let new_constraint = if intersec != Type::Never {
                     Constraint::new_sandwiched(self.union(&lsub, &rsub), intersec)
@@ -747,18 +743,18 @@ impl Context {
                         self.caused_by(),
                     )));
                 };
-                if lfv.level().unwrap() <= rfv.level().unwrap() {
-                    lfv.update_constraint(new_constraint, false);
-                    rfv.link(maybe_sub);
+                if sub_fv.level().unwrap() <= sup_fv.level().unwrap() {
+                    sub_fv.update_constraint(new_constraint, false);
+                    sup_fv.link(maybe_sub);
                 } else {
-                    rfv.update_constraint(new_constraint, false);
-                    lfv.link(maybe_sup);
+                    sup_fv.update_constraint(new_constraint, false);
+                    sub_fv.link(maybe_sup);
                 }
                 Ok(())
             }
             // NG: Nat <: ?T or Int ==> Nat or Int (?T = Nat)
             // OK: Nat <: ?T or Int ==> ?T or Int
-            (sub, Type::Or(l, r))
+            (sub, Or(l, r))
                 if l.is_unbound_var()
                     && !sub.is_unbound_var()
                     && !r.is_unbound_var()
@@ -766,7 +762,7 @@ impl Context {
             {
                 Ok(())
             }
-            (sub, Type::Or(l, r))
+            (sub, Or(l, r))
                 if r.is_unbound_var()
                     && !sub.is_unbound_var()
                     && !l.is_unbound_var()
@@ -775,12 +771,12 @@ impl Context {
                 Ok(())
             }
             // e.g. Structural({ .method = (self: T) -> Int })/T
-            (Type::Structural(sub), Type::FreeVar(fv))
-                if fv.is_unbound() && sub.contains_tvar(fv) =>
+            (Structural(sub), FreeVar(sup_fv))
+                if sup_fv.is_unbound() && sub.contains_tvar(sup_fv) =>
             {
                 Ok(())
             }
-            (_, Type::FreeVar(rfv)) if rfv.is_unbound() => {
+            (_, FreeVar(sup_fv)) if sup_fv.is_unbound() => {
                 // * sub_unify(Nat, ?E(<: Eq(?E)))
                 // sub !<: l => OK (sub will widen)
                 // sup !:> l => Error
@@ -795,7 +791,7 @@ impl Context {
                 // * sub_unify({0},   ?T(:> {1},   <: Nat)): (?T(:> {0, 1}, <: Nat))
                 // * sub_unify(Bool,  ?T(<: Bool or Y)): (?T == Bool)
                 // * sub_unify(Float, ?T(<: Structural{ .imag = ?U })) ==> ?U == Float
-                if let Some((sub, mut sup)) = rfv.get_subsup() {
+                if let Some((sub, mut sup)) = sup_fv.get_subsup() {
                     if sup.is_structural() {
                         self.sub_unify(maybe_sub, &sup, loc, param_name)?;
                     }
@@ -828,42 +824,42 @@ impl Context {
                         }
                     }
                     if sup.contains_union(&new_sub) {
-                        rfv.link(&new_sub); // Bool <: ?T <: Bool or Y ==> ?T == Bool
+                        sup_fv.link(&new_sub); // Bool <: ?T <: Bool or Y ==> ?T == Bool
                     } else {
                         let constr = Constraint::new_sandwiched(new_sub, mem::take(&mut sup));
-                        rfv.update_constraint(constr, true);
+                        sup_fv.update_constraint(constr, true);
                     }
                 }
                 // sub_unify(Nat, ?T(: Type)): (/* ?T(:> Nat) */)
-                else if let Some(ty) = rfv.get_type() {
+                else if let Some(ty) = sup_fv.get_type() {
                     if self.supertype_of(&Type, &ty) {
                         let constr = Constraint::new_supertype_of(maybe_sub.clone());
-                        rfv.update_constraint(constr, true);
+                        sup_fv.update_constraint(constr, true);
                     } else {
                         todo!()
                     }
                 }
                 Ok(())
             }
-            (Type::FreeVar(fv), Type::Structural(sup)) if fv.is_unbound() => {
+            (FreeVar(sub_fv), Structural(sup)) if sub_fv.is_unbound() => {
                 let sub_fields = self.fields(maybe_sub);
                 for (sup_field, sup_ty) in self.fields(sup) {
                     if let Some((_, sub_ty)) = sub_fields.get_key_value(&sup_field) {
                         self.sub_unify(sub_ty, &sup_ty, loc, param_name)?;
-                    } else if !self.subtype_of(&fv.get_sub().unwrap(), &Never) {
+                    } else if !self.subtype_of(&sub_fv.get_sub().unwrap(), &Never) {
                         maybe_sub.coerce();
                         return self.sub_unify(maybe_sub, maybe_sup, loc, param_name);
                     } else {
                         // e.g. ?T / Structural({ .method = (self: ?T) -> Int })
-                        fv.update_super(|sup| self.intersection(&sup, maybe_sup));
+                        sub_fv.update_super(|sup| self.intersection(&sup, maybe_sup));
                     }
                 }
                 Ok(())
             }
-            (Type::FreeVar(lfv), Ref(t)) if lfv.is_unbound() => {
+            (FreeVar(sub_fv), Ref(t)) if sub_fv.is_unbound() => {
                 self.sub_unify(maybe_sub, t, loc, param_name)
             }
-            (Type::FreeVar(lfv), _) if lfv.is_unbound() => {
+            (FreeVar(sub_fv), _) if sub_fv.is_unbound() => {
                 // sub !<: r => Error
                 // * sub_unify(?T(:> Int,   <: _), Nat): (/* Error */)
                 // * sub_unify(?T(:> Nat,   <: _), Str): (/* Error */)
@@ -876,32 +872,32 @@ impl Context {
                 // sup = intersection(sup, r) if min does not exist
                 // * sub_unify(?T(<: {1}), {0}): (* ?T == Never *)
                 // * sub_unify(?T(<: Eq and Ord), Show): (?T(<: Eq and Ord and Show))
-                if let Some((mut sub, sup)) = lfv.get_subsup() {
+                if let Some((mut sub, sup)) = sub_fv.get_subsup() {
                     if sup.is_structural() {
                         return Ok(());
                     }
                     if let Some(new_sup) = self.min(&sup, maybe_sup) {
                         let constr =
                             Constraint::new_sandwiched(mem::take(&mut sub), new_sup.clone());
-                        lfv.update_constraint(constr, true);
+                        sub_fv.update_constraint(constr, true);
                     } else {
                         let new_sup = self.intersection(&sup, maybe_sup);
                         let constr = Constraint::new_sandwiched(mem::take(&mut sub), new_sup);
-                        lfv.update_constraint(constr, true);
+                        sub_fv.update_constraint(constr, true);
                     }
                 }
                 // sub_unify(?T(: Type), Int): (?T(<: Int))
-                else if let Some(ty) = lfv.get_type() {
+                else if let Some(ty) = sub_fv.get_type() {
                     if self.supertype_of(&Type, &ty) {
                         let constr = Constraint::new_subtype_of(maybe_sup.clone());
-                        lfv.update_constraint(constr, true);
+                        sub_fv.update_constraint(constr, true);
                     } else {
                         todo!()
                     }
                 }
                 Ok(())
             }
-            (Type::Record(lrec), Type::Record(rrec)) => {
+            (Record(lrec), Record(rrec)) => {
                 for (k, l) in lrec.iter() {
                     if let Some(r) = rrec.get(k) {
                         self.sub_unify(l, r, loc, param_name)?;
@@ -918,7 +914,7 @@ impl Context {
                 }
                 Ok(())
             }
-            (Type::Subr(lsub), Type::Subr(rsub)) => {
+            (Subr(lsub), Subr(rsub)) => {
                 lsub.non_default_params
                     .iter()
                     .zip(rsub.non_default_params.iter())
@@ -965,7 +961,7 @@ impl Context {
                 self.sub_unify(&lsub.return_t, &rsub.return_t, loc, param_name)?;
                 Ok(())
             }
-            (Type::Quantified(lsub), Type::Subr(rsub)) => {
+            (Quantified(lsub), Subr(rsub)) => {
                 let Ok(lsub) = <&SubrType>::try_from(lsub.as_ref()) else { unreachable!() };
                 for lpt in lsub.default_params.iter() {
                     if let Some(rpt) = rsub
@@ -998,7 +994,7 @@ impl Context {
                 self.sub_unify(&lsub.return_t, &rsub.return_t, loc, param_name)?;
                 Ok(())
             }
-            (Type::Subr(lsub), Type::Quantified(rsub)) => {
+            (Subr(lsub), Quantified(rsub)) => {
                 let Ok(rsub) = <&SubrType>::try_from(rsub.as_ref()) else { unreachable!() };
                 for lpt in lsub.default_params.iter() {
                     if let Some(rpt) = rsub
@@ -1031,11 +1027,11 @@ impl Context {
                 Ok(())
             }
             (
-                Type::Poly {
+                Poly {
                     name: ln,
                     params: lps,
                 },
-                Type::Poly {
+                Poly {
                     name: rn,
                     params: rps,
                 },
@@ -1052,8 +1048,8 @@ impl Context {
                     Ok(())
                 }
             }
-            (Type::Structural(l), Type::Structural(r)) => self.sub_unify(l, r, loc, param_name),
-            (sub, Type::Structural(sup)) => {
+            (Structural(l), Structural(r)) => self.sub_unify(l, r, loc, param_name),
+            (sub, Structural(sup)) => {
                 let sub_fields = self.fields(sub);
                 for (sup_field, sup_ty) in self.fields(sup) {
                     if let Some((_, sub_ty)) = sub_fields.get_key_value(&sup_field) {
@@ -1074,11 +1070,11 @@ impl Context {
             }
             (
                 _,
-                Type::Poly {
+                Poly {
                     params: sup_params, ..
                 },
             ) => self.nominal_sub_unify(maybe_sub, maybe_sup, sup_params, loc),
-            (Type::Or(l1, r1), Type::Or(l2, r2)) | (Type::And(l1, r1), Type::And(l2, r2)) => {
+            (Or(l1, r1), Or(l2, r2)) | (Type::And(l1, r1), Type::And(l2, r2)) => {
                 if self.subtype_of(l1, l2) && self.subtype_of(r1, r2) {
                     self.sub_unify(l1, l2, loc, param_name)?;
                     self.sub_unify(r1, r2, loc, param_name)
@@ -1088,30 +1084,30 @@ impl Context {
                 }
             }
             // (X or Y) <: Z is valid when X <: Z and Y <: Z
-            (Type::Or(l, r), _) => {
+            (Or(l, r), _) => {
                 self.sub_unify(l, maybe_sup, loc, param_name)?;
                 self.sub_unify(r, maybe_sup, loc, param_name)
             }
             // X <: (Y and Z) is valid when X <: Y and X <: Z
-            (_, Type::And(l, r)) => {
+            (_, And(l, r)) => {
                 self.sub_unify(maybe_sub, l, loc, param_name)?;
                 self.sub_unify(maybe_sub, r, loc, param_name)
             }
             // (X and Y) <: Z is valid when X <: Z or Y <: Z
-            (Type::And(l, r), _) => self
+            (And(l, r), _) => self
                 .sub_unify(l, maybe_sup, loc, param_name)
                 .or_else(|_e| self.sub_unify(r, maybe_sup, loc, param_name)),
             // X <: (Y or Z) is valid when X <: Y or X <: Z
-            (_, Type::Or(l, r)) => self
+            (_, Or(l, r)) => self
                 .sub_unify(maybe_sub, l, loc, param_name)
                 .or_else(|_e| self.sub_unify(maybe_sub, r, loc, param_name)),
-            (Type::Ref(l), Type::Ref(r)) => self.sub_unify(l, r, loc, param_name),
-            (_, Type::Ref(t)) => self.sub_unify(maybe_sub, t, loc, param_name),
-            (Type::RefMut { before: l, .. }, Type::RefMut { before: r, .. }) => {
+            (Ref(l), Ref(r)) => self.sub_unify(l, r, loc, param_name),
+            (_, Ref(t)) => self.sub_unify(maybe_sub, t, loc, param_name),
+            (RefMut { before: l, .. }, RefMut { before: r, .. }) => {
                 self.sub_unify(l, r, loc, param_name)
             }
-            (_, Type::RefMut { before, .. }) => self.sub_unify(maybe_sub, before, loc, param_name),
-            (_, Type::Proj { lhs, rhs }) => {
+            (_, RefMut { before, .. }) => self.sub_unify(maybe_sub, before, loc, param_name),
+            (_, Proj { lhs, rhs }) => {
                 if let Ok(evaled) = self.eval_proj(*lhs.clone(), rhs.clone(), self.level, loc) {
                     if maybe_sup != &evaled {
                         self.sub_unify(maybe_sub, &evaled, loc, param_name)?;
@@ -1119,7 +1115,7 @@ impl Context {
                 }
                 Ok(())
             }
-            (Type::Proj { lhs, rhs }, _) => {
+            (Proj { lhs, rhs }, _) => {
                 if let Ok(evaled) = self.eval_proj(*lhs.clone(), rhs.clone(), self.level, loc) {
                     if maybe_sub != &evaled {
                         self.sub_unify(&evaled, maybe_sup, loc, param_name)?;
@@ -1140,21 +1136,19 @@ impl Context {
                 self.sub_unify_pred(&sub.pred, &sup.pred, loc)
             }
             // {I: Int | I >= 1} <: Nat == {I: Int | I >= 0}
-            (Type::Refinement(_), sup) => {
+            (Refinement(_), sup) => {
                 let sup = sup.clone().into_refinement();
                 self.sub_unify(maybe_sub, &Type::Refinement(sup), loc, param_name)
             }
-            (sub, Type::Refinement(_)) => {
+            (sub, Refinement(_)) => {
                 let sub = sub.clone().into_refinement();
                 self.sub_unify(&Type::Refinement(sub), maybe_sup, loc, param_name)
             }
-            (Type::Subr(_) | Type::Record(_), Type) => Ok(()),
+            (Subr(_) | Record(_), Type) => Ok(()),
             // REVIEW: correct?
-            (Type::Poly { name, .. }, Type) if &name[..] == "Array" || &name[..] == "Tuple" => {
-                Ok(())
-            }
-            (Type::Poly { .. }, _) => self.nominal_sub_unify(maybe_sub, maybe_sup, &[], loc),
-            (Type::Subr(_), Mono(name)) if &name[..] == "GenericCallable" => Ok(()),
+            (Poly { name, .. }, Type) if &name[..] == "Array" || &name[..] == "Tuple" => Ok(()),
+            (Poly { .. }, _) => self.nominal_sub_unify(maybe_sub, maybe_sup, &[], loc),
+            (Subr(_), Mono(name)) if &name[..] == "GenericCallable" => Ok(()),
             _ => type_feature_error!(
                 self,
                 loc.loc(),
