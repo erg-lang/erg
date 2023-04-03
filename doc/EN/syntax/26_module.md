@@ -8,7 +8,7 @@ Erg allows you to think of the file itself as a single record. This is called a 
 ```
 
 ```python
-# Defining the foo module is almost the same as defining this record
+# Defining the foo module is structurally the same as defining this record
 foo = {.i = 1}
 ```
 
@@ -19,11 +19,9 @@ print! foo # <module 'foo'>
 assert foo.i == 1
 ```
 
-Since module types are also record types, deconstruction assignment is possible.
-For modules, you can omit the trailing `...`.
+Deconstruction assignment is possible like a record.
 
 ```python
-# same as {sin; cos; ...} = import "math"
 {sin; cos} = import "math"
 ```
 

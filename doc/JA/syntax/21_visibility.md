@@ -233,10 +233,10 @@ D.
 C = Class {.[<: C]i = Int}
 ```
 
-<p align='center'>
-    <a href='./20_ownership.md'>Previous</a> | <a href='./22_naming_rule.md'>Next</a>
-</p>
-
 ---
 
 <span id="1" style="font-size:x-small"><sup>1</sup> Ergにおいて名前空間は、名前とオブジェクトの対応の集合を指す。インスタントスコープを作る変数の識別子やモジュール・関数・クラス・レコードが名前空間と同一視される。関数・クラス・レコードは識別子に束縛せずに生成することができるため、これらは本来無名名前空間を作る。しかし識別子に束縛されると、識別子と同名の名前で上書きされる。[↩](#f1) </span>
+
+<p align='center'>
+    <a href='./20_ownership.md'>Previous</a> | <a href='./22_naming_rule.md'>Next</a>
+</p>

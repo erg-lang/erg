@@ -2,7 +2,7 @@
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/25_module.md%26commit_hash%3Dc8932f8fd75cc86f67421bb6b160fffaf7acdd94)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/25_module.md&commit_hash=c8932f8fd75cc86f67421bb6b160fffaf7acdd94)
 
-Ergでは、ファイル自体を1つのレコードとみなすことができます。これをモジュールと呼びます。
+Ergでは、ファイル自体を1つのレコードとみなすことができます[<sup id="f1">1</sup>](#1)。これをモジュールと呼びます。
 
 ```python,checker_ignore
 # foo.er
@@ -10,7 +10,7 @@ Ergでは、ファイル自体を1つのレコードとみなすことができ�
 ```
 
 ```python
-# fooモジュールを定義するのはこのレコードを定義するのとほとんど同じ
+# fooモジュールを定義するのはこのレコードを定義するのと構造的には同じ
 foo = {.i = 1}
 ```
 
@@ -21,11 +21,9 @@ print! foo # <module 'foo'>
 assert foo.i == 1
 ```
 
-モジュール型はレコード型でもあるので、分解代入が可能です。
-モジュールの場合は最後の`...`を省略できます。
+モジュール型は分解代入が可能です。
 
 ```python
-# same as {sin; cos; ...} = import "math"
 {sin; cos} = import "math"
 ```
 
@@ -89,7 +87,7 @@ print! bar.g 1
 
 ```python
 # bar.er
-foo = "foo "をインポート
+foo = import "foo"
 
 print! foo.f 1
 .g x = x
@@ -115,6 +113,10 @@ print! foo.x
 ```
 
 また、エントリポイントであるErgモジュール（すなわち `__name__ == "__main__"` であるモジュール）は循環参照の対象になることはできません。
+
+---
+
+<span id="1" style="font-size:x-small"><sup>1</sup> モジュールとレコードの間に直接の部分型関係はないが、形式的にはモジュールがレコードの部分集合である。レコード内では属性の定義のみが行えるが、モジュール内ではあらゆる可能な式を置ける。[↩](#f1) </span>
 
 <p align='center'>
     <a href='./25_closure.md'>Previous</a> | <a href='./27_object_system.md'>Next</a>
