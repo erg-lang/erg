@@ -1371,8 +1371,36 @@ impl Iterator for Lexer /*<'a>*/ {
                     ),
                 )))
             }
-            // TODO:
-            Some('\\') => self.deny_feature("\\", "ignoring line break"),
+            Some('\\') => match self.peek_cur_ch() {
+                Some('\n') => {
+                    self.cursor += 1;
+                    self.lineno_token_starts += 1;
+                    self.col_token_starts = 0;
+                    self.next()
+                }
+                // TODO: more description
+                Some(other) => {
+                    let token = self.emit_token(Illegal, &format!("\\{other}"));
+                    Some(Err(LexError::syntax_error(
+                        line!() as usize,
+                        token.loc(),
+                        switch_lang!(
+                            "japanese" => "\\の後に改行以外を置くことはできません",
+                            "simplified_chinese" => "不能在\\后面放置除换行符以外的字符",
+                            "traditional_chinese" => "不能在\\後面放置除換行符以外的字符",
+                            "english" => "cannot put anything other than line breaks after \\",
+                        ),
+                        None,
+                    )))
+                }
+                None => {
+                    let token = self.emit_token(Illegal, "\\");
+                    Some(Err(LexError::simple_syntax_error(
+                        line!() as usize,
+                        token.loc(),
+                    )))
+                }
+            },
             // Single StrLit and Multi-line StrLit
             Some('\"') => {
                 let c = self.peek_cur_ch();
