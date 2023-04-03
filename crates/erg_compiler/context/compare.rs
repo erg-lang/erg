@@ -720,8 +720,20 @@ impl Context {
                 let Some((_, ctx)) = self.get_nominal_type_ctx(other) else {
                     return Dict::new();
                 };
+                let mod_fields = if other.is_module() {
+                    if let Ok(ValueObj::Str(mod_name)) =
+                        ValueObj::try_from(other.typarams()[0].clone())
+                    {
+                        self.get_mod(&mod_name).unwrap().local_dir()
+                    } else {
+                        Dict::new()
+                    }
+                } else {
+                    Dict::new()
+                };
                 ctx.type_dir(self)
                     .into_iter()
+                    .chain(mod_fields.into_iter())
                     .map(|(name, vi)| {
                         (
                             Field::new(vi.vis.modifier.clone(), name.inspect().clone()),
