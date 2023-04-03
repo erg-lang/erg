@@ -312,6 +312,13 @@ impl Lexer /*<'a>*/ {
         }
     }
 
+    fn prev_can_be_receiver(&self) -> bool {
+        self.prev_token.category_is(TokenCategory::Symbol)
+            || self.prev_token.category_is(TokenCategory::REnclosure)
+            || self.prev_token.category_is(TokenCategory::StrInterpRight)
+            || self.prev_token.category_is(TokenCategory::PostfixOp)
+    }
+
     fn is_zero(s: &str) -> bool {
         s.replace("-0", "").replace('0', "").is_empty()
     }
@@ -629,7 +636,7 @@ impl Lexer /*<'a>*/ {
     fn lex_num_dot(&mut self, mut num: String) -> LexResult<Token> {
         match self.peek_next_ch() {
             // RatioLit
-            Some(n) if n.is_ascii_digit() => {
+            Some(n) if n.is_ascii_digit() && !self.prev_token.is(Dot) => {
                 num.push(self.consume().unwrap());
                 self.lex_ratio(num)
             }
@@ -1201,9 +1208,9 @@ impl Iterator for Lexer /*<'a>*/ {
                         _ => self.accept(Closed, ".."),
                     }
                 }
-                // prev_token is Symbol => TupleAttribute
+                // prev_token can be a receiver => TupleAttribute (e.g. t.0)
                 // else: RatioLit (e.g. .0)
-                Some(c) if c.is_ascii_digit() && !self.prev_token.is(Symbol) => {
+                Some(c) if c.is_ascii_digit() && !self.prev_can_be_receiver() => {
                     Some(self.lex_ratio(".".into()))
                 }
                 _ => self.accept(Dot, "."),
