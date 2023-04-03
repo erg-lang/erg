@@ -790,27 +790,31 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
     fn eliminate_needless_quant(&mut self, subr: Type) -> TyCheckResult<Type> {
         let Ok(mut subr) = SubrType::try_from(subr) else { unreachable!() };
         let essential_qnames = subr.essential_qnames();
-        let stash = self.qnames;
-        self.qnames = Box::leak(Box::new(essential_qnames));
+        let mut _self = Dereferencer::new(
+            self.ctx,
+            self.variance,
+            self.coerce,
+            &essential_qnames,
+            self.loc,
+        );
         for param in subr.non_default_params.iter_mut() {
-            self.push_variance(Contravariant);
-            *param.typ_mut() = self.deref_tyvar(mem::take(param.typ_mut()))?;
-            self.pop_variance();
+            _self.push_variance(Contravariant);
+            *param.typ_mut() = _self.deref_tyvar(mem::take(param.typ_mut()))?;
+            _self.pop_variance();
         }
         if let Some(var_args) = &mut subr.var_params {
-            self.push_variance(Contravariant);
-            *var_args.typ_mut() = self.deref_tyvar(mem::take(var_args.typ_mut()))?;
-            self.pop_variance();
+            _self.push_variance(Contravariant);
+            *var_args.typ_mut() = _self.deref_tyvar(mem::take(var_args.typ_mut()))?;
+            _self.pop_variance();
         }
         for d_param in subr.default_params.iter_mut() {
-            self.push_variance(Contravariant);
-            *d_param.typ_mut() = self.deref_tyvar(mem::take(d_param.typ_mut()))?;
-            self.pop_variance();
+            _self.push_variance(Contravariant);
+            *d_param.typ_mut() = _self.deref_tyvar(mem::take(d_param.typ_mut()))?;
+            _self.pop_variance();
         }
-        self.push_variance(Covariant);
-        subr.return_t = Box::new(self.deref_tyvar(mem::take(&mut subr.return_t))?);
-        self.pop_variance();
-        self.qnames = stash;
+        _self.push_variance(Covariant);
+        subr.return_t = Box::new(_self.deref_tyvar(mem::take(&mut subr.return_t))?);
+        _self.pop_variance();
         let subr = Type::Subr(subr);
         if subr.has_qvar() {
             Ok(subr.quantify())
