@@ -34,7 +34,6 @@ a[Nat; 3]
 a[1: 1]
 
 t = (1, True, "a")
-t.0.1
 t.-1
 
 r = {name = "John Doe"; age = 21; from="Unknown"}
