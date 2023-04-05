@@ -9,7 +9,7 @@ use erg_common::error::{
 };
 use erg_common::style::{Attribute, Color, StyledStr, StyledStrings, THEME};
 use erg_common::traits::Stream;
-use erg_common::{fmt_iter, impl_display_and_error, impl_stream, switch_lang};
+use erg_common::{fmt_iter, fmt_vec_split_with, impl_display_and_error, impl_stream, switch_lang};
 
 use crate::token::TokenKind;
 
@@ -277,15 +277,25 @@ impl LexError {
         ))
     }
 
-    pub fn invalid_seq_elems_error(errno: usize, loc: Location, hint: Option<&str>) -> LexError {
-        let hint = hint.map(|hint| hint.to_string());
+    pub fn invalid_seq_elems_error<S: fmt::Display>(
+        errno: usize,
+        loc: Location,
+        expected: &[S],
+        got: TokenKind,
+    ) -> LexError {
+        let hint = switch_lang!(
+            "japanese" => format!("{}が期待されましたが、{got}となっています", fmt_vec_split_with(expected, " または ")),
+            "simplified_chinese" => format!("期待: {}，得到: {got}", fmt_vec_split_with(expected, " 或 ")),
+            "traditional_chinese" => format!("期待: {}，得到: {got}", fmt_vec_split_with(expected, " 或 ")),
+            "english" => format!("expect: {}, got: {got}", fmt_vec_split_with(expected, " or ")),
+        );
         let msg = switch_lang!(
             "japanese" => "要素の列挙の仕方が不正です",
             "simplified_chinese" => "无效的Sequential元素声明",
             "traditional_chinese" => "無效的Sequential元素聲明",
             "english" => "invalid sequential elements declaration",
         );
-        Self::syntax_error(errno, loc, msg, hint)
+        Self::syntax_error(errno, loc, msg, Some(hint))
     }
 
     pub fn invalid_record_element_err(errno: usize, loc: Location) -> LexError {

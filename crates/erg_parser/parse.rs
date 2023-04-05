@@ -303,16 +303,17 @@ impl Parser {
         ParseError::unclosed_error(line as usize, loc, closer, ty)
     }
 
-    fn skip_and_throw_invalid_seq_err(
+    fn skip_and_throw_invalid_seq_err<S: std::fmt::Display>(
         &mut self,
         caused_by: &str,
         errno: usize,
-        hint: Option<&str>,
+        expected: &[S],
+        found: TokenKind,
     ) -> ParseError {
         log!(err "error caused by: {caused_by}");
         let loc = self.peek().map(|t| t.loc()).unwrap_or_default();
         self.next_expr();
-        ParseError::invalid_seq_elems_error(errno, loc, hint)
+        ParseError::invalid_seq_elems_error(errno, loc, expected, found)
     }
 
     fn skip_and_throw_invalid_chunk_err(
@@ -732,8 +733,7 @@ impl Parser {
         Ok(acc)
     }
 
-    /// For parsing elements of arrays and tuples
-    fn try_reduce_elems(&mut self) -> ParseResult<ArrayInner> {
+    fn try_reduce_array_elems(&mut self) -> ParseResult<ArrayInner> {
         debug_call_info!(self);
         if self.cur_category_is(TC::REnclosure) {
             let args = Args::empty();
@@ -781,16 +781,11 @@ impl Parser {
                 Some(Comma) => {
                     self.skip();
                     if self.cur_is(Comma) {
-                        let hint = switch_lang!(
-                            "japanese" => "カンマの代わりに要素か括弧を追加してください",
-                            "simplified_chinese" => "应添加一个元素或括号，而不是逗号",
-                            "traditional_chinese" => "應添加一個元素或括號，而不是逗號",
-                            "english" => "a element or bracket should be added instead of comma",
-                        );
                         let err = self.skip_and_throw_invalid_seq_err(
                             caused_by!(),
                             line!() as usize,
-                            Some(hint),
+                            &["]", "element"],
+                            Comma,
                         );
                         self.errs.push(err);
                         debug_exit_info!(self);
@@ -1087,16 +1082,11 @@ impl Parser {
                                 if let Expr::Accessor(Accessor::Ident(n)) = *tasc.expr {
                                     (n.name.into_token(), Some(tasc.t_spec))
                                 } else {
-                                    let hint = switch_lang!(
-                                    "japanese" => "カンマの代わりに要素か括弧を追加してください",
-                                    "simplified_chinese" => "可以添加元素或括号而不是逗号",
-                                    "traditional_chinese" => "可以添加元素或括號而不是逗號",
-                                    "english" => "a element or bracket may be added instead of comma",
-                                    );
                                     let err = self.skip_and_throw_invalid_seq_err(
                                         caused_by!(),
                                         line!() as usize,
-                                        Some(hint),
+                                        &["right enclosure", "element"],
+                                        Comma,
                                     );
                                     self.errs.push(err);
                                     debug_exit_info!(self);
@@ -2286,7 +2276,7 @@ impl Parser {
         debug_call_info!(self);
         let l_sqbr = self.lpop();
         let inner = self
-            .try_reduce_elems()
+            .try_reduce_array_elems()
             .map_err(|_| self.stack_dec(fn_name!()))?;
         let r_sqbr = expect_pop!(self, fail_next RSqBr);
         let arr = match inner {
@@ -2504,16 +2494,11 @@ impl Parser {
                     self.skip();
                     match self.peek() {
                         Some(t) if t.is(Semi) => {
-                            let hint = switch_lang!(
-                                "japanese" => "セミコロンの代わりに要素か括弧を追加してください",
-                                "simplified_chinese" => "可以添加元素或括号而不是分号",
-                                "traditional_chinese" => "可以添加元素或括號而不是分號",
-                                "english" => "a element or bracket may be added instead of semicolon",
-                            );
                             let err = self.skip_and_throw_invalid_seq_err(
                                 caused_by!(),
                                 line!() as usize,
-                                Some(hint),
+                                &["}", "element"],
+                                Semi,
                             );
                             self.errs.push(err);
                             debug_exit_info!(self);
@@ -2602,16 +2587,11 @@ impl Parser {
                     self.skip();
                     match self.peek_kind() {
                         Some(Comma) => {
-                            let hint = switch_lang!(
-                                "japanese" => "カンマの代わりに要素か括弧を追加してください",
-                                "simplified_chinese" => "可以添加元素或括号而不是逗号",
-                                "traditional_chinese" => "可以添加元素或括號而不是逗號",
-                                "english" => "a element or bracket may be added instead of comma",
-                            );
                             let err = self.skip_and_throw_invalid_seq_err(
                                 caused_by!(),
                                 line!() as usize,
-                                Some(hint),
+                                &["}", "element"],
+                                Comma,
                             );
                             self.errs.push(err);
                             debug_exit_info!(self);
@@ -2710,16 +2690,11 @@ impl Parser {
                         Some(Comma) => {
                             let caused_by = caused_by!();
                             log!(err "error caused by: {caused_by}");
-                            let hint = switch_lang!(
-                                    "japanese" => "カンマの代わりに要素か括弧を追加してください",
-                                    "simplified_chinese" => "可以添加一個元素而不是逗號或括號",
-                                    "traditional_chinese" => "可以添加元素或括號而不是逗號",
-                                    "english" => "a element or bracket may be added instead of comma",
-                            );
                             let err = self.skip_and_throw_invalid_seq_err(
                                 caused_by!(),
                                 line!() as usize,
-                                Some(hint),
+                                &["}", "element"],
+                                Comma,
                             );
                             self.errs.push(err);
                             debug_exit_info!(self);
@@ -2772,17 +2747,12 @@ impl Parser {
                     debug_exit_info!(self);
                     return Ok(set);
                 }
-                Some(_) => {
-                    let hint = switch_lang!(
-                        "japanese" => "セミコロンか括弧を追加してください",
-                        "simplified_chinese" => "可以添加分号或括号",
-                        "traditional_chinese" => "可以添加分號或括號",
-                        "english" => "semicolon or bracket may be added",
-                    );
+                Some(other) => {
                     let err = self.skip_and_throw_invalid_seq_err(
                         caused_by!(),
                         line!() as usize,
-                        Some(hint),
+                        &["}", "element"],
+                        other,
                     );
                     self.errs.push(err);
                     debug_exit_info!(self);
@@ -2817,16 +2787,11 @@ impl Parser {
                         self.skip();
                     }
                     if self.cur_is(Comma) {
-                        let hint = switch_lang!(
-                            "japanese" => "カンマの代わりに要素か括弧を追加してください",
-                            "simplified_chinese" => "元素或括号而不是逗号",
-                            "traditional_chinese" => "元素或括號而不是逗號",
-                            "english" => "a element or bracket instead of a comma",
-                        );
                         let err = self.skip_and_throw_invalid_seq_err(
                             caused_by!(),
                             line!() as usize,
-                            Some(hint),
+                            &[")", "element"],
+                            Comma,
                         );
                         self.errs.push(err);
                         debug_exit_info!(self);
