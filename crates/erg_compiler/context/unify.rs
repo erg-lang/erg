@@ -2,16 +2,16 @@
 use std::mem;
 use std::option::Option;
 
+use erg_common::fresh::fresh_varname;
 use erg_common::traits::Locational;
 use erg_common::Str;
 #[allow(unused_imports)]
 use erg_common::{fmt_vec, log};
 use erg_common::{fn_name, switch_lang};
 
-use crate::context::instantiate::TyVarCache;
 use crate::ty::constructors::*;
-use crate::ty::free::{Constraint, FreeKind, HasLevel};
-use crate::ty::typaram::TyParam;
+use crate::ty::free::{Constraint, FreeKind, HasLevel, GENERIC_LEVEL};
+use crate::ty::typaram::{OpKind, TyParam};
 use crate::ty::value::ValueObj;
 use crate::ty::{Predicate, SubrType, Type};
 
@@ -474,11 +474,11 @@ impl Context {
     /// predは正規化されているとする
     fn sub_unify_pred(
         &self,
-        l_pred: &Predicate,
-        r_pred: &Predicate,
+        sub_pred: &Predicate,
+        sup_pred: &Predicate,
         loc: &impl Locational,
     ) -> TyCheckResult<()> {
-        match (l_pred, r_pred) {
+        match (sub_pred, sup_pred) {
             (Pred::Value(_), Pred::Value(_)) | (Pred::Const(_), Pred::Const(_)) => Ok(()),
             (Pred::Equal { rhs, .. }, Pred::Equal { rhs: rhs2, .. })
             | (Pred::GreaterEqual { rhs, .. }, Pred::GreaterEqual { rhs: rhs2, .. })
@@ -496,7 +496,11 @@ impl Context {
                 }
             }
             (Pred::Not(l), Pred::Not(r)) => self.sub_unify_pred(r, l, loc),
-            // unify({I >= 0}, {I >= ?M and I <= ?N}): ?M => 0, ?N => Inf
+            // sub_unify_pred(I == M, I <= ?N(: Nat)) ==> ?N(: M..)
+            (Pred::Equal { rhs, .. }, Pred::LessEqual { rhs: rhs2, .. }) => {
+                self.coerce_greater_than(rhs2, rhs, loc)
+            }
+            // sub_unify_pred(I >= 0, I >= ?M and I <= ?N) ==> ?M => 0, ?N => Inf
             (Pred::GreaterEqual { rhs, .. }, Pred::And(l, r))
             | (Predicate::And(l, r), Pred::GreaterEqual { rhs, .. }) => {
                 match (l.as_ref(), r.as_ref()) {
@@ -514,8 +518,9 @@ impl Context {
                     _ => Err(TyCheckErrors::from(TyCheckError::pred_unification_error(
                         self.cfg.input.clone(),
                         line!() as usize,
-                        l_pred,
-                        r_pred,
+                        sub_pred,
+                        sup_pred,
+                        loc.loc(),
                         self.caused_by(),
                     ))),
                 }
@@ -530,8 +535,9 @@ impl Context {
                 _ => Err(TyCheckErrors::from(TyCheckError::pred_unification_error(
                     self.cfg.input.clone(),
                     line!() as usize,
-                    l_pred,
-                    r_pred,
+                    sub_pred,
+                    sup_pred,
+                    loc.loc(),
                     self.caused_by(),
                 ))),
             },
@@ -545,16 +551,53 @@ impl Context {
                 _ => Err(TyCheckErrors::from(TyCheckError::pred_unification_error(
                     self.cfg.input.clone(),
                     line!() as usize,
-                    l_pred,
-                    r_pred,
+                    sub_pred,
+                    sup_pred,
+                    loc.loc(),
                     self.caused_by(),
                 ))),
             },
             _ => Err(TyCheckErrors::from(TyCheckError::pred_unification_error(
                 self.cfg.input.clone(),
                 line!() as usize,
-                l_pred,
-                r_pred,
+                sub_pred,
+                sup_pred,
+                loc.loc(),
+                self.caused_by(),
+            ))),
+        }
+    }
+
+    fn coerce_greater_than(
+        &self,
+        target: &TyParam,
+        value: &TyParam,
+        loc: &impl Locational,
+    ) -> TyCheckResult<()> {
+        match target {
+            TyParam::FreeVar(fv) => {
+                if let Ok(evaled) = self.eval_tp(value.clone()) {
+                    let pred = Predicate::ge(fresh_varname().into(), evaled);
+                    let new_type = self.type_from_pred(pred);
+                    let new_constr = Constraint::new_type_of(Type::from(new_type));
+                    fv.update_constraint(new_constr, false);
+                }
+                Ok(())
+            }
+            TyParam::BinOp {
+                op: OpKind::Sub,
+                lhs,
+                rhs,
+            } => {
+                let value = TyParam::bin(OpKind::Add, value.clone(), *rhs.clone());
+                self.coerce_greater_than(lhs, &value, loc)
+            }
+            _ => Err(TyCheckErrors::from(TyCheckError::pred_unification_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                &Pred::eq("_".into(), value.clone()),
+                &Pred::le("_".into(), target.clone()),
+                loc.loc(),
                 self.caused_by(),
             ))),
         }
@@ -743,7 +786,9 @@ impl Context {
                         self.caused_by(),
                     )));
                 };
-                if sub_fv.level().unwrap() <= sup_fv.level().unwrap() {
+                if sub_fv.level().unwrap_or(GENERIC_LEVEL)
+                    <= sup_fv.level().unwrap_or(GENERIC_LEVEL)
+                {
                     sub_fv.update_constraint(new_constraint, false);
                     sup_fv.link(maybe_sub);
                 } else {
@@ -872,17 +917,28 @@ impl Context {
                 // sup = intersection(sup, r) if min does not exist
                 // * sub_unify(?T(<: {1}), {0}): (* ?T == Never *)
                 // * sub_unify(?T(<: Eq and Ord), Show): (?T(<: Eq and Ord and Show))
+                // * sub_unify(?T(:> [Int; 4]), [Int, _]): (* ?T == [Int; 4] *)
                 if let Some((mut sub, sup)) = sub_fv.get_subsup() {
                     if sup.is_structural() {
                         return Ok(());
                     }
-                    if let Some(new_sup) = self.min(&sup, maybe_sup) {
-                        let constr =
-                            Constraint::new_sandwiched(mem::take(&mut sub), new_sup.clone());
-                        sub_fv.update_constraint(constr, true);
+                    let sub = mem::take(&mut sub);
+                    let new_sup = if let Some(new_sup) = self.min(&sup, maybe_sup) {
+                        new_sup.clone()
                     } else {
-                        let new_sup = self.intersection(&sup, maybe_sup);
-                        let constr = Constraint::new_sandwiched(mem::take(&mut sub), new_sup);
+                        self.intersection(&sup, maybe_sup)
+                    };
+                    // ?T(:> Int, <: Int) ==> ?T == Int
+                    // ?T(:> Array(Int, 3), <: Array(?T, ?N)) ==> ?T == Array(Int, 3)
+                    if !sub.is_refinement()
+                        && new_sup.qual_name() == sub.qual_name()
+                        && !new_sup.is_unbound_var()
+                        && !sub.is_unbound_var()
+                    {
+                        self.sub_unify(&sub, &new_sup, loc, param_name)?;
+                        sub_fv.link(&sub);
+                    } else {
+                        let constr = Constraint::new_sandwiched(sub, new_sup);
                         sub_fv.update_constraint(constr, true);
                     }
                 }
@@ -1166,9 +1222,7 @@ impl Context {
         loc: &impl Locational,
     ) -> TyCheckResult<()> {
         if let Some((sub_def_t, sub_ctx)) = self.get_nominal_type_ctx(maybe_sub) {
-            let mut tv_cache = TyVarCache::new(self.level, self);
-            let _sub_def_instance =
-                self.instantiate_t_inner(sub_def_t.clone(), &mut tv_cache, loc)?;
+            let _sub_def_instance = self.instantiate_def_type(sub_def_t)?;
             // e.g.
             // maybe_sub: Zip(Int, Str)
             // sub_def_t: Zip(T, U) ==> Zip(Int, Str)
@@ -1179,8 +1233,7 @@ impl Context {
                     errs
                 })?;
             for sup_trait in sub_ctx.super_traits.iter() {
-                let sub_trait_instance =
-                    self.instantiate_t_inner(sup_trait.clone(), &mut tv_cache, loc)?;
+                let sub_trait_instance = self.instantiate_def_type(sup_trait)?;
                 if self.supertype_of(maybe_sup, sup_trait) {
                     for (l_maybe_sub, r_maybe_sup) in
                         sub_trait_instance.typarams().iter().zip(sup_params.iter())

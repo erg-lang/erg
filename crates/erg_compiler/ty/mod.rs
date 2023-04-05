@@ -1908,6 +1908,7 @@ impl Type {
 
     /// full name of the type, if the type is a normal nominal type, then returns the inner `name`
     /// ```
+    /// # use erg_compiler::ty::{Type, TyParam};
     /// # use erg_compiler::ty::constructors::*;
     /// let i = mono("Int!");
     /// assert_eq!(&i.qual_name()[..], "Int!");
@@ -1915,6 +1916,8 @@ impl Type {
     /// let t = mono("http.client.Response");
     /// assert_eq!(&t.qual_name()[..], "http.client.Response");
     /// assert_eq!(&t.local_name()[..], "Response");
+    /// let r = Type::from(TyParam::from(1)..TyParam::from(10));
+    /// assert_eq!(&r.qual_name()[..], "Int");
     /// ```
     pub fn qual_name(&self) -> Str {
         match self {

@@ -772,8 +772,9 @@ passed keyword args:    {kw_args_len}"
     pub fn pred_unification_error(
         input: Input,
         errno: usize,
-        lhs: &Predicate,
-        rhs: &Predicate,
+        sub_pred: &Predicate,
+        super_pred: &Predicate,
+        loc: Location,
         caused_by: String,
     ) -> Self {
         let mut lhs_uni = StyledStrings::default();
@@ -783,7 +784,7 @@ passed keyword args:    {kw_args_len}"
             "traditional_chinese" => lhs_uni.push_str("左邊: "),
             "english" => lhs_uni.push_str("lhs: "),
         );
-        lhs_uni.push_str_with_color_and_attr(format!("{lhs}"), HINT, ATTR);
+        lhs_uni.push_str_with_color_and_attr(format!("{sub_pred}"), HINT, ATTR);
         let mut rhs_uni = StyledStrings::default();
         switch_lang!(
             "japanese" => rhs_uni.push_str("右辺: "),
@@ -791,11 +792,11 @@ passed keyword args:    {kw_args_len}"
             "traditional_chinese" => rhs_uni.push_str("右邊: "),
             "english" => rhs_uni.push_str("rhs: "),
         );
-        rhs_uni.push_str_with_color_and_attr(format!("{rhs}"), ERR, ATTR);
+        rhs_uni.push_str_with_color_and_attr(format!("{super_pred}"), ERR, ATTR);
         Self::new(
             ErrorCore::new(
                 vec![SubMessage::ambiguous_new(
-                    Location::Unknown,
+                    loc,
                     vec![lhs_uni.to_string(), rhs_uni.to_string()],
                     None,
                 )],
@@ -807,7 +808,7 @@ passed keyword args:    {kw_args_len}"
                 ),
                 errno,
                 TypeError,
-                Location::Unknown,
+                loc,
             ),
             input,
             caused_by,

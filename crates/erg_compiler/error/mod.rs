@@ -639,8 +639,14 @@ mod test {
         let input = Input::pipe("pred unification error".to_string());
         let lhs = &Predicate::Const("Str".into());
         let rhs = &Predicate::Const("Nat".into());
-        let err =
-            TyCheckError::pred_unification_error(input, errno, lhs, rhs, caused_by.to_string());
+        let err = TyCheckError::pred_unification_error(
+            input,
+            errno,
+            lhs,
+            rhs,
+            Location::Unknown,
+            caused_by.to_string(),
+        );
         errors.push(err);
 
         let input = Input::pipe("Trait member type error".to_string());

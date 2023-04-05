@@ -488,7 +488,12 @@ impl Context {
             (Type, Poly { name, params }) | (Poly { name, params }, Type)
                 if &name[..] == "Tuple" =>
             {
-                if let Ok(tps) = Vec::try_from(params[0].clone()) {
+                // Type :> Tuple Ts == Type :> Ts
+                // e.g. Type :> Tuple [Int, Str] == false
+                //      Type :> Tuple [Type, Type] == true
+                if let Ok(arr_t) = Type::try_from(params[0].clone()) {
+                    return self.supertype_of(&Type, &arr_t);
+                } else if let Ok(tps) = Vec::try_from(params[0].clone()) {
                     for tp in tps {
                         let Ok(t) = self.convert_tp_into_ty(tp) else {
                             return false;
@@ -503,6 +508,12 @@ impl Context {
             (Type, Poly { name, params }) | (Poly { name, params }, Type)
                 if &name[..] == "Dict" =>
             {
+                // Type :> Dict T == Type :> T
+                // e.g. Type :> Dict {Str: Int} == false
+                //      Type :> Dict {Type: Type} == true
+                if let Ok(dict_t) = Type::try_from(params[0].clone()) {
+                    return self.supertype_of(&Type, &dict_t);
+                }
                 // HACK: e.g. ?D: GenericDict
                 let Ok(dict) = Dict::try_from(params[0].clone()) else {
                     return false;
@@ -855,8 +866,23 @@ impl Context {
                 l.try_cmp(r).map(Into::into),
             // TODO: 型を見て判断する
             (TyParam::BinOp{ op, lhs, rhs }, r) => {
-                if let Ok(l) = self.eval_bin_tp(*op, lhs.as_ref().clone(), rhs.as_ref().clone()) {
-                    self.try_cmp(&l, r)
+                if let Ok(evaled) = self.eval_bin_tp(*op, lhs.as_ref().clone(), rhs.as_ref().clone()) {
+                    // ?N + 1 == ?N + 1
+                    if &evaled == l {
+                        Some(Any)
+                    } else {
+                        self.try_cmp(&evaled, r)
+                    }
+                } else { Some(Any) }
+            },
+            (TyParam::UnaryOp { op, val }, r) => {
+                if let Ok(evaled) = self.eval_unary_tp(*op, val.as_ref().clone()) {
+                    // -?N == -?N
+                    if &evaled == l {
+                        Some(Any)
+                    } else {
+                        self.try_cmp(&evaled, r)
+                    }
                 } else { Some(Any) }
             },
             (TyParam::FreeVar(fv), p) if fv.is_linked() => {
@@ -1093,7 +1119,7 @@ impl Context {
 
     /// (x == 1) => {x: Int | x == 1}
     /// (x == c) where c: Str => {x: Str | x == c}
-    fn type_from_pred(&self, pred: Predicate) -> RefinementType {
+    pub(crate) fn type_from_pred(&self, pred: Predicate) -> RefinementType {
         let t = self.get_pred_type(&pred);
         let name = pred.subject().unwrap_or("_");
         RefinementType::new(Str::rc(name), t, pred)

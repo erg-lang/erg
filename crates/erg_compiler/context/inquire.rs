@@ -913,7 +913,8 @@ impl Context {
         }
         match self.get_attr_type_by_name(obj, attr_name) {
             Triple::Ok(method) => {
-                self.sub_unify(obj.ref_t(), &method.definition_type, obj, None)
+                let def_t = self.instantiate_def_type(&method.definition_type).unwrap();
+                self.sub_unify(obj.ref_t(), &def_t, obj, None)
                     // HACK: change this func's return type to TyCheckResult<Type>
                     .map_err(|mut errs| errs.remove(0))?;
                 return Ok(method.method_info.clone());
@@ -1401,9 +1402,7 @@ impl Context {
                     if let Some(call_vi) =
                         typ_ctx.get_current_scope_var(&VarName::from_static("__call__"))
                     {
-                        let mut dummy = TyVarCache::new(self.level, self);
-                        let instance =
-                            self.instantiate_t_inner(call_vi.t.clone(), &mut dummy, obj)?;
+                        let instance = self.instantiate_def_type(&call_vi.t)?;
                         self.substitute_call(obj, attr_name, &instance, pos_args, kw_args)?;
                         return Ok(SubstituteResult::__Call__(instance));
                     }
@@ -1724,8 +1723,15 @@ impl Context {
         );
         let instance = match self
             .substitute_call(obj, attr_name, &instance, pos_args, kw_args)
-            .map_err(|errs| (Some(found.clone()), errs))?
-        {
+            .map_err(|errs| {
+                (
+                    Some(VarInfo {
+                        t: instance.clone(),
+                        ..found.clone()
+                    }),
+                    errs,
+                )
+            })? {
             SubstituteResult::Ok => instance,
             SubstituteResult::__Call__(__call__) => __call__,
             SubstituteResult::Coerced(coerced) => coerced,
@@ -2652,6 +2658,20 @@ impl Context {
         attr: &Identifier,
         candidates: &'m [MethodInfo],
     ) -> Triple<&'m MethodInfo, TyCheckError> {
+        let matches = candidates
+            .iter()
+            .filter(|mi| self.supertype_of(&mi.definition_type, obj.ref_t()))
+            .collect::<Vec<_>>();
+        if matches.len() == 1 {
+            let method_info = matches[0];
+            if method_info
+                .method_info
+                .vis
+                .compatible(&attr.acc_kind(), self)
+            {
+                return Triple::Ok(method_info);
+            }
+        }
         let Some(first) = candidates.first() else {
             return Triple::None;
         };
@@ -2661,9 +2681,7 @@ impl Context {
             .all(|mi| mi.method_info == first.method_info)
         {
             if first.method_info.vis.compatible(&attr.acc_kind(), self) {
-                Triple::Ok(first)
-            } else {
-                Triple::None
+                return Triple::Ok(first);
             }
         } else if self.same_shape(candidates.iter().map(|mi| &mi.method_info.t)) {
             // if all methods have the same return type, the minimum type (has biggest param types) is selected
@@ -2674,26 +2692,21 @@ impl Context {
                     .find(|mi| &mi.method_info.t == min)
                     .unwrap();
                 if min_info.method_info.vis.compatible(&attr.acc_kind(), self) {
-                    Triple::Ok(min_info)
-                } else {
-                    Triple::None
+                    return Triple::Ok(min_info);
                 }
-            } else {
-                Triple::None
             }
-        } else {
-            Triple::Err(TyCheckError::ambiguous_method_error(
-                self.cfg.input.clone(),
-                line!() as usize,
-                obj,
-                attr,
-                &candidates
-                    .iter()
-                    .map(|t| t.definition_type.clone())
-                    .collect::<Vec<_>>(),
-                self.caused_by(),
-            ))
         }
+        Triple::Err(TyCheckError::ambiguous_method_error(
+            self.cfg.input.clone(),
+            line!() as usize,
+            obj,
+            attr,
+            &candidates
+                .iter()
+                .map(|t| t.definition_type.clone())
+                .collect::<Vec<_>>(),
+            self.caused_by(),
+        ))
     }
 
     /// Infer the receiver type from the attribute name.

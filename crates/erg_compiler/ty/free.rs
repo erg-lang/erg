@@ -439,15 +439,27 @@ impl<T> FreeKind<T> {
 
     pub const fn linked(&self) -> Option<&T> {
         match self {
-            Self::Linked(typ) => Some(typ),
+            Self::Linked(t) | Self::UndoableLinked { t, .. } => Some(t),
             _ => None,
         }
     }
 
     pub fn linked_mut(&mut self) -> Option<&mut T> {
         match self {
-            Self::Linked(typ) => Some(typ),
+            Self::Linked(t) | Self::UndoableLinked { t, .. } => Some(t),
             _ => None,
+        }
+    }
+
+    pub fn replace(&mut self, to: T) {
+        match self {
+            // REVIEW: What if `t` is also an unbound variable?
+            Self::Linked(t) | Self::UndoableLinked { t, .. } => {
+                *t = to;
+            }
+            _ => {
+                *self = Self::Linked(to);
+            }
         }
     }
 }
@@ -767,19 +779,19 @@ impl<T: Clone> Free<T> {
         if self.is_linked() && addr_eq!(*self.crack(), *to) {
             return;
         }
-        *self.borrow_mut() = FreeKind::Linked(to.clone());
+        self.borrow_mut().replace(to.clone());
     }
 
     /// NOTE: Do not use this except to rewrite circular references.
     /// No reference to any type variable may be left behind when rewriting.
-    /// However, `get_bound_types` is safe because it does not return references.
+    /// However, `get_subsup` is safe because it does not return references.
     pub fn forced_link(&self, to: &T) {
         // prevent linking to self
         if self.is_linked() && addr_eq!(*self.crack(), *to) {
             return;
         }
         unsafe {
-            *self.as_ptr() = FreeKind::Linked(to.clone());
+            self.as_ptr().as_mut().unwrap().replace(to.clone());
         }
     }
 
@@ -797,7 +809,7 @@ impl<T: Clone> Free<T> {
 
     /// NOTE: Do not use this except to rewrite circular references.
     /// No reference to any type variable may be left behind when rewriting.
-    /// However, `get_bound_types` is safe because it does not return references.
+    /// However, `get_subsup` is safe because it does not return references.
     pub fn forced_undoable_link(&self, to: &T) {
         if self.is_linked() && addr_eq!(*self.crack(), *to) {
             panic!("link to self");

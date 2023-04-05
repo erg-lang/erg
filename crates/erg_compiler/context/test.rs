@@ -8,7 +8,6 @@ use crate::ty::typaram::TyParam;
 use crate::ty::{Predicate, Type};
 use Type::*;
 
-use crate::context::instantiate::TyVarCache;
 use crate::context::Context;
 
 impl Context {
@@ -73,11 +72,7 @@ impl Context {
         let unbound = func1(t.clone(), t);
         let quantified = unbound.clone().quantify();
         println!("quantified      : {quantified}");
-        let mut tv_cache = TyVarCache::new(self.level + 1, self);
-        println!("tv_cache: {tv_cache}");
-        let inst = self
-            .instantiate_t_inner(unbound, &mut tv_cache, &())
-            .map_err(|_| ())?;
+        let inst = self.instantiate_def_type(&unbound).map_err(|_| ())?;
         println!("inst: {inst}");
         inst.lift();
         let quantified_again = self.generalize_t(inst);

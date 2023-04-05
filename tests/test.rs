@@ -27,6 +27,11 @@ fn exec_class_attr() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_collection() -> Result<(), ()> {
+    expect_success("tests/should_ok/collection.er", 0)
+}
+
+#[test]
 fn exec_comment() -> Result<(), ()> {
     expect_success("tests/should_ok/comment.er", 0)
 }
@@ -225,6 +230,11 @@ fn exec_array_err() -> Result<(), ()> {
 #[test]
 fn exec_assert_cast() -> Result<(), ()> {
     expect_failure("examples/assert_cast.er", 0, 2)
+}
+
+#[test]
+fn exec_collection_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/collection.er", 0, 4)
 }
 
 #[test]

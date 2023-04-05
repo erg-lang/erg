@@ -372,10 +372,10 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
             {
                 Ok(TyParam::FreeVar(fv))
             }
-            // REVIEW: most likely the result of an error already made
-            TyParam::FreeVar(_fv) if self.ctx.level == 0 => Err(TyCheckErrors::from(
-                TyCheckError::dummy_infer_error(self.ctx.cfg.input.clone(), fn_name!(), line!()),
-            )),
+            // REVIEW:
+            TyParam::FreeVar(_) if self.ctx.level == 0 => {
+                Ok(TyParam::erased(self.ctx.get_tp_t(&tp).unwrap_or(Type::Obj)))
+            }
             TyParam::Type(t) => Ok(TyParam::t(self.deref_tyvar(*t)?)),
             TyParam::Erased(t) => Ok(TyParam::erased(self.deref_tyvar(*t)?)),
             TyParam::App { name, mut args } => {

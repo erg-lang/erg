@@ -1,0 +1,7 @@
+arr = [[1, 2], [3, 4]]
+print! arr[0][2]
+print! arr[2][0]
+
+dict = {"a": {"a": 1}, "b": {"b": 2}}
+print! dict["c"]["a"]
+print! dict["a"]["c"]

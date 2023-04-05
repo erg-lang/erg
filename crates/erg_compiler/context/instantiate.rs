@@ -379,7 +379,7 @@ impl Context {
     }
 
     /// 'T -> ?T (quantified to free)
-    pub(crate) fn instantiate_t_inner(
+    fn instantiate_t_inner(
         &self,
         unbound: Type,
         tmp_tv_cache: &mut TyVarCache,
@@ -603,5 +603,10 @@ impl Context {
             }
             _other => unreachable_error!(TyCheckErrors, TyCheckError, self),
         }
+    }
+
+    pub(crate) fn instantiate_def_type(&self, typ: &Type) -> TyCheckResult<Type> {
+        let mut tv_cache = TyVarCache::new(self.level, self);
+        self.instantiate_t_inner(typ.clone(), &mut tv_cache, &())
     }
 }

@@ -883,7 +883,7 @@ impl Context {
         }
     }
 
-    fn eval_unary_tp(&self, op: OpKind, val: TyParam) -> EvalResult<TyParam> {
+    pub(crate) fn eval_unary_tp(&self, op: OpKind, val: TyParam) -> EvalResult<TyParam> {
         match val {
             TyParam::Value(c) => self.eval_unary_val(op, c).map(TyParam::Value),
             TyParam::FreeVar(fv) if fv.is_linked() => self.eval_unary_tp(op, fv.crack().clone()),
@@ -1248,7 +1248,7 @@ impl Context {
             TyParam::FreeVar(fv) if fv.is_linked() => self.convert_tp_into_ty(fv.crack().clone()),
             TyParam::Type(t) => Ok(t.as_ref().clone()),
             TyParam::Value(v) => Type::try_from(v).or(Err(())),
-            // TODO: Array, Dict, Set
+            // TODO: Dict, Set
             _ => Err(()),
         }
     }

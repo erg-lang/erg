@@ -19,11 +19,12 @@ pub enum Predicate {
         lhs: Str,
         rhs: TyParam,
     },
-    /// i > 0 => i >= 0+ε => GreaterEqual{ lhs: "i", rhs: 0+ε }
+    /// i > 0 == i >= 0 and i != 0
     GreaterEqual {
         lhs: Str,
         rhs: TyParam,
     },
+    // i < 0 == i <= 0 and i != 0
     LessEqual {
         lhs: Str,
         rhs: TyParam,
@@ -182,6 +183,14 @@ impl Predicate {
                     Self::Or(Box::new(Self::Or(l, r)), Box::new(other))
                 }
             }
+            // I == 1 or I >= 1 => I >= 1
+            (
+                Predicate::Equal { lhs, rhs },
+                Predicate::GreaterEqual {
+                    lhs: lhs2,
+                    rhs: rhs2,
+                },
+            ) if lhs == lhs2 && rhs == rhs2 => Self::ge(lhs, rhs),
             (p1, p2) => {
                 if p1 == p2 {
                     p1
