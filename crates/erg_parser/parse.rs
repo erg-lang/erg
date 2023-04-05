@@ -264,11 +264,19 @@ impl Parser {
     }
 
     fn until_dedent(&mut self) {
+        let mut nest_cnt = 1;
         while let Some(t) = self.peek() {
             match t.kind {
+                Indent => {
+                    self.skip();
+                    nest_cnt += 1;
+                }
                 Dedent => {
                     self.skip();
-                    return;
+                    nest_cnt -= 1;
+                    if nest_cnt <= 0 {
+                        return;
+                    }
                 }
                 EOF => return,
                 _ => {
