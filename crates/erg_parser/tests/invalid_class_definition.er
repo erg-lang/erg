@@ -16,3 +16,9 @@ indent = "indent is needed"
 
 Pri::
     {1, 2} # invalid attribute
+
+Indent.
+    []
+    Indent.
+        {=}
+    {:}
