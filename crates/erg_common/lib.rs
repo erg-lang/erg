@@ -158,3 +158,34 @@ pub fn normalize_path(path: PathBuf) -> PathBuf {
     let lower = verbatim_replaced.to_lowercase();
     PathBuf::from(lower)
 }
+
+/// ```
+/// use erg_common::trim_eliminate_top_indent;
+/// let code = r#"
+///     def foo():
+///         pass
+/// "#;
+/// let expected = r#"def foo():
+///     pass"#;
+/// assert_eq!(trim_eliminate_top_indent(code.to_string()), expected);
+/// ```
+pub fn trim_eliminate_top_indent(code: String) -> String {
+    let code = code.trim_matches(|c| c == '\n' || c == '\r');
+    if !code.starts_with(' ') {
+        return code.to_string();
+    }
+    let indent = code.chars().take_while(|c| *c == ' ').count();
+    let mut result = String::new();
+    for line in code.lines() {
+        if line.len() > indent {
+            result.push_str(&line[indent..]);
+        } else {
+            result.push_str(line);
+        }
+        result.push('\n');
+    }
+    if !result.is_empty() {
+        result.pop();
+    }
+    result
+}

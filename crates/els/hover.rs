@@ -3,6 +3,7 @@ use serde_json::json;
 use serde_json::Value;
 
 use erg_common::lang::LanguageCode;
+use erg_common::trim_eliminate_top_indent;
 use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::erg_parser::token::{Token, TokenCategory, TokenKind};
 use erg_compiler::varinfo::AbsLocation;
@@ -49,33 +50,11 @@ fn sort_hovers(mut contents: Vec<MarkedString>) -> Vec<MarkedString> {
     contents
 }
 
-fn eliminate_top_indent(code: String) -> String {
-    let trimmed = code.trim_start_matches('\n');
-    if !trimmed.starts_with(' ') {
-        return code;
-    }
-    let mut indent = 0;
-    let mut result = String::new();
-    for line in trimmed.lines() {
-        if indent == 0 {
-            indent = line.chars().take_while(|c| *c == ' ').count();
-        }
-        if line.len() > indent {
-            result.push_str(&line[indent..]);
-        }
-        result.push('\n');
-    }
-    if !result.is_empty() {
-        result.pop();
-    }
-    result
-}
-
 macro_rules! next {
     ($def_pos: ident, $default_code_block: ident, $contents: ident, $prev_token: ident, $token: ident) => {
         if $def_pos.line == 0 {
             if !$default_code_block.is_empty() {
-                let code_block = eliminate_top_indent($default_code_block);
+                let code_block = trim_eliminate_top_indent($default_code_block);
                 $contents.push(MarkedString::from_markdown(code_block));
             }
             break;
@@ -87,7 +66,7 @@ macro_rules! next {
     ($def_pos: ident, $default_code_block: ident, $contents: ident) => {
         if $def_pos.line == 0 {
             if !$default_code_block.is_empty() {
-                let code_block = eliminate_top_indent($default_code_block);
+                let code_block = trim_eliminate_top_indent($default_code_block);
                 $contents.push(MarkedString::from_markdown(code_block));
             }
             break;
@@ -223,7 +202,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                         .to_string();
                     let lang = lang_code(&code_block);
                     if lang.matches_feature() {
-                        let code_block = eliminate_top_indent(
+                        let code_block = trim_eliminate_top_indent(
                             code_block.trim_start_matches(lang.as_str()).to_string(),
                         );
                         let marked = match lang {
@@ -255,7 +234,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                         next!(def_pos, default_code_block, contents, prev_token, token);
                     }
                     if !default_code_block.is_empty() {
-                        let code_block = eliminate_top_indent(default_code_block);
+                        let code_block = trim_eliminate_top_indent(default_code_block);
                         contents.push(MarkedString::from_markdown(code_block));
                     }
                     break;
