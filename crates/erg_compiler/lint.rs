@@ -6,11 +6,17 @@
 use erg_common::log;
 use erg_common::traits::{Locational, Runnable, Stream};
 use erg_common::Str;
+use erg_parser::ast::AST;
+use erg_parser::build_ast::ASTBuilder;
 
-use crate::ty::{HasType, Type};
+use crate::context::ContextKind;
+use crate::link_ast::ASTLinker;
+use crate::ty::{HasType, Type, ValueObj, VisibilityModifier};
 
-use crate::error::{LowerError, LowerResult, LowerWarning, LowerWarnings, SingleLowerResult};
-use crate::hir;
+use crate::error::{
+    CompileErrors, LowerError, LowerResult, LowerWarning, LowerWarnings, SingleLowerResult,
+};
+use crate::hir::{self, Expr, HIR};
 use crate::lower::ASTLowerer;
 use crate::varinfo::VarInfo;
 
@@ -181,5 +187,96 @@ impl ASTLowerer {
                 self.warns.push(warn);
             }
         }
+    }
+
+    pub(crate) fn check_doc_comments(&mut self, hir: &HIR) {
+        for chunk in hir.module.iter() {
+            self.check_doc_comment(chunk);
+        }
+    }
+
+    fn check_doc_comment(&mut self, chunk: &Expr) {
+        match chunk {
+            Expr::Lit(lit) if lit.is_doc_comment() => {
+                let first_line = lit.ln_begin().unwrap_or(1);
+                let ValueObj::Str(content) = &lit.value else { return; };
+                if content.starts_with("erg\n") {
+                    let code = content.trim_start_matches("erg\n");
+                    let indent = code.chars().take_while(|c| c.is_whitespace()).count();
+                    let code = if indent > 0 {
+                        format!(
+                            "{}_ =\n{code}\n{}None",
+                            "\n".repeat(first_line as usize - 1),
+                            " ".repeat(indent)
+                        )
+                    } else {
+                        format!("{}{code}", "\n".repeat(first_line as usize))
+                    };
+                    match ASTBuilder::new(self.cfg().clone()).build(code) {
+                        Ok(ast) => {
+                            self.check_doc_ast(ast);
+                        }
+                        Err(errs) => {
+                            let errs = CompileErrors::from(errs);
+                            self.errs.extend(errs);
+                        }
+                    }
+                }
+            }
+            Expr::ClassDef(class_def) => {
+                for chunk in class_def.methods.iter() {
+                    self.check_doc_comment(chunk);
+                }
+            }
+            Expr::PatchDef(patch_def) => {
+                for chunk in patch_def.methods.iter() {
+                    self.check_doc_comment(chunk);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn check_doc_ast(&mut self, ast: AST) {
+        let Ok(ast) = ASTLinker::new(self.cfg().clone()).link(ast, "exec") else {
+            return;
+        };
+        self.module.context.grow(
+            "<doc>",
+            ContextKind::Instant,
+            VisibilityModifier::Private,
+            None,
+        );
+        let mut module = hir::Module::with_capacity(ast.module.len());
+        if let Err(errs) = self.module.context.preregister(ast.module.block()) {
+            self.errs.extend(errs);
+        }
+        for chunk in ast.module.into_iter() {
+            match self.lower_chunk(chunk) {
+                Ok(chunk) => {
+                    module.push(chunk);
+                }
+                Err(errs) => {
+                    self.errs.extend(errs);
+                }
+            }
+        }
+        self.module.context.clear_invalid_vars();
+        self.module.context.check_decls().unwrap_or_else(|errs| {
+            self.errs.extend(errs);
+        });
+        let hir = HIR::new(ast.name, module);
+        let hir = match self.module.context.resolve(hir) {
+            Ok(hir) => hir,
+            Err((_, errs)) => {
+                self.errs.extend(errs);
+                self.module.context.pop();
+                return;
+            }
+        };
+        self.warn_unused_expr(&hir.module, "exec");
+        // self.warn_unused_vars("exec");
+        self.check_doc_comments(&hir);
+        self.module.context.pop();
     }
 }
