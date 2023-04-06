@@ -216,14 +216,10 @@ impl Lexer /*<'a>*/ {
 
     fn emit_token(&mut self, kind: TokenKind, cont: &str) -> Token {
         let cont = self.str_cache.get(cont);
+        let lineno = self.lineno_token_starts + 2 - cont.lines().count() as u32;
         // cannot use String::len() for multi-byte characters
         let cont_len = cont.chars().count();
-        let token = Token::new(
-            kind,
-            cont,
-            self.lineno_token_starts + 1,
-            self.col_token_starts,
-        );
+        let token = Token::new(kind, cont, lineno, self.col_token_starts);
         self.prev_token = token.clone();
         self.col_token_starts += cont_len as u32;
         token
