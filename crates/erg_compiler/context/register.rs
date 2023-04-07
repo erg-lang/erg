@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::SystemTime;
 
+use erg_common::config::ErgMode;
 use erg_common::env::erg_pystd_path;
 use erg_common::erg_util::BUILTIN_ERG_MODS;
 use erg_common::levenshtein::get_similar_name;
@@ -1855,7 +1856,7 @@ impl Context {
 
     fn try_gen_py_decl_file(&self, __name__: &Str) -> Result<PathBuf, ()> {
         if let Ok(path) = self.cfg.input.local_py_resolve(Path::new(&__name__[..])) {
-            let (out, err) = if self.cfg.quiet_repl {
+            let (out, err) = if self.cfg.mode == ErgMode::LanguageServer || self.cfg.quiet_repl {
                 (Stdio::null(), Stdio::null())
             } else {
                 (Stdio::inherit(), Stdio::inherit())
