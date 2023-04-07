@@ -6,7 +6,7 @@ pub fn command_message<'a>() -> &'a str {
         "japanese" =>
         "\
 USAGE:
-    erg [OPTIONS] [SUBCOMMAND] [ARGS]...
+    erg [OPTIONS] [COMMAND] [ARGS]...
 
 ARGS:
     <script> スクリプトファイルからプログラムを読み込む
@@ -20,16 +20,24 @@ OPTIONS
     --python-version/-p (uint 32 number) Pythonバージョンを指定
     --py-server-timeout (uint 64 number) PythonのREPLサーバーのタイムアウト時間を指定
     --dump-as-pyc                        .pycファイルにダンプ
-    --mode lex|parse|compile|exec        指定モードで実行(詳細は--mode --helpを参照)
+    --mode (mode)                        指定モードで実行(詳細は--mode --helpを参照)
+    --code/-c (string)                   文字列として渡したプログラムを実行
+    --module/-m (string)                 モジュールを実行
 
-SUBCOMMAND
-    -c cmd : 文字列をプログラムに譲渡
-    -m mod : モジュールを実行",
+COMMAND
+    lex                                  字句解析
+    parse                                構文解析
+    typecheck|tc                         型検査
+    check                                全ての検査(所有権検査, 副作用検査などを含む)
+    compile                              コンパイル
+    transpile                            トランスパイル
+    run|exec                             実行(デフォルト)
+    server                               言語サーバーを起動",
 
     "simplified_chinese" =>
     "\
 USAGE:
-    erg [OPTIONS] [SUBCOMMAND] [ARGS]...
+    erg [OPTIONS] [COMMAND] [ARGS]...
 
 ARGS:
     <script> 从脚本文件读取程序
@@ -43,16 +51,24 @@ OPTIONS
     --python-version/-p (uint 32 number) Python 版本
     --py-server-timeout (uint 64 number) 指定等待 REPL 输出的秒数
     --dump-as-pyc                        转储为 .pyc 文件
-    --mode lex|parse|compile|exec        执行模式 (更多信息见`--mode --help`)
+    --mode (mode)                        执行模式 (更多信息见`--mode --help`)
+    --code/-c (string)                   作为字符串传入程序
+    --module/-m (string)                 要执行的模块
 
-SUBCOMMAND
-    -c cmd : 作为字符串传入程序
-    -m mod : 要执行的模块",
+COMMAND
+    lex                                  字词解析
+    parse                                语法解析
+    typecheck|tc                         类型检查
+    check                                全部检查(包括所有权检查, 副作用检查等)
+    compile                              编译
+    transpile                            转译
+    run|exec                             执行(默认模式)
+    server                               执行语言服务器",
 
     "traditional_chinese" =>
         "\
 USAGE:
-    erg [OPTIONS] [SUBCOMMAND] [ARGS]...
+    erg [OPTIONS] [COMMAND] [ARGS]...
 
 ARGS:
     <script> 從腳本檔案讀取程式
@@ -66,16 +82,24 @@ OPTIONS
     --python-version/-p (uint 32 number) Python 版本
     --py-server-timeout (uint 64 number) 指定等待 REPL 輸出的秒數
     --dump-as-pyc                        轉儲為 .pyc 文件
-    --mode lex|parse|compile|exec        執行模式 (更多信息見`--mode --help`)
+    --mode (mode)                        執行模式 (更多信息見`--mode --help`)
+    --code/-c (string)                   作為字串傳入程式
+    --module/-m (string)                 要執行的模塊
 
-SUBCOMMAND
-    -c cmd : 作為字串傳入程式
-    -m mod : 要執行的模塊",
+COMMAND
+    lex                                  字詞解析
+    parse                                語法解析
+    typecheck|tc                         型檢查
+    check                                全部檢查(包括所有權檢查, 副作用檢查等)
+    compile                              編譯
+    transpile                            轉譯
+    run|exec                             執行(預設模式)
+    server                               執行語言伺服器",
 
     "english" =>
         "\
 USAGE:
-    erg [OPTIONS] [SUBCOMMAND] [ARGS]...
+    erg [OPTIONS] [COMMAND] [ARGS]...
 
 ARGS:
     <script> program read from script file
@@ -89,11 +113,19 @@ OPTIONS
     --python-version/-p (uint 32 number) Python version
     --py-server-timeout (uint 64 number) timeout for the Python REPL server
     --dump-as-pyc                        dump as .pyc file
-    --mode lex|parse|compile|exec        execution mode (See `--mode --help` for details)
+    --mode (mode)                        execution mode (See `--mode --help` for details)
+    --code/-c (string)                   program passed in as string
+    --module/-m (string)                 module to be executed
 
-SUBCOMMAND
-    -c cmd : program passed in as string
-    -m mod : module to be executed",
+COMMAND
+    lex                                  lexical analysis
+    parse                                syntax analysis
+    typecheck|tc                         type check
+    check                                full check (including ownership check, effect check, etc.)
+    compile                              compile
+    transpile                            transpile
+    run|exec                             execute (default mode)
+    server                               execute language server",
     )
 }
 
@@ -112,7 +144,7 @@ parse
     lexを実行し、TokenStreamを獲得して構文を解析
     脱糖しAST(抽象構文木)を返す
 
-lower
+typecheck/lower
     parseを実行し、ASTを獲得
     名前解決、型検査・型推論をしてHIR(高レベル中間表現)を返す
 
@@ -122,9 +154,13 @@ check
 
 compile
     checkを実行
-    HIRをからバイトコードを生成し、<filename>.pycを出力する
+    HIRからバイトコードを生成し、<filename>.pycを出力する
 
-exec
+transpile
+    checkを実行
+    HIRからPythonスクリプトを生成し、<filename>.pyを出力
+
+run/exec
     compileを実行し、更に<filename>.pycを実行
 
 read
@@ -143,7 +179,7 @@ parse
     执行 lex, 获取 TokenStream, 并解析语法
     将多模式定义语句的语法糖按匹配转换并返回 AST(抽象语法树)
 
-lower
+typecheck/lower
     执行 parse
     解析名称、检查类型和推断, 并返回 HIR(高级中间表示)
 
@@ -155,7 +191,11 @@ compile
     运行 check 以获取检查完成的 AST
     编译 AST 并返回 <文件名>.pyc
 
-exec
+transpile
+    运行 check 以获取检查完成的 AST
+    将 AST 转换为 Python 代码并返回 <文件名>.py
+
+run/exec
     运行 check 以获取检查完成的 AST
     在执行 <文件名>.pyc 后删除 <文件名>.pyc
 
@@ -175,7 +215,7 @@ parse
     執行 lex, 獲取 TokenStream, 並解析語法
     將多模式定義語句的語法糖按匹配轉換並返回 AST(抽象語法樹)
 
-lower
+typecheck/lower
     執行 parse
     解析名稱、檢查類型和推斷, 並返回 HIR(高級中間表示)
 
@@ -186,6 +226,10 @@ check
 compile
     運行 check 以獲取檢查完成的 AST
     編譯 AST 並返回 <檔名>.pyc
+
+transpile
+    運行 check 以獲取檢查完成的 AST
+    從 HIR 生成 Python 腳本並返回 <檔名>.py
 
 exec
     運行check以獲取檢查完成的 AST
@@ -207,7 +251,7 @@ parse
     Executes lex to get TokenStream, and parses it
     Degenerate and return AST (Abstract Syntax Tree)
 
-lower
+typecheck/lower
     Execute parse to obtain AST
     Performs name resolution, type checking, and type inference, and returns HIR (High-level Intermediate Representation)
 
@@ -219,7 +263,11 @@ compile
     Execute check
     Generates bytecode from HIR and outputs <filename>.pyc
 
-exec
+transpile
+    Execute check
+    Generates Python script from HIR and outputs <filename>.py
+
+run/exec
     Execute compile and then <filename>.pyc
 
 read

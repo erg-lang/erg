@@ -41,12 +41,12 @@ impl TryFrom<&str> for ErgMode {
             "lex" | "lexer" => Ok(Self::Lex),
             "parse" | "parser" => Ok(Self::Parse),
             "desugar" | "desugarer" => Ok(Self::Desugar),
-            "typecheck" | "lower" => Ok(Self::TypeCheck),
+            "typecheck" | "lower" | "tc" => Ok(Self::TypeCheck),
             "fullcheck" | "check" | "checker" => Ok(Self::FullCheck),
             "compile" | "compiler" => Ok(Self::Compile),
             "transpile" | "transpiler" => Ok(Self::Transpile),
-            "execute" => Ok(Self::Execute),
-            "language-server" => Ok(Self::LanguageServer),
+            "run" | "execute" => Ok(Self::Execute),
+            "server" | "language-server" => Ok(Self::LanguageServer),
             "byteread" | "read" | "reader" => Ok(Self::Read),
             _ => Err(()),
         }
@@ -607,6 +607,12 @@ impl ErgConfig {
         // not `for` because we need to consume the next argument
         while let Some(arg) = args.next() {
             match &arg[..] {
+                /* Commands */
+                "lex" | "parse" | "desugar" | "typecheck" | "check" | "compile" | "transpile"
+                | "run" | "execute" | "server" | "tc" => {
+                    cfg.mode = ErgMode::try_from(&arg[..]).unwrap();
+                }
+                /* Options */
                 "--" => {
                     for arg in args {
                         cfg.runtime_args.push(Box::leak(arg.into_boxed_str()));
