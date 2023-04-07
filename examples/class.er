@@ -9,6 +9,10 @@ Point2D::
     one = 1
 Point2D.
     zero = Point2D::one - 1
+    '''erg
+    p = Point2D.new {x = 1; y = 2}
+    assert p.norm() == 5
+    '''
     norm self = self::x**2 + self::y**2
 
 Point3D = Inherit Point2D, Additional := {z = Int}

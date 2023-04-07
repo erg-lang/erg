@@ -178,9 +178,9 @@ pub fn trim_eliminate_top_indent(code: String) -> String {
     let mut result = String::new();
     for line in code.lines() {
         if line.len() > indent {
-            result.push_str(&line[indent..]);
+            result.push_str(line[indent..].trim_end());
         } else {
-            result.push_str(line);
+            result.push_str(line.trim_end());
         }
         result.push('\n');
     }

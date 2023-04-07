@@ -2415,7 +2415,7 @@ impl ASTLowerer {
     /// The meaning of TypeAscription changes between chunk and expr.
     /// For example, `x: Int`, as expr, is `x` itself,
     /// but as chunk, it declares that `x` is of type `Int`, and is valid even before `x` is defined.
-    fn lower_chunk(&mut self, chunk: ast::Expr) -> LowerResult<hir::Expr> {
+    pub(crate) fn lower_chunk(&mut self, chunk: ast::Expr) -> LowerResult<hir::Expr> {
         log!(info "entered {}", fn_name!());
         match chunk {
             ast::Expr::Def(def) => Ok(hir::Expr::Def(self.lower_def(def)?)),
@@ -2521,6 +2521,7 @@ impl ASTLowerer {
         };
         self.warn_unused_expr(&hir.module, mode);
         self.warn_unused_vars(mode);
+        self.check_doc_comments(&hir);
         if self.errs.is_empty() {
             log!(info "the AST lowering process has completed.");
             Ok(CompleteArtifact::new(
