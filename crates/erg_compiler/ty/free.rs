@@ -476,7 +476,7 @@ impl Hash for Free<Type> {
             lev.hash(state);
         }
         if let Some((sub, sup)) = self.get_subsup() {
-            self.forced_undoable_link(&sub);
+            self.dummy_link();
             sub.hash(state);
             sup.hash(state);
             self.undo();
@@ -518,7 +518,7 @@ impl PartialEq for Free<Type> {
         }
         if let Some((sub, sup)) = self.get_subsup() {
             if let Some((other_sub, other_sup)) = other.get_subsup() {
-                self.forced_undoable_link(&sub);
+                self.dummy_link();
                 let res = sub == other_sub && sup == other_sup;
                 self.undo();
                 return res;
@@ -648,7 +648,7 @@ impl HasLevel for Free<Type> {
                 }
                 *lev = level;
                 if let Some((sub, sup)) = self.get_subsup() {
-                    self.forced_undoable_link(&sub);
+                    self.dummy_link();
                     sub.set_level(level);
                     sup.set_level(level);
                     self.undo();
@@ -860,6 +860,12 @@ impl<T: Clone> Free<T> {
             (Some(name), lev, constraint) => Self::new_named_unbound(name, lev, constraint),
             (None, lev, constraint) => Self::new_unbound(lev, constraint),
         }
+    }
+}
+
+impl<T: Default + Clone> Free<T> {
+    pub fn dummy_link(&self) {
+        self.forced_undoable_link(&T::default());
     }
 }
 

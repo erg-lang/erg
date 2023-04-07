@@ -1765,7 +1765,7 @@ impl Type {
                     || fv
                         .get_subsup()
                         .map(|(sub, sup)| {
-                            fv.forced_undoable_link(&Type::Never);
+                            fv.dummy_link();
                             let res = sub.contains_tvar(target) || sup.contains_tvar(target);
                             fv.undo();
                             res
@@ -1805,7 +1805,7 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains(target),
             Self::FreeVar(fv) => {
                 fv.get_subsup().map_or(false, |(sub, sup)| {
-                    fv.forced_undoable_link(&Type::Never);
+                    fv.dummy_link();
                     let res = sub.contains(target) || sup.contains(target);
                     fv.undo();
                     res
@@ -2168,12 +2168,12 @@ impl Type {
             Self::FreeVar(fv) if !fv.constraint_is_uninited() => {
                 let base = set! {(fv.unbound_name().unwrap(), fv.constraint().unwrap())};
                 if let Some((sub, sup)) = fv.get_subsup() {
-                    fv.forced_undoable_link(&Type::Failure);
+                    fv.dummy_link();
                     let res = base.concat(sub.qvars()).concat(sup.qvars());
                     fv.undo();
                     res
                 } else if let Some(ty) = fv.get_type() {
-                    fv.forced_undoable_link(&Type::Failure);
+                    fv.dummy_link();
                     let res = base.concat(ty.qvars());
                     fv.undo();
                     res
@@ -2514,7 +2514,7 @@ impl Type {
                 if let Some((sub, sup)) = fv.get_subsup() {
                     // if fv == ?T(:> {1, 2}, <: Sub(?T)), derefine() will cause infinite loop
                     // so we need to force linking
-                    fv.forced_undoable_link(&sub);
+                    fv.dummy_link();
                     let constraint = Constraint::new_sandwiched(sub.derefine(), sup.derefine());
                     let free = Self::FreeVar(Free::new_named_unbound(name, level, constraint));
                     fv.undo();
@@ -2592,7 +2592,7 @@ impl Type {
             Self::FreeVar(fv) => {
                 let fv = fv.deep_clone();
                 if let Some((sub, sup)) = fv.get_subsup() {
-                    fv.forced_undoable_link(&sub);
+                    fv.dummy_link();
                     let sub = sub._replace(target, to);
                     let sup = sup._replace(target, to);
                     fv.undo();

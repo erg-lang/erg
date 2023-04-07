@@ -751,7 +751,7 @@ impl Context {
                 let (rsub, rsup) = sup_fv.get_subsup().unwrap();
                 // ?T(<: Add(?T))
                 // ?U(:> {1, 2}, <: Add(?U)) ==> {1, 2}
-                sup_fv.forced_undoable_link(&rsub);
+                sup_fv.dummy_link();
                 if lsub.qual_name() == rsub.qual_name() {
                     for (lps, rps) in lsub.typarams().iter().zip(rsub.typarams().iter()) {
                         self.sub_unify_tp(lps, rps, None, loc, false)
