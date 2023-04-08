@@ -9,6 +9,7 @@ on:
 
 jobs:
   automatic-update:
+    if: github.repository_owner == 'erg-lang'
     runs-on: ubuntu-latest
     defaults:
       run:
