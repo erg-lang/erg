@@ -18,9 +18,7 @@ use erg_common::option_enum_unwrap;
 use erg_common::python_util::{env_python_version, PythonVersion};
 use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
-use erg_common::{
-    debug_power_assert, enum_unwrap, fn_name, fn_name_full, impl_stream, log, switch_unreachable,
-};
+use erg_common::{debug_power_assert, fn_name, fn_name_full, impl_stream, log, switch_unreachable};
 use erg_parser::ast::VisModifierSpec;
 use erg_parser::ast::{DefId, DefKind};
 use CommonOpcode::*;
@@ -1040,15 +1038,14 @@ impl PyCodeGenerator {
     // class T(metaclass=ABCMeta):
     //    def f(): pass
     fn emit_trait_block(&mut self, kind: DefKind, sig: &Signature, mut block: Block) -> CodeObj {
+        debug_assert_eq!(kind, DefKind::Trait);
         let name = sig.ident().inspect().clone();
-        let mut trait_call = enum_unwrap!(block.remove(0), Expr::Call);
-        let req = if kind == DefKind::Trait {
-            enum_unwrap!(
-                trait_call.args.remove_left_or_key("Requirement").unwrap(),
-                Expr::Record
-            )
+        let Expr::Call(mut trait_call) = block.remove(0) else { unreachable!() };
+        let req = if let Some(Expr::Record(req)) = trait_call.args.remove_left_or_key("Requirement")
+        {
+            req.attrs.into_iter()
         } else {
-            todo!()
+            vec![].into_iter()
         };
         self.unit_size += 1;
         let firstlineno = block
@@ -1069,7 +1066,7 @@ impl PyCodeGenerator {
         self.emit_store_instr(Identifier::public("__module__"), Name);
         self.emit_load_const(name);
         self.emit_store_instr(Identifier::public("__qualname__"), Name);
-        for def in req.attrs.into_iter() {
+        for def in req {
             self.emit_empty_func(
                 Some(sig.ident().inspect()),
                 def.sig.into_ident(),
@@ -1130,7 +1127,7 @@ impl PyCodeGenerator {
                 vec![],
                 Str::rc(self.cfg.input.enclosed_name()),
                 ident.inspect(),
-                ident.ln_begin().unwrap(),
+                ident.ln_begin().unwrap_or(0),
                 0,
             ));
             self.emit_load_const(ValueObj::None);
@@ -1620,7 +1617,10 @@ impl PyCodeGenerator {
     }
 
     fn emit_del_instr(&mut self, mut args: Args) {
-        let ident = enum_unwrap!(args.remove_left_or_key("obj").unwrap(), Expr::Accessor:(Accessor::Ident:(_)));
+        let Some(Expr::Accessor(Accessor::Ident(ident))) = args.remove_left_or_key("obj") else {
+            log!(err "del instruction requires an identifier");
+            return;
+        };
         log!(info "entered {} ({ident})", fn_name!());
         let escaped = escape_ident(ident);
         let name = self
@@ -1744,7 +1744,7 @@ impl PyCodeGenerator {
         // but after executing this instruction, stack_len should be 1
         // cannot detect where to jump to at this moment, so put as 0
         self.write_arg(0);
-        let lambda = enum_unwrap!(args.remove(0), Expr::Lambda);
+        let Expr::Lambda(lambda) = args.remove(0) else { unreachable!() };
         // If there is nothing on the stack at the start, init_stack_len == 2 (an iterator and the first iterator value)
         let init_stack_len = self.stack_len();
         let params = self.gen_param_names(&lambda.params);
@@ -1794,7 +1794,7 @@ impl PyCodeGenerator {
         self.write_instr(Opcode310::POP_JUMP_IF_FALSE);
         self.write_arg(0);
         self.stack_dec();
-        let lambda = enum_unwrap!(args.remove(0), Expr::Lambda);
+        let Expr::Lambda(lambda) = args.remove(0) else { unreachable!() };
         let init_stack_len = self.stack_len();
         let params = self.gen_param_names(&lambda.params);
         self.emit_frameless_block(lambda.body, params);
@@ -1838,7 +1838,7 @@ impl PyCodeGenerator {
                 self.dup_top();
             }
             // compilerで型チェック済み(可読性が下がるため、matchでNamedは使えない)
-            let mut lambda = enum_unwrap!(expr, Expr::Lambda);
+            let Expr::Lambda(mut lambda) = expr else { unreachable!() };
             debug_power_assert!(lambda.params.len(), ==, 1);
             if !lambda.params.defaults.is_empty() {
                 todo!("default values in match expression are not supported yet")
@@ -1943,7 +1943,7 @@ impl PyCodeGenerator {
             return self.deopt_instr(ControlKind::With, args);
         }
         let expr = args.remove(0);
-        let lambda = enum_unwrap!(args.remove(0), Expr::Lambda);
+        let Expr::Lambda(lambda) = args.remove(0) else { unreachable!() };
         let params = self.gen_param_names(&lambda.params);
         self.emit_expr(expr);
         self.write_instr(Opcode311::BEFORE_WITH);
@@ -1991,7 +1991,7 @@ impl PyCodeGenerator {
             return self.deopt_instr(ControlKind::With, args);
         }
         let expr = args.remove(0);
-        let lambda = enum_unwrap!(args.remove(0), Expr::Lambda);
+        let Expr::Lambda(lambda) = args.remove(0) else { unreachable!() };
         let params = self.gen_param_names(&lambda.params);
         self.emit_expr(expr);
         let idx_setup_with = self.lasti();
@@ -2044,7 +2044,7 @@ impl PyCodeGenerator {
             return self.deopt_instr(ControlKind::With, args);
         }
         let expr = args.remove(0);
-        let lambda = enum_unwrap!(args.remove(0), Expr::Lambda);
+        let Expr::Lambda(lambda) = args.remove(0) else { unreachable!() };
         let params = self.gen_param_names(&lambda.params);
         self.emit_expr(expr);
         let idx_setup_with = self.lasti();
@@ -2226,7 +2226,7 @@ impl PyCodeGenerator {
     /// TODO: should be `X = X + 1` in the above case
     fn emit_call_update_311(&mut self, obj: Expr, mut args: Args) {
         log!(info "entered {}", fn_name!());
-        let acc = enum_unwrap!(obj, Expr::Accessor);
+        let Expr::Accessor(acc) = obj else { unreachable!() };
         let func = args.remove_left_or_key("f").unwrap();
         if !self.mutate_op_loaded {
             self.load_mutate_op();
@@ -2251,7 +2251,7 @@ impl PyCodeGenerator {
     /// X = X + 1
     fn emit_call_update_310(&mut self, obj: Expr, mut args: Args) {
         log!(info "entered {}", fn_name!());
-        let acc = enum_unwrap!(obj, Expr::Accessor);
+        let Expr::Accessor(acc) = obj else { unreachable!() };
         let func = args.remove_left_or_key("f").unwrap();
         if !self.mutate_op_loaded {
             self.load_mutate_op();
@@ -2546,7 +2546,7 @@ impl PyCodeGenerator {
     }
 
     fn push_lnotab(&mut self, expr: &Expr) {
-        let ln_begin = expr.ln_begin().unwrap_or_else(|| panic!("{expr}"));
+        let ln_begin = expr.ln_begin().unwrap_or(0);
         if ln_begin > self.cur_block().prev_lineno {
             let sd = self.lasti() - self.cur_block().prev_lasti;
             let ld = ln_begin - self.cur_block().prev_lineno;
@@ -2715,7 +2715,7 @@ impl PyCodeGenerator {
         self.unit_size += 1;
         let firstlineno = match class.methods.get(0).and_then(|def| def.ln_begin()) {
             Some(l) => l,
-            None => class.sig.ln_begin().unwrap(),
+            None => class.sig.ln_begin().unwrap_or(0),
         };
         self.units.push(PyCodeGenUnit::new(
             self.unit_size,
@@ -2778,7 +2778,7 @@ impl PyCodeGenerator {
     fn emit_init_method(&mut self, sig: &Signature, __new__: Type) {
         log!(info "entered {}", fn_name!());
         let new_first_param = __new__.non_default_params().unwrap().first();
-        let line = sig.ln_begin().unwrap();
+        let line = sig.ln_begin().unwrap_or(0);
         let class_name = sig.ident().inspect();
         let mut ident = Identifier::public_with_line(DOT, Str::ever("__init__"), line);
         ident.vi.t = __new__.clone();
@@ -2867,7 +2867,7 @@ impl PyCodeGenerator {
     fn emit_new_func(&mut self, sig: &Signature, __new__: Type) {
         log!(info "entered {}", fn_name!());
         let class_ident = sig.ident();
-        let line = sig.ln_begin().unwrap();
+        let line = sig.ln_begin().unwrap_or(0);
         let mut ident = Identifier::public_with_line(DOT, Str::ever("new"), line);
         let class = Expr::Accessor(Accessor::Ident(class_ident.clone()));
         let mut new_ident = Identifier::private_with_line(Str::ever("__new__"), line);
