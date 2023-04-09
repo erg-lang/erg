@@ -621,7 +621,7 @@ impl Free<TyParam> {
 impl<T: StructuralEq + CanbeFree + Clone + Default> StructuralEq for Free<T> {
     fn structural_eq(&self, other: &Self) -> bool {
         if let (Some((l, r)), Some((l2, r2))) = (self.get_subsup(), other.get_subsup()) {
-            self.forced_undoable_link(&T::default());
+            self.dummy_link();
             let res = l.structural_eq(&l2) && r.structural_eq(&r2);
             self.undo();
             res

@@ -138,8 +138,8 @@ impl Generalizer {
             FreeVar(fv) if fv.is_generalized() => Type::FreeVar(fv),
             // TODO: Polymorphic generalization
             FreeVar(fv) if fv.level().unwrap() > self.level => {
+                fv.generalize();
                 if uninit {
-                    fv.generalize();
                     return Type::FreeVar(fv);
                 }
                 if let Some((sub, sup)) = fv.get_subsup() {
@@ -162,13 +162,11 @@ impl Generalizer {
                         self.generalize_t(sub, uninit)
                     } else {
                         fv.update_constraint(self.generalize_constraint(&fv), true);
-                        fv.generalize();
                         Type::FreeVar(fv)
                     }
                 } else {
                     // ?S(: Str) => 'S
                     fv.update_constraint(self.generalize_constraint(&fv), true);
-                    fv.generalize();
                     Type::FreeVar(fv)
                 }
             }
@@ -515,9 +513,14 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
             Type::FreeVar(fv) if fv.constraint_is_sandwiched() => {
                 let (sub_t, super_t) = fv.get_subsup().unwrap();
                 if self.ctx.level <= fv.level().unwrap() {
-                    // if fv == ?T(<: Int, :> Add(?T)), deref_tyvar(super_t) will cause infinite loop
-                    // so we need to force linking
-                    fv.forced_undoable_link(&sub_t);
+                    // we need to force linking to avoid infinite loop
+                    // e.g. fv == ?T(<: Int, :> Add(?T))
+                    //      fv == ?T(:> ?T.Output, <: Add(Int))
+                    if sub_t.contains(&Type::FreeVar(fv.clone())) {
+                        fv.forced_undoable_link(&super_t);
+                    } else {
+                        fv.forced_undoable_link(&sub_t);
+                    }
                     let res = self.validate_subsup(sub_t, super_t);
                     fv.undo();
                     match res {

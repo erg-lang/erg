@@ -400,6 +400,26 @@ impl Context {
                     }
                 }
             },
+            (_, Proj { .. }) => {
+                if let Some(cands) = self.get_candidates(rhs) {
+                    for cand in cands.into_iter() {
+                        if self.supertype_of(lhs, &cand) {
+                            return true;
+                        }
+                    }
+                }
+                false
+            }
+            (Proj { .. }, _) => {
+                if let Some(cands) = self.get_candidates(lhs) {
+                    for cand in cands.into_iter() {
+                        if self.supertype_of(&cand, rhs) {
+                            return true;
+                        }
+                    }
+                }
+                false
+            }
             // true if it can be a supertype, false if it cannot (due to type constraints)
             // No type constraints are imposed here, as subsequent type decisions are made according to the possibilities
             // ?P(<: Mul ?P) :> Int
@@ -454,7 +474,7 @@ impl Context {
                     }
                 }
             },
-            (Type::Record(lhs), Type::Record(rhs)) => {
+            (Record(lhs), Record(rhs)) => {
                 for (l_k, l_t) in lhs.iter() {
                     if let Some((r_k, r_t)) = rhs.get_key_value(l_k) {
                         // public <: private (private fields cannot be public)
@@ -677,26 +697,6 @@ impl Context {
                 } else {
                     self.poly_supertype_of(lhs, lparams, rparams)
                 }
-            }
-            (Proj { .. }, _) => {
-                if let Some(cands) = self.get_candidates(lhs) {
-                    for cand in cands.into_iter() {
-                        if self.supertype_of(&cand, rhs) {
-                            return true;
-                        }
-                    }
-                }
-                false
-            }
-            (_, Proj { .. }) => {
-                if let Some(cands) = self.get_candidates(rhs) {
-                    for cand in cands.into_iter() {
-                        if self.supertype_of(lhs, &cand) {
-                            return true;
-                        }
-                    }
-                }
-                false
             }
             (Structural(l), Structural(r)) => self.structural_supertype_of(l, r),
             // TODO: If visibility does not match, it should be reported as a cause of an error
