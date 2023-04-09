@@ -219,20 +219,6 @@ impl LexError {
         ))
     }
 
-    pub fn invalid_convert_error(errno: usize, loc: Location, from: &str, to: &str) -> ParseError {
-        Self::syntax_error(
-            errno,
-            loc,
-            switch_lang!(
-                "japanese" => format!("{from}から{to}に変換するのに失敗しました"),
-                "simplified_chinese" => format!("无法将{from}转换为{to}"),
-                "traditional_chinese" => format!("無法將{from}轉換為{to}"),
-                "english" => format!("failed to convert {from} to {to}"),
-            ),
-            None,
-        )
-    }
-
     pub fn invalid_definition_of_last_block(errno: usize, loc: Location) -> LexError {
         Self::syntax_error(
             errno,
