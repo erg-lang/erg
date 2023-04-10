@@ -1582,25 +1582,13 @@ impl ASTLowerer {
                 }
                 match self.lower_block(body.block) {
                     Ok(block) => {
-                        let found_body_t = block.ref_t();
+                        let found_body_t = self.module.context.squash_tyvar(block.t());
                         let vi = self.module.context.outer.as_mut().unwrap().assign_subr(
                             &sig,
                             body.id,
-                            found_body_t,
+                            &found_body_t,
                             block.last().unwrap(),
                         )?;
-                        let return_t = vi.t.return_t().unwrap();
-                        if return_t.union_pair().is_some() && sig.return_t_spec.is_none() {
-                            let warn = LowerWarning::union_return_type_warning(
-                                self.input().clone(),
-                                line!() as usize,
-                                sig.loc(),
-                                self.module.context.caused_by(),
-                                sig.ident.inspect(),
-                                &self.module.context.readable_type(return_t.clone()),
-                            );
-                            self.warns.push(warn);
-                        }
                         let ident = hir::Identifier::new(sig.ident, None, vi);
                         let sig =
                             hir::SubrSignature::new(ident, sig.bounds, params, sig.return_t_spec);
@@ -2519,6 +2507,7 @@ impl ASTLowerer {
                 return Err(self.return_incomplete_artifact(hir));
             }
         };
+        self.warn_implicit_union(&hir);
         self.warn_unused_expr(&hir.module, mode);
         self.warn_unused_vars(mode);
         self.check_doc_comments(&hir);

@@ -154,7 +154,7 @@ fn exec_raw_ident() -> Result<(), ()> {
 
 #[test]
 fn exec_rec() -> Result<(), ()> {
-    expect_success("tests/should_ok/rec.er", 1)
+    expect_success("tests/should_ok/rec.er", 0)
 }
 
 #[test]

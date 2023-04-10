@@ -9,5 +9,10 @@ stop_or_call n, f: (Nat -> Nat), g: (Nat -> Nat) =
 fact(n: Nat): Nat =
     stop_or_call n, fact, (r, ) -> r * n
 
-print! fact
-print! fact 5
+assert fact(5) == 120
+
+iterate(_, 0, x) = x
+iterate(f, n: Int, x) = iterate f, n-1, f x
+
+assert iterate((x -> x + 1), 5, 0) == 5
+assert iterate((x -> x + "a"), 5, "b") == "baaaaa"

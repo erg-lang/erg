@@ -2081,6 +2081,22 @@ impl Type {
         matches!(self, Self::FreeVar(fv) if fv.is_unbound() || fv.crack().is_unbound_var())
     }
 
+    pub fn is_named_unbound_var(&self) -> bool {
+        matches!(self, Self::FreeVar(fv) if fv.is_named_unbound() || (fv.is_linked() && fv.crack().is_named_unbound_var()))
+    }
+
+    pub fn is_totally_unbound(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_unbound() => true,
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_totally_unbound(),
+            Self::Or(t1, t2) | Self::And(t1, t2) => {
+                t1.is_totally_unbound() && t2.is_totally_unbound()
+            }
+            Self::Not(t) => t.is_totally_unbound(),
+            _ => false,
+        }
+    }
+
     /// See also: `is_monomorphized`
     pub fn is_monomorphic(&self) -> bool {
         matches!(self.typarams_len(), Some(0) | None)

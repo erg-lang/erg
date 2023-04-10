@@ -30,6 +30,8 @@ impl Context {
     /// occur(X -> ?T, X -> ?T) ==> OK
     /// occur(?T, ?T -> X) ==> Error
     /// occur(?T, Option(?T)) ==> Error
+    /// occur(?T or ?U, ?T) ==> OK
+    /// occur(?T(<: Str) or ?U(<: Int), ?T(<: Str)) ==> Error
     /// occur(?T, ?T.Output) ==> OK
     pub(crate) fn occur(
         &self,
@@ -117,6 +119,10 @@ impl Context {
                     self.occur_inner(maybe_sub, param, loc)?;
                 }
                 Ok(())
+            }
+            (Or(l, r), Or(l2, r2)) | (And(l, r), And(l2, r2)) => {
+                self.occur(l, l2, loc)?;
+                self.occur(r, r2, loc)
             }
             (lhs, Or(l, r)) | (lhs, And(l, r)) => {
                 self.occur_inner(lhs, l, loc)?;
@@ -787,14 +793,29 @@ impl Context {
                         self.caused_by(),
                     )));
                 };
-                if sub_fv.level().unwrap_or(GENERIC_LEVEL)
-                    <= sup_fv.level().unwrap_or(GENERIC_LEVEL)
+                match sub_fv
+                    .level()
+                    .unwrap_or(GENERIC_LEVEL)
+                    .cmp(&sup_fv.level().unwrap_or(GENERIC_LEVEL))
                 {
-                    sub_fv.update_constraint(new_constraint, false);
-                    sup_fv.link(maybe_sub);
-                } else {
-                    sup_fv.update_constraint(new_constraint, false);
-                    sub_fv.link(maybe_sup);
+                    std::cmp::Ordering::Less => {
+                        sub_fv.update_constraint(new_constraint, false);
+                        sup_fv.link(maybe_sub);
+                    }
+                    std::cmp::Ordering::Greater => {
+                        sup_fv.update_constraint(new_constraint, false);
+                        sub_fv.link(maybe_sup);
+                    }
+                    std::cmp::Ordering::Equal => {
+                        // choose named one
+                        if sup_fv.is_named_unbound() {
+                            sup_fv.update_constraint(new_constraint, false);
+                            sub_fv.link(maybe_sup);
+                        } else {
+                            sub_fv.update_constraint(new_constraint, false);
+                            sup_fv.link(maybe_sub);
+                        }
+                    }
                 }
                 Ok(())
             }

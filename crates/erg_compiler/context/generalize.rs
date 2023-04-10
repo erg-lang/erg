@@ -1213,4 +1213,32 @@ impl Context {
             hir::Expr::Import(_) => unreachable!(),
         }
     }
+
+    /// ```erg
+    /// squash_tyvar(?1 or ?2) == ?1(== ?2)
+    /// squash_tyvar(?T or ?U) == ?T or ?U
+    /// ```
+    pub(crate) fn squash_tyvar(&self, typ: Type) -> Type {
+        match typ {
+            Type::Or(l, r) => {
+                let l = self.squash_tyvar(*l);
+                let r = self.squash_tyvar(*r);
+                if l.is_named_unbound_var() && r.is_named_unbound_var() {
+                    self.union(&l, &r)
+                } else {
+                    match (self.subtype_of(&l, &r), self.subtype_of(&r, &l)) {
+                        (true, true) | (true, false) => {
+                            let _ = self.sub_unify(&l, &r, &(), None);
+                        }
+                        (false, true) => {
+                            let _ = self.sub_unify(&r, &l, &(), None);
+                        }
+                        _ => {}
+                    }
+                    self.union(&l, &r)
+                }
+            }
+            other => other,
+        }
+    }
 }

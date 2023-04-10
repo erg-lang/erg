@@ -8,7 +8,7 @@ use erg_common::traits::StructuralEq;
 use erg_common::Str;
 use erg_common::{assume_unreachable, log};
 
-use crate::ty::constructors::{and, not, or, poly};
+use crate::ty::constructors::{and, bounded, not, or, poly};
 use crate::ty::free::{Constraint, FreeKind};
 use crate::ty::typaram::{OpKind, TyParam, TyParamOrdering};
 use crate::ty::value::ValueObj;
@@ -982,6 +982,18 @@ impl Context {
             }
             (Refinement(l), Refinement(r)) => Type::Refinement(self.union_refinement(l, r)),
             (Structural(l), Structural(r)) => self.union(l, r).structuralize(),
+            // Int..Obj or Nat..Obj ==> Int..Obj
+            // Str..Obj or Int..Obj ==> Str..Obj or Int..Obj
+            (
+                Bounded { sub, sup },
+                Bounded {
+                    sub: sub2,
+                    sup: sup2,
+                },
+            ) => match (self.max(sub, sub2), self.min(sup, sup2)) {
+                (Some(sub), Some(sup)) => bounded(sub.clone(), sup.clone()),
+                _ => self.simple_union(lhs, rhs),
+            },
             (t, Type::Never) | (Type::Never, t) => t.clone(),
             // Array({1, 2}, 2), Array({3, 4}, 2) ==> Array({1, 2, 3, 4}, 2)
             (
@@ -997,31 +1009,48 @@ impl Context {
                 debug_assert_eq!(lps.len(), rps.len());
                 let mut unified_params = vec![];
                 for (lp, rp) in lps.iter().zip(rps.iter()) {
-                    match (lp, rp) {
-                        (TyParam::Value(ValueObj::Type(l)), TyParam::Value(ValueObj::Type(r))) => {
-                            unified_params.push(TyParam::t(self.union(l.typ(), r.typ())));
-                        }
-                        (TyParam::Value(ValueObj::Type(l)), TyParam::Type(r)) => {
-                            unified_params.push(TyParam::t(self.union(l.typ(), r)));
-                        }
-                        (TyParam::Type(l), TyParam::Value(ValueObj::Type(r))) => {
-                            unified_params.push(TyParam::t(self.union(l, r.typ())));
-                        }
-                        (TyParam::Type(l), TyParam::Type(r)) => {
-                            unified_params.push(TyParam::t(self.union(l, r)));
-                        }
-                        (_, _) => {
-                            if self.eq_tp(lp, rp) {
-                                unified_params.push(lp.clone());
-                            } else {
-                                return self.simple_union(lhs, rhs);
-                            }
-                        }
+                    if let Some(union) = self.union_tp(lp, rp) {
+                        unified_params.push(union);
+                    } else {
+                        return self.simple_union(lhs, rhs);
                     }
                 }
                 poly(ln, unified_params)
             }
             _ => self.simple_union(lhs, rhs),
+        }
+    }
+
+    fn union_tp(&self, lhs: &TyParam, rhs: &TyParam) -> Option<TyParam> {
+        match (lhs, rhs) {
+            (TyParam::Value(ValueObj::Type(l)), TyParam::Value(ValueObj::Type(r))) => {
+                Some(TyParam::t(self.union(l.typ(), r.typ())))
+            }
+            (TyParam::Value(ValueObj::Type(l)), TyParam::Type(r)) => {
+                Some(TyParam::t(self.union(l.typ(), r)))
+            }
+            (TyParam::Type(l), TyParam::Value(ValueObj::Type(r))) => {
+                Some(TyParam::t(self.union(l, r.typ())))
+            }
+            (TyParam::Type(l), TyParam::Type(r)) => Some(TyParam::t(self.union(l, r))),
+            (TyParam::Array(l), TyParam::Array(r)) => {
+                let mut tps = vec![];
+                for (l, r) in l.iter().zip(r.iter()) {
+                    if let Some(tp) = self.union_tp(l, r) {
+                        tps.push(tp);
+                    } else {
+                        return None;
+                    }
+                }
+                Some(TyParam::Array(tps))
+            }
+            (_, _) => {
+                if self.eq_tp(lhs, rhs) {
+                    Some(lhs.clone())
+                } else {
+                    None
+                }
+            }
         }
     }
 

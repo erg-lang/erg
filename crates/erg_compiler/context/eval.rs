@@ -21,7 +21,7 @@ use crate::ty::constructors::{
     array_t, dict_t, mono, poly, proj, proj_call, ref_, ref_mut, refinement, subr_t, tuple_t,
     v_enum,
 };
-use crate::ty::free::{Constraint, HasLevel};
+use crate::ty::free::{Constraint, FreeTyVar, HasLevel};
 use crate::ty::typaram::{OpKind, TyParam};
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{ConstSubr, HasType, Predicate, SubrKind, Type, UserConstSubr, ValueArgs};
@@ -1275,7 +1275,7 @@ impl Context {
                 let t = self
                     .convert_tp_into_type(params[0].clone())
                     .map_err(|_| ())?;
-                let len = enum_unwrap!(params[1], TyParam::Value:(ValueObj::Nat:(_)));
+                let TyParam::Value(ValueObj::Nat(len)) = params[1] else { unreachable!() };
                 Ok(vec![ValueObj::builtin_type(t); len as usize])
             }
             _ => Err(()),
@@ -1432,7 +1432,7 @@ impl Context {
                 Ok(())
             }
             TyParam::Type(gt) if gt.is_generalized() => {
-                let qt = enum_unwrap!(gt.as_ref(), Type::FreeVar);
+                let Ok(qt) = <&FreeTyVar>::try_from(gt.as_ref()) else { unreachable!() };
                 let Ok(st) = Type::try_from(stp) else { todo!(); };
                 if !st.is_generalized() {
                     qt.undoable_link(&st);
@@ -1442,7 +1442,7 @@ impl Context {
             TyParam::Type(qt) => {
                 let Ok(st) = Type::try_from(stp) else { todo!(); };
                 let st = if st.typarams_len() != qt.typarams_len() {
-                    let st = enum_unwrap!(st, Type::FreeVar);
+                    let Ok(st) = <&FreeTyVar>::try_from(&st) else { unreachable!() };
                     st.get_sub().unwrap()
                 } else {
                     st
@@ -1461,7 +1461,7 @@ impl Context {
             match tp {
                 TyParam::FreeVar(fv) if fv.is_undoable_linked() => fv.undo(),
                 TyParam::Type(t) if t.is_free_var() => {
-                    let subst = enum_unwrap!(t.as_ref(), Type::FreeVar);
+                    let Ok(subst) = <&FreeTyVar>::try_from(t.as_ref()) else { unreachable!() };
                     if subst.is_undoable_linked() {
                         subst.undo();
                     }

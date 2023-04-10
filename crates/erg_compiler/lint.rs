@@ -16,7 +16,7 @@ use crate::ty::{HasType, Type, ValueObj, VisibilityModifier};
 use crate::error::{
     CompileErrors, LowerError, LowerResult, LowerWarning, LowerWarnings, SingleLowerResult,
 };
-use crate::hir::{self, Expr, HIR};
+use crate::hir::{self, Expr, Signature, HIR};
 use crate::lower::ASTLowerer;
 use crate::varinfo::VarInfo;
 
@@ -278,5 +278,48 @@ impl ASTLowerer {
         // self.warn_unused_vars("exec");
         self.check_doc_comments(&hir);
         self.module.context.pop();
+    }
+
+    pub(crate) fn warn_implicit_union(&mut self, hir: &HIR) {
+        for chunk in hir.module.iter() {
+            self.warn_implicit_union_chunk(chunk);
+        }
+    }
+
+    fn warn_implicit_union_chunk(&mut self, chunk: &Expr) {
+        match chunk {
+            Expr::ClassDef(class_def) => {
+                for chunk in class_def.methods.iter() {
+                    self.warn_implicit_union_chunk(chunk);
+                }
+            }
+            Expr::PatchDef(patch_def) => {
+                for chunk in patch_def.methods.iter() {
+                    self.warn_implicit_union_chunk(chunk);
+                }
+            }
+            Expr::Def(def) => {
+                if let Signature::Subr(subr) = &def.sig {
+                    let return_t = subr.ref_t().return_t().unwrap();
+                    if return_t.union_pair().is_some() && subr.return_t_spec.is_none() {
+                        let typ = if cfg!(feature = "debug") {
+                            return_t.clone()
+                        } else {
+                            self.module.context.readable_type(return_t.clone())
+                        };
+                        let warn = LowerWarning::union_return_type_warning(
+                            self.input().clone(),
+                            line!() as usize,
+                            subr.loc(),
+                            self.module.context.caused_by(),
+                            subr.ident.inspect(),
+                            &typ,
+                        );
+                        self.warns.push(warn);
+                    }
+                }
+            }
+            _ => {}
+        }
     }
 }

@@ -1024,6 +1024,7 @@ impl LowerWarning {
         fn_name: &str,
         typ: &Type,
     ) -> Self {
+        let fn_name = fn_name.with_color(Color::Yellow);
         let hint = switch_lang!(
             "japanese" => format!("`{fn_name}(...): {typ} = ...`など明示的に戻り値型を指定してください"),
             "simplified_chinese" => format!("请明确指定函数{fn_name}的返回类型，例如`{fn_name}(...): {typ} = ...`"),

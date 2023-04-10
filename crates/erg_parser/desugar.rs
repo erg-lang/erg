@@ -13,10 +13,10 @@ use crate::ast::{
     ClassAttr, ClassAttrs, ClassDef, ConstExpr, DataPack, Def, DefBody, DefId, Dict, Dummy, Expr,
     Identifier, KeyValue, KwArg, Lambda, LambdaSignature, Literal, Methods, MixedRecord, Module,
     NonDefaultParamSignature, NormalArray, NormalDict, NormalRecord, NormalSet, NormalTuple,
-    ParamPattern, ParamRecordAttr, Params, PatchDef, PosArg, ReDef, Record, RecordAttrOrIdent,
-    RecordAttrs, Set as astSet, SetWithLength, Signature, SubrSignature, Tuple, TupleTypeSpec,
-    TypeAppArgs, TypeAppArgsKind, TypeBoundSpecs, TypeSpec, TypeSpecWithOp, UnaryOp, VarName,
-    VarPattern, VarRecordAttr, VarSignature, VisModifierSpec,
+    ParamPattern, ParamRecordAttr, ParamTuplePattern, Params, PatchDef, PosArg, ReDef, Record,
+    RecordAttrOrIdent, RecordAttrs, Set as astSet, SetWithLength, Signature, SubrSignature, Tuple,
+    TupleTypeSpec, TypeAppArgs, TypeAppArgsKind, TypeBoundSpecs, TypeSpec, TypeSpecWithOp, UnaryOp,
+    VarName, VarPattern, VarRecordAttr, VarSignature, VisModifierSpec,
 };
 use crate::token::{Token, TokenKind, COLON, DOT};
 
@@ -145,7 +145,7 @@ impl Desugarer {
             },
             Expr::DataPack(pack) => {
                 let class = desugar(*pack.class);
-                let args = enum_unwrap!(desugar(Expr::Record(pack.args)), Expr::Record);
+                let Expr::Record(args) = desugar(Expr::Record(pack.args)) else { unreachable!() };
                 Expr::DataPack(DataPack::new(class, pack.connector, args))
             }
             Expr::Array(array) => match array {
@@ -249,7 +249,7 @@ impl Desugarer {
                 Expr::Def(Def::new(def.sig, body))
             }
             Expr::ClassDef(class_def) => {
-                let def = enum_unwrap!(desugar(Expr::Def(class_def.def)), Expr::Def);
+                let Expr::Def(def) = desugar(Expr::Def(class_def.def)) else { unreachable!() };
                 let methods = class_def
                     .methods_list
                     .into_iter()
@@ -258,7 +258,7 @@ impl Desugarer {
                 Expr::ClassDef(ClassDef::new(def, methods))
             }
             Expr::PatchDef(class_def) => {
-                let def = enum_unwrap!(desugar(Expr::Def(class_def.def)), Expr::Def);
+                let Expr::Def(def) = desugar(Expr::Def(class_def.def)) else { unreachable!() };
                 let methods = class_def
                     .methods_list
                     .into_iter()
@@ -343,7 +343,7 @@ impl Desugarer {
                     if let Some(Expr::Def(previous)) = new.last() {
                         if previous.is_subr() && previous.sig.name_as_str() == def.sig.name_as_str()
                         {
-                            let previous = enum_unwrap!(new.pop().unwrap(), Expr::Def);
+                            let Some(Expr::Def(previous)) = new.pop() else { unreachable!() };
                             let name = def.sig.ident().unwrap().clone();
                             let id = def.body.id;
                             let op = def.body.op.clone();
@@ -354,17 +354,46 @@ impl Desugarer {
                             } else {
                                 self.gen_match_call(previous, def)
                             };
-                            let param_name = enum_unwrap!(&call.args.pos_args().iter().next().unwrap().expr, Expr::Accessor:(Accessor::Ident:(_))).inspect();
-                            // FIXME: multiple params
-                            let param = VarName::new(Token::new(
-                                TokenKind::Symbol,
-                                param_name,
-                                name.ln_begin().unwrap_or(1),
-                                name.col_end().unwrap_or(0) + 1, // HACK: `(name) %x = ...`という形を想定
-                            ));
-                            let param =
-                                NonDefaultParamSignature::new(ParamPattern::VarName(param), None);
-                            let params = Params::single(param);
+                            let params = match &call.args.pos_args().iter().next().unwrap().expr {
+                                Expr::Tuple(Tuple::Normal(tup)) => {
+                                    let mut params = vec![];
+                                    for arg in tup.elems.pos_args().iter() {
+                                        match &arg.expr {
+                                            Expr::Accessor(Accessor::Ident(ident)) => {
+                                                let param_name = ident.inspect();
+                                                let param = VarName::new(Token::new(
+                                                    TokenKind::Symbol,
+                                                    param_name,
+                                                    name.ln_begin().unwrap_or(1),
+                                                    name.col_end().unwrap_or(0) + 1,
+                                                ));
+                                                let param = NonDefaultParamSignature::new(
+                                                    ParamPattern::VarName(param),
+                                                    None,
+                                                );
+                                                params.push(param);
+                                            }
+                                            _ => unreachable!(),
+                                        }
+                                    }
+                                    Params::new(params, None, vec![], None)
+                                }
+                                Expr::Accessor(Accessor::Ident(ident)) => {
+                                    let param_name = ident.inspect();
+                                    let param = VarName::new(Token::new(
+                                        TokenKind::Symbol,
+                                        param_name,
+                                        name.ln_begin().unwrap_or(1),
+                                        name.col_end().unwrap_or(0) + 1, // HACK: `(name) %x = ...`という形を想定
+                                    ));
+                                    let param = NonDefaultParamSignature::new(
+                                        ParamPattern::VarName(param),
+                                        None,
+                                    );
+                                    Params::single(param)
+                                }
+                                _ => unreachable!(),
+                            };
                             let sig = Signature::Subr(SubrSignature::new(
                                 set! {},
                                 name,
@@ -392,8 +421,8 @@ impl Desugarer {
 
     fn add_arg_to_match_call(&self, mut previous: Def, def: Def) -> (Call, Option<TypeSpec>) {
         let op = Token::from_str(TokenKind::FuncArrow, "->");
-        let mut call = enum_unwrap!(previous.body.block.remove(0), Expr::Call);
-        let sig = enum_unwrap!(def.sig, Signature::Subr);
+        let Expr::Call(mut call) = previous.body.block.remove(0) else { unreachable!() };
+        let Signature::Subr(sig) = def.sig else { unreachable!() };
         let return_t_spec = sig.return_t_spec;
         let first_arg = sig.params.non_defaults.first().unwrap();
         // 最後の定義の引数名を関数全体の引数名にする
@@ -406,7 +435,14 @@ impl Desugarer {
             ));
             call.args.insert_pos(0, arg);
         }
-        let sig = LambdaSignature::new(sig.params, return_t_spec.clone(), sig.bounds);
+        // f(x, y, z) = ... => match x, ((x, y, z),) -> ...
+        let params = if sig.params.len() == 1 {
+            sig.params
+        } else {
+            let pat = ParamPattern::Tuple(ParamTuplePattern::new(sig.params));
+            Params::single(NonDefaultParamSignature::new(pat, None))
+        };
+        let sig = LambdaSignature::new(params, return_t_spec.clone(), sig.bounds);
         let new_branch = Lambda::new(sig, op, def.body.block, def.body.id);
         call.args.push_pos(PosArg::new(Expr::Lambda(new_branch)));
         (call, return_t_spec)
@@ -415,17 +451,39 @@ impl Desugarer {
     // TODO: procedural match
     fn gen_match_call(&self, previous: Def, def: Def) -> (Call, Option<TypeSpec>) {
         let op = Token::from_str(TokenKind::FuncArrow, "->");
-        let sig = enum_unwrap!(previous.sig, Signature::Subr);
+        let Signature::Subr(prev_sig) = previous.sig else { unreachable!() };
+        let params_len = prev_sig.params.len();
+        let params = if params_len == 1 {
+            prev_sig.params
+        } else {
+            let pat = ParamPattern::Tuple(ParamTuplePattern::new(prev_sig.params));
+            Params::single(NonDefaultParamSignature::new(pat, None))
+        };
         let match_symbol = Expr::static_local("match");
-        let sig = LambdaSignature::new(sig.params, sig.return_t_spec, sig.bounds);
+        let sig = LambdaSignature::new(params, prev_sig.return_t_spec, prev_sig.bounds);
         let first_branch = Lambda::new(sig, op.clone(), previous.body.block, previous.body.id);
-        let sig = enum_unwrap!(def.sig, Signature::Subr);
+        let Signature::Subr(sig) = def.sig else { unreachable!() };
+        let params = if sig.params.len() == 1 {
+            sig.params
+        } else {
+            let pat = ParamPattern::Tuple(ParamTuplePattern::new(sig.params));
+            Params::single(NonDefaultParamSignature::new(pat, None))
+        };
         let return_t_spec = sig.return_t_spec;
-        let sig = LambdaSignature::new(sig.params, return_t_spec.clone(), sig.bounds);
+        let sig = LambdaSignature::new(params, return_t_spec.clone(), sig.bounds);
         let second_branch = Lambda::new(sig, op, def.body.block, def.body.id);
+        let first_arg = if params_len == 1 {
+            Expr::dummy_local(&fresh_varname())
+        } else {
+            let args = (0..params_len).map(|_| PosArg::new(Expr::dummy_local(&fresh_varname())));
+            Expr::Tuple(Tuple::Normal(NormalTuple::new(Args::pos_only(
+                args.collect(),
+                None,
+            ))))
+        };
         let args = Args::pos_only(
             vec![
-                PosArg::new(Expr::dummy_local("_")), // dummy argument, will be removed in line 56
+                PosArg::new(first_arg), // dummy argument, will be removed in line 56
                 PosArg::new(Expr::Lambda(first_branch)),
                 PosArg::new(Expr::Lambda(second_branch)),
             ],
