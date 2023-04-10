@@ -178,6 +178,7 @@ impl TyCheckError {
         found: &Type,
         hint: Option<String>,
     ) -> Self {
+        let name = name.with_color(Color::Yellow);
         let mut expct = StyledStrings::default();
         switch_lang!(
             "japanese" => expct.push_str("予期した型: "),

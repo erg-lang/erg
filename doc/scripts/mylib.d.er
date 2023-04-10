@@ -1,5 +1,3 @@
-re = pyimport "re"
-
 .get_file_dirname!: () => Str
 
 .path_join: (__a: Str, path: Str) => Str

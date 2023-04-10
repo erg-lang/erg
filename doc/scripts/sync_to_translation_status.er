@@ -42,7 +42,7 @@ get_doc_en_file_paths! relative_dir_path, relative_file_paths_result := [] =
     for! relative_file_paths, path =>
         result.push! path
     for! relative_dir_paths, path =>
-        result.push! get_doc_en_file_paths! path, result
+        result.extend! get_doc_en_file_paths! path, result
     result
 
 doc_en_file_paths = get_doc_en_file_paths! "EN"
