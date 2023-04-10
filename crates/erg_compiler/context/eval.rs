@@ -1233,23 +1233,23 @@ impl Context {
         }
     }
 
-    pub(crate) fn convert_tp_into_ty(&self, tp: TyParam) -> Result<Type, ()> {
+    pub(crate) fn convert_tp_into_type(&self, tp: TyParam) -> Result<Type, TyParam> {
         match tp {
             TyParam::Array(tps) => {
                 let len = tps.len();
                 let mut t = Type::Never;
                 for elem_tp in tps {
-                    let elem_t = self.convert_tp_into_ty(elem_tp)?;
+                    let elem_t = self.convert_tp_into_type(elem_tp)?;
                     // not union
                     t = self.union(&t, &elem_t);
                 }
                 Ok(array_t(t, TyParam::value(len)))
             }
-            TyParam::FreeVar(fv) if fv.is_linked() => self.convert_tp_into_ty(fv.crack().clone()),
+            TyParam::FreeVar(fv) if fv.is_linked() => self.convert_tp_into_type(fv.crack().clone()),
             TyParam::Type(t) => Ok(t.as_ref().clone()),
-            TyParam::Value(v) => Type::try_from(v).or(Err(())),
+            TyParam::Value(v) => Type::try_from(v).map_err(TyParam::Value),
             // TODO: Dict, Set
-            _ => Err(()),
+            other => Err(other),
         }
     }
 
@@ -1259,8 +1259,8 @@ impl Context {
                 let dict = Dict::try_from(params[0].clone())?;
                 let mut new_dict = dict! {};
                 for (k, v) in dict.into_iter() {
-                    let k = self.convert_tp_into_ty(k)?;
-                    let v = self.convert_tp_into_ty(v)?;
+                    let k = self.convert_tp_into_type(k).map_err(|_| ())?;
+                    let v = self.convert_tp_into_type(v).map_err(|_| ())?;
                     new_dict.insert(k, v);
                 }
                 Ok(new_dict)
@@ -1272,7 +1272,9 @@ impl Context {
     fn convert_type_to_array(&self, ty: Type) -> Result<Vec<ValueObj>, ()> {
         match ty {
             Type::Poly { name, params } if &name[..] == "Array" || &name[..] == "Array!" => {
-                let t = self.convert_tp_into_ty(params[0].clone())?;
+                let t = self
+                    .convert_tp_into_type(params[0].clone())
+                    .map_err(|_| ())?;
                 let len = enum_unwrap!(params[1], TyParam::Value:(ValueObj::Nat:(_)));
                 Ok(vec![ValueObj::builtin_type(t); len as usize])
             }

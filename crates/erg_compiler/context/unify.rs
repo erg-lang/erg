@@ -3,6 +3,7 @@ use std::mem;
 use std::option::Option;
 
 use erg_common::fresh::fresh_varname;
+use erg_common::style::Stylize;
 use erg_common::traits::Locational;
 use erg_common::Str;
 #[allow(unused_imports)]
@@ -379,7 +380,7 @@ impl Context {
                 }
             }
             (l, TyParam::Type(r)) => {
-                let l = self.convert_tp_into_ty(l.clone()).map_err(|_| {
+                let l = self.convert_tp_into_type(l.clone()).map_err(|_| {
                     TyCheckError::tp_to_type_error(
                         self.cfg.input.clone(),
                         line!() as usize,
@@ -392,7 +393,7 @@ impl Context {
                 Ok(())
             }
             (TyParam::Type(l), r) => {
-                let r = self.convert_tp_into_ty(r.clone()).map_err(|_| {
+                let r = self.convert_tp_into_type(r.clone()).map_err(|_| {
                     TyCheckError::tp_to_type_error(
                         self.cfg.input.clone(),
                         line!() as usize,
@@ -848,11 +849,17 @@ impl Context {
                     {
                         let (l, r) = new_sub.union_pair().unwrap();
                         if self.unify(&l, &r).is_none() {
+                            let maybe_sub_ = maybe_sub
+                                .to_string()
+                                .with_color(erg_common::style::Color::Yellow);
+                            let new_sub = new_sub
+                                .to_string()
+                                .with_color(erg_common::style::Color::Yellow);
                             let hint = switch_lang!(
-                                "japanese" => format!("{maybe_sub}から{new_sub}への暗黙の型拡大はデフォルトでは禁止されています。明示的に型指定してください"),
-                                "simplified_chinese" => format!("隐式扩展{maybe_sub}到{new_sub}被默认禁止。请明确指定类型。"),
-                                "traditional_chinese" => format!("隱式擴展{maybe_sub}到{new_sub}被默認禁止。請明確指定類型。"),
-                                "english" => format!("Implicitly widening {maybe_sub} to {new_sub} is prohibited by default. Consider specifying the type explicitly."),
+                                "japanese" => format!("{maybe_sub_}から{new_sub}への暗黙の型拡大はデフォルトでは禁止されています。明示的に型指定してください"),
+                                "simplified_chinese" => format!("隐式扩展{maybe_sub_}到{new_sub}被默认禁止。请明确指定类型。"),
+                                "traditional_chinese" => format!("隱式擴展{maybe_sub_}到{new_sub}被默認禁止。請明確指定類型。"),
+                                "english" => format!("Implicitly widening {maybe_sub_} to {new_sub} is prohibited by default. Consider specifying the type explicitly."),
                             );
                             return Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
                                 self.cfg.input.clone(),

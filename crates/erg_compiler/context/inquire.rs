@@ -2874,7 +2874,7 @@ impl Context {
                 params
                     .iter()
                     .map(|tp| {
-                        if let Ok(t) = self.convert_tp_into_ty(tp.clone()) {
+                        if let Ok(t) = self.convert_tp_into_type(tp.clone()) {
                             TyParam::t(self.meta_type(&t))
                         } else {
                             tp.clone()
