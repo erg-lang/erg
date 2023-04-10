@@ -830,7 +830,8 @@ impl Context {
             // _: Nat <= 10 => true
             // TODO: maybe this is wrong, we should do the type-checking of `<=`
             (TyParam::Erased(t), rhs)
-                if op.is_comparison() && self.supertype_of(&t, &self.get_tp_t(&rhs).unwrap()) =>
+                if op.is_comparison()
+                    && self.supertype_of(&t, &self.get_tp_t(&rhs).unwrap_or(Type::Obj)) =>
             {
                 Ok(TyParam::value(true))
             }
@@ -840,7 +841,8 @@ impl Context {
             (_, TyParam::FreeVar(_)) if op.is_comparison() => Ok(TyParam::value(true)),
             // 10 <= _: Nat => true
             (lhs, TyParam::Erased(t))
-                if op.is_comparison() && self.supertype_of(&self.get_tp_t(&lhs).unwrap(), &t) =>
+                if op.is_comparison()
+                    && self.supertype_of(&self.get_tp_t(&lhs).unwrap_or(Type::Obj), &t) =>
             {
                 Ok(TyParam::value(true))
             }
@@ -1432,10 +1434,11 @@ impl Context {
                 Ok(())
             }
             TyParam::Type(gt) if gt.is_generalized() => {
-                let Ok(qt) = <&FreeTyVar>::try_from(gt.as_ref()) else { unreachable!() };
                 let Ok(st) = Type::try_from(stp) else { todo!(); };
-                if !st.is_generalized() {
-                    qt.undoable_link(&st);
+                if let Ok(qt) = <&FreeTyVar>::try_from(gt.as_ref()) {
+                    if !st.is_generalized() {
+                        qt.undoable_link(&st);
+                    }
                 }
                 self.sub_unify(&st, &gt, &(), None)
             }
