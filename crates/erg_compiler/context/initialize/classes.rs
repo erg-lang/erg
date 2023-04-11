@@ -1866,13 +1866,7 @@ impl Context {
             NoneType,
         )
         .quantify();
-        array_mut_.register_builtin_py_impl(
-            PROC_PUSH,
-            t,
-            Immutable,
-            Visibility::BUILTIN_PUBLIC,
-            Some(FUNC_APPEND),
-        );
+        array_mut_.register_py_builtin(PROC_PUSH, t, Some(FUNC_APPEND), 14);
         let t_extend = pr_met(
             ref_mut(
                 array_mut_t.clone(),
@@ -1887,13 +1881,7 @@ impl Context {
             NoneType,
         )
         .quantify();
-        array_mut_.register_builtin_py_impl(
-            PROC_EXTEND,
-            t_extend,
-            Immutable,
-            Visibility::BUILTIN_PUBLIC,
-            Some(FUNC_EXTEND),
-        );
+        array_mut_.register_py_builtin(PROC_EXTEND, t_extend, Some(FUNC_EXTEND), 23);
         let t_insert = pr_met(
             ref_mut(
                 array_mut_t.clone(),
@@ -1908,13 +1896,7 @@ impl Context {
             NoneType,
         )
         .quantify();
-        array_mut_.register_builtin_py_impl(
-            PROC_INSERT,
-            t_insert,
-            Immutable,
-            Visibility::BUILTIN_PUBLIC,
-            Some(FUNC_INSERT),
-        );
+        array_mut_.register_py_builtin(PROC_INSERT, t_insert, Some(FUNC_INSERT), 32);
         let t_remove = pr_met(
             ref_mut(
                 array_mut_t.clone(),
@@ -1929,13 +1911,7 @@ impl Context {
             NoneType,
         )
         .quantify();
-        array_mut_.register_builtin_py_impl(
-            PROC_REMOVE,
-            t_remove,
-            Immutable,
-            Visibility::BUILTIN_PUBLIC,
-            Some(FUNC_REMOVE),
-        );
+        array_mut_.register_py_builtin(PROC_REMOVE, t_remove, Some(FUNC_REMOVE), 41);
         let t_pop = pr_met(
             ref_mut(
                 array_mut_t.clone(),
@@ -1950,13 +1926,7 @@ impl Context {
             T.clone(),
         )
         .quantify();
-        array_mut_.register_builtin_py_impl(
-            PROC_POP,
-            t_pop,
-            Immutable,
-            Visibility::BUILTIN_PUBLIC,
-            Some(FUNC_POP),
-        );
+        array_mut_.register_py_builtin(PROC_POP, t_pop, Some(FUNC_POP), 51);
         let t_clear = pr0_met(
             ref_mut(
                 array_mut_t.clone(),
@@ -1965,13 +1935,7 @@ impl Context {
             NoneType,
         )
         .quantify();
-        array_mut_.register_builtin_py_impl(
-            PROC_CLEAR,
-            t_clear,
-            Immutable,
-            Visibility::BUILTIN_PUBLIC,
-            Some(FUNC_CLEAR),
-        );
+        array_mut_.register_py_builtin(PROC_CLEAR, t_clear, Some(FUNC_CLEAR), 60);
         let t_sort = pr_met(
             ref_mut(array_mut_t.clone(), None),
             vec![],
@@ -1983,21 +1947,9 @@ impl Context {
             NoneType,
         )
         .quantify();
-        array_mut_.register_builtin_py_impl(
-            PROC_SORT,
-            t_sort,
-            Immutable,
-            Visibility::BUILTIN_PUBLIC,
-            Some(FUNC_SORT),
-        );
+        array_mut_.register_py_builtin(PROC_SORT, t_sort, Some(FUNC_SORT), 77);
         let t_reverse = pr0_met(ref_mut(array_mut_t.clone(), None), NoneType).quantify();
-        array_mut_.register_builtin_py_impl(
-            PROC_REVERSE,
-            t_reverse,
-            Immutable,
-            Visibility::BUILTIN_PUBLIC,
-            Some(FUNC_REVERSE),
-        );
+        array_mut_.register_py_builtin(PROC_REVERSE, t_reverse, Some(FUNC_REVERSE), 86);
         let t = pr_met(
             array_mut_t.clone(),
             vec![kw(KW_FUNC, nd_func(vec![anon(T.clone())], None, T.clone()))],
@@ -2006,12 +1958,7 @@ impl Context {
             NoneType,
         )
         .quantify();
-        array_mut_.register_builtin_erg_impl(
-            PROC_STRICT_MAP,
-            t,
-            Immutable,
-            Visibility::BUILTIN_PUBLIC,
-        );
+        array_mut_.register_py_builtin(PROC_STRICT_MAP, t, None, 95);
         let f_t = kw(
             KW_FUNC,
             func(vec![kw(KW_OLD, arr_t.clone())], None, vec![], arr_t.clone()),
