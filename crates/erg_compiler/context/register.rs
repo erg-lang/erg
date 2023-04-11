@@ -25,7 +25,7 @@ use crate::ty::constructors::{
 use crate::ty::free::{Constraint, FreeKind, HasLevel};
 use crate::ty::typaram::TyParam;
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
-use crate::ty::{HasType, ParamTy, SubrType, Type, Visibility};
+use crate::ty::{HasType, ParamTy, SubrType, Type, Visibility, VisibilityModifier};
 
 use crate::build_hir::HIRBuilder;
 use crate::context::{
@@ -627,14 +627,21 @@ impl Context {
         id: DefId,
         body_t: &Type,
         body_loc: &impl Locational,
-    ) -> TyCheckResult<VarInfo> {
+    ) -> Result<VarInfo, (TyCheckErrors, VarInfo)> {
+        let mut errs = TyCheckErrors::empty();
         // already defined as const
         if sig.ident.is_const() {
             let vi = self.decls.remove(sig.ident.inspect()).unwrap();
             self.locals.insert(sig.ident.name.clone(), vi.clone());
             return Ok(vi);
         }
-        let vis = self.instantiate_vis_modifier(&sig.ident.vis)?;
+        let vis = match self.instantiate_vis_modifier(&sig.ident.vis) {
+            Ok(vis) => vis,
+            Err(es) => {
+                errs.extend(es);
+                VisibilityModifier::Private
+            }
+        };
         let muty = if sig.ident.is_const() {
             Mutability::Const
         } else {
@@ -646,15 +653,16 @@ impl Context {
         let non_default_params = t.non_default_params().unwrap();
         let var_args = t.var_params();
         let default_params = t.default_params().unwrap();
-        let mut errs = if let Some(spec_ret_t) = t.return_t() {
+        if let Some(spec_ret_t) = t.return_t() {
             let unify_result = if let Some(t_spec) = sig.return_t_spec.as_ref() {
                 self.sub_unify(body_t, spec_ret_t, t_spec, None)
             } else {
                 self.sub_unify(body_t, spec_ret_t, body_loc, None)
             };
-            unify_result.map_err(|errs| {
-                TyCheckErrors::new(
-                    errs.into_iter()
+            if let Err(unify_errs) = unify_result {
+                let es = TyCheckErrors::new(
+                    unify_errs
+                        .into_iter()
                         .map(|e| {
                             let expect = if cfg!(feature = "debug") {
                                 spec_ret_t.clone()
@@ -678,17 +686,12 @@ impl Context {
                             )
                         })
                         .collect(),
-                )
-            })
-        } else {
-            Ok(())
-        };
-        let return_t = if errs.is_err() {
-            Type::Failure
-        } else {
-            // NOTE: not `body_t.clone()` because the body may contain `return`
-            t.return_t().unwrap().clone()
-        };
+                );
+                errs.extend(es);
+            }
+        }
+        // NOTE: not `body_t.clone()` because the body may contain `return`
+        let return_t = t.return_t().unwrap().clone();
         let sub_t = if sig.ident.is_procedural() {
             proc(
                 non_default_params.clone(),
@@ -718,14 +721,7 @@ impl Context {
                     &vi.t,
                     &found_t,
                 );
-                match errs {
-                    Ok(()) => {
-                        errs = Err(TyCheckErrors::from(err));
-                    }
-                    Err(ref mut es) => {
-                        es.push(err);
-                    }
-                }
+                errs.push(err);
             }
             vi.py_name
         } else {
@@ -754,8 +750,11 @@ impl Context {
         let vis = if vi.vis.is_private() { "::" } else { "." };
         log!(info "Registered {}{}{name}: {}", self.name, vis, &vi.t);
         self.locals.insert(name.clone(), vi.clone());
-        errs?;
-        Ok(vi)
+        if errs.is_empty() {
+            Ok(vi)
+        } else {
+            Err((errs, vi))
+        }
     }
 
     pub(crate) fn fake_subr_assign(

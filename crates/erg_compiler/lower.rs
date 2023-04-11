@@ -1583,12 +1583,18 @@ impl ASTLowerer {
                 match self.lower_block(body.block) {
                     Ok(block) => {
                         let found_body_t = self.module.context.squash_tyvar(block.t());
-                        let vi = self.module.context.outer.as_mut().unwrap().assign_subr(
+                        let vi = match self.module.context.outer.as_mut().unwrap().assign_subr(
                             &sig,
                             body.id,
                             &found_body_t,
                             block.last().unwrap(),
-                        )?;
+                        ) {
+                            Ok(vi) => vi,
+                            Err((errs, vi)) => {
+                                self.errs.extend(errs);
+                                vi
+                            }
+                        };
                         let ident = hir::Identifier::new(sig.ident, None, vi);
                         let sig =
                             hir::SubrSignature::new(ident, sig.bounds, params, sig.return_t_spec);
@@ -1596,13 +1602,19 @@ impl ASTLowerer {
                         Ok(hir::Def::new(hir::Signature::Subr(sig), body))
                     }
                     Err(errs) => {
-                        let vi = self.module.context.outer.as_mut().unwrap().assign_subr(
+                        self.errs.extend(errs);
+                        let vi = match self.module.context.outer.as_mut().unwrap().assign_subr(
                             &sig,
                             ast::DefId(0),
                             &Type::Failure,
                             &sig,
-                        )?;
-                        self.errs.extend(errs);
+                        ) {
+                            Ok(vi) => vi,
+                            Err((errs, vi)) => {
+                                self.errs.extend(errs);
+                                vi
+                            }
+                        };
                         let ident = hir::Identifier::new(sig.ident, None, vi);
                         let sig =
                             hir::SubrSignature::new(ident, sig.bounds, params, sig.return_t_spec);
