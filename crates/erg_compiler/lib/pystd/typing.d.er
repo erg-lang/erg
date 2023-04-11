@@ -16,7 +16,9 @@
 .Callable: (*Type) -> Type
 .Concatenate: (*Type) -> Type
 .Type: (Type) -> Type
-.Literal: (*Obj) -> Type
+.Literal: ClassType
+.Literal.
+    __getitem__: (*Obj) -> Type
 .ClassVar: (Type) -> Type
 .Final: (Type) -> Type
 .Required: (Type) -> Type
@@ -25,7 +27,7 @@
 .TypeGuard: (Type) -> Type
 .Generic: ClassType
 .Generic.
-    __getitem__: (Type) -> Type
+    __getitem__: (*Type) -> Type
 .TypeVar: ClassType
 .TypeVar.
     __call__: (Str, *types: Type, bound := Str) -> Type
