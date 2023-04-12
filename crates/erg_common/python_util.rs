@@ -3,6 +3,7 @@
 //! CPythonを呼び出すためのユーティリティー
 use std::process::Command;
 
+use crate::fn_name_full;
 use crate::serialize::get_magic_num_from_bytes;
 
 #[cfg(unix)]
@@ -535,11 +536,11 @@ pub fn which_python() -> String {
     let out = Command::new(cmd)
         .arg(python)
         .output()
-        .expect("python not found");
+        .unwrap_or_else(|_| panic!("{}: {python} not found", fn_name_full!()));
     let res = String::from_utf8(out.stdout).unwrap();
     let res = res.split('\n').next().unwrap_or("").replace('\r', "");
     if res.is_empty() {
-        println!("python not found");
+        println!("{}: {python} not found", fn_name_full!());
         std::process::exit(1);
     } else if res.contains("pyenv") && cfg!(windows) {
         println!("cannot use pyenv-win"); // because pyenv-win does not support `-c` option
