@@ -23,11 +23,9 @@ jobs:
     steps:
       - name: notify to ergscripts
         run: |
-          TOKEN=${{ secrets.DEV_TOKEN }}
-
           curl \
             -X POST \
-            -H "Authorization: token $TOKEN" \
+            -H "Authorization: token ${{ secrets.DEV_TOKEN }}" \
             -H "Accept: application/vnd.github.v3+json" \
             https://api.github.com/repos/mtshiba/ergscripts/dispatches \
             -d '{"event_type":"notification-push-main","client_payload":{"msg": "a change has been pushed to main"}}'
