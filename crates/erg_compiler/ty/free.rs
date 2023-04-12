@@ -864,6 +864,13 @@ impl<T: Clone> Free<T> {
         }
     }
 
+    pub fn get_linked(&self) -> Option<T> {
+        match &*self.borrow() {
+            FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => Some(t.clone()),
+            FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => None,
+        }
+    }
+
     pub fn detach(&self) -> Self {
         match self.clone().unwrap_unbound() {
             (Some(name), lev, constraint) => Self::new_named_unbound(name, lev, constraint),

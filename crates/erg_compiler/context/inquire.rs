@@ -2786,22 +2786,22 @@ impl Context {
     }
 
     fn get_proj_candidates(&self, lhs: &Type, rhs: &Str) -> Set<Type> {
-        #[allow(clippy::single_match)]
         match lhs {
             Type::FreeVar(fv) => {
                 if let Some(sup) = fv.get_super() {
                     if self.is_trait(&sup) {
-                        return self.get_trait_proj_candidates(&sup, rhs);
+                        self.get_trait_proj_candidates(&sup, rhs)
                     } else {
-                        return self
-                            .eval_proj(sup, rhs.clone(), self.level, &())
-                            .map_or(set! {}, |t| set! {t});
+                        self.eval_proj(sup, rhs.clone(), self.level, &())
+                            .map_or(set! {}, |t| set! {t})
                     }
+                } else {
+                    set! {}
                 }
             }
-            _ => {}
+            Type::Failure | Type::Never => set! { lhs.clone() },
+            _ => set! {},
         }
-        set! {}
     }
 
     fn get_trait_proj_candidates(&self, trait_: &Type, rhs: &Str) -> Set<Type> {

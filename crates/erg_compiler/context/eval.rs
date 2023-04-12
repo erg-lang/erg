@@ -1119,8 +1119,8 @@ impl Context {
         level: usize,
         t_loc: &impl Locational,
     ) -> EvalResult<Type> {
-        if lhs == Never {
-            return Ok(Never);
+        if let Never | Failure = lhs {
+            return Ok(lhs);
         }
         // Currently Erg does not allow projection-types to be evaluated with type variables included.
         // All type variables will be dereferenced or fail.

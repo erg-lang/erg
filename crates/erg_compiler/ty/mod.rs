@@ -2248,7 +2248,7 @@ impl Type {
             Self::FreeVar(fv) if fv.is_generalized() => true,
             Self::FreeVar(fv) => {
                 if let Some((sub, sup)) = fv.get_subsup() {
-                    fv.undoable_link(&Type::Never);
+                    fv.dummy_link();
                     let res_sub = sub.has_qvar();
                     let res_sup = sup.has_qvar();
                     fv.undo();

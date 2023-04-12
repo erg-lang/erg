@@ -516,10 +516,18 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                     // we need to force linking to avoid infinite loop
                     // e.g. fv == ?T(<: Int, :> Add(?T))
                     //      fv == ?T(:> ?T.Output, <: Add(Int))
-                    if sub_t.contains(&Type::FreeVar(fv.clone())) {
-                        fv.forced_undoable_link(&super_t);
-                    } else {
-                        fv.forced_undoable_link(&sub_t);
+                    let fv_t = Type::FreeVar(fv.clone());
+                    match (sub_t.contains(&fv_t), super_t.contains(&fv_t)) {
+                        // REVIEW: to prevent infinite recursion, but this may cause a nonsense error
+                        (true, true) => {
+                            fv.dummy_link();
+                        }
+                        (true, false) => {
+                            fv.forced_undoable_link(&super_t);
+                        }
+                        (false, true | false) => {
+                            fv.forced_undoable_link(&sub_t);
+                        }
                     }
                     let res = self.validate_subsup(sub_t, super_t);
                     fv.undo();
