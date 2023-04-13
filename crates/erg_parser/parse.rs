@@ -2,8 +2,6 @@
 //!
 //! パーサーを実装する
 //!
-use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::mem;
 
 use erg_common::config::ErgConfig;
@@ -13,8 +11,8 @@ use erg_common::set::Set as HashSet;
 use erg_common::str::Str;
 use erg_common::traits::{DequeStream, ExitStatus, Locational, Runnable, Stream};
 use erg_common::{
-    caused_by, debug_power_assert, enum_unwrap, fn_name, impl_locational_for_enum, log, set,
-    switch_lang, switch_unreachable,
+    caused_by, debug_power_assert, enum_unwrap, fn_name, impl_display_for_enum,
+    impl_locational_for_enum, log, set, switch_lang, switch_unreachable,
 };
 
 use crate::ast::*;
@@ -125,6 +123,17 @@ pub enum BraceContainer {
 }
 
 impl_locational_for_enum!(BraceContainer; Set, Dict, Record);
+impl_display_for_enum!(BraceContainer; Set, Dict, Record);
+
+impl BraceContainer {
+    pub const fn kind(&self) -> &str {
+        match self {
+            BraceContainer::Set(_) => "Set",
+            BraceContainer::Dict(_) => "Dict",
+            BraceContainer::Record(_) => "Record",
+        }
+    }
+}
 
 pub enum ArgsStyle {
     SingleCommaWithParen,
@@ -147,22 +156,6 @@ impl ArgsStyle {
 
     pub const fn is_multi_comma(&self) -> bool {
         matches!(self, Self::MultiComma)
-    }
-}
-
-impl std::fmt::Display for BraceContainer {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            BraceContainer::Set(_) => {
-                write!(f, "Set type",)
-            }
-            BraceContainer::Dict(_) => {
-                write!(f, "Dict type")
-            }
-            BraceContainer::Record(_) => {
-                write!(f, "Record type",)
-            }
-        }
     }
 }
 
@@ -812,7 +805,7 @@ impl Parser {
                         caused_by!(),
                         line!(),
                         "]",
-                        "array type",
+                        "array",
                     );
                     self.errs.push(err);
                     debug_exit_info!(self);
@@ -1520,7 +1513,7 @@ impl Parser {
                                     let err = ParseError::invalid_data_pack_definition(
                                         line!() as usize,
                                         other.loc(),
-                                        &other.to_string(),
+                                        other.kind(),
                                     );
                                     self.errs.push(err);
                                     debug_exit_info!(self);
@@ -2219,7 +2212,7 @@ impl Parser {
                                     let err = ParseError::invalid_data_pack_definition(
                                         line!() as usize,
                                         other.loc(),
-                                        &other.to_string(),
+                                        other.kind(),
                                     );
                                     self.errs.push(err);
                                     debug_exit_info!(self);
@@ -2361,19 +2354,19 @@ impl Parser {
                     line!() as usize,
                     t.loc(),
                     switch_lang!(
-                        "japanese" => "無効なレコード型の宣言です",
-                        "simplified_chinese" => "无效的记录类型定义",
-                        "traditional_chinese" => "無效的記錄類型定義",
-                        "english" => "invalid record type definition",
+                        "japanese" => "無効なレコードの宣言です",
+                        "simplified_chinese" => "无效的记录定义",
+                        "traditional_chinese" => "無效的記錄定義",
+                        "english" => "invalid record",
                     ),
                     "}",
                     &t.inspect()[..],
                 );
                 err.set_hint(switch_lang!(
-                    "japanese" => "空のレコード型が期待されています: {=}",
-                    "simplified_chinese" => "期望空记录类型: {=}",
-                    "traditional_chinese" => "期望空記錄類型: {=}",
-                    "english" => "expect empty record type: {=}",
+                    "japanese" => "空のレコードが期待されています: {=}",
+                    "simplified_chinese" => "期望空记录: {=}",
+                    "traditional_chinese" => "期望空記錄: {=}",
+                    "english" => "expect empty record: {=}",
                 ));
                 self.errs.push(err);
                 debug_exit_info!(self);
@@ -2399,19 +2392,19 @@ impl Parser {
                     line!() as usize,
                     t.loc(),
                     switch_lang!(
-                        "japanese" => "無効な辞書型の宣言です",
-                        "simplified_chinese" => "无效的字典类型定义",
-                        "traditional_chinese" => "無效的字典類型定義",
-                        "english" => "invalid dict type definition",
+                        "japanese" => "無効な辞書の宣言です",
+                        "simplified_chinese" => "无效的字典定义",
+                        "traditional_chinese" => "無效的字典定義",
+                        "english" => "invalid dict",
                     ),
                     "}",
                     &t.inspect()[..],
                 );
                 err.set_hint(switch_lang!(
-                    "japanese" => "空の辞書型が期待されています: {:}",
-                    "simplified_chinese" => "期望空字典类型: {:}",
-                    "traditional_chinese" => "期望空字典類型: {:}",
-                    "english" => "expect empty dict type: {:}",
+                    "japanese" => "空の辞書が期待されています: {:}",
+                    "simplified_chinese" => "期望空字典: {:}",
+                    "traditional_chinese" => "期望空字典: {:}",
+                    "english" => "expect empty dict: {:}",
                 ));
                 self.errs.push(err);
                 debug_exit_info!(self);
@@ -2639,7 +2632,7 @@ impl Parser {
                         line!() as usize,
                         self.lpop().loc(),
                         "}",
-                        "dict type",
+                        "dict",
                     );
                     self.errs.push(err);
                     debug_exit_info!(self);
