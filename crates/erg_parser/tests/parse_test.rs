@@ -63,17 +63,17 @@ fn parse_str_literal() -> Result<(), ()> {
 }
 
 #[test]
-fn exec_invalid_chunk_prs_err() -> Result<(), ()> {
+fn parse_invalid_chunk() -> Result<(), ()> {
     expect_failure("tests/invalid_chunk.er", 62)
 }
 
 #[test]
-fn expect_failure_collections_err() -> Result<(), ()> {
+fn parse_invalid_collections() -> Result<(), ()> {
     expect_failure("tests/invalid_collections.er", 29)
 }
 
 #[test]
-fn expect_failure_class_def_err() -> Result<(), ()> {
+fn parse_invalid_class_definition() -> Result<(), ()> {
     expect_failure("tests/invalid_class_definition.er", 7)
 }
 
