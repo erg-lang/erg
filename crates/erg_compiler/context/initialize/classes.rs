@@ -1441,6 +1441,7 @@ impl Context {
         /* GenericTuple */
         let mut generic_tuple = Self::builtin_mono_class(GENERIC_TUPLE, 1);
         generic_tuple.register_superclass(Obj, &obj);
+        // tuple doesn't have a constructor, use `Array` instead
         let mut tuple_eq = Self::builtin_methods(Some(mono(EQ)), 2);
         tuple_eq.register_builtin_erg_impl(
             OP_EQ,
@@ -1449,17 +1450,6 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
         );
         generic_tuple.register_trait(mono(GENERIC_TUPLE), tuple_eq);
-        let t_call = func1(
-            poly(ITERABLE, vec![ty_tp(T.clone())]),
-            array_t(T.clone(), TyParam::erased(Nat)),
-        )
-        .quantify();
-        generic_tuple.register_builtin_erg_impl(
-            FUNDAMENTAL_CALL,
-            t_call,
-            Immutable,
-            Visibility::BUILTIN_PUBLIC,
-        );
         let Ts = mono_q_tp(TY_TS, instanceof(array_t(Type, N.clone())));
         // Ts <: GenericArray
         let _tuple_t = poly(TUPLE, vec![Ts.clone()]);
