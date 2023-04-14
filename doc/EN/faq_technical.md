@@ -31,3 +31,12 @@ Procedure `p!` and mutable type `T!` can cause side effects, but if the return v
 
 A: The Erg API is typed as closely as possible to the Python API specification, but there are some cases that cannot be fully expressed.
 Also, input that is valid according to the specification but deemed undesirable (for example, inputting a float when an int should be inputted) may be treated as a type error at the discretion of the Erg development team.
+
+## Why doesn't Tuple have a constructor (`__call__`)?
+
+Erg tuples must have a compile-time length. Therefore, a tuple is constructed almost only by a tuple literal.
+If the length is not known until runtime, an immutable array (`Array`) can be used instead.
+
+```erg
+arr = Array map(int, input!().split " ")
+```
