@@ -347,8 +347,9 @@ impl Context {
     pub(crate) fn structural_supertype_of(&self, lhs: &Type, rhs: &Type) -> bool {
         match (lhs, rhs) {
             // Proc :> Func if params are compatible
+            // * default params can be omitted (e.g. (Int, x := Int) -> Int <: (Int) -> Int)
             (Subr(ls), Subr(rs)) if ls.kind == rs.kind || ls.kind.is_proc() => {
-                let kw_check = || {
+                let default_check = || {
                     for lpt in ls.default_params.iter() {
                         if let Some(rpt) = rs
                             .default_params
@@ -366,9 +367,8 @@ impl Context {
                 };
                 // () -> Never <: () -> Int <: () -> Object
                 // (Object) -> Int <: (Int) -> Int <: (Never) -> Int
-                let same_params_len = ls.non_default_params.len() == rs.non_default_params.len()
-                    // REVIEW:
-                    && ls.default_params.len() == rs.default_params.len();
+                let same_params_len = ls.non_default_params.len() == rs.non_default_params.len();
+                // && ls.default_params.len() <= rs.default_params.len();
                 let return_t_judge = self.supertype_of(&ls.return_t, &rs.return_t); // covariant
                 let non_defaults_judge = ls
                     .non_default_params
@@ -385,7 +385,7 @@ impl Context {
                     && return_t_judge
                     && non_defaults_judge
                     && var_params_judge
-                    && kw_check() // contravariant
+                    && default_check() // contravariant
             }
             // ?T(<: Nat) !:> ?U(:> Int)
             // ?T(<: Nat) :> ?U(<: Int) (?U can be smaller than ?T)

@@ -103,7 +103,7 @@ impl Context {
             or(T.clone(), U.clone()),
         )
         .quantify();
-        let t_int = nd_func(vec![kw(KW_OBJ, Obj)], None, or(Int, NoneType));
+        let t_int = func(vec![kw(KW_OBJ, Obj)], None, vec![kw(KW_BASE, Nat)], Int);
         let t_import = nd_func(
             vec![anon(tp_enum(Str, set! {Path.clone()}))],
             None,
@@ -146,11 +146,11 @@ impl Context {
         );
         let t_map = nd_func(
             vec![
-                kw(KW_FUNC, nd_func(vec![anon(T.clone())], None, T.clone())),
+                kw(KW_FUNC, nd_func(vec![anon(T.clone())], None, U.clone())),
                 kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())])),
             ],
             None,
-            poly(MAP, vec![ty_tp(T.clone())]),
+            poly(MAP, vec![ty_tp(U.clone())]),
         )
         .quantify();
         let O = mono_q(TY_O, subtypeof(mono(ORD)));

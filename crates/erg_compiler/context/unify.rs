@@ -929,8 +929,8 @@ impl Context {
                 }
                 Ok(())
             }
-            (FreeVar(sub_fv), Ref(t)) if sub_fv.is_unbound() => {
-                self.sub_unify(maybe_sub, t, loc, param_name)
+            (FreeVar(sub_fv), Ref(sup)) if sub_fv.is_unbound() => {
+                self.sub_unify(maybe_sub, sup, loc, param_name)
             }
             (FreeVar(sub_fv), _) if sub_fv.is_unbound() => {
                 // sub !<: r => Error
@@ -981,9 +981,9 @@ impl Context {
                 }
                 Ok(())
             }
-            (Record(lrec), Record(rrec)) => {
-                for (k, l) in lrec.iter() {
-                    if let Some(r) = rrec.get(k) {
+            (Record(sub_rec), Record(sup_rec)) => {
+                for (k, l) in sub_rec.iter() {
+                    if let Some(r) = sup_rec.get(k) {
                         self.sub_unify(l, r, loc, param_name)?;
                     } else {
                         return Err(TyCheckErrors::from(TyCheckError::subtyping_error(
@@ -998,33 +998,36 @@ impl Context {
                 }
                 Ok(())
             }
-            (Subr(lsub), Subr(rsub)) => {
-                lsub.non_default_params
+            (Subr(sub_subr), Subr(sup_subr)) => {
+                sub_subr
+                    .non_default_params
                     .iter()
-                    .zip(rsub.non_default_params.iter())
-                    .try_for_each(|(l, r)| {
+                    .zip(sup_subr.non_default_params.iter())
+                    .try_for_each(|(sub, sup)| {
                         // contravariant
-                        self.sub_unify(r.typ(), l.typ(), loc, param_name)
+                        self.sub_unify(sup.typ(), sub.typ(), loc, param_name)
                     })?;
-                lsub.var_params
+                sub_subr
+                    .var_params
                     .iter()
-                    .zip(rsub.var_params.iter())
-                    .try_for_each(|(l, r)| {
+                    .zip(sup_subr.var_params.iter())
+                    .try_for_each(|(sub, sup)| {
                         // contravariant
-                        self.sub_unify(r.typ(), l.typ(), loc, param_name)
+                        self.sub_unify(sup.typ(), sub.typ(), loc, param_name)
                     })?;
-                for lpt in lsub.default_params.iter() {
-                    if let Some(rpt) = rsub
+                for sup_pt in sup_subr.default_params.iter() {
+                    if let Some(sub_pt) = sub_subr
                         .default_params
                         .iter()
-                        .find(|rpt| rpt.name() == lpt.name())
+                        .find(|sub_pt| sub_pt.name() == sup_pt.name())
                     {
                         // contravariant
-                        self.sub_unify(rpt.typ(), lpt.typ(), loc, param_name)?;
+                        self.sub_unify(sup_pt.typ(), sub_pt.typ(), loc, param_name)?;
                     } else {
-                        let param_name = lpt.name().map_or("_", |s| &s[..]);
+                        let param_name = sup_pt.name().map_or("_", |s| &s[..]);
                         let similar_param = erg_common::levenshtein::get_similar_name(
-                            rsub.default_params
+                            sup_subr
+                                .default_params
                                 .iter()
                                 .map(|pt| pt.name().map_or("_", |s| &s[..])),
                             param_name,
@@ -1042,72 +1045,74 @@ impl Context {
                     }
                 }
                 // covariant
-                self.sub_unify(&lsub.return_t, &rsub.return_t, loc, param_name)?;
+                self.sub_unify(&sub_subr.return_t, &sup_subr.return_t, loc, param_name)?;
                 Ok(())
             }
-            (Quantified(lsub), Subr(rsub)) => {
-                let Ok(lsub) = <&SubrType>::try_from(lsub.as_ref()) else { unreachable!() };
-                for lpt in lsub.default_params.iter() {
-                    if let Some(rpt) = rsub
-                        .default_params
-                        .iter()
-                        .find(|rpt| rpt.name() == lpt.name())
-                    {
-                        if lpt.typ().is_generalized() {
-                            continue;
-                        }
-                        // contravariant
-                        self.sub_unify(rpt.typ(), lpt.typ(), loc, param_name)?;
-                    } else {
-                        todo!()
-                    }
-                }
-                lsub.non_default_params
+            (Quantified(sub_subr), Subr(sup_subr)) => {
+                let Ok(sub_subr) = <&SubrType>::try_from(sub_subr.as_ref()) else { unreachable!() };
+                sub_subr
+                    .non_default_params
                     .iter()
-                    .zip(rsub.non_default_params.iter())
-                    .try_for_each(|(l, r)| {
-                        if l.typ().is_generalized() {
+                    .zip(sup_subr.non_default_params.iter())
+                    .try_for_each(|(sub, sup)| {
+                        if sub.typ().is_generalized() {
                             Ok(())
                         }
                         // contravariant
                         else {
-                            self.sub_unify(r.typ(), l.typ(), loc, param_name)
+                            self.sub_unify(sup.typ(), sub.typ(), loc, param_name)
                         }
                     })?;
-                // covariant
-                self.sub_unify(&lsub.return_t, &rsub.return_t, loc, param_name)?;
-                Ok(())
-            }
-            (Subr(lsub), Quantified(rsub)) => {
-                let Ok(rsub) = <&SubrType>::try_from(rsub.as_ref()) else { unreachable!() };
-                for lpt in lsub.default_params.iter() {
-                    if let Some(rpt) = rsub
+                for sup_pt in sup_subr.default_params.iter() {
+                    if let Some(sub_pt) = sub_subr
                         .default_params
                         .iter()
-                        .find(|rpt| rpt.name() == lpt.name())
+                        .find(|sub_pt| sub_pt.name() == sup_pt.name())
                     {
-                        // contravariant
-                        if rpt.typ().is_generalized() {
+                        if sup_pt.typ().is_generalized() {
                             continue;
                         }
-                        self.sub_unify(rpt.typ(), lpt.typ(), loc, param_name)?;
+                        // contravariant
+                        self.sub_unify(sup_pt.typ(), sub_pt.typ(), loc, param_name)?;
                     } else {
                         todo!()
                     }
                 }
-                lsub.non_default_params
+                // covariant
+                self.sub_unify(&sub_subr.return_t, &sup_subr.return_t, loc, param_name)?;
+                Ok(())
+            }
+            (Subr(sub_subr), Quantified(sup_subr)) => {
+                let Ok(sup_subr) = <&SubrType>::try_from(sup_subr.as_ref()) else { unreachable!() };
+                sub_subr
+                    .non_default_params
                     .iter()
-                    .zip(rsub.non_default_params.iter())
-                    .try_for_each(|(l, r)| {
+                    .zip(sup_subr.non_default_params.iter())
+                    .try_for_each(|(sub, sup)| {
                         // contravariant
-                        if r.typ().is_generalized() {
+                        if sup.typ().is_generalized() {
                             Ok(())
                         } else {
-                            self.sub_unify(r.typ(), l.typ(), loc, param_name)
+                            self.sub_unify(sup.typ(), sub.typ(), loc, param_name)
                         }
                     })?;
+                for sup_pt in sup_subr.default_params.iter() {
+                    if let Some(sub_pt) = sub_subr
+                        .default_params
+                        .iter()
+                        .find(|sub_pt| sub_pt.name() == sup_pt.name())
+                    {
+                        // contravariant
+                        if sup_pt.typ().is_generalized() {
+                            continue;
+                        }
+                        self.sub_unify(sup_pt.typ(), sub_pt.typ(), loc, param_name)?;
+                    } else {
+                        todo!()
+                    }
+                }
                 // covariant
-                self.sub_unify(&lsub.return_t, &rsub.return_t, loc, param_name)?;
+                self.sub_unify(&sub_subr.return_t, &sup_subr.return_t, loc, param_name)?;
                 Ok(())
             }
             (
@@ -1132,7 +1137,7 @@ impl Context {
                     Ok(())
                 }
             }
-            (Structural(l), Structural(r)) => self.sub_unify(l, r, loc, param_name),
+            (Structural(sub), Structural(sup)) => self.sub_unify(sub, sup, loc, param_name),
             (sub, Structural(sup)) => {
                 let sub_fields = self.fields(sub);
                 for (sup_field, sup_ty) in self.fields(sup) {

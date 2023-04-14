@@ -1,0 +1,7 @@
+id x = x
+
+ids = Array(map(id, ["1", "2", "3"]))
+ints = Array(map(int, ["1", "2", "3"]))
+
+assert ids == ["1", "2", "3"]
+assert ints == [1, 2, 3]
