@@ -85,6 +85,7 @@ impl Context {
         let input = Self::builtin_poly_trait(INPUT, params.clone(), 2);
         let output = Self::builtin_poly_trait(OUTPUT, params, 2);
         let T = mono_q(TY_T, instanceof(Type));
+        let U = mono_q(TY_U, instanceof(Type));
         let I = mono_q(TY_I, subtypeof(poly(IN, vec![ty_tp(T.clone())])));
         in_.register_superclass(poly(INPUT, vec![ty_tp(T.clone())]), &input);
         let op_t = fn1_met(T.clone(), I, Bool).quantify();
@@ -133,6 +134,19 @@ impl Context {
             Some(FUNDAMENTAL_ITER),
         );
         iterable.register_builtin_erg_decl(ITER, Type, Visibility::BUILTIN_PUBLIC);
+        let t_map = fn1_met(
+            T.clone(),
+            func1(T.clone(), U.clone()),
+            poly(MAP, vec![ty_tp(U)]),
+        )
+        .quantify();
+        iterable.register_builtin_py_impl(
+            FUNC_MAP,
+            t_map,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some("Function::map"),
+        );
         let mut context_manager = Self::builtin_mono_trait(CONTEXT_MANAGER, 2);
         let Slf = mono_q(SELF, subtypeof(mono(CONTEXT_MANAGER)));
         let t = fn0_met(Slf.clone(), NoneType).quantify();

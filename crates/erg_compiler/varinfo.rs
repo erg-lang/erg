@@ -298,3 +298,13 @@ impl VarInfo {
         )
     }
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Redirect {
+    None,
+    Relative(&'static str),
+    Absolute {
+        module: &'static str,
+        name: &'static str,
+    },
+}
