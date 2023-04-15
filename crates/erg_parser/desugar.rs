@@ -1003,6 +1003,10 @@ impl Desugarer {
                     let mut attrs = RecordAttrs::new(vec![]);
                     let mut tys = vec![];
                     for ParamRecordAttr { lhs, rhs } in rec.elems.iter() {
+                        let lhs = Identifier {
+                            vis: VisModifierSpec::Public(Token::DUMMY),
+                            ..lhs.clone()
+                        };
                         let infer = Token::new(TokenKind::Try, "?", line, 0);
                         let expr = rhs
                             .t_spec
@@ -1193,11 +1197,15 @@ impl Desugarer {
                 let mut attrs = RecordAttrs::new(vec![]);
                 let mut tys = vec![];
                 for ParamRecordAttr { lhs, rhs } in rec.elems.iter_mut() {
+                    let lhs = Identifier {
+                        vis: VisModifierSpec::Public(Token::DUMMY),
+                        ..lhs.clone()
+                    };
                     insertion_idx = self.desugar_nested_param_pattern(
                         new_body,
                         rhs,
                         &buf_name,
-                        BufIndex::Record(lhs),
+                        BufIndex::Record(&lhs),
                         insertion_idx,
                     );
                     let infer = Token::new(TokenKind::Try, "?", line, 0);

@@ -31,3 +31,8 @@ public = { .x = 1; .y = 2 }
 
 _ = unpack public # OK
 _ = unpack private # ERR
+
+unpack2 {x; y} = x + y
+
+_ = unpack2 public # OK
+_ = unpack2 private # ERR

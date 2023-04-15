@@ -13,7 +13,7 @@ if! cond:
 a = [1, 2, 3]
 sum = match a:
     [x, y, z] -> x + y + z
-    (x, y, z) -> x + y + z
+    ((x, y, z),) -> x + y + z
     {x; y; z} -> x + y + z
     (i: Int) -> i
     _ -> panic "unknown object"

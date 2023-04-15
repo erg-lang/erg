@@ -54,7 +54,7 @@ fn demangle(name: &str) -> String {
 }
 
 // TODO:
-fn replace_non_symbolic(name: String) -> String {
+fn replace_non_symbolic(name: &str) -> String {
     name.replace('\'', "__single_quote__")
         .replace(' ', "__space__")
         .replace('+', "__plus__")
@@ -789,7 +789,7 @@ impl ScriptGenerator {
             return demangle(&py_name);
         }
         let name = ident.inspect().to_string();
-        let name = replace_non_symbolic(name);
+        let name = replace_non_symbolic(&name);
         if ident.vis().is_public() {
             name
         } else {
@@ -802,7 +802,7 @@ impl ScriptGenerator {
         for non_default in params.non_defaults {
             match non_default.raw.pat {
                 ParamPattern::VarName(param) => {
-                    code += &format!("{}__,", param.into_token().content);
+                    code += &format!("{}__,", replace_non_symbolic(&param.into_token().content));
                 }
                 ParamPattern::Discard(_) => {
                     code += &format!("_{},", self.fresh_var_n);
@@ -815,7 +815,7 @@ impl ScriptGenerator {
             let ParamPattern::VarName(param) = default.sig.raw.pat else { todo!() };
             code += &format!(
                 "{}__ = {},",
-                param.into_token().content,
+                replace_non_symbolic(&param.into_token().content),
                 self.transpile_expr(default.default_val)
             );
         }

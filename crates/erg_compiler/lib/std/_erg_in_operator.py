@@ -1,6 +1,7 @@
 from _erg_result import is_ok
 from _erg_range import Range
 
+from collections import namedtuple
 
 def in_operator(elem, y):
     if type(y) == type:
@@ -18,6 +19,8 @@ def in_operator(elem, y):
         len_check = len(elem) == len(y)
         return type_check and len_check
     elif isinstance(y, tuple):
+        if not hasattr(elem, "__iter__"):
+            return False
         type_check = all(map(lambda x: in_operator(x[0], x[1]), zip(elem, y)))
         len_check = len(elem) == len(y)
         return type_check and len_check
