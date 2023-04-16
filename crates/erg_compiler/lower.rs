@@ -51,10 +51,11 @@ use VisibilityModifier::*;
 
 pub fn acc_to_variable(acc: &ast::Accessor) -> Option<Variable> {
     match acc {
-        ast::Accessor::Ident(ident) => Some(Variable::Var(ident.inspect().clone())),
+        ast::Accessor::Ident(ident) => Some(Variable::Var(ident.inspect().clone(), ident.loc())),
         ast::Accessor::Attr(attr) => Some(Variable::attr(
             expr_to_variable(&attr.obj)?,
             attr.ident.inspect().clone(),
+            attr.loc(),
         )),
         _ => None,
     }
@@ -970,31 +971,6 @@ impl ASTLowerer {
         } else {
             None
         };
-        let opt_cast_to = if call.is_assert_cast() {
-            if let Some(typ) = call.assert_cast_target_type() {
-                Some(Parser::expr_to_type_spec(typ.clone()).map_err(|e| {
-                    self.module.context.higher_order_caller.pop();
-                    let e = LowerError::new(
-                        e.into(),
-                        self.input().clone(),
-                        self.module.context.caused_by(),
-                    );
-                    LowerErrors::from(e)
-                })?)
-            } else {
-                self.module.context.higher_order_caller.pop();
-                return Err(LowerErrors::from(LowerError::syntax_error(
-                    self.input().clone(),
-                    line!() as usize,
-                    call.args.loc(),
-                    self.module.context.caused_by(),
-                    "invalid assert casting type".to_owned(),
-                    None,
-                )));
-            }
-        } else {
-            None
-        };
         let hir_args = self.lower_args(call.args, &mut errs);
         let mut obj = match self.lower_expr(*call.obj) {
             Ok(obj) => obj,
@@ -1044,17 +1020,13 @@ impl ASTLowerer {
         let mut call = hir::Call::new(obj, attr_name, hir_args);
         self.module.context.higher_order_caller.pop();
         if errs.is_empty() {
-            self.exec_additional_op(&mut call, opt_cast_to)?;
+            self.exec_additional_op(&mut call)?;
         }
         self.errs.extend(errs);
         Ok(call)
     }
 
-    fn exec_additional_op(
-        &mut self,
-        call: &mut hir::Call,
-        opt_cast_to: Option<ast::TypeSpec>,
-    ) -> LowerResult<()> {
+    fn exec_additional_op(&mut self, call: &mut hir::Call) -> LowerResult<()> {
         match call.additional_operation() {
             Some(kind @ (OperationKind::Import | OperationKind::PyImport)) => {
                 let hir::Expr::Lit(mod_name) = call.args.get_left_or_key("Path").unwrap() else {
@@ -1098,12 +1070,15 @@ impl ASTLowerer {
                 self.module.context.sub_unify(arg_t, &ret_t, call, None)?;
                 Ok(())
             }
-            _ => {
-                if let Some(type_spec) = opt_cast_to {
-                    self.module.context.cast(type_spec, call)?;
+            Some(OperationKind::Assert) => {
+                if let Some(Type::Guard(guard)) =
+                    call.args.get_left_or_key("test").map(|exp| exp.ref_t())
+                {
+                    self.module.context.cast(guard.clone(), &mut vec![])?;
                 }
                 Ok(())
             }
+            _ => Ok(()),
         }
     }
 
@@ -1259,34 +1234,8 @@ impl ASTLowerer {
                 mem::take(&mut self.module.context.get_mut_outer().unwrap().guards)
             };
             for guard in guards.into_iter() {
-                if let Variable::Var(name) = &guard.var {
-                    let vi = self
-                        .module
-                        .context
-                        .locals
-                        .remove_entry(name)
-                        .map(|(name, vi)| {
-                            overwritten.push((name, vi.clone()));
-                            let t = self.module.context.intersection(&vi.t, &guard.to);
-                            VarInfo { t, ..vi }
-                        })
-                        .unwrap_or_else(|| {
-                            if let Some((n, vi)) = self.module.context.get_var_kv(name) {
-                                overwritten.push((n.clone(), vi.clone()));
-                                let t = self.module.context.intersection(&vi.t, &guard.to);
-                                VarInfo { t, ..vi.clone() }
-                            } else {
-                                VarInfo::nd_parameter(
-                                    *guard.to,
-                                    self.module.context.absolutize(Location::Unknown),
-                                    self.module.context.name.clone(),
-                                )
-                            }
-                        });
-                    self.module
-                        .context
-                        .locals
-                        .insert(VarName::from_str(name.clone()), vi);
+                if let Err(errs) = self.module.context.cast(guard, &mut overwritten) {
+                    self.errs.extend(errs);
                 }
             }
             overwritten

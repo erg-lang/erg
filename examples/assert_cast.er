@@ -1,6 +1,7 @@
 i: Int = 2 - 1
 assert i in Nat
 i: Nat
+assert i in Str # ERR, i cannot be of type Str
 
 f(opt_i: Int or NoneType) =
     if opt_i != None, do:

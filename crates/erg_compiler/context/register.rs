@@ -22,10 +22,12 @@ use erg_parser::ast::{self, PreDeclTypeSpec};
 use crate::ty::constructors::{
     free_var, func, func0, func1, proc, ref_, ref_mut, unknown_len_array_t, v_enum,
 };
-use crate::ty::free::{Constraint, FreeKind, HasLevel};
+use crate::ty::free::{Constraint, HasLevel};
 use crate::ty::typaram::TyParam;
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
-use crate::ty::{HasType, ParamTy, SubrType, Type, Visibility, VisibilityModifier};
+use crate::ty::{
+    GuardType, HasType, ParamTy, SubrType, Type, Variable, Visibility, VisibilityModifier,
+};
 
 use crate::build_hir::HIRBuilder;
 use crate::context::{
@@ -1953,78 +1955,47 @@ impl Context {
 
     pub(crate) fn cast(
         &mut self,
-        type_spec: ast::TypeSpec,
-        call: &mut hir::Call,
+        guard: GuardType,
+        overwritten: &mut Vec<(VarName, VarInfo)>,
     ) -> TyCheckResult<()> {
-        let mut dummy_tv_cache = TyVarCache::new(self.level, self);
-        let cast_to = self.instantiate_typespec(
-            &type_spec,
-            None,
-            &mut dummy_tv_cache,
-            RegistrationMode::Normal,
-            false,
-        )?;
-        let Some(hir::Expr::BinOp(hir::BinOp { lhs, .. })) = call.args.get_mut_left_or_key("pred") else { todo!("{}", call.args) };
-        match (
-            self.supertype_of(lhs.ref_t(), &cast_to),
-            self.subtype_of(lhs.ref_t(), &cast_to),
-        ) {
-            // assert 1 in {1}
-            (true, true) => Ok(()),
-            // assert x in Int (x: Nat)
-            (false, true) => Ok(()), // TODO: warn (needless)
-            // assert x in Nat (x: Int)
-            (true, false) => {
-                if let hir::Expr::Accessor(ref acc) = lhs.as_ref() {
-                    self.change_var_type(acc, cast_to.clone())?;
-                }
-                match lhs.ref_t() {
-                    Type::FreeVar(fv) if fv.is_linked() => {
-                        let constraint = Constraint::new_subtype_of(cast_to);
-                        fv.replace(FreeKind::new_unbound(self.level, constraint));
-                    }
-                    Type::FreeVar(fv) => {
-                        let new_constraint = Constraint::new_subtype_of(cast_to);
-                        fv.update_constraint(new_constraint, false);
-                    }
-                    _ => {
-                        *lhs.ref_mut_t() = cast_to;
-                    }
-                }
-                Ok(())
+        if let Variable::Var(name, _) = &guard.var {
+            let vi = if let Some((name, vi)) = self.locals.remove_entry(name) {
+                overwritten.push((name, vi.clone()));
+                let t = self.intersection(&vi.t, &guard.to);
+                VarInfo { t, ..vi }
+            } else if let Some((n, vi)) = self.get_var_kv(name) {
+                overwritten.push((n.clone(), vi.clone()));
+                let t = self.intersection(&vi.t, &guard.to);
+                VarInfo { t, ..vi.clone() }
+            } else {
+                VarInfo::nd_parameter(
+                    *guard.to.clone(),
+                    self.absolutize(().loc()),
+                    self.name.clone(),
+                )
+            };
+            let is_never =
+                self.subtype_of(&vi.t, &Type::Never) && guard.to.as_ref() != &Type::Never;
+            self.locals.insert(VarName::from_str(name.clone()), vi);
+            if is_never {
+                return Err(TyCheckErrors::from(TyCheckError::invalid_type_cast_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    guard.var.loc(),
+                    self.caused_by(),
+                    &guard.var.to_string(),
+                    &guard.to,
+                    None,
+                )));
             }
-            // assert x in Str (x: Int)
-            (false, false) => Err(TyCheckErrors::from(TyCheckError::invalid_type_cast_error(
-                self.cfg.input.clone(),
-                line!() as usize,
-                lhs.loc(),
-                self.caused_by(),
-                &lhs.to_string(),
-                &cast_to,
-                None,
-            ))),
-        }
-    }
-
-    fn change_var_type(&mut self, acc: &hir::Accessor, t: Type) -> TyCheckResult<()> {
-        #[allow(clippy::single_match)]
-        match acc {
-            hir::Accessor::Ident(ident) => {
-                if let Some(vi) = self.get_mut_current_scope_var(&ident.raw.name) {
-                    vi.t = t;
-                } else {
-                    return Err(TyCheckErrors::from(TyCheckError::feature_error(
-                        self.cfg.input.clone(),
-                        acc.loc(),
-                        &format!("casting {acc}"),
-                        self.caused_by(),
-                    )));
-                }
-            }
-            _ => {
-                // TODO: support other accessors
-            }
-        }
+        } /* else {
+              return Err(TyCheckErrors::from(TyCheckError::feature_error(
+                  self.cfg.input.clone(),
+                  guard.var.loc(),
+                  &format!("casting {}", guard.var),
+                  self.caused_by(),
+              )));
+          }*/
         Ok(())
     }
 

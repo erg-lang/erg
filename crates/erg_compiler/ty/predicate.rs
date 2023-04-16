@@ -410,7 +410,7 @@ impl Predicate {
             Self::LessEqual { lhs, rhs } => Self::gt(lhs, rhs),
             Self::NotEqual { lhs, rhs } => Self::eq(lhs, rhs),
             Self::Not(pred) => *pred,
-            other => Self::not(other),
+            other => Self::Not(Box::new(other)),
         }
     }
 }

@@ -18,11 +18,12 @@ use std::ops::{BitAnd, BitOr, Deref, Not, Range, RangeInclusive};
 use std::path::PathBuf;
 
 use erg_common::dict::Dict;
+use erg_common::error::Location;
 use erg_common::fresh::fresh_varname;
 #[allow(unused_imports)]
 use erg_common::log;
 use erg_common::set::Set;
-use erg_common::traits::{LimitedDisplay, StructuralEq};
+use erg_common::traits::{LimitedDisplay, Locational, StructuralEq};
 use erg_common::{enum_unwrap, fmt_option, ref_addr_eq, set, Str};
 
 use erg_parser::token::TokenKind;
@@ -681,30 +682,49 @@ impl ArgsOwnership {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Variable {
-    Param { nth: usize, name: Str },
-    Var(Str),
-    Attr { receiver: Box<Variable>, attr: Str },
+    Param {
+        nth: usize,
+        name: Str,
+        loc: Location,
+    },
+    Var(Str, Location),
+    Attr {
+        receiver: Box<Variable>,
+        attr: Str,
+        loc: Location,
+    },
 }
 
 impl fmt::Display for Variable {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::Param { nth, name } => write!(f, "{name}#{nth}"),
-            Self::Var(name) => write!(f, "{name}"),
-            Self::Attr { receiver, attr } => write!(f, "{receiver}.{attr}"),
+            Self::Param { nth, name, .. } => write!(f, "{name}#{nth}"),
+            Self::Var(name, _) => write!(f, "{name}"),
+            Self::Attr { receiver, attr, .. } => write!(f, "{receiver}.{attr}"),
+        }
+    }
+}
+
+impl Locational for Variable {
+    fn loc(&self) -> Location {
+        match self {
+            Self::Param { loc, .. } => *loc,
+            Self::Var(_, loc) => *loc,
+            Self::Attr { loc, .. } => *loc,
         }
     }
 }
 
 impl Variable {
-    pub const fn param(nth: usize, name: Str) -> Self {
-        Self::Param { nth, name }
+    pub const fn param(nth: usize, name: Str, loc: Location) -> Self {
+        Self::Param { nth, name, loc }
     }
 
-    pub fn attr(receiver: Variable, attr: Str) -> Self {
+    pub fn attr(receiver: Variable, attr: Str, loc: Location) -> Self {
         Self::Attr {
             receiver: Box::new(receiver),
             attr,
+            loc,
         }
     }
 }

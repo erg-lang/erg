@@ -234,7 +234,7 @@ fn exec_array_err() -> Result<(), ()> {
 
 #[test]
 fn exec_assert_cast() -> Result<(), ()> {
-    expect_failure("examples/assert_cast.er", 0, 2)
+    expect_failure("examples/assert_cast.er", 0, 3)
 }
 
 #[test]

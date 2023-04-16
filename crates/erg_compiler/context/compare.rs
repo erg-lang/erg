@@ -1293,7 +1293,12 @@ impl Context {
             (Pred::And(l, r), rhs) => {
                 self.is_super_pred_of(l, rhs) && self.is_super_pred_of(r, rhs)
             }
-            (lhs, rhs) => todo!("{lhs}/{rhs}"),
+            (lhs, rhs) => {
+                if cfg!(feature = "denig") {
+                    todo!("{lhs}/{rhs}");
+                }
+                false
+            }
         }
     }
 

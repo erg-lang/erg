@@ -23,7 +23,7 @@ pub enum OperationKind {
     Import,
     PyImport,
     Del,
-    AssertCast,
+    Assert,
     Class,
     Inherit,
     Trait,
