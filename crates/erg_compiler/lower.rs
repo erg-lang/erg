@@ -1024,13 +1024,21 @@ impl ASTLowerer {
                 .module
                 .context
                 .subtype_of(vi.t.return_t().unwrap(), &Type::Bool));
-            *vi.t.mut_return_t().unwrap() = guard;
+            if let Some(ret_t) = vi.t.mut_return_t() {
+                *ret_t = guard;
+            }
         }
         let attr_name = if let Some(attr_name) = call.attr_name {
             self.inc_ref(&vi, &attr_name.name);
             Some(hir::Identifier::new(attr_name, None, vi))
         } else {
-            *obj.ref_mut_t() = vi.t;
+            if let hir::Expr::Call(call) = &obj {
+                if call.return_t().is_some() {
+                    *obj.ref_mut_t() = vi.t;
+                }
+            } else {
+                *obj.ref_mut_t() = vi.t;
+            }
             None
         };
         let mut call = hir::Call::new(obj, attr_name, hir_args);

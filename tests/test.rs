@@ -309,7 +309,7 @@ fn exec_subtyping_err() -> Result<(), ()> {
 
 #[test]
 fn exec_callable() -> Result<(), ()> {
-    expect_failure("tests/should_err/callable.er", 0, 4)
+    expect_failure("tests/should_err/callable.er", 0, 5)
 }
 
 #[test]

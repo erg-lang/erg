@@ -11,3 +11,5 @@ print! f3(1) 2 # ERR
 
 f4 x = (y) => x
 print! f4(1) 2 # OK
+
+_ = Array() [1, 2] # ERR

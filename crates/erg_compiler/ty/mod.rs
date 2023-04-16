@@ -45,6 +45,7 @@ pub trait HasType {
     // 関数呼び出しの場合、.ref_t()は戻り値を返し、signature_t()は関数全体の型を返す
     fn signature_t(&self) -> Option<&Type>;
     // 最後にHIR全体の型変数を消すために使う
+    /// `x.ref_mut_t()` may panic, in which case `x` is `Call` and `x.ref_t() == Type::Failure`.
     fn ref_mut_t(&mut self) -> &mut Type;
     fn signature_mut_t(&mut self) -> Option<&mut Type>;
     #[inline]

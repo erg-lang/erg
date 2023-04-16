@@ -1377,6 +1377,9 @@ impl HasType for Call {
         if let Some(attr) = self.attr_name.as_mut() {
             Some(attr.ref_mut_t())
         } else {
+            if let Expr::Call(call) = self.obj.as_ref() {
+                call.return_t()?;
+            }
             Some(self.obj.ref_mut_t())
         }
     }
@@ -1416,6 +1419,14 @@ impl Call {
                 }
             }
         })
+    }
+
+    pub fn return_t(&self) -> Option<&Type> {
+        if let Some(attr) = self.attr_name.as_ref() {
+            attr.ref_t().return_t()
+        } else {
+            self.obj.ref_t().return_t()
+        }
     }
 }
 
