@@ -1449,10 +1449,14 @@ impl PyCodeGenerator {
         let type_pair = TypePair::new(lhs_t, rhs_t);
         self.emit_expr(*bin.lhs);
         self.emit_expr(*bin.rhs);
+        self.emit_binop_instr(bin.op, type_pair);
+    }
+
+    fn emit_binop_instr(&mut self, binop: Token, type_pair: TypePair) {
         if self.py_version.minor >= Some(11) {
-            self.emit_binop_instr_311(bin.op, type_pair);
+            self.emit_binop_instr_311(binop, type_pair);
         } else {
-            self.emit_binop_instr_310(bin.op, type_pair);
+            self.emit_binop_instr_310(binop, type_pair);
         }
     }
 
@@ -2374,15 +2378,11 @@ impl PyCodeGenerator {
                 self.emit_expr(*arr.elem);
                 self.write_instr(BUILD_LIST);
                 self.write_arg(1);
-                self.emit_expr(*arr.len);
-                if self.py_version.minor >= Some(11) {
-                    self.write_instr(Opcode311::BINARY_OP);
-                    self.write_arg(BinOpCode::Multiply as usize);
-                } else {
-                    self.write_instr(Opcode310::BINARY_MULTIPLY);
-                    self.write_arg(0);
-                }
+                self.emit_call_instr(1, Name);
                 self.stack_dec();
+                self.emit_expr(*arr.len);
+                self.emit_binop_instr(Token::dummy(TokenKind::Star, "*"), TypePair::ArrayNat);
+                return;
             }
             other => todo!("{other}"),
         }

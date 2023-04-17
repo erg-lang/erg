@@ -1,3 +1,5 @@
+from _erg_control import then__
+
 class Array(list):
     def dedup(self, same_bucket=None):
         if same_bucket is None:
@@ -19,3 +21,6 @@ class Array(list):
         return Array(list(filter(f, self))), Array(
             list(filter(lambda x: not f(x), self))
         )
+
+    def __mul__(self, n):
+        return then__(list.__mul__(self, n), Array)
