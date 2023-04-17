@@ -1157,12 +1157,6 @@ impl Context {
                 }
                 Ok(())
             }
-            (
-                _,
-                Poly {
-                    params: sup_params, ..
-                },
-            ) => self.nominal_sub_unify(maybe_sub, maybe_sup, sup_params, loc),
             (Or(l1, r1), Or(l2, r2)) | (Type::And(l1, r1), Type::And(l2, r2)) => {
                 if self.subtype_of(l1, l2) && self.subtype_of(r1, r2) {
                     self.sub_unify(l1, l2, loc, param_name)?;
@@ -1237,6 +1231,12 @@ impl Context {
             // REVIEW: correct?
             (Poly { name, .. }, Type) if &name[..] == "Array" || &name[..] == "Tuple" => Ok(()),
             (Poly { .. }, _) => self.nominal_sub_unify(maybe_sub, maybe_sup, &[], loc),
+            (
+                _,
+                Poly {
+                    params: sup_params, ..
+                },
+            ) => self.nominal_sub_unify(maybe_sub, maybe_sup, sup_params, loc),
             (Subr(_), Mono(name)) if &name[..] == "GenericCallable" => Ok(()),
             _ => type_feature_error!(
                 self,
@@ -1254,8 +1254,8 @@ impl Context {
         sup_params: &[TyParam],
         loc: &impl Locational,
     ) -> TyCheckResult<()> {
+        debug_assert_ne!(maybe_sub.qual_name(), maybe_sup.qual_name());
         if let Some((sub_def_t, sub_ctx)) = self.get_nominal_type_ctx(maybe_sub) {
-            let _sub_def_instance = self.instantiate_def_type(sub_def_t)?;
             // e.g.
             // maybe_sub: Zip(Int, Str)
             // sub_def_t: Zip(T, U) ==> Zip(Int, Str)
