@@ -36,6 +36,14 @@ impl AsRef<Url> for NormalizedUrl {
     }
 }
 
+impl TryFrom<&Path> for NormalizedUrl {
+    type Error = Box<dyn std::error::Error>;
+    fn try_from(path: &Path) -> Result<Self, Self::Error> {
+        let path = path.to_str().unwrap();
+        NormalizedUrl::parse(path)
+    }
+}
+
 impl NormalizedUrl {
     pub fn new(url: Url) -> NormalizedUrl {
         Self(Url::parse(&url.as_str().replace("c%3A", "C:").to_lowercase()).unwrap())
@@ -171,5 +179,12 @@ pub fn get_line_from_path(path: &Path, line: u32) -> ELSResult<String> {
 }
 
 pub fn uri_to_path(uri: &NormalizedUrl) -> std::path::PathBuf {
-    normalize_path(uri.to_file_path().unwrap())
+    normalize_path(
+        uri.to_file_path()
+            .unwrap_or_else(|_| denormalize(uri.clone().raw()).to_file_path().unwrap()),
+    )
+}
+
+pub fn denormalize(uri: Url) -> Url {
+    Url::parse(&uri.as_str().replace("c:", "file:///c%3A")).unwrap()
 }

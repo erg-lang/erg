@@ -1255,7 +1255,19 @@ impl HasType for Type {
                 vec![before.as_ref().clone()]
             }
             // Self::And(ts) | Self::Or(ts) => ,
-            Self::Subr(_sub) => todo!(),
+            Self::Subr(sub) => sub
+                .default_params
+                .iter()
+                .map(|pt| pt.typ().clone())
+                .chain(
+                    sub.var_params
+                        .as_deref()
+                        .map(|pt| pt.typ().clone())
+                        .into_iter(),
+                )
+                .chain(sub.non_default_params.iter().map(|pt| pt.typ().clone()))
+                .chain([*sub.return_t.clone()].into_iter())
+                .collect(),
             Self::Callable { param_ts, .. } => param_ts.clone(),
             Self::Poly { params, .. } => params.iter().filter_map(get_t_from_tp).collect(),
             _ => vec![],
@@ -1995,6 +2007,31 @@ impl Type {
             Self::Bounded { sub, .. } => sub.qual_name(),
             Self::Failure => Str::ever("Failure"),
             Self::Uninited => Str::ever("Uninited"),
+        }
+    }
+
+    /// ```
+    /// # use erg_compiler::ty::constructors::*;
+    /// let i = mono("Int!");
+    /// assert_eq!(&i.namespace()[..], "");
+    /// let t = mono("http.client.Response");
+    /// assert_eq!(&t.namespace()[..], "http.client");
+    /// ```
+    pub fn namespace(&self) -> Str {
+        match self {
+            Self::Mono(name) | Self::Poly { name, .. } => {
+                let namespaces = name.split_with(&[".", "::"]);
+                if namespaces.len() > 1 {
+                    Str::rc(
+                        name.trim_end_matches(namespaces.last().unwrap())
+                            .trim_end_matches('.')
+                            .trim_end_matches("::"),
+                    )
+                } else {
+                    Str::ever("")
+                }
+            }
+            _ => Str::ever(""),
         }
     }
 

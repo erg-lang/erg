@@ -6,7 +6,8 @@ use erg_common::lang::LanguageCode;
 use erg_common::trim_eliminate_top_indent;
 use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::erg_parser::token::{Token, TokenCategory, TokenKind};
-use erg_compiler::varinfo::AbsLocation;
+use erg_compiler::ty::HasType;
+use erg_compiler::varinfo::{AbsLocation, VarInfo};
 
 use lsp_types::{HoverContents, HoverParams, MarkedString, Url};
 
@@ -37,6 +38,14 @@ fn language(marked: &MarkedString) -> Option<&str> {
 }
 
 fn sort_hovers(mut contents: Vec<MarkedString>) -> Vec<MarkedString> {
+    let erg_count = contents
+        .iter()
+        .filter(|marked| language(marked) == Some("erg"))
+        .count();
+    // only location & type definition, no "erg" code block
+    if erg_count == 2 {
+        return contents;
+    }
     // swap "erg" code block (not type definition) and the last element
     let erg_idx = contents
         .iter()
@@ -145,6 +154,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                         format!("{}: {}", token.content, vi.t),
                     );
                     contents.push(typ);
+                    self.show_type_defs(&vi, &mut contents)?;
                     self.show_doc_comment(Some(token), &mut contents, &vi.def_loc)?;
                 }
                 // not found or not symbol, etc.
@@ -165,6 +175,36 @@ impl<Checker: BuildRunnable> Server<Checker> {
         }
         let result = json!({ "contents": HoverContents::Array(sort_hovers(contents)) });
         send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": result }))
+    }
+
+    fn show_type_defs(&mut self, vi: &VarInfo, contents: &mut Vec<MarkedString>) -> ELSResult<()> {
+        let mut defs = "".to_string();
+        for inner_t in vi.t.inner_ts() {
+            if let Some(path) = &vi.def_loc.module {
+                let def_uri = util::NormalizedUrl::try_from(path.as_path()).unwrap();
+                let module = {
+                    self.quick_check_file(def_uri.clone()).unwrap();
+                    self.modules.get(&def_uri).unwrap()
+                };
+                if let Some((_, vi)) = module.context.get_type_info(&inner_t) {
+                    if let Some(uri) =
+                        vi.def_loc.module.as_ref().and_then(|path| {
+                            Some(util::denormalize(Url::parse(path.to_str()?).ok()?))
+                        })
+                    {
+                        defs += &format!(
+                            "[{}]({uri}#L{}) ",
+                            inner_t.local_name(),
+                            vi.def_loc.loc.ln_begin().unwrap_or(1)
+                        );
+                    }
+                }
+            }
+        }
+        if !defs.is_empty() {
+            contents.push(MarkedString::from_markdown(format!("Go to {defs}")));
+        }
+        Ok(())
     }
 
     pub(crate) fn show_doc_comment(

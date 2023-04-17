@@ -49,9 +49,9 @@ pub enum SubstituteResult {
 
 impl Context {
     pub(crate) fn get_ctx_from_path(&self, path: &Path) -> Option<&Context> {
-        self.mod_cache()
+        self.opt_mod_cache()?
             .ref_ctx(path)
-            .or_else(|| self.py_mod_cache().ref_ctx(path))
+            .or_else(|| self.opt_py_mod_cache()?.ref_ctx(path))
             .map(|mod_ctx| &mod_ctx.context)
     }
 
@@ -2362,20 +2362,20 @@ impl Context {
         }
     }
 
-    pub(crate) fn push_path(&self, mut path: PathBuf, add: &Path) -> PathBuf {
+    pub(crate) fn try_push_path(&self, mut path: PathBuf, add: &Path) -> Result<PathBuf, String> {
         path.pop(); // __init__.d.er
         if let Ok(path) = path.join(add).canonicalize() {
-            normalize_path(path)
+            Ok(normalize_path(path))
         } else if let Ok(path) = path.join(format!("{}.d.er", add.display())).canonicalize() {
-            normalize_path(path)
+            Ok(normalize_path(path))
         } else if let Ok(path) = path
             .join(format!("{}.d", add.display()))
             .join("__init__.d.er")
             .canonicalize()
         {
-            normalize_path(path)
+            Ok(normalize_path(path))
         } else {
-            todo!("{} // {}", path.display(), add.display())
+            Err(format!("{} // {}", path.display(), add.display()))
         }
     }
 
@@ -2454,33 +2454,37 @@ impl Context {
         mono(format!("{}{vis}{}", self.name, ident.inspect()))
     }
 
-    pub(crate) fn get_mono_type(&self, name: &Str) -> Option<(&Type, &Context)> {
-        if let Some((t, ctx)) = self.rec_local_get_mono_type(name) {
-            return Some((t, ctx));
-        }
-        // e.g.
-        //     http.client.Response -> http.client
-        //     ../http/client.Response -> ../http.client
-        let mut namespaces = name.split_with(&[".", "::"]);
-        if namespaces.len() < 2 {
-            return None;
-        }
-        let type_name = namespaces.pop().unwrap(); // "Response"
-        if let Some((t, ctx)) = self.rec_local_get_mono_type(type_name) {
-            return Some((t, ctx));
-        }
-        let mut namespace = namespaces.remove(0).to_string(); // "http" or ""
+    pub(crate) fn get_namespace(&self, namespace: &Str) -> Option<&Context> {
+        let mut namespaces = namespace.split_with(&[".", "::"]);
+        let mut namespace = namespaces.first().map(|n| n.to_string())?;
+        namespaces.remove(0);
         while namespace.is_empty() || namespace.ends_with('.') {
+            if namespaces.is_empty() {
+                break;
+            }
             namespace.push('.');
             namespace.push_str(namespaces.remove(0));
         }
         let path = Path::new(&namespace);
         let mut path = Self::resolve_path(&self.cfg, path)?;
         for p in namespaces.into_iter() {
-            path = self.push_path(path, Path::new(p));
+            path = self.try_push_path(path, Path::new(p)).ok()?;
         }
-        if let Some(ctx) = self.get_ctx_from_path(path.as_path()) {
-            if let Some((t, ctx)) = ctx.rec_local_get_mono_type(type_name) {
+        self.get_ctx_from_path(path.as_path())
+    }
+
+    pub(crate) fn get_mono_type(&self, name: &Str) -> Option<(&Type, &Context)> {
+        if let Some((t, ctx)) = self.rec_local_get_mono_type(name) {
+            return Some((t, ctx));
+        }
+        let typ = Type::Mono(Str::rc(name));
+        if self.name.starts_with(&typ.namespace()[..]) {
+            if let Some((t, ctx)) = self.rec_local_get_mono_type(&typ.local_name()) {
+                return Some((t, ctx));
+            }
+        }
+        if let Some(ctx) = self.get_namespace(&typ.namespace()) {
+            if let Some((t, ctx)) = ctx.rec_local_get_mono_type(&typ.local_name()) {
                 return Some((t, ctx));
             }
         }
@@ -2555,29 +2559,14 @@ impl Context {
         if let Some((t, ctx)) = self.rec_local_get_type(name) {
             return Some((t, ctx));
         }
-        // e.g.
-        //     http.client.Response -> http.client
-        //     ../http/client.Response -> ../http.client
-        let mut namespaces = name.split_with(&[".", "::"]);
-        if namespaces.len() < 2 {
-            return None;
+        let typ = Type::Mono(Str::rc(name));
+        if self.name.starts_with(&typ.namespace()[..]) {
+            if let Some((t, ctx)) = self.rec_local_get_type(&typ.local_name()) {
+                return Some((t, ctx));
+            }
         }
-        let type_name = namespaces.pop().unwrap(); // "Response"
-        if let Some((t, ctx)) = self.rec_local_get_type(type_name) {
-            return Some((t, ctx));
-        }
-        let mut namespace = namespaces.remove(0).to_string(); // "http" or ""
-        while namespace.is_empty() || namespace.ends_with('.') {
-            namespace.push('.');
-            namespace.push_str(namespaces.remove(0));
-        }
-        let path = Path::new(&namespace);
-        let mut path = Self::resolve_path(&self.cfg, path)?;
-        for p in namespaces.into_iter() {
-            path = self.push_path(path, Path::new(p));
-        }
-        if let Some(ctx) = self.get_ctx_from_path(path.as_path()) {
-            if let Some((t, ctx)) = ctx.rec_local_get_type(type_name) {
+        if let Some(ctx) = self.get_namespace(&typ.namespace()) {
+            if let Some((t, ctx)) = ctx.rec_local_get_type(&typ.local_name()) {
                 return Some((t, ctx));
             }
         }

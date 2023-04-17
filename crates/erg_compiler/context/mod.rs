@@ -521,6 +521,12 @@ impl Context {
     pub fn get_var_info(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
         ContextProvider::get_var_info(self, name)
     }
+
+    pub fn get_type_info(&self, typ: &Type) -> Option<(&VarName, &VarInfo)> {
+        let namespace = typ.namespace();
+        let ctx = self.get_namespace(&namespace)?;
+        ctx.get_var_info(&typ.local_name())
+    }
 }
 
 impl Context {
@@ -1104,8 +1110,16 @@ impl Context {
         self.type_dir(self)
     }
 
+    pub(crate) fn opt_mod_cache(&self) -> Option<&SharedModuleCache> {
+        self.shared.as_ref().map(|s| &s.mod_cache)
+    }
+
     pub(crate) fn mod_cache(&self) -> &SharedModuleCache {
         &self.shared().mod_cache
+    }
+
+    pub(crate) fn opt_py_mod_cache(&self) -> Option<&SharedModuleCache> {
+        self.shared.as_ref().map(|s| &s.py_mod_cache)
     }
 
     pub(crate) fn py_mod_cache(&self) -> &SharedModuleCache {

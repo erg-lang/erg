@@ -19,7 +19,12 @@ use crate::server::ELSResult;
 use crate::util::{self, NormalizedUrl};
 
 pub fn _get_code_from_uri(uri: &Url) -> ELSResult<String> {
-    let path = uri.to_file_path().unwrap();
+    let path = uri
+        .to_file_path()
+        .or_else(|_| util::denormalize(uri.clone()).to_file_path())
+        .unwrap_or_else(|_| {
+            panic!("invalid file path: {uri}");
+        });
     let mut code = String::new();
     File::open(path.as_path())?.read_to_string(&mut code)?;
     Ok(code)
@@ -158,7 +163,11 @@ impl FileCache {
                 return;
             }
         }
-        let metadata = metadata(uri.to_file_path().unwrap()).unwrap();
+        let metadata = metadata(
+            uri.to_file_path()
+                .unwrap_or_else(|_| util::denormalize(uri.clone().raw()).to_file_path().unwrap()),
+        )
+        .unwrap();
         let token_stream = Lexer::from_str(code.clone()).lex().ok();
         let ver = ver.unwrap_or({
             if let Some(entry) = entry {
