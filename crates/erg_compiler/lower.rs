@@ -1026,17 +1026,9 @@ impl ASTLowerer {
         Ok(call)
     }
 
+    /// importing is done in [preregister](https://github.com/erg-lang/erg/blob/ffd33015d540ff5a0b853b28c01370e46e0fcc52/crates/erg_compiler/context/register.rs#L819)
     fn exec_additional_op(&mut self, call: &mut hir::Call) -> LowerResult<()> {
         match call.additional_operation() {
-            Some(kind @ (OperationKind::Import | OperationKind::PyImport)) => {
-                let hir::Expr::Lit(mod_name) = call.args.get_left_or_key("Path").unwrap() else {
-                    return unreachable_error!(LowerErrors, LowerError, self);
-                };
-                if let Err(errs) = self.module.context.import_mod(kind, mod_name) {
-                    self.errs.extend(errs);
-                };
-                Ok(())
-            }
             Some(OperationKind::Del) => match call.args.get_left_or_key("obj").unwrap() {
                 hir::Expr::Accessor(hir::Accessor::Ident(ident)) => {
                     self.module.context.del(ident)?;

@@ -813,25 +813,27 @@ impl Context {
             match expr {
                 ast::Expr::Def(def) => {
                     if let Err(errs) = self.preregister_def(def) {
-                        total_errs.extend(errs.into_iter());
+                        total_errs.extend(errs);
                     }
                     if def.def_kind().is_import() {
-                        self.pre_import(def);
+                        if let Err(errs) = self.pre_import(def) {
+                            total_errs.extend(errs);
+                        }
                     }
                 }
                 ast::Expr::ClassDef(class_def) => {
                     if let Err(errs) = self.preregister_def(&class_def.def) {
-                        total_errs.extend(errs.into_iter());
+                        total_errs.extend(errs);
                     }
                 }
                 ast::Expr::PatchDef(patch_def) => {
                     if let Err(errs) = self.preregister_def(&patch_def.def) {
-                        total_errs.extend(errs.into_iter());
+                        total_errs.extend(errs);
                     }
                 }
                 ast::Expr::Dummy(dummy) => {
                     if let Err(errs) = self.preregister(&dummy.exprs) {
-                        total_errs.extend(errs.into_iter());
+                        total_errs.extend(errs);
                     }
                 }
                 _ => {}
@@ -846,15 +848,15 @@ impl Context {
 
     /// HACK: The constant expression evaluator can evaluate attributes when the type of the receiver is known.
     /// import/pyimport is not a constant function, but specially assumes that the type of the module is known in the eval phase.
-    fn pre_import(&mut self, def: &ast::Def) {
+    fn pre_import(&mut self, def: &ast::Def) -> TyCheckResult<()> {
         let Some(ast::Expr::Call(call)) = def.body.block.first() else { unreachable!() };
         let Some(ast::Expr::Literal(mod_name)) = call.args.get_left_or_key("Path") else {
-            return;
+            return Ok(());
         };
         let Ok(mod_name) = hir::Literal::try_from(mod_name.token.clone()) else {
-            return;
+            return Ok(());
         };
-        let _ = self.import_mod(call.additional_operation().unwrap(), &mod_name);
+        let res = self.import_mod(call.additional_operation().unwrap(), &mod_name);
         let arg = TyParam::Value(ValueObj::Str(
             mod_name.token.content.replace('\"', "").into(),
         ));
@@ -869,13 +871,14 @@ impl Context {
                 params: vec![arg],
             }
         };
-        let Some(ident) = def.sig.ident() else { return  };
+        let Some(ident) = def.sig.ident() else { return Ok(()) };
         let Some((_, vi)) = self.get_var_info(ident.inspect()) else {
-            return;
+            return Ok(());
         };
         if let Some(fv) = vi.t.as_free() {
             fv.link(&typ);
         }
+        res.map(|_| ())
     }
 
     pub(crate) fn preregister_def(&mut self, def: &ast::Def) -> TyCheckResult<()> {
