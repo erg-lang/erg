@@ -865,6 +865,13 @@ impl Context {
         match (l, r) {
             (TyParam::Value(l), TyParam::Value(r)) =>
                 l.try_cmp(r).map(Into::into),
+            (TyParam::Type(l), TyParam::Type(r))
+            | (TyParam::Erased(l), TyParam::Erased(r)) =>
+                self.same_type_of(l, r).then_some(Equal),
+            (TyParam::Type(l), TyParam::Value(ValueObj::Type(r))) =>
+                self.same_type_of(l, r.typ()).then_some(Equal),
+            (TyParam::Value(ValueObj::Type(l)), TyParam::Type(r)) =>
+                self.same_type_of(l.typ(), r).then_some(Equal),
             // TODO: 型を見て判断する
             (TyParam::BinOp{ op, lhs, rhs }, r) => {
                 if let Ok(evaled) = self.eval_bin_tp(*op, lhs.as_ref().clone(), rhs.as_ref().clone()) {

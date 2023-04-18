@@ -1074,4 +1074,23 @@ impl LowerWarning {
             caused_by,
         )
     }
+
+    pub fn use_cast_warning(input: Input, errno: usize, loc: Location, caused_by: String) -> Self {
+        Self::new(
+            ErrorCore::new(
+                vec![SubMessage::only_loc(loc)],
+                switch_lang!(
+                    "japanese" => "typing.castの使用は推奨されません、type narrowingなどを使ってください",
+                    "simplified_chinese" => "不推荐使用typing.cast、请使用type narrowing等",
+                    "traditional_chinese" => "不推薦使用typing.cast、請使用type narrowing等",
+                    "english" => "using typing.cast is not recommended, please use type narrowing etc. instead",
+                ),
+                errno,
+                TypeWarning,
+                loc,
+            ),
+            input,
+            caused_by,
+        )
+    }
 }

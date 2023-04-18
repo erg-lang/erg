@@ -1070,6 +1070,15 @@ impl ASTLowerer {
                 }
                 Ok(())
             }
+            Some(OperationKind::Cast) => {
+                self.warns.push(LowerWarning::use_cast_warning(
+                    self.input().clone(),
+                    line!() as usize,
+                    call.loc(),
+                    self.module.context.caused_by(),
+                ));
+                Ok(())
+            }
             _ => Ok(()),
         }
     }

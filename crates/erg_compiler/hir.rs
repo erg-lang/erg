@@ -1409,6 +1409,14 @@ impl Call {
             "Del" => Some(OperationKind::Del),
             "assert" => Some(OperationKind::Assert),
             _ => {
+                if self.obj.qual_name() == Some("typing")
+                    && self
+                        .attr_name
+                        .as_ref()
+                        .map_or(false, |ident| &ident.inspect()[..] == "cast")
+                {
+                    return Some(OperationKind::Cast);
+                }
                 if self.obj.ref_t().is_callable() {
                     match self.attr_name.as_ref().map(|i| &i.inspect()[..]) {
                         Some("return") => Some(OperationKind::Return),

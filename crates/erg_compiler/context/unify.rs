@@ -262,49 +262,56 @@ impl Context {
             return Ok(());
         }
         match (maybe_sub, maybe_sup) {
-            (TyParam::Type(maybe_sub), TyParam::Type(maybe_sup)) => {
-                self.sub_unify(maybe_sub, maybe_sup, loc, None)
+            (TyParam::Type(sub), TyParam::Type(sup)) => self.sub_unify(sub, sup, loc, None),
+            (TyParam::Value(ValueObj::Type(sub)), TyParam::Type(sup)) => {
+                self.sub_unify(sub.typ(), sup, loc, None)
             }
-            (TyParam::FreeVar(lfv), TyParam::FreeVar(rfv))
-                if lfv.is_unbound() && rfv.is_unbound() =>
+            (TyParam::Type(sub), TyParam::Value(ValueObj::Type(sup))) => {
+                self.sub_unify(sub, sup.typ(), loc, None)
+            }
+            (TyParam::Value(ValueObj::Type(sub)), TyParam::Value(ValueObj::Type(sup))) => {
+                self.sub_unify(sub.typ(), sup.typ(), loc, None)
+            }
+            (TyParam::FreeVar(sub_fv), TyParam::FreeVar(sup_fv))
+                if sub_fv.is_unbound() && sup_fv.is_unbound() =>
             {
-                if lfv.level().unwrap() > rfv.level().unwrap() {
-                    if !lfv.is_generalized() {
-                        lfv.link(maybe_sup);
+                if sub_fv.level().unwrap() > sup_fv.level().unwrap() {
+                    if !sub_fv.is_generalized() {
+                        sub_fv.link(maybe_sup);
                     }
-                } else if !rfv.is_generalized() {
-                    rfv.link(maybe_sub);
+                } else if !sup_fv.is_generalized() {
+                    sup_fv.link(maybe_sub);
                 }
                 Ok(())
             }
-            (TyParam::FreeVar(lfv), tp) => {
-                match &*lfv.borrow() {
+            (TyParam::FreeVar(sub_fv), sup_tp) => {
+                match &*sub_fv.borrow() {
                     FreeKind::Linked(l) | FreeKind::UndoableLinked { t: l, .. } => {
-                        return self.sub_unify_tp(l, tp, _variance, loc, allow_divergence);
+                        return self.sub_unify_tp(l, sup_tp, _variance, loc, allow_divergence);
                     }
                     FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => {}
                 } // &fv is dropped
-                let fv_t = lfv.constraint().unwrap().get_type().unwrap().clone(); // lfvを参照しないよいにcloneする(あとでborrow_mutするため)
-                let tp_t = self.get_tp_t(tp)?;
+                let fv_t = sub_fv.constraint().unwrap().get_type().unwrap().clone(); // lfvを参照しないよいにcloneする(あとでborrow_mutするため)
+                let tp_t = self.get_tp_t(sup_tp)?;
                 if self.supertype_of(&fv_t, &tp_t) {
                     // 外部未連携型変数の場合、linkしないで制約を弱めるだけにする(see compiler/inference.md)
-                    if lfv.level() < Some(self.level) {
+                    if sub_fv.level() < Some(self.level) {
                         let new_constraint = Constraint::new_subtype_of(tp_t);
-                        if self.is_sub_constraint_of(&lfv.constraint().unwrap(), &new_constraint)
-                            || lfv.constraint().unwrap().get_type() == Some(&Type)
+                        if self.is_sub_constraint_of(&sub_fv.constraint().unwrap(), &new_constraint)
+                            || sub_fv.constraint().unwrap().get_type() == Some(&Type)
                         {
-                            lfv.update_constraint(new_constraint, false);
+                            sub_fv.update_constraint(new_constraint, false);
                         }
                     } else {
-                        lfv.link(tp);
+                        sub_fv.link(sup_tp);
                     }
                     Ok(())
                 } else if allow_divergence
-                    && (self.eq_tp(tp, &TyParam::value(Inf))
-                        || self.eq_tp(tp, &TyParam::value(NegInf)))
+                    && (self.eq_tp(sup_tp, &TyParam::value(Inf))
+                        || self.eq_tp(sup_tp, &TyParam::value(NegInf)))
                     && self.subtype_of(&fv_t, &mono("Num"))
                 {
-                    lfv.link(tp);
+                    sub_fv.link(sup_tp);
                     Ok(())
                 } else {
                     Err(TyCheckErrors::from(TyCheckError::unreachable(
@@ -314,34 +321,34 @@ impl Context {
                     )))
                 }
             }
-            (tp, TyParam::FreeVar(rfv)) => {
-                match &*rfv.borrow() {
+            (sub_tp, TyParam::FreeVar(sup_fv)) => {
+                match &*sup_fv.borrow() {
                     FreeKind::Linked(l) | FreeKind::UndoableLinked { t: l, .. } => {
-                        return self.sub_unify_tp(l, tp, _variance, loc, allow_divergence);
+                        return self.sub_unify_tp(l, sub_tp, _variance, loc, allow_divergence);
                     }
                     FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => {}
                 } // &fv is dropped
-                let fv_t = rfv.constraint().unwrap().get_type().unwrap().clone(); // fvを参照しないよいにcloneする(あとでborrow_mutするため)
-                let tp_t = self.get_tp_t(tp)?;
+                let fv_t = sup_fv.constraint().unwrap().get_type().unwrap().clone(); // fvを参照しないよいにcloneする(あとでborrow_mutするため)
+                let tp_t = self.get_tp_t(sub_tp)?;
                 if self.supertype_of(&fv_t, &tp_t) {
                     // 外部未連携型変数の場合、linkしないで制約を弱めるだけにする(see compiler/inference.md)
-                    if rfv.level() < Some(self.level) {
+                    if sup_fv.level() < Some(self.level) {
                         let new_constraint = Constraint::new_subtype_of(tp_t);
-                        if self.is_sub_constraint_of(&rfv.constraint().unwrap(), &new_constraint)
-                            || rfv.constraint().unwrap().get_type() == Some(&Type)
+                        if self.is_sub_constraint_of(&sup_fv.constraint().unwrap(), &new_constraint)
+                            || sup_fv.constraint().unwrap().get_type() == Some(&Type)
                         {
-                            rfv.update_constraint(new_constraint, false);
+                            sup_fv.update_constraint(new_constraint, false);
                         }
                     } else {
-                        rfv.link(tp);
+                        sup_fv.link(sub_tp);
                     }
                     Ok(())
                 } else if allow_divergence
-                    && (self.eq_tp(tp, &TyParam::value(Inf))
-                        || self.eq_tp(tp, &TyParam::value(NegInf)))
+                    && (self.eq_tp(sub_tp, &TyParam::value(Inf))
+                        || self.eq_tp(sub_tp, &TyParam::value(NegInf)))
                     && self.subtype_of(&fv_t, &mono("Num"))
                 {
-                    rfv.link(tp);
+                    sup_fv.link(sub_tp);
                     Ok(())
                 } else {
                     Err(TyCheckErrors::from(TyCheckError::unreachable(
@@ -370,8 +377,8 @@ impl Context {
             (TyParam::Lambda(_l), TyParam::Lambda(_r)) => {
                 todo!("{_l}/{_r}")
             }
-            (l, TyParam::Erased(t)) => {
-                let sub_t = self.get_tp_t(l)?;
+            (sub, TyParam::Erased(t)) => {
+                let sub_t = self.get_tp_t(sub)?;
                 if self.subtype_of(&sub_t, t) {
                     Ok(())
                 } else {
@@ -385,30 +392,30 @@ impl Context {
                     )))
                 }
             }
-            (l, TyParam::Type(r)) => {
-                let l = self.convert_tp_into_type(l.clone()).map_err(|_| {
+            (sub, TyParam::Type(sup)) => {
+                let l = self.convert_tp_into_type(sub.clone()).map_err(|_| {
                     TyCheckError::tp_to_type_error(
                         self.cfg.input.clone(),
                         line!() as usize,
-                        l,
+                        sub,
                         loc.loc(),
                         self.caused_by(),
                     )
                 })?;
-                self.sub_unify(&l, r, loc, None)?;
+                self.sub_unify(&l, sup, loc, None)?;
                 Ok(())
             }
-            (TyParam::Type(l), r) => {
-                let r = self.convert_tp_into_type(r.clone()).map_err(|_| {
+            (TyParam::Type(sub), sup) => {
+                let r = self.convert_tp_into_type(sup.clone()).map_err(|_| {
                     TyCheckError::tp_to_type_error(
                         self.cfg.input.clone(),
                         line!() as usize,
-                        r,
+                        sup,
                         loc.loc(),
                         self.caused_by(),
                     )
                 })?;
-                self.sub_unify(l, &r, loc, None)?;
+                self.sub_unify(sub, &r, loc, None)?;
                 Ok(())
             }
             (TyParam::Array(ls), TyParam::Array(rs)) | (TyParam::Tuple(ls), TyParam::Tuple(rs)) => {

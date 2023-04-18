@@ -59,7 +59,7 @@
 .Sequence.
     __getitem__: (Type) -> Type
 
-.cast: (typ: Type, val: Obj) -> Obj
+.cast: |T|(typ: {T}, val: Obj) -> T
 .assert_type: (val: Obj, typ: Type) -> NoneType
 .assert_never: (arg: Obj) -> NoneType
 .reveal_type: (obj: Obj) -> NoneType

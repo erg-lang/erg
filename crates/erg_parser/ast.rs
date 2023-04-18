@@ -30,6 +30,7 @@ pub enum OperationKind {
     Subsume,
     Return,
     Yield,
+    Cast,
 }
 
 impl OperationKind {
