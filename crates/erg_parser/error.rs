@@ -387,6 +387,23 @@ impl LexError {
         Self::new(ErrorCore::new(vec![sub], msg, errno, SyntaxError, loc))
     }
 
+    pub fn invalid_colon_style(errno: usize, loc: Location) -> ParseError {
+        let desc = switch_lang!(
+            "japanese" => "コロンの後ろでカンマを使った区切りは使うことができません",
+            "simplified_chinese" => "冒号后不能使用逗号分隔符",
+            "traditional_chinese" => "冒號後不能使用逗號分隔符",
+            "english" => "comma delimiters cannot be used after a colon",
+        );
+        let hint = switch_lang!(
+            "japanese" => "カンマを削除してください",
+            "simplified_chinese" => "逗号应该去掉",
+            "traditional_chinese" => "逗號應該去掉",
+            "english" => "comma should be removed",
+        )
+        .to_string();
+        Self::syntax_error(errno, loc, desc, Some(hint))
+    }
+
     pub fn unclosed_error(errno: usize, loc: Location, closer: &str, ty: &str) -> ParseError {
         let msg = switch_lang!(
             "japanese" => format!("{ty}が{closer}で閉じられていません"),

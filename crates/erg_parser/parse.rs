@@ -934,8 +934,12 @@ impl Parser {
                 Some(Comma) => {
                     self.skip();
                     if style.is_colon() || self.cur_is(Comma) {
-                        let err = self.skip_and_throw_syntax_err(line!(), caused_by!());
+                        let caused_by = caused_by!();
+                        log!(err "error caused by: {caused_by}");
+                        let loc = self.peek().map(|t| t.loc()).unwrap_or_default();
+                        let err = ParseError::invalid_colon_style(line!() as usize, loc);
                         self.errs.push(err);
+                        self.until_dedent();
                         debug_exit_info!(self);
                         return Err(());
                     }
@@ -987,6 +991,17 @@ impl Parser {
                 }
                 Some(Newline) => {
                     if !style.is_colon() {
+                        if style.needs_parens() && !style.is_multi_comma() {
+                            let err = self.skip_and_throw_invalid_seq_err(
+                                caused_by!(),
+                                line!() as usize,
+                                &[")"],
+                                Newline,
+                            );
+                            self.errs.push(err);
+                            debug_exit_info!(self);
+                            return Err(());
+                        }
                         if style.is_multi_comma() {
                             self.skip();
                             while self.cur_is(Dedent) {
@@ -1036,9 +1051,7 @@ impl Parser {
                     debug_exit_info!(self);
                     return Err(());
                 }
-                _ => {
-                    break;
-                }
+                _ => break,
             }
         }
         debug_exit_info!(self);
@@ -2123,13 +2136,32 @@ impl Parser {
                         }
                         self.stack_dec(fn_name!())
                     })?;
-                while self.cur_is(Newline) {
-                    self.skip();
+                if line_break {
+                    while self.cur_is(Newline) {
+                        self.skip();
+                    }
+                    if self.cur_is(Dedent) {
+                        self.skip();
+                    }
                 }
-                if self.cur_is(Dedent) {
-                    self.skip();
-                }
-                let rparen = self.lpop();
+                let rparen = match self.peek_kind() {
+                    Some(RParen) => self.lpop(),
+                    Some(_) => {
+                        let err = self.skip_and_throw_invalid_unclosed_err(
+                            caused_by!(),
+                            line!(),
+                            ")",
+                            "tuple",
+                        );
+                        self.errs.push(err);
+                        return Err(());
+                    }
+                    None => {
+                        self.errs.push(self.unexpected_none(line!(), caused_by!()));
+                        debug_exit_info!(self);
+                        return Err(());
+                    }
+                };
                 if let Expr::Tuple(Tuple::Normal(tup)) = &mut expr {
                     tup.elems.paren = Some((lparen, rparen));
                 }
