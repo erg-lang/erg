@@ -2581,6 +2581,9 @@ impl Context {
             Some((t, ctx))
         } else if let Some((t, ctx)) = self.poly_types.get(name) {
             Some((t, ctx))
+        } else if let Some(vi) = self.consts.get(name) {
+            vi.as_type()
+                .and_then(|typ_obj| self.get_nominal_type_ctx(typ_obj.typ()))
         } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
             outer.rec_local_get_type(name)
         } else {

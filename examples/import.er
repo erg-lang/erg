@@ -1,10 +1,14 @@
 a11y = import "a11y"
+C = a11y.C
 
 print! a11y.public
 # print! a11y.private # error: private variable
 print! a11y.C.x
 c = a11y.C.new {.x = 0}
 print! c.x
+
+id c: C = c
+print! id(c) == c
 
 consts = import "consts"
 print! consts.physics.G

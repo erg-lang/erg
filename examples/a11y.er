@@ -4,3 +4,6 @@ private = "this is a private variable"
 .C = Class {.x = Int}
 .C.
     x = 1
+.C|<: Eq|.
+    __eq__ self, other =
+        self.x == other.x

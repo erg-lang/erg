@@ -2423,6 +2423,22 @@ impl Type {
         }
     }
 
+    pub fn singleton_value(&self) -> Option<&TyParam> {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.unsafe_crack().singleton_value(),
+            Self::Refinement(refine) => {
+                if let Predicate::Equal { rhs, .. } = refine.pred.as_ref() {
+                    Some(rhs)
+                } else {
+                    None
+                }
+            }
+            Self::NoneType => Some(&TyParam::Value(ValueObj::None)),
+            Self::Ellipsis => Some(&TyParam::Value(ValueObj::Ellipsis)),
+            _ => None,
+        }
+    }
+
     pub fn container_len(&self) -> Option<usize> {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().container_len(),
