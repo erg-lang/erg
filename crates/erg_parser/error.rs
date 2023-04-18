@@ -270,7 +270,7 @@ impl LexError {
         got: TokenKind,
     ) -> LexError {
         let hint = switch_lang!(
-            "japanese" => format!("{}が期待されましたが、{got}となっています", fmt_vec_split_with(expected, " または ")),
+            "japanese" => format!("{}が期待されましたが、{got}が与えれられました", fmt_vec_split_with(expected, " または ")),
             "simplified_chinese" => format!("期待: {}，得到: {got}", fmt_vec_split_with(expected, " 或 ")),
             "traditional_chinese" => format!("期待: {}，得到: {got}", fmt_vec_split_with(expected, " 或 ")),
             "english" => format!("expect: {}, got: {got}", fmt_vec_split_with(expected, " or ")),
