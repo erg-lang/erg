@@ -68,11 +68,17 @@ fn debind(ident: &Identifier) -> Option<Str> {
     }
 }
 
-fn escape_name(name: &str, vis: &VisibilityModifier) -> Str {
+fn escape_name(name: &str, vis: &VisibilityModifier, def_line: u32, def_col: u32) -> Str {
     let name = name.replace('!', "__erg_proc__");
     let name = name.replace('$', "__erg_shared__");
     if vis.is_private() {
-        Str::from("::".to_string() + &name)
+        let line_mangling = match (def_line, def_col) {
+            (0, 0) => "".to_string(),
+            (0, _) => format!("_C{def_col}"),
+            (_, 0) => format!("_L{def_line}"),
+            (_, _) => format!("_L{def_line}_C{def_col}"),
+        };
+        Str::from(format!("::{name}{line_mangling}"))
     } else {
         Str::from(name)
     }
@@ -83,7 +89,12 @@ fn escape_ident(ident: Identifier) -> Str {
     if let Some(py_name) = ident.vi.py_name {
         py_name
     } else {
-        escape_name(ident.inspect(), vis)
+        escape_name(
+            ident.inspect(),
+            vis,
+            ident.vi.def_loc.loc.ln_begin().unwrap_or(0),
+            ident.vi.def_loc.loc.col_begin().unwrap_or(0),
+        )
     }
 }
 
@@ -889,9 +900,12 @@ impl PyCodeGenerator {
         params
             .non_defaults
             .iter()
-            .map(|p| p.inspect().map(|s| &s[..]).unwrap_or("_"))
+            .map(|p| (p.inspect().map(|s| &s[..]).unwrap_or("_"), &p.vi))
             .chain(if let Some(var_args) = &params.var_params {
-                vec![var_args.inspect().map(|s| &s[..]).unwrap_or("_")]
+                vec![(
+                    var_args.inspect().map(|s| &s[..]).unwrap_or("_"),
+                    &var_args.vi,
+                )]
             } else {
                 vec![]
             })
@@ -899,14 +913,20 @@ impl PyCodeGenerator {
                 params
                     .defaults
                     .iter()
-                    .map(|p| p.inspect().map(|s| &s[..]).unwrap_or("_")),
+                    .map(|p| (p.inspect().map(|s| &s[..]).unwrap_or("_"), &p.sig.vi)),
             )
             .enumerate()
-            .map(|(i, s)| {
+            .map(|(i, (s, vi))| {
                 if s == "_" {
                     format!("_{i}")
                 } else {
-                    escape_name(s, &VisibilityModifier::Private).to_string()
+                    escape_name(
+                        s,
+                        &VisibilityModifier::Private,
+                        vi.def_loc.loc.ln_begin().unwrap_or(0),
+                        vi.def_loc.loc.col_begin().unwrap_or(0),
+                    )
+                    .to_string()
                 }
             })
             .map(|s| self.get_cached(&s))
@@ -1930,7 +1950,7 @@ impl PyCodeGenerator {
         match param.raw.pat {
             ParamPattern::VarName(name) => {
                 let ident = erg_parser::ast::Identifier::private_from_varname(name);
-                let ident = Identifier::bare(ident);
+                let ident = Identifier::new(ident, None, param.vi);
                 self.emit_store_instr(ident, AccessKind::Name);
             }
             ParamPattern::Discard(_) => {
@@ -2195,7 +2215,7 @@ impl PyCodeGenerator {
             let kw = if is_py_api {
                 arg.keyword.content
             } else {
-                escape_name(&arg.keyword.content, &VisibilityModifier::Private)
+                escape_name(&arg.keyword.content, &VisibilityModifier::Private, 0, 0)
             };
             kws.push(ValueObj::Str(kw));
             self.emit_expr(arg.expr);

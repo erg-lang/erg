@@ -1,0 +1,28 @@
+i = 0
+
+for! [1, 2], i =>
+    print! i
+
+assert i == 0 # Python: 2
+
+if! True, do!:
+    i = "a"
+    print! i
+
+assert i == 0 # Python: "a"
+
+flg = !True
+while! do! flg, do!:
+    i = "b"
+    print! i
+    flg.invert!()
+
+assert i == 0 # Python: "b"
+
+match! i:
+    0 =>
+        i = 3
+        print! "OK: i = \{i}"
+    _ => print! "Unreachable"
+
+assert i == 0 # Python: 3

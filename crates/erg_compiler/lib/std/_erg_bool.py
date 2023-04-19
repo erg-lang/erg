@@ -35,6 +35,9 @@ class BoolMut(NatMut):
     def __repr__(self):
         return self.value.__repr__()
 
+    def __bool__(self):
+        return bool(self.value)
+
     def __hash__(self):
         return self.value.__hash__()
 
