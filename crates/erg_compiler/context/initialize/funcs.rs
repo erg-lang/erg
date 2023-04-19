@@ -604,6 +604,10 @@ impl Context {
         let op_t = bin_op(I, T, Bool).quantify();
         self.register_builtin_erg_impl(OP_IN, op_t.clone(), Const, Visibility::BUILTIN_PRIVATE);
         self.register_builtin_erg_impl(OP_NOT_IN, op_t, Const, Visibility::BUILTIN_PRIVATE);
+        let Sub = mono_q(TY_SUB, instanceof(Type));
+        let Sup = mono_q(TY_SUP, supertypeof(Sub.clone()));
+        let op_t = bin_op(Sub, tp_enum(Type, set! { ty_tp(Sup.clone()) }), Sup).quantify();
+        self.register_builtin_erg_impl(OP_AS, op_t, Const, Visibility::BUILTIN_PRIVATE);
         /* unary */
         // TODO: +/- Bool would like to be warned
         let M = mono_q(TY_M, subtypeof(mono(MUTIZABLE)));

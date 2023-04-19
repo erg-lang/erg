@@ -58,6 +58,39 @@ assert Ratio.from(1) == 1.0
 assert 1.into<Ratio>() == 1.0
 ```
 
+## Forced upcasting
+
+In many cases, upcasting of objects is automatic, depending on the function or operator that is called.
+However, there are cases when you want to force upcasting. In that case, you can use `as`.
+
+```python,compile_fail
+n = 1
+n.times! do: print!
+    print! "Hello"
+
+i = n as Int
+i.times! do: # ERR
+    "Hello"
+
+s = n as Str # ERR
+```
+
+You cannot cast to unrelated types or subtypes with ``as``.
+
+## Forced casting
+
+You can use `typing.cast` to force casting. This can convert the target to any type.
+In Python, `typing.cast` does nothing at runtime, but in Erg the conversion will be performed by the constructor. This is to protect type safety.
+
+```python
+typing = pyimport "typing"
+
+s = typing.cast Str, 1
+
+assert s == "1"
+print! s + "a" # 1a
+```
+
 ## Downcasting
 
 Since downcasting is generally unsafe and the conversion method is non-trivial, we instead implement ``TryFrom.try_from``.

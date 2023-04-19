@@ -60,6 +60,41 @@ assert Ratio.from(1) == 1.0
 assert 1.into(Ratio) == 1.0
 ```
 
+## 強制アップキャスト
+
+多くの場合、オブジェクトのアップキャストは呼び出す関数や演算子に応じて自動で行われます。
+しかし、アップキャストを強制したい場合もあります。その場合は`as`を使います。
+
+```python,compile_fail
+n = 1
+n.times! do:
+    print! "Hello"
+
+i = n as Int
+i.times! do: # ERR
+    print! "Hello"
+
+s = n as Str # ERR
+```
+
+`as`では関係のない型や、部分型にキャストすることはできません。
+
+## 強制キャスト
+
+`typing.cast`を使って、型を強制的にキャストすることができます。
+これは対象をどんな型にでも変換出来ます。
+Pythonの`typing.cast`はランタイムに何も行わない関数ですが、Ergではコンストラクタによる変換が入ります。
+これは型安全性を保護するためです。
+
+```python
+typing = pyimport "typing"
+
+s = typing.cast Str, 1
+
+assert s == "1"
+print! s + "a" # 1a
+```
+
 ## ダウンキャスト
 
 ダウンキャストは一般に安全ではなく、変換方法も自明ではないため、代わりに`TryFrom.try_from`の実装で実現します。

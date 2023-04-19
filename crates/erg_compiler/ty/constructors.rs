@@ -483,6 +483,11 @@ pub fn subtypeof(sup: Type) -> Constraint {
 }
 
 #[inline]
+pub fn supertypeof(sub: Type) -> Constraint {
+    Constraint::new_sandwiched(sub, Type::Obj)
+}
+
+#[inline]
 pub fn mono_q_tp<S: Into<Str>>(name: S, constr: Constraint) -> TyParam {
     TyParam::mono_q(name, constr)
 }

@@ -336,6 +336,7 @@ const OP_DIV: &str = "__div__";
 const OP_FLOOR_DIV: &str = "__floordiv__";
 const OP_ABS: &str = "__abs__";
 const OP_PARTIAL_CMP: &str = "__partial_cmp__";
+const OP_AS: &str = "__as__";
 const OP_AND: &str = "__and__";
 const OP_OR: &str = "__or__";
 const OP_POW: &str = "__pow__";
@@ -395,6 +396,8 @@ const TY_L: &str = "L";
 const TY_N: &str = "N";
 const TY_M: &str = "M";
 const TY_O: &str = "O";
+const TY_SUB: &str = "Sub";
+const TY_SUP: &str = "Sup";
 
 const KW_OLD: &str = "old";
 const KW_B: &str = "b";

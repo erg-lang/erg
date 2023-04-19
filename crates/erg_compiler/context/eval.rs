@@ -79,6 +79,7 @@ fn op_to_name(op: OpKind) -> &'static str {
         OpKind::Le => "__le__",
         OpKind::Gt => "__gt__",
         OpKind::Ge => "__ge__",
+        OpKind::As => "__as__",
         OpKind::And => "__and__",
         OpKind::Or => "__or__",
         OpKind::Not => "__not__",

@@ -1,0 +1,7 @@
+_ = 1 as Str # ERR
+_ = 1 as Never # ERR
+
+n = 1
+_ = n.times!
+i = n as Int
+_ = i.times! # ERR
