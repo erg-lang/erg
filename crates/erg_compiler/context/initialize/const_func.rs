@@ -1,14 +1,17 @@
 use std::mem;
 
+use erg_common::dict::Dict;
 use erg_common::enum_unwrap;
 
 use crate::context::Context;
 use crate::feature_error;
-use crate::ty::constructors::{and, mono};
+use crate::ty::constructors::{and, mono, poly, ty_tp};
 use crate::ty::value::{EvalValueError, EvalValueResult, GenTypeObj, TypeObj, ValueObj};
-use crate::ty::ValueArgs;
+use crate::ty::{Type, ValueArgs};
 use erg_common::error::{ErrorCore, ErrorKind, Location, SubMessage};
 use erg_common::style::{Color, StyledStr, StyledString, THEME};
+
+use super::{DICT_KEYS, DICT_VALUES};
 
 const ERR: Color = THEME.colors.error;
 const WARN: Color = THEME.colors.warning;
@@ -22,7 +25,7 @@ const BASE_ERR: StyledStr = StyledStr::new("Base", Some(ERR), None);
 const BASE_WARN: StyledStr = StyledStr::new("Base", Some(WARN), None);
 
 /// Base := Type or NoneType, Impl := Type -> ClassType
-pub fn class_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
+pub(crate) fn class_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
     let base = args.remove_left_or_key("Base");
     let impls = args.remove_left_or_key("Impl");
     let impls = impls.map(|v| v.as_type().unwrap());
@@ -48,7 +51,7 @@ pub fn class_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueOb
 }
 
 /// Super: ClassType, Impl := Type, Additional := Type -> ClassType
-pub fn inherit_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
+pub(crate) fn inherit_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
     let sup = args.remove_left_or_key("Super").ok_or_else(|| {
         let sup = StyledStr::new("Super", Some(ERR), None);
         ErrorCore::new(
@@ -83,7 +86,7 @@ pub fn inherit_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<Value
 
 /// Class: ClassType -> ClassType (with `InheritableType`)
 /// This function is used by the compiler to mark a class as inheritable and does nothing in terms of actual operation.
-pub fn inheritable_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<ValueObj> {
+pub(crate) fn inheritable_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<ValueObj> {
     let class = args.remove_left_or_key("Class").ok_or_else(|| {
         ErrorCore::new(
             vec![SubMessage::only_loc(Location::Unknown)],
@@ -120,7 +123,7 @@ pub fn inheritable_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<
 }
 
 /// Base: Type, Impl := Type -> TraitType
-pub fn trait_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
+pub(crate) fn trait_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
     let req = args.remove_left_or_key("Requirement").ok_or_else(|| {
         ErrorCore::new(
             vec![SubMessage::only_loc(Location::Unknown)],
@@ -149,7 +152,7 @@ pub fn trait_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueOb
 }
 
 /// Base: Type, Impl := Type -> Patch
-pub fn patch_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
+pub(crate) fn patch_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
     let base = args.remove_left_or_key("Base").ok_or_else(|| {
         ErrorCore::new(
             vec![SubMessage::only_loc(Location::Unknown)],
@@ -178,7 +181,7 @@ pub fn patch_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueOb
 }
 
 /// Super: TraitType, Impl := Type, Additional := Type -> TraitType
-pub fn subsume_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
+pub(crate) fn subsume_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
     let sup = args.remove_left_or_key("Super").ok_or_else(|| {
         ErrorCore::new(
             vec![SubMessage::only_loc(Location::Unknown)],
@@ -210,7 +213,7 @@ pub fn subsume_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<Value
     )))
 }
 
-pub fn structural_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<ValueObj> {
+pub(crate) fn structural_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<ValueObj> {
     let type_ = args.remove_left_or_key("Type").ok_or_else(|| {
         ErrorCore::new(
             vec![SubMessage::only_loc(Location::Unknown)],
@@ -236,7 +239,7 @@ pub fn structural_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<V
     Ok(ValueObj::gen_t(GenTypeObj::structural(t, base)))
 }
 
-pub fn __array_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
+pub(crate) fn __array_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
     let slf = ctx
         .convert_value_into_array(args.remove_left_or_key("Self").unwrap())
         .unwrap();
@@ -260,7 +263,7 @@ pub fn __array_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<
     }
 }
 
-pub fn __dict_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
+pub(crate) fn __dict_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
     let slf = args.remove_left_or_key("Self").unwrap();
     let slf = enum_unwrap!(slf, ValueObj::Dict);
     let index = args.remove_left_or_key("Index").unwrap();
@@ -300,7 +303,37 @@ pub fn __dict_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<V
     }
 }
 
-pub fn __range_getitem__(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<ValueObj> {
+/// `{Str: Int, Int: Float}.keys() == DictKeys(Str or Int)`
+pub(crate) fn dict_keys(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<ValueObj> {
+    let slf = args.remove_left_or_key("Self").unwrap();
+    let slf = enum_unwrap!(slf, ValueObj::Dict);
+    let slf = slf
+        .into_iter()
+        .map(|(k, v)| (Type::try_from(k).unwrap(), Type::try_from(v).unwrap()))
+        .collect::<Dict<_, _>>();
+    let union = slf
+        .keys()
+        .fold(Type::Never, |union, t| _ctx.union(&union, t));
+    let keys = poly(DICT_KEYS, vec![ty_tp(union)]);
+    Ok(ValueObj::builtin_type(keys))
+}
+
+/// `{Str: Int, Int: Float}.values() == DictValues(Int or Float)`
+pub(crate) fn dict_values(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<ValueObj> {
+    let slf = args.remove_left_or_key("Self").unwrap();
+    let slf = enum_unwrap!(slf, ValueObj::Dict);
+    let slf = slf
+        .into_iter()
+        .map(|(k, v)| (Type::try_from(k).unwrap(), Type::try_from(v).unwrap()))
+        .collect::<Dict<_, _>>();
+    let union = slf
+        .values()
+        .fold(Type::Never, |union, t| _ctx.union(&union, t));
+    let values = poly(DICT_VALUES, vec![ty_tp(union)]);
+    Ok(ValueObj::builtin_type(values))
+}
+
+pub(crate) fn __range_getitem__(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<ValueObj> {
     let (_name, fields) = enum_unwrap!(
         args.remove_left_or_key("Self").unwrap(),
         ValueObj::DataClass { name, fields }

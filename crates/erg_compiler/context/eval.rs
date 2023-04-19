@@ -7,8 +7,7 @@ use erg_common::log;
 use erg_common::set::Set;
 use erg_common::shared::Shared;
 use erg_common::traits::{Locational, Stream};
-use erg_common::{dict, fn_name, option_enum_unwrap, set};
-use erg_common::{enum_unwrap, fmt_vec};
+use erg_common::{dict, fmt_vec, fn_name, option_enum_unwrap, set};
 use erg_common::{RcArray, Str};
 use OpKind::*;
 
@@ -1522,8 +1521,9 @@ impl Context {
                     }
                     let args = ValueArgs::new(pos_args, dict! {});
                     let t = self.call(subr, args, t_loc.loc())?;
-                    let t = enum_unwrap!(t, ValueObj::Type); // TODO: error handling
-                    return Ok(t.into_typ());
+                    let t =
+                        Type::try_from(t).unwrap_or_else(|value| todo!("Type::try_from {value}"));
+                    return Ok(t);
                 } else {
                     return feature_error!(self, t_loc.loc(), "??");
                 }
@@ -1544,8 +1544,9 @@ impl Context {
                         }
                         let args = ValueArgs::new(pos_args, dict! {});
                         let t = self.call(subr, args, t_loc.loc())?;
-                        let t = enum_unwrap!(t, ValueObj::Type); // TODO: error handling
-                        return Ok(t.into_typ());
+                        let t = Type::try_from(t)
+                            .unwrap_or_else(|value| todo!("Type::try_from {value}"));
+                        return Ok(t);
                     } else {
                         return feature_error!(self, t_loc.loc(), "??");
                     }

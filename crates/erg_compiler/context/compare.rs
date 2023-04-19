@@ -1028,7 +1028,7 @@ impl Context {
         }
     }
 
-    fn union_tp(&self, lhs: &TyParam, rhs: &TyParam) -> Option<TyParam> {
+    pub(crate) fn union_tp(&self, lhs: &TyParam, rhs: &TyParam) -> Option<TyParam> {
         match (lhs, rhs) {
             (TyParam::Value(ValueObj::Type(l)), TyParam::Value(ValueObj::Type(r))) => {
                 Some(TyParam::t(self.union(l.typ(), r.typ())))

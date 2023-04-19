@@ -1,3 +1,9 @@
 immut_dict = {"Alice": 1, "Bob": 2, "Charlie": 3}
 assert immut_dict["Alice"] == 1
 print! immut_dict["Bob"]
+print! immut_dict.get("Charlie")
+
+for! immut_dict.keys(), k =>
+    print! k
+for! immut_dict.values(), v =>
+    print! v

@@ -1417,7 +1417,7 @@ impl Context {
         let dict_getitem_t = fn1_met(
             dict_t.clone(),
             T.clone(),
-            proj_call(D, FUNDAMENTAL_GETITEM, vec![ty_tp(T.clone())]),
+            proj_call(D.clone(), FUNDAMENTAL_GETITEM, vec![ty_tp(T.clone())]),
         )
         .quantify();
         let get_item = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
@@ -1427,6 +1427,39 @@ impl Context {
             None,
         )));
         dict_.register_builtin_const(FUNDAMENTAL_GETITEM, Visibility::BUILTIN_PUBLIC, get_item);
+        let dict_keys_t = fn0_met(dict_t.clone(), proj_call(D.clone(), KEYS, vec![])).quantify();
+        let keys = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+            KEYS,
+            dict_keys,
+            dict_keys_t,
+            None,
+        )));
+        dict_.register_builtin_const(KEYS, Visibility::BUILTIN_PUBLIC, keys);
+        let dict_values_t =
+            fn0_met(dict_t.clone(), proj_call(D.clone(), VALUES, vec![])).quantify();
+        let values = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+            VALUES,
+            dict_values,
+            dict_values_t,
+            None,
+        )));
+        dict_.register_builtin_const(VALUES, Visibility::BUILTIN_PUBLIC, values);
+        let get_t = fn1_met(
+            dict_t.clone(),
+            T.clone(),
+            or(
+                proj_call(D, FUNDAMENTAL_GETITEM, vec![ty_tp(T.clone())]),
+                NoneType,
+            ),
+        )
+        .quantify();
+        dict_.register_builtin_py_impl(
+            FUNC_GET,
+            get_t,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_GET),
+        );
         /* Bytes */
         let mut bytes = Self::builtin_mono_class(BYTES, 2);
         bytes.register_superclass(Obj, &obj);
@@ -1500,6 +1533,14 @@ impl Context {
         range_iterator.register_superclass(Obj, &obj);
         range_iterator.register_marker_trait(poly(ITERABLE, vec![ty_tp(T.clone())]));
         range_iterator.register_marker_trait(poly(OUTPUT, vec![ty_tp(T.clone())]));
+        let mut dict_keys = Self::builtin_poly_class(DICT_KEYS, vec![PS::t_nd(TY_T)], 1);
+        dict_keys.register_superclass(Obj, &obj);
+        dict_keys.register_marker_trait(poly(ITERABLE, vec![ty_tp(T.clone())]));
+        dict_keys.register_marker_trait(poly(OUTPUT, vec![ty_tp(T.clone())]));
+        let mut dict_values = Self::builtin_poly_class(DICT_VALUES, vec![PS::t_nd(TY_T)], 1);
+        dict_values.register_superclass(Obj, &obj);
+        dict_values.register_marker_trait(poly(ITERABLE, vec![ty_tp(T.clone())]));
+        dict_values.register_marker_trait(poly(OUTPUT, vec![ty_tp(T.clone())]));
         /* Enumerate */
         let mut enumerate = Self::builtin_poly_class(ENUMERATE, vec![PS::t_nd(TY_T)], 2);
         enumerate.register_superclass(Obj, &obj);
@@ -2204,6 +2245,20 @@ impl Context {
             Visibility::BUILTIN_PRIVATE,
             Const,
             Some(RANGE_ITERATOR),
+        );
+        self.register_builtin_type(
+            poly(DICT_KEYS, vec![ty_tp(T.clone())]),
+            dict_keys,
+            Visibility::BUILTIN_PRIVATE,
+            Const,
+            Some(FUNC_DICT_KEYS),
+        );
+        self.register_builtin_type(
+            poly(DICT_VALUES, vec![ty_tp(T.clone())]),
+            dict_values,
+            Visibility::BUILTIN_PRIVATE,
+            Const,
+            Some(FUNC_DICT_VALUES),
         );
         self.register_builtin_type(
             poly(ENUMERATE, vec![ty_tp(T.clone())]),

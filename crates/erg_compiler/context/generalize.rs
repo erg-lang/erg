@@ -415,7 +415,14 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
             TyParam::Dict(dic) => {
                 let mut new_dic = dict! {};
                 for (k, v) in dic.into_iter() {
-                    new_dic.insert(self.deref_tp(k)?, self.deref_tp(v)?);
+                    let k = self.deref_tp(k)?;
+                    let v = self.deref_tp(v)?;
+                    new_dic
+                        .entry(k)
+                        .and_modify(|old_v| {
+                            *old_v = self.ctx.union_tp(&mem::take(old_v), &v).unwrap();
+                        })
+                        .or_insert(v);
                 }
                 Ok(TyParam::Dict(new_dic))
             }
