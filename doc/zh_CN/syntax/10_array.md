@@ -50,5 +50,5 @@ print! Typeof l[1..2] # [Int; 4]
 ```
 
 <p align='center'>
-    <a href='./09_builtin_procs.md'>上一页</a> | <a href='./11_tuple.md'>下一页</a>
+    <a href='./09_builtin_procs.md'>上一页</a> | <a href='./11_dict.md'>下一页</a>
 </p>
