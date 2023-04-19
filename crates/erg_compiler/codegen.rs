@@ -1682,6 +1682,7 @@ impl PyCodeGenerator {
             ControlKind::While => Identifier::public("while__"),
             ControlKind::With => Identifier::public("with__"),
             ControlKind::Discard => Identifier::public("discard__"),
+            ControlKind::Assert => Identifier::public("assert__"),
             kind => todo!("{kind:?}"),
         };
         self.emit_call_local(local, args);

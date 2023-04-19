@@ -24,6 +24,8 @@ def with__(obj, body):
 def discard__(obj):
     pass
 
+def assert__(test, msg=None):
+    assert test, msg
 
 def then__(x, f):
     if x == None or x == NotImplemented:
