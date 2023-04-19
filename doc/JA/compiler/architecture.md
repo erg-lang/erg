@@ -1,6 +1,6 @@
 # ergc のアーキテクチャ
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/compiler/architecture.md%26commit_hash%3Da711efa99b325ba1012f6897e7b0e2bdb947d8a1)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/compiler/architecture.md&commit_hash=a711efa99b325ba1012f6897e7b0e2bdb947d8a1)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/compiler/architecture.md%26commit_hash%3Db9538ca627ab5459bae79eec48c1d676268875ab)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/compiler/architecture.md&commit_hash=b9538ca627ab5459bae79eec48c1d676268875ab)
 
 ## 1. Erg スクリプト (.er) をスキャンし、`TokenStream` を生成する
 
@@ -53,8 +53,8 @@ src: [erg_compiler/link_ast.rs](../../../crates/erg_compiler/link_ast.rs)
 
 * `HIR` は、すべての変数の型情報を持っており、「高レベルの中間表現」を表す。
 * `ASTLowerer` は Parser や Lexer と同じように構築できる。
-* `ASTLowerer::lower` は、エラーが発生しなければ、`HIR` と `CompileWarnings` のタプルを出力する。
-* `ASTLowerer` は `Compiler` によって所有されている。`ASTLowerer` は従来の構造体とは異なり、文脈を保持し、1 回限りの使い捨てではない。
+* `ASTLowerer::lower` は、`CompleteArtifact`か`IncompleteArtifact`を出力する。両者とも`HIR` と `LowerWarnings` を持ち、後者は`LowerErrors`も持つ。
+* `ASTLowerer` は `Compiler` によって所有されている。`ASTLowerer` は`Lexer`や`Parser`とは異なり、文脈を保持し、1 回限りの使い捨てではない。
 * 型推論の結果が不完全な場合(未知の型変数がある場合)、名前解決時にエラーが発生する。
 
 ## 4. 副作用のチェック

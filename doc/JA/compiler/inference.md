@@ -1,6 +1,6 @@
 # 型推論アルゴリズム
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/compiler/inference.md%26commit_hash%3D00350f64a40b12f763a605bc16748d09379ab182)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/compiler/inference.md&commit_hash=00350f64a40b12f763a605bc16748d09379ab182)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/compiler/inference.md%26commit_hash%3Db9538ca627ab5459bae79eec48c1d676268875ab)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/compiler/inference.md&commit_hash=b9538ca627ab5459bae79eec48c1d676268875ab)
 
 > __Warning__: この項は編集中であり、一部に間違いを含む可能性があります。
 
@@ -24,16 +24,15 @@ print! v
 
 Ergの型推論は、大枠としてHindley-Milner型推論アルゴリズムを用いています(が、種々の拡張が行わています)。具体的には以下の手順で型推論が行われます。用語の説明などは後述します。
 
-1. 右辺値の型を推論する(search)
-2. 得られた型を具体化する(instantiate)
-3. 呼び出しならば型代入を行う(substitute)
-4. 単相化済みのトレイトを具体化する(resolve traits)
-5. 型変数値があれば評価・簡約する(eval)
-6. リンク済みの型変数を除去する(deref)
-7. 可変依存型メソッドならば、変更を伝搬させる(propagate)
-8. 左辺値があり、かつCallableならば、引数型の一般化を行う(generalize)
-9. 左辺値があれば、(戻り値)型の一般化を行う(generalize)
-10. 代入ならば、記号表(`Context`)に型情報を登録する(update)
+1. 右辺値の型を推論する ([`search_callee_info`](https://github.com/erg-lang/erg/blob/3cc168182b051a1565aaa085f3a52533c4c3e650/crates/erg_compiler/context/inquire.rs#L740))
+2. 具体化する ([`instantiate`](https://github.com/erg-lang/erg/blob/3cc168182b051a1565aaa085f3a52533c4c3e650/crates/erg_compiler/context/instantiate.rs#L549))
+3. 実引数の型を代入する ([`substitute_call`](https://github.com/erg-lang/erg/blob/3cc168182b051a1565aaa085f3a52533c4c3e650/crates/erg_compiler/context/inquire.rs#L1154))
+4. 型パラメータを評価する ([`eval_t_params`](https://github.com/erg-lang/erg/blob/3cc168182b051a1565aaa085f3a52533c4c3e650/crates/erg_compiler/context/eval.rs#L963))
+5. 可変メソッドの場合、変更を伝搬させる ([`propagate`](https://github.com/erg-lang/erg/blob/3cc168182b051a1565aaa085f3a52533c4c3e650/crates/erg_compiler/context/inquire.rs#L1097))
+6. サブルーチン定義の場合、パラメータ型と戻り値型を汎化する ([`generalize_t`](https://github.com/erg-lang/erg/blob/3cc168182b051a1565aaa085f3a52533c4c3e650/crates/erg_compiler/context/generalize.rs#L843))
+
+7. 型変数を除去する ([`deref_tyvar`](https://github.com/erg-lang/erg/blob/3cc168182b051a1565aaa085f3a52533c4c3e650/crates/erg_compiler/context/generalize.rs#L497))
+   1. 型変数の部分型関係が成立できるか検証する ([`validate_simple_subsup`](https://github.com/erg-lang/erg/blob/3cc168182b051a1565aaa085f3a52533c4c3e650/crates/erg_compiler/context/generalize.rs#L734))
 
 具体的な操作は以下になります。
 
