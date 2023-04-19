@@ -83,16 +83,21 @@ s = n as Str # ERR
 
 `typing.cast`を使って、型を強制的にキャストすることができます。
 これは対象をどんな型にでも変換出来ます。
-Pythonの`typing.cast`はランタイムに何も行わない関数ですが、Ergではコンストラクタによる変換が入ります。
-これは型安全性を保護するためです。
+Pythonの`typing.cast`はランタイムに何も行わない関数ですが、Ergでは組み込み型の場合コンストラクタによる変換が入ります[<sup id="f1">1</sup>](#1)。
+組み込み型でない場合、変換は入らず、安全性の保証は全くありません。
 
 ```python
 typing = pyimport "typing"
+
+C = Class { .x = Int }
 
 s = typing.cast Str, 1
 
 assert s == "1"
 print! s + "a" # 1a
+
+c = typing.cast C, 1
+print! c.x # AttributeError: 'int' object has no attribute 'x'
 ```
 
 ## ダウンキャスト
@@ -107,6 +112,10 @@ IntTryFromFloat.
             then: r.ceil()
             else: Error "conversion failed"
 ```
+
+---
+
+<span id="1" style="font-size:x-small"><sup>1</sup> この変換は現状の実装による副産物であり、将来的には除去される。[↩](#f1) </span>
 
 <p align='center'>
     <a href='./16_subtyping.md'>Previous</a> | <a href='./18_mut.md'>Next</a>

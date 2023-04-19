@@ -14,6 +14,8 @@ from _erg_bool import Bool
 from _erg_bytes import Bytes
 from _erg_str import Str, StrMut
 from _erg_array import Array
+from _erg_dict import Dict
+from _erg_set import Set
 from _erg_in_operator import in_operator
 from _erg_mutate_operator import mutate_operator
 

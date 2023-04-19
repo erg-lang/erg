@@ -2160,19 +2160,19 @@ impl Context {
             generic_array,
             vis.clone(),
             Const,
-            Some(FUNC_LIST),
+            Some(ARRAY),
         );
-        self.register_builtin_type(arr_t, array_, vis.clone(), Const, Some(FUNC_LIST));
+        self.register_builtin_type(arr_t, array_, vis.clone(), Const, Some(ARRAY));
         self.register_builtin_type(
             mono(GENERIC_SET),
             generic_set,
             vis.clone(),
             Const,
-            Some(FUNC_SET),
+            Some(SET),
         );
-        self.register_builtin_type(set_t, set_, vis.clone(), Const, Some(FUNC_SET));
-        self.register_builtin_type(g_dict_t, generic_dict, vis.clone(), Const, Some(FUNC_DICT));
-        self.register_builtin_type(dict_t, dict_, vis.clone(), Const, Some(FUNC_DICT));
+        self.register_builtin_type(set_t, set_, vis.clone(), Const, Some(SET));
+        self.register_builtin_type(g_dict_t, generic_dict, vis.clone(), Const, Some(DICT));
+        self.register_builtin_type(dict_t, dict_, vis.clone(), Const, Some(DICT));
         self.register_builtin_type(mono(BYTES), bytes, vis.clone(), Const, Some(BYTES));
         self.register_builtin_type(
             mono(GENERIC_TUPLE),

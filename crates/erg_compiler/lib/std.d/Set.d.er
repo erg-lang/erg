@@ -1,0 +1,10 @@
+.Set: ClassType
+.Set.
+    copy: |T|(self: .Set(T)) -> .Set(T)
+    differece: |T|(self: .Set(T), other: .Set(T)) -> .Set(T)
+    intersection: |T|(self: .Set(T), other: .Set(T)) -> .Set(T)
+    isdisjoint: |T|(self: .Set(T), other: .Set(T)) -> Bool
+    issubset: |T|(self: .Set(T), other: .Set(T)) -> Bool
+    issuperset: |T|(self: .Set(T), other: .Set(T)) -> Bool
+    symmetric_difference: |T|(self: .Set(T), other: .Set(T)) -> .Set(T)
+    union: |T|(self: .Set(T), other: .Set(T)) -> .Set(T)

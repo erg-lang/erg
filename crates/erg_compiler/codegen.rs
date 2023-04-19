@@ -2661,13 +2661,27 @@ impl PyCodeGenerator {
                     self.emit_push_null();
                     self.emit_load_name_instr(Identifier::public("Str"));
                 }
-                other if other.is_array() => {
-                    self.emit_push_null();
-                    self.emit_load_name_instr(Identifier::public("Array"));
-                }
-                _ => {
-                    wrapped = false;
-                }
+                other => match &other.qual_name()[..] {
+                    "Array" => {
+                        self.emit_push_null();
+                        self.emit_load_name_instr(Identifier::public("Array"));
+                    }
+                    "Dict" => {
+                        self.emit_push_null();
+                        self.emit_load_name_instr(Identifier::public("Dict"));
+                    }
+                    "Set" => {
+                        self.emit_push_null();
+                        self.emit_load_name_instr(Identifier::public("Set"));
+                    }
+                    "Tuple" => {
+                        self.emit_push_null();
+                        self.emit_load_name_instr(Identifier::public("tuple"));
+                    }
+                    _ => {
+                        wrapped = false;
+                    }
+                },
             }
         }
         match expr {

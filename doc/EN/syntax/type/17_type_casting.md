@@ -80,15 +80,21 @@ You cannot cast to unrelated types or subtypes with ``as``.
 ## Forced casting
 
 You can use `typing.cast` to force casting. This can convert the target to any type.
-In Python, `typing.cast` does nothing at runtime, but in Erg the conversion will be performed by the constructor. This is to protect type safety.
+In Python, `typing.cast` does nothing at runtime, but in Erg the conversion will be performed by the constructor if object's type is built-in[<sup id="f1">1</sup>](#1).
+For non-built-in types, the safety is not guaranteed at all.
 
 ```python
 typing = pyimport "typing"
+
+C = Class { .x = Int }
 
 s = typing.cast Str, 1
 
 assert s == "1"
 print! s + "a" # 1a
+
+c = typing.cast C, 1
+print! c.x # AttributeError: 'int' object has no attribute 'x'
 ```
 
 ## Downcasting
@@ -103,6 +109,10 @@ IntTryFromFloat.
             then: r.ceil()
             else: Error "conversion failed".
 ```
+
+---
+
+<span id="1" style="font-size:x-small"><sup>1</sup> This conversion is a byproduct of the current implementation and will be removed in the future. [↩](#f1) </span>
 
 <p align='center'>
     <a href='./16_subtyping.md'>Previous</a> | <a href='./18_mut.md'>Next</a>

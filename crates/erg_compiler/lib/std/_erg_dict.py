@@ -1,0 +1,2 @@
+class Dict(dict):
+    pass
