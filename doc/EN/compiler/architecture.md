@@ -42,7 +42,7 @@ src: [erg_compiler/link_ast.rs](../../../crates/erg_compiler/link_ast.rs)
 In the current implementation it is done during type checking.
 
 * All ASTs (including imported modules) are scanned for name resolution before type inference.
-* In addition to performing constant cycle checking and reordering, a context is created for type inference (however, most of the information on variables registered in this context is not yet finalized).
+* In addition to performing cycle checking and reordering, a context is created for type inference (however, most of the information on variables registered in this context is not yet finalized).
 
 ### 3.2 Type checking & inference
 
@@ -50,9 +50,9 @@ src: [erg_compiler/lower.rs](../../../crates/erg_compiler/lower.rs)
 
 * `HIR` has every variable's type information. It is for "High-level Intermediate Representation".
 * `ASTLowerer` can be constructed in the same way as `Parser` and `Lexer`.
-* `ASTLowerer::lower` will output a tuple of `HIR` and `CompileWarnings` if no errors occur.
-* `ASTLowerer` is owned by `Compiler`. Unlike conventional structures, `ASTLowerer` handles code contexts and is not a one-time disposable.
-* If the result of type inference is incomplete (if there is an unknown type variable), an error will occur during name resolution.
+* `ASTLowerer::lower` will output either `CompleteArtifact` or `IncompleteArtifact`. Both has `HIR` and `LowerWarnings`. `IncompleteArtifact` also has `LowerErrors`.
+* `ASTLowerer` is owned by `Compiler`. Unlike other structures (`Lexer`, `Parser`, etc.), `ASTLowerer` handles code contexts and is not a one-time disposable.
+* For type inference algorithms, see [inference.md](./inference.md).
 
 ## 4. Check side-effects
 

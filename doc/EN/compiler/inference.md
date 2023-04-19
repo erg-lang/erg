@@ -2,14 +2,14 @@
 
 > __Warning__: This section is being edited and may contain some errors.
 
-The notation used below is shown.
+The notation used below:
 
 ```python
 Free type variables (type, unbound): ?T, ?U, ...
-Free-type variables (values, unbound): ?a, ?b, ...
-type environment (Γ): { x: T, ... }
+Free-type variables (value, unbound): ?a, ?b, ...
+Type environment (Γ): { x: T, T: Type, ... }
 Type assignment rule (S): { ?T --> T, ... }
-Type argument evaluation environment (E): { e -> e', ... }
+Type parameter evaluation rule (E): { e -> e', ... }
 ```
 
 Let's take the following code as an example.
@@ -22,16 +22,15 @@ print! v
 
 Erg's type inference largely uses the Hindley-Milner type inference algorithm (although various extensions have been made). Specifically, type inference is performed by the following procedure. Terminology will be explained later.
 
-1. Infer the type of the rvalue (search)
-2. instantiate the resulting type
-3. If it is a call, perform type substitution (substitute)
-4. Resolve traits that have already been monomorphized
-5. Evaluate/reduce (eval) if there is a type variable value
-6. Remove linked type variables (deref)
-7. Propagate changes for mutable dependent methods
-8. If there is an lvalue and it is Callable, generalize the argument type (generalize)
-9. If there is an lvalue, generalize the (return value) type (generalize)
-10. If it is an assignment, register the type information in the symbol table (`Context`) (update)
+1. Infer the type of the right hand side value ([`search_callee_info`](https://github.com/erg-lang/erg/blob/3cc168182b051a1565aaa085f3a52533c4c3e650/crates/erg_compiler/context/inquire.rs#L740))
+2. instantiate the type ([`instantiate`](https://github.com/erg-lang/erg/blob/3cc168182b051a1565aaa085f3a52533c4c3e650/crates/erg_compiler/context/instantiate.rs#L549))
+3. If it is a call, perform type substitution ([`substitute_call`](https://github.com/erg-lang/erg/blob/3cc168182b051a1565aaa085f3a52533c4c3e650/crates/erg_compiler/context/inquire.rs#L1154))
+4. Evaluate/reduce if there is an evaluatable type variable value ([`eval_t_params`](https://github.com/erg-lang/erg/blob/3cc168182b051a1565aaa085f3a52533c4c3e650/crates/erg_compiler/context/eval.rs#L963))
+5. Propagate changes for mutable dependent methods ([`propagate`](https://github.com/erg-lang/erg/blob/3cc168182b051a1565aaa085f3a52533c4c3e650/crates/erg_compiler/context/inquire.rs#L1097))
+6. If there is an left hand side value and it is a subroutine, generalize the parameter types ([`generalize_t`](https://github.com/erg-lang/erg/blob/3cc168182b051a1565aaa085f3a52533c4c3e650/crates/erg_compiler/context/generalize.rs#L843))
+
+7. Remove linked type variables ([`deref_tyvar`](https://github.com/erg-lang/erg/blob/3cc168182b051a1565aaa085f3a52533c4c3e650/crates/erg_compiler/context/generalize.rs#L497))
+   1. Verify whether a subtype relationship of a type variable can be established ([`validate_simple_subsup`](https://github.com/erg-lang/erg/blob/3cc168182b051a1565aaa085f3a52533c4c3e650/crates/erg_compiler/context/generalize.rs#L734))
 
 The specific operations are as follows.
 
@@ -41,24 +40,24 @@ line 1. Def{sig: v, block: ![]}
             getArray type: `['T; 0]`
             instantiate: `[?T; 0]`
             (substitute, eval are omitted)
-    update: `Γ: {v: [?T; 0]!}`
+    result: `Γ: {v: [?T; 0]!}`
     expr returns `NoneType`: OK
 
 line 2. CallMethod {obj: v, name: push!, args: [1]}
     get obj type: `Array!(?T, 0)`
-        search: `Γ Array!(?T, 0).push!({1})`
-        get: `= Array!('T ~> 'T, 'N ~> 'N+1).push!('T) => NoneType`
+        search: `Γ Array!(?T, 0).push!(Nat)`
+        get: `Array!('T ~> 'T, 'N ~> 'N+1).push!: 'T => NoneType`
         instantiate: `Array!(?T, ?N).push!(?T) => NoneType`
-        substitute(`S: {?T --> Nat, ?N --> 0}`): `Array!(Nat ~> Nat, 0 ~> 0+1).push!(Nat) => NoneType`
-        eval: `Array!(Nat, 0 ~> 1).push!({1}) => NoneType`
-        update: `Γ: {v: [Nat; 1]!}`
+        substitute(`S: {?T --> Nat, ?N --> 0}`): `Array!(Nat ~> Nat, 0 ~> 0+1).push!: Nat => NoneType`
+        eval: `Array!(Nat, 0 ~> 1).push!: Nat => NoneType`
+    result: `Γ: {v: [Nat; 1]!}`
     expr returns `NoneType`: OK
 
 line 3. Call {obj: print!, args: [v]}
     get args type: `[[Nat; 1]!]`
     get obj type:
         search: `Γ print!([Nat; 1]!)`
-        get: `= print!(...Object) => NoneType`
+        get: `print!: *Object) => NoneType`
     expr returns `NoneType`: OK
 
 ## Implementation of type variables
