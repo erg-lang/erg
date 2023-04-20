@@ -1,9 +1,14 @@
 immut_dict = {"Alice": 1, "Bob": 2, "Charlie": 3}
 assert immut_dict["Alice"] == 1
-print! immut_dict["Bob"]
-print! immut_dict.get("Charlie")
+_ = immut_dict["Bob"]
+_ = immut_dict.get("Charlie")
+_ = immut_dict.get("Charlie", 4)
 
 for! immut_dict.keys(), k =>
     print! k
 for! immut_dict.values(), v =>
     print! v
+for! immut_dict.items(), ((k, v),) =>
+    print! k, v
+
+_ = immut_dict.copy()

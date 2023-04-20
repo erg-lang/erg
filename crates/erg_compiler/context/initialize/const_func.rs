@@ -5,13 +5,13 @@ use erg_common::enum_unwrap;
 
 use crate::context::Context;
 use crate::feature_error;
-use crate::ty::constructors::{and, mono, poly, ty_tp};
+use crate::ty::constructors::{and, mono, poly, tuple_t, ty_tp};
 use crate::ty::value::{EvalValueError, EvalValueResult, GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{Type, ValueArgs};
 use erg_common::error::{ErrorCore, ErrorKind, Location, SubMessage};
 use erg_common::style::{Color, StyledStr, StyledString, THEME};
 
-use super::{DICT_KEYS, DICT_VALUES};
+use super::{DICT_ITEMS, DICT_KEYS, DICT_VALUES};
 
 const ERR: Color = THEME.colors.error;
 const WARN: Color = THEME.colors.warning;
@@ -331,6 +331,21 @@ pub(crate) fn dict_values(mut args: ValueArgs, _ctx: &Context) -> EvalValueResul
         .fold(Type::Never, |union, t| _ctx.union(&union, t));
     let values = poly(DICT_VALUES, vec![ty_tp(union)]);
     Ok(ValueObj::builtin_type(values))
+}
+
+/// `{Str: Int, Int: Float}.items() == DictItems((Str, Int) or (Int, Float))`
+pub(crate) fn dict_items(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<ValueObj> {
+    let slf = args.remove_left_or_key("Self").unwrap();
+    let slf = enum_unwrap!(slf, ValueObj::Dict);
+    let slf = slf
+        .into_iter()
+        .map(|(k, v)| (Type::try_from(k).unwrap(), Type::try_from(v).unwrap()))
+        .collect::<Dict<_, _>>();
+    let union = slf.iter().fold(Type::Never, |union, (k, v)| {
+        _ctx.union(&union, &tuple_t(vec![k.clone(), v.clone()]))
+    });
+    let items = poly(DICT_ITEMS, vec![ty_tp(union)]);
+    Ok(ValueObj::builtin_type(items))
 }
 
 pub(crate) fn __range_getitem__(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<ValueObj> {

@@ -1444,22 +1444,28 @@ impl Context {
             None,
         )));
         dict_.register_builtin_const(VALUES, Visibility::BUILTIN_PUBLIC, values);
-        let get_t = fn1_met(
+        let dict_items_t = fn0_met(dict_t.clone(), proj_call(D.clone(), ITEMS, vec![])).quantify();
+        let items = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+            ITEMS,
+            dict_items,
+            dict_items_t,
+            None,
+        )));
+        dict_.register_builtin_const(ITEMS, Visibility::BUILTIN_PUBLIC, items);
+        let Def = type_q("Default");
+        let get_t = fn_met(
             dict_t.clone(),
-            T.clone(),
+            vec![kw("key", T.clone())],
+            None,
+            vec![kw_default("default", Def.clone(), NoneType)],
             or(
                 proj_call(D, FUNDAMENTAL_GETITEM, vec![ty_tp(T.clone())]),
-                NoneType,
+                Def,
             ),
         )
         .quantify();
-        dict_.register_builtin_py_impl(
-            FUNC_GET,
-            get_t,
-            Immutable,
-            Visibility::BUILTIN_PUBLIC,
-            Some(FUNC_GET),
-        );
+        dict_.register_py_builtin(FUNC_GET, get_t, Some(FUNC_GET), 9);
+        dict_.register_py_builtin(COPY, fn0_met(dict_t.clone(), dict_t.clone()), Some(COPY), 7);
         /* Bytes */
         let mut bytes = Self::builtin_mono_class(BYTES, 2);
         bytes.register_superclass(Obj, &obj);
@@ -1541,6 +1547,10 @@ impl Context {
         dict_values.register_superclass(Obj, &obj);
         dict_values.register_marker_trait(poly(ITERABLE, vec![ty_tp(T.clone())]));
         dict_values.register_marker_trait(poly(OUTPUT, vec![ty_tp(T.clone())]));
+        let mut dict_items = Self::builtin_poly_class(DICT_ITEMS, vec![PS::t_nd(TY_T)], 1);
+        dict_items.register_superclass(Obj, &obj);
+        dict_items.register_marker_trait(poly(ITERABLE, vec![ty_tp(T.clone())]));
+        dict_items.register_marker_trait(poly(OUTPUT, vec![ty_tp(T.clone())]));
         /* Enumerate */
         let mut enumerate = Self::builtin_poly_class(ENUMERATE, vec![PS::t_nd(TY_T)], 2);
         enumerate.register_superclass(Obj, &obj);
@@ -2259,6 +2269,13 @@ impl Context {
             Visibility::BUILTIN_PRIVATE,
             Const,
             Some(FUNC_DICT_VALUES),
+        );
+        self.register_builtin_type(
+            poly(DICT_ITEMS, vec![ty_tp(T.clone())]),
+            dict_items,
+            Visibility::BUILTIN_PRIVATE,
+            Const,
+            Some(FUNC_DICT_ITEMS),
         );
         self.register_builtin_type(
             poly(ENUMERATE, vec![ty_tp(T.clone())]),

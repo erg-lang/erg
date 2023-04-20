@@ -321,10 +321,13 @@ const PATCH: &str = "Patch";
 const STRUCTURAL: &str = "Structural";
 const KEYS: &str = "keys";
 const VALUES: &str = "values";
+const ITEMS: &str = "items";
 const DICT_KEYS: &str = "DictKeys";
 const DICT_VALUES: &str = "DictValues";
+const DICT_ITEMS: &str = "DictItems";
 const FUNC_DICT_KEYS: &str = "dict_keys";
 const FUNC_DICT_VALUES: &str = "dict_values";
+const FUNC_DICT_ITEMS: &str = "dict_items";
 
 const OP_IN: &str = "__in__";
 const OP_NOT_IN: &str = "__notin__";
