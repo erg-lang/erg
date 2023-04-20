@@ -1,0 +1,7 @@
+# TODO: transition specifications
+dict = pyimport "Dict"
+
+.Dict!: ClassType
+.Dict! <: dict.Dict
+.Dict!.
+    insert!: |K, V|(self: .Dict!, key: K, value: V) => NoneType

@@ -1413,6 +1413,9 @@ impl Context {
             Self::builtin_poly_class(DICT, vec![PS::named_nd(TY_D, mono(GENERIC_DICT))], 10);
         dict_.register_superclass(g_dict_t.clone(), &generic_dict);
         dict_.register_marker_trait(poly(OUTPUT, vec![D.clone()]));
+        let mut_type = ValueObj::builtin_class(poly(MUT_DICT, vec![D.clone()]));
+        dict_.register_builtin_const(MUTABLE_MUT_TYPE, Visibility::BUILTIN_PUBLIC, mut_type);
+        dict_.register_marker_trait(mono(MUTIZABLE));
         // __getitem__: _: T -> D[T]
         let dict_getitem_t = fn1_met(
             dict_t.clone(),
@@ -1459,13 +1462,14 @@ impl Context {
             None,
             vec![kw_default("default", Def.clone(), NoneType)],
             or(
-                proj_call(D, FUNDAMENTAL_GETITEM, vec![ty_tp(T.clone())]),
+                proj_call(D.clone(), FUNDAMENTAL_GETITEM, vec![ty_tp(T.clone())]),
                 Def,
             ),
         )
         .quantify();
         dict_.register_py_builtin(FUNC_GET, get_t, Some(FUNC_GET), 9);
-        dict_.register_py_builtin(COPY, fn0_met(dict_t.clone(), dict_t.clone()), Some(COPY), 7);
+        let copy_t = fn0_met(dict_t.clone(), dict_t.clone()).quantify();
+        dict_.register_py_builtin(COPY, copy_t, Some(COPY), 7);
         /* Bytes */
         let mut bytes = Self::builtin_mono_class(BYTES, 2);
         bytes.register_superclass(Obj, &obj);
@@ -2020,6 +2024,30 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
         );
         array_mut_.register_trait(array_mut_t.clone(), array_mut_mutable);
+        /* Dict! */
+        let dict_mut_t = poly(MUT_DICT, vec![D]);
+        let mut dict_mut =
+            Self::builtin_poly_class(MUT_DICT, vec![PS::named_nd(TY_D, mono(GENERIC_DICT))], 3);
+        dict_mut.register_superclass(dict_t.clone(), &dict_);
+        let K = type_q("K");
+        let V = type_q("V");
+        let insert_t = pr_met(
+            ref_mut(
+                dict_mut_t.clone(),
+                // TODO:
+                None,
+                /*Some(poly(
+                    MUT_DICT,
+                    vec![D + dict!{ K.clone() => V.clone() }.into()],
+                )),*/
+            ),
+            vec![kw(KW_KEY, K), kw(KW_VALUE, V)],
+            None,
+            vec![],
+            NoneType,
+        )
+        .quantify();
+        dict_mut.register_py_builtin(PROC_INSERT, insert_t, Some(FUNDAMENTAL_SETITEM), 12);
         /* Set! */
         let set_mut_t = poly(MUT_SET, vec![ty_tp(T.clone()), N_MUT]);
         let mut set_mut_ = Self::builtin_poly_class(
@@ -2327,8 +2355,9 @@ impl Context {
             Some(MEMORYVIEW),
         );
         self.register_builtin_type(mono(MUT_FILE), file_mut, vis.clone(), Const, Some(FILE));
-        self.register_builtin_type(array_mut_t, array_mut_, vis.clone(), Const, Some(FUNC_LIST));
-        self.register_builtin_type(set_mut_t, set_mut_, vis.clone(), Const, Some(FUNC_SET));
+        self.register_builtin_type(array_mut_t, array_mut_, vis.clone(), Const, Some(ARRAY));
+        self.register_builtin_type(dict_mut_t, dict_mut, vis.clone(), Const, Some(DICT));
+        self.register_builtin_type(set_mut_t, set_mut_, vis.clone(), Const, Some(SET));
         self.register_builtin_type(
             mono(GENERIC_CALLABLE),
             g_callable,

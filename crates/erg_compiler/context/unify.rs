@@ -480,7 +480,7 @@ impl Context {
             }
             (l, r) if self.eq_tp(l, r) => Ok(()),
             (l, r) => {
-                type_feature_error!(error self, loc.loc(), &format!("re-unifying {l} and {r}"))
+                type_feature_error!(error self, loc.loc(), &format!("re-unifying {l} ~> {r}"))
             }
         }
     }
