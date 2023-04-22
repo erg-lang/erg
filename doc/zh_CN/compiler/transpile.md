@@ -2,10 +2,8 @@
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/compiler/transpile.md%26commit_hash%3D13f2d31aee9012f60b7a40d4b764921f1419cdfe)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/compiler/transpile.md&commit_hash=13f2d31aee9012f60b7a40d4b764921f1419cdfe)
 
-准确地说，Erg 代码被转译为 Python 字节码
-但是，由于 Python 字节码几乎可以重构为 Python 代码，因此这里以等效的 Python 代码为例
-顺便说一句，这里展示的示例是低优化级别
-更高级的优化消除了不需要实例化的东西
+准确地说，Erg 代码是被转译为 Python 字节码。鉴于 Python 字节码几乎可以被重构为 Python 文本代码，因此这里以等效的 Python 代码为例。
+顺便说一句，这里展示的示例是低优化级别；更高级的优化消除了不需要实例化的东西
 
 ## 记录，记录类型
 
