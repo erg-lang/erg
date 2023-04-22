@@ -46,7 +46,10 @@ while True:
             __traceback.clear_frames(e.__traceback__)
             __client_socket.send('[Initialize]'.encode())
         __out = __sys.stdout.getvalue()[:-1]
-        __res = __out + __exc + '\n' + __res
+        # assert not(__exc and __res)
+        if __exc or __res:
+            __out += '\n'
+        __res = __out + __exc + __res
         __client_socket.send(__res.encode())
     else:
         __client_socket.send('unknown operation'.encode())
