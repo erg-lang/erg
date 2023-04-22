@@ -187,6 +187,17 @@ impl PyCodeGenerator {
         self.units.clear();
     }
 
+    pub fn initialize(&mut self) {
+        self.prelude_loaded = false;
+        self.mutate_op_loaded = false;
+        self.in_op_loaded = false;
+        self.record_type_loaded = false;
+        self.module_type_loaded = false;
+        self.control_loaded = false;
+        self.convertors_loaded = false;
+        self.abc_loaded = false;
+    }
+
     #[inline]
     fn input(&self) -> &Input {
         &self.cfg.input

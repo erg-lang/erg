@@ -4,7 +4,7 @@ import socket as __socket
 import sys as __sys
 import importlib as __importlib
 import io as __io
-import traceback
+import traceback as __traceback
 
 __server_socket = __socket.socket()
 # DummyVM will replace this __PORT__ with free port
@@ -33,13 +33,18 @@ while True:
                 __res = str(exec('__importlib.reload(__MODULE__)', __ctx))
             else:
                 __res = str(exec('import __MODULE__', __ctx))
+            __already_loaded = True
         except SystemExit:
             __client_socket.send('[Exception] SystemExit'.encode())
             continue
         except Exception as e:
-            __exc = ''.join(traceback.format_exception(e)).rstrip()
-            traceback.clear_frames(e.__traceback__)
-        __already_loaded = True
+            try:
+                excs = __traceback.format_exception(e)
+            except:
+                excs = __traceback.format_exception_only(e.__class__, e)
+            __exc = ''.join(excs).rstrip()
+            __traceback.clear_frames(e.__traceback__)
+            __client_socket.send('[Initialize]'.encode())
         __out = __sys.stdout.getvalue()[:-1]
         __res = __out + __exc + '\n' + __res
         __client_socket.send(__res.encode())
