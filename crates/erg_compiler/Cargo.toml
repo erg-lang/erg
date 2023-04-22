@@ -40,11 +40,11 @@ no_std = ["erg_common/no_std"]
 full-repl = ["erg_common/full-repl"]
 
 [dependencies]
-erg_common = { workspace = true, path = "../erg_common" }
-erg_parser = { workspace = true, path = "../erg_parser" }
+erg_common = { workspace = true }
+erg_parser = { workspace = true }
 
 [build-dependencies]
-erg_common = { workspace = true, path = "../erg_common" }
+erg_common = { workspace = true }
 
 [lib]
 path = "lib.rs"

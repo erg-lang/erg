@@ -20,8 +20,8 @@ large_thread = ["erg_common/large_thread", "erg_compiler/large_thread"]
 py_compat = ["erg_compiler/py_compat"]
 
 [dependencies]
-erg_common = { workspace = true, path = "../erg_common", features = ["els"] }
-erg_compiler = { workspace = true, path = "../erg_compiler", features = ["els"] }
+erg_common = { workspace = true, features = ["els"] }
+erg_compiler = { workspace = true, features = ["els"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.85"
 lsp-types = { version = "0.93.2", features = ["proposed"] }
