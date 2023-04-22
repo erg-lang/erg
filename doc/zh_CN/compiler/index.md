@@ -18,11 +18,11 @@
 
 ## [refinement_subtyping](./refinement_subtyping.md)
 
-## [TODO_hint 待办事项之hint](./TODO_hint.md)
+## [TODO_hint](./TODO_hint.md)
 
-## [TODO_recov_suggest 待办事项之recov_suggest](./TODO_recov_suggest.md)
+## [TODO_recov_suggest](./TODO_recov_suggest.md)
 
-## [TODO_warn 待办事项之warn](./TODO_warn.md)
+## [TODO_warn](./TODO_warn.md)
 
 ## [trait_method_resolving](./trait_method_resolving.md)
 
