@@ -18,6 +18,7 @@ __ctx = {'__importlib': __importlib}
 def __encode(s):
     s_bytes = s.encode()
     s_len = len(s_bytes)
+    # two bytes for size, and n bytes for data
     return s_len.to_bytes(2, 'big') + s_bytes
 
 while True:

@@ -199,33 +199,36 @@ impl DummyVM {
     }
 
     fn read(&mut self) -> Result<String, EvalErrors> {
-        let mut buf = [0; 1024];
-        let mut size = 0;
-        while size < 2 {
-            match self.stream.as_mut().unwrap().read(&mut buf[size..]) {
-                Result::Ok(n) => size += n,
-                Result::Err(err) => {
-                    self.finish();
-                    eprintln!("Read error: {err}");
-                    process::exit(1);
-                }
+        // Server Data Format:
+        // -------------------
+        // | size    | data
+        // -------------------
+        // | 2 bytes | n bytes
+        // -------------------
+
+        let mut size_buf = [0; 2];
+        match self.stream.as_mut().unwrap().read_exact(&mut size_buf) {
+            Result::Ok(()) => {}
+            Result::Err(err) => {
+                self.finish();
+                eprintln!("Read error: {err}");
+                process::exit(1);
             }
         }
 
-        let data_len = u16::from_be_bytes(buf[..2].try_into().unwrap()) as usize;
+        let data_size = u16::from_be_bytes(size_buf) as usize;
+        let mut data_buf = vec![0; data_size];
 
-        while size < 2 + data_len {
-            match self.stream.as_mut().unwrap().read(&mut buf[size..]) {
-                Result::Ok(n) => size += n,
-                Result::Err(err) => {
-                    self.finish();
-                    eprintln!("Read error: {err}");
-                    process::exit(1);
-                }
+        match self.stream.as_mut().unwrap().read_exact(&mut data_buf) {
+            Result::Ok(()) => {}
+            Result::Err(err) => {
+                self.finish();
+                eprintln!("Read error: {err}");
+                process::exit(1);
             }
         }
 
-        let s = std::str::from_utf8(&buf[2..size])
+        let s = std::str::from_utf8(&data_buf)
             .expect("failed to parse the response, maybe the output is too long");
 
         if s.starts_with("[Exception] SystemExit") {
