@@ -233,9 +233,9 @@ impl DummyVM {
 
         if s.starts_with("[Exception] SystemExit") {
             Err(EvalErrors::from(EvalError::system_exit()))
-        } else if s.starts_with("[Initialize]") {
+        } else if let Some(remaing) = s.strip_prefix("[Initialize]") {
             self.compiler.initialize_generator();
-            Ok(s["[Initialize]".len()..].to_string())
+            Ok(remaing.to_string())
         } else {
             Ok(s.to_string())
         }
