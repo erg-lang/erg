@@ -200,24 +200,41 @@ impl DummyVM {
 
     fn read(&mut self) -> Result<String, EvalErrors> {
         let mut buf = [0; 1024];
-        match self.stream.as_mut().unwrap().read(&mut buf) {
-            Result::Ok(n) => {
-                let s = std::str::from_utf8(&buf[..n])
-                    .expect("failed to parse the response, maybe the output is too long");
-                match s {
-                    "[Exception] SystemExit" => Err(EvalErrors::from(EvalError::system_exit())),
-                    "[Initialize]" => {
-                        self.compiler.initialize_generator();
-                        self.read()
-                    }
-                    _ => Ok(s.to_string()),
+        let mut size = 0;
+        while size < 2 {
+            match self.stream.as_mut().unwrap().read(&mut buf[size..]) {
+                Result::Ok(n) => size += n,
+                Result::Err(err) => {
+                    self.finish();
+                    eprintln!("Read error: {err}");
+                    process::exit(1);
                 }
             }
-            Result::Err(err) => {
-                self.finish();
-                eprintln!("Read error: {err}");
-                process::exit(1);
+        }
+
+        let data_len = u16::from_be_bytes(buf[..2].try_into().unwrap()) as usize;
+
+        while size < 2 + data_len {
+            match self.stream.as_mut().unwrap().read(&mut buf[size..]) {
+                Result::Ok(n) => size += n,
+                Result::Err(err) => {
+                    self.finish();
+                    eprintln!("Read error: {err}");
+                    process::exit(1);
+                }
             }
+        }
+
+        let s = std::str::from_utf8(&buf[2..size])
+            .expect("failed to parse the response, maybe the output is too long");
+
+        if s.starts_with("[Exception] SystemExit") {
+            Err(EvalErrors::from(EvalError::system_exit()))
+        } else if s.starts_with("[Initialize]") {
+            self.compiler.initialize_generator();
+            Ok(s["[Initialize]".len()..].to_string())
+        } else {
+            Ok(s.to_string())
         }
     }
 }

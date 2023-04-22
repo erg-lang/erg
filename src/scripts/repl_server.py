@@ -15,18 +15,24 @@ __server_socket.listen(1)
 __already_loaded = False
 __ctx = {'__importlib': __importlib}
 
+def __encode(s):
+    s_bytes = s.encode()
+    s_len = len(s_bytes)
+    return s_len.to_bytes(2, 'big') + s_bytes
+
 while True:
     try:
         __order = __client_socket.recv(1024).decode()
     except ConnectionResetError: # when the server was crashed
         break
     if __order == 'quit' or __order == 'exit': # when the server was closed successfully
-        __client_socket.send('closed'.encode())
+        __client_socket.send(__encode('closed'))
         break
     elif __order == 'load':
         __sys.stdout = __io.StringIO()
         __res = ''
         __exc = ''
+        __buf = []
         try:
             if __already_loaded:
                 # __MODULE__ will be replaced with module name
@@ -35,7 +41,7 @@ while True:
                 __res = str(exec('import __MODULE__', __ctx))
             __already_loaded = True
         except SystemExit:
-            __client_socket.send('[Exception] SystemExit'.encode())
+            __buf.append('[Exception] SystemExit')
             continue
         except Exception as e:
             try:
@@ -44,15 +50,16 @@ while True:
                 excs = __traceback.format_exception_only(e.__class__, e)
             __exc = ''.join(excs).rstrip()
             __traceback.clear_frames(e.__traceback__)
-            __client_socket.send('[Initialize]'.encode())
+            __buf.append('[Initialize]')
         __out = __sys.stdout.getvalue()[:-1]
         # assert not(__exc and __res)
         if __exc or __res:
             __out += '\n'
         __res = __out + __exc + __res
-        __client_socket.send(__res.encode())
+        __buf.append(__res)
+        __client_socket.send(__encode(''.join(__buf)))
     else:
-        __client_socket.send('unknown operation'.encode())
+        __client_socket.send(__encode('unknown operation'))
 
 __client_socket.close()
 __server_socket.close()
