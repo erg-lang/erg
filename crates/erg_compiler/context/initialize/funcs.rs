@@ -739,6 +739,9 @@ impl Context {
         };
         self.register_builtin_erg_impl(OP_OR, op_t, Const, Visibility::BUILTIN_PRIVATE);
         /* unary */
+        let M = mono_q(TY_M, subtypeof(mono(MUTIZABLE)));
+        let op_t = func1(M.clone(), proj(M, MUTABLE_MUT_TYPE)).quantify();
+        self.register_builtin_erg_impl(OP_MUTATE, op_t, Const, Visibility::BUILTIN_PRIVATE);
         let op_t = {
             let S =
                 Type::from(dict! { Field::public("__pos__".into()) => fn0_met(Never, R.clone()) })

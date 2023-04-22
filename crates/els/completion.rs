@@ -446,7 +446,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             if vi.t.is_method()
                 && receiver_t
                     .as_ref()
-                    .map_or(true, |t| mod_ctx.subtype_of(t, &Type::Type))
+                    .map_or(true, |t| !mod_ctx.subtype_of(t, vi.t.self_t().unwrap()))
             {
                 continue;
             }
