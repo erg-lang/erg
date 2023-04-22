@@ -5,7 +5,6 @@ use erg_common::error::Location;
 #[allow(unused)]
 use erg_common::log;
 use erg_common::set::Set;
-use erg_common::shared::Shared;
 use erg_common::traits::{Locational, Stream};
 use erg_common::{dict, fmt_vec, fn_name, option_enum_unwrap, set};
 use erg_common::{RcArray, Str};
@@ -20,7 +19,7 @@ use crate::ty::constructors::{
     array_t, dict_t, mono, poly, proj, proj_call, ref_, ref_mut, refinement, subr_t, tuple_t,
     v_enum,
 };
-use crate::ty::free::{Constraint, FreeTyVar, HasLevel};
+use crate::ty::free::{FreeTyVar, HasLevel};
 use crate::ty::typaram::{OpKind, TyParam};
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{ConstSubr, HasType, Predicate, SubrKind, Type, UserConstSubr, ValueArgs};
@@ -88,7 +87,6 @@ fn op_to_name(op: OpKind) -> &'static str {
         OpKind::BitXor => "__bitxor__",
         OpKind::Shl => "__shl__",
         OpKind::Shr => "__shr__",
-        OpKind::Mutate => "__mutate__",
     }
 }
 
@@ -115,7 +113,6 @@ impl Context {
             TokenKind::BitOr => Ok(OpKind::BitOr),
             TokenKind::Shl => Ok(OpKind::Shl),
             TokenKind::Shr => Ok(OpKind::Shr),
-            TokenKind::Mutate => Ok(OpKind::Mutate),
             TokenKind::PrePlus => Ok(OpKind::Pos),
             TokenKind::PreMinus => Ok(OpKind::Neg),
             TokenKind::PreBitNot => Ok(OpKind::Invert),
@@ -817,9 +814,6 @@ impl Context {
         rhs: TyParam,
     ) -> EvalResult<TyParam> {
         match (lhs, rhs) {
-            (TyParam::Value(ValueObj::Mut(lhs)), TyParam::Value(rhs)) => self
-                .eval_bin(op, lhs.borrow().clone(), rhs)
-                .map(|v| TyParam::Value(ValueObj::Mut(Shared::new(v)))),
             (TyParam::Value(lhs), TyParam::Value(rhs)) => {
                 self.eval_bin(op, lhs, rhs).map(TyParam::value)
             }
@@ -880,7 +874,6 @@ impl Context {
                     line!(),
                 ))),
             },
-            Mutate => Ok(ValueObj::Mut(Shared::new(val))),
             _other => unreachable_error!(self),
         }
     }
@@ -891,15 +884,7 @@ impl Context {
             TyParam::FreeVar(fv) if fv.is_linked() => self.eval_unary_tp(op, fv.crack().clone()),
             e @ TyParam::Erased(_) => Ok(e),
             TyParam::FreeVar(fv) if fv.is_unbound() => {
-                let t = fv.get_type().unwrap();
-                if op == OpKind::Mutate {
-                    let constr = Constraint::new_type_of(t.mutate());
-                    fv.update_constraint(constr, false);
-                    let tp = TyParam::FreeVar(fv);
-                    Ok(tp)
-                } else {
-                    feature_error!(self, Location::Unknown, &format!("{op} {fv}"))
-                }
+                feature_error!(self, Location::Unknown, &format!("{op} {fv}"))
             }
             other => feature_error!(self, Location::Unknown, &format!("{op} {other}")),
         }
@@ -1620,7 +1605,6 @@ impl Context {
     pub(crate) fn get_tp_t(&self, p: &TyParam) -> EvalResult<Type> {
         let p = self.eval_tp(p.clone())?;
         match p {
-            TyParam::Value(ValueObj::Mut(v)) => Ok(v.borrow().class().mutate()),
             TyParam::Value(v) => Ok(v_enum(set![v])),
             TyParam::Erased(t) => Ok((*t).clone()),
             TyParam::FreeVar(fv) if fv.is_linked() => self.get_tp_t(&fv.crack()),
@@ -1655,10 +1639,6 @@ impl Context {
                 Ok(tuple_t(tps_t))
             }
             dict @ TyParam::Dict(_) => Ok(dict_t(dict)),
-            TyParam::UnaryOp { op, val } => match op {
-                OpKind::Mutate => Ok(self.get_tp_t(&val)?.mutate()),
-                _ => feature_error!(self, Location::Unknown, "??"),
-            },
             TyParam::BinOp { op, lhs, rhs } => {
                 let op_name = op_to_name(op);
                 feature_error!(

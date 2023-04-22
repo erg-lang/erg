@@ -3,12 +3,10 @@ use std::mem;
 use std::option::Option;
 
 use erg_common::fresh::fresh_varname;
-use erg_common::style::Stylize;
 use erg_common::traits::Locational;
 use erg_common::Str;
 #[allow(unused_imports)]
-use erg_common::{fmt_vec, log};
-use erg_common::{fn_name, switch_lang};
+use erg_common::{fmt_vec, fn_name, log};
 
 use crate::ty::constructors::*;
 use crate::ty::free::{Constraint, FreeKind, HasLevel, GENERIC_LEVEL};
@@ -17,7 +15,7 @@ use crate::ty::value::ValueObj;
 use crate::ty::{Predicate, SubrType, Type};
 
 use crate::context::{Context, Variance};
-use crate::error::{SingleTyCheckResult, TyCheckError, TyCheckErrors, TyCheckResult};
+use crate::error::{TyCheckError, TyCheckErrors, TyCheckResult};
 use crate::{feature_error, type_feature_error};
 
 use Predicate as Pred;
@@ -443,48 +441,6 @@ impl Context {
         }
     }
 
-    fn reunify_tp(
-        &self,
-        before: &TyParam,
-        after: &TyParam,
-        loc: &impl Locational,
-    ) -> SingleTyCheckResult<()> {
-        match (before, after) {
-            (TyParam::Value(ValueObj::Mut(l)), TyParam::Value(ValueObj::Mut(r))) => {
-                *l.borrow_mut() = r.borrow().clone();
-                Ok(())
-            }
-            (TyParam::Value(ValueObj::Mut(l)), TyParam::Value(r)) => {
-                *l.borrow_mut() = r.clone();
-                Ok(())
-            }
-            (TyParam::Type(l), TyParam::Type(r)) => self.reunify(l, r, loc),
-            (TyParam::UnaryOp { op: lop, val: lval }, TyParam::UnaryOp { op: rop, val: rval })
-                if lop == rop =>
-            {
-                self.reunify_tp(lval, rval, loc)
-            }
-            (
-                TyParam::BinOp { op: lop, lhs, rhs },
-                TyParam::BinOp {
-                    op: rop,
-                    lhs: lhs2,
-                    rhs: rhs2,
-                },
-            ) if lop == rop => {
-                self.reunify_tp(lhs, lhs2, loc)?;
-                self.reunify_tp(rhs, rhs2, loc)
-            }
-            (TyParam::Lambda(_l), TyParam::Lambda(_r)) => {
-                todo!("{_l}/{_r}")
-            }
-            (l, r) if self.eq_tp(l, r) => Ok(()),
-            (l, r) => {
-                type_feature_error!(error self, loc.loc(), &format!("re-unifying {l} ~> {r}"))
-            }
-        }
-    }
-
     /// predは正規化されているとする
     fn sub_unify_pred(
         &self,
@@ -617,82 +573,6 @@ impl Context {
         }
     }
 
-    /// T: Array(Int, !0), U: Array(Int, !1)
-    /// reunify(T, U):
-    /// T: Array(Int, !1), U: Array(Int, !1)
-    pub(crate) fn reunify(
-        &self,
-        before_t: &Type,
-        after_t: &Type,
-        loc: &impl Locational,
-    ) -> SingleTyCheckResult<()> {
-        match (before_t, after_t) {
-            (FreeVar(fv), r) if fv.is_linked() => self.reunify(&fv.crack(), r, loc),
-            (l, FreeVar(fv)) if fv.is_linked() => self.reunify(l, &fv.crack(), loc),
-            (Ref(l), Ref(r)) => self.reunify(l, r, loc),
-            (
-                RefMut {
-                    before: lbefore,
-                    after: lafter,
-                },
-                RefMut {
-                    before: rbefore,
-                    after: rafter,
-                },
-            ) => {
-                self.reunify(lbefore, rbefore, loc)?;
-                match (lafter, rafter) {
-                    (Some(lafter), Some(rafter)) => {
-                        self.reunify(lafter, rafter, loc)?;
-                    }
-                    (None, None) => {}
-                    _ => todo!(),
-                }
-                Ok(())
-            }
-            (Ref(l), r) => self.reunify(l, r, loc),
-            // REVIEW:
-            (RefMut { before, .. }, r) => self.reunify(before, r, loc),
-            (l, Ref(r)) => self.reunify(l, r, loc),
-            (l, RefMut { before, .. }) => self.reunify(l, before, loc),
-            (
-                Poly {
-                    name: ln,
-                    params: lps,
-                },
-                Poly {
-                    name: rn,
-                    params: rps,
-                },
-            ) => {
-                if ln != rn {
-                    let before_t = poly(ln.clone(), lps.clone());
-                    return Err(TyCheckError::re_unification_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        &before_t,
-                        after_t,
-                        loc.loc(),
-                        self.caused_by(),
-                    ));
-                }
-                for (l, r) in lps.iter().zip(rps.iter()) {
-                    self.reunify_tp(l, r, loc)?;
-                }
-                Ok(())
-            }
-            (l, r) if self.same_type_of(l, r) => Ok(()),
-            (l, r) => Err(TyCheckError::re_unification_error(
-                self.cfg.input.clone(),
-                line!() as usize,
-                l,
-                r,
-                loc.loc(),
-                self.caused_by(),
-            )),
-        }
-    }
-
     /// Assuming that `sub` is a subtype of `sup`, fill in the type variable to satisfy the assumption
     ///
     /// When comparing arguments and parameter, the left side (`sub`) is the argument (found) and the right side (`sup`) is the parameter (expected)
@@ -789,7 +669,24 @@ impl Context {
                 sup_fv.undo();
                 let intersec = self.intersection(&lsup, &rsup);
                 let new_constraint = if intersec != Type::Never {
-                    Constraint::new_sandwiched(self.union(&lsub, &rsub), intersec)
+                    let union = self.union(&lsub, &rsub);
+                    if !lsub.has_union_type() && !rsub.has_union_type() && union.has_union_type() {
+                        let (l, r) = union.union_pair().unwrap_or((lsub, rsub));
+                        let unified = self.unify(&l, &r);
+                        if unified.is_none() {
+                            return Err(TyCheckErrors::from(
+                                TyCheckError::implicit_widening_error(
+                                    self.cfg.input.clone(),
+                                    line!() as usize,
+                                    loc.loc(),
+                                    self.caused_by(),
+                                    maybe_sub,
+                                    maybe_sup,
+                                ),
+                            ));
+                        }
+                    }
+                    Constraint::new_sandwiched(union, intersec)
                 } else {
                     return Err(TyCheckErrors::from(TyCheckError::subtyping_error(
                         self.cfg.input.clone(),
@@ -873,34 +770,23 @@ impl Context {
                     // Expanding to an Or-type is prohibited by default
                     // This increases the quality of error reporting
                     // (Try commenting out this part and run tests/should_err/subtyping.er to see the error report changes on lines 29-30)
-                    if !maybe_sub.is_union_type() && !sub.is_union_type() && new_sub.is_union_type()
+                    if !maybe_sub.has_union_type()
+                        && !sub.has_union_type()
+                        && new_sub.has_union_type()
                     {
-                        let (l, r) = new_sub.union_pair().unwrap();
-                        if self.unify(&l, &r).is_none() {
-                            let maybe_sub_ = maybe_sub
-                                .to_string()
-                                .with_color(erg_common::style::Color::Yellow);
-                            let new_sub = new_sub
-                                .to_string()
-                                .with_color(erg_common::style::Color::Yellow);
-                            let hint = switch_lang!(
-                                "japanese" => format!("{maybe_sub_}から{new_sub}への暗黙の型拡大はデフォルトでは禁止されています。明示的に型指定してください"),
-                                "simplified_chinese" => format!("隐式扩展{maybe_sub_}到{new_sub}被默认禁止。请明确指定类型。"),
-                                "traditional_chinese" => format!("隱式擴展{maybe_sub_}到{new_sub}被默認禁止。請明確指定類型。"),
-                                "english" => format!("Implicitly widening {maybe_sub_} to {new_sub} is prohibited by default. Consider specifying the type explicitly."),
-                            );
-                            return Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
-                                self.cfg.input.clone(),
-                                line!() as usize,
-                                loc.loc(),
-                                self.caused_by(),
-                                "",
-                                None,
-                                maybe_sub,
-                                maybe_sup,
-                                None,
-                                Some(hint),
-                            )));
+                        let (l, r) = new_sub.union_pair().unwrap_or((maybe_sub.clone(), sub));
+                        let unified = self.unify(&l, &r);
+                        if unified.is_none() {
+                            return Err(TyCheckErrors::from(
+                                TyCheckError::implicit_widening_error(
+                                    self.cfg.input.clone(),
+                                    line!() as usize,
+                                    loc.loc(),
+                                    self.caused_by(),
+                                    maybe_sub,
+                                    maybe_sup,
+                                ),
+                            ));
                         }
                     }
                     if sup.contains_union(&new_sub) {
@@ -1272,11 +1158,16 @@ impl Context {
                     Self::undo_substitute_typarams(sub_def_t);
                     errs
                 })?;
-            for sup_trait in sub_ctx.super_traits.iter() {
-                let sub_trait_instance = self.instantiate_def_type(sup_trait)?;
-                if self.supertype_of(maybe_sup, sup_trait) {
+            let sups = if self.is_class(maybe_sup) {
+                sub_ctx.super_classes.iter()
+            } else {
+                sub_ctx.super_traits.iter()
+            };
+            for sup_ty in sups {
+                let sub_instance = self.instantiate_def_type(sup_ty)?;
+                if self.supertype_of(maybe_sup, sup_ty) {
                     for (l_maybe_sub, r_maybe_sup) in
-                        sub_trait_instance.typarams().iter().zip(sup_params.iter())
+                        sub_instance.typarams().iter().zip(sup_params.iter())
                     {
                         self.sub_unify_tp(l_maybe_sub, r_maybe_sup, None, loc, false)
                             .map_err(|errs| {
@@ -1304,15 +1195,28 @@ impl Context {
     ///
     /// Error if they can't unify without upcasting both types (derefining is allowed) or using the Or type
     /// ```erg
-    /// unify(Int, Nat) == Ok(Int)
-    /// unify(Int, Str) == Err
-    /// unify({1.2}, Nat) == Ok(Float)
-    /// unify(Eq, Int) == Ok(Eq)
-    /// unify(Eq, Float) == Err
+    /// unify(Int, Nat) == Some(Int)
+    /// unify(Int, Str) == None
+    /// unify({1.2}, Nat) == Some(Float)
+    /// unify(Nat, Int!) == Some(Int)
+    /// unify(Eq, Int) == None
     /// ```
     pub fn unify(&self, lhs: &Type, rhs: &Type) -> Option<Type> {
-        let lhs = lhs.derefine();
-        let rhs = rhs.derefine();
-        self.max(&lhs, &rhs).cloned()
+        let l_sups = self._get_super_classes(lhs)?;
+        let r_sups = self._get_super_classes(rhs)?;
+        for l_sup in l_sups {
+            if self.supertype_of(&l_sup, &Obj) {
+                continue;
+            }
+            for r_sup in r_sups.clone() {
+                if self.supertype_of(&r_sup, &Obj) {
+                    continue;
+                }
+                if let Some(t) = self.max(&l_sup, &r_sup) {
+                    return Some(t.clone());
+                }
+            }
+        }
+        None
     }
 }

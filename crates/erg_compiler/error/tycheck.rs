@@ -1217,4 +1217,38 @@ passed keyword args:    {kw_args_len}"
             caused_by,
         )
     }
+
+    pub fn implicit_widening_error(
+        input: Input,
+        errno: usize,
+        loc: Location,
+        caused_by: String,
+        expect: &Type,
+        found: &Type,
+    ) -> Self {
+        let maybe_sub_ = expect
+            .to_string()
+            .with_color(erg_common::style::Color::Yellow);
+        let new_sub = found
+            .to_string()
+            .with_color(erg_common::style::Color::Yellow);
+        let hint = switch_lang!(
+            "japanese" => format!("{maybe_sub_}から{new_sub}への暗黙の型拡大はデフォルトでは禁止されています。明示的に型指定してください"),
+            "simplified_chinese" => format!("隐式扩展{maybe_sub_}到{new_sub}被默认禁止。请明确指定类型。"),
+            "traditional_chinese" => format!("隱式擴展{maybe_sub_}到{new_sub}被默認禁止。請明確指定類型。"),
+            "english" => format!("Implicitly widening {maybe_sub_} to {new_sub} is prohibited by default. Consider specifying the type explicitly."),
+        );
+        Self::type_mismatch_error(
+            input,
+            errno,
+            loc,
+            caused_by,
+            "",
+            None,
+            expect,
+            found,
+            None,
+            Some(hint),
+        )
+    }
 }

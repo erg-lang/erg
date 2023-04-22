@@ -652,9 +652,11 @@ impl Context {
         let name = &sig.ident.name;
         // FIXME: constでない関数
         let t = self.get_current_scope_var(name).map(|vi| &vi.t).unwrap();
-        let non_default_params = t.non_default_params().unwrap();
+        debug_assert!(t.is_subr());
+        let empty = vec![];
+        let non_default_params = t.non_default_params().unwrap_or(&empty);
         let var_args = t.var_params();
-        let default_params = t.default_params().unwrap();
+        let default_params = t.default_params().unwrap_or(&empty);
         if let Some(spec_ret_t) = t.return_t() {
             let unify_result = if let Some(t_spec) = sig.return_t_spec.as_ref() {
                 self.sub_unify(body_t, spec_ret_t, t_spec, None)

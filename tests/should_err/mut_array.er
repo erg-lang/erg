@@ -1,0 +1,7 @@
+v = ![]
+v.push! 1
+
+w = ![]
+w.push! "a"
+
+_ = v.concat w # ERR

@@ -473,6 +473,19 @@ impl SubrType {
         })
     }
 
+    pub fn mut_self_t(&mut self) -> Option<&mut Type> {
+        self.non_default_params.first_mut().and_then(|p| {
+            if p.name()
+                .map(|n| &n[..] == "self" || &n[..] == "Self")
+                .unwrap_or(false)
+            {
+                Some(p.typ_mut())
+            } else {
+                None
+            }
+        })
+    }
+
     pub fn is_method(&self) -> bool {
         self.self_t().is_some()
     }
@@ -1697,6 +1710,57 @@ impl Type {
         }
     }
 
+    pub fn has_union_type(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().has_union_type(),
+            Self::FreeVar(fv) if fv.constraint_is_sandwiched() => {
+                let (sub, sup) = fv.get_subsup().unwrap();
+                fv.dummy_link();
+                let res = sub.has_union_type() || sup.has_union_type();
+                fv.undo();
+                res
+            }
+            Self::Or(_, _) => true,
+            Self::Refinement(refine) => refine.t.has_union_type(),
+            Self::Ref(t) => t.has_union_type(),
+            Self::RefMut { before, after } => {
+                before.has_union_type()
+                    || after.as_ref().map(|t| t.has_union_type()).unwrap_or(false)
+            }
+            Self::And(lhs, rhs) => lhs.has_union_type() || rhs.has_union_type(),
+            Self::Not(ty) => ty.has_union_type(),
+            Self::Callable { param_ts, return_t } => {
+                param_ts.iter().any(|t| t.has_union_type()) || return_t.has_union_type()
+            }
+            Self::Subr(subr) => {
+                subr.non_default_params
+                    .iter()
+                    .any(|pt| pt.typ().has_union_type())
+                    || subr
+                        .var_params
+                        .as_ref()
+                        .map(|pt| pt.typ().has_union_type())
+                        .unwrap_or(false)
+                    || subr
+                        .default_params
+                        .iter()
+                        .any(|pt| pt.typ().has_union_type())
+                    || subr.return_t.has_union_type()
+            }
+            Self::Record(r) => r.values().any(|t| t.has_union_type()),
+            Self::Quantified(quant) => quant.has_union_type(),
+            Self::Poly { params, .. } => params.iter().any(|p| p.has_union_type()),
+            Self::Proj { lhs, .. } => lhs.has_union_type(),
+            Self::ProjCall { lhs, args, .. } => {
+                lhs.has_union_type() || args.iter().any(|t| t.has_union_type())
+            }
+            Self::Structural(ty) => ty.has_union_type(),
+            Self::Guard(guard) => guard.to.has_union_type(),
+            Self::Bounded { sub, sup } => sub.has_union_type() || sup.has_union_type(),
+            _ => false,
+        }
+    }
+
     pub fn is_refinement(&self) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_refinement(),
@@ -2385,7 +2449,7 @@ impl Type {
             Self::Refinement(refine) => refine.t.has_unbound_var() || refine.pred.has_unbound_var(),
             Self::Quantified(quant) => quant.has_unbound_var(),
             Self::Poly { params, .. } => params.iter().any(|p| p.has_unbound_var()),
-            Self::Proj { lhs, .. } => lhs.has_no_unbound_var(),
+            Self::Proj { lhs, .. } => lhs.has_unbound_var(),
             Self::ProjCall { lhs, args, .. } => {
                 lhs.has_unbound_var() || args.iter().any(|t| t.has_unbound_var())
             }

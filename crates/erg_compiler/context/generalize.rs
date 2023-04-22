@@ -665,10 +665,13 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 Ok(self.ctx.complement(&ty))
             }
             Type::Proj { lhs, rhs } => {
-                let lhs = self.deref_tyvar(*lhs)?;
                 let proj = self
                     .ctx
-                    .eval_proj(lhs, rhs, self.ctx.level, self.loc)
+                    .eval_proj(*lhs.clone(), rhs.clone(), self.ctx.level, self.loc)
+                    .or_else(|_| {
+                        let lhs = self.deref_tyvar(*lhs)?;
+                        self.ctx.eval_proj(lhs, rhs, self.ctx.level, self.loc)
+                    })
                     .unwrap_or(Failure);
                 Ok(proj)
             }

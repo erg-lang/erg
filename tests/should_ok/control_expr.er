@@ -22,7 +22,7 @@ counter = !10
 print! counter
 w! do!(not(counter == 0)), do!:
     print! "counter = \{counter}"
-    counter.update!(i -> i - 1)
+    counter.update!(i -> Nat(i - 1))
 
 counter2 = !2
 not_zero!() = not counter2 == 0

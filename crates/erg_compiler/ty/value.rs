@@ -4,7 +4,6 @@
 use std::cmp::Ordering;
 use std::fmt;
 use std::hash::{Hash, Hasher};
-use std::mem;
 use std::ops::Neg;
 use std::rc::Rc;
 
@@ -15,7 +14,6 @@ use erg_common::fresh::fresh_varname;
 use erg_common::python_util::PythonVersion;
 use erg_common::serialize::*;
 use erg_common::set::Set;
-use erg_common::shared::Shared;
 use erg_common::{dict, fmt_iter, impl_display_from_debug, log, switch_lang};
 use erg_common::{RcArray, Str};
 use erg_parser::ast::{ConstArgs, ConstExpr};
@@ -25,7 +23,7 @@ use crate::context::eval::type_from_token_kind;
 use self::value_set::inner_class;
 
 use super::codeobj::CodeObj;
-use super::constructors::{array_t, dict_t, mono, poly, refinement, set_t, tuple_t};
+use super::constructors::{array_t, dict_t, refinement, set_t, tuple_t};
 use super::typaram::TyParam;
 use super::{ConstSubr, Field, HasType, Predicate, Type};
 
@@ -455,7 +453,6 @@ pub enum ValueObj {
     NotImplemented,
     NegInf,
     Inf,
-    Mut(Shared<ValueObj>),
     #[default]
     Illegal, // to avoid conversions with TryFrom
 }
@@ -538,7 +535,6 @@ impl fmt::Debug for ValueObj {
             Self::NotImplemented => write!(f, "NotImplemented"),
             Self::NegInf => write!(f, "-Inf"),
             Self::Inf => write!(f, "Inf"),
-            Self::Mut(v) => write!(f, "<mut {}>", v.borrow()),
             Self::Illegal => write!(f, "<illegal>"),
         }
     }
@@ -605,7 +601,6 @@ impl Hash for ValueObj {
                 "literal".hash(state);
                 "Inf".hash(state)
             }
-            Self::Mut(v) => v.borrow().hash(state),
             Self::Illegal => {
                 "literal".hash(state);
                 "illegal".hash(state)
@@ -686,7 +681,6 @@ impl TryFrom<&ValueObj> for f64 {
             ValueObj::Inf => Ok(f64::INFINITY),
             ValueObj::NegInf => Ok(f64::NEG_INFINITY),
             ValueObj::Bool(b) => Ok(if *b { 1.0 } else { 0.0 }),
-            ValueObj::Mut(v) => f64::try_from(&*v.borrow()).map_err(|_| ()),
             _ => Err(()),
         }
     }
@@ -715,7 +709,6 @@ impl TryFrom<ValueObj> for Type {
                 Ok(tuple_t(new_ts))
             }
             ValueObj::Subr(subr) => subr.as_type().ok_or(ValueObj::Subr(subr)),
-            ValueObj::Mut(v) => Type::try_from(v.borrow().clone()),
             other => Err(other),
         }
     }
@@ -757,14 +750,14 @@ impl HasType for ValueObj {
 }
 
 impl ValueObj {
-    pub fn builtin_class(t: Type) -> Self {
+    pub const fn builtin_class(t: Type) -> Self {
         ValueObj::Type(TypeObj::Builtin {
             t,
             meta_t: Type::ClassType,
         })
     }
 
-    pub fn builtin_trait(t: Type) -> Self {
+    pub const fn builtin_trait(t: Type) -> Self {
         ValueObj::Type(TypeObj::Builtin {
             t,
             meta_t: Type::TraitType,
@@ -778,49 +771,35 @@ impl ValueObj {
         })
     }
 
-    pub fn gen_t(gen: GenTypeObj) -> Self {
+    pub const fn gen_t(gen: GenTypeObj) -> Self {
         ValueObj::Type(TypeObj::Generated(gen))
     }
 
     // TODO: add Complex
-    pub fn is_num(&self) -> bool {
-        match self {
-            Self::Float(_) | Self::Int(_) | Self::Nat(_) | Self::Bool(_) => true,
-            Self::Mut(n) => n.borrow().is_num(),
-            _ => false,
-        }
+    pub const fn is_num(&self) -> bool {
+        matches!(
+            self,
+            Self::Float(_) | Self::Int(_) | Self::Nat(_) | Self::Bool(_)
+        )
     }
 
-    pub fn is_float(&self) -> bool {
-        match self {
-            Self::Float(_) | Self::Int(_) | Self::Nat(_) | Self::Bool(_) => true,
-            Self::Mut(n) => n.borrow().is_float(),
-            _ => false,
-        }
+    pub const fn is_float(&self) -> bool {
+        matches!(
+            self,
+            Self::Float(_) | Self::Int(_) | Self::Nat(_) | Self::Bool(_)
+        )
     }
 
-    pub fn is_int(&self) -> bool {
-        match self {
-            Self::Int(_) | Self::Nat(_) | Self::Bool(_) => true,
-            Self::Mut(n) => n.borrow().is_nat(),
-            _ => false,
-        }
+    pub const fn is_int(&self) -> bool {
+        matches!(self, Self::Int(_) | Self::Nat(_) | Self::Bool(_))
     }
 
-    pub fn is_nat(&self) -> bool {
-        match self {
-            Self::Nat(_) | Self::Bool(_) => true,
-            Self::Mut(n) => n.borrow().is_nat(),
-            _ => false,
-        }
+    pub const fn is_nat(&self) -> bool {
+        matches!(self, Self::Nat(_) | Self::Bool(_))
     }
 
-    pub fn is_bool(&self) -> bool {
-        match self {
-            Self::Bool(_) => true,
-            Self::Mut(n) => n.borrow().is_bool(),
-            _ => false,
-        }
+    pub const fn is_bool(&self) -> bool {
+        matches!(self, Self::Bool(_))
     }
 
     pub const fn is_str(&self) -> bool {
@@ -829,10 +808,6 @@ impl ValueObj {
 
     pub const fn is_type(&self) -> bool {
         matches!(self, Self::Type(_))
-    }
-
-    pub const fn is_mut(&self) -> bool {
-        matches!(self, Self::Mut(_))
     }
 
     pub fn from_str(t: Type, content: Str) -> Option<Self> {
@@ -986,38 +961,6 @@ impl ValueObj {
             Self::NotImplemented => Type::NotImplementedType,
             Self::Inf => Type::Inf,
             Self::NegInf => Type::NegInf,
-            Self::Mut(m) => match &*m.borrow() {
-                Self::Int(_) => mono("Int!"),
-                Self::Nat(_) => mono("Nat!"),
-                Self::Float(_) => mono("Float!"),
-                Self::Str(_) => mono("Str!"),
-                Self::Bool(_) => mono("Bool!"),
-                Self::Array(arr) => poly(
-                    "Array!",
-                    vec![
-                        // REVIEW: Never?
-                        TyParam::t(
-                            arr.iter()
-                                .next()
-                                .map(|elem| elem.class())
-                                .unwrap_or(Type::Never),
-                        ),
-                        TyParam::value(arr.len()).mutate(),
-                    ],
-                ),
-                Self::Dict(dict) => poly(
-                    "Dict!",
-                    vec![TyParam::Dict(
-                        dict.iter()
-                            .map(|(k, v)| (TyParam::value(k.clone()), TyParam::value(v.clone())))
-                            .collect(),
-                    )],
-                ),
-                other => {
-                    log!(err "{other} object cannot be mutated");
-                    other.class()
-                }
-            },
             Self::Illegal => Type::Failure,
         }
     }
@@ -1036,8 +979,6 @@ impl ValueObj {
             (Self::Inf, Self::NegInf) => Some(Ordering::Greater),
             // REVIEW: 等しいとみなしてよいのか?
             (Self::Inf, Self::Inf) | (Self::NegInf, Self::NegInf) => Some(Ordering::Equal),
-            (Self::Mut(m), other) => m.borrow().try_cmp(other),
-            (self_, Self::Mut(m)) => self_.try_cmp(&m.borrow()),
             /* (Self::PlusEpsilon(l), r) => l.try_cmp(r)
                 .map(|o| if matches!(o, Ordering::Equal) { Ordering::Less } else { o }),
             (l, Self::PlusEpsilon(r)) => l.try_cmp(r)
@@ -1073,14 +1014,6 @@ impl ValueObj {
             (inf @ (Self::Inf | Self::NegInf), _) | (_, inf @ (Self::Inf | Self::NegInf)) => {
                 Some(inf)
             }
-            (Self::Mut(m), other) => {
-                {
-                    let ref_m = &mut *m.borrow_mut();
-                    *ref_m = mem::take(ref_m).try_add(other)?;
-                }
-                Some(Self::Mut(m))
-            }
-            (self_, Self::Mut(m)) => self_.try_add(m.borrow().clone()),
             _ => None,
         }
     }
@@ -1102,14 +1035,6 @@ impl ValueObj {
             {
                 Some(inf)
             }
-            (Self::Mut(m), other) => {
-                {
-                    let ref_m = &mut *m.borrow_mut();
-                    *ref_m = mem::take(ref_m).try_sub(other)?;
-                }
-                Some(Self::Mut(m))
-            }
-            (self_, Self::Mut(m)) => self_.try_sub(m.borrow().clone()),
             _ => None,
         }
     }
@@ -1129,14 +1054,6 @@ impl ValueObj {
             (inf @ (Self::Inf | Self::NegInf), _) | (_, inf @ (Self::Inf | Self::NegInf)) => {
                 Some(inf)
             }
-            (Self::Mut(m), other) => {
-                {
-                    let ref_m = &mut *m.borrow_mut();
-                    *ref_m = mem::take(ref_m).try_mul(other)?;
-                }
-                Some(Self::Mut(m))
-            }
-            (self_, Self::Mut(m)) => self_.try_mul(m.borrow().clone()),
             _ => None,
         }
     }
@@ -1152,14 +1069,6 @@ impl ValueObj {
             (Self::Nat(l), Self::Float(r)) => Some(Self::from(l as f64 / r)),
             (Self::Float(l), Self::Int(r)) => Some(Self::from(l / r as f64)),
             (Self::Int(l), Self::Float(r)) => Some(Self::from(l as f64 / r)),
-            (Self::Mut(m), other) => {
-                {
-                    let ref_m = &mut *m.borrow_mut();
-                    *ref_m = mem::take(ref_m).try_div(other)?;
-                }
-                Some(Self::Mut(m))
-            }
-            (self_, Self::Mut(m)) => self_.try_div(m.borrow().clone()),
             // TODO: x/±Inf = 0
             _ => None,
         }
@@ -1176,14 +1085,6 @@ impl ValueObj {
             (Self::Nat(l), Self::Float(r)) => Some(Self::Float((l as f64 / r).floor())),
             (Self::Float(l), Self::Int(r)) => Some(Self::Float((l / r as f64).floor())),
             (Self::Int(l), Self::Float(r)) => Some(Self::Float((l as f64 / r).floor())),
-            (Self::Mut(m), other) => {
-                {
-                    let ref_m = &mut *m.borrow_mut();
-                    *ref_m = mem::take(ref_m).try_div(other)?;
-                }
-                Some(Self::Mut(m))
-            }
-            (self_, Self::Mut(m)) => self_.try_floordiv(m.borrow().clone()),
             // TODO: x//±Inf = 0
             _ => None,
         }
@@ -1200,14 +1101,6 @@ impl ValueObj {
             (Self::Nat(l), Self::Float(r)) => Some(Self::from(l as f64 > r)),
             (Self::Float(l), Self::Int(r)) => Some(Self::from(l > r as f64)),
             (Self::Int(l), Self::Float(r)) => Some(Self::from(l as f64 > r)),
-            (Self::Mut(m), other) => {
-                {
-                    let ref_m = &mut *m.borrow_mut();
-                    *ref_m = mem::take(ref_m).try_gt(other)?;
-                }
-                Some(Self::Mut(m))
-            }
-            (self_, Self::Mut(m)) => self_.try_gt(m.borrow().clone()),
             _ => None,
         }
     }
@@ -1223,14 +1116,6 @@ impl ValueObj {
             (Self::Nat(l), Self::Float(r)) => Some(Self::from(l as f64 >= r)),
             (Self::Float(l), Self::Int(r)) => Some(Self::from(l >= r as f64)),
             (Self::Int(l), Self::Float(r)) => Some(Self::from(l as f64 >= r)),
-            (Self::Mut(m), other) => {
-                {
-                    let ref_m = &mut *m.borrow_mut();
-                    *ref_m = mem::take(ref_m).try_ge(other)?;
-                }
-                Some(Self::Mut(m))
-            }
-            (self_, Self::Mut(m)) => self_.try_ge(m.borrow().clone()),
             _ => None,
         }
     }
@@ -1246,14 +1131,6 @@ impl ValueObj {
             (Self::Nat(l), Self::Float(r)) => Some(Self::from((l as f64) < r)),
             (Self::Float(l), Self::Int(r)) => Some(Self::from(l < r as f64)),
             (Self::Int(l), Self::Float(r)) => Some(Self::from((l as f64) < r)),
-            (Self::Mut(m), other) => {
-                {
-                    let ref_m = &mut *m.borrow_mut();
-                    *ref_m = mem::take(ref_m).try_lt(other)?;
-                }
-                Some(Self::Mut(m))
-            }
-            (self_, Self::Mut(m)) => self_.try_lt(m.borrow().clone()),
             _ => None,
         }
     }
@@ -1269,14 +1146,6 @@ impl ValueObj {
             (Self::Nat(l), Self::Float(r)) => Some(Self::from((l as f64) <= r)),
             (Self::Float(l), Self::Int(r)) => Some(Self::from(l <= r as f64)),
             (Self::Int(l), Self::Float(r)) => Some(Self::from((l as f64) <= r)),
-            (Self::Mut(m), other) => {
-                {
-                    let ref_m = &mut *m.borrow_mut();
-                    *ref_m = mem::take(ref_m).try_le(other)?;
-                }
-                Some(Self::Mut(m))
-            }
-            (self_, Self::Mut(m)) => self_.try_le(m.borrow().clone()),
             _ => None,
         }
     }
@@ -1295,14 +1164,6 @@ impl ValueObj {
             (Self::Str(l), Self::Str(r)) => Some(Self::from(l == r)),
             (Self::Bool(l), Self::Bool(r)) => Some(Self::from(l == r)),
             (Self::Type(l), Self::Type(r)) => Some(Self::from(l == r)),
-            (Self::Mut(m), other) => {
-                {
-                    let ref_m = &mut *m.borrow_mut();
-                    *ref_m = mem::take(ref_m).try_eq(other)?;
-                }
-                Some(Self::Mut(m))
-            }
-            (self_, Self::Mut(m)) => self_.try_eq(m.borrow().clone()),
             // TODO:
             _ => None,
         }
@@ -1322,14 +1183,6 @@ impl ValueObj {
             (Self::Str(l), Self::Str(r)) => Some(Self::from(l != r)),
             (Self::Bool(l), Self::Bool(r)) => Some(Self::from(l != r)),
             (Self::Type(l), Self::Type(r)) => Some(Self::from(l != r)),
-            (Self::Mut(m), other) => {
-                {
-                    let ref_m = &mut *m.borrow_mut();
-                    *ref_m = mem::take(ref_m).try_ne(other)?;
-                }
-                Some(Self::Mut(m))
-            }
-            (self_, Self::Mut(m)) => self_.try_ne(m.borrow().clone()),
             _ => None,
         }
     }

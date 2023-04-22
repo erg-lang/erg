@@ -1234,10 +1234,8 @@ impl Context {
         .quantify();
         array_.register_builtin_erg_impl(FUNC_PUSH, t, Immutable, Visibility::BUILTIN_PUBLIC);
         // [T; N].MutType! = [T; !N] (neither [T!; N] nor [T; N]!)
-        let mut_type = ValueObj::builtin_class(poly(
-            MUT_ARRAY,
-            vec![TyParam::t(T.clone()), N.clone().mutate()],
-        ));
+        let mut_type =
+            ValueObj::builtin_class(poly(MUT_ARRAY, vec![TyParam::t(T.clone()), N.clone()]));
         array_.register_builtin_const(MUTABLE_MUT_TYPE, Visibility::BUILTIN_PUBLIC, mut_type);
         let var = StrStruct::from(fresh_varname());
         let input = refinement(
@@ -1889,20 +1887,17 @@ impl Context {
         file_mut.register_marker_trait(mono(MUT_FILE_LIKE));
         file_mut.register_marker_trait(mono(CONTEXT_MANAGER));
         /* Array! */
-        let N_MUT = mono_q_tp(TY_N, instanceof(mono(MUT_NAT)));
-        let array_mut_t = poly(MUT_ARRAY, vec![ty_tp(T.clone()), N_MUT.clone()]);
-        let mut array_mut_ = Self::builtin_poly_class(
-            MUT_ARRAY,
-            vec![PS::t_nd(TY_T), PS::named_nd(TY_N, mono(MUT_NAT))],
-            2,
-        );
+        let N = mono_q_tp(TY_N, instanceof(Nat));
+        let array_mut_t = poly(MUT_ARRAY, vec![ty_tp(T.clone()), N.clone()]);
+        let mut array_mut_ =
+            Self::builtin_poly_class(MUT_ARRAY, vec![PS::t_nd(TY_T), PS::named_nd(TY_N, Nat)], 2);
         array_mut_.register_superclass(arr_t.clone(), &array_);
         let t = pr_met(
             ref_mut(
                 array_mut_t.clone(),
                 Some(poly(
                     MUT_ARRAY,
-                    vec![ty_tp(T.clone()), N_MUT.clone() + value(1usize)],
+                    vec![ty_tp(T.clone()), N.clone() + value(1usize)],
                 )),
             ),
             vec![kw(KW_ELEM, T.clone())],
@@ -1917,7 +1912,7 @@ impl Context {
                 array_mut_t.clone(),
                 Some(poly(
                     MUT_ARRAY,
-                    vec![ty_tp(T.clone()), TyParam::erased(mono(MUT_NAT))],
+                    vec![ty_tp(T.clone()), TyParam::erased(Nat)],
                 )),
             ),
             vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())]))],
@@ -1932,7 +1927,7 @@ impl Context {
                 array_mut_t.clone(),
                 Some(poly(
                     MUT_ARRAY,
-                    vec![ty_tp(T.clone()), N_MUT.clone() + value(1usize)],
+                    vec![ty_tp(T.clone()), N.clone() + value(1usize)],
                 )),
             ),
             vec![kw(KW_INDEX, Nat), kw(KW_ELEM, T.clone())],
@@ -1947,7 +1942,7 @@ impl Context {
                 array_mut_t.clone(),
                 Some(poly(
                     MUT_ARRAY,
-                    vec![ty_tp(T.clone()), N_MUT.clone() - value(1usize)],
+                    vec![ty_tp(T.clone()), N.clone() - value(1usize)],
                 )),
             ),
             vec![kw(KW_X, T.clone())],
@@ -1962,7 +1957,7 @@ impl Context {
                 array_mut_t.clone(),
                 Some(poly(
                     MUT_ARRAY,
-                    vec![ty_tp(T.clone()), N_MUT.clone() - value(1usize)],
+                    vec![ty_tp(T.clone()), N.clone() - value(1usize)],
                 )),
             ),
             vec![],
@@ -2049,21 +2044,15 @@ impl Context {
         .quantify();
         dict_mut.register_py_builtin(PROC_INSERT, insert_t, Some(FUNDAMENTAL_SETITEM), 12);
         /* Set! */
-        let set_mut_t = poly(MUT_SET, vec![ty_tp(T.clone()), N_MUT]);
-        let mut set_mut_ = Self::builtin_poly_class(
-            MUT_SET,
-            vec![PS::t_nd(TY_T), PS::named_nd(TY_N, mono(MUT_NAT))],
-            2,
-        );
+        let set_mut_t = poly(MUT_SET, vec![ty_tp(T.clone()), N]);
+        let mut set_mut_ =
+            Self::builtin_poly_class(MUT_SET, vec![PS::t_nd(TY_T), PS::named_nd(TY_N, Nat)], 2);
         set_mut_.register_superclass(set_t.clone(), &set_);
         // `add!` will erase N
         let t = pr_met(
             ref_mut(
                 set_mut_t.clone(),
-                Some(poly(
-                    MUT_SET,
-                    vec![ty_tp(T.clone()), TyParam::erased(mono(MUT_NAT))],
-                )),
+                Some(poly(MUT_SET, vec![ty_tp(T.clone()), TyParam::erased(Nat)])),
             ),
             vec![kw(KW_ELEM, T.clone())],
             None,

@@ -280,25 +280,13 @@ impl Context {
         }
         if let Some((_, ty_ctx)) = self.get_nominal_type_ctx(rhs) {
             for rhs_sup in ty_ctx.super_classes.iter() {
-                let rhs_sup = if rhs_sup.has_qvar() {
-                    let rhs = match rhs {
-                        Type::Ref(t) => t,
-                        Type::RefMut { before, .. } => before,
-                        other => other,
-                    };
-                    // let subst_ctx = SubstContext::new(rhs, self, Location::Unknown);
-                    // subst_ctx.substitute(rhs_sup.clone()).unwrap()
-                    rhs.clone()
-                } else {
-                    rhs_sup.clone()
-                };
                 // Not `supertype_of` (only structures are compared)
-                match Self::cheap_supertype_of(lhs, &rhs_sup) {
+                match Self::cheap_supertype_of(lhs, rhs_sup) {
                     (Absolutely, true) => {
                         return (Absolutely, true);
                     }
                     (Maybe, _) => {
-                        if self.structural_supertype_of(lhs, &rhs_sup) {
+                        if self.structural_supertype_of(lhs, rhs_sup) {
                             return (Absolutely, true);
                         }
                     }
@@ -661,10 +649,10 @@ impl Context {
             // Not(Eq) :> Float == !(Eq :> Float) == true
             (Not(_), Obj) => false,
             (Not(l), rhs) => !self.supertype_of(l, rhs),
-            // RefMut are invariant
+            // Ref T :> RefMut T :> T
             (Ref(l), Ref(r)) => self.supertype_of(l, r),
-            // TはすべてのRef(T)のメソッドを持つので、Ref(T)のサブタイプ
-            // REVIEW: RefMut is invariant, maybe
+            (Ref(l), RefMut { before: r, .. }) => self.supertype_of(l, r),
+            (RefMut { before: l, .. }, RefMut { before: r, .. }) => self.supertype_of(l, r),
             (Ref(l), r) => self.supertype_of(l, r),
             (RefMut { before: l, .. }, r) => self.supertype_of(l, r),
             // `Eq(Set(T, N)) :> Set(T, N)` will be false, such cases are judged by nominal_supertype_of
@@ -834,7 +822,7 @@ impl Context {
                     Ok(t) => t,
                     Err(err) => {
                         log!("supertype_of_tp: {err}");
-                        return false;
+                        Type::Obj
                     }
                 };
                 if variance == Variance::Contravariant {
@@ -842,7 +830,7 @@ impl Context {
                 } else if variance == Variance::Covariant {
                     self.supertype_of(&fv_t, &rp_t)
                 } else {
-                    self.same_type_of(&fv_t, &rp_t)
+                    self.same_type_of(&fv_t, &rp_t) || self.same_type_of(&fv_t, &rp_t.derefine())
                 }
             }
             _ => self.eq_tp(lp, rp),

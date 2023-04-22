@@ -455,6 +455,32 @@ impl Context {
         Triple::None
     }
 
+    pub(crate) fn rec_get_mut_var_info(
+        &mut self,
+        ident: &Identifier,
+        acc_kind: AccessKind,
+    ) -> Option<&mut VarInfo> {
+        if let Some(vi) = self.get_current_scope_var(&ident.name) {
+            match self.validate_visibility(ident, vi, &self.cfg.input, self) {
+                Ok(()) => {
+                    let vi = self.get_mut_current_scope_var(&ident.name).unwrap();
+                    return Some(vi);
+                }
+                Err(_err) => {
+                    if !acc_kind.is_local() {
+                        return None;
+                    }
+                }
+            }
+        }
+        if acc_kind.is_local() {
+            if let Some(parent) = self.get_mut_outer() {
+                return parent.rec_get_mut_var_info(ident, acc_kind);
+            }
+        }
+        None
+    }
+
     pub(crate) fn rec_get_decl_info(
         &self,
         ident: &Identifier,
@@ -1094,19 +1120,36 @@ impl Context {
 
     /// Propagate mutable dependent types changes
     /// 可変依存型の変更を伝搬させる
-    fn propagate(&self, t: &Type, callee: &hir::Expr) -> TyCheckResult<()> {
-        if let Type::Subr(subr) = t {
-            if let Some(after) = subr.self_t().and_then(|self_t| {
-                if let RefMut { after, .. } = self_t {
-                    after.as_ref()
-                } else {
-                    None
+    /// ```erg
+    /// v = ![] # Γ: { v: [Int; 0]! }
+    /// v.push! 1 # v: [Int; 0]! ~> [Int; 1]!; Γ: { v: [Int; 1]! }
+    /// v # : [Int; 1]!
+    /// ```
+    pub(crate) fn propagate(
+        &mut self,
+        subr_t: &mut Type,
+        receiver: &hir::Expr,
+    ) -> TyCheckResult<()> {
+        if let Type::Subr(subr) = subr_t {
+            if let Some(self_t) = subr.mut_self_t() {
+                log!(info "Propagating:\n {self_t}");
+                if let RefMut {
+                    after: Some(after), ..
+                } = self_t
+                {
+                    log!(info "~> {after}\n");
+                    *self_t = *after.clone();
+                    if let hir::Expr::Accessor(hir::Accessor::Ident(ident)) = receiver {
+                        if let Some(vi) = self.rec_get_mut_var_info(&ident.raw, AccessKind::Name) {
+                            vi.t = self_t.clone();
+                        }
+                    }
                 }
-            }) {
-                self.reunify(callee.ref_t(), after, callee)?;
             }
+            Ok(())
+        } else {
+            Ok(())
         }
-        Ok(())
     }
 
     fn not_callable_error(
@@ -1541,6 +1584,7 @@ impl Context {
                 TyCheckErrors::new(
                     errs.into_iter()
                         .map(|e| {
+                            log!("err: {e}");
                             TyCheckError::type_mismatch_error(
                                 self.cfg.input.clone(),
                                 line!() as usize,
@@ -1742,16 +1786,6 @@ impl Context {
             .eval_t_params(instance, self.level, obj)
             .map_err(|(t, errs)| (Some(VarInfo { t, ..found.clone() }), errs))?;
         log!(info "Params evaluated:\nres: {res}\n");
-        self.propagate(&res, obj).map_err(|errs| {
-            (
-                Some(VarInfo {
-                    t: res.clone(),
-                    ..found.clone()
-                }),
-                errs,
-            )
-        })?;
-        log!(info "Propagated:\nres: {res}\n");
         let res = VarInfo { t: res, ..found };
         Ok(res)
     }
@@ -2085,7 +2119,10 @@ impl Context {
 
     /// include `typ` itself.
     /// if `typ` is a refinement type, include the base type (refine.t)
-    pub(crate) fn _get_super_classes(&self, typ: &Type) -> Option<impl Iterator<Item = Type>> {
+    pub(crate) fn _get_super_classes(
+        &self,
+        typ: &Type,
+    ) -> Option<impl Iterator<Item = Type> + Clone> {
         self.get_nominal_type_ctx(typ).map(|(t, ctx)| {
             let super_classes = ctx.super_classes.clone();
             let derefined = typ.derefine();
@@ -2093,6 +2130,28 @@ impl Context {
                 vec![t.clone(), derefined].into_iter().chain(super_classes)
             } else {
                 vec![t.clone()].into_iter().chain(super_classes)
+            }
+        })
+    }
+
+    pub(crate) fn _get_super_types(
+        &self,
+        typ: &Type,
+    ) -> Option<impl Iterator<Item = Type> + Clone> {
+        self.get_nominal_type_ctx(typ).map(|(t, ctx)| {
+            let super_classes = ctx.super_classes.clone();
+            let super_traits = ctx.super_traits.clone();
+            let derefined = typ.derefine();
+            if typ != &derefined {
+                vec![t.clone(), derefined]
+                    .into_iter()
+                    .chain(super_classes)
+                    .chain(super_traits)
+            } else {
+                vec![t.clone()]
+                    .into_iter()
+                    .chain(super_classes)
+                    .chain(super_traits)
             }
         })
     }

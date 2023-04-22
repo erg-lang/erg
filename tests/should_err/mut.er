@@ -1,0 +1,3 @@
+n = !10
+n.update! n -> n + 1 # OK
+n.update! n -> n - 1 # ERR: n: Int

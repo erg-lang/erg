@@ -323,8 +323,23 @@ fn exec_callable() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_move() -> Result<(), ()> {
+    expect_failure("tests/should_err/move.er", 1, 1)
+}
+
+#[test]
 fn exec_multiline_invalid_next() -> Result<(), ()> {
     expect_failure("tests/should_err/multi_line_invalid_nest.er", 0, 1)
+}
+
+#[test]
+fn exec_mut_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/mut.er", 0, 1)
+}
+
+#[test]
+fn exec_mut_array_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/mut_array.er", 0, 1)
 }
 
 #[test]
@@ -345,9 +360,4 @@ fn exec_var_args_err() -> Result<(), ()> {
 #[test]
 fn exec_visibility() -> Result<(), ()> {
     expect_failure("tests/should_err/visibility.er", 2, 7)
-}
-
-#[test]
-fn exec_move() -> Result<(), ()> {
-    expect_failure("tests/should_err/move.er", 1, 1)
 }

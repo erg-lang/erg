@@ -24,8 +24,7 @@ use crate::artifact::{CompleteArtifact, IncompleteArtifact};
 use crate::context::instantiate::TyVarCache;
 use crate::module::SharedCompilerResource;
 use crate::ty::constructors::{
-    array_mut, array_t, free_var, func, guard, mono, poly, proc, refinement, set_mut, set_t, ty_tp,
-    v_enum,
+    array_t, free_var, func, guard, mono, poly, proc, refinement, set_t, ty_tp, v_enum,
 };
 use crate::ty::free::Constraint;
 use crate::ty::typaram::TyParam;
@@ -333,38 +332,10 @@ impl ASTLowerer {
     fn gen_array_with_length_type(&self, elem: &hir::Expr, len: &ast::Expr) -> Type {
         let maybe_len = self.module.context.eval_const_expr(len);
         match maybe_len {
-            Ok(v @ ValueObj::Nat(_)) => {
-                if elem.ref_t().is_mut_type() {
-                    poly(
-                        "ArrayWithMutType!",
-                        vec![TyParam::t(elem.t()), TyParam::Value(v)],
-                    )
-                } else {
-                    array_t(elem.t(), TyParam::Value(v))
-                }
-            }
-            Ok(v @ ValueObj::Mut(_)) if v.class() == mono("Nat!") => {
-                if elem.ref_t().is_mut_type() {
-                    poly(
-                        "ArrayWithMutTypeAndLength!",
-                        vec![TyParam::t(elem.t()), TyParam::Value(v)],
-                    )
-                } else {
-                    array_mut(elem.t(), TyParam::Value(v))
-                }
-            }
+            Ok(v @ ValueObj::Nat(_)) => array_t(elem.t(), TyParam::Value(v)),
             Ok(other) => todo!("{other} is not a Nat object"),
             // REVIEW: is it ok to ignore the error?
-            Err(_e) => {
-                if elem.ref_t().is_mut_type() {
-                    poly(
-                        "ArrayWithMutType!",
-                        vec![TyParam::t(elem.t()), TyParam::erased(Type::Nat)],
-                    )
-                } else {
-                    array_t(elem.t(), TyParam::erased(Type::Nat))
-                }
-            }
+            Err(_e) => array_t(elem.t(), TyParam::erased(Type::Nat)),
         }
     }
 
@@ -510,38 +481,14 @@ impl ASTLowerer {
         let maybe_len = self.module.context.eval_const_expr(len);
         match maybe_len {
             Ok(v @ ValueObj::Nat(_)) => {
-                if elem.ref_t().is_mut_type() {
-                    poly(
-                        "SetWithMutType!",
-                        vec![TyParam::t(elem.t()), TyParam::Value(v)],
-                    )
-                } else if self.module.context.subtype_of(&elem.t(), &Type::Type) {
+                if self.module.context.subtype_of(&elem.t(), &Type::Type) {
                     poly("SetType", vec![TyParam::t(elem.t()), TyParam::Value(v)])
                 } else {
                     set_t(elem.t(), TyParam::Value(v))
                 }
             }
-            Ok(v @ ValueObj::Mut(_)) if v.class() == mono("Nat!") => {
-                if elem.ref_t().is_mut_type() {
-                    poly(
-                        "SetWithMutTypeAndLength!",
-                        vec![TyParam::t(elem.t()), TyParam::Value(v)],
-                    )
-                } else {
-                    set_mut(elem.t(), TyParam::Value(v))
-                }
-            }
             Ok(other) => todo!("{other} is not a Nat object"),
-            Err(_e) => {
-                if elem.ref_t().is_mut_type() {
-                    poly(
-                        "SetWithMutType!",
-                        vec![TyParam::t(elem.t()), TyParam::erased(Type::Nat)],
-                    )
-                } else {
-                    set_t(elem.t(), TyParam::erased(Type::Nat))
-                }
-            }
+            Err(_e) => set_t(elem.t(), TyParam::erased(Type::Nat)),
         }
     }
 
@@ -995,6 +942,9 @@ impl ASTLowerer {
                 vi.unwrap_or(VarInfo::ILLEGAL.clone())
             }
         };
+        if let Err(es) = self.module.context.propagate(&mut vi.t, &obj) {
+            errs.extend(es);
+        }
         if let Some(guard) = guard {
             debug_assert!(self
                 .module

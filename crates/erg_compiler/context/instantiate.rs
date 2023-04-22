@@ -516,8 +516,16 @@ impl Context {
             }
             FreeVar(fv) => {
                 if let Some((sub, sup)) = fv.get_subsup() {
-                    let sub = self.instantiate_t_inner(sub, tmp_tv_cache, loc)?;
-                    let sup = self.instantiate_t_inner(sup, tmp_tv_cache, loc)?;
+                    let sub = if sub.is_recursive() {
+                        sub
+                    } else {
+                        self.instantiate_t_inner(sub, tmp_tv_cache, loc)?
+                    };
+                    let sup = if sup.is_recursive() {
+                        sup
+                    } else {
+                        self.instantiate_t_inner(sup, tmp_tv_cache, loc)?
+                    };
                     let new_constraint = Constraint::new_sandwiched(sub, sup);
                     fv.update_constraint(new_constraint, true);
                 } else if let Some(ty) = fv.get_type() {

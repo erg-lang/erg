@@ -48,7 +48,6 @@ pub enum OpKind {
     BitXor,
     Shl,
     Shr,
-    Mutate,
 }
 
 impl fmt::Display for OpKind {
@@ -79,7 +78,6 @@ impl fmt::Display for OpKind {
             Self::BitXor => write!(f, "^^"),
             Self::Shl => write!(f, "<<"),
             Self::Shr => write!(f, ">>"),
-            Self::Mutate => write!(f, "!"),
         }
     }
 }
@@ -824,11 +822,6 @@ impl TyParam {
     }
 
     #[inline]
-    pub fn mutate(self) -> Self {
-        Self::unary(OpKind::Mutate, self)
-    }
-
-    #[inline]
     pub fn bin(op: OpKind, lhs: TyParam, rhs: TyParam) -> Self {
         Self::BinOp {
             op,
@@ -1054,6 +1047,27 @@ impl TyParam {
 
     pub fn has_no_unbound_var(&self) -> bool {
         !self.has_unbound_var()
+    }
+
+    pub fn has_union_type(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().has_union_type(),
+            Self::Type(t) => t.has_union_type(),
+            Self::Proj { obj, .. } => obj.has_union_type(),
+            Self::Array(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.has_union_type()),
+            Self::Set(ts) => ts.iter().any(|t| t.has_union_type()),
+            Self::Dict(kv) => kv
+                .iter()
+                .any(|(k, v)| k.has_union_type() || v.has_union_type()),
+            Self::Record(rec) => rec.iter().any(|(_, v)| v.has_union_type()),
+            Self::Lambda(lambda) => lambda.body.iter().any(|t| t.has_union_type()),
+            Self::UnaryOp { val, .. } => val.has_union_type(),
+            Self::BinOp { lhs, rhs, .. } => lhs.has_union_type() || rhs.has_union_type(),
+            Self::App { args, .. } => args.iter().any(|p| p.has_union_type()),
+            Self::Erased(t) => t.has_union_type(),
+            Self::Value(ValueObj::Type(t)) => t.typ().has_union_type(),
+            _ => false,
+        }
     }
 
     pub fn has_upper_bound(&self) -> bool {
