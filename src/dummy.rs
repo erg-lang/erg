@@ -160,25 +160,7 @@ impl Runnable for DummyVM {
         let mut res = warns.to_string();
         // Tell the REPL server to execute the code
         res += &match self.stream.as_mut().unwrap().write("load".as_bytes()) {
-            Result::Ok(_) => {
-                // read the result from the REPL server
-                let mut buf = [0; 1024];
-                match self.stream.as_mut().unwrap().read(&mut buf) {
-                    Result::Ok(n) => {
-                        let s = std::str::from_utf8(&buf[..n])
-                            .expect("failed to parse the response, maybe the output is too long");
-                        if s == "[Exception] SystemExit" {
-                            return Err(EvalErrors::from(EvalError::system_exit()));
-                        }
-                        s.to_string()
-                    }
-                    Result::Err(err) => {
-                        self.finish();
-                        eprintln!("Read error: {err}");
-                        process::exit(1);
-                    }
-                }
-            }
+            Result::Ok(_) => self.read()?,
             Result::Err(err) => {
                 self.finish();
                 eprintln!("Sending error: {err}");
@@ -214,5 +196,28 @@ impl DummyVM {
     /// Evaluates code passed as a string.
     pub fn eval(&mut self, src: String) -> Result<String, EvalErrors> {
         Runnable::eval(self, src)
+    }
+
+    fn read(&mut self) -> Result<String, EvalErrors> {
+        let mut buf = [0; 1024];
+        match self.stream.as_mut().unwrap().read(&mut buf) {
+            Result::Ok(n) => {
+                let s = std::str::from_utf8(&buf[..n])
+                    .expect("failed to parse the response, maybe the output is too long");
+                match s {
+                    "[Exception] SystemExit" => Err(EvalErrors::from(EvalError::system_exit())),
+                    "[Initialize]" => {
+                        self.compiler.initialize_generator();
+                        self.read()
+                    }
+                    _ => Ok(s.to_string()),
+                }
+            }
+            Result::Err(err) => {
+                self.finish();
+                eprintln!("Read error: {err}");
+                process::exit(1);
+            }
+        }
     }
 }

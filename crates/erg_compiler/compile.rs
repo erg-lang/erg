@@ -251,4 +251,8 @@ impl Compiler {
         let desugared = HIRDesugarer::desugar(hir);
         Ok(CompleteArtifact::new(desugared, artifact.warns))
     }
+
+    pub fn initialize_generator(&mut self) {
+        self.code_generator.initialize();
+    }
 }

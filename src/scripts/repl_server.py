@@ -4,6 +4,7 @@ import socket as __socket
 import sys as __sys
 import importlib as __importlib
 import io as __io
+import traceback as __traceback
 
 __server_socket = __socket.socket()
 # DummyVM will replace this __PORT__ with free port
@@ -12,7 +13,7 @@ __server_socket.listen(1)
 (__client_socket, __client_address) = __server_socket.accept()
 
 __already_loaded = False
-__res = ''
+__ctx = {'__importlib': __importlib}
 
 while True:
     try:
@@ -24,20 +25,31 @@ while True:
         break
     elif __order == 'load':
         __sys.stdout = __io.StringIO()
+        __res = ''
+        __exc = ''
         try:
             if __already_loaded:
                 # __MODULE__ will be replaced with module name
-                __res = str(exec('__importlib.reload(__MODULE__)'))
+                __res = str(exec('__importlib.reload(__MODULE__)', __ctx))
             else:
-                __res = str(exec('import __MODULE__'))
+                __res = str(exec('import __MODULE__', __ctx))
+            __already_loaded = True
         except SystemExit:
             __client_socket.send('[Exception] SystemExit'.encode())
             continue
-        except e:
-            __res = str(e)
-        __already_loaded = True
+        except Exception as e:
+            try:
+                excs = __traceback.format_exception(e)
+            except:
+                excs = __traceback.format_exception_only(e.__class__, e)
+            __exc = ''.join(excs).rstrip()
+            __traceback.clear_frames(e.__traceback__)
+            __client_socket.send('[Initialize]'.encode())
         __out = __sys.stdout.getvalue()[:-1]
-        __res = __out + '\n' + __res
+        # assert not(__exc and __res)
+        if __exc or __res:
+            __out += '\n'
+        __res = __out + __exc + __res
         __client_socket.send(__res.encode())
     else:
         __client_socket.send('unknown operation'.encode())
