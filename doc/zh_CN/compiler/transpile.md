@@ -3,13 +3,13 @@
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/compiler/transpile.md%26commit_hash%3D13f2d31aee9012f60b7a40d4b764921f1419cdfe)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/compiler/transpile.md&commit_hash=13f2d31aee9012f60b7a40d4b764921f1419cdfe)
 
 准确地说，Erg 代码是被转译为 Python 字节码。鉴于 Python 字节码几乎可以被重构为 Python 文本代码，因此这里以等效的 Python 代码为例。
-顺便说一句，这里展示的示例是低优化级别；更高级的优化消除了不需要实例化的东西
+顺便说一下，这里展示的示例是低优化级别。更高级的优化会消除不需要实例化的东西。
 
 ## 记录，记录类型
 
-它将被转译为一个命名元组
-对于 namedtuple，请参阅 [此处](https://docs.python.org/zh-cn/3/library/collections.html#collections.namedtuple)
-有一个类似的函数，dataclass，但是由于 `__eq__` 和 `__hash__` 的自动实现，dataclass 的性能略有下降
+它将被转换为一个命名元组（namedtuple）。
+对于 namedtuple，请参阅 [此处](https://docs.python.org/zh-cn/3/library/collections.html#collections.namedtuple)。
+有一个类似的功能，数据类（dataclass），但由于__eq__和__hash__的自动实现，数据类在性能上略有下降。
 
 ```python
 Employee = Class {.name = Str; .id = Int}
@@ -18,6 +18,7 @@ employee = Employee.new({.name = "John Smith"; .id = 100})
 
 assert employee.name == "John Smith"
 ```
+
 
 ```python
 from typing import NamedTuple
@@ -32,7 +33,7 @@ employee = Employee('John Smith', 100)
 assert employee.name == 'John Smith'
 ```
 
-如果可以进一步优化，它也将转换为简单的元组
+如果可以进一步优化，它还将被转换为简单的元组。
 
 ## 多态类型
 
