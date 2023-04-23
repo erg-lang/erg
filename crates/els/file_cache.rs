@@ -1,4 +1,4 @@
-use std::fs::{metadata, File, Metadata};
+use std::fs::File;
 use std::io::Read;
 
 use lsp_types::{
@@ -22,9 +22,7 @@ pub fn _get_code_from_uri(uri: &Url) -> ELSResult<String> {
     let path = uri
         .to_file_path()
         .or_else(|_| util::denormalize(uri.clone()).to_file_path())
-        .unwrap_or_else(|_| {
-            panic!("invalid file path: {uri}");
-        });
+        .map_err(|_| format!("invalid file path: {uri}"))?;
     let mut code = String::new();
     File::open(path.as_path())?.read_to_string(&mut code)?;
     Ok(code)
@@ -34,7 +32,6 @@ pub fn _get_code_from_uri(uri: &Url) -> ELSResult<String> {
 pub struct FileCacheEntry {
     pub code: String,
     pub ver: i32,
-    pub metadata: Metadata,
     pub token_stream: Option<TokenStream>,
 }
 
@@ -163,11 +160,6 @@ impl FileCache {
                 return;
             }
         }
-        let metadata = metadata(
-            uri.to_file_path()
-                .unwrap_or_else(|_| util::denormalize(uri.clone().raw()).to_file_path().unwrap()),
-        )
-        .unwrap();
         let token_stream = Lexer::from_str(code.clone()).lex().ok();
         let ver = ver.unwrap_or({
             if let Some(entry) = entry {
@@ -181,7 +173,6 @@ impl FileCache {
             FileCacheEntry {
                 code,
                 ver,
-                metadata,
                 token_stream,
             },
         );
@@ -191,7 +182,6 @@ impl FileCache {
         let Some(entry) = unsafe { self.files.as_mut() }.get_mut(uri) else {
             return;
         };
-        let metadata = metadata(uri.to_file_path().unwrap()).unwrap();
         let mut code = entry.code.clone();
         let start = util::pos_to_byte_index(&code, old.start);
         let end = util::pos_to_byte_index(&code, old.end);
@@ -199,7 +189,6 @@ impl FileCache {
         let token_stream = Lexer::from_str(code.clone()).lex().ok();
         entry.code = code;
         // entry.ver += 1;
-        entry.metadata = metadata;
         entry.token_stream = token_stream;
     }
 
@@ -212,7 +201,6 @@ impl FileCache {
             // crate::_log!("212: double update detected {}, {}, code:\n{}", entry.ver, params.text_document.version, entry.code);
             return;
         }
-        let metadata = metadata(uri.to_file_path().unwrap()).unwrap();
         let mut code = entry.code.clone();
         for change in params.content_changes {
             let range = change.range.unwrap();
@@ -223,7 +211,6 @@ impl FileCache {
         let token_stream = Lexer::from_str(code.clone()).lex().ok();
         entry.code = code;
         entry.ver = params.text_document.version;
-        entry.metadata = metadata;
         entry.token_stream = token_stream;
     }
 
