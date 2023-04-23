@@ -485,7 +485,10 @@ impl<Checker: BuildRunnable> Server<Checker> {
 
     pub(crate) fn get_checker(&self, path: PathBuf) -> Checker {
         if let Some(shared) = self.get_shared() {
-            Checker::inherit(self.cfg.inherit(path), shared.clone())
+            let shared = shared.clone();
+            shared.mod_cache.remove(&path);
+            shared.py_mod_cache.remove(&path);
+            Checker::inherit(self.cfg.inherit(path), shared)
         } else {
             Checker::new(self.cfg.inherit(path))
         }
