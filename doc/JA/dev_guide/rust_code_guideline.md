@@ -14,6 +14,7 @@
 * アクセス修飾子は必要最小限のものとする。公開する場合でも`pub(mod)`や`pub(crate)`を優先的に使用する。
 * for式でのiterableオブジェクトは明示的にイテレータに変換する(`for i in x`ではなく`for i in x.iter()`)。
 * 遅延評価。例えば、`default`がリテラル以外の場合は`unwrap_or`ではなく`unwrap_or_else`を使用する。
+* `debug_assert!`, `debug_assert_eq!`, `debug_power_assert!`等のアサーションを活用する。`debug_assert!(..., "{x} is not ...");`のようにエラーメッセージも指定する。
 
 ## 奨励されないコード
 

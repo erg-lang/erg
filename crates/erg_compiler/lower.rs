@@ -793,7 +793,10 @@ impl ASTLowerer {
                 VarInfo::ILLEGAL.clone()
             });
         if let (Some(guard), Some(return_t)) = (guard, vi.t.mut_return_t()) {
-            debug_assert!(self.module.context.subtype_of(return_t, &Type::Bool));
+            debug_assert!(
+                self.module.context.subtype_of(return_t, &Type::Bool),
+                "{return_t} is not a subtype of Bool"
+            );
             *return_t = guard;
         }
         let mut args = args.into_iter();
@@ -946,10 +949,13 @@ impl ASTLowerer {
             errs.extend(es);
         }
         if let Some(guard) = guard {
-            debug_assert!(self
-                .module
-                .context
-                .subtype_of(vi.t.return_t().unwrap(), &Type::Bool));
+            debug_assert!(
+                self.module
+                    .context
+                    .subtype_of(vi.t.return_t().unwrap(), &Type::Bool),
+                "{} is not a subtype of Bool",
+                vi.t.return_t().unwrap()
+            );
             if let Some(ret_t) = vi.t.mut_return_t() {
                 *ret_t = guard;
             }

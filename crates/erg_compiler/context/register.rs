@@ -652,7 +652,7 @@ impl Context {
         let name = &sig.ident.name;
         // FIXME: constでない関数
         let t = self.get_current_scope_var(name).map(|vi| &vi.t).unwrap();
-        debug_assert!(t.is_subr());
+        debug_assert!(t.is_subr(), "{t} is not subr");
         let empty = vec![];
         let non_default_params = t.non_default_params().unwrap_or(&empty);
         let var_args = t.var_params();

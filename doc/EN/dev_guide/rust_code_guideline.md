@@ -12,6 +12,7 @@
 * Keep access modifiers to a minimum. Prioritize using `pub(mod)` or `pub(crate)` even when publishing.
 * Convert an iterable object in a for expression explicitly to an iterator (`for i in x.iter()` instead of `for i in x`).
 * Lazy evaluation. For example, if `default` is non-literal, use `unwrap_or_else` instead of `unwrap_or`.
+* Use assertions such as `debug_assert!`, `debug_assert_eq!`, `debug_power_assert!`, etc. Specify error messages such as `debug_assert!(... , "{x} is not ...") ;`.
 
 ## Code not encouraged
 

@@ -1780,11 +1780,15 @@ impl Context {
             SubstituteResult::__Call__(__call__) => __call__,
             SubstituteResult::Coerced(coerced) => coerced,
         };
-        debug_assert!(!instance.is_quantified_subr());
+        debug_assert!(
+            !instance.is_quantified_subr(),
+            "{instance} is quantified subr"
+        );
         log!(info "Substituted:\ninstance: {instance}");
         let res = self
             .eval_t_params(instance, self.level, obj)
             .map_err(|(t, errs)| (Some(VarInfo { t, ..found.clone() }), errs))?;
+        debug_assert!(res.has_no_qvar(), "{res} has qvar");
         log!(info "Params evaluated:\nres: {res}\n");
         let res = VarInfo { t: res, ..found };
         Ok(res)

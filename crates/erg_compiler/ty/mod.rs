@@ -1604,7 +1604,7 @@ impl Type {
     }
 
     pub fn quantify(self) -> Self {
-        debug_assert!(self.is_subr());
+        debug_assert!(self.is_subr(), "{self} is not subr");
         Self::Quantified(Box::new(self))
     }
 
