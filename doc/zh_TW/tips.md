@@ -53,7 +53,7 @@ method 2:
 
 ```python
 arr = [...]
-for! arr.iter().zip(1..) , i =>
+for! arr.iter().zip(1...) , i =>
     ...
 ```
 

@@ -14,7 +14,6 @@
 * sample! ref! self, M: Nat -> [T; M]
 
   隨機選擇裏面的元素並返回副本
-
 * shuffle!(ref! self)
 
   打亂內容。

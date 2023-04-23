@@ -28,11 +28,11 @@ Erg 內部選項、幫助(幫助、版權、許可證等)和錯誤顯示為繁�
 
 ## pre-commit
 
-用於在預提交中運行測試。這是一個bug解決方案
+用于在預提交中運行測試。這是一個bug解決方案
 
 ## large_thread
 
-增加線程堆棧大小。用於Windows執行和測試執行
+增加線程堆棧大小。用于Windows執行和測試執行
 
 ## els
 
@@ -41,4 +41,4 @@ Erg 內部選項、幫助(幫助、版權、許可證等)和錯誤顯示為繁�
 
 ## py_compatible
 
-啟用Python兼容模式，使部分api和語法與Python兼容。用於[pylyzer](https://github.com/mtshiba/pylyzer)
+啟用Python兼容模式，使部分api和語法與Python兼容。用于[pylyzer](https://github.com/mtshiba/pylyzer)

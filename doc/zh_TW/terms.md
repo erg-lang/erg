@@ -125,7 +125,7 @@
 
 ### [Erg]
 
-靜態類型編程語言，於2022年發布，是本文檔的主題。開發人員通常將其發音為[`/ɝ' rug/`](https://translate.google.com/?sl=ja&tl=en&text=%E3%82%A8%E3%83%AB%E3%82%B0))。這個名字來源於CGS單位製中的能量單位。
+靜態類型編程語言，于2022年發布，是本文檔的主題。開發人員通常將其發音為[`/ɝ' rug/`](https://translate.google.com/?sl=ja&tl=en&text=%E3%82%A8%E3%83%AB%E3%82%B0))。這個名字來源于CGS單位制中的能量單位。
 它被設計為一種靜態類型的語言，可以利用Python的資產。它主要受Rust和Haskell的影響。
 
 ## F

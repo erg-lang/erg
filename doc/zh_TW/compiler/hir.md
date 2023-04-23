@@ -2,10 +2,9 @@
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/compiler/hir.md%26commit_hash%3D8673a0ce564fd282d0ca586642fa7f002e8a3c50)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/compiler/hir.md&commit_hash=8673a0ce564fd282d0ca586642fa7f002e8a3c50)
 
-HIR 是 Erg 編譯器從 AST 生成的結構
-此結構包含源代碼中每個表達式的完整類型信息，并且在語法上已脫糖
-AST與源代碼一一對應(純文本)，但是HIR去掉了不必要的代碼信息，添加了省略的類型信息，所以HIR可以轉換為源代碼很難恢復
-讓我們在下面的代碼中查看 HIR 的示例
+HIR 是 Erg 編譯器從 AST 生成的結構。
+此結構包含源代碼中每個表達式的完整類型信息，并且在語法上已脫糖。
+AST 與源代碼（作為純文本）具有一一對應的關系，但是 HIR 去除了不必要的代碼信息并添加了省略的類型信息，因此將 HIR 轉換回源代碼是困難的。讓我們看下面代碼中的 HIR 示例。
 
 ```python
 v = ![]
@@ -146,5 +145,4 @@ HIR(Module[
 ])
 ```
 
-對象類型被推斷為盡可能小。另一方面，子例程推斷實現存在的類型
-因此，實際參數的類型和形式參數的類型可能不匹配
+對象類型推斷盡可能地準確。另一方面，子程序會推斷存在實現的類型。因此，實際參數的類型和形式參數的類型可能不匹配。
