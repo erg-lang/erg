@@ -15,7 +15,6 @@ __server_socket.listen(1)
 __already_loaded = False
 __ctx = {'__importlib': __importlib}
 
-
 class INST:
     # Informs that it is not a supported instruction.
     UNKNOWN = 0x00
@@ -33,11 +32,8 @@ class INST:
 def __encode(instr, data=''):
     data_bytes = data.encode()
     data_len = len(data_bytes)
-    if data_len > 0:
-        # one byte for inst, two bytes for size(Optional), and n bytes for data(Optional)
-        return instr.to_bytes(1, 'big') + data_len.to_bytes(2, 'big') + data_bytes
-    return instr.to_bytes(1, 'big')
-
+    # one byte for inst, two bytes for size, and n bytes for data(Optional)
+    return instr.to_bytes(1, 'big') + data_len.to_bytes(2, 'big') + data_bytes
 
 while True:
     try:

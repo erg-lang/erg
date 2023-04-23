@@ -37,22 +37,9 @@ enum Inst {
     Unknown = 0x00,
 }
 
-impl Inst {
-    fn has_data(&self) -> bool {
-        match self {
-            Self::Print => true,
-            Self::Load => false,
-            Self::Exception => true,
-            Self::Initialize => true,
-            Self::Exit => false,
-            Self::Unknown => false,
-        }
-    }
-}
-
-impl Into<Inst> for u8 {
-    fn into(self) -> Inst {
-        match self {
+impl From<u8> for Inst {
+    fn from(v: u8) -> Inst {
+        match v {
             0x01 => Inst::Print,
             0x02 => Inst::Load,
             0x03 => Inst::Exception,
@@ -85,28 +72,20 @@ impl Message {
 #[derive(Debug)]
 struct MessageStream<T: Read + Write> {
     stream: T,
-    read_buf: Vec<u8>,
-    write_buf: Vec<u8>,
 }
 
 impl<T: Read + Write> MessageStream<T> {
     fn new(stream: T) -> Self {
-        Self {
-            stream,
-            read_buf: Vec::new(),
-            write_buf: Vec::new(),
-        }
+        Self { stream }
     }
 
     fn send_msg(&mut self, msg: &Message) -> Result<(), std::io::Error> {
-        self.write_buf.clear();
+        let mut write_buf = Vec::with_capacity(1024);
+        write_buf.extend((msg.inst as u8).to_be_bytes());
+        write_buf.extend((msg.size).to_be_bytes());
+        write_buf.extend_from_slice(&msg.data.clone().unwrap_or_default());
 
-        self.write_buf.extend((msg.inst as u8).to_be_bytes());
-        self.write_buf.extend((msg.size).to_be_bytes());
-        self.write_buf
-            .extend_from_slice(&msg.data.clone().unwrap_or_default());
-
-        self.stream.write_all(&self.write_buf)?;
+        self.stream.write_all(&write_buf)?;
 
         Ok(())
     }
@@ -118,15 +97,15 @@ impl<T: Read + Write> MessageStream<T> {
 
         let inst: Inst = u8::from_be_bytes(inst_buf).into();
 
-        if !inst.has_data() {
-            return Ok(Message::new(inst, None));
-        }
-
         // read size, 2 bytes
         let mut size_buf = [0; 2];
         self.stream.read_exact(&mut size_buf)?;
 
         let data_size = u16::from_be_bytes(size_buf) as usize;
+
+        if data_size == 0 {
+            return Ok(Message::new(inst, None));
+        }
 
         // read data
         let mut data_buf = vec![0; data_size];
@@ -134,6 +113,35 @@ impl<T: Read + Write> MessageStream<T> {
 
         Ok(Message::new(inst, Some(data_buf)))
     }
+}
+
+#[test]
+fn test_message() {
+    use std::collections::VecDeque;
+
+    let inner = Box::<VecDeque<u8>>::default();
+    let mut stream = MessageStream::new(inner);
+
+    // test send_msg
+    stream.send_msg(&Message::new(Inst::Load, None)).unwrap();
+    assert_eq!(
+        stream.stream.as_slices(),
+        (&[2, 0, 0, 0, 0, 0, 0, 0, 0][..], &[][..])
+    );
+
+    // test recv_msg
+    // data field, 'A' => hex is 0x41
+    stream.stream.push_front(0x41);
+    // size field
+    stream.stream.push_front(0x01);
+    stream.stream.push_front(0x00);
+    // inst field
+    stream.stream.push_front(0x01);
+
+    let msg = stream.recv_msg().unwrap();
+    assert_eq!(msg.inst, Inst::Print);
+    assert_eq!(msg.size, 1);
+    assert_eq!(std::str::from_utf8(&msg.data.unwrap()).unwrap(), "A");
 }
 
 fn find_available_port() -> u16 {
@@ -310,6 +318,9 @@ impl Runnable for DummyVM {
             Result::Ok(msg) => {
                 let s = match msg.inst {
                     Inst::Exception => {
+                        debug_assert!(
+                            std::str::from_utf8(msg.data.as_ref().unwrap()) == Ok("SystemExit")
+                        );
                         return Err(EvalErrors::from(EvalError::system_exit()));
                     }
                     Inst::Initialize => {
@@ -324,10 +335,10 @@ impl Runnable for DummyVM {
                     }
                 };
 
-                if s.is_err() {
-                    err_handle!("Failed to parse server response data, error: {:?}", s.err());
+                if let Ok(ss) = s {
+                    ss
                 } else {
-                    s.unwrap()
+                    err_handle!("Failed to parse server response data, error: {:?}", s.err());
                 }
             }
             Result::Err(err) => err_handle!("Recving error: {}", err),
