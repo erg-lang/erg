@@ -1,0 +1,5 @@
+d = {"a": 1}
+dict = !d
+
+dict.insert! "b", 2
+assert dict.get("a") == 1

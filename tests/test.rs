@@ -133,6 +133,11 @@ fn exec_mut_array() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_mut_dict() -> Result<(), ()> {
+    expect_success("tests/should_ok/mut_dict.er", 0)
+}
+
+#[test]
 fn exec_nested() -> Result<(), ()> {
     expect_success("tests/should_ok/nested.er", 3)
 }

@@ -1411,11 +1411,11 @@ impl Context {
 
     fn substitute_typaram(&self, qtp: TyParam, stp: TyParam) -> EvalResult<()> {
         match qtp {
-            TyParam::FreeVar(fv) if fv.is_generalized() => {
+            TyParam::FreeVar(ref fv) if fv.is_generalized() => {
                 if !stp.is_generalized() {
                     fv.undoable_link(&stp);
                 }
-                // REVIEW: need to sub_unify_tp?
+                self.sub_unify_tp(&stp, &qtp, None, &(), false)?;
                 Ok(())
             }
             TyParam::Type(gt) if gt.is_generalized() => {
