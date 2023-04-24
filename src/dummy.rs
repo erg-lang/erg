@@ -287,20 +287,15 @@ impl Runnable for DummyVM {
         let mut res = warns.to_string();
 
         macro_rules! err_handle {
-            () => {
-                {
-                    self.finish();
-                    process::exit(1);
-
-                }
-            };
-            ($hint:expr, $($args:expr),*) => {
-                {
-                    self.finish();
-                    eprintln!($hint, $($args)*);
-                    process::exit(1);
-                }
-            };
+            () => {{
+                self.finish();
+                process::exit(1);
+            }};
+            ($hint:expr $(,$args:expr),* $(,)?) => {{
+                self.finish();
+                eprintln!($hint, $($args)*);
+                process::exit(1);
+            }};
         }
 
         // Tell the REPL server to execute the code
@@ -310,7 +305,7 @@ impl Runnable for DummyVM {
             .unwrap()
             .send_msg(&Message::new(Inst::Load, None))
         {
-            err_handle!("Sending error: {}", err);
+            err_handle!("Sending error: {err}");
         };
 
         // receive data from server
@@ -328,10 +323,10 @@ impl Runnable for DummyVM {
                         String::from_utf8(msg.data.unwrap_or_default())
                     }
                     Inst::Print => String::from_utf8(msg.data.unwrap_or_default()),
-                    Inst::Exit => err_handle!("Recving inst {:?} from server", msg.inst),
+                    Inst::Exit => err_handle!("Receiving inst {:?} from server", msg.inst),
                     // `load` can only be sent from the client to the server
                     Inst::Load | Inst::Unknown => {
-                        err_handle!("Recving unexpected inst {:?} from server", msg.inst)
+                        err_handle!("Receiving unexpected inst {:?} from server", msg.inst)
                     }
                 };
 
@@ -341,7 +336,7 @@ impl Runnable for DummyVM {
                     err_handle!("Failed to parse server response data, error: {:?}", s.err());
                 }
             }
-            Result::Err(err) => err_handle!("Recving error: {}", err),
+            Result::Err(err) => err_handle!("Received an error: {err}"),
         };
 
         res.push_str(&data);
