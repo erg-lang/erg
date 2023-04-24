@@ -1710,54 +1710,49 @@ impl Type {
         }
     }
 
-    pub fn has_union_type(&self) -> bool {
+    pub fn union_size(&self) -> usize {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().has_union_type(),
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().union_size(),
             Self::FreeVar(fv) if fv.constraint_is_sandwiched() => {
                 let (sub, sup) = fv.get_subsup().unwrap();
                 fv.dummy_link();
-                let res = sub.has_union_type() || sup.has_union_type();
+                let res = sub.union_size().max(sup.union_size());
                 fv.undo();
                 res
             }
-            Self::Or(_, _) => true,
-            Self::Refinement(refine) => refine.t.has_union_type(),
-            Self::Ref(t) => t.has_union_type(),
-            Self::RefMut { before, after } => {
-                before.has_union_type()
-                    || after.as_ref().map(|t| t.has_union_type()).unwrap_or(false)
-            }
-            Self::And(lhs, rhs) => lhs.has_union_type() || rhs.has_union_type(),
-            Self::Not(ty) => ty.has_union_type(),
-            Self::Callable { param_ts, return_t } => {
-                param_ts.iter().any(|t| t.has_union_type()) || return_t.has_union_type()
-            }
-            Self::Subr(subr) => {
-                subr.non_default_params
-                    .iter()
-                    .any(|pt| pt.typ().has_union_type())
-                    || subr
-                        .var_params
-                        .as_ref()
-                        .map(|pt| pt.typ().has_union_type())
-                        .unwrap_or(false)
-                    || subr
-                        .default_params
-                        .iter()
-                        .any(|pt| pt.typ().has_union_type())
-                    || subr.return_t.has_union_type()
-            }
-            Self::Record(r) => r.values().any(|t| t.has_union_type()),
-            Self::Quantified(quant) => quant.has_union_type(),
-            Self::Poly { params, .. } => params.iter().any(|p| p.has_union_type()),
-            Self::Proj { lhs, .. } => lhs.has_union_type(),
-            Self::ProjCall { lhs, args, .. } => {
-                lhs.has_union_type() || args.iter().any(|t| t.has_union_type())
-            }
-            Self::Structural(ty) => ty.has_union_type(),
-            Self::Guard(guard) => guard.to.has_union_type(),
-            Self::Bounded { sub, sup } => sub.has_union_type() || sup.has_union_type(),
-            _ => false,
+            // Or(Or(Int, Str), Nat) == 3
+            Self::Or(l, r) => l.union_size() + r.union_size(),
+            Self::Refinement(refine) => refine.t.union_size(),
+            Self::Ref(t) => t.union_size(),
+            Self::RefMut { before, after: _ } => before.union_size(),
+            Self::And(lhs, rhs) => lhs.union_size().max(rhs.union_size()),
+            Self::Not(ty) => ty.union_size(),
+            Self::Callable { param_ts, return_t } => param_ts
+                .iter()
+                .map(|t| t.union_size())
+                .max()
+                .unwrap_or(1)
+                .max(return_t.union_size()),
+            Self::Subr(subr) => subr
+                .non_default_params
+                .iter()
+                .map(|pt| pt.typ().union_size())
+                .chain(subr.var_params.as_ref().map(|pt| pt.typ().union_size()))
+                .chain(subr.default_params.iter().map(|pt| pt.typ().union_size()))
+                .max()
+                .unwrap_or(1)
+                .max(subr.return_t.union_size()),
+            Self::Record(r) => r.values().map(|t| t.union_size()).max().unwrap_or(1),
+            Self::Quantified(quant) => quant.union_size(),
+            Self::Poly { params, .. } => params.iter().map(|p| p.union_size()).max().unwrap_or(1),
+            Self::Proj { lhs, .. } => lhs.union_size(),
+            Self::ProjCall { lhs, args, .. } => lhs
+                .union_size()
+                .max(args.iter().map(|t| t.union_size()).max().unwrap_or(1)),
+            Self::Structural(ty) => ty.union_size(),
+            Self::Guard(guard) => guard.to.union_size(),
+            Self::Bounded { sub, sup } => sub.union_size().max(sup.union_size()),
+            _ => 1,
         }
     }
 
@@ -2149,6 +2144,14 @@ impl Type {
         }
     }
 
+    /// assert!((A or B).contains_union(B))
+    pub fn contains_union(&self, typ: &Type) -> bool {
+        match self {
+            Type::Or(t1, t2) => t1.contains_union(typ) || t2.contains_union(typ),
+            _ => self == typ,
+        }
+    }
+
     pub fn intersection_types(&self) -> Vec<Type> {
         match self {
             Type::FreeVar(fv) if fv.is_linked() => fv.crack().intersection_types(),
@@ -2159,14 +2162,6 @@ impl Type {
                 types
             }
             _ => vec![self.clone()],
-        }
-    }
-
-    /// assert!((A or B).contains_union(B))
-    pub fn contains_union(&self, typ: &Type) -> bool {
-        match self {
-            Type::Or(t1, t2) => t1.contains_union(typ) || t2.contains_union(typ),
-            _ => self == typ,
         }
     }
 
@@ -2220,6 +2215,13 @@ impl Type {
         matches!(self, Self::FreeVar(fv) if fv.is_named_unbound() || (fv.is_linked() && fv.crack().is_named_unbound_var()))
     }
 
+    pub fn is_unnamed_unbound_var(&self) -> bool {
+        matches!(self, Self::FreeVar(fv) if fv.is_unnamed_unbound() || (fv.is_linked() && fv.crack().is_unnamed_unbound_var()))
+    }
+
+    /// ```erg
+    /// assert (?T or ?U).totally_unbound()
+    /// ```
     pub fn is_totally_unbound(&self) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_unbound() => true,

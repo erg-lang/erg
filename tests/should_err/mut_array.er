@@ -5,3 +5,8 @@ w = ![]
 w.push! "a"
 
 _ = v.concat w # ERR
+
+i_s = ![1 as (Int or Str)]
+i_s.push! "b"
+i_s.push! 2
+i_s.push! None # ERR

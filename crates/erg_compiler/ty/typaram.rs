@@ -1049,24 +1049,33 @@ impl TyParam {
         !self.has_unbound_var()
     }
 
-    pub fn has_union_type(&self) -> bool {
+    pub fn union_size(&self) -> usize {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().has_union_type(),
-            Self::Type(t) => t.has_union_type(),
-            Self::Proj { obj, .. } => obj.has_union_type(),
-            Self::Array(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.has_union_type()),
-            Self::Set(ts) => ts.iter().any(|t| t.has_union_type()),
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().union_size(),
+            Self::Type(t) => t.union_size(),
+            Self::Proj { obj, .. } => obj.union_size(),
+            Self::Array(ts) | Self::Tuple(ts) => {
+                ts.iter().map(|t| t.union_size()).max().unwrap_or(1)
+            }
+            Self::Set(ts) => ts.iter().map(|t| t.union_size()).max().unwrap_or(1),
             Self::Dict(kv) => kv
                 .iter()
-                .any(|(k, v)| k.has_union_type() || v.has_union_type()),
-            Self::Record(rec) => rec.iter().any(|(_, v)| v.has_union_type()),
-            Self::Lambda(lambda) => lambda.body.iter().any(|t| t.has_union_type()),
-            Self::UnaryOp { val, .. } => val.has_union_type(),
-            Self::BinOp { lhs, rhs, .. } => lhs.has_union_type() || rhs.has_union_type(),
-            Self::App { args, .. } => args.iter().any(|p| p.has_union_type()),
-            Self::Erased(t) => t.has_union_type(),
-            Self::Value(ValueObj::Type(t)) => t.typ().has_union_type(),
-            _ => false,
+                .map(|(k, v)| k.union_size().max(v.union_size()))
+                .max()
+                .unwrap_or(1),
+            Self::Record(rec) => rec.iter().map(|(_, v)| v.union_size()).max().unwrap_or(1),
+            Self::Lambda(lambda) => lambda
+                .body
+                .iter()
+                .map(|t| t.union_size())
+                .max()
+                .unwrap_or(1),
+            Self::UnaryOp { val, .. } => val.union_size(),
+            Self::BinOp { lhs, rhs, .. } => lhs.union_size().max(rhs.union_size()),
+            Self::App { args, .. } => args.iter().map(|p| p.union_size()).max().unwrap_or(1),
+            Self::Erased(t) => t.union_size(),
+            Self::Value(ValueObj::Type(t)) => t.typ().union_size(),
+            _ => 1,
         }
     }
 

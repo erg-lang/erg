@@ -1235,15 +1235,14 @@ impl Context {
     /// ```erg
     /// squash_tyvar(?1 or ?2) == ?1(== ?2)
     /// squash_tyvar(?T or ?U) == ?T or ?U
+    /// squash_tyvar(?T or NoneType) == ?T or Nonetype
     /// ```
     pub(crate) fn squash_tyvar(&self, typ: Type) -> Type {
         match typ {
             Type::Or(l, r) => {
                 let l = self.squash_tyvar(*l);
                 let r = self.squash_tyvar(*r);
-                if l.is_named_unbound_var() && r.is_named_unbound_var() {
-                    self.union(&l, &r)
-                } else {
+                if l.is_unnamed_unbound_var() && r.is_unnamed_unbound_var() {
                     match (self.subtype_of(&l, &r), self.subtype_of(&r, &l)) {
                         (true, true) | (true, false) => {
                             let _ = self.sub_unify(&l, &r, &(), None);
@@ -1253,8 +1252,8 @@ impl Context {
                         }
                         _ => {}
                     }
-                    self.union(&l, &r)
                 }
+                self.union(&l, &r)
             }
             other => other,
         }

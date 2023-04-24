@@ -344,7 +344,7 @@ fn exec_mut_err() -> Result<(), ()> {
 
 #[test]
 fn exec_mut_array_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/mut_array.er", 0, 1)
+    expect_failure("tests/should_err/mut_array.er", 0, 2)
 }
 
 #[test]

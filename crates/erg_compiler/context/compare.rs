@@ -5,11 +5,11 @@ use erg_common::dict::Dict;
 use erg_common::error::MultiErrorDisplay;
 use erg_common::style::colors::DEBUG_ERROR;
 use erg_common::traits::StructuralEq;
-use erg_common::Str;
 use erg_common::{assume_unreachable, log};
+use erg_common::{Str, Triple};
 
 use crate::ty::constructors::{and, bounded, not, or, poly};
-use crate::ty::free::{Constraint, FreeKind};
+use crate::ty::free::{Constraint, FreeKind, FreeTyVar};
 use crate::ty::typaram::{OpKind, TyParam, TyParamOrdering};
 use crate::ty::value::ValueObj;
 use crate::ty::value::ValueObj::Inf;
@@ -985,10 +985,21 @@ impl Context {
                     sub: sub2,
                     sup: sup2,
                 },
-            ) => match (self.max(sub, sub2), self.min(sup, sup2)) {
+            ) => match (self.max(sub, sub2).either(), self.min(sup, sup2).either()) {
                 (Some(sub), Some(sup)) => bounded(sub.clone(), sup.clone()),
                 _ => self.simple_union(lhs, rhs),
             },
+            (other, or @ Or(l, r)) | (or @ Or(l, r), other) => {
+                if &self.union(other, l) == l.as_ref() || &self.union(other, r) == r.as_ref() {
+                    or.clone()
+                } else if &self.union(other, l) == other {
+                    self.union(other, r)
+                } else if &self.union(other, r) == other {
+                    self.union(other, l)
+                } else {
+                    self.simple_union(lhs, rhs)
+                }
+            }
             (t, Type::Never) | (Type::Never, t) => t.clone(),
             // Array({1, 2}, 2), Array({3, 4}, 2) ==> Array({1, 2, 3, 4}, 2)
             (
@@ -1049,12 +1060,31 @@ impl Context {
         }
     }
 
+    /// ```erg
+    /// simple_union(?T, ?U) == ?T or ?U
+    /// union(Set!(?T(<: Int), 3), Set(?U(<: Nat), 3)) == Set(?T, 3)
+    /// simple_union(?T(<: Int), Int) == Int or ?T
+    /// simple_union(?T(:> Int), Int) == ?T
+    /// ```
     fn simple_union(&self, lhs: &Type, rhs: &Type) -> Type {
-        // `?T or ?U` will not be unified
-        // `Set!(?T(<: Int), 3) or Set(?U(<: Nat), 3)` wii be unified to Set(?T, 3)
-        if lhs.is_unbound_var() || rhs.is_unbound_var() {
-            or(lhs.clone(), rhs.clone())
+        if let Ok(free) = <&FreeTyVar>::try_from(lhs) {
+            if !rhs.is_totally_unbound() && self.supertype_of(&free.get_sub().unwrap_or(Never), rhs)
+            {
+                lhs.clone()
+            } else {
+                or(lhs.clone(), rhs.clone())
+            }
+        } else if let Ok(free) = <&FreeTyVar>::try_from(rhs) {
+            if !lhs.is_totally_unbound() && self.supertype_of(&free.get_sub().unwrap_or(Never), lhs)
+            {
+                rhs.clone()
+            } else {
+                or(lhs.clone(), rhs.clone())
+            }
         } else {
+            if lhs.is_totally_unbound() || rhs.is_totally_unbound() {
+                return or(lhs.clone(), rhs.clone());
+            }
             match (self.supertype_of(lhs, rhs), self.subtype_of(lhs, rhs)) {
                 (true, true) => lhs.clone(),  // lhs = rhs
                 (true, false) => lhs.clone(), // lhs :> rhs
@@ -1388,29 +1418,29 @@ impl Context {
     /// Return None if they are not related
     /// lhsとrhsが包含関係にあるとき小さいほうを返す
     /// 関係なければNoneを返す
-    pub(crate) fn min<'t>(&self, lhs: &'t Type, rhs: &'t Type) -> Option<&'t Type> {
+    pub(crate) fn min<'t>(&self, lhs: &'t Type, rhs: &'t Type) -> Triple<&'t Type, &'t Type> {
         // If they are the same, either one can be returned.
         match (self.supertype_of(lhs, rhs), self.subtype_of(lhs, rhs)) {
-            (true, true) | (true, false) => Some(rhs),
-            (false, true) => Some(lhs),
-            (false, false) => None,
+            (true, true) | (true, false) => Triple::Err(rhs),
+            (false, true) => Triple::Ok(lhs),
+            (false, false) => Triple::None,
         }
     }
 
-    pub(crate) fn max<'t>(&self, lhs: &'t Type, rhs: &'t Type) -> Option<&'t Type> {
+    pub(crate) fn max<'t>(&self, lhs: &'t Type, rhs: &'t Type) -> Triple<&'t Type, &'t Type> {
         // If they are the same, either one can be returned.
         match (self.supertype_of(lhs, rhs), self.subtype_of(lhs, rhs)) {
-            (true, true) | (true, false) => Some(lhs),
-            (false, true) => Some(rhs),
-            (false, false) => None,
+            (true, true) | (true, false) => Triple::Ok(lhs),
+            (false, true) => Triple::Err(rhs),
+            (false, false) => Triple::None,
         }
     }
 
     pub(crate) fn cmp_t<'t>(&self, lhs: &'t Type, rhs: &'t Type) -> TyParamOrdering {
         match self.min(lhs, rhs) {
-            Some(l) if l == lhs => TyParamOrdering::Less,
-            Some(_) => TyParamOrdering::Greater,
-            None => TyParamOrdering::NoRelation,
+            Triple::Ok(_) => TyParamOrdering::Less,
+            Triple::Err(_) => TyParamOrdering::Greater,
+            Triple::None => TyParamOrdering::NoRelation,
         }
     }
 }

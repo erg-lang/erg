@@ -73,6 +73,15 @@ impl<T, E> Triple<T, E> {
     }
 }
 
+impl<T> Triple<T, T> {
+    pub fn either(self) -> Option<T> {
+        match self {
+            Triple::None => None,
+            Triple::Ok(a) | Triple::Err(a) => Some(a),
+        }
+    }
+}
+
 impl<T, E: std::error::Error> Triple<T, E> {
     #[track_caller]
     pub fn unwrap(self) -> T {

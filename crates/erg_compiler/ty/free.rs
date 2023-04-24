@@ -467,6 +467,10 @@ impl<T> FreeKind<T> {
         matches!(self, Self::NamedUnbound { .. })
     }
 
+    pub const fn is_unnamed_unbound(&self) -> bool {
+        matches!(self, Self::Unbound { .. })
+    }
+
     pub const fn is_undoable_linked(&self) -> bool {
         matches!(self, Self::UndoableLinked { .. })
     }
@@ -770,6 +774,10 @@ impl<T> Free<T> {
 
     pub fn is_named_unbound(&self) -> bool {
         self.borrow().is_named_unbound()
+    }
+
+    pub fn is_unnamed_unbound(&self) -> bool {
+        self.borrow().is_unnamed_unbound()
     }
 
     pub fn unsafe_crack(&self) -> &T {

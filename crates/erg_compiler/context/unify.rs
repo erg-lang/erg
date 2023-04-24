@@ -23,14 +23,17 @@ use Type::*;
 use ValueObj::{Inf, NegInf};
 
 impl Context {
+    /// ```erg
     /// occur(?T, ?T) ==> OK
     /// occur(X -> ?T, ?T) ==> Error
     /// occur(X -> ?T, X -> ?T) ==> OK
     /// occur(?T, ?T -> X) ==> Error
     /// occur(?T, Option(?T)) ==> Error
     /// occur(?T or ?U, ?T) ==> OK
+    /// occur(?T or Int, Int or ?T) ==> OK
     /// occur(?T(<: Str) or ?U(<: Int), ?T(<: Str)) ==> Error
     /// occur(?T, ?T.Output) ==> OK
+    /// ```
     pub(crate) fn occur(
         &self,
         maybe_sub: &Type,
@@ -118,10 +121,10 @@ impl Context {
                 }
                 Ok(())
             }
-            (Or(l, r), Or(l2, r2)) | (And(l, r), And(l2, r2)) => {
-                self.occur(l, l2, loc)?;
-                self.occur(r, r2, loc)
-            }
+            (Or(l, r), Or(l2, r2)) | (And(l, r), And(l2, r2)) => self
+                .occur(l, l2, loc)
+                .and(self.occur(r, r2, loc))
+                .or(self.occur(l, r2, loc).and(self.occur(r, l2, loc))),
             (lhs, Or(l, r)) | (lhs, And(l, r)) => {
                 self.occur_inner(lhs, l, loc)?;
                 self.occur_inner(lhs, r, loc)
@@ -602,7 +605,10 @@ impl Context {
         if maybe_sub == &Type::Failure || maybe_sup == &Type::Failure {
             return Ok(());
         }
-        self.occur(maybe_sub, maybe_sup, loc)?;
+        self.occur(maybe_sub, maybe_sup, loc).map_err(|err| {
+            log!(err "occur error: {maybe_sub} / {maybe_sup}");
+            err
+        })?;
         let maybe_sub_is_sub = self.subtype_of(maybe_sub, maybe_sup);
         if !maybe_sub_is_sub {
             log!(err "{maybe_sub} !<: {maybe_sup}");
@@ -668,26 +674,7 @@ impl Context {
                 }
                 sup_fv.undo();
                 let intersec = self.intersection(&lsup, &rsup);
-                let new_constraint = if intersec != Type::Never {
-                    let union = self.union(&lsub, &rsub);
-                    if !lsub.has_union_type() && !rsub.has_union_type() && union.has_union_type() {
-                        let (l, r) = union.union_pair().unwrap_or((lsub, rsub));
-                        let unified = self.unify(&l, &r);
-                        if unified.is_none() {
-                            return Err(TyCheckErrors::from(
-                                TyCheckError::implicit_widening_error(
-                                    self.cfg.input.clone(),
-                                    line!() as usize,
-                                    loc.loc(),
-                                    self.caused_by(),
-                                    maybe_sub,
-                                    maybe_sup,
-                                ),
-                            ));
-                        }
-                    }
-                    Constraint::new_sandwiched(union, intersec)
-                } else {
+                if intersec == Type::Never {
                     return Err(TyCheckErrors::from(TyCheckError::subtyping_error(
                         self.cfg.input.clone(),
                         line!() as usize,
@@ -696,7 +683,23 @@ impl Context {
                         loc.loc(),
                         self.caused_by(),
                     )));
-                };
+                }
+                let union = self.union(&lsub, &rsub);
+                if lsub.union_size().max(rsub.union_size()) < union.union_size() {
+                    let (l, r) = union.union_pair().unwrap_or((lsub, rsub));
+                    let unified = self.unify(&l, &r);
+                    if unified.is_none() {
+                        return Err(TyCheckErrors::from(TyCheckError::implicit_widening_error(
+                            self.cfg.input.clone(),
+                            line!() as usize,
+                            loc.loc(),
+                            self.caused_by(),
+                            maybe_sub,
+                            maybe_sup,
+                        )));
+                    }
+                }
+                let new_constraint = Constraint::new_sandwiched(union, intersec);
                 match sub_fv
                     .level()
                     .unwrap_or(GENERIC_LEVEL)
@@ -723,6 +726,26 @@ impl Context {
                 }
                 Ok(())
             }
+            // (Int or ?T) <: (?U or Int)
+            // OK: (Int <: Int); (?T <: ?U)
+            // NG: (Int <: ?U); (?T <: Int)
+            (Or(l1, r1), Or(l2, r2)) | (And(l1, r1), And(l2, r2)) => {
+                if self.subtype_of(l1, l2) && self.subtype_of(r1, r2) {
+                    let (l_sup, r_sup) = if self.subtype_of(l1, r2)
+                        && !l1.is_unbound_var()
+                        && !r2.is_unbound_var()
+                    {
+                        (r2, l2)
+                    } else {
+                        (l2, r2)
+                    };
+                    self.sub_unify(l1, l_sup, loc, param_name)?;
+                    self.sub_unify(r1, r_sup, loc, param_name)
+                } else {
+                    self.sub_unify(l1, r2, loc, param_name)?;
+                    self.sub_unify(r1, l2, loc, param_name)
+                }
+            }
             // NG: Nat <: ?T or Int ==> Nat or Int (?T = Nat)
             // OK: Nat <: ?T or Int ==> ?T or Int
             (sub, Or(l, r))
@@ -747,6 +770,7 @@ impl Context {
             {
                 Ok(())
             }
+            (_, FreeVar(sup_fv)) if sup_fv.is_generalized() => Ok(()),
             (_, FreeVar(sup_fv)) if sup_fv.is_unbound() => {
                 // * sub_unify(Nat, ?E(<: Eq(?E)))
                 // sub !<: l => OK (sub will widen)
@@ -770,9 +794,8 @@ impl Context {
                     // Expanding to an Or-type is prohibited by default
                     // This increases the quality of error reporting
                     // (Try commenting out this part and run tests/should_err/subtyping.er to see the error report changes on lines 29-30)
-                    if !maybe_sub.has_union_type()
-                        && !sub.has_union_type()
-                        && new_sub.has_union_type()
+                    if maybe_sub.union_size().max(sub.union_size()) < new_sub.union_size()
+                        && new_sub.union_types().iter().any(|t| !t.is_unbound_var())
                     {
                         let (l, r) = new_sub.union_pair().unwrap_or((maybe_sub.clone(), sub));
                         let unified = self.unify(&l, &r);
@@ -825,6 +848,7 @@ impl Context {
             (FreeVar(sub_fv), Ref(sup)) if sub_fv.is_unbound() => {
                 self.sub_unify(maybe_sub, sup, loc, param_name)
             }
+            (FreeVar(sub_fv), _) if sub_fv.is_generalized() => Ok(()),
             (FreeVar(sub_fv), _) if sub_fv.is_unbound() => {
                 // sub !<: r => Error
                 // * sub_unify(?T(:> Int,   <: _), Nat): (/* Error */)
@@ -844,7 +868,7 @@ impl Context {
                         return Ok(());
                     }
                     let sub = mem::take(&mut sub);
-                    let new_sup = if let Some(new_sup) = self.min(&sup, maybe_sup) {
+                    let new_sup = if let Some(new_sup) = self.min(&sup, maybe_sup).either() {
                         new_sup.clone()
                     } else {
                         self.intersection(&sup, maybe_sup)
@@ -1050,15 +1074,6 @@ impl Context {
                 }
                 Ok(())
             }
-            (Or(l1, r1), Or(l2, r2)) | (Type::And(l1, r1), Type::And(l2, r2)) => {
-                if self.subtype_of(l1, l2) && self.subtype_of(r1, r2) {
-                    self.sub_unify(l1, l2, loc, param_name)?;
-                    self.sub_unify(r1, r2, loc, param_name)
-                } else {
-                    self.sub_unify(l1, r2, loc, param_name)?;
-                    self.sub_unify(r1, l2, loc, param_name)
-                }
-            }
             // (X or Y) <: Z is valid when X <: Z and Y <: Z
             (Or(l, r), _) => {
                 self.sub_unify(l, maybe_sup, loc, param_name)?;
@@ -1070,14 +1085,22 @@ impl Context {
                 self.sub_unify(maybe_sub, r, loc, param_name)
             }
             // (X and Y) <: Z is valid when X <: Z or Y <: Z
-            (And(l, r), _) => self
-                .sub_unify(l, maybe_sup, loc, param_name)
-                .or_else(|_e| self.sub_unify(r, maybe_sup, loc, param_name)),
+            (And(l, r), _) => {
+                if self.subtype_of(l, maybe_sup) {
+                    self.sub_unify(l, maybe_sup, loc, param_name)
+                } else {
+                    self.sub_unify(r, maybe_sup, loc, param_name)
+                }
+            }
             // X <: (Y or Z) is valid when X <: Y or X <: Z
-            (_, Or(l, r)) => self
-                .sub_unify(maybe_sub, l, loc, param_name)
-                .or_else(|_e| self.sub_unify(maybe_sub, r, loc, param_name)),
-            (Ref(l), Ref(r)) => self.sub_unify(l, r, loc, param_name),
+            (_, Or(l, r)) => {
+                if self.subtype_of(maybe_sub, l) {
+                    self.sub_unify(maybe_sub, l, loc, param_name)
+                } else {
+                    self.sub_unify(maybe_sub, r, loc, param_name)
+                }
+            }
+            (Ref(sub), Ref(sup)) => self.sub_unify(sub, sup, loc, param_name),
             (_, Ref(t)) => self.sub_unify(maybe_sub, t, loc, param_name),
             (RefMut { before: l, .. }, RefMut { before: r, .. }) => {
                 self.sub_unify(l, r, loc, param_name)
@@ -1212,7 +1235,7 @@ impl Context {
                 if self.supertype_of(&r_sup, &Obj) {
                     continue;
                 }
-                if let Some(t) = self.max(&l_sup, &r_sup) {
+                if let Some(t) = self.max(&l_sup, &r_sup).either() {
                     return Some(t.clone());
                 }
             }
