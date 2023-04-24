@@ -772,22 +772,20 @@ impl Context {
         if lp == rp {
             return true;
         }
-        match (lp, rp, variance) {
-            (TyParam::FreeVar(fv), _, _) if fv.is_linked() => {
+        match (lp, rp) {
+            (TyParam::FreeVar(fv), _) if fv.is_linked() => {
                 self.supertype_of_tp(&fv.crack(), rp, variance)
             }
-            (_, TyParam::FreeVar(fv), _) if fv.is_linked() => {
+            (_, TyParam::FreeVar(fv)) if fv.is_linked() => {
                 self.supertype_of_tp(lp, &fv.crack(), variance)
             }
             // _: Type :> T == true
-            (TyParam::Erased(t), TyParam::Type(_), _)
-            | (TyParam::Type(_), TyParam::Erased(t), _)
+            (TyParam::Erased(t), TyParam::Type(_)) | (TyParam::Type(_), TyParam::Erased(t))
                 if t.as_ref() == &Type =>
             {
                 true
             }
-            (TyParam::Array(lp), TyParam::Array(rp), _)
-            | (TyParam::Tuple(lp), TyParam::Tuple(rp), _) => {
+            (TyParam::Array(lp), TyParam::Array(rp)) | (TyParam::Tuple(lp), TyParam::Tuple(rp)) => {
                 for (l, r) in lp.iter().zip(rp.iter()) {
                     if !self.supertype_of_tp(l, r, variance) {
                         return false;
@@ -796,7 +794,7 @@ impl Context {
                 true
             }
             // {Int: Str} :> {Int: Str, Bool: Int}
-            (TyParam::Dict(ld), TyParam::Dict(rd), _) => {
+            (TyParam::Dict(ld), TyParam::Dict(rd)) => {
                 if ld.len() > rd.len() {
                     return false;
                 }
@@ -811,10 +809,29 @@ impl Context {
                 }
                 true
             }
-            (TyParam::Type(l), TyParam::Type(r), Variance::Contravariant) => self.subtype_of(l, r),
-            (TyParam::Type(l), TyParam::Type(r), Variance::Covariant) => self.supertype_of(l, r),
-            (TyParam::Type(l), TyParam::Type(r), Variance::Invariant) => self.same_type_of(l, r),
-            (TyParam::FreeVar(fv), _, _) if fv.is_unbound() => {
+            (TyParam::Type(l), TyParam::Type(r)) => match variance {
+                Variance::Contravariant => self.subtype_of(l, r),
+                Variance::Covariant => self.supertype_of(l, r),
+                Variance::Invariant => self.same_type_of(l, r),
+            },
+            (TyParam::Type(l), TyParam::Value(ValueObj::Type(r))) => match variance {
+                Variance::Contravariant => self.subtype_of(l, r.typ()),
+                Variance::Covariant => self.supertype_of(l, r.typ()),
+                Variance::Invariant => self.same_type_of(l, r.typ()),
+            },
+            (TyParam::Value(ValueObj::Type(l)), TyParam::Type(r)) => match variance {
+                Variance::Contravariant => self.subtype_of(l.typ(), r),
+                Variance::Covariant => self.supertype_of(l.typ(), r),
+                Variance::Invariant => self.same_type_of(l.typ(), r),
+            },
+            (TyParam::Value(ValueObj::Type(l)), TyParam::Value(ValueObj::Type(r))) => {
+                match variance {
+                    Variance::Contravariant => self.subtype_of(l.typ(), r.typ()),
+                    Variance::Covariant => self.supertype_of(l.typ(), r.typ()),
+                    Variance::Invariant => self.same_type_of(l.typ(), r.typ()),
+                }
+            }
+            (TyParam::FreeVar(fv), _) if fv.is_unbound() => {
                 let Some(fv_t) = fv.get_type() else {
                     return false;
                 };
