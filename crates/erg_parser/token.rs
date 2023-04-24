@@ -445,6 +445,15 @@ impl Token {
         }
     }
 
+    pub fn symbol_with_loc<S: Into<Str>>(cont: S, loc: Location) -> Self {
+        Token {
+            kind: TokenKind::Symbol,
+            content: cont.into(),
+            lineno: loc.ln_begin().unwrap_or(0),
+            col_begin: loc.col_begin().unwrap_or(0),
+        }
+    }
+
     pub const fn static_symbol(s: &'static str) -> Self {
         Token {
             kind: TokenKind::Symbol,

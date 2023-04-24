@@ -589,10 +589,24 @@ impl Context {
         self.register_builtin_erg_impl(OP_LE, op_t.clone(), Const, Visibility::BUILTIN_PRIVATE);
         self.register_builtin_erg_impl(OP_GT, op_t.clone(), Const, Visibility::BUILTIN_PRIVATE);
         self.register_builtin_erg_impl(OP_GE, op_t, Const, Visibility::BUILTIN_PRIVATE);
-        let BT = mono_q(TY_BT, subtypeof(or(Bool, Type)));
-        let op_t = bin_op(BT.clone(), BT.clone(), BT).quantify();
-        self.register_builtin_erg_impl(OP_AND, op_t.clone(), Const, Visibility::BUILTIN_PRIVATE);
-        self.register_builtin_erg_impl(OP_OR, op_t, Const, Visibility::BUILTIN_PRIVATE);
+        let T = type_q(TY_T);
+        let U = type_q(TY_U);
+        let or_t = bin_op(Bool, Bool, Bool)
+            & bin_op(
+                tp_enum(Type, set! { ty_tp(T.clone()) }),
+                tp_enum(Type, set! { ty_tp(U.clone()) }),
+                tp_enum(Type, set! { ty_tp(T.clone() | U.clone()) }),
+            )
+            .quantify();
+        self.register_builtin_erg_impl(OP_OR, or_t, Const, Visibility::BUILTIN_PRIVATE);
+        let and_t = bin_op(Bool, Bool, Bool)
+            & bin_op(
+                tp_enum(Type, set! { ty_tp(T.clone()) }),
+                tp_enum(Type, set! { ty_tp(U.clone()) }),
+                tp_enum(Type, set! { ty_tp(T & U) }),
+            )
+            .quantify();
+        self.register_builtin_erg_impl(OP_AND, and_t, Const, Visibility::BUILTIN_PRIVATE);
         let op_t = bin_op(O.clone(), O.clone(), range(O)).quantify();
         self.register_builtin_erg_decl(OP_RNG, op_t.clone(), Visibility::BUILTIN_PRIVATE);
         self.register_builtin_erg_decl(OP_LORNG, op_t.clone(), Visibility::BUILTIN_PRIVATE);

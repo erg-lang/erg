@@ -24,5 +24,5 @@
 result
 
 # Erg
-test.er
-test.py
+test*.er
+test*.py

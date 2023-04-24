@@ -394,7 +394,6 @@ const PYCOMPILE: &str = "pycompile";
 
 const TY_A: &str = "A";
 const TY_B: &str = "B";
-const TY_BT: &str = "BT";
 const TY_D: &str = "D";
 const TY_E: &str = "E";
 const TY_T: &str = "T";

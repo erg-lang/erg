@@ -2149,6 +2149,19 @@ impl Type {
         }
     }
 
+    pub fn intersection_types(&self) -> Vec<Type> {
+        match self {
+            Type::FreeVar(fv) if fv.is_linked() => fv.crack().intersection_types(),
+            Type::Refinement(refine) => refine.t.intersection_types(),
+            Type::And(t1, t2) => {
+                let mut types = t1.intersection_types();
+                types.extend(t2.intersection_types());
+                types
+            }
+            _ => vec![self.clone()],
+        }
+    }
+
     /// assert!((A or B).contains_union(B))
     pub fn contains_union(&self, typ: &Type) -> bool {
         match self {

@@ -786,12 +786,58 @@ impl Context {
             });
         }
         if let Some(attr_name) = attr_name.as_ref() {
-            self.search_method_info(obj, attr_name, pos_args, kw_args, input, namespace)
+            let mut vi =
+                self.search_method_info(obj, attr_name, pos_args, kw_args, input, namespace)?;
+            vi.t = self.resolve_overload(vi.t, pos_args, kw_args, attr_name)?;
+            Ok(vi)
         } else {
+            let t = self.resolve_overload(obj.t(), pos_args, kw_args, obj)?;
             Ok(VarInfo {
-                t: obj.t(),
+                t,
                 ..VarInfo::default()
             })
+        }
+    }
+
+    fn resolve_overload(
+        &self,
+        instance: Type,
+        pos_args: &[hir::PosArg],
+        kw_args: &[hir::KwArg],
+        loc: &impl Locational,
+    ) -> SingleTyCheckResult<Type> {
+        let intersecs = instance.intersection_types();
+        if intersecs.len() == 1 {
+            Ok(instance)
+        } else {
+            let input_t = subr_t(
+                SubrKind::Proc,
+                pos_args
+                    .iter()
+                    .map(|pos| ParamTy::Pos(pos.expr.t()))
+                    .collect(),
+                None,
+                kw_args
+                    .iter()
+                    .map(|kw| ParamTy::kw(kw.keyword.content.clone(), kw.expr.t()))
+                    .collect(),
+                Obj,
+            );
+            for ty in intersecs.iter() {
+                if self.subtype_of(ty, &input_t) {
+                    return Ok(ty.clone());
+                }
+            }
+            let Type::Subr(subr_t) = input_t else { unreachable!() };
+            Err(TyCheckError::overload_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                loc.loc(),
+                self.caused_by(),
+                subr_t.non_default_params,
+                subr_t.default_params,
+                intersecs,
+            ))
         }
     }
 
@@ -1038,9 +1084,9 @@ impl Context {
         namespace: &Context,
     ) -> TyCheckResult<VarInfo> {
         erg_common::debug_power_assert!(args.len() == 2);
-        let cont = binop_to_dname(op.inspect());
+        let cont = Str::rc(binop_to_dname(op.inspect()));
         // not a `Token::from_str(op.kind, cont)` because ops are defined as symbols
-        let symbol = Token::symbol(cont);
+        let symbol = Token::symbol_with_loc(cont, Location::concat(&args[0], &args[1]));
         let ident = Identifier::private_from_token(symbol.clone());
         let t = self
             .rec_get_var_info(&ident, AccessKind::Name, input, namespace)

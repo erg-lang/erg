@@ -924,6 +924,10 @@ pub trait ErrorDisplay {
         for sub_msg in &core.sub_messages {
             msg += &sub_msg.format_code_and_pointer(self, color, gutter_color, mark, chars);
         }
+        if core.sub_messages.is_empty() {
+            let sub_msg = SubMessage::ambiguous_new(self.core().loc, vec![], None);
+            msg += &sub_msg.format_code_and_pointer(self, color, gutter_color, mark, chars);
+        }
         msg += &core.kind.to_string();
         msg += ": ";
         msg += &core.main_message;
