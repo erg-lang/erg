@@ -58,14 +58,28 @@ impl From<u8> for Inst {
 #[derive(Debug, Clone)]
 struct Message {
     inst: Inst,
-    size: usize,
+    size: u16,
     data: Option<Vec<u8>>,
 }
 
 impl Message {
     fn new(inst: Inst, data: Option<Vec<u8>>) -> Self {
-        let size = if let Some(d) = &data { d.len() } else { 0 };
+        let size = if let Some(d) = &data {
+            if d.len() > usize::from(u16::MAX) {
+                eprintln!("Warning: length truncated to 65535");
+                u16::MAX
+            } else {
+                d.len() as u16
+            }
+        } else {
+            0
+        };
         Self { inst, size, data }
+    }
+
+    #[allow(unused)]
+    fn len(&self) -> usize {
+        self.size as usize
     }
 }
 
@@ -122,11 +136,16 @@ fn test_message() {
     let inner = Box::<VecDeque<u8>>::default();
     let mut stream = MessageStream::new(inner);
 
-    // test send_msg
-    stream.send_msg(&Message::new(Inst::Load, None)).unwrap();
+    // test send_msg with data
+    stream
+        .send_msg(&Message::new(
+            Inst::Print,
+            Some("hello".chars().map(|c| c as u8).collect()),
+        ))
+        .unwrap();
     assert_eq!(
         stream.stream.as_slices(),
-        (&[2, 0, 0, 0, 0, 0, 0, 0, 0][..], &[][..])
+        (&[1, 0, 5, 104, 101, 108, 108, 111][..], &[][..])
     );
 
     // test recv_msg
@@ -140,7 +159,7 @@ fn test_message() {
 
     let msg = stream.recv_msg().unwrap();
     assert_eq!(msg.inst, Inst::Print);
-    assert_eq!(msg.size, 1);
+    assert_eq!(msg.len(), 1);
     assert_eq!(std::str::from_utf8(&msg.data.unwrap()).unwrap(), "A");
 }
 
