@@ -1393,6 +1393,7 @@ impl PyCodeGenerator {
             // TODO:
             TokenKind::PrePlus => UNARY_POSITIVE,
             TokenKind::PreMinus => UNARY_NEGATIVE,
+            TokenKind::PreBitNot => UNARY_INVERT,
             TokenKind::Mutate => {
                 if !self.mutate_op_loaded {
                     self.load_mutate_op();
@@ -1505,8 +1506,9 @@ impl PyCodeGenerator {
             TokenKind::FloorDiv => Opcode310::BINARY_FLOOR_DIVIDE,
             TokenKind::Pow => Opcode310::BINARY_POWER,
             TokenKind::Mod => Opcode310::BINARY_MODULO,
-            TokenKind::AndOp => Opcode310::BINARY_AND,
-            TokenKind::OrOp => Opcode310::BINARY_OR,
+            TokenKind::AndOp | TokenKind::BitAnd => Opcode310::BINARY_AND,
+            TokenKind::OrOp | TokenKind::BitOr => Opcode310::BINARY_OR,
+            TokenKind::BitXor => Opcode310::BINARY_XOR,
             TokenKind::IsOp | TokenKind::IsNotOp => Opcode310::IS_OP,
             TokenKind::Less
             | TokenKind::LessEq
@@ -1571,7 +1573,10 @@ impl PyCodeGenerator {
             | TokenKind::Pow
             | TokenKind::Mod
             | TokenKind::AndOp
-            | TokenKind::OrOp => Opcode311::BINARY_OP,
+            | TokenKind::OrOp
+            | TokenKind::BitAnd
+            | TokenKind::BitOr
+            | TokenKind::BitXor => Opcode311::BINARY_OP,
             TokenKind::IsOp | TokenKind::IsNotOp => Opcode311::IS_OP,
             TokenKind::Less
             | TokenKind::LessEq
@@ -1609,8 +1614,9 @@ impl PyCodeGenerator {
             TokenKind::FloorDiv => BinOpCode::FloorDiv as usize,
             TokenKind::Pow => BinOpCode::Power as usize,
             TokenKind::Mod => BinOpCode::Remainder as usize,
-            TokenKind::AndOp => BinOpCode::And as usize,
-            TokenKind::OrOp => BinOpCode::Or as usize,
+            TokenKind::AndOp | TokenKind::BitAnd => BinOpCode::And as usize,
+            TokenKind::OrOp | TokenKind::BitOr => BinOpCode::Or as usize,
+            TokenKind::BitXor => BinOpCode::Xor as usize,
             TokenKind::Less => 0,
             TokenKind::LessEq => 1,
             TokenKind::DblEq => 2,

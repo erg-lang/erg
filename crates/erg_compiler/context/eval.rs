@@ -699,8 +699,9 @@ impl Context {
                     line!(),
                 ))
             }),
-            Or => match (lhs, rhs) {
+            Or | BitOr => match (lhs, rhs) {
                 (ValueObj::Bool(l), ValueObj::Bool(r)) => Ok(ValueObj::Bool(l || r)),
+                (ValueObj::Int(l), ValueObj::Int(r)) => Ok(ValueObj::Int(l | r)),
                 (ValueObj::Type(lhs), ValueObj::Type(rhs)) => Ok(self.eval_or_type(lhs, rhs)),
                 _ => Err(EvalErrors::from(EvalError::unreachable(
                     self.cfg.input.clone(),
@@ -708,9 +709,19 @@ impl Context {
                     line!(),
                 ))),
             },
-            And => match (lhs, rhs) {
+            And | BitAnd => match (lhs, rhs) {
                 (ValueObj::Bool(l), ValueObj::Bool(r)) => Ok(ValueObj::Bool(l && r)),
+                (ValueObj::Int(l), ValueObj::Int(r)) => Ok(ValueObj::Int(l & r)),
                 (ValueObj::Type(lhs), ValueObj::Type(rhs)) => Ok(self.eval_and_type(lhs, rhs)),
+                _ => Err(EvalErrors::from(EvalError::unreachable(
+                    self.cfg.input.clone(),
+                    fn_name!(),
+                    line!(),
+                ))),
+            },
+            BitXor => match (lhs, rhs) {
+                (ValueObj::Bool(l), ValueObj::Bool(r)) => Ok(ValueObj::Bool(l ^ r)),
+                (ValueObj::Int(l), ValueObj::Int(r)) => Ok(ValueObj::Int(l ^ r)),
                 _ => Err(EvalErrors::from(EvalError::unreachable(
                     self.cfg.input.clone(),
                     fn_name!(),
