@@ -48,7 +48,7 @@ class MessageStream:
 
         self.socket.send(raw_bytes)
 
-    def close():
+    def close(self):
         self.socket.close()
 
 server_socket = socket.socket()
