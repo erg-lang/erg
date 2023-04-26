@@ -2,7 +2,6 @@
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/API/special.md%26commit_hash%3D8673a0ce564fd282d0ca586642fa7f002e8a3c50)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/API/special.md&commit_hash=8673a0ce564fd282d0ca586642fa7f002e8a3c50)
 
-
 特殊形式は、Ergの型システムでは表現ができない演算子、サブルーチン(のようなもの)である。``で囲っているが、実際は捕捉できない。
 また、`Pattern`や`Body`, `Conv`といった型が便宜上登場するが、そのような型が存在するわけではない。その意味もコンテクストによって異なる。
 
@@ -64,6 +63,15 @@ objの属性を読み込む。
 ### (x: Option T)`?` -> T
 
 後置演算子。`x.unwrap()`を呼び出し、エラーの場合はその場で`return`する。
+
+## `:`(x, T)
+
+オブジェクト`x`が`T`型であることを宣言する。`x`の型が`T`の部分型でなければエラーとなる。
+
+## `as`(x, T)
+
+オブジェクト`x`を`T`型に強制キャストする。`x`の型が`T`の部分型でなければエラーとなる。
+`:`との違いとして、`x: U; U <: T`であるとき`(x: T): U`となるが、`(x as T): T`である。
 
 ## match(obj, *arms: Lambda)
 

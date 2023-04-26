@@ -198,12 +198,12 @@ impl Parser {
         pack: DataPack,
     ) -> ParseResult<VarDataPackPattern> {
         debug_call_info!(self);
-        let class = Self::expr_to_type_spec(*pack.class).map_err(|e| self.errs.push(e))?;
+        let class = Self::expr_to_type_spec(*pack.class.clone()).map_err(|e| self.errs.push(e))?;
         let args = self
             .convert_record_to_record_pat(pack.args)
             .map_err(|_| self.stack_dec(fn_name!()))?;
         debug_exit_info!(self);
-        Ok(VarDataPackPattern::new(class, args))
+        Ok(VarDataPackPattern::new(class, pack.class, args))
     }
 
     fn convert_tuple_to_tuple_pat(&mut self, tuple: Tuple) -> ParseResult<VarTuplePattern> {
@@ -243,7 +243,7 @@ impl Parser {
             .map_err(|_| self.stack_dec(fn_name!()))?;
         let sig = match sig {
             Signature::Var(var) => {
-                let var = VarSignature::new(var.pat, Some(tasc.t_spec.t_spec));
+                let var = VarSignature::new(var.pat, Some(tasc.t_spec));
                 Signature::Var(var)
             }
             Signature::Subr(subr) => {

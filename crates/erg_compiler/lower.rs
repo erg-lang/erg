@@ -14,7 +14,7 @@ use erg_common::traits::{ExitStatus, Locational, NoTypeDisplay, Runnable, Stream
 use erg_common::triple::Triple;
 use erg_common::{fmt_option, fn_name, log, switch_lang, Str};
 
-use erg_parser::ast::{self, VisModifierSpec};
+use erg_parser::ast::{self, AscriptionKind, VisModifierSpec};
 use erg_parser::ast::{OperationKind, TypeSpecWithOp, VarName, AST};
 use erg_parser::build_ast::ASTBuilder;
 use erg_parser::token::{Token, TokenKind};
@@ -1097,13 +1097,8 @@ impl ASTLowerer {
         type_spec_with_op: ast::TypeSpecWithOp,
         spec_t: Type,
     ) -> LowerResult<hir::TypeSpecWithOp> {
-        let expr = self.fake_lower_expr(*type_spec_with_op.t_spec_as_expr)?;
-        Ok(hir::TypeSpecWithOp::new(
-            type_spec_with_op.op,
-            type_spec_with_op.t_spec,
-            expr,
-            spec_t,
-        ))
+        let expr = self.fake_lower_expr(*type_spec_with_op.t_spec_as_expr.clone())?;
+        Ok(hir::TypeSpecWithOp::new(type_spec_with_op, expr, spec_t))
     }
 
     fn lower_params(&mut self, params: ast::Params) -> LowerResult<hir::Params> {
@@ -1419,7 +1414,7 @@ impl ASTLowerer {
                             .module
                             .context
                             .instantiate_var_sig_t(
-                                sig.t_spec.as_ref(),
+                                sig.t_spec.as_ref().map(|ts| &ts.t_spec),
                                 RegistrationMode::PreRegister,
                             )
                             .ok();
@@ -1453,7 +1448,14 @@ impl ASTLowerer {
                     None,
                 )?;
                 let ident = hir::Identifier::new(ident, None, vi);
-                let sig = hir::VarSignature::new(ident, sig.t_spec);
+                let t_spec = if let Some(ts) = sig.t_spec {
+                    let spec_t = self.module.context.instantiate_typespec(&ts.t_spec)?;
+                    let expr = self.fake_lower_expr(*ts.t_spec_as_expr.clone())?;
+                    Some(hir::TypeSpecWithOp::new(ts, expr, spec_t))
+                } else {
+                    None
+                };
+                let sig = hir::VarSignature::new(ident, t_spec);
                 let body = hir::DefBody::new(body.op, block, body.id);
                 Ok(hir::Def::new(hir::Signature::Var(sig), body))
             }
@@ -1703,7 +1705,7 @@ impl ASTLowerer {
                         let (impl_trait, t_spec) = match &args.pos_args().first().unwrap().expr {
                             // TODO: check `tasc.op`
                             ast::Expr::TypeAscription(tasc) => (
-                                self.module.context.instantiate_typespec(
+                                self.module.context.instantiate_typespec_full(
                                     &tasc.t_spec.t_spec,
                                     None,
                                     &mut dummy_tv_cache,
@@ -1724,7 +1726,7 @@ impl ASTLowerer {
                             }
                         };
                         Ok((
-                            self.module.context.instantiate_typespec(
+                            self.module.context.instantiate_typespec_full(
                                 spec,
                                 None,
                                 &mut dummy_tv_cache,
@@ -1735,7 +1737,7 @@ impl ASTLowerer {
                         ))
                     }
                     ast::TypeAppArgsKind::SubtypeOf(trait_spec) => {
-                        let impl_trait = self.module.context.instantiate_typespec(
+                        let impl_trait = self.module.context.instantiate_typespec_full(
                             &trait_spec.t_spec,
                             None,
                             &mut dummy_tv_cache,
@@ -1743,7 +1745,7 @@ impl ASTLowerer {
                             false,
                         )?;
                         Ok((
-                            self.module.context.instantiate_typespec(
+                            self.module.context.instantiate_typespec_full(
                                 spec,
                                 None,
                                 &mut dummy_tv_cache,
@@ -1756,7 +1758,7 @@ impl ASTLowerer {
                 }
             }
             other => Ok((
-                self.module.context.instantiate_typespec(
+                self.module.context.instantiate_typespec_full(
                     other,
                     None,
                     &mut dummy_tv_cache,
@@ -1776,15 +1778,7 @@ impl ASTLowerer {
             };
             let base_t_expr = call.args.get_left_or_key("Base").unwrap();
             let spec = Parser::expr_to_type_spec(base_t_expr.clone()).unwrap();
-            let mut dummy_tv_cache =
-                TyVarCache::new(self.module.context.level, &self.module.context);
-            self.module.context.instantiate_typespec(
-                &spec,
-                None,
-                &mut dummy_tv_cache,
-                RegistrationMode::Normal,
-                false,
-            )?
+            self.module.context.instantiate_typespec(&spec)?
         };
         let mut hir_def = self.lower_def(class_def.def)?;
         let base = Self::get_require_or_sup_or_base(hir_def.body.block.remove(0)).unwrap();
@@ -2168,44 +2162,43 @@ impl ASTLowerer {
 
     fn lower_type_asc(&mut self, tasc: ast::TypeAscription) -> LowerResult<hir::TypeAscription> {
         log!(info "entered {}({tasc})", fn_name!());
-        let is_instance_ascription = tasc.is_instance_ascription();
-        let mut dummy_tv_cache = TyVarCache::new(self.module.context.level, &self.module.context);
-        let spec_t = self.module.context.instantiate_typespec(
-            &tasc.t_spec.t_spec,
-            None,
-            &mut dummy_tv_cache,
-            RegistrationMode::Normal,
-            false,
-        )?;
+        let kind = tasc.kind();
+        let spec_t = self
+            .module
+            .context
+            .instantiate_typespec(&tasc.t_spec.t_spec)?;
         let expr = self.lower_expr(*tasc.expr)?;
-        if is_instance_ascription {
-            self.module.context.sub_unify(
-                expr.ref_t(),
-                &spec_t,
-                &expr,
-                Some(&Str::from(expr.to_string())),
-            )?;
-        } else {
-            // if subtype ascription
-            let &ctx = self
-                .module
-                .context
-                .get_singular_ctxs_by_hir_expr(&expr, &self.module.context)?
-                .first()
-                .unwrap();
-            // REVIEW: need to use subtype_of?
-            if ctx.super_traits.iter().all(|trait_| trait_ != &spec_t)
-                && ctx.super_classes.iter().all(|class| class != &spec_t)
-            {
-                return Err(LowerErrors::from(LowerError::subtyping_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    expr.ref_t(), // FIXME:
+        match kind {
+            AscriptionKind::TypeOf | AscriptionKind::AsCast => {
+                self.module.context.sub_unify(
+                    expr.ref_t(),
                     &spec_t,
-                    Location::concat(&expr, &tasc.t_spec),
-                    self.module.context.caused_by(),
-                )));
+                    &expr,
+                    Some(&Str::from(expr.to_string())),
+                )?;
             }
+            AscriptionKind::SubtypeOf => {
+                let &ctx = self
+                    .module
+                    .context
+                    .get_singular_ctxs_by_hir_expr(&expr, &self.module.context)?
+                    .first()
+                    .unwrap();
+                // REVIEW: need to use subtype_of?
+                if ctx.super_traits.iter().all(|trait_| trait_ != &spec_t)
+                    && ctx.super_classes.iter().all(|class| class != &spec_t)
+                {
+                    return Err(LowerErrors::from(LowerError::subtyping_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        expr.ref_t(), // FIXME:
+                        &spec_t,
+                        Location::concat(&expr, &tasc.t_spec),
+                        self.module.context.caused_by(),
+                    )));
+                }
+            }
+            _ => {}
         }
         let t_spec = self.lower_type_spec_with_op(tasc.t_spec, spec_t)?;
         Ok(expr.type_asc(t_spec))
@@ -2213,15 +2206,11 @@ impl ASTLowerer {
 
     fn lower_decl(&mut self, tasc: ast::TypeAscription) -> LowerResult<hir::TypeAscription> {
         log!(info "entered {}({tasc})", fn_name!());
-        let is_instance_ascription = tasc.is_instance_ascription();
-        let mut dummy_tv_cache = TyVarCache::new(self.module.context.level, &self.module.context);
-        let spec_t = self.module.context.instantiate_typespec(
-            &tasc.t_spec.t_spec,
-            None,
-            &mut dummy_tv_cache,
-            RegistrationMode::Normal,
-            false,
-        )?;
+        let kind = tasc.kind();
+        let spec_t = self
+            .module
+            .context
+            .instantiate_typespec(&tasc.t_spec.t_spec)?;
         let ast::Expr::Accessor(ast::Accessor::Ident(ident)) = *tasc.expr else {
             return Err(LowerErrors::from(LowerError::syntax_error(
                 self.cfg.input.clone(),
@@ -2270,22 +2259,28 @@ impl ASTLowerer {
                     similar_info,
                 )
             })?;
-        if is_instance_ascription {
-            self.module
-                .context
-                .sub_unify(&ident_vi.t, &spec_t, &ident, Some(ident.inspect()))?;
-        } else {
-            // if subtype ascription
-            if self.module.context.subtype_of(&ident_vi.t, &spec_t) {
-                return Err(LowerErrors::from(LowerError::subtyping_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
+        match kind {
+            AscriptionKind::TypeOf | AscriptionKind::AsCast => {
+                self.module.context.sub_unify(
                     &ident_vi.t,
                     &spec_t,
-                    ident.loc(),
-                    self.module.context.caused_by(),
-                )));
+                    &ident,
+                    Some(ident.inspect()),
+                )?;
             }
+            AscriptionKind::SubtypeOf => {
+                if self.module.context.subtype_of(&ident_vi.t, &spec_t) {
+                    return Err(LowerErrors::from(LowerError::subtyping_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        &ident_vi.t,
+                        &spec_t,
+                        ident.loc(),
+                        self.module.context.caused_by(),
+                    )));
+                }
+            }
+            _ => {}
         }
         let qual_name = self
             .module

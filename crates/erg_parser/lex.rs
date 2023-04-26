@@ -700,7 +700,7 @@ impl Lexer /*<'a>*/ {
         // e.g. and(true, true, true) = true
         let kind = match &cont[..] {
             "and" => AndOp,
-            "as" => AsOp,
+            "as" => As,
             "or" => OrOp,
             "in" => InOp,
             "notin" => NotInOp,

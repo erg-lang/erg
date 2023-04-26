@@ -368,6 +368,42 @@ impl LowerError {
         )
     }
 
+    pub fn not_a_type_error(
+        input: Input,
+        errno: usize,
+        loc: Location,
+        caused_by: String,
+        name: &str,
+    ) -> Self {
+        let name = readable_name(name);
+        let hint = {
+            let n = StyledStr::new(name, Some(HINT), Some(ATTR));
+            Some(switch_lang!(
+                "japanese" => format!("{{{n}}}({n}のみを要素に持つ型)ではありませんか?"),
+                "simplified_chinese" => format!("{{{n}}}({n}的元素只有{n})是不是?"),
+                "traditional_chinese" => format!("{{{n}}}({n}的元素只有{n})是不是?"),
+                "english" => format!("Do you mean {{{n}}}, a type that has only {n}?"),
+            ))
+        };
+        let found = StyledString::new(name, Some(ERR), Some(ATTR));
+        Self::new(
+            ErrorCore::new(
+                vec![SubMessage::ambiguous_new(loc, vec![], hint)],
+                switch_lang!(
+                    "japanese" => format!("{found}は型ではありません"),
+                    "simplified_chinese" => format!("{found}不是类型"),
+                    "traditional_chinese" => format!("{found}不是類型"),
+                    "english" => format!("{found} is not a type"),
+                ),
+                errno,
+                TypeError,
+                loc,
+            ),
+            input,
+            caused_by,
+        )
+    }
+
     pub fn type_not_found(
         input: Input,
         errno: usize,

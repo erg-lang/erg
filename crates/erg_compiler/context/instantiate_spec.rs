@@ -128,23 +128,22 @@ impl Context {
                 Ok(())
             }
             TypeBoundSpec::NonDefault { lhs, spec } => {
-                let constr =
-                    match spec.op.kind {
-                        TokenKind::SubtypeOf => Constraint::new_subtype_of(
-                            self.instantiate_typespec(&spec.t_spec, None, tv_cache, mode, true)?,
-                        ),
-                        TokenKind::SupertypeOf => Constraint::new_supertype_of(
-                            self.instantiate_typespec(&spec.t_spec, None, tv_cache, mode, true)?,
-                        ),
-                        TokenKind::Colon => Constraint::new_type_of(self.instantiate_typespec(
-                            &spec.t_spec,
-                            None,
-                            tv_cache,
-                            mode,
-                            true,
-                        )?),
-                        _ => unreachable!(),
-                    };
+                let constr = match spec.op.kind {
+                    TokenKind::SubtypeOf => Constraint::new_subtype_of(
+                        self.instantiate_typespec_full(&spec.t_spec, None, tv_cache, mode, true)?,
+                    ),
+                    TokenKind::SupertypeOf => Constraint::new_supertype_of(
+                        self.instantiate_typespec_full(&spec.t_spec, None, tv_cache, mode, true)?,
+                    ),
+                    TokenKind::Colon => Constraint::new_type_of(self.instantiate_typespec_full(
+                        &spec.t_spec,
+                        None,
+                        tv_cache,
+                        mode,
+                        true,
+                    )?),
+                    _ => unreachable!(),
+                };
                 if constr.get_sub_sup().is_none() {
                     let tp = TyParam::named_free_var(lhs.inspect().clone(), self.level, constr);
                     tv_cache.push_or_init_typaram(lhs.inspect(), &tp, self);
@@ -205,7 +204,7 @@ impl Context {
     ) -> TyCheckResult<Type> {
         let mut tmp_tv_cache = TyVarCache::new(self.level, self);
         let spec_t = if let Some(t_spec) = t_spec {
-            self.instantiate_typespec(t_spec, None, &mut tmp_tv_cache, mode, false)?
+            self.instantiate_typespec_full(t_spec, None, &mut tmp_tv_cache, mode, false)?
         } else {
             free_var(self.level, Constraint::new_type_of(Type))
         };
@@ -303,7 +302,7 @@ impl Context {
             let opt_decl_t = opt_decl_sig_t
                 .as_ref()
                 .map(|subr| ParamTy::Pos(subr.return_t.as_ref().clone()));
-            match self.instantiate_typespec(
+            match self.instantiate_typespec_full(
                 t_spec,
                 opt_decl_t.as_ref(),
                 &mut tmp_tv_cache,
@@ -355,7 +354,13 @@ impl Context {
             free_var(level, Constraint::new_type_of(Type))
         };
         let spec_t = if let Some(spec_with_op) = &sig.t_spec {
-            self.instantiate_typespec(&spec_with_op.t_spec, opt_decl_t, tmp_tv_cache, mode, false)?
+            self.instantiate_typespec_full(
+                &spec_with_op.t_spec,
+                opt_decl_t,
+                tmp_tv_cache,
+                mode,
+                false,
+            )?
         } else {
             match &sig.pat {
                 ast::ParamPattern::Lit(lit) => v_enum(set![self.eval_lit(lit)?]),
@@ -589,6 +594,13 @@ impl Context {
                     line!(),
                 ))
             }),
+            "True" | "False" | "None" => Err(TyCheckErrors::from(TyCheckError::not_a_type_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                simple.loc(),
+                self.caused_by(),
+                simple.ident.inspect(),
+            ))),
             other if simple.args.is_empty() => {
                 if let Some(TyParam::Type(t)) = self.get_tp_from_tv_cache(other, tmp_tv_cache) {
                     return Ok(*t);
@@ -638,14 +650,16 @@ impl Context {
                 };
                 // FIXME: kw args
                 let mut new_params = vec![];
-                for (i, arg) in simple.args.pos_args().enumerate() {
-                    let params = self.instantiate_const_expr(
+                for ((i, arg), (name, param_vi)) in
+                    simple.args.pos_args().enumerate().zip(ctx.params.iter())
+                {
+                    let param = self.instantiate_const_expr(
                         &arg.expr,
                         Some((ctx, i)),
                         tmp_tv_cache,
                         not_found_is_qvar,
                     );
-                    let params = params.or_else(|e| {
+                    let param = param.or_else(|e| {
                         if not_found_is_qvar {
                             let name = arg.expr.to_string();
                             // FIXME: handle `::` as a right way
@@ -661,7 +675,23 @@ impl Context {
                             Err(e)
                         }
                     })?;
-                    new_params.push(params);
+                    let arg_t = self.get_tp_t(&param).unwrap_or(Obj);
+                    if self.subtype_of(&arg_t, &param_vi.t) {
+                        new_params.push(param);
+                    } else {
+                        return Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
+                            self.cfg.input.clone(),
+                            line!() as usize,
+                            arg.expr.loc(),
+                            self.caused_by(),
+                            name.as_ref().map_or("", |n| &n.inspect()[..]),
+                            Some(i),
+                            &param_vi.t,
+                            &arg_t,
+                            None,
+                            None,
+                        )));
+                    }
                 }
                 // FIXME: non-builtin
                 Ok(poly(Str::rc(other), new_params))
@@ -942,7 +972,7 @@ impl Context {
                     tmp_tv_cache,
                     not_found_is_qvar,
                 )?;
-                let spec_t = self.instantiate_typespec(
+                let spec_t = self.instantiate_typespec_full(
                     &tasc.t_spec.t_spec,
                     None,
                     tmp_tv_cache,
@@ -1041,12 +1071,12 @@ impl Context {
         tmp_tv_cache: &mut TyVarCache,
         mode: RegistrationMode,
     ) -> TyCheckResult<ParamTy> {
-        let t = self.instantiate_typespec(&p.ty, opt_decl_t, tmp_tv_cache, mode, false)?;
+        let t = self.instantiate_typespec_full(&p.ty, opt_decl_t, tmp_tv_cache, mode, false)?;
         if let Some(default_t) = default_t {
             Ok(ParamTy::kw_default(
                 p.name.as_ref().unwrap().inspect().to_owned(),
                 t,
-                self.instantiate_typespec(default_t, opt_decl_t, tmp_tv_cache, mode, false)?,
+                self.instantiate_typespec_full(default_t, opt_decl_t, tmp_tv_cache, mode, false)?,
             ))
         } else {
             Ok(ParamTy::pos_or_kw(
@@ -1056,7 +1086,7 @@ impl Context {
         }
     }
 
-    pub(crate) fn instantiate_typespec(
+    pub(crate) fn instantiate_typespec_full(
         &self,
         t_spec: &TypeSpec,
         opt_decl_t: Option<&ParamTy>,
@@ -1073,14 +1103,14 @@ impl Context {
                 not_found_is_qvar,
             )?),
             TypeSpec::And(lhs, rhs) => Ok(self.intersection(
-                &self.instantiate_typespec(
+                &self.instantiate_typespec_full(
                     lhs,
                     opt_decl_t,
                     tmp_tv_cache,
                     mode,
                     not_found_is_qvar,
                 )?,
-                &self.instantiate_typespec(
+                &self.instantiate_typespec_full(
                     rhs,
                     opt_decl_t,
                     tmp_tv_cache,
@@ -1089,14 +1119,14 @@ impl Context {
                 )?,
             )),
             TypeSpec::Or(lhs, rhs) => Ok(self.union(
-                &self.instantiate_typespec(
+                &self.instantiate_typespec_full(
                     lhs,
                     opt_decl_t,
                     tmp_tv_cache,
                     mode,
                     not_found_is_qvar,
                 )?,
-                &self.instantiate_typespec(
+                &self.instantiate_typespec_full(
                     rhs,
                     opt_decl_t,
                     tmp_tv_cache,
@@ -1104,7 +1134,7 @@ impl Context {
                     not_found_is_qvar,
                 )?,
             )),
-            TypeSpec::Not(ty) => Ok(self.complement(&self.instantiate_typespec(
+            TypeSpec::Not(ty) => Ok(self.complement(&self.instantiate_typespec_full(
                 ty,
                 opt_decl_t,
                 tmp_tv_cache,
@@ -1112,7 +1142,7 @@ impl Context {
                 not_found_is_qvar,
             )?)),
             TypeSpec::Array(arr) => {
-                let elem_t = self.instantiate_typespec(
+                let elem_t = self.instantiate_typespec_full(
                     &arr.ty,
                     opt_decl_t,
                     tmp_tv_cache,
@@ -1127,7 +1157,7 @@ impl Context {
                 Ok(array_t(elem_t, len))
             }
             TypeSpec::SetWithLen(set) => {
-                let elem_t = self.instantiate_typespec(
+                let elem_t = self.instantiate_typespec_full(
                     &set.ty,
                     opt_decl_t,
                     tmp_tv_cache,
@@ -1144,7 +1174,7 @@ impl Context {
             TypeSpec::Tuple(tup) => {
                 let mut inst_tys = vec![];
                 for spec in tup.tys.iter() {
-                    inst_tys.push(self.instantiate_typespec(
+                    inst_tys.push(self.instantiate_typespec_full(
                         spec,
                         opt_decl_t,
                         tmp_tv_cache,
@@ -1158,14 +1188,14 @@ impl Context {
                 let mut inst_tys = dict! {};
                 for (k, v) in dict {
                     inst_tys.insert(
-                        self.instantiate_typespec(
+                        self.instantiate_typespec_full(
                             k,
                             opt_decl_t,
                             tmp_tv_cache,
                             mode,
                             not_found_is_qvar,
                         )?,
-                        self.instantiate_typespec(
+                        self.instantiate_typespec_full(
                             v,
                             opt_decl_t,
                             tmp_tv_cache,
@@ -1181,7 +1211,7 @@ impl Context {
                 for (k, v) in rec {
                     inst_tys.insert(
                         self.instantiate_field(k)?,
-                        self.instantiate_typespec(
+                        self.instantiate_typespec_full(
                             v,
                             opt_decl_t,
                             tmp_tv_cache,
@@ -1261,7 +1291,7 @@ impl Context {
                 })?
                 .into_iter()
                 .collect();
-                let return_t = self.instantiate_typespec(
+                let return_t = self.instantiate_typespec_full(
                     &subr.return_t,
                     opt_decl_t,
                     tmp_tv_ctx,
@@ -1286,12 +1316,23 @@ impl Context {
         }
     }
 
-    pub fn instantiate_field(&self, ident: &Identifier) -> TyCheckResult<Field> {
+    pub(crate) fn instantiate_typespec(&self, t_spec: &ast::TypeSpec) -> TyCheckResult<Type> {
+        let mut dummy_tv_cache = TyVarCache::new(self.level, self);
+        self.instantiate_typespec_full(
+            t_spec,
+            None,
+            &mut dummy_tv_cache,
+            RegistrationMode::Normal,
+            false,
+        )
+    }
+
+    pub(crate) fn instantiate_field(&self, ident: &Identifier) -> TyCheckResult<Field> {
         let vis = self.instantiate_vis_modifier(&ident.vis)?;
         Ok(Field::new(vis, ident.inspect().clone()))
     }
 
-    pub fn instantiate_vis_modifier(
+    pub(crate) fn instantiate_vis_modifier(
         &self,
         spec: &VisModifierSpec,
     ) -> TyCheckResult<VisibilityModifier> {
@@ -1331,14 +1372,7 @@ impl Context {
                     Ok(VisibilityModifier::Restricted(namespaces))
                 }
                 VisRestriction::SubtypeOf(typ) => {
-                    let mut dummy_tv_cache = TyVarCache::new(self.level, self);
-                    let t = self.instantiate_typespec(
-                        typ,
-                        None,
-                        &mut dummy_tv_cache,
-                        RegistrationMode::Normal,
-                        false,
-                    )?;
+                    let t = self.instantiate_typespec(typ)?;
                     Ok(VisibilityModifier::SubtypeRestricted(t))
                 }
             },
@@ -1347,9 +1381,7 @@ impl Context {
 
     pub(crate) fn expr_to_type(&self, expr: ast::Expr) -> Option<Type> {
         let t_spec = Parser::expr_to_type_spec(expr).ok()?;
-        let mut dummy = TyVarCache::new(self.level, self);
-        self.instantiate_typespec(&t_spec, None, &mut dummy, RegistrationMode::Normal, false)
-            .ok()
+        self.instantiate_typespec(&t_spec).ok()
     }
 
     pub(crate) fn expr_to_value(&self, expr: ast::Expr) -> Option<ValueObj> {

@@ -1223,21 +1223,22 @@ passed keyword args:    {kw_args_len}"
         errno: usize,
         loc: Location,
         caused_by: String,
-        expect: &Type,
-        found: &Type,
+        before: &Type,
+        after: &Type,
     ) -> Self {
-        let maybe_sub_ = expect
+        let before_ = before
             .to_string()
             .with_color(erg_common::style::Color::Yellow);
-        let new_sub = found
+        let after_ = after
             .to_string()
             .with_color(erg_common::style::Color::Yellow);
         let hint = switch_lang!(
-            "japanese" => format!("{maybe_sub_}から{new_sub}への暗黙の型拡大はデフォルトでは禁止されています。明示的に型指定してください"),
-            "simplified_chinese" => format!("隐式扩展{maybe_sub_}到{new_sub}被默认禁止。请明确指定类型。"),
-            "traditional_chinese" => format!("隱式擴展{maybe_sub_}到{new_sub}被默認禁止。請明確指定類型。"),
-            "english" => format!("Implicitly widening {maybe_sub_} to {new_sub} is prohibited by default. Consider specifying the type explicitly."),
+            "japanese" => format!("{before_}から{after_}への暗黙の型拡大はデフォルトでは禁止されています。`as`などを使って明示的に型拡大してください"),
+            "simplified_chinese" => format!("隐式扩展{before_}到{after_}被默认禁止。请使用`as`显式扩展类型。"),
+            "traditional_chinese" => format!("隱式擴展{before_}到{after_}被默認禁止。請使用`as`顯式擴展類型。"),
+            "english" => format!("Implicitly widening {before_} to {after_} is prohibited by default. Consider widening the type explicitly using `as`."),
         );
+        // actually, this error will be overwritten, only `input`, `hint` and `loc` is useful
         Self::type_mismatch_error(
             input,
             errno,
@@ -1245,8 +1246,8 @@ passed keyword args:    {kw_args_len}"
             caused_by,
             "",
             None,
-            expect,
-            found,
+            &Type::Uninited,
+            &Type::Uninited,
             None,
             Some(hint),
         )

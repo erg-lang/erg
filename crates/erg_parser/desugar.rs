@@ -498,7 +498,11 @@ impl Desugarer {
         todo!()
     }
 
-    fn gen_buf_name_and_sig(&mut self, line: u32, t_spec: Option<TypeSpec>) -> (String, Signature) {
+    fn gen_buf_name_and_sig(
+        &mut self,
+        line: u32,
+        t_spec: Option<TypeSpecWithOp>,
+    ) -> (String, Signature) {
         let buf_name = fresh_varname();
         let buf_sig = Signature::Var(VarSignature::new(
             VarPattern::Ident(Identifier::private_with_line(Str::rc(&buf_name), line)),
@@ -613,9 +617,14 @@ impl Desugarer {
                         }
                     }
                     VarPattern::DataPack(pack) => {
+                        let t_spec = TypeSpecWithOp::new(
+                            COLON,
+                            pack.class.clone(),
+                            *pack.class_as_expr.clone(),
+                        );
                         let (buf_name, buf_sig) = self.gen_buf_name_and_sig(
                             v.ln_begin().unwrap_or(1),
-                            Some(pack.class.clone()), // TODO: これだとvの型指定の意味がなくなる
+                            Some(t_spec), // TODO: これだとvの型指定の意味がなくなる
                         );
                         let block = body
                             .block
@@ -756,8 +765,10 @@ impl Desugarer {
                 }
             }
             VarPattern::DataPack(pack) => {
-                let (buf_name, buf_sig) = self
-                    .gen_buf_name_and_sig(sig.ln_begin().unwrap_or(1), Some(pack.class.clone()));
+                let t_spec =
+                    TypeSpecWithOp::new(COLON, pack.class.clone(), *pack.class_as_expr.clone());
+                let (buf_name, buf_sig) =
+                    self.gen_buf_name_and_sig(sig.ln_begin().unwrap_or(1), Some(t_spec));
                 let buf_def = Def::new(buf_sig, body);
                 new_module.push(Expr::Def(buf_def));
                 for VarRecordAttr { lhs, rhs } in pack.args.attrs.iter() {
@@ -1101,7 +1112,7 @@ impl Desugarer {
                     Expr::Def(Def::new(
                         Signature::Var(VarSignature::new(
                             VarPattern::Ident(ident),
-                            sig.t_spec.as_ref().map(|ts| ts.t_spec.clone()),
+                            sig.t_spec.clone(),
                         )),
                         body,
                     )),
@@ -1150,7 +1161,7 @@ impl Desugarer {
                     Expr::Def(Def::new(
                         Signature::Var(VarSignature::new(
                             VarPattern::Ident(Identifier::private(Str::from(&buf_name))),
-                            sig.t_spec.as_ref().map(|ts| ts.t_spec.clone()),
+                            sig.t_spec.clone(),
                         )),
                         body,
                     )),
@@ -1188,7 +1199,7 @@ impl Desugarer {
                     Expr::Def(Def::new(
                         Signature::Var(VarSignature::new(
                             VarPattern::Ident(Identifier::private(Str::from(&buf_name))),
-                            sig.t_spec.as_ref().map(|ts| ts.t_spec.clone()),
+                            sig.t_spec.clone(),
                         )),
                         body,
                     )),
@@ -1255,10 +1266,7 @@ impl Desugarer {
             */
             ParamPattern::VarName(name) => {
                 let ident = Identifier::new(VisModifierSpec::Private, name.clone());
-                let v = VarSignature::new(
-                    VarPattern::Ident(ident),
-                    sig.t_spec.as_ref().map(|ts| ts.t_spec.clone()),
-                );
+                let v = VarSignature::new(VarPattern::Ident(ident), sig.t_spec.clone());
                 let def = Def::new(Signature::Var(v), body);
                 new_body.insert(insertion_idx, Expr::Def(def));
                 insertion_idx += 1;

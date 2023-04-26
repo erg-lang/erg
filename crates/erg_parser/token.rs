@@ -108,8 +108,6 @@ pub enum TokenKind {
     IsNotOp,
     /// `and`
     AndOp,
-    /// `as`
-    AsOp,
     /// `or`
     OrOp,
     /// `dot` (scalar product)
@@ -156,6 +154,8 @@ pub enum TokenKind {
     SupertypeOf,
     /// <:
     SubtypeOf,
+    /// `as`
+    As,
     /// ,
     Comma,
     /// ^
@@ -241,7 +241,7 @@ impl TokenKind {
                 TokenCategory::UnaryOp
             }
             Try => TokenCategory::PostfixOp,
-            Comma | Colon | DblColon | SupertypeOf | SubtypeOf | Dot | Pipe | Walrus
+            Comma | Colon | DblColon | SupertypeOf | SubtypeOf | As | Dot | Pipe | Walrus
             | Inclusion => TokenCategory::SpecialBinOp,
             Assign => TokenCategory::DefOp,
             FuncArrow | ProcArrow => TokenCategory::LambdaOp,
@@ -271,16 +271,15 @@ impl TokenKind {
             BitXor => 130,                                            // ^^
             BitOr => 120,                                             // ||
             Closed | LeftOpen | RightOpen | Open => 100,              // range operators
-            Less | Gre | LessEq | GreEq | DblEq | NotEq | AsOp | InOp | NotInOp | IsOp
-            | IsNotOp => 90, // < > <= >= == != as in notin is isnot
-            AndOp => 80,                                              // and
-            OrOp => 70,                                               // or
-            FuncArrow | ProcArrow | Inclusion => 60,                  // -> => <-
-            Colon | SupertypeOf | SubtypeOf => 50,                    // : :> <:
-            Comma => 40,                                              // ,
-            Assign | Walrus => 20,                                    // = :=
-            Newline | Semi => 10,                                     // \n ;
-            LParen | LBrace | LSqBr | Indent => 0,                    // ( { [ Indent
+            Less | Gre | LessEq | GreEq | DblEq | NotEq | InOp | NotInOp | IsOp | IsNotOp => 90, // < > <= >= == != in notin is isnot
+            AndOp => 80,                                // and
+            OrOp => 70,                                 // or
+            FuncArrow | ProcArrow | Inclusion => 60,    // -> => <-
+            Colon | SupertypeOf | SubtypeOf | As => 50, // : :> <: as
+            Comma => 40,                                // ,
+            Assign | Walrus => 20,                      // = :=
+            Newline | Semi => 10,                       // \n ;
+            LParen | LBrace | LSqBr | Indent => 0,      // ( { [ Indent
             _ => return None,
         };
         Some(prec)

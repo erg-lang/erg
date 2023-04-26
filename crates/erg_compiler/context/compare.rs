@@ -113,8 +113,8 @@ impl Context {
                 return true;
             }
             (l, r) if l.has_unbound_var() || r.has_unbound_var() => {
-                let lt = self.get_tp_t(l).unwrap();
-                let rt = self.get_tp_t(r).unwrap();
+                let Ok(lt) = self.get_tp_t(l) else { return false; };
+                let Ok(rt) = self.get_tp_t(r) else { return false };
                 return self.same_type_of(&lt, &rt);
             }
             _ => {}

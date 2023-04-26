@@ -13,7 +13,7 @@ use erg_common::{
     impl_nested_display_for_enum, impl_no_type_display_for_enum, impl_stream,
 };
 
-use erg_parser::ast;
+use erg_parser::ast::{self, AscriptionKind};
 use erg_parser::ast::{
     fmt_lines, DefId, DefKind, OperationKind, TypeBoundSpecs, TypeSpec, VarName,
 };
@@ -1547,7 +1547,7 @@ impl Locational for Dummy {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct VarSignature {
     pub ident: Identifier,
-    pub t_spec: Option<TypeSpec>,
+    pub t_spec: Option<TypeSpecWithOp>,
 }
 
 impl NestedDisplay for VarSignature {
@@ -1579,7 +1579,7 @@ impl HasType for VarSignature {
 }
 
 impl VarSignature {
-    pub const fn new(ident: Identifier, t_spec: Option<TypeSpec>) -> Self {
+    pub const fn new(ident: Identifier, t_spec: Option<TypeSpecWithOp>) -> Self {
         Self { ident, t_spec }
     }
 
@@ -2006,7 +2006,7 @@ impl Signature {
 
     pub fn t_spec(&self) -> Option<&TypeSpec> {
         match self {
-            Self::Var(v) => v.t_spec.as_ref(),
+            Self::Var(v) => v.t_spec.as_ref().map(|t| &t.raw.t_spec),
             Self::Subr(s) => s.return_t_spec.as_ref(),
         }
     }
@@ -2352,28 +2352,37 @@ impl ReDef {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TypeSpecWithOp {
-    pub op: Token,
-    pub t_spec: TypeSpec,
-    pub t_spec_as_expr: Box<Expr>,
+    pub raw: ast::TypeSpecWithOp,
+    /// Required for dynamic type checking
+    pub expr: Box<Expr>,
     pub spec_t: Type,
 }
 
 impl NestedDisplay for TypeSpecWithOp {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "{} {}", self.op.content, self.t_spec)
+        write!(f, "{}", self.raw)
     }
 }
 
 impl_display_from_nested!(TypeSpecWithOp);
-impl_locational!(TypeSpecWithOp, lossy op, t_spec);
+impl_locational!(TypeSpecWithOp, raw);
 
 impl TypeSpecWithOp {
-    pub fn new(op: Token, t_spec: TypeSpec, t_spec_as_expr: Expr, spec_t: Type) -> Self {
+    pub fn new(raw: ast::TypeSpecWithOp, expr: Expr, spec_t: Type) -> Self {
         Self {
-            op,
-            t_spec,
-            t_spec_as_expr: Box::new(t_spec_as_expr),
+            raw,
+            expr: Box::new(expr),
             spec_t,
+        }
+    }
+
+    pub fn kind(&self) -> AscriptionKind {
+        match self.raw.op.kind {
+            TokenKind::Colon => AscriptionKind::TypeOf,
+            TokenKind::SubtypeOf => AscriptionKind::SubtypeOf,
+            TokenKind::SupertypeOf => AscriptionKind::SupertypeOf,
+            TokenKind::As => AscriptionKind::AsCast,
+            _ => unreachable!(),
         }
     }
 }
@@ -2402,11 +2411,19 @@ impl_locational!(TypeAscription, expr, spec);
 impl HasType for TypeAscription {
     #[inline]
     fn ref_t(&self) -> &Type {
-        self.expr.ref_t()
+        if self.spec.kind().is_force_cast() {
+            &self.spec.spec_t
+        } else {
+            self.expr.ref_t()
+        }
     }
     #[inline]
     fn ref_mut_t(&mut self) -> &mut Type {
-        self.expr.ref_mut_t()
+        if self.spec.kind().is_force_cast() {
+            &mut self.spec.spec_t
+        } else {
+            self.expr.ref_mut_t()
+        }
     }
     #[inline]
     fn signature_t(&self) -> Option<&Type> {

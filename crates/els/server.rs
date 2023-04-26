@@ -475,6 +475,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 self.file_cache.incremental_update(params.clone());
                 if self.opt_features.contains(&OptionalFeatures::CheckOnType) {
                     let uri = NormalizedUrl::new(params.text_document.uri);
+                    // TODO: reset mutable dependent types
                     self.quick_check_file(uri)?;
                 }
                 Ok(())

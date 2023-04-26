@@ -50,30 +50,6 @@ Generate anonymous functions, function types.
 
 Generate anonymous procedure, procedure type.
 
-## `:`(subject, T)
-
-Determine if subject matches T. If they don't match, throw a compile error.
-
-```python
-a: Int
-f x: Int, y: Int = x / y
-```
-
-Also used for `:` applied styles.
-
-```python
-fx:
-    y
-    z
-```
-
-Like `:` and `=`, the result of the operation is undefined.
-
-```python
-_ = x: Int # SyntaxError:
-print!(x: Int) # SyntaxError:
-```
-
 ## `.`(obj, attr)
 
 Read attributes of obj.
@@ -86,6 +62,23 @@ Execute `c(obj)`. `x + y |>.foo()` is the same as `(x + y).foo()`.
 ### |T: Type|(x: Option T)`?` -> T
 
 Postfix operator. Call `x.unwrap()` and `return` immediately in case of error.
+
+## `:`(x, T)
+
+Declares that object `x` is of type `T`. An error is raised if `x` is not a subtype of `T`.
+
+It can be used for variable declarations or as the right-hand side value of an expression.
+
+```erg
+# both are OK
+x: Int = 1
+y = x: Int
+```
+
+## `as`(x, T)
+
+Forces the object `x` to be cast to type `T`. If `x` is not a subtype of `T`, an error is raised.
+The difference from `:` is that `(x: T): U` when `x: U; U <: T`, but `(x as T): T`.
 
 ## match(obj, *lambdas: Lambda)
 

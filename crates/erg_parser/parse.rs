@@ -1209,7 +1209,7 @@ impl Parser {
                 // type ascription
                 Some(op)
                     if (op.is(Colon) && !self.nth_is(1, Newline))
-                        || (op.is(SubtypeOf) || op.is(SupertypeOf)) =>
+                        || (op.is(SubtypeOf) || op.is(SupertypeOf) || op.is(As)) =>
                 {
                     // "a": 1 (key-value pair)
                     if in_brace {
@@ -1480,7 +1480,7 @@ impl Parser {
                 // type ascription
                 Some(op)
                     if (op.is(Colon) && !self.nth_is(1, Newline))
-                        || (op.is(SubtypeOf) || op.is(SupertypeOf)) =>
+                        || (op.is(SubtypeOf) || op.is(SupertypeOf) || op.is(As)) =>
                 {
                     // "a": 1 (key-value pair)
                     if in_brace {

@@ -244,7 +244,7 @@ fn exec_array_err() -> Result<(), ()> {
 
 #[test]
 fn exec_as() -> Result<(), ()> {
-    expect_failure("tests/should_err/as.er", 0, 3)
+    expect_failure("tests/should_err/as.er", 0, 6)
 }
 
 #[test]

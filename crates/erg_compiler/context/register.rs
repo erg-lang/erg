@@ -143,7 +143,8 @@ impl Context {
         };
         let vis = self.instantiate_vis_modifier(&ident.vis)?;
         let kind = id.map_or(VarKind::Declared, VarKind::Defined);
-        let sig_t = self.instantiate_var_sig_t(sig.t_spec.as_ref(), PreRegister)?;
+        let sig_t =
+            self.instantiate_var_sig_t(sig.t_spec.as_ref().map(|ts| &ts.t_spec), PreRegister)?;
         let py_name = if let ContextKind::PatchMethodDefs(_base) = &self.kind {
             Some(Str::from(format!("::{}{}", self.name, ident)))
         } else {
@@ -295,8 +296,16 @@ impl Context {
         } else {
             VarKind::Defined(id)
         };
+        let t = sig.t_spec.as_ref().map_or(body_t.clone(), |ts| {
+            if ts.ascription_kind().is_force_cast() {
+                self.instantiate_typespec(&ts.t_spec)
+                    .unwrap_or(body_t.clone())
+            } else {
+                body_t.clone()
+            }
+        });
         let vi = VarInfo::new(
-            body_t.clone(),
+            t,
             muty,
             Visibility::new(vis, self.name.clone()),
             kind,
@@ -902,7 +911,7 @@ impl Context {
                     if let Some(spec) = sig.return_t_spec.as_ref() {
                         let mut dummy_tv_cache = TyVarCache::new(self.level, self);
                         let spec_t = self
-                            .instantiate_typespec(
+                            .instantiate_typespec_full(
                                 spec,
                                 None,
                                 &mut dummy_tv_cache,
@@ -944,8 +953,8 @@ impl Context {
                     if let Some(spec) = sig.t_spec.as_ref() {
                         let mut dummy_tv_cache = TyVarCache::new(self.level, self);
                         let spec_t = self
-                            .instantiate_typespec(
-                                spec,
+                            .instantiate_typespec_full(
+                                &spec.t_spec,
                                 None,
                                 &mut dummy_tv_cache,
                                 PreRegister,

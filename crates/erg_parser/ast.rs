@@ -1909,7 +1909,6 @@ impl ConstTypeAsc {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum ConstExpr {
     Lit(Literal),
-    Erased(Literal), // _
     Accessor(ConstAccessor),
     App(ConstApp),
     Array(ConstArray),
@@ -1924,9 +1923,9 @@ pub enum ConstExpr {
     TypeAsc(ConstTypeAsc),
 }
 
-impl_nested_display_for_chunk_enum!(ConstExpr; Lit, Accessor, App, Array, Set, Dict, Tuple, Record, BinOp, UnaryOp, Def, Lambda, Erased, Set, TypeAsc);
+impl_nested_display_for_chunk_enum!(ConstExpr; Lit, Accessor, App, Array, Set, Dict, Tuple, Record, BinOp, UnaryOp, Def, Lambda, Set, TypeAsc);
 impl_display_from_nested!(ConstExpr);
-impl_locational_for_enum!(ConstExpr; Lit, Accessor, App, Array, Set, Dict, Tuple, Record, BinOp, UnaryOp, Def, Lambda, Erased, Set, TypeAsc);
+impl_locational_for_enum!(ConstExpr; Lit, Accessor, App, Array, Set, Dict, Tuple, Record, BinOp, UnaryOp, Def, Lambda, Set, TypeAsc);
 
 impl ConstExpr {
     pub fn need_to_be_closed(&self) -> bool {
@@ -1948,7 +1947,6 @@ impl ConstExpr {
             Self::BinOp(binop) => Expr::BinOp(binop.downcast()),
             Self::UnaryOp(unop) => Expr::UnaryOp(unop.downcast()),
             Self::TypeAsc(type_asc) => Expr::TypeAscription(type_asc.downcast()),
-            Self::Erased(lit) => Expr::Dummy(Dummy::new(Some(lit.loc()), vec![])),
         }
     }
 }
@@ -2529,6 +2527,7 @@ impl TypeSpec {
 pub struct TypeSpecWithOp {
     pub op: Token,
     pub t_spec: TypeSpec,
+    /// Required for dynamic type checking
     pub t_spec_as_expr: Box<Expr>,
 }
 
@@ -2547,6 +2546,16 @@ impl TypeSpecWithOp {
             op,
             t_spec,
             t_spec_as_expr: Box::new(t_spec_as_expr),
+        }
+    }
+
+    pub fn ascription_kind(&self) -> AscriptionKind {
+        match self.op.kind {
+            TokenKind::Colon => AscriptionKind::TypeOf,
+            TokenKind::SubtypeOf => AscriptionKind::SubtypeOf,
+            TokenKind::SupertypeOf => AscriptionKind::SupertypeOf,
+            TokenKind::As => AscriptionKind::AsCast,
+            kind => todo!("{kind}"),
         }
     }
 }
@@ -3095,6 +3104,7 @@ impl VarRecordPattern {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct VarDataPackPattern {
     pub class: TypeSpec,
+    pub class_as_expr: Box<Expr>,
     pub args: VarRecordPattern,
 }
 
@@ -3107,8 +3117,12 @@ impl fmt::Display for VarDataPackPattern {
 impl_locational!(VarDataPackPattern, class, args);
 
 impl VarDataPackPattern {
-    pub const fn new(class: TypeSpec, args: VarRecordPattern) -> Self {
-        Self { class, args }
+    pub const fn new(class: TypeSpec, class_as_expr: Box<Expr>, args: VarRecordPattern) -> Self {
+        Self {
+            class,
+            class_as_expr,
+            args,
+        }
     }
 }
 
@@ -3185,7 +3199,7 @@ impl VarPattern {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct VarSignature {
     pub pat: VarPattern,
-    pub t_spec: Option<TypeSpec>,
+    pub t_spec: Option<TypeSpecWithOp>,
 }
 
 impl NestedDisplay for VarSignature {
@@ -3207,7 +3221,7 @@ impl Locational for VarSignature {
 }
 
 impl VarSignature {
-    pub const fn new(pat: VarPattern, t_spec: Option<TypeSpec>) -> Self {
+    pub const fn new(pat: VarPattern, t_spec: Option<TypeSpecWithOp>) -> Self {
         Self { pat, t_spec }
     }
 
@@ -3860,7 +3874,7 @@ impl Signature {
 
     pub fn t_spec(&self) -> Option<&TypeSpec> {
         match self {
-            Self::Var(v) => v.t_spec.as_ref(),
+            Self::Var(v) => v.t_spec.as_ref().map(|t| &t.t_spec),
             Self::Subr(c) => c.return_t_spec.as_ref(),
         }
     }
@@ -3881,6 +3895,20 @@ impl Signature {
             Self::Var(var) => var.vis(),
             Self::Subr(subr) => subr.vis(),
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum AscriptionKind {
+    TypeOf,
+    SubtypeOf,
+    SupertypeOf,
+    AsCast,
+}
+
+impl AscriptionKind {
+    pub const fn is_force_cast(&self) -> bool {
+        matches!(self, Self::AsCast)
     }
 }
 
@@ -3910,12 +3938,8 @@ impl TypeAscription {
         }
     }
 
-    pub fn is_instance_ascription(&self) -> bool {
-        self.t_spec.op.is(TokenKind::Colon)
-    }
-
-    pub fn is_subtype_ascription(&self) -> bool {
-        self.t_spec.op.is(TokenKind::SubtypeOf)
+    pub fn kind(&self) -> AscriptionKind {
+        self.t_spec.ascription_kind()
     }
 }
 

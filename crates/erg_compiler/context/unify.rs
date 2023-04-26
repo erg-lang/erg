@@ -689,13 +689,15 @@ impl Context {
                     let (l, r) = union.union_pair().unwrap_or((lsub, rsub));
                     let unified = self.unify(&l, &r);
                     if unified.is_none() {
+                        let maybe_sub = self.readable_type(maybe_sub.clone());
+                        let union = self.readable_type(union);
                         return Err(TyCheckErrors::from(TyCheckError::implicit_widening_error(
                             self.cfg.input.clone(),
                             line!() as usize,
                             loc.loc(),
                             self.caused_by(),
-                            maybe_sub,
-                            maybe_sup,
+                            &maybe_sub,
+                            &union,
                         )));
                     }
                 }
@@ -800,14 +802,16 @@ impl Context {
                         let (l, r) = new_sub.union_pair().unwrap_or((maybe_sub.clone(), sub));
                         let unified = self.unify(&l, &r);
                         if unified.is_none() {
+                            let maybe_sub = self.readable_type(maybe_sub.clone());
+                            let new_sub = self.readable_type(new_sub);
                             return Err(TyCheckErrors::from(
                                 TyCheckError::implicit_widening_error(
                                     self.cfg.input.clone(),
                                     line!() as usize,
                                     loc.loc(),
                                     self.caused_by(),
-                                    maybe_sub,
-                                    maybe_sup,
+                                    &maybe_sub,
+                                    &new_sub,
                                 ),
                             ));
                         }

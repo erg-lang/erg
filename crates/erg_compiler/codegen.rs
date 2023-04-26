@@ -1464,11 +1464,6 @@ impl PyCodeGenerator {
                 self.emit_push_null();
                 self.emit_load_name_instr(Identifier::private("#in_operator"));
             }
-            // (x as T) == x
-            TokenKind::AsOp => {
-                self.emit_expr(*bin.lhs);
-                return;
-            }
             _ => {}
         }
         let lhs_t = bin
