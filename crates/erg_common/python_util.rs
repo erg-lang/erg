@@ -738,15 +738,14 @@ pub fn _eval_pyc<S: Into<String>>(file: S, py_command: Option<&str>) -> String {
     String::from_utf8_lossy(&out.stdout).to_string()
 }
 
-pub fn _exec_py(code: &str) -> Option<i32> {
+pub fn exec_py(file: &str) -> Option<i32> {
     let mut child = if cfg!(windows) {
         Command::new(which_python())
-            .arg("-c")
-            .arg(code)
+            .arg(file)
             .spawn()
             .expect("cannot execute python")
     } else {
-        let exec_command = format!("{} -c \"{}\"", which_python(), code);
+        let exec_command = format!("{} {file}", which_python());
         Command::new("sh")
             .arg("-c")
             .arg(exec_command)
