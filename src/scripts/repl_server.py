@@ -26,16 +26,10 @@ class MessageStream:
 
     def recv_msg(self):
         self._read_buf.clear()
-        # requires at least 3 bytes as metadata
-        while len(self._read_buf) < 3:
-            self._read_buf.extend(self.socket.recv(1024))
-
+        self._read_buf.extend(self.socket.recv(3))
         inst = int.from_bytes(self._read_buf[:1], 'big')
         data_len = int.from_bytes(self._read_buf[1:3], 'big')
-
-        # until all data has been read
-        while len(self._read_buf) < 3 + data_len:
-            self._read_buf.extend(self.socket.recv(1024))
+        self._read_buf.extend(self.socket.recv(data_len))
 
         return (inst, self._read_buf[3:].decode())
 
