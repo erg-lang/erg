@@ -1,23 +1,21 @@
 use std::collections::HashMap;
 
-use serde::Deserialize;
-use serde_json::json;
-use serde_json::Value;
-
 use erg_common::traits::Locational;
 use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::erg_parser::token::{Token, TokenKind};
 use erg_compiler::hir::Expr;
 
-use lsp_types::{CodeAction, CodeActionKind, CodeActionParams, TextEdit, Url, WorkspaceEdit};
+use lsp_types::{
+    CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionParams, CodeActionResponse,
+    TextEdit, Url, WorkspaceEdit,
+};
 
-use crate::server::{send, send_log, ELSResult, Server};
+use crate::server::{send_log, ELSResult, Server};
 use crate::util::{self, NormalizedUrl};
 
 impl<Checker: BuildRunnable> Server<Checker> {
     fn gen_eliminate_unused_vars_action(
         &self,
-        _msg: &Value,
         params: CodeActionParams,
     ) -> ELSResult<Option<CodeAction>> {
         let uri = NormalizedUrl::new(params.text_document.uri);
@@ -133,11 +131,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         Some(action)
     }
 
-    fn send_normal_action(
-        &self,
-        msg: &Value,
-        params: CodeActionParams,
-    ) -> ELSResult<Vec<CodeAction>> {
+    fn send_normal_action(&self, params: CodeActionParams) -> ELSResult<Vec<CodeAction>> {
         let mut actions = vec![];
         let uri = NormalizedUrl::new(params.text_document.uri.clone());
         if let Some(token) = self.file_cache.get_token(&uri, params.range.start) {
@@ -146,39 +140,46 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 actions.extend(action);
             }
         }
-        actions.extend(self.send_quick_fix(msg, params)?);
+        actions.extend(self.send_quick_fix(params)?);
         Ok(actions)
     }
 
-    fn send_quick_fix(&self, msg: &Value, params: CodeActionParams) -> ELSResult<Vec<CodeAction>> {
+    fn send_quick_fix(&self, params: CodeActionParams) -> ELSResult<Vec<CodeAction>> {
         let mut result: Vec<CodeAction> = vec![];
         let diags = &params.context.diagnostics;
         if diags.is_empty() {
             return Ok(result);
         }
         if diags.first().unwrap().message.ends_with("is not used") {
-            let actions = self.gen_eliminate_unused_vars_action(msg, params)?;
+            let actions = self.gen_eliminate_unused_vars_action(params)?;
             result.extend(actions);
         }
         Ok(result)
     }
 
-    pub(crate) fn send_code_action(&self, msg: &Value) -> ELSResult<()> {
-        send_log(format!("code action requested: {msg}"))?;
-        let params = CodeActionParams::deserialize(&msg["params"])?;
+    pub(crate) fn handle_code_action(
+        &mut self,
+        params: CodeActionParams,
+    ) -> ELSResult<Option<CodeActionResponse>> {
+        send_log(format!("code action requested: {params:?}"))?;
         let result = match params
             .context
             .only
             .as_ref()
             .and_then(|kinds| kinds.first().map(|s| s.as_str()))
         {
-            Some("quickfix") => self.send_quick_fix(msg, params)?,
-            None => self.send_normal_action(msg, params)?,
+            Some("quickfix") => self.send_quick_fix(params)?,
+            None => self.send_normal_action(params)?,
             Some(other) => {
                 send_log(&format!("Unknown code action requested: {other}"))?;
                 vec![]
             }
         };
-        send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": result }))
+        Ok(Some(
+            result
+                .into_iter()
+                .map(CodeActionOrCommand::CodeAction)
+                .collect(),
+        ))
     }
 }

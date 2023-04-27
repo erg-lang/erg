@@ -5,13 +5,13 @@ use std::ops::Not;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
-use erg_common::env::erg_path;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_json::Value;
 
 use erg_common::config::ErgConfig;
 use erg_common::dict::Dict;
+use erg_common::env::erg_path;
 use erg_common::normalize_path;
 
 use erg_compiler::artifact::{BuildRunnable, IncompleteArtifact};
@@ -21,6 +21,11 @@ use erg_compiler::hir::Expr;
 use erg_compiler::module::{SharedCompilerResource, SharedModuleIndex};
 use erg_compiler::ty::HasType;
 
+use lsp_types::request::{
+    CodeActionRequest, CodeLensRequest, Completion, ExecuteCommand, GotoDefinition, HoverRequest,
+    InlayHintRequest, References, Rename, Request, ResolveCompletionItem,
+    SemanticTokensFullRequest, SignatureHelpRequest, WillRenameFiles,
+};
 use lsp_types::{
     ClientCapabilities, CodeActionKind, CodeActionOptions, CodeActionProviderCapability,
     CodeLensOptions, CompletionOptions, DidChangeTextDocumentParams, DidOpenTextDocumentParams,
@@ -33,7 +38,7 @@ use lsp_types::{
 use crate::completion::CompletionCache;
 use crate::file_cache::FileCache;
 use crate::hir_visitor::HIRVisitor;
-use crate::message::{ErrorMessage, LogMessage, ShowMessage};
+use crate::message::{ErrorMessage, LSPResult, LogMessage, ShowMessage};
 use crate::util::{self, NormalizedUrl};
 
 pub type ELSResult<T> = Result<T, Box<dyn std::error::Error>>;
@@ -151,7 +156,11 @@ pub(crate) fn send<T: ?Sized + Serialize>(message: &T) -> ELSResult<()> {
 }
 
 pub(crate) fn send_log<S: Into<String>>(msg: S) -> ELSResult<()> {
-    send(&LogMessage::new(msg))
+    if cfg!(debug_assertions) || cfg!(feature = "debug") {
+        send(&LogMessage::new(msg))
+    } else {
+        Ok(())
+    }
 }
 
 #[allow(unused)]
@@ -428,23 +437,55 @@ impl<Checker: BuildRunnable> Server<Checker> {
         }
     }
 
+    fn wrap<R>(
+        &mut self,
+        id: i64,
+        msg: &Value,
+        handler: fn(&mut Server<Checker>, R::Params) -> ELSResult<R::Result>,
+    ) -> ELSResult<()>
+    where
+        R: lsp_types::request::Request + 'static,
+        R::Result: Serialize,
+    {
+        let params = R::Params::deserialize(&msg["params"])?;
+        send(&LSPResult::new(id, handler(self, params)?))
+    }
+
     fn handle_request(&mut self, msg: &Value, id: i64, method: &str) -> ELSResult<()> {
         match method {
             "initialize" => self.init(msg, id),
             "shutdown" => self.shutdown(id),
-            "textDocument/completion" => self.show_completion(msg),
-            "completionItem/resolve" => self.resolve_completion(msg),
-            "textDocument/definition" => self.show_definition(msg),
-            "textDocument/hover" => self.show_hover(msg),
-            "textDocument/rename" => self.rename(msg),
-            "textDocument/references" => self.show_references(msg),
-            "textDocument/semanticTokens/full" => self.get_semantic_tokens_full(msg),
-            "textDocument/inlayHint" => self.get_inlay_hint(msg),
-            "textDocument/codeAction" => self.send_code_action(msg),
-            "textDocument/signatureHelp" => self.show_signature_help(msg),
-            "textDocument/codeLens" => self.show_code_lens(msg),
-            "workspace/willRenameFiles" => self.rename_files(msg),
-            "workspace/executeCommand" => self.execute_command(msg),
+            Rename::METHOD => self.rename(msg),
+            Completion::METHOD => self.wrap::<Completion>(id, msg, Self::handle_completion),
+            ResolveCompletionItem::METHOD => {
+                self.wrap::<ResolveCompletionItem>(id, msg, Self::handle_resolve_completion)
+            }
+            GotoDefinition::METHOD => {
+                self.wrap::<GotoDefinition>(id, msg, Self::handle_goto_definition)
+            }
+            HoverRequest::METHOD => self.wrap::<HoverRequest>(id, msg, Self::handle_hover),
+            References::METHOD => self.wrap::<References>(id, msg, Self::handle_references),
+            SemanticTokensFullRequest::METHOD => {
+                self.wrap::<SemanticTokensFullRequest>(id, msg, Self::handle_semantic_tokens_full)
+            }
+            InlayHintRequest::METHOD => {
+                self.wrap::<InlayHintRequest>(id, msg, Self::handle_inlay_hint)
+            }
+            CodeActionRequest::METHOD => {
+                self.wrap::<CodeActionRequest>(id, msg, Self::handle_code_action)
+            }
+            SignatureHelpRequest::METHOD => {
+                self.wrap::<SignatureHelpRequest>(id, msg, Self::handle_signature_help)
+            }
+            CodeLensRequest::METHOD => {
+                self.wrap::<CodeLensRequest>(id, msg, Self::handle_code_lens)
+            }
+            WillRenameFiles::METHOD => {
+                self.wrap::<WillRenameFiles>(id, msg, Self::handle_will_rename_files)
+            }
+            ExecuteCommand::METHOD => {
+                self.wrap::<ExecuteCommand>(id, msg, Self::handle_execute_command)
+            }
             other => send_error(Some(id), -32600, format!("{other} is not supported")),
         }
     }

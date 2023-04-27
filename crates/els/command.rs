@@ -1,28 +1,25 @@
 use erg_compiler::varinfo::AbsLocation;
-use lsp_types::Command;
-use serde::Deserialize;
-use serde_json::json;
 use serde_json::Value;
 
 use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::hir::Expr;
 
-use lsp_types::{ExecuteCommandParams, Location, Url};
+use lsp_types::{Command, ExecuteCommandParams, Location, Url};
 
-use crate::server::{send, send_log, ELSResult, Server};
+use crate::server::{send_log, ELSResult, Server};
 use crate::util::{self, NormalizedUrl};
 
 impl<Checker: BuildRunnable> Server<Checker> {
-    pub(crate) fn execute_command(&mut self, msg: &Value) -> ELSResult<()> {
-        let params = ExecuteCommandParams::deserialize(&msg["params"])?;
+    pub(crate) fn handle_execute_command(
+        &mut self,
+        params: ExecuteCommandParams,
+    ) -> ELSResult<Option<Value>> {
         send_log(format!("command requested: {}", params.command))?;
         #[allow(clippy::match_single_binding)]
         match &params.command[..] {
             other => {
                 send_log(format!("unknown command: {other}"))?;
-                send(
-                    &json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": Value::Null }),
-                )
+                Ok(None)
             }
         }
     }

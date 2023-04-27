@@ -1,8 +1,3 @@
-use lsp_types::SemanticToken;
-use serde::Deserialize;
-use serde_json::json;
-use serde_json::Value;
-
 use erg_common::dict::Dict;
 use erg_common::error::Location;
 use erg_common::traits::{Locational, Runnable};
@@ -15,9 +10,11 @@ use erg_compiler::erg_parser::ast::{
 use erg_compiler::erg_parser::token::TokenKind;
 use erg_compiler::ASTBuilder;
 
-use lsp_types::{SemanticTokenType, SemanticTokens, SemanticTokensParams};
+use lsp_types::{
+    SemanticToken, SemanticTokenType, SemanticTokens, SemanticTokensParams, SemanticTokensResult,
+};
 
-use crate::server::{send, send_log, ELSResult, Server};
+use crate::server::{send_log, ELSResult, Server};
 use crate::util::{self, NormalizedUrl};
 
 #[derive(Debug)]
@@ -283,9 +280,11 @@ impl ASTSemanticState {
 }
 
 impl<Checker: BuildRunnable> Server<Checker> {
-    pub(crate) fn get_semantic_tokens_full(&mut self, msg: &Value) -> ELSResult<()> {
-        send_log(format!("full semantic tokens request: {msg}"))?;
-        let params = SemanticTokensParams::deserialize(&msg["params"])?;
+    pub(crate) fn handle_semantic_tokens_full(
+        &mut self,
+        params: SemanticTokensParams,
+    ) -> ELSResult<Option<SemanticTokensResult>> {
+        send_log(format!("full semantic tokens request: {params:?}"))?;
         let uri = NormalizedUrl::new(params.text_document.uri);
         let path = util::uri_to_path(&uri);
         let src = self.file_cache.get_code(&uri)?;
@@ -294,10 +293,10 @@ impl<Checker: BuildRunnable> Server<Checker> {
             Ok(ast) => {
                 let mut state = ASTSemanticState::new();
                 let tokens = state.enumerate_tokens(ast);
-                json!(tokens)
+                Some(SemanticTokensResult::Tokens(tokens))
             }
-            Err(_) => json!(null),
+            Err(_) => None,
         };
-        send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": result }))
+        Ok(result)
     }
 }

@@ -4,7 +4,6 @@ use std::time::SystemTime;
 
 use erg_common::traits::{Locational, Stream};
 use erg_compiler::artifact::IncompleteArtifact;
-use lsp_types::OneOf;
 use serde::Deserialize;
 use serde_json::json;
 use serde_json::Value;
@@ -16,8 +15,9 @@ use erg_compiler::hir::{Expr, Literal};
 use erg_compiler::varinfo::{AbsLocation, VarKind};
 
 use lsp_types::{
-    DocumentChangeOperation, DocumentChanges, OptionalVersionedTextDocumentIdentifier, RenameFile,
-    RenameFilesParams, RenameParams, ResourceOp, TextDocumentEdit, TextEdit, Url, WorkspaceEdit,
+    DocumentChangeOperation, DocumentChanges, OneOf, OptionalVersionedTextDocumentIdentifier,
+    RenameFile, RenameFilesParams, RenameParams, ResourceOp, TextDocumentEdit, TextEdit, Url,
+    WorkspaceEdit,
 };
 
 use crate::server::{send, send_error_info, send_log, ELSResult, Server};
@@ -266,9 +266,11 @@ impl<Checker: BuildRunnable> Server<Checker> {
         }
     }
 
-    pub(crate) fn rename_files(&mut self, msg: &Value) -> ELSResult<()> {
+    pub(crate) fn handle_will_rename_files(
+        &mut self,
+        params: RenameFilesParams,
+    ) -> ELSResult<Option<WorkspaceEdit>> {
         send_log("workspace/willRenameFiles request")?;
-        let params = RenameFilesParams::deserialize(msg["params"].clone())?;
         let mut edits = HashMap::new();
         let mut renames = vec![];
         for file in &params.files {
@@ -305,6 +307,6 @@ impl<Checker: BuildRunnable> Server<Checker> {
             document_changes: Some(changes),
             ..Default::default()
         };
-        send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": edit }))
+        Ok(Some(edit))
     }
 }

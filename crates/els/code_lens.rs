@@ -1,19 +1,17 @@
-use serde::Deserialize;
-use serde_json::json;
-use serde_json::Value;
-
 use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::hir::Expr;
 
 use lsp_types::{CodeLens, CodeLensParams};
 
-use crate::server::{send, send_log, ELSResult, Server};
+use crate::server::{send_log, ELSResult, Server};
 use crate::util::{self, NormalizedUrl};
 
 impl<Checker: BuildRunnable> Server<Checker> {
-    pub(crate) fn show_code_lens(&mut self, msg: &Value) -> ELSResult<()> {
+    pub(crate) fn handle_code_lens(
+        &mut self,
+        params: CodeLensParams,
+    ) -> ELSResult<Option<Vec<CodeLens>>> {
         send_log("code lens requested")?;
-        let params = CodeLensParams::deserialize(&msg["params"])?;
         let uri = NormalizedUrl::new(params.text_document.uri);
         // TODO: parallelize
         let result = [
@@ -21,7 +19,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             self.send_class_inherits_lens(&uri)?,
         ]
         .concat();
-        send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": result }))
+        Ok(Some(result))
     }
 
     fn send_trait_impls_lens(&mut self, uri: &NormalizedUrl) -> ELSResult<Vec<CodeLens>> {

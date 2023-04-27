@@ -1,10 +1,9 @@
-use erg_common::env::erg_pystd_path;
-use serde::Deserialize;
-use serde_json::json;
+use lsp_types::CompletionResponse;
 use serde_json::Value;
 
 use erg_common::config::ErgConfig;
 use erg_common::dict::Dict;
+use erg_common::env::erg_pystd_path;
 use erg_common::impl_u8_enum;
 use erg_common::python_util::BUILTIN_PYTHON_MODS;
 use erg_common::set::Set;
@@ -26,7 +25,7 @@ use lsp_types::{
     MarkupContent, MarkupKind, Position, Range, TextEdit,
 };
 
-use crate::server::{send, send_log, ELSResult, Server};
+use crate::server::{send_log, ELSResult, Server};
 use crate::util::{self, NormalizedUrl};
 
 fn comp_item_kind(vi: &VarInfo) -> CompletionItemKind {
@@ -342,9 +341,11 @@ impl CompletionCache {
 }
 
 impl<Checker: BuildRunnable> Server<Checker> {
-    pub(crate) fn show_completion(&mut self, msg: &Value) -> ELSResult<()> {
-        send_log(format!("completion requested: {msg}"))?;
-        let params = CompletionParams::deserialize(&msg["params"])?;
+    pub(crate) fn handle_completion(
+        &mut self,
+        params: CompletionParams,
+    ) -> ELSResult<Option<CompletionResponse>> {
+        send_log(format!("completion requested: {params:?}"))?;
         let uri = NormalizedUrl::new(params.text_document_position.text_document.uri);
         let path = util::uri_to_path(&uri);
         let pos = params.text_document_position.position;
@@ -357,7 +358,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             .get_line(pos.line)
             .map_or(false, |line| line.starts_with('#'))
         {
-            return Ok(());
+            return Ok(None);
         }
         let trigger = params
             .context
@@ -484,16 +485,18 @@ impl<Checker: BuildRunnable> Server<Checker> {
             }
         }
         send_log(format!("completion items: {}", result.len()))?;
-        send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": result }))
+        Ok(Some(CompletionResponse::Array(result)))
     }
 
-    pub(crate) fn resolve_completion(&self, msg: &Value) -> ELSResult<()> {
-        send_log(format!("completion resolve requested: {msg}"))?;
-        let mut item = CompletionItem::deserialize(&msg["params"])?;
+    pub(crate) fn handle_resolve_completion(
+        &mut self,
+        mut item: CompletionItem,
+    ) -> ELSResult<CompletionItem> {
+        send_log(format!("completion resolve requested: {item:?}"))?;
         if let Some(data) = &item.data {
             let mut contents = vec![];
             let Ok(def_loc) = data.as_str().unwrap().parse::<AbsLocation>() else {
-                return send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": item }));
+                return Ok(item);
             };
             self.show_doc_comment(None, &mut contents, &def_loc)?;
             let mut contents = contents.into_iter().map(mark_to_string).collect::<Vec<_>>();
@@ -503,6 +506,6 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 value: contents.join("\n"),
             }));
         }
-        send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": item }))
+        Ok(item)
     }
 }

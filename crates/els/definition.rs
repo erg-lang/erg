@@ -1,7 +1,3 @@
-use serde::Deserialize;
-use serde_json::json;
-use serde_json::Value;
-
 use erg_common::traits::{Locational, Stream};
 use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::erg_parser::token::{Token, TokenCategory};
@@ -11,7 +7,7 @@ use erg_compiler::varinfo::VarInfo;
 
 use lsp_types::{GotoDefinitionParams, GotoDefinitionResponse, Url};
 
-use crate::server::{send, send_log, ELSResult, Server};
+use crate::server::{send_log, ELSResult, Server};
 use crate::util::{self, NormalizedUrl};
 
 impl<Checker: BuildRunnable> Server<Checker> {
@@ -123,10 +119,12 @@ impl<Checker: BuildRunnable> Server<Checker> {
         }
     }
 
-    pub(crate) fn show_definition(&mut self, msg: &Value) -> ELSResult<()> {
-        send_log(format!("definition requested: {msg}"))?;
-        let params = GotoDefinitionParams::deserialize(&msg["params"])?;
+    pub(crate) fn handle_goto_definition(
+        &mut self,
+        params: GotoDefinitionParams,
+    ) -> ELSResult<Option<GotoDefinitionResponse>> {
+        send_log(format!("definition requested: {params:?}"))?;
         let result = self.get_definition_response(params)?;
-        send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": result }))
+        Ok(Some(result))
     }
 }

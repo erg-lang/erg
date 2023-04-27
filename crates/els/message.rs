@@ -77,3 +77,20 @@ impl ShowMessage {
         }
     }
 }
+
+#[derive(Serialize)]
+pub struct LSPResult<R: Serialize> {
+    jsonrpc: f32,
+    id: i64,
+    result: R,
+}
+
+impl<R: Serialize> LSPResult<R> {
+    pub fn new(id: i64, result: R) -> Self {
+        Self {
+            jsonrpc: 2.0,
+            id,
+            result,
+        }
+    }
+}

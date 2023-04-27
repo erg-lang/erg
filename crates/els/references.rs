@@ -1,22 +1,20 @@
-use serde::Deserialize;
-use serde_json::json;
-use serde_json::Value;
-
 use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::varinfo::AbsLocation;
 
-use lsp_types::{Position, ReferenceParams, Url};
+use lsp_types::{Location, Position, ReferenceParams, Url};
 
-use crate::server::{send, ELSResult, Server};
+use crate::server::{ELSResult, Server};
 use crate::util::{self, NormalizedUrl};
 
 impl<Checker: BuildRunnable> Server<Checker> {
-    pub(crate) fn show_references(&mut self, msg: &Value) -> ELSResult<()> {
-        let params = ReferenceParams::deserialize(&msg["params"])?;
+    pub(crate) fn handle_references(
+        &mut self,
+        params: ReferenceParams,
+    ) -> ELSResult<Option<Vec<Location>>> {
         let uri = NormalizedUrl::new(params.text_document_position.text_document.uri);
         let pos = params.text_document_position.position;
         let result = self.show_refs_inner(&uri, pos);
-        send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": result }))
+        Ok(Some(result))
     }
 
     fn show_refs_inner(&self, uri: &NormalizedUrl, pos: Position) -> Vec<lsp_types::Location> {

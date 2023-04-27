@@ -1,19 +1,17 @@
 #![allow(unused_imports)]
 
-use erg_common::traits::NoTypeDisplay;
-use erg_compiler::ty::HasType;
-use lsp_types::Position;
 use serde::Deserialize;
 use serde_json::json;
 use serde_json::Value;
 
 use erg_common::dict::Dict;
 use erg_common::error::Location;
+use erg_common::traits::NoTypeDisplay;
 use erg_common::traits::{Locational, Runnable, Stream};
-
 use erg_compiler::artifact::{BuildRunnable, IncompleteArtifact};
 use erg_compiler::hir::{Block, Call, ClassDef, Def, Expr, Lambda, Params, PatchDef, Signature};
-use lsp_types::{InlayHint, InlayHintKind, InlayHintLabel, InlayHintParams};
+use erg_compiler::ty::HasType;
+use lsp_types::{InlayHint, InlayHintKind, InlayHintLabel, InlayHintParams, Position};
 
 use crate::server::{send, send_log, ELSResult, Server};
 use crate::util::{self, loc_to_range, NormalizedUrl};
@@ -88,9 +86,11 @@ fn param_anot<D: std::fmt::Display>(ln_begin: u32, col_begin: u32, name: D) -> I
 }
 
 impl<Checker: BuildRunnable> Server<Checker> {
-    pub(crate) fn get_inlay_hint(&mut self, msg: &Value) -> ELSResult<()> {
-        send_log(format!("inlay hint request: {msg}"))?;
-        let params = InlayHintParams::deserialize(&msg["params"])?;
+    pub(crate) fn handle_inlay_hint(
+        &mut self,
+        params: InlayHintParams,
+    ) -> ELSResult<Option<Vec<InlayHint>>> {
+        send_log(format!("inlay hint request: {params:?}"))?;
         let uri = NormalizedUrl::new(params.text_document.uri);
         let mut result = vec![];
         if let Some(IncompleteArtifact {
@@ -101,7 +101,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 result.extend(self.get_expr_hint(chunk));
             }
         }
-        send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": result }))
+        Ok(Some(result))
     }
 
     fn get_expr_hint(&self, expr: &Expr) -> Vec<InlayHint> {

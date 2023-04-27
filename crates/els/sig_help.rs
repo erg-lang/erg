@@ -1,7 +1,3 @@
-use serde::Deserialize;
-use serde_json::json;
-use serde_json::Value;
-
 use erg_common::traits::{DequeStream, Locational, NoTypeDisplay};
 use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::erg_parser::token::{Token, TokenKind};
@@ -13,7 +9,7 @@ use lsp_types::{
     SignatureHelpParams, SignatureHelpTriggerKind, SignatureInformation,
 };
 
-use crate::server::{send, send_log, ELSResult, Server};
+use crate::server::{send_log, ELSResult, Server};
 use crate::util::NormalizedUrl;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -39,18 +35,18 @@ fn get_end(start: usize, pt: &ParamTy) -> usize {
 }
 
 impl<Checker: BuildRunnable> Server<Checker> {
-    pub(crate) fn show_signature_help(&mut self, msg: &Value) -> ELSResult<()> {
-        send_log(format!("signature help requested: {msg}"))?;
-        let params = SignatureHelpParams::deserialize(&msg["params"])?;
+    pub(crate) fn handle_signature_help(
+        &mut self,
+        params: SignatureHelpParams,
+    ) -> ELSResult<Option<SignatureHelp>> {
+        send_log(format!("signature help requested: {params:?}"))?;
         let uri = NormalizedUrl::new(params.text_document_position_params.text_document.uri);
         let pos = params.text_document_position_params.position;
         if params.context.as_ref().map(|ctx| &ctx.trigger_kind)
             == Some(&SignatureHelpTriggerKind::CONTENT_CHANGE)
         {
             let help = self.resend_help(&uri, pos, params.context.as_ref().unwrap());
-            return send(
-                &json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": help }),
-            );
+            return Ok(help);
         }
         let trigger = params
             .context
@@ -61,7 +57,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             Some(Trigger::Comma) => self.get_continuous_help(&uri, pos),
             Some(Trigger::VBar) | None => None,
         };
-        send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": result }))
+        Ok(result)
     }
 
     pub(crate) fn get_min_expr(

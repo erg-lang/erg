@@ -1,7 +1,3 @@
-use serde::Deserialize;
-use serde_json::json;
-use serde_json::Value;
-
 use erg_common::lang::LanguageCode;
 use erg_common::trim_eliminate_top_indent;
 use erg_compiler::artifact::BuildRunnable;
@@ -9,9 +5,9 @@ use erg_compiler::erg_parser::token::{Token, TokenCategory, TokenKind};
 use erg_compiler::ty::HasType;
 use erg_compiler::varinfo::{AbsLocation, VarInfo};
 
-use lsp_types::{HoverContents, HoverParams, MarkedString, Url};
+use lsp_types::{Hover, HoverContents, HoverParams, MarkedString, Url};
 
-use crate::server::{send, send_log, ELSResult, Server};
+use crate::server::{send_log, ELSResult, Server};
 use crate::util::{self, NormalizedUrl};
 
 const PROG_LANG: &str = if cfg!(feature = "py_compat") {
@@ -86,9 +82,8 @@ macro_rules! next {
 }
 
 impl<Checker: BuildRunnable> Server<Checker> {
-    pub(crate) fn show_hover(&mut self, msg: &Value) -> ELSResult<()> {
-        send_log(format!("hover requested : {msg}"))?;
-        let params = HoverParams::deserialize(&msg["params"])?;
+    pub(crate) fn handle_hover(&mut self, params: HoverParams) -> ELSResult<Option<Hover>> {
+        send_log(format!("hover requested : {params:?}"))?;
         let uri = NormalizedUrl::new(params.text_document_position_params.text_document.uri);
         let pos = params.text_document_position_params.position;
         let mut contents = vec![];
@@ -173,8 +168,10 @@ impl<Checker: BuildRunnable> Server<Checker> {
         } else {
             send_log("lex error")?;
         }
-        let result = json!({ "contents": HoverContents::Array(sort_hovers(contents)) });
-        send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": result }))
+        Ok(Some(Hover {
+            contents: HoverContents::Array(sort_hovers(contents)),
+            range: None,
+        }))
     }
 
     fn show_type_defs(&mut self, vi: &VarInfo, contents: &mut Vec<MarkedString>) -> ELSResult<()> {
