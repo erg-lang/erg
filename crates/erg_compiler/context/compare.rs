@@ -19,7 +19,6 @@ use Predicate as Pred;
 use TyParamOrdering::*;
 use Type::*;
 
-use crate::context::cache::{SubtypePair, GLOBAL_TYPE_CACHE};
 use crate::context::{Context, Variance};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -33,19 +32,6 @@ use Credibility::*;
 use super::ContextKind;
 
 impl Context {
-    fn register_cache(&self, sup: &Type, sub: &Type, result: bool) {
-        GLOBAL_TYPE_CACHE.register(SubtypePair::new(sub.clone(), sup.clone()), result);
-    }
-
-    // TODO: is it impossible to avoid .clone()?
-    fn inquire_cache(&self, sup: &Type, sub: &Type) -> Option<bool> {
-        let res = GLOBAL_TYPE_CACHE.get(&SubtypePair::new(sub.clone(), sup.clone()));
-        if res.is_some() {
-            log!(info "cache hit");
-        }
-        res
-    }
-
     pub(crate) fn eq_tp(&self, lhs: &TyParam, rhs: &TyParam) -> bool {
         match (lhs, rhs) {
             (TyParam::Type(lhs), TyParam::Type(rhs))
@@ -230,18 +216,12 @@ impl Context {
     /// make judgments that include supertypes in the same namespace & take into account glue patches
     /// 同一名前空間にある上位型を含めた判定&接着パッチを考慮した判定を行う
     fn nominal_supertype_of(&self, lhs: &Type, rhs: &Type) -> bool {
-        if let Some(res) = self.inquire_cache(lhs, rhs) {
-            return res;
-        }
         if let (Absolutely, judge) = self.classes_supertype_of(lhs, rhs) {
-            self.register_cache(lhs, rhs, judge);
             return judge;
         }
         if let (Absolutely, judge) = self.traits_supertype_of(lhs, rhs) {
-            self.register_cache(lhs, rhs, judge);
             return judge;
         }
-        self.register_cache(lhs, rhs, false);
         false
     }
 
@@ -768,6 +748,10 @@ impl Context {
             .all(|((lp, rp), variance)| self.supertype_of_tp(lp, rp, *variance))
     }
 
+    fn _subtype_of_tp(&self, lp: &TyParam, rp: &TyParam, variance: Variance) -> bool {
+        self.supertype_of_tp(rp, lp, variance)
+    }
+
     fn supertype_of_tp(&self, lp: &TyParam, rp: &TyParam, variance: Variance) -> bool {
         if lp == rp {
             return true;
@@ -779,12 +763,22 @@ impl Context {
             (_, TyParam::FreeVar(fv)) if fv.is_linked() => {
                 self.supertype_of_tp(lp, &fv.crack(), variance)
             }
-            // _: Type :> T == true
-            (TyParam::Erased(t), TyParam::Type(_)) | (TyParam::Type(_), TyParam::Erased(t))
-                if t.as_ref() == &Type =>
-            {
-                true
-            }
+            (TyParam::Erased(t), _) => match variance {
+                Variance::Contravariant => self.subtype_of(t, &self.get_tp_t(rp).unwrap_or(Obj)),
+                Variance::Covariant => self.supertype_of(t, &self.get_tp_t(rp).unwrap_or(Obj)),
+                Variance::Invariant => {
+                    let rhs = self.get_tp_t(rp).unwrap_or(Obj);
+                    self.same_type_of(t, &rhs) || self.same_type_of(t, &rhs.derefine())
+                }
+            },
+            (_, TyParam::Erased(t)) => match variance {
+                Variance::Contravariant => self.subtype_of(&self.get_tp_t(lp).unwrap_or(Obj), t),
+                Variance::Covariant => self.supertype_of(&self.get_tp_t(lp).unwrap_or(Obj), t),
+                Variance::Invariant => {
+                    let lhs = self.get_tp_t(lp).unwrap_or(Obj);
+                    self.same_type_of(&lhs, t) || self.same_type_of(&lhs.derefine(), t)
+                }
+            },
             (TyParam::Array(lp), TyParam::Array(rp)) | (TyParam::Tuple(lp), TyParam::Tuple(rp)) => {
                 for (l, r) in lp.iter().zip(rp.iter()) {
                     if !self.supertype_of_tp(l, r, variance) {
@@ -1298,11 +1292,17 @@ impl Context {
             | (Pred::LessEqual { .. }, Pred::GreaterEqual { .. })
             | (Pred::GreaterEqual { .. }, Pred::LessEqual { .. })
             | (Pred::NotEqual { .. }, Pred::Equal { .. }) => false,
-            (Pred::Equal { rhs, .. }, Pred::Equal { rhs: rhs2, .. })
-            | (Pred::NotEqual { rhs, .. }, Pred::NotEqual { rhs: rhs2, .. }) => self
+            (Pred::NotEqual { rhs, .. }, Pred::NotEqual { rhs: rhs2, .. }) => self
                 .try_cmp(rhs, rhs2)
                 .map(|ord| ord.canbe_eq())
                 .unwrap_or(false),
+            (Pred::Equal { rhs, .. }, Pred::Equal { rhs: rhs2, .. }) => {
+                self.supertype_of_tp(rhs, rhs2, Variance::Covariant)
+                    || self
+                        .try_cmp(rhs, rhs2)
+                        .map(|ord| ord.canbe_eq())
+                        .unwrap_or(false)
+            }
             // {T >= 0} :> {T >= 1}, {T >= 0} :> {T == 1}
             (
                 Pred::GreaterEqual { rhs, .. },

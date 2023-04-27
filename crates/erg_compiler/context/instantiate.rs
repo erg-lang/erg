@@ -14,6 +14,7 @@ use crate::feature_error;
 use crate::ty::constructors::*;
 use crate::ty::free::{Constraint, HasLevel};
 use crate::ty::typaram::{TyParam, TyParamLambda};
+use crate::ty::ValueObj;
 use crate::ty::{HasType, Predicate, Type};
 use crate::{type_feature_error, unreachable_error};
 use Type::*;
@@ -362,6 +363,10 @@ impl Context {
             }
             TyParam::Type(t) => {
                 let t = self.instantiate_t_inner(*t, tmp_tv_cache, loc)?;
+                Ok(TyParam::t(t))
+            }
+            TyParam::Value(ValueObj::Type(t)) => {
+                let t = self.instantiate_t_inner(t.into_typ(), tmp_tv_cache, loc)?;
                 Ok(TyParam::t(t))
             }
             p @ (TyParam::Value(_)

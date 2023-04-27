@@ -282,15 +282,11 @@ impl Context {
             return Ok(vi);
         }
         let muty = Mutability::from(&ident.inspect()[..]);
-        let py_name = if let Some(vi) = self
+        let opt_vi = self
             .decls
             .remove(ident.inspect())
-            .or_else(|| self.future_defined_locals.remove(ident.inspect()))
-        {
-            vi.py_name
-        } else {
-            py_name
-        };
+            .or_else(|| self.future_defined_locals.remove(ident.inspect()));
+        let py_name = opt_vi.as_ref().map_or(py_name, |vi| vi.py_name.clone());
         let kind = if id.0 == 0 {
             VarKind::Declared
         } else {

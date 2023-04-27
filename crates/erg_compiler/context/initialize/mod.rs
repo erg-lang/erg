@@ -32,7 +32,7 @@ use crate::module::SharedCompilerResource;
 use crate::ty::constructors::*;
 use crate::ty::free::Constraint;
 use crate::ty::value::ValueObj;
-use crate::ty::{BuiltinConstSubr, ConstSubr, Predicate, Type, Visibility};
+use crate::ty::{BuiltinConstSubr, ConstSubr, ParamTy, Predicate, Type, Visibility};
 use crate::varinfo::{AbsLocation, Mutability, VarInfo, VarKind};
 use Mutability::*;
 use ParamSpec as PS;
@@ -790,7 +790,13 @@ impl Context {
                 _ => ValueObj::builtin_type(t.clone()),
             };
             let name = VarName::from_str(t.local_name());
-            let meta_t = v_enum(set! { val.clone() });
+            // e.g Array!: |T, N|(_: {T}, _: {N}) -> {Array!(T, N)}
+            let params = t
+                .typarams()
+                .into_iter()
+                .map(|tp| ParamTy::Pos(tp_enum(self.get_tp_t(&tp).unwrap_or(Obj), set! { tp })))
+                .collect();
+            let meta_t = func(params, None, vec![], v_enum(set! { val.clone() })).quantify();
             if !cfg!(feature = "py_compat") {
                 self.locals.insert(
                     name.clone(),

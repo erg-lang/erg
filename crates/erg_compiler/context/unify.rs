@@ -1228,7 +1228,7 @@ impl Context {
     /// unify(Nat, Int!) == Some(Int)
     /// unify(Eq, Int) == None
     /// ```
-    pub fn unify(&self, lhs: &Type, rhs: &Type) -> Option<Type> {
+    pub(crate) fn unify(&self, lhs: &Type, rhs: &Type) -> Option<Type> {
         let l_sups = self._get_super_classes(lhs)?;
         let r_sups = self._get_super_classes(rhs)?;
         for l_sup in l_sups {

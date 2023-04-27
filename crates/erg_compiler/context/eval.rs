@@ -1411,7 +1411,8 @@ impl Context {
         let qtps = qt.typarams();
         let stps = st.typarams();
         if qtps.len() != stps.len() {
-            log!(err "{} {}", erg_common::fmt_vec(&qtps), erg_common::fmt_vec(&stps));
+            log!(err "{qt} / {st}");
+            log!(err "[{}] [{}]", erg_common::fmt_vec(&qtps), erg_common::fmt_vec(&stps));
             return Ok(()); // TODO: e.g. Sub(Int) / Eq and Sub(?T)
         }
         for (qtp, stp) in qtps.into_iter().zip(stps.into_iter()) {

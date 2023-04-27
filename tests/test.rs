@@ -324,7 +324,7 @@ fn exec_subtyping_err() -> Result<(), ()> {
 
 #[test]
 fn exec_callable() -> Result<(), ()> {
-    expect_failure("tests/should_err/callable.er", 0, 5)
+    expect_failure("tests/should_err/callable.er", 0, 6)
 }
 
 #[test]
@@ -344,7 +344,7 @@ fn exec_mut_err() -> Result<(), ()> {
 
 #[test]
 fn exec_mut_array_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/mut_array.er", 0, 2)
+    expect_failure("tests/should_err/mut_array.er", 0, 4)
 }
 
 #[test]

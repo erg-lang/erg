@@ -2147,6 +2147,8 @@ impl Type {
     /// assert!((A or B).contains_union(B))
     pub fn contains_union(&self, typ: &Type) -> bool {
         match self {
+            Type::FreeVar(fv) if fv.is_linked() => fv.crack().contains_union(typ),
+            Type::Refinement(refine) => refine.t.contains_union(typ),
             Type::Or(t1, t2) => t1.contains_union(typ) || t2.contains_union(typ),
             _ => self == typ,
         }
@@ -2290,6 +2292,9 @@ impl Type {
     /// assert i.Real == 1
     /// i: (Int)
     /// ```
+    /// ```
+    /// ?T(:> ?U(:> Int)).coerce(): ?T == ?U == Int
+    /// ```
     pub fn coerce(&self) {
         match self {
             Type::FreeVar(fv) if fv.is_linked() => {
@@ -2297,6 +2302,7 @@ impl Type {
             }
             Type::FreeVar(fv) if fv.is_unbound() => {
                 let (sub, _sup) = fv.get_subsup().unwrap();
+                sub.coerce();
                 fv.link(&sub);
             }
             Type::And(l, r) | Type::Or(l, r) => {

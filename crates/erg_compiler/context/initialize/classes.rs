@@ -67,13 +67,6 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
         );
         obj.register_trait(Obj, obj_in);
-        let mut obj_mutizable = Self::builtin_methods(Some(mono(MUTIZABLE)), 1);
-        obj_mutizable.register_builtin_const(
-            MUTABLE_MUT_TYPE,
-            Visibility::BUILTIN_PUBLIC,
-            ValueObj::builtin_trait(mono(MUTABLE_OBJ)),
-        );
-        obj.register_trait(Obj, obj_mutizable);
         // Obj does not implement Eq
         let mut complex = Self::builtin_mono_class(COMPLEX, 2);
         complex.register_superclass(Obj, &obj);

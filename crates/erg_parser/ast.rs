@@ -2521,6 +2521,10 @@ impl TypeSpec {
             None,
         ))
     }
+
+    pub fn poly(ident: Identifier, args: ConstArgs) -> Self {
+        Self::PreDeclTy(PreDeclTypeSpec::Simple(SimpleTypeSpec::new(ident, args)))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
