@@ -336,6 +336,7 @@ pub struct Token {
 }
 
 pub const COLON: Token = Token::dummy(TokenKind::Colon, ":");
+pub const AS: Token = Token::dummy(TokenKind::As, "as");
 pub const DOT: Token = Token::dummy(TokenKind::Dot, ".");
 pub const EQUAL: Token = Token::dummy(TokenKind::Assign, "=");
 
