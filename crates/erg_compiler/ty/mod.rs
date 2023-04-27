@@ -2292,7 +2292,8 @@ impl Type {
     /// assert i.Real == 1
     /// i: (Int)
     /// ```
-    /// ```
+    ///
+    /// ```erg
     /// ?T(:> ?U(:> Int)).coerce(): ?T == ?U == Int
     /// ```
     pub fn coerce(&self) {
