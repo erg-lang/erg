@@ -2,40 +2,55 @@ use std::env::var;
 use std::path::PathBuf;
 
 use crate::normalize_path;
+use crate::style::colors::*;
+use crate::style::RESET;
 
 fn _erg_path() -> PathBuf {
     let path = var("ERG_PATH").unwrap_or_else(|_| env!("CARGO_ERG_PATH").to_string());
-    PathBuf::from(path)
-        .canonicalize()
-        .expect("ERG_PATH not found")
+    PathBuf::from(path).canonicalize().unwrap_or_else(|_| {
+        eprintln!("{RED}[ERR] ERG_PATH not found{RESET}");
+        PathBuf::from(".")
+    })
 }
 fn _erg_std_path() -> PathBuf {
     _erg_path()
         .join("lib")
         .join("std")
         .canonicalize()
-        .expect("ERG_PATH/lib/std not found")
+        .unwrap_or_else(|_| {
+            eprintln!("{RED}[ERR] ERG_PATH/lib/std not found{RESET}");
+            PathBuf::from("lib/std/")
+        })
 }
 fn _erg_std_decl_path() -> PathBuf {
     _erg_path()
         .join("lib")
         .join("std.d")
         .canonicalize()
-        .expect("ERG_PATH/lib/std.d not found")
+        .unwrap_or_else(|_| {
+            eprintln!("{RED}[ERR] ERG_PATH/lib/std.d not found {RESET}");
+            PathBuf::from("lib/std.d/")
+        })
 }
 fn _erg_pystd_path() -> PathBuf {
     _erg_path()
         .join("lib")
         .join("pystd")
         .canonicalize()
-        .expect("ERG_PATH/lib/pystd not found")
+        .unwrap_or_else(|_| {
+            eprintln!("{RED}[ERR] ERG_PATH/lib/pystd not found {RESET}");
+            PathBuf::from("lib/pystd/")
+        })
 }
 fn _erg_external_lib_path() -> PathBuf {
     _erg_path()
         .join("lib")
         .join("external")
         .canonicalize()
-        .expect("ERG_PATH/lib/external not found")
+        .unwrap_or_else(|_| {
+            eprintln!("{RED}[ERR] ERG_PATH/lib/external not found {RESET}");
+            PathBuf::from("lib/external/")
+        })
 }
 
 thread_local! {

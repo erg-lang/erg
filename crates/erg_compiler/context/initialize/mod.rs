@@ -466,22 +466,12 @@ const KW_SUPER: &str = "Super";
 const KW_MAXSPLIT: &str = "maxsplit";
 const KW_SUB: &str = "sub";
 
-#[cfg(not(feature = "no_std"))]
 pub fn builtins_path() -> PathBuf {
     erg_common::env::erg_pystd_path().join("builtins.d.er")
 }
-#[cfg(feature = "no_std")]
-pub fn builtins_path() -> PathBuf {
-    PathBuf::from("lib/pystd/builtins.d.er")
-}
 
-#[cfg(not(feature = "no_std"))]
 pub fn std_decl_path() -> PathBuf {
     erg_common::env::erg_std_decl_path()
-}
-#[cfg(feature = "no_std")]
-pub fn std_decl_path() -> PathBuf {
-    PathBuf::from("lib/std.d")
 }
 
 impl Context {
