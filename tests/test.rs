@@ -329,7 +329,7 @@ fn exec_callable() -> Result<(), ()> {
 
 #[test]
 fn exec_move() -> Result<(), ()> {
-    expect_failure("tests/should_err/move.er", 1, 1)
+    expect_failure("tests/should_err/move.er", 1, 2)
 }
 
 #[test]

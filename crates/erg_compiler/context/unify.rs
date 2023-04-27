@@ -285,6 +285,7 @@ impl Context {
                 }
                 Ok(())
             }
+            (TyParam::FreeVar(sub_fv), _) if sub_fv.is_generalized() => Ok(()),
             (TyParam::FreeVar(sub_fv), sup_tp) => {
                 match &*sub_fv.borrow() {
                     FreeKind::Linked(l) | FreeKind::UndoableLinked { t: l, .. } => {
@@ -322,6 +323,7 @@ impl Context {
                     )))
                 }
             }
+            (_, TyParam::FreeVar(sup_fv)) if sup_fv.is_generalized() => Ok(()),
             (sub_tp, TyParam::FreeVar(sup_fv)) => {
                 match &*sup_fv.borrow() {
                     FreeKind::Linked(l) | FreeKind::UndoableLinked { t: l, .. } => {
@@ -405,6 +407,21 @@ impl Context {
                 })?;
                 self.sub_unify(&l, sup, loc, None)?;
                 Ok(())
+            }
+            (TyParam::Erased(t), sup) => {
+                let sup_t = self.get_tp_t(sup)?;
+                if self.subtype_of(t, &sup_t) {
+                    Ok(())
+                } else {
+                    Err(TyCheckErrors::from(TyCheckError::subtyping_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        t,
+                        &sup_t,
+                        loc.loc(),
+                        self.caused_by(),
+                    )))
+                }
             }
             (TyParam::Type(sub), sup) => {
                 let r = self.convert_tp_into_type(sup.clone()).map_err(|_| {
@@ -1191,12 +1208,22 @@ impl Context {
                 sub_ctx.super_traits.iter()
             };
             for sup_ty in sups {
-                let sub_instance = self.instantiate_def_type(sup_ty)?;
+                let sub_instance = self.instantiate_def_type(sup_ty).map_err(|errs| {
+                    Self::undo_substitute_typarams(sub_def_t);
+                    errs
+                })?;
+                let variances = self
+                    .get_nominal_type_ctx(&sub_instance)
+                    .map(|(_, ctx)| ctx.type_params_variance().into_iter().map(Some).collect())
+                    .unwrap_or(vec![None; sup_params.len()]);
                 if self.supertype_of(maybe_sup, sup_ty) {
-                    for (l_maybe_sub, r_maybe_sup) in
-                        sub_instance.typarams().iter().zip(sup_params.iter())
+                    for ((l_maybe_sub, r_maybe_sup), variance) in sub_instance
+                        .typarams()
+                        .iter()
+                        .zip(sup_params.iter())
+                        .zip(variances)
                     {
-                        self.sub_unify_tp(l_maybe_sub, r_maybe_sup, None, loc, false)
+                        self.sub_unify_tp(l_maybe_sub, r_maybe_sup, variance, loc, false)
                             .map_err(|errs| {
                                 Self::undo_substitute_typarams(sub_def_t);
                                 errs

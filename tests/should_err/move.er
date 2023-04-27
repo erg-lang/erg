@@ -4,3 +4,9 @@ a.sort! # WARN
 
 # NOTE: For safety reasons this is assumed to be an error, but maybe this restriction can be relaxed
 print! a # ERR
+
+v1 = ![]
+v2 = v1 as Array!(Int or Str, _)
+v2.push! "a"
+
+print! v1 # ERR

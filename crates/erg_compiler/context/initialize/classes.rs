@@ -1229,7 +1229,13 @@ impl Context {
         // [T; N].MutType! = [T; !N] (neither [T!; N] nor [T; N]!)
         let mut_type =
             ValueObj::builtin_class(poly(MUT_ARRAY, vec![TyParam::t(T.clone()), N.clone()]));
-        array_.register_builtin_const(MUTABLE_MUT_TYPE, Visibility::BUILTIN_PUBLIC, mut_type);
+        let mut array_mutizable = Self::builtin_methods(Some(mono(MUTIZABLE)), 2);
+        array_mutizable.register_builtin_const(
+            MUTABLE_MUT_TYPE,
+            Visibility::BUILTIN_PUBLIC,
+            mut_type,
+        );
+        array_.register_trait(arr_t.clone(), array_mutizable);
         let var = StrStruct::from(fresh_varname());
         let input = refinement(
             var.clone(),
@@ -1254,7 +1260,6 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
         );
         array_.register_trait(arr_t.clone(), array_eq);
-        array_.register_marker_trait(mono(MUTIZABLE));
         array_.register_marker_trait(poly(SEQ, vec![ty_tp(T.clone())]));
         let mut array_show = Self::builtin_methods(Some(mono(SHOW)), 1);
         array_show.register_builtin_py_impl(
@@ -1340,7 +1345,13 @@ impl Context {
         .quantify();
         set_.register_builtin_erg_impl(FUNC_CONCAT, t, Immutable, Visibility::BUILTIN_PUBLIC);
         let mut_type = ValueObj::builtin_class(poly(MUT_SET, vec![TyParam::t(T.clone())]));
-        set_.register_builtin_const(MUTABLE_MUT_TYPE, Visibility::BUILTIN_PUBLIC, mut_type);
+        let mut set_mutizable = Self::builtin_methods(Some(mono(MUTIZABLE)), 2);
+        set_mutizable.register_builtin_const(
+            MUTABLE_MUT_TYPE,
+            Visibility::BUILTIN_PUBLIC,
+            mut_type,
+        );
+        set_.register_trait(set_t.clone(), set_mutizable);
         let t_call = func1(poly(ITERABLE, vec![ty_tp(T.clone())]), set_t.clone()).quantify();
         set_.register_builtin_erg_impl(
             FUNDAMENTAL_CALL,
@@ -1404,9 +1415,13 @@ impl Context {
             Self::builtin_poly_class(DICT, vec![PS::named_nd(TY_D, mono(GENERIC_DICT))], 10);
         dict_.register_superclass(g_dict_t.clone(), &generic_dict);
         dict_.register_marker_trait(poly(OUTPUT, vec![D.clone()]));
-        let mut_type = ValueObj::builtin_class(poly(MUT_DICT, vec![D.clone()]));
-        dict_.register_builtin_const(MUTABLE_MUT_TYPE, Visibility::BUILTIN_PUBLIC, mut_type);
-        dict_.register_marker_trait(mono(MUTIZABLE));
+        let mut dict_mutizable = Self::builtin_methods(Some(mono(MUTIZABLE)), 2);
+        dict_mutizable.register_builtin_const(
+            MUTABLE_MUT_TYPE,
+            Visibility::BUILTIN_PUBLIC,
+            ValueObj::builtin_class(poly(MUT_DICT, vec![D.clone()])),
+        );
+        dict_.register_trait(dict_t.clone(), dict_mutizable);
         // __getitem__: _: T -> D[T]
         let dict_getitem_t = fn1_met(
             dict_t.clone(),

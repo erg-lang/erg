@@ -503,6 +503,16 @@ impl From<Dict<Type, Type>> for TyParam {
     }
 }
 
+impl<'t> TryFrom<&'t TyParam> for &'t FreeTyParam {
+    type Error = ();
+    fn try_from(t: &'t TyParam) -> Result<&'t FreeTyParam, ()> {
+        match t {
+            TyParam::FreeVar(fv) => Ok(fv),
+            _ => Err(()),
+        }
+    }
+}
+
 impl TryFrom<TyParam> for ValueObj {
     type Error = ();
     fn try_from(tp: TyParam) -> Result<Self, ()> {

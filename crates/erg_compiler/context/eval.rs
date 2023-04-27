@@ -1424,35 +1424,39 @@ impl Context {
     fn substitute_typaram(&self, qtp: TyParam, stp: TyParam) -> EvalResult<()> {
         match qtp {
             TyParam::FreeVar(ref fv) if fv.is_generalized() => {
-                if !stp.is_generalized() {
+                if !stp.is_unbound_var() || !stp.is_generalized() {
                     fv.undoable_link(&stp);
                 }
                 self.sub_unify_tp(&stp, &qtp, None, &(), false)?;
                 Ok(())
             }
-            TyParam::Type(gt) if gt.is_generalized() => {
-                let Ok(st) = Type::try_from(stp) else { todo!(); };
-                if let Ok(qt) = <&FreeTyVar>::try_from(gt.as_ref()) {
-                    if !st.is_generalized() {
-                        qt.undoable_link(&st);
-                    }
-                }
-                self.sub_unify(&st, &gt, &(), None)
-            }
-            TyParam::Type(qt) => {
-                let Ok(st) = Type::try_from(stp) else { todo!(); };
-                let st = if st.typarams_len() != qt.typarams_len() {
-                    let Ok(st) = <&FreeTyVar>::try_from(&st) else { unreachable!() };
-                    st.get_sub().unwrap()
-                } else {
-                    st
-                };
-                if !st.is_generalized() {
-                    self.substitute_typarams(&qt, &st)?;
-                }
-                self.sub_unify(&st, &qt, &(), None)
-            }
+            TyParam::Type(qt) => self.substitute_type(stp, *qt),
+            TyParam::Value(ValueObj::Type(qt)) => self.substitute_type(stp, qt.into_typ()),
             _ => Ok(()),
+        }
+    }
+
+    fn substitute_type(&self, stp: TyParam, qt: Type) -> EvalResult<()> {
+        if qt.is_generalized() {
+            let Ok(st) = Type::try_from(stp) else { todo!(); };
+            if let Ok(qt) = <&FreeTyVar>::try_from(&qt) {
+                if !st.is_unbound_var() || !st.is_generalized() {
+                    qt.undoable_link(&st);
+                }
+            }
+            self.sub_unify(&st, &qt, &(), None)
+        } else {
+            let Ok(st) = Type::try_from(stp) else { todo!(); };
+            let st = if st.typarams_len() != qt.typarams_len() {
+                let Ok(st) = <&FreeTyVar>::try_from(&st) else { unreachable!() };
+                st.get_sub().unwrap()
+            } else {
+                st
+            };
+            if !st.is_unbound_var() || !st.is_generalized() {
+                self.substitute_typarams(&qt, &st)?;
+            }
+            self.sub_unify(&st, &qt, &(), None)
         }
     }
 
@@ -1468,6 +1472,9 @@ impl Context {
                 }
                 TyParam::Type(t) => {
                     Self::undo_substitute_typarams(&t);
+                }
+                TyParam::Value(ValueObj::Type(t)) => {
+                    Self::undo_substitute_typarams(t.typ());
                 }
                 _ => {}
             }

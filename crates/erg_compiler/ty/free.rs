@@ -240,20 +240,11 @@ pub trait CanbeFree {
 
 impl<T: CanbeFree> Free<T> {
     pub fn unbound_name(&self) -> Option<Str> {
-        match &*self.borrow() {
-            FreeKind::NamedUnbound { name, .. } => Some(name.clone()),
-            FreeKind::Unbound { id, .. } => Some(Str::from(format!("%{id}"))),
-            FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => t.unbound_name(),
-        }
+        self.borrow().unbound_name()
     }
 
     pub fn constraint(&self) -> Option<Constraint> {
-        match &*self.borrow() {
-            FreeKind::Unbound { constraint, .. } | FreeKind::NamedUnbound { constraint, .. } => {
-                Some(constraint.clone())
-            }
-            FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => t.constraint(),
-        }
+        self.borrow().constraint()
     }
 }
 
@@ -334,6 +325,25 @@ impl<T: PartialEq> PartialEq for FreeKind<T> {
                 },
             ) => n1 == n2 && l1 == l2 && c1 == c2,
             _ => false,
+        }
+    }
+}
+
+impl<T: CanbeFree> FreeKind<T> {
+    pub fn unbound_name(&self) -> Option<Str> {
+        match self {
+            FreeKind::NamedUnbound { name, .. } => Some(name.clone()),
+            FreeKind::Unbound { id, .. } => Some(Str::from(format!("%{id}"))),
+            FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => t.unbound_name(),
+        }
+    }
+
+    pub fn constraint(&self) -> Option<Constraint> {
+        match self {
+            FreeKind::Unbound { constraint, .. } | FreeKind::NamedUnbound { constraint, .. } => {
+                Some(constraint.clone())
+            }
+            FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => t.constraint(),
         }
     }
 }
@@ -876,6 +886,13 @@ impl<T: Clone> Free<T> {
         match &*self.borrow() {
             FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => Some(t.clone()),
             FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => None,
+        }
+    }
+
+    pub fn get_previous(&self) -> Option<FreeKind<T>> {
+        match &*self.borrow() {
+            FreeKind::UndoableLinked { previous, .. } => Some(*previous.clone()),
+            _other => None,
         }
     }
 

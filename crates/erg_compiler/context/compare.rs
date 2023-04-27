@@ -258,21 +258,32 @@ impl Context {
         if !self.is_class(lhs) || !self.is_class(rhs) {
             return (Maybe, false);
         }
-        if let Some((_, ty_ctx)) = self.get_nominal_type_ctx(rhs) {
+        if let Some((typ, ty_ctx)) = self.get_nominal_type_ctx(rhs) {
+            if typ.has_qvar() {
+                if let Err(err) = self.substitute_typarams(typ, rhs) {
+                    Self::undo_substitute_typarams(typ);
+                    if cfg!(feature = "debug") {
+                        panic!("err: {err}");
+                    }
+                }
+            }
             for rhs_sup in ty_ctx.super_classes.iter() {
                 // Not `supertype_of` (only structures are compared)
                 match Self::cheap_supertype_of(lhs, rhs_sup) {
                     (Absolutely, true) => {
+                        Self::undo_substitute_typarams(typ);
                         return (Absolutely, true);
                     }
                     (Maybe, _) => {
                         if self.structural_supertype_of(lhs, rhs_sup) {
+                            Self::undo_substitute_typarams(typ);
                             return (Absolutely, true);
                         }
                     }
                     _ => {}
                 }
             }
+            Self::undo_substitute_typarams(typ);
         }
         (Maybe, false)
     }
@@ -284,21 +295,32 @@ impl Context {
         if !self.is_trait(lhs) {
             return (Maybe, false);
         }
-        if let Some((_, rhs_ctx)) = self.get_nominal_type_ctx(rhs) {
+        if let Some((typ, rhs_ctx)) = self.get_nominal_type_ctx(rhs) {
+            if typ.has_qvar() {
+                if let Err(err) = self.substitute_typarams(typ, rhs) {
+                    Self::undo_substitute_typarams(typ);
+                    if cfg!(feature = "debug") {
+                        panic!("err: {err}");
+                    }
+                }
+            }
             for rhs_sup in rhs_ctx.super_traits.iter() {
                 // Not `supertype_of` (only structures are compared)
                 match Self::cheap_supertype_of(lhs, rhs_sup) {
                     (Absolutely, true) => {
+                        Self::undo_substitute_typarams(typ);
                         return (Absolutely, true);
                     }
                     (Maybe, _) => {
                         if self.structural_supertype_of(lhs, rhs_sup) {
+                            Self::undo_substitute_typarams(typ);
                             return (Absolutely, true);
                         }
                     }
                     _ => {}
                 }
             }
+            Self::undo_substitute_typarams(typ);
         }
         (Maybe, false)
     }
@@ -732,7 +754,8 @@ impl Context {
         rparams: &[TyParam],
     ) -> bool {
         log!(
-            "poly_supertype_of: {typ}, {}, {}",
+            "poly_supertype_of: {}, {}, {}",
+            typ.qual_name(),
             erg_common::fmt_vec(lparams),
             erg_common::fmt_vec(rparams)
         );

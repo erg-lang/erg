@@ -15,3 +15,6 @@ v2 as Array!(Int or Str, 2) = ![1, 2]
 v2.push! 1 # OK
 v2.push! "a" # OK
 v2.push! None # ERR
+
+v3 = v2 as Array!(Int or Str or NoneType, _)
+v3.push! None # OK

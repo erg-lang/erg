@@ -71,6 +71,14 @@ impl<T, E> Triple<T, E> {
             Triple::Err(err) => err,
         }
     }
+
+    pub fn map_err<E2>(self, f: impl FnOnce(E) -> E2) -> Triple<T, E2> {
+        match self {
+            Triple::None => Triple::None,
+            Triple::Ok(ok) => Triple::Ok(ok),
+            Triple::Err(err) => Triple::Err(f(err)),
+        }
+    }
 }
 
 impl<T> Triple<T, T> {
