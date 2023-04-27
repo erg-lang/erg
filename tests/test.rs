@@ -348,6 +348,11 @@ fn exec_mut_array_err() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_mut_dict_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/mut_dict.er", 0, 3)
+}
+
+#[test]
 fn exec_quantified_err() -> Result<(), ()> {
     expect_failure("tests/should_err/quantified.er", 0, 3)
 }

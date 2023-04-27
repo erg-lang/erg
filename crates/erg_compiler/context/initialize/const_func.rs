@@ -7,7 +7,7 @@ use crate::context::Context;
 use crate::feature_error;
 use crate::ty::constructors::{and, mono, poly, tuple_t, ty_tp};
 use crate::ty::value::{EvalValueError, EvalValueResult, GenTypeObj, TypeObj, ValueObj};
-use crate::ty::{Type, ValueArgs};
+use crate::ty::{TyParam, Type, ValueArgs};
 use erg_common::error::{ErrorCore, ErrorKind, Location, SubMessage};
 use erg_common::style::{Color, StyledStr, StyledString, THEME};
 
@@ -263,27 +263,71 @@ pub(crate) fn __array_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValue
     }
 }
 
+pub(crate) fn sub_vdict_get<'d>(
+    dict: &'d Dict<ValueObj, ValueObj>,
+    key: &ValueObj,
+    ctx: &Context,
+) -> Option<&'d ValueObj> {
+    let mut matches = vec![];
+    for (k, v) in dict.iter() {
+        match (key, k) {
+            (ValueObj::Type(idx), ValueObj::Type(kt)) if ctx.subtype_of(idx.typ(), kt.typ()) => {
+                matches.push((idx, kt, v));
+            }
+            (idx, k) if idx == k => {
+                return Some(v);
+            }
+            _ => {}
+        }
+    }
+    for (idx, kt, v) in matches.into_iter() {
+        match ctx.sub_unify(idx.typ(), kt.typ(), &(), None) {
+            Ok(_) => {
+                return Some(v);
+            }
+            Err(_err) => {
+                erg_common::log!(err "{idx} <!: {kt} => {v}");
+            }
+        }
+    }
+    None
+}
+
+pub(crate) fn sub_tpdict_get<'d>(
+    dict: &'d Dict<TyParam, TyParam>,
+    key: &TyParam,
+    ctx: &Context,
+) -> Option<&'d TyParam> {
+    let mut matches = vec![];
+    for (k, v) in dict.iter() {
+        match (<&Type>::try_from(key), <&Type>::try_from(k)) {
+            (Ok(idx), Ok(kt)) if ctx.subtype_of(idx, kt) => {
+                matches.push((idx, kt, v));
+            }
+            (_, _) if key == k => {
+                return Some(v);
+            }
+            _ => {}
+        }
+    }
+    for (idx, kt, v) in matches.into_iter() {
+        match ctx.sub_unify(idx, kt, &(), None) {
+            Ok(_) => {
+                return Some(v);
+            }
+            Err(_err) => {
+                erg_common::log!(err "{idx} <!: {kt} => {v}");
+            }
+        }
+    }
+    None
+}
+
 pub(crate) fn __dict_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
     let slf = args.remove_left_or_key("Self").unwrap();
     let slf = enum_unwrap!(slf, ValueObj::Dict);
     let index = args.remove_left_or_key("Index").unwrap();
-    if let Some(v) = slf.get(&index).or_else(|| {
-        for (k, v) in slf.iter() {
-            match (&index, k) {
-                (ValueObj::Type(idx), ValueObj::Type(kt)) => {
-                    if ctx.subtype_of(idx.typ(), kt.typ()) {
-                        return Some(v);
-                    }
-                }
-                (idx, k) => {
-                    if idx == k {
-                        return Some(v);
-                    }
-                }
-            }
-        }
-        None
-    }) {
+    if let Some(v) = slf.get(&index).or_else(|| sub_vdict_get(&slf, &index, ctx)) {
         Ok(v.clone())
     } else {
         let index = if let ValueObj::Type(t) = &index {

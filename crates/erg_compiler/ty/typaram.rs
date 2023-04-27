@@ -959,7 +959,7 @@ impl TyParam {
 
     pub fn has_qvar(&self) -> bool {
         match self {
-            Self::FreeVar(fv) if fv.is_generalized() => true,
+            Self::FreeVar(fv) if fv.is_unbound() && fv.is_generalized() => true,
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().has_qvar(),
             Self::Type(t) => t.has_qvar(),
             Self::Proj { obj, .. } => obj.has_qvar(),

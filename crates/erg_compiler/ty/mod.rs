@@ -2389,7 +2389,7 @@ impl Type {
     pub fn has_qvar(&self) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().has_qvar(),
-            Self::FreeVar(fv) if fv.is_generalized() => true,
+            Self::FreeVar(fv) if fv.is_unbound() && fv.is_generalized() => true,
             Self::FreeVar(fv) => {
                 if let Some((sub, sup)) = fv.get_subsup() {
                     fv.dummy_link();

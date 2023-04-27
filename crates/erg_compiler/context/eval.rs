@@ -828,6 +828,12 @@ impl Context {
             (TyParam::Value(lhs), TyParam::Value(rhs)) => {
                 self.eval_bin(op, lhs, rhs).map(TyParam::value)
             }
+            (TyParam::Dict(l), TyParam::Dict(r)) if op == OpKind::Add => {
+                Ok(TyParam::Dict(l.concat(r)))
+            }
+            (TyParam::Array(l), TyParam::Array(r)) if op == OpKind::Add => {
+                Ok(TyParam::Array([l, r].concat()))
+            }
             (TyParam::FreeVar(fv), r) if fv.is_linked() => {
                 self.eval_bin_tp(op, fv.crack().clone(), r)
             }
@@ -854,7 +860,7 @@ impl Context {
             (lhs @ TyParam::FreeVar(_), rhs) => Ok(TyParam::bin(op, lhs, rhs)),
             (lhs, rhs @ TyParam::FreeVar(_)) => Ok(TyParam::bin(op, lhs, rhs)),
             (e @ TyParam::Erased(_), _) | (_, e @ TyParam::Erased(_)) => Ok(e),
-            (l, r) => feature_error!(self, Location::Unknown, &format!("{l:?} {op} {r:?}"))
+            (l, r) => feature_error!(self, Location::Unknown, &format!("{l} {op} {r}"))
                 .map_err(Into::into),
         }
     }

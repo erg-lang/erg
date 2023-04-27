@@ -3,3 +3,4 @@ dict = !d
 
 dict.insert! "b", 2
 assert dict.get("a") == 1
+assert dict.get("b") == 2

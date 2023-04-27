@@ -2028,7 +2028,7 @@ impl Context {
         );
         array_mut_.register_trait(array_mut_t.clone(), array_mut_mutable);
         /* Dict! */
-        let dict_mut_t = poly(MUT_DICT, vec![D]);
+        let dict_mut_t = poly(MUT_DICT, vec![D.clone()]);
         let mut dict_mut =
             Self::builtin_poly_class(MUT_DICT, vec![PS::named_nd(TY_D, mono(GENERIC_DICT))], 3);
         dict_mut.register_superclass(dict_t.clone(), &dict_);
@@ -2037,12 +2037,10 @@ impl Context {
         let insert_t = pr_met(
             ref_mut(
                 dict_mut_t.clone(),
-                // TODO:
-                None,
-                /*Some(poly(
+                Some(poly(
                     MUT_DICT,
-                    vec![D + dict!{ K.clone() => V.clone() }.into()],
-                )),*/
+                    vec![D + dict! { K.clone() => V.clone() }.into()],
+                )),
             ),
             vec![kw(KW_KEY, K), kw(KW_VALUE, V)],
             None,

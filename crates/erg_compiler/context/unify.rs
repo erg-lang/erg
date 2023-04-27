@@ -22,6 +22,8 @@ use Predicate as Pred;
 use Type::*;
 use ValueObj::{Inf, NegInf};
 
+use super::initialize::const_func::sub_tpdict_get;
+
 impl Context {
     /// ```erg
     /// occur(?T, ?T) ==> OK
@@ -444,9 +446,10 @@ impl Context {
             }
             (TyParam::Dict(ls), TyParam::Dict(rs)) => {
                 for (lk, lv) in ls.iter() {
-                    if let Some(rv) = rs.get(lk) {
+                    if let Some(rv) = rs.get(lk).or_else(|| sub_tpdict_get(rs, lk, self)) {
                         self.sub_unify_tp(lv, rv, _variance, loc, allow_divergence)?;
                     } else {
+                        log!(err "{rs} does not have key {lk}");
                         // TODO:
                         return Err(TyCheckErrors::from(TyCheckError::unreachable(
                             self.cfg.input.clone(),

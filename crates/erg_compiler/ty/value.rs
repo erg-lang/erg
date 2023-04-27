@@ -1011,6 +1011,11 @@ impl ValueObj {
             (Self::Nat(l), Self::Float(r)) => Some(Self::Float(l as f64 - r)),
             (Self::Float(l), Self::Int(r)) => Some(Self::Float(l - r as f64)),
             (Self::Str(l), Self::Str(r)) => Some(Self::Str(Str::from(format!("{l}{r}")))),
+            (Self::Array(l), Self::Array(r)) => {
+                let arr = Rc::from([l, r].concat());
+                Some(Self::Array(arr))
+            }
+            (Self::Dict(l), Self::Dict(r)) => Some(Self::Dict(l.concat(r))),
             (inf @ (Self::Inf | Self::NegInf), _) | (_, inf @ (Self::Inf | Self::NegInf)) => {
                 Some(inf)
             }

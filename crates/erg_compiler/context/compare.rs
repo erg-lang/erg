@@ -1023,17 +1023,7 @@ impl Context {
                 (Some(sub), Some(sup)) => bounded(sub.clone(), sup.clone()),
                 _ => self.simple_union(lhs, rhs),
             },
-            (other, or @ Or(l, r)) | (or @ Or(l, r), other) => {
-                if &self.union(other, l) == l.as_ref() || &self.union(other, r) == r.as_ref() {
-                    or.clone()
-                } else if &self.union(other, l) == other {
-                    self.union(other, r)
-                } else if &self.union(other, r) == other {
-                    self.union(other, l)
-                } else {
-                    self.simple_union(lhs, rhs)
-                }
-            }
+            (other, or @ Or(_, _)) | (or @ Or(_, _), other) => self.union_add(or, other),
             (t, Type::Never) | (Type::Never, t) => t.clone(),
             // Array({1, 2}, 2), Array({3, 4}, 2) ==> Array({1, 2, 3, 4}, 2)
             (
@@ -1092,6 +1082,27 @@ impl Context {
                 }
             }
         }
+    }
+
+    /// ```erg
+    /// union_add(Int or ?T(:> NoneType), Nat) == Int or ?T
+    /// union_add(Int or ?T(:> NoneType), Str) == Int or ?T or Str
+    /// ```
+    fn union_add(&self, union: &Type, elem: &Type) -> Type {
+        let union_ts = union.union_types();
+        let fixed = union_ts.into_iter().map(|t| {
+            if let Ok(free) = <&FreeTyVar>::try_from(&t) {
+                free.get_sub().unwrap_or(t)
+            } else {
+                t
+            }
+        });
+        for t in fixed {
+            if self.supertype_of(&t, elem) {
+                return union.clone();
+            }
+        }
+        or(union.clone(), elem.clone())
     }
 
     /// ```erg
