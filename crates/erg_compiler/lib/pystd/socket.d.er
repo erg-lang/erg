@@ -88,5 +88,68 @@
 .SOL_TIPC: Nat
 .SOL_UDP: Nat
 
-.Socket!: ClassType
-.Socket!.new: (family := Int, type := Int, proto := Int, fileno: Int or NoneType := NoneType) -> .Socket!
+.Socket! = 'socket': ClassType
+.Socket!.
+    new!: (family := Int, type := Int, proto := Int, fileno: Int or NoneType := NoneType) => .Socket!
+    __call__!: (family := Int, type := Int, proto := Int, fileno: Int or NoneType := NoneType) => .Socket!
+    accept!: (self: RefMut(.Socket!)) => (.Socket!, (Str, Int))
+    bind!: (self: RefMut(.Socket!), address: (Str, Int)) => NoneType
+    close!: (self: RefMut(.Socket!)) => NoneType
+    connect!: (self: RefMut(.Socket!), address: (Str, Int)) => NoneType
+    connect_ex!: (self: RefMut(.Socket!), address: (Str, Int)) => Int
+    detach!: (self: RefMut(.Socket!)) => Int
+    dup!: (self: RefMut(.Socket!)) => .Socket!
+    fileno!: (self: RefMut(.Socket!)) => Int
+    get_inheritable!: (self: RefMut(.Socket!)) => Bool
+    getpeername!: (self: RefMut(.Socket!)) => (Str, Int)
+    getsockname!: (self: RefMut(.Socket!)) => (Str, Int)
+    getsockopt!: (self: RefMut(.Socket!), level: Int, option: Int, buffersize: Int) => Str or Int
+    getblocking!: (self: RefMut(.Socket!)) => Bool
+    gettimeout!: (self: RefMut(.Socket!)) => Float or NoneType
+    listen!: (self: RefMut(.Socket!), backlog: Int) => NoneType
+    recv!: (self: RefMut(.Socket!), bufsize: Int, flags := Int) => Str
+    recvfrom!: (self: RefMut(.Socket!), bufsize: Int, flags := Int) => (Str, (Str, Int))
+    recvmsg!: (self: RefMut(.Socket!), bufsize: Int, ancbufsize := Int, flags := Int) => (Str, (Str, Int), Int)
+    recvmsg_into!: (self: RefMut(.Socket!), buffers: Iterable(Writable!), ancbufsize := Int, flags := Int) => (Str, (Str, Int), Int)
+    recvfrom_into!: (self: RefMut(.Socket!), buffer: Writable!, flags := Int) => (Str, (Str, Int))
+    recv_into!: (self: RefMut(.Socket!), buffer: Writable!, nbytes := Int, flags := Int) => Nat
+    send!: (self: RefMut(.Socket!), data: Bytes, flags := Int) => Int
+    sendall!: (self: RefMut(.Socket!), data: Bytes, flags := Int) => NoneType
+    sendto!: (self: RefMut(.Socket!), data: Bytes, address: (Str, Int), flags := Int) => Int
+    sendmsg!: (
+        self: RefMut(.Socket!),
+        buffers: Iterable(Bytes),
+        ancdata: Iterable(Bytes),
+        flags := Int,
+        address: (Str, Int) or NoneType := NoneType
+    ) => Int
+
+.socketpair!: (family := Int, type := Int, proto := Int, fileno: Int or NoneType := NoneType) => (.Socket!, .Socket!)
+.create_connection!: (
+    address: (Str, Int),
+    timeout: Int or NoneType := NoneType,
+    source_address: (Str, Int) or NoneType := NoneType
+) => .Socket!
+.create_server!: (
+    address: (Str, Int),
+    family: Int or NoneType := NoneType,
+    backlog: Int or NoneType := NoneType,
+    reuse_port := Bool
+) => .Socket!
+.has_dualstack_ipv6: () -> Bool
+.fromfd!: (fd: Int, family: Int, type: Int, proto: Int) => .Socket!
+
+.close!: (fd: .Socket!) => NoneType
+.getaddrinfo!: (
+    host: Str,
+    port: Int or NoneType,
+    family: Int or NoneType := NoneType,
+    type: Int or NoneType := NoneType,
+    proto: Int or NoneType := NoneType,
+    flags: Int or NoneType := NoneType,
+) => (Int, Int, Int, Str, (Str, Int))
+.gethostbyname!: (hostname: Str) => Str
+.gethostbyname_ex!: (hostname: Str) => (Str, [Str; _], [Str; _])
+.gethostname!: () => Str
+.gethostbyaddr!: (ip: Str) => (Str, [Str; _], [Str; _])
+.getnameinfo!: (sockaddr: (Str, Int), flags: Int or NoneType := NoneType) => (Str, Str)
