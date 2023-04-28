@@ -76,7 +76,7 @@ jobs:
           args: --all --all-targets --verbose -- -D warnings
 
   publish-nightly:
-    runs-on: ubuntus-latest
+    runs-on: ubuntu-latest
     if: contains(github.event.head_commit.message, 'update version (nightly')
     steps:
       - uses: actions/checkout@v3
