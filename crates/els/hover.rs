@@ -246,13 +246,13 @@ impl<Checker: BuildRunnable> Server<Checker> {
                             LanguageCode::Erg => {
                                 MarkedString::from_language_code("erg".into(), code_block)
                             }
-                            LanguageCode::Python => {
+                            LanguageCode::Python | LanguageCode::ErgOrPython => {
                                 MarkedString::from_language_code("python".into(), code_block)
                             }
                             _ => MarkedString::from_markdown(code_block),
                         };
                         contents.push(marked);
-                        if lang.is_erg() {
+                        if lang.is_pl() {
                             next!(def_pos, default_code_block, contents, prev_token, token);
                         } else {
                             break;

@@ -740,7 +740,7 @@ impl Context {
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
-        str_.register_builtin_erg_impl(
+        str_.register_py_builtin(
             FUNC_ENCODE,
             fn_met(
                 Str,
@@ -749,8 +749,8 @@ impl Context {
                 vec![kw(KW_ENCODING, Str), kw(KW_ERRORS, Str)],
                 mono(BYTES),
             ),
-            Immutable,
-            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_ENCODE),
+            60,
         );
         str_.register_builtin_erg_impl(
             FUNC_FORMAT,
@@ -783,12 +783,11 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_STARTSWITH),
         );
-        str_.register_builtin_py_impl(
+        str_.register_py_builtin(
             FUNC_ENDSWITH,
             fn1_met(Str, Str, Bool),
-            Immutable,
-            Visibility::BUILTIN_PUBLIC,
             Some(FUNC_ENDSWITH),
+            69,
         );
         str_.register_builtin_py_impl(
             FUNC_SPLIT,
@@ -818,12 +817,12 @@ impl Context {
         );
         str_.register_builtin_py_impl(
             FUNC_JOIN,
-            fn1_met(unknown_len_array_t(Str), Str, Str),
+            fn1_met(Str, poly(ITERABLE, vec![ty_tp(Str)]), Str),
             Immutable,
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_JOIN),
         );
-        str_.register_builtin_py_impl(
+        str_.register_py_builtin(
             FUNC_INDEX,
             fn_met(
                 Str,
@@ -832,9 +831,8 @@ impl Context {
                 vec![kw(KW_START, Nat), kw(KW_END, Nat)],
                 or(Nat, Never),
             ),
-            Immutable,
-            Visibility::BUILTIN_PUBLIC,
             Some(FUNC_INDEX),
+            126,
         );
         str_.register_builtin_py_impl(
             FUNC_RINDEX,
@@ -849,7 +847,7 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_RINDEX),
         );
-        str_.register_builtin_py_impl(
+        str_.register_py_builtin(
             FUNC_FIND,
             fn_met(
                 Str,
@@ -858,9 +856,8 @@ impl Context {
                 vec![kw(KW_START, Nat), kw(KW_END, Nat)],
                 or(Nat, v_enum(set! {(-1).into()})),
             ),
-            Immutable,
-            Visibility::BUILTIN_PUBLIC,
             Some(FUNC_FIND),
+            93,
         );
         str_.register_builtin_py_impl(
             FUNC_RFIND,
@@ -875,7 +872,7 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_RFIND),
         );
-        str_.register_builtin_py_impl(
+        str_.register_py_builtin(
             FUNC_COUNT,
             fn_met(
                 Str,
@@ -884,9 +881,8 @@ impl Context {
                 vec![kw(KW_START, Nat), kw(KW_END, Nat)],
                 Nat,
             ),
-            Immutable,
-            Visibility::BUILTIN_PUBLIC,
             Some(FUNC_COUNT),
+            43,
         );
         str_.register_py_builtin(
             FUNC_CAPITALIZE,

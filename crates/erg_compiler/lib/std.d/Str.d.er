@@ -6,7 +6,7 @@
     More specifically, make the first character have upper case and the rest lower
     case.
     '''
-    '''erg
+    '''erg,python
     assert "hello".capitalize() == "Hello"
     assert "HELLO".capitalize() == "Hello"
     '''
@@ -14,7 +14,7 @@
     '''
     Return a version of the string suitable for caseless comparisons.
     '''
-    '''erg
+    '''erg,python
     assert "camelCase".casefold() == "camelcase"
     assert "CamelCase".casefold() == "camelcase"
     assert "FULLCAPS".casefold() == "fullcaps"
@@ -26,8 +26,158 @@
 
     Padding is done using the specified fill character (default is a space).
     '''
-    '''erg
+    '''erg,python
     assert "hello".center(10) == "  hello   "
     assert "hello".center(10, "-") == "--hello---"
     '''
-    center: (self: .Str, width: Int, fillchar := .Str) -> .Str
+    center: (self: .Str, width: Nat, fillchar := .Str) -> .Str
+    '''
+    Return the number of non-overlapping occurrences of substring `sub` in
+    string `S[start:end]`. Optional arguments `start` and `end` are
+    interpreted as in slice notation.
+    '''
+    '''erg,python
+    assert "hello".count("l") == 2
+    assert "hello".count("l", 0, 3) == 1
+    '''
+    count: (self: .Str, sub: .Str, start := Nat, end := Nat) -> Nat
+    '''
+    Encode the string using the codec registered for encoding.
+
+    * `encoding`:
+      The encoding in which to encode the string.
+    * `errors`:
+      The error handling scheme to use for encoding errors.
+      The default is `"strict"` meaning that encoding errors raise a
+      `UnicodeEncodeError`.  Other possible values are `"ignore"`, `"replace"` and
+      `"xmlcharrefreplace"` as well as any other name registered with
+      `codecs.register_error` that can handle `UnicodeEncodeErrors`.
+    '''
+    '''erg
+    assert "hello".encode() == bytes "hello", "utf-8"
+    assert "hello".encode("utf-8") == bytes "hello", "utf-8"
+    '''
+    encode: (self: .Str, encoding := .Str, errors := .Str) -> Bytes
+    '''
+    Return True if the string ends with the specified suffix, False otherwise.
+    '''
+    '''erg,python
+    assert "hello".endswith("o")
+    assert "hello".endswith("llo")
+    assert not "hello".endswith("llo", 0, 2)
+    '''
+    endswith: (self: .Str, suffix: .Str, start := Nat, end := Nat) -> Bool
+    '''
+    Return a copy where all tab characters are expanded using spaces.
+
+    If `tabsize` is not given, a tab size of 8 characters is assumed.
+    '''
+    '''erg,python
+    assert "hello\tworld".expandtabs() == "hello   world"
+    assert "hello\tworld".expandtabs(4) == "hello   world"
+    '''
+    expandtabs: (self: .Str, tabsize := Nat) -> .Str
+    '''
+    Return the lowest index in `S` where substring `sub` is found,
+    such that sub is contained within `S[start:end]`.
+
+    Optional arguments `start` and `end` are interpreted as in slice notation.
+
+    Return -1 on failure.
+    '''
+    '''erg,python
+    assert "hello".find("l") == 2
+    assert "hello".find("l", 3) == 3
+    assert "hello".find("l", 3, 4) == -1
+    '''
+    find: (self: .Str, sub: .Str, start := Nat, end := Nat) -> Nat or {-1}
+    '''
+    Return a formatted version of `S`, using substitutions from `args` and `kwargs`.
+    The substitutions are identified by braces ('{' and '}').
+    '''
+    '''erg
+    assert "hello".format() == "hello"
+    assert "hello {}".format("world") == "hello world"
+    assert "hello {0}".format("world") == "hello world"
+    assert "hello {0} {1}".format("world", "again") == "hello world again"
+    assert "hello {1} {0}".format("world", "again") == "hello again world"
+    '''
+    format: (self: .Str, *args: Obj) -> .Str
+    '''
+    Return a formatted version of `S`, using substitutions from `mapping`.
+    The substitutions are identified by braces ('{' and '}').
+    '''
+    '''erg,python
+    assert "hello {name}".format_map({"name": "world"}) == "hello world"
+    '''
+    format_map: (self: .Str, mapping: .Dict) -> .Str
+    '''
+    Return the lowest index in `S` where substring `sub` is found,
+    such that `sub` is contained within `S[start:end]`.
+
+    Optional arguments `start` and `end` are interpreted as in slice notation.
+
+    Raises `ValueError` when the substring is not found.
+    '''
+    '''erg,python
+    assert "hello".index("l") == 2
+    assert "hello".index("l", 3) == 3
+    '''
+    index: (self: .Str, sub: .Str, start := Nat, end := Nat) -> Nat
+    isalnum: (self: .Str) -> Bool
+    isalpha: (self: .Str) -> Bool
+    isascii: (self: .Str) -> Bool
+    isdecimal: (self: .Str) -> Bool
+    isdigit: (self: .Str) -> Bool
+    isidentifier: (self: .Str) -> Bool
+    islower: (self: .Str) -> Bool
+    isnumeric: (self: .Str) -> Bool
+    isprintable: (self: .Str) -> Bool
+    isspace: (self: .Str) -> Bool
+    istitle: (self: .Str) -> Bool
+    isupper: (self: .Str) -> Bool
+    join: (self: .Str, iterable: Iterable Str) -> .Str
+    ljust: (self: .Str, width: Nat, fillchar := .Str) -> .Str
+    lower: (self: .Str) -> .Str
+    lstrip: (self: .Str, chars := .Str) -> .Str
+    '''
+    Return a translation table usable for `str.translate()`.
+
+    If there is only one argument, it must be a dictionary mapping Unicode
+    ordinals (integers) or characters to Unicode ordinals, strings or None.
+    Character keys will be then converted to ordinals.
+    If there are two arguments, they must be strings of equal length, and
+    in the resulting dictionary, each character in `x` will be mapped to the
+    character at the same position in `y`. If there is a third argument, it
+    must be a string, whose characters will be mapped to None in the result.
+    '''
+    maketrans: ((self: .Str, x: {Str: Str}) -> {Nat: Str}) and ((self: .Str, x: .Str, y: .Str) -> {Nat: Nat}) and (self: .Str, x: .Str, y: .Str, z := .Str) -> {Nat: Nat, Nat: NoneType}
+    '''
+    Partition the string into three parts using the given separator.
+
+    This will search for the separator in the string.  If the separator is found,
+    returns a 3-tuple containing the part before the separator, the separator
+    itself, and the part after it.
+
+    If the separator is not found, returns a 3-tuple containing the original string
+    and two empty strings.
+    '''
+    partition: (self: .Str, sep: .Str) -> (.Str, .Str, .Str)
+    removeprefix: (self: .Str, prefix: .Str) -> .Str
+    removesuffix: (self: .Str, suffix: .Str) -> .Str
+    replace: (self: .Str, old: .Str, new: .Str, count := Nat) -> .Str
+    rfind: (self: .Str, sub: .Str, start := Nat, end := Nat) -> Nat or {-1}
+    rindex: (self: .Str, sub: .Str, start := Nat, end := Nat) -> Nat
+    rjust: (self: .Str, width: Nat, fillchar := .Str) -> .Str
+    rpartition: (self: .Str, sep: .Str) -> (.Str, .Str, .Str)
+    rsplit: (self: .Str, sep := .Str, maxsplit := Nat) -> [Str; _]
+    rstrip: (self: .Str, chars := .Str) -> .Str
+    split: (self: .Str, sep := .Str, maxsplit := Nat) -> [Str; _]
+    splitlines: (self: .Str, keepends := Bool) -> [Str; _]
+    startswith: (self: .Str, prefix: .Str, start := Nat, end := Nat) -> Bool
+    strip: (self: .Str, chars := .Str) -> .Str
+    swapcase: (self: .Str) -> .Str
+    title: (self: .Str) -> .Str
+    translate: (self: .Str, table: {Nat: Nat or NoneType}) -> .Str
+    upper: (self: .Str) -> .Str
+    zfill: (self: .Str, width: Nat) -> .Str

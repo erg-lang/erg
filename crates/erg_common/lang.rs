@@ -8,6 +8,7 @@ pub enum LanguageCode {
     TraditionalChinese,
     Erg,
     Python,
+    ErgOrPython,
 }
 
 impl FromStr for LanguageCode {
@@ -20,6 +21,7 @@ impl FromStr for LanguageCode {
             "traditional_chinese" | "zh-TW" => Ok(Self::TraditionalChinese),
             "erg" => Ok(Self::Erg),
             "python" => Ok(Self::Python),
+            "erg,python" | "python,erg" => Ok(Self::ErgOrPython),
             _ => Err(()),
         }
     }
@@ -34,6 +36,7 @@ impl From<LanguageCode> for &str {
             LanguageCode::TraditionalChinese => "traditional_chinese",
             LanguageCode::Erg => "erg",
             LanguageCode::Python => "python",
+            LanguageCode::ErgOrPython => "erg,python",
         }
     }
 }
@@ -57,6 +60,9 @@ impl LanguageCode {
     pub const fn python_patterns() -> [&'static str; 2] {
         ["python", "python"]
     }
+    pub const fn erg_or_python_patterns() -> [&'static str; 2] {
+        ["erg,python", "python,erg"]
+    }
     pub const fn patterns(&self) -> [&'static str; 2] {
         match self {
             Self::English => Self::en_patterns(),
@@ -65,6 +71,7 @@ impl LanguageCode {
             Self::TraditionalChinese => Self::zh_tw_patterns(),
             Self::Erg => Self::erg_patterns(),
             Self::Python => Self::python_patterns(),
+            Self::ErgOrPython => Self::erg_or_python_patterns(),
         }
     }
 
@@ -81,10 +88,13 @@ impl LanguageCode {
         matches!(self, Self::TraditionalChinese)
     }
     pub const fn is_erg(&self) -> bool {
-        matches!(self, Self::Erg)
+        matches!(self, Self::Erg | Self::ErgOrPython)
     }
     pub const fn is_python(&self) -> bool {
-        matches!(self, Self::Python)
+        matches!(self, Self::Python | Self::ErgOrPython)
+    }
+    pub const fn is_pl(&self) -> bool {
+        matches!(self, Self::Erg | Self::Python | Self::ErgOrPython)
     }
 
     pub const fn matches_feature(&self) -> bool {
@@ -97,8 +107,9 @@ impl LanguageCode {
             Self::Japanese => cfg!(feature = "japanese"),
             Self::SimplifiedChinese => cfg!(feature = "simplified_chinese"),
             Self::TraditionalChinese => cfg!(feature = "traditional_chinese"),
-            Self::Erg => true,
+            Self::Erg => !cfg!(feature = "py_compat"),
             Self::Python => cfg!(feature = "py_compat"),
+            Self::ErgOrPython => true,
         }
     }
     pub fn as_str(&self) -> &str {
