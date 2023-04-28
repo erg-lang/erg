@@ -74,3 +74,15 @@ jobs:
         with:
           command: clippy
           args: --all --all-targets --verbose -- -D warnings
+
+  publish-nightly:
+    runs-on: ubuntus-latest
+    if: contains(github.event.head_commit.message, 'update version (nightly')
+    steps:
+      - uses: actions/checkout@v3
+      - uses: Swatinem/rust-cache@v2
+      - run: rustup update stable
+      - name: cargo publish
+        run: |
+          cargo login ${{ secrets.CARGO_TOKEN }}
+          ./cargo-publish.sh
