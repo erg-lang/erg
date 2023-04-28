@@ -85,4 +85,4 @@ jobs:
       - name: cargo publish
         run: |
           cargo login ${{ secrets.CARGO_TOKEN }}
-          ./cargo-publish.sh
+          ./cargo_publish.sh
