@@ -513,7 +513,15 @@ impl Context {
         } else {
             None
         };
-        let name = VarName::from_static(name);
+        let name = if cfg!(feature = "py_compat") {
+            if let Some(py_name) = py_name {
+                VarName::from_static(py_name)
+            } else {
+                VarName::from_static(name)
+            }
+        } else {
+            VarName::from_static(name)
+        };
         if self.decls.get(&name).is_some() {
             panic!("already registered: {} {name}", self.name);
         } else {
@@ -533,16 +541,6 @@ impl Context {
 
     fn register_builtin_erg_decl(&mut self, name: &'static str, t: Type, vis: Visibility) {
         self.register_builtin_decl(name, t, vis, None);
-    }
-
-    fn register_builtin_py_decl(
-        &mut self,
-        name: &'static str,
-        t: Type,
-        vis: Visibility,
-        py_name: Option<&'static str>,
-    ) {
-        self.register_builtin_decl(name, t, vis, py_name);
     }
 
     fn register_builtin_impl(

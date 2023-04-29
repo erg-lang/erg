@@ -53,7 +53,7 @@ impl Context {
             vec![kw(KW_N, Int)],
             Str,
         );
-        readable.register_builtin_py_decl(
+        readable.register_builtin_decl(
             PROC_READ,
             t_read,
             Visibility::BUILTIN_PUBLIC,
@@ -152,7 +152,7 @@ impl Context {
         let Slf = mono_q(SELF, subtypeof(mono(MUTABLE_WRITABLE)));
         let t_write = pr1_kw_met(ref_mut(Slf, None), kw("s", Str), Nat).quantify();
         writable.register_superclass(mono(MUTABLE_IO), &io);
-        writable.register_builtin_py_decl(
+        writable.register_builtin_decl(
             PROC_WRITE,
             t_write,
             Visibility::BUILTIN_PUBLIC,
@@ -168,7 +168,7 @@ impl Context {
         let mut show = Self::builtin_mono_trait(SHOW, 2);
         let Slf = mono_q(SELF, subtypeof(mono(SHOW)));
         let t_show = fn0_met(ref_(Slf), Str).quantify();
-        show.register_builtin_py_decl(
+        show.register_builtin_decl(
             TO_STR,
             t_show,
             Visibility::BUILTIN_PUBLIC,
@@ -221,7 +221,7 @@ impl Context {
         iterable.register_superclass(poly(OUTPUT, vec![ty_tp(T.clone())]), &output);
         let Slf = mono_q(SELF, subtypeof(poly(ITERABLE, vec![ty_tp(T.clone())])));
         let t = fn0_met(Slf.clone(), proj(Slf, ITER)).quantify();
-        iterable.register_builtin_py_decl(
+        iterable.register_builtin_decl(
             FUNC_ITER,
             t,
             Visibility::BUILTIN_PUBLIC,
@@ -231,7 +231,7 @@ impl Context {
         let mut context_manager = Self::builtin_mono_trait(CONTEXT_MANAGER, 2);
         let Slf = mono_q(SELF, subtypeof(mono(CONTEXT_MANAGER)));
         let t = fn0_met(Slf.clone(), NoneType).quantify();
-        context_manager.register_builtin_py_decl(
+        context_manager.register_builtin_decl(
             FUNDAMENTAL_ENTER,
             t,
             Visibility::BUILTIN_PUBLIC,
@@ -249,7 +249,7 @@ impl Context {
             NoneType,
         )
         .quantify();
-        context_manager.register_builtin_py_decl(
+        context_manager.register_builtin_decl(
             FUNDAMENTAL_EXIT,
             t,
             Visibility::BUILTIN_PUBLIC,
