@@ -1982,11 +1982,16 @@ impl Context {
                     self.name.clone(),
                 )
             };
-            let recovered = self.recover_typarams(&vi.t, &guard)?;
-            self.locals.insert(
-                VarName::from_str(name.clone()),
-                VarInfo { t: recovered, ..vi },
-            );
+            match self.recover_typarams(&vi.t, &guard) {
+                Ok(t) => {
+                    self.locals
+                        .insert(VarName::from_str(name.clone()), VarInfo { t, ..vi });
+                }
+                Err(errs) => {
+                    self.locals.insert(VarName::from_str(name.clone()), vi);
+                    return Err(errs);
+                }
+            }
         } /* else {
               return Err(TyCheckErrors::from(TyCheckError::feature_error(
                   self.cfg.input.clone(),
