@@ -10,6 +10,7 @@ _socket = pyimport "socket"
 sub = pyimport "subprocess"
 sys = pyimport "sys"
 _urllib = pyimport "urllib"
+_iter = pyimport "itertools"
 {DateTime;} = pyimport "datetime"
 
 print! math.pi

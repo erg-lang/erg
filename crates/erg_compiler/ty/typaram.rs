@@ -840,11 +840,8 @@ impl TyParam {
         }
     }
 
-    pub fn app(name: &'static str, args: Vec<TyParam>) -> Self {
-        Self::App {
-            name: Str::ever(name),
-            args,
-        }
+    pub fn app(name: Str, args: Vec<TyParam>) -> Self {
+        Self::App { name, args }
     }
 
     #[inline]
@@ -854,12 +851,12 @@ impl TyParam {
 
     // if self: Ratio, Succ(self) => self+ε
     pub fn succ(self) -> Self {
-        Self::app("Succ", vec![self])
+        Self::app("Succ".into(), vec![self])
     }
 
     // if self: Ratio, Pred(self) => self-ε
     pub fn pred(self) -> Self {
-        Self::app("Pred", vec![self])
+        Self::app("Pred".into(), vec![self])
     }
 
     pub fn qual_name(&self) -> Option<Str> {

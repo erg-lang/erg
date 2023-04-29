@@ -908,11 +908,8 @@ impl Context {
     }
 
     fn eval_app(&self, name: Str, args: Vec<TyParam>) -> EvalResult<TyParam> {
-        feature_error!(
-            self,
-            Location::Unknown,
-            &format!("{name}({})", fmt_vec(&args))
-        )
+        log!(err "eval_app({name}({}))", fmt_vec(&args));
+        Ok(TyParam::app(name, args))
     }
 
     /// Quantified variables, etc. are returned as is.
@@ -931,9 +928,9 @@ impl Context {
                         line!(),
                     ))
                 }),
+            TyParam::App { name, args } => self.eval_app(name, args),
             TyParam::BinOp { op, lhs, rhs } => self.eval_bin_tp(op, *lhs, *rhs),
             TyParam::UnaryOp { op, val } => self.eval_unary_tp(op, *val),
-            TyParam::App { name, args } => self.eval_app(name, args),
             TyParam::Array(tps) => {
                 let mut new_tps = Vec::with_capacity(tps.len());
                 for tp in tps {
@@ -1644,6 +1641,36 @@ impl Context {
             TyParam::Mono(name) => self
                 .rec_get_const_obj(&name)
                 .map(|v| v_enum(set![v.clone()]))
+                .ok_or_else(|| {
+                    EvalErrors::from(EvalError::unreachable(
+                        self.cfg.input.clone(),
+                        fn_name!(),
+                        line!(),
+                    ))
+                }),
+            TyParam::App { name, args } => self
+                .rec_get_const_obj(&name)
+                .and_then(|v| {
+                    let ty = Type::try_from(v.clone()).ok()?;
+                    let instance = self
+                        .instantiate_def_type(&ty)
+                        .map_err(|err| {
+                            log!(err "{err}");
+                            err
+                        })
+                        .ok()?;
+                    for (param, arg) in instance.typarams().into_iter().zip(args.into_iter()) {
+                        self.sub_unify_tp(&arg, &param, None, &(), false).ok()?;
+                    }
+                    let ty_obj = if self.is_class(&instance) {
+                        ValueObj::builtin_class(instance)
+                    } else if self.is_trait(&instance) {
+                        ValueObj::builtin_trait(instance)
+                    } else {
+                        ValueObj::builtin_type(instance)
+                    };
+                    Some(v_enum(set![ty_obj]))
+                })
                 .ok_or_else(|| {
                     EvalErrors::from(EvalError::unreachable(
                         self.cfg.input.clone(),

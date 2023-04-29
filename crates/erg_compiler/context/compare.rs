@@ -488,15 +488,11 @@ impl Context {
             }
             (Bool, Guard { .. }) => true,
             (Type, Subr(subr)) => self.supertype_of(&Type, &subr.return_t),
-            (Type, Poly { name, params }) | (Poly { name, params }, Type)
-                if &name[..] == "Array" || &name[..] == "Set" =>
-            {
+            (Type, Poly { name, params }) if &name[..] == "Array" || &name[..] == "Set" => {
                 let elem_t = self.convert_tp_into_type(params[0].clone()).unwrap();
                 self.supertype_of(&Type, &elem_t)
             }
-            (Type, Poly { name, params }) | (Poly { name, params }, Type)
-                if &name[..] == "Tuple" =>
-            {
+            (Type, Poly { name, params }) if &name[..] == "Tuple" => {
                 // Type :> Tuple Ts == Type :> Ts
                 // e.g. Type :> Tuple [Int, Str] == false
                 //      Type :> Tuple [Type, Type] == true
@@ -512,11 +508,9 @@ impl Context {
                         }
                     }
                 }
-                false
+                true
             }
-            (Type, Poly { name, params }) | (Poly { name, params }, Type)
-                if &name[..] == "Dict" =>
-            {
+            (Type, Poly { name, params }) if &name[..] == "Dict" => {
                 // Type :> Dict T == Type :> T
                 // e.g. Type :> Dict {Str: Int} == false
                 //      Type :> Dict {Type: Type} == true

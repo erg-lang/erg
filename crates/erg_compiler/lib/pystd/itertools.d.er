@@ -1,0 +1,36 @@
+.Count = 'count': ClassType
+.Count <: Iterable Int
+.Count.
+    __call__: (start: Int, step: Int) -> .Count
+
+.Cycle = 'cycle': ClassType
+.Cycle.
+    __call__: |T|(iterable: Iterable T) -> Iterable T
+
+.Repeat = 'repeat': ClassType
+.Repeat.
+    __call__: |T|(value: T, times := Nat) -> Iterable T
+
+.Accumulate = 'accumulate': ClassType
+.Accumulate.
+    __call__: |T|(iterable: Iterable(T), func := (T, T) -> T) -> Iterable T
+
+.Chain = 'chain': ClassType
+.Chain.
+    __call__: |T|(*iterables: Iterable T) -> Iterable T
+
+.Compress = 'compress': ClassType
+.Compress.
+    __call__: |T|(data: Iterable(T), selectors: Iterable Bool) -> Iterable T
+
+.DropWhile = 'dropwhile': ClassType
+.DropWhile.
+    __call__: |T|(predicate: (T) -> Bool, iterable: Iterable T) -> Iterable T
+
+.FilterFalse = 'filterfalse': ClassType
+.FilterFalse.
+    __call__: |T|(predicate: (T) -> Bool, iterable: Iterable T) -> Iterable T
+
+.GroupBy = 'groupby': ClassType
+.GroupBy.
+    __call__: |T, K|(iterable: Iterable(T), key := (T) -> K) -> Iterable((K, Iterable(T)))

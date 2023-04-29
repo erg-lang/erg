@@ -675,7 +675,13 @@ impl Context {
                             Err(e)
                         }
                     })?;
-                    let arg_t = self.get_tp_t(&param).unwrap_or(Obj);
+                    let arg_t = self
+                        .get_tp_t(&param)
+                        .map_err(|err| {
+                            log!(err "{err}");
+                            err
+                        })
+                        .unwrap_or(Obj);
                     if self.subtype_of(&arg_t, &param_vi.t) {
                         new_params.push(param);
                     } else {
@@ -783,6 +789,8 @@ impl Context {
         )))
     }
 
+    /// erased_index:
+    /// e.g. `instantiate_const_expr(Array(Str, _), Some((self, 1))) => Array(Str, _: Nat)`
     pub(crate) fn instantiate_const_expr(
         &self,
         expr: &ast::ConstExpr,
@@ -798,6 +806,23 @@ impl Context {
             // TODO: inc_ref
             ast::ConstExpr::Accessor(acc) => {
                 self.instantiate_acc(acc, erased_idx, tmp_tv_cache, not_found_is_qvar)
+            }
+            ast::ConstExpr::App(app) => {
+                let name = match &app.acc {
+                    ast::ConstAccessor::Local(local) => local.inspect(),
+                    _ => return type_feature_error!(self, app.loc(), "instantiating const callee"),
+                };
+                let mut args = vec![];
+                for (i, arg) in app.args.pos_args().enumerate() {
+                    let arg_t = self.instantiate_const_expr(
+                        &arg.expr,
+                        Some((self, i)),
+                        tmp_tv_cache,
+                        not_found_is_qvar,
+                    )?;
+                    args.push(arg_t);
+                }
+                Ok(TyParam::app(name.clone(), args))
             }
             ast::ConstExpr::Array(array) => {
                 let mut tp_arr = vec![];
@@ -1016,6 +1041,8 @@ impl Context {
             TyParam::FreeVar(fv) if fv.is_linked() => {
                 self.instantiate_tp_as_type(fv.crack().clone(), loc)
             }
+            TyParam::Mono(name) => Ok(mono(name)),
+            TyParam::App { name, args } => Ok(poly(name, args)),
             TyParam::Type(t) => Ok(*t),
             #[allow(clippy::bind_instead_of_map)]
             TyParam::Value(value) => Type::try_from(value).or_else(|value| {
