@@ -1971,12 +1971,10 @@ impl Context {
         if let Variable::Var(name, _) = &guard.var {
             let vi = if let Some((name, vi)) = self.locals.remove_entry(name) {
                 overwritten.push((name, vi.clone()));
-                let t = self.intersection(&vi.t, &guard.to);
-                VarInfo { t, ..vi }
+                vi
             } else if let Some((n, vi)) = self.get_var_kv(name) {
                 overwritten.push((n.clone(), vi.clone()));
-                let t = self.intersection(&vi.t, &guard.to);
-                VarInfo { t, ..vi.clone() }
+                vi.clone()
             } else {
                 VarInfo::nd_parameter(
                     *guard.to.clone(),
@@ -1984,20 +1982,11 @@ impl Context {
                     self.name.clone(),
                 )
             };
-            let is_never =
-                self.subtype_of(&vi.t, &Type::Never) && guard.to.as_ref() != &Type::Never;
-            self.locals.insert(VarName::from_str(name.clone()), vi);
-            if is_never {
-                return Err(TyCheckErrors::from(TyCheckError::invalid_type_cast_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    guard.var.loc(),
-                    self.caused_by(),
-                    &guard.var.to_string(),
-                    &guard.to,
-                    None,
-                )));
-            }
+            let recovered = self.recover_typarams(&vi.t, &guard)?;
+            self.locals.insert(
+                VarName::from_str(name.clone()),
+                VarInfo { t: recovered, ..vi },
+            );
         } /* else {
               return Err(TyCheckErrors::from(TyCheckError::feature_error(
                   self.cfg.input.clone(),
@@ -2005,7 +1994,7 @@ impl Context {
                   &format!("casting {}", guard.var),
                   self.caused_by(),
               )));
-          }*/
+          } */
         Ok(())
     }
 

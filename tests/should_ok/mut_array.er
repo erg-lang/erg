@@ -1,4 +1,4 @@
-v = ![]
+v as Array!(Nat, _) = ![]
 for! 0..<10, i =>
     v.push! i
 

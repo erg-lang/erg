@@ -1001,19 +1001,21 @@ impl LowerError {
         loc: Location,
         caused_by: String,
         name: &str,
+        base: &Type,
         cast_to: &Type,
         hint: Option<String>,
     ) -> Self {
         let name = StyledString::new(name, Some(WARN), Some(ATTR));
+        let base = StyledString::new(format!("{base}"), Some(WARN), Some(ATTR));
         let found = StyledString::new(format!("{cast_to}"), Some(ERR), Some(ATTR));
         Self::new(
             ErrorCore::new(
                 vec![SubMessage::ambiguous_new(loc, vec![], hint)],
                 switch_lang!(
-                    "japanese" => format!("{name}の型を{found}にキャストすることはできません"),
-                    "simplified_chinese" => format!("{name}的类型无法转换为{found}"),
-                    "traditional_chinese" => format!("{name}的類型無法轉換為{found}"),
-                    "english" => format!("the type of {name} cannot be cast to {found}"),
+                    "japanese" => format!("{name}: {base}を{found}にキャストすることはできません"),
+                    "simplified_chinese" => format!("{name}: {base}无法转换为{found}"),
+                    "traditional_chinese" => format!("{name}: {base}無法轉換為{found}"),
+                    "english" => format!("{name}: {base} cannot be cast to {found}"),
                 ),
                 errno,
                 TypeError,

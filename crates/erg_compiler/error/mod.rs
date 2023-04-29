@@ -750,6 +750,7 @@ mod test {
             caused_by.to_string(),
             name,
             &cast_to,
+            &cast_to,
             hint,
         );
         errors.push(err);

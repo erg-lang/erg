@@ -1,5 +1,6 @@
 v = ![]
 v.push! 1
+_ = v[2] # ERR
 
 w = ![]
 w.push! "a"

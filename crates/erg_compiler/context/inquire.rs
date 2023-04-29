@@ -23,7 +23,9 @@ use crate::ty::constructors::{anon, fn_met, free_var, func, mono, poly, proc, pr
 use crate::ty::free::{Constraint, FreeTyParam};
 use crate::ty::typaram::TyParam;
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
-use crate::ty::{Field, HasType, ParamTy, Predicate, SubrKind, SubrType, Type, Visibility};
+use crate::ty::{
+    Field, GuardType, HasType, ParamTy, Predicate, SubrKind, SubrType, Type, Visibility,
+};
 use Type::*;
 
 use crate::context::instantiate_spec::ConstTemplate;
@@ -3009,6 +3011,48 @@ impl Context {
             }
         } else {
             None
+        }
+    }
+
+    /// ```erg
+    /// recover_typarams(Int, Nat) == Nat
+    /// recover_typarams(Array!(Int, _), Array(Nat, 2)) == Array!(Nat, 2)
+    /// ```
+    /// ```erg
+    /// # REVIEW: should be?
+    /// recover_typarams(Nat or Str, Int) == Nat
+    /// ```
+    pub(crate) fn recover_typarams(&self, base: &Type, guard: &GuardType) -> TyCheckResult<Type> {
+        let intersec = self.intersection(&guard.to, base);
+        let is_never =
+            self.subtype_of(&intersec, &Type::Never) && guard.to.as_ref() != &Type::Never;
+        if !is_never {
+            return Ok(intersec);
+        }
+        // Array(Nat, 2) !<: Array!(Int, _)
+        let base_def_t = self
+            .get_nominal_type_ctx(base)
+            .map(|(t, _)| t)
+            .unwrap_or(&Type::Obj);
+        let assert_def_t = self
+            .get_nominal_type_ctx(&guard.to)
+            .map(|(t, _)| t)
+            .unwrap_or(&Type::Obj);
+        if self.related(base_def_t, assert_def_t) {
+            // FIXME: Vec(_), Array(Int, 2) -> Vec(2)
+            let casted = poly(base.qual_name(), guard.to.typarams());
+            Ok(casted)
+        } else {
+            Err(TyCheckErrors::from(TyCheckError::invalid_type_cast_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                guard.var.loc(),
+                self.caused_by(),
+                &guard.var.to_string(),
+                base,
+                &guard.to,
+                None,
+            )))
         }
     }
 }

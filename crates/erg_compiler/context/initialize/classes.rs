@@ -1508,7 +1508,7 @@ impl Context {
         // __Tuple_getitem__: (self: Tuple(Ts), _: {N}) -> Ts[N]
         let return_t = proj_call(Ts, FUNDAMENTAL_GETITEM, vec![N.clone()]);
         let tuple_getitem_t =
-            fn1_met(_tuple_t.clone(), tp_enum(Nat, set! {N}), return_t).quantify();
+            fn1_met(_tuple_t.clone(), tp_enum(Nat, set! {N.clone()}), return_t).quantify();
         tuple_.register_builtin_py_impl(
             FUNDAMENTAL_TUPLE_GETITEM,
             tuple_getitem_t.clone(),
@@ -1891,7 +1891,6 @@ impl Context {
         file_mut.register_marker_trait(mono(MUT_FILE_LIKE));
         file_mut.register_marker_trait(mono(CONTEXT_MANAGER));
         /* Array! */
-        let N = mono_q_tp(TY_N, instanceof(Nat));
         let array_mut_t = poly(MUT_ARRAY, vec![ty_tp(T.clone()), N.clone()]);
         let mut array_mut_ =
             Self::builtin_poly_class(MUT_ARRAY, vec![PS::t_nd(TY_T), PS::named_nd(TY_N, Nat)], 2);

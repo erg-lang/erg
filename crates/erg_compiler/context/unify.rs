@@ -1201,6 +1201,7 @@ impl Context {
             // maybe_sub: Zip(Int, Str)
             // sub_def_t: Zip(T, U) ==> Zip(Int, Str)
             // super_traits: [Iterable((T, U)), ...] ==> [Iterable((Int, Str)), ...]
+            // TODO: user-defined types substitution
             self.substitute_typarams(sub_def_t, maybe_sub)
                 .map_err(|errs| {
                     Self::undo_substitute_typarams(sub_def_t);
