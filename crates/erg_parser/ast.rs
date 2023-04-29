@@ -1475,14 +1475,33 @@ impl ConstAccessor {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct ConstArray {
+pub enum ConstArray {
+    Normal(ConstNormalArray),
+    WithLength(ConstArrayWithLength),
+}
+
+impl_nested_display_for_enum!(ConstArray; Normal, WithLength);
+impl_display_from_nested!(ConstArray);
+impl_locational_for_enum!(ConstArray; Normal, WithLength);
+
+impl ConstArray {
+    pub fn downcast(self) -> Array {
+        match self {
+            Self::Normal(normal) => Array::Normal(normal.downcast()),
+            Self::WithLength(with_length) => Array::WithLength(with_length.downcast()),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ConstNormalArray {
     pub l_sqbr: Token,
     pub r_sqbr: Token,
     pub elems: ConstArgs,
     pub guard: Option<Box<ConstExpr>>,
 }
 
-impl NestedDisplay for ConstArray {
+impl NestedDisplay for ConstNormalArray {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         if let Some(guard) = &self.guard {
             write!(f, "[{} | {}]", self.elems, guard)
@@ -1492,10 +1511,10 @@ impl NestedDisplay for ConstArray {
     }
 }
 
-impl_display_from_nested!(ConstArray);
-impl_locational!(ConstArray, l_sqbr, elems, r_sqbr);
+impl_display_from_nested!(ConstNormalArray);
+impl_locational!(ConstNormalArray, l_sqbr, elems, r_sqbr);
 
-impl ConstArray {
+impl ConstNormalArray {
     pub fn new(l_sqbr: Token, r_sqbr: Token, elems: ConstArgs, guard: Option<ConstExpr>) -> Self {
         Self {
             l_sqbr,
@@ -1505,12 +1524,45 @@ impl ConstArray {
         }
     }
 
-    pub fn downcast(self) -> Array {
-        Array::Normal(NormalArray::new(
+    pub fn downcast(self) -> NormalArray {
+        NormalArray::new(self.l_sqbr, self.r_sqbr, self.elems.downcast())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ConstArrayWithLength {
+    pub l_sqbr: Token,
+    pub r_sqbr: Token,
+    pub elem: Box<ConstExpr>,
+    pub length: Box<ConstExpr>,
+}
+
+impl NestedDisplay for ConstArrayWithLength {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(f, "[{}; {}]", self.elem, self.length)
+    }
+}
+
+impl_display_from_nested!(ConstArrayWithLength);
+impl_locational!(ConstArrayWithLength, l_sqbr, elem, r_sqbr);
+
+impl ConstArrayWithLength {
+    pub fn new(l_sqbr: Token, r_sqbr: Token, elem: ConstExpr, length: ConstExpr) -> Self {
+        Self {
+            l_sqbr,
+            r_sqbr,
+            elem: Box::new(elem),
+            length: Box::new(length),
+        }
+    }
+
+    pub fn downcast(self) -> ArrayWithLength {
+        ArrayWithLength::new(
             self.l_sqbr,
             self.r_sqbr,
-            self.elems.downcast(),
-        ))
+            PosArg::new(self.elem.downcast()),
+            self.length.downcast(),
+        )
     }
 }
 

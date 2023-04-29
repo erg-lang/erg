@@ -35,8 +35,14 @@ impl Parser {
                         const_elems.push(ConstPosArg::new(const_expr));
                     }
                     let elems = ConstArgs::pos_only(const_elems, None);
-                    let const_arr = ConstArray::new(arr.l_sqbr, arr.r_sqbr, elems, None);
-                    Ok(ConstExpr::Array(const_arr))
+                    let const_arr = ConstNormalArray::new(arr.l_sqbr, arr.r_sqbr, elems, None);
+                    Ok(ConstExpr::Array(ConstArray::Normal(const_arr)))
+                }
+                Array::WithLength(arr) => {
+                    let elem = Self::validate_const_expr(arr.elem.expr)?;
+                    let len = Self::validate_const_expr(*arr.len)?;
+                    let const_arr = ConstArrayWithLength::new(arr.l_sqbr, arr.r_sqbr, elem, len);
+                    Ok(ConstExpr::Array(ConstArray::WithLength(const_arr)))
                 }
                 other => Err(ParseError::feature_error(
                     line!() as usize,

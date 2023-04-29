@@ -34,3 +34,43 @@
 .GroupBy = 'groupby': ClassType
 .GroupBy.
     __call__: |T, K|(iterable: Iterable(T), key := (T) -> K) -> Iterable((K, Iterable(T)))
+
+.Islice = 'islice': ClassType
+.Islice.
+    __call__: |T|(iterable: Iterable(T), start := Int, stop := Int, step := Int) -> Iterable T
+
+.Pairwise = 'pairwise': ClassType
+.Pairwise.
+    __call__: |T|(iterable: Iterable(T)) -> Iterable((T, T))
+
+# .Startmap = 'startmap': ClassType
+# .Startmap.
+#     __call__: |T|(function: (T) -> T, iterable: Iterable T) -> Iterable T
+
+.Takewhile = 'takewhile': ClassType
+.Takewhile.
+    __call__: |T|(predicate: (T) -> Bool, iterable: Iterable T) -> Iterable T
+
+.Tee = 'tee': ClassType
+.Tee.
+    __call__: |T|(iterable: Iterable(T), n := Nat) -> [Iterable(T); _]
+
+.ZipLongest = 'zip_longest': ClassType
+.ZipLongest.
+    __call__: |T|(*iterables: Iterable(T), fillvalue := T) -> Iterable [T; _]
+
+.Product = 'product': ClassType
+.Product.
+    __call__: |T|(*iterables: Iterable(T), repeat := Nat) -> Iterable [T; _]
+
+.Permutations = 'permutations': ClassType
+.Permutations.
+    __call__: |T|(iterable: Iterable(T), r := Nat) -> Iterable [T; _]
+
+.Combinations = 'combinations': ClassType
+.Combinations.
+    __call__: |T|(iterable: Iterable(T), r := Nat) -> Iterable [T; _]
+
+.CombinationsWithReplacement = 'combinations_with_replacement': ClassType
+.CombinationsWithReplacement.
+    __call__: |T|(iterable: Iterable(T), r := Nat) -> Iterable [T; _]

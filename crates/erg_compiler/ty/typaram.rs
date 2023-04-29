@@ -1104,6 +1104,14 @@ impl TyParam {
         }
     }
 
+    pub fn is_erased(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_erased(),
+            Self::Erased(_) => true,
+            _ => false,
+        }
+    }
+
     pub fn replace(self, target: &Type, to: &Type) -> TyParam {
         match self {
             TyParam::Value(ValueObj::Type(obj)) => {

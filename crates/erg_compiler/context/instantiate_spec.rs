@@ -10,7 +10,7 @@ use ast::{
     NonDefaultParamSignature, ParamTySpec, PreDeclTypeSpec, SimpleTypeSpec, TypeBoundSpec,
     TypeBoundSpecs, TypeSpec,
 };
-use erg_parser::ast::{self, Identifier, VisModifierSpec, VisRestriction};
+use erg_parser::ast::{self, ConstArray, Identifier, VisModifierSpec, VisRestriction};
 use erg_parser::token::TokenKind;
 use erg_parser::Parser;
 
@@ -824,7 +824,7 @@ impl Context {
                 }
                 Ok(TyParam::app(name.clone(), args))
             }
-            ast::ConstExpr::Array(array) => {
+            ast::ConstExpr::Array(ConstArray::Normal(array)) => {
                 let mut tp_arr = vec![];
                 for (i, elem) in array.elems.pos_args().enumerate() {
                     let el = self.instantiate_const_expr(
@@ -836,6 +836,30 @@ impl Context {
                     tp_arr.push(el);
                 }
                 Ok(TyParam::Array(tp_arr))
+            }
+            ast::ConstExpr::Array(ConstArray::WithLength(arr)) => {
+                let elem = self.instantiate_const_expr(
+                    &arr.elem,
+                    erased_idx,
+                    tmp_tv_cache,
+                    not_found_is_qvar,
+                )?;
+                let length = self.instantiate_const_expr(
+                    &arr.length,
+                    erased_idx,
+                    tmp_tv_cache,
+                    not_found_is_qvar,
+                )?;
+                if length.is_erased() {
+                    if let Ok(elem_t) = self.instantiate_tp_as_type(elem, arr) {
+                        return Ok(TyParam::t(unknown_len_array_t(elem_t)));
+                    }
+                }
+                type_feature_error!(
+                    self,
+                    arr.loc(),
+                    &format!("instantiating const expression {expr}")
+                )
             }
             ast::ConstExpr::Set(set) => {
                 let mut tp_set = set! {};
