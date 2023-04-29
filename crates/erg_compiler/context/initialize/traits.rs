@@ -43,20 +43,115 @@ impl Context {
         let mut mutizable = Self::builtin_mono_trait(MUTIZABLE, 2);
         mutizable.register_builtin_erg_decl(MUTABLE_MUT_TYPE, Type, Visibility::BUILTIN_PUBLIC);
         let pathlike = Self::builtin_mono_trait(PATH_LIKE, 2);
-        /* Readable */
+        /* Readable! */
         let mut readable = Self::builtin_mono_trait(MUTABLE_READABLE, 2);
-        let Slf = mono_q(SELF, subtypeof(mono(MUTABLE_READABLE)));
-        let t_read = pr_met(ref_mut(Slf, None), vec![], None, vec![kw(KW_N, Int)], Str).quantify();
+        let Slf = mono(MUTABLE_READABLE);
+        let t_read = pr_met(
+            ref_mut(Slf.clone(), None),
+            vec![],
+            None,
+            vec![kw(KW_N, Int)],
+            Str,
+        );
         readable.register_builtin_py_decl(
             PROC_READ,
             t_read,
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_READ),
         );
-        /* Writable */
+        readable.register_builtin_decl(
+            FUNC_READABLE,
+            fn0_met(Slf.clone(), Bool),
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_READABLE),
+        );
+        readable.register_builtin_decl(
+            PROC_READLINE,
+            pr0_met(ref_mut(Slf.clone(), None), Str),
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_READLINE),
+        );
+        readable.register_builtin_decl(
+            PROC_READLINES,
+            pr0_met(ref_mut(Slf, None), unknown_len_array_t(Str)),
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_READLINES),
+        );
+        /* IO! */
+        let mut io = Self::builtin_mono_trait(MUTABLE_IO, 2);
+        let Slf = mono(MUTABLE_IO);
+        io.register_superclass(mono(MUTABLE_READABLE), &readable);
+        io.register_builtin_decl(
+            FUNC_MODE,
+            fn0_met(Slf.clone(), Str),
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_MODE),
+        );
+        io.register_builtin_decl(
+            FUNC_NAME,
+            fn0_met(Slf.clone(), Str),
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_NAME),
+        );
+        io.register_builtin_decl(
+            PROC_CLOSE,
+            pr0_met(ref_mut(Slf.clone(), None), NoneType),
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_CLOSE),
+        );
+        io.register_builtin_decl(
+            FUNC_CLOSED,
+            fn0_met(Slf.clone(), Bool),
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_CLOSED),
+        );
+        io.register_builtin_decl(
+            FUNC_FILENO,
+            fn0_met(Slf.clone(), Nat),
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_FILENO),
+        );
+        io.register_builtin_decl(
+            PROC_FLUSH,
+            pr0_met(ref_mut(Slf.clone(), None), NoneType),
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_FLUSH),
+        );
+        io.register_builtin_decl(
+            FUNC_ISATTY,
+            fn0_met(Slf.clone(), Bool),
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_ISATTY),
+        );
+        io.register_builtin_decl(
+            PROC_SEEK,
+            pr_met(
+                ref_mut(Slf.clone(), None),
+                vec![kw(KW_OFFSET, Nat)],
+                None,
+                vec![kw(KW_WHENCE, Nat)],
+                Nat,
+            ),
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_SEEK),
+        );
+        io.register_builtin_decl(
+            FUNC_SEEKABLE,
+            pr0_met(ref_mut(Slf.clone(), None), Bool),
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_SEEKABLE),
+        );
+        io.register_builtin_decl(
+            FUNC_TELL,
+            fn0_met(Slf, Nat),
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_TELL),
+        );
+        /* Writable! */
         let mut writable = Self::builtin_mono_trait(MUTABLE_WRITABLE, 2);
         let Slf = mono_q(SELF, subtypeof(mono(MUTABLE_WRITABLE)));
         let t_write = pr1_kw_met(ref_mut(Slf, None), kw("s", Str), Nat).quantify();
+        writable.register_superclass(mono(MUTABLE_IO), &io);
         writable.register_builtin_py_decl(
             PROC_WRITE,
             t_write,
@@ -65,7 +160,7 @@ impl Context {
         );
         // TODO: Add required methods
         let mut filelike = Self::builtin_mono_trait(FILE_LIKE, 2);
-        filelike.register_superclass(mono(READABLE), &readable);
+        filelike.register_superclass(mono(MUTABLE_READABLE), &readable);
         let mut filelike_mut = Self::builtin_mono_trait(MUTABLE_FILE_LIKE, 2);
         filelike_mut.register_superclass(mono(FILE_LIKE), &filelike);
         filelike_mut.register_superclass(mono(MUTABLE_WRITABLE), &writable);
@@ -230,14 +325,14 @@ impl Context {
             readable,
             Visibility::BUILTIN_PRIVATE,
             Const,
-            Some(READABLE),
+            None,
         );
         self.register_builtin_type(
             mono(MUTABLE_WRITABLE),
             writable,
             Visibility::BUILTIN_PRIVATE,
             Const,
-            Some(WRITABLE),
+            None,
         );
         self.register_builtin_type(mono(FILE_LIKE), filelike, vis.clone(), Const, None);
         self.register_builtin_type(
