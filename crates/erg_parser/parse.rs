@@ -605,7 +605,17 @@ impl Parser {
             self.lpop();
             let expr = self
                 .try_reduce_expr(false, false, false, false)
-                .map_err(|_| self.stack_dec(fn_name!()))?;
+                .map_err(|_| {
+                    if let Some(err) = self.errs.last_mut() {
+                        err.set_hint(switch_lang!(
+                            "japanese" => "予期: デコレータ",
+                            "simplified_chinese" => "期望：装饰器",
+                            "traditional_chinese" => "期望：裝飾器",
+                            "english" => "expect: decorator",
+                        ))
+                    }
+                    self.stack_dec(fn_name!())
+                })?;
             debug_exit_info!(self);
             Ok(Some(Decorator::new(expr)))
         } else {
@@ -635,9 +645,19 @@ impl Parser {
         let args = match self.peek_kind() {
             Some(SubtypeOf) => {
                 let op = self.lpop();
-                let t_spec_as_expr = self
-                    .try_reduce_expr(false, true, false, false)
-                    .map_err(|_| self.stack_dec(fn_name!()))?;
+                let t_spec_as_expr =
+                    self.try_reduce_expr(false, true, false, false)
+                        .map_err(|_| {
+                            if let Some(err) = self.errs.last_mut() {
+                                err.set_hint(switch_lang!(
+                                    "japanese" => "予期: タイプ指定",
+                                    "simplified_chinese" => "期望：类型规范",
+                                    "traditional_chinese" => "期望：類型規範",
+                                    "english" => "expect: type specification",
+                                ))
+                            }
+                            self.stack_dec(fn_name!())
+                        })?;
                 match Parser::expr_to_type_spec(t_spec_as_expr.clone()) {
                     Ok(t_spec) => {
                         let t_spec = TypeSpecWithOp::new(op, t_spec, t_spec_as_expr);
@@ -750,7 +770,17 @@ impl Parser {
                 self.lpop();
                 let len = self
                     .try_reduce_expr(false, false, false, false)
-                    .map_err(|_| self.stack_dec(fn_name!()))?;
+                    .map_err(|_| {
+                        if let Some(err) = self.errs.last_mut() {
+                            err.set_hint(switch_lang!(
+                                "japanese" => "予期: Nat type",
+                                "simplified_chinese" => "期望：自然类型",
+                                "traditional_chinese" => "期望：自然類型",
+                                "english" => "expect: Nat type",
+                            ))
+                        }
+                        self.stack_dec(fn_name!())
+                    })?;
                 debug_exit_info!(self);
                 return Ok(ArrayInner::WithLength(elems.remove_pos(0), len));
             }
@@ -1081,13 +1111,33 @@ impl Parser {
                     };
                     let expr = self
                         .try_reduce_expr(false, in_type_args, false, false)
-                        .map_err(|_| self.stack_dec(fn_name!()))?;
+                        .map_err(|_| {
+                            if let Some(err) = self.errs.last_mut() {
+                                err.set_hint(switch_lang!(
+                                    "japanese" => "予期: Nat型",
+                                    "simplified_chinese" => "期望：自然类型",
+                                    "traditional_chinese" => "期望：自然類型",
+                                    "english" => "expect: Nat type",
+                                ))
+                            }
+                            self.stack_dec(fn_name!())
+                        })?;
                     debug_exit_info!(self);
                     Ok(ArgKind::Kw(KwArg::new(kw, None, expr)))
                 } else {
                     let expr = self
                         .try_reduce_expr(false, in_type_args, false, false)
-                        .map_err(|_| self.stack_dec(fn_name!()))?;
+                        .map_err(|_| {
+                            if let Some(err) = self.errs.last_mut() {
+                                err.set_hint(switch_lang!(
+                                    "japanese" => "予期: 型指定",
+                                    "simplified_chinese" => "期望：类型规范",
+                                    "traditional_chinese" => "期望：類型規範",
+                                    "english" => "expect: type specification",
+                                ))
+                            }
+                            self.stack_dec(fn_name!())
+                        })?;
                     if self.cur_is(Walrus) {
                         self.skip();
                         let (kw, t_spec) = match expr {
@@ -1119,7 +1169,17 @@ impl Parser {
                         };
                         let expr = self
                             .try_reduce_expr(false, in_type_args, false, false)
-                            .map_err(|_| self.stack_dec(fn_name!()))?;
+                            .map_err(|_| {
+                                if let Some(err) = self.errs.last_mut() {
+                                    err.set_hint(switch_lang!(
+                                        "japanese" => "予期: 型指定",
+                                        "simplified_chinese" => "期望：类型规范",
+                                        "traditional_chinese" => "期望：類型規範",
+                                        "english" => "expect: type specification",
+                                    ))
+                                }
+                                self.stack_dec(fn_name!())
+                            })?;
                         debug_exit_info!(self);
                         Ok(ArgKind::Kw(KwArg::new(kw, t_spec, expr)))
                     } else {
@@ -1132,7 +1192,17 @@ impl Parser {
                 self.skip();
                 let expr = self
                     .try_reduce_expr(false, in_type_args, false, false)
-                    .map_err(|_| self.stack_dec(fn_name!()))?;
+                    .map_err(|_| {
+                        if let Some(err) = self.errs.last_mut() {
+                            err.set_hint(switch_lang!(
+                                "japanese" => "予期: 型指定",
+                                "simplified_chinese" => "期望：类型规范",
+                                "traditional_chinese" => "期望：類型規範",
+                                "english" => "expect: type specification",
+                            ))
+                        }
+                        self.stack_dec(fn_name!())
+                    })?;
                 debug_exit_info!(self);
                 Ok(ArgKind::Var(PosArg::new(expr)))
             }
@@ -1174,7 +1244,17 @@ impl Parser {
                     };
                     let expr = self
                         .try_reduce_expr(false, in_type_args, false, false)
-                        .map_err(|_| self.stack_dec(fn_name!()))?;
+                        .map_err(|_| {
+                            if let Some(err) = self.errs.last_mut() {
+                                err.set_hint(switch_lang!(
+                                    "japanese" => "予期: 引数",
+                                    "simplified_chinese" => "期望：一个参数",
+                                    "traditional_chinese" => "期望：一個參數",
+                                    "english" => "expect: an argument",
+                                ))
+                            }
+                            self.stack_dec(fn_name!())
+                        })?;
                     debug_exit_info!(self);
                     Ok(KwArg::new(keyword, None, expr))
                 } else {
@@ -1227,9 +1307,9 @@ impl Parser {
             if let Some(err) = self.errs.last_mut() {
                 err.set_hint(switch_lang!(
                     "japanese" => "メソッドか属性値のみ定義できます",
-                    "simplified_chinese" => "可以定义方法或属性值",
-                    "traditional_chinese" => "可以定義方法或屬性值",
-                    "english" => "a method or attribute value can be defined",
+                    "simplified_chinese" => "只能定义方法或属性值",
+                    "traditional_chinese" => "只能定義方法或屬性值",
+                    "english" => "only a method or attribute value can be defined",
                 ))
             }
             self.stack_dec(fn_name!())
@@ -1243,9 +1323,9 @@ impl Parser {
                 log!(err "error caused by: {caused_by}");
                 let hint = switch_lang!(
                     "japanese" => "メソッドか属性値のみ定義できます",
-                    "simplified_chinese" => "可以定义方法或属性值",
-                    "traditional_chinese" => "可以定義方法或屬性值",
-                    "english" => "a method or attribute value can be defined",
+                    "simplified_chinese" => "只能定义方法或属性值",
+                    "traditional_chinese" => "只能定義方法或屬性值",
+                    "english" => "only a method or attribute value can be defined",
                 )
                 .to_string();
                 let err = ParseError::syntax_error(
@@ -1288,7 +1368,7 @@ impl Parser {
                                 "japanese" => "クラス属性かメソッドを定義してください",
                                 "simplified_chinese" => "应声明类属性或方法",
                                 "traditional_chinese" => "應聲明類屬性或方法",
-                                "english" => "Class attribute or method should be declared",
+                                "english" => "class attribute or method should be declared",
                             ))
                         }
                         self.stack_dec(fn_name!())
@@ -1375,7 +1455,17 @@ impl Parser {
         } else {
             let expr = self
                 .try_reduce_expr(false, false, false, false)
-                .map_err(|_| self.stack_dec(fn_name!()))?;
+                .map_err(|_| {
+                    if let Some(err) = self.errs.last_mut() {
+                        err.set_hint(switch_lang!(
+                            "japanese" => "予期: 式",
+                            "simplified_chinese" => "期待：表达",
+                            "traditional_chinese" => "期待：表達",
+                            "english" => "expect: expression",
+                        ))
+                    }
+                    self.stack_dec(fn_name!())
+                })?;
             let block = Block::new(vec![expr]);
             debug_exit_info!(self);
             Ok(Lambda::new(sig, op, block, self.counter))
@@ -1412,9 +1502,19 @@ impl Parser {
                             .map_err(|_| self.stack_dec(fn_name!()))?
                     } else {
                         // precedence: `=` < `,`
-                        let expr = self
-                            .try_reduce_expr(true, false, false, false)
-                            .map_err(|_| self.stack_dec(fn_name!()))?;
+                        let expr =
+                            self.try_reduce_expr(true, false, false, false)
+                                .map_err(|_| {
+                                    if let Some(err) = self.errs.last_mut() {
+                                        err.set_hint(switch_lang!(
+                                            "japanese" => "予期: 式",
+                                            "simplified_chinese" => "期待：表达",
+                                            "traditional_chinese" => "期待：表達",
+                                            "english" => "expect: expression",
+                                        ))
+                                    }
+                                    self.stack_dec(fn_name!())
+                                })?;
                         Block::new(vec![expr])
                     };
                     let body = DefBody::new(op, block, self.counter);
@@ -1434,9 +1534,19 @@ impl Parser {
                             .map_err(|_| self.stack_dec(fn_name!()))?
                     } else {
                         // precedence: `->` > `,`
-                        let expr = self
-                            .try_reduce_expr(false, false, false, false)
-                            .map_err(|_| self.stack_dec(fn_name!()))?;
+                        let expr =
+                            self.try_reduce_expr(false, false, false, false)
+                                .map_err(|_| {
+                                    if let Some(err) = self.errs.last_mut() {
+                                        err.set_hint(switch_lang!(
+                                            "japanese" => "予期: 式",
+                                            "simplified_chinese" => "期待：表达",
+                                            "traditional_chinese" => "期待：表達",
+                                            "english" => "expect: expression",
+                                        ))
+                                    }
+                                    self.stack_dec(fn_name!())
+                                })?;
                         Block::new(vec![expr])
                     };
                     stack.push(ExprOrOp::Expr(Expr::Lambda(Lambda::new(
@@ -1491,10 +1601,10 @@ impl Parser {
                         self.try_reduce_bin_lhs(false, in_brace).map_err(|_| {
                             if let Some(err) = self.errs.last_mut() {
                                 err.set_hint(switch_lang!(
-                                    "japanese" => "予期: 式",
-                                    "simplified_chinese" => "期望: 表达式",
-                                    "traditional_chinese" => "期望：表達式",
-                                    "english" => "expect: Expression",
+                                    "japanese" => "予期: 数値、式",
+                                    "simplified_chinese" => "期望：数字或表达式",
+                                    "traditional_chinese" => "期望：數字或表達式",
+                                    "english" => "expect: number or expression",
                                 ));
                             }
                             self.stack_dec(fn_name!())
@@ -1621,8 +1731,12 @@ impl Parser {
                         .try_reduce_expr(false, false, in_brace, false)
                         .map_err(|_| {
                             if let Some(err) = self.errs.last_mut() {
-                                err.set_hint("expect Nat type");
-                                println!("Done");
+                                err.set_hint(switch_lang!(
+                                    "japanese" => "予期: Nat型",
+                                    "simplified_chinese" => "期望：自然类型",
+                                    "traditional_chinese" => "期望：自然類型",
+                                    "english" => "expect: Nat type",
+                                ))
                             }
                             self.stack_dec(fn_name!())
                         })?;
@@ -1749,7 +1863,17 @@ impl Parser {
                     let t_spec_as_expr = self
                         .try_reduce_expr(false, in_type_args, in_brace, false)
                         .map(Desugarer::desugar_simple_expr)
-                        .map_err(|_| self.stack_dec(fn_name!()))?;
+                        .map_err(|_| {
+                            if let Some(err) = self.errs.last_mut() {
+                                err.set_hint(switch_lang!(
+                                    "japanese" => "予期: Nat型",
+                                    "simplified_chinese" => "期望：自然类型",
+                                    "traditional_chinese" => "期望：自然類型",
+                                    "english" => "expect: Nat type",
+                                ))
+                            }
+                            self.stack_dec(fn_name!())
+                        })?;
                     let t_spec = Self::expr_to_type_spec(t_spec_as_expr.clone())
                         .map_err(|e| self.errs.push(e))?;
                     let t_spec_op = TypeSpecWithOp::new(op, t_spec, t_spec_as_expr);
@@ -1782,10 +1906,10 @@ impl Parser {
                             .map_err(|_| {
                                 if let Some(err) = self.errs.last_mut() {
                                     err.set_hint(switch_lang!(
-                                        "japanese" => "期待: 式",
-                                        "simplified_chinese" => "",
-                                        "traditional_chinese" => "",
-                                        "english" => "expect: Expression",
+                                    "japanese" => "予期: 数値、式",
+                                    "simplified_chinese" => "期望：数字或表达式",
+                                    "traditional_chinese" => "期望：數字或表達式",
+                                    "english" => "expect: number or expression",
                                     ))
                                 }
                                 self.stack_dec(fn_name!())
@@ -1843,10 +1967,10 @@ impl Parser {
                         .map_err(|_| {
                             if let Some(err) = self.errs.last_mut() {
                                 err.set_hint(switch_lang!(
-                                    "japanese" => "予期: Nat",
-                                    "simplified_chinese" => "预期: Nat",
-                                    "traditional_chinese" => "預期: Nat",
-                                    "english" => "expect: Nat",
+                                    "japanese" => "予期: Nat型",
+                                    "simplified_chinese" => "期望：自然类型",
+                                    "traditional_chinese" => "期望：自然類型",
+                                    "english" => "expect: Nat type",
                                 ))
                             }
                             self.stack_dec(fn_name!());
@@ -2270,7 +2394,17 @@ impl Parser {
                     let _l_sqbr = self.lpop();
                     let index = self
                         .try_reduce_expr(true, false, false, false)
-                        .map_err(|_| self.stack_dec(fn_name!()))?;
+                        .map_err(|_| {
+                            if let Some(err) = self.errs.last_mut() {
+                                err.set_hint(switch_lang!(
+                                    "japanese" => "期待: Nat型",
+                                    "simplified_chinese" => "期望：自然类型",
+                                    "traditional_chinese" => "期望：自然類型",
+                                    "english" => "expect: Nat type",
+                                ))
+                            }
+                            self.stack_dec(fn_name!())
+                        })?;
                     let r_sqbr = expect_pop!(self, fail_next RSqBr);
                     obj = Expr::Accessor(Accessor::subscr(obj, index, r_sqbr));
                 }
@@ -2392,7 +2526,17 @@ impl Parser {
         let op = self.lpop();
         let expr = self
             .try_reduce_expr(false, false, false, false)
-            .map_err(|_| self.stack_dec(fn_name!()))?;
+            .map_err(|_| {
+                if let Some(err) = self.errs.last_mut() {
+                    err.set_hint(switch_lang!(
+                        "japanese" => "予期: 式",
+                        "simplified_chinese" => "期待：表达",
+                        "traditional_chinese" => "期待：表達",
+                        "english" => "expect: expression",
+                    ))
+                }
+                self.stack_dec(fn_name!())
+            })?;
         debug_exit_info!(self);
         Ok(UnaryOp::new(op, expr))
     }
@@ -2814,10 +2958,10 @@ impl Parser {
                 .map_err(|_| {
                     if let Some(err) = self.errs.last_mut() {
                         err.set_hint(switch_lang!(
-                            "japanese" => "",
-                            "simplified_chinese" => "",
-                            "traditional_chinese" => "",
-                            "english" => "} or element",
+                            "japanese" => "予期: }か要素",
+                            "simplified_chinese" => "期望：}或元素",
+                            "traditional_chinese" => "期望：}或元素",
+                            "english" => "expect: } or element",
                         ))
                     }
                     self.stack_dec(fn_name!())
@@ -2848,8 +2992,6 @@ impl Parser {
                     self.skip();
                     match self.peek_kind() {
                         Some(Comma) => {
-                            let caused_by = caused_by!();
-                            log!(err "error caused by: {caused_by}");
                             let err = self.skip_and_throw_invalid_seq_err(
                                 caused_by!(),
                                 line!() as usize,
