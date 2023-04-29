@@ -1757,7 +1757,7 @@ impl Context {
             (_, TyParam::Erased(t)) => t.as_ref() == &self.get_tp_t(lhs).unwrap(),
             (l, r) => {
                 log!(err "l: {l}, r: {r}");
-                false
+                l == r
             }
         }
     }

@@ -438,18 +438,19 @@ impl Context {
                 self.sub_unify(sub, &r, loc, None)?;
                 Ok(())
             }
-            (TyParam::Array(ls), TyParam::Array(rs)) | (TyParam::Tuple(ls), TyParam::Tuple(rs)) => {
-                for (l, r) in ls.iter().zip(rs.iter()) {
+            (TyParam::Array(sub), TyParam::Array(sup))
+            | (TyParam::Tuple(sub), TyParam::Tuple(sup)) => {
+                for (l, r) in sub.iter().zip(sup.iter()) {
                     self.sub_unify_tp(l, r, _variance, loc, allow_divergence)?;
                 }
                 Ok(())
             }
-            (TyParam::Dict(ls), TyParam::Dict(rs)) => {
-                for (lk, lv) in ls.iter() {
-                    if let Some(rv) = rs.get(lk).or_else(|| sub_tpdict_get(rs, lk, self)) {
+            (TyParam::Dict(sub), TyParam::Dict(sup)) => {
+                for (lk, lv) in sub.iter() {
+                    if let Some(rv) = sup.get(lk).or_else(|| sub_tpdict_get(sup, lk, self)) {
                         self.sub_unify_tp(lv, rv, _variance, loc, allow_divergence)?;
                     } else {
-                        log!(err "{rs} does not have key {lk}");
+                        log!(err "{sup} does not have key {lk}");
                         // TODO:
                         return Err(TyCheckErrors::from(TyCheckError::unreachable(
                             self.cfg.input.clone(),

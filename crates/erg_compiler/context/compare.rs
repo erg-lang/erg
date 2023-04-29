@@ -8,6 +8,7 @@ use erg_common::traits::StructuralEq;
 use erg_common::{assume_unreachable, log};
 use erg_common::{Str, Triple};
 
+use crate::context::initialize::const_func::sub_tpdict_get;
 use crate::ty::constructors::{and, bounded, not, or, poly};
 use crate::ty::free::{Constraint, FreeKind, FreeTyVar};
 use crate::ty::typaram::{OpKind, TyParam, TyParamOrdering};
@@ -94,9 +95,6 @@ impl Context {
             }
             (TyParam::Type(l), TyParam::Value(ValueObj::Type(r))) => {
                 return self.same_type_of(l.as_ref(), r.typ());
-            }
-            (l, r) if l == r => {
-                return true;
             }
             (l, r) if l.has_unbound_var() || r.has_unbound_var() => {
                 let Ok(lt) = self.get_tp_t(l) else { return false; };
@@ -775,49 +773,53 @@ impl Context {
         self.supertype_of_tp(rp, lp, variance)
     }
 
-    fn supertype_of_tp(&self, lp: &TyParam, rp: &TyParam, variance: Variance) -> bool {
-        if lp == rp {
+    fn supertype_of_tp(&self, sup_p: &TyParam, sub_p: &TyParam, variance: Variance) -> bool {
+        if sup_p == sub_p {
             return true;
         }
-        match (lp, rp) {
+        match (sup_p, sub_p) {
             (TyParam::FreeVar(fv), _) if fv.is_linked() => {
-                self.supertype_of_tp(&fv.crack(), rp, variance)
+                self.supertype_of_tp(&fv.crack(), sub_p, variance)
             }
             (_, TyParam::FreeVar(fv)) if fv.is_linked() => {
-                self.supertype_of_tp(lp, &fv.crack(), variance)
+                self.supertype_of_tp(sup_p, &fv.crack(), variance)
             }
             (TyParam::Erased(t), _) => match variance {
-                Variance::Contravariant => self.subtype_of(t, &self.get_tp_t(rp).unwrap_or(Obj)),
-                Variance::Covariant => self.supertype_of(t, &self.get_tp_t(rp).unwrap_or(Obj)),
+                Variance::Contravariant => self.subtype_of(t, &self.get_tp_t(sub_p).unwrap_or(Obj)),
+                Variance::Covariant => self.supertype_of(t, &self.get_tp_t(sub_p).unwrap_or(Obj)),
                 Variance::Invariant => {
-                    let rhs = self.get_tp_t(rp).unwrap_or(Obj);
+                    let rhs = self.get_tp_t(sub_p).unwrap_or(Obj);
                     self.same_type_of(t, &rhs) || self.same_type_of(t, &rhs.derefine())
                 }
             },
             (_, TyParam::Erased(t)) => match variance {
-                Variance::Contravariant => self.subtype_of(&self.get_tp_t(lp).unwrap_or(Obj), t),
-                Variance::Covariant => self.supertype_of(&self.get_tp_t(lp).unwrap_or(Obj), t),
+                Variance::Contravariant => self.subtype_of(&self.get_tp_t(sup_p).unwrap_or(Obj), t),
+                Variance::Covariant => self.supertype_of(&self.get_tp_t(sup_p).unwrap_or(Obj), t),
                 Variance::Invariant => {
-                    let lhs = self.get_tp_t(lp).unwrap_or(Obj);
+                    let lhs = self.get_tp_t(sup_p).unwrap_or(Obj);
                     self.same_type_of(&lhs, t) || self.same_type_of(&lhs.derefine(), t)
                 }
             },
-            (TyParam::Array(lp), TyParam::Array(rp)) | (TyParam::Tuple(lp), TyParam::Tuple(rp)) => {
-                for (l, r) in lp.iter().zip(rp.iter()) {
-                    if !self.supertype_of_tp(l, r, variance) {
+            (TyParam::Array(sup), TyParam::Array(sub))
+            | (TyParam::Tuple(sup), TyParam::Tuple(sub)) => {
+                for (sup_p, sub_p) in sup.iter().zip(sub.iter()) {
+                    if !self.supertype_of_tp(sup_p, sub_p, variance) {
                         return false;
                     }
                 }
                 true
             }
             // {Int: Str} :> {Int: Str, Bool: Int}
-            (TyParam::Dict(ld), TyParam::Dict(rd)) => {
-                if ld.len() > rd.len() {
+            (TyParam::Dict(sup_d), TyParam::Dict(sub_d)) => {
+                if sup_d.len() > sub_d.len() {
                     return false;
                 }
-                for (k, lv) in ld.iter() {
-                    if let Some(rv) = rd.get(k) {
-                        if !self.supertype_of_tp(lv, rv, variance) {
+                for (sub_k, sub_v) in sub_d.iter() {
+                    if let Some(sup_v) = sup_d
+                        .get(sub_k)
+                        .or_else(|| sub_tpdict_get(sup_d, sub_k, self))
+                    {
+                        if !self.supertype_of_tp(sup_v, sub_v, variance) {
                             return false;
                         }
                     } else {
@@ -826,33 +828,53 @@ impl Context {
                 }
                 true
             }
-            (TyParam::Type(l), TyParam::Type(r)) => match variance {
-                Variance::Contravariant => self.subtype_of(l, r),
-                Variance::Covariant => self.supertype_of(l, r),
-                Variance::Invariant => self.same_type_of(l, r),
+            (TyParam::Value(ValueObj::Dict(sup_d)), TyParam::Dict(sub_d)) => {
+                if sup_d.len() > sub_d.len() {
+                    return false;
+                }
+                let sup_d = sup_d
+                    .iter()
+                    .map(|(k, v)| (TyParam::from(k.clone()), TyParam::from(v.clone())))
+                    .collect();
+                self.supertype_of_tp(&TyParam::Dict(sup_d), sub_p, variance)
+            }
+            (TyParam::Dict(sup_d), TyParam::Value(ValueObj::Dict(sub_d))) => {
+                if sup_d.len() > sub_d.len() {
+                    return false;
+                }
+                let sub_d = sub_d
+                    .iter()
+                    .map(|(k, v)| (TyParam::from(k.clone()), TyParam::from(v.clone())))
+                    .collect();
+                self.supertype_of_tp(sup_p, &TyParam::Dict(sub_d), variance)
+            }
+            (TyParam::Type(sup), TyParam::Type(sub)) => match variance {
+                Variance::Contravariant => self.subtype_of(sup, sub),
+                Variance::Covariant => self.supertype_of(sup, sub),
+                Variance::Invariant => self.same_type_of(sup, sub),
             },
-            (TyParam::Type(l), TyParam::Value(ValueObj::Type(r))) => match variance {
-                Variance::Contravariant => self.subtype_of(l, r.typ()),
-                Variance::Covariant => self.supertype_of(l, r.typ()),
-                Variance::Invariant => self.same_type_of(l, r.typ()),
+            (TyParam::Type(sup), TyParam::Value(ValueObj::Type(sub))) => match variance {
+                Variance::Contravariant => self.subtype_of(sup, sub.typ()),
+                Variance::Covariant => self.supertype_of(sup, sub.typ()),
+                Variance::Invariant => self.same_type_of(sup, sub.typ()),
             },
-            (TyParam::Value(ValueObj::Type(l)), TyParam::Type(r)) => match variance {
-                Variance::Contravariant => self.subtype_of(l.typ(), r),
-                Variance::Covariant => self.supertype_of(l.typ(), r),
-                Variance::Invariant => self.same_type_of(l.typ(), r),
+            (TyParam::Value(ValueObj::Type(sup)), TyParam::Type(sub)) => match variance {
+                Variance::Contravariant => self.subtype_of(sup.typ(), sub),
+                Variance::Covariant => self.supertype_of(sup.typ(), sub),
+                Variance::Invariant => self.same_type_of(sup.typ(), sub),
             },
-            (TyParam::Value(ValueObj::Type(l)), TyParam::Value(ValueObj::Type(r))) => {
+            (TyParam::Value(ValueObj::Type(sup)), TyParam::Value(ValueObj::Type(sub))) => {
                 match variance {
-                    Variance::Contravariant => self.subtype_of(l.typ(), r.typ()),
-                    Variance::Covariant => self.supertype_of(l.typ(), r.typ()),
-                    Variance::Invariant => self.same_type_of(l.typ(), r.typ()),
+                    Variance::Contravariant => self.subtype_of(sup.typ(), sub.typ()),
+                    Variance::Covariant => self.supertype_of(sup.typ(), sub.typ()),
+                    Variance::Invariant => self.same_type_of(sup.typ(), sub.typ()),
                 }
             }
             (TyParam::FreeVar(fv), _) if fv.is_unbound() => {
                 let Some(fv_t) = fv.get_type() else {
                     return false;
                 };
-                let rp_t = match self.get_tp_t(rp) {
+                let sub_t = match self.get_tp_t(sub_p) {
                     Ok(t) => t,
                     Err(err) => {
                         log!("supertype_of_tp: {err}");
@@ -860,14 +882,14 @@ impl Context {
                     }
                 };
                 if variance == Variance::Contravariant {
-                    self.subtype_of(&fv_t, &rp_t)
+                    self.subtype_of(&fv_t, &sub_t)
                 } else if variance == Variance::Covariant {
-                    self.supertype_of(&fv_t, &rp_t)
+                    self.supertype_of(&fv_t, &sub_t)
                 } else {
-                    self.same_type_of(&fv_t, &rp_t) || self.same_type_of(&fv_t, &rp_t.derefine())
+                    self.same_type_of(&fv_t, &sub_t) || self.same_type_of(&fv_t, &sub_t.derefine())
                 }
             }
-            _ => self.eq_tp(lp, rp),
+            _ => self.eq_tp(sup_p, sub_p),
         }
     }
 
@@ -1090,14 +1112,8 @@ impl Context {
     /// ```
     fn union_add(&self, union: &Type, elem: &Type) -> Type {
         let union_ts = union.union_types();
-        let fixed = union_ts.into_iter().map(|t| {
-            if let Ok(free) = <&FreeTyVar>::try_from(&t) {
-                free.get_sub().unwrap_or(t)
-            } else {
-                t
-            }
-        });
-        for t in fixed {
+        let bounded = union_ts.into_iter().map(|t| t.lower_bounded());
+        for t in bounded {
             if self.supertype_of(&t, elem) {
                 return union.clone();
             }

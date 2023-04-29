@@ -271,7 +271,9 @@ pub(crate) fn sub_vdict_get<'d>(
     let mut matches = vec![];
     for (k, v) in dict.iter() {
         match (key, k) {
-            (ValueObj::Type(idx), ValueObj::Type(kt)) if ctx.subtype_of(idx.typ(), kt.typ()) => {
+            (ValueObj::Type(idx), ValueObj::Type(kt))
+                if ctx.subtype_of(&idx.typ().lower_bounded(), &kt.typ().lower_bounded()) =>
+            {
                 matches.push((idx, kt, v));
             }
             (idx, k) if idx == k => {
@@ -301,7 +303,7 @@ pub(crate) fn sub_tpdict_get<'d>(
     let mut matches = vec![];
     for (k, v) in dict.iter() {
         match (<&Type>::try_from(key), <&Type>::try_from(k)) {
-            (Ok(idx), Ok(kt)) if ctx.subtype_of(idx, kt) => {
+            (Ok(idx), Ok(kt)) if ctx.subtype_of(&idx.lower_bounded(), &kt.lower_bounded()) => {
                 matches.push((idx, kt, v));
             }
             (_, _) if key == k => {
