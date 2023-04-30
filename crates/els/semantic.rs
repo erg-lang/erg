@@ -4,7 +4,7 @@ use erg_common::traits::{Locational, Runnable};
 
 use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::erg_parser::ast::{
-    Accessor, Args, BinOp, Block, Call, ClassAttr, Def, DefKind, Expr, Methods, Params,
+    Accessor, Args, BinOp, Block, Call, ClassAttr, Def, DefKind, Expr, Identifier, Methods, Params,
     PolyTypeSpec, PreDeclTypeSpec, TypeSpec, UnaryOp, AST,
 };
 use erg_compiler::erg_parser::token::TokenKind;
@@ -114,10 +114,11 @@ impl ASTSemanticState {
     fn gen_from_typespec(&mut self, t_spec: TypeSpec) -> Vec<SemanticToken> {
         match t_spec {
             TypeSpec::PreDeclTy(predecl) => match predecl {
-                PreDeclTypeSpec::Simple(simple) => self.gen_from_simple_typespec(simple),
+                PreDeclTypeSpec::Mono(ident) => self.gen_from_ident(ident),
+                PreDeclTypeSpec::Poly(poly) => self.gen_from_poly_typespec(poly),
                 PreDeclTypeSpec::Attr { namespace, t } => {
                     let mut tokens = self.gen_from_expr(*namespace);
-                    let ts = self.gen_from_simple_typespec(t);
+                    let ts = self.gen_from_ident(t);
                     tokens.extend(ts);
                     tokens
                 }
@@ -127,7 +128,7 @@ impl ASTSemanticState {
         }
     }
 
-    fn gen_from_simple_typespec(&mut self, t_spec: PolyTypeSpec) -> Vec<SemanticToken> {
+    fn gen_from_poly_typespec(&mut self, t_spec: PolyTypeSpec) -> Vec<SemanticToken> {
         let mut tokens = vec![];
         let token = self.gen_token(t_spec.ident.name.loc(), SemanticTokenType::TYPE);
         tokens.push(token);
@@ -202,12 +203,14 @@ impl ASTSemanticState {
         tokens
     }
 
+    fn gen_from_ident(&mut self, ident: Identifier) -> Vec<SemanticToken> {
+        let typ = self.get_variable_type(ident.inspect());
+        vec![self.gen_token(ident.name.loc(), typ)]
+    }
+
     fn gen_from_acc(&mut self, acc: Accessor) -> Vec<SemanticToken> {
         match acc {
-            Accessor::Ident(ident) => {
-                let typ = self.get_variable_type(ident.inspect());
-                vec![self.gen_token(ident.name.loc(), typ)]
-            }
+            Accessor::Ident(ident) => self.gen_from_ident(ident),
             Accessor::Attr(attr) => {
                 let mut tokens = self.gen_from_expr(*attr.obj);
                 tokens.push(self.gen_token(attr.ident.name.loc(), SemanticTokenType::PROPERTY));
