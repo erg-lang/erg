@@ -1,0 +1,15 @@
+.DataClass = 'dataclass': ClassType
+.DataClass.
+    __call__: (init := Bool, repr := Bool, eq := Bool, order := Bool, unsafe_hash := Bool, frozen := Bool, match_args := Bool, kw_only := Bool, slots := Bool, weakref_slots := Bool) -> (ClassType -> ClassType)
+
+.is_dataclass: (obj: Obj) -> Bool
+
+_MISSING_TYPE: ClassType
+.MISSING: _MISSING_TYPE
+
+_KW_ONLY_TYPE: ClassType
+.KW_ONLY: _KW_ONLY_TYPE
+
+.field: (default := _MISSING_TYPE, default_factory := _MISSING_TYPE, init := Bool, repr := Bool, hash := Bool, compare := Bool, metadata := GenericDict, kw_only := _MISSING_TYPE) -> (Obj -> Obj)
+
+.Field: ClassType
