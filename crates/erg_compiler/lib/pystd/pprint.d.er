@@ -1,0 +1,14 @@
+.PrettyPrinter!: ClassType
+.PrettyPrinter!.
+    __call__: (indent := Nat, width := Nat, depth := Nat, stream := FileLike!) -> .PrettyPrinter!
+    pformat: (self: Ref(.PrettyPrinter!), object: Obj) -> Str
+    pprint!: (self: Ref(.PrettyPrinter!), object: Obj) => NoneType
+    isreadable: (self: Ref(.PrettyPrinter!), object: Obj) -> Bool
+    isrecursive: (self: Ref(.PrettyPrinter!), object: Obj) -> Bool
+
+.pformat: (object: Obj, indent := Nat, width := Nat, depth := Nat) -> Str
+.pp!: (object: Obj, *args: Obj, sorts_dict := Bool) => NoneType
+.pprint!: (object: Obj, stream := FileLike!, indent := Nat, width := Nat, depth := Nat) => NoneType
+.isreadable: (object: Obj) -> Bool
+.isrecursive: (object: Obj) -> Bool
+.saferepr: (object: Obj) -> Str
