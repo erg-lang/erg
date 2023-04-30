@@ -1,0 +1,30 @@
+.Cursor!: ClassType
+.Cursor!.
+    execute!: (self: RefMut(.Cursor!), sql: Str, parameters: [Str; _]) => NoneType
+    executemany!: (self: RefMut(.Cursor!), sql: Str, parameters: [Str; _]) => NoneType
+    executescript!: (self: RefMut(.Cursor!), sql: Str) => NoneType
+    fetchone!: (self: RefMut(.Cursor!)) -> [Obj; _]
+    fetchmany!: (self: RefMut(.Cursor!), size := Int) -> [[Obj; _]; _]
+    fetchall!: (self: RefMut(.Cursor!)) -> [[Obj; _]; _]
+    close!: (self: RefMut(.Cursor!)) => NoneType
+
+.Row!: ClassType
+.Row!.
+    keys: (self: Ref(.Row!)) -> [Str; _]
+
+.Blob!: ClassType
+
+.Connection!: ClassType
+.Connection!.
+    cursor: (self: Ref(.Connection!)) -> .Cursor!
+    commit!: (self: RefMut(.Connection!)) => NoneType
+    rollback!: (self: RefMut(.Connection!)) => NoneType
+    close!: (self: RefMut(.Connection!)) => NoneType
+    execute!: (self: RefMut(.Connection!), sql: Str, parameters: [Str; _]) => .Cursor!
+    executemany!: (self: RefMut(.Connection!), sql: Str, parameters: [Str; _]) => .Cursor!
+    executescript!: (self: RefMut(.Connection!), sql: Str) => .Cursor!
+    interrupt!: (self: RefMut(.Connection!)) => NoneType
+
+.connect!: (database: PathLike, timeout := Float, detect_types := Int, isolation_lelel := Str, check_same_thread := Bool, cached_statements := Int, factory := .Connection!, uri := Bool) -> .Connection!
+
+.complete_statement: (sql: Str) -> Bool
