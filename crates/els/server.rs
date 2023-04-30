@@ -541,7 +541,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             .get(uri)?
             .object
             .as_ref()
-            .map(|hir| HIRVisitor::new(hir, uri.clone(), !cfg!(feature = "py_compat")))
+            .map(|hir| HIRVisitor::new(hir, &self.file_cache, uri.clone()))
     }
 
     pub(crate) fn get_local_ctx(&self, uri: &NormalizedUrl, pos: Position) -> Vec<&Context> {

@@ -59,7 +59,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                             character: range.end.character + 1,
                         },
                     };
-                    let code = util::get_ranged_code_from_uri(&uri, next)?;
+                    let code = self.file_cache.get_ranged(&uri, next)?;
                     match code.as_ref().map(|s| &s[..]) {
                         None => {
                             // \n

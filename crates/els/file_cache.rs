@@ -18,7 +18,7 @@ use erg_compiler::erg_parser::token::{Token, TokenStream};
 use crate::server::ELSResult;
 use crate::util::{self, NormalizedUrl};
 
-pub fn _get_code_from_uri(uri: &Url) -> ELSResult<String> {
+fn _get_code_from_uri(uri: &Url) -> ELSResult<String> {
     let path = uri
         .to_file_path()
         .or_else(|_| util::denormalize(uri.clone()).to_file_path())
@@ -150,6 +150,43 @@ impl FileCache {
         } else {
             None
         }
+    }
+
+    pub(crate) fn get_line(&self, uri: &NormalizedUrl, line: u32) -> Option<&str> {
+        self.get(uri).ok().and_then(|ent| ent.get_line(line))
+    }
+
+    pub(crate) fn get_ranged(
+        &self,
+        uri: &NormalizedUrl,
+        range: Range,
+    ) -> ELSResult<Option<String>> {
+        let file = self.get(uri)?;
+        let mut code = String::new();
+        for (i, line) in file.code.lines().enumerate() {
+            if i >= range.start.line as usize && i <= range.end.line as usize {
+                if i == range.start.line as usize && i == range.end.line as usize {
+                    if line.len() < range.end.character as usize {
+                        return Ok(None);
+                    }
+                    code.push_str(
+                        &line[range.start.character as usize..range.end.character as usize],
+                    );
+                } else if i == range.start.line as usize {
+                    code.push_str(&line[range.start.character as usize..]);
+                    code.push('\n');
+                } else if i == range.end.line as usize {
+                    if line.len() < range.end.character as usize {
+                        return Ok(None);
+                    }
+                    code.push_str(&line[..range.end.character as usize]);
+                } else {
+                    code.push_str(line);
+                    code.push('\n');
+                }
+            }
+        }
+        Ok(Some(code))
     }
 
     pub(crate) fn update(&self, uri: &NormalizedUrl, code: String, ver: Option<i32>) {

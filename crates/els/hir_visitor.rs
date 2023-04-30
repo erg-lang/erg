@@ -5,6 +5,7 @@ use erg_compiler::hir::*;
 use erg_compiler::varinfo::VarInfo;
 use lsp_types::Position;
 
+use crate::file_cache::FileCache;
 use crate::util::{self, NormalizedUrl};
 
 /// This struct provides:
@@ -13,16 +14,18 @@ use crate::util::{self, NormalizedUrl};
 /// * cursor(`Token`) -> `VarInfo` mapping (`get_info`)
 pub struct HIRVisitor<'a> {
     hir: &'a HIR,
+    file_cache: &'a FileCache,
     uri: NormalizedUrl,
     strict_cmp: bool,
 }
 
 impl<'a> HIRVisitor<'a> {
-    pub fn new(hir: &'a HIR, uri: NormalizedUrl, strict_cmp: bool) -> Self {
+    pub fn new(hir: &'a HIR, file_cache: &'a FileCache, uri: NormalizedUrl) -> Self {
         Self {
             hir,
+            file_cache,
             uri,
-            strict_cmp,
+            strict_cmp: !cfg!(feature = "py_compat"),
         }
     }
 
@@ -46,10 +49,16 @@ impl<'a> HIRVisitor<'a> {
 
     fn is_new_final_line(&self, chunk: &Expr, pos: Position) -> bool {
         let ln_end = chunk.ln_end().unwrap_or(0);
-        let line = util::get_line_from_uri(&self.uri, ln_end).unwrap();
+        let line = self
+            .file_cache
+            .get_line(&self.uri, ln_end)
+            .unwrap_or_default();
         let indent_len = line.len() - line.trim_start_matches(' ').len();
         let cond = ln_end == pos.line && pos.character as usize == indent_len + 1;
-        matches!(chunk, Expr::Call(_) | Expr::Lambda(_) | Expr::Def(_) | Expr::ClassDef(_) if cond)
+        cond && matches!(
+            chunk,
+            Expr::Call(_) | Expr::Lambda(_) | Expr::Def(_) | Expr::ClassDef(_)
+        )
     }
 
     fn get_expr_ns(&self, cur_ns: Vec<Str>, chunk: &Expr, pos: Position) -> Option<Vec<Str>> {

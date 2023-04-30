@@ -129,7 +129,12 @@ impl<Checker: BuildRunnable> Server<Checker> {
                         };
                         // display the definition line
                         if vi.kind.is_defined() {
-                            code_block += util::get_line_from_path(file_path, line)?.trim_start();
+                            let uri = NormalizedUrl::try_from(file_path.as_path())?;
+                            code_block += self
+                                .file_cache
+                                .get_line(&uri, line)
+                                .unwrap_or_default()
+                                .trim_start();
                             match code_block.chars().last() {
                                 Some('=' | '>') => {
                                     code_block += " ...";
