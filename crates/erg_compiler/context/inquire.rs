@@ -3029,6 +3029,22 @@ impl Context {
         if !is_never {
             return Ok(intersec);
         }
+        if guard.to.is_monomorphic() {
+            if self.related(base, &guard.to) {
+                return Ok(*guard.to.clone());
+            } else {
+                return Err(TyCheckErrors::from(TyCheckError::invalid_type_cast_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    guard.var.loc(),
+                    self.caused_by(),
+                    &guard.var.to_string(),
+                    base,
+                    &guard.to,
+                    None,
+                )));
+            }
+        }
         // Array(Nat, 2) !<: Array!(Int, _)
         let base_def_t = self
             .get_nominal_type_ctx(base)
