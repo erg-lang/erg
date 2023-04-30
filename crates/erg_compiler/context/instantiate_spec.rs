@@ -7,7 +7,7 @@ use erg_common::Str;
 use erg_common::{assume_unreachable, dict, set, try_map_mut};
 
 use ast::{
-    NonDefaultParamSignature, ParamTySpec, PreDeclTypeSpec, SimpleTypeSpec, TypeBoundSpec,
+    NonDefaultParamSignature, ParamTySpec, PolyTypeSpec, PreDeclTypeSpec, TypeBoundSpec,
     TypeBoundSpecs, TypeSpec,
 };
 use erg_parser::ast::{self, ConstArray, Identifier, VisModifierSpec, VisRestriction};
@@ -442,8 +442,11 @@ impl Context {
     ) -> TyCheckResult<Type> {
         self.inc_ref_predecl_typespec(predecl, self);
         match predecl {
-            ast::PreDeclTypeSpec::Simple(simple) => {
-                self.instantiate_simple_t(simple, opt_decl_t, tmp_tv_cache, not_found_is_qvar)
+            ast::PreDeclTypeSpec::Mono(simple) => {
+                self.instantiate_mono_t(simple, opt_decl_t, tmp_tv_cache, not_found_is_qvar)
+            }
+            ast::PreDeclTypeSpec::Poly(poly) => {
+                self.instantiate_poly_t(poly, opt_decl_t, tmp_tv_cache, not_found_is_qvar)
             }
             ast::PreDeclTypeSpec::Attr { namespace, t } => {
                 if let Ok(receiver) = Parser::validate_const_expr(namespace.as_ref().clone()) {
@@ -453,13 +456,13 @@ impl Context {
                         tmp_tv_cache,
                         not_found_is_qvar,
                     ) {
-                        let rhs = t.ident.inspect();
+                        let rhs = t.inspect();
                         return Ok(proj(receiver_t, rhs));
                     }
                 }
                 let ctxs = self.get_singular_ctxs(namespace.as_ref(), self)?;
                 for ctx in ctxs {
-                    if let Some((typ, _)) = ctx.rec_local_get_type(t.ident.inspect()) {
+                    if let Some((typ, _)) = ctx.rec_local_get_type(t.inspect()) {
                         // TODO: visibility check
                         return Ok(typ.clone());
                     }
@@ -469,22 +472,22 @@ impl Context {
                     line!() as usize,
                     t.loc(),
                     self.caused_by(),
-                    t.ident.inspect(),
-                    self.get_similar_name(t.ident.inspect()),
+                    t.inspect(),
+                    self.get_similar_name(t.inspect()),
                 )))
             }
             other => type_feature_error!(self, other.loc(), &format!("instantiating type {other}")),
         }
     }
 
-    pub(crate) fn instantiate_simple_t(
+    pub(crate) fn instantiate_mono_t(
         &self,
-        simple: &SimpleTypeSpec,
+        ident: &Identifier,
         opt_decl_t: Option<&ParamTy>,
         tmp_tv_cache: &mut TyVarCache,
         not_found_is_qvar: bool,
     ) -> TyCheckResult<Type> {
-        match &simple.ident.inspect()[..] {
+        match &ident.inspect()[..] {
             "_" | "Obj" => Ok(Type::Obj),
             "Nat" => Ok(Type::Nat),
             "Int" => Ok(Type::Int),
@@ -501,9 +504,65 @@ impl Context {
             "ClassType" => Ok(Type::ClassType),
             "TraitType" => Ok(Type::TraitType),
             "Type" => Ok(Type::Type),
+            "Self" => self.rec_get_self_t().ok_or_else(|| {
+                TyCheckErrors::from(TyCheckError::unreachable(
+                    self.cfg.input.clone(),
+                    erg_common::fn_name_full!(),
+                    line!(),
+                ))
+            }),
+            "True" | "False" | "None" => Err(TyCheckErrors::from(TyCheckError::not_a_type_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                ident.loc(),
+                self.caused_by(),
+                ident.inspect(),
+            ))),
+            other => {
+                if let Some(TyParam::Type(t)) = self.get_tp_from_tv_cache(other, tmp_tv_cache) {
+                    return Ok(*t);
+                }
+                if let Some(outer) = &self.outer {
+                    if let Ok(t) =
+                        outer.instantiate_mono_t(ident, opt_decl_t, tmp_tv_cache, not_found_is_qvar)
+                    {
+                        return Ok(t);
+                    }
+                }
+                if let Some(decl_t) = opt_decl_t {
+                    return Ok(decl_t.typ().clone());
+                }
+                if let Some((typ, _)) = self.get_type(ident.inspect()) {
+                    Ok(typ.clone())
+                } else if not_found_is_qvar {
+                    let tyvar = named_free_var(Str::rc(other), self.level, Constraint::Uninited);
+                    tmp_tv_cache.push_or_init_tyvar(ident.inspect(), &tyvar, self);
+                    Ok(tyvar)
+                } else {
+                    Err(TyCheckErrors::from(TyCheckError::no_type_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        ident.loc(),
+                        self.caused_by(),
+                        other,
+                        self.get_similar_name(other),
+                    )))
+                }
+            }
+        }
+    }
+
+    fn instantiate_poly_t(
+        &self,
+        poly_spec: &PolyTypeSpec,
+        _opt_decl_t: Option<&ParamTy>,
+        tmp_tv_cache: &mut TyVarCache,
+        not_found_is_qvar: bool,
+    ) -> TyCheckResult<Type> {
+        match &poly_spec.ident.inspect()[..] {
             "Array" => {
                 // TODO: kw
-                let mut args = simple.args.pos_args();
+                let mut args = poly_spec.args.pos_args();
                 if let Some(first) = args.next() {
                     let t = self.instantiate_const_expr_as_type(
                         &first.expr,
@@ -527,12 +586,12 @@ impl Context {
                 }
             }
             "Ref" => {
-                let mut args = simple.args.pos_args();
+                let mut args = poly_spec.args.pos_args();
                 let Some(first) = args.next() else {
                     return Err(TyCheckErrors::from(TyCheckError::args_missing_error(
                         self.cfg.input.clone(),
                         line!() as usize,
-                        simple.args.loc(),
+                        poly_spec.args.loc(),
                         "Ref",
                         self.caused_by(),
                         vec![Str::from("T")],
@@ -548,12 +607,12 @@ impl Context {
             }
             "RefMut" => {
                 // TODO after
-                let mut args = simple.args.pos_args();
+                let mut args = poly_spec.args.pos_args();
                 let Some(first) = args.next() else {
                     return Err(TyCheckErrors::from(TyCheckError::args_missing_error(
                         self.cfg.input.clone(),
                         line!() as usize,
-                        simple.args.loc(),
+                        poly_spec.args.loc(),
                         "RefMut",
                         self.caused_by(),
                         vec![Str::from("T")],
@@ -568,12 +627,12 @@ impl Context {
                 Ok(ref_mut(t, None))
             }
             "Structural" => {
-                let mut args = simple.args.pos_args();
+                let mut args = poly_spec.args.pos_args();
                 let Some(first) = args.next() else {
                     return Err(TyCheckErrors::from(TyCheckError::args_missing_error(
                         self.cfg.input.clone(),
                         line!() as usize,
-                        simple.args.loc(),
+                        poly_spec.args.loc(),
                         "Structural",
                         self.caused_by(),
                         vec![Str::from("Type")],
@@ -587,54 +646,6 @@ impl Context {
                 )?;
                 Ok(t.structuralize())
             }
-            "Self" => self.rec_get_self_t().ok_or_else(|| {
-                TyCheckErrors::from(TyCheckError::unreachable(
-                    self.cfg.input.clone(),
-                    erg_common::fn_name_full!(),
-                    line!(),
-                ))
-            }),
-            "True" | "False" | "None" => Err(TyCheckErrors::from(TyCheckError::not_a_type_error(
-                self.cfg.input.clone(),
-                line!() as usize,
-                simple.loc(),
-                self.caused_by(),
-                simple.ident.inspect(),
-            ))),
-            other if simple.args.is_empty() => {
-                if let Some(TyParam::Type(t)) = self.get_tp_from_tv_cache(other, tmp_tv_cache) {
-                    return Ok(*t);
-                }
-                if let Some(outer) = &self.outer {
-                    if let Ok(t) = outer.instantiate_simple_t(
-                        simple,
-                        opt_decl_t,
-                        tmp_tv_cache,
-                        not_found_is_qvar,
-                    ) {
-                        return Ok(t);
-                    }
-                }
-                if let Some(decl_t) = opt_decl_t {
-                    return Ok(decl_t.typ().clone());
-                }
-                if let Some((typ, _)) = self.get_type(simple.ident.inspect()) {
-                    Ok(typ.clone())
-                } else if not_found_is_qvar {
-                    let tyvar = named_free_var(Str::rc(other), self.level, Constraint::Uninited);
-                    tmp_tv_cache.push_or_init_tyvar(simple.ident.inspect(), &tyvar, self);
-                    Ok(tyvar)
-                } else {
-                    Err(TyCheckErrors::from(TyCheckError::no_type_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        simple.loc(),
-                        self.caused_by(),
-                        other,
-                        self.get_similar_name(other),
-                    )))
-                }
-            }
             other => {
                 let ctx = if let Some((_, ctx)) = self.get_type(&Str::rc(other)) {
                     ctx
@@ -642,7 +653,7 @@ impl Context {
                     return Err(TyCheckErrors::from(TyCheckError::no_type_error(
                         self.cfg.input.clone(),
                         line!() as usize,
-                        simple.ident.loc(),
+                        poly_spec.ident.loc(),
                         self.caused_by(),
                         other,
                         self.get_similar_name(other),
@@ -651,7 +662,7 @@ impl Context {
                 // FIXME: kw args
                 let mut new_params = vec![];
                 for ((i, arg), (name, param_vi)) in
-                    simple.args.pos_args().enumerate().zip(ctx.params.iter())
+                    poly_spec.args.pos_args().enumerate().zip(ctx.params.iter())
                 {
                     let param = self.instantiate_const_expr(
                         &arg.expr,
@@ -1066,6 +1077,10 @@ impl Context {
                 self.instantiate_tp_as_type(fv.crack().clone(), loc)
             }
             TyParam::Mono(name) => Ok(mono(name)),
+            TyParam::Proj { obj, attr } => {
+                let obj = self.instantiate_tp_as_type(*obj, loc)?;
+                Ok(proj(obj, attr))
+            }
             TyParam::App { name, args } => Ok(poly(name, args)),
             TyParam::Type(t) => Ok(*t),
             #[allow(clippy::bind_instead_of_map)]

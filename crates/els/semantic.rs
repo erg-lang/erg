@@ -5,7 +5,7 @@ use erg_common::traits::{Locational, Runnable};
 use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::erg_parser::ast::{
     Accessor, Args, BinOp, Block, Call, ClassAttr, Def, DefKind, Expr, Methods, Params,
-    PreDeclTypeSpec, SimpleTypeSpec, TypeSpec, UnaryOp, AST,
+    PolyTypeSpec, PreDeclTypeSpec, TypeSpec, UnaryOp, AST,
 };
 use erg_compiler::erg_parser::token::TokenKind;
 use erg_compiler::ASTBuilder;
@@ -127,7 +127,7 @@ impl ASTSemanticState {
         }
     }
 
-    fn gen_from_simple_typespec(&mut self, t_spec: SimpleTypeSpec) -> Vec<SemanticToken> {
+    fn gen_from_simple_typespec(&mut self, t_spec: PolyTypeSpec) -> Vec<SemanticToken> {
         let mut tokens = vec![];
         let token = self.gen_token(t_spec.ident.name.loc(), SemanticTokenType::TYPE);
         tokens.push(token);

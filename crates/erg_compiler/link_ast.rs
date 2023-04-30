@@ -77,22 +77,13 @@ impl ASTLinker {
                         }
                     }
                     match &methods.class {
-                        TypeSpec::PreDeclTy(PreDeclTypeSpec::Simple(simple)) => self.link_methods(
-                            simple.ident.inspect().clone(),
-                            &mut new,
-                            methods,
-                            mode,
-                        ),
+                        TypeSpec::PreDeclTy(PreDeclTypeSpec::Mono(ident)) => {
+                            self.link_methods(ident.inspect().clone(), &mut new, methods, mode)
+                        }
                         TypeSpec::TypeApp { spec, .. } => {
-                            if let TypeSpec::PreDeclTy(PreDeclTypeSpec::Simple(simple)) =
-                                spec.as_ref()
+                            if let TypeSpec::PreDeclTy(PreDeclTypeSpec::Mono(ident)) = spec.as_ref()
                             {
-                                self.link_methods(
-                                    simple.ident.inspect().clone(),
-                                    &mut new,
-                                    methods,
-                                    mode,
-                                )
+                                self.link_methods(ident.inspect().clone(), &mut new, methods, mode)
                             } else {
                                 let similar_name = self
                                     .def_root_pos_map

@@ -16,7 +16,7 @@ use erg_common::triple::Triple;
 use erg_common::Str;
 use erg_common::{get_hash, log, set};
 
-use ast::{ConstIdentifier, Decorator, DefId, Identifier, OperationKind, SimpleTypeSpec, VarName};
+use ast::{ConstIdentifier, Decorator, DefId, Identifier, OperationKind, PolyTypeSpec, VarName};
 use erg_parser::ast::{self, PreDeclTypeSpec};
 
 use crate::ty::constructors::{
@@ -2029,28 +2029,41 @@ impl Context {
 
     pub(crate) fn inc_ref_predecl_typespec(&self, predecl: &PreDeclTypeSpec, namespace: &Context) {
         match predecl {
+            PreDeclTypeSpec::Mono(mono) => self.inc_ref_mono_typespec(mono, namespace),
+            PreDeclTypeSpec::Poly(poly) => self.inc_ref_poly_typespec(poly, namespace),
             PreDeclTypeSpec::Attr { namespace: obj, t } => {
                 self.inc_ref_expr(obj, namespace);
                 if let Ok(ctxs) = self.get_singular_ctxs(obj, self) {
                     if let Some(first) = ctxs.first() {
-                        first.inc_ref_simple_typespec(t, namespace);
+                        first.inc_ref_mono_typespec(t, namespace);
                     }
                 }
             }
-            PreDeclTypeSpec::Simple(simple) => self.inc_ref_simple_typespec(simple, namespace),
             // TODO:
             _ => {}
         }
     }
 
-    pub(crate) fn inc_ref_simple_typespec(&self, simple: &SimpleTypeSpec, namespace: &Context) {
+    pub(crate) fn inc_ref_mono_typespec(&self, ident: &Identifier, namespace: &Context) {
         if let Triple::Ok(vi) = self.rec_get_var_info(
-            &simple.ident,
+            ident,
             crate::compile::AccessKind::Name,
             &self.cfg.input,
             self,
         ) {
-            self.inc_ref(&vi, &simple.ident.name, namespace);
+            self.inc_ref(&vi, &ident.name, namespace);
+        }
+    }
+
+    /// TODO:
+    pub(crate) fn inc_ref_poly_typespec(&self, poly: &PolyTypeSpec, namespace: &Context) {
+        if let Triple::Ok(vi) = self.rec_get_var_info(
+            &poly.ident,
+            crate::compile::AccessKind::Name,
+            &self.cfg.input,
+            self,
+        ) {
+            self.inc_ref(&vi, &poly.ident.name, namespace);
         }
     }
 

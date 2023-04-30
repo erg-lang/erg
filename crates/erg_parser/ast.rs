@@ -2164,22 +2164,18 @@ impl ConstArgs {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct SimpleTypeSpec {
+pub struct PolyTypeSpec {
     pub ident: Identifier,
     pub args: ConstArgs, // args can be nested (e.g. Vec Vec Int)
 }
 
-impl fmt::Display for SimpleTypeSpec {
+impl fmt::Display for PolyTypeSpec {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.args.is_empty() {
-            write!(f, "{}", self.ident)
-        } else {
-            write!(f, "{}({})", self.ident, self.args)
-        }
+        write!(f, "{}({})", self.ident, self.args)
     }
 }
 
-impl Locational for SimpleTypeSpec {
+impl Locational for PolyTypeSpec {
     fn loc(&self) -> Location {
         if let Some(last) = self.args.kw_args.last() {
             Location::concat(&self.ident, last)
@@ -2191,7 +2187,7 @@ impl Locational for SimpleTypeSpec {
     }
 }
 
-impl SimpleTypeSpec {
+impl PolyTypeSpec {
     pub const fn new(ident: Identifier, args: ConstArgs) -> Self {
         Self { ident, args }
     }
@@ -2207,10 +2203,11 @@ impl SimpleTypeSpec {
 //   ...; x: foo[0].T = ...
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum PreDeclTypeSpec {
-    Simple(SimpleTypeSpec),
+    Mono(Identifier),
+    Poly(PolyTypeSpec),
     Attr {
         namespace: Box<Expr>,
-        t: SimpleTypeSpec,
+        t: Identifier,
     },
     Subscr {
         namespace: Box<Expr>,
@@ -2222,7 +2219,8 @@ pub enum PreDeclTypeSpec {
 impl fmt::Display for PreDeclTypeSpec {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            PreDeclTypeSpec::Simple(ts) => write!(f, "{ts}"),
+            PreDeclTypeSpec::Mono(mono) => write!(f, "{mono}"),
+            PreDeclTypeSpec::Poly(poly) => write!(f, "{poly}"),
             PreDeclTypeSpec::Attr { namespace, t } => {
                 write!(f, "{namespace}{t}")
             }
@@ -2238,11 +2236,21 @@ impl fmt::Display for PreDeclTypeSpec {
 impl Locational for PreDeclTypeSpec {
     fn loc(&self) -> Location {
         match self {
-            Self::Simple(s) => s.loc(),
+            Self::Mono(m) => m.loc(),
+            Self::Poly(poly) => poly.loc(),
             Self::Attr { namespace, t } => Location::concat(namespace.as_ref(), t),
             Self::Subscr {
                 namespace, index, ..
             } => Location::concat(namespace.as_ref(), index),
+        }
+    }
+}
+
+impl PreDeclTypeSpec {
+    pub fn attr(namespace: Expr, t: Identifier) -> Self {
+        Self::Attr {
+            namespace: Box::new(namespace),
+            t,
         }
     }
 }
@@ -2574,8 +2582,12 @@ impl TypeSpec {
         ))
     }
 
+    pub fn mono(ident: Identifier) -> Self {
+        Self::PreDeclTy(PreDeclTypeSpec::Mono(ident))
+    }
+
     pub fn poly(ident: Identifier, args: ConstArgs) -> Self {
-        Self::PreDeclTy(PreDeclTypeSpec::Simple(SimpleTypeSpec::new(ident, args)))
+        Self::PreDeclTy(PreDeclTypeSpec::Poly(PolyTypeSpec::new(ident, args)))
     }
 }
 
