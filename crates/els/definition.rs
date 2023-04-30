@@ -1,5 +1,6 @@
 use erg_common::traits::{Locational, Stream};
 use erg_compiler::artifact::BuildRunnable;
+use erg_compiler::context::register::PylyzerStatus;
 use erg_compiler::erg_parser::token::{Token, TokenCategory};
 use erg_compiler::hir::Expr;
 use erg_compiler::ty::HasType;
@@ -84,7 +85,21 @@ impl<Checker: BuildRunnable> Server<Checker> {
                             let vi = acc.var_info();
                             match (&vi.def_loc.module, util::loc_to_range(vi.def_loc.loc)) {
                                 (Some(path), Some(range)) => {
-                                    let def_uri = Url::from_file_path(path).unwrap();
+                                    let def_uri = NormalizedUrl::try_from(path.as_path()).unwrap();
+                                    let def_file = if cfg!(feature = "py_compat") {
+                                        let header = self
+                                            .file_cache
+                                            .get_line(&def_uri, 0)
+                                            .unwrap_or_default();
+                                        let py_file = header
+                                            .parse::<PylyzerStatus>()
+                                            .ok()
+                                            .map(|stat| stat.file);
+                                        py_file.unwrap_or(path.clone())
+                                    } else {
+                                        path.clone()
+                                    };
+                                    let def_uri = Url::from_file_path(def_file).unwrap();
                                     let resp = GotoDefinitionResponse::Array(vec![
                                         lsp_types::Location::new(def_uri, range),
                                     ]);

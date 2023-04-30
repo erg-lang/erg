@@ -152,6 +152,7 @@ impl FileCache {
         }
     }
 
+    /// 0-based
     pub(crate) fn get_line(&self, uri: &NormalizedUrl, line: u32) -> Option<&str> {
         self.get(uri).ok().and_then(|ent| ent.get_line(line))
     }
