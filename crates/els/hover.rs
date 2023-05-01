@@ -230,7 +230,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             };
             let mut prev_token = Token::DUMMY;
             loop {
-                let Some(token) = util::get_token_from_stream(stream, def_pos)? else {
+                let Some(token) = util::get_token_from_stream(&stream, def_pos)? else {
                     next!(def_pos, default_code_block, contents);
                 };
                 if token.deep_eq(&prev_token) {

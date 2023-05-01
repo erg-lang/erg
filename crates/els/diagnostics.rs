@@ -65,7 +65,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let dependents = self.dependents_of(&uri);
         for dep in dependents {
             // _log!("dep: {dep}");
-            let code = self.file_cache.get_code(&dep)?.to_string();
+            let code = self.file_cache.get_entire_code(&dep)?.to_string();
             self.check_file(dep, code)?;
         }
         Ok(())
@@ -76,19 +76,19 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let Some(ts) = self.file_cache.get_token_stream(&uri) else {
             return Ok(());
         };
-        let mut parser = Parser::new(ts.clone());
+        let mut parser = Parser::new(ts);
         if parser.parse().is_err() {
             return Ok(());
         }
         let path = util::uri_to_path(&uri);
-        let code = &self.file_cache.get(&uri).unwrap().code;
+        let code = self.file_cache.get_entire_code(&uri)?;
         let mode = if path.to_string_lossy().ends_with(".d.er") {
             "declare"
         } else {
             "exec"
         };
         let mut checker = self.get_checker(path);
-        match checker.build(code.into(), mode) {
+        match checker.build(code, mode) {
             Ok(artifact) => {
                 self.artifacts.insert(uri.clone(), artifact.into());
             }

@@ -290,9 +290,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
         send_log(format!("full semantic tokens request: {params:?}"))?;
         let uri = NormalizedUrl::new(params.text_document.uri);
         let path = util::uri_to_path(&uri);
-        let src = self.file_cache.get_code(&uri)?;
+        let src = self.file_cache.get_entire_code(&uri)?;
         let mut builder = ASTBuilder::new(self.cfg.inherit(path));
-        let result = match builder.build_without_desugaring(src.to_string()) {
+        let result = match builder.build_without_desugaring(src) {
             Ok(ast) => {
                 let mut state = ASTSemanticState::new();
                 let tokens = state.enumerate_tokens(ast);

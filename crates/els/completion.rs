@@ -353,9 +353,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         // TODO: multiline comments
         if self
             .file_cache
-            .get(&uri)
-            .unwrap()
-            .get_line(pos.line)
+            .get_line(&uri, pos.line)
             .map_or(false, |line| line.starts_with('#'))
         {
             return Ok(None);

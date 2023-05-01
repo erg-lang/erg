@@ -86,11 +86,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
         args_loc: erg_common::error::Location,
         token: &Token,
     ) -> usize {
+        let tks = self.file_cache.get_token_stream(uri).unwrap();
         // we should use the latest commas
-        let commas = self
-            .file_cache
-            .get_token_stream(uri)
-            .unwrap()
+        let commas = tks
             .iter()
             .skip_while(|&tk| tk.loc() < args_loc)
             .filter(|tk| tk.is(TokenKind::Comma) && args_loc.ln_end() >= tk.ln_begin())

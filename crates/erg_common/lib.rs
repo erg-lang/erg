@@ -39,7 +39,7 @@ use crate::set::Set;
 pub use crate::str::Str;
 pub use crate::triple::Triple;
 
-pub type RcArray<T> = std::rc::Rc<[T]>;
+pub type ArcArray<T> = std::sync::Arc<[T]>;
 
 pub fn open_read(filename: &str) -> std::io::Result<String> {
     let f = std::fs::File::open(filename)?;

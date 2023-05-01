@@ -507,7 +507,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 let uri =
                     NormalizedUrl::parse(msg["params"]["textDocument"]["uri"].as_str().unwrap())?;
                 send_log(format!("{method}: {uri}"))?;
-                let code = self.file_cache.get_code(&uri)?.to_string();
+                let code = self.file_cache.get_entire_code(&uri)?;
                 self.clear_cache(&uri);
                 self.check_file(uri, code)
             }

@@ -7,7 +7,7 @@ use erg_common::log;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
 use erg_common::{dict, fmt_vec, fn_name, option_enum_unwrap, set};
-use erg_common::{RcArray, Str};
+use erg_common::{ArcArray, Str};
 use OpKind::*;
 
 use erg_parser::ast::Dict as AstDict;
@@ -374,7 +374,7 @@ impl Context {
                     let elem = self.eval_const_expr(&elem.expr)?;
                     elems.push(elem);
                 }
-                Ok(ValueObj::Array(RcArray::from(elems)))
+                Ok(ValueObj::Array(ArcArray::from(elems)))
             }
             _ => Err(EvalErrors::from(EvalError::not_const_expr(
                 self.cfg.input.clone(),
@@ -434,7 +434,7 @@ impl Context {
                 }
             }
         }
-        Ok(ValueObj::Tuple(RcArray::from(elems)))
+        Ok(ValueObj::Tuple(ArcArray::from(elems)))
     }
 
     fn eval_const_record(&self, record: &Record) -> EvalResult<ValueObj> {

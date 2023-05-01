@@ -10,7 +10,7 @@ use lsp_types::{
 };
 
 use erg_common::dict::Dict;
-use erg_common::shared::Shared;
+use erg_common::shared::AtomicShared;
 use erg_common::traits::DequeStream;
 use erg_compiler::erg_parser::lex::Lexer;
 use erg_compiler::erg_parser::token::{Token, TokenStream};
@@ -37,9 +37,9 @@ pub struct FileCacheEntry {
 
 impl FileCacheEntry {
     /// line: 0-based
-    pub fn get_line(&self, line: u32) -> Option<&str> {
+    pub fn get_line(&self, line: u32) -> Option<String> {
         let mut lines = self.code.lines();
-        lines.nth(line as usize)
+        lines.nth(line as usize).map(|s| s.to_string())
     }
 }
 
@@ -47,14 +47,23 @@ impl FileCacheEntry {
 /// This struct can save changes in real-time & incrementally.
 #[derive(Debug, Clone)]
 pub struct FileCache {
-    pub files: Shared<Dict<NormalizedUrl, FileCacheEntry>>,
+    pub files: AtomicShared<Dict<NormalizedUrl, FileCacheEntry>>,
 }
 
 impl FileCache {
     pub fn new() -> Self {
         Self {
-            files: Shared::new(Dict::new()),
+            files: AtomicShared::new(Dict::new()),
         }
+    }
+
+    fn load_once(&self, uri: &NormalizedUrl) -> ELSResult<()> {
+        if self.files.borrow_mut().get(uri).is_some() {
+            return Ok(());
+        }
+        let code = _get_code_from_uri(uri)?;
+        self.update(uri, code, None);
+        Ok(())
     }
 
     pub(crate) fn set_capabilities(&mut self, capabilities: &mut ServerCapabilities) {
@@ -98,36 +107,28 @@ impl FileCache {
         capabilities.text_document_sync = Some(TextDocumentSyncCapability::Options(sync_option));
     }
 
-    pub fn get_code(&self, uri: &NormalizedUrl) -> ELSResult<&str> {
-        Ok(self.get(uri)?.code.as_str())
+    /// This method clones and returns the entire file.
+    /// If you only need part of the file, use `get_ranged` or `get_line` instead.
+    pub fn get_entire_code(&self, uri: &NormalizedUrl) -> ELSResult<String> {
+        self.load_once(uri)?;
+        Ok(self
+            .files
+            .borrow_mut()
+            .get(uri)
+            .ok_or("not found")?
+            .code
+            .clone())
     }
 
-    pub fn get(&self, uri: &NormalizedUrl) -> ELSResult<&FileCacheEntry> {
-        let Some(entry) = unsafe { self.files.as_ref() }.get(uri) else {
-            let code = _get_code_from_uri(uri)?;
-            self.update(uri, code, None);
-            let entry = unsafe { self.files.as_ref() }.get(uri).ok_or("not found")?;
-            return Ok(entry);
-        };
-        Ok(entry)
-    }
-
-    pub fn get_token_stream(&self, uri: &NormalizedUrl) -> Option<&TokenStream> {
-        self.get(uri).ok().and_then(|ent| ent.token_stream.as_ref())
-    }
-
-    pub fn get_token_index(&self, uri: &NormalizedUrl, pos: Position) -> Option<usize> {
-        let tokens = self.get_token_stream(uri)?;
-        for (i, tok) in tokens.iter().enumerate() {
-            if util::pos_in_loc(tok, pos) {
-                return Some(i);
-            }
-        }
-        None
+    pub fn get_token_stream(&self, uri: &NormalizedUrl) -> Option<TokenStream> {
+        let _ = self.load_once(uri);
+        self.files.borrow_mut().get(uri)?.token_stream.clone()
     }
 
     pub fn get_token(&self, uri: &NormalizedUrl, pos: Position) -> Option<Token> {
-        let tokens = self.get_token_stream(uri)?;
+        let _ = self.load_once(uri);
+        let ent = self.files.borrow_mut();
+        let tokens = ent.get(uri)?.token_stream.as_ref()?;
         for tok in tokens.iter() {
             if util::pos_in_loc(tok, pos) {
                 return Some(tok.clone());
@@ -142,8 +143,17 @@ impl FileCache {
         pos: Position,
         offset: isize,
     ) -> Option<Token> {
-        let tokens = self.get_token_stream(uri)?;
-        let index = self.get_token_index(uri, pos)?;
+        let _ = self.load_once(uri);
+        let ent = self.files.borrow_mut();
+        let tokens = ent.get(uri)?.token_stream.as_ref()?;
+        let index = (|| {
+            for (i, tok) in tokens.iter().enumerate() {
+                if util::pos_in_loc(tok, pos) {
+                    return Some(i);
+                }
+            }
+            None
+        })()?;
         let index = (index as isize + offset) as usize;
         if index < tokens.len() {
             Some(tokens[index].clone())
@@ -153,8 +163,9 @@ impl FileCache {
     }
 
     /// 0-based
-    pub(crate) fn get_line(&self, uri: &NormalizedUrl, line: u32) -> Option<&str> {
-        self.get(uri).ok().and_then(|ent| ent.get_line(line))
+    pub(crate) fn get_line(&self, uri: &NormalizedUrl, line: u32) -> Option<String> {
+        let _ = self.load_once(uri);
+        self.files.borrow_mut().get(uri)?.get_line(line)
     }
 
     pub(crate) fn get_ranged(
@@ -162,7 +173,9 @@ impl FileCache {
         uri: &NormalizedUrl,
         range: Range,
     ) -> ELSResult<Option<String>> {
-        let file = self.get(uri)?;
+        self.load_once(uri)?;
+        let ent = self.files.borrow_mut();
+        let file = ent.get(uri).ok_or("not found")?;
         let mut code = String::new();
         for (i, line) in file.code.lines().enumerate() {
             if i >= range.start.line as usize && i <= range.end.line as usize {
@@ -191,7 +204,8 @@ impl FileCache {
     }
 
     pub(crate) fn update(&self, uri: &NormalizedUrl, code: String, ver: Option<i32>) {
-        let entry = unsafe { self.files.as_ref() }.get(uri);
+        let ent = self.files.borrow_mut();
+        let entry = ent.get(uri);
         if let Some(entry) = entry {
             if ver.map_or(false, |ver| ver <= entry.ver) {
                 // crate::_log!("171: double update detected: {ver:?}, {}, code:\n{}", entry.ver, entry.code);
@@ -206,6 +220,7 @@ impl FileCache {
                 1
             }
         });
+        drop(ent);
         self.files.borrow_mut().insert(
             uri.clone(),
             FileCacheEntry {
@@ -217,7 +232,8 @@ impl FileCache {
     }
 
     pub(crate) fn ranged_update(&self, uri: &NormalizedUrl, old: Range, new_code: &str) {
-        let Some(entry) = unsafe { self.files.as_mut() }.get_mut(uri) else {
+        let mut ent = self.files.borrow_mut();
+        let Some(entry) = ent.get_mut(uri) else {
             return;
         };
         let mut code = entry.code.clone();
@@ -232,7 +248,8 @@ impl FileCache {
 
     pub(crate) fn incremental_update(&self, params: DidChangeTextDocumentParams) {
         let uri = NormalizedUrl::new(params.text_document.uri);
-        let Some(entry) = unsafe { self.files.as_mut() }.get_mut(&uri) else {
+        let mut ent = self.files.borrow_mut();
+        let Some(entry) = ent.get_mut(&uri) else {
             return;
         };
         if entry.ver >= params.text_document.version {

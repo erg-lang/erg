@@ -91,7 +91,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                     }
                     // recheck dependencies and finally the file itself
                     for dep in dependencies {
-                        let code = self.file_cache.get_code(&dep)?.to_string();
+                        let code = self.file_cache.get_entire_code(&dep)?.to_string();
                         self.check_file(dep, code)?;
                     }
                     // dependents are checked after changes are committed

@@ -9,7 +9,7 @@ use erg_common::python_util::PythonVersion;
 use erg_common::serialize::DataTypePrefix;
 use erg_common::traits::ExitStatus;
 use erg_common::{fn_name, switch_lang};
-use erg_common::{RcArray, Str};
+use erg_common::{ArcArray, Str};
 
 use super::codeobj::CodeObj;
 use super::constructors::array_t;
@@ -282,7 +282,7 @@ impl Deserializer {
         &mut self,
         v: &mut Vec<u8>,
         python_ver: PythonVersion,
-    ) -> DeserializeResult<RcArray<ValueObj>> {
+    ) -> DeserializeResult<ArcArray<ValueObj>> {
         match self.deserialize_const(v, python_ver)? {
             ValueObj::Array(arr) => Ok(arr),
             other => Err(DeserializeError::type_error(&Type::Str, other.ref_t())),

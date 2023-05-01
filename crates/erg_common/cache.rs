@@ -1,15 +1,15 @@
 use std::borrow::{Borrow, ToOwned};
 use std::cell::RefCell;
 use std::hash::Hash;
-use std::rc::Rc;
+use std::sync::Arc;
 use std::thread::LocalKey;
 
 use crate::dict::Dict;
 use crate::set::Set;
-use crate::{RcArray, Str};
+use crate::{ArcArray, Str};
 
 #[derive(Debug)]
-pub struct CacheSet<T: ?Sized>(RefCell<Set<Rc<T>>>);
+pub struct CacheSet<T: ?Sized>(RefCell<Set<Arc<T>>>);
 
 impl<T: ?Sized> Default for CacheSet<T> {
     fn default() -> Self {
@@ -47,31 +47,31 @@ impl CacheSet<str> {
 }
 
 impl<T: Hash + Eq + Clone> CacheSet<[T]> {
-    pub fn get(&self, q: &[T]) -> Rc<[T]> {
+    pub fn get(&self, q: &[T]) -> Arc<[T]> {
         if let Some(cached) = self.0.borrow().get(q) {
             return cached.clone();
         } // &self.0 is dropped
-        let s = RcArray::from(q);
+        let s = ArcArray::from(q);
         self.0.borrow_mut().insert(s.clone());
         s
     }
 }
 
 impl<T: Hash + Eq> CacheSet<T> {
-    pub fn get<Q: ?Sized + Hash + Eq>(&self, q: &Q) -> Rc<T>
+    pub fn get<Q: ?Sized + Hash + Eq>(&self, q: &Q) -> Arc<T>
     where
-        Rc<T>: Borrow<Q>,
+        Arc<T>: Borrow<Q>,
         Q: ToOwned<Owned = T>,
     {
         if let Some(cached) = self.0.borrow().get(q) {
             return cached.clone();
         } // &self.0 is dropped
-        let s = Rc::from(q.to_owned());
+        let s = Arc::from(q.to_owned());
         self.0.borrow_mut().insert(s.clone());
         s
     }
 }
 
-pub struct CacheDict<K, V: ?Sized>(RefCell<Dict<K, Rc<V>>>);
+pub struct CacheDict<K, V: ?Sized>(RefCell<Dict<K, Arc<V>>>);
 
 pub struct GlobalCacheDict<K: 'static, V: ?Sized + 'static>(LocalKey<RefCell<CacheDict<K, V>>>);

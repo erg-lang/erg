@@ -3,14 +3,14 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::ops::{Add, Deref};
 
-pub type RcStr = std::rc::Rc<str>;
+pub type ArcStr = std::sync::Arc<str>;
 
 /// Used to hold an immutable string.
 ///
 /// It can construct as a const (by Str::ever).
 #[derive(Debug, Clone, Eq)]
 pub enum Str {
-    Rc(RcStr),
+    Rc(ArcStr),
     Static(&'static str),
 }
 
@@ -93,16 +93,16 @@ impl From<String> for Str {
     }
 }
 
-impl From<&RcStr> for Str {
+impl From<&ArcStr> for Str {
     #[inline]
-    fn from(s: &RcStr) -> Self {
+    fn from(s: &ArcStr) -> Self {
         Str::Rc(s.clone())
     }
 }
 
-impl From<RcStr> for Str {
+impl From<ArcStr> for Str {
     #[inline]
-    fn from(s: RcStr) -> Self {
+    fn from(s: ArcStr) -> Self {
         Str::Rc(s)
     }
 }
@@ -159,10 +159,10 @@ impl Str {
         Str::Rc(s.into())
     }
 
-    pub fn into_rc(self) -> RcStr {
+    pub fn into_rc(self) -> ArcStr {
         match self {
             Str::Rc(s) => s,
-            Str::Static(s) => RcStr::from(s),
+            Str::Static(s) => ArcStr::from(s),
         }
     }
 

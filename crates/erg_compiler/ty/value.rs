@@ -5,7 +5,7 @@ use std::cmp::Ordering;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::ops::Neg;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use erg_common::config::Input;
 use erg_common::dict::Dict;
@@ -15,7 +15,7 @@ use erg_common::python_util::PythonVersion;
 use erg_common::serialize::*;
 use erg_common::set::Set;
 use erg_common::{dict, fmt_iter, impl_display_from_debug, log, switch_lang};
-use erg_common::{RcArray, Str};
+use erg_common::{ArcArray, Str};
 use erg_parser::ast::{ConstArgs, ConstExpr};
 
 use crate::context::eval::type_from_token_kind;
@@ -436,10 +436,10 @@ pub enum ValueObj {
     Float(f64),
     Str(Str),
     Bool(bool),
-    Array(Rc<[ValueObj]>),
+    Array(ArcArray<ValueObj>),
     Set(Set<ValueObj>),
     Dict(Dict<ValueObj, ValueObj>),
-    Tuple(Rc<[ValueObj]>),
+    Tuple(ArcArray<ValueObj>),
     Record(Dict<Field, ValueObj>),
     DataClass {
         name: Str,
@@ -659,7 +659,7 @@ impl From<CodeObj> for ValueObj {
 
 impl<V: Into<ValueObj>> From<Vec<V>> for ValueObj {
     fn from(item: Vec<V>) -> Self {
-        ValueObj::Array(RcArray::from(
+        ValueObj::Array(ArcArray::from(
             &item.into_iter().map(Into::into).collect::<Vec<_>>()[..],
         ))
     }
@@ -667,7 +667,7 @@ impl<V: Into<ValueObj>> From<Vec<V>> for ValueObj {
 
 impl<const N: usize, V: Into<ValueObj>> From<[V; N]> for ValueObj {
     fn from(item: [V; N]) -> Self {
-        ValueObj::Array(RcArray::from(&item.map(Into::into)[..]))
+        ValueObj::Array(ArcArray::from(&item.map(Into::into)[..]))
     }
 }
 
@@ -912,7 +912,7 @@ impl ValueObj {
     }
 
     pub fn tuple_from_const_args(args: ConstArgs) -> Self {
-        Self::Tuple(Rc::from(&Self::vec_from_const_args(args)[..]))
+        Self::Tuple(Arc::from(&Self::vec_from_const_args(args)[..]))
     }
 
     pub fn vec_from_const_args(args: ConstArgs) -> Vec<Self> {
@@ -1012,7 +1012,7 @@ impl ValueObj {
             (Self::Float(l), Self::Int(r)) => Some(Self::Float(l - r as f64)),
             (Self::Str(l), Self::Str(r)) => Some(Self::Str(Str::from(format!("{l}{r}")))),
             (Self::Array(l), Self::Array(r)) => {
-                let arr = Rc::from([l, r].concat());
+                let arr = Arc::from([l, r].concat());
                 Some(Self::Array(arr))
             }
             (Self::Dict(l), Self::Dict(r)) => Some(Self::Dict(l.concat(r))),

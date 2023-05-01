@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 use std::fmt;
 use std::ops::{Add, Div, Mul, Neg, Range, RangeInclusive, Sub};
-use std::rc::Rc;
+use std::sync::Arc;
 
 use erg_common::dict::Dict;
 use erg_common::set;
@@ -522,14 +522,14 @@ impl TryFrom<TyParam> for ValueObj {
                 for tp in tps {
                     vals.push(ValueObj::try_from(tp)?);
                 }
-                Ok(ValueObj::Array(Rc::from(vals)))
+                Ok(ValueObj::Array(Arc::from(vals)))
             }
             TyParam::Tuple(tps) => {
                 let mut vals = vec![];
                 for tp in tps {
                     vals.push(ValueObj::try_from(tp)?);
                 }
-                Ok(ValueObj::Tuple(Rc::from(vals)))
+                Ok(ValueObj::Tuple(Arc::from(vals)))
             }
             TyParam::Dict(tps) => {
                 let mut vals = dict! {};
