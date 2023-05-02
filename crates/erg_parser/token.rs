@@ -34,7 +34,7 @@ pub enum TokenKind {
     /// e.g. }def"
     StrInterpRight,
     NoneLit,
-    NoImplLit,
+    /// ... (== Ellipsis)
     EllipsisLit,
     InfLit,
     DocComment,
@@ -232,8 +232,8 @@ impl TokenKind {
     pub const fn category(&self) -> TokenCategory {
         match self {
             Symbol => TokenCategory::Symbol,
-            NatLit | IntLit | RatioLit | StrLit | BoolLit | NoneLit | EllipsisLit | NoImplLit
-            | InfLit | DocComment => TokenCategory::Literal,
+            NatLit | IntLit | RatioLit | StrLit | BoolLit | NoneLit | EllipsisLit | InfLit
+            | DocComment => TokenCategory::Literal,
             StrInterpLeft => TokenCategory::StrInterpLeft,
             StrInterpMid => TokenCategory::StrInterpMid,
             StrInterpRight => TokenCategory::StrInterpRight,

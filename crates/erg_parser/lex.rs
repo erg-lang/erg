@@ -713,7 +713,6 @@ impl Lexer /*<'a>*/ {
             // これらはリテラルというより定数だが便宜的にリテラルということにしておく
             "True" | "False" => BoolLit,
             "None" => NoneLit,
-            "NotImplemented" => NoImplLit,
             "Ellipsis" => EllipsisLit,
             "Inf" => InfLit,
             "_" => UBar,

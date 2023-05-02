@@ -290,7 +290,7 @@ fn test_lexer_for_literals() -> ParseResult<()> {
         (Newline, newline),
         (Newline, newline),
         (Newline, newline),
-        (NoImplLit, "NotImplemented"),
+        (Symbol, "NotImplemented"),
         (Newline, newline),
         (Newline, newline),
         (Newline, newline),
