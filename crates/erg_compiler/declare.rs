@@ -202,6 +202,12 @@ impl ASTLowerer {
         Ok(hir::BinOp::new(binop.op, lhs, rhs, VarInfo::default()))
     }
 
+    fn fake_lower_unaryop(&self, unaryop: ast::UnaryOp) -> LowerResult<hir::UnaryOp> {
+        let mut args = unaryop.args.into_iter();
+        let expr = self.fake_lower_expr(*args.next().unwrap())?;
+        Ok(hir::UnaryOp::new(unaryop.op, expr, VarInfo::default()))
+    }
+
     fn fake_lower_array(&self, arr: ast::Array) -> LowerResult<hir::Array> {
         match arr {
             ast::Array::WithLength(arr) => {
@@ -425,6 +431,7 @@ impl ASTLowerer {
         match expr {
             ast::Expr::Literal(lit) => Ok(hir::Expr::Lit(self.lower_literal(lit)?)),
             ast::Expr::BinOp(binop) => Ok(hir::Expr::BinOp(self.fake_lower_binop(binop)?)),
+            ast::Expr::UnaryOp(unop) => Ok(hir::Expr::UnaryOp(self.fake_lower_unaryop(unop)?)),
             ast::Expr::Array(arr) => Ok(hir::Expr::Array(self.fake_lower_array(arr)?)),
             ast::Expr::Tuple(tup) => Ok(hir::Expr::Tuple(self.fake_lower_tuple(tup)?)),
             ast::Expr::Record(rec) => Ok(hir::Expr::Record(self.fake_lower_record(rec)?)),
