@@ -2395,7 +2395,7 @@ pub struct TypeAscription {
 
 impl NestedDisplay for TypeAscription {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        writeln!(f, "{}{}", self.expr, self.spec)
+        writeln!(f, "{} {}", self.expr, self.spec)
     }
 }
 

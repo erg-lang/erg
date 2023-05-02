@@ -693,6 +693,24 @@ impl Parser {
                 debug_exit_info!(self);
                 Ok(sig)
             }
+            Expr::BinOp(bin) => match bin.op.kind {
+                TokenKind::OrOp | TokenKind::AndOp => {
+                    let pat = ParamPattern::Discard(bin.op.clone());
+                    let expr = Expr::BinOp(bin);
+                    let t_spec = Self::expr_to_type_spec(expr.clone())
+                        .map_err(|_| self.stack_dec(fn_name!()))?;
+                    let t_spec = TypeSpecWithOp::new(Token::DUMMY, t_spec, expr);
+                    let param = NonDefaultParamSignature::new(pat, Some(t_spec));
+                    let params = Params::single(param);
+                    Ok(LambdaSignature::new(params, None, TypeBoundSpecs::empty()))
+                }
+                _ => {
+                    let err = ParseError::simple_syntax_error(line!() as usize, bin.loc());
+                    self.errs.push(err);
+                    debug_exit_info!(self);
+                    Err(())
+                }
+            },
             other => {
                 let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
                 self.errs.push(err);
