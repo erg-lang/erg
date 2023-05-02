@@ -2268,7 +2268,7 @@ impl Context {
                 return self.get_mono_type(name);
             }
             Type::Poly { name, .. } => {
-                return self.get_type(name);
+                return self.get_poly_type(name);
             }
             Type::Record(rec) if rec.values().all(|attr| self.supertype_of(&Type, attr)) => {
                 return self
@@ -2620,16 +2620,34 @@ impl Context {
         }
     }
 
-    pub(crate) fn _rec_local_get_poly_type(&self, name: &str) -> Option<(&Type, &Context)> {
+    pub(crate) fn rec_local_get_poly_type(&self, name: &str) -> Option<(&Type, &Context)> {
         #[cfg(feature = "py_compat")]
         let name = self.erg_to_py_names.get(name).map_or(name, |s| &s[..]);
         if let Some((t, ctx)) = self.poly_types.get(name) {
             Some((t, ctx))
         } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
-            outer._rec_local_get_poly_type(name)
+            outer.rec_local_get_poly_type(name)
         } else {
             None
         }
+    }
+
+    pub(crate) fn get_poly_type(&self, name: &Str) -> Option<(&Type, &Context)> {
+        if let Some((t, ctx)) = self.rec_local_get_poly_type(name) {
+            return Some((t, ctx));
+        }
+        let typ = Type::Mono(Str::rc(name));
+        if self.name.starts_with(&typ.namespace()[..]) {
+            if let Some((t, ctx)) = self.rec_local_get_poly_type(&typ.local_name()) {
+                return Some((t, ctx));
+            }
+        }
+        if let Some(ctx) = self.get_namespace(&typ.namespace()) {
+            if let Some((t, ctx)) = ctx.rec_local_get_poly_type(&typ.local_name()) {
+                return Some((t, ctx));
+            }
+        }
+        None
     }
 
     fn rec_get_mut_mono_type(&mut self, name: &str) -> Option<(&mut Type, &mut Context)> {
@@ -2697,8 +2715,9 @@ impl Context {
             Some((t, ctx))
         } else if let Some((t, ctx)) = self.poly_types.get(name) {
             Some((t, ctx))
-        } else if let Some(vi) = self.consts.get(name) {
-            vi.as_type()
+        } else if let Some(value) = self.consts.get(name) {
+            value
+                .as_type()
                 .and_then(|typ_obj| self.get_nominal_type_ctx(typ_obj.typ()))
         } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
             outer.rec_local_get_type(name)
