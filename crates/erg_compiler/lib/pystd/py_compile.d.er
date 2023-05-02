@@ -1,0 +1,10 @@
+.PyCompileError: ClassType
+
+.compile!: (
+    file: PathLike,
+    cfile := PathLike,
+    dfile := PathLike,
+    doraise := Bool,
+    optimize := Int,
+    quiet := Int,
+) => Str

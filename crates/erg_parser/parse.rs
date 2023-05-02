@@ -1680,7 +1680,7 @@ impl Parser {
             .map_err(|_| self.stack_dec(fn_name!()))?;
         let first_elem = ArgKind::Kw(KwArg::new(keyword, t_spec, rhs));
         let tuple = self
-            .try_reduce_nonempty_tuple(first_elem, false)
+            .try_reduce_nonempty_tuple(first_elem, self.nth_is(1, Newline))
             .map_err(|_| self.stack_dec(fn_name!()))?;
         debug_exit_info!(self);
         Ok(tuple)

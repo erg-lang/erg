@@ -1,0 +1,11 @@
+.Struct: ClassType
+.Struct.
+    __call__: (format: Str) -> .Struct
+    format: Str
+    size: Nat
+    pack: (self: .Struct, *values: Obj) -> Bytes
+    unpack: (self: .Struct, bytes: Bytes) -> Obj
+
+.pack: (format: Str, *values: Obj) -> Bytes
+.unpack: (format: Str, bytes: Bytes) -> Obj
+.calcsize: (format: Str) -> Nat

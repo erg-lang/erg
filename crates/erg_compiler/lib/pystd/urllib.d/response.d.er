@@ -1,0 +1,6 @@
+.tempfile = pyimport "tempfile"
+
+.AddBase = 'addbase': ClassType
+.AddCloseHook = 'addclosehook': ClassType
+.AddInfo = 'addinfo': ClassType
+.AddInfoUrl = 'addinfourl': ClassType

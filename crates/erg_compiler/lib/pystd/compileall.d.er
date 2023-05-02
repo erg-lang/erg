@@ -1,0 +1,32 @@
+re = pyimport "re"
+
+.compile_dir!: (
+    ddir := PathLike,
+    maxlevels := Nat,
+    ddir := PathLike,
+    force := Bool,
+    rx := re.Pattern or NoneType,
+    quiet := Int,
+    legacy := Bool,
+    optimize := Int,
+    workers := Nat,
+) => Bool
+
+.compile_file!: (
+    fullname: PathLike,
+    ddir := PathLike,
+    force := Bool,
+    rx := re.Pattern or NoneType,
+    quiet := Int,
+    legacy := Bool,
+    optimize := Int,
+) => Bool
+
+.compile_path!: (
+    skip_curdir := Bool,
+    maxlevels := Nat,
+    force := Bool,
+    quiet := Int,
+    legacy := Bool,
+    optimize := Int,
+) => Bool

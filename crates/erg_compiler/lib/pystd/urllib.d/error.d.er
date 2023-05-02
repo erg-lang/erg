@@ -1,0 +1,4 @@
+.URLError: ClassType
+.HTTPError: ClassType
+.HTTPError <: .URLError
+.ContentTooShortError: ClassType

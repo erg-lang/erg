@@ -124,7 +124,12 @@
         address: (Str, Int) or NoneType := NoneType
     ) => Int
 
-.socketpair!: (family := Int, type := Int, proto := Int, fileno: Int or NoneType := NoneType) => (.Socket!, .Socket!)
+.socketpair!: (
+    family := Int,
+    type := Int,
+    proto := Int,
+    fileno: Int or NoneType := NoneType
+) => (.Socket!, .Socket!)
 .create_connection!: (
     address: (Str, Int),
     timeout: Int or NoneType := NoneType,
