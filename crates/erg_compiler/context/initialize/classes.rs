@@ -1249,6 +1249,15 @@ impl Context {
             None,
         )));
         array_.register_builtin_const(FUNDAMENTAL_GETITEM, Visibility::BUILTIN_PUBLIC, get_item);
+        // union: (self: [Type; _]) -> Type
+        let array_union_t = fn0_met(array_t(Type, TyParam::erased(Nat)), Type).quantify();
+        let union = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+            UNION_FUNC,
+            array_union,
+            array_union_t,
+            None,
+        )));
+        array_.register_builtin_const(UNION_FUNC, Visibility::BUILTIN_PUBLIC, union);
         let mut array_eq = Self::builtin_methods(Some(mono(EQ)), 2);
         array_eq.register_builtin_erg_impl(
             OP_EQ,
@@ -1349,6 +1358,23 @@ impl Context {
             mut_type,
         );
         set_.register_trait(set_t.clone(), set_mutizable);
+        let mut set_iterable =
+            Self::builtin_methods(Some(poly(ITERABLE, vec![ty_tp(T.clone())])), 2);
+        let set_iter = poly(SET_ITERATOR, vec![ty_tp(T.clone())]);
+        let t = fn0_met(set_t.clone(), set_iter.clone()).quantify();
+        set_iterable.register_builtin_py_impl(
+            FUNC_ITER,
+            t,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNDAMENTAL_ITER),
+        );
+        set_iterable.register_builtin_const(
+            ITERATOR,
+            vis.clone(),
+            ValueObj::builtin_class(set_iter),
+        );
+        set_.register_trait(set_t.clone(), set_iterable);
         let t_call = func1(poly(ITERABLE, vec![ty_tp(T.clone())]), set_t.clone()).quantify();
         set_.register_builtin_erg_impl(
             FUNDAMENTAL_CALL,
@@ -1507,7 +1533,7 @@ impl Context {
         tuple_.register_superclass(mono(GENERIC_TUPLE), &generic_tuple);
         tuple_.register_marker_trait(poly(OUTPUT, vec![Ts.clone()]));
         // __Tuple_getitem__: (self: Tuple(Ts), _: {N}) -> Ts[N]
-        let return_t = proj_call(Ts, FUNDAMENTAL_GETITEM, vec![N.clone()]);
+        let return_t = proj_call(Ts.clone(), FUNDAMENTAL_GETITEM, vec![N.clone()]);
         let tuple_getitem_t =
             fn1_met(_tuple_t.clone(), tp_enum(Nat, set! {N.clone()}), return_t).quantify();
         tuple_.register_builtin_py_impl(
@@ -1526,6 +1552,32 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNDAMENTAL_GETITEM),
         );
+        let mut tuple_iterable = Self::builtin_methods(
+            Some(poly(
+                ITERABLE,
+                vec![ty_tp(proj_call(Ts.clone(), UNION_FUNC, vec![]))],
+            )),
+            2,
+        );
+        let tuple_iterator = poly(
+            TUPLE_ITERATOR,
+            vec![ty_tp(proj_call(Ts, UNION_FUNC, vec![]))],
+        );
+        // Tuple(Ts) -> TupleIterator(Ts.union())
+        let t = fn0_met(_tuple_t.clone(), tuple_iterator.clone()).quantify();
+        tuple_iterable.register_builtin_py_impl(
+            FUNC_ITER,
+            t,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNDAMENTAL_ITER),
+        );
+        tuple_iterable.register_builtin_const(
+            ITERATOR,
+            vis.clone(),
+            ValueObj::builtin_class(tuple_iterator),
+        );
+        tuple_.register_trait(_tuple_t.clone(), tuple_iterable);
         /* record */
         let mut record = Self::builtin_mono_class(RECORD, 2);
         record.register_superclass(Obj, &obj);
@@ -1542,6 +1594,14 @@ impl Context {
         array_iterator.register_superclass(Obj, &obj);
         array_iterator.register_marker_trait(poly(ITERABLE, vec![ty_tp(T.clone())]));
         array_iterator.register_marker_trait(poly(OUTPUT, vec![ty_tp(T.clone())]));
+        let mut set_iterator = Self::builtin_poly_class(SET_ITERATOR, vec![PS::t_nd(TY_T)], 1);
+        set_iterator.register_superclass(Obj, &obj);
+        set_iterator.register_marker_trait(poly(ITERABLE, vec![ty_tp(T.clone())]));
+        set_iterator.register_marker_trait(poly(OUTPUT, vec![ty_tp(T.clone())]));
+        let mut tuple_iterator = Self::builtin_poly_class(TUPLE_ITERATOR, vec![PS::t_nd(TY_T)], 1);
+        tuple_iterator.register_superclass(Obj, &obj);
+        tuple_iterator.register_marker_trait(poly(ITERABLE, vec![ty_tp(T.clone())]));
+        tuple_iterator.register_marker_trait(poly(OUTPUT, vec![ty_tp(T.clone())]));
         let mut range_iterator = Self::builtin_poly_class(RANGE_ITERATOR, vec![PS::t_nd(TY_T)], 1);
         range_iterator.register_superclass(Obj, &obj);
         range_iterator.register_marker_trait(poly(ITERABLE, vec![ty_tp(T.clone())]));
@@ -2251,6 +2311,20 @@ impl Context {
             Visibility::BUILTIN_PRIVATE,
             Const,
             Some(FUNC_ARRAY_ITERATOR),
+        );
+        self.register_builtin_type(
+            poly(SET_ITERATOR, vec![ty_tp(T.clone())]),
+            set_iterator,
+            Visibility::BUILTIN_PRIVATE,
+            Const,
+            Some(FUNC_SET_ITERATOR),
+        );
+        self.register_builtin_type(
+            poly(TUPLE_ITERATOR, vec![ty_tp(T.clone())]),
+            tuple_iterator,
+            Visibility::BUILTIN_PRIVATE,
+            Const,
+            Some(FUNC_TUPLE_ITERATOR),
         );
         self.register_builtin_type(
             poly(RANGE_ITERATOR, vec![ty_tp(T.clone())]),

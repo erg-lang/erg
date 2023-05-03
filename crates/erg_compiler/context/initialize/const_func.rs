@@ -366,7 +366,7 @@ pub(crate) fn dict_keys(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<V
         .keys()
         .fold(Type::Never, |union, t| ctx.union(&union, t));
     let keys = poly(DICT_KEYS, vec![ty_tp(union)]);
-    Ok(ValueObj::builtin_type(keys))
+    Ok(ValueObj::builtin_class(keys))
 }
 
 /// `{Str: Int, Int: Float}.values() == DictValues(Int or Float)`
@@ -386,7 +386,7 @@ pub(crate) fn dict_values(mut args: ValueArgs, ctx: &Context) -> EvalValueResult
         .values()
         .fold(Type::Never, |union, t| ctx.union(&union, t));
     let values = poly(DICT_VALUES, vec![ty_tp(union)]);
-    Ok(ValueObj::builtin_type(values))
+    Ok(ValueObj::builtin_class(values))
 }
 
 /// `{Str: Int, Int: Float}.items() == DictItems((Str, Int) or (Int, Float))`
@@ -406,7 +406,21 @@ pub(crate) fn dict_items(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<
         ctx.union(&union, &tuple_t(vec![k.clone(), v.clone()]))
     });
     let items = poly(DICT_ITEMS, vec![ty_tp(union)]);
-    Ok(ValueObj::builtin_type(items))
+    Ok(ValueObj::builtin_class(items))
+}
+
+/// `[Int, Str].union() == Int or Str`
+pub(crate) fn array_union(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
+    let slf = args.remove_left_or_key("Self").unwrap();
+    let slf = enum_unwrap!(slf, ValueObj::Array);
+    let slf = slf
+        .iter()
+        .map(|t| ctx.convert_value_into_type(t.clone()).unwrap())
+        .collect::<Vec<_>>();
+    let union = slf
+        .iter()
+        .fold(Type::Never, |union, t| ctx.union(&union, t));
+    Ok(ValueObj::builtin_type(union))
 }
 
 pub(crate) fn __range_getitem__(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<ValueObj> {
