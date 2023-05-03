@@ -113,7 +113,8 @@ impl From<&str> for OptionalFeatures {
 #[macro_export]
 macro_rules! _log {
     ($($arg:tt)*) => {
-        $crate::server::send_log(format!($($arg)*)).unwrap();
+        let s = format!($($arg)*);
+        $crate::server::send_log(format!("{}:{}: {s}", file!(), line!())).unwrap();
     };
 }
 
