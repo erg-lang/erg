@@ -1,3 +1,4 @@
+use erg_common::consts::PYTHON_MODE;
 use erg_common::traits::{Locational, Runnable, Stream};
 use erg_common::{enum_unwrap, fn_name, log, set, Str};
 
@@ -562,7 +563,7 @@ impl ASTLowerer {
                 Some(py_name.clone()),
                 self.module.context.absolutize(ident.name.loc()),
             );
-            let name = if cfg!(feature = "py_compat") {
+            let name = if PYTHON_MODE {
                 let mut symbol = ident.name.clone().into_token();
                 symbol.content = py_name.clone();
                 VarName::new(symbol)
@@ -571,7 +572,7 @@ impl ASTLowerer {
             };
             self.module.context.decls.insert(name, vi);
         }
-        let new_ident = if cfg!(feature = "py_compat") {
+        let new_ident = if PYTHON_MODE {
             let mut symbol = ident.name.clone().into_token();
             symbol.content = py_name.clone();
             Identifier::new(ident.vis.clone(), VarName::new(symbol))
@@ -610,7 +611,7 @@ impl ASTLowerer {
         if ident.is_raw() {
             return Ok(());
         }
-        let name = if cfg!(feature = "py_compat") {
+        let name = if PYTHON_MODE {
             self.module
                 .context
                 .erg_to_py_names

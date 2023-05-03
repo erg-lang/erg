@@ -1,5 +1,7 @@
 use std::str::FromStr;
 
+use crate::consts::{ERG_MODE, PYTHON_MODE};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LanguageCode {
     English,
@@ -107,8 +109,8 @@ impl LanguageCode {
             Self::Japanese => cfg!(feature = "japanese"),
             Self::SimplifiedChinese => cfg!(feature = "simplified_chinese"),
             Self::TraditionalChinese => cfg!(feature = "traditional_chinese"),
-            Self::Erg => !cfg!(feature = "py_compat"),
-            Self::Python => cfg!(feature = "py_compat"),
+            Self::Erg => ERG_MODE,
+            Self::Python => PYTHON_MODE,
             Self::ErgOrPython => true,
         }
     }

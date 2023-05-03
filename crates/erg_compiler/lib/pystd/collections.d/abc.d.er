@@ -4,17 +4,27 @@
 .Hashable: ClassType
 .Sized: ClassType
 .Callable: ClassType
+.Callable.
+    __getitem__: (params: [Type; _], Type) -> Type
 .Iterable: ClassType
+.Iterable.
+    __getitem__: Type -> Type
 .Collection: ClassType
 .Iterator: ClassType
+.Iterator.
+    __getitem__: Type -> Type
 .Reversible: ClassType
 .Genertor: ClassType
 .Sequence: ClassType
+.Sequence.
+    __getitem__: Type -> Type
 .MutableSqunce: ClassType
 .ByteString: ClassType
 .Set: ClassType
 .MutableSet: ClassType
 .Mapping: ClassType
+.Mapping.
+    __getitem__: (Type, Type) -> Type
 .MutableMapping: ClassType
 .MappingView: ClassType
 .ItemsView: ClassType

@@ -3,6 +3,7 @@ use std::option::Option; // conflicting to Type::Option
 use std::path::{Path, PathBuf};
 
 use erg_common::config::{ErgConfig, Input};
+use erg_common::consts::{ERG_MODE, PYTHON_MODE};
 use erg_common::dict;
 use erg_common::env::{erg_py_external_lib_path, erg_pystd_path, erg_std_path};
 use erg_common::error::{ErrorCore, Location, SubMessage};
@@ -523,7 +524,7 @@ impl Context {
     ) -> Triple<VarInfo, TyCheckError> {
         // get_attr_info(?T, aaa) == None
         // => ?T(<: Structural({ .aaa = ?U }))
-        if self.in_subr() && cfg!(feature = "py_compat") {
+        if self.in_subr() && PYTHON_MODE {
             let t = free_var(self.level, Constraint::new_type_of(Type));
             if let Some(fv) = obj.ref_t().as_free() {
                 if fv.get_sub().is_some() {
@@ -624,7 +625,7 @@ impl Context {
                 }
                 return Triple::Ok(method.method_info.clone());
             }
-            Triple::Err(err) if !cfg!(feature = "py_compat") => {
+            Triple::Err(err) if ERG_MODE => {
                 return Triple::Err(err);
             }
             _ => {}
@@ -863,7 +864,7 @@ impl Context {
     ) -> SingleTyCheckResult<VarInfo> {
         // search_method_info(?T, aaa, pos_args: [1, 2]) == None
         // => ?T(<: Structural({ .aaa = (self: ?T, ?U, ?V) -> ?W }))
-        if cfg!(feature = "py_compat") && self.in_subr() {
+        if PYTHON_MODE && self.in_subr() {
             let nd_params = pos_args
                 .iter()
                 .map(|_| ParamTy::Pos(free_var(self.level, Constraint::new_type_of(Type))))
@@ -2497,8 +2498,14 @@ impl Context {
 
     // FIXME: 現在の実装だとimportしたモジュールはどこからでも見れる
     pub(crate) fn get_mod(&self, name: &str) -> Option<&Context> {
-        let t = self.get_var_info(name).map(|(_, vi)| &vi.t)?;
-        self.get_mod_from_t(t)
+        if name == "module" && ERG_MODE {
+            self.get_module()
+        } else if name == "global" {
+            self.get_builtins()
+        } else {
+            let t = self.get_var_info(name).map(|(_, vi)| &vi.t)?;
+            self.get_mod_from_t(t)
+        }
     }
 
     pub fn get_mod_from_t(&self, mod_t: &Type) -> Option<&Context> {
@@ -2571,6 +2578,11 @@ impl Context {
     }
 
     pub(crate) fn get_namespace(&self, namespace: &Str) -> Option<&Context> {
+        if &namespace[..] == "global" {
+            return self.get_builtins();
+        } else if &namespace[..] == "module" {
+            return self.get_module();
+        }
         let mut namespaces = namespace.split_with(&[".", "::"]);
         let mut namespace = namespaces.first().map(|n| n.to_string())?;
         namespaces.remove(0);

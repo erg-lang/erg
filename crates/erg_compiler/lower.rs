@@ -4,6 +4,7 @@
 use std::mem;
 
 use erg_common::config::{ErgConfig, ErgMode};
+use erg_common::consts::{ERG_MODE, PYTHON_MODE};
 use erg_common::dict;
 use erg_common::dict::Dict;
 use erg_common::error::{Location, MultiErrorDisplay};
@@ -280,7 +281,7 @@ impl ASTLowerer {
                     (false, false) => {
                         if let hir::Expr::TypeAsc(type_asc) = &elem {
                             // e.g. [1, "a": Str or NoneType]
-                            if !cfg!(feature = "py_compat")
+                            if ERG_MODE
                                 && !self
                                     .module
                                     .context
@@ -288,7 +289,7 @@ impl ASTLowerer {
                             {
                                 return Err(self.elem_err(&l, &r, &elem));
                             } // else(OK): e.g. [1, "a": Str or Int]
-                        } else if !cfg!(feature = "py_compat") {
+                        } else if ERG_MODE {
                             return Err(self.elem_err(&l, &r, &elem));
                         }
                     }
@@ -399,7 +400,7 @@ impl ASTLowerer {
         for elem in elems {
             let elem = self.lower_expr(elem.expr)?;
             union = self.module.context.union(&union, elem.ref_t());
-            if !cfg!(feature = "py_compat") && union.is_union_type() {
+            if ERG_MODE && union.is_union_type() {
                 return Err(LowerErrors::from(LowerError::syntax_error(
                     self.cfg.input.clone(),
                     line!() as usize,
@@ -515,7 +516,7 @@ impl ASTLowerer {
             let key = self.lower_expr(kv.key)?;
             let value = self.lower_expr(kv.value)?;
             if let Some(popped_val_t) = union.insert(key.t(), value.t()) {
-                if cfg!(feature = "py_compat") {
+                if PYTHON_MODE {
                     let val_t = union.get_mut(key.ref_t()).unwrap();
                     *val_t = self.module.context.union(&mem::take(val_t), &popped_val_t);
                 } else {
@@ -1146,7 +1147,7 @@ impl ASTLowerer {
 
     fn lower_lambda(&mut self, lambda: ast::Lambda) -> LowerResult<hir::Lambda> {
         log!(info "entered {}({lambda})", fn_name!());
-        let in_statement = cfg!(feature = "py_compat")
+        let in_statement = PYTHON_MODE
             && self
                 .module
                 .context
@@ -1335,7 +1336,17 @@ impl ASTLowerer {
         } else {
             Str::ever("<lambda>")
         };
-        if self
+        if ERG_MODE && (&name[..] == "module" || &name[..] == "global") {
+            return Err(LowerErrors::from(
+                LowerError::shadow_special_namespace_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    def.sig.loc(),
+                    self.module.context.caused_by(),
+                    &name,
+                ),
+            ));
+        } else if self
             .module
             .context
             .registered_info(&name, def.sig.is_const())

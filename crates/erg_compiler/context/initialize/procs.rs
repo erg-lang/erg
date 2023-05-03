@@ -13,7 +13,7 @@ use Mutability::*;
 
 impl Context {
     pub(super) fn init_builtin_procs(&mut self) {
-        let vis = if cfg!(feature = "py_compat") {
+        let vis = if PYTHON_MODE {
             Visibility::BUILTIN_PUBLIC
         } else {
             Visibility::BUILTIN_PRIVATE
@@ -73,7 +73,7 @@ impl Context {
             T.clone(),
         )
         .quantify();
-        let t_cond = if cfg!(feature = "py_compat") {
+        let t_cond = if PYTHON_MODE {
             Bool
         } else {
             // not Bool! type because `cond` may be the result of evaluation of a mutable object's method returns Bool.
@@ -103,7 +103,7 @@ impl Context {
             mono("File!"),
         )
         .quantify();
-        let C = if cfg!(feature = "py_compat") {
+        let C = if PYTHON_MODE {
             mono("ContextManager").structuralize()
         } else {
             mono("ContextManager")
@@ -131,29 +131,13 @@ impl Context {
         self.register_builtin_py_impl("locals!", t_locals, Immutable, vis.clone(), Some("locals"));
         self.register_builtin_py_impl("next!", t_next, Immutable, vis.clone(), Some("next"));
         self.register_py_builtin("open!", t_open, Some("open"), 198);
-        let name = if cfg!(feature = "py_compat") {
-            "if"
-        } else {
-            "if__"
-        };
+        let name = if PYTHON_MODE { "if" } else { "if__" };
         self.register_builtin_py_impl("if!", t_if, Immutable, vis.clone(), Some(name));
-        let name = if cfg!(feature = "py_compat") {
-            "for"
-        } else {
-            "for__"
-        };
+        let name = if PYTHON_MODE { "for" } else { "for__" };
         self.register_builtin_py_impl("for!", t_for, Immutable, vis.clone(), Some(name));
-        let name = if cfg!(feature = "py_compat") {
-            "while"
-        } else {
-            "while__"
-        };
+        let name = if PYTHON_MODE { "while" } else { "while__" };
         self.register_builtin_py_impl("while!", t_while, Immutable, vis.clone(), Some(name));
-        let name = if cfg!(feature = "py_compat") {
-            "with"
-        } else {
-            "with__"
-        };
+        let name = if PYTHON_MODE { "with" } else { "with__" };
         self.register_builtin_py_impl("with!", t_with, Immutable, vis, Some(name));
     }
 }

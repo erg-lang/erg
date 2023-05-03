@@ -550,6 +550,32 @@ impl LowerError {
         )
     }
 
+    pub fn shadow_special_namespace_error(
+        input: Input,
+        errno: usize,
+        loc: Location,
+        caused_by: String,
+        name: &str,
+    ) -> Self {
+        let name = StyledStr::new(readable_name(name), Some(WARN), Some(ATTR));
+        Self::new(
+            ErrorCore::new(
+                vec![SubMessage::only_loc(loc)],
+                switch_lang!(
+                    "japanese" => format!("特殊名前空間{name}と同名の変数は定義できません"),
+                    "simplified_chinese" => format!("不能定义与特殊命名空间{name}同名的变量"),
+                    "traditional_chinese" => format!("不能定義與特殊命名空間{name}同名的變量"),
+                    "english" => format!("cannot define variable with the same name as special namespace {name}"),
+                ),
+                errno,
+                AssignError,
+                loc,
+            ),
+            input,
+            caused_by,
+        )
+    }
+
     pub fn reassign_error(
         input: Input,
         errno: usize,

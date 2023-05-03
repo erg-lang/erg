@@ -221,10 +221,15 @@ impl Parser {
                     let const_expr = Self::validate_const_expr(arg.expr)?;
                     kw_args.push(ConstKwArg::new(arg.keyword, const_expr));
                 }
-                Ok(PreDeclTypeSpec::Poly(PolyTypeSpec::new(
-                    ident,
+                let acc = if let Some(attr) = call.attr_name {
+                    ConstAccessor::attr(ConstExpr::Accessor(ConstAccessor::Local(ident)), attr)
+                } else {
+                    ConstAccessor::Local(ident)
+                };
+                Ok(PreDeclTypeSpec::poly(
+                    acc,
                     ConstArgs::new(pos_args, var_args, kw_args, paren),
-                )))
+                ))
             }
             other => {
                 let err = ParseError::simple_syntax_error(line!() as usize, other.loc());

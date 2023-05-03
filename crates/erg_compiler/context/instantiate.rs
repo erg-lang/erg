@@ -9,6 +9,7 @@ use erg_common::log;
 use erg_common::set::Set;
 use erg_common::traits::Locational;
 use erg_common::Str;
+use erg_parser::ast::VarName;
 
 use crate::feature_error;
 use crate::ty::constructors::*;
@@ -34,8 +35,8 @@ use crate::hir;
 pub struct TyVarCache {
     _level: usize,
     pub(crate) already_appeared: Set<Str>,
-    pub(crate) tyvar_instances: Dict<Str, Type>,
-    pub(crate) typaram_instances: Dict<Str, TyParam>,
+    pub(crate) tyvar_instances: Dict<VarName, Type>,
+    pub(crate) typaram_instances: Dict<VarName, TyParam>,
     pub(crate) structural_inner: bool,
 }
 
@@ -133,7 +134,7 @@ impl TyVarCache {
         self.already_appeared.insert(name);
     }
 
-    pub(crate) fn push_or_init_tyvar(&mut self, name: &Str, tv: &Type, ctx: &Context) {
+    pub(crate) fn push_or_init_tyvar(&mut self, name: &VarName, tv: &Type, ctx: &Context) {
         if let Some(inst) = self.tyvar_instances.get(name) {
             self.update_tyvar(inst, tv, ctx);
         } else if let Some(inst) = self.typaram_instances.get(name) {
@@ -175,7 +176,7 @@ impl TyVarCache {
         }
     }
 
-    pub(crate) fn push_or_init_typaram(&mut self, name: &Str, tp: &TyParam, ctx: &Context) {
+    pub(crate) fn push_or_init_typaram(&mut self, name: &VarName, tp: &TyParam, ctx: &Context) {
         // FIXME:
         if let Some(inst) = self.typaram_instances.get(name) {
             self.update_typaram(inst, tp, ctx);
@@ -262,10 +263,11 @@ impl Context {
                     }
                     Ok(TyParam::t(t))
                 } else {
+                    let varname = VarName::from_str(name.clone());
                     if tmp_tv_cache.appeared(&name) {
                         let tp =
                             TyParam::named_free_var(name.clone(), self.level, Constraint::Uninited);
-                        tmp_tv_cache.push_or_init_typaram(&name, &tp, self);
+                        tmp_tv_cache.push_or_init_typaram(&varname, &tp, self);
                         return Ok(tp);
                     }
                     if let Some(tv_cache) = &self.tv_cache {
@@ -278,7 +280,7 @@ impl Context {
                     tmp_tv_cache.push_appeared(name.clone());
                     let constr = tmp_tv_cache.instantiate_constraint(constr, self, loc)?;
                     let tp = TyParam::named_free_var(name.clone(), self.level, constr);
-                    tmp_tv_cache.push_or_init_typaram(&name, &tp, self);
+                    tmp_tv_cache.push_or_init_typaram(&varname, &tp, self);
                     Ok(tp)
                 }
             }
@@ -411,9 +413,10 @@ impl Context {
                         )
                     }
                 } else {
+                    let varname = VarName::from_str(name.clone());
                     if tmp_tv_cache.appeared(&name) {
                         let tyvar = named_free_var(name.clone(), self.level, Constraint::Uninited);
-                        tmp_tv_cache.push_or_init_tyvar(&name, &tyvar, self);
+                        tmp_tv_cache.push_or_init_tyvar(&varname, &tyvar, self);
                         return Ok(tyvar);
                     }
                     if let Some(tv_ctx) = &self.tv_cache {
@@ -434,7 +437,7 @@ impl Context {
                     tmp_tv_cache.push_appeared(name.clone());
                     let constr = tmp_tv_cache.instantiate_constraint(constr, self, loc)?;
                     let tyvar = named_free_var(name.clone(), self.level, constr);
-                    tmp_tv_cache.push_or_init_tyvar(&name, &tyvar, self);
+                    tmp_tv_cache.push_or_init_tyvar(&varname, &tyvar, self);
                     Ok(tyvar)
                 }
             }

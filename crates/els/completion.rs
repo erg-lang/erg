@@ -1,3 +1,4 @@
+use erg_common::consts::PYTHON_MODE;
 use lsp_types::CompletionResponse;
 use serde_json::Value;
 
@@ -183,7 +184,7 @@ fn external_item(name: &str, vi: &VarInfo, mod_name: &str) -> CompletionItem {
         CompletionItem::new_simple(format!("{name} (import from {mod_name})"), vi.t.to_string());
     item.sort_text = Some(format!("{}_{}", CompletionOrder::STD_ITEM, item.label));
     item.kind = Some(comp_item_kind(vi));
-    let import = if cfg!(feature = "py_compat") {
+    let import = if PYTHON_MODE {
         format!("from {mod_name} import {name}\n")
     } else {
         format!("{{{name};}} = pyimport \"{mod_name}\"\n")
@@ -226,7 +227,7 @@ fn module_completions() -> Vec<CompletionItem> {
         );
         item.sort_text = Some(format!("{}_{}", CompletionOrder::STD_ITEM, item.label));
         item.kind = Some(CompletionItemKind::MODULE);
-        let import = if cfg!(feature = "py_compat") {
+        let import = if PYTHON_MODE {
             format!("import {mod_name}\n")
         } else {
             format!("{mod_name} = pyimport \"{mod_name}\"\n")

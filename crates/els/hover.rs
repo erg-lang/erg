@@ -1,3 +1,4 @@
+use erg_common::consts::PYTHON_MODE;
 use erg_common::lang::LanguageCode;
 use erg_common::trim_eliminate_top_indent;
 use erg_compiler::artifact::BuildRunnable;
@@ -10,11 +11,7 @@ use lsp_types::{Hover, HoverContents, HoverParams, MarkedString, Url};
 use crate::server::{send_log, ELSResult, Server};
 use crate::util::{self, NormalizedUrl};
 
-const PROG_LANG: &str = if cfg!(feature = "py_compat") {
-    "python"
-} else {
-    "erg"
-};
+const PROG_LANG: &str = if PYTHON_MODE { "python" } else { "erg" };
 
 const ERG_LANG: &str = "erg";
 
@@ -223,7 +220,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 }
             };
             def_pos.line = def_pos.line.saturating_sub(1);
-            let def_uri = NormalizedUrl::new(Url::from_file_path(module).unwrap());
+            let Ok(def_uri) = NormalizedUrl::try_from(module.as_path()) else {
+                return Ok(());
+            };
             let mut default_code_block = "".to_string();
             let Some(stream) = self.file_cache.get_token_stream(&def_uri) else {
                 return Ok(());

@@ -1,3 +1,4 @@
+use erg_common::consts::{ERG_MODE, PYTHON_MODE};
 #[allow(unused_imports)]
 use erg_common::log;
 use erg_common::Str as StrStruct;
@@ -16,7 +17,7 @@ use Mutability::*;
 
 impl Context {
     pub(super) fn init_builtin_classes(&mut self) {
-        let vis = if cfg!(feature = "py_compat") {
+        let vis = if PYTHON_MODE {
             Visibility::BUILTIN_PUBLIC
         } else {
             Visibility::BUILTIN_PRIVATE
@@ -1155,7 +1156,7 @@ impl Context {
         let mut module = Self::builtin_poly_class(MODULE, vec![PS::named_nd(PATH, Str)], 2);
         module.register_superclass(g_module_t.clone(), &generic_module);
         let mut py_module = Self::builtin_poly_class(PY_MODULE, vec![PS::named_nd(PATH, Str)], 2);
-        if !cfg!(feature = "py_compat") {
+        if ERG_MODE {
             py_module.register_superclass(g_module_t.clone(), &generic_module);
         }
         /* GenericArray */
@@ -2178,32 +2179,16 @@ impl Context {
         self.register_builtin_type(Never, never, vis.clone(), Const, Some(NEVER));
         self.register_builtin_type(Obj, obj, vis.clone(), Const, Some(FUNC_OBJECT));
         // self.register_type(mono(RECORD), vec![], record, Visibility::BUILTIN_PRIVATE, Const);
-        let name = if cfg!(feature = "py_compat") {
-            FUNC_INT
-        } else {
-            INT
-        };
+        let name = if PYTHON_MODE { FUNC_INT } else { INT };
         self.register_builtin_type(Int, int, vis.clone(), Const, Some(name));
         self.register_builtin_type(Nat, nat, vis.clone(), Const, Some(NAT));
-        let name = if cfg!(feature = "py_compat") {
-            FUNC_FLOAT
-        } else {
-            FLOAT
-        };
+        let name = if PYTHON_MODE { FUNC_FLOAT } else { FLOAT };
         self.register_builtin_type(Complex, complex, vis.clone(), Const, Some(COMPLEX));
         self.register_builtin_type(Float, float, vis.clone(), Const, Some(name));
         self.register_builtin_type(Ratio, ratio, vis.clone(), Const, Some(RATIO));
-        let name = if cfg!(feature = "py_compat") {
-            FUNC_BOOL
-        } else {
-            BOOL
-        };
+        let name = if PYTHON_MODE { FUNC_BOOL } else { BOOL };
         self.register_builtin_type(Bool, bool_, vis.clone(), Const, Some(name));
-        let name = if cfg!(feature = "py_compat") {
-            FUNC_STR
-        } else {
-            STR
-        };
+        let name = if PYTHON_MODE { FUNC_STR } else { STR };
         self.register_builtin_type(Str, str_, vis.clone(), Const, Some(name));
         self.register_builtin_type(NoneType, nonetype, vis.clone(), Const, Some(NONE_TYPE));
         self.register_builtin_type(Type, type_, vis.clone(), Const, Some(FUNC_TYPE));
@@ -2365,7 +2350,7 @@ impl Context {
         self.register_builtin_type(mono(PROC), proc, vis.clone(), Const, Some(PROC));
         self.register_builtin_type(mono(FUNC), func, vis.clone(), Const, Some(FUNC));
         self.register_builtin_type(range_t, range, vis.clone(), Const, Some(FUNC_RANGE));
-        if !cfg!(feature = "py_compat") {
+        if ERG_MODE {
             self.register_builtin_type(module_t, module, vis.clone(), Const, Some(MODULE_TYPE));
             self.register_builtin_type(
                 mono(MUTABLE_OBJ),

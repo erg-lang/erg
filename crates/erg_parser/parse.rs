@@ -1887,11 +1887,7 @@ impl Parser {
         let mut call_or_acc = self.try_reduce_acc_chain(acc, in_type_args)?;
         while let Some(res) = self.opt_reduce_args(in_type_args) {
             let args = res.map_err(|_| self.stack_dec(fn_name!()))?;
-            let (receiver, attr_name) = match call_or_acc {
-                Expr::Accessor(Accessor::Attr(attr)) => (*attr.obj, Some(attr.ident)),
-                other => (other, None),
-            };
-            let call = Call::new(receiver, attr_name, args);
+            let call = call_or_acc.call(args);
             call_or_acc = Expr::Call(call);
         }
         debug_exit_info!(self);

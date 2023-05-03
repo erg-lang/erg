@@ -5,6 +5,7 @@ use std::ops::Not;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
+use erg_common::consts::PYTHON_MODE;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_json::Value;
@@ -227,7 +228,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
     }
 
     pub const fn mode(&self) -> &str {
-        if cfg!(feature = "py_compat") {
+        if PYTHON_MODE {
             "pylyzer"
         } else {
             "erg"

@@ -348,7 +348,7 @@ impl Parser {
                     self.errs.push(err);
                     return Err(());
                 };
-                let bound = TypeBoundSpec::non_default(lhs.name.into_token(), tasc.t_spec);
+                let bound = TypeBoundSpec::non_default(lhs.name, tasc.t_spec);
                 Ok(bound)
             }
             Expr::Accessor(Accessor::Ident(ident)) => {

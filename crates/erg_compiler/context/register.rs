@@ -6,6 +6,7 @@ use std::process::{Command, Stdio};
 use std::time::SystemTime;
 
 use erg_common::config::ErgMode;
+use erg_common::consts::PYTHON_MODE;
 use erg_common::env::erg_pystd_path;
 use erg_common::erg_util::BUILTIN_ERG_MODS;
 use erg_common::levenshtein::get_similar_name;
@@ -16,8 +17,11 @@ use erg_common::triple::Triple;
 use erg_common::Str;
 use erg_common::{get_hash, log, set};
 
-use ast::{ConstIdentifier, Decorator, DefId, Identifier, OperationKind, PolyTypeSpec, VarName};
-use erg_parser::ast::{self, PreDeclTypeSpec};
+use ast::{
+    ConstIdentifier, Decorator, DefId, Identifier, OperationKind, PolyTypeSpec, PreDeclTypeSpec,
+    VarName,
+};
+use erg_parser::ast;
 
 use crate::ty::constructors::{
     free_var, func, func0, func1, proc, ref_, ref_mut, unknown_len_array_t, v_enum,
@@ -256,7 +260,7 @@ impl Context {
             self.erg_to_py_names
                 .insert(ident.inspect().clone(), py_name.clone());
         }
-        let ident = if cfg!(feature = "py_compat") && py_name.is_some() {
+        let ident = if PYTHON_MODE && py_name.is_some() {
             let mut symbol = ident.name.clone().into_token();
             symbol.content = py_name.clone().unwrap();
             Identifier::new(ident.vis.clone(), VarName::new(symbol))
@@ -344,7 +348,7 @@ impl Context {
         opt_decl_t: Option<&ParamTy>,
         kind: ParamKind,
     ) -> TyCheckResult<()> {
-        let vis = if cfg!(feature = "py_compat") {
+        let vis = if PYTHON_MODE {
             Visibility::BUILTIN_PUBLIC
         } else {
             Visibility::private(self.name.clone())
@@ -549,6 +553,19 @@ impl Context {
                 log!(err "{other}");
                 unreachable!("{other}")
             }
+        }
+    }
+
+    pub(crate) fn assign_bounds(&mut self, tv_cache: &TyVarCache) {
+        for tyvar in tv_cache.tyvar_instances.keys() {
+            let vi =
+                VarInfo::nd_parameter(Type::Type, self.absolutize(tyvar.loc()), self.name.clone());
+            self.locals.insert(tyvar.clone(), vi);
+        }
+        for (typaram, tp) in tv_cache.typaram_instances.iter() {
+            let t = self.get_tp_t(tp).unwrap_or(Type::Obj);
+            let vi = VarInfo::nd_parameter(t, self.absolutize(typaram.loc()), self.name.clone());
+            self.locals.insert(typaram.clone(), vi);
         }
     }
 
@@ -2003,48 +2020,53 @@ impl Context {
         Ok(())
     }
 
-    fn inc_ref_acc(&self, acc: &ast::Accessor, namespace: &Context) {
+    pub(crate) fn inc_ref<L: Locational>(&self, vi: &VarInfo, name: &L, namespace: &Context) {
+        self.index().inc_ref(vi, namespace.absolutize(name.loc()));
+    }
+
+    pub(crate) fn inc_ref_acc(&self, acc: &ast::Accessor, namespace: &Context) -> bool {
         match acc {
             ast::Accessor::Ident(ident) => self.inc_ref_local(ident, namespace),
             ast::Accessor::Attr(attr) => {
                 self.inc_ref_expr(&attr.obj, namespace);
                 if let Ok(ctxs) = self.get_singular_ctxs(&attr.obj, self) {
-                    if let Some(first) = ctxs.first() {
-                        first.inc_ref_local(&attr.ident, namespace);
+                    for ctx in ctxs {
+                        if ctx.inc_ref_local(&attr.ident, namespace) {
+                            return true;
+                        }
                     }
                 }
+                false
             }
-            _ => {}
+            _ => false,
         }
     }
 
-    fn inc_ref_expr(&self, expr: &ast::Expr, namespace: &Context) {
-        #[allow(clippy::single_match)]
-        match expr {
-            ast::Expr::Accessor(acc) => self.inc_ref_acc(acc, namespace),
-            // TODO:
-            _ => {}
-        }
-    }
-
-    pub(crate) fn inc_ref_predecl_typespec(&self, predecl: &PreDeclTypeSpec, namespace: &Context) {
+    pub(crate) fn inc_ref_predecl_typespec(
+        &self,
+        predecl: &PreDeclTypeSpec,
+        namespace: &Context,
+    ) -> bool {
         match predecl {
             PreDeclTypeSpec::Mono(mono) => self.inc_ref_mono_typespec(mono, namespace),
             PreDeclTypeSpec::Poly(poly) => self.inc_ref_poly_typespec(poly, namespace),
             PreDeclTypeSpec::Attr { namespace: obj, t } => {
                 self.inc_ref_expr(obj, namespace);
                 if let Ok(ctxs) = self.get_singular_ctxs(obj, self) {
-                    if let Some(first) = ctxs.first() {
-                        first.inc_ref_mono_typespec(t, namespace);
+                    for ctx in ctxs {
+                        if ctx.inc_ref_mono_typespec(t, namespace) {
+                            return true;
+                        }
                     }
                 }
+                false
             }
             // TODO:
-            _ => {}
+            _ => false,
         }
     }
 
-    pub(crate) fn inc_ref_mono_typespec(&self, ident: &Identifier, namespace: &Context) {
+    fn inc_ref_mono_typespec(&self, ident: &Identifier, namespace: &Context) -> bool {
         if let Triple::Ok(vi) = self.rec_get_var_info(
             ident,
             crate::compile::AccessKind::Name,
@@ -2052,22 +2074,18 @@ impl Context {
             self,
         ) {
             self.inc_ref(&vi, &ident.name, namespace);
+            true
+        } else {
+            false
         }
     }
 
-    /// TODO:
-    pub(crate) fn inc_ref_poly_typespec(&self, poly: &PolyTypeSpec, namespace: &Context) {
-        if let Triple::Ok(vi) = self.rec_get_var_info(
-            &poly.ident,
-            crate::compile::AccessKind::Name,
-            &self.cfg.input,
-            self,
-        ) {
-            self.inc_ref(&vi, &poly.ident.name, namespace);
-        }
+    /// TODO: params
+    fn inc_ref_poly_typespec(&self, poly: &PolyTypeSpec, namespace: &Context) -> bool {
+        self.inc_ref_acc(&poly.acc.clone().downcast(), namespace)
     }
 
-    pub(crate) fn inc_ref_local(&self, local: &ConstIdentifier, namespace: &Context) {
+    fn inc_ref_local(&self, local: &ConstIdentifier, namespace: &Context) -> bool {
         if let Triple::Ok(vi) = self.rec_get_var_info(
             local,
             crate::compile::AccessKind::Name,
@@ -2075,10 +2093,18 @@ impl Context {
             self,
         ) {
             self.inc_ref(&vi, &local.name, namespace);
+            true
+        } else {
+            &local.inspect()[..] == "module" || &local.inspect()[..] == "global"
         }
     }
 
-    pub fn inc_ref<L: Locational>(&self, vi: &VarInfo, name: &L, namespace: &Context) {
-        self.index().inc_ref(vi, namespace.absolutize(name.loc()));
+    fn inc_ref_expr(&self, expr: &ast::Expr, namespace: &Context) -> bool {
+        #[allow(clippy::single_match)]
+        match expr {
+            ast::Expr::Accessor(acc) => self.inc_ref_acc(acc, namespace),
+            // TODO:
+            _ => false,
+        }
     }
 }

@@ -10,7 +10,7 @@ use ast::{
     NonDefaultParamSignature, ParamTySpec, PolyTypeSpec, PreDeclTypeSpec, TypeBoundSpec,
     TypeBoundSpecs, TypeSpec,
 };
-use erg_parser::ast::{self, ConstArray, Identifier, VisModifierSpec, VisRestriction};
+use erg_parser::ast::{self, ConstArray, Identifier, VarName, VisModifierSpec, VisRestriction};
 use erg_parser::token::TokenKind;
 use erg_parser::Parser;
 
@@ -124,7 +124,7 @@ impl Context {
                 // TODO: other than type `Type`
                 let constr = Constraint::new_type_of(Type);
                 let tv = named_free_var(name.inspect().clone(), self.level, constr);
-                tv_cache.push_or_init_tyvar(name.inspect(), &tv, self);
+                tv_cache.push_or_init_tyvar(name, &tv, self);
                 Ok(())
             }
             TypeBoundSpec::NonDefault { lhs, spec } => {
@@ -146,10 +146,10 @@ impl Context {
                 };
                 if constr.get_sub_sup().is_none() {
                     let tp = TyParam::named_free_var(lhs.inspect().clone(), self.level, constr);
-                    tv_cache.push_or_init_typaram(lhs.inspect(), &tp, self);
+                    tv_cache.push_or_init_typaram(lhs, &tp, self);
                 } else {
                     let tv = named_free_var(lhs.inspect().clone(), self.level, constr);
-                    tv_cache.push_or_init_tyvar(lhs.inspect(), &tv, self);
+                    tv_cache.push_or_init_tyvar(lhs, &tv, self);
                 }
                 Ok(())
             }
@@ -536,7 +536,7 @@ impl Context {
                     Ok(typ.clone())
                 } else if not_found_is_qvar {
                     let tyvar = named_free_var(Str::rc(other), self.level, Constraint::Uninited);
-                    tmp_tv_cache.push_or_init_tyvar(ident.inspect(), &tyvar, self);
+                    tmp_tv_cache.push_or_init_tyvar(&ident.name, &tyvar, self);
                     Ok(tyvar)
                 } else {
                     Err(TyCheckErrors::from(TyCheckError::no_type_error(
@@ -559,7 +559,7 @@ impl Context {
         tmp_tv_cache: &mut TyVarCache,
         not_found_is_qvar: bool,
     ) -> TyCheckResult<Type> {
-        match &poly_spec.ident.inspect()[..] {
+        match poly_spec.acc.to_string().trim_start_matches("::") {
             "Array" => {
                 // TODO: kw
                 let mut args = poly_spec.args.pos_args();
@@ -647,13 +647,11 @@ impl Context {
                 Ok(t.structuralize())
             }
             other => {
-                let ctx = if let Some((_, ctx)) = self.get_type(&Str::rc(other)) {
-                    ctx
-                } else {
+                let Some((typ, ctx)) = self.get_type(&Str::rc(other)) else {
                     return Err(TyCheckErrors::from(TyCheckError::no_type_error(
                         self.cfg.input.clone(),
                         line!() as usize,
-                        poly_spec.ident.loc(),
+                        poly_spec.acc.loc(),
                         self.caused_by(),
                         other,
                         self.get_similar_name(other),
@@ -680,7 +678,8 @@ impl Context {
                                 self.level,
                                 Constraint::Uninited,
                             );
-                            tmp_tv_cache.push_or_init_typaram(&name, &tp, self);
+                            let varname = VarName::from_str(name);
+                            tmp_tv_cache.push_or_init_typaram(&varname, &tp, self);
                             Ok(tp)
                         } else {
                             Err(e)
@@ -711,7 +710,7 @@ impl Context {
                     }
                 }
                 // FIXME: non-builtin
-                Ok(poly(Str::rc(other), new_params))
+                Ok(poly(typ.qual_name(), new_params))
             }
         }
     }
@@ -723,6 +722,7 @@ impl Context {
         tmp_tv_cache: &mut TyVarCache,
         not_found_is_qvar: bool,
     ) -> TyCheckResult<TyParam> {
+        self.inc_ref_acc(&acc.clone().downcast(), self);
         match acc {
             ast::ConstAccessor::Attr(attr) => {
                 let obj = self.instantiate_const_expr(
@@ -734,14 +734,7 @@ impl Context {
                 Ok(obj.proj(attr.name.inspect()))
             }
             ast::ConstAccessor::Local(local) => {
-                self.inc_ref_local(local, self);
-                self.instantiate_local(
-                    local.inspect(),
-                    erased_idx,
-                    tmp_tv_cache,
-                    local,
-                    not_found_is_qvar,
-                )
+                self.instantiate_local(local, erased_idx, tmp_tv_cache, local, not_found_is_qvar)
             }
             other => type_feature_error!(
                 self,
@@ -753,13 +746,13 @@ impl Context {
 
     fn instantiate_local(
         &self,
-        name: &Str,
+        name: &Identifier,
         erased_idx: Option<(&Context, usize)>,
         tmp_tv_cache: &mut TyVarCache,
         loc: &impl Locational,
         not_found_is_qvar: bool,
     ) -> TyCheckResult<TyParam> {
-        if &name[..] == "_" {
+        if &name.inspect()[..] == "_" {
             let t = if let Some((ctx, i)) = erased_idx {
                 let param = ctx.params.get(i).ok_or_else(|| {
                     TyCheckErrors::from(TyCheckError::too_many_args_error(
@@ -779,15 +772,15 @@ impl Context {
             };
             return Ok(TyParam::erased(t));
         }
-        if let Some(tp) = self.get_tp_from_tv_cache(name, tmp_tv_cache) {
+        if let Some(tp) = self.get_tp_from_tv_cache(name.inspect(), tmp_tv_cache) {
             return Ok(tp);
         }
-        if let Some(value) = self.rec_get_const_obj(name) {
+        if let Some(value) = self.rec_get_const_obj(name.inspect()) {
             return Ok(TyParam::Value(value.clone()));
         }
         if not_found_is_qvar {
-            let tyvar = named_free_var(name.clone(), self.level, Constraint::Uninited);
-            tmp_tv_cache.push_or_init_tyvar(name, &tyvar, self);
+            let tyvar = named_free_var(name.inspect().clone(), self.level, Constraint::Uninited);
+            tmp_tv_cache.push_or_init_tyvar(&name.name, &tyvar, self);
             return Ok(TyParam::t(tyvar));
         }
         Err(TyCheckErrors::from(TyCheckError::no_var_error(
@@ -795,8 +788,8 @@ impl Context {
             line!() as usize,
             loc.loc(),
             self.caused_by(),
-            name,
-            self.get_similar_name(name),
+            name.inspect(),
+            self.get_similar_name(name.inspect()),
         )))
     }
 
@@ -814,7 +807,6 @@ impl Context {
         }
         match expr {
             ast::ConstExpr::Lit(lit) => Ok(TyParam::Value(self.eval_lit(lit)?)),
-            // TODO: inc_ref
             ast::ConstExpr::Accessor(acc) => {
                 self.instantiate_acc(acc, erased_idx, tmp_tv_cache, not_found_is_qvar)
             }

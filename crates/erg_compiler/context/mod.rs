@@ -20,6 +20,7 @@ use std::option::Option; // conflicting to Type::Option
 use std::path::{Path, PathBuf};
 
 use erg_common::config::ErgConfig;
+use erg_common::consts::PYTHON_MODE;
 use erg_common::dict::Dict;
 use erg_common::error::Location;
 use erg_common::impl_display_from_debug;
@@ -68,7 +69,7 @@ impl TryFrom<&str> for ControlKind {
         match s {
             "if" | "if!" => Ok(ControlKind::If),
             "while!" => Ok(ControlKind::While),
-            "while" if cfg!(feature = "py_compat") => Ok(ControlKind::While),
+            "while" if PYTHON_MODE => Ok(ControlKind::While),
             "for" | "for!" => Ok(ControlKind::For),
             "match" | "match!" => Ok(ControlKind::Match),
             "try" | "try!" => Ok(ControlKind::Try),
@@ -981,6 +982,18 @@ impl Context {
         }
     }
 
+    pub(crate) fn get_module(&self) -> Option<&Context> {
+        self.get_outer()
+            .and_then(|outer| {
+                if outer.kind == ContextKind::Module {
+                    Some(outer)
+                } else {
+                    outer.get_module()
+                }
+            })
+            .or(Some(self))
+    }
+
     /// This method is intended to be called __only__ in the top-level module.
     /// `.cfg` is not initialized and is used around.
     pub fn initialize(&mut self) {
@@ -1016,6 +1029,9 @@ impl Context {
         };
         log!(info "{}: current namespace: {name}", fn_name!());
         self.outer = Some(Box::new(mem::take(self)));
+        if let Some(tv_cache) = tv_cache.as_ref() {
+            self.assign_bounds(tv_cache)
+        };
         self.cfg = self.get_outer().unwrap().cfg.clone();
         self.shared = self.get_outer().unwrap().shared.clone();
         self.tv_cache = tv_cache;

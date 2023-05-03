@@ -1,3 +1,4 @@
+use erg_common::consts::{DEBUG_MODE, ERG_MODE, PYTHON_MODE};
 #[allow(unused_imports)]
 use erg_common::log;
 
@@ -14,7 +15,7 @@ use Mutability::*;
 
 impl Context {
     pub(super) fn init_builtin_funcs(&mut self) {
-        let vis = if cfg!(feature = "py_compat") {
+        let vis = if PYTHON_MODE {
             Visibility::BUILTIN_PUBLIC
         } else {
             Visibility::BUILTIN_PRIVATE
@@ -347,13 +348,9 @@ impl Context {
         self.register_builtin_py_impl(FUNC_STR, t_str, Immutable, vis.clone(), Some(FUNC_STR__));
         self.register_builtin_py_impl(FUNC_SUM, t_sum, Immutable, vis.clone(), Some(FUNC_SUM));
         self.register_builtin_py_impl(FUNC_ZIP, t_zip, Immutable, vis.clone(), Some(FUNC_ZIP));
-        let name = if cfg!(feature = "py_compat") {
-            FUNC_INT
-        } else {
-            FUNC_INT__
-        };
+        let name = if PYTHON_MODE { FUNC_INT } else { FUNC_INT__ };
         self.register_builtin_py_impl(FUNC_INT, t_int, Immutable, vis.clone(), Some(name));
-        if cfg!(feature = "debug") {
+        if DEBUG_MODE {
             self.register_builtin_py_impl(
                 PY,
                 t_pyimport.clone(),
@@ -362,7 +359,7 @@ impl Context {
                 Some(FUNDAMENTAL_IMPORT),
             );
         }
-        if !cfg!(feature = "py_compat") {
+        if ERG_MODE {
             self.register_builtin_py_impl(FUNC_IF, t_if, Immutable, vis.clone(), Some(FUNC_IF__));
             self.register_builtin_py_impl(
                 FUNC_DISCARD,
@@ -467,7 +464,7 @@ impl Context {
     }
 
     pub(super) fn init_builtin_const_funcs(&mut self) {
-        let vis = if cfg!(feature = "py_compat") {
+        let vis = if PYTHON_MODE {
             Visibility::BUILTIN_PUBLIC
         } else {
             Visibility::BUILTIN_PRIVATE

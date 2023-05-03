@@ -68,6 +68,40 @@ if x.is_zero(), do:
 assert x == 0
 ```
 
+シャドーイングが行われた場合でも、「完全修飾名」で外側の変数を参照することが出来ます。
+完全修飾名とは、変数の属する名前空間を明示的に指定した形の名前のことです。
+
+```erg
+x = 0
+if True, do:
+    x = 1
+    assert x == 1
+    assert module::x == 0
+
+C = Class()
+    x = 2
+    f() =
+        x = 3
+        assert C::x == 2
+        assert C::f::x == 3
+```
+
+モジュール直下で定義された変数は、`module`という特殊な名前空間に属します。なので、`module::x`などのように参照できます。
+
+特殊な名前空間には、モジュール自身を指す`module`と、グローバル名前空間を指す`global`があります。
+
+```erg
+print! = None
+
+global::print! "Hello, world!"
+```
+
+これらの名前空間はシャドーイングすることが出来ません。よって、`module::x`や`global::print!`などと指定すれば、それは常に同じものを指します。
+
+```erg,compile_fail
+global = None # ERR, cannot shadow global namespace
+```
+
 ## 定数
 
 定数も代数の一種です。識別子を大文字で始めると定数として扱われます。一度定義したら変わらないので、定数と呼ばれます。

@@ -1437,15 +1437,14 @@ impl ConstSubscript {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum ConstAccessor {
     Local(ConstIdentifier),
-    SelfDot(ConstIdentifier),
     Attr(ConstAttribute),
     TupleAttr(ConstTupleAttribute),
     Subscr(ConstSubscript),
 }
 
-impl_nested_display_for_enum!(ConstAccessor; Local, SelfDot, Attr, TupleAttr, Subscr);
+impl_nested_display_for_enum!(ConstAccessor; Local, Attr, TupleAttr, Subscr);
 impl_display_from_nested!(ConstAccessor);
-impl_locational_for_enum!(ConstAccessor; Local, SelfDot, Attr, TupleAttr, Subscr);
+impl_locational_for_enum!(ConstAccessor; Local, Attr, TupleAttr, Subscr);
 
 impl ConstAccessor {
     pub const fn local(symbol: Token) -> Self {
@@ -2165,31 +2164,31 @@ impl ConstArgs {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PolyTypeSpec {
-    pub ident: Identifier,
+    pub acc: ConstAccessor,
     pub args: ConstArgs, // args can be nested (e.g. Vec Vec Int)
 }
 
 impl fmt::Display for PolyTypeSpec {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}({})", self.ident, self.args)
+        write!(f, "{}({})", self.acc, self.args)
     }
 }
 
 impl Locational for PolyTypeSpec {
     fn loc(&self) -> Location {
         if let Some(last) = self.args.kw_args.last() {
-            Location::concat(&self.ident, last)
+            Location::concat(&self.acc, last)
         } else if let Some(last) = self.args.pos_args.last() {
-            Location::concat(&self.ident, last)
+            Location::concat(&self.acc, last)
         } else {
-            self.ident.loc()
+            self.acc.loc()
         }
     }
 }
 
 impl PolyTypeSpec {
-    pub const fn new(ident: Identifier, args: ConstArgs) -> Self {
-        Self { ident, args }
+    pub const fn new(acc: ConstAccessor, args: ConstArgs) -> Self {
+        Self { acc, args }
     }
 }
 
@@ -2252,6 +2251,10 @@ impl PreDeclTypeSpec {
             namespace: Box::new(namespace),
             t,
         }
+    }
+
+    pub fn poly(acc: ConstAccessor, args: ConstArgs) -> Self {
+        Self::Poly(PolyTypeSpec::new(acc, args))
     }
 }
 
@@ -2586,8 +2589,8 @@ impl TypeSpec {
         Self::PreDeclTy(PreDeclTypeSpec::Mono(ident))
     }
 
-    pub fn poly(ident: Identifier, args: ConstArgs) -> Self {
-        Self::PreDeclTy(PreDeclTypeSpec::Poly(PolyTypeSpec::new(ident, args)))
+    pub fn poly(acc: ConstAccessor, args: ConstArgs) -> Self {
+        Self::PreDeclTy(PreDeclTypeSpec::Poly(PolyTypeSpec::new(acc, args)))
     }
 }
 
@@ -2632,11 +2635,11 @@ impl TypeSpecWithOp {
 pub enum TypeBoundSpec {
     Omitted(VarName),
     NonDefault {
-        lhs: Token,
+        lhs: VarName,
         spec: TypeSpecWithOp,
     },
     WithDefault {
-        lhs: Token,
+        lhs: VarName,
         spec: Box<TypeSpecWithOp>,
         default: ConstExpr,
     }, // e.g. S: Show := Str
@@ -2646,9 +2649,9 @@ impl NestedDisplay for TypeBoundSpec {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         match self {
             Self::Omitted(name) => write!(f, "{name}"),
-            Self::NonDefault { lhs, spec } => write!(f, "{}{spec}", lhs.content),
+            Self::NonDefault { lhs, spec } => write!(f, "{lhs} {spec}"),
             Self::WithDefault { lhs, spec, default } => {
-                write!(f, "{}{} := {}", lhs.content, spec, default)
+                write!(f, "{lhs} {spec} := {default}")
             }
         }
     }
@@ -2667,8 +2670,16 @@ impl Locational for TypeBoundSpec {
 }
 
 impl TypeBoundSpec {
-    pub fn non_default(lhs: Token, spec: TypeSpecWithOp) -> Self {
+    pub fn non_default(lhs: VarName, spec: TypeSpecWithOp) -> Self {
         Self::NonDefault { lhs, spec }
+    }
+
+    pub fn default(lhs: VarName, spec: TypeSpecWithOp, default: ConstExpr) -> Self {
+        Self::WithDefault {
+            lhs,
+            spec: Box::new(spec),
+            default,
+        }
     }
 }
 

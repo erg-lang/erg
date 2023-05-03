@@ -130,7 +130,7 @@ impl ASTSemanticState {
 
     fn gen_from_poly_typespec(&mut self, t_spec: PolyTypeSpec) -> Vec<SemanticToken> {
         let mut tokens = vec![];
-        let token = self.gen_token(t_spec.ident.name.loc(), SemanticTokenType::TYPE);
+        let token = self.gen_token(t_spec.acc.loc(), SemanticTokenType::TYPE);
         tokens.push(token);
         tokens
     }

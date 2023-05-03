@@ -13,6 +13,7 @@ mod traits;
 use std::path::PathBuf;
 
 use erg_common::config::ErgConfig;
+use erg_common::consts::{DEBUG_MODE, ERG_MODE, PYTHON_MODE};
 use erg_common::dict;
 use erg_common::error::Location;
 use erg_common::fresh::fresh_varname;
@@ -501,7 +502,7 @@ impl Context {
         vis: Visibility,
         py_name: Option<&'static str>,
     ) {
-        if cfg!(feature = "debug") {
+        if DEBUG_MODE {
             if let Type::Subr(subr) = &t {
                 if subr.has_qvar() {
                     panic!("not quantified subr: {subr}");
@@ -513,7 +514,7 @@ impl Context {
         } else {
             None
         };
-        let name = if cfg!(feature = "py_compat") {
+        let name = if PYTHON_MODE {
             if let Some(py_name) = py_name {
                 VarName::from_static(py_name)
             } else {
@@ -603,7 +604,7 @@ impl Context {
         vis: Visibility,
         py_name: Option<&'static str>,
     ) {
-        let name = if cfg!(feature = "py_compat") {
+        let name = if PYTHON_MODE {
             if let Some(py_name) = py_name {
                 VarName::from_static(py_name)
             } else {
@@ -622,7 +623,7 @@ impl Context {
         py_name: Option<&'static str>,
         lineno: u32,
     ) {
-        let name = if cfg!(feature = "py_compat") {
+        let name = if PYTHON_MODE {
             if let Some(py_name) = py_name {
                 VarName::from_static(py_name)
             } else {
@@ -631,7 +632,7 @@ impl Context {
         } else {
             VarName::from_static(name)
         };
-        let vis = if cfg!(feature = "py_compat") || &self.name[..] != "<builtins>" {
+        let vis = if PYTHON_MODE || &self.name[..] != "<builtins>" {
             Visibility::BUILTIN_PUBLIC
         } else {
             Visibility::BUILTIN_PRIVATE
@@ -804,7 +805,7 @@ impl Context {
                 .map(|tp| ParamTy::Pos(tp_enum(self.get_tp_t(&tp).unwrap_or(Obj), set! { tp })))
                 .collect();
             let meta_t = func(params, None, vec![], v_enum(set! { val.clone() })).quantify();
-            if !cfg!(feature = "py_compat") {
+            if ERG_MODE {
                 self.locals.insert(
                     name.clone(),
                     VarInfo::new(
@@ -897,7 +898,7 @@ impl Context {
     }
 
     fn init_builtin_consts(&mut self) {
-        let vis = if cfg!(feature = "py_compat") {
+        let vis = if PYTHON_MODE {
             Visibility::BUILTIN_PUBLIC
         } else {
             Visibility::BUILTIN_PRIVATE
@@ -956,7 +957,7 @@ impl Context {
         ctx.init_builtin_funcs();
         ctx.init_builtin_const_funcs();
         ctx.init_builtin_procs();
-        if cfg!(feature = "py_compat") {
+        if PYTHON_MODE {
             ctx.init_py_compat_builtin_operators();
         } else {
             ctx.init_builtin_operators();

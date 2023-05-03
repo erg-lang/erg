@@ -62,6 +62,40 @@ if x.is_zero(), do:
 assert x == 0
 ```
 
+Even when shadowing is performed, you can still refer to the outer variable by its "fully qualified name".
+A fully qualified name is a form of name that explicitly specifies the namespace to which the variable belongs.
+
+```erg
+x = 0
+if True, do: if
+    x = 1
+    assert x == 1
+    assert module::x == 0
+
+C = Class()
+    x = 2
+    f() =
+        x = 3
+        assert C::x == 2
+        assert C::f::x == 3
+```
+
+Variables defined directly under a module belong to a special namespace called `module`. So you can refer to it as `module::x` and so on.
+
+The special namespace includes `module`, which refers to the module itself, and `global`, which refers to the global namespace.
+
+```erg
+print! = None
+
+global::print! "Hello, world!"
+```
+
+These namespaces cannot be shadowed. Thus, if you specify ``module::x``, ``global::print!``, etc., it will always point to the same object.
+
+```erg,compile_fail
+global = None # ERR, cannot shadow the global namespace
+```
+
 ## Constants
 
 Constants are also a type of algebra. If you start an identifier with a capital letter, it is treated as a constant. They are called constants because once defined, they do not change.

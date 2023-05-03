@@ -1,3 +1,4 @@
+use erg_common::consts::ERG_MODE;
 use erg_common::traits::Locational;
 use erg_common::Str;
 use erg_compiler::erg_parser::token::Token;
@@ -25,7 +26,7 @@ impl<'a> HIRVisitor<'a> {
             hir,
             file_cache,
             uri,
-            strict_cmp: !cfg!(feature = "py_compat"),
+            strict_cmp: ERG_MODE,
         }
     }
 

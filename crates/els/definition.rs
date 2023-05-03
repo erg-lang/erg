@@ -1,3 +1,4 @@
+use erg_common::consts::PYTHON_MODE;
 use erg_common::traits::{Locational, Stream};
 use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::context::register::PylyzerStatus;
@@ -86,7 +87,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                             match (&vi.def_loc.module, util::loc_to_range(vi.def_loc.loc)) {
                                 (Some(path), Some(range)) => {
                                     let def_uri = NormalizedUrl::try_from(path.as_path()).unwrap();
-                                    let def_file = if cfg!(feature = "py_compat") {
+                                    let def_file = if PYTHON_MODE {
                                         let header = self
                                             .file_cache
                                             .get_line(&def_uri, 0)

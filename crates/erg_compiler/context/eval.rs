@@ -1372,7 +1372,8 @@ impl Context {
                     t.clone()
                 } else {
                     let tv = Type::FreeVar(new_fv);
-                    tv_cache.push_or_init_tyvar(&name, &tv, self);
+                    let varname = VarName::from_str(name.clone());
+                    tv_cache.push_or_init_tyvar(&varname, &tv, self);
                     tv
                 }
             }
@@ -1397,7 +1398,8 @@ impl Context {
                     tp.clone()
                 } else {
                     let tp = TyParam::FreeVar(new_fv);
-                    tv_cache.push_or_init_typaram(&name, &tp, self);
+                    let varname = VarName::from_str(name.clone());
+                    tv_cache.push_or_init_typaram(&varname, &tp, self);
                     tp
                 }
             }

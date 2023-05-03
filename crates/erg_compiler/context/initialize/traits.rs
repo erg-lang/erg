@@ -21,7 +21,7 @@ impl Context {
     // 型境界はすべて各サブルーチンで定義する
     // push_subtype_boundなどはユーザー定義APIの型境界決定のために使用する
     pub(super) fn init_builtin_traits(&mut self) {
-        let vis = if cfg!(feature = "py_compat") {
+        let vis = if PYTHON_MODE {
             Visibility::BUILTIN_PUBLIC
         } else {
             Visibility::BUILTIN_PRIVATE
