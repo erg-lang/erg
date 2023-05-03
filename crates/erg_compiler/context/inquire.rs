@@ -2729,7 +2729,7 @@ impl Context {
             Some((t, ctx))
         } else if let Some(value) = self.consts.get(name) {
             value
-                .as_type()
+                .as_type(self)
                 .and_then(|typ_obj| self.get_nominal_type_ctx(typ_obj.typ()))
         } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
             outer.rec_local_get_type(name)

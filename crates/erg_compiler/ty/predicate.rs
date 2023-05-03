@@ -248,7 +248,8 @@ impl Predicate {
                 let l = lhs.subject();
                 let r = rhs.subject();
                 if l != r {
-                    todo!()
+                    log!(err "{l:?} != {r:?}");
+                    None
                 } else {
                     l
                 }

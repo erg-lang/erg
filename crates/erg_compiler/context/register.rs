@@ -2082,7 +2082,7 @@ impl Context {
 
     /// TODO: params
     fn inc_ref_poly_typespec(&self, poly: &PolyTypeSpec, namespace: &Context) -> bool {
-        self.inc_ref_acc(&poly.acc.clone().downcast(), namespace)
+        self.inc_ref_acc(&poly.acc.clone().downgrade(), namespace)
     }
 
     fn inc_ref_local(&self, local: &ConstIdentifier, namespace: &Context) -> bool {

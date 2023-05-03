@@ -1373,8 +1373,8 @@ impl ConstAttribute {
         }
     }
 
-    pub fn downcast(self) -> Attribute {
-        Attribute::new(self.obj.downcast(), self.name)
+    pub fn downgrade(self) -> Attribute {
+        Attribute::new(self.obj.downgrade(), self.name)
     }
 }
 
@@ -1462,12 +1462,12 @@ impl ConstAccessor {
         Self::Subscr(ConstSubscript::new(obj, index))
     }
 
-    pub fn downcast(self) -> Accessor {
+    pub fn downgrade(self) -> Accessor {
         match self {
             Self::Local(local) => Accessor::Ident(local),
-            Self::Attr(attr) => Accessor::Attr(attr.downcast()),
-            // Self::TupleAttr(attr) => Accessor::TupleAttr(attr.downcast()),
-            // Self::Subscr(subscr) => Accessor::Subscr(subscr.downcast()),
+            Self::Attr(attr) => Accessor::Attr(attr.downgrade()),
+            // Self::TupleAttr(attr) => Accessor::TupleAttr(attr.downgrade()),
+            // Self::Subscr(subscr) => Accessor::Subscr(subscr.downgrade()),
             _ => todo!(),
         }
     }
@@ -1484,10 +1484,10 @@ impl_display_from_nested!(ConstArray);
 impl_locational_for_enum!(ConstArray; Normal, WithLength);
 
 impl ConstArray {
-    pub fn downcast(self) -> Array {
+    pub fn downgrade(self) -> Array {
         match self {
-            Self::Normal(normal) => Array::Normal(normal.downcast()),
-            Self::WithLength(with_length) => Array::WithLength(with_length.downcast()),
+            Self::Normal(normal) => Array::Normal(normal.downgrade()),
+            Self::WithLength(with_length) => Array::WithLength(with_length.downgrade()),
         }
     }
 }
@@ -1523,8 +1523,8 @@ impl ConstNormalArray {
         }
     }
 
-    pub fn downcast(self) -> NormalArray {
-        NormalArray::new(self.l_sqbr, self.r_sqbr, self.elems.downcast())
+    pub fn downgrade(self) -> NormalArray {
+        NormalArray::new(self.l_sqbr, self.r_sqbr, self.elems.downgrade())
     }
 }
 
@@ -1555,12 +1555,12 @@ impl ConstArrayWithLength {
         }
     }
 
-    pub fn downcast(self) -> ArrayWithLength {
+    pub fn downgrade(self) -> ArrayWithLength {
         ArrayWithLength::new(
             self.l_sqbr,
             self.r_sqbr,
-            PosArg::new(self.elem.downcast()),
-            self.length.downcast(),
+            PosArg::new(self.elem.downgrade()),
+            self.length.downgrade(),
         )
     }
 }
@@ -1590,11 +1590,11 @@ impl ConstSet {
         }
     }
 
-    pub fn downcast(self) -> Set {
+    pub fn downgrade(self) -> Set {
         Set::Normal(NormalSet::new(
             self.l_brace,
             self.r_brace,
-            self.elems.downcast(),
+            self.elems.downgrade(),
         ))
     }
 }
@@ -1619,8 +1619,8 @@ impl ConstKeyValue {
         Self { key, value }
     }
 
-    pub fn downcast(self) -> KeyValue {
-        KeyValue::new(self.key.downcast(), self.value.downcast())
+    pub fn downgrade(self) -> KeyValue {
+        KeyValue::new(self.key.downgrade(), self.value.downgrade())
     }
 }
 
@@ -1649,11 +1649,11 @@ impl ConstDict {
         }
     }
 
-    pub fn downcast(self) -> Dict {
+    pub fn downgrade(self) -> Dict {
         Dict::Normal(NormalDict::new(
             self.l_brace,
             self.r_brace,
-            self.kvs.into_iter().map(|kv| kv.downcast()).collect(),
+            self.kvs.into_iter().map(|kv| kv.downgrade()).collect(),
         ))
     }
 }
@@ -1677,8 +1677,8 @@ impl ConstTuple {
         Self { elems }
     }
 
-    pub fn downcast(self) -> Tuple {
-        Tuple::Normal(NormalTuple::new(self.elems.downcast()))
+    pub fn downgrade(self) -> Tuple {
+        Tuple::Normal(NormalTuple::new(self.elems.downgrade()))
     }
 }
 
@@ -1706,8 +1706,8 @@ impl Locational for ConstBlock {
 impl_stream!(ConstBlock, ConstExpr);
 
 impl ConstBlock {
-    pub fn downcast(self) -> Block {
-        Block::new(self.0.into_iter().map(|e| e.downcast()).collect())
+    pub fn downgrade(self) -> Block {
+        Block::new(self.0.into_iter().map(|e| e.downgrade()).collect())
     }
 }
 
@@ -1725,8 +1725,8 @@ impl ConstDefBody {
         Self { op, block, id }
     }
 
-    pub fn downcast(self) -> DefBody {
-        DefBody::new(self.op, self.block.downcast(), self.id)
+    pub fn downgrade(self) -> DefBody {
+        DefBody::new(self.op, self.block.downgrade(), self.id)
     }
 }
 
@@ -1750,8 +1750,8 @@ impl ConstDef {
         Self { ident, body }
     }
 
-    pub fn downcast(self) -> Def {
-        Def::new(Signature::new_var(self.ident), self.body.downcast())
+    pub fn downgrade(self) -> Def {
+        Def::new(Signature::new_var(self.ident), self.body.downgrade())
     }
 }
 
@@ -1782,8 +1782,8 @@ impl ConstLambda {
         }
     }
 
-    pub fn downcast(self) -> Lambda {
-        Lambda::new(*self.sig, self.op, self.body.downcast(), self.id)
+    pub fn downgrade(self) -> Lambda {
+        Lambda::new(*self.sig, self.op, self.body.downgrade(), self.id)
     }
 }
 
@@ -1817,11 +1817,11 @@ impl ConstRecord {
         }
     }
 
-    pub fn downcast(self) -> Record {
+    pub fn downgrade(self) -> Record {
         Record::Normal(NormalRecord::new(
             self.l_brace,
             self.r_brace,
-            self.attrs.into_iter().map(|d| d.downcast()).collect(),
+            self.attrs.into_iter().map(|d| d.downgrade()).collect(),
         ))
     }
 }
@@ -1851,8 +1851,8 @@ impl ConstBinOp {
         }
     }
 
-    pub fn downcast(self) -> BinOp {
-        BinOp::new(self.op, self.lhs.downcast(), self.rhs.downcast())
+    pub fn downgrade(self) -> BinOp {
+        BinOp::new(self.op, self.lhs.downgrade(), self.rhs.downgrade())
     }
 }
 
@@ -1879,8 +1879,8 @@ impl ConstUnaryOp {
         }
     }
 
-    pub fn downcast(self) -> UnaryOp {
-        UnaryOp::new(self.op, self.expr.downcast())
+    pub fn downgrade(self) -> UnaryOp {
+        UnaryOp::new(self.op, self.expr.downgrade())
     }
 }
 
@@ -1914,8 +1914,8 @@ impl ConstApp {
         Self { acc, args }
     }
 
-    pub fn downcast(self) -> Call {
-        Expr::Accessor(self.acc.downcast()).call(self.args.downcast())
+    pub fn downgrade(self) -> Call {
+        Expr::Accessor(self.acc.downgrade()).call(self.args.downgrade())
     }
 }
 
@@ -1950,8 +1950,8 @@ impl ConstTypeAsc {
         self.t_spec.op.is(TokenKind::SubtypeOf)
     }
 
-    pub fn downcast(self) -> TypeAscription {
-        TypeAscription::new(self.expr.downcast(), *self.t_spec)
+    pub fn downgrade(self) -> TypeAscription {
+        TypeAscription::new(self.expr.downgrade(), *self.t_spec)
     }
 }
 
@@ -1983,21 +1983,21 @@ impl ConstExpr {
         matches!(self, Self::BinOp(_) | Self::UnaryOp(_))
     }
 
-    pub fn downcast(self) -> Expr {
+    pub fn downgrade(self) -> Expr {
         match self {
             Self::Lit(lit) => Expr::Literal(lit),
-            Self::Accessor(acc) => Expr::Accessor(acc.downcast()),
-            Self::App(app) => Expr::Call(app.downcast()),
-            Self::Array(arr) => Expr::Array(arr.downcast()),
-            Self::Set(set) => Expr::Set(set.downcast()),
-            Self::Dict(dict) => Expr::Dict(dict.downcast()),
-            Self::Tuple(tuple) => Expr::Tuple(tuple.downcast()),
-            Self::Record(record) => Expr::Record(record.downcast()),
-            Self::Lambda(lambda) => Expr::Lambda(lambda.downcast()),
-            Self::Def(def) => Expr::Def(def.downcast()),
-            Self::BinOp(binop) => Expr::BinOp(binop.downcast()),
-            Self::UnaryOp(unop) => Expr::UnaryOp(unop.downcast()),
-            Self::TypeAsc(type_asc) => Expr::TypeAscription(type_asc.downcast()),
+            Self::Accessor(acc) => Expr::Accessor(acc.downgrade()),
+            Self::App(app) => Expr::Call(app.downgrade()),
+            Self::Array(arr) => Expr::Array(arr.downgrade()),
+            Self::Set(set) => Expr::Set(set.downgrade()),
+            Self::Dict(dict) => Expr::Dict(dict.downgrade()),
+            Self::Tuple(tuple) => Expr::Tuple(tuple.downgrade()),
+            Self::Record(record) => Expr::Record(record.downgrade()),
+            Self::Lambda(lambda) => Expr::Lambda(lambda.downgrade()),
+            Self::Def(def) => Expr::Def(def.downgrade()),
+            Self::BinOp(binop) => Expr::BinOp(binop.downgrade()),
+            Self::UnaryOp(unop) => Expr::UnaryOp(unop.downgrade()),
+            Self::TypeAsc(type_asc) => Expr::TypeAscription(type_asc.downgrade()),
         }
     }
 }
@@ -2144,18 +2144,18 @@ impl ConstArgs {
         self.kw_args.push(arg);
     }
 
-    pub fn downcast(self) -> Args {
+    pub fn downgrade(self) -> Args {
         let (pos_args, var_args, kw_args, paren) = self.deconstruct();
         Args::new(
             pos_args
                 .into_iter()
-                .map(|arg| PosArg::new(arg.expr.downcast()))
+                .map(|arg| PosArg::new(arg.expr.downgrade()))
                 .collect(),
-            var_args.map(|arg| PosArg::new(arg.expr.downcast())),
+            var_args.map(|arg| PosArg::new(arg.expr.downgrade())),
             kw_args
                 .into_iter()
                 // TODO t_spec
-                .map(|arg| KwArg::new(arg.keyword, None, arg.expr.downcast()))
+                .map(|arg| KwArg::new(arg.keyword, None, arg.expr.downgrade()))
                 .collect(),
             paren,
         )

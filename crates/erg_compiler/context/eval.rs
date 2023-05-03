@@ -1,5 +1,6 @@
 use std::mem;
 
+use erg_common::consts::DEBUG_MODE;
 use erg_common::dict::Dict;
 use erg_common::error::Location;
 #[allow(unused)]
@@ -1247,8 +1248,33 @@ impl Context {
             }
             TyParam::FreeVar(fv) if fv.is_linked() => self.convert_tp_into_type(fv.crack().clone()),
             TyParam::Type(t) => Ok(t.as_ref().clone()),
-            TyParam::Value(v) => Type::try_from(v).map_err(TyParam::Value),
+            TyParam::Value(v) => self.convert_value_into_type(v).map_err(TyParam::Value),
             // TODO: Dict, Set
+            other => Err(other),
+        }
+    }
+
+    pub(crate) fn convert_value_into_type(&self, val: ValueObj) -> Result<Type, ValueObj> {
+        match val {
+            ValueObj::Type(t) => match t {
+                TypeObj::Builtin { t, .. } => Ok(t),
+                TypeObj::Generated(gen) => Ok(gen.into_typ()),
+            },
+            ValueObj::Record(rec) => {
+                let mut fields = dict! {};
+                for (name, val) in rec.into_iter() {
+                    fields.insert(name, self.convert_value_into_type(val)?);
+                }
+                Ok(Type::Record(fields))
+            }
+            ValueObj::Tuple(ts) => {
+                let mut new_ts = vec![];
+                for v in ts.iter() {
+                    new_ts.push(self.convert_value_into_type(v.clone())?);
+                }
+                Ok(tuple_t(new_ts))
+            }
+            ValueObj::Subr(subr) => subr.as_type(self).ok_or(ValueObj::Subr(subr)),
             other => Err(other),
         }
     }
@@ -1353,7 +1379,10 @@ impl Context {
                     Self::undo_substitute_typarams(&quant_sup);
                 }
             } else {
-                todo!()
+                log!(err "{obj}");
+                if DEBUG_MODE {
+                    todo!()
+                }
             }
         }
         None
@@ -1442,7 +1471,15 @@ impl Context {
 
     fn substitute_type(&self, stp: TyParam, qt: Type) -> EvalResult<()> {
         if qt.is_generalized() {
-            let Ok(st) = Type::try_from(stp) else { todo!(); };
+            let st = self.convert_tp_into_type(stp).map_err(|tp| {
+                EvalError::not_a_type_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    ().loc(),
+                    self.caused_by(),
+                    &tp.qual_name().unwrap_or("_".into()),
+                )
+            })?;
             if let Ok(qt) = <&FreeTyVar>::try_from(&qt) {
                 if !st.is_unbound_var() || !st.is_generalized() {
                     qt.undoable_link(&st);
@@ -1450,7 +1487,15 @@ impl Context {
             }
             self.sub_unify(&st, &qt, &(), None)
         } else {
-            let Ok(st) = Type::try_from(stp) else { todo!(); };
+            let st = self.convert_tp_into_type(stp).map_err(|tp| {
+                EvalError::not_a_type_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    ().loc(),
+                    self.caused_by(),
+                    &tp.qual_name().unwrap_or("_".into()),
+                )
+            })?;
             let st = if st.typarams_len() != qt.typarams_len() {
                 let Ok(st) = <&FreeTyVar>::try_from(&st) else { unreachable!() };
                 st.get_sub().unwrap()
@@ -1529,8 +1574,9 @@ impl Context {
                     }
                     let args = ValueArgs::new(pos_args, dict! {});
                     let t = self.call(subr, args, t_loc.loc())?;
-                    let t =
-                        Type::try_from(t).unwrap_or_else(|value| todo!("Type::try_from {value}"));
+                    let t = self
+                        .convert_value_into_type(t)
+                        .unwrap_or_else(|value| todo!("Type::try_from {value}"));
                     return Ok(t);
                 } else {
                     return feature_error!(self, t_loc.loc(), "??");
@@ -1552,7 +1598,8 @@ impl Context {
                         }
                         let args = ValueArgs::new(pos_args, dict! {});
                         let t = self.call(subr, args, t_loc.loc())?;
-                        let t = Type::try_from(t)
+                        let t = self
+                            .convert_value_into_type(t)
                             .unwrap_or_else(|value| todo!("Type::try_from {value}"));
                         return Ok(t);
                     } else {
@@ -1652,7 +1699,7 @@ impl Context {
             TyParam::App { name, args } => self
                 .rec_get_const_obj(&name)
                 .and_then(|v| {
-                    let ty = Type::try_from(v.clone()).ok()?;
+                    let ty = self.convert_value_into_type(v.clone()).ok()?;
                     let instance = self
                         .instantiate_def_type(&ty)
                         .map_err(|err| {
@@ -1771,9 +1818,6 @@ impl Context {
                     false
                 }
             }
-            (TyParam::BinOp { .. }, TyParam::BinOp { .. }) => todo!(),
-            (TyParam::UnaryOp { .. }, TyParam::UnaryOp { .. }) => todo!(),
-            (TyParam::App { .. }, TyParam::App { .. }) => todo!(),
             (TyParam::Mono(m), TyParam::Value(l)) | (TyParam::Value(l), TyParam::Mono(m)) => {
                 if let Some(o) = self.rec_get_const_obj(m) {
                     o == l

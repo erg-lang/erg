@@ -722,7 +722,7 @@ impl Context {
         tmp_tv_cache: &mut TyVarCache,
         not_found_is_qvar: bool,
     ) -> TyCheckResult<TyParam> {
-        self.inc_ref_acc(&acc.clone().downcast(), self);
+        self.inc_ref_acc(&acc.clone().downgrade(), self);
         match acc {
             ast::ConstAccessor::Attr(attr) => {
                 let obj = self.instantiate_const_expr(
@@ -802,7 +802,7 @@ impl Context {
         tmp_tv_cache: &mut TyVarCache,
         not_found_is_qvar: bool,
     ) -> TyCheckResult<TyParam> {
-        if let Ok(value) = self.eval_const_expr(&expr.clone().downcast()) {
+        if let Ok(value) = self.eval_const_expr(&expr.clone().downgrade()) {
             return Ok(TyParam::Value(value));
         }
         match expr {
@@ -1076,7 +1076,7 @@ impl Context {
             TyParam::App { name, args } => Ok(poly(name, args)),
             TyParam::Type(t) => Ok(*t),
             #[allow(clippy::bind_instead_of_map)]
-            TyParam::Value(value) => Type::try_from(value).or_else(|value| {
+            TyParam::Value(value) => self.convert_value_into_type(value).or_else(|value| {
                 type_feature_error!(self, loc.loc(), &format!("instantiate `{value}` as type"))
             }),
             TyParam::Set(set) => {

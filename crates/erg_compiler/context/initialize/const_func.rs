@@ -28,11 +28,11 @@ const BASE_WARN: StyledStr = StyledStr::new("Base", Some(WARN), None);
 pub(crate) fn class_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
     let base = args.remove_left_or_key("Base");
     let impls = args.remove_left_or_key("Impl");
-    let impls = impls.map(|v| v.as_type().unwrap());
+    let impls = impls.map(|v| v.as_type(ctx).unwrap());
     let t = mono(ctx.name.clone());
     match base {
         Some(value) => {
-            if let Some(base) = value.as_type() {
+            if let Some(base) = value.as_type(ctx) {
                 Ok(ValueObj::gen_t(GenTypeObj::class(t, Some(base), impls)))
             } else {
                 let base = StyledString::new(format!("{value}"), Some(ERR), None);
@@ -62,7 +62,7 @@ pub(crate) fn inherit_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResul
             Location::Unknown,
         )
     })?;
-    let Some(sup) = sup.as_type() else {
+    let Some(sup) = sup.as_type(ctx) else {
         let sup_ty = StyledString::new(format!("{sup}"), Some(ERR), None);
         return Err(ErrorCore::new(
             vec![SubMessage::only_loc(Location::Unknown)],
@@ -75,9 +75,9 @@ pub(crate) fn inherit_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResul
         ).into());
     };
     let impls = args.remove_left_or_key("Impl");
-    let impls = impls.map(|v| v.as_type().unwrap());
+    let impls = impls.map(|v| v.as_type(ctx).unwrap());
     let additional = args.remove_left_or_key("Additional");
-    let additional = additional.map(|v| v.as_type().unwrap());
+    let additional = additional.map(|v| v.as_type(ctx).unwrap());
     let t = mono(ctx.name.clone());
     Ok(ValueObj::gen_t(GenTypeObj::inherited(
         t, sup, impls, additional,
@@ -133,7 +133,7 @@ pub(crate) fn trait_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<
             Location::Unknown,
         )
     })?;
-    let Some(req) = req.as_type() else {
+    let Some(req) = req.as_type(ctx) else {
         let req = StyledString::new(format!("{req}"), Some(ERR), None);
         return Err(ErrorCore::new(
             vec![SubMessage::only_loc(Location::Unknown)],
@@ -146,7 +146,7 @@ pub(crate) fn trait_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<
         ).into());
     };
     let impls = args.remove_left_or_key("Impl");
-    let impls = impls.map(|v| v.as_type().unwrap());
+    let impls = impls.map(|v| v.as_type(ctx).unwrap());
     let t = mono(ctx.name.clone());
     Ok(ValueObj::gen_t(GenTypeObj::trait_(t, req, impls)))
 }
@@ -162,7 +162,7 @@ pub(crate) fn patch_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<
             Location::Unknown,
         )
     })?;
-    let Some(base) = base.as_type() else {
+    let Some(base) = base.as_type(ctx) else {
         let base = StyledString::new(format!("{base}"), Some(ERR), None);
         return Err(ErrorCore::new(
             vec![SubMessage::only_loc(Location::Unknown)],
@@ -175,7 +175,7 @@ pub(crate) fn patch_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<
         ).into());
     };
     let impls = args.remove_left_or_key("Impl");
-    let impls = impls.map(|v| v.as_type().unwrap());
+    let impls = impls.map(|v| v.as_type(ctx).unwrap());
     let t = mono(ctx.name.clone());
     Ok(ValueObj::gen_t(GenTypeObj::patch(t, base, impls)))
 }
@@ -191,7 +191,7 @@ pub(crate) fn subsume_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResul
             Location::Unknown,
         )
     })?;
-    let Some(sup) = sup.as_type() else {
+    let Some(sup) = sup.as_type(ctx) else {
         let sup = StyledString::new(format!("{sup}"), Some(ERR), None);
         return Err(ErrorCore::new(
             vec![SubMessage::only_loc(Location::Unknown)],
@@ -204,16 +204,16 @@ pub(crate) fn subsume_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResul
         ).into());
     };
     let impls = args.remove_left_or_key("Impl");
-    let impls = impls.map(|v| v.as_type().unwrap());
+    let impls = impls.map(|v| v.as_type(ctx).unwrap());
     let additional = args.remove_left_or_key("Additional");
-    let additional = additional.map(|v| v.as_type().unwrap());
+    let additional = additional.map(|v| v.as_type(ctx).unwrap());
     let t = mono(ctx.name.clone());
     Ok(ValueObj::gen_t(GenTypeObj::subsumed(
         t, sup, impls, additional,
     )))
 }
 
-pub(crate) fn structural_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<ValueObj> {
+pub(crate) fn structural_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
     let type_ = args.remove_left_or_key("Type").ok_or_else(|| {
         ErrorCore::new(
             vec![SubMessage::only_loc(Location::Unknown)],
@@ -223,7 +223,7 @@ pub(crate) fn structural_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueR
             Location::Unknown,
         )
     })?;
-    let Some(base) = type_.as_type() else {
+    let Some(base) = type_.as_type(ctx) else {
         let type_ = StyledString::new(format!("{type_}"), Some(ERR), None);
         return Err(ErrorCore::new(
             vec![SubMessage::only_loc(Location::Unknown)],
@@ -350,45 +350,60 @@ pub(crate) fn __dict_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueR
 }
 
 /// `{Str: Int, Int: Float}.keys() == DictKeys(Str or Int)`
-pub(crate) fn dict_keys(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<ValueObj> {
+pub(crate) fn dict_keys(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
     let slf = args.remove_left_or_key("Self").unwrap();
     let slf = enum_unwrap!(slf, ValueObj::Dict);
     let slf = slf
         .into_iter()
-        .map(|(k, v)| (Type::try_from(k).unwrap(), Type::try_from(v).unwrap()))
+        .map(|(k, v)| {
+            (
+                ctx.convert_value_into_type(k).unwrap(),
+                ctx.convert_value_into_type(v).unwrap(),
+            )
+        })
         .collect::<Dict<_, _>>();
     let union = slf
         .keys()
-        .fold(Type::Never, |union, t| _ctx.union(&union, t));
+        .fold(Type::Never, |union, t| ctx.union(&union, t));
     let keys = poly(DICT_KEYS, vec![ty_tp(union)]);
     Ok(ValueObj::builtin_type(keys))
 }
 
 /// `{Str: Int, Int: Float}.values() == DictValues(Int or Float)`
-pub(crate) fn dict_values(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<ValueObj> {
+pub(crate) fn dict_values(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
     let slf = args.remove_left_or_key("Self").unwrap();
     let slf = enum_unwrap!(slf, ValueObj::Dict);
     let slf = slf
         .into_iter()
-        .map(|(k, v)| (Type::try_from(k).unwrap(), Type::try_from(v).unwrap()))
+        .map(|(k, v)| {
+            (
+                ctx.convert_value_into_type(k).unwrap(),
+                ctx.convert_value_into_type(v).unwrap(),
+            )
+        })
         .collect::<Dict<_, _>>();
     let union = slf
         .values()
-        .fold(Type::Never, |union, t| _ctx.union(&union, t));
+        .fold(Type::Never, |union, t| ctx.union(&union, t));
     let values = poly(DICT_VALUES, vec![ty_tp(union)]);
     Ok(ValueObj::builtin_type(values))
 }
 
 /// `{Str: Int, Int: Float}.items() == DictItems((Str, Int) or (Int, Float))`
-pub(crate) fn dict_items(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<ValueObj> {
+pub(crate) fn dict_items(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
     let slf = args.remove_left_or_key("Self").unwrap();
     let slf = enum_unwrap!(slf, ValueObj::Dict);
     let slf = slf
         .into_iter()
-        .map(|(k, v)| (Type::try_from(k).unwrap(), Type::try_from(v).unwrap()))
+        .map(|(k, v)| {
+            (
+                ctx.convert_value_into_type(k).unwrap(),
+                ctx.convert_value_into_type(v).unwrap(),
+            )
+        })
         .collect::<Dict<_, _>>();
     let union = slf.iter().fold(Type::Never, |union, (k, v)| {
-        _ctx.union(&union, &tuple_t(vec![k.clone(), v.clone()]))
+        ctx.union(&union, &tuple_t(vec![k.clone(), v.clone()]))
     });
     let items = poly(DICT_ITEMS, vec![ty_tp(union)]);
     Ok(ValueObj::builtin_type(items))

@@ -496,7 +496,7 @@ impl Context {
                 // Type :> Tuple Ts == Type :> Ts
                 // e.g. Type :> Tuple [Int, Str] == false
                 //      Type :> Tuple [Type, Type] == true
-                if let Ok(arr_t) = Type::try_from(params[0].clone()) {
+                if let Ok(arr_t) = self.convert_tp_into_type(params[0].clone()) {
                     return self.supertype_of(&Type, &arr_t);
                 } else if let Ok(tps) = Vec::try_from(params[0].clone()) {
                     for tp in tps {
@@ -514,7 +514,7 @@ impl Context {
                 // Type :> Dict T == Type :> T
                 // e.g. Type :> Dict {Str: Int} == false
                 //      Type :> Dict {Type: Type} == true
-                if let Ok(dict_t) = Type::try_from(params[0].clone()) {
+                if let Ok(dict_t) = self.convert_tp_into_type(params[0].clone()) {
                     return self.supertype_of(&Type, &dict_t);
                 }
                 // HACK: e.g. ?D: GenericDict

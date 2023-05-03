@@ -19,6 +19,7 @@ use erg_common::{ArcArray, Str};
 use erg_parser::ast::{ConstArgs, ConstExpr};
 
 use crate::context::eval::type_from_token_kind;
+use crate::context::Context;
 
 use self::value_set::inner_class;
 
@@ -686,34 +687,6 @@ impl TryFrom<&ValueObj> for f64 {
     }
 }
 
-impl TryFrom<ValueObj> for Type {
-    type Error = ValueObj;
-    fn try_from(val: ValueObj) -> Result<Type, ValueObj> {
-        match val {
-            ValueObj::Type(t) => match t {
-                TypeObj::Builtin { t, .. } => Ok(t),
-                TypeObj::Generated(gen) => Ok(gen.into_typ()),
-            },
-            ValueObj::Record(rec) => {
-                let mut fields = dict! {};
-                for (name, val) in rec.into_iter() {
-                    fields.insert(name, Type::try_from(val)?);
-                }
-                Ok(Type::Record(fields))
-            }
-            ValueObj::Tuple(ts) => {
-                let mut new_ts = vec![];
-                for v in ts.iter() {
-                    new_ts.push(Type::try_from(v.clone())?);
-                }
-                Ok(tuple_t(new_ts))
-            }
-            ValueObj::Subr(subr) => subr.as_type().ok_or(ValueObj::Subr(subr)),
-            other => Err(other),
-        }
-    }
-}
-
 impl<'a> TryFrom<&'a ValueObj> for &'a Type {
     type Error = ();
     fn try_from(val: &'a ValueObj) -> Result<Self, ()> {
@@ -846,7 +819,10 @@ impl ValueObj {
             Type::NotImplementedType => Some(Self::NotImplemented),
             Type::Inf => Some(Self::Inf),
             Type::NegInf => Some(Self::NegInf),
-            _ => todo!("{t} {content}"),
+            _ => {
+                log!(err "{t} {content}");
+                None
+            }
         }
     }
 
@@ -1222,17 +1198,17 @@ impl ValueObj {
         }
     }
 
-    pub fn as_type(&self) -> Option<TypeObj> {
+    pub fn as_type(&self, ctx: &Context) -> Option<TypeObj> {
         match self {
             Self::Type(t) => Some(t.clone()),
             Self::Record(rec) => {
                 let mut attr_ts = dict! {};
                 for (k, v) in rec.iter() {
-                    attr_ts.insert(k.clone(), v.as_type()?.typ().clone());
+                    attr_ts.insert(k.clone(), v.as_type(ctx)?.typ().clone());
                 }
                 Some(TypeObj::builtin_type(Type::Record(attr_ts)))
             }
-            Self::Subr(subr) => subr.as_type().map(TypeObj::builtin_type),
+            Self::Subr(subr) => subr.as_type(ctx).map(TypeObj::builtin_type),
             Self::Array(elems) | Self::Tuple(elems) => {
                 log!(err "as_type({})", erg_common::fmt_vec(elems));
                 None

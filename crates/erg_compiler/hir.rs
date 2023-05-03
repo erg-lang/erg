@@ -498,7 +498,7 @@ impl Identifier {
         self.raw.is_procedural()
     }
 
-    pub fn downcast(self) -> ast::Identifier {
+    pub fn downgrade(self) -> ast::Identifier {
         self.raw
     }
 }

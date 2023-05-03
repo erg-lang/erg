@@ -316,6 +316,8 @@ impl PyCodeGenerator {
         if self.py_version.minor >= Some(11) {
             self.write_instr(Opcode311::COPY);
             self.write_arg(i);
+        } else if i == 1 {
+            self.write_instr(Opcode310::DUP_TOP);
         } else {
             todo!()
         }
