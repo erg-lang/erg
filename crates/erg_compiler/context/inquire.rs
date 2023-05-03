@@ -2304,6 +2304,26 @@ impl Context {
                     return Some(res);
                 }
             }
+            Type::Proj { lhs, rhs } => {
+                if let Ok(typ) = self.eval_proj(*lhs.clone(), rhs.clone(), self.level, &()) {
+                    return self.get_nominal_type_ctx(&typ);
+                }
+            }
+            Type::ProjCall {
+                lhs,
+                attr_name,
+                args,
+            } => {
+                if let Ok(typ) = self.eval_proj_call(
+                    *lhs.clone(),
+                    attr_name.clone(),
+                    args.clone(),
+                    self.level,
+                    &(),
+                ) {
+                    return self.get_nominal_type_ctx(&typ);
+                }
+            }
             other => {
                 log!("{other} has no nominal definition");
             }
