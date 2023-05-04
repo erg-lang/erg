@@ -3,11 +3,9 @@
 .Sized = Trait { .__len__ = (self: Self) -> Nat }
 # TODO: varargs
 .Callable = Trait { .__call__ = (self: Self) -> Obj }
-# .Iterator T = Trait { .__next__ = (self: Self) -> T }
-.Iterator = Trait { .__next__ = (self: Self) -> Obj }
-# .Iterable T = Trait { .__iter__ = (self: Self) -> Iterator T }
-.Iterable = Trait { .__iter__ = (self: Self) -> .Iterator }
-.Collection = Subsume .Container and .Iterable
-.Reversible = Trait { .__reversed__ = (self: Self) -> .Iterator }
-.Genertor = Subsume .Iterator
-.Sequence = Subsume .Collection and .Sized and .Reversible
+.Iterator T = Trait { .__next__ = (self: Self) -> T }
+.Iterable T = Trait { .__iter__ = (self: Self) -> .Iterator(T) }
+.Collection T = Subsume .Container and .Iterable(T)
+.Reversible T = Trait { .__reversed__ = (self: Self) -> .Iterator(T) }
+.Genertor T = Subsume .Iterator T
+.Sequence T = Subsume .Collection(T) and .Sized and .Reversible(T)
