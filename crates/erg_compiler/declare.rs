@@ -1,3 +1,5 @@
+use std::mem;
+
 use erg_common::consts::PYTHON_MODE;
 use erg_common::traits::{Locational, Runnable, Stream};
 use erg_common::{enum_unwrap, fn_name, log, set, Str};
@@ -621,7 +623,10 @@ impl ASTLowerer {
             ident.inspect().clone()
         };
         if let Some((_, ctx)) = self.module.context.rec_get_mut_type(&name) {
-            ctx.register_marker_trait(trait_.clone());
+            let mut tmp = mem::take(ctx);
+            tmp.register_marker_trait(&self.module.context, trait_.clone());
+            let ctx = self.module.context.rec_get_mut_type(&name).unwrap().1;
+            mem::swap(ctx, &mut tmp);
             Ok(())
         } else {
             Err(LowerErrors::from(LowerError::no_var_error(

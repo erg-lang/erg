@@ -14,8 +14,8 @@ use erg_common::python_util::BUILTIN_PYTHON_MODS;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
 use erg_common::triple::Triple;
-use erg_common::Str;
 use erg_common::{get_hash, log, set};
+use erg_common::{unique_in_place, Str};
 
 use ast::{
     ConstIdentifier, Decorator, DefId, Identifier, OperationKind, PolyTypeSpec, PreDeclTypeSpec,
@@ -1142,8 +1142,15 @@ impl Context {
             .push((ClassDefType::impl_trait(class, trait_), methods));
     }
 
-    pub(crate) fn register_marker_trait(&mut self, trait_: Type) {
+    pub(crate) fn register_marker_trait(&mut self, ctx: &Self, trait_: Type) {
+        let (_, trait_ctx) = ctx
+            .get_nominal_type_ctx(&trait_)
+            .unwrap_or_else(|| todo!("{trait_} not found"));
+        // self.register_supertrait(trait_, ctx);
+        let traits = trait_ctx.super_traits.clone();
         self.super_traits.push(trait_);
+        self.super_traits.extend(traits);
+        unique_in_place(&mut self.super_traits);
     }
 
     pub(crate) fn register_gen_const(

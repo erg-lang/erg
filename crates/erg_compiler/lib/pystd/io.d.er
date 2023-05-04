@@ -1,6 +1,7 @@
 .DEFAULT_BUFFER_SIZE: {8192}
 
 .IOBase!: ClassType
+.IOBase! <: FileLike!
 .IOBase!.
     close!: (self: RefMut(.IOBase!),) => NoneType
     closed: Bool
@@ -70,22 +71,22 @@
 .BufferedRWPair!: ClassType
 .BufferedRWPair! <: .BufferedIOBase!
 
-TextIOBase!: ClassType
-TextIOBase! <: FileLike!
-TextIOBase!.
+.TextIOBase!: ClassType
+.TextIOBase! <: .IOBase!
+.TextIOBase!.
     encoding: Str
     errors: Str
     newlines: Str or [Str; _] or NoneType
     buffer: .BufferedIOBase!
-    detach!: (self: RefMut(TextIOBase!),) => .BufferedIOBase!
-    read!: (self: RefMut(TextIOBase!), size := Nat) => Str
-    readline!: (self: RefMut(TextIOBase!), size := Nat) => Str
-    seek!: (self: RefMut(TextIOBase!), offset: Nat, whence := Nat) => Nat
-    tell!: (self: RefMut(TextIOBase!),) => Nat
-    write!: (self: RefMut(TextIOBase!), s: Str) => Nat
+    detach!: (self: RefMut(.TextIOBase!),) => .BufferedIOBase!
+    read!: (self: RefMut(.TextIOBase!), size := Nat) => Str
+    readline!: (self: RefMut(.TextIOBase!), size := Nat) => Str
+    seek!: (self: RefMut(.TextIOBase!), offset: Nat, whence := Nat) => Nat
+    tell!: (self: RefMut(.TextIOBase!),) => Nat
+    write!: (self: RefMut(.TextIOBase!), s: Str) => Nat
 
 .TextIOWrapper!: ClassType
-.TextIOWrapper! <: TextIOBase!
+.TextIOWrapper! <: .TextIOBase!
 .TextIOWrapper!.
     __call__: (buffer: .BufferedIOBase!, encoding := Str, errors := Str, newline := Str, line_buffering := Bool) -> .TextIOWrapper!
     line_buffering: Bool
@@ -93,7 +94,7 @@ TextIOBase!.
     reconfigure!: (self: RefMut(.TextIOWrapper!), encoding := Str, errors := Str, newline := Str) => NoneType
 
 .StringIO!: ClassType
-.StringIO! <: TextIOBase!
+.StringIO! <: .TextIOBase!
 .StringIO!.
     __call__: (initial_value := Str, newline := Str) -> .StringIO!
     getvalue: (self: Ref(.StringIO!),) -> Str

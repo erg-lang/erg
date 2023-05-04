@@ -199,14 +199,6 @@ impl Context {
         let Slf = mono_q(SELF, subtypeof(mono(ORD)));
         let op_t = fn1_met(Slf.clone(), Slf, or(mono(ORDERING), NoneType)).quantify();
         ord.register_builtin_erg_decl(OP_CMP, op_t, Visibility::BUILTIN_PUBLIC);
-        // FIXME: poly trait
-        /* Num */
-        let num = Self::builtin_mono_trait(NUM, 2);
-        /* vec![
-            poly(ADD, vec![]),
-            poly(SUB, vec![]),
-            poly(MUL, vec![]),
-        ], */
         /* Seq */
         let mut seq = Self::builtin_poly_trait(SEQ, vec![PS::t_nd(TY_T)], 2);
         seq.register_superclass(poly(OUTPUT, vec![ty_tp(T.clone())]), &output);
@@ -307,6 +299,11 @@ impl Context {
         let op_t = fn0_met(_Slf.clone(), proj(_Slf, OUTPUT)).quantify();
         neg.register_builtin_erg_decl(OP_NEG, op_t, Visibility::BUILTIN_PUBLIC);
         neg.register_builtin_erg_decl(OUTPUT, Type, Visibility::BUILTIN_PUBLIC);
+        /* Num */
+        let mut num = Self::builtin_mono_trait(NUM, 2);
+        num.register_superclass(poly(ADD, vec![]), &add);
+        num.register_superclass(poly(SUB, vec![]), &sub);
+        num.register_superclass(poly(MUL, vec![]), &mul);
         self.register_builtin_type(mono(UNPACK), unpack, vis.clone(), Const, None);
         self.register_builtin_type(
             mono(INHERITABLE_TYPE),
