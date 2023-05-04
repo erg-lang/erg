@@ -186,7 +186,8 @@ pub const BUILTIN_PYTHON_MODS: [&str; 176] = [
     "zoneinfo",
 ];
 #[cfg(windows)]
-pub const BUILTIN_PYTHON_MODS: [&str; 170] = [
+pub const BUILTIN_PYTHON_MODS: [&str; 171] = [
+    "abc",
     "argparse",
     "array",
     "ast",

@@ -1,0 +1,12 @@
+.abstructmethod: |F <: GenericCallable|(F) -> F
+.abstructclassmethod: |F <: GenericCallable|(F) -> F
+.abstructstaticmethod: |F <: GenericCallable|(F) -> F
+
+.ABCMeta: ClassType
+.ABCMeta <: Type
+.ABCMeta.
+    __instancecheck__: (self: .ABCMeta, instance: Obj) -> Bool
+    __subclasscheck__: (self: .ABCMeta, subclass: Type) -> Bool
+    register: (self: .ABCMeta, subclass: Type) -> NoneType
+
+.ABC: ClassType
