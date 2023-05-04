@@ -108,8 +108,13 @@ impl<Checker: BuildRunnable> Server<Checker> {
         new_name: String,
     ) {
         if let Some(path) = &abs_loc.module {
-            let def_uri = Url::from_file_path(path).unwrap();
-            let edit = TextEdit::new(util::loc_to_range(abs_loc.loc).unwrap(), new_name);
+            let Ok(def_uri) = Url::from_file_path(path) else {
+                return;
+            };
+            let Some(range) = util::loc_to_range(abs_loc.loc) else {
+                return;
+            };
+            let edit = TextEdit::new(range, new_name);
             if let Some(edits) = changes.get_mut(&def_uri) {
                 edits.push(edit);
             } else {
@@ -122,7 +127,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         urls.map(|url| {
             let timestamp = util::get_metadata_from_uri(url)
                 .and_then(|md| Ok(md.modified()?))
-                .unwrap();
+                .unwrap_or(SystemTime::now());
             (url.clone(), timestamp)
         })
         .collect()
@@ -218,7 +223,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 let Some(Expr::Call(import_call)) = def.body.block.first() else {
                     return vec![];
                 };
-                let module_name = import_call.args.get_left_or_key("Path").unwrap();
+                let Some(module_name) = import_call.args.get_left_or_key("Path") else {
+                    return vec![];
+                };
                 match module_name {
                     Expr::Lit(lit)
                         if lit
@@ -245,9 +252,15 @@ impl<Checker: BuildRunnable> Server<Checker> {
         new_uri: &NormalizedUrl,
     ) {
         if old_uri.as_str().ends_with(".d.er") {
+            let Ok(old_uri) = Url::parse(&old_uri.as_str().replace(".d.er", ".py")) else {
+                return;
+            };
+            let Ok(new_uri) = Url::parse(&new_uri.as_str().replace(".d.er", ".py")) else {
+                return;
+            };
             let rename = DocumentChangeOperation::Op(ResourceOp::Rename(RenameFile {
-                old_uri: Url::parse(&old_uri.as_str().replace(".d.er", ".py")).unwrap(),
-                new_uri: Url::parse(&new_uri.as_str().replace(".d.er", ".py")).unwrap(),
+                old_uri,
+                new_uri,
                 options: None,
                 annotation_id: None,
             }));
@@ -255,9 +268,15 @@ impl<Checker: BuildRunnable> Server<Checker> {
         } else if old_uri.as_str().ends_with(".py") {
             let d_er_file = PathBuf::from(old_uri.as_str().replace(".py", ".d.er"));
             if d_er_file.exists() {
+                let Ok(old_uri) =  Url::from_file_path(&d_er_file) else {
+                    return;
+                };
+                let Ok(new_uri) = Url::parse(&new_uri.as_str().replace(".py", ".d.er")) else {
+                    return;
+                };
                 let rename = DocumentChangeOperation::Op(ResourceOp::Rename(RenameFile {
-                    old_uri: Url::from_file_path(&d_er_file).unwrap(),
-                    new_uri: Url::parse(&new_uri.as_str().replace(".py", ".d.er")).unwrap(),
+                    old_uri,
+                    new_uri,
                     options: None,
                     annotation_id: None,
                 }));
@@ -274,8 +293,14 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let mut edits = HashMap::new();
         let mut renames = vec![];
         for file in &params.files {
-            let old_uri = NormalizedUrl::new(Url::parse(&file.old_uri).unwrap());
-            let new_uri = NormalizedUrl::new(Url::parse(&file.new_uri).unwrap());
+            let Ok(old) = Url::parse(&file.old_uri) else {
+                continue;
+            };
+            let old_uri = NormalizedUrl::new(old);
+            let Ok(new) = Url::parse(&file.new_uri) else {
+                continue;
+            };
+            let new_uri = NormalizedUrl::new(new);
             edits.extend(self.collect_module_changes(&old_uri, &new_uri));
             self.rename_linked_files(&mut renames, &old_uri, &new_uri);
             let Some(entry) = self.artifacts.remove(&old_uri) else {

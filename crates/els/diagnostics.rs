@@ -115,10 +115,13 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let mut uri_and_diags: Vec<(Url, Vec<Diagnostic>)> = vec![];
         for err in errors.into_iter() {
             let loc = err.core.get_loc_with_fallback();
-            let err_uri = if let Some(path) = err.input.path() {
-                Url::from_file_path(path).unwrap()
+            let res_uri = if let Some(path) = err.input.path() {
+                Url::from_file_path(path)
             } else {
-                uri.clone().raw()
+                Ok(uri.clone().raw())
+            };
+            let Ok(err_uri) = res_uri else {
+                continue;
             };
             let mut message = remove_style(&err.core.main_message);
             for sub in err.core.sub_messages {

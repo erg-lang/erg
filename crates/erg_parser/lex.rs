@@ -235,11 +235,11 @@ impl Lexer /*<'a>*/ {
         Some(Err(LexError::feature_error(0, token.loc(), feat_name)))
     }
 
-    fn is_valid_start_symbol_ch(c: char) -> bool {
-        c == '_' || c.is_xid_start()
+    pub fn is_valid_start_symbol_ch(c: char) -> bool {
+        c == '_' || c == '\'' || c.is_xid_start()
     }
 
-    fn is_valid_continue_symbol_ch(c: char) -> bool {
+    pub fn is_valid_continue_symbol_ch(c: char) -> bool {
         c.is_xid_continue() && !('０'..='９').contains(&c)
     }
 

@@ -36,10 +36,10 @@ impl<'a> HIRVisitor<'a> {
             .path()
             .split('/')
             .last()
-            .unwrap()
+            .unwrap_or_default()
             .split('.')
             .next()
-            .unwrap();
+            .unwrap_or_default();
         let namespace = vec![Str::rc(name)];
         if let Some(ns) = self.get_exprs_ns(namespace.clone(), self.hir.module.iter(), pos) {
             ns

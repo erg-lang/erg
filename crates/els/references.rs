@@ -37,7 +37,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 if let (Some(path), Some(range)) =
                     (&referrer.module, util::loc_to_range(referrer.loc))
                 {
-                    let ref_uri = Url::from_file_path(path).unwrap();
+                    let Ok(ref_uri) = Url::from_file_path(path) else {
+                        continue;
+                    };
                     refs.push(lsp_types::Location::new(ref_uri, range));
                 }
             }

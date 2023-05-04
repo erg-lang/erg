@@ -162,7 +162,11 @@ impl<'b> CompletionOrderSetter<'b> {
 
     pub fn mangle(&self) -> String {
         let score = self.score();
-        format!("{}_{}", char::from_u32(score as u32).unwrap(), self.label)
+        format!(
+            "{}_{}",
+            char::from_u32(score as u32).unwrap_or(CompletionOrder::STD_ITEM),
+            self.label
+        )
     }
 
     fn set(&self, item: &mut CompletionItem) {
@@ -380,7 +384,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 .map(|t| matches!(t.kind, Dot | DblColon))
                 .unwrap_or(false)
             {
-                let dot_pos = util::loc_to_pos(prev_token.unwrap().loc()).unwrap();
+                let Some(dot_pos) = util::loc_to_pos(prev_token.unwrap().loc()) else {
+                    return Ok(None);
+                };
                 self.get_receiver_ctxs(&uri, dot_pos)?
             } else {
                 self.get_local_ctx(&uri, pos)
@@ -444,9 +450,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
             }
             // only show static methods, if the receiver is a type
             if vi.t.is_method()
-                && receiver_t
-                    .as_ref()
-                    .map_or(true, |t| !mod_ctx.subtype_of(t, vi.t.self_t().unwrap()))
+                && receiver_t.as_ref().map_or(true, |t| {
+                    !mod_ctx.subtype_of(t, vi.t.self_t().unwrap_or(Type::OBJ))
+                })
             {
                 continue;
             }
@@ -494,7 +500,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         send_log(format!("completion resolve requested: {item:?}"))?;
         if let Some(data) = &item.data {
             let mut contents = vec![];
-            let Ok(def_loc) = data.as_str().unwrap().parse::<AbsLocation>() else {
+            let Ok(def_loc) = data.as_str().unwrap_or_default().parse::<AbsLocation>() else {
                 return Ok(item);
             };
             self.show_doc_comment(None, &mut contents, &def_loc)?;
