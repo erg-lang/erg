@@ -461,7 +461,10 @@ impl Context {
                 }
                 Ok(())
             }
-            (l, r) => type_feature_error!(self, loc.loc(), &format!("unifying {l} and {r}")),
+            (l, r) => {
+                log!(err "{l} / {r}");
+                type_feature_error!(self, loc.loc(), &format!("unifying {l} and {r}"))
+            }
         }
     }
 

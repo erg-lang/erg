@@ -363,6 +363,13 @@ impl Context {
                 let rhs = self.instantiate_tp(*rhs, tmp_tv_cache, loc)?;
                 Ok(TyParam::bin(op, lhs, rhs))
             }
+            TyParam::App { name, args } => {
+                let mut new_args = Vec::with_capacity(args.len());
+                for arg in args {
+                    new_args.push(self.instantiate_tp(arg, tmp_tv_cache, loc)?);
+                }
+                Ok(TyParam::app(name, new_args))
+            }
             TyParam::Type(t) => {
                 let t = self.instantiate_t_inner(*t, tmp_tv_cache, loc)?;
                 Ok(TyParam::t(t))

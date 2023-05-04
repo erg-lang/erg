@@ -907,9 +907,60 @@ impl Context {
         }
     }
 
-    fn eval_app(&self, name: Str, args: Vec<TyParam>) -> EvalResult<TyParam> {
-        log!(err "eval_app({name}({}))", fmt_vec(&args));
-        Ok(TyParam::app(name, args))
+    fn eval_succ_func(&self, val: ValueObj) -> EvalResult<ValueObj> {
+        match val {
+            ValueObj::Bool(b) => Ok(ValueObj::Nat(b as u64 + 1)),
+            ValueObj::Nat(n) => Ok(ValueObj::Nat(n + 1)),
+            ValueObj::Int(n) => Ok(ValueObj::Int(n + 1)),
+            // TODO:
+            ValueObj::Float(n) => Ok(ValueObj::Float(n + f64::EPSILON)),
+            ValueObj::Inf | ValueObj::NegInf => Ok(val),
+            _ => Err(EvalErrors::from(EvalError::unreachable(
+                self.cfg.input.clone(),
+                fn_name!(),
+                line!(),
+            ))),
+        }
+    }
+
+    fn eval_pred_func(&self, val: ValueObj) -> EvalResult<ValueObj> {
+        match val {
+            ValueObj::Bool(_) => Ok(ValueObj::Nat(0)),
+            ValueObj::Nat(n) => Ok(ValueObj::Nat(n.saturating_sub(1))),
+            ValueObj::Int(n) => Ok(ValueObj::Int(n - 1)),
+            // TODO:
+            ValueObj::Float(n) => Ok(ValueObj::Float(n - f64::EPSILON)),
+            ValueObj::Inf | ValueObj::NegInf => Ok(val),
+            _ => Err(EvalErrors::from(EvalError::unreachable(
+                self.cfg.input.clone(),
+                fn_name!(),
+                line!(),
+            ))),
+        }
+    }
+
+    pub(crate) fn eval_app(&self, name: Str, args: Vec<TyParam>) -> EvalResult<TyParam> {
+        if let Ok(mut value_args) = args
+            .iter()
+            .map(|tp| self.convert_tp_into_value(tp.clone()))
+            .collect::<Result<Vec<_>, _>>()
+        {
+            match &name[..] {
+                "succ" => self
+                    .eval_succ_func(value_args.remove(0))
+                    .map(TyParam::Value),
+                "pred" => self
+                    .eval_pred_func(value_args.remove(0))
+                    .map(TyParam::Value),
+                _ => {
+                    log!(err "eval_app({name}({}))", fmt_vec(&args));
+                    Ok(TyParam::app(name, args))
+                }
+            }
+        } else {
+            log!(err "eval_app({name}({}))", fmt_vec(&args));
+            Ok(TyParam::app(name, args))
+        }
     }
 
     /// Quantified variables, etc. are returned as is.
@@ -1250,6 +1301,13 @@ impl Context {
             TyParam::Type(t) => Ok(t.as_ref().clone()),
             TyParam::Value(v) => self.convert_value_into_type(v).map_err(TyParam::Value),
             // TODO: Dict, Set
+            other => Err(other),
+        }
+    }
+
+    pub(crate) fn convert_tp_into_value(&self, tp: TyParam) -> Result<ValueObj, TyParam> {
+        match tp {
+            TyParam::Value(v) => Ok(v),
             other => Err(other),
         }
     }

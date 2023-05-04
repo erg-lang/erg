@@ -594,12 +594,14 @@ impl Context {
             // (|T: Type| T -> T) !<: Obj -> Never
             (Quantified(_), r) => {
                 let Ok(inst) = self.instantiate_dummy(lhs.clone()) else {
+                    log!(err "instantiation failed: {lhs}");
                     return false;
                 };
                 self.sub_unify(r, &inst, &(), None).is_ok()
             }
             (l, Quantified(_)) => {
                 let Ok(inst) = self.instantiate_dummy(rhs.clone()) else {
+                    log!(err "instantiation failed: {rhs}");
                     return false;
                 };
                 self.sub_unify(&inst, l, &(), None).is_ok()
@@ -1008,6 +1010,14 @@ impl Context {
             }
             (l, r @ (TyParam::Erased(_) | TyParam::FreeVar(_))) =>
                 self.try_cmp(r, l).map(|ord| ord.reverse()),
+            (TyParam::App { name, args }, r) => {
+                self.eval_app(name.clone(), args.clone()).ok()
+                    .and_then(|tp| self.try_cmp(&tp, r))
+            }
+            (l, TyParam::App { name, args }) => {
+                self.eval_app(name.clone(), args.clone()).ok()
+                    .and_then(|tp| self.try_cmp(l, &tp))
+            }
             (_l, _r) => {
                 erg_common::fmt_dbg!(_l, _r,);
                 None

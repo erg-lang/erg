@@ -112,6 +112,13 @@ pub fn tp_enum(ty: Type, s: Set<TyParam>) -> Type {
     Type::Refinement(refine)
 }
 
+pub fn singleton(ty: Type, tp: TyParam) -> Type {
+    let name = Str::from(fresh_varname());
+    let preds = Predicate::eq(name.clone(), tp);
+    let refine = RefinementType::new(name, ty, preds);
+    Type::Refinement(refine)
+}
+
 #[inline]
 pub fn int_interval<P, PErr, Q, QErr>(op: IntervalOp, l: P, r: Q) -> Type
 where

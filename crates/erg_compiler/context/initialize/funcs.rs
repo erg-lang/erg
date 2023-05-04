@@ -412,15 +412,24 @@ impl Context {
                 Some(FUNC_EXIT),
             );
         } else {
-            let t_range = func(
-                vec![kw(KW_STOP, or(Int, NoneType))],
+            let MAX = mono_q_tp("MAX", instanceof(Int));
+            let t_range = nd_func(
+                vec![kw(KW_START, singleton(Int, MAX.clone()))],
                 None,
-                vec![
-                    kw(KW_START, or(Int, NoneType)),
-                    kw(KW_STEP, or(Int, NoneType)),
-                ],
-                poly(RANGE, vec![ty_tp(Int)]),
-            );
+                poly(RANGE, vec![ty_tp((TyParam::value(0u64)..MAX).into())]),
+            )
+            .quantify()
+                & nd_func(vec![kw(KW_START, Int)], None, poly(RANGE, vec![ty_tp(Int)]))
+                & nd_func(
+                    vec![kw(KW_START, Int), kw(KW_STOP, Int)],
+                    None,
+                    poly(RANGE, vec![ty_tp(Int)]),
+                )
+                & nd_func(
+                    vec![kw(KW_START, Int), kw(KW_STOP, Int), kw(KW_STEP, Int)],
+                    None,
+                    poly(RANGE, vec![ty_tp(Int)]),
+                );
             self.register_builtin_py_impl(
                 FUNC_RANGE,
                 t_range,

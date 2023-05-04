@@ -612,7 +612,11 @@ impl Hash for ValueObj {
 
 impl From<i32> for ValueObj {
     fn from(item: i32) -> Self {
-        ValueObj::Int(item)
+        if item >= 0 {
+            ValueObj::Nat(item as u64)
+        } else {
+            ValueObj::Int(item)
+        }
     }
 }
 

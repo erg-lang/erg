@@ -836,12 +836,12 @@ impl TyParam {
 
     // if self: Ratio, Succ(self) => self+ε
     pub fn succ(self) -> Self {
-        Self::app("Succ".into(), vec![self])
+        Self::app("succ".into(), vec![self])
     }
 
     // if self: Ratio, Pred(self) => self-ε
     pub fn pred(self) -> Self {
-        Self::app("Pred".into(), vec![self])
+        Self::app("pred".into(), vec![self])
     }
 
     pub fn qual_name(&self) -> Option<Str> {
