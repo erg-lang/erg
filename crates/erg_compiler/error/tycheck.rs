@@ -1266,10 +1266,10 @@ passed keyword args:    {kw_args_len}"
             ErrorCore::new(
                 vec![],
                 switch_lang!(
-                    "japanese" => format!("オーバーロード解決に失敗しました\nオーバーロード型:\n* {}\n位置引数: {}\n名前付き引数: {}", fmt_vec_split_with(&found, "\n* "), fmt_vec(&pos_args), fmt_vec(&kw_args)),
+                    "japanese" => format!("オーバーロード解決に失敗しました\nオーバーロード型:\n* {}\n渡された位置引数: {}\n渡された名前付き引数: {}", fmt_vec_split_with(&found, "\n* "), fmt_vec(&pos_args), fmt_vec(&kw_args)),
                     "simplified_chinese" => format!("无法解析重载\n重载类型:\n* {}\n位置参数: {}\n命名参数: {}", fmt_vec_split_with(&found, "\n* "), fmt_vec(&pos_args), fmt_vec(&kw_args)),
                     "traditional_chinese" => format!("無法解析重載\n重載類型:\n* {}\n位置參數: {}\n命名參數: {}", fmt_vec_split_with(&found, "\n* "), fmt_vec(&pos_args), fmt_vec(&kw_args)),
-                    "english" => format!("cannot resolve overload\noverloaded type:\n* {}\npositional arguments: {}\nnamed arguments: {}", fmt_vec_split_with(&found, "\n* "), fmt_vec(&pos_args), fmt_vec(&kw_args)),
+                    "english" => format!("cannot resolve overload\noverloaded type:\n* {}\npassed positional arguments: {}\npassed named arguments: {}", fmt_vec_split_with(&found, "\n* "), fmt_vec(&pos_args), fmt_vec(&kw_args)),
                 ),
                 errno,
                 TypeError,

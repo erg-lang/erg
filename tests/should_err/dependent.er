@@ -3,3 +3,16 @@ print!(dic["c"]) # ERR
 
 arr = [1, 2, 3]
 print!(arr[5]) # ERR
+
+# OK
+for! 0..2, i =>
+    print! arr[i]
+# ERR
+for! 0..3, i =>
+    print! arr[i]
+# OK
+for! range(3), i =>
+    print! arr[i]
+# ERR
+for! range(4), i =>
+    print! arr[i]

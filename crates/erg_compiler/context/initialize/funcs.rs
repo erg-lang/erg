@@ -323,6 +323,54 @@ impl Context {
             Some(FUNDAMENTAL_IMPORT),
         );
         self.register_builtin_py_impl(FUNC_QUIT, t_quit, Immutable, vis.clone(), Some(FUNC_QUIT));
+        let MAX = mono_q_tp("MAX", instanceof(Int));
+        let MIN = mono_q_tp("MIN", instanceof(Int));
+        let t_range = nd_func(
+            vec![kw(KW_START, singleton(Int, MAX.clone()))],
+            None,
+            poly(
+                RANGE,
+                vec![ty_tp((TyParam::value(0u64)..MAX.clone()).into())],
+            ),
+        )
+        .quantify()
+            & nd_func(
+                vec![
+                    kw(KW_START, singleton(Int, MIN.clone())),
+                    kw(KW_STOP, singleton(Int, MAX.clone())),
+                ],
+                None,
+                poly(RANGE, vec![ty_tp((MIN.clone()..MAX.clone()).into())]),
+            )
+            .quantify()
+            & nd_func(
+                vec![
+                    kw(KW_START, singleton(Int, MIN.clone())),
+                    kw(KW_STOP, singleton(Int, MAX.clone())),
+                    kw(KW_STEP, Int),
+                ],
+                None,
+                poly(RANGE, vec![ty_tp((MIN..MAX).into())]),
+            )
+            .quantify()
+            & nd_func(vec![kw(KW_START, Int)], None, poly(RANGE, vec![ty_tp(Int)]))
+            & nd_func(
+                vec![kw(KW_START, Int), kw(KW_STOP, Int)],
+                None,
+                poly(RANGE, vec![ty_tp(Int)]),
+            )
+            & nd_func(
+                vec![kw(KW_START, Int), kw(KW_STOP, Int), kw(KW_STEP, Int)],
+                None,
+                poly(RANGE, vec![ty_tp(Int)]),
+            );
+        self.register_builtin_py_impl(
+            FUNC_RANGE,
+            t_range,
+            Immutable,
+            vis.clone(),
+            Some(FUNC_RANGE),
+        );
         self.register_builtin_py_impl(FUNC_REPR, t_repr, Immutable, vis.clone(), Some(FUNC_REPR));
         self.register_builtin_py_impl(
             FUNC_REVERSED,
@@ -412,31 +460,6 @@ impl Context {
                 Some(FUNC_EXIT),
             );
         } else {
-            let MAX = mono_q_tp("MAX", instanceof(Int));
-            let t_range = nd_func(
-                vec![kw(KW_START, singleton(Int, MAX.clone()))],
-                None,
-                poly(RANGE, vec![ty_tp((TyParam::value(0u64)..MAX).into())]),
-            )
-            .quantify()
-                & nd_func(vec![kw(KW_START, Int)], None, poly(RANGE, vec![ty_tp(Int)]))
-                & nd_func(
-                    vec![kw(KW_START, Int), kw(KW_STOP, Int)],
-                    None,
-                    poly(RANGE, vec![ty_tp(Int)]),
-                )
-                & nd_func(
-                    vec![kw(KW_START, Int), kw(KW_STOP, Int), kw(KW_STEP, Int)],
-                    None,
-                    poly(RANGE, vec![ty_tp(Int)]),
-                );
-            self.register_builtin_py_impl(
-                FUNC_RANGE,
-                t_range,
-                Immutable,
-                vis.clone(),
-                Some(FUNC_RANGE),
-            );
             let t_list = func(
                 vec![],
                 None,

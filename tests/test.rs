@@ -259,7 +259,7 @@ fn exec_collection_err() -> Result<(), ()> {
 
 #[test]
 fn exec_dependent() -> Result<(), ()> {
-    expect_failure("tests/should_err/dependent.er", 0, 2)
+    expect_failure("tests/should_err/dependent.er", 0, 4)
 }
 
 /// This file compiles successfully, but causes a run-time error due to incomplete method dispatching
