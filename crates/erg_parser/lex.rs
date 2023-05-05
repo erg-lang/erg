@@ -216,7 +216,7 @@ impl Lexer /*<'a>*/ {
 
     fn emit_token(&mut self, kind: TokenKind, cont: &str) -> Token {
         let cont = self.str_cache.get(cont);
-        let lineno = self.lineno_token_starts + 2 - cont.lines().count() as u32;
+        let lineno = (self.lineno_token_starts + 2).saturating_sub(cont.lines().count() as u32);
         // cannot use String::len() for multi-byte characters
         let cont_len = cont.chars().count();
         let token = Token::new(kind, cont, lineno, self.col_token_starts);
@@ -519,7 +519,7 @@ impl Lexer /*<'a>*/ {
         let sum_indent = self.indent_stack.iter().fold(0, calc_indent_and_validate);
         match sum_indent.cmp(&spaces_len) {
             Ordering::Less => {
-                let indent_len = spaces_len - sum_indent;
+                let indent_len = spaces_len.saturating_sub(sum_indent);
                 self.col_token_starts += sum_indent as u32;
                 let indent = self.emit_token(Indent, &" ".repeat(indent_len));
                 self.indent_stack.push(indent_len);
