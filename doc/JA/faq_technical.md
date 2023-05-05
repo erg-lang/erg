@@ -42,3 +42,45 @@ Ergのタプルは長さがコンパイル時に決まっている必要があ�
 ```erg
 arr = Array map(int, input!().split " ")
 ```
+
+## Pythonでは発生しなかった実行時エラーがErgでは発生しました。原因として何が考えられますか?
+
+素朴に実装するとエラーとなる例としては以下のスクリプトがあります。
+
+```erg
+{main!; TestCase!} = pyimport "unittest"
+
+Test! = Inherit TestCase!
+Test!.
+    test_one self =
+        self.assertEqual 1, 1
+
+main!()
+```
+
+基本的なunittestの使い方そのままであり、一見正しく見えますが、実行すると以下のようなエラーが出ます。
+
+```console
+AttributeError: 'Test!' object has no attribute '_testMethodName'
+```
+
+エラーが発生した原因は、TestCaseの実行の仕組みにあります。
+TestCase(を継承したクラス)が実行されるとき、実行するテストメソッドは`test_`で始まる必要があります。
+`test_one`はそれに従っているように見えますが、Ergは変数名に対して名前修飾(マングリング)を行います。
+このせいでテストメソッドが認識されなくなっているのです。
+マングリングを行わないようにするためには、''で囲む必要があります。
+
+```erg
+{main!; TestCase!} = pyimport "unittest"
+
+Test! = Inherit TestCase!
+Test!.
+    'test_one' self =
+        self.assertEqual 1, 1
+
+main!()
+```
+
+今度は上手くいきます。
+
+Erg特有のエラーが発生する場合は、名前修飾の影響などを疑ってみると良いでしょう。
