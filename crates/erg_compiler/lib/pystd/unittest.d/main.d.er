@@ -1,3 +1,5 @@
-.TestProgram: ClassType
+.TestProgram!: ClassType
+.TestProgram!.
+    __call__: (module := Str) => NoneType
 
-.main = .TestProgram
+.main! = .TestProgram!

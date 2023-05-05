@@ -270,7 +270,7 @@ impl Context {
         let vis = self.instantiate_vis_modifier(&ident.vis)?;
         // already defined as const
         if sig.is_const() {
-            let vi = self.decls.remove(ident.inspect()).unwrap_or_else(|| {
+            let mut vi = self.decls.remove(ident.inspect()).unwrap_or_else(|| {
                 VarInfo::new(
                     body_t.clone(),
                     Mutability::Const,
@@ -278,11 +278,17 @@ impl Context {
                     VarKind::Declared,
                     None,
                     self.impl_of(),
-                    py_name,
+                    py_name.clone(),
                     self.absolutize(ident.name.loc()),
                 )
             });
+            if vi.py_name.is_none() {
+                vi.py_name = py_name;
+            }
             self.locals.insert(ident.name.clone(), vi.clone());
+            if let Ok(value) = self.convert_singular_type_into_value(vi.t.clone()) {
+                self.consts.insert(ident.name.clone(), value);
+            }
             return Ok(vi);
         }
         let muty = Mutability::from(&ident.inspect()[..]);
@@ -290,7 +296,10 @@ impl Context {
             .decls
             .remove(ident.inspect())
             .or_else(|| self.future_defined_locals.remove(ident.inspect()));
-        let py_name = opt_vi.as_ref().map_or(py_name, |vi| vi.py_name.clone());
+        let py_name = opt_vi
+            .as_ref()
+            .and_then(|vi| vi.py_name.clone())
+            .or(py_name);
         let kind = if id.0 == 0 {
             VarKind::Declared
         } else {

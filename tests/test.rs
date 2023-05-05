@@ -208,6 +208,11 @@ fn exec_tuple() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_unit_test() -> Result<(), ()> {
+    expect_success("examples/unit_test.er", 0)
+}
+
+#[test]
 fn exec_unpack() -> Result<(), ()> {
     expect_success("examples/unpack.er", 0)
 }

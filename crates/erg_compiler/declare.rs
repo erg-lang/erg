@@ -41,12 +41,12 @@ impl ASTLowerer {
             None
         };
         let chunk = self.declare_chunk(body.block.remove(0), true)?;
-        let py_name = if let hir::Expr::TypeAsc(tasc) = &chunk {
-            enum_unwrap!(tasc.expr.as_ref(), hir::Expr::Accessor)
+        let py_name = match &chunk {
+            hir::Expr::TypeAsc(tasc) => enum_unwrap!(tasc.expr.as_ref(), hir::Expr::Accessor)
                 .local_name()
-                .map(Str::rc)
-        } else {
-            sig.inspect().cloned()
+                .map(Str::rc),
+            hir::Expr::Accessor(acc) => acc.var_info().py_name.clone(),
+            _ => sig.inspect().cloned(),
         };
         let found_body_t = chunk.ref_t();
         let ast::VarPattern::Ident(ident) = &sig.pat else { unreachable!() };
@@ -552,27 +552,6 @@ impl ASTLowerer {
         // .X = 'x': Type
         if ident.is_raw() {
             return Ok(());
-        }
-        if ident.is_const() {
-            let vis = self.module.context.instantiate_vis_modifier(&ident.vis)?;
-            let vi = VarInfo::new(
-                t.clone(),
-                Mutability::Const,
-                Visibility::new(vis, self.module.context.name.clone()),
-                VarKind::Declared,
-                None,
-                None,
-                Some(py_name.clone()),
-                self.module.context.absolutize(ident.name.loc()),
-            );
-            let name = if PYTHON_MODE {
-                let mut symbol = ident.name.clone().into_token();
-                symbol.content = py_name.clone();
-                VarName::new(symbol)
-            } else {
-                ident.name.clone()
-            };
-            self.module.context.decls.insert(name, vi);
         }
         let new_ident = if PYTHON_MODE {
             let mut symbol = ident.name.clone().into_token();

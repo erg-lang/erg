@@ -1312,6 +1312,19 @@ impl Context {
         }
     }
 
+    pub(crate) fn convert_singular_type_into_value(&self, typ: Type) -> Result<ValueObj, Type> {
+        match typ {
+            Type::Refinement(ref refine) => {
+                if let Predicate::Equal { rhs, .. } = refine.pred.as_ref() {
+                    self.convert_tp_into_value(rhs.clone()).map_err(|_| typ)
+                } else {
+                    Err(typ)
+                }
+            }
+            _ => Err(typ),
+        }
+    }
+
     pub(crate) fn convert_value_into_type(&self, val: ValueObj) -> Result<Type, ValueObj> {
         match val {
             ValueObj::Type(t) => match t {

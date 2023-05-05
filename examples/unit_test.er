@@ -1,0 +1,9 @@
+{main!; TestCase!} = pyimport "unittest"
+
+Test! = Inherit TestCase!
+Test!.
+    # demangling is necessary because Python gets the method name for the test run
+    'test_one' self =
+        self.assertEqual 1, 1
+
+main!()
