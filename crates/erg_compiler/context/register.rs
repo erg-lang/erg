@@ -1142,15 +1142,22 @@ impl Context {
             .push((ClassDefType::impl_trait(class, trait_), methods));
     }
 
-    pub(crate) fn register_marker_trait(&mut self, ctx: &Self, trait_: Type) {
-        let (_, trait_ctx) = ctx
-            .get_nominal_type_ctx(&trait_)
-            .unwrap_or_else(|| todo!("{trait_} not found"));
+    pub(crate) fn register_marker_trait(&mut self, ctx: &Self, trait_: Type) -> CompileResult<()> {
+        let (_, trait_ctx) = ctx.get_nominal_type_ctx(&trait_).ok_or_else(|| {
+            CompileError::type_not_found(
+                self.cfg.input.clone(),
+                line!() as usize,
+                ().loc(),
+                self.caused_by(),
+                &trait_,
+            )
+        })?;
         // self.register_supertrait(trait_, ctx);
         let traits = trait_ctx.super_traits.clone();
         self.super_traits.push(trait_);
         self.super_traits.extend(traits);
         unique_in_place(&mut self.super_traits);
+        Ok(())
     }
 
     pub(crate) fn register_gen_const(

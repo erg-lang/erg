@@ -624,7 +624,12 @@ impl ASTLowerer {
         };
         if let Some((_, ctx)) = self.module.context.rec_get_mut_type(&name) {
             let mut tmp = mem::take(ctx);
-            tmp.register_marker_trait(&self.module.context, trait_.clone());
+            tmp.register_marker_trait(&self.module.context, trait_.clone())
+                .map_err(|err| {
+                    let ctx = self.module.context.rec_get_mut_type(&name).unwrap().1;
+                    mem::swap(ctx, &mut tmp);
+                    err
+                })?;
             let ctx = self.module.context.rec_get_mut_type(&name).unwrap().1;
             mem::swap(ctx, &mut tmp);
             Ok(())
