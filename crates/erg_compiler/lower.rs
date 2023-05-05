@@ -591,7 +591,7 @@ impl ASTLowerer {
         ))
     }
 
-    fn lower_acc(&mut self, acc: ast::Accessor) -> LowerResult<hir::Accessor> {
+    pub(crate) fn lower_acc(&mut self, acc: ast::Accessor) -> LowerResult<hir::Accessor> {
         log!(info "entered {}({acc})", fn_name!());
         match acc {
             ast::Accessor::Ident(ident) => {

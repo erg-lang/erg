@@ -51,7 +51,7 @@ use super::instantiate::TyVarCache;
 use super::instantiate_spec::ParamKind;
 
 pub fn valid_mod_name(name: &str) -> bool {
-    !name.is_empty() && name.trim() == name
+    !name.is_empty() && !name.starts_with('/') && name.trim() == name
 }
 
 /// format:
@@ -1762,24 +1762,28 @@ impl Context {
         }
     }
 
-    fn import_erg_mod(&self, __name__: &Str, loc: &impl Locational) -> CompileResult<PathBuf> {
+    fn import_err(&self, __name__: &Str, loc: &impl Locational) -> TyCheckErrors {
         let mod_cache = self.mod_cache();
         let py_mod_cache = self.py_mod_cache();
+        TyCheckErrors::from(TyCheckError::import_error(
+            self.cfg.input.clone(),
+            line!() as usize,
+            format!("module {__name__} not found"),
+            loc.loc(),
+            self.caused_by(),
+            self.similar_builtin_erg_mod_name(__name__)
+                .or_else(|| mod_cache.get_similar_name(__name__)),
+            self.similar_builtin_py_mod_name(__name__)
+                .or_else(|| py_mod_cache.get_similar_name(__name__)),
+        ))
+    }
+
+    fn import_erg_mod(&self, __name__: &Str, loc: &impl Locational) -> CompileResult<PathBuf> {
+        let mod_cache = self.mod_cache();
         let path = match Self::resolve_real_path(&self.cfg, Path::new(&__name__[..])) {
             Some(path) => path,
             None => {
-                let err = TyCheckErrors::from(TyCheckError::import_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    format!("module {__name__} not found"),
-                    loc.loc(),
-                    self.caused_by(),
-                    self.similar_builtin_erg_mod_name(__name__)
-                        .or_else(|| mod_cache.get_similar_name(__name__)),
-                    self.similar_builtin_py_mod_name(__name__)
-                        .or_else(|| py_mod_cache.get_similar_name(__name__)),
-                ));
-                return Err(err);
+                return Err(self.import_err(__name__, loc));
             }
         };
         if let Some(referrer) = self.cfg.input.path() {
@@ -1790,7 +1794,10 @@ impl Context {
             return Ok(path);
         }
         let mut cfg = self.cfg.inherit(path.clone());
-        let src = cfg.input.read();
+        let src = cfg
+            .input
+            .try_read()
+            .map_err(|_| self.import_err(__name__, loc))?;
         let mut builder =
             HIRBuilder::new_with_cache(cfg, __name__, self.shared.as_ref().unwrap().clone());
         match builder.build(src, "exec") {
@@ -1942,7 +1949,10 @@ impl Context {
             return Ok(path);
         }
         let mut cfg = self.cfg.inherit(path.clone());
-        let src = cfg.input.read();
+        let src = cfg
+            .input
+            .try_read()
+            .map_err(|_| self.import_err(__name__, loc))?;
         let mut builder = HIRBuilder::new_with_cache(
             cfg,
             self.mod_name(&path),

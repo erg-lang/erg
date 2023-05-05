@@ -350,6 +350,19 @@ impl Input {
         }
     }
 
+    pub fn try_read(&mut self) -> std::io::Result<String> {
+        match &mut self.kind {
+            InputKind::File(filename) => {
+                let file = File::open(filename)?;
+                read_file(file)
+            }
+            InputKind::Pipe(s) | InputKind::Str(s) => Ok(s.clone()),
+            InputKind::REPL => Ok(GLOBAL_STDIN.read()),
+            InputKind::DummyREPL(dummy) => Ok(dummy.read_line()),
+            InputKind::Dummy => panic!("cannot read from a dummy file"),
+        }
+    }
+
     pub fn read_non_dummy(&self) -> String {
         match &self.kind {
             InputKind::File(filename) => {

@@ -40,7 +40,7 @@ impl ASTLowerer {
         } else {
             None
         };
-        let chunk = self.declare_chunk(body.block.remove(0))?;
+        let chunk = self.declare_chunk(body.block.remove(0), true)?;
         let py_name = if let hir::Expr::TypeAsc(tasc) = &chunk {
             enum_unwrap!(tasc.expr.as_ref(), hir::Expr::Accessor)
                 .local_name()
@@ -645,12 +645,13 @@ impl ASTLowerer {
         }
     }
 
-    fn declare_chunk(&mut self, expr: ast::Expr) -> LowerResult<hir::Expr> {
+    fn declare_chunk(&mut self, expr: ast::Expr, allow_acc: bool) -> LowerResult<hir::Expr> {
         log!(info "entered {}", fn_name!());
         match expr {
             ast::Expr::Literal(lit) if lit.is_doc_comment() => {
                 Ok(hir::Expr::Lit(self.lower_literal(lit)?))
             }
+            ast::Expr::Accessor(acc) if allow_acc => Ok(hir::Expr::Accessor(self.lower_acc(acc)?)),
             ast::Expr::Def(def) => Ok(hir::Expr::Def(self.declare_def(def)?)),
             ast::Expr::TypeAscription(tasc) => Ok(hir::Expr::TypeAsc(self.declare_ident(tasc)?)),
             ast::Expr::Call(call)
@@ -674,7 +675,7 @@ impl ASTLowerer {
         let mut module = hir::Module::with_capacity(ast.module.len());
         let _ = self.module.context.preregister(ast.module.block());
         for chunk in ast.module.into_iter() {
-            match self.declare_chunk(chunk) {
+            match self.declare_chunk(chunk, false) {
                 Ok(chunk) => {
                     module.push(chunk);
                 }
