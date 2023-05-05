@@ -2028,7 +2028,9 @@ impl Context {
     }
 
     pub(crate) fn inc_ref<L: Locational>(&self, vi: &VarInfo, name: &L, namespace: &Context) {
-        self.index().inc_ref(vi, namespace.absolutize(name.loc()));
+        if let Some(index) = self.opt_index() {
+            index.inc_ref(vi, namespace.absolutize(name.loc()));
+        }
     }
 
     pub(crate) fn inc_ref_acc(&self, acc: &ast::Accessor, namespace: &Context) -> bool {

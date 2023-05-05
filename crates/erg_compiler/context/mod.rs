@@ -36,7 +36,9 @@ use erg_parser::token::Token;
 use crate::context::instantiate::TyVarCache;
 use crate::context::instantiate_spec::ConstTemplate;
 use crate::error::{TyCheckError, TyCheckErrors};
-use crate::module::{SharedCompilerResource, SharedModuleCache};
+use crate::module::{
+    SharedCompilerResource, SharedModuleCache, SharedModuleIndex, SharedTraitImpls,
+};
 use crate::ty::value::ValueObj;
 use crate::ty::GuardType;
 use crate::ty::{Predicate, Type, Visibility, VisibilityModifier};
@@ -1141,11 +1143,15 @@ impl Context {
         &self.shared().py_mod_cache
     }
 
-    pub fn index(&self) -> &crate::module::SharedModuleIndex {
+    pub(crate) fn opt_index(&self) -> Option<&SharedModuleIndex> {
+        self.shared.as_ref().map(|s| &s.index)
+    }
+
+    pub fn index(&self) -> &SharedModuleIndex {
         &self.shared().index
     }
 
-    pub fn trait_impls(&self) -> &crate::module::SharedTraitImpls {
+    pub fn trait_impls(&self) -> &SharedTraitImpls {
         &self.shared().trait_impls
     }
 
