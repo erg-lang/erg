@@ -1,0 +1,3 @@
+.TestProgram: ClassType
+
+.main = .TestProgram

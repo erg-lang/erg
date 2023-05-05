@@ -1,0 +1,44 @@
+.InvalidSpecError: ClassType
+
+.FILTER_DIR: {True}
+
+_SentinelObject: ClassType
+_Sentinel: ClassType
+.sentinel: _Sentinel
+.DEFAULT: _SentinelObject
+
+.Base: ClassType
+.NonCallableMock: ClassType
+.NonCallableMock <: .Base
+
+.CallableMixin: ClassType
+.CallableMixin <: .Base
+
+.Mock: ClassType
+.Mock <: .CallableMixin
+.Mock <: .NonCallableMock
+
+.MagicMixin: ClassType
+.MagicMixin <: .Base
+
+.NonCallableMagicMock: ClassType
+.NonCallableMagicMock <: .MagicMixin
+.NonCallableMagicMock <: .NonCallableMock
+
+.AsyncMagicMixin: ClassType
+.AsyncMagicMixin <: .MagicMixin
+
+.MagicMock: ClassType
+.MagicMock <: .MagicMixin
+.MagicMock <: .Mock
+
+.MagicProxy: ClassType
+.MagicProxy <: .Base
+
+.AsyncMockMixin: ClassType
+.AsyncMockMixin <: .Base
+
+.AsyncMock: ClassType
+.AsyncMock <: .AsyncMockMixin
+.AsyncMock <: .MagicMixin
+.AsyncMock <: .Mock

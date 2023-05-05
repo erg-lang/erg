@@ -1,0 +1,5 @@
+.safe_repr: (obj: Obj, short := Bool) -> Str
+.strclass: (cls: ClassType) -> Str
+.sorted_list_difference: |N <: Float|(expected: [N; _], actual: [N; _]) -> ([N; _], [N; _])
+.unordered_list_difference: |N <: Float|(expected: [N; _], actual: [N; _]) -> ([N; _], [N; _])
+.three_way_cmp: |N <: Ord|(x: N, y: N) -> {-1, 0, 1}

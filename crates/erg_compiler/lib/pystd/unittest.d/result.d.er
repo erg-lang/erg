@@ -1,0 +1,27 @@
+STDOUT_LINE: {"\nStdout:\n%s"}
+STDERR_LINE: {"\nStderr:\n%s"}
+
+.failfast: |F <: GenericCallable|(F) -> F
+
+.TestResult!: ClassType
+.TestResult!.
+    failfast: Bool
+    testsRun: Nat
+    shouldStop: Bool
+    buffer: Bool
+    tb_locals: Bool
+    printerrors: (self: .TestResult!) -> NoneType
+    startTest!: (self: RefMut(.TestResult!), test: Obj) => NoneType
+    startTestRun: (self: RefMut(.TestResult!)) -> NoneType
+    stopTest!: (self: RefMut(.TestResult!), test: Obj) => NoneType
+    stopTestRun: (self: RefMut(.TestResult!)) -> NoneType
+    addError!: (self: RefMut(.TestResult!), test: Obj, err: Obj) => NoneType
+    addFailure!: (self: RefMut(.TestResult!), test: Obj, err: Obj) => NoneType
+    addSubTest!: (self: RefMut(.TestResult!), test: Obj, subtest: Obj, err: Obj) => NoneType
+    addSuccess!: (self: RefMut(.TestResult!), test: Obj) => NoneType
+    addSkip!: (self: RefMut(.TestResult!), test: Obj, reason: Obj) => NoneType
+    addExpectedFailure!: (self: RefMut(.TestResult!), test: Obj, err: Obj) => NoneType
+    addUnexpectedSuccess!: (self: RefMut(.TestResult!), test: Obj) => NoneType
+    wasSuccessful: (self: RefMut(.TestResult!)) -> Bool
+    stop!: (self: RefMut(.TestResult!)) => NoneType
+    __repr__: (self: RefMut(.TestResult!)) -> Str

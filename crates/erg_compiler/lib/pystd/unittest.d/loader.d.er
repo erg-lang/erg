@@ -1,0 +1,16 @@
+re = pyimport "re"
+
+.case = pyimport "./case"
+.suite = pyimport "./suite"
+
+.VALID_MODULE_NAME: re.Pattern
+
+.TestLoader!: ClassType
+.TestLoader!.
+    __call__: () -> .TestLoader!
+
+.defaultTestLoader: .TestLoader!
+
+.getTestCaseNames: (ClassType, prefix: Str) -> [Str; _]
+.makeSuite: (ClassType, prefix := Str) -> .suite.TestSuite!
+.findTestCases: (module: GenericModule, prefix := Str) -> [.case.TestCase!; _]

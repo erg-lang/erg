@@ -1,0 +1,13 @@
+result = pyimport "./result"
+
+.BaseTestSuite!: ClassType
+.BaseTestSuite!.
+    __call__: (self: RefMut(.BaseTestSuite!), tests: Iterable(GenericCallable)) => NoneType
+    countTestCases: (self: Ref(.BaseTestSuite!)) => Nat
+    addTest!: (self: RefMut(.BaseTestSuite!), test: GenericCallable) => NoneType
+    addTests!: (self: RefMut(.BaseTestSuite!), tests: Iterable(GenericCallable)) => NoneType
+    run!: (self: RefMut(.BaseTestSuite!), result: RefMut(result.TestResult!)) => result.TestResult!
+    debug!: (self: RefMut(.BaseTestSuite!)) => NoneType
+
+.TestSuite!: ClassType
+.TestSuite! <: .BaseTestSuite!

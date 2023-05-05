@@ -1,0 +1,7 @@
+{.TestResult!;} = pyimport "./result"
+{.BaseTestSuite!; .TestSuite!} = pyimport "./suite"
+{.TestLoader!; defaultTestLoader} = pyimport "./loader"
+{.TestProgram; .main} = pyimport "./main"
+{.TextTestRunner!; .TextTestResult!} = pyimport "./runner"
+{.installHandler!; .registerResult!; removeResult!;} = pyimport "./signals"
+{.makeSuite; getTestCaseNames; .findTestCases;} = pyimport "./loader"

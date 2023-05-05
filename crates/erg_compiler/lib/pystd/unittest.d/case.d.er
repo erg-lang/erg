@@ -1,0 +1,12 @@
+.DIFF_OMITTED: (
+    {"\nDiff is %s characters long. "},
+    {"Set self.maxDiff to None to see it."},
+)
+
+.SkipTest: ClassType
+.SkipTest.
+    __call__: (reason: Str or GenericCallable) -> .SkipTest
+
+.doModuleCleanups!: () => NoneType
+
+.TestCase!: ClassType
