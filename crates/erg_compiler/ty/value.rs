@@ -12,6 +12,7 @@ use erg_common::error::{ErrorCore, ErrorKind, Location};
 use erg_common::fresh::FRESH_GEN;
 use erg_common::io::Input;
 use erg_common::python_util::PythonVersion;
+use erg_common::ratio::Ratio;
 use erg_common::serialize::*;
 use erg_common::set::Set;
 use erg_common::traits::LimitedDisplay;
@@ -497,6 +498,7 @@ impl TypeObj {
 /// コンパイル時評価ができ、シリアライズも可能(Typeなどはシリアライズ不可)
 #[derive(Clone, PartialEq, Default)]
 pub enum ValueObj {
+    Ratio(Ratio),
     Int(i32),
     Nat(u64),
     Float(f64),
@@ -527,6 +529,13 @@ pub enum ValueObj {
 impl fmt::Debug for ValueObj {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Ratio(i) => {
+                if cfg!(feature = "debug") {
+                    write!(f, "Ratio({i})")
+                } else {
+                    write!(f, "{i}")
+                }
+            }
             Self::Int(i) => {
                 if cfg!(feature = "debug") {
                     write!(f, "Int({i})")
@@ -732,6 +741,7 @@ impl Neg for ValueObj {
         match self {
             Self::Int(i) => Self::Int(-i),
             Self::Nat(n) => Self::Int(-(n as i32)),
+            Self::Ratio(r) => Self::Ratio(r * Ratio::new(1, -1)),
             Self::Float(fl) => Self::Float(-fl),
             Self::Inf => Self::NegInf,
             Self::NegInf => Self::Inf,
@@ -746,6 +756,7 @@ impl Hash for ValueObj {
         match self {
             Self::Int(i) => i.hash(state),
             Self::Nat(n) => n.hash(state),
+            Self::Ratio(r) => r.hash(state),
             // TODO:
             Self::Float(f) => f.to_bits().hash(state),
             Self::Str(s) => s.hash(state),
@@ -791,6 +802,12 @@ impl Hash for ValueObj {
                 "illegal".hash(state)
             }
         }
+    }
+}
+
+impl From<i64> for ValueObj {
+    fn from(item: i64) -> Self {
+        ValueObj::Ratio(Ratio::new(item, 1))
     }
 }
 
@@ -872,6 +889,7 @@ impl TryFrom<&ValueObj> for f64 {
         match val {
             ValueObj::Int(i) => Ok(*i as f64),
             ValueObj::Nat(n) => Ok(*n as f64),
+            ValueObj::Ratio(r) => Ok(r.to_float()),
             ValueObj::Float(f) => Ok(*f),
             ValueObj::Inf => Ok(f64::INFINITY),
             ValueObj::NegInf => Ok(f64::NEG_INFINITY),
@@ -970,14 +988,21 @@ impl ValueObj {
     pub const fn is_num(&self) -> bool {
         matches!(
             self,
-            Self::Float(_) | Self::Int(_) | Self::Nat(_) | Self::Bool(_)
+            Self::Float(_) | Self::Ratio(_) | Self::Int(_) | Self::Nat(_) | Self::Bool(_)
         )
     }
 
     pub const fn is_float(&self) -> bool {
         matches!(
             self,
-            Self::Float(_) | Self::Int(_) | Self::Nat(_) | Self::Bool(_)
+            Self::Float(_) | Self::Ratio(_) | Self::Int(_) | Self::Nat(_) | Self::Bool(_)
+        )
+    }
+
+    pub const fn is_ratio(&self) -> bool {
+        matches!(
+            self,
+            Self::Ratio(_) | Self::Int(_) | Self::Nat(_) | Self::Bool(_)
         )
     }
 
@@ -1034,17 +1059,17 @@ impl ValueObj {
                     _ => content.parse::<u64>().ok().map(Self::Nat),
                 }
             }
+            Type::Ratio => content
+                .replace('_', "")
+                .parse::<f64>()
+                .ok()
+                .map(|f| Self::Ratio(Ratio::float_new(f))),
             Type::Float => content
                 .replace('_', "")
                 .parse::<f64>()
                 .ok()
                 .map(Self::Float),
             // TODO:
-            Type::Ratio => content
-                .replace('_', "")
-                .parse::<f64>()
-                .ok()
-                .map(Self::Float),
             Type::Str => {
                 if &content[..] == "\"\"" {
                     Some(Self::Str(Str::from("")))
@@ -1084,6 +1109,11 @@ impl ValueObj {
                 (n as i32).to_le_bytes().to_vec(),
             ]
             .concat(),
+            Self::Ratio(r) => {
+                let n = r.numer();
+                let d = r.denom();
+                str_into_bytes(format!("{n}/{d}").into(), false)
+            }
             Self::Float(f) => [
                 vec![DataTypePrefix::BinFloat as u8],
                 f.to_le_bytes().to_vec(),
@@ -1150,6 +1180,7 @@ impl ValueObj {
 
     pub fn class(&self) -> Type {
         match self {
+            Self::Ratio(_) => Type::Ratio,
             Self::Int(_) => Type::Int,
             Self::Nat(_) => Type::Nat,
             Self::Float(_) => Type::Float,
@@ -1243,6 +1274,11 @@ impl ValueObj {
     // REVIEW: allow_divergenceオプションを付けるべきか?
     pub fn try_add(self, other: Self) -> Option<Self> {
         match (self, other) {
+            (Self::Ratio(l), Self::Ratio(r)) => Some(Self::Ratio(l + r)),
+            (Self::Ratio(l), Self::Int(r)) => Some(Self::Ratio(l + Ratio::new(r as i64, 1))),
+            (Self::Ratio(l), Self::Nat(r)) => Some(Self::Ratio(l + Ratio::new(r as i64, 1))),
+            (Self::Int(l), Self::Ratio(r)) => Some(Self::Ratio(Ratio::new(l as i64, 1) + r)),
+            (Self::Nat(l), Self::Ratio(r)) => Some(Self::Ratio(Ratio::new(l as i64, 1) + r)),
             (Self::Int(l), Self::Int(r)) => Some(Self::Int(l + r)),
             (Self::Nat(l), Self::Nat(r)) => Some(Self::Nat(l + r)),
             (Self::Float(l), Self::Float(r)) => Some(Self::Float(l + r)),
@@ -1267,6 +1303,11 @@ impl ValueObj {
 
     pub fn try_sub(self, other: Self) -> Option<Self> {
         match (self, other) {
+            (Self::Ratio(l), Self::Ratio(r)) => Some(Self::Ratio(l - r)),
+            (Self::Ratio(l), Self::Int(r)) => Some(Self::Ratio(l - Ratio::new(r as i64, 1))),
+            (Self::Ratio(l), Self::Nat(r)) => Some(Self::Ratio(l - Ratio::new(r as i64, 1))),
+            (Self::Int(l), Self::Ratio(r)) => Some(Self::Ratio(Ratio::new(l as i64, 1) - r)),
+            (Self::Nat(l), Self::Ratio(r)) => Some(Self::Ratio(Ratio::new(l as i64, 1) - r)),
             (Self::Int(l), Self::Int(r)) => Some(Self::Int(l - r)),
             (Self::Nat(l), Self::Nat(r)) => Some(Self::Int(l as i32 - r as i32)),
             (Self::Float(l), Self::Float(r)) => Some(Self::Float(l - r)),
@@ -1288,6 +1329,11 @@ impl ValueObj {
 
     pub fn try_mul(self, other: Self) -> Option<Self> {
         match (self, other) {
+            (Self::Ratio(l), Self::Ratio(r)) => Some(Self::Ratio(l * r)),
+            (Self::Ratio(l), Self::Int(r)) => Some(Self::Ratio(l * Ratio::new(r as i64, 1))),
+            (Self::Ratio(l), Self::Nat(r)) => Some(Self::Ratio(l * Ratio::new(r as i64, 1))),
+            (Self::Int(l), Self::Ratio(r)) => Some(Self::Ratio(Ratio::new(l as i64, 1) * r)),
+            (Self::Nat(l), Self::Ratio(r)) => Some(Self::Ratio(Ratio::new(l as i64, 1) * r)),
             (Self::Int(l), Self::Int(r)) => Some(Self::from(l * r)),
             (Self::Nat(l), Self::Nat(r)) => Some(Self::Nat(l * r)),
             (Self::Float(l), Self::Float(r)) => Some(Self::Float(l * r)),
@@ -1307,11 +1353,16 @@ impl ValueObj {
 
     pub fn try_div(self, other: Self) -> Option<Self> {
         match (self, other) {
-            (Self::Int(l), Self::Int(r)) => Some(Self::Float(l as f64 / r as f64)),
-            (Self::Nat(l), Self::Nat(r)) => Some(Self::Float(l as f64 / r as f64)),
+            (Self::Ratio(l), Self::Ratio(r)) => Some(Self::Ratio(l / r)),
+            (Self::Ratio(l), Self::Int(r)) => Some(Self::Ratio(l / Ratio::new(r as i64, 1))),
+            (Self::Ratio(l), Self::Nat(r)) => Some(Self::Ratio(l / Ratio::new(r as i64, 1))),
+            (Self::Int(l), Self::Ratio(r)) => Some(Self::Ratio(Ratio::new(l as i64, 1) / r)),
+            (Self::Nat(l), Self::Ratio(r)) => Some(Self::Ratio(Ratio::new(l as i64, 1) / r)),
+            (Self::Int(l), Self::Int(r)) => Some(Self::Ratio(Ratio::new(l as i64, r as i64))),
+            (Self::Nat(l), Self::Nat(r)) => Some(Self::Ratio(Ratio::new(l as i64, r as i64))),
             (Self::Float(l), Self::Float(r)) => Some(Self::Float(l / r)),
-            (Self::Int(l), Self::Nat(r)) => Some(Self::Float(l as f64 / r as f64)),
-            (Self::Nat(l), Self::Int(r)) => Some(Self::Float(l as f64 / r as f64)),
+            (Self::Int(l), Self::Nat(r)) => Some(Self::Ratio(Ratio::new(l as i64, r as i64))),
+            (Self::Nat(l), Self::Int(r)) => Some(Self::Ratio(Ratio::new(l as i64, r as i64))),
             (Self::Float(l), Self::Nat(r)) => Some(Self::Float(l / r as f64)),
             (Self::Nat(l), Self::Float(r)) => Some(Self::from(l as f64 / r)),
             (Self::Float(l), Self::Int(r)) => Some(Self::from(l / r as f64)),
@@ -1339,6 +1390,11 @@ impl ValueObj {
 
     pub fn try_gt(self, other: Self) -> Option<Self> {
         match (self, other) {
+            (Self::Ratio(l), Self::Ratio(r)) => Some(Self::from(l > r)),
+            (Self::Ratio(l), Self::Int(r)) => Some(Self::from(l > Ratio::new(r as i64, 1))),
+            (Self::Ratio(l), Self::Nat(r)) => Some(Self::from(l > Ratio::new(r as i64, 1))),
+            (Self::Int(l), Self::Ratio(r)) => Some(Self::from(Ratio::new(l as i64, 1) > r)),
+            (Self::Nat(l), Self::Ratio(r)) => Some(Self::from(Ratio::new(l as i64, 1) > r)),
             (Self::Int(l), Self::Int(r)) => Some(Self::from(l > r)),
             (Self::Nat(l), Self::Nat(r)) => Some(Self::from(l > r)),
             (Self::Float(l), Self::Float(r)) => Some(Self::from(l > r)),
@@ -1354,6 +1410,11 @@ impl ValueObj {
 
     pub fn try_ge(self, other: Self) -> Option<Self> {
         match (self, other) {
+            (Self::Ratio(l), Self::Ratio(r)) => Some(Self::from(l >= r)),
+            (Self::Ratio(l), Self::Int(r)) => Some(Self::from(l >= Ratio::new(r as i64, 1))),
+            (Self::Ratio(l), Self::Nat(r)) => Some(Self::from(l >= Ratio::new(r as i64, 1))),
+            (Self::Int(l), Self::Ratio(r)) => Some(Self::from(Ratio::new(l as i64, 1) >= r)),
+            (Self::Nat(l), Self::Ratio(r)) => Some(Self::from(Ratio::new(l as i64, 1) >= r)),
             (Self::Int(l), Self::Int(r)) => Some(Self::from(l >= r)),
             (Self::Nat(l), Self::Nat(r)) => Some(Self::from(l >= r)),
             (Self::Float(l), Self::Float(r)) => Some(Self::from(l >= r)),
@@ -1369,6 +1430,11 @@ impl ValueObj {
 
     pub fn try_lt(self, other: Self) -> Option<Self> {
         match (self, other) {
+            (Self::Ratio(l), Self::Ratio(r)) => Some(Self::from(l < r)),
+            (Self::Ratio(l), Self::Int(r)) => Some(Self::from(l < Ratio::new(r as i64, 1))),
+            (Self::Ratio(l), Self::Nat(r)) => Some(Self::from(l < Ratio::new(r as i64, 1))),
+            (Self::Int(l), Self::Ratio(r)) => Some(Self::from(Ratio::new(l as i64, 1) < r)),
+            (Self::Nat(l), Self::Ratio(r)) => Some(Self::from(Ratio::new(l as i64, 1) < r)),
             (Self::Int(l), Self::Int(r)) => Some(Self::from(l < r)),
             (Self::Nat(l), Self::Nat(r)) => Some(Self::from(l < r)),
             (Self::Float(l), Self::Float(r)) => Some(Self::from(l < r)),
@@ -1384,6 +1450,11 @@ impl ValueObj {
 
     pub fn try_le(self, other: Self) -> Option<Self> {
         match (self, other) {
+            (Self::Ratio(l), Self::Ratio(r)) => Some(Self::from(l <= r)),
+            (Self::Ratio(l), Self::Int(r)) => Some(Self::from(l <= Ratio::new(r as i64, 1))),
+            (Self::Ratio(l), Self::Nat(r)) => Some(Self::from(l <= Ratio::new(r as i64, 1))),
+            (Self::Int(l), Self::Ratio(r)) => Some(Self::from(Ratio::new(l as i64, 1) <= r)),
+            (Self::Nat(l), Self::Ratio(r)) => Some(Self::from(Ratio::new(l as i64, 1) <= r)),
             (Self::Int(l), Self::Int(r)) => Some(Self::from(l <= r)),
             (Self::Nat(l), Self::Nat(r)) => Some(Self::from(l <= r)),
             (Self::Float(l), Self::Float(r)) => Some(Self::from(l <= r)),
@@ -1399,6 +1470,11 @@ impl ValueObj {
 
     pub fn try_eq(self, other: Self) -> Option<Self> {
         match (self, other) {
+            (Self::Ratio(l), Self::Ratio(r)) => Some(Self::from(l == r)),
+            (Self::Ratio(l), Self::Int(r)) => Some(Self::from(l == Ratio::new(r as i64, 1))),
+            (Self::Ratio(l), Self::Nat(r)) => Some(Self::from(l == Ratio::new(r as i64, 1))),
+            (Self::Int(l), Self::Ratio(r)) => Some(Self::from(Ratio::new(l as i64, 1) == r)),
+            (Self::Nat(l), Self::Ratio(r)) => Some(Self::from(Ratio::new(l as i64, 1) == r)),
             (Self::Int(l), Self::Int(r)) => Some(Self::from(l == r)),
             (Self::Nat(l), Self::Nat(r)) => Some(Self::from(l == r)),
             (Self::Float(l), Self::Float(r)) => Some(Self::from(l == r)),
@@ -1418,6 +1494,11 @@ impl ValueObj {
 
     pub fn try_ne(self, other: Self) -> Option<Self> {
         match (self, other) {
+            (Self::Ratio(l), Self::Ratio(r)) => Some(Self::from(l != r)),
+            (Self::Ratio(l), Self::Int(r)) => Some(Self::from(l != Ratio::new(r as i64, 1))),
+            (Self::Ratio(l), Self::Nat(r)) => Some(Self::from(l != Ratio::new(r as i64, 1))),
+            (Self::Int(l), Self::Ratio(r)) => Some(Self::from(Ratio::new(l as i64, 1) != r)),
+            (Self::Nat(l), Self::Ratio(r)) => Some(Self::from(Ratio::new(l as i64, 1) != r)),
             (Self::Int(l), Self::Int(r)) => Some(Self::from(l != r)),
             (Self::Nat(l), Self::Nat(r)) => Some(Self::from(l != r)),
             (Self::Float(l), Self::Float(r)) => Some(Self::from(l != r)),

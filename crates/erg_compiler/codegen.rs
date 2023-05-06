@@ -3141,6 +3141,10 @@ impl PyCodeGenerator {
                     self.emit_push_null();
                     self.emit_load_name_instr(Identifier::public("Int"));
                 }
+                Ratio => {
+                    self.emit_push_null();
+                    self.emit_load_name_instr(Identifier::public("Ratio"));
+                }
                 Float => {
                     self.emit_push_null();
                     self.emit_load_name_instr(Identifier::public("Float"));

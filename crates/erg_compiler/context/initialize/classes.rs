@@ -2,6 +2,7 @@ use erg_common::consts::{ERG_MODE, PYTHON_MODE};
 use erg_common::fresh::FRESH_GEN;
 #[allow(unused_imports)]
 use erg_common::log;
+use erg_common::ratio::Ratio;
 
 use crate::ty::constructors::*;
 use crate::ty::typaram::TyParam;
@@ -67,18 +68,18 @@ impl Context {
         complex.register_builtin_const(
             EPSILON,
             Visibility::BUILTIN_PUBLIC,
-            ValueObj::Float(2.220446049250313e-16),
+            ValueObj::Ratio(Ratio::float_new(2.220446049250313e-16)),
         );
         complex.register_builtin_py_impl(
             REAL,
-            Float,
+            Ratio,
             Const,
             Visibility::BUILTIN_PUBLIC,
             Some(REAL),
         );
         complex.register_builtin_py_impl(
             IMAG,
-            Float,
+            Ratio,
             Const,
             Visibility::BUILTIN_PUBLIC,
             Some(IMAG),
@@ -93,7 +94,7 @@ impl Context {
         let t = func(
             vec![],
             None,
-            vec![kw(REAL, Float), kw(IMAG, Float)],
+            vec![kw(REAL, Ratio), kw(IMAG, Ratio)],
             Complex,
         );
         complex.register_builtin_py_impl(
@@ -105,7 +106,7 @@ impl Context {
         );
         complex.register_builtin_py_impl(
             FUNDAMENTAL_HASH,
-            fn0_met(Float, Nat),
+            fn0_met(Ratio, Nat),
             Immutable,
             Visibility::BUILTIN_PUBLIC,
             Some(FUNDAMENTAL_HASH),
@@ -287,7 +288,6 @@ impl Context {
         float.register_trait(Float, float_show);
 
         /* Ratio */
-        // TODO: Int, Nat, Boolの継承元をRatioにする(今はFloat)
         let mut ratio = Self::builtin_mono_class(RATIO, 2);
         ratio.register_superclass(Obj, &obj);
         ratio.register_builtin_py_impl(REAL, Ratio, Const, Visibility::BUILTIN_PUBLIC, Some(REAL));
@@ -415,7 +415,7 @@ impl Context {
 
         /* Int */
         let mut int = Self::builtin_mono_class(INT, 2);
-        int.register_superclass(Float, &float); // TODO: Float -> Ratio
+        int.register_superclass(Ratio, &ratio);
         int.register_marker_trait(self, mono(NUM)).unwrap();
         // class("Rational"),
         // class("Integral"),
@@ -525,6 +525,14 @@ impl Context {
             ValueObj::builtin_class(Nat),
         );
         int.register_trait(Int, int_mul);
+        let mut int_div = Self::builtin_methods(Some(poly(DIV, vec![ty_tp(Int)])), 2);
+        int_div.register_builtin_erg_impl(OP_DIV, op_t.clone(), Const, Visibility::BUILTIN_PUBLIC);
+        int_div.register_builtin_const(
+            OUTPUT,
+            Visibility::BUILTIN_PUBLIC,
+            ValueObj::builtin_class(Ratio),
+        );
+        int.register_trait(Ratio, int_div);
         let mut int_floordiv = Self::builtin_methods(Some(poly(FLOOR_DIV, vec![ty_tp(Int)])), 2);
         int_floordiv.register_builtin_erg_impl(
             OP_FLOOR_DIV,
@@ -657,6 +665,14 @@ impl Context {
             ValueObj::builtin_class(Nat),
         );
         nat.register_trait(Nat, nat_mul);
+        let mut nat_div = Self::builtin_methods(Some(poly(DIV, vec![ty_tp(Nat)])), 2);
+        nat_div.register_builtin_erg_impl(OP_DIV, op_t.clone(), Const, Visibility::BUILTIN_PUBLIC);
+        nat_div.register_builtin_const(
+            OUTPUT,
+            Visibility::BUILTIN_PUBLIC,
+            ValueObj::builtin_class(Ratio),
+        );
+        nat.register_trait(Ratio, nat_div);
         let mut nat_floordiv = Self::builtin_methods(Some(poly(FLOOR_DIV, vec![ty_tp(Nat)])), 2);
         nat_floordiv.register_builtin_erg_impl(
             OP_FLOOR_DIV,
@@ -2307,7 +2323,7 @@ impl Context {
         /* Int! */
         let mut int_mut = Self::builtin_mono_class(MUT_INT, 2);
         int_mut.register_superclass(Int, &int);
-        int_mut.register_superclass(mono(MUT_FLOAT), &float_mut);
+        int_mut.register_superclass(mono(MUT_RATIO), &ratio_mut);
         let t = pr_met(mono(MUT_INT), vec![], None, vec![kw("i", Int)], NoneType);
         int_mut.register_builtin_py_impl(
             PROC_INC,

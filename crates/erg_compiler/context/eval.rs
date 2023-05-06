@@ -6,6 +6,7 @@ use erg_common::dict::Dict;
 use erg_common::error::Location;
 #[allow(unused)]
 use erg_common::log;
+use erg_common::ratio::Ratio;
 use erg_common::set::Set;
 use erg_common::shared::Shared;
 use erg_common::traits::{Locational, Stream};
@@ -1391,7 +1392,7 @@ impl Context {
             ValueObj::Bool(b) => Ok(ValueObj::Nat(b as u64 + 1)),
             ValueObj::Nat(n) => Ok(ValueObj::Nat(n + 1)),
             ValueObj::Int(n) => Ok(ValueObj::Int(n + 1)),
-            // TODO:
+            ValueObj::Ratio(r) => Ok(ValueObj::Ratio(r + Ratio::new(1, 1))),
             ValueObj::Float(n) => Ok(ValueObj::Float(n + f64::EPSILON)),
             ValueObj::Inf | ValueObj::NegInf => Ok(val),
             _ => Err(EvalErrors::from(EvalError::unreachable(
@@ -1407,7 +1408,7 @@ impl Context {
             ValueObj::Bool(_) => Ok(ValueObj::Nat(0)),
             ValueObj::Nat(n) => Ok(ValueObj::Nat(n.saturating_sub(1))),
             ValueObj::Int(n) => Ok(ValueObj::Int(n - 1)),
-            // TODO:
+            ValueObj::Ratio(r) => Ok(ValueObj::Ratio(r - Ratio::new(1, 1))),
             ValueObj::Float(n) => Ok(ValueObj::Float(n - f64::EPSILON)),
             ValueObj::Inf | ValueObj::NegInf => Ok(val),
             _ => Err(EvalErrors::from(EvalError::unreachable(
