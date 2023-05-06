@@ -435,7 +435,7 @@ impl Context {
                             let rhs_meta = self.meta_type(rhs);
                             self.supertype_of(&lfvt, &rhs_meta)
                         } else {
-                            // constraint is uninitalized
+                            // constraint is uninitialized
                             log!(err "constraint is uninitialized: {lfv}/{rhs}");
                             true
                         }
@@ -457,7 +457,7 @@ impl Context {
                         let lhs_meta = self.meta_type(lhs);
                         self.supertype_of(&lhs_meta, &rfvt)
                     } else {
-                        // constraint is uninitalized
+                        // constraint is uninitialized
                         log!(err "constraint is uninitialized: {lhs}/{rfv}");
                         true
                     }

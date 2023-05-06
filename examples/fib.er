@@ -1,7 +1,7 @@
 fib 0 = 0
 fib 1 = 1
 # a type annotation is required for the recursive function
-# NOTE: currenlty we must specify `n` as `Int` (not `Nat`), because Erg points out the possibility that `n-1` and `n-2` could be minus
+# NOTE: currently we must specify `n` as `Int` (not `Nat`), because Erg points out the possibility that `n-1` and `n-2` could be minus
 fib(n: Int): Nat = fib(n-1) + fib(n-2)
 
 assert fib(10) == 55

@@ -1,7 +1,7 @@
 # Check that a parser can pass the advanced syntax
 # 高度な文法をチェックする
 
-# mutliple patterns definition
+# multiple patterns definition
 fib 0 = 0
 fib 1 = 1
 fib(n: Nat): Nat = fib(n-1) + fib(n-2)
