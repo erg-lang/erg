@@ -1465,53 +1465,63 @@ impl Context {
                     Err(errs)
                 }
             }
-            other => {
-                let ctxs = self
-                    .get_singular_ctxs_by_hir_expr(obj, self)
-                    .ok()
-                    .unwrap_or(vec![]);
-                let one = attr_name
-                    .as_ref()
-                    .map(|attr| {
-                        ctxs.iter()
-                            .flat_map(|ctx| {
-                                ctx.get_singular_ctxs_by_ident(attr, self)
-                                    .ok()
-                                    .unwrap_or(vec![])
-                            })
-                            .collect()
+            _ => self.substitute_dunder_call(obj, attr_name, instance, pos_args, kw_args),
+        }
+    }
+
+    fn substitute_dunder_call(
+        &self,
+        obj: &hir::Expr,
+        attr_name: &Option<Identifier>,
+        instance: &Type,
+        pos_args: &[hir::PosArg],
+        kw_args: &[hir::KwArg],
+    ) -> TyCheckResult<SubstituteResult> {
+        let ctxs = self
+            .get_singular_ctxs_by_hir_expr(obj, self)
+            .ok()
+            .unwrap_or(vec![]);
+        let one = attr_name
+            .as_ref()
+            .map(|attr| {
+                ctxs.iter()
+                    .flat_map(|ctx| {
+                        ctx.get_singular_ctxs_by_ident(attr, self)
+                            .ok()
+                            .unwrap_or(vec![])
                     })
-                    .unwrap_or(ctxs);
-                let two = obj
-                    .qual_name()
-                    .map(|name| {
-                        self.get_same_name_context(name)
-                            .map_or(vec![], |ctx| vec![ctx])
-                    })
-                    .unwrap_or(vec![]);
-                let fallbacks = one.into_iter().chain(two.into_iter());
-                for typ_ctx in fallbacks {
-                    if let Some(call_vi) =
-                        typ_ctx.get_current_scope_var(&VarName::from_static("__call__"))
-                    {
-                        let instance = self.instantiate_def_type(&call_vi.t)?;
-                        self.substitute_call(obj, attr_name, &instance, pos_args, kw_args)?;
-                        return Ok(SubstituteResult::__Call__(instance));
-                    }
-                }
-                let hint = if self.subtype_of(other, &ClassType) {
-                    Some(switch_lang! {
-                        "japanese" => format!("インスタンスを生成したい場合は、{}.newを使用してください", obj.to_string_notype()),
-                        "simplified_chinese" => format!("如果要生成实例，请使用 {}.new", obj.to_string_notype()),
-                        "traditional_chinese" => format!("如果要生成實例，請使用 {}.new", obj.to_string_notype()),
-                        "english" => format!("If you want to generate an instance, use {}.new", obj.to_string_notype()),
-                    })
-                } else {
-                    None
-                };
-                Err(self.not_callable_error(obj, attr_name, other, hint))
+                    .collect()
+            })
+            .unwrap_or(ctxs);
+        let two = obj
+            .qual_name()
+            .map(|name| {
+                self.get_same_name_context(name)
+                    .map_or(vec![], |ctx| vec![ctx])
+            })
+            .unwrap_or(vec![]);
+        let fallbacks = one.into_iter().chain(two.into_iter());
+        for typ_ctx in fallbacks {
+            if let Some(call_vi) =
+                typ_ctx.get_current_scope_var(&VarName::from_static("__call__"))
+            {
+                let instance = self.instantiate_def_type(&call_vi.t)?;
+                self.substitute_call(obj, attr_name, &instance, pos_args, kw_args)?;
+                return Ok(SubstituteResult::__Call__(instance));
             }
         }
+        let hint = if self.subtype_of(instance, &ClassType) {
+            let acc = attr_name.as_ref().map_or(obj.to_string_notype(), |attr| obj.to_string_notype() + &attr.to_string());
+            Some(switch_lang! {
+                "japanese" => format!("インスタンスを生成したい場合は、{acc}.newを使用してください"),
+                "simplified_chinese" => format!("如果要生成实例，请使用 {acc}.new"),
+                "traditional_chinese" => format!("如果要生成實例，請使用 {acc}.new"),
+                "english" => format!("If you want to generate an instance, use {acc}.new"),
+            })
+        } else {
+            None
+        };
+        Err(self.not_callable_error(obj, attr_name, instance, hint))
     }
 
     fn gen_too_many_args_error(

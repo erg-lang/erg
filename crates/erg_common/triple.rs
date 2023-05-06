@@ -72,6 +72,22 @@ impl<T, E> Triple<T, E> {
         }
     }
 
+    pub fn map_ok<T2>(self, f: impl FnOnce(T) -> T2) -> Triple<T2, E> {
+        match self {
+            Triple::None => Triple::None,
+            Triple::Ok(ok) => Triple::Ok(f(ok)),
+            Triple::Err(err) => Triple::Err(err),
+        }
+    }
+
+    pub fn map_ok_or<T2>(self, default: T2, f: impl FnOnce(T) -> T2) -> T2 {
+        match self {
+            Triple::None => default,
+            Triple::Ok(ok) => f(ok),
+            Triple::Err(_err) => default,
+        }
+    }
+
     pub fn map_err<E2>(self, f: impl FnOnce(E) -> E2) -> Triple<T, E2> {
         match self {
             Triple::None => Triple::None,

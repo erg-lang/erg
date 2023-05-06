@@ -325,6 +325,9 @@ impl Context {
         );
         log!(info "Registered {}{}: {}", self.name, ident, vi);
         self.locals.insert(ident.name.clone(), vi.clone());
+        if let Ok(value) = self.convert_singular_type_into_value(vi.t.clone()) {
+            self.consts.insert(ident.name.clone(), value);
+        }
         Ok(vi)
     }
 
@@ -1967,7 +1970,12 @@ impl Context {
     }
 
     pub fn del(&mut self, ident: &hir::Identifier) -> CompileResult<()> {
-        let is_const = self.rec_get_const_obj(ident.inspect()).is_some();
+        let is_const = self.rec_get_var_info(
+            &ident.raw,
+            crate::AccessKind::Name,
+            &self.cfg.input,
+            self,
+        ).map_ok_or(false, |vi| vi.muty.is_const());
         let is_builtin = self
             .get_builtins()
             .unwrap()
