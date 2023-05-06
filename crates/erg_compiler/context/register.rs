@@ -1319,23 +1319,7 @@ impl Context {
                     }
                     let mut methods =
                         Self::methods(None, self.cfg.clone(), self.shared.clone(), 2, self.level);
-                    if let Some(sup) =
-                        self.rec_get_const_obj(&gen.base_or_sup().unwrap().typ().local_name())
-                    {
-                        let ValueObj::Type(sup) = sup else {
-                            return Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
-                                self.cfg.input.clone(),
-                                line!() as usize,
-                                ident.loc(),
-                                self.caused_by(),
-                                "",
-                                Some(1),
-                                &Type::Type,
-                                &sup.class(),
-                                None,
-                                None
-                            )));
-                        };
+                    if let Some(sup) = gen.base_or_sup() {
                         let param_t = match sup {
                             TypeObj::Builtin { t, .. } => t,
                             TypeObj::Generated(t) => {

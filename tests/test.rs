@@ -22,6 +22,11 @@ fn exec_class() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_class_test() -> Result<(), ()> {
+    expect_success("tests/should_ok/class.er", 0)
+}
+
+#[test]
 fn exec_class_attr() -> Result<(), ()> {
     expect_success("tests/should_ok/class_attr.er", 2)
 }

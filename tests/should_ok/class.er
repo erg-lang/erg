@@ -1,0 +1,4 @@
+unittest = pyimport "unittest"
+
+Test! = Inherit unittest.TestCase!
+_ = Test!
