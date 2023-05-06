@@ -68,7 +68,7 @@ impl Context {
         complex.register_builtin_const(
             EPSILON,
             Visibility::BUILTIN_PUBLIC,
-            ValueObj::Ratio(Ratio::float_new(2.220446049250313e-16)),
+            ValueObj::Ratio(Ratio::new(1, 9999977796)),
         );
         complex.register_builtin_py_impl(
             REAL,
