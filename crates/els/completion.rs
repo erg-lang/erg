@@ -457,7 +457,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 continue;
             }
             let label = name.inspect();
-            // don't show overriden items
+            // don't show overridden items
             if already_appeared.contains(&label[..]) {
                 continue;
             }

@@ -2,7 +2,7 @@
 ]#;print! "there"
 print! #[]#0, 1#[]#, 2,#[]#3
 a = {
-    #[first]#name #[second]#=#[third]#"John"#[fouth]#
+    #[first]#name #[second]#=#[third]#"John"#[fourth]#
 }
 Del a
 #[]#print! 0
