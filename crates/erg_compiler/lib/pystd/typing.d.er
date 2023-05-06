@@ -65,3 +65,39 @@
 .assert_type: (val: Obj, typ: Type) -> NoneType
 .assert_never: (arg: Obj) -> NoneType
 .reveal_type: (obj: Obj) -> NoneType
+
+.AbstractSet: (Type) -> Type
+.ByteString: ClassType
+.Container: ClassType
+.ContextManager: ClassType
+.ContextManager.
+    __enter__: (self: ContextManager) -> ContextManager
+    __exit__: (self: ContextManager, exc_type: Type, exc_value: Obj, traceback: Obj) -> NoneType
+.Hashable: ClassType
+.ItemsView: ClassType
+.Iterable: ClassType
+.Iterable.
+    __getitem__: Type -> Type
+.Iterator: ClassType
+.Iterator.
+    __getitem__: Type -> Type
+.KeysView: ClassType
+.Mapping: ClassType
+.Mapping.
+    __getitem__: (Type, Type) -> Type
+.MappingView: ClassType
+.MutableMapping: ClassType
+.MutableSequence: ClassType
+.MutableSet: ClassType
+.Sized: ClassType
+.ValuesView: ClassType
+.Awaitable: ClassType
+.AsyncIterator: ClassType
+.AsyncIterable: ClassType
+.Coroutine: ClassType
+.Collection: ClassType
+.AsyncGenerator: ClassType
+.AsyncContextManager: ClassType
+
+.Genertor: ClassType
+.Reversible: ClassType
