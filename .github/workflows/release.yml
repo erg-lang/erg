@@ -25,7 +25,6 @@ jobs:
         run: |
           rustup update stable
           cargo login ${{ secrets.CARGO_TOKEN }}
-          chmod +x cargo_publish.sh
           ./cargo_publish.sh
 
   upload-assets:
