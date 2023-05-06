@@ -18,7 +18,7 @@
 .Sequence: ClassType
 .Sequence.
     __getitem__: Type -> Type
-.MutableSqunce: ClassType
+.MutableSequence: ClassType
 .ByteString: ClassType
 .Set: ClassType
 .MutableSet: ClassType
