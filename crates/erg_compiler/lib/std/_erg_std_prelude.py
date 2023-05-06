@@ -8,6 +8,7 @@ from _erg_range import (
 )
 from _erg_result import Error, is_ok
 from _erg_float import Float, FloatMut
+from _erg_ratio import Ratio, RatioMut
 from _erg_int import Int, IntMut
 from _erg_nat import Nat, NatMut
 from _erg_bool import Bool
