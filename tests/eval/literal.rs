@@ -156,5 +156,5 @@ fn eval_assert_inequality_2() {
 #[test]
 #[ignore]
 fn eval_ratio() {
-    assert_eq!(eval("print! 0.1234"), successful_output("0.1234\n"));
+    assert_eq!(eval("print! 0.1234"), successful_output("617/5000\n"));
 }
