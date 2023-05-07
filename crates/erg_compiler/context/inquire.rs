@@ -1502,8 +1502,7 @@ impl Context {
             .unwrap_or(vec![]);
         let fallbacks = one.into_iter().chain(two.into_iter());
         for typ_ctx in fallbacks {
-            if let Some(call_vi) =
-                typ_ctx.get_current_scope_var(&VarName::from_static("__call__"))
+            if let Some(call_vi) = typ_ctx.get_current_scope_var(&VarName::from_static("__call__"))
             {
                 let instance = self.instantiate_def_type(&call_vi.t)?;
                 self.substitute_call(obj, attr_name, &instance, pos_args, kw_args)?;
@@ -1511,7 +1510,9 @@ impl Context {
             }
         }
         let hint = if self.subtype_of(instance, &ClassType) {
-            let acc = attr_name.as_ref().map_or(obj.to_string_notype(), |attr| obj.to_string_notype() + &attr.to_string());
+            let acc = attr_name.as_ref().map_or(obj.to_string_notype(), |attr| {
+                obj.to_string_notype() + &attr.to_string()
+            });
             Some(switch_lang! {
                 "japanese" => format!("インスタンスを生成したい場合は、{acc}.newを使用してください"),
                 "simplified_chinese" => format!("如果要生成实例，请使用 {acc}.new"),

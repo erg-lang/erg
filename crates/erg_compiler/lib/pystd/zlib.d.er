@@ -1,0 +1,30 @@
+.ZLIB_VERSION: Str
+.ZLIB_RUNTIME_VERSION: Str
+
+.Compress: ClassType
+.Compress.
+    compress: (self: .Compress, data: Bytes) -> Bytes
+    flush: (self: .Compress, mode := Int) -> Bytes
+    copy: (self: .Compress) -> .Compress
+.Decompress: ClassType
+.Decompress.
+    unused_data: Bytes
+    unconsumed_tail: Bytes
+    eof: Bool
+    decompress: (self: .Decompress, data: Bytes, max_length := Nat) -> Bytes
+    flush: (self: .Decompress, length := Nat) -> Bytes
+    copy: (self: .Decompress) -> .Decompress
+.Error = 'error': ClassType
+
+.adler32: (data: Bytes, value := Int) -> Nat
+.compress: (data: Bytes, level := -1..9, wbits := Int) -> Bytes
+.compressobj: (
+    level := -1..9,
+    method := Int,
+    wbits := Int,
+    memLevel := Int,
+    strategy := Int
+) -> .Compress
+.crc32: (data: Bytes, value := Int) -> Nat
+.decompress: (data: Bytes, wbits := Int, bufsize := Nat) -> Bytes
+.decompressobj: (wbits := Int) -> .Decompress

@@ -1970,12 +1970,9 @@ impl Context {
     }
 
     pub fn del(&mut self, ident: &hir::Identifier) -> CompileResult<()> {
-        let is_const = self.rec_get_var_info(
-            &ident.raw,
-            crate::AccessKind::Name,
-            &self.cfg.input,
-            self,
-        ).map_ok_or(false, |vi| vi.muty.is_const());
+        let is_const = self
+            .rec_get_var_info(&ident.raw, crate::AccessKind::Name, &self.cfg.input, self)
+            .map_ok_or(false, |vi| vi.muty.is_const());
         let is_builtin = self
             .get_builtins()
             .unwrap()
