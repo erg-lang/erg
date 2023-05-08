@@ -2,10 +2,22 @@
 
 ## subsumed traits
 
+* `Indexable T`
 * `Sized`
-* `GetItem Nat`
 
 ## impl traits
 
 * `Collection T`
-* `Reversible T`
+  * `Sized`
+  * `Iterable T`
+  * `Container T`
+* `Reversible`
+  * `Iterable T`
+
+## impl classes
+
+* `Array`
+* `Tuple`
+* `Str`
+* `Range`
+* `MemoryView`

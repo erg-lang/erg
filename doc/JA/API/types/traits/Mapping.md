@@ -2,8 +2,8 @@
 
 ## subsumed traits
 
-* `Collection V`
-* `Indexable K, V`
+* [`Collection V`](./Collection.md)
+* [`Indexable K, V`](./Indexable.md)
 
 ## impl traits
 
