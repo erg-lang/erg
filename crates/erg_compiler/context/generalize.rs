@@ -1,5 +1,6 @@
 use std::mem;
 
+use erg_common::consts::DEBUG_MODE;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
@@ -748,12 +749,12 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
         }
         // REVIEW: Even if type constraints can be satisfied, implementation may not exist
         if self.ctx.subtype_of(&sub_t, &super_t) {
-            let sub_t = if cfg!(feature = "debug") {
+            let sub_t = if DEBUG_MODE {
                 sub_t
             } else {
                 self.deref_tyvar(sub_t)?
             };
-            let super_t = if cfg!(feature = "debug") {
+            let super_t = if DEBUG_MODE {
                 super_t
             } else {
                 self.deref_tyvar(super_t)?
@@ -779,12 +780,12 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 }
             }
         } else {
-            let sub_t = if cfg!(feature = "debug") {
+            let sub_t = if DEBUG_MODE {
                 sub_t
             } else {
                 self.deref_tyvar(sub_t)?
             };
-            let super_t = if cfg!(feature = "debug") {
+            let super_t = if DEBUG_MODE {
                 super_t
             } else {
                 self.deref_tyvar(super_t)?
@@ -923,12 +924,12 @@ impl Context {
     ) -> TyCheckResult<()> {
         if !self.trait_impl_exists(class, trait_) {
             let mut dereferencer = Dereferencer::new(self, Variance::Covariant, false, qnames, loc);
-            let class = if cfg!(feature = "debug") {
+            let class = if DEBUG_MODE {
                 class.clone()
             } else {
                 dereferencer.deref_tyvar(class.clone())?
             };
-            let trait_ = if cfg!(feature = "debug") {
+            let trait_ = if DEBUG_MODE {
                 trait_.clone()
             } else {
                 dereferencer.deref_tyvar(trait_.clone())?

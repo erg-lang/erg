@@ -904,6 +904,8 @@ impl Context {
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
+        str_.register_marker_trait(self, poly(INDEXABLE, vec![ty_tp(Nat), ty_tp(Str)]))
+            .unwrap();
         let t_call = func(vec![], None, vec![kw("object", Obj)], Str);
         str_.register_builtin_erg_impl(
             FUNDAMENTAL_CALL,
@@ -1244,8 +1246,12 @@ impl Context {
             Predicate::le(var, N.clone() - value(1usize)),
         );
         // __getitem__: |T, N|(self: [T; N], _: {I: Nat | I <= N}) -> T
-        let array_getitem_t =
-            fn1_kw_met(array_t(T.clone(), N.clone()), anon(input), T.clone()).quantify();
+        let array_getitem_t = fn1_kw_met(
+            array_t(T.clone(), N.clone()),
+            anon(input.clone()),
+            T.clone(),
+        )
+        .quantify();
         let get_item = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNDAMENTAL_GETITEM,
             __array_getitem__,
@@ -1253,6 +1259,9 @@ impl Context {
             None,
         )));
         array_.register_builtin_const(FUNDAMENTAL_GETITEM, Visibility::BUILTIN_PUBLIC, get_item);
+        array_
+            .register_marker_trait(self, poly(INDEXABLE, vec![ty_tp(input), ty_tp(T.clone())]))
+            .unwrap();
         // union: (self: [Type; _]) -> Type
         let array_union_t = fn0_met(array_t(Type, TyParam::erased(Nat)), Type).quantify();
         let union = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
@@ -1456,12 +1465,9 @@ impl Context {
         );
         dict_.register_trait(dict_t.clone(), dict_mutizable);
         // __getitem__: _: T -> D[T]
-        let dict_getitem_t = fn1_met(
-            dict_t.clone(),
-            T.clone(),
-            proj_call(D.clone(), FUNDAMENTAL_GETITEM, vec![ty_tp(T.clone())]),
-        )
-        .quantify();
+        let dict_getitem_out = proj_call(D.clone(), FUNDAMENTAL_GETITEM, vec![ty_tp(T.clone())]);
+        let dict_getitem_t =
+            fn1_met(dict_t.clone(), T.clone(), dict_getitem_out.clone()).quantify();
         let get_item = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNDAMENTAL_GETITEM,
             __dict_getitem__,
@@ -1469,6 +1475,12 @@ impl Context {
             None,
         )));
         dict_.register_builtin_const(FUNDAMENTAL_GETITEM, Visibility::BUILTIN_PUBLIC, get_item);
+        dict_
+            .register_marker_trait(
+                self,
+                poly(INDEXABLE, vec![ty_tp(T.clone()), ty_tp(dict_getitem_out)]),
+            )
+            .unwrap();
         let dict_keys_t = fn0_met(dict_t.clone(), proj_call(D.clone(), KEYS, vec![])).quantify();
         let keys = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             KEYS,
@@ -1545,9 +1557,10 @@ impl Context {
             .register_marker_trait(self, poly(OUTPUT, vec![Ts.clone()]))
             .unwrap();
         // __Tuple_getitem__: (self: Tuple(Ts), _: {N}) -> Ts[N]
+        let input_t = tp_enum(Nat, set! {N.clone()});
         let return_t = proj_call(Ts.clone(), FUNDAMENTAL_GETITEM, vec![N.clone()]);
         let tuple_getitem_t =
-            fn1_met(_tuple_t.clone(), tp_enum(Nat, set! {N.clone()}), return_t).quantify();
+            fn1_met(_tuple_t.clone(), input_t.clone(), return_t.clone()).quantify();
         tuple_.register_builtin_py_impl(
             FUNDAMENTAL_TUPLE_GETITEM,
             tuple_getitem_t.clone(),
@@ -1555,6 +1568,9 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNDAMENTAL_GETITEM),
         );
+        tuple_
+            .register_marker_trait(self, poly(INDEXABLE, vec![ty_tp(input_t), ty_tp(return_t)]))
+            .unwrap();
         // `__Tuple_getitem__` and `__getitem__` are the same thing
         // but `x.0` => `x__Tuple_getitem__(0)` determines that `x` is a tuple, which is better for type inference.
         tuple_.register_builtin_py_impl(

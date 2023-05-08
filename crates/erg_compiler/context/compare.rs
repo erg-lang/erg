@@ -1,6 +1,7 @@
 //! provides type-comparison
 use std::option::Option; // conflicting to Type::Option
 
+use erg_common::consts::DEBUG_MODE;
 use erg_common::dict::Dict;
 use erg_common::error::MultiErrorDisplay;
 use erg_common::style::colors::DEBUG_ERROR;
@@ -83,7 +84,7 @@ impl Context {
                 FreeKind::Unbound { constraint, .. }
                 | FreeKind::NamedUnbound { constraint, .. } => {
                     let t = constraint.get_type().unwrap();
-                    if cfg!(feature = "debug") && t == &Uninited {
+                    if DEBUG_MODE && t == &Uninited {
                         panic!("Uninited type variable: {fv}");
                     }
                     let other_t = self.type_of(other);
@@ -260,7 +261,7 @@ impl Context {
             if typ.has_qvar() {
                 if let Err(err) = self.substitute_typarams(typ, rhs) {
                     Self::undo_substitute_typarams(typ);
-                    if cfg!(feature = "debug") {
+                    if DEBUG_MODE {
                         panic!("err: {err}");
                     }
                 }
@@ -297,7 +298,7 @@ impl Context {
             if typ.has_qvar() {
                 if let Err(err) = self.substitute_typarams(typ, rhs) {
                     Self::undo_substitute_typarams(typ);
-                    if cfg!(feature = "debug") {
+                    if DEBUG_MODE {
                         panic!("err: {err}");
                     }
                 }
@@ -936,6 +937,24 @@ impl Context {
                     }
                 } else { Some(Any) }
             },
+            (l, TyParam::BinOp{ op, lhs, rhs }) => {
+                if let Ok(evaled) = self.eval_bin_tp(*op, lhs.as_ref().clone(), rhs.as_ref().clone()) {
+                    if &evaled == r {
+                        Some(Any)
+                    } else {
+                        self.try_cmp(l, &evaled)
+                    }
+                } else { Some(Any) }
+            },
+            (l, TyParam::UnaryOp { op, val }) => {
+                if let Ok(evaled) = self.eval_unary_tp(*op, val.as_ref().clone()) {
+                    if &evaled == r {
+                        Some(Any)
+                    } else {
+                        self.try_cmp(l, &evaled)
+                    }
+                } else { Some(Any) }
+            },
             (TyParam::FreeVar(fv), p) if fv.is_linked() => {
                 self.try_cmp(&fv.crack(), p)
             }
@@ -1393,7 +1412,7 @@ impl Context {
                 self.is_super_pred_of(l, rhs) && self.is_super_pred_of(r, rhs)
             }
             (lhs, rhs) => {
-                if cfg!(feature = "denig") {
+                if DEBUG_MODE {
                     todo!("{lhs}/{rhs}");
                 }
                 false
