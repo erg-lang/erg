@@ -3,20 +3,15 @@
 ## subsumed traits
 
 * `Collection V`
+* `Indexable K, V`
 
 ## impl traits
 
 * `Eq`
 
-## required methods
-
-### `__getitem__`
-
 ## provided methods
 
 ### `get`
-
-### (Container.) `__contains__`
 
 ### `keys`
 
