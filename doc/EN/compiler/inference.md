@@ -1,4 +1,4 @@
-# type inference algorithm
+# Type inference algorithm
 
 > __Warning__: This section is being edited and may contain some errors.
 
@@ -90,7 +90,7 @@ An unbound type variable `Type::Var` is replaced with a `Type::MonoQuantVar` whe
 The operation of replacing unbound type variables with quantified type variables is called __generalization__ (or generalization). If you leave it as an unbound type variable, the type will be fixed with a single call (for example, after calling `id True`, the return type of `id 1` will be `Bool`), so It has to be generalized.
 In this way a generalized definition containing quantified type variables is registered in the type environment.
 
-## generalizations, type schemes, reifications
+## Generalizations, type schemes, reifications
 
 Let's denote the operation of generalizing an unbound type variable `?T` as `gen`. Let the resulting generalized type variable be `|T: Type| T`.
 In type theory, quantified types, such as the polycorrelation type `α->α`, are distinguished by prefixing them with `∀α.` (symbols like ∀ are called (generic) quantifiers. ).
@@ -122,9 +122,9 @@ subst(S: {?T --> X}, T: ?T -> ?T) == X -> X
 subst_call_ret([X, Y], (?T, ?U) -> ?U) == Y
 ```
 
-## semi-unification
+## Semi-unification
 
-A variant of unification is called semi-unification (__Semi-unification__). This is the operation that updates the type variable constraints to satisfy the subtype relation.
+A variant of unification is called __semi-unification__. This is the operation that updates the type variable constraints to satisfy the subtype relation.
 In some cases, type variables may or may not be unifying, hence the term "semi" unification.
 
 Semi-unification occurs, for example, during argument assignment.
@@ -140,7 +140,43 @@ a: U
 f(a)
 ```
 
+To achieve semi-unification, type variables have an upper bound type and a lower bound type. An upper bound type is a type such that a type variable is at least a generalization of the type itself or its type. A lower bound type is the opposite. Specifically, an unbounded type variable is represented as follows:
+
+```erg
+?T(:> Never, <: Obj)
+```
+
+`Never` is the lower bound type and `Obj` is the upper bound type. `Never` is a subtype of any type, and `Obj` is a supertype of any type. So this type variable can be any type at this point.
+
+```erg
+?U(:> Nat, <: Int)
+```
+
+This type is greater than or equal to `Nat` and less than or equal to `Int`. Of course `Nat` and `Int` are compatible, and so are types such as `Nat or {-1}`.
+
+Type variables of concrete function types are semi-unified so that the lower bound type is usually narrowed when real arguments are assigned.
+
+```erg
+# id: |T| T -> T
+id True
+# instantiate: id: ?T -> ?T
+# True: Bool
+# sub_unify(sub: Bool, sup: ?T)
+# ?T(:> Never, <: Obj) --> ?T(:> Bool, <: Obj)
+```
+
+There are no free type variables (such as `?T`) in Erg HIR after type checking. They are all replaced by either quantified type variables or concrete types. This operation is called dereference (deref, type variable removal).
+If the above code were to complete the type checking, the type would be derefed to the smallest possible form. Since function types are contravariant with respect to parameters types and covariant with respect to the return value type, the parameter type `?T` is replaced with `Obj` and the return value type `?T` with `Bool`.
+
+```erg
+(id: ?T(:> Bool, <: Obj) -> ?T(:> Bool, <: Obj))(True: Bool): ?T(:> Bool, <: Obj)
+# ↓
+(id: Obj -> Bool)(True: Bool): Bool
+```
+
 ## Generalization
+
+Putting aside subtyping for the moment, let's move on to the topic of generalization of type variables.
 
 Generalization is not a simple task. When multiple scopes are involved, "level management" of type variables becomes necessary.
 In order to see the necessity of level management, we first confirm that type inference without level management causes problems.
