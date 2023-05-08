@@ -853,7 +853,7 @@ impl Context {
                         let constr = Constraint::new_supertype_of(maybe_sub.clone());
                         sup_fv.update_constraint(constr, true);
                     } else {
-                        todo!()
+                        todo!("{maybe_sub} <: {maybe_sup}")
                     }
                 }
                 Ok(())
@@ -901,14 +901,15 @@ impl Context {
                     } else {
                         self.intersection(&sup, maybe_sup)
                     };
+                    self.sub_unify(&sub, &new_sup, loc, param_name)?;
                     // ?T(:> Int, <: Int) ==> ?T == Int
                     // ?T(:> Array(Int, 3), <: Array(?T, ?N)) ==> ?T == Array(Int, 3)
+                    // ?T(:> Array(Int, 3), <: Indexable(?K, ?V)) ==> ?T(:> Array(Int, 3), <: Indexable(0..2, Int))
                     if !sub.is_refinement()
                         && new_sup.qual_name() == sub.qual_name()
                         && !new_sup.is_unbound_var()
                         && !sub.is_unbound_var()
                     {
-                        self.sub_unify(&sub, &new_sup, loc, param_name)?;
                         sub_fv.link(&sub);
                     } else {
                         let constr = Constraint::new_sandwiched(sub, new_sup);
@@ -921,7 +922,7 @@ impl Context {
                         let constr = Constraint::new_subtype_of(maybe_sup.clone());
                         sub_fv.update_constraint(constr, true);
                     } else {
-                        todo!()
+                        todo!("{maybe_sub} <: {maybe_sup}")
                     }
                 }
                 Ok(())
@@ -1020,7 +1021,7 @@ impl Context {
                         // contravariant
                         self.sub_unify(sup_pt.typ(), sub_pt.typ(), loc, param_name)?;
                     } else {
-                        todo!()
+                        todo!("{maybe_sub} <: {maybe_sup}")
                     }
                 }
                 // covariant
@@ -1053,7 +1054,7 @@ impl Context {
                         }
                         self.sub_unify(sup_pt.typ(), sub_pt.typ(), loc, param_name)?;
                     } else {
-                        todo!()
+                        todo!("{maybe_sub} <: {maybe_sup}")
                     }
                 }
                 // covariant
