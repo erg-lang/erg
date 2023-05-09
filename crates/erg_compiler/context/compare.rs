@@ -376,10 +376,12 @@ impl Context {
                     && var_params_judge
                     && default_check() // contravariant
             }
+            // ?T(<: Int) :> ?U(:> Nat)
+            // ?T(<: Int) :> ?U(:> Int)
             // ?T(<: Nat) !:> ?U(:> Int) (if the upper bound of LHS is smaller than the lower bound of RHS, LHS cannot not be a supertype)
             // ?T(<: Nat) :> ?U(<: Int) (?U can be smaller than ?T)
             (FreeVar(lfv), FreeVar(rfv)) => match (lfv.get_subsup(), rfv.get_subsup()) {
-                (Some((_, l_sup)), Some((r_sub, _))) => !self.subtype_of(&l_sup, &r_sub),
+                (Some((_, l_sup)), Some((r_sub, _))) => self.supertype_of(&l_sup, &r_sub),
                 _ => {
                     if lfv.is_linked() {
                         self.supertype_of(&lfv.crack(), rhs)

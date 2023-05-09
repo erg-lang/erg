@@ -725,28 +725,55 @@ impl Context {
                         )));
                     }
                 }
-                let new_constraint = Constraint::new_sandwiched(union, intersec);
-                match sub_fv
-                    .level()
-                    .unwrap_or(GENERIC_LEVEL)
-                    .cmp(&sup_fv.level().unwrap_or(GENERIC_LEVEL))
-                {
-                    std::cmp::Ordering::Less => {
-                        sub_fv.update_constraint(new_constraint, false);
-                        sup_fv.link(maybe_sub);
-                    }
-                    std::cmp::Ordering::Greater => {
-                        sup_fv.update_constraint(new_constraint, false);
-                        sub_fv.link(maybe_sup);
-                    }
-                    std::cmp::Ordering::Equal => {
-                        // choose named one
-                        if sup_fv.is_named_unbound() {
-                            sup_fv.update_constraint(new_constraint, false);
+                if union == intersec {
+                    match sub_fv
+                        .level()
+                        .unwrap_or(GENERIC_LEVEL)
+                        .cmp(&sup_fv.level().unwrap_or(GENERIC_LEVEL))
+                    {
+                        std::cmp::Ordering::Less => {
+                            sub_fv.link(&union);
+                            sup_fv.link(maybe_sub);
+                        }
+                        std::cmp::Ordering::Greater => {
+                            sup_fv.link(&union);
                             sub_fv.link(maybe_sup);
-                        } else {
+                        }
+                        std::cmp::Ordering::Equal => {
+                            // choose named one
+                            if sup_fv.is_named_unbound() {
+                                sup_fv.link(&union);
+                                sub_fv.link(maybe_sup);
+                            } else {
+                                sub_fv.link(&union);
+                                sup_fv.link(maybe_sub);
+                            }
+                        }
+                    }
+                } else {
+                    let new_constraint = Constraint::new_sandwiched(union, intersec);
+                    match sub_fv
+                        .level()
+                        .unwrap_or(GENERIC_LEVEL)
+                        .cmp(&sup_fv.level().unwrap_or(GENERIC_LEVEL))
+                    {
+                        std::cmp::Ordering::Less => {
                             sub_fv.update_constraint(new_constraint, false);
                             sup_fv.link(maybe_sub);
+                        }
+                        std::cmp::Ordering::Greater => {
+                            sup_fv.update_constraint(new_constraint, false);
+                            sub_fv.link(maybe_sup);
+                        }
+                        std::cmp::Ordering::Equal => {
+                            // choose named one
+                            if sup_fv.is_named_unbound() {
+                                sup_fv.update_constraint(new_constraint, false);
+                                sub_fv.link(maybe_sup);
+                            } else {
+                                sub_fv.update_constraint(new_constraint, false);
+                                sup_fv.link(maybe_sub);
+                            }
                         }
                     }
                 }
