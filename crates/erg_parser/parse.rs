@@ -471,7 +471,12 @@ impl Parser {
                         }
                     }
                 }
-                _ => switch_unreachable!(),
+                None => {
+                    let err =
+                        ParseError::failed_to_analyze_block(line!() as usize, Location::Unknown);
+                    self.errs.push(err);
+                    break;
+                }
             }
         }
         if block.is_empty() {
