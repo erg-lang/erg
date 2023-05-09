@@ -921,7 +921,7 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
         );
         str_.register_trait(Str, str_eq);
-        let mut str_seq = Self::builtin_methods(Some(poly(SEQ, vec![ty_tp(Str)])), 2);
+        let mut str_seq = Self::builtin_methods(Some(poly(SEQUENCE, vec![ty_tp(Str)])), 2);
         str_seq.register_builtin_erg_impl(
             FUNC_LEN,
             fn0_met(Str, Nat),
@@ -1280,7 +1280,7 @@ impl Context {
         );
         array_.register_trait(arr_t.clone(), array_eq);
         array_
-            .register_marker_trait(self, poly(SEQ, vec![ty_tp(T.clone())]))
+            .register_marker_trait(self, poly(SEQUENCE, vec![ty_tp(T.clone())]))
             .unwrap();
         let mut array_show = Self::builtin_methods(Some(mono(SHOW)), 1);
         array_show.register_builtin_py_impl(
@@ -1407,7 +1407,7 @@ impl Context {
         );
         set_.register_trait(set_t.clone(), set_eq);
         set_.register_marker_trait(self, mono(MUTIZABLE)).unwrap();
-        set_.register_marker_trait(self, poly(SEQ, vec![ty_tp(T.clone())]))
+        set_.register_marker_trait(self, poly(SEQUENCE, vec![ty_tp(T.clone())]))
             .unwrap();
         let mut set_show = Self::builtin_methods(Some(mono(SHOW)), 1);
         set_show.register_builtin_erg_impl(
@@ -1478,7 +1478,7 @@ impl Context {
         dict_
             .register_marker_trait(
                 self,
-                poly(INDEXABLE, vec![ty_tp(T.clone()), ty_tp(dict_getitem_out)]),
+                poly(MAPPING, vec![ty_tp(T.clone()), ty_tp(dict_getitem_out)]),
             )
             .unwrap();
         let dict_keys_t = fn0_met(dict_t.clone(), proj_call(D.clone(), KEYS, vec![])).quantify();
@@ -2259,7 +2259,7 @@ impl Context {
             .register_marker_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
             .unwrap();
         range
-            .register_marker_trait(self, poly(SEQ, vec![ty_tp(T.clone())]))
+            .register_marker_trait(self, poly(SEQUENCE, vec![ty_tp(T.clone())]))
             .unwrap();
         let mut range_eq = Self::builtin_methods(Some(mono(EQ)), 2);
         range_eq.register_builtin_erg_impl(

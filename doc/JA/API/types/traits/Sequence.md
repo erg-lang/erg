@@ -3,7 +3,7 @@
 ## subsumed traits
 
 * `Sized`
-* `GetItem Nat`
+* `Indexable Nat, T`
 
 ## impl traits
 

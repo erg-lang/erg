@@ -130,7 +130,7 @@ impl Context {
         let I = mono_q(TY_I, subtypeof(poly(ITERABLE, vec![ty_tp(T.clone())])));
         let t_iter = nd_func(vec![kw(KW_OBJECT, I.clone())], None, proj(I, ITERATOR)).quantify();
         let t_len = nd_func(
-            vec![kw(KW_S, poly(SEQ, vec![TyParam::erased(Type)]))],
+            vec![kw(KW_S, poly(SEQUENCE, vec![TyParam::erased(Type)]))],
             None,
             Nat,
         );
@@ -207,7 +207,7 @@ impl Context {
         let t_exit = t_quit.clone();
         let t_repr = nd_func(vec![kw(KW_OBJECT, Obj)], None, Str);
         let t_reversed = nd_func(
-            vec![kw(KW_SEQ, poly(SEQ, vec![ty_tp(T.clone())]))],
+            vec![kw(KW_SEQ, poly(SEQUENCE, vec![ty_tp(T.clone())]))],
             None,
             poly(REVERSED, vec![ty_tp(T.clone())]),
         )
