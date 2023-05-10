@@ -36,7 +36,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                             let command = self.gen_show_trait_impls_command(trait_loc.clone())?;
                             let lens = CodeLens {
                                 range,
-                                command: Some(command),
+                                command,
                                 data: None,
                             };
                             result.push(lens);

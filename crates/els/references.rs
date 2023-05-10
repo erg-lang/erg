@@ -31,8 +31,10 @@ impl<Checker: BuildRunnable> Server<Checker> {
 
     pub(crate) fn get_refs_from_abs_loc(&self, referee: &AbsLocation) -> Vec<lsp_types::Location> {
         let mut refs = vec![];
-        if let Some(value) = self.get_index().get_refs(referee) {
-            // send_log(format!("referrers: {referrers:?}"))?;
+        if let Some(value) = self.get_index().and_then(|ind| ind.get_refs(referee)) {
+            if value.vi.def_loc == AbsLocation::unknown() {
+                return vec![];
+            }
             for referrer in value.referrers.iter() {
                 if let (Some(path), Some(range)) =
                     (&referrer.module, util::loc_to_range(referrer.loc))

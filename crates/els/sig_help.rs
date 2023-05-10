@@ -45,7 +45,10 @@ impl<Checker: BuildRunnable> Server<Checker> {
         if params.context.as_ref().map(|ctx| &ctx.trigger_kind)
             == Some(&SignatureHelpTriggerKind::CONTENT_CHANGE)
         {
-            let help = self.resend_help(&uri, pos, params.context.as_ref().unwrap());
+            let Some(ctx) = params.context.as_ref() else {
+                return Ok(None);
+            };
+            let help = self.resend_help(&uri, pos, ctx);
             return Ok(help);
         }
         let trigger = params
@@ -67,7 +70,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         offset: isize,
     ) -> Option<(Token, Expr)> {
         let token = self.file_cache.get_token_relatively(uri, pos, offset)?;
-        send_log(format!("token: {token}")).unwrap();
+        crate::_log!("token: {token}");
         if let Some(visitor) = self.get_visitor(uri) {
             #[allow(clippy::single_match)]
             match visitor.get_min_expr(&token) {
@@ -107,7 +110,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         ctx: &SignatureHelpContext,
     ) -> Option<SignatureHelp> {
         if let Some(token) = self.file_cache.get_token(uri, pos) {
-            send_log(format!("token: {token}")).unwrap();
+            crate::_log!("token: {token}");
             if let Some(Expr::Call(call)) = &self.current_sig {
                 if call.ln_begin() > token.ln_begin() || call.ln_end() < token.ln_end() {
                     self.current_sig = None;
@@ -117,7 +120,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 return self.make_sig_help(call.obj.as_ref(), nth);
             }
         } else {
-            send_log("failed to get the token").unwrap();
+            crate::_log!("failed to get the token");
         }
         ctx.active_signature_help.clone()
     }
@@ -126,7 +129,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         if let Some((_token, Expr::Accessor(acc))) = self.get_min_expr(uri, pos, -2) {
             return self.make_sig_help(&acc, 0);
         } else {
-            send_log("lex error occurred").unwrap();
+            crate::_log!("lex error occurred");
         }
         None
     }
@@ -138,7 +141,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             self.current_sig = Some(Expr::Call(call));
             return help;
         } else {
-            send_log("failed to get continuous help").unwrap();
+            crate::_log!("failed to get continuous help");
         }
         None
     }

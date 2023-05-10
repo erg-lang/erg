@@ -67,7 +67,8 @@ impl<Checker: BuildRunnable> Server<Checker> {
                         return send_error_info(error_reason);
                     }
                     Self::commit_change(&mut changes, &vi.def_loc, params.new_name.clone());
-                    if let Some(value) = self.get_index().get_refs(&vi.def_loc) {
+                    if let Some(value) = self.get_index().and_then(|ind| ind.get_refs(&vi.def_loc))
+                    {
                         // send_log(format!("referrers: {referrers:?}"))?;
                         for referrer in value.referrers.iter() {
                             Self::commit_change(&mut changes, referrer, params.new_name.clone());

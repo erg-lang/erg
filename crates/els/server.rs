@@ -206,7 +206,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
     pub fn new(cfg: ErgConfig) -> Self {
         Self {
             cfg,
-            home: normalize_path(std::env::current_dir().unwrap()),
+            home: normalize_path(std::env::current_dir().unwrap_or_default()),
             erg_path: erg_path(), // already normalized
             client_capas: ClientCapabilities::default(),
             disabled_features: vec![],
@@ -547,7 +547,6 @@ impl<Checker: BuildRunnable> Server<Checker> {
     }
 
     pub(crate) fn get_local_ctx(&self, uri: &NormalizedUrl, pos: Position) -> Vec<&Context> {
-        // send_log(format!("scope: {:?}\n", self.module.as_ref().unwrap().scope.keys())).unwrap();
         let mut ctxs = vec![];
         if let Some(mod_ctx) = &self.modules.get(uri) {
             if let Some(visitor) = self.get_visitor(uri) {
@@ -604,8 +603,11 @@ impl<Checker: BuildRunnable> Server<Checker> {
         }
     }
 
-    pub(crate) fn get_index(&self) -> &SharedModuleIndex {
-        self.modules.values().next().unwrap().context.index()
+    pub(crate) fn get_index(&self) -> Option<&SharedModuleIndex> {
+        self.modules
+            .values()
+            .next()
+            .map(|module| module.context.index())
     }
 
     pub(crate) fn get_shared(&self) -> Option<&SharedCompilerResource> {

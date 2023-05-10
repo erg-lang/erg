@@ -122,36 +122,29 @@ impl<Checker: BuildRunnable> Server<Checker> {
             if nd_param.raw.t_spec.is_some() {
                 continue;
             }
-            let hint = type_anot(
-                nd_param.ln_end().unwrap(),
-                nd_param.col_end().unwrap(),
-                &nd_param.vi.t,
-                false,
-            );
+            let (Some(ln_end), Some(col_end)) = (nd_param.ln_end(), nd_param.col_end()) else {
+                continue;
+            };
+            let hint = type_anot(ln_end, col_end, &nd_param.vi.t, false);
             result.push(hint);
         }
         if let Some(var_params) = &params.var_params {
             if var_params.raw.t_spec.is_some() {
                 return result;
             }
-            let hint = type_anot(
-                var_params.ln_end().unwrap(),
-                var_params.col_end().unwrap(),
-                &var_params.vi.t,
-                false,
-            );
-            result.push(hint);
+            if let (Some(ln_end), Some(col_end)) = (var_params.ln_end(), var_params.col_end()) {
+                let hint = type_anot(ln_end, col_end, &var_params.vi.t, false);
+                result.push(hint);
+            }
         }
         for d_param in params.defaults.iter() {
             if d_param.sig.raw.t_spec.is_some() {
                 continue;
             }
-            let hint = type_anot(
-                d_param.sig.ln_end().unwrap(),
-                d_param.sig.col_end().unwrap(),
-                &d_param.sig.vi.t,
-                false,
-            );
+            let (Some(ln_end), Some(col_end)) = (d_param.sig.ln_end(), d_param.sig.col_end()) else {
+                continue;
+            };
+            let hint = type_anot(ln_end, col_end, &d_param.sig.vi.t, false);
             result.push(hint);
         }
         result

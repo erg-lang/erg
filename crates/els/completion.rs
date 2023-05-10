@@ -316,7 +316,7 @@ impl CompletionCache {
         let cache = AtomicShared::new(Dict::default());
         let clone = cache.clone();
         std::thread::spawn(move || {
-            send_log("load_modules").unwrap();
+            crate::_log!("load_modules");
             load_modules(clone)
         });
         Self { cache }
@@ -379,17 +379,14 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let mut already_appeared = Set::new();
         let contexts = if comp_kind.should_be_local() {
             let prev_token = self.file_cache.get_token_relatively(&uri, pos, -1);
-            if prev_token
-                .as_ref()
-                .map(|t| matches!(t.kind, Dot | DblColon))
-                .unwrap_or(false)
-            {
-                let Some(dot_pos) = util::loc_to_pos(prev_token.unwrap().loc()) else {
-                    return Ok(None);
-                };
-                self.get_receiver_ctxs(&uri, dot_pos)?
-            } else {
-                self.get_local_ctx(&uri, pos)
+            match prev_token {
+                Some(prev) if matches!(prev.kind, Dot | DblColon) => {
+                    let Some(dot_pos) = util::loc_to_pos(prev.loc()) else {
+                        return Ok(None);
+                    };
+                    self.get_receiver_ctxs(&uri, dot_pos)?
+                }
+                _ => self.get_local_ctx(&uri, pos),
             }
         } else {
             self.get_receiver_ctxs(&uri, pos)?
@@ -443,7 +440,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
             .then(|| self.get_min_expr(&uri, pos, -2))
             .flatten()
             .map(|(_, expr)| expr.t());
-        let mod_ctx = &self.modules.get(&uri).unwrap().context;
+        let Some(mod_ctx) = self.modules.get(&uri).map(|m| &m.context) else {
+            return Ok(None);
+        };
         for (name, vi) in contexts.into_iter().flat_map(|ctx| ctx.local_dir()) {
             if comp_kind.should_be_method() && vi.vis.is_private() {
                 continue;

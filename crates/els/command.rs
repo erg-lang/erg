@@ -27,7 +27,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
     pub(crate) fn gen_show_trait_impls_command(
         &self,
         trait_loc: AbsLocation,
-    ) -> ELSResult<Command> {
+    ) -> ELSResult<Option<Command>> {
         let refs = self.get_refs_from_abs_loc(&trait_loc);
         let filter = |loc: Location| {
             let uri = NormalizedUrl::new(loc.uri.clone());
@@ -41,15 +41,19 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let impls = refs.into_iter().filter_map(filter).collect::<Vec<_>>();
         let impl_len = impls.len();
         let locations = serde_json::to_value(impls)?;
-        let uri = Url::from_file_path(trait_loc.module.unwrap()).unwrap();
+        let Ok(uri) = trait_loc.module.ok_or(()).and_then(Url::from_file_path) else {
+            return Ok(None);
+        };
         let uri = serde_json::to_value(uri)?;
-        let position = util::loc_to_pos(trait_loc.loc).unwrap();
+        let Some(position) = util::loc_to_pos(trait_loc.loc) else {
+            return Ok(None);
+        };
         let position = serde_json::to_value(position)?;
-        Ok(Command {
+        Ok(Some(Command {
             title: format!("{impl_len} implementations"),
             // the command is defined in: https://github.com/erg-lang/vscode-erg/blob/20e6e2154b045ab56fedbc8769d03633acfd12e0/src/extension.ts#L92-L94
             command: "erg.showReferences".to_string(),
             arguments: Some(vec![uri, position, locations]),
-        })
+        }))
     }
 }

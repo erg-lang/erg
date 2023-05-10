@@ -19,8 +19,10 @@ impl<Checker: BuildRunnable> Server<Checker> {
         params: CodeActionParams,
     ) -> ELSResult<Option<CodeAction>> {
         let uri = NormalizedUrl::new(params.text_document.uri);
-        let mut diags = params.context.diagnostics;
-        let diag = diags.remove(0);
+        let diags = params.context.diagnostics;
+        let Some(diag) = diags.get(0).cloned() else {
+            return Ok(None);
+        };
         let mut map = HashMap::new();
         let Some(visitor) = self.get_visitor(&uri) else {
             send_log("visitor not found")?;
@@ -112,7 +114,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let def_loc = visitor.get_info(&token)?.def_loc;
         let edit = TextEdit::new(util::loc_to_range(def_loc.loc)?, new_text.clone());
         map.insert(uri.clone().raw(), vec![edit]);
-        if let Some(value) = self.get_index().get_refs(&def_loc) {
+        if let Some(value) = self.get_index().and_then(|ind| ind.get_refs(&def_loc)) {
             for refer in value.referrers.iter() {
                 let url = Url::from_file_path(refer.module.as_ref()?).ok()?;
                 let range = util::loc_to_range(refer.loc)?;
@@ -150,7 +152,10 @@ impl<Checker: BuildRunnable> Server<Checker> {
         if diags.is_empty() {
             return Ok(result);
         }
-        if diags.first().unwrap().message.ends_with("is not used") {
+        if diags
+            .first()
+            .map_or(false, |diag| diag.message.ends_with("is not used"))
+        {
             let actions = self.gen_eliminate_unused_vars_action(params)?;
             result.extend(actions);
         }
