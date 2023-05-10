@@ -572,6 +572,58 @@ impl Context {
         self.register_builtin_const(PATCH, vis, ValueObj::Subr(patch));
     }
 
+    pub(super) fn init_builtin_py_specific_funcs(&mut self) {
+        let hasattr_t = func(vec![kw(KW_OBJ, Obj), kw(KW_NAME, Str)], None, vec![], Bool);
+        self.register_builtin_py_impl(
+            FUNC_HASATTR,
+            hasattr_t,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            None,
+        );
+        let T = type_q("T");
+        let getattr_t = func(
+            vec![kw(KW_OBJ, Obj), kw(KW_NAME, Str)],
+            None,
+            vec![kw_default(KW_DEFAULT, T.clone(), Obj)],
+            T,
+        )
+        .quantify();
+        self.register_builtin_py_impl(
+            FUNC_GETATTR,
+            getattr_t,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            None,
+        );
+        let setattr_t = func(
+            vec![kw(KW_OBJ, Obj), kw(KW_NAME, Str), kw(KW_VALUE, Obj)],
+            None,
+            vec![],
+            NoneType,
+        );
+        self.register_builtin_py_impl(
+            FUNC_SETATTR,
+            setattr_t,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            None,
+        );
+        let delattr_t = func(
+            vec![kw(KW_OBJ, Obj), kw(KW_NAME, Str)],
+            None,
+            vec![],
+            NoneType,
+        );
+        self.register_builtin_py_impl(
+            FUNC_DELATTR,
+            delattr_t,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            None,
+        );
+    }
+
     pub(super) fn init_builtin_operators(&mut self) {
         /* binary */
         let R = mono_q(TY_R, instanceof(Type));

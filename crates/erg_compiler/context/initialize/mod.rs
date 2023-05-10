@@ -358,6 +358,10 @@ const DICT_ITEMS: &str = "DictItems";
 const FUNC_DICT_KEYS: &str = "dict_keys";
 const FUNC_DICT_VALUES: &str = "dict_values";
 const FUNC_DICT_ITEMS: &str = "dict_items";
+const FUNC_HASATTR: &str = "hasattr";
+const FUNC_GETATTR: &str = "getattr";
+const FUNC_SETATTR: &str = "setattr";
+const FUNC_DELATTR: &str = "delattr";
 
 const OP_IN: &str = "__in__";
 const OP_NOT_IN: &str = "__notin__";
@@ -476,6 +480,8 @@ const KW_SRC: &str = "src";
 const KW_THEN: &str = "then";
 const KW_ELSE: &str = "else";
 const KW_OBJ: &str = "obj";
+const KW_NAME: &str = "name";
+const KW_DEFAULT: &str = "default";
 const KW_START: &str = "start";
 const KW_COND: &str = "cond";
 const KW_CLASSINFO: &str = "classinfo";
@@ -976,6 +982,7 @@ impl Context {
         ctx.init_builtin_const_funcs();
         ctx.init_builtin_procs();
         if PYTHON_MODE {
+            ctx.init_builtin_py_specific_funcs();
             ctx.init_py_compat_builtin_operators();
         } else {
             ctx.init_builtin_operators();
