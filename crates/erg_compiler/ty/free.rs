@@ -541,8 +541,10 @@ impl PartialEq for Free<Type> {
         if let Some((sub, sup)) = self.get_subsup() {
             if let Some((other_sub, other_sup)) = other.get_subsup() {
                 self.dummy_link();
+                other.dummy_link();
                 let res = sub == other_sub && sup == other_sup;
                 self.undo();
+                other.undo();
                 return res;
             }
         } else if let Some((self_t, other_t)) = self.get_type().zip(other.get_type()) {

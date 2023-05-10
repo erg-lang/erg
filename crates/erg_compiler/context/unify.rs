@@ -710,7 +710,7 @@ impl Context {
                 }
                 let union = self.union(&lsub, &rsub);
                 if lsub.union_size().max(rsub.union_size()) < union.union_size() {
-                    let (l, r) = union.union_pair().unwrap_or((lsub, rsub));
+                    let (l, r) = union.union_pair().unwrap_or((lsub, rsub.clone()));
                     let unified = self.unify(&l, &r);
                     if unified.is_none() {
                         let maybe_sub = self.readable_type(maybe_sub.clone());
@@ -725,6 +725,12 @@ impl Context {
                         )));
                     }
                 }
+                // e.g. intersec == Int, rsup == Add(?T)
+                //   => ?T(:> Int)
+                self.sub_unify(&intersec, &rsup, loc, param_name)?;
+                self.sub_unify(&rsub, &union, loc, param_name)?;
+                // self.sub_unify(&intersec, &lsup, loc, param_name)?;
+                // self.sub_unify(&lsub, &union, loc, param_name)?;
                 if union == intersec {
                     match sub_fv
                         .level()
@@ -1243,7 +1249,19 @@ impl Context {
             } else {
                 sub_ctx.super_traits.iter()
             };
+            let mut min_compatible = None;
             for sup_ty in sups {
+                if self.subtype_of(sup_ty, maybe_sup) {
+                    if let Some(min) = min_compatible {
+                        if self.subtype_of(sup_ty, min) {
+                            min_compatible = Some(sup_ty);
+                        }
+                    } else {
+                        min_compatible = Some(sup_ty);
+                    }
+                }
+            }
+            if let Some(sup_ty) = min_compatible {
                 let sub_instance = self.instantiate_def_type(sup_ty).map_err(|errs| {
                     Self::undo_substitute_typarams(sub_def_t);
                     errs
@@ -1252,22 +1270,20 @@ impl Context {
                     .get_nominal_type_ctx(&sub_instance)
                     .map(|(_, ctx)| ctx.type_params_variance().into_iter().map(Some).collect())
                     .unwrap_or(vec![None; sup_params.len()]);
-                if self.supertype_of(maybe_sup, sup_ty) {
-                    for ((l_maybe_sub, r_maybe_sup), variance) in sub_instance
-                        .typarams()
-                        .iter()
-                        .zip(sup_params.iter())
-                        .zip(variances)
-                    {
-                        self.sub_unify_tp(l_maybe_sub, r_maybe_sup, variance, loc, false)
-                            .map_err(|errs| {
-                                Self::undo_substitute_typarams(sub_def_t);
-                                errs
-                            })?;
-                    }
-                    Self::undo_substitute_typarams(sub_def_t);
-                    return Ok(());
+                for ((l_maybe_sub, r_maybe_sup), variance) in sub_instance
+                    .typarams()
+                    .iter()
+                    .zip(sup_params.iter())
+                    .zip(variances)
+                {
+                    self.sub_unify_tp(l_maybe_sub, r_maybe_sup, variance, loc, false)
+                        .map_err(|errs| {
+                            Self::undo_substitute_typarams(sub_def_t);
+                            errs
+                        })?;
                 }
+                Self::undo_substitute_typarams(sub_def_t);
+                return Ok(());
             }
             Self::undo_substitute_typarams(sub_def_t);
         }

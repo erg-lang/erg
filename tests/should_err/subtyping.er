@@ -56,3 +56,12 @@ h x, y =
 _ = h -1, -2 # OK
 _ = h 1, 2 # OK
 _ = h "a", "b" # ERR
+
+i|T|(x: T): T =
+    _: Int = x
+    x + "a" # ERR
+i2|T|(x: T): T =
+    x + "a"
+
+_ = i 1
+_ = i2 1 # ERR
