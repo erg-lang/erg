@@ -2346,9 +2346,14 @@ impl Locational for SubrTypeSpec {
             Location::concat(&self.bounds[0], self.return_t.as_ref())
         } else if let Some(lparen) = &self.lparen {
             Location::concat(lparen, self.return_t.as_ref())
+        } else if let Some(nd_param) = self.non_defaults.first() {
+            Location::concat(nd_param, self.return_t.as_ref())
+        } else if let Some(var_params) = self.var_params.as_deref() {
+            Location::concat(var_params, self.return_t.as_ref())
+        } else if let Some(d_param) = self.defaults.first() {
+            Location::concat(&d_param.param, self.return_t.as_ref())
         } else {
-            // FIXME: only default subrs
-            Location::concat(self.non_defaults.first().unwrap(), self.return_t.as_ref())
+            self.return_t.loc()
         }
     }
 }
