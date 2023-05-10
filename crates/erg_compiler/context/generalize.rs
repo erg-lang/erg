@@ -760,7 +760,16 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 self.deref_tyvar(super_t)?
             };
             match self.variance {
-                Variance::Covariant if self.coerce => Ok(sub_t),
+                // ?T(<: Sup) --> Sup (Sup != Obj), because completion will not work if Never is selected.
+                // ?T(:> Never, <: Obj) --> Never
+                // ?T(:> Never, <: Int) --> Never..Int == Int
+                Variance::Covariant if self.coerce => {
+                    if sub_t != Never || super_t == Obj {
+                        Ok(sub_t)
+                    } else {
+                        Ok(bounded(sub_t, super_t))
+                    }
+                }
                 Variance::Contravariant if self.coerce => Ok(super_t),
                 Variance::Covariant | Variance::Contravariant => Ok(bounded(sub_t, super_t)),
                 Variance::Invariant => {
