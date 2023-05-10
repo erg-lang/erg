@@ -1508,13 +1508,16 @@ impl Context {
         }
     }
 
-    /// e.g. qt: Array(T, N), st: Array(Int, 3)
+    /// e.g.
+    ///     qt: Array(T, N), st: Array(Int, 3)
+    /// invalid (no effect):
+    ///     qt: Iterable(T), st: Array(Int, 3)
     ///
     /// use `undo_substitute_typarams` after executing this method
     pub(crate) fn substitute_typarams(&self, qt: &Type, st: &Type) -> EvalResult<()> {
         let qtps = qt.typarams();
         let stps = st.typarams();
-        if qtps.len() != stps.len() {
+        if qt.qual_name() != st.qual_name() || qtps.len() != stps.len() {
             log!(err "{qt} / {st}");
             log!(err "[{}] [{}]", erg_common::fmt_vec(&qtps), erg_common::fmt_vec(&stps));
             return Ok(()); // TODO: e.g. Sub(Int) / Eq and Sub(?T)
@@ -1798,7 +1801,11 @@ impl Context {
                     ))
                 }),
             TyParam::Array(tps) => {
-                let tp_t = self.get_tp_t(&tps[0])?;
+                let tp_t = if let Some(fst) = tps.get(0) {
+                    self.get_tp_t(fst)?
+                } else {
+                    Never
+                };
                 let t = array_t(tp_t, TyParam::value(tps.len()));
                 Ok(t)
             }

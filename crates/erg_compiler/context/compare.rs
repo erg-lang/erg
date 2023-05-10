@@ -262,7 +262,7 @@ impl Context {
                 if let Err(err) = self.substitute_typarams(typ, rhs) {
                     Self::undo_substitute_typarams(typ);
                     if DEBUG_MODE {
-                        panic!("err: {err}");
+                        panic!("{typ} / {rhs}: err: {err}");
                     }
                 }
             }
@@ -408,6 +408,48 @@ impl Context {
                         if self.supertype_of(&cand, rhs) {
                             return true;
                         }
+                    }
+                }
+                false
+            }
+            (
+                ProjCall {
+                    lhs: l,
+                    attr_name,
+                    args,
+                },
+                _,
+            ) => {
+                if let Ok(evaled) = self.eval_proj_call(
+                    *l.clone(),
+                    attr_name.clone(),
+                    args.clone(),
+                    self.level,
+                    &(),
+                ) {
+                    if lhs != &evaled {
+                        return self.supertype_of(&evaled, rhs);
+                    }
+                }
+                false
+            }
+            (
+                _,
+                ProjCall {
+                    lhs: r,
+                    attr_name,
+                    args,
+                },
+            ) => {
+                if let Ok(evaled) = self.eval_proj_call(
+                    *r.clone(),
+                    attr_name.clone(),
+                    args.clone(),
+                    self.level,
+                    &(),
+                ) {
+                    if &evaled != rhs {
+                        return self.supertype_of(lhs, &evaled);
                     }
                 }
                 false

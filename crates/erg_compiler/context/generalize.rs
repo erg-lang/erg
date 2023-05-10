@@ -915,11 +915,18 @@ impl Context {
     fn poly_class_trait_impl_exists(&self, class: &Type, trait_: &Type) -> bool {
         let mut super_exists = false;
         for imp in self.get_trait_impls(trait_).into_iter() {
+            self.substitute_typarams(&imp.sub_type, class).unwrap_or(());
+            self.substitute_typarams(&imp.sup_trait, trait_)
+                .unwrap_or(());
             if self.supertype_of(&imp.sub_type, class) && self.supertype_of(&imp.sup_trait, trait_)
             {
                 super_exists = true;
+                Self::undo_substitute_typarams(&imp.sub_type);
+                Self::undo_substitute_typarams(&imp.sup_trait);
                 break;
             }
+            Self::undo_substitute_typarams(&imp.sub_type);
+            Self::undo_substitute_typarams(&imp.sup_trait);
         }
         super_exists
     }
