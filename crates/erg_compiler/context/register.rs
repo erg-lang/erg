@@ -1324,21 +1324,8 @@ impl Context {
                         Self::methods(None, self.cfg.clone(), self.shared.clone(), 2, self.level);
                     if let Some(sup) = gen.base_or_sup() {
                         let param_t = match sup {
-                            TypeObj::Builtin { t, .. } => t,
-                            TypeObj::Generated(t) => {
-                                if let Some(t) = t.base_or_sup() {
-                                    t.typ()
-                                } else {
-                                    return Err(TyCheckErrors::from(TyCheckError::param_error(
-                                        self.cfg.input.clone(),
-                                        line!() as usize,
-                                        ident.loc(),
-                                        self.caused_by(),
-                                        1,
-                                        0,
-                                    )));
-                                }
-                            }
+                            TypeObj::Builtin { t, .. } => Some(t),
+                            TypeObj::Generated(t) => t.base_or_sup().map(|t| t.typ()),
                         };
                         // `Super.Requirement := {x = Int}` and `Self.Additional := {y = Int}`
                         // => `Self.Requirement := {x = Int; y = Int}`
@@ -1359,11 +1346,17 @@ impl Context {
                                     ctx.decls.insert(varname, vi);
                                 }
                             }
-                            self.intersection(param_t, additional.typ())
+                            param_t
+                                .map(|t| self.intersection(t, additional.typ()))
+                                .or(Some(additional.typ().clone()))
                         } else {
-                            param_t.clone()
+                            param_t.cloned()
                         };
-                        let new_t = func1(param_t, gen.typ().clone());
+                        let new_t = if let Some(t) = param_t {
+                            func1(t, gen.typ().clone())
+                        } else {
+                            func0(gen.typ().clone())
+                        };
                         methods.register_fixed_auto_impl(
                             "__new__",
                             new_t.clone(),
