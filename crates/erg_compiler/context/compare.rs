@@ -1309,7 +1309,13 @@ impl Context {
             Predicate::And(lhs, rhs) => {
                 self.intersection(&self.get_pred_type(lhs), &self.get_pred_type(rhs))
             }
-            Predicate::Const(name) => todo!("get_pred_type({name})"),
+            Predicate::Const(name) => {
+                if let Some(value) = self.rec_get_const_obj(name) {
+                    value.class()
+                } else {
+                    todo!("get_pred_type({name})")
+                }
+            }
         }
     }
 
@@ -1415,7 +1421,7 @@ impl Context {
             }
             (lhs, rhs) => {
                 if DEBUG_MODE {
-                    todo!("{lhs}/{rhs}");
+                    log!("{lhs}/{rhs}");
                 }
                 false
             }
