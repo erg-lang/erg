@@ -20,7 +20,20 @@ v.push! 1
 print! v
 ```
 
-Erg's type inference largely uses the Hindley-Milner type inference algorithm (although various extensions have been made). Specifically, type inference is performed by the following procedure. Terminology will be explained later.
+Erg's type inference is based on the Hindley-Milner type inference algorithm as a general framework (with various extensions).
+In essence, Erg's type inference boils down to the following four issues:
+
+* Calling polymorphic functions (or classes)
+* Defining polymorphic functions (or classes)
+* Attribute resolution
+* Subtype checking
+
+In Erg, control flow such as `if` and `for!` are just (polymorphic) functions, and operators can also be regarded as (polymorphic) functions with one or two arguments.
+For monomorphic functions, only subtype determination is sufficient.
+The [attribute_resolution](./attribute_resolution.md) and [subtyping](./subtyping.md) are described in a separate section.
+This section describes the type inference mechanism for function calls and definitions.
+
+Specifically, type inference is performed in the following steps. Explanation of terminology and other details are described below.
 
 1. Infer the type of the right hand side value ([`search_callee_info`](https://github.com/erg-lang/erg/blob/3cc168182b051a1565aaa085f3a52533c4c3e650/crates/erg_compiler/context/inquire.rs#L740))
 2. instantiate the type ([`instantiate`](https://github.com/erg-lang/erg/blob/3cc168182b051a1565aaa085f3a52533c4c3e650/crates/erg_compiler/context/instantiate.rs#L549))
@@ -62,7 +75,7 @@ line 3. Call {obj: print!, args: [v]}
 
 ## Implementation of type variables
 
-Type variables were originally expressed as follows in `Type` of [ty.rs]. It's now implemented in a different way, but it's essentially the same idea, so I'll consider this implementation in a more naive way.
+Type variables were originally expressed as follows in `Type` of [ty.rs](../../../crates/erg_compiler/ty/mod.rs). It's now implemented in a different way, but it's essentially the same idea, so I'll consider this implementation in a more naive way.
 `RcCell<T>` is a wrapper type for `Rc<RefCell<T>>`.
 
 ```rust
@@ -90,12 +103,12 @@ An unbound type variable `Type::Var` is replaced with a `Type::MonoQuantVar` whe
 The operation of replacing unbound type variables with quantified type variables is called __generalization__ (or generalization). If you leave it as an unbound type variable, the type will be fixed with a single call (for example, after calling `id True`, the return type of `id 1` will be `Bool`), so It has to be generalized.
 In this way a generalized definition containing quantified type variables is registered in the type environment.
 
-## Generalizations, type schemes, reifications
+## Generalizations, Type schemes, Instantiations
 
 Let's denote the operation of generalizing an unbound type variable `?T` as `gen`. Let the resulting generalized type variable be `|T: Type| T`.
 In type theory, quantified types, such as the polycorrelation type `α->α`, are distinguished by prefixing them with `∀α.` (symbols like ∀ are called (generic) quantifiers. ).
 Such a representation (e.g. `∀α.α->α`) is called a type scheme. A type scheme in Erg is denoted as `|T: Type| T -> T`.
-Type schemes are not usually considered first-class types. Configuring the type system that way can prevent type inference from working. However, in Erg, it can be regarded as a first-class type under certain conditions. See [rank2 type](../syntax/type/advanced/rank2type.md) for details.
+Type schemes are not usually considered first-class types. Configuring the type system that way can prevent type inference from working. However, in Erg, it can be regarded as a first-class type under certain conditions.
 
 Now, when using the obtained type scheme (e.g. `'T -> 'T (id's type scheme)`) in type inference where it is used (e.g. `id 1`, `id True`), generalize must be released. This inverse transformation is called __instantiation__. We will call the operation `inst`.
 
@@ -111,7 +124,7 @@ After that, give the type of the argument to get the target type. This operation
 In addition, the operation that obtains the return type if the expression is a call is denoted as `subst_call_ret`. The first argument is a list of argument types, the second argument is the type to assign to.
 
 The type substitution rule `{?T --> X}` means to rewrite `?T` and `X` to be of the same type. This operation is called __Unification__. `X` can also be a type variable.
-A detailed unification algorithm is described in [separate section]. We will denote the unify operation as `unify`.
+A detailed unification algorithm is described in [separate section](./unification.md). We will denote the unify operation as `unify`.
 
 ```python
 unify(?T, Int) == Ok(()) # ?T == (Int)
@@ -364,12 +377,12 @@ f x (: ?V<2>), y (: ?W<2>) =
 
 ```python
 f x (: ?T<1>), y (: ?W<2>) =
-    (id(x) + x): subst_call_ret([inst ?U<1>, inst ?W<2>], inst |'L <: Add('R)| ('L, 'R) -> 'L .AddO)
+    (id(x) + x): subst_call_ret([inst ?U<1>, inst ?W<2>], inst |'L <: Add('R)| ('L, 'R) -> 'L .Output)
 ```
 
 ```python
 f x (: ?T<1>), y (: ?W<2>) =
-    (id(x) + x): subst_call_ret([inst ?U<1>, inst ?W<2>], (?L(<: Add(?R<2>))<2>, ?R<2 >) -> ?L<2>.AddO)
+    (id(x) + x): subst_call_ret([inst ?U<1>, inst ?W<2>], (?L(<: Add(?R<2>))<2>, ?R<2 >) -> ?L<2>.Output)
 ```
 
 ```python
@@ -378,23 +391,23 @@ f x (: ?T<1>), y (: ?W<2>) =
     # ?U<1>(<: Add(?W<2>)) # Inherit the constraints of ?L
     # ?L<2> --> ?U<1>
     # ?R<2> --> ?W<2> (not ?R(:> ?W), ?W(<: ?R))
-    (id(x) + x) (: ?U<1>.AddO)
+    (id(x) + x) (: ?U<1>.Output)
 ```
 
 ```python
 # current_level = 1
-f(x, y) (: gen ?T<1>, gen ?W<2> -> gen ?U<1>.AddO) =
+f(x, y) (: gen ?T<1>, gen ?W<2> -> gen ?U<1>.Output) =
     id(x) + x
 ```
 
 ```python
 id: ?T<1> -> ?U<1>
-f(x, y) (: |'W: Type| (?T<1>, 'W) -> gen ?U<1>(<: Add(?W<2>)).AddO) =
+f(x, y) (: |'W: Type| (?T<1>, 'W) -> gen ?U<1>(<: Add(?W<2>)).Output) =
     id(x) + x
 ```
 
 ```python
-f(x, y) (: |'W: Type| (?T<1>, 'W) -> ?U<1>(<: Add(?W<2>)).AddO) =
+f(x, y) (: |'W: Type| (?T<1>, 'W) -> ?U<1>(<: Add(?W<2>)).Output) =
     id(x) + x
 ```
 
@@ -410,7 +423,7 @@ If the return type has already been assigned, unify with the resulting type (`?U
 
 ```python
 # ?U<2> --> ?T<2>
-f(x, y) (: |'W: Type| (?T<2>, 'W) -> ?T<2>(<: Add(?W<2>)).AddO) =
+f(x, y) (: |'W: Type| (?T<2>, 'W) -> ?T<2>(<: Add(?W<2>)).Output) =
     id(x) + x
 # current_level = 1
 id(x) (: gen ?T<2> -> gen ?T<2>) = x (: ?T<2>)
@@ -421,21 +434,21 @@ The type variable that depends on it will also be a Type type variable.
 Generalized type variables are independent for each function.
 
 ```python
-f(x, y) (: |'W: Type, 'T <: Add('W)| ('T, 'W) -> 'T.AddO) =
+f(x, y) (: |'W: Type, 'T <: Add('W)| ('T, 'W) -> 'T.Output) =
     id(x) + x
 id(x) (: |'T: Type| 'T -> gen 'T) = x
 ```
 
 ```python
-f x, y (: |'W: Type, 'T <: Add('W)| ('T, 'W) -> 'T.AddO) =
+f x, y (: |'W: Type, 'T <: Add('W)| ('T, 'W) -> 'T.Output) =
     id(x) + y
 id(x) (: 'T -> 'T) = x
 
-f(10, 1) (: subst_call_ret([inst {10}, inst {1}], inst |'W: Type, 'T <: Add('W)| ('T, 'W) -> 'T .AddO)
+f(10, 1) (: subst_call_ret([inst {10}, inst {1}], inst |'W: Type, 'T <: Add('W)| ('T, 'W) -> 'T .Output)
 ```
 
 ```python
-f(10, 1) (: subst_call_ret([inst {10}, inst {1}], (?T<1>(<: Add(?W<1>)), ?W<1>) -> ? T<1>.AddO))
+f(10, 1) (: subst_call_ret([inst {10}, inst {1}], (?T<1>(<: Add(?W<1>)), ?W<1>) -> ? T<1>.Output))
 ```
 
 Type variables are bounded to the smallest type that has an implementation.
@@ -448,7 +461,7 @@ Type variables are bounded to the smallest type that has an implementation.
 # {1} <: ?W<1> or {10} <: ?T<1> <: Add({1}) <: Add(?W<1>)
 # The minimal implementation trait for Add(?W)(:> ?V) is Add(Nat) == Nat, since Add is covariant with respect to the first argument
 # {10} <: ?W<1> or {1} <: ?T<1> <: Add(?W<1>) <: Add(Nat) == Nat
-# ?T(:> ?W(:> {10}) or {1}, <: Nat).AddO == Nat # If there is only one candidate, finalize the evaluation
+# ?T(:> ?W(:> {10}) or {1}, <: Nat).Output == Nat # If there is only one candidate, finalize the evaluation
 f(10, 1) (: (?W(:> {10}, <: Nat), ?W(:> {1})) -> Nat)
 # This is the end of the program, so remove the type variable
 f(10, 1) (: ({10}, {1}) -> Nat)
@@ -457,7 +470,7 @@ f(10, 1) (: ({10}, {1}) -> Nat)
 The resulting type for the entire program is:
 
 ```python
-f|W: Type, T <: Add(W)|(x: T, y: W): T.AddO = id(x) + y
+f|W: Type, T <: Add(W)|(x: T, y: W): T.Output = id(x) + y
 id|T: Type|(x: T): T = x
 
 f(10, 1): Nat
