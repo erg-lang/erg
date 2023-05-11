@@ -16,15 +16,13 @@
 
 ## [parsing](./parsing.md)
 
-## [refinement_subtyping](./refinement_subtyping.md)
-
 ## [TODO_hint](./TODO_hint.md)
 
 ## [TODO_recov_suggest](./TODO_recov_suggest.md)
 
 ## [TODO_warn](./TODO_warn.md)
 
-## [trait_method_resolving](./trait_method_resolving.md)
+## [attribute_resolution](./attribute_resolution.md)
 
 ## [transpile](./transpile.md)
 
