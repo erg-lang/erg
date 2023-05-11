@@ -41,7 +41,7 @@ use crate::{unreachable_error, AccessKind};
 use RegistrationMode::*;
 
 use super::instantiate_spec::ParamKind;
-use super::{ContextKind, MethodInfo};
+use super::{ContextKind, MethodPair};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SubstituteResult {
@@ -2826,43 +2826,36 @@ impl Context {
         &self,
         obj: &hir::Expr,
         attr: &Identifier,
-        candidates: &'m [MethodInfo],
-    ) -> Triple<&'m MethodInfo, TyCheckError> {
+        candidates: &'m [MethodPair],
+    ) -> Triple<&'m MethodPair, TyCheckError> {
+        if candidates.first().is_none() {
+            return Triple::None;
+        }
         let matches = candidates
             .iter()
-            .filter(|mi| self.supertype_of(&mi.definition_type, obj.ref_t()))
+            .filter(|mp| self.supertype_of(&mp.definition_type, obj.ref_t()))
             .collect::<Vec<_>>();
         if matches.len() == 1 {
-            let method_info = matches[0];
-            if method_info
+            let method_pair = matches[0];
+            if method_pair
                 .method_info
                 .vis
                 .compatible(&attr.acc_kind(), self)
             {
-                return Triple::Ok(method_info);
+                return Triple::Ok(method_pair);
             }
         }
-        let Some(first) = candidates.first() else {
-            return Triple::None;
-        };
-        if candidates
-            .iter()
-            .skip(1)
-            .all(|mi| mi.method_info == first.method_info)
-        {
-            if first.method_info.vis.compatible(&attr.acc_kind(), self) {
-                return Triple::Ok(first);
-            }
-        } else if self.same_shape(candidates.iter().map(|mi| &mi.method_info.t)) {
+        if self.same_shape(candidates.iter().map(|mp| &mp.method_info.t)) {
             // if all methods have the same return type, the minimum type (has biggest param types) is selected
             // e.g. [Float -> Bool, Int -> Bool] => Float -> Bool
-            if let Some(min) = self.min_type(candidates.iter().map(|mi| &mi.method_info.t)) {
-                let min_info = candidates
+            // REVIEW: should [Int -> Bool, Str -> Bool] => (Str or Int) -> Bool?
+            if let Some(min) = self.min_type(candidates.iter().map(|mp| &mp.method_info.t)) {
+                let min_pair = candidates
                     .iter()
-                    .find(|mi| &mi.method_info.t == min)
+                    .find(|mp| &mp.method_info.t == min)
                     .unwrap();
-                if min_info.method_info.vis.compatible(&attr.acc_kind(), self) {
-                    return Triple::Ok(min_info);
+                if min_pair.method_info.vis.compatible(&attr.acc_kind(), self) {
+                    return Triple::Ok(min_pair);
                 }
             }
         }
@@ -2873,7 +2866,7 @@ impl Context {
             attr,
             &candidates
                 .iter()
-                .map(|t| t.definition_type.clone())
+                .map(|mp| mp.definition_type.clone())
                 .collect::<Vec<_>>(),
             self.caused_by(),
         ))
@@ -2885,7 +2878,7 @@ impl Context {
         &self,
         receiver: &hir::Expr,
         attr: &Identifier,
-    ) -> Triple<&MethodInfo, TyCheckError> {
+    ) -> Triple<&MethodPair, TyCheckError> {
         if let Some(candidates) = self.method_to_traits.get(attr.inspect()) {
             return self.get_attr_type(receiver, attr, candidates);
         }

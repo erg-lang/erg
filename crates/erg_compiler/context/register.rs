@@ -35,7 +35,7 @@ use crate::ty::{
 
 use crate::build_hir::HIRBuilder;
 use crate::context::{
-    ClassDefType, Context, ContextKind, DefaultInfo, MethodInfo, RegistrationMode, TraitImpl,
+    ClassDefType, Context, ContextKind, DefaultInfo, MethodPair, RegistrationMode, TraitImpl,
 };
 use crate::error::readable_name;
 use crate::error::{
@@ -1611,21 +1611,21 @@ impl Context {
             }
             for (trait_method, vi) in ctx.decls.iter() {
                 if let Some(types) = self.method_to_traits.get_mut(trait_method.inspect()) {
-                    types.push(MethodInfo::new(t.clone(), vi.clone()));
+                    types.push(MethodPair::new(t.clone(), vi.clone()));
                 } else {
                     self.method_to_traits.insert(
                         trait_method.inspect().clone(),
-                        vec![MethodInfo::new(t.clone(), vi.clone())],
+                        vec![MethodPair::new(t.clone(), vi.clone())],
                     );
                 }
             }
             for (class_method, vi) in ctx.locals.iter() {
                 if let Some(types) = self.method_to_classes.get_mut(class_method.inspect()) {
-                    types.push(MethodInfo::new(t.clone(), vi.clone()));
+                    types.push(MethodPair::new(t.clone(), vi.clone()));
                 } else {
                     self.method_to_classes.insert(
                         class_method.inspect().clone(),
-                        vec![MethodInfo::new(t.clone(), vi.clone())],
+                        vec![MethodPair::new(t.clone(), vi.clone())],
                     );
                 }
             }
@@ -1691,21 +1691,21 @@ impl Context {
             }
             for (trait_method, vi) in ctx.decls.iter() {
                 if let Some(types) = self.method_to_traits.get_mut(trait_method.inspect()) {
-                    types.push(MethodInfo::new(t.clone(), vi.clone()));
+                    types.push(MethodPair::new(t.clone(), vi.clone()));
                 } else {
                     self.method_to_traits.insert(
                         trait_method.inspect().clone(),
-                        vec![MethodInfo::new(t.clone(), vi.clone())],
+                        vec![MethodPair::new(t.clone(), vi.clone())],
                     );
                 }
             }
             for (class_method, vi) in ctx.locals.iter() {
                 if let Some(types) = self.method_to_classes.get_mut(class_method.inspect()) {
-                    types.push(MethodInfo::new(t.clone(), vi.clone()));
+                    types.push(MethodPair::new(t.clone(), vi.clone()));
                 } else {
                     self.method_to_classes.insert(
                         class_method.inspect().clone(),
-                        vec![MethodInfo::new(t.clone(), vi.clone())],
+                        vec![MethodPair::new(t.clone(), vi.clone())],
                     );
                 }
             }

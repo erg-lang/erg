@@ -358,12 +358,12 @@ pub struct ContextInfo {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct MethodInfo {
+pub struct MethodPair {
     definition_type: Type,
     method_info: VarInfo,
 }
 
-impl fmt::Display for MethodInfo {
+impl fmt::Display for MethodPair {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -373,7 +373,7 @@ impl fmt::Display for MethodInfo {
     }
 }
 
-impl MethodInfo {
+impl MethodPair {
     pub const fn new(definition_type: Type, method_info: VarInfo) -> Self {
         Self {
             definition_type,
@@ -404,8 +404,8 @@ pub struct Context {
     pub(crate) methods_list: Vec<(ClassDefType, Context)>,
     // K: method name, V: types defines the method
     // If it is declared in a trait, it takes precedence over the class.
-    pub(crate) method_to_traits: Dict<Str, Vec<MethodInfo>>,
-    pub(crate) method_to_classes: Dict<Str, Vec<MethodInfo>>,
+    pub(crate) method_to_traits: Dict<Str, Vec<MethodPair>>,
+    pub(crate) method_to_classes: Dict<Str, Vec<MethodPair>>,
     /// K: method name, V: impl patch
     /// Provided methods can switch implementations on a scope-by-scope basis
     /// K: メソッド名, V: それを実装するパッチたち
