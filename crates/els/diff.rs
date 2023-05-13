@@ -1,4 +1,5 @@
 use std::cmp::Ordering::*;
+use std::fmt;
 
 use erg_common::traits::Stream;
 use erg_compiler::erg_parser::ast;
@@ -13,6 +14,17 @@ pub enum ASTDiff {
     Addition(usize, ast::Expr),
     Modification(usize, ast::Expr),
     Nop,
+}
+
+impl fmt::Display for ASTDiff {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Deletion(idx) => write!(f, "Deletion({idx})"),
+            Self::Addition(idx, expr) => write!(f, "Addition({idx}, {expr})"),
+            Self::Modification(idx, expr) => write!(f, "Modification({idx}, {expr})"),
+            Self::Nop => write!(f, "Nop"),
+        }
+    }
 }
 
 /// diff(old: {x, y, z}, new: {x, a, y, z}) => ASTDiff::Addition(1)
@@ -55,6 +67,17 @@ pub enum HIRDiff {
     Addition(usize, hir::Expr),
     Modification(usize, hir::Expr),
     Nop,
+}
+
+impl fmt::Display for HIRDiff {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Deletion(idx) => write!(f, "Deletion({idx})"),
+            Self::Addition(idx, expr) => write!(f, "Addition({idx}, {expr})"),
+            Self::Modification(idx, expr) => write!(f, "Modification({idx}, {expr})"),
+            Self::Nop => write!(f, "Nop"),
+        }
+    }
 }
 
 impl HIRDiff {

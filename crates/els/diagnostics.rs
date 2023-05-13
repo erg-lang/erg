@@ -87,14 +87,14 @@ impl<Checker: BuildRunnable> Server<Checker> {
             return Ok(());
         };
         let ast_diff = ASTDiff::diff(old, &new);
-        crate::_log!("diff: {ast_diff:?}");
+        crate::_log!("diff: {ast_diff}");
         if let Some(mut lowerer) = self.get_lowerer(&uri) {
             let hir = self
                 .artifacts
                 .get_mut(&uri)
                 .and_then(|r| r.artifact.object.as_mut());
             if let Some((hir_diff, hir)) = HIRDiff::new(ast_diff, &mut lowerer).zip(hir) {
-                crate::_log!("hir_diff: {hir_diff:?}");
+                crate::_log!("hir_diff: {hir_diff}");
                 hir_diff.update(hir);
             }
             self.restore_mod_ctx(&uri, lowerer.pop_mod_ctx().unwrap());
