@@ -1063,7 +1063,7 @@ impl ValueObj {
                 .replace('_', "")
                 .parse::<f64>()
                 .ok()
-                .map(|f| Self::Ratio(Ratio::float_new(f))),
+                .map(|f| Self::Ratio(Ratio::float_new(f, None))),
             Type::Float => content
                 .replace('_', "")
                 .parse::<f64>()

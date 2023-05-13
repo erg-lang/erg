@@ -29,7 +29,7 @@ impl Ratio {
     }
 
     const EPSILON: f64 = 1e-10;
-    pub fn float_new(f: f64) -> Self {
+    pub fn float_new(f: f64, limit: Option<u64>) -> Self {
         let mut f = f;
         let mut minus = false;
         match f.partial_cmp(&0f64) {
@@ -41,10 +41,23 @@ impl Ratio {
             Some(_) => {}
             None => panic!("Something went wrong: {f} cannot compare"),
         }
+        let limit = if let Some(limit) = limit {
+            if limit >= i32::MAX as u64 {
+                i32::MAX as u64
+            } else {
+                limit
+            }
+        } else {
+            10000
+        };
         let mut n: i64 = 1;
         let mut d: i64 = 1;
         let mut error: f64 = (f - n as f64 / d as f64).abs();
+        let mut cnt = 0;
         while error > Self::EPSILON {
+            if cnt > limit {
+                break;
+            }
             if f > n as f64 / d as f64 {
                 n += 1;
             } else {
@@ -52,6 +65,7 @@ impl Ratio {
             }
             let new_error = (f - n as f64 / d as f64).abs();
             error = new_error;
+            cnt += 1;
         }
         if minus {
             n *= -1;
@@ -260,17 +274,17 @@ mod test {
 
     #[test]
     fn test_float_new() {
-        let a = Ratio::float_new(1.0);
+        let a = Ratio::float_new(1.0, None);
         assert_eq!(Ratio::new(1, 1), a);
-        let a = Ratio::float_new(-1.0);
+        let a = Ratio::float_new(-1.0, None);
         assert_eq!(Ratio::new(-1, 1), a);
-        let a = Ratio::float_new(2.7);
+        let a = Ratio::float_new(2.7, None);
         assert_eq!(Ratio::new(27, 10), a);
-        let a = Ratio::float_new(1.0);
+        let a = Ratio::float_new(1.0, None);
         assert_eq!(Ratio::new(1, 1), a);
-        let a = Ratio::float_new(0.3333333333);
+        let a = Ratio::float_new(0.3333333333, None);
         assert_eq!(Ratio::new(1, 3), a);
-        let a = Ratio::float_new(1.47);
+        let a = Ratio::float_new(1.47, None);
         assert_eq!(Ratio::new(147, 100), a);
     }
 }
