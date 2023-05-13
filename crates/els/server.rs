@@ -3,9 +3,12 @@ use std::io;
 use std::io::{stdin, stdout, BufRead, Read, StdinLock, StdoutLock, Write};
 use std::ops::Not;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 use std::str::FromStr;
 
 use erg_common::consts::PYTHON_MODE;
+use erg_compiler::error::{CompileErrors, CompileWarnings};
+use erg_compiler::lower::ASTLowerer;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_json::Value;
@@ -536,6 +539,21 @@ impl<Checker: BuildRunnable> Server<Checker> {
         } else {
             Checker::new(self.cfg.inherit(path))
         }
+    }
+
+    pub(crate) fn get_lowerer(&self, path: &Path) -> Option<ASTLowerer> {
+        let module = Rc::get_mut(&mut self.get_shared().unwrap().mod_cache.get_mut(path)?.module)?;
+        let module = std::mem::take(module);
+        Some(ASTLowerer::new_with_ctx(module))
+    }
+
+    pub(crate) fn restore_mod_ctx(&self, path: &Path, module: ModuleContext) {
+        self.get_shared()
+            .unwrap()
+            .mod_cache
+            .get_mut(path)
+            .unwrap()
+            .module = Rc::new(module);
     }
 
     pub(crate) fn get_visitor(&self, uri: &NormalizedUrl) -> Option<HIRVisitor> {

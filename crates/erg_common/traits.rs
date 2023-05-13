@@ -351,6 +351,12 @@ macro_rules! impl_stream {
             }
         }
 
+        impl std::ops::IndexMut<usize> for $Strc {
+            fn index_mut(&mut self, idx: usize) -> &mut Self::Output {
+                erg_common::traits::Stream::get_mut(self, idx).unwrap()
+            }
+        }
+
         impl From<$Strc> for Vec<$Inner> {
             fn from(item: $Strc) -> Vec<$Inner> {
                 item.payload()

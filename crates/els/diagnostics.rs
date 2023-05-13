@@ -77,9 +77,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
             return Ok(());
         };
         let mut parser = Parser::new(ts);
-        if parser.parse().is_err() {
+        let Ok(module) = parser.parse() else {
             return Ok(());
-        }
+        };
         let path = util::uri_to_path(&uri);
         let code = self.file_cache.get_entire_code(&uri)?;
         let mode = if path.to_string_lossy().ends_with(".d.er") {
@@ -87,6 +87,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         } else {
             "exec"
         };
+        if let Some(mut lowerer) = self.get_lowerer(&path) {}
         let mut checker = self.get_checker(path);
         match checker.build(code, mode) {
             Ok(artifact) => {

@@ -38,9 +38,9 @@ pub struct FileCacheEntry {
 
 impl FileCacheEntry {
     /// line: 0-based
-    pub fn get_line(&self, line: u32) -> Option<String> {
+    pub fn get_line(&self, line0: u32) -> Option<String> {
         let mut lines = self.code.lines();
-        lines.nth(line as usize).map(|s| s.to_string())
+        lines.nth(line0 as usize).map(|s| s.to_string())
     }
 }
 
@@ -164,9 +164,9 @@ impl FileCache {
     }
 
     /// 0-based
-    pub(crate) fn get_line(&self, uri: &NormalizedUrl, line: u32) -> Option<String> {
+    pub(crate) fn get_line(&self, uri: &NormalizedUrl, line0: u32) -> Option<String> {
         let _ = self.load_once(uri);
-        self.files.borrow_mut().get(uri)?.get_line(line)
+        self.files.borrow_mut().get(uri)?.get_line(line0)
     }
 
     pub(crate) fn get_ranged(
