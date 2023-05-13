@@ -99,6 +99,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             }
             self.restore_mod_ctx(&uri, lowerer.pop_mod_ctx().unwrap());
         }
+        // skip checking for dependents
         Ok(())
     }
 

@@ -1,0 +1,4 @@
+.bar = import "./bar"
+{.i; .f} = .bar
+
+.FILE = "foo/__init__.er"
