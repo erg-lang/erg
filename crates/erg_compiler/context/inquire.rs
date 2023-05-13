@@ -2457,6 +2457,11 @@ impl Context {
         Self::resolve_real_path(cfg, path).or_else(|| Self::resolve_decl_path(cfg, path))
     }
 
+    /// resolution order:
+    /// 1. `./{path}.er`
+    /// 2. `./{path}/__init__.er`
+    /// 3. `std/{path}.er`
+    /// 4. `std/{path}/__init__.er`
     pub(crate) fn resolve_real_path(cfg: &ErgConfig, path: &Path) -> Option<PathBuf> {
         if let Ok(path) = cfg.input.local_resolve(path) {
             Some(path)
@@ -2476,6 +2481,15 @@ impl Context {
         }
     }
 
+    /// resolution order:
+    /// 1. `{path}.d.er`
+    /// 2. `{path}/__init__.d.er`
+    /// 3. `__pycache__/{path}.d.er`
+    /// 4. `{path}/__pycache__/__init__.d.er`
+    /// 5. `{path}.d/__init__.d.er`
+    /// 6. `{path}.d/__pycache__/__init__.d.er`
+    /// 7. `std/{path}.d.er`
+    /// 8. `std/{path}/__init__.d.er`
     pub(crate) fn resolve_decl_path(cfg: &ErgConfig, path: &Path) -> Option<PathBuf> {
         if let Ok(path) = cfg.input.local_decl_resolve(path) {
             Some(path)

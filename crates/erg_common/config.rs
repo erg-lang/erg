@@ -439,6 +439,9 @@ impl Input {
         }
     }
 
+    /// resolution order:
+    /// 1. `{path}.er`
+    /// 2. `{path}/__init__.er`
     pub fn local_resolve(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
         let mut dir = self.dir();
         dir.push(path);
@@ -453,8 +456,19 @@ impl Input {
     }
 
     pub fn local_decl_resolve(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
+        self._local_decl_resolve(path).or_else(|_| {
+            let path = add_postfix_foreach(path, ".d");
+            self._local_decl_resolve(&path)
+        })
+    }
+
+    /// resolution order:
+    /// 1. `{path}.d.er`
+    /// 2. `{path}/__init__.d.er`
+    /// 3. `__pycache__/{path}.d.er`
+    /// 4. `{path}/__pycache__/__init__.d.er`
+    fn _local_decl_resolve(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
         let mut dir = self.dir();
-        let path = add_postfix_foreach(path, ".d");
         let mut comps = path.components();
         let last = comps
             .next_back()
@@ -467,16 +481,24 @@ impl Input {
             .canonicalize()
             .or_else(|_| {
                 dir.pop(); // {path}.d.er -> ./
-                dir.push(last_path); // -> {path}.d
-                dir.push("__init__.d.er"); // -> {path}.d/__init__.d.er
+                dir.push(last_path); // -> {path}
+                dir.push("__init__.d.er"); // -> {path}/__init__.d.er
                 dir.canonicalize()
             })
             .or_else(|_| {
-                dir.pop(); // -> {path}.d
+                dir.pop(); // -> {path}
                 dir.pop(); // -> ./
                 dir.push("__pycache__");
                 dir.push(last_path);
                 dir.set_extension("d.er"); // -> __pycache__/{path}.d.er
+                dir.canonicalize()
+            })
+            .or_else(|_| {
+                dir.pop(); // -> __pycache__
+                dir.pop(); // -> ./
+                dir.push(last_path); // -> {path}
+                dir.push("__pycache__"); // -> {path}/__pycache__
+                dir.push("__init__.d.er"); // -> {path}/__pycache__/__init__.d.er
                 dir.canonicalize()
             })?;
         Ok(normalize_path(path))
