@@ -559,8 +559,12 @@ impl<Checker: BuildRunnable> Server<Checker> {
         Some(ASTLowerer::new_with_ctx(module))
     }
 
-    pub(crate) fn restore_mod_ctx(&mut self, uri: &NormalizedUrl, module: ModuleContext) {
-        *self.modules.get_mut(uri).unwrap() = module;
+    pub(crate) fn restore_mod_ctx(&mut self, uri: NormalizedUrl, module: ModuleContext) {
+        if let Some(m) = self.modules.get_mut(&uri) {
+            *m = module;
+        } else {
+            self.modules.insert(uri, module);
+        }
     }
 
     pub(crate) fn get_visitor(&self, uri: &NormalizedUrl) -> Option<HIRVisitor> {

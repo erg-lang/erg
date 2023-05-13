@@ -97,7 +97,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 crate::_log!("hir_diff: {hir_diff}");
                 hir_diff.update(hir);
             }
-            self.restore_mod_ctx(&uri, lowerer.pop_mod_ctx().unwrap());
+            self.restore_mod_ctx(uri, lowerer.pop_mod_ctx().unwrap());
         }
         // skip checking for dependents
         Ok(())
