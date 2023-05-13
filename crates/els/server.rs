@@ -3,11 +3,10 @@ use std::io;
 use std::io::{stdin, stdout, BufRead, Read, StdinLock, StdoutLock, Write};
 use std::ops::Not;
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
 use std::str::FromStr;
 
 use erg_common::consts::PYTHON_MODE;
-use erg_compiler::error::{CompileErrors, CompileWarnings};
+use erg_compiler::erg_parser::ast::Module;
 use erg_compiler::lower::ASTLowerer;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -188,6 +187,18 @@ pub(crate) fn send_invalid_req_error() -> ELSResult<()> {
     send_error(None, -32601, "received an invalid request")
 }
 
+#[derive(Debug)]
+pub struct AnalysisResult {
+    pub ast: Module,
+    pub artifact: IncompleteArtifact,
+}
+
+impl AnalysisResult {
+    pub fn new(ast: Module, artifact: IncompleteArtifact) -> Self {
+        Self { ast, artifact }
+    }
+}
+
 /// A Language Server, which can be used any object implementing `BuildRunnable` internally by passing it as a generic parameter.
 #[derive(Debug)]
 pub struct Server<Checker: BuildRunnable = HIRBuilder> {
@@ -200,7 +211,7 @@ pub struct Server<Checker: BuildRunnable = HIRBuilder> {
     pub(crate) file_cache: FileCache,
     pub(crate) comp_cache: CompletionCache,
     pub(crate) modules: Dict<NormalizedUrl, ModuleContext>,
-    pub(crate) artifacts: Dict<NormalizedUrl, IncompleteArtifact>,
+    pub(crate) artifacts: Dict<NormalizedUrl, AnalysisResult>,
     pub(crate) current_sig: Option<Expr>,
     pub(crate) _checker: std::marker::PhantomData<Checker>,
 }
@@ -541,24 +552,19 @@ impl<Checker: BuildRunnable> Server<Checker> {
         }
     }
 
-    pub(crate) fn get_lowerer(&self, path: &Path) -> Option<ASTLowerer> {
-        let module = Rc::get_mut(&mut self.get_shared().unwrap().mod_cache.get_mut(path)?.module)?;
-        let module = std::mem::take(module);
+    pub(crate) fn get_lowerer(&mut self, uri: &NormalizedUrl) -> Option<ASTLowerer> {
+        let module = std::mem::take(self.modules.get_mut(uri)?);
         Some(ASTLowerer::new_with_ctx(module))
     }
 
-    pub(crate) fn restore_mod_ctx(&self, path: &Path, module: ModuleContext) {
-        self.get_shared()
-            .unwrap()
-            .mod_cache
-            .get_mut(path)
-            .unwrap()
-            .module = Rc::new(module);
+    pub(crate) fn restore_mod_ctx(&mut self, uri: &NormalizedUrl, module: ModuleContext) {
+        *self.modules.get_mut(uri).unwrap() = module;
     }
 
     pub(crate) fn get_visitor(&self, uri: &NormalizedUrl) -> Option<HIRVisitor> {
         self.artifacts
             .get(uri)?
+            .artifact
             .object
             .as_ref()
             .map(|hir| HIRVisitor::new(hir, &self.file_cache, uri.clone()))
@@ -611,7 +617,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                         ctxs.extend(singular_ctxs);
                     }
                 } else {
-                    send_log("expr not found: {token}")?;
+                    _log!("expr not found: {token}");
                 }
             }
             Ok(ctxs)

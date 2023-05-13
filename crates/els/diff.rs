@@ -2,7 +2,7 @@ use std::cmp::Ordering::*;
 
 use erg_common::traits::Stream;
 use erg_compiler::erg_parser::ast;
-use erg_compiler::erg_parser::ast::AST;
+use erg_compiler::erg_parser::ast::Module;
 use erg_compiler::hir;
 use erg_compiler::hir::HIR;
 use erg_compiler::lower::ASTLowerer;
@@ -23,30 +23,27 @@ pub enum ASTDiff {
 /// diff(old: {x, y, z}, new: {x, a, z}) => ASTDiff::Modification(1)
 /// diff(old: {x, y, z}, new: {x, y, z}) => ASTDiff::Nop
 impl ASTDiff {
-    pub fn diff(old: AST, new: AST) -> ASTDiff {
-        match old.module.len().cmp(&new.module.len()) {
+    pub fn diff(old: &Module, new: &Module) -> ASTDiff {
+        match old.len().cmp(&new.len()) {
             Less => {
                 let idx = new
-                    .module
                     .iter()
-                    .zip(old.module.iter())
+                    .zip(old.iter())
                     .position(|(new, old)| new != old)
-                    .unwrap();
-                Self::Addition(idx, new.module.get(idx).unwrap().clone())
+                    .unwrap_or(new.len() - 1);
+                Self::Addition(idx, new.get(idx).unwrap().clone())
             }
             Greater => Self::Deletion(
-                old.module
-                    .iter()
-                    .zip(new.module.iter())
+                old.iter()
+                    .zip(new.iter())
                     .position(|(old, new)| old != new)
-                    .unwrap(),
+                    .unwrap_or(old.len() - 1),
             ),
             Equal => old
-                .module
                 .iter()
-                .zip(new.module.iter())
+                .zip(new.iter())
                 .position(|(old, new)| old != new)
-                .map(|idx| Self::Modification(idx, new.module.get(idx).unwrap().clone()))
+                .map(|idx| Self::Modification(idx, new.get(idx).unwrap().clone()))
                 .unwrap_or(Self::Nop),
         }
     }

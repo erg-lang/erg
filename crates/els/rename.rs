@@ -209,7 +209,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let mut imports = vec![];
         if let Some(IncompleteArtifact {
             object: Some(hir), ..
-        }) = self.artifacts.get(target)
+        }) = self.artifacts.get(target).map(|r| &r.artifact)
         {
             for chunk in hir.module.iter() {
                 imports.extend(Self::extract_import_symbols(chunk, needle_module_name));

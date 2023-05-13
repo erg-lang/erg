@@ -28,11 +28,12 @@ impl<Checker: BuildRunnable> Server<Checker> {
             send_log("visitor not found")?;
             return Ok(None);
         };
-        let Some(artifact) = self.artifacts.get(&uri) else {
+        let Some(result) = self.artifacts.get(&uri) else {
             send_log("artifact not found")?;
             return Ok(None);
         };
-        let warns = artifact
+        let warns = result
+            .artifact
             .warns
             .iter()
             .filter(|warn| warn.core.main_message.ends_with("is not used"))
