@@ -37,7 +37,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                     self.send_diagnostics(uri, diags)?;
                 }
                 if let Some(module) = self.file_cache.get_ast(&uri) {
-                    self.artifacts
+                    self.analysis_result
                         .insert(uri.clone(), AnalysisResult::new(module, artifact.into()));
                 }
             }
@@ -59,7 +59,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                     self.send_diagnostics(uri, diags)?;
                 }
                 if let Some(module) = self.file_cache.get_ast(&uri) {
-                    self.artifacts
+                    self.analysis_result
                         .insert(uri.clone(), AnalysisResult::new(module, artifact));
                 }
             }
@@ -78,7 +78,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
     }
 
     pub(crate) fn quick_check_file(&mut self, uri: NormalizedUrl) -> ELSResult<()> {
-        let Some(old) = self.artifacts.get(&uri).map(|r| &r.ast) else {
+        let Some(old) = self.analysis_result.get(&uri).map(|r| &r.ast) else {
             crate::_log!("not found");
             return Ok(());
         };
@@ -90,7 +90,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         crate::_log!("diff: {ast_diff}");
         if let Some(mut lowerer) = self.get_lowerer(&uri) {
             let hir = self
-                .artifacts
+                .analysis_result
                 .get_mut(&uri)
                 .and_then(|r| r.artifact.object.as_mut());
             if let Some((hir_diff, hir)) = HIRDiff::new(ast_diff, &mut lowerer).zip(hir) {

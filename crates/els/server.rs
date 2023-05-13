@@ -213,7 +213,7 @@ pub struct Server<Checker: BuildRunnable = HIRBuilder> {
     pub(crate) file_cache: FileCache,
     pub(crate) comp_cache: CompletionCache,
     pub(crate) modules: Dict<NormalizedUrl, ModuleContext>,
-    pub(crate) artifacts: Dict<NormalizedUrl, AnalysisResult>,
+    pub(crate) analysis_result: Dict<NormalizedUrl, AnalysisResult>,
     pub(crate) current_sig: Option<Expr>,
     pub(crate) _checker: std::marker::PhantomData<Checker>,
 }
@@ -230,7 +230,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             comp_cache: CompletionCache::new(),
             file_cache: FileCache::new(),
             modules: Dict::new(),
-            artifacts: Dict::new(),
+            analysis_result: Dict::new(),
             current_sig: None,
             _checker: std::marker::PhantomData,
         }
@@ -567,10 +567,12 @@ impl<Checker: BuildRunnable> Server<Checker> {
         }
     }
 
+    pub(crate) fn get_artifact(&self, uri: &NormalizedUrl) -> Option<&IncompleteArtifact> {
+        self.analysis_result.get(uri).map(|r| &r.artifact)
+    }
+
     pub(crate) fn get_visitor(&self, uri: &NormalizedUrl) -> Option<HIRVisitor> {
-        self.artifacts
-            .get(uri)?
-            .artifact
+        self.get_artifact(uri)?
             .object
             .as_ref()
             .map(|hir| HIRVisitor::new(hir, &self.file_cache, uri.clone()))
@@ -654,7 +656,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
     }
 
     pub(crate) fn clear_cache(&mut self, uri: &NormalizedUrl) {
-        self.artifacts.remove(uri);
+        self.analysis_result.remove(uri);
         if let Some(module) = self.modules.remove(uri) {
             let shared = module.context.shared();
             let path = util::uri_to_path(uri);

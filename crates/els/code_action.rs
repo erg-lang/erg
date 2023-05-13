@@ -28,7 +28,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             send_log("visitor not found")?;
             return Ok(None);
         };
-        let Some(result) = self.artifacts.get(&uri) else {
+        let Some(result) = self.analysis_result.get(&uri) else {
             send_log("artifact not found")?;
             return Ok(None);
         };

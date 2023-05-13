@@ -209,7 +209,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let mut imports = vec![];
         if let Some(IncompleteArtifact {
             object: Some(hir), ..
-        }) = self.artifacts.get(target).map(|r| &r.artifact)
+        }) = self.get_artifact(target)
         {
             for chunk in hir.module.iter() {
                 imports.extend(Self::extract_import_symbols(chunk, needle_module_name));
@@ -304,10 +304,10 @@ impl<Checker: BuildRunnable> Server<Checker> {
             let new_uri = NormalizedUrl::new(new);
             edits.extend(self.collect_module_changes(&old_uri, &new_uri));
             self.rename_linked_files(&mut renames, &old_uri, &new_uri);
-            let Some(entry) = self.artifacts.remove(&old_uri) else {
+            let Some(entry) = self.analysis_result.remove(&old_uri) else {
                 continue;
             };
-            self.artifacts.insert(new_uri.clone(), entry);
+            self.analysis_result.insert(new_uri.clone(), entry);
             let Some(entry) = self.modules.remove(&old_uri) else {
                 continue;
             };
