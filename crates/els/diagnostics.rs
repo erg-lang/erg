@@ -97,13 +97,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
             }
         }
         if let Some(module) = checker.pop_context() {
-            self.modules.insert(uri.clone(), module);
+            self.modules.insert(uri, module);
         }
-        let dependents = self.dependents_of(&uri);
-        for dep in dependents {
-            // _log!("dep: {dep}");
-            self.quick_check_file(dep)?;
-        }
+        // skip checking for dependents
         Ok(())
     }
 

@@ -185,6 +185,8 @@ pub(crate) fn send_invalid_req_error() -> ELSResult<()> {
     send_error(None, -32601, "received an invalid request")
 }
 
+pub(crate) const TRIGGER_CHARS: [&str; 4] = [".", ":", "(", " "];
+
 /// A Language Server, which can be used any object implementing `BuildRunnable` internally by passing it as a generic parameter.
 #[derive(Debug)]
 pub struct Server<Checker: BuildRunnable = HIRBuilder> {
@@ -260,8 +262,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         result.capabilities = ServerCapabilities::default();
         self.file_cache.set_capabilities(&mut result.capabilities);
         let mut comp_options = CompletionOptions::default();
-        comp_options.trigger_characters =
-            Some(vec![".".into(), ":".into(), "(".into(), " ".into()]);
+        comp_options.trigger_characters = Some(TRIGGER_CHARS.map(String::from).to_vec());
         comp_options.resolve_provider = Some(true);
         result.capabilities.completion_provider = Some(comp_options);
         result.capabilities.rename_provider = Some(OneOf::Left(true));
@@ -515,12 +516,13 @@ impl<Checker: BuildRunnable> Server<Checker> {
             }
             "textDocument/didChange" => {
                 let params = DidChangeTextDocumentParams::deserialize(msg["params"].clone())?;
-                self.file_cache.incremental_update(params.clone());
-                if self.opt_features.contains(&OptionalFeatures::CheckOnType) {
-                    let uri = NormalizedUrl::new(params.text_document.uri);
+                // check before updating, because `x.`/`x::` will result in an error
+                if TRIGGER_CHARS.contains(&&params.content_changes[0].text[..]) {
+                    let uri = NormalizedUrl::new(params.text_document.uri.clone());
                     // TODO: reset mutable dependent types
                     self.quick_check_file(uri)?;
                 }
+                self.file_cache.incremental_update(params);
                 Ok(())
             }
             _ => send_log(format!("received notification: {method}")),
