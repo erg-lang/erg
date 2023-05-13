@@ -1179,4 +1179,8 @@ impl ModuleContext {
             scope,
         }
     }
+
+    pub fn get_top_cfg(&self) -> ErgConfig {
+        self.context.cfg.clone()
+    }
 }

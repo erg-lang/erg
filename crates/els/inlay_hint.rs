@@ -95,7 +95,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let mut result = vec![];
         if let Some(IncompleteArtifact {
             object: Some(hir), ..
-        }) = self.artifacts.get(&uri)
+        }) = self.get_artifact(&uri)
         {
             for chunk in hir.module.iter() {
                 result.extend(self.get_expr_hint(chunk));

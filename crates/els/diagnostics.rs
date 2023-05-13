@@ -4,12 +4,12 @@ use erg_common::style::*;
 use erg_common::traits::Stream;
 
 use erg_compiler::artifact::BuildRunnable;
-use erg_compiler::erg_parser::Parser;
 use erg_compiler::error::CompileErrors;
 
 use lsp_types::{Diagnostic, DiagnosticSeverity, Position, PublishDiagnosticsParams, Range, Url};
 
-use crate::server::{send, send_log, DefaultFeatures, ELSResult, Server};
+use crate::diff::{ASTDiff, HIRDiff};
+use crate::server::{send, send_log, AnalysisResult, DefaultFeatures, ELSResult, Server};
 use crate::util::{self, NormalizedUrl};
 
 impl<Checker: BuildRunnable> Server<Checker> {
@@ -36,7 +36,10 @@ impl<Checker: BuildRunnable> Server<Checker> {
                     send_log(format!("{uri}, warns: {}", diags.len()))?;
                     self.send_diagnostics(uri, diags)?;
                 }
-                self.artifacts.insert(uri.clone(), artifact.into());
+                if let Some(module) = self.file_cache.get_ast(&uri) {
+                    self.analysis_result
+                        .insert(uri.clone(), AnalysisResult::new(module, artifact.into()));
+                }
             }
             Err(artifact) => {
                 send_log(format!("found errors: {}", artifact.errors.len()))?;
@@ -55,7 +58,10 @@ impl<Checker: BuildRunnable> Server<Checker> {
                     send_log(format!("{uri}, errs & warns: {}", diags.len()))?;
                     self.send_diagnostics(uri, diags)?;
                 }
-                self.artifacts.insert(uri.clone(), artifact);
+                if let Some(module) = self.file_cache.get_ast(&uri) {
+                    self.analysis_result
+                        .insert(uri.clone(), AnalysisResult::new(module, artifact));
+                }
             }
         }
         if let Some(module) = checker.pop_context() {
@@ -72,32 +78,26 @@ impl<Checker: BuildRunnable> Server<Checker> {
     }
 
     pub(crate) fn quick_check_file(&mut self, uri: NormalizedUrl) -> ELSResult<()> {
-        // send_log(format!("checking {uri}"))?;
-        let Some(ts) = self.file_cache.get_token_stream(&uri) else {
+        let Some(old) = self.analysis_result.get(&uri).map(|r| &r.ast) else {
+            crate::_log!("not found");
             return Ok(());
         };
-        let mut parser = Parser::new(ts);
-        if parser.parse().is_err() {
+        let Some(new) = self.file_cache.get_ast(&uri) else {
+            crate::_log!("not found");
             return Ok(());
-        }
-        let path = util::uri_to_path(&uri);
-        let code = self.file_cache.get_entire_code(&uri)?;
-        let mode = if path.to_string_lossy().ends_with(".d.er") {
-            "declare"
-        } else {
-            "exec"
         };
-        let mut checker = self.get_checker(path);
-        match checker.build(code, mode) {
-            Ok(artifact) => {
-                self.artifacts.insert(uri.clone(), artifact.into());
+        let ast_diff = ASTDiff::diff(old, &new);
+        crate::_log!("diff: {ast_diff}");
+        if let Some(mut lowerer) = self.get_lowerer(&uri) {
+            let hir = self
+                .analysis_result
+                .get_mut(&uri)
+                .and_then(|r| r.artifact.object.as_mut());
+            if let Some((hir_diff, hir)) = HIRDiff::new(ast_diff, &mut lowerer).zip(hir) {
+                crate::_log!("hir_diff: {hir_diff}");
+                hir_diff.update(hir);
             }
-            Err(artifact) => {
-                self.artifacts.insert(uri.clone(), artifact);
-            }
-        }
-        if let Some(module) = checker.pop_context() {
-            self.modules.insert(uri, module);
+            self.restore_mod_ctx(uri, lowerer.pop_mod_ctx().unwrap());
         }
         // skip checking for dependents
         Ok(())

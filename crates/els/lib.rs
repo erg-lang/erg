@@ -4,6 +4,7 @@ mod command;
 mod completion;
 mod definition;
 mod diagnostics;
+mod diff;
 mod file_cache;
 mod hir_visitor;
 mod hover;

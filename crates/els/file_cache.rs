@@ -1,6 +1,8 @@
 use std::fs::File;
 use std::io::Read;
 
+use erg_compiler::erg_parser::ast::Module;
+use erg_compiler::erg_parser::Parser;
 use lsp_types::{
     DidChangeTextDocumentParams, FileOperationFilter, FileOperationPattern,
     FileOperationPatternKind, FileOperationRegistrationOptions, OneOf, Position, Range,
@@ -38,9 +40,9 @@ pub struct FileCacheEntry {
 
 impl FileCacheEntry {
     /// line: 0-based
-    pub fn get_line(&self, line: u32) -> Option<String> {
+    pub fn get_line(&self, line0: u32) -> Option<String> {
         let mut lines = self.code.lines();
-        lines.nth(line as usize).map(|s| s.to_string())
+        lines.nth(line0 as usize).map(|s| s.to_string())
     }
 }
 
@@ -126,6 +128,12 @@ impl FileCache {
         self.files.borrow_mut().get(uri)?.token_stream.clone()
     }
 
+    pub fn get_ast(&self, uri: &NormalizedUrl) -> Option<Module> {
+        let ts = self.get_token_stream(uri)?;
+        let mut parser = Parser::new(ts);
+        parser.parse().ok()
+    }
+
     pub fn get_token(&self, uri: &NormalizedUrl, pos: Position) -> Option<Token> {
         let _ = self.load_once(uri);
         let ent = self.files.borrow_mut();
@@ -164,9 +172,9 @@ impl FileCache {
     }
 
     /// 0-based
-    pub(crate) fn get_line(&self, uri: &NormalizedUrl, line: u32) -> Option<String> {
+    pub(crate) fn get_line(&self, uri: &NormalizedUrl, line0: u32) -> Option<String> {
         let _ = self.load_once(uri);
-        self.files.borrow_mut().get(uri)?.get_line(line)
+        self.files.borrow_mut().get(uri)?.get_line(line0)
     }
 
     pub(crate) fn get_ranged(

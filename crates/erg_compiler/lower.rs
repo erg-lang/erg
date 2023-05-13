@@ -175,6 +175,15 @@ impl ASTLowerer {
         }
     }
 
+    pub fn new_with_ctx(module: ModuleContext) -> Self {
+        Self {
+            cfg: module.get_top_cfg(),
+            module,
+            errs: LowerErrors::empty(),
+            warns: LowerWarnings::empty(),
+        }
+    }
+
     fn pop_append_errs(&mut self) {
         match self.module.context.check_decls_and_pop() {
             Ok(ctx) if self.cfg.mode == ErgMode::LanguageServer && !ctx.dir().is_empty() => {
@@ -2307,7 +2316,7 @@ impl ASTLowerer {
 
     // Call.obj == Accessor cannot be type inferred by itself (it can only be inferred with arguments)
     // so turn off type checking (check=false)
-    fn lower_expr(&mut self, expr: ast::Expr) -> LowerResult<hir::Expr> {
+    pub fn lower_expr(&mut self, expr: ast::Expr) -> LowerResult<hir::Expr> {
         log!(info "entered {}", fn_name!());
         match expr {
             ast::Expr::Literal(lit) => Ok(hir::Expr::Lit(self.lower_literal(lit)?)),
