@@ -14,7 +14,7 @@ use crate::help_messages::{command_message, mode_message, OPTIONS};
 use crate::levenshtein::get_similar_name;
 use crate::normalize_path;
 use crate::pathutil::add_postfix_foreach;
-use crate::python_util::{detect_magic_number, get_python_version, PythonVersion};
+use crate::python_util::{detect_magic_number, get_python_version, get_sys_path, PythonVersion};
 use crate::random::random;
 use crate::serialize::{get_magic_num_from_bytes, get_ver_from_magic_num};
 use crate::stdin::GLOBAL_STDIN;
@@ -442,7 +442,7 @@ impl Input {
     /// resolution order:
     /// 1. `{path}.er`
     /// 2. `{path}/__init__.er`
-    pub fn local_resolve(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
+    pub fn resolve_local(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
         let mut dir = self.dir();
         dir.push(path);
         dir.set_extension("er"); // {path}.er
@@ -455,10 +455,10 @@ impl Input {
         Ok(normalize_path(path))
     }
 
-    pub fn local_decl_resolve(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
-        self._local_decl_resolve(path).or_else(|_| {
+    pub fn resolve_local_decl(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
+        self._resolve_local_decl(path).or_else(|_| {
             let path = add_postfix_foreach(path, ".d");
-            self._local_decl_resolve(&path)
+            self._resolve_local_decl(&path)
         })
     }
 
@@ -467,7 +467,7 @@ impl Input {
     /// 2. `{path}/__init__.d.er`
     /// 3. `__pycache__/{path}.d.er`
     /// 4. `{path}/__pycache__/__init__.d.er`
-    fn _local_decl_resolve(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
+    fn _resolve_local_decl(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
         let mut dir = self.dir();
         let mut comps = path.components();
         let last = comps
@@ -504,7 +504,7 @@ impl Input {
         Ok(normalize_path(path))
     }
 
-    pub fn local_py_resolve(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
+    fn resolve_local_py(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
         let mut dir = self.dir();
         dir.push(path);
         dir.set_extension("py");
@@ -515,6 +515,33 @@ impl Input {
             dir.canonicalize()
         })?;
         Ok(normalize_path(path))
+    }
+
+    pub fn resolve_py(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
+        self.resolve_local_py(path).or_else(|_| {
+            // For now, only see `site-packages`
+            let site_packages = get_sys_path()
+                .into_iter()
+                .filter(|p| p.as_os_str().to_string_lossy().contains("site-packages"));
+            for sys_path in site_packages {
+                let mut dir = sys_path;
+                dir.push(path);
+                dir.set_extension("py");
+                if dir.exists() {
+                    return Ok(normalize_path(dir));
+                }
+                dir.pop();
+                dir.push(path);
+                dir.push("__init__.py");
+                if dir.exists() {
+                    return Ok(normalize_path(dir));
+                }
+            }
+            Err(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("cannot find module `{}`", path.display()),
+            ))
+        })
     }
 }
 

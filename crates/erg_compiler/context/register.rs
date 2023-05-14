@@ -54,13 +54,43 @@ pub fn valid_mod_name(name: &str) -> bool {
     !name.is_empty() && !name.starts_with('/') && name.trim() == name
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CheckStatus {
+    Succeed,
+    Failed,
+    Ongoing,
+}
+
+impl fmt::Display for CheckStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CheckStatus::Succeed => write!(f, "succeed"),
+            CheckStatus::Failed => write!(f, "failed"),
+            CheckStatus::Ongoing => write!(f, "ongoing"),
+        }
+    }
+}
+
+impl std::str::FromStr for CheckStatus {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "succeed" => Ok(CheckStatus::Succeed),
+            "failed" => Ok(CheckStatus::Failed),
+            "ongoing" => Ok(CheckStatus::Ongoing),
+            _ => Err(format!("invalid status: {s}")),
+        }
+    }
+}
+
 /// format:
 /// ```python
 /// #[pylyzer] succeed foo.py 1234567890
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PylyzerStatus {
-    pub succeed: bool,
+    pub status: CheckStatus,
     pub file: PathBuf,
     pub timestamp: SystemTime,
 }
@@ -70,7 +100,7 @@ impl fmt::Display for PylyzerStatus {
         write!(
             f,
             "##[pylyzer] {} {} {}",
-            if self.succeed { "succeed" } else { "failed" },
+            self.status,
             self.file.display(),
             self.timestamp
                 .duration_since(SystemTime::UNIX_EPOCH)
@@ -89,8 +119,8 @@ impl std::str::FromStr for PylyzerStatus {
         if pylyzer != "##[pylyzer]" {
             return Err("not pylyzer".to_string());
         }
-        let succeed = iter.next().ok_or("no succeed")?;
-        let succeed = succeed == "succeed";
+        let status = iter.next().ok_or("no succeed")?;
+        let status = status.parse()?;
         let file = iter.next().ok_or("no file")?;
         let file = PathBuf::from(file);
         let timestamp = iter.next().ok_or("no timestamp")?;
@@ -102,7 +132,7 @@ impl std::str::FromStr for PylyzerStatus {
             ))
             .ok_or("timestamp overflow")?;
         Ok(PylyzerStatus {
-            succeed,
+            status,
             file,
             timestamp,
         })
@@ -1901,7 +1931,7 @@ impl Context {
     }
 
     fn try_gen_py_decl_file(&self, __name__: &Str) -> Result<PathBuf, ()> {
-        if let Ok(path) = self.cfg.input.local_py_resolve(Path::new(&__name__[..])) {
+        if let Ok(path) = self.cfg.input.resolve_py(Path::new(&__name__[..])) {
             let (out, err) = if self.cfg.mode == ErgMode::LanguageServer || self.cfg.quiet_repl {
                 (Stdio::null(), Stdio::null())
             } else {

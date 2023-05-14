@@ -1,6 +1,7 @@
 //! utilities for calling CPython.
 //!
 //! CPythonを呼び出すためのユーティリティー
+use std::path::PathBuf;
 use std::process::Command;
 
 use crate::fn_name_full;
@@ -685,6 +686,32 @@ pub fn get_python_version(py_command: &str) -> PythonVersion {
 
 pub fn env_python_version() -> PythonVersion {
     get_python_version(&which_python())
+}
+
+pub fn get_sys_path() -> Vec<PathBuf> {
+    let py_command = which_python();
+    let code = "import sys; print('\\n'.join(sys.path))";
+    let out = if cfg!(windows) {
+        Command::new("cmd")
+            .arg("/C")
+            .arg(py_command)
+            .arg("-c")
+            .arg(code)
+            .output()
+            .expect("cannot get the sys.path")
+    } else {
+        let exec_command = format!("{py_command} -c \"{code}\"");
+        Command::new("sh")
+            .arg("-c")
+            .arg(exec_command)
+            .output()
+            .expect("cannot get the sys.path")
+    };
+    let s_sys_path = String::from_utf8(out.stdout).unwrap();
+    s_sys_path
+        .split('\n')
+        .map(|s| PathBuf::from(s.trim().to_string()))
+        .collect()
 }
 
 /// executes over a shell, cause `python` may not exist as an executable file (like pyenv)
