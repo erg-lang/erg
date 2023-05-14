@@ -747,18 +747,22 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
             self.ctx
                 .check_trait_impl(&sub_t, &super_t, self.qnames, self.loc)?;
         }
+        let is_subtype = self.ctx.subtype_of(&sub_t, &super_t);
+        let sub_t = if DEBUG_MODE {
+            sub_t
+        } else {
+            self.deref_tyvar(sub_t)?
+        };
+        let super_t = if DEBUG_MODE {
+            super_t
+        } else {
+            self.deref_tyvar(super_t)?
+        };
+        if sub_t == super_t {
+            Ok(sub_t)
+        }
         // REVIEW: Even if type constraints can be satisfied, implementation may not exist
-        if self.ctx.subtype_of(&sub_t, &super_t) {
-            let sub_t = if DEBUG_MODE {
-                sub_t
-            } else {
-                self.deref_tyvar(sub_t)?
-            };
-            let super_t = if DEBUG_MODE {
-                super_t
-            } else {
-                self.deref_tyvar(super_t)?
-            };
+        else if is_subtype {
             match self.variance {
                 // ?T(<: Sup) --> Sup (Sup != Obj), because completion will not work if Never is selected.
                 // ?T(:> Never, <: Obj) --> Never
@@ -789,16 +793,6 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 }
             }
         } else {
-            let sub_t = if DEBUG_MODE {
-                sub_t
-            } else {
-                self.deref_tyvar(sub_t)?
-            };
-            let super_t = if DEBUG_MODE {
-                super_t
-            } else {
-                self.deref_tyvar(super_t)?
-            };
             Err(TyCheckErrors::from(TyCheckError::subtyping_error(
                 self.ctx.cfg.input.clone(),
                 line!() as usize,
