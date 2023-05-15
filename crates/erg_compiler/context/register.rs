@@ -93,19 +93,21 @@ pub struct PylyzerStatus {
     pub status: CheckStatus,
     pub file: PathBuf,
     pub timestamp: SystemTime,
+    pub hash: u64,
 }
 
 impl fmt::Display for PylyzerStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "##[pylyzer] {} {} {}",
+            "##[pylyzer] {} {} {} {}",
             self.status,
             self.file.display(),
             self.timestamp
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap()
-                .as_secs()
+                .as_secs(),
+            self.hash,
         )
     }
 }
@@ -131,10 +133,13 @@ impl std::str::FromStr for PylyzerStatus {
                     .map_err(|e| format!("timestamp parse error: {e}"))?,
             ))
             .ok_or("timestamp overflow")?;
+        let hash = iter.next().ok_or("no hash")?;
+        let hash = hash.parse().map_err(|e| format!("hash parse error: {e}"))?;
         Ok(PylyzerStatus {
             status,
             file,
             timestamp,
+            hash,
         })
     }
 }
@@ -1883,14 +1888,16 @@ impl Context {
         let mut line = "".to_string();
         std::io::BufReader::new(file).read_line(&mut line).ok()?;
         let status = line.parse::<PylyzerStatus>().ok()?;
-        if status.timestamp < std::fs::metadata(&status.file).ok()?.modified().ok()? {
+        let meta = std::fs::metadata(&status.file).ok()?;
+        let dummy_hash = meta.len();
+        if status.hash != dummy_hash {
             None
         } else {
             Some(status)
         }
     }
 
-    fn get_path(&self, __name__: &Str, loc: &impl Locational) -> CompileResult<PathBuf> {
+    fn get_decl_path(&self, __name__: &Str, loc: &impl Locational) -> CompileResult<PathBuf> {
         match Self::resolve_decl_path(&self.cfg, Path::new(&__name__[..])) {
             Some(path) => {
                 if Self::can_reuse(&path).is_none() {
@@ -1959,7 +1966,7 @@ impl Context {
 
     fn import_py_mod(&self, __name__: &Str, loc: &impl Locational) -> CompileResult<PathBuf> {
         let py_mod_cache = self.py_mod_cache();
-        let path = self.get_path(__name__, loc)?;
+        let path = self.get_decl_path(__name__, loc)?;
         if let Some(referrer) = self.cfg.input.path() {
             let graph = &self.shared.as_ref().unwrap().graph;
             graph.inc_ref(referrer, path.clone());
