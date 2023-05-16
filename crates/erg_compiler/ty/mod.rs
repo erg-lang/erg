@@ -38,6 +38,8 @@ pub use value::ValueObj;
 use value::ValueObj::{Inf, NegInf};
 pub use vis::*;
 
+use self::constructors::subr_t;
+
 /// cloneのコストがあるためなるべく.ref_tを使うようにすること
 /// いくつかの構造体は直接Typeを保持していないので、その場合は.tを使う
 #[allow(unused_variables)]
@@ -2757,6 +2759,49 @@ impl Type {
     pub fn replace(self, target: &Type, to: &Type) -> Type {
         let table = ReplaceTable::make(target, to);
         table.replace(self)
+    }
+
+    /// ```erg
+    /// (Failure -> Int).replace_failure() == (Obj -> Int)
+    /// (Int -> Failure).replace_failure() == (Int -> Never)
+    /// Array(Failure, 3).replace_failure() == Array(Never, 3)
+    /// ```
+    pub fn replace_failure(&self) -> Type {
+        match self {
+            Self::Quantified(quant) => quant.replace_failure().quantify(),
+            Self::Subr(subr) => {
+                let non_default_params = subr
+                    .non_default_params
+                    .iter()
+                    .map(|pt| {
+                        pt.clone()
+                            .map_type(|t| t.replace(&Self::Failure, &Self::Obj))
+                    })
+                    .collect();
+                let var_params = subr.var_params.as_ref().map(|pt| {
+                    pt.clone()
+                        .map_type(|t| t.replace(&Self::Failure, &Self::Obj))
+                });
+                let default_params = subr
+                    .default_params
+                    .iter()
+                    .map(|pt| {
+                        pt.clone()
+                            .map_type(|t| t.replace(&Self::Failure, &Self::Obj))
+                    })
+                    .collect();
+                let return_t = subr.return_t.clone().replace(&Self::Failure, &Self::Never);
+                subr_t(
+                    subr.kind,
+                    non_default_params,
+                    var_params,
+                    default_params,
+                    return_t,
+                )
+            }
+            // TODO: consider variances
+            _ => self.clone().replace(&Type::Failure, &Type::Never),
+        }
     }
 
     fn _replace(mut self, target: &Type, to: &Type) -> Type {
