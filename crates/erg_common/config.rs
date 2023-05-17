@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 use std::process;
 use std::str::FromStr;
 
+use crate::env::{erg_py_external_lib_path, erg_pystd_path, erg_std_path, python_site_packages};
 use crate::help_messages::{command_message, mode_message, OPTIONS};
 use crate::levenshtein::get_similar_name;
 use crate::normalize_path;
@@ -442,7 +443,7 @@ impl Input {
     /// resolution order:
     /// 1. `{path}.er`
     /// 2. `{path}/__init__.er`
-    pub fn resolve_local(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
+    fn resolve_local(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
         let mut dir = self.dir();
         dir.push(path);
         dir.set_extension("er"); // {path}.er
@@ -455,7 +456,7 @@ impl Input {
         Ok(normalize_path(path))
     }
 
-    pub fn resolve_local_decl(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
+    fn resolve_local_decl(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
         self._resolve_local_decl(path).or_else(|_| {
             let path = add_postfix_foreach(path, ".d");
             self._resolve_local_decl(&path)
@@ -542,6 +543,138 @@ impl Input {
                 format!("cannot find module `{}`", path.display()),
             ))
         })
+    }
+
+    pub fn resolve_path(&self, path: &Path) -> Option<PathBuf> {
+        self.resolve_real_path(path)
+            .or_else(|| self.resolve_decl_path(path))
+    }
+
+    /// resolution order:
+    /// 1. `./{path}.er`
+    /// 2. `./{path}/__init__.er`
+    /// 3. `std/{path}.er`
+    /// 4. `std/{path}/__init__.er`
+    pub fn resolve_real_path(&self, path: &Path) -> Option<PathBuf> {
+        if let Ok(path) = self.resolve_local(path) {
+            Some(path)
+        } else if let Ok(path) = erg_std_path()
+            .join(format!("{}.er", path.display()))
+            .canonicalize()
+        {
+            Some(normalize_path(path))
+        } else if let Ok(path) = erg_std_path()
+            .join(format!("{}", path.display()))
+            .join("__init__.er")
+            .canonicalize()
+        {
+            Some(normalize_path(path))
+        } else {
+            None
+        }
+    }
+
+    /// resolution order:
+    /// 1.  `{path}.d.er`
+    /// 2.  `{path}/__init__.d.er`
+    /// 3.  `__pycache__/{path}.d.er`
+    /// 4.  `{path}/__pycache__/__init__.d.er`
+    /// 5.  `{path}.d/__init__.d.er`
+    /// 6.  `{path}.d/__pycache__/__init__.d.er`
+    /// 7.  `std/{path}.d.er`
+    /// 8.  `std/{path}/__init__.d.er`
+    /// 9.  `site-packages/__pycache__/{path}.d.er`
+    /// 10. `site-packages/{path}/__pycache__/__init__.d.er`
+    pub fn resolve_decl_path(&self, path: &Path) -> Option<PathBuf> {
+        if let Ok(path) = self.resolve_local_decl(path) {
+            Some(path)
+        } else {
+            let py_roots = [erg_pystd_path, erg_py_external_lib_path];
+            for root in py_roots {
+                if let Some(path) = Self::resolve_std_decl_path(root(), path) {
+                    return Some(path);
+                }
+            }
+            for site_packages in python_site_packages() {
+                if let Some(path) = Self::resolve_site_pkgs_decl_path(site_packages, path) {
+                    return Some(path);
+                }
+            }
+            None
+        }
+    }
+
+    fn resolve_std_decl_path(root: PathBuf, path: &Path) -> Option<PathBuf> {
+        let mut path = add_postfix_foreach(path, ".d");
+        path.set_extension("d.er"); // set_extension overrides the previous one
+        if let Ok(path) = root.join(&path).canonicalize() {
+            Some(normalize_path(path))
+        // d.er -> .d
+        } else if let Ok(path) = root
+            .join({
+                path.set_extension("");
+                path
+            })
+            .join("__init__.d.er")
+            .canonicalize()
+        {
+            Some(normalize_path(path))
+        } else {
+            None
+        }
+    }
+
+    /// 1. `site-packages/__pycache__/{path}.d.er`
+    /// 2. `site-packages/{path}/__pycache__/__init__.d.er`
+    fn resolve_site_pkgs_decl_path(site_packages: PathBuf, path: &Path) -> Option<PathBuf> {
+        let mut path_buf = path.to_path_buf();
+        path_buf.set_extension("d.er"); // set_extension overrides the previous one
+        if let Ok(path) = site_packages
+            .join("__pycache__")
+            .join(&path_buf)
+            .canonicalize()
+        {
+            Some(normalize_path(path))
+        } else if let Ok(path) = site_packages
+            .join(path)
+            .join("__pycache__")
+            .join("__init__.d.er")
+            .canonicalize()
+        {
+            Some(normalize_path(path))
+        } else {
+            None
+        }
+    }
+
+    pub fn try_push_path(mut path: PathBuf, add: &Path) -> Result<PathBuf, String> {
+        path.pop(); // __init__.d.er
+        if let Ok(path) = path.join(add).canonicalize() {
+            Ok(normalize_path(path))
+        } else if let Ok(path) = path.join(format!("{}.d.er", add.display())).canonicalize() {
+            Ok(normalize_path(path))
+        } else if let Ok(path) = path
+            .join(format!("{}.d", add.display()))
+            .join("__init__.d.er")
+            .canonicalize()
+        {
+            Ok(normalize_path(path))
+        } else {
+            Err(format!("{} // {}", path.display(), add.display()))
+        }
+    }
+
+    pub fn decl_file_is(&self, decl_path: &Path) -> bool {
+        let mut py_path = self.unescaped_path().to_path_buf();
+        py_path.set_extension("d.er");
+        if decl_path == py_path {
+            return true;
+        }
+        let last = py_path.file_name().unwrap_or_default().to_os_string();
+        py_path.pop();
+        py_path.push("__pycache__");
+        py_path.push(last);
+        decl_path == py_path
     }
 }
 

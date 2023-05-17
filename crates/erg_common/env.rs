@@ -1,5 +1,5 @@
 use std::env::var;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::normalize_path;
 use crate::python_util::get_sys_path;
@@ -96,4 +96,16 @@ pub fn erg_py_external_lib_path() -> PathBuf {
 
 pub fn python_site_packages() -> Vec<PathBuf> {
     PYTHON_SITE_PACKAGES.with(|s| s.clone())
+}
+
+pub fn is_pystd_main_module(path: &Path) -> bool {
+    let mut path = PathBuf::from(path);
+    if path.ends_with("__init__.d.er") {
+        path.pop();
+        path.pop();
+    } else {
+        path.pop();
+    }
+    let pystd_path = erg_pystd_path();
+    path == pystd_path
 }

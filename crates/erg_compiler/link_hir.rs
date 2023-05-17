@@ -11,7 +11,6 @@ use erg_common::{enum_unwrap, log};
 use erg_parser::ast::{DefId, OperationKind};
 use erg_parser::token::{Token, TokenKind, DOT, EQUAL};
 
-use crate::context::Context;
 use crate::ty::typaram::TyParam;
 use crate::ty::value::ValueObj;
 use crate::ty::HasType;
@@ -304,7 +303,7 @@ impl<'a> HIRLinker<'a> {
             unreachable!()
         };
         let path = Path::new(&path[..]);
-        let path = Context::resolve_real_path(self.cfg, path).unwrap();
+        let path = self.cfg.input.resolve_real_path(path).unwrap();
         // # module.er
         // self = import "module"
         // ↓

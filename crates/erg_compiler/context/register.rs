@@ -1804,7 +1804,7 @@ impl Context {
 
     fn import_erg_mod(&self, __name__: &Str, loc: &impl Locational) -> CompileResult<PathBuf> {
         let mod_cache = self.mod_cache();
-        let path = match Self::resolve_real_path(&self.cfg, Path::new(&__name__[..])) {
+        let path = match self.cfg.input.resolve_real_path(Path::new(&__name__[..])) {
             Some(path) => path,
             None => {
                 return Err(self.import_err(__name__, loc));
@@ -1902,7 +1902,7 @@ impl Context {
     }
 
     fn get_decl_path(&self, __name__: &Str, loc: &impl Locational) -> CompileResult<PathBuf> {
-        match Self::resolve_decl_path(&self.cfg, Path::new(&__name__[..])) {
+        match self.cfg.input.resolve_decl_path(Path::new(&__name__[..])) {
             Some(path) => {
                 if Self::can_reuse(&path).is_none() {
                     let _ = self.try_gen_py_decl_file(__name__);
@@ -1960,7 +1960,7 @@ impl Context {
                 .spawn()
                 .and_then(|mut child| child.wait())
             {
-                if let Some(path) = Self::resolve_decl_path(&self.cfg, Path::new(&__name__[..])) {
+                if let Some(path) = self.cfg.input.resolve_decl_path(Path::new(&__name__[..])) {
                     return Ok(path);
                 }
             }
@@ -1971,6 +1971,10 @@ impl Context {
     fn import_py_mod(&self, __name__: &Str, loc: &impl Locational) -> CompileResult<PathBuf> {
         let py_mod_cache = self.py_mod_cache();
         let path = self.get_decl_path(__name__, loc)?;
+        // module itself
+        if self.cfg.input.path() == Some(path.as_path()) {
+            return Ok(path);
+        }
         if let Some(referrer) = self.cfg.input.path() {
             let graph = &self.shared.as_ref().unwrap().graph;
             graph.inc_ref(referrer, path.clone());

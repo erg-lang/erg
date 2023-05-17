@@ -2,22 +2,16 @@
 use std::option::Option; // conflicting to Type::Option
 use std::path::{Path, PathBuf};
 
-use erg_common::config::{ErgConfig, Input};
+use erg_common::config::Input;
 use erg_common::consts::{ERG_MODE, PYTHON_MODE};
 use erg_common::dict;
-use erg_common::env::{
-    erg_py_external_lib_path, erg_pystd_path, erg_std_path, python_site_packages,
-};
 use erg_common::error::{ErrorCore, Location, SubMessage};
 use erg_common::levenshtein;
-use erg_common::pathutil::add_postfix_foreach;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, NoTypeDisplay, Stream};
 use erg_common::triple::Triple;
 use erg_common::Str;
-use erg_common::{
-    fmt_option, fmt_slice, log, normalize_path, option_enum_unwrap, set, switch_lang,
-};
+use erg_common::{fmt_option, fmt_slice, log, option_enum_unwrap, set, switch_lang};
 
 use erg_parser::ast::{self, Identifier, VarName};
 use erg_parser::token::Token;
@@ -2460,124 +2454,6 @@ impl Context {
         }
     }
 
-    pub(crate) fn resolve_path(cfg: &ErgConfig, path: &Path) -> Option<PathBuf> {
-        Self::resolve_real_path(cfg, path).or_else(|| Self::resolve_decl_path(cfg, path))
-    }
-
-    /// resolution order:
-    /// 1. `./{path}.er`
-    /// 2. `./{path}/__init__.er`
-    /// 3. `std/{path}.er`
-    /// 4. `std/{path}/__init__.er`
-    pub(crate) fn resolve_real_path(cfg: &ErgConfig, path: &Path) -> Option<PathBuf> {
-        if let Ok(path) = cfg.input.resolve_local(path) {
-            Some(path)
-        } else if let Ok(path) = erg_std_path()
-            .join(format!("{}.er", path.display()))
-            .canonicalize()
-        {
-            Some(normalize_path(path))
-        } else if let Ok(path) = erg_std_path()
-            .join(format!("{}", path.display()))
-            .join("__init__.er")
-            .canonicalize()
-        {
-            Some(normalize_path(path))
-        } else {
-            None
-        }
-    }
-
-    /// resolution order:
-    /// 1.  `{path}.d.er`
-    /// 2.  `{path}/__init__.d.er`
-    /// 3.  `__pycache__/{path}.d.er`
-    /// 4.  `{path}/__pycache__/__init__.d.er`
-    /// 5.  `{path}.d/__init__.d.er`
-    /// 6.  `{path}.d/__pycache__/__init__.d.er`
-    /// 7.  `std/{path}.d.er`
-    /// 8.  `std/{path}/__init__.d.er`
-    /// 9.  `site-packages/__pycache__/{path}.d.er`
-    /// 10. `site-packages/{path}/__pycache__/__init__.d.er`
-    pub(crate) fn resolve_decl_path(cfg: &ErgConfig, path: &Path) -> Option<PathBuf> {
-        if let Ok(path) = cfg.input.resolve_local_decl(path) {
-            Some(path)
-        } else {
-            let py_roots = [erg_pystd_path, erg_py_external_lib_path];
-            for root in py_roots {
-                if let Some(path) = Self::resolve_std_decl_path(root(), path) {
-                    return Some(path);
-                }
-            }
-            for site_packages in python_site_packages() {
-                if let Some(path) = Self::resolve_site_pkgs_decl_path(site_packages, path) {
-                    return Some(path);
-                }
-            }
-            None
-        }
-    }
-
-    fn resolve_std_decl_path(root: PathBuf, path: &Path) -> Option<PathBuf> {
-        let mut path = add_postfix_foreach(path, ".d");
-        path.set_extension("d.er"); // set_extension overrides the previous one
-        if let Ok(path) = root.join(&path).canonicalize() {
-            Some(normalize_path(path))
-        // d.er -> .d
-        } else if let Ok(path) = root
-            .join({
-                path.set_extension("");
-                path
-            })
-            .join("__init__.d.er")
-            .canonicalize()
-        {
-            Some(normalize_path(path))
-        } else {
-            None
-        }
-    }
-
-    /// 1. `site-packages/__pycache__/{path}.d.er`
-    /// 2. `site-packages/{path}/__pycache__/__init__.d.er`
-    fn resolve_site_pkgs_decl_path(site_packages: PathBuf, path: &Path) -> Option<PathBuf> {
-        let mut path_buf = path.to_path_buf();
-        path_buf.set_extension("d.er"); // set_extension overrides the previous one
-        if let Ok(path) = site_packages
-            .join("__pycache__")
-            .join(&path_buf)
-            .canonicalize()
-        {
-            Some(normalize_path(path))
-        } else if let Ok(path) = site_packages
-            .join(path)
-            .join("__pycache__")
-            .join("__init__.d.er")
-            .canonicalize()
-        {
-            Some(normalize_path(path))
-        } else {
-            None
-        }
-    }
-
-    pub(crate) fn try_push_path(&self, mut path: PathBuf, add: &Path) -> Result<PathBuf, String> {
-        path.pop(); // __init__.d.er
-        if let Ok(path) = path.join(add).canonicalize() {
-            Ok(normalize_path(path))
-        } else if let Ok(path) = path.join(format!("{}.d.er", add.display())).canonicalize() {
-            Ok(normalize_path(path))
-        } else if let Ok(path) = path
-            .join(format!("{}.d", add.display()))
-            .join("__init__.d.er")
-            .canonicalize()
-        {
-            Ok(normalize_path(path))
-        } else {
-            Err(format!("{} // {}", path.display(), add.display()))
-        }
-    }
-
     // FIXME: 現在の実装だとimportしたモジュールはどこからでも見れる
     pub(crate) fn get_mod(&self, name: &str) -> Option<&Context> {
         if name == "module" && ERG_MODE {
@@ -2600,9 +2476,9 @@ impl Context {
             return None;
         };
         if mod_t.is_erg_module() {
-            Self::resolve_path(&self.cfg, Path::new(&path[..]))
+            self.cfg.input.resolve_path(Path::new(&path[..]))
         } else if mod_t.is_py_module() {
-            Self::resolve_decl_path(&self.cfg, Path::new(&path[..]))
+            self.cfg.input.resolve_decl_path(Path::new(&path[..]))
         } else {
             None
         }
@@ -2676,9 +2552,9 @@ impl Context {
             namespace.push_str(namespaces.remove(0));
         }
         let path = Path::new(&namespace);
-        let mut path = Self::resolve_path(&self.cfg, path)?;
+        let mut path = self.cfg.input.resolve_path(path)?;
         for p in namespaces.into_iter() {
-            path = self.try_push_path(path, Path::new(p)).ok()?;
+            path = Input::try_push_path(path, Path::new(p)).ok()?;
         }
         self.get_ctx_from_path(path.as_path())
     }
