@@ -1810,6 +1810,10 @@ impl Context {
                 return Err(self.import_err(__name__, loc));
             }
         };
+        // module itself
+        if self.cfg.input.path() == Some(path.as_path()) {
+            return Ok(path);
+        }
         if let Some(referrer) = self.cfg.input.path() {
             let graph = &self.shared.as_ref().unwrap().graph;
             graph.inc_ref(referrer, path.clone());

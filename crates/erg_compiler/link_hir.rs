@@ -300,10 +300,24 @@ impl<'a> HIRLinker<'a> {
     /// ```
     fn replace_erg_import(&self, expr: &mut Expr) {
         let line = expr.ln_begin().unwrap_or(0);
-        let path =
-            enum_unwrap!(expr.ref_t().typarams().remove(0), TyParam::Value:(ValueObj::Str:(_)));
+        let TyParam::Value(ValueObj::Str(path)) = expr.ref_t().typarams().remove(0) else {
+            unreachable!()
+        };
         let path = Path::new(&path[..]);
         let path = Context::resolve_real_path(self.cfg, path).unwrap();
+        // # module.er
+        // self = import "module"
+        // ↓
+        // # module.er
+        // self = __import__(__name__)
+        if matches!((path.canonicalize(), self.cfg.input.unescaped_path().canonicalize()), (Ok(l), Ok(r)) if l == r)
+        {
+            let __import__ = Identifier::public("__import__");
+            let __name__ = Identifier::public("__name__");
+            let call = Expr::from(__import__).call1(Expr::from(__name__));
+            *expr = call;
+            return;
+        }
         // In the case of REPL, entries cannot be used up
         let hir_cfg = if self.cfg.input.is_repl() {
             self.mod_cache

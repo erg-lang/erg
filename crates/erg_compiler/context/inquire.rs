@@ -54,6 +54,11 @@ pub enum SubstituteResult {
 
 impl Context {
     pub(crate) fn get_ctx_from_path(&self, path: &Path) -> Option<&Context> {
+        if self.get_module()
+            .map_or(false, |ctx| matches!((ctx.cfg.input.unescaped_path().canonicalize(), path.canonicalize()), (Ok(l), Ok(r)) if l == r))
+        {
+            return Some(self.get_module().unwrap())
+        }
         self.opt_mod_cache()?
             .ref_ctx(path)
             .or_else(|| self.opt_py_mod_cache()?.ref_ctx(path))

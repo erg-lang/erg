@@ -437,6 +437,12 @@ impl From<&Identifier> for Field {
     }
 }
 
+impl From<Identifier> for Expr {
+    fn from(ident: Identifier) -> Self {
+        Expr::Accessor(Accessor::Ident(ident))
+    }
+}
+
 impl Identifier {
     pub const fn new(raw: ast::Identifier, qual_name: Option<Str>, vi: VarInfo) -> Self {
         Self { raw, qual_name, vi }
@@ -2563,6 +2569,10 @@ impl Expr {
 
     pub fn call_expr(self, args: Args) -> Self {
         Self::Call(self.call(args))
+    }
+
+    pub fn call1(self, expr: Expr) -> Self {
+        self.call_expr(Args::single(PosArg::new(expr)))
     }
 
     pub fn attr(self, ident: Identifier) -> Accessor {
