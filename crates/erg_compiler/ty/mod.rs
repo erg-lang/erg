@@ -2800,7 +2800,7 @@ impl Type {
                 )
             }
             // TODO: consider variances
-            _ => self.clone().replace(&Type::Failure, &Type::Never),
+            _ => self.clone().replace(&Self::Failure, &Self::Never),
         }
     }
 
@@ -2811,17 +2811,20 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().clone()._replace(target, to),
             Self::FreeVar(fv) => {
-                let fv = fv.deep_clone();
-                if let Some((sub, sup)) = fv.get_subsup() {
+                let fv_clone = fv.deep_clone();
+                if let Some((sub, sup)) = fv_clone.get_subsup() {
                     fv.dummy_link();
+                    fv_clone.dummy_link();
                     let sub = sub._replace(target, to);
                     let sup = sup._replace(target, to);
                     fv.undo();
-                    fv.update_constraint(Constraint::new_sandwiched(sub, sup), true);
-                } else if let Some(ty) = fv.get_type() {
-                    fv.update_constraint(Constraint::new_type_of(ty._replace(target, to)), true);
+                    fv_clone.undo();
+                    fv_clone.update_constraint(Constraint::new_sandwiched(sub, sup), true);
+                } else if let Some(ty) = fv_clone.get_type() {
+                    fv_clone
+                        .update_constraint(Constraint::new_type_of(ty._replace(target, to)), true);
                 }
-                Self::FreeVar(fv)
+                Self::FreeVar(fv_clone)
             }
             Self::Refinement(mut refine) => {
                 refine.t = Box::new(refine.t._replace(target, to));

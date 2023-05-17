@@ -7,7 +7,7 @@ use std::time::SystemTime;
 
 use erg_common::config::ErgMode;
 use erg_common::consts::PYTHON_MODE;
-use erg_common::env::erg_pystd_path;
+use erg_common::env::is_pystd_main_module;
 use erg_common::erg_util::BUILTIN_ERG_MODS;
 use erg_common::levenshtein::get_similar_name;
 use erg_common::python_util::BUILTIN_PYTHON_MODS;
@@ -1854,18 +1854,6 @@ impl Context {
         get_similar_name(BUILTIN_ERG_MODS.into_iter(), name).map(Str::rc)
     }
 
-    fn is_pystd_main_module(&self, path: &Path) -> bool {
-        let mut path = PathBuf::from(path);
-        if path.ends_with("__init__.d.er") {
-            path.pop();
-            path.pop();
-        } else {
-            path.pop();
-        }
-        let pystd_path = erg_pystd_path();
-        path == pystd_path
-    }
-
     /// e.g. http.d/client.d.er -> http.client
     /// math.d.er -> math
     fn mod_name(&self, path: &Path) -> Str {
@@ -1907,7 +1895,7 @@ impl Context {
                 if Self::can_reuse(&path).is_none() {
                     let _ = self.try_gen_py_decl_file(__name__);
                 }
-                if self.is_pystd_main_module(path.as_path())
+                if is_pystd_main_module(path.as_path())
                     && !BUILTIN_PYTHON_MODS.contains(&&__name__[..])
                 {
                     let err = TyCheckError::module_env_error(

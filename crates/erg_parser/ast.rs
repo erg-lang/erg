@@ -4424,6 +4424,17 @@ impl Expr {
         Self::Call(self.call(args))
     }
 
+    pub fn call1(self, expr: Expr) -> Self {
+        self.call_expr(Args::pos_only(vec![PosArg::new(expr)], None))
+    }
+
+    pub fn call2(self, expr1: Expr, expr2: Expr) -> Self {
+        self.call_expr(Args::pos_only(
+            vec![PosArg::new(expr1), PosArg::new(expr2)],
+            None,
+        ))
+    }
+
     pub fn type_asc(self, t_spec: TypeSpecWithOp) -> TypeAscription {
         TypeAscription::new(self, t_spec)
     }

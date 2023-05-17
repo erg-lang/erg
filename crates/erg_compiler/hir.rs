@@ -2575,6 +2575,13 @@ impl Expr {
         self.call_expr(Args::single(PosArg::new(expr)))
     }
 
+    pub fn call2(self, expr1: Expr, expr2: Expr) -> Self {
+        self.call_expr(Args::pos_only(
+            vec![PosArg::new(expr1), PosArg::new(expr2)],
+            None,
+        ))
+    }
+
     pub fn attr(self, ident: Identifier) -> Accessor {
         Accessor::attr(self, ident)
     }
