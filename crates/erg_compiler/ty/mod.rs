@@ -2306,7 +2306,7 @@ impl Type {
             Type::FreeVar(fv) if fv.is_unbound() => {
                 let (sub, _sup) = fv.get_subsup().unwrap();
                 sub.coerce();
-                fv.link(&sub);
+                self.link(&sub);
             }
             Type::And(l, r) | Type::Or(l, r) => {
                 l.coerce();
@@ -2953,6 +2953,35 @@ impl Type {
             free.get_sub().unwrap_or(self.clone())
         } else {
             self.clone()
+        }
+    }
+
+    fn addr_eq(&self, other: &Type) -> bool {
+        match (self, other) {
+            (Self::FreeVar(slf), Self::FreeVar(otr)) => slf.addr_eq(otr),
+            _ => self == other,
+        }
+    }
+
+    pub(crate) fn link(&self, to: &Type) {
+        if self.addr_eq(to) {
+            return;
+        }
+        match self {
+            Self::FreeVar(fv) => fv.link(to),
+            Self::Refinement(refine) => refine.t.link(to),
+            _ => panic!("{self} is not a free variable"),
+        }
+    }
+
+    pub(crate) fn forced_link(&self, to: &Type) {
+        if self.addr_eq(to) {
+            return;
+        }
+        match self {
+            Self::FreeVar(fv) => fv.forced_link(to),
+            Self::Refinement(refine) => refine.t.forced_link(to),
+            _ => panic!("{self} is not a free variable"),
         }
     }
 }

@@ -1093,6 +1093,11 @@ impl Context {
 
     /// Returns union of two types (`A or B`).
     /// If `A` and `B` have a subtype relationship, it is equal to `max(A, B)`.
+    /// ```erg
+    /// union(Nat, Int) == Int
+    /// union(Int, Str) == Int or Str
+    /// union(?T(<: Str), ?U(<: Int)) == ?T or ?U
+    /// ```
     pub(crate) fn union(&self, lhs: &Type, rhs: &Type) -> Type {
         if lhs == rhs {
             return lhs.clone();

@@ -280,10 +280,10 @@ impl Context {
             {
                 if sub_fv.level().unwrap() > sup_fv.level().unwrap() {
                     if !sub_fv.is_generalized() {
-                        sub_fv.link(maybe_sup);
+                        maybe_sub.link(maybe_sup);
                     }
                 } else if !sup_fv.is_generalized() {
-                    sup_fv.link(maybe_sub);
+                    maybe_sup.link(maybe_sub);
                 }
                 Ok(())
             }
@@ -307,7 +307,7 @@ impl Context {
                             sub_fv.update_constraint(new_constraint, false);
                         }
                     } else {
-                        sub_fv.link(sup_tp);
+                        maybe_sub.link(sup_tp);
                     }
                     Ok(())
                 } else if allow_divergence
@@ -315,7 +315,7 @@ impl Context {
                         || self.eq_tp(sup_tp, &TyParam::value(NegInf)))
                     && self.subtype_of(&fv_t, &mono("Num"))
                 {
-                    sub_fv.link(sup_tp);
+                    maybe_sub.link(sup_tp);
                     Ok(())
                 } else {
                     Err(TyCheckErrors::from(TyCheckError::unreachable(
@@ -345,7 +345,7 @@ impl Context {
                             sup_fv.update_constraint(new_constraint, false);
                         }
                     } else {
-                        sup_fv.link(sub_tp);
+                        maybe_sup.link(sub_tp);
                     }
                     Ok(())
                 } else if allow_divergence
@@ -353,7 +353,7 @@ impl Context {
                         || self.eq_tp(sub_tp, &TyParam::value(NegInf)))
                     && self.subtype_of(&fv_t, &mono("Num"))
                 {
-                    sup_fv.link(sub_tp);
+                    maybe_sup.link(sub_tp);
                     Ok(())
                 } else {
                     Err(TyCheckErrors::from(TyCheckError::unreachable(
@@ -738,21 +738,21 @@ impl Context {
                         .cmp(&sup_fv.level().unwrap_or(GENERIC_LEVEL))
                     {
                         std::cmp::Ordering::Less => {
-                            sub_fv.link(&union);
-                            sup_fv.link(maybe_sub);
+                            maybe_sub.link(&union);
+                            maybe_sup.link(maybe_sub);
                         }
                         std::cmp::Ordering::Greater => {
-                            sup_fv.link(&union);
-                            sub_fv.link(maybe_sup);
+                            maybe_sup.link(&union);
+                            maybe_sub.link(maybe_sup);
                         }
                         std::cmp::Ordering::Equal => {
                             // choose named one
                             if sup_fv.is_named_unbound() {
-                                sup_fv.link(&union);
-                                sub_fv.link(maybe_sup);
+                                maybe_sup.link(&union);
+                                maybe_sub.link(maybe_sup);
                             } else {
-                                sub_fv.link(&union);
-                                sup_fv.link(maybe_sub);
+                                maybe_sub.link(&union);
+                                maybe_sup.link(maybe_sub);
                             }
                         }
                     }
@@ -765,20 +765,20 @@ impl Context {
                     {
                         std::cmp::Ordering::Less => {
                             sub_fv.update_constraint(new_constraint, false);
-                            sup_fv.link(maybe_sub);
+                            maybe_sup.link(maybe_sub);
                         }
                         std::cmp::Ordering::Greater => {
                             sup_fv.update_constraint(new_constraint, false);
-                            sub_fv.link(maybe_sup);
+                            maybe_sub.link(maybe_sup);
                         }
                         std::cmp::Ordering::Equal => {
                             // choose named one
                             if sup_fv.is_named_unbound() {
                                 sup_fv.update_constraint(new_constraint, false);
-                                sub_fv.link(maybe_sup);
+                                maybe_sub.link(maybe_sup);
                             } else {
                                 sub_fv.update_constraint(new_constraint, false);
-                                sup_fv.link(maybe_sub);
+                                maybe_sup.link(maybe_sub);
                             }
                         }
                     }
@@ -874,7 +874,7 @@ impl Context {
                         }
                     }
                     if sup.contains_union(&new_sub) {
-                        sup_fv.link(&new_sub); // Bool <: ?T <: Bool or Y ==> ?T == Bool
+                        maybe_sup.link(&new_sub); // Bool <: ?T <: Bool or Y ==> ?T == Bool
                     } else {
                         let constr = Constraint::new_sandwiched(new_sub, mem::take(&mut sup));
                         sup_fv.update_constraint(constr, true);
@@ -943,7 +943,7 @@ impl Context {
                         && !new_sup.is_unbound_var()
                         && !sub.is_unbound_var()
                     {
-                        sub_fv.link(&sub);
+                        maybe_sub.link(&sub);
                     } else {
                         let constr = Constraint::new_sandwiched(sub, new_sup);
                         sub_fv.update_constraint(constr, true);
@@ -1057,8 +1057,10 @@ impl Context {
                         todo!("{maybe_sub} <: {maybe_sup}")
                     }
                 }
-                // covariant
-                self.sub_unify(&sub_subr.return_t, &sup_subr.return_t, loc, param_name)?;
+                if !sub_subr.return_t.is_generalized() {
+                    // covariant
+                    self.sub_unify(&sub_subr.return_t, &sup_subr.return_t, loc, param_name)?;
+                }
                 Ok(())
             }
             (Subr(sub_subr), Quantified(sup_subr)) => {
@@ -1090,8 +1092,10 @@ impl Context {
                         todo!("{maybe_sub} <: {maybe_sup}")
                     }
                 }
-                // covariant
-                self.sub_unify(&sub_subr.return_t, &sup_subr.return_t, loc, param_name)?;
+                if !sup_subr.return_t.is_generalized() {
+                    // covariant
+                    self.sub_unify(&sub_subr.return_t, &sup_subr.return_t, loc, param_name)?;
+                }
                 Ok(())
             }
             (

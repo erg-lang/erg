@@ -1242,7 +1242,7 @@ impl Context {
             let (sub, sup) = fv.get_subsup().unwrap();
             if self.is_trait(&sup) && !self.trait_impl_exists(&sub, &sup) {
                 // link to `Never` to prevent double errors from being reported
-                fv.link(&Never);
+                lhs.link(&Never);
                 let sub = if cfg!(feature = "debug") {
                     sub
                 } else {
@@ -1682,8 +1682,8 @@ impl Context {
                 }
             }
         }
-        if let TyParam::FreeVar(lhs) = &lhs {
-            if let Some((sub, sup)) = lhs.get_subsup() {
+        if let TyParam::FreeVar(fv) = &lhs {
+            if let Some((sub, sup)) = fv.get_subsup() {
                 if self.is_trait(&sup) && !self.trait_impl_exists(&sub, &sup) {
                     // to prevent double error reporting
                     lhs.link(&TyParam::t(Never));
@@ -1781,8 +1781,8 @@ impl Context {
                             err
                         })
                         .ok()?;
-                    for (param, arg) in instance.typarams().into_iter().zip(args.into_iter()) {
-                        self.sub_unify_tp(&arg, &param, None, &(), false).ok()?;
+                    for (param, arg) in instance.typarams().iter().zip(args.iter()) {
+                        self.sub_unify_tp(arg, param, None, &(), false).ok()?;
                     }
                     let ty_obj = if self.is_class(&instance) {
                         ValueObj::builtin_class(instance)

@@ -461,6 +461,14 @@ impl<T> FreeKind<T> {
         }
     }
 
+    /// SAFETY: carefully ensure that `to` is not a freevar equal to `self`
+    ///
+    /// e.g.
+    /// ```erg
+    /// x = ?T
+    /// x.replace(Type::Free(?T))
+    /// x == (((...)))
+    /// ```
     pub fn replace(&mut self, to: T) {
         match self {
             // REVIEW: What if `t` is also an unbound variable?
@@ -800,10 +808,16 @@ impl<T> Free<T> {
             }
         }
     }
+
+    pub fn addr_eq(&self, other: &Self) -> bool {
+        self.as_ptr() == other.as_ptr()
+    }
 }
 
 impl<T: Clone> Free<T> {
-    pub fn link(&self, to: &T) {
+    /// SAFETY: use `Type/TyParam::link` instead of this.
+    /// This method may cause circular references.
+    pub(super) fn link(&self, to: &T) {
         // prevent linking to self
         if self.is_linked() && addr_eq!(*self.crack(), *to) {
             return;
@@ -814,7 +828,7 @@ impl<T: Clone> Free<T> {
     /// NOTE: Do not use this except to rewrite circular references.
     /// No reference to any type variable may be left behind when rewriting.
     /// However, `get_subsup` is safe because it does not return references.
-    pub fn forced_link(&self, to: &T) {
+    pub(super) fn forced_link(&self, to: &T) {
         // prevent linking to self
         if self.is_linked() && addr_eq!(*self.crack(), *to) {
             return;

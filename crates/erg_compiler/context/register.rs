@@ -946,8 +946,8 @@ impl Context {
         let Some((_, vi)) = self.get_var_info(ident.inspect()) else {
             return Ok(());
         };
-        if let Some(fv) = vi.t.as_free() {
-            fv.link(&typ);
+        if let Some(_fv) = vi.t.as_free() {
+            vi.t.link(&typ);
         }
         res.map(|_| ())
     }

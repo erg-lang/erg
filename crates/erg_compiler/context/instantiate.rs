@@ -140,8 +140,8 @@ impl TyVarCache {
         } else if let Some(inst) = self.typaram_instances.get(name) {
             if let Ok(inst) = <&Type>::try_from(inst) {
                 self.update_tyvar(inst, tv, ctx);
-            } else if let TyParam::FreeVar(fv) = inst {
-                fv.link(&TyParam::t(tv.clone()));
+            } else if let TyParam::FreeVar(_fv) = inst {
+                inst.link(&TyParam::t(tv.clone()));
             } else {
                 unreachable!()
             }
@@ -155,8 +155,8 @@ impl TyVarCache {
         // T<inst> is uninitialized
         // T<inst>.link(T<tv>);
         // T <: Eq(T <: Eq(T <: ...))
-        let inst = enum_unwrap!(inst, Type::FreeVar);
-        if inst.constraint_is_uninited() {
+        let free_inst = enum_unwrap!(inst, Type::FreeVar);
+        if free_inst.constraint_is_uninited() {
             inst.link(tv);
         } else {
             // inst: ?T(<: Int) => old_sub: Never, old_sup: Int
@@ -165,14 +165,14 @@ impl TyVarCache {
             // inst: ?T(:> Str)
             // tv: ?T(:> Nat)
             // => ?T(:> Nat or Str)
-            let (old_sub, old_sup) = inst.get_subsup().unwrap();
+            let (old_sub, old_sup) = free_inst.get_subsup().unwrap();
             let tv = enum_unwrap!(tv, Type::FreeVar);
             let (new_sub, new_sup) = tv.get_subsup().unwrap();
             let new_constraint = Constraint::new_sandwiched(
                 ctx.union(&old_sub, &new_sub),
                 ctx.intersection(&old_sup, &new_sup),
             );
-            inst.update_constraint(new_constraint, true);
+            free_inst.update_constraint(new_constraint, true);
         }
     }
 
@@ -192,15 +192,15 @@ impl TyVarCache {
     }
 
     fn update_typaram(&self, inst: &TyParam, tp: &TyParam, ctx: &Context) {
-        let inst = enum_unwrap!(inst, TyParam::FreeVar);
-        if inst.constraint_is_uninited() {
+        let free_inst = enum_unwrap!(inst, TyParam::FreeVar);
+        if free_inst.constraint_is_uninited() {
             inst.link(tp);
         } else {
-            let old_type = inst.get_type().unwrap();
+            let old_type = free_inst.get_type().unwrap();
             let tv = enum_unwrap!(tp, TyParam::FreeVar);
             let new_type = tv.get_type().unwrap();
             let new_constraint = Constraint::new_type_of(ctx.intersection(&old_type, &new_type));
-            inst.update_constraint(new_constraint, true);
+            free_inst.update_constraint(new_constraint, true);
         }
     }
 

@@ -4,11 +4,10 @@ use std::ops::{Add, Div, Mul, Neg, Range, RangeInclusive, Sub};
 use std::sync::Arc;
 
 use erg_common::dict::Dict;
-use erg_common::set;
 use erg_common::set::Set;
 use erg_common::traits::{LimitedDisplay, StructuralEq};
 use erg_common::Str;
-use erg_common::{dict, log};
+use erg_common::{dict, log, set};
 
 use erg_parser::ast::ConstLambda;
 
@@ -1114,6 +1113,23 @@ impl TyParam {
             TyParam::Value(ValueObj::Type(obj)) => TyParam::t(obj.typ().clone().normalize()),
             TyParam::Type(t) => TyParam::t(t.normalize()),
             other => other,
+        }
+    }
+
+    fn addr_eq(&self, other: &TyParam) -> bool {
+        match (self, other) {
+            (Self::FreeVar(slf), Self::FreeVar(otr)) => slf.addr_eq(otr),
+            _ => self == other,
+        }
+    }
+
+    pub(crate) fn link(&self, to: &TyParam) {
+        if self.addr_eq(to) {
+            return;
+        }
+        match self {
+            Self::FreeVar(fv) => fv.link(to),
+            _ => panic!("{self} is not a free variable"),
         }
     }
 }
