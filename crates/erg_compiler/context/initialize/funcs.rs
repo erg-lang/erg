@@ -129,11 +129,18 @@ impl Context {
         );
         let I = mono_q(TY_I, subtypeof(poly(ITERABLE, vec![ty_tp(T.clone())])));
         let t_iter = nd_func(vec![kw(KW_OBJECT, I.clone())], None, proj(I, ITERATOR)).quantify();
-        let t_len = nd_func(
-            vec![kw(KW_S, poly(SEQUENCE, vec![TyParam::erased(Type)]))],
-            None,
-            Nat,
-        );
+        // Python : |L|(seq: Structural({ .__len__ = (L) -> Nat })) -> Nat
+        let t_len = if ERG_MODE {
+            nd_func(
+                vec![kw(KW_S, poly(SEQUENCE, vec![TyParam::erased(Type)]))],
+                None,
+                Nat,
+            )
+        } else {
+            let S = Type::from(dict! { Field::public("__len__".into()) => fn0_met(Never, Nat) })
+                .structuralize();
+            func1(S, Nat)
+        };
         let t_log = func(
             vec![],
             Some(kw(KW_OBJECTS, ref_(Obj))),

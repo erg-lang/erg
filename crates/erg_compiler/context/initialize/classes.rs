@@ -923,14 +923,8 @@ impl Context {
         str_.register_trait(Str, str_eq);
         let mut str_seq = Self::builtin_methods(Some(poly(SEQUENCE, vec![ty_tp(Str)])), 2);
         str_seq.register_builtin_erg_impl(
-            FUNC_LEN,
+            FUNDAMENTAL_LEN,
             fn0_met(Str, Nat),
-            Const,
-            Visibility::BUILTIN_PUBLIC,
-        );
-        str_seq.register_builtin_erg_impl(
-            FUNC_GET,
-            fn1_met(Str, Nat, Str),
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
@@ -1262,6 +1256,14 @@ impl Context {
         array_
             .register_marker_trait(self, poly(INDEXABLE, vec![ty_tp(input), ty_tp(T.clone())]))
             .unwrap();
+        let mut array_sized = Self::builtin_methods(Some(mono(SIZED)), 2);
+        array_sized.register_builtin_erg_impl(
+            FUNDAMENTAL_LEN,
+            fn0_met(arr_t.clone(), Nat).quantify(),
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        array_.register_trait(arr_t.clone(), array_sized);
         // union: (self: [Type; _]) -> Type
         let array_union_t = fn0_met(array_t(Type, TyParam::erased(Nat)), Type).quantify();
         let union = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
