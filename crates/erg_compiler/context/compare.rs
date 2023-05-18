@@ -3,7 +3,6 @@ use std::option::Option; // conflicting to Type::Option
 
 use erg_common::consts::DEBUG_MODE;
 use erg_common::dict::Dict;
-use erg_common::error::MultiErrorDisplay;
 use erg_common::style::colors::DEBUG_ERROR;
 use erg_common::traits::StructuralEq;
 use erg_common::{assume_unreachable, log};
@@ -12,7 +11,7 @@ use erg_common::{Str, Triple};
 use crate::context::initialize::const_func::sub_tpdict_get;
 use crate::ty::constructors::{and, bounded, not, or, poly};
 use crate::ty::free::{Constraint, FreeKind, FreeTyVar};
-use crate::ty::typaram::{OpKind, TyParam, TyParamOrdering};
+use crate::ty::typaram::{TyParam, TyParamOrdering};
 use crate::ty::value::ValueObj;
 use crate::ty::value::ValueObj::Inf;
 use crate::ty::{Field, GuardType, Predicate, RefinementType, SubrKind, SubrType, Type};
@@ -721,12 +720,9 @@ impl Context {
                     let rlen = rparams[1].clone();
                     self.supertype_of(&lt, &rt)
                         && self
-                            .eval_bin_tp(OpKind::Le, llen, rlen)
-                            .map(|tp| matches!(tp, TyParam::Value(ValueObj::Bool(true))))
-                            .unwrap_or_else(|e| {
-                                e.fmt_all_stderr();
-                                todo!();
-                            })
+                            .try_cmp(&llen, &rlen)
+                            .map(|ord| ord.is_le())
+                            .unwrap_or(false)
                 } else {
                     self.poly_supertype_of(lhs, lparams, rparams)
                 }

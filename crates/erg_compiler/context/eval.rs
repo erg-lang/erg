@@ -857,9 +857,9 @@ impl Context {
             {
                 Ok(TyParam::value(true))
             }
+            (e @ TyParam::Erased(_), _) | (_, e @ TyParam::Erased(_)) => Ok(e),
             (lhs @ TyParam::FreeVar(_), rhs) => Ok(TyParam::bin(op, lhs, rhs)),
             (lhs, rhs @ TyParam::FreeVar(_)) => Ok(TyParam::bin(op, lhs, rhs)),
-            (e @ TyParam::Erased(_), _) | (_, e @ TyParam::Erased(_)) => Ok(e),
             (l, r) => feature_error!(self, Location::Unknown, &format!("{l} {op} {r}"))
                 .map_err(Into::into),
         }
@@ -1509,10 +1509,14 @@ impl Context {
     }
 
     /// e.g.
-    ///     qt: Array(T, N), st: Array(Int, 3)
+    /// ```erg
+    /// qt: Array(T, N), st: Array(Int, 3)
+    /// ```
     /// invalid (no effect):
-    ///     qt: Iterable(T), st: Array(Int, 3)
-    ///
+    /// ```erg
+    /// qt: Iterable(T), st: Array(Int, 3)
+    /// qt: Array(T, N), st: Array!(Int, 3) # TODO
+    /// ```
     /// use `undo_substitute_typarams` after executing this method
     pub(crate) fn substitute_typarams(&self, qt: &Type, st: &Type) -> EvalResult<()> {
         let qtps = qt.typarams();
@@ -1534,7 +1538,9 @@ impl Context {
                 if !stp.is_unbound_var() || !stp.is_generalized() {
                     fv.undoable_link(&stp);
                 }
-                self.sub_unify_tp(&stp, &qtp, None, &(), false)?;
+                if let Err(errs) = self.sub_unify_tp(&stp, &qtp, None, &(), false) {
+                    log!(err "{errs}");
+                }
                 Ok(())
             }
             TyParam::Type(qt) => self.substitute_type(stp, *qt),
@@ -1544,43 +1550,29 @@ impl Context {
     }
 
     fn substitute_type(&self, stp: TyParam, qt: Type) -> EvalResult<()> {
+        let st = self.convert_tp_into_type(stp).map_err(|tp| {
+            EvalError::not_a_type_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                ().loc(),
+                self.caused_by(),
+                &tp.qual_name().unwrap_or("_".into()),
+            )
+        })?;
         if qt.is_generalized() {
-            let st = self.convert_tp_into_type(stp).map_err(|tp| {
-                EvalError::not_a_type_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    ().loc(),
-                    self.caused_by(),
-                    &tp.qual_name().unwrap_or("_".into()),
-                )
-            })?;
             if let Ok(qt) = <&FreeTyVar>::try_from(&qt) {
                 if !st.is_unbound_var() || !st.is_generalized() {
                     qt.undoable_link(&st);
                 }
             }
-            self.sub_unify(&st, &qt, &(), None)
-        } else {
-            let st = self.convert_tp_into_type(stp).map_err(|tp| {
-                EvalError::not_a_type_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    ().loc(),
-                    self.caused_by(),
-                    &tp.qual_name().unwrap_or("_".into()),
-                )
-            })?;
-            let st = if st.typarams_len() != qt.typarams_len() {
-                let Ok(st) = <&FreeTyVar>::try_from(&st) else { unreachable!() };
-                st.get_sub().unwrap()
-            } else {
-                st
-            };
-            if !st.is_unbound_var() || !st.is_generalized() {
-                self.substitute_typarams(&qt, &st)?;
-            }
-            self.sub_unify(&st, &qt, &(), None)
         }
+        if !st.is_unbound_var() || !st.is_generalized() {
+            self.substitute_typarams(&qt, &st)?;
+        }
+        if let Err(errs) = self.sub_unify(&st, &qt, &(), None) {
+            log!(err "{errs}");
+        }
+        Ok(())
     }
 
     pub(crate) fn undo_substitute_typarams(substituted_q: &Type) {
