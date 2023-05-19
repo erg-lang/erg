@@ -200,6 +200,7 @@ impl Str {
         Str::rc(&self.chars().rev().collect::<String>())
     }
 
+    /// Note that replacements may be chained because it attempt to rewrite in sequence
     pub fn multi_replace(&self, paths: &[(&str, &str)]) -> Self {
         let mut self_ = self.to_string();
         for (from, to) in paths {
@@ -231,6 +232,24 @@ impl Str {
 
     pub fn find_sub<'a>(&self, pats: &[&'a str]) -> Option<&'a str> {
         pats.iter().find(|&&pat| self.contains(pat)).copied()
+    }
+
+    /// ```
+    /// # use erg_common::str::Str;
+    /// let s = Str::rc("\n");
+    /// assert_eq!(&s.escape()[..], "\\n");
+    /// let s = Str::rc("\\");
+    /// assert_eq!(&s.escape()[..], "\\\\");
+    /// ```
+    pub fn escape(&self) -> Str {
+        self.multi_replace(&[
+            ("\\", "\\\\"),
+            ("\0", "\\0"),
+            ("\r", "\\r"),
+            ("\n", "\\n"),
+            ("\"", "\\\""),
+            ("\'", "\\'"),
+        ])
     }
 }
 

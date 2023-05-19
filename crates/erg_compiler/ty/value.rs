@@ -487,7 +487,7 @@ impl fmt::Debug for ValueObj {
                 }
                 Ok(())
             }
-            Self::Str(s) => write!(f, "\"{s}\""),
+            Self::Str(s) => write!(f, "\"{}\"", s.escape()),
             Self::Bool(b) => {
                 if *b {
                     write!(f, "True")
