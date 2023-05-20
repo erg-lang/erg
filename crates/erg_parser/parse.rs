@@ -2162,11 +2162,11 @@ impl Parser {
             }
             // Dict
             other if self.cur_is(Colon) => {
-                let dict = self
-                    .try_reduce_normal_dict(l_brace, other)
+                let res = self
+                    .try_reduce_normal_dict_or_set_comp(l_brace, other)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
                 debug_exit_info!(self);
-                Ok(BraceContainer::Dict(Dict::Normal(dict)))
+                Ok(res)
             }
             other => {
                 let set = self
@@ -2247,17 +2247,48 @@ impl Parser {
         }
     }
 
+    fn try_reduce_normal_dict_or_set_comp(
+        &mut self,
+        l_brace: Token,
+        lhs: Expr,
+    ) -> ParseResult<BraceContainer> {
+        debug_call_info!(self);
+        let colon = expect_pop!(self, fail_next Colon);
+        let rhs = self
+            .try_reduce_expr(false, true, false, false)
+            .map_err(|_| self.stack_dec(fn_name!()))?;
+        if self.cur_is(VBar) {
+            self.skip();
+            let Expr::Accessor(Accessor::Ident(var)) = lhs else {
+                let err = ParseError::simple_syntax_error(line!() as usize, lhs.loc());
+                self.errs.push(err);
+                debug_exit_info!(self);
+                return Err(());
+            };
+            let pred = self
+                .try_reduce_chunk(false, false)
+                .map_err(|_| self.stack_dec(fn_name!()))?;
+            let r_brace = expect_pop!(self, fail_next RBrace);
+            let set_comp =
+                SetComprehension::new(l_brace, r_brace, var.name.into_token(), colon, rhs, pred);
+            debug_exit_info!(self);
+            Ok(BraceContainer::Set(Set::Comprehension(set_comp)))
+        } else {
+            let dict = self
+                .try_reduce_normal_dict(l_brace, lhs, rhs)
+                .map_err(|_| self.stack_dec(fn_name!()))?;
+            debug_exit_info!(self);
+            Ok(BraceContainer::Dict(Dict::Normal(dict)))
+        }
+    }
+
     fn try_reduce_normal_dict(
         &mut self,
         l_brace: Token,
         first_key: Expr,
+        value: Expr,
     ) -> ParseResult<NormalDict> {
         debug_call_info!(self);
-        assert!(self.cur_is(Colon));
-        self.skip();
-        let value = self
-            .try_reduce_chunk(false, false)
-            .map_err(|_| self.stack_dec(fn_name!()))?;
         let mut kvs = vec![KeyValue::new(first_key, value)];
         loop {
             match self.peek_kind() {

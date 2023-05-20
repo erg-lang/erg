@@ -10,15 +10,16 @@ use ast::{
     NonDefaultParamSignature, ParamTySpec, PolyTypeSpec, PreDeclTypeSpec, TypeBoundSpec,
     TypeBoundSpecs, TypeSpec,
 };
-use erg_parser::ast::{self, ConstArray, Identifier, VarName, VisModifierSpec, VisRestriction};
+use erg_parser::ast::{
+    self, ConstArray, ConstSet, Identifier, VarName, VisModifierSpec, VisRestriction,
+};
 use erg_parser::token::TokenKind;
 use erg_parser::Parser;
 
-use crate::feature_error;
 use crate::ty::free::{CanbeFree, Constraint};
 use crate::ty::typaram::{IntervalOp, OpKind, TyParam, TyParamLambda, TyParamOrdering};
 use crate::ty::value::ValueObj;
-use crate::ty::{constructors::*, VisibilityModifier};
+use crate::ty::{constructors::*, Predicate, RefinementType, VisibilityModifier};
 use crate::ty::{Field, HasType, ParamTy, SubrKind, SubrType, Type};
 use crate::type_feature_error;
 use TyParamOrdering::*;
@@ -864,7 +865,7 @@ impl Context {
                     &format!("instantiating const expression {expr}")
                 )
             }
-            ast::ConstExpr::Set(set) => {
+            ast::ConstExpr::Set(ConstSet::Normal(set)) => {
                 let mut tp_set = set! {};
                 for (i, elem) in set.elems.pos_args().enumerate() {
                     let el = self.instantiate_const_expr(
@@ -876,6 +877,25 @@ impl Context {
                     tp_set.insert(el);
                 }
                 Ok(TyParam::Set(tp_set))
+            }
+            ast::ConstExpr::Set(ConstSet::Comprehension(set)) => {
+                if set.op.is(TokenKind::Colon) {
+                    let iter = self.instantiate_const_expr(
+                        &set.iter,
+                        erased_idx,
+                        tmp_tv_cache,
+                        not_found_is_qvar,
+                    )?;
+                    let pred = self.instantiate_pred(&set.pred, tmp_tv_cache)?;
+                    if let Ok(t) = self.instantiate_tp_as_type(iter, set) {
+                        return Ok(TyParam::t(refinement(set.var.inspect().clone(), t, pred)));
+                    }
+                }
+                type_feature_error!(
+                    self,
+                    set.loc(),
+                    &format!("instantiating const expression {expr}")
+                )
             }
             ast::ConstExpr::Dict(dict) => {
                 let mut tp_dict = dict! {};
@@ -1079,6 +1099,15 @@ impl Context {
             TyParam::Value(value) => self.convert_value_into_type(value).or_else(|value| {
                 type_feature_error!(self, loc.loc(), &format!("instantiate `{value}` as type"))
             }),
+            TyParam::Array(arr) => {
+                let len = TyParam::value(arr.len());
+                let mut union = Type::Never;
+                for tp in arr {
+                    let t = self.instantiate_tp_as_type(tp, loc)?;
+                    union = self.union(&union, &t);
+                }
+                Ok(array_t(union, len))
+            }
             TyParam::Set(set) => {
                 let t = set
                     .iter()
@@ -1115,6 +1144,23 @@ impl Context {
                 );
                 Ok(Type::Subr(subr))
             }
+            TyParam::BinOp { op, lhs, rhs } => match op {
+                OpKind::And => {
+                    let lhs = self.instantiate_tp_as_type(*lhs, loc)?;
+                    let rhs = self.instantiate_tp_as_type(*rhs, loc)?;
+                    Ok(lhs & rhs)
+                }
+                OpKind::Or => {
+                    let lhs = self.instantiate_tp_as_type(*lhs, loc)?;
+                    let rhs = self.instantiate_tp_as_type(*rhs, loc)?;
+                    Ok(lhs | rhs)
+                }
+                _ => type_feature_error!(
+                    self,
+                    loc.loc(),
+                    &format!("instantiate `{lhs} {op} {rhs}` as type")
+                ),
+            },
             other => {
                 type_feature_error!(self, loc.loc(), &format!("instantiate `{other}` as type"))
             }
@@ -1141,6 +1187,86 @@ impl Context {
                 p.name.as_ref().map(|t| t.inspect().to_owned()),
                 t,
             ))
+        }
+    }
+
+    fn instantiate_pred(
+        &self,
+        expr: &ast::ConstExpr,
+        _tmp_tv_cache: &mut TyVarCache,
+    ) -> TyCheckResult<Predicate> {
+        match expr {
+            ast::ConstExpr::Lit(lit) => {
+                let value = self.eval_lit(lit)?;
+                Ok(Predicate::Value(value))
+            }
+            ast::ConstExpr::Accessor(ast::ConstAccessor::Local(local)) => {
+                Ok(Predicate::Const(local.inspect().clone()))
+            }
+            ast::ConstExpr::BinOp(bin) => {
+                let lhs = self.instantiate_pred(&bin.lhs, _tmp_tv_cache)?;
+                let rhs = self.instantiate_pred(&bin.rhs, _tmp_tv_cache)?;
+                match bin.op.kind {
+                    TokenKind::DblEq
+                    | TokenKind::NotEq
+                    | TokenKind::Less
+                    | TokenKind::LessEq
+                    | TokenKind::Gre
+                    | TokenKind::GreEq => {
+                        let Predicate::Const(var) = lhs else {
+                            return type_feature_error!(
+                                self,
+                                bin.loc(),
+                                &format!("instantiating predicate `{expr}`")
+                            );
+                        };
+                        let rhs = match rhs {
+                            Predicate::Value(value) => TyParam::Value(value),
+                            Predicate::Const(var) => TyParam::Mono(var),
+                            _ => {
+                                return type_feature_error!(
+                                    self,
+                                    bin.loc(),
+                                    &format!("instantiating predicate `{expr}`")
+                                );
+                            }
+                        };
+                        let pred = match bin.op.kind {
+                            TokenKind::DblEq => Predicate::eq(var, rhs),
+                            TokenKind::NotEq => Predicate::ne(var, rhs),
+                            TokenKind::Less => Predicate::lt(var, rhs),
+                            TokenKind::LessEq => Predicate::le(var, rhs),
+                            TokenKind::Gre => Predicate::gt(var, rhs),
+                            TokenKind::GreEq => Predicate::ge(var, rhs),
+                            _ => unreachable!(),
+                        };
+                        Ok(pred)
+                    }
+                    TokenKind::OrOp => Ok(lhs | rhs),
+                    TokenKind::AndOp => Ok(lhs & rhs),
+                    _ => type_feature_error!(
+                        self,
+                        bin.loc(),
+                        &format!("instantiating predicate `{expr}`")
+                    ),
+                }
+            }
+            ast::ConstExpr::UnaryOp(unop) => {
+                let pred = self.instantiate_pred(&unop.expr, _tmp_tv_cache)?;
+                match unop.op.kind {
+                    TokenKind::PreBitNot => Ok(!pred),
+                    _ => type_feature_error!(
+                        self,
+                        unop.loc(),
+                        &format!("instantiating predicate `{expr}`")
+                    ),
+                }
+            }
+            _ => type_feature_error!(
+                self,
+                expr.loc(),
+                &format!("instantiating predicate `{expr}`")
+            ),
         }
     }
 
@@ -1371,6 +1497,19 @@ impl Context {
                     &format!("instantiating type spec {spec}{args}")
                 )
             }
+            TypeSpec::Refinement(refine) => {
+                let t = self.instantiate_typespec_full(
+                    &refine.typ,
+                    opt_decl_t,
+                    tmp_tv_cache,
+                    mode,
+                    not_found_is_qvar,
+                )?;
+                let pred = self.instantiate_pred(&refine.pred, tmp_tv_cache)?;
+                let refine =
+                    Type::Refinement(RefinementType::new(refine.var.inspect().clone(), t, pred));
+                Ok(refine)
+            }
         }
     }
 
@@ -1405,7 +1544,7 @@ impl Context {
                     let mut namespaces = set! {};
                     for ns in namespace.iter() {
                         let ast::Accessor::Ident(ident) = ns else {
-                            return feature_error!(TyCheckErrors, TyCheckError, self, ns.loc(), "namespace accessors");
+                            return type_feature_error!(self, ns.loc(), "namespace accessors");
                         };
                         let vi = self
                             .rec_get_var_info(ident, AccessKind::Name, &self.cfg.input, self)

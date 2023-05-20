@@ -60,10 +60,10 @@ macro_rules! feature_error {
 #[macro_export]
 macro_rules! type_feature_error {
     ($ctx: expr, $loc: expr, $name: expr) => {
-        feature_error!(TyCheckErrors, TyCheckError, $ctx, $loc, $name)
+        $crate::feature_error!(TyCheckErrors, TyCheckError, $ctx, $loc, $name)
     };
     (error $ctx: expr, $loc: expr, $name: expr) => {
-        feature_error!(TyCheckError, $ctx, $loc, $name)
+        $crate::feature_error!(TyCheckError, $ctx, $loc, $name)
     };
 }
 

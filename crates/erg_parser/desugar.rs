@@ -14,9 +14,9 @@ use crate::ast::{
     Identifier, KeyValue, KwArg, Lambda, LambdaSignature, Literal, Methods, MixedRecord, Module,
     NonDefaultParamSignature, NormalArray, NormalDict, NormalRecord, NormalSet, NormalTuple,
     ParamPattern, ParamRecordAttr, ParamTuplePattern, Params, PatchDef, PosArg, ReDef, Record,
-    RecordAttrOrIdent, RecordAttrs, Set as astSet, SetWithLength, Signature, SubrSignature, Tuple,
-    TupleTypeSpec, TypeAppArgs, TypeAppArgsKind, TypeBoundSpecs, TypeSpec, TypeSpecWithOp, UnaryOp,
-    VarName, VarPattern, VarRecordAttr, VarSignature, VisModifierSpec,
+    RecordAttrOrIdent, RecordAttrs, Set as astSet, SetComprehension, SetWithLength, Signature,
+    SubrSignature, Tuple, TupleTypeSpec, TypeAppArgs, TypeAppArgsKind, TypeBoundSpecs, TypeSpec,
+    TypeSpecWithOp, UnaryOp, VarName, VarPattern, VarRecordAttr, VarSignature, VisModifierSpec,
 };
 use crate::token::{Token, TokenKind, COLON, DOT};
 
@@ -206,6 +206,19 @@ impl Desugarer {
                     let len = desugar(*set.len);
                     let set = SetWithLength::new(set.l_brace, set.r_brace, elem, len);
                     Expr::Set(astSet::WithLength(set))
+                }
+                astSet::Comprehension(set) => {
+                    let iter = desugar(*set.iter);
+                    let pred = desugar(*set.pred);
+                    let set = SetComprehension::new(
+                        set.l_brace,
+                        set.r_brace,
+                        set.var,
+                        set.op,
+                        iter,
+                        pred,
+                    );
+                    Expr::Set(astSet::Comprehension(set))
                 }
             },
             Expr::Dict(dict) => match dict {

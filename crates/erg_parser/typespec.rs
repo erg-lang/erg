@@ -59,13 +59,26 @@ impl Parser {
                         const_elems.push(ConstPosArg::new(const_expr));
                     }
                     let elems = ConstArgs::pos_only(const_elems, None);
-                    let const_set = ConstSet::new(set.l_brace, set.r_brace, elems);
-                    Ok(ConstExpr::Set(const_set))
+                    let const_set = ConstNormalSet::new(set.l_brace, set.r_brace, elems);
+                    Ok(ConstExpr::Set(ConstSet::Normal(const_set)))
+                }
+                Set::Comprehension(set) => {
+                    let iter = Self::validate_const_expr(*set.iter)?;
+                    let pred = Self::validate_const_expr(*set.pred)?;
+                    let const_set_comp = ConstSetComprehension::new(
+                        set.l_brace,
+                        set.r_brace,
+                        set.var,
+                        set.op,
+                        iter,
+                        pred,
+                    );
+                    Ok(ConstExpr::Set(ConstSet::Comprehension(const_set_comp)))
                 }
                 other => Err(ParseError::feature_error(
                     line!() as usize,
                     other.loc(),
-                    "const set comprehension",
+                    "const set with length",
                 )),
             },
             Expr::Dict(dict) => match dict {
@@ -348,6 +361,16 @@ impl Parser {
                 let t_spec = Self::expr_to_type_spec(set.elem.expr)?;
                 let len = Self::validate_const_expr(*set.len)?;
                 Ok(TypeSpec::SetWithLen(SetWithLenTypeSpec::new(t_spec, len)))
+            }
+            Set::Comprehension(set) => {
+                if set.op.is(TokenKind::Colon) {
+                    let typ = Self::expr_to_type_spec(*set.iter)?;
+                    let pred = Self::validate_const_expr(*set.pred)?;
+                    let refine = RefinementTypeSpec::new(set.var, typ, pred);
+                    Ok(TypeSpec::Refinement(refine))
+                } else {
+                    Err(ParseError::simple_syntax_error(line!() as usize, set.loc()))
+                }
             }
         }
     }

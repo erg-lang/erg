@@ -1,0 +1,8 @@
+t0 _: Tuple([]) = None
+t1 _: Tuple([Int]) = None
+
+_ = t0(()) # OK
+_ = t0((1,)) # OK
+_ = t1(()) # ERR
+_ = t1((1,)) # OK
+_ = t1((1, 2)) # OK

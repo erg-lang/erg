@@ -398,6 +398,13 @@ impl ASTLowerer {
         match set {
             ast::Set::Normal(set) => Ok(hir::Set::Normal(self.lower_normal_set(set)?)),
             ast::Set::WithLength(set) => Ok(hir::Set::WithLength(self.lower_set_with_length(set)?)),
+            ast::Set::Comprehension(set) => feature_error!(
+                LowerErrors,
+                LowerError,
+                self.module.context,
+                set.loc(),
+                "set comprehension"
+            ),
         }
     }
 

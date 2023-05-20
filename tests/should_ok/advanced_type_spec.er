@@ -1,3 +1,6 @@
 x: {1, 2, 3} = 1
 id|T: Type|(x: T): T = x
 add|R: Type, A <: Add(R)|(x: A, y: R): A.Output = x + y
+
+f _: Tuple([{B: Bool | B == False} or Str, Int]) = None
+g _: Tuple([]) = None

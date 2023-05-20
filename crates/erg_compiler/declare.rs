@@ -335,6 +335,13 @@ impl ASTLowerer {
                     elem,
                 )))
             }
+            // TODO:
+            ast::Set::Comprehension(set) => Ok(hir::Set::Normal(hir::NormalSet::new(
+                set.l_brace,
+                set.r_brace,
+                Type::Failure,
+                hir::Args::empty(),
+            ))),
         }
     }
 

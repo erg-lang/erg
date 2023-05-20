@@ -721,7 +721,7 @@ impl Context {
                     self.supertype_of(&lt, &rt)
                         && self
                             .try_cmp(&llen, &rlen)
-                            .map(|ord| ord.is_le())
+                            .map(|ord| ord.canbe_eq() || ord.canbe_lt())
                             .unwrap_or(false)
                 } else {
                     self.poly_supertype_of(lhs, lparams, rparams)
@@ -842,6 +842,9 @@ impl Context {
             },
             (TyParam::Array(sup), TyParam::Array(sub))
             | (TyParam::Tuple(sup), TyParam::Tuple(sub)) => {
+                if sup.len() > sub.len() {
+                    return false;
+                }
                 for (sup_p, sub_p) in sup.iter().zip(sub.iter()) {
                     if !self.supertype_of_tp(sup_p, sub_p, variance) {
                         return false;
@@ -868,48 +871,11 @@ impl Context {
                 }
                 true
             }
-            (TyParam::Value(ValueObj::Dict(sup_d)), TyParam::Dict(sub_d)) => {
-                if sup_d.len() > sub_d.len() {
-                    return false;
-                }
-                let sup_d = sup_d
-                    .iter()
-                    .map(|(k, v)| (TyParam::from(k.clone()), TyParam::from(v.clone())))
-                    .collect();
-                self.supertype_of_tp(&TyParam::Dict(sup_d), sub_p, variance)
-            }
-            (TyParam::Dict(sup_d), TyParam::Value(ValueObj::Dict(sub_d))) => {
-                if sup_d.len() > sub_d.len() {
-                    return false;
-                }
-                let sub_d = sub_d
-                    .iter()
-                    .map(|(k, v)| (TyParam::from(k.clone()), TyParam::from(v.clone())))
-                    .collect();
-                self.supertype_of_tp(sup_p, &TyParam::Dict(sub_d), variance)
-            }
             (TyParam::Type(sup), TyParam::Type(sub)) => match variance {
                 Variance::Contravariant => self.subtype_of(sup, sub),
                 Variance::Covariant => self.supertype_of(sup, sub),
                 Variance::Invariant => self.same_type_of(sup, sub),
             },
-            (TyParam::Type(sup), TyParam::Value(ValueObj::Type(sub))) => match variance {
-                Variance::Contravariant => self.subtype_of(sup, sub.typ()),
-                Variance::Covariant => self.supertype_of(sup, sub.typ()),
-                Variance::Invariant => self.same_type_of(sup, sub.typ()),
-            },
-            (TyParam::Value(ValueObj::Type(sup)), TyParam::Type(sub)) => match variance {
-                Variance::Contravariant => self.subtype_of(sup.typ(), sub),
-                Variance::Covariant => self.supertype_of(sup.typ(), sub),
-                Variance::Invariant => self.same_type_of(sup.typ(), sub),
-            },
-            (TyParam::Value(ValueObj::Type(sup)), TyParam::Value(ValueObj::Type(sub))) => {
-                match variance {
-                    Variance::Contravariant => self.subtype_of(sup.typ(), sub.typ()),
-                    Variance::Covariant => self.supertype_of(sup.typ(), sub.typ()),
-                    Variance::Invariant => self.same_type_of(sup.typ(), sub.typ()),
-                }
-            }
             (TyParam::FreeVar(fv), _) if fv.is_unbound() => {
                 let Some(fv_t) = fv.get_type() else {
                     return false;
@@ -927,6 +893,20 @@ impl Context {
                     self.supertype_of(&fv_t, &sub_t)
                 } else {
                     self.same_type_of(&fv_t, &sub_t) || self.same_type_of(&fv_t, &sub_t.derefine())
+                }
+            }
+            (TyParam::Value(sup), _) => {
+                if let Ok(sup) = Self::convert_value_into_tp(sup.clone()) {
+                    self.supertype_of_tp(&sup, sub_p, variance)
+                } else {
+                    self.eq_tp(sup_p, sub_p)
+                }
+            }
+            (_, TyParam::Value(sub)) => {
+                if let Ok(sub) = Self::convert_value_into_tp(sub.clone()) {
+                    self.supertype_of_tp(sup_p, &sub, variance)
+                } else {
+                    self.eq_tp(sup_p, sub_p)
                 }
             }
             _ => self.eq_tp(sup_p, sub_p),

@@ -16,7 +16,7 @@ use crate::ty::{Predicate, SubrType, Type};
 
 use crate::context::{Context, Variance};
 use crate::error::{TyCheckError, TyCheckErrors, TyCheckResult};
-use crate::{feature_error, type_feature_error};
+use crate::type_feature_error;
 
 use Predicate as Pred;
 use Type::*;

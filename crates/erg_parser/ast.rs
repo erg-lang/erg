@@ -1066,15 +1066,58 @@ impl SetWithLength {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SetComprehension {
+    pub l_brace: Token,
+    pub r_brace: Token,
+    pub var: Token,
+    pub op: Token, // <- or :
+    pub iter: Box<Expr>,
+    pub pred: Box<Expr>,
+}
+
+impl NestedDisplay for SetComprehension {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(
+            f,
+            "{{{} {} {} | {}}}",
+            self.var, self.op, self.iter, self.pred
+        )
+    }
+}
+
+impl_display_from_nested!(SetComprehension);
+impl_locational!(SetComprehension, l_brace, r_brace);
+
+impl SetComprehension {
+    pub fn new(
+        l_brace: Token,
+        r_brace: Token,
+        var: Token,
+        op: Token,
+        iter: Expr,
+        pred: Expr,
+    ) -> Self {
+        Self {
+            l_brace,
+            r_brace,
+            var,
+            op,
+            iter: Box::new(iter),
+            pred: Box::new(pred),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Set {
     Normal(NormalSet),
     WithLength(SetWithLength),
-    // Comprehension(SetComprehension),
+    Comprehension(SetComprehension),
 }
 
-impl_nested_display_for_enum!(Set; Normal, WithLength);
-impl_display_for_enum!(Set; Normal, WithLength);
-impl_locational_for_enum!(Set; Normal, WithLength);
+impl_nested_display_for_enum!(Set; Normal, WithLength, Comprehension);
+impl_display_for_enum!(Set; Normal, WithLength, Comprehension);
+impl_locational_for_enum!(Set; Normal, WithLength, Comprehension);
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct BinOp {
@@ -1566,22 +1609,22 @@ impl ConstArrayWithLength {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct ConstSet {
+pub struct ConstNormalSet {
     pub l_brace: Token,
     pub r_brace: Token,
     pub elems: ConstArgs,
 }
 
-impl NestedDisplay for ConstSet {
+impl NestedDisplay for ConstNormalSet {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         write!(f, "{{{}}}", self.elems)
     }
 }
 
-impl_display_from_nested!(ConstSet);
-impl_locational!(ConstSet, l_brace, elems, r_brace);
+impl_display_from_nested!(ConstNormalSet);
+impl_locational!(ConstNormalSet, l_brace, elems, r_brace);
 
-impl ConstSet {
+impl ConstNormalSet {
     pub fn new(l_brace: Token, r_brace: Token, elems: ConstArgs) -> Self {
         Self {
             l_brace,
@@ -1590,12 +1633,81 @@ impl ConstSet {
         }
     }
 
-    pub fn downgrade(self) -> Set {
-        Set::Normal(NormalSet::new(
+    pub fn downgrade(self) -> NormalSet {
+        NormalSet::new(self.l_brace, self.r_brace, self.elems.downgrade())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ConstSetComprehension {
+    pub l_brace: Token,
+    pub r_brace: Token,
+    pub var: Token,
+    pub op: Token,
+    pub iter: Box<ConstExpr>,
+    pub pred: Box<ConstExpr>,
+}
+
+impl NestedDisplay for ConstSetComprehension {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(
+            f,
+            "{{{} {} {} | {}}}",
+            self.var, self.op, self.iter, self.pred
+        )
+    }
+}
+
+impl_display_from_nested!(ConstSetComprehension);
+impl_locational!(ConstSetComprehension, l_brace, var, r_brace);
+
+impl ConstSetComprehension {
+    pub fn new(
+        l_brace: Token,
+        r_brace: Token,
+        var: Token,
+        op: Token,
+        iter: ConstExpr,
+        pred: ConstExpr,
+    ) -> Self {
+        Self {
+            l_brace,
+            r_brace,
+            var,
+            op,
+            iter: Box::new(iter),
+            pred: Box::new(pred),
+        }
+    }
+
+    pub fn downgrade(self) -> SetComprehension {
+        SetComprehension::new(
             self.l_brace,
             self.r_brace,
-            self.elems.downgrade(),
-        ))
+            self.var,
+            self.op,
+            self.iter.downgrade(),
+            self.pred.downgrade(),
+        )
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum ConstSet {
+    Normal(ConstNormalSet),
+    Comprehension(ConstSetComprehension),
+}
+
+impl_nested_display_for_enum!(ConstSet; Normal, Comprehension);
+impl_display_from_nested!(ConstSet);
+impl_locational_for_enum!(ConstSet; Normal, Comprehension);
+
+impl ConstSet {
+    pub fn downgrade(self) -> Set {
+        match self {
+            Self::Normal(normal) => Set::Normal(normal.downgrade()),
+            Self::Comprehension(comp) => Set::Comprehension(comp.downgrade()),
+        }
     }
 }
 
@@ -2454,6 +2566,35 @@ impl TupleTypeSpec {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct RefinementTypeSpec {
+    pub var: Token,
+    pub typ: Box<TypeSpec>,
+    pub pred: ConstExpr,
+}
+
+impl fmt::Display for RefinementTypeSpec {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{{{}: {} | {}}}", self.var, self.typ, self.pred)
+    }
+}
+
+impl Locational for RefinementTypeSpec {
+    fn loc(&self) -> Location {
+        Location::concat(&self.var, &self.pred)
+    }
+}
+
+impl RefinementTypeSpec {
+    pub fn new(var: Token, typ: TypeSpec, pred: ConstExpr) -> Self {
+        Self {
+            var,
+            typ: Box::new(typ),
+            pred,
+        }
+    }
+}
+
 /// * Array: `[Int; 3]`, `[Int, Ratio, Complex]`, etc.
 /// * Dict: `[Str: Str]`, etc.
 /// * And (Intersection type): Add and Sub and Mul (== Num), etc.
@@ -2464,6 +2605,7 @@ impl TupleTypeSpec {
 /// * Record: {.into_s: Self.() -> Str }, etc.
 /// * Subr: Int -> Int, Int => None, T.(X) -> Int, etc.
 /// * TypeApp: F|...|
+/// * Refinement: {I: Int | I >= 0}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TypeSpec {
     Infer(Token),
@@ -2484,12 +2626,12 @@ pub enum TypeSpec {
         lhs: ConstExpr,
         rhs: ConstExpr,
     },
-    // Record(),
     Subr(SubrTypeSpec),
     TypeApp {
         spec: Box<TypeSpec>,
         args: TypeAppArgs,
     },
+    Refinement(RefinementTypeSpec),
 }
 
 impl fmt::Display for TypeSpec {
@@ -2527,6 +2669,7 @@ impl fmt::Display for TypeSpec {
             Self::Interval { op, lhs, rhs } => write!(f, "{lhs}{}{rhs}", op.inspect()),
             Self::Subr(s) => write!(f, "{s}"),
             Self::TypeApp { spec, args } => write!(f, "{spec}{args}"),
+            Self::Refinement(r) => write!(f, "{r}"),
         }
     }
 }
@@ -2549,6 +2692,7 @@ impl Locational for TypeSpec {
             Self::Interval { lhs, rhs, .. } => Location::concat(lhs, rhs),
             Self::Subr(s) => s.loc(),
             Self::TypeApp { spec, args } => Location::concat(spec.as_ref(), args),
+            Self::Refinement(r) => r.loc(),
         }
     }
 }

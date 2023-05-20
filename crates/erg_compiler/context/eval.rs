@@ -17,8 +17,8 @@ use erg_parser::ast::*;
 use erg_parser::token::{Token, TokenKind};
 
 use crate::ty::constructors::{
-    array_t, dict_t, mono, poly, proj, proj_call, ref_, ref_mut, refinement, subr_t, tuple_t,
-    v_enum,
+    array_t, dict_t, mono, poly, proj, proj_call, ref_, ref_mut, refinement, set_t, subr_t,
+    tuple_t, v_enum,
 };
 use crate::ty::free::{FreeTyVar, HasLevel};
 use crate::ty::typaram::{OpKind, TyParam};
@@ -1003,6 +1003,13 @@ impl Context {
                 }
                 Ok(TyParam::Dict(new_dic))
             }
+            TyParam::Set(set) => {
+                let mut new_set = set! {};
+                for v in set.into_iter() {
+                    new_set.insert(self.eval_tp(v)?);
+                }
+                Ok(TyParam::Set(new_set))
+            }
             TyParam::Type(_) | TyParam::Erased(_) | TyParam::Value(_) => Ok(p.clone()),
             _other => feature_error!(self, Location::Unknown, "???"),
         }
@@ -1327,6 +1334,7 @@ impl Context {
 
     pub(crate) fn convert_value_into_type(&self, val: ValueObj) -> Result<Type, ValueObj> {
         match val {
+            ValueObj::Ellipsis => Ok(Type::Ellipsis),
             ValueObj::Type(t) => match t {
                 TypeObj::Builtin { t, .. } => Ok(t),
                 TypeObj::Generated(gen) => Ok(gen.into_typ()),
@@ -1345,8 +1353,69 @@ impl Context {
                 }
                 Ok(tuple_t(new_ts))
             }
+            ValueObj::Array(arr) => {
+                let len = TyParam::value(arr.len());
+                let mut union = Type::Never;
+                for v in arr.iter().cloned() {
+                    union = self.union(&union, &self.convert_value_into_type(v)?);
+                }
+                Ok(array_t(union, len))
+            }
+            ValueObj::Set(set) => {
+                let len = TyParam::value(set.len());
+                let mut union = Type::Never;
+                for v in set.into_iter() {
+                    union = self.union(&union, &self.convert_value_into_type(v)?);
+                }
+                Ok(set_t(union, len))
+            }
             ValueObj::Subr(subr) => subr.as_type(self).ok_or(ValueObj::Subr(subr)),
             other => Err(other),
+        }
+    }
+
+    pub(crate) fn convert_value_into_tp(value: ValueObj) -> Result<TyParam, ValueObj> {
+        match value {
+            ValueObj::Type(t) => Ok(TyParam::t(t.into_typ())),
+            ValueObj::Array(arr) => {
+                let mut new_arr = vec![];
+                for v in arr.iter().cloned() {
+                    new_arr.push(Self::convert_value_into_tp(v)?);
+                }
+                Ok(TyParam::Array(new_arr))
+            }
+            ValueObj::Tuple(ts) => {
+                let mut new_ts = vec![];
+                for v in ts.iter().cloned() {
+                    new_ts.push(Self::convert_value_into_tp(v)?);
+                }
+                Ok(TyParam::Tuple(new_ts))
+            }
+            ValueObj::Dict(dict) => {
+                let mut new_dict = dict! {};
+                for (k, v) in dict.into_iter() {
+                    new_dict.insert(
+                        Self::convert_value_into_tp(k)?,
+                        Self::convert_value_into_tp(v)?,
+                    );
+                }
+                Ok(TyParam::Dict(new_dict))
+            }
+            ValueObj::Set(set) => {
+                let mut new_set = set! {};
+                for v in set.into_iter() {
+                    new_set.insert(Self::convert_value_into_tp(v)?);
+                }
+                Ok(TyParam::Set(new_set))
+            }
+            ValueObj::Record(rec) => {
+                let mut new_rec = dict! {};
+                for (k, v) in rec.into_iter() {
+                    new_rec.insert(k, Self::convert_value_into_tp(v)?);
+                }
+                Ok(TyParam::Record(new_rec))
+            }
+            _ => Err(value),
         }
     }
 
@@ -1739,7 +1808,13 @@ impl Context {
     }
 
     pub(crate) fn get_tp_t(&self, p: &TyParam) -> EvalResult<Type> {
-        let p = self.eval_tp(p.clone())?;
+        let p = self
+            .eval_tp(p.clone())
+            .map_err(|errs| {
+                log!(err "{errs}");
+                errs
+            })
+            .unwrap_or(p.clone());
         match p {
             TyParam::Value(v) => Ok(v_enum(set![v])),
             TyParam::Erased(t) => Ok((*t).clone()),
@@ -1808,15 +1883,44 @@ impl Context {
                 }
                 Ok(tuple_t(tps_t))
             }
-            dict @ TyParam::Dict(_) => Ok(dict_t(dict)),
-            TyParam::BinOp { op, lhs, rhs } => {
-                let op_name = op_to_name(op);
-                feature_error!(
-                    self,
-                    Location::Unknown,
-                    &format!("get type: {op_name}({lhs}, {rhs})")
-                )
+            TyParam::Set(tps) => {
+                let len = TyParam::value(tps.len());
+                let mut union = Type::Never;
+                for tp in tps {
+                    let tp_t = self.get_tp_t(&tp)?;
+                    union = self.union(&union, &tp_t);
+                }
+                Ok(set_t(union, len))
             }
+            dict @ TyParam::Dict(_) => Ok(dict_t(dict)),
+            TyParam::BinOp { op, lhs, rhs } => match op {
+                OpKind::Or | OpKind::And => {
+                    let lhs = self.get_tp_t(&lhs)?;
+                    let rhs = self.get_tp_t(&rhs)?;
+                    if self.subtype_of(&lhs, &Type::Bool) && self.subtype_of(&rhs, &Type::Bool) {
+                        Ok(Type::Bool)
+                    } else if self.subtype_of(&lhs, &Type::Type)
+                        && self.subtype_of(&rhs, &Type::Type)
+                    {
+                        Ok(Type::Type)
+                    } else {
+                        let op_name = op_to_name(op);
+                        feature_error!(
+                            self,
+                            Location::Unknown,
+                            &format!("get type: {op_name}({lhs}, {rhs})")
+                        )
+                    }
+                }
+                _ => {
+                    let op_name = op_to_name(op);
+                    feature_error!(
+                        self,
+                        Location::Unknown,
+                        &format!("get type: {op_name}({lhs}, {rhs})")
+                    )
+                }
+            },
             other => feature_error!(
                 self,
                 Location::Unknown,

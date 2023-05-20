@@ -8,7 +8,7 @@ fn exec_addition_ok() -> Result<(), ()> {
 
 #[test]
 fn exec_advanced_type_spec() -> Result<(), ()> {
-    expect_success("tests/should_ok/advanced_type_spec.er", 3)
+    expect_success("tests/should_ok/advanced_type_spec.er", 5)
 }
 
 #[test]
@@ -330,6 +330,11 @@ fn exec_structural_err() -> Result<(), ()> {
 #[test]
 fn exec_subtyping_err() -> Result<(), ()> {
     expect_failure("tests/should_err/subtyping.er", 0, 13)
+}
+
+#[test]
+fn exec_tuple_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/tuple.er", 0, 1)
 }
 
 #[test]

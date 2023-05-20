@@ -11,7 +11,6 @@ use erg_common::traits::Locational;
 use erg_common::Str;
 use erg_parser::ast::VarName;
 
-use crate::feature_error;
 use crate::ty::constructors::*;
 use crate::ty::free::{Constraint, HasLevel};
 use crate::ty::typaram::{TyParam, TyParamLambda};
