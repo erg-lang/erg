@@ -353,6 +353,7 @@ impl Context {
                 &mut dummy_tv_cache,
                 Normal,
                 ParamKind::NonDefault,
+                false,
             )?;
             union_pat_t = self.union(&union_pat_t, &rhs);
             arm_ts.push(rhs);

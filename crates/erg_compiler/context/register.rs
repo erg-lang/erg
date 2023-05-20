@@ -412,6 +412,7 @@ impl Context {
                     &mut TyVarCache::new(self.level, self),
                     Normal,
                     kind,
+                    false,
                 ) {
                     Ok(ty) => (ty, TyCheckErrors::empty()),
                     Err(errs) => (Type::Failure, errs),
@@ -457,6 +458,7 @@ impl Context {
                         &mut dummy_tv_cache,
                         Normal,
                         kind,
+                        false,
                     ) {
                         Ok(ty) => (ty, TyCheckErrors::empty()),
                         Err(errs) => (Type::Failure, errs),
@@ -513,6 +515,7 @@ impl Context {
                         &mut dummy_tv_cache,
                         Normal,
                         kind,
+                        false,
                     ) {
                         Ok(ty) => (ty, TyCheckErrors::empty()),
                         Err(errs) => (Type::Failure, errs),
@@ -565,6 +568,7 @@ impl Context {
                         &mut dummy_tv_cache,
                         Normal,
                         kind,
+                        false,
                     ) {
                         Ok(ty) => (ty, TyCheckErrors::empty()),
                         Err(errs) => (Type::Failure, errs),

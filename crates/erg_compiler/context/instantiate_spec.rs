@@ -251,6 +251,7 @@ impl Context {
                 &mut tmp_tv_cache,
                 mode,
                 ParamKind::NonDefault,
+                false,
             ) {
                 Ok(pt) => non_defaults.push(pt),
                 Err(es) => {
@@ -269,6 +270,7 @@ impl Context {
                 &mut tmp_tv_cache,
                 mode,
                 ParamKind::VarParams,
+                false,
             ) {
                 Ok(pt) => pt,
                 Err(es) => {
@@ -291,6 +293,7 @@ impl Context {
                 &mut tmp_tv_cache,
                 mode,
                 ParamKind::Default(default_t),
+                false,
             ) {
                 Ok(pt) => defaults.push(pt),
                 Err(es) => {
@@ -345,6 +348,7 @@ impl Context {
         tmp_tv_cache: &mut TyVarCache,
         mode: RegistrationMode,
         kind: ParamKind,
+        not_found_is_qvar: bool,
     ) -> TyCheckResult<Type> {
         let gen_free_t = || {
             let level = if mode == PreRegister {
@@ -360,7 +364,7 @@ impl Context {
                 opt_decl_t,
                 tmp_tv_cache,
                 mode,
-                false,
+                not_found_is_qvar,
             )?
         } else {
             match &sig.pat {
@@ -404,6 +408,7 @@ impl Context {
         tmp_tv_cache: &mut TyVarCache,
         mode: RegistrationMode,
         kind: ParamKind,
+        not_found_is_qvar: bool,
     ) -> TyCheckResult<ParamTy> {
         if let Some(value) = sig
             .name()
@@ -424,7 +429,14 @@ impl Context {
                 }
             }
         }
-        let t = self.instantiate_param_sig_t(sig, opt_decl_t, tmp_tv_cache, mode, kind.clone())?;
+        let t = self.instantiate_param_sig_t(
+            sig,
+            opt_decl_t,
+            tmp_tv_cache,
+            mode,
+            kind.clone(),
+            not_found_is_qvar,
+        )?;
         match (sig.inspect(), kind) {
             (Some(name), ParamKind::Default(default_t)) => {
                 Ok(ParamTy::kw_default(name.clone(), t, default_t))
@@ -957,6 +969,7 @@ impl Context {
                         tmp_tv_cache,
                         RegistrationMode::Normal,
                         ParamKind::NonDefault,
+                        not_found_is_qvar,
                     )?;
                     nd_params.push(pt);
                 }
@@ -967,6 +980,7 @@ impl Context {
                         tmp_tv_cache,
                         RegistrationMode::Normal,
                         ParamKind::VarParams,
+                        not_found_is_qvar,
                     )?;
                     Some(pt)
                 } else {
@@ -981,6 +995,7 @@ impl Context {
                         tmp_tv_cache,
                         RegistrationMode::Normal,
                         ParamKind::Default(expr.t()),
+                        not_found_is_qvar,
                     )?;
                     d_params.push(pt);
                 }

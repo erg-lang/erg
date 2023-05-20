@@ -612,6 +612,12 @@ impl Context {
             // Bool :> {1} == true
             // Bool :> {2} == false
             (l, Refinement(r)) => {
+                // Type / {S: Set(Str) | S == {"a", "b"}}
+                if let Predicate::Equal { rhs, .. } = r.pred.as_ref() {
+                    if self.subtype_of(l, &Type) && self.convert_tp_into_type(rhs.clone()).is_ok() {
+                        return true;
+                    }
+                }
                 if self.supertype_of(l, &r.t) {
                     return true;
                 }
@@ -909,7 +915,19 @@ impl Context {
                     self.eq_tp(sup_p, sub_p)
                 }
             }
-            _ => self.eq_tp(sup_p, sub_p),
+            _ => {
+                if let (Ok(sup), Ok(sub)) = (
+                    self.convert_tp_into_type(sup_p.clone()),
+                    self.convert_tp_into_type(sub_p.clone()),
+                ) {
+                    return match variance {
+                        Variance::Contravariant => self.subtype_of(&sup, &sub),
+                        Variance::Covariant => self.supertype_of(&sup, &sub),
+                        Variance::Invariant => self.same_type_of(&sup, &sub),
+                    };
+                }
+                self.eq_tp(sup_p, sub_p)
+            }
         }
     }
 

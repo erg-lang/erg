@@ -18,7 +18,7 @@ use erg_parser::token::{Token, TokenKind};
 
 use crate::ty::constructors::{
     array_t, dict_t, mono, poly, proj, proj_call, ref_, ref_mut, refinement, set_t, subr_t,
-    tuple_t, v_enum,
+    tp_enum, tuple_t, v_enum,
 };
 use crate::ty::free::{FreeTyVar, HasLevel};
 use crate::ty::typaram::{OpKind, TyParam};
@@ -485,6 +485,7 @@ impl Context {
                 &mut tmp_tv_cache,
                 RegistrationMode::Normal,
                 ParamKind::NonDefault,
+                false,
             )?;
             non_default_params.push(pt);
         }
@@ -495,6 +496,7 @@ impl Context {
                 &mut tmp_tv_cache,
                 RegistrationMode::Normal,
                 ParamKind::VarParams,
+                false,
             )?;
             Some(pt)
         } else {
@@ -509,6 +511,7 @@ impl Context {
                 &mut tmp_tv_cache,
                 RegistrationMode::Normal,
                 ParamKind::Default(expr.t()),
+                false,
             )?;
             default_params.push(pt);
         }
@@ -1292,17 +1295,45 @@ impl Context {
         }
     }
 
+    /// ```erg
+    /// TyParam::Type(Int) => Int
+    /// (Int, Str) => Tuple([Int, Str])
+    /// {x = Int; y = Int} => Type::Record({x = Int, y = Int})
+    /// {Str: Int} => Dict({Str: Int})
+    /// {1, 2} => {I: Int | I == 1 or I == 2 } (== {1, 2})
+    /// ```
     pub(crate) fn convert_tp_into_type(&self, tp: TyParam) -> Result<Type, TyParam> {
         match tp {
-            TyParam::Array(tps) => {
-                let len = tps.len();
-                let mut t = Type::Never;
+            TyParam::Tuple(tps) => {
+                let mut ts = vec![];
                 for elem_tp in tps {
-                    let elem_t = self.convert_tp_into_type(elem_tp)?;
-                    // not union
-                    t = self.union(&t, &elem_t);
+                    ts.push(self.convert_tp_into_type(elem_tp)?);
                 }
-                Ok(array_t(t, TyParam::value(len)))
+                Ok(tuple_t(ts))
+            }
+            TyParam::Set(tps) => {
+                let mut union = Type::Never;
+                for tp in tps.iter() {
+                    union = self.union(&union, &self.get_tp_t(tp).unwrap_or(Type::Obj));
+                }
+                Ok(tp_enum(union, tps))
+            }
+            TyParam::Record(rec) => {
+                let mut fields = dict! {};
+                for (name, tp) in rec {
+                    fields.insert(name, self.convert_tp_into_type(tp)?);
+                }
+                Ok(Type::Record(fields))
+            }
+            TyParam::Dict(dict) => {
+                let mut kvs = dict! {};
+                for (key, val) in dict {
+                    kvs.insert(
+                        self.convert_tp_into_type(key)?,
+                        self.convert_tp_into_type(val)?,
+                    );
+                }
+                Ok(Type::from(kvs))
             }
             TyParam::FreeVar(fv) if fv.is_linked() => self.convert_tp_into_type(fv.crack().clone()),
             TyParam::Type(t) => Ok(t.as_ref().clone()),
@@ -1361,61 +1392,77 @@ impl Context {
                 }
                 Ok(array_t(union, len))
             }
-            ValueObj::Set(set) => {
-                let len = TyParam::value(set.len());
-                let mut union = Type::Never;
-                for v in set.into_iter() {
-                    union = self.union(&union, &self.convert_value_into_type(v)?);
-                }
-                Ok(set_t(union, len))
-            }
+            ValueObj::Set(set) => Ok(v_enum(set)),
             ValueObj::Subr(subr) => subr.as_type(self).ok_or(ValueObj::Subr(subr)),
             other => Err(other),
         }
     }
 
-    pub(crate) fn convert_value_into_tp(value: ValueObj) -> Result<TyParam, ValueObj> {
+    /// * Ok if `value` can be upcast to `TyParam`
+    /// * Err if it is simply converted to `TyParam::Value(value)`
+    pub(crate) fn convert_value_into_tp(value: ValueObj) -> Result<TyParam, TyParam> {
         match value {
             ValueObj::Type(t) => Ok(TyParam::t(t.into_typ())),
             ValueObj::Array(arr) => {
                 let mut new_arr = vec![];
                 for v in arr.iter().cloned() {
-                    new_arr.push(Self::convert_value_into_tp(v)?);
+                    let tp = match Self::convert_value_into_tp(v) {
+                        Ok(tp) => tp,
+                        Err(tp) => tp,
+                    };
+                    new_arr.push(tp);
                 }
                 Ok(TyParam::Array(new_arr))
             }
-            ValueObj::Tuple(ts) => {
+            ValueObj::Tuple(vs) => {
                 let mut new_ts = vec![];
-                for v in ts.iter().cloned() {
-                    new_ts.push(Self::convert_value_into_tp(v)?);
+                for v in vs.iter().cloned() {
+                    let tp = match Self::convert_value_into_tp(v) {
+                        Ok(tp) => tp,
+                        Err(tp) => tp,
+                    };
+                    new_ts.push(tp);
                 }
                 Ok(TyParam::Tuple(new_ts))
             }
             ValueObj::Dict(dict) => {
                 let mut new_dict = dict! {};
                 for (k, v) in dict.into_iter() {
-                    new_dict.insert(
-                        Self::convert_value_into_tp(k)?,
-                        Self::convert_value_into_tp(v)?,
-                    );
+                    let k = match Self::convert_value_into_tp(k) {
+                        Ok(tp) => tp,
+                        Err(tp) => tp,
+                    };
+                    let v = match Self::convert_value_into_tp(v) {
+                        Ok(tp) => tp,
+                        Err(tp) => tp,
+                    };
+                    new_dict.insert(k, v);
                 }
                 Ok(TyParam::Dict(new_dict))
             }
             ValueObj::Set(set) => {
                 let mut new_set = set! {};
                 for v in set.into_iter() {
-                    new_set.insert(Self::convert_value_into_tp(v)?);
+                    let tp = match Self::convert_value_into_tp(v) {
+                        Ok(tp) => tp,
+                        Err(tp) => tp,
+                    };
+                    new_set.insert(tp);
                 }
                 Ok(TyParam::Set(new_set))
             }
             ValueObj::Record(rec) => {
                 let mut new_rec = dict! {};
                 for (k, v) in rec.into_iter() {
-                    new_rec.insert(k, Self::convert_value_into_tp(v)?);
+                    let v = match Self::convert_value_into_tp(v) {
+                        Ok(tp) => tp,
+                        Err(tp) => tp,
+                    };
+                    new_rec.insert(k, v);
                 }
                 Ok(TyParam::Record(new_rec))
             }
-            _ => Err(value),
+            _ => Err(TyParam::Value(value)),
         }
     }
 
@@ -2001,6 +2048,20 @@ impl Context {
             }
             (TyParam::Erased(t), _) => t.as_ref() == &self.get_tp_t(rhs).unwrap(),
             (_, TyParam::Erased(t)) => t.as_ref() == &self.get_tp_t(lhs).unwrap(),
+            (TyParam::Value(v), _) => {
+                if let Ok(tp) = Self::convert_value_into_tp(v.clone()) {
+                    self.shallow_eq_tp(&tp, rhs)
+                } else {
+                    false
+                }
+            }
+            (_, TyParam::Value(v)) => {
+                if let Ok(tp) = Self::convert_value_into_tp(v.clone()) {
+                    self.shallow_eq_tp(lhs, &tp)
+                } else {
+                    false
+                }
+            }
             (l, r) => {
                 log!(err "l: {l}, r: {r}");
                 l == r
