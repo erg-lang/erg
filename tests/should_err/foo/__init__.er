@@ -1,1 +1,2 @@
 .bar = import "./bar"
+.quux = import "./quux"

@@ -1793,12 +1793,12 @@ impl Context {
         }
     }
 
-    fn import_err(&self, __name__: &Str, loc: &impl Locational) -> TyCheckErrors {
+    fn import_err(&self, line: u32, __name__: &Str, loc: &impl Locational) -> TyCheckErrors {
         let mod_cache = self.mod_cache();
         let py_mod_cache = self.py_mod_cache();
         TyCheckErrors::from(TyCheckError::import_error(
             self.cfg.input.clone(),
-            line!() as usize,
+            line as usize,
             format!("module {__name__} not found"),
             loc.loc(),
             self.caused_by(),
@@ -1813,7 +1813,7 @@ impl Context {
         let path = match self.cfg.input.resolve_real_path(Path::new(&__name__[..])) {
             Some(path) => path,
             None => {
-                return Err(self.import_err(__name__, loc));
+                return Err(self.import_err(line!(), __name__, loc));
             }
         };
         self.check_mod_vis(path.as_path(), __name__, loc)?;
@@ -1834,8 +1834,14 @@ impl Context {
         __name__: &Str,
         loc: &impl Locational,
     ) -> CompileResult<()> {
-        if let Some(parent) = path.parent() {
-            if FileKind::from(path).is_simple_erg_file() && DirKind::from(parent).is_erg_module() {
+        let file_kind = FileKind::from(path);
+        let parent = if file_kind.is_init_er() {
+            path.parent().and_then(|p| p.parent())
+        } else {
+            path.parent()
+        };
+        if let Some(parent) = parent {
+            if DirKind::from(parent).is_erg_module() {
                 let parent = parent.join("__init__.er");
                 let parent_module = if let Some(parent) = self.get_mod_with_path(&parent) {
                     Some(parent)
@@ -1845,10 +1851,10 @@ impl Context {
                     self.get_mod_with_path(&parent)
                 };
                 if let Some(parent_module) = parent_module {
-                    let import_err = || {
+                    let import_err = |line| {
                         TyCheckErrors::from(TyCheckError::import_error(
                             self.cfg.input.clone(),
-                            line!() as usize,
+                            line as usize,
                             format!("module `{__name__}` is not public"),
                             loc.loc(),
                             self.caused_by(),
@@ -1856,13 +1862,18 @@ impl Context {
                             None,
                         ))
                     };
-                    let mod_name = path.file_stem().unwrap_or_default().to_string_lossy();
+                    let file_stem = if file_kind.is_init_er() {
+                        path.parent().unwrap().file_stem()
+                    } else {
+                        path.file_stem()
+                    };
+                    let mod_name = file_stem.unwrap_or_default().to_string_lossy();
                     if let Some((_, vi)) = parent_module.get_var_info(&mod_name) {
                         if !vi.vis.compatible(&ast::AccessModifier::Public, self) {
-                            return Err(import_err());
+                            return Err(import_err(line!()));
                         }
                     } else {
-                        return Err(import_err());
+                        return Err(import_err(line!()));
                     }
                 }
             }
@@ -1881,7 +1892,7 @@ impl Context {
         let src = cfg
             .input
             .try_read()
-            .map_err(|_| self.import_err(__name__, loc))?;
+            .map_err(|_| self.import_err(line!(), __name__, loc))?;
         let mut builder =
             HIRBuilder::new_with_cache(cfg, __name__, self.shared.as_ref().unwrap().clone());
         match builder.build(src, "exec") {
@@ -2040,7 +2051,7 @@ impl Context {
         let src = cfg
             .input
             .try_read()
-            .map_err(|_| self.import_err(__name__, loc))?;
+            .map_err(|_| self.import_err(line!(), __name__, loc))?;
         let mut builder = HIRBuilder::new_with_cache(
             cfg,
             self.mod_name(&path),

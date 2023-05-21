@@ -441,16 +441,16 @@ impl Input {
     }
 
     /// resolution order:
-    /// 1. `{path}.er`
-    /// 2. `{path}/__init__.er`
+    /// 1. `{path/to}.er`
+    /// 2. `{path/to}/__init__.er`
     fn resolve_local(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
         let mut dir = self.dir();
         dir.push(path);
-        dir.set_extension("er"); // {path}.er
+        dir.set_extension("er"); // {path/to}.er
         let path = dir.canonicalize().or_else(|_| {
-            dir.pop();
-            dir.push(path);
-            dir.push("__init__.er"); // -> {path}/__init__.er
+            dir.pop(); // {path}
+            dir.push(path.iter().last().unwrap_or_default()); // {path/to}
+            dir.push("__init__.er"); // -> {path/to}/__init__.er
             dir.canonicalize()
         })?;
         Ok(normalize_path(path))
@@ -464,10 +464,10 @@ impl Input {
     }
 
     /// resolution order:
-    /// 1. `{path}.d.er`
-    /// 2. `{path}/__init__.d.er`
-    /// 3. `__pycache__/{path}.d.er`
-    /// 4. `{path}/__pycache__/__init__.d.er`
+    /// 1. `{path/to}.d.er`
+    /// 2. `{path/to}/__init__.d.er`
+    /// 3. `{path}/__pycache__/{to}.d.er`
+    /// 4. `{path/to}/__pycache__/__init__.d.er`
     fn _resolve_local_decl(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
         let mut dir = self.dir();
         let mut comps = path.components();
@@ -477,29 +477,29 @@ impl Input {
         let last_path = Path::new(&last);
         dir.push(comps);
         dir.push(last_path);
-        dir.set_extension("d.er"); // {path}.d.er
+        dir.set_extension("d.er"); // {path/to}.d.er
         let path = dir
             .canonicalize()
             .or_else(|_| {
-                dir.pop(); // {path}.d.er -> ./
-                dir.push(last_path); // -> {path}
-                dir.push("__init__.d.er"); // -> {path}/__init__.d.er
+                dir.pop(); // {path/to}.d.er -> {path}
+                dir.push(last_path); // -> {path/to}
+                dir.push("__init__.d.er"); // -> {path/to}/__init__.d.er
                 dir.canonicalize()
             })
             .or_else(|_| {
+                dir.pop(); // -> {path/to}
                 dir.pop(); // -> {path}
-                dir.pop(); // -> ./
-                dir.push("__pycache__");
-                dir.push(last_path);
-                dir.set_extension("d.er"); // -> __pycache__/{path}.d.er
+                dir.push("__pycache__"); // -> {path}/__pycache__
+                dir.push(last_path); // -> {path}/__pycache__/{to}
+                dir.set_extension("d.er"); // -> {path}/__pycache__/{to}.d.er
                 dir.canonicalize()
             })
             .or_else(|_| {
-                dir.pop(); // -> __pycache__
-                dir.pop(); // -> ./
-                dir.push(last_path); // -> {path}
-                dir.push("__pycache__"); // -> {path}/__pycache__
-                dir.push("__init__.d.er"); // -> {path}/__pycache__/__init__.d.er
+                dir.pop(); // -> {path}/__pycache__
+                dir.pop(); // -> {path}
+                dir.push(last_path); // -> {path/to}
+                dir.push("__pycache__"); // -> {path/to}/__pycache__
+                dir.push("__init__.d.er"); // -> {path/to}/__pycache__/__init__.d.er
                 dir.canonicalize()
             })?;
         Ok(normalize_path(path))
@@ -551,10 +551,10 @@ impl Input {
     }
 
     /// resolution order:
-    /// 1. `./{path}.er`
-    /// 2. `./{path}/__init__.er`
-    /// 3. `std/{path}.er`
-    /// 4. `std/{path}/__init__.er`
+    /// 1. `./{path/to}.er`
+    /// 2. `./{path/to}/__init__.er`
+    /// 3. `std/{path/to}.er`
+    /// 4. `std/{path/to}/__init__.er`
     pub fn resolve_real_path(&self, path: &Path) -> Option<PathBuf> {
         if let Ok(path) = self.resolve_local(path) {
             Some(path)
@@ -575,16 +575,16 @@ impl Input {
     }
 
     /// resolution order:
-    /// 1.  `{path}.d.er`
-    /// 2.  `{path}/__init__.d.er`
-    /// 3.  `__pycache__/{path}.d.er`
-    /// 4.  `{path}/__pycache__/__init__.d.er`
-    /// 5.  `{path}.d/__init__.d.er`
-    /// 6.  `{path}.d/__pycache__/__init__.d.er`
-    /// 7.  `std/{path}.d.er`
-    /// 8.  `std/{path}/__init__.d.er`
-    /// 9.  `site-packages/__pycache__/{path}.d.er`
-    /// 10. `site-packages/{path}/__pycache__/__init__.d.er`
+    /// 1.  `{path/to}.d.er`
+    /// 2.  `{path/to}/__init__.d.er`
+    /// 3.  `{path}/__pycache__/{to}.d.er`
+    /// 4.  `{path/to}/__pycache__/__init__.d.er`
+    /// 5.  `{path.d/to.d}/__init__.d.er`
+    /// 6.  `{path.d/to.d}/__pycache__/__init__.d.er`
+    /// 7.  `std/{path/to}.d.er`
+    /// 8.  `std/{path/to}/__init__.d.er`
+    /// 9.  `site-packages/{path}/__pycache__/{to}.d.er`
+    /// 10. `site-packages/{path/to}/__pycache__/__init__.d.er`
     pub fn resolve_decl_path(&self, path: &Path) -> Option<PathBuf> {
         if let Ok(path) = self.resolve_local_decl(path) {
             Some(path)
