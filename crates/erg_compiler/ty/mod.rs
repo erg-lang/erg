@@ -865,6 +865,7 @@ pub enum Type {
     Nat,
     Ratio,
     Float,
+    Imag,
     Complex,
     Bool,
     Str,
@@ -948,6 +949,7 @@ impl PartialEq for Type {
         }
         match (self, other) {
             (Self::Obj, Self::Obj)
+            | (Self::Imag, Self::Imag)
             | (Self::Complex, Self::Complex)
             | (Self::Float, Self::Float)
             | (Self::Ratio, Self::Ratio)
@@ -2378,8 +2380,9 @@ impl Type {
             Self::Int => Str::ever("Int"),
             Self::Nat => Str::ever("Nat"),
             Self::Ratio => Str::ever("Ratio"),
-            Self::Float => Str::ever("Float"),
+            Self::Imag => Str::ever("Imag"),
             Self::Complex => Str::ever("Complex"),
+            Self::Float => Str::ever("Float"),
             Self::Bool => Str::ever("Bool"),
             Self::Str => Str::ever("Str"),
             Self::NoneType => Str::ever("NoneType"),

@@ -3,6 +3,7 @@ use std::fmt;
 use std::path::PathBuf;
 
 pub mod cache;
+pub mod complex;
 pub mod config;
 pub mod consts;
 pub mod datetime;
@@ -13,6 +14,7 @@ pub mod error;
 pub mod fresh;
 pub mod fxhash;
 pub mod help_messages;
+pub mod imag;
 pub mod io;
 pub mod lang;
 pub mod levenshtein;

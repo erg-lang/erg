@@ -786,6 +786,7 @@ impl Lexer /*<'a>*/ {
             "None" => NoneLit,
             "Ellipsis" => EllipsisLit,
             "Inf" => InfLit,
+            "im" => ImLit,
             "_" => UBar,
             _ => Symbol,
         };

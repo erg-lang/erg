@@ -77,13 +77,7 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(REAL),
         );
-        complex.register_builtin_py_impl(
-            IMAG,
-            Ratio,
-            Const,
-            Visibility::BUILTIN_PUBLIC,
-            Some(IMAG),
-        );
+        complex.register_builtin_py_impl(IMAG, Imag, Const, Visibility::BUILTIN_PUBLIC, Some(IMAG));
         complex.register_builtin_py_impl(
             FUNC_CONJUGATE,
             fn0_met(Complex, Complex),
@@ -91,12 +85,7 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_CONJUGATE),
         );
-        let t = func(
-            vec![],
-            None,
-            vec![kw(REAL, Ratio), kw(IMAG, Ratio)],
-            Complex,
-        );
+        let t = func(vec![], None, vec![kw(REAL, Ratio), kw(IMAG, Imag)], Complex);
         complex.register_builtin_py_impl(
             FUNDAMENTAL_CALL,
             t,

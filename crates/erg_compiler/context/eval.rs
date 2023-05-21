@@ -58,6 +58,8 @@ pub fn type_from_token_kind(kind: TokenKind) -> Type {
         NatLit | BinLit | OctLit | HexLit => Type::Nat,
         IntLit => Type::Int,
         RatioLit => Type::Ratio,
+        ImLit => Type::Imag,
+        ComplexLit => Type::Complex,
         StrLit | DocComment => Type::Str,
         BoolLit => Type::Bool,
         NoneLit => Type::NoneType,
