@@ -1,6 +1,6 @@
 use std::cmp::Ordering::{self, Equal, Greater, Less};
 use std::fmt::Display;
-use std::ops::{Add, Div, Mul, Rem, Sub};
+use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
 
 #[derive(Debug, Eq, PartialEq, Clone, Copy, Hash)]
 pub struct Ratio {
@@ -12,7 +12,7 @@ impl Ratio {
     #[inline]
     pub fn new(numer: i64, denom: i64) -> Self {
         if numer == 0 {
-            return Self::zero();
+            return Self::int_new(0);
         }
         if denom == 0 {
             panic!("Zero is an invalid denominator!");
@@ -26,8 +26,8 @@ impl Ratio {
     }
 
     #[inline]
-    pub fn zero() -> Self {
-        Self { numer: 0, denom: 1 }
+    pub fn int_new(n: i64) -> Self {
+        Self { numer: n, denom: 1 }
     }
 
     const EPSILON: f64 = 1e-10;
@@ -36,7 +36,7 @@ impl Ratio {
         let mut f = f;
         let mut minus = false;
         match f.partial_cmp(&0f64) {
-            Some(Equal) => return Ratio::zero(),
+            Some(Equal) => return Ratio::int_new(0),
             Some(Less) => {
                 minus = true;
                 f *= -1.0;
@@ -90,7 +90,7 @@ impl Ratio {
 
     #[inline]
     pub fn floor(&self) -> Self {
-        if *self < Ratio::zero() {
+        if *self < Ratio::int_new(0) {
             Ratio::new((self.numer - self.denom + 1) / self.denom, 1)
         } else {
             Ratio::new(self.numer / self.denom, 1)
@@ -99,7 +99,7 @@ impl Ratio {
 
     #[inline]
     pub fn ceil(&self) -> Self {
-        if *self < Ratio::zero() {
+        if *self < Ratio::int_new(0) {
             Ratio::new(self.numer / self.denom, 1)
         } else {
             Ratio::new((self.numer + self.denom - 1) / self.denom, 1)
@@ -150,8 +150,8 @@ impl Div for Ratio {
     type Output = Self;
 
     fn div(self, rhs: Self) -> Self::Output {
-        let numer = self.numer / rhs.denom;
-        let denom = self.denom / rhs.numer;
+        let numer = self.numer * rhs.denom;
+        let denom = self.denom * rhs.numer;
         Self::new(numer, denom)
     }
 }
@@ -163,6 +163,13 @@ impl Rem for Ratio {
         let sd = self.denom;
         let od = rhs.denom;
         Ratio::new((self.numer * od) % (rhs.numer * sd), sd * od)
+    }
+}
+
+impl Neg for Ratio {
+    type Output = Self;
+    fn neg(self) -> Self::Output {
+        Ratio::new(-self.numer(), self.denom())
     }
 }
 
@@ -194,7 +201,7 @@ impl PartialOrd for Ratio {
 
 impl Display for Ratio {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}, {}", self.numer, self.denom)
+        write!(f, "{}", self.numer / self.denom)
     }
 }
 
@@ -278,10 +285,10 @@ mod test {
         assert_eq!(Ratio::new(12, 1), a + b);
         let a = Ratio::new(1, 1);
         let b = Ratio::new(1, -1);
-        assert_eq!(Ratio::zero(), a + b);
+        assert_eq!(Ratio::int_new(0), a + b);
         let a = Ratio::new(1, 1);
         let b = Ratio::new(-1, 1);
-        assert_eq!(Ratio::zero(), a + b);
+        assert_eq!(Ratio::int_new(0), a + b);
     }
 
     #[test]
@@ -291,7 +298,7 @@ mod test {
         assert_eq!(Ratio::new(-8, 1), a - b);
         let a = Ratio::new(1, 1);
         let b = Ratio::new(1, 1);
-        assert_eq!(Ratio::zero(), a - b);
+        assert_eq!(Ratio::int_new(0), a - b);
     }
 
     #[test]
@@ -306,11 +313,11 @@ mod test {
 
     #[test]
     fn test_rational_div() {
-        let a = Ratio::new(2, 1);
-        let b = Ratio::new(10, 1);
+        let a = Ratio::int_new(2);
+        let b = Ratio::int_new(10);
         assert_eq!(Ratio::new(1, 5), a / b);
-        let a = Ratio::new(2, 1);
-        let b = Ratio::new(2, 1);
+        let a = Ratio::int_new(2);
+        let b = Ratio::int_new(2);
         assert_eq!(Ratio::new(1, 1), a / b);
     }
 
@@ -372,7 +379,7 @@ mod test {
     fn test_rem() {
         let a = Ratio::float_new(100.0, None);
         let b = Ratio::float_new(20.0, None);
-        assert_eq!(Ratio::zero(), a % b);
+        assert_eq!(Ratio::int_new(0), a % b);
         let a = Ratio::float_new(3.0, None);
         let b = Ratio::float_new(2.0, None);
         assert_eq!(Ratio::new(1, 1), a % b);
