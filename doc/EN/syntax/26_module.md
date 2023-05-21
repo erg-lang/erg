@@ -42,12 +42,19 @@ Now the `bar` directory is recognized as a module. If the only file in `bar` is 
 └─┬ bar
   ├─ __init__.er
   ├─ baz.er
-  └─ qux.er
+  └─┬ qux
+    └─ __init__.er
+```
+
+```python
+# bar/__init__.er
+.baz = import "./baz"
+.qux = import "./qux"
 ```
 
 From outside the `bar` directory, you can use like the following.
 
-```erg
+```python
 bar = import "bar"
 
 bar.baz.p!()
@@ -55,11 +62,12 @@ bar.qux.p!()
 ```
 
 `__init__.er` is not just a marker that makes a directory as a module, it also controls the visibility of the module.
+Unlike Python, Erg modules are not importable by default.
 
-```erg
+```python
 # __init__.er
 
-# `. /` points to the current directory. It can be omitted
+# `./` points to the current directory. It can be omitted
 .baz = import ". /baz"
 qux = import ". /qux"
 

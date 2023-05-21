@@ -50,7 +50,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                                 if let Some(path) = self
                                     .get_local_ctx(&uri, pos)
                                     .first()
-                                    .and_then(|ctx| ctx.get_path_from_mod_t(&vi.t))
+                                    .and_then(|ctx| ctx.get_path_with_mod_t(&vi.t))
                                 {
                                     let mod_uri = Url::from_file_path(path).unwrap();
                                     let resp = GotoDefinitionResponse::Array(vec![
@@ -67,7 +67,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                                 if let Some((_, vi)) = self
                                     .get_local_ctx(&uri, pos)
                                     .first()
-                                    .and_then(|ctx| ctx.get_mod_from_t(mod_t))
+                                    .and_then(|ctx| ctx.get_mod_with_t(mod_t))
                                     .and_then(|mod_ctx| mod_ctx.get_var_info(token.inspect()))
                                 {
                                     let def_uri =

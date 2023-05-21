@@ -284,6 +284,11 @@ fn exec_impl_err() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_import_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/import.er", 0, 2)
+}
+
+#[test]
 fn exec_infer_union_array() -> Result<(), ()> {
     expect_failure("tests/should_err/infer_union_array.er", 2, 1)
 }

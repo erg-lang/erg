@@ -44,7 +44,14 @@ assert foo.i == 1
 └─┬ bar
   ├─ __init__.er
   ├─ baz.er
-  └─ qux.er
+  └─┬ qux
+    └─ __init__.er
+```
+
+```python
+# bar/__init__.er
+.baz = import "./baz"
+.qux = import "./qux"
 ```
 
 `bar`ディレクトリの外側からは以下のようにして使用できます。
@@ -57,6 +64,7 @@ bar.qux.p!()
 ```
 
 `__init__.er`は単にディレクトリをモジュールとして機能させるだけのマーカーではなく、モジュールの可視性を制御する役割も持ちます。
+Pythonとは違い、Ergのモジュールはデフォルトではインポートできないようになっています。
 
 ```python
 # __init__.er

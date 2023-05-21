@@ -10,6 +10,7 @@ use erg_common::consts::PYTHON_MODE;
 use erg_common::env::is_pystd_main_module;
 use erg_common::erg_util::BUILTIN_ERG_MODS;
 use erg_common::levenshtein::get_similar_name;
+use erg_common::pathutil::{DirKind, FileKind};
 use erg_common::python_util::BUILTIN_PYTHON_MODS;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
@@ -931,7 +932,9 @@ impl Context {
         let Ok(mod_name) = hir::Literal::try_from(mod_name.token.clone()) else {
             return Ok(());
         };
-        let res = self.import_mod(call.additional_operation().unwrap(), &mod_name);
+        let res = self
+            .import_mod(call.additional_operation().unwrap(), &mod_name)
+            .map(|_path| ());
         let arg = TyParam::Value(ValueObj::Str(
             mod_name.token.content.replace('\"', "").into(),
         ));
@@ -946,14 +949,14 @@ impl Context {
                 params: vec![arg],
             }
         };
-        let Some(ident) = def.sig.ident() else { return Ok(()) };
+        let Some(ident) = def.sig.ident() else { return res };
         let Some((_, vi)) = self.get_var_info(ident.inspect()) else {
-            return Ok(());
+            return res;
         };
         if let Some(_fv) = vi.t.as_free() {
             vi.t.link(&typ);
         }
-        res.map(|_| ())
+        res
     }
 
     pub(crate) fn preregister_def(&mut self, def: &ast::Def) -> TyCheckResult<()> {
@@ -1807,24 +1810,73 @@ impl Context {
     }
 
     fn import_erg_mod(&self, __name__: &Str, loc: &impl Locational) -> CompileResult<PathBuf> {
-        let mod_cache = self.mod_cache();
         let path = match self.cfg.input.resolve_real_path(Path::new(&__name__[..])) {
             Some(path) => path,
             None => {
                 return Err(self.import_err(__name__, loc));
             }
         };
-        // module itself
-        if self.cfg.input.path() == Some(path.as_path()) {
-            return Ok(path);
-        }
+        self.check_mod_vis(path.as_path(), __name__, loc)?;
         if let Some(referrer) = self.cfg.input.path() {
             let graph = &self.shared.as_ref().unwrap().graph;
             graph.inc_ref(referrer, path.clone());
         }
-        if mod_cache.get(&path).is_some() {
+        if self.get_mod_with_path(&path).is_some() {
             return Ok(path);
         }
+        self.build_erg_mod(path, __name__, loc)
+    }
+
+    /// If the path is like `foo/bar`, check if `bar` is a public module (the definition is in `foo/__init__.er`)
+    fn check_mod_vis(
+        &self,
+        path: &Path,
+        __name__: &Str,
+        loc: &impl Locational,
+    ) -> CompileResult<()> {
+        if let Some(parent) = path.parent() {
+            if FileKind::from(path).is_simple_erg_file() && DirKind::from(parent).is_erg_module() {
+                let parent = parent.join("__init__.er");
+                let parent_module = if let Some(parent) = self.get_mod_with_path(&parent) {
+                    Some(parent)
+                } else {
+                    // TODO: This error should not be discarded, but the later processing should also continue while generating the error
+                    self.build_erg_mod(parent.clone(), __name__, loc)?;
+                    self.get_mod_with_path(&parent)
+                };
+                if let Some(parent_module) = parent_module {
+                    let import_err = || {
+                        TyCheckErrors::from(TyCheckError::import_error(
+                            self.cfg.input.clone(),
+                            line!() as usize,
+                            format!("module `{__name__}` is not public"),
+                            loc.loc(),
+                            self.caused_by(),
+                            None,
+                            None,
+                        ))
+                    };
+                    let mod_name = path.file_stem().unwrap_or_default().to_string_lossy();
+                    if let Some((_, vi)) = parent_module.get_var_info(&mod_name) {
+                        if !vi.vis.compatible(&ast::AccessModifier::Public, self) {
+                            return Err(import_err());
+                        }
+                    } else {
+                        return Err(import_err());
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn build_erg_mod(
+        &self,
+        path: PathBuf,
+        __name__: &Str,
+        loc: &impl Locational,
+    ) -> CompileResult<PathBuf> {
+        let mod_cache = self.mod_cache();
         let mut cfg = self.cfg.inherit(path.clone());
         let src = cfg
             .input
@@ -1839,15 +1891,15 @@ impl Context {
                     Some(artifact.object),
                     builder.pop_mod_ctx().unwrap(),
                 );
+                Ok(path)
             }
             Err(artifact) => {
                 if let Some(hir) = artifact.object {
                     mod_cache.register(path, Some(hir), builder.pop_mod_ctx().unwrap());
                 }
-                return Err(artifact.errors);
+                Err(artifact.errors)
             }
         }
-        Ok(path)
     }
 
     fn similar_builtin_py_mod_name(&self, name: &Str) -> Option<Str> {
@@ -1974,6 +2026,16 @@ impl Context {
         if py_mod_cache.get(&path).is_some() {
             return Ok(path);
         }
+        self.build_decl_mod(path, __name__, loc)
+    }
+
+    fn build_decl_mod(
+        &self,
+        path: PathBuf,
+        __name__: &Str,
+        loc: &impl Locational,
+    ) -> CompileResult<PathBuf> {
+        let py_mod_cache = self.py_mod_cache();
         let mut cfg = self.cfg.inherit(path.clone());
         let src = cfg
             .input
@@ -1988,15 +2050,15 @@ impl Context {
             Ok(artifact) => {
                 let ctx = builder.pop_mod_ctx().unwrap();
                 py_mod_cache.register(path.clone(), Some(artifact.object), ctx);
+                Ok(path)
             }
             Err(artifact) => {
                 if let Some(hir) = artifact.object {
                     py_mod_cache.register(path, Some(hir), builder.pop_mod_ctx().unwrap());
                 }
-                return Err(artifact.errors);
+                Err(artifact.errors)
             }
         }
-        Ok(path)
     }
 
     pub fn del(&mut self, ident: &hir::Identifier) -> CompileResult<()> {

@@ -1,0 +1,4 @@
+_ = import "foo" # OK
+_ = import "foo/bar" # OK
+_ = import "foo/baz" # ERR
+_ = import "foo/qux" # ERR
