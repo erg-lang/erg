@@ -1522,7 +1522,12 @@ impl ValueObj {
     pub fn try_div(self, other: Self) -> Option<Self> {
         match (self, other) {
             /* nat */
-            (Self::Nat(l), Self::Nat(r)) => Some(Self::Nat(l + r)),
+            (Self::Nat(l), Self::Nat(r)) => {
+                // TODO: Check if l and r are greater then max value of i64
+                Some(Self::Ratio(
+                    Ratio::int_new(l as i64) / Ratio::int_new(r as i64),
+                ))
+            }
             /* Int */
             (Self::Int(l), Self::Int(r)) => Some(Self::Ratio(Ratio::new(l as i64, r as i64))),
             (Self::Int(l), Self::Nat(r)) => Some(Self::Ratio(Ratio::new(l as i64, r as i64))),
@@ -1533,6 +1538,33 @@ impl ValueObj {
             (Self::Ratio(l), Self::Nat(r)) => Some(Self::Ratio(l / Ratio::new(r as i64, 1))),
             (Self::Int(l), Self::Ratio(r)) => Some(Self::Ratio(Ratio::new(l as i64, 1) / r)),
             (Self::Nat(l), Self::Ratio(r)) => Some(Self::Ratio(Ratio::new(l as i64, 1) / r)),
+            /* Imag */
+            /* Complex */
+            /* Float */
+            (Self::Float(l), Self::Float(r)) => Some(Self::Float(l / r)),
+            (Self::Float(l), Self::Nat(r)) => Some(Self::Float(l / r as f64)),
+            (Self::Nat(l), Self::Float(r)) => Some(Self::from(l as f64 / r)),
+            (Self::Float(l), Self::Int(r)) => Some(Self::from(l / r as f64)),
+            (Self::Int(l), Self::Float(r)) => Some(Self::from(l as f64 / r)),
+            // TODO: x/±Inf = 0
+            _ => None,
+        }
+    }
+
+    pub fn try_floordiv(self, other: Self) -> Option<Self> {
+        match (self, other) {
+            /* Nat */
+            (Self::Nat(l), Self::Nat(r)) => Some(Self::Nat(l / r)),
+            /* Int */
+            (Self::Int(l), Self::Int(r)) => Some(Self::Int(l / r)),
+            (Self::Int(l), Self::Nat(r)) => Some(Self::Int(l / r as i32)),
+            (Self::Nat(l), Self::Int(r)) => Some(Self::Int(l as i32 / r)),
+            /* Ratio */
+            (Self::Ratio(l), Self::Ratio(r)) => Some(Self::Ratio(l / r)),
+            (Self::Ratio(l), Self::Int(r)) => Some(Self::Ratio(l / Ratio::int_new(r as i64))),
+            (Self::Ratio(l), Self::Nat(r)) => Some(Self::Ratio(l / Ratio::int_new(r as i64))),
+            (Self::Int(l), Self::Ratio(r)) => Some(Self::Ratio(Ratio::int_new(l as i64) / r)),
+            (Self::Nat(l), Self::Ratio(r)) => Some(Self::Ratio(Ratio::int_new(l as i64) / r)),
             /* Imag */
             (Self::Imag(l), Self::Imag(r)) => Some(Self::Ratio(l / r)),
             (Self::Imag(l), Self::Ratio(r)) => Some(Self::Imag(l.ratio_mul(r))),
@@ -1555,28 +1587,6 @@ impl ValueObj {
             (Self::Nat(l), Self::Complex(r)) => {
                 Some(Self::Complex(Complex::int_new(l as i64, 1) / r))
             }
-            /* Float */
-            (Self::Float(l), Self::Float(r)) => Some(Self::Float(l / r)),
-            (Self::Float(l), Self::Nat(r)) => Some(Self::Float(l / r as f64)),
-            (Self::Nat(l), Self::Float(r)) => Some(Self::from(l as f64 / r)),
-            (Self::Float(l), Self::Int(r)) => Some(Self::from(l / r as f64)),
-            (Self::Int(l), Self::Float(r)) => Some(Self::from(l as f64 / r)),
-            // TODO: x/±Inf = 0
-            _ => None,
-        }
-    }
-
-    pub fn try_floordiv(self, other: Self) -> Option<Self> {
-        match (self, other) {
-            /* Nat */
-            (Self::Nat(l), Self::Nat(r)) => Some(Self::Nat(l / r)),
-            /* Int */
-            (Self::Int(l), Self::Int(r)) => Some(Self::Int(l / r)),
-            (Self::Int(l), Self::Nat(r)) => Some(Self::Int(l / r as i32)),
-            (Self::Nat(l), Self::Int(r)) => Some(Self::Int(l as i32 / r)),
-            /* Ratio */
-            /* Imag */
-            /* Complex */
             /* Float */
             (Self::Float(l), Self::Float(r)) => Some(Self::Float((l / r).floor())),
             (Self::Float(l), Self::Nat(r)) => Some(Self::Float((l / r as f64).floor())),
@@ -1603,7 +1613,36 @@ impl ValueObj {
             (Self::Int(l), Self::Ratio(r)) => Some(Self::from(Ratio::int_new(l as i64) > r)),
             (Self::Nat(l), Self::Ratio(r)) => Some(Self::from(Ratio::int_new(l as i64) > r)),
             /* Imag */
+            (Self::Imag(l), Self::Imag(r)) => Some(Self::from(l > r)),
             /* Complex */
+            (Self::Complex(l), Self::Imag(r)) => {
+                // It is possible to compare when only imaginary number exits
+                if l.re() != Ratio::int_new(0) {
+                    return None;
+                }
+                Some(Self::from(l.im() > r.coefficient()))
+            }
+            (Self::Complex(l), Self::Ratio(r)) => {
+                // It is possible to compare when only real number exits
+                if l.im() != Ratio::int_new(0) {
+                    return None;
+                }
+                Some(Self::from(l.re() > r))
+            }
+            (Self::Complex(l), Self::Int(r)) => {
+                // It is possible to compare when only real number exits
+                if l.im() != Ratio::int_new(0) {
+                    return None;
+                }
+                Some(Self::from(l.re() > Ratio::int_new(r as i64)))
+            }
+            (Self::Complex(l), Self::Nat(r)) => {
+                // It is possible to compare when only real number exits
+                if l.im() != Ratio::int_new(0) {
+                    return None;
+                }
+                Some(Self::from(l.re() > Ratio::int_new(r as i64)))
+            }
             /* Float */
             (Self::Float(l), Self::Float(r)) => Some(Self::from(l > r)),
             (Self::Float(l), Self::Ratio(r)) => Some(Self::from(l > r.to_float())),
@@ -1630,6 +1669,37 @@ impl ValueObj {
             (Self::Ratio(l), Self::Nat(r)) => Some(Self::from(l >= Ratio::new(r as i64, 1))),
             (Self::Int(l), Self::Ratio(r)) => Some(Self::from(Ratio::new(l as i64, 1) >= r)),
             (Self::Nat(l), Self::Ratio(r)) => Some(Self::from(Ratio::new(l as i64, 1) >= r)),
+            /* Imag */
+            (Self::Imag(l), Self::Imag(r)) => Some(Self::from(l >= r)),
+            /* Complex */
+            (Self::Complex(l), Self::Imag(r)) => {
+                // It is possible to compare when only imaginary number exits
+                if l.re() != Ratio::int_new(0) {
+                    return None;
+                }
+                Some(Self::from(l.im() >= r.coefficient()))
+            }
+            (Self::Complex(l), Self::Ratio(r)) => {
+                // It is possible to compare when only real number exits
+                if l.im() != Ratio::int_new(0) {
+                    return None;
+                }
+                Some(Self::from(l.re() >= r))
+            }
+            (Self::Complex(l), Self::Int(r)) => {
+                // It is possible to compare when only real number exits
+                if l.im() != Ratio::int_new(0) {
+                    return None;
+                }
+                Some(Self::from(l.re() >= Ratio::int_new(r as i64)))
+            }
+            (Self::Complex(l), Self::Nat(r)) => {
+                // It is possible to compare when only real number exits
+                if l.im() != Ratio::int_new(0) {
+                    return None;
+                }
+                Some(Self::from(l.re() >= Ratio::int_new(r as i64)))
+            }
             /* Float */
             (Self::Float(l), Self::Float(r)) => Some(Self::from(l >= r)),
             (Self::Float(l), Self::Nat(r)) => Some(Self::from(l >= r as f64)),
@@ -1656,7 +1726,36 @@ impl ValueObj {
             (Self::Int(l), Self::Ratio(r)) => Some(Self::from(Ratio::new(l as i64, 1) < r)),
             (Self::Nat(l), Self::Ratio(r)) => Some(Self::from(Ratio::new(l as i64, 1) < r)),
             /* Imag */
+            (Self::Imag(l), Self::Imag(r)) => Some(Self::from(l < r)),
             /* Complex */
+            (Self::Complex(l), Self::Imag(r)) => {
+                // It is possible to compare when only imaginary number exits
+                if l.re() != Ratio::int_new(0) {
+                    return None;
+                }
+                Some(Self::from(l.im() < r.coefficient()))
+            }
+            (Self::Complex(l), Self::Ratio(r)) => {
+                // It is possible to compare when only real number exits
+                if l.im() != Ratio::int_new(0) {
+                    return None;
+                }
+                Some(Self::from(l.re() < r))
+            }
+            (Self::Complex(l), Self::Int(r)) => {
+                // It is possible to compare when only real number exits
+                if l.im() != Ratio::int_new(0) {
+                    return None;
+                }
+                Some(Self::from(l.re() < Ratio::int_new(r as i64)))
+            }
+            (Self::Complex(l), Self::Nat(r)) => {
+                // It is possible to compare when only real number exits
+                if l.im() != Ratio::int_new(0) {
+                    return None;
+                }
+                Some(Self::from(l.re() < Ratio::int_new(r as i64)))
+            }
             /* Float */
             (Self::Float(l), Self::Float(r)) => Some(Self::from(l < r)),
             (Self::Float(l), Self::Nat(r)) => Some(Self::from(l < r as f64)),
@@ -1683,7 +1782,33 @@ impl ValueObj {
             (Self::Int(l), Self::Ratio(r)) => Some(Self::from(Ratio::new(l as i64, 1) <= r)),
             (Self::Nat(l), Self::Ratio(r)) => Some(Self::from(Ratio::new(l as i64, 1) <= r)),
             /* Imag */
+            (Self::Imag(l), Self::Imag(r)) => Some(Self::from(l <= r)),
             /* Complex */
+            // It is possible to compare when only imaginary or real numbers exist
+            (Self::Complex(l), Self::Imag(r)) => {
+                if l.re() != Ratio::int_new(0) {
+                    return None;
+                }
+                Some(Self::from(l.im() <= r.coefficient()))
+            }
+            (Self::Complex(l), Self::Ratio(r)) => {
+                if l.im() != Ratio::int_new(0) {
+                    return None;
+                }
+                Some(Self::from(l.re() <= r))
+            }
+            (Self::Complex(l), Self::Int(r)) => {
+                if l.im() != Ratio::int_new(0) {
+                    return None;
+                }
+                Some(Self::from(l.re() <= Ratio::int_new(r as i64)))
+            }
+            (Self::Complex(l), Self::Nat(r)) => {
+                if l.im() != Ratio::int_new(0) {
+                    return None;
+                }
+                Some(Self::from(l.re() <= Ratio::int_new(r as i64)))
+            }
             /* Float */
             (Self::Float(l), Self::Float(r)) => Some(Self::from(l <= r)),
             (Self::Float(l), Self::Nat(r)) => Some(Self::from(l <= r as f64)),
@@ -1710,7 +1835,34 @@ impl ValueObj {
             (Self::Int(l), Self::Ratio(r)) => Some(Self::from(Ratio::new(l as i64, 1) == r)),
             (Self::Nat(l), Self::Ratio(r)) => Some(Self::from(Ratio::new(l as i64, 1) == r)),
             /* Imag */
+            (Self::Imag(l), Self::Imag(r)) => Some(Self::from(l == r)),
             /* Complex */
+            (Self::Complex(l), Self::Complex(r)) => Some(Self::from(l == r)),
+            // It is possible to compare when only imaginary or real numbers exist
+            (Self::Complex(l), Self::Imag(r)) => {
+                if l.re() != Ratio::int_new(0) {
+                    return None;
+                }
+                Some(Self::from(l.im() == r.coefficient()))
+            }
+            (Self::Complex(l), Self::Ratio(r)) => {
+                if l.im() != Ratio::int_new(0) {
+                    return None;
+                }
+                Some(Self::from(l.re() == r))
+            }
+            (Self::Complex(l), Self::Int(r)) => {
+                if l.im() != Ratio::int_new(0) {
+                    return None;
+                }
+                Some(Self::from(l.re() == Ratio::int_new(r as i64)))
+            }
+            (Self::Complex(l), Self::Nat(r)) => {
+                if l.im() != Ratio::int_new(0) {
+                    return None;
+                }
+                Some(Self::from(l.re() == Ratio::int_new(r as i64)))
+            }
             /* Float */
             (Self::Float(l), Self::Float(r)) => Some(Self::from(l == r)),
             (Self::Float(l), Self::Nat(r)) => Some(Self::from(l == r as f64)),
