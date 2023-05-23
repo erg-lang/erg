@@ -100,6 +100,10 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNDAMENTAL_HASH),
         );
+        complex.register_py_builtin(OP_GT, fn1_met(Complex, Complex, Bool), Some(OP_GT), 0);
+        complex.register_py_builtin(OP_GE, fn1_met(Complex, Complex, Bool), Some(OP_GE), 0);
+        complex.register_py_builtin(OP_LT, fn1_met(Complex, Complex, Bool), Some(OP_LT), 0);
+        complex.register_py_builtin(OP_LE, fn1_met(Complex, Complex, Bool), Some(OP_LE), 0);
         /* Float */
         let mut float = Self::builtin_mono_class(FLOAT, 2);
         float.register_superclass(Complex, &complex);
@@ -401,6 +405,10 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
         );
         ratio.register_trait(Ratio, ratio_show);
+        ratio.register_py_builtin(OP_GT, fn1_met(Ratio, Ratio, Bool), Some(OP_GT), 0);
+        ratio.register_py_builtin(OP_GE, fn1_met(Ratio, Ratio, Bool), Some(OP_GE), 0);
+        ratio.register_py_builtin(OP_LT, fn1_met(Ratio, Ratio, Bool), Some(OP_LT), 0);
+        ratio.register_py_builtin(OP_LE, fn1_met(Ratio, Ratio, Bool), Some(OP_LE), 0);
 
         /* Int */
         let mut int = Self::builtin_mono_class(INT, 2);
