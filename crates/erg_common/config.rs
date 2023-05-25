@@ -2,6 +2,7 @@
 //!
 //! コマンドオプション(パーサー)を定義する
 use std::env;
+use std::ffi::OsStr;
 use std::fmt;
 use std::fs::File;
 use std::io::{stdin, BufRead, BufReader, Read, Write};
@@ -316,6 +317,26 @@ impl Input {
             InputKind::DummyREPL(_stdin) => Path::new("stdin"),
             InputKind::Str(_) => Path::new("string"),
             InputKind::Dummy => Path::new("dummy"),
+        }
+    }
+
+    pub fn module_name(&self) -> String {
+        match &self.kind {
+            InputKind::File(filename) => {
+                let file_stem = if filename.file_stem() == Some(OsStr::new("__init__")) {
+                    filename.parent().and_then(|p| p.file_stem())
+                } else {
+                    filename.file_stem()
+                };
+                file_stem
+                    .and_then(|f| f.to_str())
+                    .unwrap_or("_")
+                    .to_string()
+            }
+            InputKind::REPL | InputKind::Pipe(_) => "<stdin>".to_string(),
+            InputKind::DummyREPL(stdin) => stdin.name.clone(),
+            InputKind::Str(_) => "<string>".to_string(),
+            InputKind::Dummy => "<dummy>".to_string(),
         }
     }
 

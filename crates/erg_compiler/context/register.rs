@@ -1,9 +1,11 @@
 use std::fmt;
-use std::io::BufRead;
+use std::fs::{metadata, remove_file, File};
+use std::io::{BufRead, BufReader};
 use std::option::Option;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::time::SystemTime;
+use std::thread::sleep;
+use std::time::{Duration, SystemTime};
 
 use erg_common::config::ErgMode;
 use erg_common::consts::{ERG_MODE, PYTHON_MODE};
@@ -1953,15 +1955,22 @@ impl Context {
         Str::from(name)
     }
 
+    fn analysis_in_progress(path: &Path) -> bool {
+        let Ok(meta) = metadata(path) else {
+            return false;
+        };
+        !is_std_decl_path(path) && meta.len() == 0
+    }
+
     fn availability(path: &Path) -> Availability {
-        let Ok(file) = std::fs::File::open(path) else {
+        let Ok(file) = File::open(path) else {
             return Availability::NotFound;
         };
         if is_std_decl_path(path) {
             return Availability::Available;
         }
         let mut line = "".to_string();
-        let Ok(_) = std::io::BufReader::new(file).read_line(&mut line) else {
+        let Ok(_) = BufReader::new(file).read_line(&mut line) else {
             return Availability::Unreadable;
         };
         if line.is_empty() {
@@ -1970,7 +1979,7 @@ impl Context {
         let Ok(status) = line.parse::<PylyzerStatus>() else {
             return Availability::Available;
         };
-        let Some(meta) = std::fs::metadata(&status.file).ok() else {
+        let Some(meta) = metadata(&status.file).ok() else {
             return Availability::NotFound;
         };
         let dummy_hash = meta.len();
@@ -1986,6 +1995,12 @@ impl Context {
             Some(path) => {
                 if self.cfg.input.decl_file_is(&path) {
                     return Ok(path);
+                }
+                for _ in 0..600 {
+                    if !Self::analysis_in_progress(&path) {
+                        break;
+                    }
+                    sleep(Duration::from_millis(100));
                 }
                 if matches!(Self::availability(&path), OutOfDate | NotFound | Unreadable) {
                     let _ = self.try_gen_py_decl_file(__name__);
@@ -2038,7 +2053,7 @@ impl Context {
             // It can convert a Python script to an Erg AST for code analysis.
             // There is also an option to output the analysis result as `d.er`. Use this if the system have pylyzer installed.
             // A type definition file may be generated even if not all type checks succeed.
-            if let Ok(_status) = Command::new("pylyzer")
+            if let Ok(status) = Command::new("pylyzer")
                 .arg("--dump-decl")
                 .arg(path.to_str().unwrap())
                 .stdout(out)
@@ -2047,7 +2062,15 @@ impl Context {
                 .and_then(|mut child| child.wait())
             {
                 if let Some(path) = self.cfg.input.resolve_decl_path(Path::new(&__name__[..])) {
-                    return Ok(path);
+                    let size = metadata(&path).unwrap().len();
+                    // if pylyzer crashed
+                    if !status.success() && size == 0 {
+                        // The presence of the decl file indicates that the analysis is in progress or completed,
+                        // so if pylyzer crashes in the middle of the analysis, delete the file.
+                        remove_file(&path).unwrap();
+                    } else {
+                        return Ok(path);
+                    }
                 }
             }
         }
