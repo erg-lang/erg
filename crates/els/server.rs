@@ -221,13 +221,13 @@ pub struct Server<Checker: BuildRunnable = HIRBuilder> {
 impl<Checker: BuildRunnable> Server<Checker> {
     pub fn new(cfg: ErgConfig) -> Self {
         Self {
+            comp_cache: CompletionCache::new(cfg.copy()),
             cfg,
             home: normalize_path(std::env::current_dir().unwrap_or_default()),
             erg_path: erg_path(), // already normalized
             client_capas: ClientCapabilities::default(),
             disabled_features: vec![],
             opt_features: vec![],
-            comp_cache: CompletionCache::new(),
             file_cache: FileCache::new(),
             modules: Dict::new(),
             analysis_result: Dict::new(),

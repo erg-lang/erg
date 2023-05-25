@@ -2,7 +2,7 @@ use erg_common::consts::PYTHON_MODE;
 use lsp_types::CompletionResponse;
 use serde_json::Value;
 
-use erg_common::config::ErgConfig;
+use erg_common::config::{ErgConfig, Input};
 use erg_common::dict::Dict;
 use erg_common::env::erg_pystd_path;
 use erg_common::impl_u8_enum;
@@ -264,7 +264,7 @@ fn module_completions() -> Vec<CompletionItem> {
     comps
 }
 
-fn load_modules(cache: Cache) {
+fn load_modules(cfg: ErgConfig, cache: Cache) {
     let major_mods = [
         "datetime",
         "glob",
@@ -285,7 +285,10 @@ fn load_modules(cache: Cache) {
     let src = major_mods.into_iter().fold("".to_string(), |acc, module| {
         acc + &format!("_ = pyimport \"{module}\"\n")
     });
-    let cfg = ErgConfig::string(src.clone());
+    let cfg = ErgConfig {
+        input: Input::str(src.clone()),
+        ..cfg
+    };
     let shared = SharedCompilerResource::new(cfg.clone());
     let mut checker = HIRBuilder::inherit(cfg, shared.clone());
     let _res = checker.build(src, "exec");
@@ -312,12 +315,12 @@ fn load_modules(cache: Cache) {
 }
 
 impl CompletionCache {
-    pub fn new() -> Self {
+    pub fn new(cfg: ErgConfig) -> Self {
         let cache = AtomicShared::new(Dict::default());
         let clone = cache.clone();
         std::thread::spawn(move || {
             crate::_log!("load_modules");
-            load_modules(clone)
+            load_modules(cfg, clone)
         });
         Self { cache }
     }
