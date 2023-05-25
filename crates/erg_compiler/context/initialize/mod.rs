@@ -33,7 +33,7 @@ use crate::module::SharedCompilerResource;
 use crate::ty::constructors::*;
 use crate::ty::free::Constraint;
 use crate::ty::value::ValueObj;
-use crate::ty::{BuiltinConstSubr, ConstSubr, ParamTy, Predicate, Type, Visibility};
+use crate::ty::{BuiltinConstSubr, ConstSubr, ParamTy, Predicate, TyParam, Type, Visibility};
 use crate::varinfo::{AbsLocation, Mutability, VarInfo, VarKind};
 use Mutability::*;
 use ParamSpec as PS;
@@ -198,6 +198,8 @@ const FUNC_CO_LNOTAB: &str = "co_lnotab";
 const FUNC_CO_NLOCALS: &str = "co_nlocals";
 const FUNC_CO_KWONLYARGCOUNT: &str = "co_kwonlyargcount";
 const FUNC_CO_POSONLYARGCOUNT: &str = "co_posonlyargcount";
+const FUNC_MODULE: &str = "module";
+const FUNC_GLOBAL: &str = "global";
 const GENERIC_MODULE: &str = "GenericModule";
 const PATH: &str = "Path";
 const MODULE: &str = "Module";
@@ -927,14 +929,6 @@ impl Context {
         } else {
             Visibility::BUILTIN_PRIVATE
         };
-        // TODO: this is not a const, but a special property
-        self.register_builtin_py_impl(
-            FUNDAMENTAL_NAME,
-            Str,
-            Immutable,
-            vis.clone(),
-            Some(FUNDAMENTAL_NAME),
-        );
         self.register_builtin_py_impl(
             LICENSE,
             mono(SITEBUILTINS_PRINTER),
@@ -963,7 +957,7 @@ impl Context {
             vis.clone(),
             Some(NOT_IMPLEMENTED),
         );
-        self.register_builtin_py_impl(ELLIPSIS, Ellipsis, Const, vis, Some(ELLIPSIS));
+        self.register_builtin_py_impl(ELLIPSIS, Ellipsis, Const, vis.clone(), Some(ELLIPSIS));
         self.register_builtin_py_impl(TRUE, Bool, Const, Visibility::BUILTIN_PRIVATE, Some(TRUE));
         self.register_builtin_py_impl(FALSE, Bool, Const, Visibility::BUILTIN_PRIVATE, Some(FALSE));
         self.register_builtin_py_impl(
@@ -973,6 +967,39 @@ impl Context {
             Visibility::BUILTIN_PRIVATE,
             Some(NONE),
         );
+        if ERG_MODE {
+            self.register_builtin_py_impl(
+                FUNC_GLOBAL,
+                module(TyParam::value("<builtins>")),
+                Immutable,
+                vis,
+                None,
+            );
+        }
+    }
+
+    fn init_module_consts(&mut self) {
+        let vis = if PYTHON_MODE {
+            Visibility::BUILTIN_PUBLIC
+        } else {
+            Visibility::BUILTIN_PRIVATE
+        };
+        self.register_builtin_py_impl(
+            FUNDAMENTAL_NAME,
+            Str,
+            Immutable,
+            vis.clone(),
+            Some(FUNDAMENTAL_NAME),
+        );
+        if ERG_MODE {
+            self.register_builtin_py_impl(
+                FUNC_MODULE,
+                module(TyParam::value(self.get_module().unwrap().name.clone())),
+                Immutable,
+                vis,
+                None,
+            );
+        }
     }
 
     pub(crate) fn init_builtins(cfg: ErgConfig, shared: SharedCompilerResource) {
@@ -1001,7 +1028,7 @@ impl Context {
         cfg: ErgConfig,
         shared: SharedCompilerResource,
     ) -> Self {
-        Context::new(
+        let mut ctx = Context::new(
             name.into(),
             cfg,
             ContextKind::Module,
@@ -1009,6 +1036,8 @@ impl Context {
             None,
             Some(shared),
             Context::TOP_LEVEL,
-        )
+        );
+        ctx.init_module_consts();
+        ctx
     }
 }

@@ -176,7 +176,15 @@ impl<'a> HIRLinker<'a> {
                     Accessor::Attr(attr) => {
                         self.replace_import(&mut attr.obj);
                     }
-                    Accessor::Ident(_) => {}
+                    Accessor::Ident(ident) => match &ident.inspect()[..] {
+                        "module" => {
+                            *expr = Self::self_module();
+                        }
+                        "global" => {
+                            *expr = Expr::from(Identifier::public("__builtins__"));
+                        }
+                        _ => {}
+                    },
                 }
             }
             Expr::Array(array) => match array {
@@ -286,6 +294,12 @@ impl<'a> HIRLinker<'a> {
         }
     }
 
+    fn self_module() -> Expr {
+        let __import__ = Identifier::public("__import__");
+        let __name__ = Identifier::public("__name__");
+        Expr::from(__import__).call1(Expr::from(__name__))
+    }
+
     /// ```erg
     /// x = import "mod"
     /// ```
@@ -311,10 +325,7 @@ impl<'a> HIRLinker<'a> {
         // self = __import__(__name__)
         if matches!((path.canonicalize(), self.cfg.input.unescaped_path().canonicalize()), (Ok(l), Ok(r)) if l == r)
         {
-            let __import__ = Identifier::public("__import__");
-            let __name__ = Identifier::public("__name__");
-            let call = Expr::from(__import__).call1(Expr::from(__name__));
-            *expr = call;
+            *expr = Self::self_module();
             return;
         }
         // In the case of REPL, entries cannot be used up
