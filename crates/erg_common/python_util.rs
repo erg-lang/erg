@@ -531,26 +531,30 @@ pub const BUILTIN_PYTHON_MODS: [&str; 165] = [
     "zoneinfo",
 ];
 
-pub fn which_python() -> String {
+pub fn opt_which_python() -> Result<String, String> {
     let (cmd, python) = if cfg!(windows) {
         ("where", "python")
     } else {
         ("which", "python3")
     };
-    let out = Command::new(cmd)
-        .arg(python)
-        .output()
-        .unwrap_or_else(|_| panic!("{}: {python} not found", fn_name_full!()));
-    let res = String::from_utf8(out.stdout).unwrap();
+    let Ok(out) = Command::new(cmd).arg(python).output() else {
+        return Err(format!("{}: {python} not found", fn_name_full!()));
+    };
+    let Ok(res) = String::from_utf8(out.stdout) else {
+        return Err(format!("{}: failed to commnunicate with Python", fn_name_full!()));
+    };
     let res = res.split('\n').next().unwrap_or("").replace('\r', "");
     if res.is_empty() {
-        println!("{}: {python} not found", fn_name_full!());
-        std::process::exit(1);
+        return Err(format!("{}: {python} not found", fn_name_full!()));
     } else if res.contains("pyenv") && cfg!(windows) {
-        println!("cannot use pyenv-win"); // because pyenv-win does not support `-c` option
-        std::process::exit(1);
+        // because pyenv-win does not support `-c` option
+        return Err("cannot use pyenv-win".into());
     }
-    res
+    Ok(res)
+}
+
+fn which_python() -> String {
+    opt_which_python().unwrap()
 }
 
 pub fn detect_magic_number(py_command: &str) -> u32 {
@@ -690,10 +694,15 @@ pub fn env_python_version() -> PythonVersion {
     get_python_version(&which_python())
 }
 
-pub fn get_sys_path(working_dir: Option<&Path>) -> Vec<PathBuf> {
+pub fn get_sys_path(working_dir: Option<&Path>) -> Result<Vec<PathBuf>, std::io::Error> {
     let working_dir = fs::canonicalize(working_dir.unwrap_or(Path::new(""))).unwrap_or_default();
     let working_dir = remove_verbatim(&working_dir);
-    let py_command = which_python();
+    let py_command = opt_which_python().map_err(|e| {
+        std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("cannot find python: {e}"),
+        )
+    })?;
     let code = "import os, sys; print('\\n'.join(map(lambda p: os.path.abspath(p), sys.path)))";
     let out = if cfg!(windows) {
         Command::new("cmd")
@@ -704,21 +713,17 @@ pub fn get_sys_path(working_dir: Option<&Path>) -> Vec<PathBuf> {
             .arg(py_command)
             .arg("-c")
             .arg(code)
-            .output()
-            .expect("cannot get the sys.path")
+            .output()?
     } else {
         let exec_command = format!("cd {working_dir} && {py_command} -c \"{code}\"");
-        Command::new("sh")
-            .arg("-c")
-            .arg(exec_command)
-            .output()
-            .expect("cannot get the sys.path")
+        Command::new("sh").arg("-c").arg(exec_command).output()?
     };
     let s_sys_path = String::from_utf8(out.stdout).unwrap();
-    s_sys_path
+    let res = s_sys_path
         .split('\n')
         .map(|s| PathBuf::from(s.trim().to_string()))
-        .collect()
+        .collect();
+    Ok(res)
 }
 
 /// executes over a shell, cause `python` may not exist as an executable file (like pyenv)

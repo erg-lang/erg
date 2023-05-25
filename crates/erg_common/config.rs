@@ -460,7 +460,7 @@ impl Input {
         }
     }
 
-    pub fn sys_path(&self) -> Vec<PathBuf> {
+    pub fn sys_path(&self) -> Result<Vec<PathBuf>, std::io::Error> {
         get_sys_path(self.unescaped_path().parent())
     }
 
@@ -548,7 +548,7 @@ impl Input {
                 return Ok(path);
             }
         }
-        for sys_path in self.sys_path() {
+        for sys_path in self.sys_path()? {
             let mut dir = sys_path;
             dir.push(path);
             dir.set_extension("py");

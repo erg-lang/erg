@@ -55,6 +55,7 @@ fn _erg_external_lib_path() -> PathBuf {
 }
 fn _python_site_packages() -> impl Iterator<Item = PathBuf> {
     get_sys_path(None)
+        .unwrap_or(vec![])
         .into_iter()
         .filter(|p| p.ends_with("site-packages"))
         .map(|p| {
