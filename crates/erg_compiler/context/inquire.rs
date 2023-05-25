@@ -4,14 +4,15 @@ use std::path::{Path, PathBuf};
 
 use erg_common::config::Input;
 use erg_common::consts::{ERG_MODE, PYTHON_MODE};
-use erg_common::dict;
 use erg_common::error::{ErrorCore, Location, SubMessage};
 use erg_common::levenshtein;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, NoTypeDisplay, Stream};
 use erg_common::triple::Triple;
 use erg_common::Str;
-use erg_common::{fmt_option, fmt_slice, log, option_enum_unwrap, set, switch_lang};
+use erg_common::{
+    dict, fmt_option, fmt_slice, get_hash, log, option_enum_unwrap, set, switch_lang,
+};
 
 use erg_parser::ast::{self, Identifier, VarName};
 use erg_parser::token::Token;
@@ -1024,20 +1025,23 @@ impl Context {
         let coerced = self
             .coerce(obj.t(), &())
             .map_err(|mut errs| errs.remove(0))?;
-        if &coerced == obj.ref_t() {
-            Err(TyCheckError::no_attr_error(
-                self.cfg.input.clone(),
-                line!() as usize,
-                attr_name.loc(),
-                namespace.name.to_string(),
-                obj.ref_t(),
-                attr_name.inspect(),
-                self.get_similar_attr(obj.ref_t(), attr_name.inspect()),
-            ))
-        } else {
+        if &coerced != obj.ref_t() {
+            let hash = get_hash(obj.ref_t());
             obj.ref_t().coerce();
-            self.search_method_info(obj, attr_name, pos_args, kw_args, input, namespace)
+            if get_hash(obj.ref_t()) != hash {
+                return self
+                    .search_method_info(obj, attr_name, pos_args, kw_args, input, namespace);
+            }
         }
+        Err(TyCheckError::no_attr_error(
+            self.cfg.input.clone(),
+            line!() as usize,
+            attr_name.loc(),
+            namespace.name.to_string(),
+            obj.ref_t(),
+            attr_name.inspect(),
+            self.get_similar_attr(obj.ref_t(), attr_name.inspect()),
+        ))
     }
 
     fn validate_visibility(
@@ -1263,12 +1267,13 @@ impl Context {
                         return Err(self.not_callable_error(obj, attr_name, instance, None));
                     }
                     if sub != Never {
+                        let hash = get_hash(instance);
                         instance.coerce();
                         if instance.is_quantified_subr() {
                             let instance = self.instantiate(instance.clone(), obj)?;
                             self.substitute_call(obj, attr_name, &instance, pos_args, kw_args)?;
                             return Ok(SubstituteResult::Coerced(instance));
-                        } else {
+                        } else if get_hash(instance) != hash {
                             return self
                                 .substitute_call(obj, attr_name, instance, pos_args, kw_args);
                         }

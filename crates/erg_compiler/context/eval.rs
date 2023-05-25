@@ -1337,6 +1337,8 @@ impl Context {
             }
             TyParam::FreeVar(fv) if fv.is_linked() => self.convert_tp_into_type(fv.crack().clone()),
             TyParam::Type(t) => Ok(t.as_ref().clone()),
+            TyParam::Mono(name) => Ok(Type::Mono(name)),
+            // TyParam::Erased(_t) => Ok(Type::Obj),
             TyParam::Value(v) => self.convert_value_into_type(v).map_err(TyParam::Value),
             // TODO: Dict, Set
             other => Err(other),
@@ -1672,7 +1674,7 @@ impl Context {
                 line!() as usize,
                 ().loc(),
                 self.caused_by(),
-                &tp.qual_name().unwrap_or("_".into()),
+                &tp.to_string(),
             )
         })?;
         if qt.is_generalized() {
