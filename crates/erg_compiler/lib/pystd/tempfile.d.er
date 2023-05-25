@@ -1,0 +1,59 @@
+io = pyimport "io"
+
+._TemporaryFileWrapper!: ClassType
+._TemporaryFileWrapper! <: FileLike!
+._TemporaryFileWrapper!.
+    name: Str
+    delete: Bool
+    file: io.BufferedRandom!
+    close!: (self: ._TemporaryFileWrapper!) => NoneType
+
+.TemporaryFile!: (
+    mode := Str,
+    buffering := Int,
+    encoding := Str,
+    newline := Str,
+    suffix := Str,
+    prefix := Str,
+    dir := Str,
+) -> ._TemporaryFileWrapper!
+
+.NamedTemporaryFile!: (
+    mode := Str,
+    buffering := Int,
+    encoding := Str,
+    newline := Str,
+    suffix := Str,
+    prefix := Str,
+    dir := Str,
+    delete := Bool,
+) -> ._TemporaryFileWrapper!
+
+.TemporaryDirectory!: ClassType
+.TemporaryDirectory!.
+    name: Str
+    __call__: (
+        suffix := Str,
+        prefix := Str,
+        dir := Str,
+    ) -> .TemporaryDirectory!
+    cleanup!: (self: .TemporaryDirectory!) => NoneType
+
+.mkstemp!: (
+    suffix := Str,
+    prefix := Str,
+    dir := Str,
+    text := Bool,
+) -> (Nat, Str)
+.mkdtemp!: (
+    suffix := Str,
+    prefix := Str,
+    dir := Str,
+) -> Str
+
+.gettempdir!: () => Str
+.gettempdirb!: () => Bytes
+.gettempprefix: () -> Str
+.gettempprefixb: () -> Bytes
+
+.tempdir: Str or NoneType

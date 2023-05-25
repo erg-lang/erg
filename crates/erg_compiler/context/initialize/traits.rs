@@ -424,6 +424,13 @@ impl Context {
             None,
         );
         self.register_builtin_type(
+            mono(MUTABLE_IO),
+            io,
+            Visibility::BUILTIN_PRIVATE,
+            Const,
+            None,
+        );
+        self.register_builtin_type(
             mono(MUTABLE_WRITABLE),
             writable,
             Visibility::BUILTIN_PRIVATE,
