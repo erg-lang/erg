@@ -6,8 +6,8 @@ use std::process::{Command, Stdio};
 use std::time::SystemTime;
 
 use erg_common::config::ErgMode;
-use erg_common::consts::PYTHON_MODE;
-use erg_common::env::is_pystd_main_module;
+use erg_common::consts::{ERG_MODE, PYTHON_MODE};
+use erg_common::env::{is_pystd_main_module, is_std_decl_path};
 use erg_common::erg_util::BUILTIN_ERG_MODS;
 use erg_common::levenshtein::get_similar_name;
 use erg_common::pathutil::{DirKind, FileKind};
@@ -15,8 +15,7 @@ use erg_common::python_util::BUILTIN_PYTHON_MODS;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
 use erg_common::triple::Triple;
-use erg_common::{get_hash, log, set};
-use erg_common::{unique_in_place, Str};
+use erg_common::{get_hash, log, set, unique_in_place, Str};
 
 use ast::{
     ConstIdentifier, Decorator, DefId, Identifier, OperationKind, PolyTypeSpec, PreDeclTypeSpec,
@@ -144,6 +143,16 @@ impl std::str::FromStr for PylyzerStatus {
         })
     }
 }
+
+enum Availability {
+    Available,
+    InProgress,
+    NotFound,
+    Unreadable,
+    OutOfDate,
+}
+
+use Availability::*;
 
 const UBAR: &Str = &Str::ever("_");
 
@@ -1816,7 +1825,9 @@ impl Context {
                 return Err(self.import_err(line!(), __name__, loc));
             }
         };
-        self.check_mod_vis(path.as_path(), __name__, loc)?;
+        if ERG_MODE {
+            self.check_mod_vis(path.as_path(), __name__, loc)?;
+        }
         if let Some(referrer) = self.cfg.input.path() {
             let graph = &self.shared.as_ref().unwrap().graph;
             graph.inc_ref(referrer, path.clone());
@@ -1942,24 +1953,41 @@ impl Context {
         Str::from(name)
     }
 
-    fn can_reuse(path: &Path) -> Option<PylyzerStatus> {
-        let file = std::fs::File::open(path).ok()?;
+    fn availability(path: &Path) -> Availability {
+        let Ok(file) = std::fs::File::open(path) else {
+            return Availability::NotFound;
+        };
+        if is_std_decl_path(path) {
+            return Availability::Available;
+        }
         let mut line = "".to_string();
-        std::io::BufReader::new(file).read_line(&mut line).ok()?;
-        let status = line.parse::<PylyzerStatus>().ok()?;
-        let meta = std::fs::metadata(&status.file).ok()?;
+        let Ok(_) = std::io::BufReader::new(file).read_line(&mut line) else {
+            return Availability::Unreadable;
+        };
+        if line.is_empty() {
+            return Availability::InProgress;
+        }
+        let Ok(status) = line.parse::<PylyzerStatus>() else {
+            return Availability::Available;
+        };
+        let Some(meta) = std::fs::metadata(&status.file).ok() else {
+            return Availability::NotFound;
+        };
         let dummy_hash = meta.len();
         if status.hash != dummy_hash {
-            None
+            Availability::OutOfDate
         } else {
-            Some(status)
+            Availability::Available
         }
     }
 
     fn get_decl_path(&self, __name__: &Str, loc: &impl Locational) -> CompileResult<PathBuf> {
         match self.cfg.input.resolve_decl_path(Path::new(&__name__[..])) {
             Some(path) => {
-                if Self::can_reuse(&path).is_none() {
+                if self.cfg.input.decl_file_is(&path) {
+                    return Ok(path);
+                }
+                if matches!(Self::availability(&path), OutOfDate | NotFound | Unreadable) {
                     let _ = self.try_gen_py_decl_file(__name__);
                 }
                 if is_pystd_main_module(path.as_path())
@@ -1998,6 +2026,9 @@ impl Context {
 
     fn try_gen_py_decl_file(&self, __name__: &Str) -> Result<PathBuf, ()> {
         if let Ok(path) = self.cfg.input.resolve_py(Path::new(&__name__[..])) {
+            if self.cfg.input.path() == Some(path.as_path()) {
+                return Ok(path);
+            }
             let (out, err) = if self.cfg.mode == ErgMode::LanguageServer || self.cfg.quiet_repl {
                 (Stdio::null(), Stdio::null())
             } else {

@@ -161,3 +161,7 @@ pub fn squash(path: PathBuf) -> PathBuf {
     }
     result
 }
+
+pub fn remove_verbatim(path: &Path) -> String {
+    path.to_string_lossy().replace("\\\\?\\", "")
+}

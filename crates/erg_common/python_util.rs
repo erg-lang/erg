@@ -1,10 +1,12 @@
 //! utilities for calling CPython.
 //!
 //! CPythonを呼び出すためのユーティリティー
-use std::path::PathBuf;
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::fn_name_full;
+use crate::pathutil::remove_verbatim;
 use crate::serialize::get_magic_num_from_bytes;
 
 #[cfg(unix)]
@@ -688,19 +690,24 @@ pub fn env_python_version() -> PythonVersion {
     get_python_version(&which_python())
 }
 
-pub fn get_sys_path() -> Vec<PathBuf> {
+pub fn get_sys_path(working_dir: Option<&Path>) -> Vec<PathBuf> {
+    let working_dir = fs::canonicalize(working_dir.unwrap_or(Path::new(""))).unwrap_or_default();
+    let working_dir = remove_verbatim(&working_dir);
     let py_command = which_python();
-    let code = "import sys; print('\\n'.join(sys.path))";
+    let code = "import os, sys; print('\\n'.join(map(lambda p: os.path.abspath(p), sys.path)))";
     let out = if cfg!(windows) {
         Command::new("cmd")
             .arg("/C")
+            .arg("cd")
+            .arg(working_dir)
+            .arg("&&")
             .arg(py_command)
             .arg("-c")
             .arg(code)
             .output()
             .expect("cannot get the sys.path")
     } else {
-        let exec_command = format!("{py_command} -c \"{code}\"");
+        let exec_command = format!("cd {working_dir} && {py_command} -c \"{code}\"");
         Command::new("sh")
             .arg("-c")
             .arg(exec_command)

@@ -2566,6 +2566,9 @@ impl Context {
                 Const,
                 Some(QUANTIFIED_FUNC),
             );
+        } else {
+            self.register_builtin_const(MUT_INT, vis.clone(), ValueObj::builtin_class(Int));
+            self.register_builtin_const(MUT_STR, vis, ValueObj::builtin_class(Str));
         }
     }
 }

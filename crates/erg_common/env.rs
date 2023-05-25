@@ -54,7 +54,7 @@ fn _erg_external_lib_path() -> PathBuf {
         })
 }
 fn _python_site_packages() -> impl Iterator<Item = PathBuf> {
-    get_sys_path()
+    get_sys_path(None)
         .into_iter()
         .filter(|p| p.ends_with("site-packages"))
         .map(|p| {
@@ -96,6 +96,12 @@ pub fn erg_py_external_lib_path() -> PathBuf {
 
 pub fn python_site_packages() -> Vec<PathBuf> {
     PYTHON_SITE_PACKAGES.with(|s| s.clone())
+}
+
+pub fn is_std_decl_path(path: &Path) -> bool {
+    path.starts_with(erg_pystd_path())
+        || path.starts_with(erg_std_decl_path())
+        || path.starts_with(erg_py_external_lib_path())
 }
 
 pub fn is_pystd_main_module(path: &Path) -> bool {

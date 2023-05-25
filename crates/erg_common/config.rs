@@ -4,22 +4,21 @@
 use std::env;
 use std::fmt;
 use std::fs::File;
-use std::io::Write;
-use std::io::{stdin, BufRead, BufReader, Read};
+use std::io::{stdin, BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process;
 use std::str::FromStr;
 
+use crate::consts::ERG_MODE;
 use crate::env::{erg_py_external_lib_path, erg_pystd_path, erg_std_path, python_site_packages};
 use crate::help_messages::{command_message, mode_message, OPTIONS};
 use crate::levenshtein::get_similar_name;
-use crate::normalize_path;
 use crate::pathutil::add_postfix_foreach;
 use crate::python_util::{detect_magic_number, get_python_version, get_sys_path, PythonVersion};
 use crate::random::random;
 use crate::serialize::{get_magic_num_from_bytes, get_ver_from_magic_num};
 use crate::stdin::GLOBAL_STDIN;
-use crate::{power_assert, read_file};
+use crate::{normalize_path, power_assert, read_file};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ErgMode {
@@ -440,6 +439,10 @@ impl Input {
         }
     }
 
+    pub fn sys_path(&self) -> Vec<PathBuf> {
+        get_sys_path(self.unescaped_path().parent())
+    }
+
     /// resolution order:
     /// 1. `{path/to}.er`
     /// 2. `{path/to}/__init__.er`
@@ -519,30 +522,29 @@ impl Input {
     }
 
     pub fn resolve_py(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
-        self.resolve_local_py(path).or_else(|_| {
-            // For now, only see `site-packages`
-            let site_packages = get_sys_path()
-                .into_iter()
-                .filter(|p| p.as_os_str().to_string_lossy().contains("site-packages"));
-            for sys_path in site_packages {
-                let mut dir = sys_path;
-                dir.push(path);
-                dir.set_extension("py");
-                if dir.exists() {
-                    return Ok(normalize_path(dir));
-                }
-                dir.pop();
-                dir.push(path);
-                dir.push("__init__.py");
-                if dir.exists() {
-                    return Ok(normalize_path(dir));
-                }
+        if ERG_MODE || path.starts_with("./") {
+            if let Ok(path) = self.resolve_local_py(path) {
+                return Ok(path);
             }
-            Err(std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                format!("cannot find module `{}`", path.display()),
-            ))
-        })
+        }
+        for sys_path in self.sys_path() {
+            let mut dir = sys_path;
+            dir.push(path);
+            dir.set_extension("py");
+            if dir.exists() {
+                return Ok(normalize_path(dir));
+            }
+            dir.pop();
+            dir.push(path);
+            dir.push("__init__.py");
+            if dir.exists() {
+                return Ok(normalize_path(dir));
+            }
+        }
+        Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("cannot find module `{}`", path.display()),
+        ))
     }
 
     pub fn resolve_path(&self, path: &Path) -> Option<PathBuf> {
@@ -604,6 +606,8 @@ impl Input {
         }
     }
 
+    /// 1. `site-packages/{path/to}.d.er`
+    /// 2. `site-packages/{path.d/to.d}/__init__.d.er`
     fn resolve_std_decl_path(root: PathBuf, path: &Path) -> Option<PathBuf> {
         let mut path = add_postfix_foreach(path, ".d");
         path.set_extension("d.er"); // set_extension overrides the previous one
@@ -624,14 +628,19 @@ impl Input {
         }
     }
 
-    /// 1. `site-packages/__pycache__/{path}.d.er`
-    /// 2. `site-packages/{path}/__pycache__/__init__.d.er`
+    /// 1. `site-packages/__pycache__/{path/to}.d.er`
+    /// 2. `site-packages/{path/to}/__pycache__/__init__.d.er`
+    ///
+    /// e.g. `toml/encoder`
+    ///     -> `site-packages/toml/__pycache__/encoder.d.er`, `site-packages/toml/encoder/__pycache__/__init__.d.er`
     fn resolve_site_pkgs_decl_path(site_packages: PathBuf, path: &Path) -> Option<PathBuf> {
-        let mut path_buf = path.to_path_buf();
-        path_buf.set_extension("d.er"); // set_extension overrides the previous one
+        let dir = path.parent().unwrap_or_else(|| Path::new(""));
+        let mut file_path = PathBuf::from(path.file_stem().unwrap_or_default());
+        file_path.set_extension("d.er"); // set_extension overrides the previous one
         if let Ok(path) = site_packages
+            .join(dir)
             .join("__pycache__")
-            .join(&path_buf)
+            .join(&file_path)
             .canonicalize()
         {
             Some(normalize_path(path))
