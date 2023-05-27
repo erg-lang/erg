@@ -297,7 +297,7 @@ fn load_modules(cfg: ErgConfig, cache: Cache) {
         cache.insert("<module>".into(), module_completions());
     }
     let std_path = erg_pystd_path().display().to_string().replace('\\', "/");
-    for (path, entry) in shared.py_mod_cache.iter() {
+    for (path, entry) in shared.py_mod_cache.ref_inner().iter() {
         let dir = entry.module.context.local_dir();
         let mod_name = path.display().to_string().replace('\\', "/");
         let mod_name = mod_name

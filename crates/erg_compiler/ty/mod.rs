@@ -13,6 +13,7 @@ pub mod typaram;
 pub mod value;
 pub mod vis;
 
+use std::cell::RefMut;
 use std::fmt;
 use std::ops::{BitAnd, BitOr, Deref, Not, Range, RangeInclusive};
 use std::path::PathBuf;
@@ -2570,10 +2571,9 @@ impl Type {
 
     pub fn self_t(&self) -> Option<&Type> {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => unsafe { fv.as_ptr().as_ref() }
-                .unwrap()
-                .linked()
-                .and_then(|t| t.self_t()),
+            Self::FreeVar(fv) if fv.is_linked() => {
+                fv.forced_as_ref().linked().and_then(|t| t.self_t())
+            }
             Self::Refinement(refine) => refine.t.self_t(),
             Self::Subr(subr) => subr.self_t(),
             Self::Quantified(quant) => quant.self_t(),
@@ -2583,8 +2583,8 @@ impl Type {
 
     pub fn non_default_params(&self) -> Option<&Vec<ParamTy>> {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => unsafe { fv.as_ptr().as_ref() }
-                .unwrap()
+            Self::FreeVar(fv) if fv.is_linked() => fv
+                .forced_as_ref()
                 .linked()
                 .and_then(|t| t.non_default_params()),
             Self::Refinement(refine) => refine.t.non_default_params(),
@@ -2599,10 +2599,9 @@ impl Type {
 
     pub fn var_params(&self) -> Option<&ParamTy> {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => unsafe { fv.as_ptr().as_ref() }
-                .unwrap()
-                .linked()
-                .and_then(|t| t.var_params()),
+            Self::FreeVar(fv) if fv.is_linked() => {
+                fv.forced_as_ref().linked().and_then(|t| t.var_params())
+            }
             Self::Refinement(refine) => refine.t.var_params(),
             Self::Subr(SubrType {
                 var_params: var_args,
@@ -2616,10 +2615,9 @@ impl Type {
 
     pub fn default_params(&self) -> Option<&Vec<ParamTy>> {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => unsafe { fv.as_ptr().as_ref() }
-                .unwrap()
-                .linked()
-                .and_then(|t| t.default_params()),
+            Self::FreeVar(fv) if fv.is_linked() => {
+                fv.forced_as_ref().linked().and_then(|t| t.default_params())
+            }
             Self::Refinement(refine) => refine.t.default_params(),
             Self::Subr(SubrType { default_params, .. }) => Some(default_params),
             Self::Quantified(quant) => quant.default_params(),
@@ -2629,10 +2627,9 @@ impl Type {
 
     pub fn non_var_params(&self) -> Option<impl Iterator<Item = &ParamTy> + Clone> {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => unsafe { fv.as_ptr().as_ref() }
-                .unwrap()
-                .linked()
-                .and_then(|t| t.non_var_params()),
+            Self::FreeVar(fv) if fv.is_linked() => {
+                fv.forced_as_ref().linked().and_then(|t| t.non_var_params())
+            }
             Self::Refinement(refine) => refine.t.non_var_params(),
             Self::Subr(subr) => Some(subr.non_var_params()),
             Self::Quantified(quant) => quant.non_var_params(),
@@ -2642,10 +2639,9 @@ impl Type {
 
     pub fn return_t(&self) -> Option<&Type> {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => unsafe { fv.as_ptr().as_ref() }
-                .unwrap()
-                .linked()
-                .and_then(|t| t.return_t()),
+            Self::FreeVar(fv) if fv.is_linked() => {
+                fv.forced_as_ref().linked().and_then(|t| t.return_t())
+            }
             Self::Refinement(refine) => refine.t.return_t(),
             Self::Subr(SubrType { return_t, .. }) | Self::Callable { return_t, .. } => {
                 Some(return_t)
@@ -2663,12 +2659,21 @@ impl Type {
         }
     }
 
+    pub fn tyvar_mut_return_t(&mut self) -> Option<RefMut<Type>> {
+        match self {
+            Self::FreeVar(fv)
+                if fv.is_linked() && fv.get_linked().unwrap().return_t().is_some() =>
+            {
+                Some(RefMut::map(fv.borrow_mut(), |fk| {
+                    fk.linked_mut().unwrap().mut_return_t().unwrap()
+                }))
+            }
+            _ => None,
+        }
+    }
+
     pub fn mut_return_t(&mut self) -> Option<&mut Type> {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => unsafe { fv.as_ptr().as_mut() }
-                .unwrap()
-                .linked_mut()
-                .and_then(|t| t.mut_return_t()),
             Self::Refinement(refine) => refine.t.mut_return_t(),
             Self::Subr(SubrType { return_t, .. }) | Self::Callable { return_t, .. } => {
                 Some(return_t)

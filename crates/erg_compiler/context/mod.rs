@@ -977,7 +977,12 @@ impl Context {
         if self.kind != ContextKind::Module || &self.path()[..] != "<builtins>" {
             self.shared
                 .as_ref()
-                .map(|shared| shared.mod_cache.ref_ctx(Path::new("<builtins>")).unwrap())
+                .map(|shared| {
+                    shared
+                        .mod_cache
+                        .raw_ref_ctx(Path::new("<builtins>"))
+                        .unwrap()
+                })
                 .map(|mod_ctx| &mod_ctx.context)
         } else {
             None

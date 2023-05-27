@@ -809,12 +809,20 @@ impl ASTLowerer {
                 self.errs.extend(errs);
                 VarInfo::ILLEGAL.clone()
             });
-        if let (Some(guard), Some(return_t)) = (guard, vi.t.mut_return_t()) {
-            debug_assert!(
-                self.module.context.subtype_of(return_t, &Type::Bool),
-                "{return_t} is not a subtype of Bool"
-            );
-            *return_t = guard;
+        if let Some(guard) = guard {
+            if let Some(return_t) = vi.t.mut_return_t() {
+                debug_assert!(
+                    self.module.context.subtype_of(return_t, &Type::Bool),
+                    "{return_t} is not a subtype of Bool"
+                );
+                *return_t = guard;
+            } else if let Some(mut return_t) = vi.t.tyvar_mut_return_t() {
+                debug_assert!(
+                    self.module.context.subtype_of(&return_t, &Type::Bool),
+                    "{return_t} is not a subtype of Bool"
+                );
+                *return_t = guard;
+            }
         }
         let mut args = args.into_iter();
         let lhs = args.next().unwrap().expr;
@@ -975,6 +983,8 @@ impl ASTLowerer {
             );
             if let Some(ret_t) = vi.t.mut_return_t() {
                 *ret_t = guard;
+            } else if let Some(mut ref_t) = vi.t.tyvar_mut_return_t() {
+                *ref_t = guard;
             }
         }
         let attr_name = if let Some(attr_name) = call.attr_name {
@@ -1892,7 +1902,7 @@ impl ASTLowerer {
         trait_loc: &impl Locational,
     ) -> LowerResult<()> {
         // TODO: polymorphic trait
-        if let Some(impls) = self
+        if let Some(mut impls) = self
             .module
             .context
             .trait_impls()

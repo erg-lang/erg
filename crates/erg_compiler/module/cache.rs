@@ -1,4 +1,5 @@
 use std::borrow::Borrow;
+use std::cell::{Ref, RefMut};
 use std::fmt;
 use std::hash::Hash;
 use std::path::PathBuf;
@@ -173,20 +174,28 @@ impl SharedModuleCache {
         self.0.borrow().cache.len()
     }
 
-    pub fn get<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<&ModuleEntry>
+    pub fn get<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<Ref<ModuleEntry>>
     where
         PathBuf: Borrow<Q>,
     {
-        let ref_ = unsafe { self.0.as_ptr().as_ref().unwrap() };
-        ref_.get(path)
+        if self.0.borrow().get(path).is_some() {
+            Some(Ref::map(self.0.borrow(), |cache| cache.get(path).unwrap()))
+        } else {
+            None
+        }
     }
 
-    pub fn get_mut<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<&mut ModuleEntry>
+    pub fn get_mut<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<RefMut<ModuleEntry>>
     where
         PathBuf: Borrow<Q>,
     {
-        let ref_ = unsafe { self.0.as_ptr().as_mut().unwrap() };
-        ref_.get_mut(path)
+        if self.0.borrow().get(path).is_some() {
+            Some(RefMut::map(self.0.borrow_mut(), |cache| {
+                cache.get_mut(path).unwrap()
+            }))
+        } else {
+            None
+        }
     }
 
     pub fn get_ctx<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<Rc<ModuleContext>>
@@ -196,7 +205,20 @@ impl SharedModuleCache {
         self.0.borrow().get(path).map(|entry| entry.module.clone())
     }
 
-    pub fn ref_ctx<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<&ModuleContext>
+    pub fn ref_ctx<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<Ref<ModuleContext>>
+    where
+        PathBuf: Borrow<Q>,
+    {
+        if self.0.borrow().get(path).is_some() {
+            Some(Ref::map(self.0.borrow(), |cache| {
+                cache.get(path).unwrap().module.as_ref()
+            }))
+        } else {
+            None
+        }
+    }
+
+    pub fn raw_ref_ctx<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<&ModuleContext>
     where
         PathBuf: Borrow<Q>,
     {
@@ -223,18 +245,13 @@ impl SharedModuleCache {
         self.0.borrow().get_similar_name(name)
     }
 
-    pub fn keys(&self) -> impl Iterator<Item = PathBuf> {
-        let ref_ = unsafe { self.0.as_ptr().as_ref().unwrap() };
-        ref_.cache.keys().cloned()
-    }
-
     pub fn initialize(&self) {
         let builtin_path = PathBuf::from("<builtins>");
         let Some(builtin) = self.remove(&builtin_path) else {
             return;
         };
-        for path in self.keys() {
-            self.remove(&path);
+        for path in self.ref_inner().keys() {
+            self.remove(path);
         }
         self.register(builtin_path, None, Rc::try_unwrap(builtin.module).unwrap());
     }
@@ -243,8 +260,7 @@ impl SharedModuleCache {
         self.0.borrow_mut().rename_path(path, new);
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (&PathBuf, &ModuleEntry)> {
-        let ref_ = unsafe { self.0.as_ptr().as_ref().unwrap() };
-        ref_.iter()
+    pub fn ref_inner(&self) -> Ref<Dict<PathBuf, ModuleEntry>> {
+        Ref::map(self.0.borrow(), |mc| &mc.cache)
     }
 }

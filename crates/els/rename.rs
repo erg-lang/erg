@@ -149,6 +149,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         graph.sort().unwrap();
         let self_node = graph.get_node(&path).unwrap();
         graph
+            .ref_inner()
             .iter()
             .filter(|node| node.id == path || self_node.depends_on(&node.id))
             .map(|node| NormalizedUrl::new(Url::from_file_path(&node.id).unwrap()))
@@ -160,6 +161,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let graph = &self.get_shared().unwrap().graph;
         let path = util::uri_to_path(uri);
         graph
+            .ref_inner()
             .iter()
             .filter(|node| node.depends_on(&path))
             .map(|node| NormalizedUrl::new(Url::from_file_path(&node.id).unwrap()))
