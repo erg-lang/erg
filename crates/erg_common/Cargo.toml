@@ -33,7 +33,10 @@ version = "0.3"
 features = ["consoleapi"]
 
 [dependencies]
+backtrace = "0.3"
+once_cell = "1.17"
 crossterm = { optional = true, version = "0.25.0" }
+parking_lot = "0.12"
 
 [lib]
 path = "lib.rs"

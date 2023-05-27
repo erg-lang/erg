@@ -4,7 +4,7 @@ use std::hash::Hash;
 
 use erg_common::dict::Dict;
 use erg_common::set::Set;
-use erg_common::shared::Shared;
+use erg_common::shared::{MappedRwLockWriteGuard, RwLockWriteGuard, Shared};
 use erg_common::Str;
 
 use crate::context::TraitImpl;
@@ -84,12 +84,13 @@ impl SharedTraitImpls {
         ref_.get(path)
     }
 
-    pub fn get_mut<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<&mut Set<TraitImpl>>
+    pub fn get_mut<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> MappedRwLockWriteGuard<Set<TraitImpl>>
     where
         Str: Borrow<Q>,
     {
-        let ref_ = unsafe { self.0.as_ptr().as_mut().unwrap() };
-        ref_.get_mut(path)
+        // let ref_ = unsafe { self.0.as_ptr().as_mut().unwrap() };
+        // ref_.get_mut(path)
+        RwLockWriteGuard::map(self.0.borrow_mut(), |tis| tis.get_mut(path).unwrap())
     }
 
     pub fn register(&self, name: Str, impls: Set<TraitImpl>) {

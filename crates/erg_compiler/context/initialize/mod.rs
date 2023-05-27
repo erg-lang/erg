@@ -15,6 +15,7 @@ use std::path::PathBuf;
 use erg_common::config::ErgConfig;
 use erg_common::consts::{DEBUG_MODE, ERG_MODE, PYTHON_MODE};
 use erg_common::dict;
+use erg_common::env::{ERG_PYSTD_PATH, ERG_STD_DECL_PATH};
 use erg_common::error::Location;
 use erg_common::fresh::fresh_varname;
 #[allow(unused_imports)]
@@ -513,11 +514,11 @@ const KW_OFFSET: &str = "offset";
 const KW_WHENCE: &str = "whence";
 
 pub fn builtins_path() -> PathBuf {
-    erg_common::env::erg_pystd_path().join("builtins.d.er")
+    ERG_PYSTD_PATH.join("builtins.d.er")
 }
 
 pub fn std_decl_path() -> PathBuf {
-    erg_common::env::erg_std_decl_path()
+    ERG_STD_DECL_PATH.clone()
 }
 
 impl Context {
@@ -772,7 +773,8 @@ impl Context {
             );
             self.consts.insert(name.clone(), val);
             for impl_trait in ctx.super_traits.iter() {
-                if let Some(impls) = self.trait_impls().get_mut(&impl_trait.qual_name()) {
+                if self.trait_impls().get(&impl_trait.qual_name()).is_some() {
+                    let mut impls = self.trait_impls().get_mut(&impl_trait.qual_name());
                     impls.insert(TraitImpl::new(t.clone(), impl_trait.clone()));
                 } else {
                     self.trait_impls().register(
@@ -848,7 +850,8 @@ impl Context {
             }
             self.consts.insert(name.clone(), val);
             for impl_trait in ctx.super_traits.iter() {
-                if let Some(impls) = self.trait_impls().get_mut(&impl_trait.qual_name()) {
+                if self.trait_impls().get(&impl_trait.qual_name()).is_some() {
+                    let mut impls = self.trait_impls().get_mut(&impl_trait.qual_name());
                     impls.insert(TraitImpl::new(t.clone(), impl_trait.clone()));
                 } else {
                     self.trait_impls().register(
@@ -912,7 +915,12 @@ impl Context {
                 }
             }
             if let ContextKind::GluePatch(tr_impl) = &ctx.kind {
-                if let Some(impls) = self.trait_impls().get_mut(&tr_impl.sup_trait.qual_name()) {
+                if self
+                    .trait_impls()
+                    .get(&tr_impl.sup_trait.qual_name())
+                    .is_some()
+                {
+                    let mut impls = self.trait_impls().get_mut(&tr_impl.sup_trait.qual_name());
                     impls.insert(tr_impl.clone());
                 } else {
                     self.trait_impls()

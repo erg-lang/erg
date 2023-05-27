@@ -14,7 +14,7 @@ use serde_json::Value;
 
 use erg_common::config::ErgConfig;
 use erg_common::dict::Dict;
-use erg_common::env::erg_path;
+use erg_common::env::ERG_PATH;
 use erg_common::normalize_path;
 
 use erg_compiler::artifact::{BuildRunnable, IncompleteArtifact};
@@ -224,7 +224,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             comp_cache: CompletionCache::new(cfg.copy()),
             cfg,
             home: normalize_path(std::env::current_dir().unwrap_or_default()),
-            erg_path: erg_path(), // already normalized
+            erg_path: ERG_PATH.clone(), // already normalized
             client_capas: ClientCapabilities::default(),
             disabled_features: vec![],
             opt_features: vec![],

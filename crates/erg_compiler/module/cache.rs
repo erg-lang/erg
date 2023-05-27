@@ -2,7 +2,7 @@ use std::borrow::Borrow;
 use std::fmt;
 use std::hash::Hash;
 use std::path::PathBuf;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use erg_common::config::ErgConfig;
 use erg_common::dict::Dict;
@@ -32,7 +32,7 @@ impl ModId {
 pub struct ModuleEntry {
     pub id: ModId, // builtin == 0, __main__ == 1
     pub hir: Option<HIR>,
-    pub module: Rc<ModuleContext>,
+    pub module: Arc<ModuleContext>,
 }
 
 impl fmt::Display for ModuleEntry {
@@ -50,7 +50,7 @@ impl ModuleEntry {
         Self {
             id,
             hir,
-            module: Rc::new(ctx),
+            module: Arc::new(ctx),
         }
     }
 
@@ -58,7 +58,7 @@ impl ModuleEntry {
         Self {
             id: ModId::builtin(),
             hir: None,
-            module: Rc::new(ctx),
+            module: Arc::new(ctx),
         }
     }
 
@@ -189,7 +189,7 @@ impl SharedModuleCache {
         ref_.get_mut(path)
     }
 
-    pub fn get_ctx<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<Rc<ModuleContext>>
+    pub fn get_ctx<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<Arc<ModuleContext>>
     where
         PathBuf: Borrow<Q>,
     {
@@ -236,7 +236,7 @@ impl SharedModuleCache {
         for path in self.keys() {
             self.remove(&path);
         }
-        self.register(builtin_path, None, Rc::try_unwrap(builtin.module).unwrap());
+        self.register(builtin_path, None, Arc::try_unwrap(builtin.module).unwrap());
     }
 
     pub fn rename_path(&self, path: &PathBuf, new: PathBuf) {

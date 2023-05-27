@@ -4,11 +4,11 @@ use serde_json::Value;
 
 use erg_common::config::{ErgConfig, Input};
 use erg_common::dict::Dict;
-use erg_common::env::erg_pystd_path;
+use erg_common::env::ERG_PYSTD_PATH;
 use erg_common::impl_u8_enum;
 use erg_common::python_util::BUILTIN_PYTHON_MODS;
 use erg_common::set::Set;
-use erg_common::shared::AtomicShared;
+use erg_common::shared::Shared;
 use erg_common::traits::Locational;
 
 use erg_compiler::artifact::{BuildRunnable, Buildable};
@@ -174,7 +174,7 @@ impl<'b> CompletionOrderSetter<'b> {
     }
 }
 
-type Cache = AtomicShared<Dict<String, Vec<CompletionItem>>>;
+type Cache = Shared<Dict<String, Vec<CompletionItem>>>;
 
 #[derive(Debug)]
 pub struct CompletionCache {
@@ -296,7 +296,7 @@ fn load_modules(cfg: ErgConfig, cache: Cache) {
     if cache.get("<module>").is_none() {
         cache.insert("<module>".into(), module_completions());
     }
-    let std_path = erg_pystd_path().display().to_string().replace('\\', "/");
+    let std_path = ERG_PYSTD_PATH.display().to_string().replace('\\', "/");
     for (path, entry) in shared.py_mod_cache.iter() {
         let dir = entry.module.context.local_dir();
         let mod_name = path.display().to_string().replace('\\', "/");
@@ -316,7 +316,7 @@ fn load_modules(cfg: ErgConfig, cache: Cache) {
 
 impl CompletionCache {
     pub fn new(cfg: ErgConfig) -> Self {
-        let cache = AtomicShared::new(Dict::default());
+        let cache = Shared::new(Dict::default());
         let clone = cache.clone();
         std::thread::spawn(move || {
             crate::_log!("load_modules");

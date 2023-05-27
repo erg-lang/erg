@@ -1,8 +1,9 @@
-use std::cell::{Ref, RefMut};
+// use std::cell::{Ref, RefMut};
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::mem;
 
+use erg_common::fresh::VAR_ID;
 use erg_common::shared::Shared;
 use erg_common::traits::{LimitedDisplay, StructuralEq};
 use erg_common::Str;
@@ -16,10 +17,6 @@ pub type Id = usize;
 
 /// HACK: see doc/compiler/inference.md for details
 pub const GENERIC_LEVEL: usize = usize::MAX;
-
-thread_local! {
-    static UNBOUND_ID: Shared<usize> = Shared::new(0);
-}
 
 pub trait HasLevel {
     fn level(&self) -> Option<Level>;
@@ -429,14 +426,12 @@ impl<T> FreeKind<T> {
     }
 
     pub fn new_unbound(lev: Level, constraint: Constraint) -> Self {
-        UNBOUND_ID.with(|id| {
-            *id.borrow_mut() += 1;
-            Self::Unbound {
-                id: *id.borrow(),
-                lev,
-                constraint,
-            }
-        })
+        *VAR_ID.borrow_mut() += 1;
+        Self::Unbound {
+            id: *VAR_ID.borrow(),
+            lev,
+            constraint,
+        }
     }
 
     pub const fn named_unbound(name: Str, lev: Level, constraint: Constraint) -> Self {
@@ -601,10 +596,10 @@ impl<T: LimitedDisplay> LimitedDisplay for Free<T> {
 }
 
 impl<T> Free<T> {
-    pub fn borrow(&self) -> Ref<'_, FreeKind<T>> {
+    pub fn borrow(&self) -> erg_common::shared::RwLockReadGuard<'_, FreeKind<T>> {
         self.0.borrow()
     }
-    pub fn borrow_mut(&self) -> RefMut<'_, FreeKind<T>> {
+    pub fn borrow_mut(&self) -> erg_common::shared::RwLockWriteGuard<'_, FreeKind<T>> {
         self.0.borrow_mut()
     }
     /// very unsafe, use `force_replace` instead whenever possible
@@ -620,8 +615,9 @@ impl<T> Free<T> {
             return;
         }
         unsafe {
-            *self.0.as_ptr() = new;
+            self.0.force_unlock_write();
         }
+        *self.0.borrow_mut() = new;
     }
     pub fn can_borrow(&self) -> bool {
         self.0.can_borrow()
@@ -650,7 +646,7 @@ impl Free<TyParam> {
     }
 }
 
-impl<T: StructuralEq + CanbeFree + Clone + Default> StructuralEq for Free<T> {
+impl<T: StructuralEq + CanbeFree + Clone + Default + fmt::Debug> StructuralEq for Free<T> {
     fn structural_eq(&self, other: &Self) -> bool {
         if let (Some((l, r)), Some((l2, r2))) = (self.get_subsup(), other.get_subsup()) {
             self.dummy_link();
@@ -736,14 +732,12 @@ impl<T> Free<T> {
     }
 
     pub fn new_unbound(level: Level, constraint: Constraint) -> Self {
-        UNBOUND_ID.with(|id| {
-            *id.borrow_mut() += 1;
-            Self(Shared::new(FreeKind::unbound(
-                *id.borrow(),
-                level,
-                constraint,
-            )))
-        })
+        *VAR_ID.borrow_mut() += 1;
+        Self(Shared::new(FreeKind::unbound(
+            *VAR_ID.borrow(),
+            level,
+            constraint,
+        )))
     }
 
     pub fn new_named_unbound(name: Str, level: Level, constraint: Constraint) -> Self {
@@ -766,8 +760,8 @@ impl<T> Free<T> {
 
     /// returns linked type (panic if self is unbounded)
     /// NOTE: check by `.is_linked` before call
-    pub fn crack(&self) -> Ref<'_, T> {
-        Ref::map(self.borrow(), |f| match f {
+    pub fn crack(&self) -> erg_common::shared::MappedRwLockReadGuard<'_, T> {
+        erg_common::shared::RwLockReadGuard::map(self.borrow(), |f| match f {
             FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => t,
             FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => {
                 panic!("the value is unbounded")
@@ -775,8 +769,8 @@ impl<T> Free<T> {
         })
     }
 
-    pub fn crack_constraint(&self) -> Ref<'_, Constraint> {
-        Ref::map(self.borrow(), |f| match f {
+    pub fn crack_constraint(&self) -> erg_common::shared::MappedRwLockReadGuard<'_, Constraint> {
+        erg_common::shared::RwLockReadGuard::map(self.borrow(), |f| match f {
             FreeKind::Linked(_) | FreeKind::UndoableLinked { .. } => panic!("the value is linked"),
             FreeKind::Unbound { constraint, .. } | FreeKind::NamedUnbound { constraint, .. } => {
                 constraint
@@ -814,7 +808,7 @@ impl<T> Free<T> {
     }
 }
 
-impl<T: Clone> Free<T> {
+impl<T: Clone + fmt::Debug> Free<T> {
     /// SAFETY: use `Type/TyParam::link` instead of this.
     /// This method may cause circular references.
     pub(super) fn link(&self, to: &T) {
@@ -871,7 +865,7 @@ impl<T: Clone> Free<T> {
                 let prev = *previous.clone();
                 self.force_replace(prev);
             }
-            _other => panic!("cannot undo"),
+            _other => panic!("cannot undo: {_other:?}"),
         }
     }
 
@@ -920,7 +914,7 @@ impl<T: Clone> Free<T> {
     }
 }
 
-impl<T: Default + Clone> Free<T> {
+impl<T: Default + Clone + fmt::Debug> Free<T> {
     pub fn dummy_link(&self) {
         self.forced_undoable_link(&T::default());
     }

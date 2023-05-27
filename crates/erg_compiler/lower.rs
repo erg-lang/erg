@@ -1892,12 +1892,18 @@ impl ASTLowerer {
         trait_loc: &impl Locational,
     ) -> LowerResult<()> {
         // TODO: polymorphic trait
-        if let Some(impls) = self
+        if self
             .module
             .context
             .trait_impls()
-            .get_mut(&trait_.qual_name())
+            .get(&trait_.qual_name())
+            .is_some()
         {
+            let mut impls = self
+                .module
+                .context
+                .trait_impls()
+                .get_mut(&trait_.qual_name());
             impls.insert(TraitImpl::new(class.clone(), trait_.clone()));
         } else {
             self.module.context.trait_impls().register(

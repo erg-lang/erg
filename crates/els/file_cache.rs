@@ -12,7 +12,7 @@ use lsp_types::{
 };
 
 use erg_common::dict::Dict;
-use erg_common::shared::AtomicShared;
+use erg_common::shared::Shared;
 use erg_common::traits::DequeStream;
 use erg_compiler::erg_parser::lex::Lexer;
 use erg_compiler::erg_parser::token::{Token, TokenStream};
@@ -50,13 +50,13 @@ impl FileCacheEntry {
 /// This struct can save changes in real-time & incrementally.
 #[derive(Debug, Clone)]
 pub struct FileCache {
-    pub files: AtomicShared<Dict<NormalizedUrl, FileCacheEntry>>,
+    pub files: Shared<Dict<NormalizedUrl, FileCacheEntry>>,
 }
 
 impl FileCache {
     pub fn new() -> Self {
         Self {
-            files: AtomicShared::new(Dict::new()),
+            files: Shared::new(Dict::new()),
         }
     }
 

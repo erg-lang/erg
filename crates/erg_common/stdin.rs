@@ -1,5 +1,5 @@
-use std::cell::RefCell;
-use std::thread::LocalKey;
+// use std::cell::RefCell;
+// use std::thread::LocalKey;
 
 #[cfg(not(feature = "full-repl"))]
 use std::io::{stdin, BufRead, BufReader};
@@ -261,57 +261,52 @@ impl StdinReader {
     }
 }
 
-thread_local! {
-    static READER: RefCell<StdinReader> = RefCell::new(StdinReader{
-        block_begin: 1,
-        lineno: 1,
-        buf: vec![],
-        #[cfg(feature = "full-repl")]
-        history_input_position: 1,
-        indent: 1
-    });
-}
+static READER: crate::shared::RwLock<StdinReader> = crate::shared::RwLock::new(StdinReader {
+    block_begin: 1,
+    lineno: 1,
+    buf: vec![],
+    #[cfg(feature = "full-repl")]
+    history_input_position: 1,
+    indent: 1,
+});
 
 #[derive(Debug)]
-pub struct GlobalStdin(LocalKey<RefCell<StdinReader>>);
+pub struct GlobalStdin(&'static crate::shared::RwLock<StdinReader>);
 
-pub static GLOBAL_STDIN: GlobalStdin = GlobalStdin(READER);
+pub static GLOBAL_STDIN: GlobalStdin = GlobalStdin(&READER);
 
 impl GlobalStdin {
     pub fn read(&'static self) -> String {
-        self.0.with(|s| s.borrow_mut().read())
+        self.0.write().read()
     }
 
     pub fn reread(&'static self) -> String {
-        self.0.with(|s| s.borrow().reread())
+        self.0.read().reread()
     }
 
     pub fn reread_lines(&'static self, ln_begin: usize, ln_end: usize) -> Vec<String> {
-        self.0
-            .with(|s| s.borrow_mut().reread_lines(ln_begin, ln_end))
+        self.0.read().reread_lines(ln_begin, ln_end)
     }
 
     pub fn lineno(&'static self) -> usize {
-        self.0.with(|s| s.borrow().lineno)
+        self.0.read().lineno
     }
 
     pub fn block_begin(&'static self) -> usize {
-        self.0.with(|s| s.borrow().block_begin)
+        self.0.read().block_begin
     }
 
     pub fn set_block_begin(&'static self, n: usize) {
-        self.0.with(|s| s.borrow_mut().block_begin = n);
+        self.0.write().block_begin = n;
     }
 
     pub fn set_indent(&'static self, n: usize) {
-        self.0.with(|s| s.borrow_mut().indent = n as u16);
+        self.0.write().indent = n as u16;
     }
 
     pub fn insert_whitespace(&'static self, whitespace: &str) {
-        self.0.with(|s| {
-            if let Some(line) = s.borrow_mut().last_line() {
-                line.insert_str(0, whitespace);
-            }
-        })
+        if let Some(line) = self.0.write().last_line() {
+            line.insert_str(0, whitespace);
+        }
     }
 }

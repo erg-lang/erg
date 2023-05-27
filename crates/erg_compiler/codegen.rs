@@ -8,7 +8,7 @@ use crate::ty::codeobj::{CodeObj, CodeObjFlags, MakeFunctionFlags};
 use crate::ty::value::GenTypeObj;
 use erg_common::cache::CacheSet;
 use erg_common::config::{ErgConfig, Input};
-use erg_common::env::erg_std_path;
+use erg_common::env::ERG_STD_PATH;
 use erg_common::error::{ErrorDisplay, Location};
 use erg_common::opcode::{CommonOpcode, CompareOp};
 use erg_common::opcode308::Opcode308;
@@ -3120,7 +3120,7 @@ impl PyCodeGenerator {
         );
         self.emit_load_name_instr(Identifier::private("#path"));
         self.emit_load_method_instr(Identifier::public("append"));
-        self.emit_load_const(erg_std_path().to_str().unwrap());
+        self.emit_load_const(ERG_STD_PATH.to_str().unwrap());
         self.emit_call_instr(1, Method);
         self.stack_dec();
         self.emit_pop_top();

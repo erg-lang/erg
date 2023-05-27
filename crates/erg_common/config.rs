@@ -11,7 +11,7 @@ use std::process;
 use std::str::FromStr;
 
 use crate::consts::ERG_MODE;
-use crate::env::{erg_py_external_lib_path, erg_pystd_path, erg_std_path, python_site_packages};
+use crate::env::{ERG_EXTERNAL_LIB_PATH, ERG_PYSTD_PATH, ERG_STD_PATH, PYTHON_SITE_PACKAGES};
 use crate::help_messages::{command_message, mode_message, OPTIONS};
 use crate::levenshtein::get_similar_name;
 use crate::pathutil::add_postfix_foreach;
@@ -581,12 +581,12 @@ impl Input {
     pub fn resolve_real_path(&self, path: &Path) -> Option<PathBuf> {
         if let Ok(path) = self.resolve_local(path) {
             Some(path)
-        } else if let Ok(path) = erg_std_path()
+        } else if let Ok(path) = ERG_STD_PATH
             .join(format!("{}.er", path.display()))
             .canonicalize()
         {
             Some(normalize_path(path))
-        } else if let Ok(path) = erg_std_path()
+        } else if let Ok(path) = ERG_STD_PATH
             .join(format!("{}", path.display()))
             .join("__init__.er")
             .canonicalize()
@@ -612,13 +612,12 @@ impl Input {
         if let Ok(path) = self.resolve_local_decl(path) {
             Some(path)
         } else {
-            let py_roots = [erg_pystd_path, erg_py_external_lib_path];
-            for root in py_roots {
-                if let Some(path) = Self::resolve_std_decl_path(root(), path) {
+            for root in [ERG_PYSTD_PATH.clone(), ERG_EXTERNAL_LIB_PATH.clone()] {
+                if let Some(path) = Self::resolve_std_decl_path(root, path) {
                     return Some(path);
                 }
             }
-            for site_packages in python_site_packages() {
+            for site_packages in PYTHON_SITE_PACKAGES.clone() {
                 if let Some(path) = Self::resolve_site_pkgs_decl_path(site_packages, path) {
                     return Some(path);
                 }

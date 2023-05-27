@@ -117,10 +117,13 @@ dependencies = [
 name = "erg_common"
 version = "0.6.13"
 dependencies = [
+ "backtrace",
  "backtrace-on-stack-overflow",
  "crossterm",
  "hermit-abi",
  "libc",
+ "once_cell",
+ "parking_lot",
  "winapi",
 ]
 
@@ -275,6 +278,12 @@ checksum = "ea86265d3d3dcb6a27fc51bd29a4bf387fae9d2986b823079d4986af253eb439"
 dependencies = [
  "memchr",
 ]
+
+[[package]]
+name = "once_cell"
+version = "1.17.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b7e5500299e16ebb147ae15a00a942af264cf3688f47923b8fc2cd5858f23ad3"
 
 [[package]]
 name = "parking_lot"

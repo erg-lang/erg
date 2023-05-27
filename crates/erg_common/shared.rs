@@ -1,10 +1,13 @@
-use std::cell::{Ref, RefCell, RefMut};
+// use std::cell::{Ref, RefCell, RefMut};
 use std::fmt;
 use std::hash::{Hash, Hasher};
-use std::rc::Rc;
-use std::sync::{Arc, Mutex, MutexGuard};
+// use std::rc::Rc;
+pub use parking_lot::{
+    MappedRwLockReadGuard, MappedRwLockWriteGuard, RwLock, RwLockReadGuard, RwLockWriteGuard,
+};
+use std::sync::Arc;
 
-#[derive(Debug)]
+/*#[derive(Debug)]
 pub struct Shared<T: ?Sized>(Rc<RefCell<T>>);
 
 impl<T: PartialEq> PartialEq for Shared<T> {
@@ -108,14 +111,14 @@ impl<T: Clone> Shared<T> {
     pub fn clone_inner(&self) -> T {
         self.borrow().clone()
     }
-}
+}*/
 
 #[derive(Debug)]
-pub struct AtomicShared<T: ?Sized>(Arc<Mutex<T>>);
+pub struct Shared<T: ?Sized>(Arc<RwLock<T>>);
 
-impl<T: PartialEq> PartialEq for AtomicShared<T>
+impl<T: PartialEq> PartialEq for Shared<T>
 where
-    Mutex<T>: PartialEq,
+    RwLock<T>: PartialEq,
 {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
@@ -123,35 +126,35 @@ where
     }
 }
 
-impl<T: ?Sized> Clone for AtomicShared<T> {
-    fn clone(&self) -> AtomicShared<T> {
+impl<T: ?Sized> Clone for Shared<T> {
+    fn clone(&self) -> Shared<T> {
         Self(Arc::clone(&self.0))
     }
 }
 
-impl<T: Eq> Eq for AtomicShared<T> where Mutex<T>: Eq {}
+impl<T: Eq> Eq for Shared<T> where RwLock<T>: Eq {}
 
-impl<T: Hash> Hash for AtomicShared<T> {
+impl<T: Hash> Hash for Shared<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.borrow_mut().hash(state);
     }
 }
 
-impl<T: Default> Default for AtomicShared<T> {
+impl<T: Default> Default for Shared<T> {
     fn default() -> Self {
         Self::new(Default::default())
     }
 }
 
-impl<T: fmt::Display> fmt::Display for AtomicShared<T> {
+impl<T: fmt::Display> fmt::Display for Shared<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.borrow_mut())
     }
 }
 
-impl<T> AtomicShared<T> {
+impl<T> Shared<T> {
     pub fn new(t: T) -> Self {
-        Self(Arc::new(Mutex::new(t)))
+        Self(Arc::new(RwLock::new(t)))
     }
 
     #[inline]
@@ -160,27 +163,56 @@ impl<T> AtomicShared<T> {
             Ok(mutex) => mutex,
             Err(_rc) => panic!("unwrapping failed"),
         };
-        Mutex::into_inner(mutex).unwrap()
+        RwLock::into_inner(mutex)
     }
 }
 
-impl<T: ?Sized> AtomicShared<T> {
+impl<T: ?Sized> Shared<T> {
     #[inline]
     pub fn copy(&self) -> Self {
         Self(self.0.clone())
     }
 
     #[inline]
-    pub fn borrow_mut(&self) -> MutexGuard<'_, T> {
-        self.0.lock().unwrap()
+    pub fn borrow(&self) -> RwLockReadGuard<'_, T> {
+        println!("borrowing {}", std::any::type_name::<T>());
+        let res = self.0.read();
+        println!("borrowed successfully");
+        res
+    }
+
+    #[inline]
+    pub fn borrow_mut(&self) -> RwLockWriteGuard<'_, T> {
+        println!("borrowing mut {}", std::any::type_name::<T>());
+        let res = self.0.write();
+        println!("borrowed mut successfully");
+        res
     }
 
     pub fn get_mut(&mut self) -> Option<&mut T> {
-        Arc::get_mut(&mut self.0).map(|mutex| mutex.get_mut().unwrap())
+        Arc::get_mut(&mut self.0).map(|mutex| mutex.get_mut())
+    }
+
+    pub fn as_ptr(&self) -> *mut T {
+        Arc::as_ptr(&self.0) as *mut T
+    }
+
+    pub fn can_borrow(&self) -> bool {
+        self.0.try_read().is_some()
+    }
+
+    pub fn can_borrow_mut(&self) -> bool {
+        self.0.try_write().is_some()
+    }
+
+    /// # Safety
+    /// don't call this except you need to handle cyclic references.
+    pub unsafe fn force_unlock_write(&self) {
+        self.0.force_unlock_write();
     }
 }
 
-impl<T: Clone> AtomicShared<T> {
+impl<T: Clone> Shared<T> {
     #[inline]
     pub fn clone_inner(&self) -> T {
         self.borrow_mut().clone()
