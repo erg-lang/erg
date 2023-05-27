@@ -651,7 +651,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
 
     pub(crate) fn get_builtin_module(&self) -> Option<&Context> {
         self.get_shared()
-            .and_then(|mode| mode.mod_cache.ref_ctx(Path::new("<builtins>")))
+            .and_then(|mode| mode.mod_cache.raw_ref_ctx(Path::new("<builtins>")))
             .map(|mc| &mc.context)
     }
 

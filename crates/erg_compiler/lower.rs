@@ -1892,7 +1892,7 @@ impl ASTLowerer {
         trait_loc: &impl Locational,
     ) -> LowerResult<()> {
         // TODO: polymorphic trait
-        if let Some(impls) = self
+        if let Some(mut impls) = self
             .module
             .context
             .trait_impls()

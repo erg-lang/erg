@@ -169,7 +169,7 @@ impl ASTLowerer {
         if mode == "eval" {
             return;
         }
-        for (referee, value) in self.module.context.index().iter() {
+        for (referee, value) in self.module.context.index().members().iter() {
             let code = referee.code();
             let name = code.as_ref().map(|s| &s[..]).unwrap_or("");
             let name_is_auto =
