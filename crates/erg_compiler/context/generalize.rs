@@ -148,7 +148,7 @@ impl Generalizer {
                     if sub == sup {
                         let t = self.generalize_t(sub, uninit);
                         let res = FreeVar(fv);
-                        res.forced_link(&t);
+                        res.link(&t);
                         res
                     } else if sup != Obj
                         && !self.qnames.contains(&fv.unbound_name().unwrap())
@@ -532,10 +532,10 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                             fv.dummy_link();
                         }
                         (true, false) => {
-                            fv.forced_undoable_link(&super_t);
+                            fv.undoable_link(&super_t);
                         }
                         (false, true | false) => {
-                            fv.forced_undoable_link(&sub_t);
+                            fv.undoable_link(&sub_t);
                         }
                     }
                     let res = self.validate_subsup(sub_t, super_t);

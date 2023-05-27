@@ -5,6 +5,7 @@ use std::mem;
 
 use erg_common::fresh::VAR_ID;
 use erg_common::shared::Shared;
+use erg_common::shared::{MappedRwLockReadGuard, RwLockReadGuard, RwLockWriteGuard};
 use erg_common::traits::{LimitedDisplay, StructuralEq};
 use erg_common::Str;
 use erg_common::{addr_eq, log};
@@ -596,10 +597,12 @@ impl<T: LimitedDisplay> LimitedDisplay for Free<T> {
 }
 
 impl<T> Free<T> {
-    pub fn borrow(&self) -> erg_common::shared::RwLockReadGuard<'_, FreeKind<T>> {
+    #[track_caller]
+    pub fn borrow(&self) -> RwLockReadGuard<'_, FreeKind<T>> {
         self.0.borrow()
     }
-    pub fn borrow_mut(&self) -> erg_common::shared::RwLockWriteGuard<'_, FreeKind<T>> {
+    #[track_caller]
+    pub fn borrow_mut(&self) -> RwLockWriteGuard<'_, FreeKind<T>> {
         self.0.borrow_mut()
     }
     /// very unsafe, use `force_replace` instead whenever possible
@@ -608,16 +611,6 @@ impl<T> Free<T> {
     }
     pub fn forced_as_ref(&self) -> &FreeKind<T> {
         unsafe { self.as_ptr().as_ref() }.unwrap()
-    }
-    pub fn force_replace(&self, new: FreeKind<T>) {
-        // prevent linking to self
-        if addr_eq!(*self.borrow(), new) {
-            return;
-        }
-        unsafe {
-            self.0.force_unlock_write();
-        }
-        *self.0.borrow_mut() = new;
     }
     pub fn can_borrow(&self) -> bool {
         self.0.can_borrow()
@@ -750,6 +743,7 @@ impl<T> Free<T> {
         Self(Shared::new(FreeKind::Linked(t)))
     }
 
+    #[track_caller]
     pub fn replace(&self, to: FreeKind<T>) {
         // prevent linking to self
         if self.is_linked() && addr_eq!(*self.borrow(), to) {
@@ -760,8 +754,9 @@ impl<T> Free<T> {
 
     /// returns linked type (panic if self is unbounded)
     /// NOTE: check by `.is_linked` before call
-    pub fn crack(&self) -> erg_common::shared::MappedRwLockReadGuard<'_, T> {
-        erg_common::shared::RwLockReadGuard::map(self.borrow(), |f| match f {
+    #[track_caller]
+    pub fn crack(&self) -> MappedRwLockReadGuard<'_, T> {
+        RwLockReadGuard::map(self.borrow(), |f| match f {
             FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => t,
             FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => {
                 panic!("the value is unbounded")
@@ -769,8 +764,9 @@ impl<T> Free<T> {
         })
     }
 
-    pub fn crack_constraint(&self) -> erg_common::shared::MappedRwLockReadGuard<'_, Constraint> {
-        erg_common::shared::RwLockReadGuard::map(self.borrow(), |f| match f {
+    #[track_caller]
+    pub fn crack_constraint(&self) -> MappedRwLockReadGuard<'_, Constraint> {
+        RwLockReadGuard::map(self.borrow(), |f| match f {
             FreeKind::Linked(_) | FreeKind::UndoableLinked { .. } => panic!("the value is linked"),
             FreeKind::Unbound { constraint, .. } | FreeKind::NamedUnbound { constraint, .. } => {
                 constraint
@@ -811,6 +807,7 @@ impl<T> Free<T> {
 impl<T: Clone + fmt::Debug> Free<T> {
     /// SAFETY: use `Type/TyParam::link` instead of this.
     /// This method may cause circular references.
+    #[track_caller]
     pub(super) fn link(&self, to: &T) {
         // prevent linking to self
         if self.is_linked() && addr_eq!(*self.crack(), *to) {
@@ -819,19 +816,7 @@ impl<T: Clone + fmt::Debug> Free<T> {
         self.borrow_mut().replace(to.clone());
     }
 
-    /// NOTE: Do not use this except to rewrite circular references.
-    /// No reference to any type variable may be left behind when rewriting.
-    /// However, `get_subsup` is safe because it does not return references.
-    pub(super) fn forced_link(&self, to: &T) {
-        // prevent linking to self
-        if self.is_linked() && addr_eq!(*self.crack(), *to) {
-            return;
-        }
-        unsafe {
-            self.as_ptr().as_mut().unwrap().replace(to.clone());
-        }
-    }
-
+    #[track_caller]
     pub fn undoable_link(&self, to: &T) {
         if self.is_linked() && addr_eq!(*self.crack(), *to) {
             panic!("link to self");
@@ -844,29 +829,12 @@ impl<T: Clone + fmt::Debug> Free<T> {
         *self.borrow_mut() = new;
     }
 
-    /// NOTE: Do not use this except to rewrite circular references.
-    /// No reference to any type variable may be left behind when rewriting.
-    /// However, `get_subsup` is safe because it does not return references.
-    pub fn forced_undoable_link(&self, to: &T) {
-        if self.is_linked() && addr_eq!(*self.crack(), *to) {
-            panic!("link to self");
-        }
-        let prev = self.clone_inner();
-        let new = FreeKind::UndoableLinked {
-            t: to.clone(),
-            previous: Box::new(prev),
-        };
-        self.force_replace(new);
-    }
-
     pub fn undo(&self) {
-        match &*self.borrow() {
-            FreeKind::UndoableLinked { previous, .. } => {
-                let prev = *previous.clone();
-                self.force_replace(prev);
-            }
-            _other => panic!("cannot undo: {_other:?}"),
-        }
+        let prev = match &*self.borrow() {
+            FreeKind::UndoableLinked { previous, .. } => *previous.clone(),
+            _other => panic!("cannot undo"),
+        };
+        self.replace(prev);
     }
 
     pub fn unwrap_unbound(self) -> (Option<Str>, usize, Constraint) {
@@ -916,7 +884,7 @@ impl<T: Clone + fmt::Debug> Free<T> {
 
 impl<T: Default + Clone + fmt::Debug> Free<T> {
     pub fn dummy_link(&self) {
-        self.forced_undoable_link(&T::default());
+        self.undoable_link(&T::default());
     }
 }
 
