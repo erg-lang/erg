@@ -2326,7 +2326,7 @@ impl Type {
 
     pub fn qvars(&self) -> Set<(Str, Constraint)> {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().qvars(),
+            Self::FreeVar(fv) if fv.is_linked() => fv.unsafe_crack().qvars(),
             Self::FreeVar(fv) if !fv.constraint_is_uninited() => {
                 let base = set! {(fv.unbound_name().unwrap(), fv.constraint().unwrap())};
                 if let Some((sub, sup)) = fv.get_subsup() {
@@ -2970,17 +2970,6 @@ impl Type {
         match self {
             Self::FreeVar(fv) => fv.link(to),
             Self::Refinement(refine) => refine.t.link(to),
-            _ => panic!("{self} is not a free variable"),
-        }
-    }
-
-    pub(crate) fn forced_link(&self, to: &Type) {
-        if self.addr_eq(to) {
-            return;
-        }
-        match self {
-            Self::FreeVar(fv) => fv.forced_link(to),
-            Self::Refinement(refine) => refine.t.forced_link(to),
             _ => panic!("{self} is not a free variable"),
         }
     }

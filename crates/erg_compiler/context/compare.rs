@@ -459,54 +459,46 @@ impl Context {
             //   => ?P.undoable_link(Int)
             //   => Mul Int :> Int
             (FreeVar(lfv), rhs) => {
-                match &*lfv.borrow() {
-                    FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => {
-                        self.supertype_of(t, rhs)
-                    }
-                    FreeKind::Unbound { constraint: _, .. }
-                    | FreeKind::NamedUnbound { constraint: _, .. } => {
-                        if let Some((_sub, sup)) = lfv.get_subsup() {
-                            lfv.forced_undoable_link(rhs);
-                            let res = self.supertype_of(&sup, rhs);
-                            lfv.undo();
-                            res
-                        } else if let Some(lfvt) = lfv.get_type() {
-                            // e.g. lfv: ?L(: Int) is unreachable
-                            // but
-                            // ?L(: Array(Type, 3)) :> Array(Int, 3)
-                            //   => Array(Type, 3) :> Array(Typeof(Int), 3)
-                            //   => true
-                            let rhs_meta = self.meta_type(rhs);
-                            self.supertype_of(&lfvt, &rhs_meta)
-                        } else {
-                            // constraint is uninitialized
-                            log!(err "constraint is uninitialized: {lfv}/{rhs}");
-                            true
-                        }
-                    }
+                if let FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } = &*lfv.borrow() {
+                    return self.supertype_of(t, rhs);
+                }
+                if let Some((_sub, sup)) = lfv.get_subsup() {
+                    lfv.undoable_link(rhs);
+                    let res = self.supertype_of(&sup, rhs);
+                    lfv.undo();
+                    res
+                } else if let Some(lfvt) = lfv.get_type() {
+                    // e.g. lfv: ?L(: Int) is unreachable
+                    // but
+                    // ?L(: Array(Type, 3)) :> Array(Int, 3)
+                    //   => Array(Type, 3) :> Array(Typeof(Int), 3)
+                    //   => true
+                    let rhs_meta = self.meta_type(rhs);
+                    self.supertype_of(&lfvt, &rhs_meta)
+                } else {
+                    // constraint is uninitialized
+                    log!(err "constraint is uninitialized: {lfv}/{rhs}");
+                    true
                 }
             }
-            (lhs, FreeVar(rfv)) => match &*rfv.borrow() {
-                FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => {
-                    self.supertype_of(lhs, t)
+            (lhs, FreeVar(rfv)) => {
+                if let FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } = &*rfv.borrow() {
+                    return self.supertype_of(lhs, t);
                 }
-                FreeKind::Unbound { constraint: _, .. }
-                | FreeKind::NamedUnbound { constraint: _, .. } => {
-                    if let Some((sub, _sup)) = rfv.get_subsup() {
-                        rfv.forced_undoable_link(lhs);
-                        let res = self.supertype_of(lhs, &sub);
-                        rfv.undo();
-                        res
-                    } else if let Some(rfvt) = rfv.get_type() {
-                        let lhs_meta = self.meta_type(lhs);
-                        self.supertype_of(&lhs_meta, &rfvt)
-                    } else {
-                        // constraint is uninitialized
-                        log!(err "constraint is uninitialized: {lhs}/{rfv}");
-                        true
-                    }
+                if let Some((sub, _sup)) = rfv.get_subsup() {
+                    rfv.undoable_link(lhs);
+                    let res = self.supertype_of(lhs, &sub);
+                    rfv.undo();
+                    res
+                } else if let Some(rfvt) = rfv.get_type() {
+                    let lhs_meta = self.meta_type(lhs);
+                    self.supertype_of(&lhs_meta, &rfvt)
+                } else {
+                    // constraint is uninitialized
+                    log!(err "constraint is uninitialized: {lhs}/{rfv}");
+                    true
                 }
-            },
+            }
             (Record(lhs), Record(rhs)) => {
                 for (l_k, l_t) in lhs.iter() {
                     if let Some((r_k, r_t)) = rhs.get_key_value(l_k) {

@@ -62,11 +62,13 @@ impl<T: ?Sized> Shared<T> {
     }
 
     #[inline]
+    #[track_caller]
     pub fn borrow(&self) -> Ref<'_, T> {
         RefCell::borrow(&self.0)
     }
 
     #[inline]
+    #[track_caller]
     pub fn borrow_mut(&self) -> RefMut<'_, T> {
         RefCell::borrow_mut(&self.0)
     }
