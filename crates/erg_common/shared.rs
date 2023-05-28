@@ -116,7 +116,11 @@ impl<T: Clone> Shared<T> {
 }*/
 
 #[derive(Debug)]
-pub struct Shared<T: ?Sized>(Arc<RwLock<T>>);
+pub struct Shared<T: ?Sized> {
+    data: Arc<RwLock<T>>,
+    #[cfg(feature = "debug")]
+    borrowed_at: Arc<RwLock<Option<&'static std::panic::Location<'static>>>>,
+}
 
 impl<T: PartialEq> PartialEq for Shared<T>
 where
@@ -124,13 +128,17 @@ where
 {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
+        self.data == other.data
     }
 }
 
 impl<T: ?Sized> Clone for Shared<T> {
     fn clone(&self) -> Shared<T> {
-        Self(Arc::clone(&self.0))
+        Self {
+            data: Arc::clone(&self.data),
+            #[cfg(feature = "debug")]
+            borrowed_at: self.borrowed_at.clone(),
+        }
     }
 }
 
@@ -156,12 +164,16 @@ impl<T: fmt::Display> fmt::Display for Shared<T> {
 
 impl<T> Shared<T> {
     pub fn new(t: T) -> Self {
-        Self(Arc::new(RwLock::new(t)))
+        Self {
+            data: Arc::new(RwLock::new(t)),
+            #[cfg(feature = "debug")]
+            borrowed_at: Arc::new(RwLock::new(None)),
+        }
     }
 
     #[inline]
     pub fn into_inner(self) -> T {
-        let mutex = match Arc::try_unwrap(self.0) {
+        let mutex = match Arc::try_unwrap(self.data) {
             Ok(mutex) => mutex,
             Err(_rc) => panic!("unwrapping failed"),
         };
@@ -172,45 +184,63 @@ impl<T> Shared<T> {
 impl<T: ?Sized> Shared<T> {
     #[inline]
     pub fn copy(&self) -> Self {
-        Self(self.0.clone())
+        Self {
+            data: self.data.clone(),
+            #[cfg(feature = "debug")]
+            borrowed_at: self.borrowed_at.clone(),
+        }
     }
 
     #[inline]
+    #[track_caller]
     pub fn borrow(&self) -> RwLockReadGuard<'_, T> {
-        println!("borrowing {}", std::any::type_name::<T>());
-        let res = self.0.read();
-        println!("borrowed successfully");
-        res
+        #[cfg(feature = "debug")]
+        {
+            *self.borrowed_at.try_write().unwrap() = Some(std::panic::Location::caller());
+        }
+        self.data.try_read().unwrap_or_else(|| {
+            panic!(
+                "Shared::borrow: already borrowed at {}",
+                self.borrowed_at.read().as_ref().unwrap()
+            )
+        })
     }
 
     #[inline]
+    #[track_caller]
     pub fn borrow_mut(&self) -> RwLockWriteGuard<'_, T> {
-        println!("borrowing mut {}", std::any::type_name::<T>());
-        let res = self.0.write();
-        println!("borrowed mut successfully");
-        res
+        #[cfg(feature = "debug")]
+        {
+            *self.borrowed_at.try_write().unwrap() = Some(std::panic::Location::caller());
+        }
+        self.data.try_write().unwrap_or_else(|| {
+            panic!(
+                "Shared::borrow_mut: already borrowed at {}",
+                self.borrowed_at.read().as_ref().unwrap()
+            )
+        })
     }
 
     pub fn get_mut(&mut self) -> Option<&mut T> {
-        Arc::get_mut(&mut self.0).map(|mutex| mutex.get_mut())
+        Arc::get_mut(&mut self.data).map(|mutex| mutex.get_mut())
     }
 
     pub fn as_ptr(&self) -> *mut T {
-        Arc::as_ptr(&self.0) as *mut T
+        Arc::as_ptr(&self.data) as *mut T
     }
 
     pub fn can_borrow(&self) -> bool {
-        self.0.try_read().is_some()
+        self.data.try_read().is_some()
     }
 
     pub fn can_borrow_mut(&self) -> bool {
-        self.0.try_write().is_some()
+        self.data.try_write().is_some()
     }
 
     /// # Safety
     /// don't call this except you need to handle cyclic references.
     pub unsafe fn force_unlock_write(&self) {
-        self.0.force_unlock_write();
+        self.data.force_unlock_write();
     }
 }
 
