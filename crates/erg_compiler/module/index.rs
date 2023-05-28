@@ -5,9 +5,25 @@ use std::path::Path;
 use erg_common::dict::Dict;
 use erg_common::set;
 use erg_common::set::Set;
-use erg_common::shared::Shared;
+use erg_common::shared::{Shared, MappedRwLockReadGuard, RwLockReadGuard};
 
 use crate::varinfo::{AbsLocation, VarInfo};
+
+pub struct Members<'a>(MappedRwLockReadGuard<'a, Dict<AbsLocation, ModuleIndexValue>>);
+
+impl<'a> Members<'a> {
+    pub fn iter(&self) -> Iter<AbsLocation, ModuleIndexValue> {
+        self.0.iter()
+    }
+
+    pub fn keys(&self) -> Keys<AbsLocation, ModuleIndexValue> {
+        self.0.keys()
+    }
+
+    pub fn values(&self) -> Values<AbsLocation, ModuleIndexValue> {
+        self.0.values()
+    }
+}
 
 #[derive(Debug, Clone, Default)]
 pub struct ModuleIndexValue {
@@ -101,20 +117,18 @@ impl SharedModuleIndex {
         self.0.borrow_mut().register(vi);
     }
 
-    pub fn get_refs(&self, referee: &AbsLocation) -> Option<&ModuleIndexValue> {
-        unsafe { self.0.as_ptr().as_ref().unwrap().get_refs(referee) }
+    pub fn get_refs(&self, referee: &AbsLocation) -> Option<MappedRwLockReadGuard<ModuleIndexValue>> {
+        if self.0.borrow().get_refs(referee).is_some() {
+            Some(RwLockReadGuard::map(self.0.borrow(), |index| {
+                index.get_refs(referee).unwrap()
+            }))
+        } else {
+            None
+        }
     }
 
-    pub fn referees(&self) -> Keys<AbsLocation, ModuleIndexValue> {
-        unsafe { self.0.as_ptr().as_ref().unwrap().members.keys() }
-    }
-
-    pub fn referrers(&self) -> Values<AbsLocation, ModuleIndexValue> {
-        unsafe { self.0.as_ptr().as_ref().unwrap().members.values() }
-    }
-
-    pub fn iter(&self) -> Iter<AbsLocation, ModuleIndexValue> {
-        unsafe { self.0.as_ptr().as_ref().unwrap().members.iter() }
+    pub fn members(&self) -> Members {
+        Members(RwLockReadGuard::map(self.0.borrow(), |mi| &mi.members))
     }
 
     pub fn initialize(&self) {

@@ -1653,8 +1653,7 @@ impl Context {
             self.decls.insert(name.clone(), vi);
             self.consts.insert(name.clone(), val);
             for impl_trait in ctx.super_traits.iter() {
-                if self.trait_impls().get(&impl_trait.qual_name()).is_some() {
-                    let mut impls = self.trait_impls().get_mut(&impl_trait.qual_name());
+                if let Some(mut impls) = self.trait_impls().get_mut(&impl_trait.qual_name()) {
                     impls.insert(TraitImpl::new(t.clone(), impl_trait.clone()));
                 } else {
                     self.trait_impls().register(
@@ -1734,8 +1733,7 @@ impl Context {
             self.consts
                 .insert(name.clone(), ValueObj::Type(TypeObj::Generated(gen)));
             for impl_trait in ctx.super_traits.iter() {
-                if self.trait_impls().get(&impl_trait.qual_name()).is_some() {
-                    let mut impls = self.trait_impls().get_mut(&impl_trait.qual_name());
+                if let Some(mut impls) = self.trait_impls().get_mut(&impl_trait.qual_name()) {
                     impls.insert(TraitImpl::new(t.clone(), impl_trait.clone()));
                 } else {
                     self.trait_impls().register(

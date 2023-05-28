@@ -135,7 +135,7 @@ impl Generalizer {
     /// ```
     fn generalize_t(&mut self, free_type: Type, uninit: bool) -> Type {
         match free_type {
-            FreeVar(fv) if fv.is_linked() => self.generalize_t(fv.crack().clone(), uninit),
+            FreeVar(fv) if fv.is_linked() => self.generalize_t(fv.unsafe_crack().clone(), uninit),
             FreeVar(fv) if fv.is_generalized() => Type::FreeVar(fv),
             // TODO: Polymorphic generalization
             FreeVar(fv) if fv.level().unwrap() > self.level => {

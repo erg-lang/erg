@@ -1,7 +1,7 @@
 use std::fmt;
 use std::path::{Path, PathBuf};
 
-use erg_common::shared::Shared;
+use erg_common::shared::{Shared, MappedRwLockReadGuard, RwLockReadGuard};
 use erg_common::tsort::{tsort, Graph, Node, TopoSortError};
 use erg_common::{normalize_path, set};
 
@@ -109,10 +109,14 @@ impl SharedModuleGraph {
         Self(Shared::new(ModuleGraph::new()))
     }
 
-    /// SAFETY: don't hold this reference before sorting
-    pub fn get_node(&self, path: &Path) -> Option<&Node<PathBuf, ()>> {
-        let ref_graph = unsafe { self.0.as_ptr().as_ref().unwrap() };
-        ref_graph.get_node(path)
+    pub fn get_node(&self, path: &Path) -> Option<MappedRwLockReadGuard<Node<PathBuf, ()>>> {
+        if self.0.borrow().get_node(path).is_some() {
+            Some(RwLockReadGuard::map(self.0.borrow(), |graph| {
+                graph.get_node(path).unwrap()
+            }))
+        } else {
+            None
+        }
     }
 
     pub fn add_node_if_none(&self, path: &Path) {
@@ -123,10 +127,8 @@ impl SharedModuleGraph {
         self.0.borrow_mut().inc_ref(referrer, depends_on);
     }
 
-    /// SAFETY: don't hold this iterator before sorting
-    pub fn iter(&self) -> impl Iterator<Item = &Node<PathBuf, ()>> {
-        let ref_graph = unsafe { self.0.as_ptr().as_ref().unwrap() };
-        ref_graph.iter()
+    pub fn ref_inner(&self) -> RwLockReadGuard<ModuleGraph> {
+        self.0.borrow()
     }
 
     pub fn remove(&self, path: &Path) {

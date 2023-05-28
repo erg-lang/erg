@@ -4,7 +4,7 @@ use std::hash::Hash;
 
 use erg_common::dict::Dict;
 use erg_common::set::Set;
-use erg_common::shared::{MappedRwLockWriteGuard, RwLockWriteGuard, Shared};
+use erg_common::shared::{MappedRwLockWriteGuard, RwLockWriteGuard, Shared, MappedRwLockReadGuard, RwLockReadGuard};
 use erg_common::Str;
 
 use crate::context::TraitImpl;
@@ -76,21 +76,28 @@ impl SharedTraitImpls {
         Self(Shared::new(TraitImpls::new()))
     }
 
-    pub fn get<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<&Set<TraitImpl>>
+    pub fn get<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<MappedRwLockReadGuard<Set<TraitImpl>>>
     where
         Str: Borrow<Q>,
     {
-        let ref_ = unsafe { self.0.as_ptr().as_ref().unwrap() };
-        ref_.get(path)
+        if self.0.borrow().get(path).is_some() {
+            Some(RwLockReadGuard::map(self.0.borrow(), |tis| tis.get(path).unwrap()))
+        } else {
+            None
+        }
     }
 
-    pub fn get_mut<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> MappedRwLockWriteGuard<Set<TraitImpl>>
+    pub fn get_mut<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<MappedRwLockWriteGuard<Set<TraitImpl>>>
     where
         Str: Borrow<Q>,
     {
-        // let ref_ = unsafe { self.0.as_ptr().as_mut().unwrap() };
-        // ref_.get_mut(path)
-        RwLockWriteGuard::map(self.0.borrow_mut(), |tis| tis.get_mut(path).unwrap())
+        if self.0.borrow().get(path).is_some() {
+            Some(RwLockWriteGuard::map(self.0.borrow_mut(), |tis| {
+                tis.get_mut(path).unwrap()
+            }))
+        } else {
+            None
+        }
     }
 
     pub fn register(&self, name: Str, impls: Set<TraitImpl>) {
@@ -104,9 +111,8 @@ impl SharedTraitImpls {
         self.0.borrow_mut().remove(path)
     }
 
-    pub fn keys(&self) -> impl Iterator<Item = Str> {
-        let ref_ = unsafe { self.0.as_ptr().as_ref().unwrap() };
-        ref_.cache.keys().cloned()
+    pub fn ref_inner(&self) -> MappedRwLockReadGuard<Dict<Str, Set<TraitImpl>>> {
+        RwLockReadGuard::map(self.0.borrow(), |tis| &tis.cache)
     }
 
     pub fn initialize(&self) {

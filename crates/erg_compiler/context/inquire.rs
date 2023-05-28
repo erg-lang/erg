@@ -55,8 +55,8 @@ impl Context {
             return Some(self.get_module().unwrap())
         }
         self.opt_mod_cache()?
-            .ref_ctx(path)
-            .or_else(|| self.opt_py_mod_cache()?.ref_ctx(path))
+            .raw_ref_ctx(path)
+            .or_else(|| self.opt_py_mod_cache()?.raw_ref_ctx(path))
             .map(|mod_ctx| &mod_ctx.context)
     }
 
@@ -2463,7 +2463,10 @@ impl Context {
     pub(crate) fn get_mod_with_path(&self, path: &Path) -> Option<&Context> {
         (self.cfg.input.path() == Some(path)) // module itself
             .then_some(self)
-            .or(self.mod_cache().get(path).map(|ent| &ent.module.context))
+            .or(self
+                .mod_cache()
+                .raw_ref_ctx(path)
+                .map(|mod_ctx| &mod_ctx.context))
     }
 
     // FIXME: 現在の実装だとimportしたモジュールはどこからでも見れる

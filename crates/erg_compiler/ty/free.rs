@@ -4,7 +4,7 @@ use std::hash::{Hash, Hasher};
 use std::mem;
 
 use erg_common::fresh::VAR_ID;
-use erg_common::shared::Shared;
+use erg_common::shared::{Shared, MappedRwLockWriteGuard};
 use erg_common::shared::{MappedRwLockReadGuard, RwLockReadGuard, RwLockWriteGuard};
 use erg_common::traits::{LimitedDisplay, StructuralEq};
 use erg_common::Str;
@@ -662,25 +662,24 @@ impl<T: Clone> Free<T> {
 
 impl HasLevel for Free<Type> {
     fn set_level(&self, level: Level) {
-        match unsafe { &mut *self.as_ptr() as &mut FreeKind<Type> } {
+        match &mut *self.borrow_mut() {
             FreeKind::Unbound { lev, .. } | FreeKind::NamedUnbound { lev, .. } => {
                 if addr_eq!(*lev, level) {
                     return;
                 }
                 *lev = level;
-                if let Some((sub, sup)) = self.get_subsup() {
-                    self.dummy_link();
-                    sub.set_level(level);
-                    sup.set_level(level);
-                    self.undo();
-                } else if let Some(t) = self.get_type() {
-                    t.set_level(level);
-                }
-            }
-            FreeKind::Linked(t) => {
-                t.set_level(level);
             }
             _ => {}
+        }
+        if let Some(linked) = self.raw_get_linked() {
+            linked.set_level(level);
+        } else if let Some((sub, sup)) = self.get_subsup() {
+            self.dummy_link();
+            sub.set_level(level);
+            sup.set_level(level);
+            self.undo();
+        } else if let Some(t) = self.get_type() {
+            t.set_level(level);
         }
     }
 
@@ -694,20 +693,19 @@ impl HasLevel for Free<Type> {
 
 impl HasLevel for Free<TyParam> {
     fn set_level(&self, level: Level) {
-        match unsafe { &mut *self.as_ptr() as &mut FreeKind<TyParam> } {
+        match &mut *self.borrow_mut() {
             FreeKind::Unbound { lev, .. } | FreeKind::NamedUnbound { lev, .. } => {
                 if addr_eq!(*lev, level) {
                     return;
                 }
                 *lev = level;
-                if let Some(t) = self.get_type() {
-                    t.set_level(level);
-                }
-            }
-            FreeKind::Linked(t) => {
-                t.set_level(level);
             }
             _ => {}
+        }
+        if let Some(linked) = self.raw_get_linked() {
+            linked.set_level(level);
+        } else if let Some(t) = self.get_type() {
+            t.set_level(level);
         }
     }
 
@@ -860,17 +858,50 @@ impl<T: Clone + fmt::Debug> Free<T> {
         }
     }
 
-    pub fn get_linked(&self) -> Option<T> {
-        match &*self.borrow() {
-            FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => Some(t.clone()),
-            FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => None,
+    pub fn raw_get_linked(&self) -> Option<&T> {
+        if !self.is_linked() {
+            None
+        } else {
+            Some(self.unsafe_crack())
         }
     }
 
-    pub fn get_previous(&self) -> Option<FreeKind<T>> {
-        match &*self.borrow() {
-            FreeKind::UndoableLinked { previous, .. } => Some(*previous.clone()),
-            _other => None,
+    #[track_caller]
+    pub fn get_linked_ref(&self) -> Option<MappedRwLockReadGuard<T>> {
+        if !self.is_linked() {
+            None
+        } else {
+            let mapped = RwLockReadGuard::map(self.borrow(), |f| match f {
+                FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => t,
+                FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => unreachable!(),
+            });
+            Some(mapped)
+        }
+    }
+
+    #[track_caller]
+    pub fn get_linked_refmut(&self) -> Option<MappedRwLockWriteGuard<T>> {
+        if !self.is_linked() {
+            None
+        } else {
+            let mapped = RwLockWriteGuard::map(self.borrow_mut(), |f| match f {
+                FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => t,
+                FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => unreachable!(),
+            });
+            Some(mapped)
+        }
+    }
+
+    #[track_caller]
+    pub fn get_previous(&self) -> Option<MappedRwLockReadGuard<Box<FreeKind<T>>>> {
+        if !self.is_undoable_linked() {
+            None
+        } else {
+            let mapped = RwLockReadGuard::map(self.borrow(), |f| match f {
+                FreeKind::UndoableLinked { previous, .. } => previous,
+                _ => unreachable!(),
+            });
+            Some(mapped)
         }
     }
 
@@ -933,7 +964,7 @@ impl<T: CanbeFree> Free<T> {
 
     /// if `in_inst_or_gen` is true, constraint will be updated forcibly
     pub fn update_constraint(&self, new_constraint: Constraint, in_inst_or_gen: bool) {
-        match unsafe { &mut *self.as_ptr() as &mut FreeKind<T> } {
+        match &mut *self.borrow_mut() {
             FreeKind::Unbound {
                 lev, constraint, ..
             }
@@ -979,13 +1010,9 @@ impl Free<TyParam> {
     where
         F: Fn(TyParam) -> TyParam,
     {
-        match unsafe { &mut *self.as_ptr() as &mut FreeKind<TyParam> } {
-            FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => {
-                panic!("the value is unbounded")
-            }
-            FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => {
-                *t = f(mem::take(t));
-            }
+        if let Some(mut linked) = self.get_linked_refmut() {
+            let mapped = f(mem::take(&mut *linked));
+            *linked = mapped;
         }
     }
 }
