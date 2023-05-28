@@ -4,7 +4,9 @@ use std::hash::Hash;
 
 use erg_common::dict::Dict;
 use erg_common::set::Set;
-use erg_common::shared::{MappedRwLockWriteGuard, RwLockWriteGuard, Shared, MappedRwLockReadGuard, RwLockReadGuard};
+use erg_common::shared::{
+    MappedRwLockReadGuard, MappedRwLockWriteGuard, RwLockReadGuard, RwLockWriteGuard, Shared,
+};
 use erg_common::Str;
 
 use crate::context::TraitImpl;
@@ -76,18 +78,26 @@ impl SharedTraitImpls {
         Self(Shared::new(TraitImpls::new()))
     }
 
-    pub fn get<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<MappedRwLockReadGuard<Set<TraitImpl>>>
+    pub fn get<Q: Eq + Hash + ?Sized>(
+        &self,
+        path: &Q,
+    ) -> Option<MappedRwLockReadGuard<Set<TraitImpl>>>
     where
         Str: Borrow<Q>,
     {
         if self.0.borrow().get(path).is_some() {
-            Some(RwLockReadGuard::map(self.0.borrow(), |tis| tis.get(path).unwrap()))
+            Some(RwLockReadGuard::map(self.0.borrow(), |tis| {
+                tis.get(path).unwrap()
+            }))
         } else {
             None
         }
     }
 
-    pub fn get_mut<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<MappedRwLockWriteGuard<Set<TraitImpl>>>
+    pub fn get_mut<Q: Eq + Hash + ?Sized>(
+        &self,
+        path: &Q,
+    ) -> Option<MappedRwLockWriteGuard<Set<TraitImpl>>>
     where
         Str: Borrow<Q>,
     {

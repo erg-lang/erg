@@ -4,8 +4,8 @@ use std::hash::{Hash, Hasher};
 use std::mem;
 
 use erg_common::fresh::VAR_ID;
-use erg_common::shared::{Shared, MappedRwLockWriteGuard};
 use erg_common::shared::{MappedRwLockReadGuard, RwLockReadGuard, RwLockWriteGuard};
+use erg_common::shared::{MappedRwLockWriteGuard, Shared};
 use erg_common::traits::{LimitedDisplay, StructuralEq};
 use erg_common::Str;
 use erg_common::{addr_eq, log};

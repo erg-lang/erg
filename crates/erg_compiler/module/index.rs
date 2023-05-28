@@ -5,7 +5,7 @@ use std::path::Path;
 use erg_common::dict::Dict;
 use erg_common::set;
 use erg_common::set::Set;
-use erg_common::shared::{Shared, MappedRwLockReadGuard, RwLockReadGuard};
+use erg_common::shared::{MappedRwLockReadGuard, RwLockReadGuard, Shared};
 
 use crate::varinfo::{AbsLocation, VarInfo};
 
@@ -117,7 +117,10 @@ impl SharedModuleIndex {
         self.0.borrow_mut().register(vi);
     }
 
-    pub fn get_refs(&self, referee: &AbsLocation) -> Option<MappedRwLockReadGuard<ModuleIndexValue>> {
+    pub fn get_refs(
+        &self,
+        referee: &AbsLocation,
+    ) -> Option<MappedRwLockReadGuard<ModuleIndexValue>> {
         if self.0.borrow().get_refs(referee).is_some() {
             Some(RwLockReadGuard::map(self.0.borrow(), |index| {
                 index.get_refs(referee).unwrap()

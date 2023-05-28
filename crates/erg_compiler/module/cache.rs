@@ -7,7 +7,9 @@ use std::sync::Arc;
 use erg_common::config::ErgConfig;
 use erg_common::dict::Dict;
 use erg_common::levenshtein::get_similar_name;
-use erg_common::shared::{Shared, MappedRwLockReadGuard, RwLockReadGuard, MappedRwLockWriteGuard, RwLockWriteGuard};
+use erg_common::shared::{
+    MappedRwLockReadGuard, MappedRwLockWriteGuard, RwLockReadGuard, RwLockWriteGuard, Shared,
+};
 use erg_common::Str;
 
 use crate::context::ModuleContext;
@@ -178,13 +180,18 @@ impl SharedModuleCache {
         PathBuf: Borrow<Q>,
     {
         if self.0.borrow().get(path).is_some() {
-            Some(RwLockReadGuard::map(self.0.borrow(), |cache| cache.get(path).unwrap()))
+            Some(RwLockReadGuard::map(self.0.borrow(), |cache| {
+                cache.get(path).unwrap()
+            }))
         } else {
             None
         }
     }
 
-    pub fn get_mut<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<MappedRwLockWriteGuard<ModuleEntry>>
+    pub fn get_mut<Q: Eq + Hash + ?Sized>(
+        &self,
+        path: &Q,
+    ) -> Option<MappedRwLockWriteGuard<ModuleEntry>>
     where
         PathBuf: Borrow<Q>,
     {
@@ -204,7 +211,10 @@ impl SharedModuleCache {
         self.0.borrow().get(path).map(|entry| entry.module.clone())
     }
 
-    pub fn ref_ctx<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<MappedRwLockReadGuard<ModuleContext>>
+    pub fn ref_ctx<Q: Eq + Hash + ?Sized>(
+        &self,
+        path: &Q,
+    ) -> Option<MappedRwLockReadGuard<ModuleContext>>
     where
         PathBuf: Borrow<Q>,
     {

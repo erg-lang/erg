@@ -1,7 +1,7 @@
 use std::fmt;
 use std::path::{Path, PathBuf};
 
-use erg_common::shared::{Shared, MappedRwLockReadGuard, RwLockReadGuard};
+use erg_common::shared::{MappedRwLockReadGuard, RwLockReadGuard, Shared};
 use erg_common::tsort::{tsort, Graph, Node, TopoSortError};
 use erg_common::{normalize_path, set};
 
