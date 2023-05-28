@@ -1,8 +1,6 @@
 use std::fs::File;
 use std::io::Read;
 
-use erg_compiler::erg_parser::ast::Module;
-use erg_compiler::erg_parser::Parser;
 use lsp_types::{
     DidChangeTextDocumentParams, FileOperationFilter, FileOperationPattern,
     FileOperationPatternKind, FileOperationRegistrationOptions, OneOf, Position, Range,
@@ -126,12 +124,6 @@ impl FileCache {
     pub fn get_token_stream(&self, uri: &NormalizedUrl) -> Option<TokenStream> {
         let _ = self.load_once(uri);
         self.files.borrow_mut().get(uri)?.token_stream.clone()
-    }
-
-    pub fn get_ast(&self, uri: &NormalizedUrl) -> Option<Module> {
-        let ts = self.get_token_stream(uri)?;
-        let mut parser = Parser::new(ts);
-        parser.parse().ok()
     }
 
     pub fn get_token(&self, uri: &NormalizedUrl, pos: Position) -> Option<Token> {

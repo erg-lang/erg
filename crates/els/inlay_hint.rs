@@ -1,5 +1,6 @@
 #![allow(unused_imports)]
 
+use erg_compiler::erg_parser::parse::Parsable;
 use serde::Deserialize;
 use serde_json::json;
 use serde_json::Value;
@@ -85,7 +86,7 @@ fn param_anot<D: std::fmt::Display>(ln_begin: u32, col_begin: u32, name: D) -> I
     }
 }
 
-impl<Checker: BuildRunnable> Server<Checker> {
+impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     pub(crate) fn handle_inlay_hint(
         &mut self,
         params: InlayHintParams,

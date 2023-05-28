@@ -2,6 +2,7 @@ use erg_common::consts::PYTHON_MODE;
 use erg_common::traits::{Locational, Stream};
 use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::context::register::PylyzerStatus;
+use erg_compiler::erg_parser::parse::Parsable;
 use erg_compiler::erg_parser::token::{Token, TokenCategory};
 use erg_compiler::hir::Expr;
 use erg_compiler::ty::HasType;
@@ -12,7 +13,7 @@ use lsp_types::{GotoDefinitionParams, GotoDefinitionResponse, Url};
 use crate::server::{send_log, ELSResult, Server};
 use crate::util::{self, NormalizedUrl};
 
-impl<Checker: BuildRunnable> Server<Checker> {
+impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     pub(crate) fn get_definition(
         &self,
         uri: &NormalizedUrl,

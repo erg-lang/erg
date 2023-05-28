@@ -7,6 +7,7 @@ use std::str::FromStr;
 
 use erg_common::consts::PYTHON_MODE;
 use erg_compiler::erg_parser::ast::Module;
+use erg_compiler::erg_parser::parse::{Parsable, SimpleParser};
 use erg_compiler::lower::ASTLowerer;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -47,6 +48,8 @@ use crate::util::{self, NormalizedUrl};
 pub type ELSResult<T> = Result<T, Box<dyn std::error::Error>>;
 
 pub type ErgLanguageServer = Server<HIRBuilder>;
+
+pub type Handler<Server, Params, Out> = fn(&mut Server, Params) -> ELSResult<Out>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DefaultFeatures {
@@ -203,7 +206,7 @@ pub(crate) const TRIGGER_CHARS: [&str; 4] = [".", ":", "(", " "];
 
 /// A Language Server, which can be used any object implementing `BuildRunnable` internally by passing it as a generic parameter.
 #[derive(Debug)]
-pub struct Server<Checker: BuildRunnable = HIRBuilder> {
+pub struct Server<Checker: BuildRunnable = HIRBuilder, Parser: Parsable = SimpleParser> {
     pub(crate) cfg: ErgConfig,
     pub(crate) home: PathBuf,
     pub(crate) erg_path: PathBuf,
@@ -215,10 +218,11 @@ pub struct Server<Checker: BuildRunnable = HIRBuilder> {
     pub(crate) modules: Dict<NormalizedUrl, ModuleContext>,
     pub(crate) analysis_result: Dict<NormalizedUrl, AnalysisResult>,
     pub(crate) current_sig: Option<Expr>,
+    pub(crate) _parser: std::marker::PhantomData<Parser>,
     pub(crate) _checker: std::marker::PhantomData<Checker>,
 }
 
-impl<Checker: BuildRunnable> Server<Checker> {
+impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     pub fn new(cfg: ErgConfig) -> Self {
         Self {
             comp_cache: CompletionCache::new(cfg.copy()),
@@ -232,6 +236,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             modules: Dict::new(),
             analysis_result: Dict::new(),
             current_sig: None,
+            _parser: std::marker::PhantomData,
             _checker: std::marker::PhantomData,
         }
     }
@@ -458,7 +463,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         &mut self,
         id: i64,
         msg: &Value,
-        handler: fn(&mut Server<Checker>, R::Params) -> ELSResult<R::Result>,
+        handler: Handler<Server<Checker, Parser>, R::Params, R::Result>,
     ) -> ELSResult<()>
     where
         R: lsp_types::request::Request + 'static,

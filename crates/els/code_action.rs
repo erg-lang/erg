@@ -4,6 +4,7 @@ use erg_common::consts::{ERG_MODE, PYTHON_MODE};
 use erg_common::deepen_indent;
 use erg_common::traits::{Locational, Stream};
 use erg_compiler::artifact::BuildRunnable;
+use erg_compiler::erg_parser::parse::Parsable;
 use erg_compiler::erg_parser::token::{Token, TokenKind};
 use erg_compiler::hir::Expr;
 use erg_compiler::ty::HasType;
@@ -16,7 +17,7 @@ use lsp_types::{
 use crate::server::{send_log, ELSResult, Server};
 use crate::util::{self, NormalizedUrl};
 
-impl<Checker: BuildRunnable> Server<Checker> {
+impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     fn gen_eliminate_unused_vars_action(
         &self,
         params: &CodeActionParams,

@@ -1,4 +1,5 @@
 use erg_compiler::artifact::BuildRunnable;
+use erg_compiler::erg_parser::parse::Parsable;
 use erg_compiler::varinfo::AbsLocation;
 
 use lsp_types::{Location, Position, ReferenceParams, Url};
@@ -6,7 +7,7 @@ use lsp_types::{Location, Position, ReferenceParams, Url};
 use crate::server::{ELSResult, Server};
 use crate::util::{self, NormalizedUrl};
 
-impl<Checker: BuildRunnable> Server<Checker> {
+impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     pub(crate) fn handle_references(
         &mut self,
         params: ReferenceParams,

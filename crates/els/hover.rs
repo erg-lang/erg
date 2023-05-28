@@ -2,6 +2,7 @@ use erg_common::consts::PYTHON_MODE;
 use erg_common::lang::LanguageCode;
 use erg_common::trim_eliminate_top_indent;
 use erg_compiler::artifact::BuildRunnable;
+use erg_compiler::erg_parser::parse::Parsable;
 use erg_compiler::erg_parser::token::{Token, TokenCategory, TokenKind};
 use erg_compiler::ty::HasType;
 use erg_compiler::varinfo::{AbsLocation, VarInfo};
@@ -78,7 +79,7 @@ macro_rules! next {
     };
 }
 
-impl<Checker: BuildRunnable> Server<Checker> {
+impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     pub(crate) fn handle_hover(&mut self, params: HoverParams) -> ELSResult<Option<Hover>> {
         send_log(format!("hover requested : {params:?}"))?;
         let uri = NormalizedUrl::new(params.text_document_position_params.text_document.uri);

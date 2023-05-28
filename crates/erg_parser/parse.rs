@@ -96,6 +96,20 @@ macro_rules! expect_pop {
     };
 }
 
+pub trait Parsable {
+    fn parse(code: String) -> Result<Module, ParseErrors>;
+}
+
+pub struct SimpleParser {}
+
+impl Parsable for SimpleParser {
+    fn parse(code: String) -> Result<Module, ParseErrors> {
+        let ts = Lexer::from_str(code).lex()?;
+        let mut parser = Parser::new(ts);
+        parser.parse()
+    }
+}
+
 enum ExprOrOp {
     Expr(Expr),
     Op(Token),

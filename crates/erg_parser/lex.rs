@@ -15,6 +15,18 @@ use crate::error::{LexError, LexErrors, LexResult, LexerRunnerError, LexerRunner
 use crate::token::{Token, TokenCategory, TokenKind, TokenStream};
 use TokenKind::*;
 
+pub trait Lexable {
+    fn lex(code: String) -> Result<TokenStream, LexErrors>;
+}
+
+pub struct SimpleLexer {}
+
+impl Lexable for SimpleLexer {
+    fn lex(code: String) -> Result<TokenStream, LexErrors> {
+        Lexer::from_str(code).lex()
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OpFix {
     Prefix,

@@ -1,4 +1,5 @@
 use erg_common::consts::PYTHON_MODE;
+use erg_compiler::erg_parser::parse::Parsable;
 use lsp_types::CompletionResponse;
 use serde_json::Value;
 
@@ -348,7 +349,7 @@ impl CompletionCache {
     }
 }
 
-impl<Checker: BuildRunnable> Server<Checker> {
+impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     pub(crate) fn handle_completion(
         &mut self,
         params: CompletionParams,

@@ -1,5 +1,6 @@
 use erg_common::traits::{DequeStream, Locational, NoTypeDisplay};
 use erg_compiler::artifact::BuildRunnable;
+use erg_compiler::erg_parser::parse::Parsable;
 use erg_compiler::erg_parser::token::{Token, TokenKind};
 use erg_compiler::hir::Expr;
 use erg_compiler::ty::{HasType, ParamTy};
@@ -34,7 +35,7 @@ fn get_end(start: usize, pt: &ParamTy) -> usize {
     start + pt.name().map(|n| n.len() + 2).unwrap_or(0) + pt.typ().to_string().len()
 }
 
-impl<Checker: BuildRunnable> Server<Checker> {
+impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     pub(crate) fn handle_signature_help(
         &mut self,
         params: SignatureHelpParams,
