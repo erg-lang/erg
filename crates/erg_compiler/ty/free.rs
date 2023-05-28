@@ -1,4 +1,3 @@
-// use std::cell::{Ref, RefMut};
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::mem;
@@ -671,7 +670,7 @@ impl HasLevel for Free<Type> {
             }
             _ => {}
         }
-        if let Some(linked) = self.raw_get_linked() {
+        if let Some(linked) = self.get_linked() {
             linked.set_level(level);
         } else if let Some((sub, sup)) = self.get_subsup() {
             self.dummy_link();
@@ -702,7 +701,7 @@ impl HasLevel for Free<TyParam> {
             }
             _ => {}
         }
-        if let Some(linked) = self.raw_get_linked() {
+        if let Some(linked) = self.get_linked() {
             linked.set_level(level);
         } else if let Some(t) = self.get_type() {
             t.set_level(level);
@@ -858,11 +857,11 @@ impl<T: Clone + fmt::Debug> Free<T> {
         }
     }
 
-    pub fn raw_get_linked(&self) -> Option<&T> {
+    pub fn get_linked(&self) -> Option<T> {
         if !self.is_linked() {
             None
         } else {
-            Some(self.unsafe_crack())
+            Some(self.crack().clone())
         }
     }
 

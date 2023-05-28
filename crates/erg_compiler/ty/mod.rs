@@ -23,6 +23,7 @@ use erg_common::fresh::fresh_varname;
 #[allow(unused_imports)]
 use erg_common::log;
 use erg_common::set::Set;
+use erg_common::shared::{RwLockWriteGuard, MappedRwLockWriteGuard};
 use erg_common::traits::{LimitedDisplay, Locational, StructuralEq};
 use erg_common::{enum_unwrap, fmt_option, ref_addr_eq, set, Str};
 
@@ -2658,12 +2659,21 @@ impl Type {
         }
     }
 
+    pub fn tyvar_mut_return_t(&mut self) -> Option<MappedRwLockWriteGuard<Type>> {
+        match self {
+            Self::FreeVar(fv)
+                if fv.is_linked() && fv.get_linked().unwrap().return_t().is_some() =>
+            {
+                Some(RwLockWriteGuard::map(fv.borrow_mut(), |fk| {
+                    fk.linked_mut().unwrap().mut_return_t().unwrap()
+                }))
+            }
+            _ => None,
+        }
+    }
+
     pub fn mut_return_t(&mut self) -> Option<&mut Type> {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => unsafe { fv.as_ptr().as_mut() }
-                .unwrap()
-                .linked_mut()
-                .and_then(|t| t.mut_return_t()),
             Self::Refinement(refine) => refine.t.mut_return_t(),
             Self::Subr(SubrType { return_t, .. }) | Self::Callable { return_t, .. } => {
                 Some(return_t)
