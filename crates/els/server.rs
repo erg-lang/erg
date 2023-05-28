@@ -25,9 +25,9 @@ use erg_compiler::module::{SharedCompilerResource, SharedModuleIndex};
 use erg_compiler::ty::HasType;
 
 use lsp_types::request::{
-    CodeActionRequest, CodeLensRequest, Completion, ExecuteCommand, GotoDefinition, HoverRequest,
-    InlayHintRequest, References, Rename, Request, ResolveCompletionItem,
-    SemanticTokensFullRequest, SignatureHelpRequest, WillRenameFiles,
+    CodeActionRequest, CodeActionResolveRequest, CodeLensRequest, Completion, ExecuteCommand,
+    GotoDefinition, HoverRequest, InlayHintRequest, References, Rename, Request,
+    ResolveCompletionItem, SemanticTokensFullRequest, SignatureHelpRequest, WillRenameFiles,
 };
 use lsp_types::{
     ClientCapabilities, CodeActionKind, CodeActionOptions, CodeActionProviderCapability,
@@ -328,7 +328,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         } else {
             let options = CodeActionProviderCapability::Options(CodeActionOptions {
                 code_action_kinds: Some(vec![CodeActionKind::QUICKFIX, CodeActionKind::REFACTOR]),
-                resolve_provider: Some(false),
+                resolve_provider: Some(true),
                 work_done_progress_options: WorkDoneProgressOptions::default(),
             });
             Some(options)
@@ -490,6 +490,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
             }
             CodeActionRequest::METHOD => {
                 self.wrap::<CodeActionRequest>(id, msg, Self::handle_code_action)
+            }
+            CodeActionResolveRequest::METHOD => {
+                self.wrap::<CodeActionResolveRequest>(id, msg, Self::handle_code_action_resolve)
             }
             SignatureHelpRequest::METHOD => {
                 self.wrap::<SignatureHelpRequest>(id, msg, Self::handle_signature_help)

@@ -189,3 +189,16 @@ pub fn trim_eliminate_top_indent(code: String) -> String {
     }
     result
 }
+
+pub fn deepen_indent(code: String) -> String {
+    let mut result = String::new();
+    for line in code.lines() {
+        result.push_str("    ");
+        result.push_str(line);
+        result.push('\n');
+    }
+    if !result.is_empty() {
+        result.pop();
+    }
+    result
+}
