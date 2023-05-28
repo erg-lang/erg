@@ -3,6 +3,7 @@ use std::borrow::Borrow;
 use std::fmt;
 use std::fmt::Write as _;
 
+use erg_common::consts::ERG_MODE;
 use erg_common::error::Location;
 use erg_common::set::Set as HashSet;
 // use erg_common::dict::Dict as HashMap;
@@ -2092,7 +2093,12 @@ impl_locational_for_enum!(ConstExpr; Lit, Accessor, App, Array, Set, Dict, Tuple
 
 impl ConstExpr {
     pub fn need_to_be_closed(&self) -> bool {
-        matches!(self, Self::BinOp(_) | Self::UnaryOp(_))
+        match self {
+            Self::BinOp(_) | Self::UnaryOp(_) | Self::Lambda(_) | Self::TypeAsc(_) => true,
+            Self::Tuple(tup) => tup.elems.paren.is_none(),
+            Self::App(app) if ERG_MODE => app.args.paren.is_none(),
+            _ => false,
+        }
     }
 
     pub fn downgrade(self) -> Expr {
@@ -4499,10 +4505,12 @@ impl Expr {
     }
 
     pub fn need_to_be_closed(&self) -> bool {
-        matches!(
-            self,
-            Expr::BinOp(_) | Expr::UnaryOp(_) | Expr::Lambda(_) | Expr::TypeAscription(_)
-        )
+        match self {
+            Self::BinOp(_) | Self::UnaryOp(_) | Self::Lambda(_) | Self::TypeAscription(_) => true,
+            Self::Tuple(tup) => tup.paren().is_none(),
+            Self::Call(call) if ERG_MODE => call.args.paren.is_none(),
+            _ => false,
+        }
     }
 
     pub fn get_name(&self) -> Option<&Str> {

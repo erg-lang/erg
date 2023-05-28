@@ -1,6 +1,7 @@
 /// defines High-level Intermediate Representation
 use std::fmt;
 
+use erg_common::consts::ERG_MODE;
 use erg_common::dict::Dict as HashMap;
 use erg_common::error::Location;
 #[allow(unused_imports)]
@@ -2557,6 +2558,17 @@ impl Expr {
             Self::PatchDef(_) => "patch definition",
             Self::ReDef(_) => "re-definition",
             Self::Dummy(_) => "dummy",
+        }
+    }
+
+    pub fn need_to_be_closed(&self) -> bool {
+        match self {
+            Self::BinOp(_) | Self::UnaryOp(_) | Self::Lambda(_) | Self::TypeAsc(_) => true,
+            Self::Tuple(tup) => match tup {
+                Tuple::Normal(tup) => tup.elems.paren.is_none(),
+            },
+            Self::Call(call) if ERG_MODE => call.args.paren.is_none(),
+            _ => false,
         }
     }
 
