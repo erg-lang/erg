@@ -339,7 +339,8 @@ impl LimitedDisplay for TyParam {
             }
             Self::Mono(name) => write!(f, "{name}"),
             Self::Proj { obj, attr } => {
-                write!(f, "{obj}.")?;
+                obj.limited_fmt(f, limit - 1)?;
+                write!(f, ".")?;
                 write!(f, "{attr}")
             }
             Self::Array(arr) => {
@@ -362,8 +363,29 @@ impl LimitedDisplay for TyParam {
                 }
                 write!(f, "}}")
             }
-            Self::Dict(dict) => write!(f, "{dict}"),
-            Self::Record(rec) => write!(f, "{rec}"),
+            Self::Dict(dict) => {
+                write!(f, "{{")?;
+                for (i, (k, v)) in dict.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    k.limited_fmt(f, limit - 1)?;
+                    write!(f, ": ")?;
+                    v.limited_fmt(f, limit - 1)?;
+                }
+                write!(f, "}}")
+            }
+            Self::Record(rec) => {
+                write!(f, "{{")?;
+                for (i, (k, v)) in rec.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, "; ")?;
+                    }
+                    write!(f, "{k} = ")?;
+                    v.limited_fmt(f, limit - 1)?;
+                }
+                write!(f, "}}")
+            }
             Self::Lambda(lambda) => write!(f, "{lambda}"),
             Self::Tuple(tuple) => {
                 write!(f, "(")?;

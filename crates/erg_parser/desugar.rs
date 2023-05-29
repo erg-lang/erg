@@ -10,13 +10,14 @@ use erg_common::{enum_unwrap, get_hash, log, set};
 
 use crate::ast::{
     Accessor, Args, Array, ArrayComprehension, ArrayTypeSpec, ArrayWithLength, BinOp, Block, Call,
-    ClassAttr, ClassAttrs, ClassDef, ConstExpr, DataPack, Def, DefBody, DefId, Dict, Dummy, Expr,
-    Identifier, KeyValue, KwArg, Lambda, LambdaSignature, Literal, Methods, MixedRecord, Module,
-    NonDefaultParamSignature, NormalArray, NormalDict, NormalRecord, NormalSet, NormalTuple,
-    ParamPattern, ParamRecordAttr, ParamTuplePattern, Params, PatchDef, PosArg, ReDef, Record,
-    RecordAttrOrIdent, RecordAttrs, Set as astSet, SetComprehension, SetWithLength, Signature,
-    SubrSignature, Tuple, TupleTypeSpec, TypeAppArgs, TypeAppArgsKind, TypeBoundSpecs, TypeSpec,
-    TypeSpecWithOp, UnaryOp, VarName, VarPattern, VarRecordAttr, VarSignature, VisModifierSpec,
+    ClassAttr, ClassAttrs, ClassDef, ConstExpr, DataPack, Def, DefBody, DefId,
+    DefaultParamSignature, Dict, Dummy, Expr, Identifier, KeyValue, KwArg, Lambda, LambdaSignature,
+    Literal, Methods, MixedRecord, Module, NonDefaultParamSignature, NormalArray, NormalDict,
+    NormalRecord, NormalSet, NormalTuple, ParamPattern, ParamRecordAttr, ParamTuplePattern, Params,
+    PatchDef, PosArg, ReDef, Record, RecordAttrOrIdent, RecordAttrs, Set as astSet,
+    SetComprehension, SetWithLength, Signature, SubrSignature, Tuple, TupleTypeSpec, TypeAppArgs,
+    TypeAppArgsKind, TypeBoundSpecs, TypeSpec, TypeSpecWithOp, UnaryOp, VarName, VarPattern,
+    VarRecordAttr, VarSignature, VisModifierSpec,
 };
 use crate::token::{Token, TokenKind, COLON, DOT};
 
@@ -253,10 +254,22 @@ impl Desugarer {
                 let args = Self::desugar_args(desugar, call.args);
                 Expr::Call(Call::new(obj, call.attr_name, args))
             }
-            Expr::Def(def) => {
+            Expr::Def(mut def) => {
                 let mut chunks = vec![];
                 for chunk in def.body.block.into_iter() {
                     chunks.push(desugar(chunk));
+                }
+                if let Signature::Subr(mut subr) = def.sig {
+                    let mut defaults = vec![];
+                    for default in subr.params.defaults.into_iter() {
+                        let default_val = desugar(default.default_val);
+                        defaults.push(DefaultParamSignature {
+                            default_val,
+                            ..default
+                        });
+                    }
+                    subr.params.defaults = defaults;
+                    def.sig = Signature::Subr(subr);
                 }
                 let body = DefBody::new(def.body.op, Block::new(chunks), def.body.id);
                 Expr::Def(Def::new(def.sig, body))
@@ -284,11 +297,20 @@ impl Desugarer {
                 let attr = Self::perform_desugar_acc(desugar, redef.attr);
                 Expr::ReDef(ReDef::new(attr, expr))
             }
-            Expr::Lambda(lambda) => {
+            Expr::Lambda(mut lambda) => {
                 let mut chunks = vec![];
                 for chunk in lambda.body.into_iter() {
                     chunks.push(desugar(chunk));
                 }
+                let mut defaults = vec![];
+                for default in lambda.sig.params.defaults.into_iter() {
+                    let default_val = desugar(default.default_val);
+                    defaults.push(DefaultParamSignature {
+                        default_val,
+                        ..default
+                    });
+                }
+                lambda.sig.params.defaults = defaults;
                 let body = Block::new(chunks);
                 Expr::Lambda(Lambda::new(lambda.sig, lambda.op, body, lambda.id))
             }
