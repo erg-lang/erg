@@ -1,0 +1,25 @@
+# TODO: dependent (static shaped)
+.NDArray = 'ndarray': ClassType
+.NDArray <: Num
+.NDArray.
+    shape: [Nat; _]
+    ndim: Nat
+    dtype: Type
+    size: Nat
+
+.abs: |T|(object: .NDArray(T),) -> .NDArray(T)
+.add: |T|(object: .NDArray(T), other: .NDArray(T)) -> .NDArray(T)
+.all: |T <: Num|(object: .NDArray(T),) -> Bool
+.any: |T <: Num|(object: .NDArray(T),) -> Bool
+.arange: |T <: Num|(start: T, stop := T, step := T) -> .NDArray(T)
+.array: |T|(object: Iterable(T),) -> .NDArray(T)
+.linspace: |T <: Num|(start: T, stop: T, num := Nat, endpoint := Bool, retstep := Bool, dtype := Type, axis := Nat) -> .NDArray(T)
+.max: |T <: Num|(object: .NDArray(T),) -> T
+.mean: |T <: Num|(object: .NDArray(T),) -> T
+.min: |T <: Num|(object: .NDArray(T),) -> T
+.ones: |T|(shape: Nat or [Nat; _], dtype := Type) -> .NDArray(T)
+.reshapce: |T|(object: .NDArray(T), shape: [Nat; _]) -> .NDArray(T)
+.std: |T <: Num|(object: .NDArray(T),) -> T
+.sum: |T|(object: .NDArray(T),) -> T
+.sqrt: |T|(object: .NDArray(T),) -> .NDArray(T)
+.transpose: |T|(object: .NDArray(T), axes := [Nat; _]) -> .NDArray(T)
