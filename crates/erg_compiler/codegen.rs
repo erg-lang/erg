@@ -3145,6 +3145,14 @@ impl PyCodeGenerator {
                     self.emit_push_null();
                     self.emit_load_name_instr(Identifier::public("Ratio"));
                 }
+                Imag => {
+                    self.emit_push_null();
+                    self.emit_load_name_instr(Identifier::public("Imag"));
+                }
+                Complex => {
+                    self.emit_push_null();
+                    self.emit_load_name_instr(Identifier::public("Complex"));
+                }
                 Float => {
                     self.emit_push_null();
                     self.emit_load_name_instr(Identifier::public("Float"));

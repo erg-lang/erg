@@ -1661,7 +1661,7 @@ impl Context {
     // sup/inf({±∞}) = ±∞ではあるが、Inf/NegInfにはOrdを実装しない
     fn sup(&self, t: &Type) -> Option<TyParam> {
         match t {
-            Int | Nat | Ratio | Float => Some(TyParam::value(Inf)),
+            Int | Nat | Ratio | Imag | Complex | Float => Some(TyParam::value(Inf)),
             Refinement(refine) => {
                 let mut maybe_max = None;
                 for pred in refine.pred.ands() {
@@ -1688,7 +1688,7 @@ impl Context {
 
     fn inf(&self, t: &Type) -> Option<TyParam> {
         match t {
-            Int | Ratio | Float => Some(TyParam::value(-Inf)),
+            Int | Ratio | Imag | Complex | Float => Some(TyParam::value(-Inf)),
             Nat => Some(TyParam::value(0usize)),
             Refinement(refine) => {
                 let mut maybe_min = None;

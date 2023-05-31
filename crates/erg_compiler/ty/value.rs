@@ -7,17 +7,18 @@ use std::hash::{Hash, Hasher};
 use std::ops::Neg;
 use std::sync::Arc;
 
-use erg_common::dict::Dict;
-use erg_common::error::{ErrorCore, ErrorKind, Location};
 use erg_common::fresh::FRESH_GEN;
-use erg_common::io::Input;
 use erg_common::python_util::PythonVersion;
 use erg_common::ratio::Ratio;
 use erg_common::serialize::*;
 use erg_common::set::Set;
 use erg_common::traits::LimitedDisplay;
-use erg_common::{complex::Complex, config::Input, dict::Dict, imag::Imag};
+use erg_common::{complex::Complex, dict::Dict, imag::Imag};
 use erg_common::{dict, fmt_iter, impl_display_from_debug, log, switch_lang};
+use erg_common::{
+    error::{ErrorCore, ErrorKind, Location},
+    io::Input,
+};
 use erg_common::{ArcArray, Str};
 use erg_parser::ast::{ConstArgs, ConstExpr};
 
@@ -1009,8 +1010,8 @@ impl ValueObj {
         matches!(
             self,
             Self::Float(_)
-                | Self::Ratio(_)
                 | Self::Complex(_)
+                | Self::Ratio(_)
                 | Self::Int(_)
                 | Self::Nat(_)
                 | Self::Bool(_)
@@ -1021,8 +1022,8 @@ impl ValueObj {
         matches!(
             self,
             Self::Float(_)
-                | Self::Ratio(_)
                 | Self::Complex(_)
+                | Self::Ratio(_)
                 | Self::Int(_)
                 | Self::Nat(_)
                 | Self::Bool(_)
@@ -1032,7 +1033,7 @@ impl ValueObj {
     pub const fn is_ratio(&self) -> bool {
         matches!(
             self,
-            Self::Ratio(_) | Self::Complex(_) | Self::Int(_) | Self::Nat(_) | Self::Bool(_)
+            Self::Ratio(_) | Self::Int(_) | Self::Nat(_) | Self::Bool(_)
         )
     }
 
@@ -1347,15 +1348,15 @@ impl ValueObj {
                 Some(Self::Complex(Complex::new(Ratio::new(r as i64, 1), l)))
             }
             (Self::Imag(l), Self::Nat(r)) => {
-                Some(Self::Complex(Complex::new(Ratio::new(r as i64, 1), l)))
+                Some(Self::Complex(Complex::new(Ratio::int_new(r as i64), l)))
             }
             (Self::Ratio(l), Self::Imag(r)) => Some(Self::Complex(Complex::new(l, r))),
             (Self::Int(l), Self::Imag(r)) => {
-                Some(Self::Complex(Complex::new(Ratio::new(l as i64, 1), r)))
+                Some(Self::Complex(Complex::new(Ratio::int_new(l as i64), r)))
             }
             (Self::Nat(l), Self::Imag(r)) => {
                 // TODO: check if l is greater then the max value of i64
-                Some(Self::Complex(Complex::new(Ratio::new(l as i64, 1), r)))
+                Some(Self::Complex(Complex::new(Ratio::int_new(l as i64), r)))
             }
             /* Complex */
             (Self::Complex(l), Self::Complex(r)) => Some(Self::Complex(l + r)),

@@ -10,6 +10,7 @@ use erg_common::ratio::Ratio;
 use erg_common::set::Set;
 use erg_common::shared::Shared;
 use erg_common::traits::{Locational, Stream};
+use erg_common::{complex::Complex, imag::Imag};
 use erg_common::{dict, fmt_vec, fn_name, option_enum_unwrap, set, Triple};
 use erg_common::{ArcArray, Str};
 use OpKind::*;
@@ -1394,7 +1395,9 @@ impl Context {
             ValueObj::Bool(b) => Ok(ValueObj::Nat(b as u64 + 1)),
             ValueObj::Nat(n) => Ok(ValueObj::Nat(n + 1)),
             ValueObj::Int(n) => Ok(ValueObj::Int(n + 1)),
-            ValueObj::Ratio(r) => Ok(ValueObj::Ratio(r + Ratio::new(1, 1))),
+            ValueObj::Ratio(r) => Ok(ValueObj::Ratio(r + Ratio::int_new(1))),
+            ValueObj::Imag(i) => Ok(ValueObj::Imag(i + Imag::int_new(1))),
+            ValueObj::Complex(c) => Ok(ValueObj::Complex(c + Complex::int_new(1, 0))),
             ValueObj::Float(n) => Ok(ValueObj::Float(n + f64::EPSILON)),
             ValueObj::Inf | ValueObj::NegInf => Ok(val),
             _ => Err(EvalErrors::from(EvalError::unreachable(
@@ -1410,7 +1413,9 @@ impl Context {
             ValueObj::Bool(_) => Ok(ValueObj::Nat(0)),
             ValueObj::Nat(n) => Ok(ValueObj::Nat(n.saturating_sub(1))),
             ValueObj::Int(n) => Ok(ValueObj::Int(n - 1)),
-            ValueObj::Ratio(r) => Ok(ValueObj::Ratio(r - Ratio::new(1, 1))),
+            ValueObj::Ratio(r) => Ok(ValueObj::Ratio(r - Ratio::int_new(1))),
+            ValueObj::Imag(i) => Ok(ValueObj::Imag(i - Imag::int_new(1))),
+            ValueObj::Complex(c) => Ok(ValueObj::Complex(c - Complex::int_new(1, 0))),
             ValueObj::Float(n) => Ok(ValueObj::Float(n - f64::EPSILON)),
             ValueObj::Inf | ValueObj::NegInf => Ok(val),
             _ => Err(EvalErrors::from(EvalError::unreachable(

@@ -141,9 +141,11 @@ impl ASTSemanticState {
             Expr::Literal(lit) => {
                 let typ = match lit.token.kind {
                     TokenKind::StrLit => SemanticTokenType::STRING,
-                    TokenKind::NatLit | TokenKind::IntLit | TokenKind::RatioLit => {
-                        SemanticTokenType::NUMBER
-                    }
+                    TokenKind::NatLit
+                    | TokenKind::IntLit
+                    | TokenKind::RatioLit
+                    | TokenKind::ImLit
+                    | TokenKind::ComplexLit => SemanticTokenType::NUMBER,
                     _ => SemanticTokenType::VARIABLE,
                 };
                 let token = self.gen_token(lit.loc(), typ);
