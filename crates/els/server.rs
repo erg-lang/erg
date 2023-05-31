@@ -244,7 +244,9 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     pub fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         loop {
             let msg = self.read_message()?;
-            self.dispatch(msg)?;
+            if let Err(err) = self.dispatch(msg) {
+                send_error_info(format!("err: {err:?}"))?;
+            }
         }
         // Ok(())
     }
