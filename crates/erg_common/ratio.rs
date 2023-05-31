@@ -45,8 +45,8 @@ impl Ratio {
             None => panic!("Something went wrong: {f} cannot compare"),
         }
         let limit = if let Some(limit) = limit {
-            if limit >= i32::MAX as u64 {
-                i32::MAX as u64
+            if limit >= i64::MAX as u64 {
+                i64::MAX as u64
             } else {
                 limit
             }
