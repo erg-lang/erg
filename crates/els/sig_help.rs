@@ -100,7 +100,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         let argc = commas.len();
         commas
             .iter()
-            .position(|c| c.col_end().unwrap() >= token.col_end().unwrap())
+            .position(|c| c.col_end() >= token.col_end())
             .unwrap_or(argc) // `commas.col_end() < token.col_end()` means the token is the last argument
     }
 
