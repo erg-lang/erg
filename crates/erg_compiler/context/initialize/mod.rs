@@ -757,50 +757,19 @@ impl Context {
             };
             let name = VarName::from_str(t.local_name());
             let meta_t = v_enum(set! { val.clone() });
-            self.locals.insert(
-                name.clone(),
-                VarInfo::new(
-                    meta_t,
-                    muty,
-                    vis,
-                    Builtin,
-                    None,
-                    None,
-                    py_name.map(Str::ever),
-                    AbsLocation::unknown(),
-                ),
+            let vi = VarInfo::new(
+                meta_t,
+                muty,
+                vis,
+                Builtin,
+                None,
+                None,
+                py_name.map(Str::ever),
+                AbsLocation::unknown(),
             );
+            self.locals.insert(name.clone(), vi);
             self.consts.insert(name.clone(), val);
-            for impl_trait in ctx.super_traits.iter() {
-                if let Some(mut impls) = self.trait_impls().get_mut(&impl_trait.qual_name()) {
-                    impls.insert(TraitImpl::new(t.clone(), impl_trait.clone()));
-                } else {
-                    self.trait_impls().register(
-                        impl_trait.qual_name(),
-                        set![TraitImpl::new(t.clone(), impl_trait.clone())],
-                    );
-                }
-            }
-            for (trait_method, vi) in ctx.decls.iter() {
-                if let Some(types) = self.method_to_traits.get_mut(trait_method.inspect()) {
-                    types.push(MethodPair::new(t.clone(), vi.clone()));
-                } else {
-                    self.method_to_traits.insert(
-                        trait_method.inspect().clone(),
-                        vec![MethodPair::new(t.clone(), vi.clone())],
-                    );
-                }
-            }
-            for (class_method, vi) in ctx.locals.iter() {
-                if let Some(types) = self.method_to_classes.get_mut(class_method.inspect()) {
-                    types.push(MethodPair::new(t.clone(), vi.clone()));
-                } else {
-                    self.method_to_classes.insert(
-                        class_method.inspect().clone(),
-                        vec![MethodPair::new(t.clone(), vi.clone())],
-                    );
-                }
-            }
+            self.register_methods(&t, &ctx);
             self.mono_types.insert(name, (t, ctx));
         }
     }
@@ -847,37 +816,41 @@ impl Context {
                 );
             }
             self.consts.insert(name.clone(), val);
-            for impl_trait in ctx.super_traits.iter() {
-                if let Some(mut impls) = self.trait_impls().get_mut(&impl_trait.qual_name()) {
-                    impls.insert(TraitImpl::new(t.clone(), impl_trait.clone()));
-                } else {
-                    self.trait_impls().register(
-                        impl_trait.qual_name(),
-                        set![TraitImpl::new(t.clone(), impl_trait.clone())],
-                    );
-                }
-            }
-            for (trait_method, vi) in ctx.decls.iter() {
-                if let Some(traits) = self.method_to_traits.get_mut(trait_method.inspect()) {
-                    traits.push(MethodPair::new(t.clone(), vi.clone()));
-                } else {
-                    self.method_to_traits.insert(
-                        trait_method.inspect().clone(),
-                        vec![MethodPair::new(t.clone(), vi.clone())],
-                    );
-                }
-            }
-            for (class_method, vi) in ctx.locals.iter() {
-                if let Some(types) = self.method_to_classes.get_mut(class_method.inspect()) {
-                    types.push(MethodPair::new(t.clone(), vi.clone()));
-                } else {
-                    self.method_to_classes.insert(
-                        class_method.inspect().clone(),
-                        vec![MethodPair::new(t.clone(), vi.clone())],
-                    );
-                }
-            }
+            self.register_methods(&t, &ctx);
             self.poly_types.insert(name, (t, ctx));
+        }
+    }
+
+    pub(crate) fn register_methods(&mut self, t: &Type, ctx: &Self) {
+        for impl_trait in ctx.super_traits.iter() {
+            if let Some(mut impls) = self.trait_impls().get_mut(&impl_trait.qual_name()) {
+                impls.insert(TraitImpl::new(t.clone(), impl_trait.clone()));
+            } else {
+                self.trait_impls().register(
+                    impl_trait.qual_name(),
+                    set![TraitImpl::new(t.clone(), impl_trait.clone())],
+                );
+            }
+        }
+        for (trait_method, vi) in ctx.decls.iter() {
+            if let Some(traits) = self.method_to_traits.get_mut(trait_method.inspect()) {
+                traits.push(MethodPair::new(t.clone(), vi.clone()));
+            } else {
+                self.method_to_traits.insert(
+                    trait_method.inspect().clone(),
+                    vec![MethodPair::new(t.clone(), vi.clone())],
+                );
+            }
+        }
+        for (class_method, vi) in ctx.locals.iter() {
+            if let Some(types) = self.method_to_classes.get_mut(class_method.inspect()) {
+                types.push(MethodPair::new(t.clone(), vi.clone()));
+            } else {
+                self.method_to_classes.insert(
+                    class_method.inspect().clone(),
+                    vec![MethodPair::new(t.clone(), vi.clone())],
+                );
+            }
         }
     }
 
