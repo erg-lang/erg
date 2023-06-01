@@ -49,7 +49,18 @@ impl ASTLowerer {
             _ => sig.inspect().cloned(),
         };
         let found_body_t = chunk.ref_t();
-        let ast::VarPattern::Ident(ident) = &sig.pat else { unreachable!() };
+        let ident = match &sig.pat {
+            ast::VarPattern::Ident(ident) => ident,
+            ast::VarPattern::Discard(token) => {
+                return Err(LowerErrors::from(LowerError::declare_error(
+                    self.cfg().input.clone(),
+                    line!() as usize,
+                    token.loc(),
+                    self.module.context.caused_by(),
+                )));
+            }
+            _ => unreachable!(),
+        };
         let id = body.id;
         if let Some(spec_t) = opt_spec_t {
             self.module

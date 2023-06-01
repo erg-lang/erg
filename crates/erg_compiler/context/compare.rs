@@ -1255,6 +1255,8 @@ impl Context {
             },
             (_, Not(r)) => self.diff(lhs, r),
             (Not(l), _) => self.diff(rhs, l),
+            // overloading
+            (l, r) if l.is_subr() && r.is_subr() => and(lhs.clone(), rhs.clone()),
             _ => self.simple_intersection(lhs, rhs),
         }
     }

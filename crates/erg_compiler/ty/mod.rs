@@ -1814,6 +1814,7 @@ impl Type {
             Self::Subr(_) => true,
             Self::Quantified(quant) => quant.is_subr(),
             Self::Refinement(refine) => refine.t.is_subr(),
+            Self::And(l, r) => l.is_subr() && r.is_subr(),
             _ => false,
         }
     }
@@ -1823,6 +1824,7 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_quantified_subr(),
             Self::Quantified(_) => true,
             Self::Refinement(refine) => refine.t.is_quantified_subr(),
+            Self::And(l, r) => l.is_quantified_subr() && r.is_quantified_subr(),
             _ => false,
         }
     }
