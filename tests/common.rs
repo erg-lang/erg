@@ -9,6 +9,7 @@ use erg_common::style::{colors::DEBUG_MAIN, RESET};
 use erg_common::traits::{ExitStatus, Runnable, Stream};
 
 use erg_compiler::error::CompileErrors;
+use erg_compiler::Compiler;
 
 use erg::DummyVM;
 
@@ -29,6 +30,31 @@ pub(crate) fn expect_repl_success(name: &'static str, lines: Vec<String>) -> Res
 
 pub(crate) fn expect_success(file_path: &'static str, num_warns: usize) -> Result<(), ()> {
     match exec_file(file_path) {
+        Ok(stat) if stat.succeed() => {
+            if stat.num_warns == num_warns {
+                Ok(())
+            } else {
+                println!(
+                    "err: number of warnings should be {num_warns}, but got {}",
+                    stat.num_warns
+                );
+                Err(())
+            }
+        }
+        Ok(stat) => {
+            println!("err: should succeed, but end with {}", stat.code);
+            Err(())
+        }
+        Err(errs) => {
+            println!("err: should succeed, but got compile errors");
+            errs.fmt_all_stderr();
+            Err(())
+        }
+    }
+}
+
+pub(crate) fn expect_compile_success(file_path: &'static str, num_warns: usize) -> Result<(), ()> {
+    match exec_compiler(file_path) {
         Ok(stat) if stat.succeed() => {
             if stat.num_warns == num_warns {
                 Ok(())
@@ -175,6 +201,13 @@ pub fn _exec_repl(name: &'static str, lines: Vec<String>) -> Result<ExitStatus, 
     Ok(stat)
 }
 
+pub fn _exec_compiler(file_path: &'static str) -> Result<ExitStatus, CompileErrors> {
+    println!("{DEBUG_MAIN}[test] exec compiler: {file_path}{RESET}");
+    let cfg = ErgConfig::with_main_path(PathBuf::from(file_path));
+    let mut compiler = Compiler::new(set_cfg(cfg));
+    compiler.exec()
+}
+
 pub(crate) fn exec_file(file_path: &'static str) -> Result<ExitStatus, CompileErrors> {
     exec_new_thread(move || _exec_file(file_path), file_path)
 }
@@ -184,4 +217,8 @@ pub(crate) fn exec_repl(
     lines: Vec<String>,
 ) -> Result<ExitStatus, CompileErrors> {
     exec_new_thread(move || _exec_repl(name, lines), name)
+}
+
+pub(crate) fn exec_compiler(file_path: &'static str) -> Result<ExitStatus, CompileErrors> {
+    exec_new_thread(move || _exec_compiler(file_path), file_path)
 }

@@ -1,5 +1,6 @@
 mod common;
-use common::{expect_end_with, expect_failure, expect_success};
+use common::{expect_compile_success, expect_end_with, expect_failure, expect_success};
+use erg_common::python_util::{module_exists, opt_which_python};
 
 #[test]
 fn exec_addition_ok() -> Result<(), ()> {
@@ -54,6 +55,16 @@ fn exec_control_expr() -> Result<(), ()> {
 #[test]
 fn exec_dict() -> Result<(), ()> {
     expect_success("examples/dict.er", 0)
+}
+
+#[test]
+fn exec_external() -> Result<(), ()> {
+    let py_command = opt_which_python().unwrap();
+    if module_exists(&py_command, "matplotlib") && module_exists(&py_command, "tqdm") {
+        expect_success("tests/should_ok/external.er", 0)
+    } else {
+        expect_compile_success("tests/should_ok/external.er", 0)
+    }
 }
 
 #[test]

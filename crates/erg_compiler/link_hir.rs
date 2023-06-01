@@ -1,9 +1,8 @@
 use std::mem;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use erg_common::config::ErgConfig;
 use erg_common::pathutil::squash;
-use erg_common::python_util::BUILTIN_PYTHON_MODS;
 use erg_common::traits::Locational;
 use erg_common::Str;
 use erg_common::{enum_unwrap, log};
@@ -384,13 +383,21 @@ impl<'a> HIRLinker<'a> {
     /// x = __import__("a.x").x
     /// ```
     fn replace_py_import(&self, expr: &mut Expr) {
-        let mut dir = self.cfg.input.dir();
         let args = &mut enum_unwrap!(expr, Expr::Call).args;
         let mod_name_lit = enum_unwrap!(args.remove_left_or_key("Path").unwrap(), Expr::Lit);
         let mod_name_str = enum_unwrap!(mod_name_lit.value.clone(), ValueObj::Str);
-        if BUILTIN_PYTHON_MODS.contains(&&mod_name_str[..]) {
-            args.push_pos(PosArg::new(Expr::Lit(mod_name_lit)));
-            return;
+        let mut dir = self.cfg.input.dir();
+        let mod_path = self
+            .cfg
+            .input
+            .resolve_decl_path(Path::new(&mod_name_str[..]))
+            .unwrap();
+        if !mod_path
+            .canonicalize()
+            .unwrap()
+            .starts_with(&dir.canonicalize().unwrap())
+        {
+            dir = PathBuf::new();
         }
         let mod_name_str = if let Some(stripped) = mod_name_str.strip_prefix("./") {
             stripped

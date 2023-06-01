@@ -1,0 +1,12 @@
+time = pyimport "time"
+tqdm = pyimport "tqdm"
+
+for! tqdm.Tqdm!(0..<10), _ =>
+    time.sleep! 0.00001
+
+plt = pyimport "matplotlib/pyplot"
+
+discard plt.plot! 0..<10, [2, 3, 2, 3, 2, 3, 2, 3, 2, 3]
+discard plt.title! "My Plot"
+discard plt.xlabel! "X"
+# plt.show!()

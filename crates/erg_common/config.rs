@@ -155,9 +155,13 @@ impl InputKind {
         if let Self::File(path) = self {
             let mut path = path.clone();
             path.pop();
-            path
+            if path.parent().is_none() {
+                PathBuf::from(".")
+            } else {
+                path
+            }
         } else {
-            PathBuf::new()
+            PathBuf::from(".")
         }
     }
 }
