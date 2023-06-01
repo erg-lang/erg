@@ -552,20 +552,21 @@ impl Input {
                 return Ok(path);
             }
         }
-        if EXPERIMENTAL_MODE {
-            for sys_path in self.sys_path()? {
-                let mut dir = sys_path;
-                dir.push(path);
-                dir.set_extension("py");
-                if dir.exists() {
-                    return Ok(normalize_path(dir));
-                }
-                dir.pop();
-                dir.push(path);
-                dir.push("__init__.py");
-                if dir.exists() {
-                    return Ok(normalize_path(dir));
-                }
+        for sys_path in self.sys_path()? {
+            let mut dir = sys_path;
+            dir.push(path);
+            dir.set_extension("py");
+            if dir.exists() {
+                return Ok(normalize_path(dir));
+            }
+            dir.pop();
+            dir.push(path);
+            dir.push("__init__.py");
+            if dir.exists() {
+                return Ok(normalize_path(dir));
+            }
+            if !EXPERIMENTAL_MODE {
+                break;
             }
         }
         Err(std::io::Error::new(
