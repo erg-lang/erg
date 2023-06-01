@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use std::process;
 use std::str::FromStr;
 
-use crate::consts::ERG_MODE;
+use crate::consts::{ERG_MODE, EXPERIMENTAL_MODE};
 use crate::env::{erg_py_external_lib_path, erg_pystd_path, erg_std_path, python_site_packages};
 use crate::help_messages::{command_message, mode_message, OPTIONS};
 use crate::levenshtein::get_similar_name;
@@ -552,18 +552,20 @@ impl Input {
                 return Ok(path);
             }
         }
-        for sys_path in self.sys_path()? {
-            let mut dir = sys_path;
-            dir.push(path);
-            dir.set_extension("py");
-            if dir.exists() {
-                return Ok(normalize_path(dir));
-            }
-            dir.pop();
-            dir.push(path);
-            dir.push("__init__.py");
-            if dir.exists() {
-                return Ok(normalize_path(dir));
+        if EXPERIMENTAL_MODE {
+            for sys_path in self.sys_path()? {
+                let mut dir = sys_path;
+                dir.push(path);
+                dir.set_extension("py");
+                if dir.exists() {
+                    return Ok(normalize_path(dir));
+                }
+                dir.pop();
+                dir.push(path);
+                dir.push("__init__.py");
+                if dir.exists() {
+                    return Ok(normalize_path(dir));
+                }
             }
         }
         Err(std::io::Error::new(

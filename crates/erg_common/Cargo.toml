@@ -22,6 +22,7 @@ els = []
 py_compat = []
 no_std = []
 full-repl = ["dep:crossterm"]
+experimental = []
 
 [target.'cfg(unix)'.dependencies]
 libc = { version = "0.2", default-features = false }

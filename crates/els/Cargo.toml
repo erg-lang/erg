@@ -18,6 +18,7 @@ unicode = ["erg_common/unicode", "erg_compiler/unicode"]
 pretty = ["erg_common/pretty", "erg_compiler/pretty"]
 large_thread = ["erg_common/large_thread", "erg_compiler/large_thread"]
 py_compat = ["erg_compiler/py_compat"]
+experimental = ["erg_common/experimental", "erg_compiler/experimental"]
 
 [dependencies]
 erg_common = { workspace = true, features = ["els"] }
