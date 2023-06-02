@@ -51,7 +51,6 @@ traditional_chinese = [
 ]
 unicode = ["erg_common/unicode", "erg_parser/unicode", "erg_compiler/unicode", "els/unicode"]
 pretty = ["erg_common/pretty", "erg_parser/pretty", "erg_compiler/pretty", "els/pretty"]
-pre-commit = []
 large_thread = [
     "erg_common/large_thread",
     "erg_parser/large_thread",
