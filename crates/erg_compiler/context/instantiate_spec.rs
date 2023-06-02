@@ -307,7 +307,7 @@ impl Context {
                 .as_ref()
                 .map(|subr| ParamTy::Pos(subr.return_t.as_ref().clone()));
             match self.instantiate_typespec_full(
-                t_spec,
+                &t_spec.t_spec,
                 opt_decl_t.as_ref(),
                 &mut tmp_tv_cache,
                 mode,

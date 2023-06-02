@@ -454,7 +454,7 @@ impl Desugarer {
         new
     }
 
-    fn add_arg_to_match_call(&self, mut previous: Def, def: Def) -> (Call, Option<TypeSpec>) {
+    fn add_arg_to_match_call(&self, mut previous: Def, def: Def) -> (Call, Option<TypeSpecWithOp>) {
         let op = Token::from_str(TokenKind::FuncArrow, "->");
         let Expr::Call(mut call) = previous.body.block.remove(0) else { unreachable!() };
         let Signature::Subr(sig) = def.sig else { unreachable!() };
@@ -484,7 +484,7 @@ impl Desugarer {
     }
 
     // TODO: procedural match
-    fn gen_match_call(&self, previous: Def, def: Def) -> (Call, Option<TypeSpec>) {
+    fn gen_match_call(&self, previous: Def, def: Def) -> (Call, Option<TypeSpecWithOp>) {
         let op = Token::from_str(TokenKind::FuncArrow, "->");
         let Signature::Subr(prev_sig) = previous.sig else { unreachable!() };
         let params_len = prev_sig.params.len();

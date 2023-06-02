@@ -3863,7 +3863,7 @@ pub struct SubrSignature {
     pub ident: Identifier,
     pub bounds: TypeBoundSpecs,
     pub params: Params,
-    pub return_t_spec: Option<TypeSpec>,
+    pub return_t_spec: Option<TypeSpecWithOp>,
 }
 
 impl NestedDisplay for SubrSignature {
@@ -3909,14 +3909,14 @@ impl SubrSignature {
         ident: Identifier,
         bounds: TypeBoundSpecs,
         params: Params,
-        return_t: Option<TypeSpec>,
+        return_t_spec: Option<TypeSpecWithOp>,
     ) -> Self {
         Self {
             decorators,
             ident,
             bounds,
             params,
-            return_t_spec: return_t,
+            return_t_spec,
         }
     }
 
@@ -3933,7 +3933,7 @@ impl SubrSignature {
 pub struct LambdaSignature {
     pub bounds: TypeBoundSpecs,
     pub params: Params,
-    pub return_t_spec: Option<TypeSpec>,
+    pub return_t_spec: Option<TypeSpecWithOp>,
 }
 
 impl fmt::Display for LambdaSignature {
@@ -3974,7 +3974,7 @@ impl Locational for LambdaSignature {
 impl LambdaSignature {
     pub const fn new(
         params: Params,
-        return_t_spec: Option<TypeSpec>,
+        return_t_spec: Option<TypeSpecWithOp>,
         bounds: TypeBoundSpecs,
     ) -> Self {
         Self {
@@ -4109,7 +4109,7 @@ impl Signature {
     pub fn t_spec(&self) -> Option<&TypeSpec> {
         match self {
             Self::Var(v) => v.t_spec.as_ref().map(|t| &t.t_spec),
-            Self::Subr(c) => c.return_t_spec.as_ref(),
+            Self::Subr(c) => c.return_t_spec.as_ref().map(|t| &t.t_spec),
         }
     }
 

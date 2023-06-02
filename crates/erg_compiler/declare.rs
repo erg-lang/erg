@@ -2,7 +2,7 @@ use std::mem;
 
 use erg_common::consts::PYTHON_MODE;
 use erg_common::traits::{Locational, Runnable, Stream};
-use erg_common::{enum_unwrap, fn_name, log, set, Str};
+use erg_common::{enum_unwrap, fn_name, log, set, Str, Triple};
 
 use erg_parser::ast::{self, AscriptionKind, Identifier, VarName, AST};
 
@@ -167,7 +167,24 @@ impl ASTLowerer {
             }
             ast::Accessor::Attr(attr) => {
                 let obj = self.fake_lower_expr(*attr.obj)?;
-                let ident = hir::Identifier::bare(attr.ident);
+                let mut ident = hir::Identifier::bare(attr.ident);
+                if let Ok(ctxs) = self
+                    .module
+                    .context
+                    .get_singular_ctxs_by_hir_expr(&obj, &self.module.context)
+                {
+                    for ctx in ctxs {
+                        if let Triple::Ok(vi) = ctx.rec_get_var_info(
+                            &ident.raw,
+                            AccessKind::Attr,
+                            self.input(),
+                            &self.module.context,
+                        ) {
+                            ident.vi = vi;
+                            break;
+                        }
+                    }
+                }
                 Ok(obj.attr(ident))
             }
             other => Err(LowerErrors::from(LowerError::declare_error(
@@ -291,7 +308,14 @@ impl ASTLowerer {
             ast::Signature::Subr(subr) => {
                 let ident = hir::Identifier::bare(subr.ident);
                 let params = self.fake_lower_params(subr.params)?;
-                let sig = hir::SubrSignature::new(ident, subr.bounds, params, subr.return_t_spec);
+                let ret_t_spec = if let Some(ts) = subr.return_t_spec {
+                    let spec_t = self.module.context.instantiate_typespec(&ts.t_spec)?;
+                    let expr = self.fake_lower_expr(*ts.t_spec_as_expr.clone())?;
+                    Some(hir::TypeSpecWithOp::new(ts, expr, spec_t))
+                } else {
+                    None
+                };
+                let sig = hir::SubrSignature::new(ident, subr.bounds, params, ret_t_spec);
                 Ok(hir::Signature::Subr(sig))
             }
         }

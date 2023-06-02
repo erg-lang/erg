@@ -988,7 +988,7 @@ impl Context {
                         let mut dummy_tv_cache = TyVarCache::new(self.level, self);
                         let spec_t = self
                             .instantiate_typespec_full(
-                                spec,
+                                &spec.t_spec,
                                 None,
                                 &mut dummy_tv_cache,
                                 PreRegister,

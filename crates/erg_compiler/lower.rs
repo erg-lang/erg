@@ -1549,8 +1549,14 @@ impl ASTLowerer {
                             }
                         };
                         let ident = hir::Identifier::new(sig.ident, None, vi);
-                        let sig =
-                            hir::SubrSignature::new(ident, sig.bounds, params, sig.return_t_spec);
+                        let ret_t_spec = if let Some(ts) = sig.return_t_spec {
+                            let spec_t = self.module.context.instantiate_typespec(&ts.t_spec)?;
+                            let expr = self.fake_lower_expr(*ts.t_spec_as_expr.clone())?;
+                            Some(hir::TypeSpecWithOp::new(ts, expr, spec_t))
+                        } else {
+                            None
+                        };
+                        let sig = hir::SubrSignature::new(ident, sig.bounds, params, ret_t_spec);
                         let body = hir::DefBody::new(body.op, block, body.id);
                         Ok(hir::Def::new(hir::Signature::Subr(sig), body))
                     }
@@ -1569,8 +1575,14 @@ impl ASTLowerer {
                             }
                         };
                         let ident = hir::Identifier::new(sig.ident, None, vi);
-                        let sig =
-                            hir::SubrSignature::new(ident, sig.bounds, params, sig.return_t_spec);
+                        let ret_t_spec = if let Some(ts) = sig.return_t_spec {
+                            let spec_t = self.module.context.instantiate_typespec(&ts.t_spec)?;
+                            let expr = self.fake_lower_expr(*ts.t_spec_as_expr.clone())?;
+                            Some(hir::TypeSpecWithOp::new(ts, expr, spec_t))
+                        } else {
+                            None
+                        };
+                        let sig = hir::SubrSignature::new(ident, sig.bounds, params, ret_t_spec);
                         let block =
                             hir::Block::new(vec![hir::Expr::Dummy(hir::Dummy::new(vec![]))]);
                         let body = hir::DefBody::new(body.op, block, body.id);
@@ -1594,7 +1606,14 @@ impl ASTLowerer {
                     .fake_subr_assign(&sig.ident, &sig.decorators, Type::Failure)?;
                 let block = self.lower_block(body.block)?;
                 let ident = hir::Identifier::bare(sig.ident);
-                let sig = hir::SubrSignature::new(ident, sig.bounds, params, sig.return_t_spec);
+                let ret_t_spec = if let Some(ts) = sig.return_t_spec {
+                    let spec_t = self.module.context.instantiate_typespec(&ts.t_spec)?;
+                    let expr = self.fake_lower_expr(*ts.t_spec_as_expr.clone())?;
+                    Some(hir::TypeSpecWithOp::new(ts, expr, spec_t))
+                } else {
+                    None
+                };
+                let sig = hir::SubrSignature::new(ident, sig.bounds, params, ret_t_spec);
                 let body = hir::DefBody::new(body.op, block, body.id);
                 Ok(hir::Def::new(hir::Signature::Subr(sig), body))
             }

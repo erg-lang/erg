@@ -551,12 +551,21 @@ impl<'a> HIRVisitor<'a> {
 
     fn get_sig_info(&self, sig: &Signature, token: &Token) -> Option<VarInfo> {
         match sig {
-            Signature::Var(var) => {
-                self.return_var_info_if_same(&var.ident, var.name().token(), token)
-            }
+            Signature::Var(var) => self
+                .return_var_info_if_same(&var.ident, var.name().token(), token)
+                .or_else(|| {
+                    var.t_spec
+                        .as_ref()
+                        .and_then(|t_spec| self.get_expr_info(&t_spec.expr, token))
+                }),
             Signature::Subr(subr) => self
                 .return_var_info_if_same(&subr.ident, subr.name().token(), token)
-                .or_else(|| self.get_params_info(&subr.params, token)),
+                .or_else(|| self.get_params_info(&subr.params, token))
+                .or_else(|| {
+                    subr.return_t_spec
+                        .as_ref()
+                        .and_then(|t_spec| self.get_expr_info(&t_spec.expr, token))
+                }),
         }
     }
 

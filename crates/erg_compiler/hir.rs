@@ -1817,7 +1817,7 @@ pub struct SubrSignature {
     pub ident: Identifier,
     pub bounds: TypeBoundSpecs,
     pub params: Params,
-    pub return_t_spec: Option<TypeSpec>,
+    pub return_t_spec: Option<TypeSpecWithOp>,
 }
 
 impl NestedDisplay for SubrSignature {
@@ -1869,7 +1869,7 @@ impl SubrSignature {
         ident: Identifier,
         bounds: TypeBoundSpecs,
         params: Params,
-        return_t_spec: Option<TypeSpec>,
+        return_t_spec: Option<TypeSpecWithOp>,
     ) -> Self {
         Self {
             ident,
@@ -2014,6 +2014,13 @@ impl Signature {
     pub fn t_spec(&self) -> Option<&TypeSpec> {
         match self {
             Self::Var(v) => v.t_spec.as_ref().map(|t| &t.raw.t_spec),
+            Self::Subr(s) => s.return_t_spec.as_ref().map(|t| &t.raw.t_spec),
+        }
+    }
+
+    pub fn t_spec_with_op(&self) -> Option<&TypeSpecWithOp> {
+        match self {
+            Self::Var(v) => v.t_spec.as_ref(),
             Self::Subr(s) => s.return_t_spec.as_ref(),
         }
     }
