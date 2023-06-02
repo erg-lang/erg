@@ -33,7 +33,6 @@ pub mod style;
 pub mod traits;
 pub mod triple;
 pub mod tsort;
-pub mod tty;
 
 use crate::set::Set;
 pub use crate::str::Str;

@@ -5,7 +5,7 @@ use std::env;
 use std::ffi::OsStr;
 use std::fmt;
 use std::fs::File;
-use std::io::{stdin, BufRead, BufReader, Read, Write};
+use std::io::{stdin, BufRead, BufReader, IsTerminal, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process;
 use std::str::FromStr;
@@ -1036,8 +1036,7 @@ USAGE:
             }
         }
         if cfg.input.is_repl() && cfg.mode != ErgMode::LanguageServer {
-            use crate::tty::IsTty;
-            let is_stdin_piped = !stdin().is_tty();
+            let is_stdin_piped = !stdin().is_terminal();
             let input = if is_stdin_piped {
                 let mut buffer = String::new();
                 stdin().read_to_string(&mut buffer).unwrap();

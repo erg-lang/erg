@@ -25,13 +25,7 @@ full-repl = ["dep:crossterm"]
 experimental = []
 
 [target.'cfg(unix)'.dependencies]
-libc = { version = "0.2", default-features = false }
 backtrace-on-stack-overflow = { version = "0.2.0", optional = true }
-[target.'cfg(target_os = "hermit")'.dependencies]
-hermit-abi = "0.1.6"
-[target.'cfg(windows)'.dependencies.winapi]
-version = "0.3"
-features = ["consoleapi"]
 
 [dependencies]
 crossterm = { optional = true, version = "0.25.0" }
