@@ -618,8 +618,12 @@ impl ScriptGenerator {
                 let iter = call.args.remove(0);
                 let Expr::Lambda(block) = call.args.remove(0) else { todo!() };
                 let non_default = block.params.non_defaults.get(0).unwrap();
-                let ParamPattern::VarName(param) = &non_default.raw.pat else { todo!() };
-                code += &format!("{}__ ", &param.token().content);
+                let param = match &non_default.raw.pat {
+                    ParamPattern::VarName(name) => name.token(),
+                    ParamPattern::Discard(token) => token,
+                    _ => unreachable!(),
+                };
+                code += &format!("{}__ ", &param.content);
                 code += &format!("in {}:\n", self.transpile_expr(iter));
                 code += &self.transpile_block(block.body, Discard);
                 code
@@ -812,12 +816,21 @@ impl ScriptGenerator {
             }
         }
         for default in params.defaults {
-            let ParamPattern::VarName(param) = default.sig.raw.pat else { todo!() };
-            code += &format!(
-                "{}__ = {},",
-                replace_non_symbolic(&param.into_token().content),
-                self.transpile_expr(default.default_val)
-            );
+            match default.sig.raw.pat {
+                ParamPattern::VarName(param) => {
+                    code += &format!(
+                        "{}__ = {},",
+                        replace_non_symbolic(&param.into_token().content),
+                        self.transpile_expr(default.default_val),
+                    );
+                }
+                ParamPattern::Discard(_) => {
+                    let n = self.fresh_var_n;
+                    code += &format!("_{n} = {},", self.transpile_expr(default.default_val),);
+                    self.fresh_var_n += 1;
+                }
+                _ => unreachable!(),
+            }
         }
         code
     }
