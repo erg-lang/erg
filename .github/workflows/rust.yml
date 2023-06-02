@@ -46,7 +46,7 @@ jobs:
       - name: Run tests (Windows)
         if: runner.os == 'Windows'
         # HACK: The cause is unknown, but on windows, the exit code is 1 even if tests are successful.
-        run: cargo test --features large_thread --all --verbose -- --include-ignored
+        run: cargo test --features large_thread --features pre-commit --all --verbose -- --include-ignored
       - name: Run tests (Other OS)
         if: runner.os != 'Windows'
         run: cargo test --features large_thread --all --verbose -- --include-ignored

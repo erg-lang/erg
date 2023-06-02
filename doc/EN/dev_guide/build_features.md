@@ -28,6 +28,10 @@ Erg internal options, help (help, copyright, license, etc.) and errors are displ
 
 The compiler makes the display rich.
 
+## pre-commit
+
+Used to run tests in pre-commit. It's a bug workaround.
+
 ## large_thread
 
 Increase the thread stack size. Used for Windows execution and test execution.
