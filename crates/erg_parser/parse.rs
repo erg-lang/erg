@@ -428,11 +428,14 @@ impl Parser {
         let mut block = Block::with_capacity(2);
         // single line block
         if !self.cur_is(Newline) {
-            let chunk = self
-                .try_reduce_chunk(true, false)
+            let expr = self
+                .try_reduce_expr(true, false, false, false)
                 .map_err(|_| self.stack_dec(fn_name!()))?;
-            block.push(chunk);
-            if !self.cur_is(Dedent) && !self.cur_category_is(TC::Separator) {
+            block.push(expr);
+            if !self.cur_is(Dedent)
+                && !self.cur_category_is(TC::Separator)
+                && !self.cur_category_is(TC::REnclosure)
+            {
                 let err = self
                     .skip_and_throw_invalid_chunk_err(caused_by!(), block.last().unwrap().loc());
                 debug_exit_info!(self);
@@ -1129,7 +1132,10 @@ impl Parser {
             }
         }
         let attrs = ClassAttrs::from(attrs);
-        let t_spec = Self::expr_to_type_spec(class.clone()).map_err(|e| self.errs.push(e))?;
+        let t_spec = Self::expr_to_type_spec(class.clone()).map_err(|e| {
+            self.errs.push(e);
+            self.stack_dec(fn_name!())
+        })?;
         debug_exit_info!(self);
         Ok(Methods::new(t_spec, class, vis, attrs))
     }
@@ -1243,8 +1249,10 @@ impl Parser {
                         .try_reduce_expr(false, false, false, false)
                         .map(Desugarer::desugar_simple_expr)
                         .map_err(|_| self.stack_dec(fn_name!()))?;
-                    let t_spec = Self::expr_to_type_spec(t_spec_as_expr.clone())
-                        .map_err(|e| self.errs.push(e))?;
+                    let t_spec = Self::expr_to_type_spec(t_spec_as_expr.clone()).map_err(|e| {
+                        self.errs.push(e);
+                        self.stack_dec(fn_name!())
+                    })?;
                     let t_spec_op = TypeSpecWithOp::new(op, t_spec, t_spec_as_expr);
                     let expr = lhs.type_asc_expr(t_spec_op);
                     stack.push(ExprOrOp::Expr(expr));
@@ -1511,8 +1519,10 @@ impl Parser {
                         .try_reduce_expr(false, in_type_args, in_brace, false)
                         .map(Desugarer::desugar_simple_expr)
                         .map_err(|_| self.stack_dec(fn_name!()))?;
-                    let t_spec = Self::expr_to_type_spec(t_spec_as_expr.clone())
-                        .map_err(|e| self.errs.push(e))?;
+                    let t_spec = Self::expr_to_type_spec(t_spec_as_expr.clone()).map_err(|e| {
+                        self.errs.push(e);
+                        self.stack_dec(fn_name!())
+                    })?;
                     let t_spec_op = TypeSpecWithOp::new(op, t_spec, t_spec_as_expr);
                     let expr = lhs.type_asc_expr(t_spec_op);
                     stack.push(ExprOrOp::Expr(expr));
@@ -1744,8 +1754,12 @@ impl Parser {
                 Ok(str_interp)
             }
             Some(t) if t.is(AtSign) => {
-                let decos = self.opt_reduce_decorators()?;
-                let expr = self.try_reduce_chunk(false, in_brace)?;
+                let decos = self
+                    .opt_reduce_decorators()
+                    .map_err(|_| self.stack_dec(fn_name!()))?;
+                let expr = self
+                    .try_reduce_chunk(false, in_brace)
+                    .map_err(|_| self.stack_dec(fn_name!()))?;
                 let Expr::Def(mut def) = expr else {
                     // self.restore(other);
                     let err = self.skip_and_throw_syntax_err(caused_by!());
@@ -1781,7 +1795,9 @@ impl Parser {
             }
             Some(t) if t.is(PreStar) => {
                 let _ = self.lpop();
-                let expr = self.try_reduce_expr(false, in_type_args, in_brace, false)?;
+                let expr = self
+                    .try_reduce_expr(false, in_type_args, in_brace, false)
+                    .map_err(|_| self.stack_dec(fn_name!()))?;
                 let tuple = self
                     .try_reduce_nonempty_tuple(ArgKind::Var(PosArg::new(expr)), false)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
@@ -1822,7 +1838,7 @@ impl Parser {
                 if self.cur_is(Dedent) {
                     self.skip();
                 }
-                let rparen = self.lpop();
+                let rparen = expect_pop!(self, fail_next RParen);
                 if let Expr::Tuple(Tuple::Normal(tup)) = &mut expr {
                     tup.elems.paren = Some((lparen, rparen));
                 }
@@ -1903,7 +1919,9 @@ impl Parser {
         let acc = self
             .try_reduce_acc_lhs()
             .map_err(|_| self.stack_dec(fn_name!()))?;
-        let mut call_or_acc = self.try_reduce_acc_chain(acc, in_type_args)?;
+        let mut call_or_acc = self
+            .try_reduce_acc_chain(acc, in_type_args)
+            .map_err(|_| self.stack_dec(fn_name!()))?;
         while let Some(res) = self.opt_reduce_args(in_type_args) {
             let args = res.map_err(|_| self.stack_dec(fn_name!()))?;
             let call = call_or_acc.call(args);
@@ -2050,7 +2068,7 @@ impl Parser {
     #[inline]
     fn try_reduce_array(&mut self) -> ParseResult<Array> {
         debug_call_info!(self);
-        let l_sqbr = self.lpop();
+        let l_sqbr = expect_pop!(self, fail_next LSqBr);
         let inner = self
             .try_reduce_elems()
             .map_err(|_| self.stack_dec(fn_name!()))?;
@@ -2092,8 +2110,7 @@ impl Parser {
     /// Set, Dict, Record
     fn try_reduce_brace_container(&mut self) -> ParseResult<BraceContainer> {
         debug_call_info!(self);
-        assert!(self.cur_is(LBrace));
-        let l_brace = self.lpop();
+        let l_brace = expect_pop!(self, fail_next LBrace);
         if self.cur_is(Newline) {
             self.skip();
             expect_pop!(self, fail_next Indent);
@@ -2358,7 +2375,7 @@ impl Parser {
             let len = self
                 .try_reduce_expr(false, false, false, false)
                 .map_err(|_| self.stack_dec(fn_name!()))?;
-            let r_brace = self.lpop();
+            let r_brace = expect_pop!(self, fail_next RBrace);
             debug_exit_info!(self);
             return Ok(Set::WithLength(SetWithLength::new(
                 l_brace,
@@ -2553,7 +2570,9 @@ impl Parser {
                     return Ok(expr);
                 }
                 Some(_) => {
-                    let mid_expr = self.try_reduce_expr(true, false, false, false)?;
+                    let mid_expr = self
+                        .try_reduce_expr(true, false, false, false)
+                        .map_err(|_| self.stack_dec(fn_name!()))?;
                     let str_func = Expr::local(
                         "str",
                         mid_expr.ln_begin().unwrap(),
