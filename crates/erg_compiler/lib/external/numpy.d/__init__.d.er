@@ -1,5 +1,6 @@
 # TODO: dependent (static shaped)
 .NDArray = 'ndarray': ClassType
+.NDArray <: Iterable Obj
 .NDArray <: Num
 .NDArray.
     shape: [Nat; _]

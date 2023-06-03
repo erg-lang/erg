@@ -1,1 +1,4 @@
 .pyplot = pyimport "./pyplot"
+.scale = pyimport "./scale"
+
+.use!: Str => NoneType

@@ -1,6 +1,9 @@
 # lines = pyimport "../lines"
 text = pyimport "../text"
 legend = pyimport "../legend"
+.style = pyimport "../style"
+figure = pyimport "../figure"
+axes = pyimport "../axes"
 
 .plot!: (*args: Obj, scaleX := Bool, scaleY := Bool) => [Obj; _]
 .show!: () => NoneType
@@ -8,3 +11,8 @@ legend = pyimport "../legend"
 .xlabel!: (label: Str) => text.Text
 .ylabel!: (label: Str) => text.Text
 .legend!: (labels := [Str; _]) => legend.Legend
+.subplots!: (() => (figure.Figure, axes.Axes!)) \
+    and ((nrows: {1}, ncols: {1}) => (figure.Figure, axes.Axes!)) \
+    and ((nrows: {1}, ncols: Nat) => (figure.Figure, [axes.Axes!; _])) \
+    and ((nrows: Nat, ncols: {1}) => (figure.Figure, [axes.Axes!; _])) \
+    and ((nrows: Nat, ncols: Nat) => (figure.Figure, [[axes.Axes!; _]; _]))
