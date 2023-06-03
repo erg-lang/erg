@@ -26,7 +26,7 @@ use ast::{
 use erg_parser::ast;
 
 use crate::ty::constructors::{
-    free_var, func, func0, func1, proc, ref_, ref_mut, unknown_len_array_t, v_enum,
+    free_var, func, func0, func1, proc, ref_, ref_mut, tp_enum, unknown_len_array_t, v_enum,
 };
 use crate::ty::free::{Constraint, HasLevel};
 use crate::ty::typaram::TyParam;
@@ -49,6 +49,7 @@ use RegistrationMode::*;
 
 use super::instantiate::TyVarCache;
 use super::instantiate_spec::ParamKind;
+use super::ParamSpec;
 
 pub fn valid_mod_name(name: &str) -> bool {
     !name.is_empty() && !name.starts_with('/') && name.trim() == name
@@ -1286,66 +1287,30 @@ impl Context {
                         2,
                         self.level,
                     );
-                    let mut methods =
-                        Self::methods(None, self.cfg.clone(), self.shared.clone(), 2, self.level);
-                    let new_t = if let Some(base) = gen.base_or_sup() {
-                        match base {
-                            TypeObj::Builtin {
-                                t: Type::Record(rec),
-                                ..
-                            } => {
-                                for (field, t) in rec.iter() {
-                                    let varname = VarName::from_str(field.symbol.clone());
-                                    let vi = VarInfo::instance_attr(
-                                        field.clone(),
-                                        t.clone(),
-                                        self.impl_of(),
-                                        ctx.name.clone(),
-                                    );
-                                    ctx.decls.insert(varname, vi);
-                                }
-                            }
-                            other => {
-                                methods.register_fixed_auto_impl(
-                                    "base",
-                                    other.typ().clone(),
-                                    Immutable,
-                                    Visibility::BUILTIN_PRIVATE,
-                                    None,
-                                )?;
-                            }
-                        }
-                        func1(base.typ().clone(), gen.typ().clone())
-                    } else {
-                        func0(gen.typ().clone())
-                    };
-                    methods.register_fixed_auto_impl(
-                        "__new__",
-                        new_t.clone(),
-                        Immutable,
-                        Visibility::BUILTIN_PRIVATE,
-                        Some("__call__".into()),
-                    )?;
-                    // 必要なら、ユーザーが独自に上書きする
-                    // users can override this if necessary
-                    methods.register_auto_impl(
-                        "new",
-                        new_t,
-                        Immutable,
-                        Visibility::BUILTIN_PUBLIC,
-                        None,
-                    )?;
-                    ctx.methods_list
-                        .push((ClassDefType::Simple(gen.typ().clone()), methods));
+                    if ERG_MODE {
+                        self.gen_class_new_method(&gen, &mut ctx)?;
+                    }
                     self.register_gen_mono_type(ident, gen, ctx, Const)
                 } else {
-                    feature_error!(
-                        CompileErrors,
-                        CompileError,
-                        self,
-                        ident.loc(),
-                        "polymorphic class definition"
-                    )
+                    log!(err "{:?}", gen.typ().typarams());
+                    let params = gen
+                        .typ()
+                        .typarams()
+                        .into_iter()
+                        .map(|tp| ParamSpec::t_nd(tp.qual_name().unwrap_or(Str::ever("_"))))
+                        .collect();
+                    let mut ctx = Self::poly_class(
+                        gen.typ().qual_name(),
+                        params,
+                        self.cfg.clone(),
+                        self.shared.clone(),
+                        2,
+                        self.level,
+                    );
+                    if ERG_MODE {
+                        self.gen_class_new_method(&gen, &mut ctx)?;
+                    }
+                    self.register_gen_poly_type(ident, gen, ctx, Const)
                 }
             }
             GenTypeObj::Subclass(_) => {
@@ -1560,6 +1525,54 @@ impl Context {
         }
     }
 
+    fn gen_class_new_method(&self, gen: &GenTypeObj, ctx: &mut Context) -> CompileResult<()> {
+        let mut methods = Self::methods(None, self.cfg.clone(), self.shared.clone(), 2, self.level);
+        let new_t = if let Some(base) = gen.base_or_sup() {
+            match base {
+                TypeObj::Builtin {
+                    t: Type::Record(rec),
+                    ..
+                } => {
+                    for (field, t) in rec.iter() {
+                        let varname = VarName::from_str(field.symbol.clone());
+                        let vi = VarInfo::instance_attr(
+                            field.clone(),
+                            t.clone(),
+                            self.impl_of(),
+                            ctx.name.clone(),
+                        );
+                        ctx.decls.insert(varname, vi);
+                    }
+                }
+                other => {
+                    methods.register_fixed_auto_impl(
+                        "base",
+                        other.typ().clone(),
+                        Immutable,
+                        Visibility::BUILTIN_PRIVATE,
+                        None,
+                    )?;
+                }
+            }
+            func1(base.typ().clone(), gen.typ().clone())
+        } else {
+            func0(gen.typ().clone())
+        };
+        methods.register_fixed_auto_impl(
+            "__new__",
+            new_t.clone(),
+            Immutable,
+            Visibility::BUILTIN_PRIVATE,
+            Some("__call__".into()),
+        )?;
+        // 必要なら、ユーザーが独自に上書きする
+        // users can override this if necessary
+        methods.register_auto_impl("new", new_t, Immutable, Visibility::BUILTIN_PUBLIC, None)?;
+        ctx.methods_list
+            .push((ClassDefType::Simple(gen.typ().clone()), methods));
+        Ok(())
+    }
+
     pub(crate) fn register_type_alias(
         &mut self,
         ident: &Identifier,
@@ -1652,6 +1665,66 @@ impl Context {
             self.consts.insert(name.clone(), val);
             self.register_methods(&t, &ctx);
             self.mono_types.insert(name.clone(), (t, ctx));
+            Ok(())
+        }
+    }
+
+    fn register_gen_poly_type(
+        &mut self,
+        ident: &Identifier,
+        gen: GenTypeObj,
+        ctx: Self,
+        muty: Mutability,
+    ) -> CompileResult<()> {
+        let vis = self.instantiate_vis_modifier(&ident.vis)?;
+        // FIXME: recursive search
+        if self.poly_types.contains_key(ident.inspect()) {
+            Err(CompileErrors::from(CompileError::reassign_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                ident.loc(),
+                self.caused_by(),
+                ident.inspect(),
+            )))
+        } else if self.rec_get_const_obj(ident.inspect()).is_some() && vis.is_private() {
+            Err(CompileErrors::from(CompileError::reassign_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                ident.loc(),
+                self.caused_by(),
+                ident.inspect(),
+            )))
+        } else {
+            let t = gen.typ().clone();
+            let val = ValueObj::Type(TypeObj::Generated(gen));
+            let params = t
+                .typarams()
+                .into_iter()
+                .map(|tp| {
+                    ParamTy::Pos(tp_enum(
+                        self.get_tp_t(&tp).unwrap_or(Type::Obj),
+                        set! { tp },
+                    ))
+                })
+                .collect();
+            let meta_t = func(params, None, vec![], v_enum(set! { val.clone() })).quantify();
+            let name = &ident.name;
+            let id = DefId(get_hash(&(&self.name, &name)));
+            let vi = VarInfo::new(
+                meta_t,
+                muty,
+                Visibility::new(vis, self.name.clone()),
+                VarKind::Defined(id),
+                None,
+                self.impl_of(),
+                None,
+                self.absolutize(name.loc()),
+            );
+            self.index().register(&vi);
+            self.decls.insert(name.clone(), vi);
+            self.consts.insert(name.clone(), val);
+            self.register_methods(&t, &ctx);
+            self.poly_types.insert(name.clone(), (t, ctx));
             Ok(())
         }
     }

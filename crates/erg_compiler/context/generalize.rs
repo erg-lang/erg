@@ -782,7 +782,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                     if self.ctx.supertype_of(&sub_t, &super_t) {
                         Ok(sub_t)
                     } else {
-                        Err(TyCheckErrors::from(TyCheckError::subtyping_error(
+                        Err(TyCheckErrors::from(TyCheckError::invariant_error(
                             self.ctx.cfg.input.clone(),
                             line!() as usize,
                             &sub_t,

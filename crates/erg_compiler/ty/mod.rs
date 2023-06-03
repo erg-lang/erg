@@ -1847,6 +1847,24 @@ impl Type {
         }
     }
 
+    pub fn is_failure(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_failure(),
+            Self::Refinement(refine) => refine.t.is_failure(),
+            Self::Failure => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_class_type(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_class_type(),
+            Self::Refinement(refine) => refine.t.is_class_type(),
+            Self::ClassType => true,
+            _ => false,
+        }
+    }
+
     pub fn as_free(&self) -> Option<&FreeTyVar> {
         <&FreeTyVar>::try_from(self).ok()
     }

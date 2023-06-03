@@ -1,6 +1,7 @@
 # TODO: dependent (static shaped)
-.NDArray = 'ndarray': ClassType
-.NDArray <: Num
+.NDArray = 'ndarray': (T: Type) -> ClassType
+.NDArray(T) <: Output T
+.NDArray(_) <: Num
 .NDArray.
     shape: [Nat; _]
     ndim: Nat

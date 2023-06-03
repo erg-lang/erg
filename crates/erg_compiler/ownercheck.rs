@@ -145,7 +145,11 @@ impl OwnershipChecker {
             Expr::Accessor(acc) => self.check_acc(acc, ownership, chunk),
             // TODO: referenced
             Expr::Call(call) => {
-                let args_owns = call.signature_t().unwrap().args_ownership();
+                let sig_t = call.signature_t().unwrap();
+                if sig_t.is_failure() || sig_t.is_class_type() {
+                    return;
+                }
+                let args_owns = sig_t.args_ownership();
                 let non_defaults_len = if call.is_method_call() {
                     args_owns.non_defaults.len() - 1
                 } else {

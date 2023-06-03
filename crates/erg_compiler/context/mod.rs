@@ -182,7 +182,7 @@ impl std::ops::Mul for Variance {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ParamSpec {
-    pub(crate) name: Option<&'static str>,
+    pub(crate) name: Option<Str>,
     // TODO: `:` or `<:`
     pub(crate) t: Type,
     pub is_var_params: bool,
@@ -191,15 +191,15 @@ pub struct ParamSpec {
 }
 
 impl ParamSpec {
-    pub const fn new(
-        name: Option<&'static str>,
+    pub fn new<S: Into<Str>>(
+        name: Option<S>,
         t: Type,
         is_var_params: bool,
         default: DefaultInfo,
         loc: AbsLocation,
     ) -> Self {
         Self {
-            name,
+            name: name.map(|s| s.into()),
             t,
             is_var_params,
             default_info: default,
@@ -207,8 +207,8 @@ impl ParamSpec {
         }
     }
 
-    pub const fn named(
-        name: &'static str,
+    pub fn named<S: Into<Str>>(
+        name: S,
         t: Type,
         is_var_params: bool,
         default: DefaultInfo,
@@ -222,7 +222,7 @@ impl ParamSpec {
         )
     }
 
-    pub const fn named_nd(name: &'static str, t: Type) -> Self {
+    pub fn named_nd<S: Into<Str>>(name: S, t: Type) -> Self {
         Self::new(
             Some(name),
             t,
@@ -232,7 +232,7 @@ impl ParamSpec {
         )
     }
 
-    pub const fn t(name: &'static str, is_var_params: bool, default: DefaultInfo) -> Self {
+    pub fn t<S: Into<Str>>(name: S, is_var_params: bool, default: DefaultInfo) -> Self {
         Self::new(
             Some(name),
             Type,
@@ -242,7 +242,7 @@ impl ParamSpec {
         )
     }
 
-    pub const fn t_nd(name: &'static str) -> Self {
+    pub fn t_nd<S: Into<Str>>(name: S) -> Self {
         Self::new(
             Some(name),
             Type,
@@ -574,18 +574,18 @@ impl Context {
             let id = DefId(get_hash(&(&name, &param)));
             if let Some(name) = param.name {
                 let kind = VarKind::parameter(id, param.is_var_params, param.default_info);
-                let muty = Mutability::from(name);
+                let muty = Mutability::from(&name[..]);
                 let vi = VarInfo::new(
                     param.t,
                     muty,
-                    Visibility::private(name),
+                    Visibility::private(&name),
                     kind,
                     None,
                     None,
                     None,
                     param.loc,
                 );
-                params_.push((Some(VarName::new(Token::static_symbol(name))), vi));
+                params_.push((Some(VarName::new(Token::symbol(&name))), vi));
             } else {
                 let kind = VarKind::parameter(id, param.is_var_params, param.default_info);
                 let muty = Mutability::Immutable;

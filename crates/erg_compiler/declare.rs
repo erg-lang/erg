@@ -6,17 +6,18 @@ use erg_common::{enum_unwrap, fn_name, log, set, Str, Triple};
 
 use erg_parser::ast::{self, AscriptionKind, Identifier, VarName, AST};
 
+use crate::context::instantiate::TyVarCache;
 use crate::lower::ASTLowerer;
-use crate::ty::constructors::{mono, v_enum};
+use crate::ty::constructors::{mono, poly, ty_tp, type_q, v_enum};
 use crate::ty::free::HasLevel;
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{HasType, Type, Visibility};
 
 use crate::compile::AccessKind;
 use crate::error::{LowerError, LowerErrors, LowerResult};
-use crate::hir;
 use crate::hir::HIR;
 use crate::varinfo::{Mutability, VarInfo, VarKind};
+use crate::{feature_error, hir};
 
 impl ASTLowerer {
     fn declare_var(
@@ -576,6 +577,48 @@ impl ASTLowerer {
                 let t_spec = hir::TypeSpecWithOp::new(tasc.t_spec, t_spec_expr, Type::Failure);
                 Ok(attr.type_asc(t_spec))
             }
+            ast::Expr::Call(call) => {
+                let ast::Expr::Accessor(ast::Accessor::Ident(ident)) = *call.obj else {
+                    return feature_error!(
+                        LowerErrors,
+                        LowerError,
+                        &self.module.context,
+                        call.obj.loc(),
+                        "complex polymorphic type declaration"
+                    );
+                };
+                let py_name = Str::rc(ident.inspect().trim_end_matches('!'));
+                let mut tv_cache = TyVarCache::new(self.module.context.level, &self.module.context);
+                if let Some((t, _)) = self.module.context.get_type(ident.inspect()) {
+                    for (tp, arg) in t.typarams().iter().zip(call.args.pos_args()) {
+                        if let ast::Expr::Accessor(ast::Accessor::Ident(ident)) = &arg.expr {
+                            tv_cache.push_or_init_typaram(&ident.name, tp, &self.module.context);
+                        }
+                    }
+                }
+                let t = self
+                    .module
+                    .context
+                    .instantiate_typespec_with_tv_cache(&tasc.t_spec.t_spec, &mut tv_cache)?;
+                t.lift();
+                let t = self.module.context.generalize_t(t);
+                match kind {
+                    AscriptionKind::TypeOf | AscriptionKind::AsCast => {
+                        self.declare_instance(&ident, &t, py_name)?;
+                    }
+                    AscriptionKind::SubtypeOf => {
+                        self.declare_subtype(&ident, &t)?;
+                    }
+                    _ => {
+                        log!(err "supertype ascription is not supported yet");
+                    }
+                }
+                let acc = self.fake_lower_acc(ast::Accessor::Ident(ident))?;
+                let args = self.fake_lower_args(call.args)?;
+                let t_spec_expr = self.fake_lower_expr(*tasc.t_spec.t_spec_as_expr.clone())?;
+                let t_spec = hir::TypeSpecWithOp::new(tasc.t_spec, t_spec_expr, Type::Failure);
+                Ok(hir::Expr::Accessor(acc).call_expr(args).type_asc(t_spec))
+            }
             other => Err(LowerErrors::from(LowerError::declare_error(
                 self.cfg().input.clone(),
                 line!() as usize,
@@ -614,6 +657,17 @@ impl ASTLowerer {
                 let ty_obj =
                     GenTypeObj::trait_(t.clone(), TypeObj::builtin_type(Type::Uninited), None);
                 let t = v_enum(set! { ValueObj::builtin_trait(t) });
+                (t, Some(ty_obj))
+            }
+            Type::Subr(subr) if subr.return_t.is_class_type() => {
+                let params = subr
+                    .non_default_params
+                    .iter()
+                    .map(|p| ty_tp(type_q(p.name().unwrap_or(&Str::ever("_")))))
+                    .collect();
+                let t = poly(format!("{}{ident}", self.module.context.path()), params);
+                let ty_obj = GenTypeObj::class(t.clone(), None, None);
+                let t = v_enum(set! { ValueObj::builtin_class(t) });
                 (t, Some(ty_obj))
             }
             _ => (t.clone(), None),

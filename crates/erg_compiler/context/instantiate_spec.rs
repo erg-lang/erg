@@ -1530,13 +1530,15 @@ impl Context {
 
     pub(crate) fn instantiate_typespec(&self, t_spec: &ast::TypeSpec) -> TyCheckResult<Type> {
         let mut dummy_tv_cache = TyVarCache::new(self.level, self);
-        self.instantiate_typespec_full(
-            t_spec,
-            None,
-            &mut dummy_tv_cache,
-            RegistrationMode::Normal,
-            false,
-        )
+        self.instantiate_typespec_with_tv_cache(t_spec, &mut dummy_tv_cache)
+    }
+
+    pub(crate) fn instantiate_typespec_with_tv_cache(
+        &self,
+        t_spec: &ast::TypeSpec,
+        tv_cache: &mut TyVarCache,
+    ) -> TyCheckResult<Type> {
+        self.instantiate_typespec_full(t_spec, None, tv_cache, RegistrationMode::Normal, false)
     }
 
     pub(crate) fn instantiate_field(&self, ident: &Identifier) -> TyCheckResult<Field> {
