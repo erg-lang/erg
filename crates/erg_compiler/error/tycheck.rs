@@ -1205,7 +1205,7 @@ passed keyword args:    {kw_args_len}"
                 vec![SubMessage::only_loc(loc)],
                 switch_lang!(
                     "japanese" => format!("型が期待されましたが、{tp}は型ではありません"),
-                    "simplified_chinese" => format!("期望一个类型，但是得到了{tp}"),
+                    "simplified_chinese" => format!("期望类型，但是得到了{tp}"),
                     "traditional_chinese" => format!("期望一個類型，但是得到了{tp}"),
                     "english" => format!("expected a type, but got {tp}"),
                 ),

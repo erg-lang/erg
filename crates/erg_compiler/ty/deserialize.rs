@@ -79,7 +79,7 @@ impl DeserializeError {
                     "{expect}型オブジェクトを予期しましたが、 読み込んだオブジェクトは{found}型です",
                 ),
                 "simplified_chinese" => format!(
-                    "期望一个{expect}对象，但反序列化的对象是{found}",
+                    "期望{expect}对象，但反序列化的对象是{found}",
                 ),
                 "traditional_chinese" => format!(
                     "期望一個{expect}對象，但反序列化的對像是{found}",

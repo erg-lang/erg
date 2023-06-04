@@ -609,8 +609,8 @@ impl Parser {
                     if let Some(err) = self.errs.last_mut() {
                         err.set_hint(switch_lang!(
                             "japanese" => "予期: デコレータ",
-                            "simplified_chinese" => "期望：装饰器",
-                            "traditional_chinese" => "期望：裝飾器",
+                            "simplified_chinese" => "期望: 装饰器",
+                            "traditional_chinese" => "期望: 裝飾器",
                             "english" => "expect: decorator",
                         ))
                     }
@@ -651,8 +651,8 @@ impl Parser {
                             if let Some(err) = self.errs.last_mut() {
                                 err.set_hint(switch_lang!(
                                     "japanese" => "予期: タイプ指定",
-                                    "simplified_chinese" => "期望：类型规范",
-                                    "traditional_chinese" => "期望：類型規範",
+                                    "simplified_chinese" => "期望: 类型规范",
+                                    "traditional_chinese" => "期望: 類型規範",
                                     "english" => "expect: type specification",
                                 ))
                             }
@@ -774,8 +774,8 @@ impl Parser {
                         if let Some(err) = self.errs.last_mut() {
                             err.set_hint(switch_lang!(
                                 "japanese" => "予期: Nat type",
-                                "simplified_chinese" => "期望：Nat类型",
-                                "traditional_chinese" => "期望：Nat類型",
+                                "simplified_chinese" => "期望: Nat类型",
+                                "traditional_chinese" => "期望: Nat類型",
                                 "english" => "expect: Nat type",
                             ))
                         }
@@ -1115,8 +1115,8 @@ impl Parser {
                             if let Some(err) = self.errs.last_mut() {
                                 err.set_hint(switch_lang!(
                                     "japanese" => "予期: Nat型",
-                                    "simplified_chinese" => "期望：Nat类型",
-                                    "traditional_chinese" => "期望：Nat類型",
+                                    "simplified_chinese" => "期望: Nat类型",
+                                    "traditional_chinese" => "期望: Nat類型",
                                     "english" => "expect: Nat type",
                                 ))
                             }
@@ -1131,8 +1131,8 @@ impl Parser {
                             if let Some(err) = self.errs.last_mut() {
                                 err.set_hint(switch_lang!(
                                     "japanese" => "予期: 型指定",
-                                    "simplified_chinese" => "期望：类型规范",
-                                    "traditional_chinese" => "期望：類型規範",
+                                    "simplified_chinese" => "期望: 类型规范",
+                                    "traditional_chinese" => "期望: 類型規範",
                                     "english" => "expect: type specification",
                                 ))
                             }
@@ -1173,8 +1173,8 @@ impl Parser {
                                 if let Some(err) = self.errs.last_mut() {
                                     err.set_hint(switch_lang!(
                                         "japanese" => "予期: 型指定",
-                                        "simplified_chinese" => "期望：类型规范",
-                                        "traditional_chinese" => "期望：類型規範",
+                                        "simplified_chinese" => "期望: 类型规范",
+                                        "traditional_chinese" => "期望: 類型規範",
                                         "english" => "expect: type specification",
                                     ))
                                 }
@@ -1196,8 +1196,8 @@ impl Parser {
                         if let Some(err) = self.errs.last_mut() {
                             err.set_hint(switch_lang!(
                                 "japanese" => "予期: 型指定",
-                                "simplified_chinese" => "期望：类型规范",
-                                "traditional_chinese" => "期望：類型規範",
+                                "simplified_chinese" => "期望: 类型规范",
+                                "traditional_chinese" => "期望: 類型規範",
                                 "english" => "expect: type specification",
                             ))
                         }
@@ -1248,8 +1248,8 @@ impl Parser {
                             if let Some(err) = self.errs.last_mut() {
                                 err.set_hint(switch_lang!(
                                     "japanese" => "予期: 引数",
-                                    "simplified_chinese" => "期望：参数",
-                                    "traditional_chinese" => "期望：參數",
+                                    "simplified_chinese" => "期望: 参数",
+                                    "traditional_chinese" => "期望: 參數",
                                     "english" => "expect: an argument",
                                 ))
                             }
@@ -1459,8 +1459,8 @@ impl Parser {
                     if let Some(err) = self.errs.last_mut() {
                         err.set_hint(switch_lang!(
                             "japanese" => "予期: 式",
-                            "simplified_chinese" => "期望：表达",
-                            "traditional_chinese" => "期望：表達",
+                            "simplified_chinese" => "期望: 表达",
+                            "traditional_chinese" => "期望: 表達",
                             "english" => "expect: expression",
                         ))
                     }
@@ -1508,8 +1508,8 @@ impl Parser {
                                     if let Some(err) = self.errs.last_mut() {
                                         err.set_hint(switch_lang!(
                                             "japanese" => "予期: 式",
-                                            "simplified_chinese" => "期望：表达",
-                                            "traditional_chinese" => "期望：表達",
+                                            "simplified_chinese" => "期望: 表达",
+                                            "traditional_chinese" => "期望: 表達",
                                             "english" => "expect: expression",
                                         ))
                                     }
@@ -1540,8 +1540,8 @@ impl Parser {
                                     if let Some(err) = self.errs.last_mut() {
                                         err.set_hint(switch_lang!(
                                             "japanese" => "予期: 式",
-                                            "simplified_chinese" => "期望：表达",
-                                            "traditional_chinese" => "期望：表達",
+                                            "simplified_chinese" => "期望: 表达",
+                                            "traditional_chinese" => "期望: 表達",
                                             "english" => "expect: expression",
                                         ))
                                     }
@@ -1602,8 +1602,8 @@ impl Parser {
                             if let Some(err) = self.errs.last_mut() {
                                 err.set_hint(switch_lang!(
                                     "japanese" => "予期: 数値、式",
-                                    "simplified_chinese" => "期望：数字或表达式",
-                                    "traditional_chinese" => "期望：數字或表達式",
+                                    "simplified_chinese" => "期望: 数字或表达式",
+                                    "traditional_chinese" => "期望: 數字或表達式",
                                     "english" => "expect: number or expression",
                                 ));
                             }
@@ -1733,8 +1733,8 @@ impl Parser {
                             if let Some(err) = self.errs.last_mut() {
                                 err.set_hint(switch_lang!(
                                     "japanese" => "予期: Nat型",
-                                    "simplified_chinese" => "期望：Nat类型",
-                                    "traditional_chinese" => "期望：Nat類型",
+                                    "simplified_chinese" => "期望: Nat类型",
+                                    "traditional_chinese" => "期望: Nat類型",
                                     "english" => "expect: Nat type",
                                 ))
                             }
@@ -1867,8 +1867,8 @@ impl Parser {
                             if let Some(err) = self.errs.last_mut() {
                                 err.set_hint(switch_lang!(
                                     "japanese" => "予期: Nat型",
-                                    "simplified_chinese" => "期望：Nat类型",
-                                    "traditional_chinese" => "期望：Nat類型",
+                                    "simplified_chinese" => "期望: Nat类型",
+                                    "traditional_chinese" => "期望: Nat類型",
                                     "english" => "expect: Nat type",
                                 ))
                             }
@@ -1907,8 +1907,8 @@ impl Parser {
                                 if let Some(err) = self.errs.last_mut() {
                                     err.set_hint(switch_lang!(
                                     "japanese" => "予期: 数値、式",
-                                    "simplified_chinese" => "期望：数字或表达式",
-                                    "traditional_chinese" => "期望：數字或表達式",
+                                    "simplified_chinese" => "期望: 数字或表达式",
+                                    "traditional_chinese" => "期望: 數字或表達式",
                                     "english" => "expect: number or expression",
                                     ))
                                 }
@@ -1968,8 +1968,8 @@ impl Parser {
                             if let Some(err) = self.errs.last_mut() {
                                 err.set_hint(switch_lang!(
                                     "japanese" => "予期: Nat型",
-                                    "simplified_chinese" => "期望：Nat类型",
-                                    "traditional_chinese" => "期望：Nat類型",
+                                    "simplified_chinese" => "期望: Nat类型",
+                                    "traditional_chinese" => "期望: Nat類型",
                                     "english" => "expect: Nat type",
                                 ))
                             }
@@ -2091,8 +2091,8 @@ impl Parser {
                 if let Some(err) = self.errs.last_mut() {
                     err.set_hint(switch_lang!(
                         "japanese" => "予期: デフォルト引数",
-                        "simplified_chinese" => "期望：默认参数",
-                        "traditional_chinese" => "期望：默認參數",
+                        "simplified_chinese" => "期望: 默认参数",
+                        "traditional_chinese" => "期望: 默認參數",
                         "english" => "expect: default parameter",
                     ))
                 }
@@ -2161,8 +2161,8 @@ impl Parser {
                     if let Some(err) = self.errs.last_mut() {
                         err.set_hint(switch_lang!(
                             "japanese" => "期待: デコレータ",
-                            "simplified_chinese" => "期望：装饰器",
-                            "traditions_chinese" => "期望：裝飾器",
+                            "simplified_chinese" => "期望: 装饰器",
+                            "traditions_chinese" => "期望: 裝飾器",
                             "english" => "expect: decorator",
                         ))
                     }
@@ -2209,8 +2209,8 @@ impl Parser {
                         if let Some(err) = self.errs.last_mut() {
                             err.set_hint(switch_lang!(
                                 "japanese" => "期待: 可変長引数",
-                                "simplified_chinese" => "期望：可变长度参数",
-                                "traditional_chinese" => "期望：可變長度參數",
+                                "simplified_chinese" => "期望: 可变长度参数",
+                                "traditional_chinese" => "期望: 可變長度參數",
                                 "english" => "expect: variable-length arguments",
                             ))
                         }
@@ -2253,8 +2253,8 @@ impl Parser {
                         if let Some(err) = self.errs.last_mut() {
                             err.set_hint(switch_lang!(
                                 "japanese" => "期待: 要素",
-                                "simplified_chinese" => "期望：元素",
-                                "traditional_chinese" => "期望：元素",
+                                "simplified_chinese" => "期望: 元素",
+                                "traditional_chinese" => "期望: 元素",
                                 "english" => "expect: an element",
                             ))
                         }
@@ -2398,8 +2398,8 @@ impl Parser {
                             if let Some(err) = self.errs.last_mut() {
                                 err.set_hint(switch_lang!(
                                     "japanese" => "期待: Nat型",
-                                    "simplified_chinese" => "期望：Nat类型",
-                                    "traditional_chinese" => "期望：Nat類型",
+                                    "simplified_chinese" => "期望: Nat类型",
+                                    "traditional_chinese" => "期望: Nat類型",
                                     "english" => "expect: Nat type",
                                 ))
                             }
@@ -2686,8 +2686,8 @@ impl Parser {
             if let Some(err) = self.errs.last_mut() {
                 err.set_hint(switch_lang!(
                     "japanese" => "期待: 要素",
-                    "simplified_chinese" => "期望：元素",
-                    "traditional_chinese" => "期望：元素",
+                    "simplified_chinese" => "期望: 元素",
+                    "traditional_chinese" => "期望: 元素",
                     "english" => "expect: an element",
                 ))
             }
@@ -2806,8 +2806,8 @@ impl Parser {
                         if let Some(err) = self.errs.last_mut() {
                             err.set_hint(switch_lang!(
                                 "japanese" => "予期: 属性",
-                                "simplified_chinese" => "期望：属性",
-                                "traditional_chinese" => "期望：屬性",
+                                "simplified_chinese" => "期望: 属性",
+                                "traditional_chinese" => "期望: 屬性",
                                 "english" => "expect: an attribute",
                             ))
                         }
@@ -2901,8 +2901,8 @@ impl Parser {
                         if let Some(err) = self.errs.last_mut() {
                             err.set_hint(switch_lang!(
                                 "japanese" => "予期: キー",
-                                "simplified_chinese" => "期望：关键",
-                                "traditional_chinese" => "期望：關鍵",
+                                "simplified_chinese" => "期望: 关键",
+                                "traditional_chinese" => "期望: 關鍵",
                                 "english" => "expect: key",
                             ))
                         }
@@ -2959,8 +2959,8 @@ impl Parser {
                     if let Some(err) = self.errs.last_mut() {
                         err.set_hint(switch_lang!(
                             "japanese" => "予期: }か要素",
-                            "simplified_chinese" => "期望：}或元素",
-                            "traditional_chinese" => "期望：}或元素",
+                            "simplified_chinese" => "期望: }或元素",
+                            "traditional_chinese" => "期望: }或元素",
                             "english" => "expect: } or element",
                         ))
                     }
