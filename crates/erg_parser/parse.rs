@@ -668,7 +668,7 @@ impl Parser {
                         .map_err(|_| {
                             if let Some(err) = self.errs.last_mut() {
                                 err.set_hint(switch_lang!(
-                                    "japanese" => "予期: タイプ指定",
+                                    "japanese" => "予期: 型指定",
                                     "simplified_chinese" => "期望: 类型规范",
                                     "traditional_chinese" => "期望: 類型規範",
                                     "english" => "expect: type specification",
@@ -791,7 +791,7 @@ impl Parser {
                     .map_err(|_| {
                         if let Some(err) = self.errs.last_mut() {
                             err.set_hint(switch_lang!(
-                                "japanese" => "予期: Nat type",
+                                "japanese" => "予期: Nat型",
                                 "simplified_chinese" => "期望: Nat类型",
                                 "traditional_chinese" => "期望: Nat類型",
                                 "english" => "expect: Nat type",
@@ -1324,10 +1324,10 @@ impl Parser {
         let first = self.try_reduce_chunk(false, false).map_err(|_| {
             if let Some(err) = self.errs.last_mut() {
                 err.set_hint(switch_lang!(
-                    "japanese" => "メソッドか属性値のみ定義できます",
-                    "simplified_chinese" => "只能定义方法或属性值",
-                    "traditional_chinese" => "只能定義方法或屬性值",
-                    "english" => "only a method or attribute value can be defined",
+                    "japanese" => "メソッドか属性のみ定義できます",
+                    "simplified_chinese" => "只能定义方法或属性",
+                    "traditional_chinese" => "只能定義方法或屬性",
+                    "english" => "only a method or attribute can be defined",
                 ))
             }
             self.stack_dec(fn_name!())
@@ -1340,10 +1340,10 @@ impl Parser {
                 let caused_by = caused_by!();
                 log!(err "error caused by: {caused_by}");
                 let hint = switch_lang!(
-                    "japanese" => "メソッドか属性値のみ定義できます",
-                    "simplified_chinese" => "只能定义方法或属性值",
-                    "traditional_chinese" => "只能定義方法或屬性值",
-                    "english" => "only a method or attribute value can be defined",
+                    "japanese" => "メソッドか属性のみ定義できます",
+                    "simplified_chinese" => "只能定义方法或属性",
+                    "traditional_chinese" => "只能定義方法或屬性",
+                    "english" => "only a method or attribute can be defined",
                 )
                 .to_string();
                 let err = ParseError::syntax_error(
@@ -1929,10 +1929,10 @@ impl Parser {
                             .map_err(|_| {
                                 if let Some(err) = self.errs.last_mut() {
                                     err.set_hint(switch_lang!(
-                                    "japanese" => "予期: 数値、式",
-                                    "simplified_chinese" => "期望: 数字或表达式",
-                                    "traditional_chinese" => "期望: 數字或表達式",
-                                    "english" => "expect: number or expression",
+                                    "japanese" => "予期: 式、被演算子",
+                                    "simplified_chinese" => "期望：表达式或操作数",
+                                    "traditional_chinese" => "期望：表達式或操作數",
+                                    "english" => "expect: expression or operand",
                                     ))
                                 }
                                 self.stack_dec(fn_name!())
@@ -2149,10 +2149,10 @@ impl Parser {
                     if tk.is(Mutate) {
                         self.skip();
                         let main_msg = switch_lang!(
-                            "japanese" => "不正な可変定義です",
-                            "simplified_chinese" => "无效的可变声明",
-                            "traditional_chinese" => "無效的可變聲明",
-                            "english" => "invalid mutate declaration",
+                            "japanese" => "可変演算子は、後置演算子ではなく前置演算子です ",
+                            "simplified_chinese" => "突变运算符是前缀运算符，不是后缀运算符",
+                            "traditional_chinese" => "突變運算符是前綴運算符，不是後綴運算符",
+                            "english" => "the mutation operator is a prefix operator, not a postfix operator ",
                         );
                         let lit_loc = lit.loc();
                         let lit = lit.token.inspect();
