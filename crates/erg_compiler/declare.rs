@@ -663,6 +663,20 @@ impl ASTLowerer {
         if ident.is_raw() {
             return Ok(());
         }
+        if self
+            .module
+            .context
+            .registered_info(ident.inspect(), ident.is_const())
+            .is_some_and(|(_, vi)| !vi.kind.is_builtin())
+        {
+            return Err(LowerErrors::from(LowerError::reassign_error(
+                self.cfg().input.clone(),
+                line!() as usize,
+                ident.loc(),
+                self.module.context.caused_by(),
+                ident.inspect(),
+            )));
+        }
         let new_ident = if PYTHON_MODE {
             let mut symbol = ident.name.clone().into_token();
             symbol.content = py_name.clone();

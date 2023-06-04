@@ -1292,7 +1292,6 @@ impl Context {
                     }
                     self.register_gen_mono_type(ident, gen, ctx, Const)
                 } else {
-                    log!(err "{:?}", gen.typ().typarams());
                     let params = gen
                         .typ()
                         .typarams()

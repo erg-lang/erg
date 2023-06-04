@@ -164,6 +164,20 @@ impl InputKind {
             PathBuf::from(".")
         }
     }
+
+    pub fn project_root(&self) -> Option<PathBuf> {
+        if let Self::File(path) = self {
+            let mut parent = path.clone();
+            while parent.pop() {
+                if parent.join("package.er").exists() {
+                    return Some(parent);
+                }
+            }
+            None
+        } else {
+            None
+        }
+    }
 }
 
 /// Since input is not always only from files
@@ -230,6 +244,10 @@ impl Input {
 
     pub fn dir(&self) -> PathBuf {
         self.kind.dir()
+    }
+
+    pub fn project_root(&self) -> Option<PathBuf> {
+        self.kind.project_root()
     }
 
     pub fn enclosed_name(&self) -> &str {
@@ -484,10 +502,10 @@ impl Input {
         Ok(normalize_path(path))
     }
 
-    fn resolve_local_decl(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
-        self._resolve_local_decl(path).or_else(|_| {
+    fn resolve_local_decl(&self, dir: PathBuf, path: &Path) -> Result<PathBuf, std::io::Error> {
+        self._resolve_local_decl(dir.clone(), path).or_else(|_| {
             let path = add_postfix_foreach(path, ".d");
-            self._resolve_local_decl(&path)
+            self._resolve_local_decl(dir, &path)
         })
     }
 
@@ -496,8 +514,11 @@ impl Input {
     /// 2. `{path/to}/__init__.d.er`
     /// 3. `{path}/__pycache__/{to}.d.er`
     /// 4. `{path/to}/__pycache__/__init__.d.er`
-    fn _resolve_local_decl(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
-        let mut dir = self.dir();
+    fn _resolve_local_decl(
+        &self,
+        mut dir: PathBuf,
+        path: &Path,
+    ) -> Result<PathBuf, std::io::Error> {
         let mut comps = path.components();
         let last = comps
             .next_back()
@@ -611,27 +632,33 @@ impl Input {
     /// 4.  `{path/to}/__pycache__/__init__.d.er`
     /// 5.  `{path.d/to.d}/__init__.d.er`
     /// 6.  `{path.d/to.d}/__pycache__/__init__.d.er`
+    /// (and repeat for the project root)
     /// 7.  `std/{path/to}.d.er`
     /// 8.  `std/{path/to}/__init__.d.er`
     /// 9.  `site-packages/{path}/__pycache__/{to}.d.er`
     /// 10. `site-packages/{path/to}/__pycache__/__init__.d.er`
     pub fn resolve_decl_path(&self, path: &Path) -> Option<PathBuf> {
-        if let Ok(path) = self.resolve_local_decl(path) {
-            Some(path)
-        } else {
-            let py_roots = [erg_pystd_path, erg_py_external_lib_path];
-            for root in py_roots {
-                if let Some(path) = Self::resolve_std_decl_path(root(), path) {
-                    return Some(path);
-                }
-            }
-            for site_packages in python_site_packages() {
-                if let Some(path) = Self::resolve_site_pkgs_decl_path(site_packages, path) {
-                    return Some(path);
-                }
-            }
-            None
+        if let Ok(path) = self.resolve_local_decl(self.dir(), path) {
+            return Some(path);
         }
+        // e.g. root: lib/external/pandas.d, path: pandas/core/frame
+        if let Some(dir) = self.project_root().as_ref().and_then(|root| root.parent()) {
+            if let Ok(path) = self.resolve_local_decl(dir.to_path_buf(), path) {
+                return Some(path);
+            }
+        }
+        let py_roots = [erg_pystd_path, erg_py_external_lib_path];
+        for root in py_roots {
+            if let Some(path) = Self::resolve_std_decl_path(root(), path) {
+                return Some(path);
+            }
+        }
+        for site_packages in python_site_packages() {
+            if let Some(path) = Self::resolve_site_pkgs_decl_path(site_packages, path) {
+                return Some(path);
+            }
+        }
+        None
     }
 
     /// 1. `site-packages/{path/to}.d.er`

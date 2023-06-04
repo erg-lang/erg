@@ -146,7 +146,7 @@ impl OwnershipChecker {
             // TODO: referenced
             Expr::Call(call) => {
                 let sig_t = call.signature_t().unwrap();
-                if sig_t.is_failure() || sig_t.is_class_type() {
+                if !sig_t.is_subr() {
                     return;
                 }
                 let args_owns = sig_t.args_ownership();

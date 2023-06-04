@@ -572,7 +572,7 @@ impl Context {
         tmp_tv_cache: &mut TyVarCache,
         not_found_is_qvar: bool,
     ) -> TyCheckResult<Type> {
-        match poly_spec.acc.to_string().trim_start_matches("::") {
+        match poly_spec.acc.to_string().trim_start_matches([':', '.']) {
             "Array" => {
                 // TODO: kw
                 let mut args = poly_spec.args.pos_args();

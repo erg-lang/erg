@@ -2550,28 +2550,32 @@ impl Context {
         mono(format!("{}{vis}{}", self.name, ident.inspect()))
     }
 
+    pub(crate) fn get_namespace_path(&self, namespace: &Str) -> Option<PathBuf> {
+        let mut namespaces = namespace.split_with(&[".", "::"]);
+        let mut str_namespace = namespaces.first().map(|n| n.to_string())?;
+        namespaces.remove(0);
+        while str_namespace.is_empty() || str_namespace.ends_with('.') {
+            if namespaces.is_empty() {
+                break;
+            }
+            str_namespace.push('.');
+            str_namespace.push_str(namespaces.remove(0));
+        }
+        let path = Path::new(&str_namespace);
+        let mut path = self.cfg.input.resolve_path(path)?;
+        for p in namespaces.into_iter() {
+            path = Input::try_push_path(path, Path::new(p)).ok()?;
+        }
+        Some(path)
+    }
+
     pub(crate) fn get_namespace(&self, namespace: &Str) -> Option<&Context> {
         if &namespace[..] == "global" {
             return self.get_builtins();
         } else if &namespace[..] == "module" {
             return self.get_module();
         }
-        let mut namespaces = namespace.split_with(&[".", "::"]);
-        let mut namespace = namespaces.first().map(|n| n.to_string())?;
-        namespaces.remove(0);
-        while namespace.is_empty() || namespace.ends_with('.') {
-            if namespaces.is_empty() {
-                break;
-            }
-            namespace.push('.');
-            namespace.push_str(namespaces.remove(0));
-        }
-        let path = Path::new(&namespace);
-        let mut path = self.cfg.input.resolve_path(path)?;
-        for p in namespaces.into_iter() {
-            path = Input::try_push_path(path, Path::new(p)).ok()?;
-        }
-        self.get_ctx_from_path(path.as_path())
+        self.get_ctx_from_path(self.get_namespace_path(namespace)?.as_path())
     }
 
     pub(crate) fn get_mono_type(&self, name: &Str) -> Option<(&Type, &Context)> {

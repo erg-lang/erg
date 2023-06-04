@@ -8,7 +8,9 @@ use erg_common::traits::Stream;
 use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::error::CompileErrors;
 
-use lsp_types::{Diagnostic, DiagnosticSeverity, Position, PublishDiagnosticsParams, Range, Url};
+use lsp_types::{
+    Diagnostic, DiagnosticSeverity, NumberOrString, Position, PublishDiagnosticsParams, Range, Url,
+};
 
 use crate::diff::{ASTDiff, HIRDiff};
 use crate::server::{send, send_log, AnalysisResult, DefaultFeatures, ELSResult, Server};
@@ -151,7 +153,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             let diag = Diagnostic::new(
                 Range::new(start, end),
                 Some(severity),
-                None,
+                Some(NumberOrString::String(format!("E{}", err.core.errno))),
                 None,
                 message,
                 None,
