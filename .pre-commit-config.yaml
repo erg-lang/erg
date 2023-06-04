@@ -11,7 +11,7 @@ repos:
       - id: cargo-test
         exclude: ^doc/|^.github/|^.gitmessage|.md
         name: Cargo test
-        entry: cargo test --features pre-commit -- --nocapture
+        entry: cargo test --features large_thread --features pre-commit -- --nocapture
         language: system
         pass_filenames: false
       # - id: rust-clippy

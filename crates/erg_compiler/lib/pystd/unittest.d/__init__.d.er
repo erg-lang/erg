@@ -1,0 +1,15 @@
+.result = pyimport "./result"
+.case = pyimport "./case"
+.suite = pyimport "./suite"
+.loader = pyimport "./loader"
+.main = pyimport "./main"
+.runner = pyimport "./runner"
+.signals = pyimport "./signals"
+
+{.TestResult!;} = .result
+{.TestCase!; .SkipTest;} = .case
+{.BaseTestSuite!; .TestSuite!} = .suite
+{.TestLoader!; .defaultTestLoader; .makeSuite; .getTestCaseNames; .findTestCases} = .loader
+{.TestProgram!; .main!} = .main
+{.TextTestRunner!; .TextTestResult!} = .runner
+{.installHandler!; .registerResult!; .removeResult!;} = .signals

@@ -95,6 +95,20 @@ macro_rules! expect_pop {
     };
 }
 
+pub trait Parsable {
+    fn parse(code: String) -> Result<Module, ParseErrors>;
+}
+
+pub struct SimpleParser {}
+
+impl Parsable for SimpleParser {
+    fn parse(code: String) -> Result<Module, ParseErrors> {
+        let ts = Lexer::from_str(code).lex()?;
+        let mut parser = Parser::new(ts);
+        parser.parse()
+    }
+}
+
 enum ExprOrOp {
     Expr(Expr),
     Op(Token),
@@ -505,11 +519,14 @@ impl Parser {
         let mut block = Block::with_capacity(2);
         // single line block
         if !self.cur_is(Newline) {
-            let chunk = self
-                .try_reduce_chunk(true, false)
+            let expr = self
+                .try_reduce_expr(true, false, false, false)
                 .map_err(|_| self.stack_dec(fn_name!()))?;
-            block.push(chunk);
-            if !self.cur_is(Dedent) && !self.cur_category_is(TC::Separator) {
+            block.push(expr);
+            if !self.cur_is(Dedent)
+                && !self.cur_category_is(TC::Separator)
+                && !self.cur_category_is(TC::REnclosure)
+            {
                 let err = self.skip_and_throw_invalid_chunk_err(
                     caused_by!(),
                     line!(),
@@ -570,9 +587,10 @@ impl Parser {
                     }
                 }
                 None => {
-                    self.errs.push(self.unexpected_none(line!(), caused_by!()));
-                    debug_exit_info!(self);
-                    return Err(());
+                    let err =
+                        ParseError::failed_to_analyze_block(line!() as usize, Location::Unknown);
+                    self.errs.push(err);
+                    break;
                 }
             }
         }
@@ -1430,7 +1448,10 @@ impl Parser {
             }
         }
         let attrs = ClassAttrs::from(attrs);
-        let t_spec = Self::expr_to_type_spec(class.clone()).map_err(|e| self.errs.push(e))?;
+        let t_spec = Self::expr_to_type_spec(class.clone()).map_err(|e| {
+            self.errs.push(e);
+            self.stack_dec(fn_name!())
+        })?;
         debug_exit_info!(self);
         Ok(Methods::new(t_spec, class, vis, attrs))
     }
@@ -1574,8 +1595,10 @@ impl Parser {
                         .try_reduce_expr(false, false, false, false)
                         .map(Desugarer::desugar_simple_expr)
                         .map_err(|_| self.stack_dec(fn_name!()))?;
-                    let t_spec = Self::expr_to_type_spec(t_spec_as_expr.clone())
-                        .map_err(|e| self.errs.push(e))?;
+                    let t_spec = Self::expr_to_type_spec(t_spec_as_expr.clone()).map_err(|e| {
+                        self.errs.push(e);
+                        self.stack_dec(fn_name!())
+                    })?;
                     let t_spec_op = TypeSpecWithOp::new(op, t_spec, t_spec_as_expr);
                     let expr = lhs.type_asc_expr(t_spec_op);
                     stack.push(ExprOrOp::Expr(expr));
@@ -2373,7 +2396,9 @@ impl Parser {
         let acc = self
             .try_reduce_acc_lhs()
             .map_err(|_| self.stack_dec(fn_name!()))?;
-        let mut call_or_acc = self.try_reduce_acc_chain(acc, in_type_args)?;
+        let mut call_or_acc = self
+            .try_reduce_acc_chain(acc, in_type_args)
+            .map_err(|_| self.stack_dec(fn_name!()))?;
         while let Some(res) = self.opt_reduce_args(in_type_args) {
             let args = res.map_err(|_| self.stack_dec(fn_name!()))?;
             let call = call_or_acc.call(args);
@@ -2544,7 +2569,7 @@ impl Parser {
     #[inline]
     fn try_reduce_array(&mut self) -> ParseResult<Array> {
         debug_call_info!(self);
-        let l_sqbr = self.lpop();
+        let l_sqbr = expect_pop!(self, fail_next LSqBr);
         let inner = self
             .try_reduce_array_elems()
             .map_err(|_| self.stack_dec(fn_name!()))?;
@@ -2588,8 +2613,7 @@ impl Parser {
     /// Set, Dict, Record
     fn try_reduce_brace_container(&mut self) -> ParseResult<BraceContainer> {
         debug_call_info!(self);
-        assert!(self.cur_is(LBrace));
-        let l_brace = self.lpop();
+        let l_brace = expect_pop!(self, fail_next LBrace);
         if self.cur_is(Newline) {
             self.skip();
             expect_pop!(self, fail_next Indent);
@@ -2729,11 +2753,11 @@ impl Parser {
                 Ok(BraceContainer::Record(record))
             }
             other if self.cur_is(Colon) => {
-                let dict = self
-                    .try_reduce_normal_dict(l_brace, other)
+                let res = self
+                    .try_reduce_normal_dict_or_set_comp(l_brace, other)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
                 debug_exit_info!(self);
-                Ok(BraceContainer::Dict(Dict::Normal(dict)))
+                Ok(res)
             }
             other => {
                 match self.peek() {
@@ -2855,17 +2879,48 @@ impl Parser {
         }
     }
 
+    fn try_reduce_normal_dict_or_set_comp(
+        &mut self,
+        l_brace: Token,
+        lhs: Expr,
+    ) -> ParseResult<BraceContainer> {
+        debug_call_info!(self);
+        let colon = expect_pop!(self, fail_next Colon);
+        let rhs = self
+            .try_reduce_expr(false, true, false, false)
+            .map_err(|_| self.stack_dec(fn_name!()))?;
+        if self.cur_is(VBar) {
+            self.skip();
+            let Expr::Accessor(Accessor::Ident(var)) = lhs else {
+                let err = ParseError::simple_syntax_error(line!() as usize, lhs.loc());
+                self.errs.push(err);
+                debug_exit_info!(self);
+                return Err(());
+            };
+            let pred = self
+                .try_reduce_chunk(false, false)
+                .map_err(|_| self.stack_dec(fn_name!()))?;
+            let r_brace = expect_pop!(self, fail_next RBrace);
+            let set_comp =
+                SetComprehension::new(l_brace, r_brace, var.name.into_token(), colon, rhs, pred);
+            debug_exit_info!(self);
+            Ok(BraceContainer::Set(Set::Comprehension(set_comp)))
+        } else {
+            let dict = self
+                .try_reduce_normal_dict(l_brace, lhs, rhs)
+                .map_err(|_| self.stack_dec(fn_name!()))?;
+            debug_exit_info!(self);
+            Ok(BraceContainer::Dict(Dict::Normal(dict)))
+        }
+    }
+
     fn try_reduce_normal_dict(
         &mut self,
         l_brace: Token,
         first_key: Expr,
+        value: Expr,
     ) -> ParseResult<NormalDict> {
         debug_call_info!(self);
-        assert!(self.cur_is(Colon));
-        self.skip();
-        let value = self
-            .try_reduce_chunk(false, false)
-            .map_err(|_| self.stack_dec(fn_name!()))?;
         let mut kvs = vec![KeyValue::new(first_key, value)];
         loop {
             match self.peek_kind() {
@@ -3227,7 +3282,9 @@ impl Parser {
                     return Err(());
                 }
                 Some(_) => {
-                    let mid_expr = self.try_reduce_expr(true, false, false, false)?;
+                    let mid_expr = self
+                        .try_reduce_expr(true, false, false, false)
+                        .map_err(|_| self.stack_dec(fn_name!()))?;
                     let str_func = Expr::local(
                         "str",
                         mid_expr.ln_begin().unwrap(),

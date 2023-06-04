@@ -37,8 +37,7 @@ impl AsRef<Url> for NormalizedUrl {
 impl TryFrom<&Path> for NormalizedUrl {
     type Error = Box<dyn std::error::Error>;
     fn try_from(path: &Path) -> Result<Self, Self::Error> {
-        let path = path.to_str().unwrap();
-        NormalizedUrl::parse(path)
+        NormalizedUrl::from_file_path(path)
     }
 }
 
@@ -50,6 +49,12 @@ impl NormalizedUrl {
     pub fn parse(uri: &str) -> ELSResult<NormalizedUrl> {
         Ok(NormalizedUrl(Url::parse(
             &uri.replace("c%3A", "C:").to_lowercase(),
+        )?))
+    }
+
+    pub fn from_file_path<P: AsRef<Path>>(path: P) -> ELSResult<Self> {
+        Ok(NormalizedUrl::new(Url::from_file_path(&path).map_err(
+            |_| format!("Invalid path: {}", path.as_ref().display()),
         )?))
     }
 

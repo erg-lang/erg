@@ -1,0 +1,35 @@
+.DIFF_OMITTED: (
+    {"\nDiff is %s characters long. "},
+    {"Set self.maxDiff to None to see it."},
+)
+
+.SkipTest: ClassType
+.SkipTest.
+    __call__: (reason: Str or GenericCallable) -> .SkipTest
+
+.doModuleCleanups!: () => NoneType
+
+.TestCase!: ClassType
+.TestCase!.
+    __call__: (methodName := Str) -> .TestCase!
+    setUp!: (self: Ref(.TestCase!)) => NoneType
+    tearDown!: (self: Ref(.TestCase!)) => NoneType
+    assertFalse: (self: Ref(.TestCase!), expr: Bool, msg := Str) -> NoneType
+    assertTrue: (self: Ref(.TestCase!), expr: Bool, msg := Str) -> NoneType
+    assertRaises: (self: Ref(.TestCase!), expected_exeption: ClassType, *args: Obj) -> NoneType
+    assertWarns: (self: Ref(.TestCase!), expected_warning: ClassType, *args: Obj) -> NoneType
+    assertLogs: (self: Ref(.TestCase!), logger := Str, level := Int, *args: Obj) -> NoneType
+    assertEqual: |E <: Eq|(self: Ref(.TestCase!), first: E, second: E, msg := Str) -> NoneType
+    assertNotEqual: |E <: Eq|(self: Ref(.TestCase!), first: E, second: E, msg := Str) -> NoneType
+    assertIn: |E <: Eq|(self: Ref(.TestCase!), member: E, container: Iterable(E), msg := Str) -> NoneType
+    assertNotIn: |E <: Eq|(self: Ref(.TestCase!), member: E, container: Iterable(E), msg := Str) -> NoneType
+    assertIs: (self: Ref(.TestCase!), first: Obj, second: Obj, msg := Str) -> NoneType
+    assertIsNot: (self: Ref(.TestCase!), first: Obj, second: Obj, msg := Str) -> NoneType
+    assertLess: |O <: Ord|(self: Ref(.TestCase!), first: O, second: O, msg := Str) -> NoneType
+    assertLessEqual: |O <: Ord|(self: Ref(.TestCase!), first: O, second: O, msg := Str) -> NoneType
+    assertGreater: |O <: Ord|(self: Ref(.TestCase!), first: O, second: O, msg := Str) -> NoneType
+    assertGreaterEqual: |O <: Ord|(self: Ref(.TestCase!), first: O, second: O, msg := Str) -> NoneType
+    assertIsNone: (self: Ref(.TestCase!), obj: Obj, msg := Str) -> NoneType
+    assertIsNotNone: (self: Ref(.TestCase!), obj: Obj, msg := Str) -> NoneType
+    assertIsInstance: (self: Ref(.TestCase!), obj: Obj, cls: ClassType, msg := Str) -> NoneType
+    assertNotIsInstance: (self: Ref(.TestCase!), obj: Obj, cls: ClassType, msg := Str) -> NoneType

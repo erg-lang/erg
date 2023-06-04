@@ -1,8 +1,9 @@
 use erg_common::consts::PYTHON_MODE;
+use erg_compiler::erg_parser::parse::Parsable;
 use lsp_types::CompletionResponse;
 use serde_json::Value;
 
-use erg_common::config::ErgConfig;
+use erg_common::config::{ErgConfig, Input};
 use erg_common::dict::Dict;
 use erg_common::env::erg_pystd_path;
 use erg_common::impl_u8_enum;
@@ -162,7 +163,11 @@ impl<'b> CompletionOrderSetter<'b> {
 
     pub fn mangle(&self) -> String {
         let score = self.score();
-        format!("{}_{}", char::from_u32(score as u32).unwrap(), self.label)
+        format!(
+            "{}_{}",
+            char::from_u32(score as u32).unwrap_or(CompletionOrder::STD_ITEM),
+            self.label
+        )
     }
 
     fn set(&self, item: &mut CompletionItem) {
@@ -260,7 +265,7 @@ fn module_completions() -> Vec<CompletionItem> {
     comps
 }
 
-fn load_modules(cache: Cache) {
+fn load_modules(cfg: ErgConfig, cache: Cache) {
     let major_mods = [
         "datetime",
         "glob",
@@ -281,7 +286,10 @@ fn load_modules(cache: Cache) {
     let src = major_mods.into_iter().fold("".to_string(), |acc, module| {
         acc + &format!("_ = pyimport \"{module}\"\n")
     });
-    let cfg = ErgConfig::string(src.clone());
+    let cfg = ErgConfig {
+        input: Input::str(src.clone()),
+        ..cfg
+    };
     let shared = SharedCompilerResource::new(cfg.clone());
     let mut checker = HIRBuilder::inherit(cfg, shared.clone());
     let _res = checker.build(src, "exec");
@@ -290,7 +298,7 @@ fn load_modules(cache: Cache) {
         cache.insert("<module>".into(), module_completions());
     }
     let std_path = erg_pystd_path().display().to_string().replace('\\', "/");
-    for (path, entry) in shared.py_mod_cache.iter() {
+    for (path, entry) in shared.py_mod_cache.ref_inner().iter() {
         let dir = entry.module.context.local_dir();
         let mod_name = path.display().to_string().replace('\\', "/");
         let mod_name = mod_name
@@ -308,12 +316,12 @@ fn load_modules(cache: Cache) {
 }
 
 impl CompletionCache {
-    pub fn new() -> Self {
+    pub fn new(cfg: ErgConfig) -> Self {
         let cache = AtomicShared::new(Dict::default());
         let clone = cache.clone();
         std::thread::spawn(move || {
-            send_log("load_modules").unwrap();
-            load_modules(clone)
+            crate::_log!("load_modules");
+            load_modules(cfg, clone)
         });
         Self { cache }
     }
@@ -341,7 +349,7 @@ impl CompletionCache {
     }
 }
 
-impl<Checker: BuildRunnable> Server<Checker> {
+impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     pub(crate) fn handle_completion(
         &mut self,
         params: CompletionParams,
@@ -375,15 +383,14 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let mut already_appeared = Set::new();
         let contexts = if comp_kind.should_be_local() {
             let prev_token = self.file_cache.get_token_relatively(&uri, pos, -1);
-            if prev_token
-                .as_ref()
-                .map(|t| matches!(t.kind, Dot | DblColon))
-                .unwrap_or(false)
-            {
-                let dot_pos = util::loc_to_pos(prev_token.unwrap().loc()).unwrap();
-                self.get_receiver_ctxs(&uri, dot_pos)?
-            } else {
-                self.get_local_ctx(&uri, pos)
+            match prev_token {
+                Some(prev) if matches!(prev.kind, Dot | DblColon) => {
+                    let Some(dot_pos) = util::loc_to_pos(prev.loc()) else {
+                        return Ok(None);
+                    };
+                    self.get_receiver_ctxs(&uri, dot_pos)?
+                }
+                _ => self.get_local_ctx(&uri, pos),
             }
         } else {
             self.get_receiver_ctxs(&uri, pos)?
@@ -437,21 +444,23 @@ impl<Checker: BuildRunnable> Server<Checker> {
             .then(|| self.get_min_expr(&uri, pos, -2))
             .flatten()
             .map(|(_, expr)| expr.t());
-        let mod_ctx = &self.modules.get(&uri).unwrap().context;
+        let Some(mod_ctx) = self.modules.get(&uri).map(|m| &m.context) else {
+            return Ok(None);
+        };
         for (name, vi) in contexts.into_iter().flat_map(|ctx| ctx.local_dir()) {
             if comp_kind.should_be_method() && vi.vis.is_private() {
                 continue;
             }
             // only show static methods, if the receiver is a type
             if vi.t.is_method()
-                && receiver_t
-                    .as_ref()
-                    .map_or(true, |t| !mod_ctx.subtype_of(t, vi.t.self_t().unwrap()))
+                && receiver_t.as_ref().map_or(true, |t| {
+                    !mod_ctx.subtype_of(t, vi.t.self_t().unwrap_or(Type::OBJ))
+                })
             {
                 continue;
             }
             let label = name.inspect();
-            // don't show overriden items
+            // don't show overridden items
             if already_appeared.contains(&label[..]) {
                 continue;
             }
@@ -494,7 +503,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         send_log(format!("completion resolve requested: {item:?}"))?;
         if let Some(data) = &item.data {
             let mut contents = vec![];
-            let Ok(def_loc) = data.as_str().unwrap().parse::<AbsLocation>() else {
+            let Ok(def_loc) = data.as_str().unwrap_or_default().parse::<AbsLocation>() else {
                 return Ok(item);
             };
             self.show_doc_comment(None, &mut contents, &def_loc)?;

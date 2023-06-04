@@ -1,21 +1,23 @@
 use std::fmt;
-use std::io::BufRead;
+use std::fs::{metadata, remove_file, File};
+use std::io::{BufRead, BufReader};
 use std::option::Option;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::time::SystemTime;
+use std::thread::sleep;
+use std::time::{Duration, SystemTime};
 
 use erg_common::config::ErgMode;
-use erg_common::consts::PYTHON_MODE;
-use erg_common::env::erg_pystd_path;
+use erg_common::consts::{ERG_MODE, PYTHON_MODE};
+use erg_common::env::{is_pystd_main_module, is_std_decl_path};
 use erg_common::erg_util::BUILTIN_ERG_MODS;
 use erg_common::levenshtein::get_similar_name;
+use erg_common::pathutil::{DirKind, FileKind};
 use erg_common::python_util::BUILTIN_PYTHON_MODS;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
 use erg_common::triple::Triple;
-use erg_common::Str;
-use erg_common::{get_hash, log, set};
+use erg_common::{get_hash, log, set, unique_in_place, Str};
 
 use ast::{
     ConstIdentifier, Decorator, DefId, Identifier, OperationKind, PolyTypeSpec, PreDeclTypeSpec,
@@ -24,7 +26,7 @@ use ast::{
 use erg_parser::ast;
 
 use crate::ty::constructors::{
-    free_var, func, func0, func1, proc, ref_, ref_mut, unknown_len_array_t, v_enum,
+    free_var, func, func0, func1, proc, ref_, ref_mut, tp_enum, unknown_len_array_t, v_enum,
 };
 use crate::ty::free::{Constraint, HasLevel};
 use crate::ty::typaram::TyParam;
@@ -34,9 +36,7 @@ use crate::ty::{
 };
 
 use crate::build_hir::HIRBuilder;
-use crate::context::{
-    ClassDefType, Context, ContextKind, DefaultInfo, MethodInfo, RegistrationMode, TraitImpl,
-};
+use crate::context::{ClassDefType, Context, ContextKind, DefaultInfo, RegistrationMode};
 use crate::error::readable_name;
 use crate::error::{
     CompileError, CompileErrors, CompileResult, TyCheckError, TyCheckErrors, TyCheckResult,
@@ -49,9 +49,40 @@ use RegistrationMode::*;
 
 use super::instantiate::TyVarCache;
 use super::instantiate_spec::ParamKind;
+use super::ParamSpec;
 
 pub fn valid_mod_name(name: &str) -> bool {
-    !name.is_empty() && name.trim() == name
+    !name.is_empty() && !name.starts_with('/') && name.trim() == name
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CheckStatus {
+    Succeed,
+    Failed,
+    Ongoing,
+}
+
+impl fmt::Display for CheckStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CheckStatus::Succeed => write!(f, "succeed"),
+            CheckStatus::Failed => write!(f, "failed"),
+            CheckStatus::Ongoing => write!(f, "ongoing"),
+        }
+    }
+}
+
+impl std::str::FromStr for CheckStatus {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "succeed" => Ok(CheckStatus::Succeed),
+            "failed" => Ok(CheckStatus::Failed),
+            "ongoing" => Ok(CheckStatus::Ongoing),
+            _ => Err(format!("invalid status: {s}")),
+        }
+    }
 }
 
 /// format:
@@ -60,22 +91,24 @@ pub fn valid_mod_name(name: &str) -> bool {
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PylyzerStatus {
-    pub succeed: bool,
+    pub status: CheckStatus,
     pub file: PathBuf,
     pub timestamp: SystemTime,
+    pub hash: u64,
 }
 
 impl fmt::Display for PylyzerStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "##[pylyzer] {} {} {}",
-            if self.succeed { "succeed" } else { "failed" },
+            "##[pylyzer] {} {} {} {}",
+            self.status,
             self.file.display(),
             self.timestamp
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap()
-                .as_secs()
+                .as_secs(),
+            self.hash,
         )
     }
 }
@@ -89,8 +122,8 @@ impl std::str::FromStr for PylyzerStatus {
         if pylyzer != "##[pylyzer]" {
             return Err("not pylyzer".to_string());
         }
-        let succeed = iter.next().ok_or("no succeed")?;
-        let succeed = succeed == "succeed";
+        let status = iter.next().ok_or("no succeed")?;
+        let status = status.parse()?;
         let file = iter.next().ok_or("no file")?;
         let file = PathBuf::from(file);
         let timestamp = iter.next().ok_or("no timestamp")?;
@@ -101,13 +134,26 @@ impl std::str::FromStr for PylyzerStatus {
                     .map_err(|e| format!("timestamp parse error: {e}"))?,
             ))
             .ok_or("timestamp overflow")?;
+        let hash = iter.next().ok_or("no hash")?;
+        let hash = hash.parse().map_err(|e| format!("hash parse error: {e}"))?;
         Ok(PylyzerStatus {
-            succeed,
+            status,
             file,
             timestamp,
+            hash,
         })
     }
 }
+
+enum Availability {
+    Available,
+    InProgress,
+    NotFound,
+    Unreadable,
+    OutOfDate,
+}
+
+use Availability::*;
 
 const UBAR: &Str = &Str::ever("_");
 
@@ -270,7 +316,7 @@ impl Context {
         let vis = self.instantiate_vis_modifier(&ident.vis)?;
         // already defined as const
         if sig.is_const() {
-            let vi = self.decls.remove(ident.inspect()).unwrap_or_else(|| {
+            let mut vi = self.decls.remove(ident.inspect()).unwrap_or_else(|| {
                 VarInfo::new(
                     body_t.clone(),
                     Mutability::Const,
@@ -278,11 +324,17 @@ impl Context {
                     VarKind::Declared,
                     None,
                     self.impl_of(),
-                    py_name,
+                    py_name.clone(),
                     self.absolutize(ident.name.loc()),
                 )
             });
+            if vi.py_name.is_none() {
+                vi.py_name = py_name;
+            }
             self.locals.insert(ident.name.clone(), vi.clone());
+            if let Ok(value) = self.convert_singular_type_into_value(vi.t.clone()) {
+                self.consts.insert(ident.name.clone(), value);
+            }
             return Ok(vi);
         }
         let muty = Mutability::from(&ident.inspect()[..]);
@@ -290,7 +342,10 @@ impl Context {
             .decls
             .remove(ident.inspect())
             .or_else(|| self.future_defined_locals.remove(ident.inspect()));
-        let py_name = opt_vi.as_ref().map_or(py_name, |vi| vi.py_name.clone());
+        let py_name = opt_vi
+            .as_ref()
+            .and_then(|vi| vi.py_name.clone())
+            .or(py_name);
         let kind = if id.0 == 0 {
             VarKind::Declared
         } else {
@@ -316,6 +371,9 @@ impl Context {
         );
         log!(info "Registered {}{}: {}", self.name, ident, vi);
         self.locals.insert(ident.name.clone(), vi.clone());
+        if let Ok(value) = self.convert_singular_type_into_value(vi.t.clone()) {
+            self.consts.insert(ident.name.clone(), value);
+        }
         Ok(vi)
     }
 
@@ -365,6 +423,7 @@ impl Context {
                     &mut TyVarCache::new(self.level, self),
                     Normal,
                     kind,
+                    false,
                 ) {
                     Ok(ty) => (ty, TyCheckErrors::empty()),
                     Err(errs) => (Type::Failure, errs),
@@ -410,6 +469,7 @@ impl Context {
                         &mut dummy_tv_cache,
                         Normal,
                         kind,
+                        false,
                     ) {
                         Ok(ty) => (ty, TyCheckErrors::empty()),
                         Err(errs) => (Type::Failure, errs),
@@ -466,6 +526,7 @@ impl Context {
                         &mut dummy_tv_cache,
                         Normal,
                         kind,
+                        false,
                     ) {
                         Ok(ty) => (ty, TyCheckErrors::empty()),
                         Err(errs) => (Type::Failure, errs),
@@ -518,6 +579,7 @@ impl Context {
                         &mut dummy_tv_cache,
                         Normal,
                         kind,
+                        false,
                     ) {
                         Ok(ty) => (ty, TyCheckErrors::empty()),
                         Err(errs) => (Type::Failure, errs),
@@ -880,7 +942,9 @@ impl Context {
         let Ok(mod_name) = hir::Literal::try_from(mod_name.token.clone()) else {
             return Ok(());
         };
-        let res = self.import_mod(call.additional_operation().unwrap(), &mod_name);
+        let res = self
+            .import_mod(call.additional_operation().unwrap(), &mod_name)
+            .map(|_path| ());
         let arg = TyParam::Value(ValueObj::Str(
             mod_name.token.content.replace('\"', "").into(),
         ));
@@ -895,14 +959,14 @@ impl Context {
                 params: vec![arg],
             }
         };
-        let Some(ident) = def.sig.ident() else { return Ok(()) };
+        let Some(ident) = def.sig.ident() else { return res };
         let Some((_, vi)) = self.get_var_info(ident.inspect()) else {
-            return Ok(());
+            return res;
         };
-        if let Some(fv) = vi.t.as_free() {
-            fv.link(&typ);
+        if let Some(_fv) = vi.t.as_free() {
+            vi.t.link(&typ);
         }
-        res.map(|_| ())
+        res
     }
 
     pub(crate) fn preregister_def(&mut self, def: &ast::Def) -> TyCheckResult<()> {
@@ -925,7 +989,7 @@ impl Context {
                         let mut dummy_tv_cache = TyVarCache::new(self.level, self);
                         let spec_t = self
                             .instantiate_typespec_full(
-                                spec,
+                                &spec.t_spec,
                                 None,
                                 &mut dummy_tv_cache,
                                 PreRegister,
@@ -1142,8 +1206,22 @@ impl Context {
             .push((ClassDefType::impl_trait(class, trait_), methods));
     }
 
-    pub(crate) fn register_marker_trait(&mut self, trait_: Type) {
+    pub(crate) fn register_marker_trait(&mut self, ctx: &Self, trait_: Type) -> CompileResult<()> {
+        let (_, trait_ctx) = ctx.get_nominal_type_ctx(&trait_).ok_or_else(|| {
+            CompileError::type_not_found(
+                self.cfg.input.clone(),
+                line!() as usize,
+                ().loc(),
+                self.caused_by(),
+                &trait_,
+            )
+        })?;
+        // self.register_supertrait(trait_, ctx);
+        let traits = trait_ctx.super_traits.clone();
         self.super_traits.push(trait_);
+        self.super_traits.extend(traits);
+        unique_in_place(&mut self.super_traits);
+        Ok(())
     }
 
     pub(crate) fn register_gen_const(
@@ -1209,66 +1287,29 @@ impl Context {
                         2,
                         self.level,
                     );
-                    let mut methods =
-                        Self::methods(None, self.cfg.clone(), self.shared.clone(), 2, self.level);
-                    let new_t = if let Some(base) = gen.base_or_sup() {
-                        match base {
-                            TypeObj::Builtin {
-                                t: Type::Record(rec),
-                                ..
-                            } => {
-                                for (field, t) in rec.iter() {
-                                    let varname = VarName::from_str(field.symbol.clone());
-                                    let vi = VarInfo::instance_attr(
-                                        field.clone(),
-                                        t.clone(),
-                                        self.impl_of(),
-                                        ctx.name.clone(),
-                                    );
-                                    ctx.decls.insert(varname, vi);
-                                }
-                            }
-                            other => {
-                                methods.register_fixed_auto_impl(
-                                    "base",
-                                    other.typ().clone(),
-                                    Immutable,
-                                    Visibility::BUILTIN_PRIVATE,
-                                    None,
-                                )?;
-                            }
-                        }
-                        func1(base.typ().clone(), gen.typ().clone())
-                    } else {
-                        func0(gen.typ().clone())
-                    };
-                    methods.register_fixed_auto_impl(
-                        "__new__",
-                        new_t.clone(),
-                        Immutable,
-                        Visibility::BUILTIN_PRIVATE,
-                        Some("__call__".into()),
-                    )?;
-                    // 必要なら、ユーザーが独自に上書きする
-                    // users can override this if necessary
-                    methods.register_auto_impl(
-                        "new",
-                        new_t,
-                        Immutable,
-                        Visibility::BUILTIN_PUBLIC,
-                        None,
-                    )?;
-                    ctx.methods_list
-                        .push((ClassDefType::Simple(gen.typ().clone()), methods));
+                    if ERG_MODE {
+                        self.gen_class_new_method(&gen, &mut ctx)?;
+                    }
                     self.register_gen_mono_type(ident, gen, ctx, Const)
                 } else {
-                    feature_error!(
-                        CompileErrors,
-                        CompileError,
-                        self,
-                        ident.loc(),
-                        "polymorphic class definition"
-                    )
+                    let params = gen
+                        .typ()
+                        .typarams()
+                        .into_iter()
+                        .map(|tp| ParamSpec::t_nd(tp.qual_name().unwrap_or(Str::ever("_"))))
+                        .collect();
+                    let mut ctx = Self::poly_class(
+                        gen.typ().qual_name(),
+                        params,
+                        self.cfg.clone(),
+                        self.shared.clone(),
+                        2,
+                        self.level,
+                    );
+                    if ERG_MODE {
+                        self.gen_class_new_method(&gen, &mut ctx)?;
+                    }
+                    self.register_gen_poly_type(ident, gen, ctx, Const)
                 }
             }
             GenTypeObj::Subclass(_) => {
@@ -1296,39 +1337,10 @@ impl Context {
                     }
                     let mut methods =
                         Self::methods(None, self.cfg.clone(), self.shared.clone(), 2, self.level);
-                    if let Some(sup) =
-                        self.rec_get_const_obj(&gen.base_or_sup().unwrap().typ().local_name())
-                    {
-                        let ValueObj::Type(sup) = sup else {
-                            return Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
-                                self.cfg.input.clone(),
-                                line!() as usize,
-                                ident.loc(),
-                                self.caused_by(),
-                                "",
-                                Some(1),
-                                &Type::Type,
-                                &sup.class(),
-                                None,
-                                None
-                            )));
-                        };
+                    if let Some(sup) = gen.base_or_sup() {
                         let param_t = match sup {
-                            TypeObj::Builtin { t, .. } => t,
-                            TypeObj::Generated(t) => {
-                                if let Some(t) = t.base_or_sup() {
-                                    t.typ()
-                                } else {
-                                    return Err(TyCheckErrors::from(TyCheckError::param_error(
-                                        self.cfg.input.clone(),
-                                        line!() as usize,
-                                        ident.loc(),
-                                        self.caused_by(),
-                                        1,
-                                        0,
-                                    )));
-                                }
-                            }
+                            TypeObj::Builtin { t, .. } => Some(t),
+                            TypeObj::Generated(t) => t.base_or_sup().map(|t| t.typ()),
                         };
                         // `Super.Requirement := {x = Int}` and `Self.Additional := {y = Int}`
                         // => `Self.Requirement := {x = Int; y = Int}`
@@ -1349,11 +1361,17 @@ impl Context {
                                     ctx.decls.insert(varname, vi);
                                 }
                             }
-                            self.intersection(param_t, additional.typ())
+                            param_t
+                                .map(|t| self.intersection(t, additional.typ()))
+                                .or(Some(additional.typ().clone()))
                         } else {
-                            param_t.clone()
+                            param_t.cloned()
                         };
-                        let new_t = func1(param_t, gen.typ().clone());
+                        let new_t = if let Some(t) = param_t {
+                            func1(t, gen.typ().clone())
+                        } else {
+                            func0(gen.typ().clone())
+                        };
                         methods.register_fixed_auto_impl(
                             "__new__",
                             new_t.clone(),
@@ -1506,6 +1524,54 @@ impl Context {
         }
     }
 
+    fn gen_class_new_method(&self, gen: &GenTypeObj, ctx: &mut Context) -> CompileResult<()> {
+        let mut methods = Self::methods(None, self.cfg.clone(), self.shared.clone(), 2, self.level);
+        let new_t = if let Some(base) = gen.base_or_sup() {
+            match base {
+                TypeObj::Builtin {
+                    t: Type::Record(rec),
+                    ..
+                } => {
+                    for (field, t) in rec.iter() {
+                        let varname = VarName::from_str(field.symbol.clone());
+                        let vi = VarInfo::instance_attr(
+                            field.clone(),
+                            t.clone(),
+                            self.impl_of(),
+                            ctx.name.clone(),
+                        );
+                        ctx.decls.insert(varname, vi);
+                    }
+                }
+                other => {
+                    methods.register_fixed_auto_impl(
+                        "base",
+                        other.typ().clone(),
+                        Immutable,
+                        Visibility::BUILTIN_PRIVATE,
+                        None,
+                    )?;
+                }
+            }
+            func1(base.typ().clone(), gen.typ().clone())
+        } else {
+            func0(gen.typ().clone())
+        };
+        methods.register_fixed_auto_impl(
+            "__new__",
+            new_t.clone(),
+            Immutable,
+            Visibility::BUILTIN_PRIVATE,
+            Some("__call__".into()),
+        )?;
+        // 必要なら、ユーザーが独自に上書きする
+        // users can override this if necessary
+        methods.register_auto_impl("new", new_t, Immutable, Visibility::BUILTIN_PUBLIC, None)?;
+        ctx.methods_list
+            .push((ClassDefType::Simple(gen.typ().clone()), methods));
+        Ok(())
+    }
+
     pub(crate) fn register_type_alias(
         &mut self,
         ident: &Identifier,
@@ -1596,37 +1662,68 @@ impl Context {
             self.index().register(&vi);
             self.decls.insert(name.clone(), vi);
             self.consts.insert(name.clone(), val);
-            for impl_trait in ctx.super_traits.iter() {
-                if let Some(impls) = self.trait_impls().get_mut(&impl_trait.qual_name()) {
-                    impls.insert(TraitImpl::new(t.clone(), impl_trait.clone()));
-                } else {
-                    self.trait_impls().register(
-                        impl_trait.qual_name(),
-                        set![TraitImpl::new(t.clone(), impl_trait.clone())],
-                    );
-                }
-            }
-            for (trait_method, vi) in ctx.decls.iter() {
-                if let Some(types) = self.method_to_traits.get_mut(trait_method.inspect()) {
-                    types.push(MethodInfo::new(t.clone(), vi.clone()));
-                } else {
-                    self.method_to_traits.insert(
-                        trait_method.inspect().clone(),
-                        vec![MethodInfo::new(t.clone(), vi.clone())],
-                    );
-                }
-            }
-            for (class_method, vi) in ctx.locals.iter() {
-                if let Some(types) = self.method_to_classes.get_mut(class_method.inspect()) {
-                    types.push(MethodInfo::new(t.clone(), vi.clone()));
-                } else {
-                    self.method_to_classes.insert(
-                        class_method.inspect().clone(),
-                        vec![MethodInfo::new(t.clone(), vi.clone())],
-                    );
-                }
-            }
+            self.register_methods(&t, &ctx);
             self.mono_types.insert(name.clone(), (t, ctx));
+            Ok(())
+        }
+    }
+
+    fn register_gen_poly_type(
+        &mut self,
+        ident: &Identifier,
+        gen: GenTypeObj,
+        ctx: Self,
+        muty: Mutability,
+    ) -> CompileResult<()> {
+        let vis = self.instantiate_vis_modifier(&ident.vis)?;
+        // FIXME: recursive search
+        if self.poly_types.contains_key(ident.inspect()) {
+            Err(CompileErrors::from(CompileError::reassign_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                ident.loc(),
+                self.caused_by(),
+                ident.inspect(),
+            )))
+        } else if self.rec_get_const_obj(ident.inspect()).is_some() && vis.is_private() {
+            Err(CompileErrors::from(CompileError::reassign_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                ident.loc(),
+                self.caused_by(),
+                ident.inspect(),
+            )))
+        } else {
+            let t = gen.typ().clone();
+            let val = ValueObj::Type(TypeObj::Generated(gen));
+            let params = t
+                .typarams()
+                .into_iter()
+                .map(|tp| {
+                    ParamTy::Pos(tp_enum(
+                        self.get_tp_t(&tp).unwrap_or(Type::Obj),
+                        set! { tp },
+                    ))
+                })
+                .collect();
+            let meta_t = func(params, None, vec![], v_enum(set! { val.clone() })).quantify();
+            let name = &ident.name;
+            let id = DefId(get_hash(&(&self.name, &name)));
+            let vi = VarInfo::new(
+                meta_t,
+                muty,
+                Visibility::new(vis, self.name.clone()),
+                VarKind::Defined(id),
+                None,
+                self.impl_of(),
+                None,
+                self.absolutize(name.loc()),
+            );
+            self.index().register(&vi);
+            self.decls.insert(name.clone(), vi);
+            self.consts.insert(name.clone(), val);
+            self.register_methods(&t, &ctx);
+            self.poly_types.insert(name.clone(), (t, ctx));
             Ok(())
         }
     }
@@ -1676,36 +1773,7 @@ impl Context {
             );
             self.consts
                 .insert(name.clone(), ValueObj::Type(TypeObj::Generated(gen)));
-            for impl_trait in ctx.super_traits.iter() {
-                if let Some(impls) = self.trait_impls().get_mut(&impl_trait.qual_name()) {
-                    impls.insert(TraitImpl::new(t.clone(), impl_trait.clone()));
-                } else {
-                    self.trait_impls().register(
-                        impl_trait.qual_name(),
-                        set![TraitImpl::new(t.clone(), impl_trait.clone())],
-                    );
-                }
-            }
-            for (trait_method, vi) in ctx.decls.iter() {
-                if let Some(types) = self.method_to_traits.get_mut(trait_method.inspect()) {
-                    types.push(MethodInfo::new(t.clone(), vi.clone()));
-                } else {
-                    self.method_to_traits.insert(
-                        trait_method.inspect().clone(),
-                        vec![MethodInfo::new(t.clone(), vi.clone())],
-                    );
-                }
-            }
-            for (class_method, vi) in ctx.locals.iter() {
-                if let Some(types) = self.method_to_classes.get_mut(class_method.inspect()) {
-                    types.push(MethodInfo::new(t.clone(), vi.clone()));
-                } else {
-                    self.method_to_classes.insert(
-                        class_method.inspect().clone(),
-                        vec![MethodInfo::new(t.clone(), vi.clone())],
-                    );
-                }
-            }
+            self.register_methods(&t, &ctx);
             self.patches.insert(name.clone(), ctx);
             Ok(())
         }
@@ -1748,35 +1816,108 @@ impl Context {
         }
     }
 
-    fn import_erg_mod(&self, __name__: &Str, loc: &impl Locational) -> CompileResult<PathBuf> {
+    fn import_err(&self, line: u32, __name__: &Str, loc: &impl Locational) -> TyCheckErrors {
         let mod_cache = self.mod_cache();
         let py_mod_cache = self.py_mod_cache();
-        let path = match Self::resolve_real_path(&self.cfg, Path::new(&__name__[..])) {
+        TyCheckErrors::from(TyCheckError::import_error(
+            self.cfg.input.clone(),
+            line as usize,
+            format!("module {__name__} not found"),
+            loc.loc(),
+            self.caused_by(),
+            self.similar_builtin_erg_mod_name(__name__)
+                .or_else(|| mod_cache.get_similar_name(__name__)),
+            self.similar_builtin_py_mod_name(__name__)
+                .or_else(|| py_mod_cache.get_similar_name(__name__)),
+        ))
+    }
+
+    fn import_erg_mod(&self, __name__: &Str, loc: &impl Locational) -> CompileResult<PathBuf> {
+        let path = match self.cfg.input.resolve_real_path(Path::new(&__name__[..])) {
             Some(path) => path,
             None => {
-                let err = TyCheckErrors::from(TyCheckError::import_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    format!("module {__name__} not found"),
-                    loc.loc(),
-                    self.caused_by(),
-                    self.similar_builtin_erg_mod_name(__name__)
-                        .or_else(|| mod_cache.get_similar_name(__name__)),
-                    self.similar_builtin_py_mod_name(__name__)
-                        .or_else(|| py_mod_cache.get_similar_name(__name__)),
-                ));
-                return Err(err);
+                return Err(self.import_err(line!(), __name__, loc));
             }
         };
+        if ERG_MODE {
+            self.check_mod_vis(path.as_path(), __name__, loc)?;
+        }
         if let Some(referrer) = self.cfg.input.path() {
             let graph = &self.shared.as_ref().unwrap().graph;
             graph.inc_ref(referrer, path.clone());
         }
-        if mod_cache.get(&path).is_some() {
+        if self.get_mod_with_path(&path).is_some() {
             return Ok(path);
         }
+        self.build_erg_mod(path, __name__, loc)
+    }
+
+    /// If the path is like `foo/bar`, check if `bar` is a public module (the definition is in `foo/__init__.er`)
+    fn check_mod_vis(
+        &self,
+        path: &Path,
+        __name__: &Str,
+        loc: &impl Locational,
+    ) -> CompileResult<()> {
+        let file_kind = FileKind::from(path);
+        let parent = if file_kind.is_init_er() {
+            path.parent().and_then(|p| p.parent())
+        } else {
+            path.parent()
+        };
+        if let Some(parent) = parent {
+            if DirKind::from(parent).is_erg_module() {
+                let parent = parent.join("__init__.er");
+                let parent_module = if let Some(parent) = self.get_mod_with_path(&parent) {
+                    Some(parent)
+                } else {
+                    // TODO: This error should not be discarded, but the later processing should also continue while generating the error
+                    self.build_erg_mod(parent.clone(), __name__, loc)?;
+                    self.get_mod_with_path(&parent)
+                };
+                if let Some(parent_module) = parent_module {
+                    let import_err = |line| {
+                        TyCheckErrors::from(TyCheckError::import_error(
+                            self.cfg.input.clone(),
+                            line as usize,
+                            format!("module `{__name__}` is not public"),
+                            loc.loc(),
+                            self.caused_by(),
+                            None,
+                            None,
+                        ))
+                    };
+                    let file_stem = if file_kind.is_init_er() {
+                        path.parent().unwrap().file_stem()
+                    } else {
+                        path.file_stem()
+                    };
+                    let mod_name = file_stem.unwrap_or_default().to_string_lossy();
+                    if let Some((_, vi)) = parent_module.get_var_info(&mod_name) {
+                        if !vi.vis.compatible(&ast::AccessModifier::Public, self) {
+                            return Err(import_err(line!()));
+                        }
+                    } else {
+                        return Err(import_err(line!()));
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn build_erg_mod(
+        &self,
+        path: PathBuf,
+        __name__: &Str,
+        loc: &impl Locational,
+    ) -> CompileResult<PathBuf> {
+        let mod_cache = self.mod_cache();
         let mut cfg = self.cfg.inherit(path.clone());
-        let src = cfg.input.read();
+        let src = cfg
+            .input
+            .try_read()
+            .map_err(|_| self.import_err(line!(), __name__, loc))?;
         let mut builder =
             HIRBuilder::new_with_cache(cfg, __name__, self.shared.as_ref().unwrap().clone());
         match builder.build(src, "exec") {
@@ -1786,15 +1927,15 @@ impl Context {
                     Some(artifact.object),
                     builder.pop_mod_ctx().unwrap(),
                 );
+                Ok(path)
             }
             Err(artifact) => {
                 if let Some(hir) = artifact.object {
                     mod_cache.register(path, Some(hir), builder.pop_mod_ctx().unwrap());
                 }
-                return Err(artifact.errors);
+                Err(artifact.errors)
             }
         }
-        Ok(path)
     }
 
     fn similar_builtin_py_mod_name(&self, name: &Str) -> Option<Str> {
@@ -1803,18 +1944,6 @@ impl Context {
 
     fn similar_builtin_erg_mod_name(&self, name: &Str) -> Option<Str> {
         get_similar_name(BUILTIN_ERG_MODS.into_iter(), name).map(Str::rc)
-    }
-
-    fn is_pystd_main_module(&self, path: &Path) -> bool {
-        let mut path = PathBuf::from(path);
-        if path.ends_with("__init__.d.er") {
-            path.pop();
-            path.pop();
-        } else {
-            path.pop();
-        }
-        let pystd_path = erg_pystd_path();
-        path == pystd_path
     }
 
     /// e.g. http.d/client.d.er -> http.client
@@ -1838,25 +1967,57 @@ impl Context {
         Str::from(name)
     }
 
-    fn can_reuse(path: &Path) -> Option<PylyzerStatus> {
-        let file = std::fs::File::open(path).ok()?;
+    fn analysis_in_progress(path: &Path) -> bool {
+        let Ok(meta) = metadata(path) else {
+            return false;
+        };
+        !is_std_decl_path(path) && meta.len() == 0
+    }
+
+    fn availability(path: &Path) -> Availability {
+        let Ok(file) = File::open(path) else {
+            return Availability::NotFound;
+        };
+        if is_std_decl_path(path) {
+            return Availability::Available;
+        }
         let mut line = "".to_string();
-        std::io::BufReader::new(file).read_line(&mut line).ok()?;
-        let status = line.parse::<PylyzerStatus>().ok()?;
-        if status.timestamp < std::fs::metadata(&status.file).ok()?.modified().ok()? {
-            None
+        let Ok(_) = BufReader::new(file).read_line(&mut line) else {
+            return Availability::Unreadable;
+        };
+        if line.is_empty() {
+            return Availability::InProgress;
+        }
+        let Ok(status) = line.parse::<PylyzerStatus>() else {
+            return Availability::Available;
+        };
+        let Some(meta) = metadata(&status.file).ok() else {
+            return Availability::NotFound;
+        };
+        let dummy_hash = meta.len();
+        if status.hash != dummy_hash {
+            Availability::OutOfDate
         } else {
-            Some(status)
+            Availability::Available
         }
     }
 
-    fn get_path(&self, __name__: &Str, loc: &impl Locational) -> CompileResult<PathBuf> {
-        match Self::resolve_decl_path(&self.cfg, Path::new(&__name__[..])) {
+    fn get_decl_path(&self, __name__: &Str, loc: &impl Locational) -> CompileResult<PathBuf> {
+        match self.cfg.input.resolve_decl_path(Path::new(&__name__[..])) {
             Some(path) => {
-                if Self::can_reuse(&path).is_none() {
+                if self.cfg.input.decl_file_is(&path) {
+                    return Ok(path);
+                }
+                for _ in 0..600 {
+                    if !Self::analysis_in_progress(&path) {
+                        break;
+                    }
+                    sleep(Duration::from_millis(100));
+                }
+                if matches!(Self::availability(&path), OutOfDate | NotFound | Unreadable) {
                     let _ = self.try_gen_py_decl_file(__name__);
                 }
-                if self.is_pystd_main_module(path.as_path())
+                if is_pystd_main_module(path.as_path())
                     && !BUILTIN_PYTHON_MODS.contains(&&__name__[..])
                 {
                     let err = TyCheckError::module_env_error(
@@ -1891,7 +2052,10 @@ impl Context {
     }
 
     fn try_gen_py_decl_file(&self, __name__: &Str) -> Result<PathBuf, ()> {
-        if let Ok(path) = self.cfg.input.local_py_resolve(Path::new(&__name__[..])) {
+        if let Ok(path) = self.cfg.input.resolve_py(Path::new(&__name__[..])) {
+            if self.cfg.input.path() == Some(path.as_path()) {
+                return Ok(path);
+            }
             let (out, err) = if self.cfg.mode == ErgMode::LanguageServer || self.cfg.quiet_repl {
                 (Stdio::null(), Stdio::null())
             } else {
@@ -1901,7 +2065,7 @@ impl Context {
             // It can convert a Python script to an Erg AST for code analysis.
             // There is also an option to output the analysis result as `d.er`. Use this if the system have pylyzer installed.
             // A type definition file may be generated even if not all type checks succeed.
-            if let Ok(_status) = Command::new("pylyzer")
+            if let Ok(status) = Command::new("pylyzer")
                 .arg("--dump-decl")
                 .arg(path.to_str().unwrap())
                 .stdout(out)
@@ -1909,8 +2073,16 @@ impl Context {
                 .spawn()
                 .and_then(|mut child| child.wait())
             {
-                if let Some(path) = Self::resolve_decl_path(&self.cfg, Path::new(&__name__[..])) {
-                    return Ok(path);
+                if let Some(path) = self.cfg.input.resolve_decl_path(Path::new(&__name__[..])) {
+                    let size = metadata(&path).unwrap().len();
+                    // if pylyzer crashed
+                    if !status.success() && size == 0 {
+                        // The presence of the decl file indicates that the analysis is in progress or completed,
+                        // so if pylyzer crashes in the middle of the analysis, delete the file.
+                        remove_file(&path).unwrap();
+                    } else {
+                        return Ok(path);
+                    }
                 }
             }
         }
@@ -1919,7 +2091,11 @@ impl Context {
 
     fn import_py_mod(&self, __name__: &Str, loc: &impl Locational) -> CompileResult<PathBuf> {
         let py_mod_cache = self.py_mod_cache();
-        let path = self.get_path(__name__, loc)?;
+        let path = self.get_decl_path(__name__, loc)?;
+        // module itself
+        if self.cfg.input.path() == Some(path.as_path()) {
+            return Ok(path);
+        }
         if let Some(referrer) = self.cfg.input.path() {
             let graph = &self.shared.as_ref().unwrap().graph;
             graph.inc_ref(referrer, path.clone());
@@ -1927,8 +2103,21 @@ impl Context {
         if py_mod_cache.get(&path).is_some() {
             return Ok(path);
         }
+        self.build_decl_mod(path, __name__, loc)
+    }
+
+    fn build_decl_mod(
+        &self,
+        path: PathBuf,
+        __name__: &Str,
+        loc: &impl Locational,
+    ) -> CompileResult<PathBuf> {
+        let py_mod_cache = self.py_mod_cache();
         let mut cfg = self.cfg.inherit(path.clone());
-        let src = cfg.input.read();
+        let src = cfg
+            .input
+            .try_read()
+            .map_err(|_| self.import_err(line!(), __name__, loc))?;
         let mut builder = HIRBuilder::new_with_cache(
             cfg,
             self.mod_name(&path),
@@ -1938,19 +2127,21 @@ impl Context {
             Ok(artifact) => {
                 let ctx = builder.pop_mod_ctx().unwrap();
                 py_mod_cache.register(path.clone(), Some(artifact.object), ctx);
+                Ok(path)
             }
             Err(artifact) => {
                 if let Some(hir) = artifact.object {
                     py_mod_cache.register(path, Some(hir), builder.pop_mod_ctx().unwrap());
                 }
-                return Err(artifact.errors);
+                Err(artifact.errors)
             }
         }
-        Ok(path)
     }
 
     pub fn del(&mut self, ident: &hir::Identifier) -> CompileResult<()> {
-        let is_const = self.rec_get_const_obj(ident.inspect()).is_some();
+        let is_const = self
+            .rec_get_var_info(&ident.raw, crate::AccessKind::Name, &self.cfg.input, self)
+            .map_ok_or(false, |vi| vi.muty.is_const());
         let is_builtin = self
             .get_builtins()
             .unwrap()
@@ -2021,7 +2212,9 @@ impl Context {
     }
 
     pub(crate) fn inc_ref<L: Locational>(&self, vi: &VarInfo, name: &L, namespace: &Context) {
-        self.index().inc_ref(vi, namespace.absolutize(name.loc()));
+        if let Some(index) = self.opt_index() {
+            index.inc_ref(vi, namespace.absolutize(name.loc()));
+        }
     }
 
     pub(crate) fn inc_ref_acc(&self, acc: &ast::Accessor, namespace: &Context) -> bool {

@@ -38,6 +38,7 @@ py_compat = ["erg_common/py_compat"]
 els = ["erg_common/els"]
 no_std = ["erg_common/no_std"]
 full-repl = ["erg_common/full-repl"]
+experimental = ["erg_common/experimental", "erg_parser/experimental"]
 
 [dependencies]
 erg_common = { workspace = true }

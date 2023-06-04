@@ -1,8 +1,8 @@
 //! provides type-comparison
 use std::option::Option; // conflicting to Type::Option
 
+use erg_common::consts::DEBUG_MODE;
 use erg_common::dict::Dict;
-use erg_common::error::MultiErrorDisplay;
 use erg_common::style::colors::DEBUG_ERROR;
 use erg_common::traits::StructuralEq;
 use erg_common::{assume_unreachable, log};
@@ -11,7 +11,7 @@ use erg_common::{Str, Triple};
 use crate::context::initialize::const_func::sub_tpdict_get;
 use crate::ty::constructors::{and, bounded, not, or, poly};
 use crate::ty::free::{Constraint, FreeKind, FreeTyVar};
-use crate::ty::typaram::{OpKind, TyParam, TyParamOrdering};
+use crate::ty::typaram::{TyParam, TyParamOrdering};
 use crate::ty::value::ValueObj;
 use crate::ty::value::ValueObj::Inf;
 use crate::ty::{Field, GuardType, Predicate, RefinementType, SubrKind, SubrType, Type};
@@ -83,7 +83,7 @@ impl Context {
                 FreeKind::Unbound { constraint, .. }
                 | FreeKind::NamedUnbound { constraint, .. } => {
                     let t = constraint.get_type().unwrap();
-                    if cfg!(feature = "debug") && t == &Uninited {
+                    if DEBUG_MODE && t == &Uninited {
                         panic!("Uninited type variable: {fv}");
                     }
                     let other_t = self.type_of(other);
@@ -260,8 +260,8 @@ impl Context {
             if typ.has_qvar() {
                 if let Err(err) = self.substitute_typarams(typ, rhs) {
                     Self::undo_substitute_typarams(typ);
-                    if cfg!(feature = "debug") {
-                        panic!("err: {err}");
+                    if DEBUG_MODE {
+                        panic!("{typ} / {rhs}: err: {err}");
                     }
                 }
             }
@@ -297,7 +297,7 @@ impl Context {
             if typ.has_qvar() {
                 if let Err(err) = self.substitute_typarams(typ, rhs) {
                     Self::undo_substitute_typarams(typ);
-                    if cfg!(feature = "debug") {
+                    if DEBUG_MODE {
                         panic!("err: {err}");
                     }
                 }
@@ -375,7 +375,9 @@ impl Context {
                     && var_params_judge
                     && default_check() // contravariant
             }
-            // ?T(<: Nat) !:> ?U(:> Int)
+            // ?T(<: Int) :> ?U(:> Nat)
+            // ?T(<: Int) :> ?U(:> Int)
+            // ?T(<: Nat) !:> ?U(:> Int) (if the upper bound of LHS is smaller than the lower bound of RHS, LHS cannot not be a supertype)
             // ?T(<: Nat) :> ?U(<: Int) (?U can be smaller than ?T)
             (FreeVar(lfv), FreeVar(rfv)) => match (lfv.get_subsup(), rfv.get_subsup()) {
                 (Some((_, l_sup)), Some((r_sub, _))) => self.supertype_of(&l_sup, &r_sub),
@@ -409,60 +411,94 @@ impl Context {
                 }
                 false
             }
+            (
+                ProjCall {
+                    lhs: l,
+                    attr_name,
+                    args,
+                },
+                _,
+            ) => {
+                if let Ok(evaled) = self.eval_proj_call(
+                    *l.clone(),
+                    attr_name.clone(),
+                    args.clone(),
+                    self.level,
+                    &(),
+                ) {
+                    if lhs != &evaled {
+                        return self.supertype_of(&evaled, rhs);
+                    }
+                }
+                false
+            }
+            (
+                _,
+                ProjCall {
+                    lhs: r,
+                    attr_name,
+                    args,
+                },
+            ) => {
+                if let Ok(evaled) = self.eval_proj_call(
+                    *r.clone(),
+                    attr_name.clone(),
+                    args.clone(),
+                    self.level,
+                    &(),
+                ) {
+                    if &evaled != rhs {
+                        return self.supertype_of(lhs, &evaled);
+                    }
+                }
+                false
+            }
             // true if it can be a supertype, false if it cannot (due to type constraints)
             // No type constraints are imposed here, as subsequent type decisions are made according to the possibilities
             // ?P(<: Mul ?P) :> Int
             //   => ?P.undoable_link(Int)
             //   => Mul Int :> Int
             (FreeVar(lfv), rhs) => {
-                match &*lfv.borrow() {
-                    FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => {
-                        self.supertype_of(t, rhs)
-                    }
-                    FreeKind::Unbound { constraint: _, .. }
-                    | FreeKind::NamedUnbound { constraint: _, .. } => {
-                        if let Some((_sub, sup)) = lfv.get_subsup() {
-                            lfv.forced_undoable_link(rhs);
-                            let res = self.supertype_of(&sup, rhs);
-                            lfv.undo();
-                            res
-                        } else if let Some(lfvt) = lfv.get_type() {
-                            // e.g. lfv: ?L(: Int) is unreachable
-                            // but
-                            // ?L(: Array(Type, 3)) :> Array(Int, 3)
-                            //   => Array(Type, 3) :> Array(Typeof(Int), 3)
-                            //   => true
-                            let rhs_meta = self.meta_type(rhs);
-                            self.supertype_of(&lfvt, &rhs_meta)
-                        } else {
-                            // constraint is uninitalized
-                            log!(err "constraint is uninitialized: {lfv}/{rhs}");
-                            true
-                        }
-                    }
+                if let FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } = &*lfv.borrow() {
+                    return self.supertype_of(t, rhs);
+                }
+                if let Some((_sub, sup)) = lfv.get_subsup() {
+                    lfv.undoable_link(rhs);
+                    let res = self.supertype_of(&sup, rhs);
+                    lfv.undo();
+                    res
+                } else if let Some(lfvt) = lfv.get_type() {
+                    // e.g. lfv: ?L(: Int) is unreachable
+                    // but
+                    // ?L(: Array(Type, 3)) :> Array(Int, 3)
+                    //   => Array(Type, 3) :> Array(Typeof(Int), 3)
+                    //   => true
+                    let rhs_meta = self.meta_type(rhs);
+                    self.supertype_of(&lfvt, &rhs_meta)
+                } else {
+                    // constraint is uninitialized
+                    log!(err "constraint is uninitialized: {lfv}/{rhs}");
+                    true
                 }
             }
-            (lhs, FreeVar(rfv)) => match &*rfv.borrow() {
-                FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => {
-                    self.supertype_of(lhs, t)
+            (lhs, FreeVar(rfv)) => {
+                if let FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } = &*rfv.borrow() {
+                    return self.supertype_of(lhs, t);
                 }
-                FreeKind::Unbound { constraint: _, .. }
-                | FreeKind::NamedUnbound { constraint: _, .. } => {
-                    if let Some((sub, _sup)) = rfv.get_subsup() {
-                        rfv.forced_undoable_link(lhs);
-                        let res = self.supertype_of(lhs, &sub);
-                        rfv.undo();
-                        res
-                    } else if let Some(rfvt) = rfv.get_type() {
-                        let lhs_meta = self.meta_type(lhs);
-                        self.supertype_of(&lhs_meta, &rfvt)
-                    } else {
-                        // constraint is uninitalized
-                        log!(err "constraint is uninitialized: {lhs}/{rfv}");
-                        true
-                    }
+                if let Some((sub, _sup)) = rfv.get_subsup() {
+                    rfv.undoable_link(lhs);
+                    let res = self.supertype_of(lhs, &sub);
+                    rfv.undo();
+                    res
+                } else if let Some(rfvt) = rfv.get_type() {
+                    let lhs_meta = self.meta_type(lhs);
+                    self.supertype_of(&lhs_meta, &rfvt)
+                } else {
+                    // constraint is uninitialized
+                    log!(err "constraint is uninitialized: {lhs}/{rfv}");
+                    true
                 }
-            },
+            }
             (Record(lhs), Record(rhs)) => {
                 for (l_k, l_t) in lhs.iter() {
                     if let Some((r_k, r_t)) = rhs.get_key_value(l_k) {
@@ -544,7 +580,10 @@ impl Context {
             (Refinement(l), Refinement(r)) => {
                 // no relation or l.t <: r.t (not equal)
                 if !self.supertype_of(&l.t, &r.t) {
-                    return false;
+                    let refined = l.t.clone().into_refinement();
+                    if !self.supertype_of(&refined.t, &r.t) {
+                        return false;
+                    }
                 }
                 self.is_super_pred_of(&l.pred, &r.pred)
             }
@@ -565,6 +604,12 @@ impl Context {
             // Bool :> {1} == true
             // Bool :> {2} == false
             (l, Refinement(r)) => {
+                // Type / {S: Set(Str) | S == {"a", "b"}}
+                if let Predicate::Equal { rhs, .. } = r.pred.as_ref() {
+                    if self.subtype_of(l, &Type) && self.convert_tp_into_type(rhs.clone()).is_ok() {
+                        return true;
+                    }
+                }
                 if self.supertype_of(l, &r.t) {
                     return true;
                 }
@@ -594,12 +639,14 @@ impl Context {
             // (|T: Type| T -> T) !<: Obj -> Never
             (Quantified(_), r) => {
                 let Ok(inst) = self.instantiate_dummy(lhs.clone()) else {
+                    log!(err "instantiation failed: {lhs}");
                     return false;
                 };
                 self.sub_unify(r, &inst, &(), None).is_ok()
             }
             (l, Quantified(_)) => {
                 let Ok(inst) = self.instantiate_dummy(rhs.clone()) else {
+                    log!(err "instantiation failed: {rhs}");
                     return false;
                 };
                 self.sub_unify(&inst, l, &(), None).is_ok()
@@ -671,12 +718,9 @@ impl Context {
                     let rlen = rparams[1].clone();
                     self.supertype_of(&lt, &rt)
                         && self
-                            .eval_bin_tp(OpKind::Le, llen, rlen)
-                            .map(|tp| matches!(tp, TyParam::Value(ValueObj::Bool(true))))
-                            .unwrap_or_else(|e| {
-                                e.fmt_all_stderr();
-                                todo!();
-                            })
+                            .try_cmp(&llen, &rlen)
+                            .map(|ord| ord.canbe_eq() || ord.canbe_lt())
+                            .unwrap_or(false)
                 } else {
                     self.poly_supertype_of(lhs, lparams, rparams)
                 }
@@ -796,6 +840,9 @@ impl Context {
             },
             (TyParam::Array(sup), TyParam::Array(sub))
             | (TyParam::Tuple(sup), TyParam::Tuple(sub)) => {
+                if sup.len() > sub.len() {
+                    return false;
+                }
                 for (sup_p, sub_p) in sup.iter().zip(sub.iter()) {
                     if !self.supertype_of_tp(sup_p, sub_p, variance) {
                         return false;
@@ -822,48 +869,11 @@ impl Context {
                 }
                 true
             }
-            (TyParam::Value(ValueObj::Dict(sup_d)), TyParam::Dict(sub_d)) => {
-                if sup_d.len() > sub_d.len() {
-                    return false;
-                }
-                let sup_d = sup_d
-                    .iter()
-                    .map(|(k, v)| (TyParam::from(k.clone()), TyParam::from(v.clone())))
-                    .collect();
-                self.supertype_of_tp(&TyParam::Dict(sup_d), sub_p, variance)
-            }
-            (TyParam::Dict(sup_d), TyParam::Value(ValueObj::Dict(sub_d))) => {
-                if sup_d.len() > sub_d.len() {
-                    return false;
-                }
-                let sub_d = sub_d
-                    .iter()
-                    .map(|(k, v)| (TyParam::from(k.clone()), TyParam::from(v.clone())))
-                    .collect();
-                self.supertype_of_tp(sup_p, &TyParam::Dict(sub_d), variance)
-            }
             (TyParam::Type(sup), TyParam::Type(sub)) => match variance {
                 Variance::Contravariant => self.subtype_of(sup, sub),
                 Variance::Covariant => self.supertype_of(sup, sub),
                 Variance::Invariant => self.same_type_of(sup, sub),
             },
-            (TyParam::Type(sup), TyParam::Value(ValueObj::Type(sub))) => match variance {
-                Variance::Contravariant => self.subtype_of(sup, sub.typ()),
-                Variance::Covariant => self.supertype_of(sup, sub.typ()),
-                Variance::Invariant => self.same_type_of(sup, sub.typ()),
-            },
-            (TyParam::Value(ValueObj::Type(sup)), TyParam::Type(sub)) => match variance {
-                Variance::Contravariant => self.subtype_of(sup.typ(), sub),
-                Variance::Covariant => self.supertype_of(sup.typ(), sub),
-                Variance::Invariant => self.same_type_of(sup.typ(), sub),
-            },
-            (TyParam::Value(ValueObj::Type(sup)), TyParam::Value(ValueObj::Type(sub))) => {
-                match variance {
-                    Variance::Contravariant => self.subtype_of(sup.typ(), sub.typ()),
-                    Variance::Covariant => self.supertype_of(sup.typ(), sub.typ()),
-                    Variance::Invariant => self.same_type_of(sup.typ(), sub.typ()),
-                }
-            }
             (TyParam::FreeVar(fv), _) if fv.is_unbound() => {
                 let Some(fv_t) = fv.get_type() else {
                     return false;
@@ -883,7 +893,33 @@ impl Context {
                     self.same_type_of(&fv_t, &sub_t) || self.same_type_of(&fv_t, &sub_t.derefine())
                 }
             }
-            _ => self.eq_tp(sup_p, sub_p),
+            (TyParam::Value(sup), _) => {
+                if let Ok(sup) = Self::convert_value_into_tp(sup.clone()) {
+                    self.supertype_of_tp(&sup, sub_p, variance)
+                } else {
+                    self.eq_tp(sup_p, sub_p)
+                }
+            }
+            (_, TyParam::Value(sub)) => {
+                if let Ok(sub) = Self::convert_value_into_tp(sub.clone()) {
+                    self.supertype_of_tp(sup_p, &sub, variance)
+                } else {
+                    self.eq_tp(sup_p, sub_p)
+                }
+            }
+            _ => {
+                if let (Ok(sup), Ok(sub)) = (
+                    self.convert_tp_into_type(sup_p.clone()),
+                    self.convert_tp_into_type(sub_p.clone()),
+                ) {
+                    return match variance {
+                        Variance::Contravariant => self.subtype_of(&sup, &sub),
+                        Variance::Covariant => self.supertype_of(&sup, &sub),
+                        Variance::Invariant => self.same_type_of(&sup, &sub),
+                    };
+                }
+                self.eq_tp(sup_p, sub_p)
+            }
         }
     }
 
@@ -928,6 +964,24 @@ impl Context {
                         Some(Any)
                     } else {
                         self.try_cmp(&evaled, r)
+                    }
+                } else { Some(Any) }
+            },
+            (l, TyParam::BinOp{ op, lhs, rhs }) => {
+                if let Ok(evaled) = self.eval_bin_tp(*op, lhs.as_ref().clone(), rhs.as_ref().clone()) {
+                    if &evaled == r {
+                        Some(Any)
+                    } else {
+                        self.try_cmp(l, &evaled)
+                    }
+                } else { Some(Any) }
+            },
+            (l, TyParam::UnaryOp { op, val }) => {
+                if let Ok(evaled) = self.eval_unary_tp(*op, val.as_ref().clone()) {
+                    if &evaled == r {
+                        Some(Any)
+                    } else {
+                        self.try_cmp(l, &evaled)
                     }
                 } else { Some(Any) }
             },
@@ -1008,6 +1062,14 @@ impl Context {
             }
             (l, r @ (TyParam::Erased(_) | TyParam::FreeVar(_))) =>
                 self.try_cmp(r, l).map(|ord| ord.reverse()),
+            (TyParam::App { name, args }, r) => {
+                self.eval_app(name.clone(), args.clone()).ok()
+                    .and_then(|tp| self.try_cmp(&tp, r))
+            }
+            (l, TyParam::App { name, args }) => {
+                self.eval_app(name.clone(), args.clone()).ok()
+                    .and_then(|tp| self.try_cmp(l, &tp))
+            }
             (_l, _r) => {
                 erg_common::fmt_dbg!(_l, _r,);
                 None
@@ -1017,6 +1079,11 @@ impl Context {
 
     /// Returns union of two types (`A or B`).
     /// If `A` and `B` have a subtype relationship, it is equal to `max(A, B)`.
+    /// ```erg
+    /// union(Nat, Int) == Int
+    /// union(Int, Str) == Int or Str
+    /// union(?T(<: Str), ?U(<: Int)) == ?T or ?U
+    /// ```
     pub(crate) fn union(&self, lhs: &Type, rhs: &Type) -> Type {
         if lhs == rhs {
             return lhs.clone();
@@ -1188,6 +1255,8 @@ impl Context {
             },
             (_, Not(r)) => self.diff(lhs, r),
             (Not(l), _) => self.diff(rhs, l),
+            // overloading
+            (l, r) if l.is_subr() && r.is_subr() => and(lhs.clone(), rhs.clone()),
             _ => self.simple_intersection(lhs, rhs),
         }
     }
@@ -1275,7 +1344,13 @@ impl Context {
             Predicate::And(lhs, rhs) => {
                 self.intersection(&self.get_pred_type(lhs), &self.get_pred_type(rhs))
             }
-            Predicate::Const(name) => todo!("get_pred_type({name})"),
+            Predicate::Const(name) => {
+                if let Some(value) = self.rec_get_const_obj(name) {
+                    value.class()
+                } else {
+                    todo!("get_pred_type({name})")
+                }
+            }
         }
     }
 
@@ -1380,8 +1455,8 @@ impl Context {
                 self.is_super_pred_of(l, rhs) && self.is_super_pred_of(r, rhs)
             }
             (lhs, rhs) => {
-                if cfg!(feature = "denig") {
-                    todo!("{lhs}/{rhs}");
+                if DEBUG_MODE {
+                    log!("{lhs}/{rhs}");
                 }
                 false
             }

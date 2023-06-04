@@ -461,6 +461,14 @@ impl<T> FreeKind<T> {
         }
     }
 
+    /// SAFETY: carefully ensure that `to` is not a freevar equal to `self`
+    ///
+    /// e.g.
+    /// ```erg
+    /// x = ?T
+    /// x.replace(Type::Free(?T))
+    /// x == (((...)))
+    /// ```
     pub fn replace(&mut self, to: T) {
         match self {
             // REVIEW: What if `t` is also an unbound variable?
@@ -541,8 +549,10 @@ impl PartialEq for Free<Type> {
         if let Some((sub, sup)) = self.get_subsup() {
             if let Some((other_sub, other_sup)) = other.get_subsup() {
                 self.dummy_link();
+                other.dummy_link();
                 let res = sub == other_sub && sup == other_sup;
                 self.undo();
+                other.undo();
                 return res;
             }
         } else if let Some((self_t, other_t)) = self.get_type().zip(other.get_type()) {
@@ -591,9 +601,11 @@ impl<T: LimitedDisplay> LimitedDisplay for Free<T> {
 }
 
 impl<T> Free<T> {
+    #[track_caller]
     pub fn borrow(&self) -> Ref<'_, FreeKind<T>> {
         self.0.borrow()
     }
+    #[track_caller]
     pub fn borrow_mut(&self) -> RefMut<'_, FreeKind<T>> {
         self.0.borrow_mut()
     }
@@ -603,15 +615,6 @@ impl<T> Free<T> {
     }
     pub fn forced_as_ref(&self) -> &FreeKind<T> {
         unsafe { self.as_ptr().as_ref() }.unwrap()
-    }
-    pub fn force_replace(&self, new: FreeKind<T>) {
-        // prevent linking to self
-        if addr_eq!(*self.borrow(), new) {
-            return;
-        }
-        unsafe {
-            *self.0.as_ptr() = new;
-        }
     }
     pub fn can_borrow(&self) -> bool {
         self.0.can_borrow()
@@ -663,25 +666,24 @@ impl<T: Clone> Free<T> {
 
 impl HasLevel for Free<Type> {
     fn set_level(&self, level: Level) {
-        match unsafe { &mut *self.as_ptr() as &mut FreeKind<Type> } {
+        match &mut *self.borrow_mut() {
             FreeKind::Unbound { lev, .. } | FreeKind::NamedUnbound { lev, .. } => {
                 if addr_eq!(*lev, level) {
                     return;
                 }
                 *lev = level;
-                if let Some((sub, sup)) = self.get_subsup() {
-                    self.dummy_link();
-                    sub.set_level(level);
-                    sup.set_level(level);
-                    self.undo();
-                } else if let Some(t) = self.get_type() {
-                    t.set_level(level);
-                }
-            }
-            FreeKind::Linked(t) => {
-                t.set_level(level);
             }
             _ => {}
+        }
+        if let Some(linked) = self.get_linked() {
+            linked.set_level(level);
+        } else if let Some((sub, sup)) = self.get_subsup() {
+            self.dummy_link();
+            sub.set_level(level);
+            sup.set_level(level);
+            self.undo();
+        } else if let Some(t) = self.get_type() {
+            t.set_level(level);
         }
     }
 
@@ -695,20 +697,19 @@ impl HasLevel for Free<Type> {
 
 impl HasLevel for Free<TyParam> {
     fn set_level(&self, level: Level) {
-        match unsafe { &mut *self.as_ptr() as &mut FreeKind<TyParam> } {
+        match &mut *self.borrow_mut() {
             FreeKind::Unbound { lev, .. } | FreeKind::NamedUnbound { lev, .. } => {
                 if addr_eq!(*lev, level) {
                     return;
                 }
                 *lev = level;
-                if let Some(t) = self.get_type() {
-                    t.set_level(level);
-                }
-            }
-            FreeKind::Linked(t) => {
-                t.set_level(level);
             }
             _ => {}
+        }
+        if let Some(linked) = self.get_linked() {
+            linked.set_level(level);
+        } else if let Some(t) = self.get_type() {
+            t.set_level(level);
         }
     }
 
@@ -746,6 +747,7 @@ impl<T> Free<T> {
         Self(Shared::new(FreeKind::Linked(t)))
     }
 
+    #[track_caller]
     pub fn replace(&self, to: FreeKind<T>) {
         // prevent linking to self
         if self.is_linked() && addr_eq!(*self.borrow(), to) {
@@ -756,6 +758,7 @@ impl<T> Free<T> {
 
     /// returns linked type (panic if self is unbounded)
     /// NOTE: check by `.is_linked` before call
+    #[track_caller]
     pub fn crack(&self) -> Ref<'_, T> {
         Ref::map(self.borrow(), |f| match f {
             FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => t,
@@ -765,6 +768,7 @@ impl<T> Free<T> {
         })
     }
 
+    #[track_caller]
     pub fn crack_constraint(&self) -> Ref<'_, Constraint> {
         Ref::map(self.borrow(), |f| match f {
             FreeKind::Linked(_) | FreeKind::UndoableLinked { .. } => panic!("the value is linked"),
@@ -798,10 +802,17 @@ impl<T> Free<T> {
             }
         }
     }
+
+    pub fn addr_eq(&self, other: &Self) -> bool {
+        self.as_ptr() == other.as_ptr()
+    }
 }
 
 impl<T: Clone> Free<T> {
-    pub fn link(&self, to: &T) {
+    /// SAFETY: use `Type/TyParam::link` instead of this.
+    /// This method may cause circular references.
+    #[track_caller]
+    pub(super) fn link(&self, to: &T) {
         // prevent linking to self
         if self.is_linked() && addr_eq!(*self.crack(), *to) {
             return;
@@ -809,19 +820,7 @@ impl<T: Clone> Free<T> {
         self.borrow_mut().replace(to.clone());
     }
 
-    /// NOTE: Do not use this except to rewrite circular references.
-    /// No reference to any type variable may be left behind when rewriting.
-    /// However, `get_subsup` is safe because it does not return references.
-    pub fn forced_link(&self, to: &T) {
-        // prevent linking to self
-        if self.is_linked() && addr_eq!(*self.crack(), *to) {
-            return;
-        }
-        unsafe {
-            self.as_ptr().as_mut().unwrap().replace(to.clone());
-        }
-    }
-
+    #[track_caller]
     pub fn undoable_link(&self, to: &T) {
         if self.is_linked() && addr_eq!(*self.crack(), *to) {
             panic!("link to self");
@@ -834,29 +833,12 @@ impl<T: Clone> Free<T> {
         *self.borrow_mut() = new;
     }
 
-    /// NOTE: Do not use this except to rewrite circular references.
-    /// No reference to any type variable may be left behind when rewriting.
-    /// However, `get_subsup` is safe because it does not return references.
-    pub fn forced_undoable_link(&self, to: &T) {
-        if self.is_linked() && addr_eq!(*self.crack(), *to) {
-            panic!("link to self");
-        }
-        let prev = self.clone_inner();
-        let new = FreeKind::UndoableLinked {
-            t: to.clone(),
-            previous: Box::new(prev),
-        };
-        self.force_replace(new);
-    }
-
     pub fn undo(&self) {
-        match &*self.borrow() {
-            FreeKind::UndoableLinked { previous, .. } => {
-                let prev = *previous.clone();
-                self.force_replace(prev);
-            }
+        let prev = match &*self.borrow() {
+            FreeKind::UndoableLinked { previous, .. } => *previous.clone(),
             _other => panic!("cannot undo"),
-        }
+        };
+        self.replace(prev);
     }
 
     pub fn unwrap_unbound(self) -> (Option<Str>, usize, Constraint) {
@@ -883,16 +865,49 @@ impl<T: Clone> Free<T> {
     }
 
     pub fn get_linked(&self) -> Option<T> {
-        match &*self.borrow() {
-            FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => Some(t.clone()),
-            FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => None,
+        if !self.is_linked() {
+            None
+        } else {
+            Some(self.crack().clone())
         }
     }
 
-    pub fn get_previous(&self) -> Option<FreeKind<T>> {
-        match &*self.borrow() {
-            FreeKind::UndoableLinked { previous, .. } => Some(*previous.clone()),
-            _other => None,
+    #[track_caller]
+    pub fn get_linked_ref(&self) -> Option<Ref<T>> {
+        if !self.is_linked() {
+            None
+        } else {
+            let mapped = Ref::map(self.borrow(), |f| match f {
+                FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => t,
+                FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => unreachable!(),
+            });
+            Some(mapped)
+        }
+    }
+
+    #[track_caller]
+    pub fn get_linked_refmut(&self) -> Option<RefMut<T>> {
+        if !self.is_linked() {
+            None
+        } else {
+            let mapped = RefMut::map(self.borrow_mut(), |f| match f {
+                FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => t,
+                FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => unreachable!(),
+            });
+            Some(mapped)
+        }
+    }
+
+    #[track_caller]
+    pub fn get_previous(&self) -> Option<RefMut<Box<FreeKind<T>>>> {
+        if !self.is_undoable_linked() {
+            None
+        } else {
+            let mapped = RefMut::map(self.borrow_mut(), |f| match f {
+                FreeKind::UndoableLinked { previous, .. } => previous,
+                _ => unreachable!(),
+            });
+            Some(mapped)
         }
     }
 
@@ -906,7 +921,7 @@ impl<T: Clone> Free<T> {
 
 impl<T: Default + Clone> Free<T> {
     pub fn dummy_link(&self) {
-        self.forced_undoable_link(&T::default());
+        self.undoable_link(&T::default());
     }
 }
 
@@ -955,7 +970,7 @@ impl<T: CanbeFree> Free<T> {
 
     /// if `in_inst_or_gen` is true, constraint will be updated forcibly
     pub fn update_constraint(&self, new_constraint: Constraint, in_inst_or_gen: bool) {
-        match unsafe { &mut *self.as_ptr() as &mut FreeKind<T> } {
+        match &mut *self.borrow_mut() {
             FreeKind::Unbound {
                 lev, constraint, ..
             }
@@ -1001,13 +1016,9 @@ impl Free<TyParam> {
     where
         F: Fn(TyParam) -> TyParam,
     {
-        match unsafe { &mut *self.as_ptr() as &mut FreeKind<TyParam> } {
-            FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => {
-                panic!("the value is unbounded")
-            }
-            FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => {
-                *t = f(mem::take(t));
-            }
+        if let Some(mut linked) = self.get_linked_refmut() {
+            let mapped = f(mem::take(&mut *linked));
+            *linked = mapped;
         }
     }
 }

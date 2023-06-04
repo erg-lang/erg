@@ -3,6 +3,7 @@ use std::borrow::Borrow;
 use std::fmt;
 use std::fmt::Write as _;
 
+use erg_common::consts::ERG_MODE;
 use erg_common::error::Location;
 use erg_common::set::Set as HashSet;
 // use erg_common::dict::Dict as HashMap;
@@ -1066,15 +1067,58 @@ impl SetWithLength {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SetComprehension {
+    pub l_brace: Token,
+    pub r_brace: Token,
+    pub var: Token,
+    pub op: Token, // <- or :
+    pub iter: Box<Expr>,
+    pub pred: Box<Expr>,
+}
+
+impl NestedDisplay for SetComprehension {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(
+            f,
+            "{{{} {} {} | {}}}",
+            self.var, self.op, self.iter, self.pred
+        )
+    }
+}
+
+impl_display_from_nested!(SetComprehension);
+impl_locational!(SetComprehension, l_brace, r_brace);
+
+impl SetComprehension {
+    pub fn new(
+        l_brace: Token,
+        r_brace: Token,
+        var: Token,
+        op: Token,
+        iter: Expr,
+        pred: Expr,
+    ) -> Self {
+        Self {
+            l_brace,
+            r_brace,
+            var,
+            op,
+            iter: Box::new(iter),
+            pred: Box::new(pred),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Set {
     Normal(NormalSet),
     WithLength(SetWithLength),
-    // Comprehension(SetComprehension),
+    Comprehension(SetComprehension),
 }
 
-impl_nested_display_for_enum!(Set; Normal, WithLength);
-impl_display_for_enum!(Set; Normal, WithLength);
-impl_locational_for_enum!(Set; Normal, WithLength);
+impl_nested_display_for_enum!(Set; Normal, WithLength, Comprehension);
+impl_display_for_enum!(Set; Normal, WithLength, Comprehension);
+impl_locational_for_enum!(Set; Normal, WithLength, Comprehension);
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct BinOp {
@@ -1566,22 +1610,22 @@ impl ConstArrayWithLength {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct ConstSet {
+pub struct ConstNormalSet {
     pub l_brace: Token,
     pub r_brace: Token,
     pub elems: ConstArgs,
 }
 
-impl NestedDisplay for ConstSet {
+impl NestedDisplay for ConstNormalSet {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         write!(f, "{{{}}}", self.elems)
     }
 }
 
-impl_display_from_nested!(ConstSet);
-impl_locational!(ConstSet, l_brace, elems, r_brace);
+impl_display_from_nested!(ConstNormalSet);
+impl_locational!(ConstNormalSet, l_brace, elems, r_brace);
 
-impl ConstSet {
+impl ConstNormalSet {
     pub fn new(l_brace: Token, r_brace: Token, elems: ConstArgs) -> Self {
         Self {
             l_brace,
@@ -1590,12 +1634,81 @@ impl ConstSet {
         }
     }
 
-    pub fn downgrade(self) -> Set {
-        Set::Normal(NormalSet::new(
+    pub fn downgrade(self) -> NormalSet {
+        NormalSet::new(self.l_brace, self.r_brace, self.elems.downgrade())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ConstSetComprehension {
+    pub l_brace: Token,
+    pub r_brace: Token,
+    pub var: Token,
+    pub op: Token,
+    pub iter: Box<ConstExpr>,
+    pub pred: Box<ConstExpr>,
+}
+
+impl NestedDisplay for ConstSetComprehension {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(
+            f,
+            "{{{} {} {} | {}}}",
+            self.var, self.op, self.iter, self.pred
+        )
+    }
+}
+
+impl_display_from_nested!(ConstSetComprehension);
+impl_locational!(ConstSetComprehension, l_brace, var, r_brace);
+
+impl ConstSetComprehension {
+    pub fn new(
+        l_brace: Token,
+        r_brace: Token,
+        var: Token,
+        op: Token,
+        iter: ConstExpr,
+        pred: ConstExpr,
+    ) -> Self {
+        Self {
+            l_brace,
+            r_brace,
+            var,
+            op,
+            iter: Box::new(iter),
+            pred: Box::new(pred),
+        }
+    }
+
+    pub fn downgrade(self) -> SetComprehension {
+        SetComprehension::new(
             self.l_brace,
             self.r_brace,
-            self.elems.downgrade(),
-        ))
+            self.var,
+            self.op,
+            self.iter.downgrade(),
+            self.pred.downgrade(),
+        )
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum ConstSet {
+    Normal(ConstNormalSet),
+    Comprehension(ConstSetComprehension),
+}
+
+impl_nested_display_for_enum!(ConstSet; Normal, Comprehension);
+impl_display_from_nested!(ConstSet);
+impl_locational_for_enum!(ConstSet; Normal, Comprehension);
+
+impl ConstSet {
+    pub fn downgrade(self) -> Set {
+        match self {
+            Self::Normal(normal) => Set::Normal(normal.downgrade()),
+            Self::Comprehension(comp) => Set::Comprehension(comp.downgrade()),
+        }
     }
 }
 
@@ -1980,7 +2093,12 @@ impl_locational_for_enum!(ConstExpr; Lit, Accessor, App, Array, Set, Dict, Tuple
 
 impl ConstExpr {
     pub fn need_to_be_closed(&self) -> bool {
-        matches!(self, Self::BinOp(_) | Self::UnaryOp(_))
+        match self {
+            Self::BinOp(_) | Self::UnaryOp(_) | Self::Lambda(_) | Self::TypeAsc(_) => true,
+            Self::Tuple(tup) => tup.elems.paren.is_none(),
+            Self::App(app) if ERG_MODE => app.args.paren.is_none(),
+            _ => false,
+        }
     }
 
     pub fn downgrade(self) -> Expr {
@@ -2346,9 +2464,14 @@ impl Locational for SubrTypeSpec {
             Location::concat(&self.bounds[0], self.return_t.as_ref())
         } else if let Some(lparen) = &self.lparen {
             Location::concat(lparen, self.return_t.as_ref())
+        } else if let Some(nd_param) = self.non_defaults.first() {
+            Location::concat(nd_param, self.return_t.as_ref())
+        } else if let Some(var_params) = self.var_params.as_deref() {
+            Location::concat(var_params, self.return_t.as_ref())
+        } else if let Some(d_param) = self.defaults.first() {
+            Location::concat(&d_param.param, self.return_t.as_ref())
         } else {
-            // FIXME: only default subrs
-            Location::concat(self.non_defaults.first().unwrap(), self.return_t.as_ref())
+            self.return_t.loc()
         }
     }
 }
@@ -2449,6 +2572,35 @@ impl TupleTypeSpec {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct RefinementTypeSpec {
+    pub var: Token,
+    pub typ: Box<TypeSpec>,
+    pub pred: ConstExpr,
+}
+
+impl fmt::Display for RefinementTypeSpec {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{{{}: {} | {}}}", self.var, self.typ, self.pred)
+    }
+}
+
+impl Locational for RefinementTypeSpec {
+    fn loc(&self) -> Location {
+        Location::concat(&self.var, &self.pred)
+    }
+}
+
+impl RefinementTypeSpec {
+    pub fn new(var: Token, typ: TypeSpec, pred: ConstExpr) -> Self {
+        Self {
+            var,
+            typ: Box::new(typ),
+            pred,
+        }
+    }
+}
+
 /// * Array: `[Int; 3]`, `[Int, Ratio, Complex]`, etc.
 /// * Dict: `[Str: Str]`, etc.
 /// * And (Intersection type): Add and Sub and Mul (== Num), etc.
@@ -2459,6 +2611,7 @@ impl TupleTypeSpec {
 /// * Record: {.into_s: Self.() -> Str }, etc.
 /// * Subr: Int -> Int, Int => None, T.(X) -> Int, etc.
 /// * TypeApp: F|...|
+/// * Refinement: {I: Int | I >= 0}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TypeSpec {
     Infer(Token),
@@ -2479,12 +2632,12 @@ pub enum TypeSpec {
         lhs: ConstExpr,
         rhs: ConstExpr,
     },
-    // Record(),
     Subr(SubrTypeSpec),
     TypeApp {
         spec: Box<TypeSpec>,
         args: TypeAppArgs,
     },
+    Refinement(RefinementTypeSpec),
 }
 
 impl fmt::Display for TypeSpec {
@@ -2522,6 +2675,7 @@ impl fmt::Display for TypeSpec {
             Self::Interval { op, lhs, rhs } => write!(f, "{lhs}{}{rhs}", op.inspect()),
             Self::Subr(s) => write!(f, "{s}"),
             Self::TypeApp { spec, args } => write!(f, "{spec}{args}"),
+            Self::Refinement(r) => write!(f, "{r}"),
         }
     }
 }
@@ -2544,6 +2698,7 @@ impl Locational for TypeSpec {
             Self::Interval { lhs, rhs, .. } => Location::concat(lhs, rhs),
             Self::Subr(s) => s.loc(),
             Self::TypeApp { spec, args } => Location::concat(spec.as_ref(), args),
+            Self::Refinement(r) => r.loc(),
         }
     }
 }
@@ -3708,7 +3863,7 @@ pub struct SubrSignature {
     pub ident: Identifier,
     pub bounds: TypeBoundSpecs,
     pub params: Params,
-    pub return_t_spec: Option<TypeSpec>,
+    pub return_t_spec: Option<TypeSpecWithOp>,
 }
 
 impl NestedDisplay for SubrSignature {
@@ -3754,14 +3909,14 @@ impl SubrSignature {
         ident: Identifier,
         bounds: TypeBoundSpecs,
         params: Params,
-        return_t: Option<TypeSpec>,
+        return_t_spec: Option<TypeSpecWithOp>,
     ) -> Self {
         Self {
             decorators,
             ident,
             bounds,
             params,
-            return_t_spec: return_t,
+            return_t_spec,
         }
     }
 
@@ -3778,7 +3933,7 @@ impl SubrSignature {
 pub struct LambdaSignature {
     pub bounds: TypeBoundSpecs,
     pub params: Params,
-    pub return_t_spec: Option<TypeSpec>,
+    pub return_t_spec: Option<TypeSpecWithOp>,
 }
 
 impl fmt::Display for LambdaSignature {
@@ -3819,7 +3974,7 @@ impl Locational for LambdaSignature {
 impl LambdaSignature {
     pub const fn new(
         params: Params,
-        return_t_spec: Option<TypeSpec>,
+        return_t_spec: Option<TypeSpecWithOp>,
         bounds: TypeBoundSpecs,
     ) -> Self {
         Self {
@@ -3954,7 +4109,7 @@ impl Signature {
     pub fn t_spec(&self) -> Option<&TypeSpec> {
         match self {
             Self::Var(v) => v.t_spec.as_ref().map(|t| &t.t_spec),
-            Self::Subr(c) => c.return_t_spec.as_ref(),
+            Self::Subr(c) => c.return_t_spec.as_ref().map(|t| &t.t_spec),
         }
     }
 
@@ -4350,10 +4505,12 @@ impl Expr {
     }
 
     pub fn need_to_be_closed(&self) -> bool {
-        matches!(
-            self,
-            Expr::BinOp(_) | Expr::UnaryOp(_) | Expr::Lambda(_) | Expr::TypeAscription(_)
-        )
+        match self {
+            Self::BinOp(_) | Self::UnaryOp(_) | Self::Lambda(_) | Self::TypeAscription(_) => true,
+            Self::Tuple(tup) => tup.paren().is_none(),
+            Self::Call(call) if ERG_MODE => call.args.paren.is_none(),
+            _ => false,
+        }
     }
 
     pub fn get_name(&self) -> Option<&Str> {
@@ -4417,6 +4574,17 @@ impl Expr {
 
     pub fn call_expr(self, args: Args) -> Self {
         Self::Call(self.call(args))
+    }
+
+    pub fn call1(self, expr: Expr) -> Self {
+        self.call_expr(Args::pos_only(vec![PosArg::new(expr)], None))
+    }
+
+    pub fn call2(self, expr1: Expr, expr2: Expr) -> Self {
+        self.call_expr(Args::pos_only(
+            vec![PosArg::new(expr1), PosArg::new(expr2)],
+            None,
+        ))
     }
 
     pub fn type_asc(self, t_spec: TypeSpecWithOp) -> TypeAscription {

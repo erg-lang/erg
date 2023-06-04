@@ -21,6 +21,8 @@ ELS is a language server for the [Erg](https://github.com/erg-lang/erg) programm
 - [x] Code actions
   - [x] eliminate unused variables
   - [x] change variable case
+  - [x] extract variables/functions
+  - [x] inline variables
 - [x] Code lens
   - [x] show trait implementations
 

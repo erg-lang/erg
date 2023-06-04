@@ -2,6 +2,7 @@ use erg_common::consts::PYTHON_MODE;
 use erg_common::lang::LanguageCode;
 use erg_common::trim_eliminate_top_indent;
 use erg_compiler::artifact::BuildRunnable;
+use erg_compiler::erg_parser::parse::Parsable;
 use erg_compiler::erg_parser::token::{Token, TokenCategory, TokenKind};
 use erg_compiler::ty::HasType;
 use erg_compiler::varinfo::{AbsLocation, VarInfo};
@@ -78,7 +79,7 @@ macro_rules! next {
     };
 }
 
-impl<Checker: BuildRunnable> Server<Checker> {
+impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     pub(crate) fn handle_hover(&mut self, params: HoverParams) -> ELSResult<Option<Hover>> {
         send_log(format!("hover requested : {params:?}"))?;
         let uri = NormalizedUrl::new(params.text_document_position_params.text_document.uri);
@@ -101,7 +102,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
             match self.get_definition(&uri, &token)? {
                 Some(vi) => {
                     if let Some(line) = vi.def_loc.loc.ln_begin() {
-                        let file_path = vi.def_loc.module.as_ref().unwrap();
+                        let Some(file_path) = vi.def_loc.module.as_ref() else {
+                            return Ok(None);
+                        };
                         let mut code_block = if cfg!(not(windows)) {
                             let relative = file_path
                                 .strip_prefix(&self.home)
@@ -112,15 +115,20 @@ impl<Checker: BuildRunnable> Server<Checker> {
                         } else {
                             // windows' file paths are case-insensitive, so we need to normalize them
                             let lower = file_path.as_os_str().to_ascii_lowercase();
-                            let verbatim_removed = lower.to_str().unwrap().replace("\\\\?\\", "");
+                            let verbatim_removed =
+                                lower.to_str().unwrap_or_default().replace("\\\\?\\", "");
                             let relative = verbatim_removed
                                 .strip_prefix(
-                                    self.home.as_os_str().to_ascii_lowercase().to_str().unwrap(),
+                                    self.home
+                                        .as_os_str()
+                                        .to_ascii_lowercase()
+                                        .to_str()
+                                        .unwrap_or_default(),
                                 )
-                                .unwrap_or_else(|| file_path.as_path().to_str().unwrap())
+                                .unwrap_or_else(|| file_path.as_path().to_str().unwrap_or_default())
                                 .trim_start_matches(['\\', '/']);
                             let relative = relative
-                                .strip_prefix(self.erg_path.to_str().unwrap())
+                                .strip_prefix(self.erg_path.to_str().unwrap_or_default())
                                 .unwrap_or(relative);
                             format!("# {relative}, line {line}\n")
                         };
@@ -180,10 +188,14 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let mut defs = "".to_string();
         for inner_t in vi.t.inner_ts() {
             if let Some(path) = &vi.def_loc.module {
-                let def_uri = util::NormalizedUrl::try_from(path.as_path()).unwrap();
-                let module = {
-                    self.quick_check_file(def_uri.clone()).unwrap();
-                    self.modules.get(&def_uri).unwrap()
+                let Ok(def_uri) = util::NormalizedUrl::try_from(path.as_path()) else {
+                    continue;
+                };
+                let Some(module) = ({
+                    self.quick_check_file(def_uri.clone())?;
+                    self.modules.get(&def_uri)
+                }) else {
+                    continue;
                 };
                 if let Some((_, vi)) = module.context.get_type_info(&inner_t) {
                     if let Some(uri) =

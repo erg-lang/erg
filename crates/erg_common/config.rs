@@ -2,23 +2,24 @@
 //!
 //! コマンドオプション(パーサー)を定義する
 use std::env;
+use std::ffi::OsStr;
 use std::fmt;
 use std::fs::File;
-use std::io::Write;
-use std::io::{stdin, BufRead, BufReader, Read};
+use std::io::{stdin, BufRead, BufReader, IsTerminal, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process;
 use std::str::FromStr;
 
+use crate::consts::{ERG_MODE, EXPERIMENTAL_MODE};
+use crate::env::{erg_py_external_lib_path, erg_pystd_path, erg_std_path, python_site_packages};
 use crate::help_messages::{command_message, mode_message, OPTIONS};
 use crate::levenshtein::get_similar_name;
-use crate::normalize_path;
 use crate::pathutil::add_postfix_foreach;
-use crate::python_util::{detect_magic_number, get_python_version, PythonVersion};
+use crate::python_util::{detect_magic_number, get_python_version, get_sys_path, PythonVersion};
 use crate::random::random;
 use crate::serialize::{get_magic_num_from_bytes, get_ver_from_magic_num};
 use crate::stdin::GLOBAL_STDIN;
-use crate::{power_assert, read_file};
+use crate::{normalize_path, power_assert, read_file};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ErgMode {
@@ -154,9 +155,27 @@ impl InputKind {
         if let Self::File(path) = self {
             let mut path = path.clone();
             path.pop();
-            path
+            if path.parent().is_none() {
+                PathBuf::from(".")
+            } else {
+                path
+            }
         } else {
-            PathBuf::new()
+            PathBuf::from(".")
+        }
+    }
+
+    pub fn project_root(&self) -> Option<PathBuf> {
+        if let Self::File(path) = self {
+            let mut parent = path.clone();
+            while parent.pop() {
+                if parent.join("package.er").exists() {
+                    return Some(parent);
+                }
+            }
+            None
+        } else {
+            None
         }
     }
 }
@@ -225,6 +244,10 @@ impl Input {
 
     pub fn dir(&self) -> PathBuf {
         self.kind.dir()
+    }
+
+    pub fn project_root(&self) -> Option<PathBuf> {
+        self.kind.project_root()
     }
 
     pub fn enclosed_name(&self) -> &str {
@@ -319,6 +342,26 @@ impl Input {
         }
     }
 
+    pub fn module_name(&self) -> String {
+        match &self.kind {
+            InputKind::File(filename) => {
+                let file_stem = if filename.file_stem() == Some(OsStr::new("__init__")) {
+                    filename.parent().and_then(|p| p.file_stem())
+                } else {
+                    filename.file_stem()
+                };
+                file_stem
+                    .and_then(|f| f.to_str())
+                    .unwrap_or("_")
+                    .to_string()
+            }
+            InputKind::REPL | InputKind::Pipe(_) => "<stdin>".to_string(),
+            InputKind::DummyREPL(stdin) => stdin.name.clone(),
+            InputKind::Str(_) => "<string>".to_string(),
+            InputKind::Dummy => "<dummy>".to_string(),
+        }
+    }
+
     pub fn read(&mut self) -> String {
         match &mut self.kind {
             InputKind::File(filename) => {
@@ -346,6 +389,19 @@ impl Input {
             InputKind::Pipe(s) | InputKind::Str(s) => s.clone(),
             InputKind::REPL => GLOBAL_STDIN.read(),
             InputKind::DummyREPL(dummy) => dummy.read_line(),
+            InputKind::Dummy => panic!("cannot read from a dummy file"),
+        }
+    }
+
+    pub fn try_read(&mut self) -> std::io::Result<String> {
+        match &mut self.kind {
+            InputKind::File(filename) => {
+                let file = File::open(filename)?;
+                read_file(file)
+            }
+            InputKind::Pipe(s) | InputKind::Str(s) => Ok(s.clone()),
+            InputKind::REPL => Ok(GLOBAL_STDIN.read()),
+            InputKind::DummyREPL(dummy) => Ok(dummy.read_line()),
             InputKind::Dummy => panic!("cannot read from a dummy file"),
         }
     }
@@ -426,22 +482,43 @@ impl Input {
         }
     }
 
-    pub fn local_resolve(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
+    pub fn sys_path(&self) -> Result<Vec<PathBuf>, std::io::Error> {
+        get_sys_path(self.unescaped_path().parent())
+    }
+
+    /// resolution order:
+    /// 1. `{path/to}.er`
+    /// 2. `{path/to}/__init__.er`
+    fn resolve_local(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
         let mut dir = self.dir();
         dir.push(path);
-        dir.set_extension("er"); // {path}.er
+        dir.set_extension("er"); // {path/to}.er
         let path = dir.canonicalize().or_else(|_| {
-            dir.pop();
-            dir.push(path);
-            dir.push("__init__.er"); // -> {path}/__init__.er
+            dir.pop(); // {path}
+            dir.push(path.iter().last().unwrap_or_default()); // {path/to}
+            dir.push("__init__.er"); // -> {path/to}/__init__.er
             dir.canonicalize()
         })?;
         Ok(normalize_path(path))
     }
 
-    pub fn local_decl_resolve(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
-        let mut dir = self.dir();
-        let path = add_postfix_foreach(path, ".d");
+    fn resolve_local_decl(&self, dir: PathBuf, path: &Path) -> Result<PathBuf, std::io::Error> {
+        self._resolve_local_decl(dir.clone(), path).or_else(|_| {
+            let path = add_postfix_foreach(path, ".d");
+            self._resolve_local_decl(dir, &path)
+        })
+    }
+
+    /// resolution order:
+    /// 1. `{path/to}.d.er`
+    /// 2. `{path/to}/__init__.d.er`
+    /// 3. `{path}/__pycache__/{to}.d.er`
+    /// 4. `{path/to}/__pycache__/__init__.d.er`
+    fn _resolve_local_decl(
+        &self,
+        mut dir: PathBuf,
+        path: &Path,
+    ) -> Result<PathBuf, std::io::Error> {
         let mut comps = path.components();
         let last = comps
             .next_back()
@@ -449,27 +526,35 @@ impl Input {
         let last_path = Path::new(&last);
         dir.push(comps);
         dir.push(last_path);
-        dir.set_extension("d.er"); // {path}.d.er
+        dir.set_extension("d.er"); // {path/to}.d.er
         let path = dir
             .canonicalize()
             .or_else(|_| {
-                dir.pop(); // {path}.d.er -> ./
-                dir.push(last_path); // -> {path}.d
-                dir.push("__init__.d.er"); // -> {path}.d/__init__.d.er
+                dir.pop(); // {path/to}.d.er -> {path}
+                dir.push(last_path); // -> {path/to}
+                dir.push("__init__.d.er"); // -> {path/to}/__init__.d.er
                 dir.canonicalize()
             })
             .or_else(|_| {
-                dir.pop(); // -> {path}.d
-                dir.pop(); // -> ./
-                dir.push("__pycache__");
-                dir.push(last_path);
-                dir.set_extension("d.er"); // -> __pycache__/{path}.d.er
+                dir.pop(); // -> {path/to}
+                dir.pop(); // -> {path}
+                dir.push("__pycache__"); // -> {path}/__pycache__
+                dir.push(last_path); // -> {path}/__pycache__/{to}
+                dir.set_extension("d.er"); // -> {path}/__pycache__/{to}.d.er
+                dir.canonicalize()
+            })
+            .or_else(|_| {
+                dir.pop(); // -> {path}/__pycache__
+                dir.pop(); // -> {path}
+                dir.push(last_path); // -> {path/to}
+                dir.push("__pycache__"); // -> {path/to}/__pycache__
+                dir.push("__init__.d.er"); // -> {path/to}/__pycache__/__init__.d.er
                 dir.canonicalize()
             })?;
         Ok(normalize_path(path))
     }
 
-    pub fn local_py_resolve(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
+    fn resolve_local_py(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
         let mut dir = self.dir();
         dir.push(path);
         dir.set_extension("py");
@@ -480,6 +565,180 @@ impl Input {
             dir.canonicalize()
         })?;
         Ok(normalize_path(path))
+    }
+
+    pub fn resolve_py(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
+        if ERG_MODE || path.starts_with("./") {
+            if let Ok(path) = self.resolve_local_py(path) {
+                return Ok(path);
+            }
+        }
+        for sys_path in self.sys_path()? {
+            let mut dir = sys_path;
+            dir.push(path);
+            dir.set_extension("py");
+            if dir.exists() {
+                return Ok(normalize_path(dir));
+            }
+            dir.pop();
+            dir.push(path);
+            dir.push("__init__.py");
+            if dir.exists() {
+                return Ok(normalize_path(dir));
+            }
+            if !EXPERIMENTAL_MODE {
+                break;
+            }
+        }
+        Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("cannot find module `{}`", path.display()),
+        ))
+    }
+
+    pub fn resolve_path(&self, path: &Path) -> Option<PathBuf> {
+        self.resolve_real_path(path)
+            .or_else(|| self.resolve_decl_path(path))
+    }
+
+    /// resolution order:
+    /// 1. `./{path/to}.er`
+    /// 2. `./{path/to}/__init__.er`
+    /// 3. `std/{path/to}.er`
+    /// 4. `std/{path/to}/__init__.er`
+    pub fn resolve_real_path(&self, path: &Path) -> Option<PathBuf> {
+        if let Ok(path) = self.resolve_local(path) {
+            Some(path)
+        } else if let Ok(path) = erg_std_path()
+            .join(format!("{}.er", path.display()))
+            .canonicalize()
+        {
+            Some(normalize_path(path))
+        } else if let Ok(path) = erg_std_path()
+            .join(format!("{}", path.display()))
+            .join("__init__.er")
+            .canonicalize()
+        {
+            Some(normalize_path(path))
+        } else {
+            None
+        }
+    }
+
+    /// resolution order:
+    /// 1.  `{path/to}.d.er`
+    /// 2.  `{path/to}/__init__.d.er`
+    /// 3.  `{path}/__pycache__/{to}.d.er`
+    /// 4.  `{path/to}/__pycache__/__init__.d.er`
+    /// 5.  `{path.d/to.d}/__init__.d.er`
+    /// 6.  `{path.d/to.d}/__pycache__/__init__.d.er`
+    /// (and repeat for the project root)
+    /// 7.  `std/{path/to}.d.er`
+    /// 8.  `std/{path/to}/__init__.d.er`
+    /// 9.  `site-packages/{path}/__pycache__/{to}.d.er`
+    /// 10. `site-packages/{path/to}/__pycache__/__init__.d.er`
+    pub fn resolve_decl_path(&self, path: &Path) -> Option<PathBuf> {
+        if let Ok(path) = self.resolve_local_decl(self.dir(), path) {
+            return Some(path);
+        }
+        // e.g. root: lib/external/pandas.d, path: pandas/core/frame
+        if let Some(dir) = self.project_root().as_ref().and_then(|root| root.parent()) {
+            if let Ok(path) = self.resolve_local_decl(dir.to_path_buf(), path) {
+                return Some(path);
+            }
+        }
+        let py_roots = [erg_pystd_path, erg_py_external_lib_path];
+        for root in py_roots {
+            if let Some(path) = Self::resolve_std_decl_path(root(), path) {
+                return Some(path);
+            }
+        }
+        for site_packages in python_site_packages() {
+            if let Some(path) = Self::resolve_site_pkgs_decl_path(site_packages, path) {
+                return Some(path);
+            }
+        }
+        None
+    }
+
+    /// 1. `site-packages/{path/to}.d.er`
+    /// 2. `site-packages/{path.d/to.d}/__init__.d.er`
+    fn resolve_std_decl_path(root: PathBuf, path: &Path) -> Option<PathBuf> {
+        let mut path = add_postfix_foreach(path, ".d");
+        path.set_extension("d.er"); // set_extension overrides the previous one
+        if let Ok(path) = root.join(&path).canonicalize() {
+            Some(normalize_path(path))
+        // d.er -> .d
+        } else if let Ok(path) = root
+            .join({
+                path.set_extension("");
+                path
+            })
+            .join("__init__.d.er")
+            .canonicalize()
+        {
+            Some(normalize_path(path))
+        } else {
+            None
+        }
+    }
+
+    /// 1. `site-packages/__pycache__/{path/to}.d.er`
+    /// 2. `site-packages/{path/to}/__pycache__/__init__.d.er`
+    ///
+    /// e.g. `toml/encoder`
+    ///     -> `site-packages/toml/__pycache__/encoder.d.er`, `site-packages/toml/encoder/__pycache__/__init__.d.er`
+    fn resolve_site_pkgs_decl_path(site_packages: PathBuf, path: &Path) -> Option<PathBuf> {
+        let dir = path.parent().unwrap_or_else(|| Path::new(""));
+        let mut file_path = PathBuf::from(path.file_stem().unwrap_or_default());
+        file_path.set_extension("d.er"); // set_extension overrides the previous one
+        if let Ok(path) = site_packages
+            .join(dir)
+            .join("__pycache__")
+            .join(&file_path)
+            .canonicalize()
+        {
+            Some(normalize_path(path))
+        } else if let Ok(path) = site_packages
+            .join(path)
+            .join("__pycache__")
+            .join("__init__.d.er")
+            .canonicalize()
+        {
+            Some(normalize_path(path))
+        } else {
+            None
+        }
+    }
+
+    pub fn try_push_path(mut path: PathBuf, add: &Path) -> Result<PathBuf, String> {
+        path.pop(); // __init__.d.er
+        if let Ok(path) = path.join(add).canonicalize() {
+            Ok(normalize_path(path))
+        } else if let Ok(path) = path.join(format!("{}.d.er", add.display())).canonicalize() {
+            Ok(normalize_path(path))
+        } else if let Ok(path) = path
+            .join(format!("{}.d", add.display()))
+            .join("__init__.d.er")
+            .canonicalize()
+        {
+            Ok(normalize_path(path))
+        } else {
+            Err(format!("{} // {}", path.display(), add.display()))
+        }
+    }
+
+    pub fn decl_file_is(&self, decl_path: &Path) -> bool {
+        let mut py_path = self.unescaped_path().to_path_buf();
+        py_path.set_extension("d.er");
+        if decl_path == py_path {
+            return true;
+        }
+        let last = py_path.file_name().unwrap_or_default().to_os_string();
+        py_path.pop();
+        py_path.push("__pycache__");
+        py_path.push(last);
+        decl_path == py_path
     }
 }
 
@@ -804,8 +1063,7 @@ USAGE:
             }
         }
         if cfg.input.is_repl() && cfg.mode != ErgMode::LanguageServer {
-            use crate::tty::IsTty;
-            let is_stdin_piped = !stdin().is_tty();
+            let is_stdin_piped = !stdin().is_terminal();
             let input = if is_stdin_piped {
                 let mut buffer = String::new();
                 stdin().read_to_string(&mut buffer).unwrap();

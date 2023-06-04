@@ -1,9 +1,8 @@
 use std::mem;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use erg_common::config::ErgConfig;
 use erg_common::pathutil::squash;
-use erg_common::python_util::BUILTIN_PYTHON_MODS;
 use erg_common::traits::Locational;
 use erg_common::Str;
 use erg_common::{enum_unwrap, log};
@@ -11,7 +10,6 @@ use erg_common::{enum_unwrap, log};
 use erg_parser::ast::{DefId, OperationKind};
 use erg_parser::token::{Token, TokenKind, DOT, EQUAL};
 
-use crate::context::Context;
 use crate::ty::typaram::TyParam;
 use crate::ty::value::ValueObj;
 use crate::ty::HasType;
@@ -177,7 +175,15 @@ impl<'a> HIRLinker<'a> {
                     Accessor::Attr(attr) => {
                         self.replace_import(&mut attr.obj);
                     }
-                    Accessor::Ident(_) => {}
+                    Accessor::Ident(ident) => match &ident.inspect()[..] {
+                        "module" => {
+                            *expr = Self::self_module();
+                        }
+                        "global" => {
+                            *expr = Expr::from(Identifier::public("__builtins__"));
+                        }
+                        _ => {}
+                    },
                 }
             }
             Expr::Array(array) => match array {
@@ -287,6 +293,12 @@ impl<'a> HIRLinker<'a> {
         }
     }
 
+    fn self_module() -> Expr {
+        let __import__ = Identifier::public("__import__");
+        let __name__ = Identifier::public("__name__");
+        Expr::from(__import__).call1(Expr::from(__name__))
+    }
+
     /// ```erg
     /// x = import "mod"
     /// ```
@@ -300,10 +312,21 @@ impl<'a> HIRLinker<'a> {
     /// ```
     fn replace_erg_import(&self, expr: &mut Expr) {
         let line = expr.ln_begin().unwrap_or(0);
-        let path =
-            enum_unwrap!(expr.ref_t().typarams().remove(0), TyParam::Value:(ValueObj::Str:(_)));
+        let TyParam::Value(ValueObj::Str(path)) = expr.ref_t().typarams().remove(0) else {
+            unreachable!()
+        };
         let path = Path::new(&path[..]);
-        let path = Context::resolve_real_path(self.cfg, path).unwrap();
+        let path = self.cfg.input.resolve_real_path(path).unwrap();
+        // # module.er
+        // self = import "module"
+        // ↓
+        // # module.er
+        // self = __import__(__name__)
+        if matches!((path.canonicalize(), self.cfg.input.unescaped_path().canonicalize()), (Ok(l), Ok(r)) if l == r)
+        {
+            *expr = Self::self_module();
+            return;
+        }
         // In the case of REPL, entries cannot be used up
         let hir_cfg = if self.cfg.input.is_repl() {
             self.mod_cache
@@ -360,13 +383,21 @@ impl<'a> HIRLinker<'a> {
     /// x = __import__("a.x").x
     /// ```
     fn replace_py_import(&self, expr: &mut Expr) {
-        let mut dir = self.cfg.input.dir();
         let args = &mut enum_unwrap!(expr, Expr::Call).args;
         let mod_name_lit = enum_unwrap!(args.remove_left_or_key("Path").unwrap(), Expr::Lit);
         let mod_name_str = enum_unwrap!(mod_name_lit.value.clone(), ValueObj::Str);
-        if BUILTIN_PYTHON_MODS.contains(&&mod_name_str[..]) {
-            args.push_pos(PosArg::new(Expr::Lit(mod_name_lit)));
-            return;
+        let mut dir = self.cfg.input.dir();
+        let mod_path = self
+            .cfg
+            .input
+            .resolve_decl_path(Path::new(&mod_name_str[..]))
+            .unwrap();
+        if !mod_path
+            .canonicalize()
+            .unwrap()
+            .starts_with(&dir.canonicalize().unwrap())
+        {
+            dir = PathBuf::new();
         }
         let mod_name_str = if let Some(stripped) = mod_name_str.strip_prefix("./") {
             stripped

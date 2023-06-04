@@ -13,6 +13,7 @@ pub mod typaram;
 pub mod value;
 pub mod vis;
 
+use std::cell::RefMut;
 use std::fmt;
 use std::ops::{BitAnd, BitOr, Deref, Not, Range, RangeInclusive};
 use std::path::PathBuf;
@@ -37,6 +38,8 @@ use value::value_set::*;
 pub use value::ValueObj;
 use value::ValueObj::{Inf, NegInf};
 pub use vis::*;
+
+use self::constructors::subr_t;
 
 /// cloneのコストがあるためなるべく.ref_tを使うようにすること
 /// いくつかの構造体は直接Typeを保持していないので、その場合は.tを使う
@@ -1811,6 +1814,7 @@ impl Type {
             Self::Subr(_) => true,
             Self::Quantified(quant) => quant.is_subr(),
             Self::Refinement(refine) => refine.t.is_subr(),
+            Self::And(l, r) => l.is_subr() && r.is_subr(),
             _ => false,
         }
     }
@@ -1820,6 +1824,7 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_quantified_subr(),
             Self::Quantified(_) => true,
             Self::Refinement(refine) => refine.t.is_quantified_subr(),
+            Self::And(l, r) => l.is_quantified_subr() && r.is_quantified_subr(),
             _ => false,
         }
     }
@@ -1838,6 +1843,24 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_structural(),
             Self::Structural(_) => true,
             Self::Refinement(refine) => refine.t.is_structural(),
+            _ => false,
+        }
+    }
+
+    pub fn is_failure(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_failure(),
+            Self::Refinement(refine) => refine.t.is_failure(),
+            Self::Failure => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_class_type(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_class_type(),
+            Self::Refinement(refine) => refine.t.is_class_type(),
+            Self::ClassType => true,
             _ => false,
         }
     }
@@ -2304,7 +2327,7 @@ impl Type {
             Type::FreeVar(fv) if fv.is_unbound() => {
                 let (sub, _sup) = fv.get_subsup().unwrap();
                 sub.coerce();
-                fv.link(&sub);
+                self.link(&sub);
             }
             Type::And(l, r) | Type::Or(l, r) => {
                 l.coerce();
@@ -2324,7 +2347,7 @@ impl Type {
 
     pub fn qvars(&self) -> Set<(Str, Constraint)> {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().qvars(),
+            Self::FreeVar(fv) if fv.is_linked() => fv.unsafe_crack().qvars(),
             Self::FreeVar(fv) if !fv.constraint_is_uninited() => {
                 let base = set! {(fv.unbound_name().unwrap(), fv.constraint().unwrap())};
                 if let Some((sub, sup)) = fv.get_subsup() {
@@ -2568,10 +2591,9 @@ impl Type {
 
     pub fn self_t(&self) -> Option<&Type> {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => unsafe { fv.as_ptr().as_ref() }
-                .unwrap()
-                .linked()
-                .and_then(|t| t.self_t()),
+            Self::FreeVar(fv) if fv.is_linked() => {
+                fv.forced_as_ref().linked().and_then(|t| t.self_t())
+            }
             Self::Refinement(refine) => refine.t.self_t(),
             Self::Subr(subr) => subr.self_t(),
             Self::Quantified(quant) => quant.self_t(),
@@ -2581,8 +2603,8 @@ impl Type {
 
     pub fn non_default_params(&self) -> Option<&Vec<ParamTy>> {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => unsafe { fv.as_ptr().as_ref() }
-                .unwrap()
+            Self::FreeVar(fv) if fv.is_linked() => fv
+                .forced_as_ref()
                 .linked()
                 .and_then(|t| t.non_default_params()),
             Self::Refinement(refine) => refine.t.non_default_params(),
@@ -2597,10 +2619,9 @@ impl Type {
 
     pub fn var_params(&self) -> Option<&ParamTy> {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => unsafe { fv.as_ptr().as_ref() }
-                .unwrap()
-                .linked()
-                .and_then(|t| t.var_params()),
+            Self::FreeVar(fv) if fv.is_linked() => {
+                fv.forced_as_ref().linked().and_then(|t| t.var_params())
+            }
             Self::Refinement(refine) => refine.t.var_params(),
             Self::Subr(SubrType {
                 var_params: var_args,
@@ -2614,10 +2635,9 @@ impl Type {
 
     pub fn default_params(&self) -> Option<&Vec<ParamTy>> {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => unsafe { fv.as_ptr().as_ref() }
-                .unwrap()
-                .linked()
-                .and_then(|t| t.default_params()),
+            Self::FreeVar(fv) if fv.is_linked() => {
+                fv.forced_as_ref().linked().and_then(|t| t.default_params())
+            }
             Self::Refinement(refine) => refine.t.default_params(),
             Self::Subr(SubrType { default_params, .. }) => Some(default_params),
             Self::Quantified(quant) => quant.default_params(),
@@ -2627,10 +2647,9 @@ impl Type {
 
     pub fn non_var_params(&self) -> Option<impl Iterator<Item = &ParamTy> + Clone> {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => unsafe { fv.as_ptr().as_ref() }
-                .unwrap()
-                .linked()
-                .and_then(|t| t.non_var_params()),
+            Self::FreeVar(fv) if fv.is_linked() => {
+                fv.forced_as_ref().linked().and_then(|t| t.non_var_params())
+            }
             Self::Refinement(refine) => refine.t.non_var_params(),
             Self::Subr(subr) => Some(subr.non_var_params()),
             Self::Quantified(quant) => quant.non_var_params(),
@@ -2640,10 +2659,9 @@ impl Type {
 
     pub fn return_t(&self) -> Option<&Type> {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => unsafe { fv.as_ptr().as_ref() }
-                .unwrap()
-                .linked()
-                .and_then(|t| t.return_t()),
+            Self::FreeVar(fv) if fv.is_linked() => {
+                fv.forced_as_ref().linked().and_then(|t| t.return_t())
+            }
             Self::Refinement(refine) => refine.t.return_t(),
             Self::Subr(SubrType { return_t, .. }) | Self::Callable { return_t, .. } => {
                 Some(return_t)
@@ -2661,12 +2679,21 @@ impl Type {
         }
     }
 
+    pub fn tyvar_mut_return_t(&mut self) -> Option<RefMut<Type>> {
+        match self {
+            Self::FreeVar(fv)
+                if fv.is_linked() && fv.get_linked().unwrap().return_t().is_some() =>
+            {
+                Some(RefMut::map(fv.borrow_mut(), |fk| {
+                    fk.linked_mut().unwrap().mut_return_t().unwrap()
+                }))
+            }
+            _ => None,
+        }
+    }
+
     pub fn mut_return_t(&mut self) -> Option<&mut Type> {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => unsafe { fv.as_ptr().as_mut() }
-                .unwrap()
-                .linked_mut()
-                .and_then(|t| t.mut_return_t()),
             Self::Refinement(refine) => refine.t.mut_return_t(),
             Self::Subr(SubrType { return_t, .. }) | Self::Callable { return_t, .. } => {
                 Some(return_t)
@@ -2759,6 +2786,49 @@ impl Type {
         table.replace(self)
     }
 
+    /// ```erg
+    /// (Failure -> Int).replace_failure() == (Obj -> Int)
+    /// (Int -> Failure).replace_failure() == (Int -> Never)
+    /// Array(Failure, 3).replace_failure() == Array(Never, 3)
+    /// ```
+    pub fn replace_failure(&self) -> Type {
+        match self {
+            Self::Quantified(quant) => quant.replace_failure().quantify(),
+            Self::Subr(subr) => {
+                let non_default_params = subr
+                    .non_default_params
+                    .iter()
+                    .map(|pt| {
+                        pt.clone()
+                            .map_type(|t| t.replace(&Self::Failure, &Self::Obj))
+                    })
+                    .collect();
+                let var_params = subr.var_params.as_ref().map(|pt| {
+                    pt.clone()
+                        .map_type(|t| t.replace(&Self::Failure, &Self::Obj))
+                });
+                let default_params = subr
+                    .default_params
+                    .iter()
+                    .map(|pt| {
+                        pt.clone()
+                            .map_type(|t| t.replace(&Self::Failure, &Self::Obj))
+                    })
+                    .collect();
+                let return_t = subr.return_t.clone().replace(&Self::Failure, &Self::Never);
+                subr_t(
+                    subr.kind,
+                    non_default_params,
+                    var_params,
+                    default_params,
+                    return_t,
+                )
+            }
+            // TODO: consider variances
+            _ => self.clone().replace(&Self::Failure, &Self::Never),
+        }
+    }
+
     fn _replace(mut self, target: &Type, to: &Type) -> Type {
         if self.structural_eq(target) {
             self = to.clone();
@@ -2766,17 +2836,20 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().clone()._replace(target, to),
             Self::FreeVar(fv) => {
-                let fv = fv.deep_clone();
-                if let Some((sub, sup)) = fv.get_subsup() {
+                let fv_clone = fv.deep_clone();
+                if let Some((sub, sup)) = fv_clone.get_subsup() {
                     fv.dummy_link();
+                    fv_clone.dummy_link();
                     let sub = sub._replace(target, to);
                     let sup = sup._replace(target, to);
                     fv.undo();
-                    fv.update_constraint(Constraint::new_sandwiched(sub, sup), true);
-                } else if let Some(ty) = fv.get_type() {
-                    fv.update_constraint(Constraint::new_type_of(ty._replace(target, to)), true);
+                    fv_clone.undo();
+                    fv_clone.update_constraint(Constraint::new_sandwiched(sub, sup), true);
+                } else if let Some(ty) = fv_clone.get_type() {
+                    fv_clone
+                        .update_constraint(Constraint::new_type_of(ty._replace(target, to)), true);
                 }
-                Self::FreeVar(fv)
+                Self::FreeVar(fv_clone)
             }
             Self::Refinement(mut refine) => {
                 refine.t = Box::new(refine.t._replace(target, to));
@@ -2905,6 +2978,24 @@ impl Type {
             free.get_sub().unwrap_or(self.clone())
         } else {
             self.clone()
+        }
+    }
+
+    fn addr_eq(&self, other: &Type) -> bool {
+        match (self, other) {
+            (Self::FreeVar(slf), Self::FreeVar(otr)) => slf.addr_eq(otr),
+            _ => self == other,
+        }
+    }
+
+    pub(crate) fn link(&self, to: &Type) {
+        if self.addr_eq(to) {
+            return;
+        }
+        match self {
+            Self::FreeVar(fv) => fv.link(to),
+            Self::Refinement(refine) => refine.t.link(to),
+            _ => panic!("{self} is not a free variable"),
         }
     }
 }

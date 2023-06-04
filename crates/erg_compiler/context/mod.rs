@@ -36,7 +36,9 @@ use erg_parser::token::Token;
 use crate::context::instantiate::TyVarCache;
 use crate::context::instantiate_spec::ConstTemplate;
 use crate::error::{TyCheckError, TyCheckErrors};
-use crate::module::{SharedCompilerResource, SharedModuleCache};
+use crate::module::{
+    SharedCompilerResource, SharedModuleCache, SharedModuleIndex, SharedTraitImpls,
+};
 use crate::ty::value::ValueObj;
 use crate::ty::GuardType;
 use crate::ty::{Predicate, Type, Visibility, VisibilityModifier};
@@ -180,7 +182,7 @@ impl std::ops::Mul for Variance {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ParamSpec {
-    pub(crate) name: Option<&'static str>,
+    pub(crate) name: Option<Str>,
     // TODO: `:` or `<:`
     pub(crate) t: Type,
     pub is_var_params: bool,
@@ -189,15 +191,15 @@ pub struct ParamSpec {
 }
 
 impl ParamSpec {
-    pub const fn new(
-        name: Option<&'static str>,
+    pub fn new<S: Into<Str>>(
+        name: Option<S>,
         t: Type,
         is_var_params: bool,
         default: DefaultInfo,
         loc: AbsLocation,
     ) -> Self {
         Self {
-            name,
+            name: name.map(|s| s.into()),
             t,
             is_var_params,
             default_info: default,
@@ -205,8 +207,8 @@ impl ParamSpec {
         }
     }
 
-    pub const fn named(
-        name: &'static str,
+    pub fn named<S: Into<Str>>(
+        name: S,
         t: Type,
         is_var_params: bool,
         default: DefaultInfo,
@@ -220,7 +222,7 @@ impl ParamSpec {
         )
     }
 
-    pub const fn named_nd(name: &'static str, t: Type) -> Self {
+    pub fn named_nd<S: Into<Str>>(name: S, t: Type) -> Self {
         Self::new(
             Some(name),
             t,
@@ -230,7 +232,7 @@ impl ParamSpec {
         )
     }
 
-    pub const fn t(name: &'static str, is_var_params: bool, default: DefaultInfo) -> Self {
+    pub fn t<S: Into<Str>>(name: S, is_var_params: bool, default: DefaultInfo) -> Self {
         Self::new(
             Some(name),
             Type,
@@ -240,7 +242,7 @@ impl ParamSpec {
         )
     }
 
-    pub const fn t_nd(name: &'static str) -> Self {
+    pub fn t_nd<S: Into<Str>>(name: S) -> Self {
         Self::new(
             Some(name),
             Type,
@@ -356,12 +358,12 @@ pub struct ContextInfo {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct MethodInfo {
+pub struct MethodPair {
     definition_type: Type,
     method_info: VarInfo,
 }
 
-impl fmt::Display for MethodInfo {
+impl fmt::Display for MethodPair {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -371,7 +373,7 @@ impl fmt::Display for MethodInfo {
     }
 }
 
-impl MethodInfo {
+impl MethodPair {
     pub const fn new(definition_type: Type, method_info: VarInfo) -> Self {
         Self {
             definition_type,
@@ -402,8 +404,8 @@ pub struct Context {
     pub(crate) methods_list: Vec<(ClassDefType, Context)>,
     // K: method name, V: types defines the method
     // If it is declared in a trait, it takes precedence over the class.
-    pub(crate) method_to_traits: Dict<Str, Vec<MethodInfo>>,
-    pub(crate) method_to_classes: Dict<Str, Vec<MethodInfo>>,
+    pub(crate) method_to_traits: Dict<Str, Vec<MethodPair>>,
+    pub(crate) method_to_classes: Dict<Str, Vec<MethodPair>>,
     /// K: method name, V: impl patch
     /// Provided methods can switch implementations on a scope-by-scope basis
     /// K: メソッド名, V: それを実装するパッチたち
@@ -572,18 +574,18 @@ impl Context {
             let id = DefId(get_hash(&(&name, &param)));
             if let Some(name) = param.name {
                 let kind = VarKind::parameter(id, param.is_var_params, param.default_info);
-                let muty = Mutability::from(name);
+                let muty = Mutability::from(&name[..]);
                 let vi = VarInfo::new(
                     param.t,
                     muty,
-                    Visibility::private(name),
+                    Visibility::private(&name),
                     kind,
                     None,
                     None,
                     None,
                     param.loc,
                 );
-                params_.push((Some(VarName::new(Token::static_symbol(name))), vi));
+                params_.push((Some(VarName::new(Token::symbol(&name))), vi));
             } else {
                 let kind = VarKind::parameter(id, param.is_var_params, param.default_info);
                 let muty = Mutability::Immutable;
@@ -975,7 +977,12 @@ impl Context {
         if self.kind != ContextKind::Module || &self.path()[..] != "<builtins>" {
             self.shared
                 .as_ref()
-                .map(|shared| shared.mod_cache.ref_ctx(Path::new("<builtins>")).unwrap())
+                .map(|shared| {
+                    shared
+                        .mod_cache
+                        .raw_ref_ctx(Path::new("<builtins>"))
+                        .unwrap()
+                })
                 .map(|mod_ctx| &mod_ctx.context)
         } else {
             None
@@ -1141,11 +1148,15 @@ impl Context {
         &self.shared().py_mod_cache
     }
 
-    pub fn index(&self) -> &crate::module::SharedModuleIndex {
+    pub(crate) fn opt_index(&self) -> Option<&SharedModuleIndex> {
+        self.shared.as_ref().map(|s| &s.index)
+    }
+
+    pub fn index(&self) -> &SharedModuleIndex {
         &self.shared().index
     }
 
-    pub fn trait_impls(&self) -> &crate::module::SharedTraitImpls {
+    pub fn trait_impls(&self) -> &SharedTraitImpls {
         &self.shared().trait_impls
     }
 
@@ -1172,5 +1183,9 @@ impl ModuleContext {
             context: toplevel,
             scope,
         }
+    }
+
+    pub fn get_top_cfg(&self) -> ErgConfig {
+        self.context.cfg.clone()
     }
 }

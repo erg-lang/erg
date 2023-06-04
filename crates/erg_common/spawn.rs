@@ -29,7 +29,10 @@ where
             .spawn(run)
             .unwrap();
         // Wait for thread to join
-        child.join().unwrap()
+        child.join().unwrap_or_else(|err| {
+            eprintln!("Thread panicked: {err:?}");
+            std::process::exit(1);
+        })
     } else {
         run()
     }

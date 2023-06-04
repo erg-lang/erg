@@ -62,11 +62,13 @@ impl<T: ?Sized> Shared<T> {
     }
 
     #[inline]
+    #[track_caller]
     pub fn borrow(&self) -> Ref<'_, T> {
         RefCell::borrow(&self.0)
     }
 
     #[inline]
+    #[track_caller]
     pub fn borrow_mut(&self) -> RefMut<'_, T> {
         RefCell::borrow_mut(&self.0)
     }
@@ -74,19 +76,6 @@ impl<T: ?Sized> Shared<T> {
     #[inline]
     pub fn as_ptr(&self) -> *mut T {
         RefCell::as_ptr(&self.0)
-    }
-
-    /// # Safety
-    /// The caller must ensure that the returned reference is not used after the underlying
-    pub unsafe fn as_ref(&self) -> &T {
-        self.as_ptr().as_ref().unwrap()
-    }
-
-    /// # Safety
-    /// The caller must ensure that the returned reference is not used after the underlying
-    #[allow(clippy::mut_from_ref)]
-    pub unsafe fn as_mut(&self) -> &mut T {
-        self.as_ptr().as_mut().unwrap()
     }
 
     #[inline]

@@ -1,4 +1,5 @@
 use erg_compiler::artifact::BuildRunnable;
+use erg_compiler::erg_parser::parse::Parsable;
 use erg_compiler::varinfo::AbsLocation;
 
 use lsp_types::{Location, Position, ReferenceParams, Url};
@@ -6,7 +7,7 @@ use lsp_types::{Location, Position, ReferenceParams, Url};
 use crate::server::{ELSResult, Server};
 use crate::util::{self, NormalizedUrl};
 
-impl<Checker: BuildRunnable> Server<Checker> {
+impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     pub(crate) fn handle_references(
         &mut self,
         params: ReferenceParams,
@@ -31,13 +32,17 @@ impl<Checker: BuildRunnable> Server<Checker> {
 
     pub(crate) fn get_refs_from_abs_loc(&self, referee: &AbsLocation) -> Vec<lsp_types::Location> {
         let mut refs = vec![];
-        if let Some(value) = self.get_index().get_refs(referee) {
-            // send_log(format!("referrers: {referrers:?}"))?;
+        if let Some(value) = self.get_index().and_then(|ind| ind.get_refs(referee)) {
+            if value.vi.def_loc == AbsLocation::unknown() {
+                return vec![];
+            }
             for referrer in value.referrers.iter() {
                 if let (Some(path), Some(range)) =
                     (&referrer.module, util::loc_to_range(referrer.loc))
                 {
-                    let ref_uri = Url::from_file_path(path).unwrap();
+                    let Ok(ref_uri) = Url::from_file_path(path) else {
+                        continue;
+                    };
                     refs.push(lsp_types::Location::new(ref_uri, range));
                 }
             }

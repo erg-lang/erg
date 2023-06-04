@@ -770,6 +770,53 @@ passed keyword args:    {kw_args_len}"
         )
     }
 
+    pub fn invariant_error(
+        input: Input,
+        errno: usize,
+        sub_t: &Type,
+        sup_t: &Type,
+        loc: Location,
+        caused_by: String,
+    ) -> Self {
+        let mut sub_type = StyledStrings::default();
+        switch_lang!(
+            "japanese" => sub_type.push_str("部分型: "),
+            "simplified_chinese" => sub_type.push_str("子类型: "),
+            "simplified_chinese" =>sub_type.push_str("子類型:"),
+            "english" => sub_type.push_str("subtype: "),
+        );
+        sub_type.push_str_with_color_and_attr(format!("{sub_t}"), HINT, ATTR);
+
+        let mut sup_type = StyledStrings::default();
+        switch_lang!(
+            "japanese" => sup_type.push_str("汎化型: "),
+            "simplified_chinese" => sup_type.push_str("父类型: "),
+            "simplified_chinese" => sup_type.push_str("父類型: "),
+            "english" =>sup_type.push_str("supertype: "),
+        );
+        sup_type.push_str_with_color_and_attr(format!("{sup_t}"), ERR, ATTR);
+        Self::new(
+            ErrorCore::new(
+                vec![SubMessage::ambiguous_new(
+                    loc,
+                    vec![sub_type.to_string(), sup_type.to_string()],
+                    None,
+                )],
+                switch_lang!(
+                    "japanese" => "不変な型パラメータを一意に決定できません",
+                    "simplified_chinese" => "无法唯一确定不变型的类型参数",
+                    "traditional_chinese" => "無法唯一確定不變型的類型參數",
+                    "english" => "cannot uniquely determine the type parameter of the invariant type",
+                ),
+                errno,
+                TypeError,
+                loc,
+            ),
+            input,
+            caused_by,
+        )
+    }
+
     pub fn pred_unification_error(
         input: Input,
         errno: usize,
@@ -1266,10 +1313,10 @@ passed keyword args:    {kw_args_len}"
             ErrorCore::new(
                 vec![],
                 switch_lang!(
-                    "japanese" => format!("オーバーロード解決に失敗しました\nオーバーロード型:\n* {}\n位置引数: {}\n名前付き引数: {}", fmt_vec_split_with(&found, "\n* "), fmt_vec(&pos_args), fmt_vec(&kw_args)),
+                    "japanese" => format!("オーバーロード解決に失敗しました\nオーバーロード型:\n* {}\n渡された位置引数: {}\n渡された名前付き引数: {}", fmt_vec_split_with(&found, "\n* "), fmt_vec(&pos_args), fmt_vec(&kw_args)),
                     "simplified_chinese" => format!("无法解析重载\n重载类型:\n* {}\n位置参数: {}\n命名参数: {}", fmt_vec_split_with(&found, "\n* "), fmt_vec(&pos_args), fmt_vec(&kw_args)),
                     "traditional_chinese" => format!("無法解析重載\n重載類型:\n* {}\n位置參數: {}\n命名參數: {}", fmt_vec_split_with(&found, "\n* "), fmt_vec(&pos_args), fmt_vec(&kw_args)),
-                    "english" => format!("cannot resolve overload\noverloaded type:\n* {}\npositional arguments: {}\nnamed arguments: {}", fmt_vec_split_with(&found, "\n* "), fmt_vec(&pos_args), fmt_vec(&kw_args)),
+                    "english" => format!("cannot resolve overload\noverloaded type:\n* {}\npassed positional arguments: {}\npassed named arguments: {}", fmt_vec_split_with(&found, "\n* "), fmt_vec(&pos_args), fmt_vec(&kw_args)),
                 ),
                 errno,
                 TypeError,

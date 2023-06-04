@@ -175,6 +175,15 @@ impl ASTLowerer {
         }
     }
 
+    pub fn new_with_ctx(module: ModuleContext) -> Self {
+        Self {
+            cfg: module.get_top_cfg(),
+            module,
+            errs: LowerErrors::empty(),
+            warns: LowerWarnings::empty(),
+        }
+    }
+
     fn pop_append_errs(&mut self) {
         match self.module.context.check_decls_and_pop() {
             Ok(ctx) if self.cfg.mode == ErgMode::LanguageServer && !ctx.dir().is_empty() => {
@@ -389,6 +398,13 @@ impl ASTLowerer {
         match set {
             ast::Set::Normal(set) => Ok(hir::Set::Normal(self.lower_normal_set(set)?)),
             ast::Set::WithLength(set) => Ok(hir::Set::WithLength(self.lower_set_with_length(set)?)),
+            ast::Set::Comprehension(set) => feature_error!(
+                LowerErrors,
+                LowerError,
+                self.module.context,
+                set.loc(),
+                "set comprehension"
+            ),
         }
     }
 
@@ -591,7 +607,7 @@ impl ASTLowerer {
         ))
     }
 
-    fn lower_acc(&mut self, acc: ast::Accessor) -> LowerResult<hir::Accessor> {
+    pub(crate) fn lower_acc(&mut self, acc: ast::Accessor) -> LowerResult<hir::Accessor> {
         log!(info "entered {}({acc})", fn_name!());
         match acc {
             ast::Accessor::Ident(ident) => {
@@ -793,12 +809,20 @@ impl ASTLowerer {
                 self.errs.extend(errs);
                 VarInfo::ILLEGAL.clone()
             });
-        if let (Some(guard), Some(return_t)) = (guard, vi.t.mut_return_t()) {
-            debug_assert!(
-                self.module.context.subtype_of(return_t, &Type::Bool),
-                "{return_t} is not a subtype of Bool"
-            );
-            *return_t = guard;
+        if let Some(guard) = guard {
+            if let Some(return_t) = vi.t.mut_return_t() {
+                debug_assert!(
+                    self.module.context.subtype_of(return_t, &Type::Bool),
+                    "{return_t} is not a subtype of Bool"
+                );
+                *return_t = guard;
+            } else if let Some(mut return_t) = vi.t.tyvar_mut_return_t() {
+                debug_assert!(
+                    self.module.context.subtype_of(&return_t, &Type::Bool),
+                    "{return_t} is not a subtype of Bool"
+                );
+                *return_t = guard;
+            }
         }
         let mut args = args.into_iter();
         let lhs = args.next().unwrap().expr;
@@ -959,6 +983,8 @@ impl ASTLowerer {
             );
             if let Some(ret_t) = vi.t.mut_return_t() {
                 *ret_t = guard;
+            } else if let Some(mut ref_t) = vi.t.tyvar_mut_return_t() {
+                *ref_t = guard;
             }
         }
         let attr_name = if let Some(attr_name) = call.attr_name {
@@ -1523,8 +1549,14 @@ impl ASTLowerer {
                             }
                         };
                         let ident = hir::Identifier::new(sig.ident, None, vi);
-                        let sig =
-                            hir::SubrSignature::new(ident, sig.bounds, params, sig.return_t_spec);
+                        let ret_t_spec = if let Some(ts) = sig.return_t_spec {
+                            let spec_t = self.module.context.instantiate_typespec(&ts.t_spec)?;
+                            let expr = self.fake_lower_expr(*ts.t_spec_as_expr.clone())?;
+                            Some(hir::TypeSpecWithOp::new(ts, expr, spec_t))
+                        } else {
+                            None
+                        };
+                        let sig = hir::SubrSignature::new(ident, sig.bounds, params, ret_t_spec);
                         let body = hir::DefBody::new(body.op, block, body.id);
                         Ok(hir::Def::new(hir::Signature::Subr(sig), body))
                     }
@@ -1543,8 +1575,14 @@ impl ASTLowerer {
                             }
                         };
                         let ident = hir::Identifier::new(sig.ident, None, vi);
-                        let sig =
-                            hir::SubrSignature::new(ident, sig.bounds, params, sig.return_t_spec);
+                        let ret_t_spec = if let Some(ts) = sig.return_t_spec {
+                            let spec_t = self.module.context.instantiate_typespec(&ts.t_spec)?;
+                            let expr = self.fake_lower_expr(*ts.t_spec_as_expr.clone())?;
+                            Some(hir::TypeSpecWithOp::new(ts, expr, spec_t))
+                        } else {
+                            None
+                        };
+                        let sig = hir::SubrSignature::new(ident, sig.bounds, params, ret_t_spec);
                         let block =
                             hir::Block::new(vec![hir::Expr::Dummy(hir::Dummy::new(vec![]))]);
                         let body = hir::DefBody::new(body.op, block, body.id);
@@ -1568,7 +1606,14 @@ impl ASTLowerer {
                     .fake_subr_assign(&sig.ident, &sig.decorators, Type::Failure)?;
                 let block = self.lower_block(body.block)?;
                 let ident = hir::Identifier::bare(sig.ident);
-                let sig = hir::SubrSignature::new(ident, sig.bounds, params, sig.return_t_spec);
+                let ret_t_spec = if let Some(ts) = sig.return_t_spec {
+                    let spec_t = self.module.context.instantiate_typespec(&ts.t_spec)?;
+                    let expr = self.fake_lower_expr(*ts.t_spec_as_expr.clone())?;
+                    Some(hir::TypeSpecWithOp::new(ts, expr, spec_t))
+                } else {
+                    None
+                };
+                let sig = hir::SubrSignature::new(ident, sig.bounds, params, ret_t_spec);
                 let body = hir::DefBody::new(body.op, block, body.id);
                 Ok(hir::Def::new(hir::Signature::Subr(sig), body))
             }
@@ -1876,7 +1921,7 @@ impl ASTLowerer {
         trait_loc: &impl Locational,
     ) -> LowerResult<()> {
         // TODO: polymorphic trait
-        if let Some(impls) = self
+        if let Some(mut impls) = self
             .module
             .context
             .trait_impls()
@@ -2307,7 +2352,7 @@ impl ASTLowerer {
 
     // Call.obj == Accessor cannot be type inferred by itself (it can only be inferred with arguments)
     // so turn off type checking (check=false)
-    fn lower_expr(&mut self, expr: ast::Expr) -> LowerResult<hir::Expr> {
+    pub fn lower_expr(&mut self, expr: ast::Expr) -> LowerResult<hir::Expr> {
         log!(info "entered {}", fn_name!());
         match expr {
             ast::Expr::Literal(lit) => Ok(hir::Expr::Lit(self.lower_literal(lit)?)),

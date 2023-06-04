@@ -1,6 +1,7 @@
 /// defines High-level Intermediate Representation
 use std::fmt;
 
+use erg_common::consts::ERG_MODE;
 use erg_common::dict::Dict as HashMap;
 use erg_common::error::Location;
 #[allow(unused_imports)]
@@ -434,6 +435,12 @@ impl Locational for Identifier {
 impl From<&Identifier> for Field {
     fn from(ident: &Identifier) -> Self {
         Self::new(ident.vis().clone(), ident.inspect().clone())
+    }
+}
+
+impl From<Identifier> for Expr {
+    fn from(ident: Identifier) -> Self {
+        Expr::Accessor(Accessor::Ident(ident))
     }
 }
 
@@ -1810,7 +1817,7 @@ pub struct SubrSignature {
     pub ident: Identifier,
     pub bounds: TypeBoundSpecs,
     pub params: Params,
-    pub return_t_spec: Option<TypeSpec>,
+    pub return_t_spec: Option<TypeSpecWithOp>,
 }
 
 impl NestedDisplay for SubrSignature {
@@ -1862,7 +1869,7 @@ impl SubrSignature {
         ident: Identifier,
         bounds: TypeBoundSpecs,
         params: Params,
-        return_t_spec: Option<TypeSpec>,
+        return_t_spec: Option<TypeSpecWithOp>,
     ) -> Self {
         Self {
             ident,
@@ -2007,6 +2014,13 @@ impl Signature {
     pub fn t_spec(&self) -> Option<&TypeSpec> {
         match self {
             Self::Var(v) => v.t_spec.as_ref().map(|t| &t.raw.t_spec),
+            Self::Subr(s) => s.return_t_spec.as_ref().map(|t| &t.raw.t_spec),
+        }
+    }
+
+    pub fn t_spec_with_op(&self) -> Option<&TypeSpecWithOp> {
+        match self {
+            Self::Var(v) => v.t_spec.as_ref(),
             Self::Subr(s) => s.return_t_spec.as_ref(),
         }
     }
@@ -2554,6 +2568,17 @@ impl Expr {
         }
     }
 
+    pub fn need_to_be_closed(&self) -> bool {
+        match self {
+            Self::BinOp(_) | Self::UnaryOp(_) | Self::Lambda(_) | Self::TypeAsc(_) => true,
+            Self::Tuple(tup) => match tup {
+                Tuple::Normal(tup) => tup.elems.paren.is_none(),
+            },
+            Self::Call(call) if ERG_MODE => call.args.paren.is_none(),
+            _ => false,
+        }
+    }
+
     pub fn call(self, args: Args) -> Call {
         match self {
             Self::Accessor(Accessor::Attr(attr)) => Call::new(*attr.obj, Some(attr.ident), args),
@@ -2563,6 +2588,17 @@ impl Expr {
 
     pub fn call_expr(self, args: Args) -> Self {
         Self::Call(self.call(args))
+    }
+
+    pub fn call1(self, expr: Expr) -> Self {
+        self.call_expr(Args::single(PosArg::new(expr)))
+    }
+
+    pub fn call2(self, expr1: Expr, expr2: Expr) -> Self {
+        self.call_expr(Args::pos_only(
+            vec![PosArg::new(expr1), PosArg::new(expr2)],
+            None,
+        ))
     }
 
     pub fn attr(self, ident: Identifier) -> Accessor {

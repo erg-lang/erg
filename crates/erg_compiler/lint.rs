@@ -8,6 +8,7 @@ use erg_common::traits::{Locational, Runnable, Stream};
 use erg_common::Str;
 use erg_parser::ast::AST;
 use erg_parser::build_ast::ASTBuilder;
+use erg_parser::lex::Lexer;
 
 use crate::context::ContextKind;
 use crate::link_ast::ASTLinker;
@@ -168,10 +169,11 @@ impl ASTLowerer {
         if mode == "eval" {
             return;
         }
-        for (referee, value) in self.module.context.index().iter() {
+        for (referee, value) in self.module.context.index().members().iter() {
             let code = referee.code();
             let name = code.as_ref().map(|s| &s[..]).unwrap_or("");
-            let name_is_auto = name == "_"; // || name.starts_with(['%']);
+            let name_is_auto =
+                name == "_" || !Lexer::is_valid_start_symbol_ch(name.chars().next().unwrap_or(' '));
             if value.referrers.is_empty() && value.vi.vis.is_private() && !name_is_auto {
                 let input = referee
                     .module

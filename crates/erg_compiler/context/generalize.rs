@@ -1,5 +1,6 @@
 use std::mem;
 
+use erg_common::consts::DEBUG_MODE;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
@@ -134,7 +135,7 @@ impl Generalizer {
     /// ```
     fn generalize_t(&mut self, free_type: Type, uninit: bool) -> Type {
         match free_type {
-            FreeVar(fv) if fv.is_linked() => self.generalize_t(fv.crack().clone(), uninit),
+            FreeVar(fv) if fv.is_linked() => self.generalize_t(fv.unsafe_crack().clone(), uninit),
             FreeVar(fv) if fv.is_generalized() => Type::FreeVar(fv),
             // TODO: Polymorphic generalization
             FreeVar(fv) if fv.level().unwrap() > self.level => {
@@ -146,8 +147,9 @@ impl Generalizer {
                     // |Int <: T <: Int| T -> T ==> Int -> Int
                     if sub == sup {
                         let t = self.generalize_t(sub, uninit);
-                        fv.forced_link(&t);
-                        FreeVar(fv)
+                        let res = FreeVar(fv);
+                        res.link(&t);
+                        res
                     } else if sup != Obj
                         && !self.qnames.contains(&fv.unbound_name().unwrap())
                         && self.variance == Contravariant
@@ -530,10 +532,10 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                             fv.dummy_link();
                         }
                         (true, false) => {
-                            fv.forced_undoable_link(&super_t);
+                            fv.undoable_link(&super_t);
                         }
                         (false, true | false) => {
-                            fv.forced_undoable_link(&sub_t);
+                            fv.undoable_link(&sub_t);
                         }
                     }
                     let res = self.validate_subsup(sub_t, super_t);
@@ -545,7 +547,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                             Ok(ty)
                         }
                         Err(errs) => {
-                            fv.link(&Never);
+                            Type::FreeVar(fv).link(&Never);
                             Err(errs)
                         }
                     }
@@ -746,20 +748,33 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
             self.ctx
                 .check_trait_impl(&sub_t, &super_t, self.qnames, self.loc)?;
         }
+        let is_subtype = self.ctx.subtype_of(&sub_t, &super_t);
+        let sub_t = if DEBUG_MODE {
+            sub_t
+        } else {
+            self.deref_tyvar(sub_t)?
+        };
+        let super_t = if DEBUG_MODE {
+            super_t
+        } else {
+            self.deref_tyvar(super_t)?
+        };
+        if sub_t == super_t {
+            Ok(sub_t)
+        }
         // REVIEW: Even if type constraints can be satisfied, implementation may not exist
-        if self.ctx.subtype_of(&sub_t, &super_t) {
-            let sub_t = if cfg!(feature = "debug") {
-                sub_t
-            } else {
-                self.deref_tyvar(sub_t)?
-            };
-            let super_t = if cfg!(feature = "debug") {
-                super_t
-            } else {
-                self.deref_tyvar(super_t)?
-            };
+        else if is_subtype {
             match self.variance {
-                Variance::Covariant if self.coerce => Ok(sub_t),
+                // ?T(<: Sup) --> Sup (Sup != Obj), because completion will not work if Never is selected.
+                // ?T(:> Never, <: Obj) --> Never
+                // ?T(:> Never, <: Int) --> Never..Int == Int
+                Variance::Covariant if self.coerce => {
+                    if sub_t != Never || super_t == Obj {
+                        Ok(sub_t)
+                    } else {
+                        Ok(bounded(sub_t, super_t))
+                    }
+                }
                 Variance::Contravariant if self.coerce => Ok(super_t),
                 Variance::Covariant | Variance::Contravariant => Ok(bounded(sub_t, super_t)),
                 Variance::Invariant => {
@@ -767,7 +782,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                     if self.ctx.supertype_of(&sub_t, &super_t) {
                         Ok(sub_t)
                     } else {
-                        Err(TyCheckErrors::from(TyCheckError::subtyping_error(
+                        Err(TyCheckErrors::from(TyCheckError::invariant_error(
                             self.ctx.cfg.input.clone(),
                             line!() as usize,
                             &sub_t,
@@ -779,16 +794,6 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 }
             }
         } else {
-            let sub_t = if cfg!(feature = "debug") {
-                sub_t
-            } else {
-                self.deref_tyvar(sub_t)?
-            };
-            let super_t = if cfg!(feature = "debug") {
-                super_t
-            } else {
-                self.deref_tyvar(super_t)?
-            };
             Err(TyCheckErrors::from(TyCheckError::subtyping_error(
                 self.ctx.cfg.input.clone(),
                 line!() as usize,
@@ -905,11 +910,18 @@ impl Context {
     fn poly_class_trait_impl_exists(&self, class: &Type, trait_: &Type) -> bool {
         let mut super_exists = false;
         for imp in self.get_trait_impls(trait_).into_iter() {
+            self.substitute_typarams(&imp.sub_type, class).unwrap_or(());
+            self.substitute_typarams(&imp.sup_trait, trait_)
+                .unwrap_or(());
             if self.supertype_of(&imp.sub_type, class) && self.supertype_of(&imp.sup_trait, trait_)
             {
                 super_exists = true;
+                Self::undo_substitute_typarams(&imp.sub_type);
+                Self::undo_substitute_typarams(&imp.sup_trait);
                 break;
             }
+            Self::undo_substitute_typarams(&imp.sub_type);
+            Self::undo_substitute_typarams(&imp.sup_trait);
         }
         super_exists
     }
@@ -923,12 +935,12 @@ impl Context {
     ) -> TyCheckResult<()> {
         if !self.trait_impl_exists(class, trait_) {
             let mut dereferencer = Dereferencer::new(self, Variance::Covariant, false, qnames, loc);
-            let class = if cfg!(feature = "debug") {
+            let class = if DEBUG_MODE {
                 class.clone()
             } else {
                 dereferencer.deref_tyvar(class.clone())?
             };
-            let trait_ = if cfg!(feature = "debug") {
+            let trait_ = if DEBUG_MODE {
                 trait_.clone()
             } else {
                 dereferencer.deref_tyvar(trait_.clone())?

@@ -4,11 +4,10 @@ use std::ops::{Add, Div, Mul, Neg, Range, RangeInclusive, Sub};
 use std::sync::Arc;
 
 use erg_common::dict::Dict;
-use erg_common::set;
 use erg_common::set::Set;
 use erg_common::traits::{LimitedDisplay, StructuralEq};
 use erg_common::Str;
-use erg_common::{dict, log};
+use erg_common::{dict, log, set};
 
 use erg_parser::ast::ConstLambda;
 
@@ -340,7 +339,8 @@ impl LimitedDisplay for TyParam {
             }
             Self::Mono(name) => write!(f, "{name}"),
             Self::Proj { obj, attr } => {
-                write!(f, "{obj}.")?;
+                obj.limited_fmt(f, limit - 1)?;
+                write!(f, ".")?;
                 write!(f, "{attr}")
             }
             Self::Array(arr) => {
@@ -363,8 +363,29 @@ impl LimitedDisplay for TyParam {
                 }
                 write!(f, "}}")
             }
-            Self::Dict(dict) => write!(f, "{dict}"),
-            Self::Record(rec) => write!(f, "{rec}"),
+            Self::Dict(dict) => {
+                write!(f, "{{")?;
+                for (i, (k, v)) in dict.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    k.limited_fmt(f, limit - 1)?;
+                    write!(f, ": ")?;
+                    v.limited_fmt(f, limit - 1)?;
+                }
+                write!(f, "}}")
+            }
+            Self::Record(rec) => {
+                write!(f, "{{")?;
+                for (i, (k, v)) in rec.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, "; ")?;
+                    }
+                    write!(f, "{k} = ")?;
+                    v.limited_fmt(f, limit - 1)?;
+                }
+                write!(f, "}}")
+            }
             Self::Lambda(lambda) => write!(f, "{lambda}"),
             Self::Tuple(tuple) => {
                 write!(f, "(")?;
@@ -836,12 +857,12 @@ impl TyParam {
 
     // if self: Ratio, Succ(self) => self+ε
     pub fn succ(self) -> Self {
-        Self::app("Succ".into(), vec![self])
+        Self::app("succ".into(), vec![self])
     }
 
     // if self: Ratio, Pred(self) => self-ε
     pub fn pred(self) -> Self {
-        Self::app("Pred".into(), vec![self])
+        Self::app("pred".into(), vec![self])
     }
 
     pub fn qual_name(&self) -> Option<Str> {
@@ -1114,6 +1135,23 @@ impl TyParam {
             TyParam::Value(ValueObj::Type(obj)) => TyParam::t(obj.typ().clone().normalize()),
             TyParam::Type(t) => TyParam::t(t.normalize()),
             other => other,
+        }
+    }
+
+    fn addr_eq(&self, other: &TyParam) -> bool {
+        match (self, other) {
+            (Self::FreeVar(slf), Self::FreeVar(otr)) => slf.addr_eq(otr),
+            _ => self == other,
+        }
+    }
+
+    pub(crate) fn link(&self, to: &TyParam) {
+        if self.addr_eq(to) {
+            return;
+        }
+        match self {
+            Self::FreeVar(fv) => fv.link(to),
+            _ => panic!("{self} is not a free variable"),
         }
     }
 }

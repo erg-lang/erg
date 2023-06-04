@@ -6,6 +6,9 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use erg_common::consts::PYTHON_MODE;
+use erg_compiler::erg_parser::ast::Module;
+use erg_compiler::erg_parser::parse::{Parsable, SimpleParser};
+use erg_compiler::lower::ASTLowerer;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_json::Value;
@@ -23,9 +26,9 @@ use erg_compiler::module::{SharedCompilerResource, SharedModuleIndex};
 use erg_compiler::ty::HasType;
 
 use lsp_types::request::{
-    CodeActionRequest, CodeLensRequest, Completion, ExecuteCommand, GotoDefinition, HoverRequest,
-    InlayHintRequest, References, Rename, Request, ResolveCompletionItem,
-    SemanticTokensFullRequest, SignatureHelpRequest, WillRenameFiles,
+    CodeActionRequest, CodeActionResolveRequest, CodeLensRequest, Completion, ExecuteCommand,
+    GotoDefinition, HoverRequest, InlayHintRequest, References, Rename, Request,
+    ResolveCompletionItem, SemanticTokensFullRequest, SignatureHelpRequest, WillRenameFiles,
 };
 use lsp_types::{
     ClientCapabilities, CodeActionKind, CodeActionOptions, CodeActionProviderCapability,
@@ -45,6 +48,8 @@ use crate::util::{self, NormalizedUrl};
 pub type ELSResult<T> = Result<T, Box<dyn std::error::Error>>;
 
 pub type ErgLanguageServer = Server<HIRBuilder>;
+
+pub type Handler<Server, Params, Out> = fn(&mut Server, Params) -> ELSResult<Out>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DefaultFeatures {
@@ -185,9 +190,23 @@ pub(crate) fn send_invalid_req_error() -> ELSResult<()> {
     send_error(None, -32601, "received an invalid request")
 }
 
+#[derive(Debug)]
+pub struct AnalysisResult {
+    pub ast: Module,
+    pub artifact: IncompleteArtifact,
+}
+
+impl AnalysisResult {
+    pub fn new(ast: Module, artifact: IncompleteArtifact) -> Self {
+        Self { ast, artifact }
+    }
+}
+
+pub(crate) const TRIGGER_CHARS: [&str; 4] = [".", ":", "(", " "];
+
 /// A Language Server, which can be used any object implementing `BuildRunnable` internally by passing it as a generic parameter.
 #[derive(Debug)]
-pub struct Server<Checker: BuildRunnable = HIRBuilder> {
+pub struct Server<Checker: BuildRunnable = HIRBuilder, Parser: Parsable = SimpleParser> {
     pub(crate) cfg: ErgConfig,
     pub(crate) home: PathBuf,
     pub(crate) erg_path: PathBuf,
@@ -197,25 +216,27 @@ pub struct Server<Checker: BuildRunnable = HIRBuilder> {
     pub(crate) file_cache: FileCache,
     pub(crate) comp_cache: CompletionCache,
     pub(crate) modules: Dict<NormalizedUrl, ModuleContext>,
-    pub(crate) artifacts: Dict<NormalizedUrl, IncompleteArtifact>,
+    pub(crate) analysis_result: Dict<NormalizedUrl, AnalysisResult>,
     pub(crate) current_sig: Option<Expr>,
+    pub(crate) _parser: std::marker::PhantomData<Parser>,
     pub(crate) _checker: std::marker::PhantomData<Checker>,
 }
 
-impl<Checker: BuildRunnable> Server<Checker> {
+impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     pub fn new(cfg: ErgConfig) -> Self {
         Self {
+            comp_cache: CompletionCache::new(cfg.copy()),
             cfg,
-            home: normalize_path(std::env::current_dir().unwrap()),
+            home: normalize_path(std::env::current_dir().unwrap_or_default()),
             erg_path: erg_path(), // already normalized
             client_capas: ClientCapabilities::default(),
             disabled_features: vec![],
             opt_features: vec![],
-            comp_cache: CompletionCache::new(),
             file_cache: FileCache::new(),
             modules: Dict::new(),
-            artifacts: Dict::new(),
+            analysis_result: Dict::new(),
             current_sig: None,
+            _parser: std::marker::PhantomData,
             _checker: std::marker::PhantomData,
         }
     }
@@ -223,7 +244,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
     pub fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         loop {
             let msg = self.read_message()?;
-            self.dispatch(msg)?;
+            if let Err(err) = self.dispatch(msg) {
+                send_error_info(format!("err: {err:?}"))?;
+            }
         }
         // Ok(())
     }
@@ -260,8 +283,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         result.capabilities = ServerCapabilities::default();
         self.file_cache.set_capabilities(&mut result.capabilities);
         let mut comp_options = CompletionOptions::default();
-        comp_options.trigger_characters =
-            Some(vec![".".into(), ":".into(), "(".into(), " ".into()]);
+        comp_options.trigger_characters = Some(TRIGGER_CHARS.map(String::from).to_vec());
         comp_options.resolve_provider = Some(true);
         result.capabilities.completion_provider = Some(comp_options);
         result.capabilities.rename_provider = Some(OneOf::Left(true));
@@ -313,7 +335,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         } else {
             let options = CodeActionProviderCapability::Options(CodeActionOptions {
                 code_action_kinds: Some(vec![CodeActionKind::QUICKFIX, CodeActionKind::REFACTOR]),
-                resolve_provider: Some(false),
+                resolve_provider: Some(true),
                 work_done_progress_options: WorkDoneProgressOptions::default(),
             });
             Some(options)
@@ -443,7 +465,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         &mut self,
         id: i64,
         msg: &Value,
-        handler: fn(&mut Server<Checker>, R::Params) -> ELSResult<R::Result>,
+        handler: Handler<Server<Checker, Parser>, R::Params, R::Result>,
     ) -> ELSResult<()>
     where
         R: lsp_types::request::Request + 'static,
@@ -475,6 +497,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
             }
             CodeActionRequest::METHOD => {
                 self.wrap::<CodeActionRequest>(id, msg, Self::handle_code_action)
+            }
+            CodeActionResolveRequest::METHOD => {
+                self.wrap::<CodeActionResolveRequest>(id, msg, Self::handle_code_action_resolve)
             }
             SignatureHelpRequest::METHOD => {
                 self.wrap::<SignatureHelpRequest>(id, msg, Self::handle_signature_help)
@@ -515,12 +540,13 @@ impl<Checker: BuildRunnable> Server<Checker> {
             }
             "textDocument/didChange" => {
                 let params = DidChangeTextDocumentParams::deserialize(msg["params"].clone())?;
-                self.file_cache.incremental_update(params.clone());
-                if self.opt_features.contains(&OptionalFeatures::CheckOnType) {
-                    let uri = NormalizedUrl::new(params.text_document.uri);
+                // check before updating, because `x.`/`x::` will result in an error
+                if TRIGGER_CHARS.contains(&&params.content_changes[0].text[..]) {
+                    let uri = NormalizedUrl::new(params.text_document.uri.clone());
                     // TODO: reset mutable dependent types
                     self.quick_check_file(uri)?;
                 }
+                self.file_cache.incremental_update(params);
                 Ok(())
             }
             _ => send_log(format!("received notification: {method}")),
@@ -538,16 +564,31 @@ impl<Checker: BuildRunnable> Server<Checker> {
         }
     }
 
+    pub(crate) fn get_lowerer(&mut self, uri: &NormalizedUrl) -> Option<ASTLowerer> {
+        let module = std::mem::take(self.modules.get_mut(uri)?);
+        Some(ASTLowerer::new_with_ctx(module))
+    }
+
+    pub(crate) fn restore_mod_ctx(&mut self, uri: NormalizedUrl, module: ModuleContext) {
+        if let Some(m) = self.modules.get_mut(&uri) {
+            *m = module;
+        } else {
+            self.modules.insert(uri, module);
+        }
+    }
+
+    pub(crate) fn get_artifact(&self, uri: &NormalizedUrl) -> Option<&IncompleteArtifact> {
+        self.analysis_result.get(uri).map(|r| &r.artifact)
+    }
+
     pub(crate) fn get_visitor(&self, uri: &NormalizedUrl) -> Option<HIRVisitor> {
-        self.artifacts
-            .get(uri)?
+        self.get_artifact(uri)?
             .object
             .as_ref()
             .map(|hir| HIRVisitor::new(hir, &self.file_cache, uri.clone()))
     }
 
     pub(crate) fn get_local_ctx(&self, uri: &NormalizedUrl, pos: Position) -> Vec<&Context> {
-        // send_log(format!("scope: {:?}\n", self.module.as_ref().unwrap().scope.keys())).unwrap();
         let mut ctxs = vec![];
         if let Some(mod_ctx) = &self.modules.get(uri) {
             if let Some(visitor) = self.get_visitor(uri) {
@@ -594,7 +635,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                         ctxs.extend(singular_ctxs);
                     }
                 } else {
-                    send_log("expr not found: {token}")?;
+                    _log!("expr not found: {token}");
                 }
             }
             Ok(ctxs)
@@ -604,8 +645,11 @@ impl<Checker: BuildRunnable> Server<Checker> {
         }
     }
 
-    pub(crate) fn get_index(&self) -> &SharedModuleIndex {
-        self.modules.values().next().unwrap().context.index()
+    pub(crate) fn get_index(&self) -> Option<&SharedModuleIndex> {
+        self.modules
+            .values()
+            .next()
+            .map(|module| module.context.index())
     }
 
     pub(crate) fn get_shared(&self) -> Option<&SharedCompilerResource> {
@@ -617,12 +661,12 @@ impl<Checker: BuildRunnable> Server<Checker> {
 
     pub(crate) fn get_builtin_module(&self) -> Option<&Context> {
         self.get_shared()
-            .and_then(|mode| mode.mod_cache.ref_ctx(Path::new("<builtins>")))
+            .and_then(|mode| mode.mod_cache.raw_ref_ctx(Path::new("<builtins>")))
             .map(|mc| &mc.context)
     }
 
     pub(crate) fn clear_cache(&mut self, uri: &NormalizedUrl) {
-        self.artifacts.remove(uri);
+        self.analysis_result.remove(uri);
         if let Some(module) = self.modules.remove(uri) {
             let shared = module.context.shared();
             let path = util::uri_to_path(uri);

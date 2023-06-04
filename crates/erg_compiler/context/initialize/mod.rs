@@ -27,13 +27,13 @@ use erg_parser::ast::VarName;
 use crate::context::initialize::const_func::*;
 use crate::context::instantiate_spec::ConstTemplate;
 use crate::context::{
-    ClassDefType, Context, ContextKind, MethodInfo, ModuleContext, ParamSpec, TraitImpl,
+    ClassDefType, Context, ContextKind, MethodPair, ModuleContext, ParamSpec, TraitImpl,
 };
 use crate::module::SharedCompilerResource;
 use crate::ty::constructors::*;
 use crate::ty::free::Constraint;
 use crate::ty::value::ValueObj;
-use crate::ty::{BuiltinConstSubr, ConstSubr, ParamTy, Predicate, Type, Visibility};
+use crate::ty::{BuiltinConstSubr, ConstSubr, ParamTy, Predicate, TyParam, Type, Visibility};
 use crate::varinfo::{AbsLocation, Mutability, VarInfo, VarKind};
 use Mutability::*;
 use ParamSpec as PS;
@@ -45,6 +45,7 @@ const NUM: &str = "Num";
 const UNPACK: &str = "Unpack";
 const INHERITABLE_TYPE: &str = "InheritableType";
 const NAMED: &str = "Named";
+const SIZED: &str = "Sized";
 const MUTABLE: &str = "Mutable";
 const SELF: &str = "Self";
 const IMMUTIZABLE: &str = "Immutizable";
@@ -87,11 +88,17 @@ const OUTPUT: &str = "Output";
 const POW_OUTPUT: &str = "PowOutput";
 const MOD_OUTPUT: &str = "ModOutput";
 const IN: &str = "In";
+const CONTAINER: &str = "Container";
+const COLLECTION: &str = "Collection";
+const INDEXABLE: &str = "Indexable";
+const MAPPING: &str = "Mapping";
+const MUTABLE_MAPPING: &str = "Mapping!";
 const EQ: &str = "Eq";
 const ORD: &str = "Ord";
 const TO_STR: &str = "to_str";
 const ORDERING: &str = "Ordering";
-const SEQ: &str = "Seq";
+const SEQUENCE: &str = "Sequence";
+const MUTABLE_SEQUENCE: &str = "Sequence!";
 const FUNC_LEN: &str = "len";
 const FUNC_GET: &str = "get";
 const ITERABLE: &str = "Iterable";
@@ -191,6 +198,8 @@ const FUNC_CO_LNOTAB: &str = "co_lnotab";
 const FUNC_CO_NLOCALS: &str = "co_nlocals";
 const FUNC_CO_KWONLYARGCOUNT: &str = "co_kwonlyargcount";
 const FUNC_CO_POSONLYARGCOUNT: &str = "co_posonlyargcount";
+const FUNC_MODULE: &str = "module";
+const FUNC_GLOBAL: &str = "global";
 const GENERIC_MODULE: &str = "GenericModule";
 const PATH: &str = "Path";
 const MODULE: &str = "Module";
@@ -351,6 +360,10 @@ const DICT_ITEMS: &str = "DictItems";
 const FUNC_DICT_KEYS: &str = "dict_keys";
 const FUNC_DICT_VALUES: &str = "dict_values";
 const FUNC_DICT_ITEMS: &str = "dict_items";
+const FUNC_HASATTR: &str = "hasattr";
+const FUNC_GETATTR: &str = "getattr";
+const FUNC_SETATTR: &str = "setattr";
+const FUNC_DELATTR: &str = "delattr";
 
 const OP_IN: &str = "__in__";
 const OP_NOT_IN: &str = "__notin__";
@@ -382,12 +395,15 @@ const OP_MUTATE: &str = "__mutate__";
 const OP_POS: &str = "__pos__";
 const OP_NEG: &str = "__neg__";
 
+const FUNDAMENTAL_LEN: &str = "__len__";
+const FUNDAMENTAL_CONTAINS: &str = "__contains__";
 const FUNDAMENTAL_CALL: &str = "__call__";
 const FUNDAMENTAL_NAME: &str = "__name__";
 const FUNDAMENTAL_STR: &str = "__str__";
 const FUNDAMENTAL_HASH: &str = "__hash__";
 const FUNDAMENTAL_INT: &str = "__int__";
 const FUNDAMENTAL_ITER: &str = "__iter__";
+const FUNDAMENTAL_NEXT: &str = "__next__";
 const FUNDAMENTAL_MODULE: &str = "__module__";
 const FUNDAMENTAL_SIZEOF: &str = "__sizeof__";
 const FUNDAMENTAL_REPR: &str = "__repr__";
@@ -396,6 +412,8 @@ const FUNDAMENTAL_BYTES: &str = "__bytes__";
 const FUNDAMENTAL_GETITEM: &str = "__getitem__";
 const FUNDAMENTAL_TUPLE_GETITEM: &str = "__Tuple_getitem__";
 const FUNDAMENTAL_SETITEM: &str = "__setitem__";
+const PROC_FUNDAMENTAL_SETITEM: &str = "__setitem__!";
+const PROC_FUNDAMENTAL_DELITEM: &str = "__delitem__!";
 const FUNDAMENTAL_IMPORT: &str = "__import__";
 const FUNDAMENTAL_ENTER: &str = "__enter__";
 const FUNDAMENTAL_EXIT: &str = "__exit__";
@@ -427,6 +445,8 @@ const TY_L: &str = "L";
 const TY_N: &str = "N";
 const TY_M: &str = "M";
 const TY_O: &str = "O";
+const TY_K: &str = "K";
+const TY_V: &str = "V";
 
 const KW_OLD: &str = "old";
 const KW_B: &str = "b";
@@ -462,6 +482,8 @@ const KW_SRC: &str = "src";
 const KW_THEN: &str = "then";
 const KW_ELSE: &str = "else";
 const KW_OBJ: &str = "obj";
+const KW_NAME: &str = "name";
+const KW_DEFAULT: &str = "default";
 const KW_START: &str = "start";
 const KW_COND: &str = "cond";
 const KW_CLASSINFO: &str = "classinfo";
@@ -735,50 +757,19 @@ impl Context {
             };
             let name = VarName::from_str(t.local_name());
             let meta_t = v_enum(set! { val.clone() });
-            self.locals.insert(
-                name.clone(),
-                VarInfo::new(
-                    meta_t,
-                    muty,
-                    vis,
-                    Builtin,
-                    None,
-                    None,
-                    py_name.map(Str::ever),
-                    AbsLocation::unknown(),
-                ),
+            let vi = VarInfo::new(
+                meta_t,
+                muty,
+                vis,
+                Builtin,
+                None,
+                None,
+                py_name.map(Str::ever),
+                AbsLocation::unknown(),
             );
+            self.locals.insert(name.clone(), vi);
             self.consts.insert(name.clone(), val);
-            for impl_trait in ctx.super_traits.iter() {
-                if let Some(impls) = self.trait_impls().get_mut(&impl_trait.qual_name()) {
-                    impls.insert(TraitImpl::new(t.clone(), impl_trait.clone()));
-                } else {
-                    self.trait_impls().register(
-                        impl_trait.qual_name(),
-                        set![TraitImpl::new(t.clone(), impl_trait.clone())],
-                    );
-                }
-            }
-            for (trait_method, vi) in ctx.decls.iter() {
-                if let Some(types) = self.method_to_traits.get_mut(trait_method.inspect()) {
-                    types.push(MethodInfo::new(t.clone(), vi.clone()));
-                } else {
-                    self.method_to_traits.insert(
-                        trait_method.inspect().clone(),
-                        vec![MethodInfo::new(t.clone(), vi.clone())],
-                    );
-                }
-            }
-            for (class_method, vi) in ctx.locals.iter() {
-                if let Some(types) = self.method_to_classes.get_mut(class_method.inspect()) {
-                    types.push(MethodInfo::new(t.clone(), vi.clone()));
-                } else {
-                    self.method_to_classes.insert(
-                        class_method.inspect().clone(),
-                        vec![MethodInfo::new(t.clone(), vi.clone())],
-                    );
-                }
-            }
+            self.register_methods(&t, &ctx);
             self.mono_types.insert(name, (t, ctx));
         }
     }
@@ -825,37 +816,41 @@ impl Context {
                 );
             }
             self.consts.insert(name.clone(), val);
-            for impl_trait in ctx.super_traits.iter() {
-                if let Some(impls) = self.trait_impls().get_mut(&impl_trait.qual_name()) {
-                    impls.insert(TraitImpl::new(t.clone(), impl_trait.clone()));
-                } else {
-                    self.trait_impls().register(
-                        impl_trait.qual_name(),
-                        set![TraitImpl::new(t.clone(), impl_trait.clone())],
-                    );
-                }
-            }
-            for (trait_method, vi) in ctx.decls.iter() {
-                if let Some(traits) = self.method_to_traits.get_mut(trait_method.inspect()) {
-                    traits.push(MethodInfo::new(t.clone(), vi.clone()));
-                } else {
-                    self.method_to_traits.insert(
-                        trait_method.inspect().clone(),
-                        vec![MethodInfo::new(t.clone(), vi.clone())],
-                    );
-                }
-            }
-            for (class_method, vi) in ctx.locals.iter() {
-                if let Some(types) = self.method_to_classes.get_mut(class_method.inspect()) {
-                    types.push(MethodInfo::new(t.clone(), vi.clone()));
-                } else {
-                    self.method_to_classes.insert(
-                        class_method.inspect().clone(),
-                        vec![MethodInfo::new(t.clone(), vi.clone())],
-                    );
-                }
-            }
+            self.register_methods(&t, &ctx);
             self.poly_types.insert(name, (t, ctx));
+        }
+    }
+
+    pub(crate) fn register_methods(&mut self, t: &Type, ctx: &Self) {
+        for impl_trait in ctx.super_traits.iter() {
+            if let Some(mut impls) = self.trait_impls().get_mut(&impl_trait.qual_name()) {
+                impls.insert(TraitImpl::new(t.clone(), impl_trait.clone()));
+            } else {
+                self.trait_impls().register(
+                    impl_trait.qual_name(),
+                    set![TraitImpl::new(t.clone(), impl_trait.clone())],
+                );
+            }
+        }
+        for (trait_method, vi) in ctx.decls.iter() {
+            if let Some(traits) = self.method_to_traits.get_mut(trait_method.inspect()) {
+                traits.push(MethodPair::new(t.clone(), vi.clone()));
+            } else {
+                self.method_to_traits.insert(
+                    trait_method.inspect().clone(),
+                    vec![MethodPair::new(t.clone(), vi.clone())],
+                );
+            }
+        }
+        for (class_method, vi) in ctx.locals.iter() {
+            if let Some(types) = self.method_to_classes.get_mut(class_method.inspect()) {
+                types.push(MethodPair::new(t.clone(), vi.clone()));
+            } else {
+                self.method_to_classes.insert(
+                    class_method.inspect().clone(),
+                    vec![MethodPair::new(t.clone(), vi.clone())],
+                );
+            }
         }
     }
 
@@ -890,7 +885,8 @@ impl Context {
                 }
             }
             if let ContextKind::GluePatch(tr_impl) = &ctx.kind {
-                if let Some(impls) = self.trait_impls().get_mut(&tr_impl.sup_trait.qual_name()) {
+                if let Some(mut impls) = self.trait_impls().get_mut(&tr_impl.sup_trait.qual_name())
+                {
                     impls.insert(tr_impl.clone());
                 } else {
                     self.trait_impls()
@@ -907,14 +903,6 @@ impl Context {
         } else {
             Visibility::BUILTIN_PRIVATE
         };
-        // TODO: this is not a const, but a special property
-        self.register_builtin_py_impl(
-            FUNDAMENTAL_NAME,
-            Str,
-            Immutable,
-            vis.clone(),
-            Some(FUNDAMENTAL_NAME),
-        );
         self.register_builtin_py_impl(
             LICENSE,
             mono(SITEBUILTINS_PRINTER),
@@ -943,7 +931,7 @@ impl Context {
             vis.clone(),
             Some(NOT_IMPLEMENTED),
         );
-        self.register_builtin_py_impl(ELLIPSIS, Ellipsis, Const, vis, Some(ELLIPSIS));
+        self.register_builtin_py_impl(ELLIPSIS, Ellipsis, Const, vis.clone(), Some(ELLIPSIS));
         self.register_builtin_py_impl(TRUE, Bool, Const, Visibility::BUILTIN_PRIVATE, Some(TRUE));
         self.register_builtin_py_impl(FALSE, Bool, Const, Visibility::BUILTIN_PRIVATE, Some(FALSE));
         self.register_builtin_py_impl(
@@ -953,6 +941,39 @@ impl Context {
             Visibility::BUILTIN_PRIVATE,
             Some(NONE),
         );
+        if ERG_MODE {
+            self.register_builtin_py_impl(
+                FUNC_GLOBAL,
+                module(TyParam::value("<builtins>")),
+                Immutable,
+                vis,
+                None,
+            );
+        }
+    }
+
+    fn init_module_consts(&mut self) {
+        let vis = if PYTHON_MODE {
+            Visibility::BUILTIN_PUBLIC
+        } else {
+            Visibility::BUILTIN_PRIVATE
+        };
+        self.register_builtin_py_impl(
+            FUNDAMENTAL_NAME,
+            Str,
+            Immutable,
+            vis.clone(),
+            Some(FUNDAMENTAL_NAME),
+        );
+        if ERG_MODE {
+            self.register_builtin_py_impl(
+                FUNC_MODULE,
+                module(TyParam::value(self.get_module().unwrap().name.clone())),
+                Immutable,
+                vis,
+                None,
+            );
+        }
     }
 
     pub(crate) fn init_builtins(cfg: ErgConfig, shared: SharedCompilerResource) {
@@ -962,6 +983,7 @@ impl Context {
         ctx.init_builtin_const_funcs();
         ctx.init_builtin_procs();
         if PYTHON_MODE {
+            ctx.init_builtin_py_specific_funcs();
             ctx.init_py_compat_builtin_operators();
         } else {
             ctx.init_builtin_operators();
@@ -980,7 +1002,7 @@ impl Context {
         cfg: ErgConfig,
         shared: SharedCompilerResource,
     ) -> Self {
-        Context::new(
+        let mut ctx = Context::new(
             name.into(),
             cfg,
             ContextKind::Module,
@@ -988,6 +1010,8 @@ impl Context {
             None,
             Some(shared),
             Context::TOP_LEVEL,
-        )
+        );
+        ctx.init_module_consts();
+        ctx
     }
 }

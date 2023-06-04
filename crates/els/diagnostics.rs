@@ -1,18 +1,27 @@
+use erg_compiler::erg_parser::ast::Module;
+use erg_compiler::erg_parser::parse::Parsable;
 use serde_json::json;
 
 use erg_common::style::*;
 use erg_common::traits::Stream;
 
 use erg_compiler::artifact::BuildRunnable;
-use erg_compiler::erg_parser::Parser;
 use erg_compiler::error::CompileErrors;
 
-use lsp_types::{Diagnostic, DiagnosticSeverity, Position, PublishDiagnosticsParams, Range, Url};
+use lsp_types::{
+    Diagnostic, DiagnosticSeverity, NumberOrString, Position, PublishDiagnosticsParams, Range, Url,
+};
 
-use crate::server::{send, send_log, DefaultFeatures, ELSResult, Server};
+use crate::diff::{ASTDiff, HIRDiff};
+use crate::server::{send, send_log, AnalysisResult, DefaultFeatures, ELSResult, Server};
 use crate::util::{self, NormalizedUrl};
 
-impl<Checker: BuildRunnable> Server<Checker> {
+impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
+    pub(crate) fn get_ast(&self, uri: &NormalizedUrl) -> Option<Module> {
+        let code = self.file_cache.get_entire_code(uri).ok()?;
+        Parser::parse(code).ok()
+    }
+
     pub(crate) fn check_file<S: Into<String>>(
         &mut self,
         uri: NormalizedUrl,
@@ -36,7 +45,10 @@ impl<Checker: BuildRunnable> Server<Checker> {
                     send_log(format!("{uri}, warns: {}", diags.len()))?;
                     self.send_diagnostics(uri, diags)?;
                 }
-                self.artifacts.insert(uri.clone(), artifact.into());
+                if let Some(module) = self.get_ast(&uri) {
+                    self.analysis_result
+                        .insert(uri.clone(), AnalysisResult::new(module, artifact.into()));
+                }
             }
             Err(artifact) => {
                 send_log(format!("found errors: {}", artifact.errors.len()))?;
@@ -55,7 +67,10 @@ impl<Checker: BuildRunnable> Server<Checker> {
                     send_log(format!("{uri}, errs & warns: {}", diags.len()))?;
                     self.send_diagnostics(uri, diags)?;
                 }
-                self.artifacts.insert(uri.clone(), artifact);
+                if let Some(module) = self.get_ast(&uri) {
+                    self.analysis_result
+                        .insert(uri.clone(), AnalysisResult::new(module, artifact));
+                }
             }
         }
         if let Some(module) = checker.pop_context() {
@@ -72,38 +87,28 @@ impl<Checker: BuildRunnable> Server<Checker> {
     }
 
     pub(crate) fn quick_check_file(&mut self, uri: NormalizedUrl) -> ELSResult<()> {
-        // send_log(format!("checking {uri}"))?;
-        let Some(ts) = self.file_cache.get_token_stream(&uri) else {
+        let Some(old) = self.analysis_result.get(&uri).map(|r| &r.ast) else {
+            crate::_log!("not found");
             return Ok(());
         };
-        let mut parser = Parser::new(ts);
-        if parser.parse().is_err() {
+        let Some(new) = self.get_ast(&uri) else {
+            crate::_log!("not found");
             return Ok(());
-        }
-        let path = util::uri_to_path(&uri);
-        let code = self.file_cache.get_entire_code(&uri)?;
-        let mode = if path.to_string_lossy().ends_with(".d.er") {
-            "declare"
-        } else {
-            "exec"
         };
-        let mut checker = self.get_checker(path);
-        match checker.build(code, mode) {
-            Ok(artifact) => {
-                self.artifacts.insert(uri.clone(), artifact.into());
+        let ast_diff = ASTDiff::diff(old, &new);
+        crate::_log!("diff: {ast_diff}");
+        if let Some(mut lowerer) = self.get_lowerer(&uri) {
+            let hir = self
+                .analysis_result
+                .get_mut(&uri)
+                .and_then(|r| r.artifact.object.as_mut());
+            if let Some((hir_diff, hir)) = HIRDiff::new(ast_diff, &mut lowerer).zip(hir) {
+                crate::_log!("hir_diff: {hir_diff}");
+                hir_diff.update(hir);
             }
-            Err(artifact) => {
-                self.artifacts.insert(uri.clone(), artifact);
-            }
+            self.restore_mod_ctx(uri, lowerer.pop_mod_ctx().unwrap());
         }
-        if let Some(module) = checker.pop_context() {
-            self.modules.insert(uri.clone(), module);
-        }
-        let dependents = self.dependents_of(&uri);
-        for dep in dependents {
-            // _log!("dep: {dep}");
-            self.quick_check_file(dep)?;
-        }
+        // skip checking for dependents
         Ok(())
     }
 
@@ -115,10 +120,13 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let mut uri_and_diags: Vec<(Url, Vec<Diagnostic>)> = vec![];
         for err in errors.into_iter() {
             let loc = err.core.get_loc_with_fallback();
-            let err_uri = if let Some(path) = err.input.path() {
-                Url::from_file_path(path).unwrap()
+            let res_uri = if let Some(path) = err.input.path() {
+                Url::from_file_path(path)
             } else {
-                uri.clone().raw()
+                Ok(uri.clone().raw())
+            };
+            let Ok(err_uri) = res_uri else {
+                continue;
             };
             let mut message = remove_style(&err.core.main_message);
             for sub in err.core.sub_messages {
@@ -145,7 +153,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             let diag = Diagnostic::new(
                 Range::new(start, end),
                 Some(severity),
-                None,
+                Some(NumberOrString::String(format!("E{}", err.core.errno))),
                 None,
                 message,
                 None,

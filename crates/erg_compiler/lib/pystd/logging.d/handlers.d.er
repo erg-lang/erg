@@ -1,0 +1,49 @@
+logging = pyimport "logging"
+
+.DEFAULT_TCP_LOGGING_PORT: {9020}
+.DEFAULT_UDP_LOGGING_PORT: {9021}
+.DEFAULT_HTTP_LOGGING_PORT: {9022}
+.DEFAULT_SOAP_LOGGING_PORT: {9023}
+.SYSLOG_UDP_PORT: {514}
+.SYSLOG_TCP_PORT: {514}
+
+.BaseRotatingHandler!: ClassType
+.BaseRotatingHandler! <: logging.FileHandler!
+
+.RotatingFileHandler!: ClassType
+.RotatingFileHandler! <: BaseRotatingHandler!
+
+.TimeRotatingFileHandler!: ClassType
+.TimeRotatingFileHandler! <: BaseRotatingHandler!
+
+.WatchedFileHandler!: ClassType
+.WatchedFileHandler! <: logging.FileHandler!
+
+.SocketHandler!: ClassType
+.SocketHandler! <: logging.Handler!
+
+.DatagramHandler!: ClassType
+.DatagramHandler! <: SocketHandler!
+
+.SysLogHandler!: ClassType
+.SysLogHandler! <: logging.Handler!
+
+.SMTPHandler!: ClassType
+.SMTPHandler! <: logging.Handler!
+
+.NTEventLogHandler!: ClassType
+.NTEventLogHandler! <: logging.Handler!
+
+.HTTPHandler!: ClassType
+.HTTPHandler! <: logging.Handler!
+
+.BufferingHandler!: ClassType
+.BufferingHandler! <: logging.Handler!
+
+.MemoryHandler!: ClassType
+.MemoryHandler! <: BufferingHandler!
+
+.QueueHandler!: ClassType
+.QueueHandler! <: logging.Handler!
+
+.QueueListener!: ClassType

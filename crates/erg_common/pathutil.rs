@@ -1,4 +1,73 @@
+use std::ffi::OsStr;
 use std::path::{Component, Path, PathBuf};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum DirKind {
+    ErgModule,
+    PyModule,
+    Other,
+    NotDir,
+}
+
+impl From<&Path> for DirKind {
+    fn from(path: &Path) -> Self {
+        let Ok(dir) = path.read_dir() else {
+            return DirKind::NotDir;
+        };
+        for ent in dir {
+            let Ok(ent) = ent else {
+                continue;
+            };
+            if ent.path().file_name() == Some(OsStr::new("__init__.er")) {
+                return DirKind::ErgModule;
+            } else if ent.path().file_name() == Some(OsStr::new("__init__.py")) {
+                return DirKind::PyModule;
+            }
+        }
+        DirKind::Other
+    }
+}
+
+impl DirKind {
+    pub const fn is_erg_module(&self) -> bool {
+        matches!(self, DirKind::ErgModule)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum FileKind {
+    InitEr,
+    InitPy,
+    Er,
+    Py,
+    Other,
+    NotFile,
+}
+
+impl From<&Path> for FileKind {
+    fn from(path: &Path) -> Self {
+        if path.is_file() {
+            match path.file_name() {
+                Some(name) if name == OsStr::new("__init__.er") => FileKind::InitEr,
+                Some(name) if name == OsStr::new("__init__.py") => FileKind::InitPy,
+                Some(name) if name.to_string_lossy().ends_with(".er") => FileKind::Er,
+                Some(name) if name.to_string_lossy().ends_with(".py") => FileKind::Py,
+                _ => FileKind::Other,
+            }
+        } else {
+            FileKind::NotFile
+        }
+    }
+}
+
+impl FileKind {
+    pub const fn is_init_er(&self) -> bool {
+        matches!(self, FileKind::InitEr)
+    }
+    pub const fn is_simple_erg_file(&self) -> bool {
+        matches!(self, FileKind::Er)
+    }
+}
 
 pub fn is_cur_dir<P: AsRef<Path>>(path: P) -> bool {
     path.as_ref()
@@ -91,4 +160,8 @@ pub fn squash(path: PathBuf) -> PathBuf {
         }
     }
     result
+}
+
+pub fn remove_verbatim(path: &Path) -> String {
+    path.to_string_lossy().replace("\\\\?\\", "")
 }

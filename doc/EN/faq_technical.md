@@ -40,3 +40,45 @@ If the length is not known until runtime, an immutable array (`Array`) can be us
 ```erg
 arr = Array map(int, input!().split " ")
 ```
+
+## I got runtime errors in Erg that I did not get in Python. What could be the cause?
+
+The following script is an example of a strange error that can occur in Erg.
+
+```erg
+{main!; TestCase!} = pyimport "unittest"
+
+Test! = Inherit TestCase!
+Test!
+    test_one self =
+        self.assertEqual 1, 1
+
+main!()
+```
+
+This is a basic use of unittest, and at first glance it looks correct, but when executed, it produces the following error:
+
+```console
+AttributeError: 'Test!' object has no attribute '_testMethodName'.
+```
+
+The error is caused by the way `TestCase` is executed.
+When `TestCase` (a class that extends `TestCase`) is executed, the test method to be executed must begin with `test_`.
+`test_one` seems to follow this, but Erg performs mangling on variable names.
+This is what makes the test method unrecognizable.
+To avoid mangling, you need to enclose the name in ''.
+
+```erg
+{main!; TestCase!} = pyimport "unittest"
+
+Test! = Inherit TestCase!
+Test!
+    'test_one' self =
+        self.assertEqual 1, 1
+
+main!()
+```
+
+This time it works.
+
+If you get Erg-specific errors, you can suspect the side-effects of mangling, etc.

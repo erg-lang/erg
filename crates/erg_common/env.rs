@@ -1,7 +1,8 @@
 use std::env::var;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::normalize_path;
+use crate::python_util::get_sys_path;
 use crate::style::colors::*;
 use crate::style::RESET;
 
@@ -52,6 +53,18 @@ fn _erg_external_lib_path() -> PathBuf {
             PathBuf::from("lib/external/")
         })
 }
+fn _python_site_packages() -> impl Iterator<Item = PathBuf> {
+    get_sys_path(None)
+        .unwrap_or(vec![])
+        .into_iter()
+        .filter(|p| p.ends_with("site-packages"))
+        .map(|p| {
+            p.canonicalize().unwrap_or_else(|_| {
+                eprintln!("{RED}[ERR] ERG_PATH/lib/external not found {RESET}");
+                PathBuf::from("lib/external/")
+            })
+        })
+}
 
 thread_local! {
     pub static ERG_PATH: PathBuf = normalize_path(_erg_path());
@@ -59,6 +72,7 @@ thread_local! {
     pub static ERG_STD_DECL_PATH: PathBuf = normalize_path(_erg_std_decl_path());
     pub static ERG_PYSTD_PATH: PathBuf = normalize_path(_erg_pystd_path());
     pub static ERG_EXTERNAL_LIB_PATH: PathBuf = normalize_path(_erg_external_lib_path());
+    pub static PYTHON_SITE_PACKAGES: Vec<PathBuf> = _python_site_packages().collect();
 }
 
 pub fn erg_path() -> PathBuf {
@@ -79,4 +93,26 @@ pub fn erg_pystd_path() -> PathBuf {
 
 pub fn erg_py_external_lib_path() -> PathBuf {
     ERG_EXTERNAL_LIB_PATH.with(|s| s.clone())
+}
+
+pub fn python_site_packages() -> Vec<PathBuf> {
+    PYTHON_SITE_PACKAGES.with(|s| s.clone())
+}
+
+pub fn is_std_decl_path(path: &Path) -> bool {
+    path.starts_with(erg_pystd_path())
+        || path.starts_with(erg_std_decl_path())
+        || path.starts_with(erg_py_external_lib_path())
+}
+
+pub fn is_pystd_main_module(path: &Path) -> bool {
+    let mut path = PathBuf::from(path);
+    if path.ends_with("__init__.d.er") {
+        path.pop();
+        path.pop();
+    } else {
+        path.pop();
+    }
+    let pystd_path = erg_pystd_path();
+    path == pystd_path
 }

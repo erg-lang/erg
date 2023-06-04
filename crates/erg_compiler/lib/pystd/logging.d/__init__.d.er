@@ -1,10 +1,11 @@
-.Logger: ClassType
-
-.Handler: ClassType
-
-.Formatter: ClassType
-
-.Filter: ClassType
+.NOTSET: {0}
+.DEBUG: {10}
+.INFO: {20}
+.WARNING: {30}
+.ERROR: {40}
+.CRITICAL: {50}
+.FATAL: {50}
+.BASIC_FORMAT: {"%(levelname)s:%(name)s:%(message)s"}
 
 .LogRecord: ClassType
 .LogRecord.
@@ -19,9 +20,54 @@
     sinfo: Str or NoneType
     getMessage: (self: .LogRecord) -> Str
 
+.PercentStyle: ClassType
+.StrFormatStyle: ClassType
+.StrFormatStyle <: .PercentStyle
+.StringTemplateStyle: ClassType
+.StringTemplateStyle <: .PercentStyle
+
+.Formatter: ClassType
+.BufferingFormatter: ClassType
+
+.Filter: ClassType
+.Filterer: ClassType
+
+.Handler!: ClassType
+.Handler! <: .Filterer
+.StreamHandler!: ClassType
+.StreamHandler! <: .Handler!
+.FileHandler!: ClassType
+.FileHandler! <: .StreamHandler!
+.NullHandler!: ClassType
+.NullHandler! <: .Handler!
+
+.PlaceHolder: ClassType
+
+.Manager: ClassType
+
+.Logger!: ClassType
+.Logger! <: .Filterer
+.Logger!.
+    propagate: Bool
+    level: Nat
+    setLevel!: (self: RefMut(.Logger!), level: Nat) => NoneType
+    isEnabledFor: (self: Ref(.Logger!), level: Nat) -> Bool
+    getEffectiveLevel: (self: Ref(.Logger!)) -> Nat
+    getChild: (self: Ref(.Logger!), suffix: Str) -> .Logger!
+    debug!: (self: RefMut(.Logger!), msg: Str, *args: Obj) => NoneType
+    info!: (self: RefMut(.Logger!), msg: Str, *args: Obj) => NoneType
+    warning!: (self: RefMut(.Logger!), msg: Str, *args: Obj) => NoneType
+    error!: (self: RefMut(.Logger!), msg: Str, *args: Obj) => NoneType
+    critical!: (self: RefMut(.Logger!), msg: Str, *args: Obj) => NoneType
+    log!: (self: RefMut(.Logger!), level: Nat, msg: Str, *args: Obj) => NoneType
+    exception!: (self: RefMut(.Logger!), msg: Str, *args: Obj) => NoneType
+
+.RootLogger!: ClassType
+.RootLogger! <: .Logger!
+
 .LoggerAdaptor: ClassType
 
-.getLogger: (name: Str or NoneType := NoneType) -> .Logger
+.getLogger: (name: Str or NoneType := NoneType) -> .Logger!
 .getLoggerClass: () -> ClassType
 .getLogRecordFactory: () -> ClassType
 .debug!: (msg: Str, args := GenericTuple, kwargs := GenericDict) => NoneType
@@ -39,3 +85,4 @@
 # TODO: stream
 .basicConfig!: (level := Nat, format := Str, datefmt := Str, filename := Str, filemode := Str, stream := Obj) => NoneType
 .shutdown!: () => NoneType
+.root: .RootLogger!

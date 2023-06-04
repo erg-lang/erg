@@ -50,7 +50,7 @@ The benefits of using the `Result` type don't stop there. The `Result` type is a
 
 Since the `Error`/`Result` type alone does not cause side effects, unlike exceptions, it cannot have information such as the sending location (Context), but if you use the `.context` method, you can put information in the `Error` object. can be added. The `.context` method is a type of method that consumes the `Error` object itself and creates a new `Error` object. They are chainable and can hold multiple contexts.
 
-```python,chekcer_ignore
+```python,checker_ignore
 f() =
     todo() \
         .context "to be implemented in ver 1.2" \

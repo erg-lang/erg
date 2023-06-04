@@ -25,7 +25,6 @@ jobs:
         run: |
           rustup update stable
           cargo login ${{ secrets.CARGO_TOKEN }}
-          chmod +x cargo_publish.sh
           ./cargo_publish.sh
 
   upload-assets:
@@ -58,8 +57,6 @@ jobs:
           features: full
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # static linking to libc
-          RUSTFLAGS: ${{ (matrix.target == 'x86_64-unknown-linux-gnu' && '-C target-feature=+crt-static') || '' }}
 
   notify-release:
     runs-on: ubuntu-latest

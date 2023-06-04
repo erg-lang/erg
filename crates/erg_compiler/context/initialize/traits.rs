@@ -2,7 +2,6 @@
 use erg_common::log;
 
 use crate::ty::constructors::*;
-use crate::ty::typaram::TyParam;
 use crate::ty::value::ValueObj;
 use crate::ty::{Type, Visibility};
 use ParamSpec as PS;
@@ -28,7 +27,11 @@ impl Context {
         };
         let unpack = Self::builtin_mono_trait(UNPACK, 2);
         let inheritable_type = Self::builtin_mono_trait(INHERITABLE_TYPE, 2);
-        let named = Self::builtin_mono_trait(NAMED, 2);
+        let mut named = Self::builtin_mono_trait(NAMED, 2);
+        named.register_builtin_erg_decl(FUNC_NAME, Str, Visibility::BUILTIN_PUBLIC);
+        let mut sized = Self::builtin_mono_trait(SIZED, 2);
+        let t = fn0_met(mono(SIZED), Nat).quantify();
+        sized.register_builtin_erg_decl(FUNDAMENTAL_LEN, t, Visibility::BUILTIN_PUBLIC);
         let mut mutable = Self::builtin_mono_trait(MUTABLE, 2);
         let Slf = mono_q(SELF, subtypeof(mono(IMMUTIZABLE)));
         let immut_t = proj(Slf.clone(), IMMUT_TYPE);
@@ -199,23 +202,6 @@ impl Context {
         let Slf = mono_q(SELF, subtypeof(mono(ORD)));
         let op_t = fn1_met(Slf.clone(), Slf, or(mono(ORDERING), NoneType)).quantify();
         ord.register_builtin_erg_decl(OP_CMP, op_t, Visibility::BUILTIN_PUBLIC);
-        // FIXME: poly trait
-        /* Num */
-        let num = Self::builtin_mono_trait(NUM, 2);
-        /* vec![
-            poly(ADD, vec![]),
-            poly(SUB, vec![]),
-            poly(MUL, vec![]),
-        ], */
-        /* Seq */
-        let mut seq = Self::builtin_poly_trait(SEQ, vec![PS::t_nd(TY_T)], 2);
-        seq.register_superclass(poly(OUTPUT, vec![ty_tp(T.clone())]), &output);
-        let Slf = mono_q(SELF, subtypeof(poly(SEQ, vec![TyParam::erased(Type)])));
-        let t = fn0_met(Slf.clone(), Nat).quantify();
-        seq.register_builtin_erg_decl(FUNC_LEN, t, Visibility::BUILTIN_PUBLIC);
-        let t = fn1_met(Slf, Nat, T.clone()).quantify();
-        // Seq.get: |Self <: Seq(T)| Self.(Nat) -> T
-        seq.register_builtin_erg_decl(FUNC_GET, t, Visibility::BUILTIN_PUBLIC);
         /* Iterable */
         let mut iterable = Self::builtin_poly_trait(ITERABLE, vec![PS::t_nd(TY_T)], 2);
         iterable.register_superclass(poly(OUTPUT, vec![ty_tp(T.clone())]), &output);
@@ -228,6 +214,110 @@ impl Context {
             Some(FUNDAMENTAL_ITER),
         );
         iterable.register_builtin_erg_decl(ITER, Type, Visibility::BUILTIN_PUBLIC);
+        /* Iterator */
+        let mut iterator = Self::builtin_poly_trait(ITERATOR, vec![PS::t_nd(TY_T)], 2);
+        iterator.register_superclass(poly(ITERABLE, vec![ty_tp(T.clone())]), &iterable);
+        let Slf = mono_q(SELF, subtypeof(poly(ITERATOR, vec![ty_tp(T.clone())])));
+        let t = fn0_met(Slf, or(T.clone(), NoneType)).quantify();
+        iterator.register_builtin_erg_decl(FUNDAMENTAL_NEXT, t, Visibility::BUILTIN_PUBLIC);
+        /* Container */
+        let mut container = Self::builtin_poly_trait(CONTAINER, vec![PS::t_nd(TY_T)], 2);
+        let op_t = fn1_met(mono(CONTAINER), T.clone(), Bool).quantify();
+        container.register_builtin_erg_decl(FUNDAMENTAL_CONTAINS, op_t, Visibility::BUILTIN_PUBLIC);
+        /* Collection */
+        let mut collection = Self::builtin_poly_trait(COLLECTION, vec![PS::t_nd(TY_T)], 2);
+        collection.register_superclass(mono(SIZED), &sized);
+        collection.register_superclass(poly(CONTAINER, vec![ty_tp(T.clone())]), &container);
+        collection.register_superclass(poly(ITERABLE, vec![ty_tp(T.clone())]), &iterable);
+        /* Indexable */
+        let mut indexable =
+            Self::builtin_poly_trait(INDEXABLE, vec![PS::t_nd(TY_K), PS::t_nd(TY_V)], 2);
+        let K = type_q(TY_K);
+        let V = type_q(TY_V);
+        indexable.register_superclass(poly(INPUT, vec![ty_tp(K.clone())]), &input);
+        indexable.register_superclass(poly(OUTPUT, vec![ty_tp(V.clone())]), &output);
+        let Slf = mono_q(
+            SELF,
+            subtypeof(poly(INDEXABLE, vec![ty_tp(K.clone()), ty_tp(V.clone())])),
+        );
+        let t = fn1_met(Slf, K.clone(), V.clone()).quantify();
+        indexable.register_builtin_erg_decl(FUNDAMENTAL_GETITEM, t, Visibility::BUILTIN_PUBLIC);
+        /* Sequence */
+        let mut sequence = Self::builtin_poly_trait(SEQUENCE, vec![PS::t_nd(TY_T)], 2);
+        sequence.register_superclass(mono(SIZED), &sized);
+        sequence.register_superclass(
+            poly(INDEXABLE, vec![ty_tp(Nat), ty_tp(T.clone())]),
+            &indexable,
+        );
+        /* Sequence! */
+        let mut mut_sequence = Self::builtin_poly_trait(MUTABLE_SEQUENCE, vec![PS::t_nd(TY_T)], 2);
+        mut_sequence.register_superclass(poly(SEQUENCE, vec![ty_tp(T.clone())]), &sequence);
+        let Slf = mono_q(
+            SELF,
+            subtypeof(poly(MUTABLE_SEQUENCE, vec![ty_tp(T.clone())])),
+        );
+        let t = pr_met(
+            Slf,
+            vec![kw("idx", Nat), kw("value", T.clone())],
+            None,
+            vec![],
+            NoneType,
+        )
+        .quantify();
+        // .__setitem__!: |Self! <: Sequence!(T)| Self!.(idx: Nat, value: T) => NoneType
+        mut_sequence.register_builtin_erg_decl(
+            PROC_FUNDAMENTAL_SETITEM,
+            t.clone(),
+            Visibility::BUILTIN_PUBLIC,
+        );
+        mut_sequence.register_builtin_erg_decl(
+            PROC_FUNDAMENTAL_DELITEM,
+            t.clone(),
+            Visibility::BUILTIN_PUBLIC,
+        );
+        mut_sequence.register_builtin_erg_decl(PROC_INSERT, t, Visibility::BUILTIN_PUBLIC);
+        /* Mapping */
+        let mut mapping =
+            Self::builtin_poly_trait(MAPPING, vec![PS::t_nd(TY_K), PS::t_nd(TY_V)], 2);
+        mapping.register_superclass(poly(COLLECTION, vec![ty_tp(V.clone())]), &collection);
+        mapping.register_superclass(
+            poly(INDEXABLE, vec![ty_tp(K.clone()), ty_tp(V.clone())]),
+            &indexable,
+        );
+        /* Mapping! */
+        let mut mut_mapping =
+            Self::builtin_poly_trait(MUTABLE_MAPPING, vec![PS::t_nd(TY_K), PS::t_nd(TY_V)], 2);
+        mut_mapping.register_superclass(
+            poly(MAPPING, vec![ty_tp(K.clone()), ty_tp(V.clone())]),
+            &mapping,
+        );
+        let Slf = mono_q(
+            SELF,
+            subtypeof(poly(
+                MUTABLE_SEQUENCE,
+                vec![ty_tp(K.clone()), ty_tp(V.clone())],
+            )),
+        );
+        let t = pr_met(
+            Slf.clone(),
+            vec![kw("key", K.clone()), kw("value", V.clone())],
+            None,
+            vec![],
+            NoneType,
+        )
+        .quantify();
+        // .__setitem__!: |Self! <: Mapping!(K, V)| Self!.(key: K, value: V) => NoneType
+        mut_mapping.register_builtin_erg_decl(
+            PROC_FUNDAMENTAL_SETITEM,
+            t,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        let t = pr_met(Slf, vec![kw("key", K.clone())], None, vec![], NoneType).quantify();
+        mut_mapping.register_builtin_erg_decl(
+            PROC_FUNDAMENTAL_DELITEM,
+            t,
+            Visibility::BUILTIN_PUBLIC,
+        );
         let mut context_manager = Self::builtin_mono_trait(CONTEXT_MANAGER, 2);
         let Slf = mono_q(SELF, subtypeof(mono(CONTEXT_MANAGER)));
         let t = fn0_met(Slf.clone(), NoneType).quantify();
@@ -307,6 +397,11 @@ impl Context {
         let op_t = fn0_met(_Slf.clone(), proj(_Slf, OUTPUT)).quantify();
         neg.register_builtin_erg_decl(OP_NEG, op_t, Visibility::BUILTIN_PUBLIC);
         neg.register_builtin_erg_decl(OUTPUT, Type, Visibility::BUILTIN_PUBLIC);
+        /* Num */
+        let mut num = Self::builtin_mono_trait(NUM, 2);
+        num.register_superclass(poly(ADD, vec![]), &add);
+        num.register_superclass(poly(SUB, vec![]), &sub);
+        num.register_superclass(poly(MUL, vec![]), &mul);
         self.register_builtin_type(mono(UNPACK), unpack, vis.clone(), Const, None);
         self.register_builtin_type(
             mono(INHERITABLE_TYPE),
@@ -316,6 +411,7 @@ impl Context {
             None,
         );
         self.register_builtin_type(mono(NAMED), named, vis.clone(), Const, None);
+        self.register_builtin_type(mono(SIZED), sized, vis.clone(), Const, None);
         self.register_builtin_type(mono(MUTABLE), mutable, vis.clone(), Const, None);
         self.register_builtin_type(mono(IMMUTIZABLE), immutizable, vis.clone(), Const, None);
         self.register_builtin_type(mono(MUTIZABLE), mutizable, vis.clone(), Const, None);
@@ -323,6 +419,13 @@ impl Context {
         self.register_builtin_type(
             mono(MUTABLE_READABLE),
             readable,
+            Visibility::BUILTIN_PRIVATE,
+            Const,
+            None,
+        );
+        self.register_builtin_type(
+            mono(MUTABLE_IO),
+            io,
             Visibility::BUILTIN_PRIVATE,
             Const,
             None,
@@ -368,15 +471,64 @@ impl Context {
         self.register_builtin_type(mono(ORD), ord, vis.clone(), Const, None);
         self.register_builtin_type(mono(NUM), num, vis.clone(), Const, None);
         self.register_builtin_type(
-            poly(SEQ, vec![ty_tp(T.clone())]),
-            seq,
+            poly(SEQUENCE, vec![ty_tp(T.clone())]),
+            sequence,
             Visibility::BUILTIN_PRIVATE,
             Const,
             None,
         );
         self.register_builtin_type(
-            poly(ITERABLE, vec![ty_tp(T)]),
+            poly(MUTABLE_SEQUENCE, vec![ty_tp(T.clone())]),
+            mut_sequence,
+            Visibility::BUILTIN_PRIVATE,
+            Const,
+            None,
+        );
+        self.register_builtin_type(
+            poly(ITERABLE, vec![ty_tp(T.clone())]),
             iterable,
+            Visibility::BUILTIN_PRIVATE,
+            Const,
+            None,
+        );
+        self.register_builtin_type(
+            poly(ITERATOR, vec![ty_tp(T.clone())]),
+            iterator,
+            Visibility::BUILTIN_PRIVATE,
+            Const,
+            None,
+        );
+        self.register_builtin_type(
+            poly(CONTAINER, vec![ty_tp(T.clone())]),
+            container,
+            Visibility::BUILTIN_PRIVATE,
+            Const,
+            None,
+        );
+        self.register_builtin_type(
+            poly(COLLECTION, vec![ty_tp(T)]),
+            collection,
+            Visibility::BUILTIN_PRIVATE,
+            Const,
+            None,
+        );
+        self.register_builtin_type(
+            poly(INDEXABLE, vec![ty_tp(K.clone()), ty_tp(V.clone())]),
+            indexable,
+            Visibility::BUILTIN_PRIVATE,
+            Const,
+            None,
+        );
+        self.register_builtin_type(
+            poly(MAPPING, vec![ty_tp(K.clone()), ty_tp(V.clone())]),
+            mapping,
+            Visibility::BUILTIN_PRIVATE,
+            Const,
+            None,
+        );
+        self.register_builtin_type(
+            poly(MUTABLE_MAPPING, vec![ty_tp(K), ty_tp(V)]),
+            mut_mapping,
             Visibility::BUILTIN_PRIVATE,
             Const,
             None,

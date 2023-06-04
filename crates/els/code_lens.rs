@@ -1,4 +1,5 @@
 use erg_compiler::artifact::BuildRunnable;
+use erg_compiler::erg_parser::parse::Parsable;
 use erg_compiler::hir::Expr;
 
 use lsp_types::{CodeLens, CodeLensParams};
@@ -6,7 +7,7 @@ use lsp_types::{CodeLens, CodeLensParams};
 use crate::server::{send_log, ELSResult, Server};
 use crate::util::{self, NormalizedUrl};
 
-impl<Checker: BuildRunnable> Server<Checker> {
+impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     pub(crate) fn handle_code_lens(
         &mut self,
         params: CodeLensParams,
@@ -24,25 +25,23 @@ impl<Checker: BuildRunnable> Server<Checker> {
 
     fn send_trait_impls_lens(&mut self, uri: &NormalizedUrl) -> ELSResult<Vec<CodeLens>> {
         let mut result = vec![];
-        if let Some(artifact) = self.artifacts.get(uri) {
-            if let Some(hir) = &artifact.object {
-                for chunk in hir.module.iter() {
-                    match chunk {
-                        Expr::Def(def) if def.def_kind().is_trait() => {
-                            let trait_loc = &def.sig.ident().vi.def_loc;
-                            let Some(range) = util::loc_to_range(trait_loc.loc) else {
-                                continue;
-                            };
-                            let command = self.gen_show_trait_impls_command(trait_loc.clone())?;
-                            let lens = CodeLens {
-                                range,
-                                command: Some(command),
-                                data: None,
-                            };
-                            result.push(lens);
-                        }
-                        _ => {}
+        if let Some(hir) = self.get_artifact(uri).and_then(|a| a.object.as_ref()) {
+            for chunk in hir.module.iter() {
+                match chunk {
+                    Expr::Def(def) if def.def_kind().is_trait() => {
+                        let trait_loc = &def.sig.ident().vi.def_loc;
+                        let Some(range) = util::loc_to_range(trait_loc.loc) else {
+                            continue;
+                        };
+                        let command = self.gen_show_trait_impls_command(trait_loc.clone())?;
+                        let lens = CodeLens {
+                            range,
+                            command,
+                            data: None,
+                        };
+                        result.push(lens);
                     }
+                    _ => {}
                 }
             }
         }

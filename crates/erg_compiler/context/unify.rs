@@ -16,7 +16,7 @@ use crate::ty::{Predicate, SubrType, Type};
 
 use crate::context::{Context, Variance};
 use crate::error::{TyCheckError, TyCheckErrors, TyCheckResult};
-use crate::{feature_error, type_feature_error};
+use crate::type_feature_error;
 
 use Predicate as Pred;
 use Type::*;
@@ -280,10 +280,10 @@ impl Context {
             {
                 if sub_fv.level().unwrap() > sup_fv.level().unwrap() {
                     if !sub_fv.is_generalized() {
-                        sub_fv.link(maybe_sup);
+                        maybe_sub.link(maybe_sup);
                     }
                 } else if !sup_fv.is_generalized() {
-                    sup_fv.link(maybe_sub);
+                    maybe_sup.link(maybe_sub);
                 }
                 Ok(())
             }
@@ -307,7 +307,7 @@ impl Context {
                             sub_fv.update_constraint(new_constraint, false);
                         }
                     } else {
-                        sub_fv.link(sup_tp);
+                        maybe_sub.link(sup_tp);
                     }
                     Ok(())
                 } else if allow_divergence
@@ -315,7 +315,7 @@ impl Context {
                         || self.eq_tp(sup_tp, &TyParam::value(NegInf)))
                     && self.subtype_of(&fv_t, &mono("Num"))
                 {
-                    sub_fv.link(sup_tp);
+                    maybe_sub.link(sup_tp);
                     Ok(())
                 } else {
                     Err(TyCheckErrors::from(TyCheckError::unreachable(
@@ -345,7 +345,7 @@ impl Context {
                             sup_fv.update_constraint(new_constraint, false);
                         }
                     } else {
-                        sup_fv.link(sub_tp);
+                        maybe_sup.link(sub_tp);
                     }
                     Ok(())
                 } else if allow_divergence
@@ -353,7 +353,7 @@ impl Context {
                         || self.eq_tp(sub_tp, &TyParam::value(NegInf)))
                     && self.subtype_of(&fv_t, &mono("Num"))
                 {
-                    sup_fv.link(sub_tp);
+                    maybe_sup.link(sub_tp);
                     Ok(())
                 } else {
                     Err(TyCheckErrors::from(TyCheckError::unreachable(
@@ -461,7 +461,10 @@ impl Context {
                 }
                 Ok(())
             }
-            (l, r) => type_feature_error!(self, loc.loc(), &format!("unifying {l} and {r}")),
+            (l, r) => {
+                log!(err "{l} / {r}");
+                type_feature_error!(self, loc.loc(), &format!("unifying {l} and {r}"))
+            }
         }
     }
 
@@ -707,7 +710,7 @@ impl Context {
                 }
                 let union = self.union(&lsub, &rsub);
                 if lsub.union_size().max(rsub.union_size()) < union.union_size() {
-                    let (l, r) = union.union_pair().unwrap_or((lsub, rsub));
+                    let (l, r) = union.union_pair().unwrap_or((lsub, rsub.clone()));
                     let unified = self.unify(&l, &r);
                     if unified.is_none() {
                         let maybe_sub = self.readable_type(maybe_sub.clone());
@@ -722,28 +725,61 @@ impl Context {
                         )));
                     }
                 }
-                let new_constraint = Constraint::new_sandwiched(union, intersec);
-                match sub_fv
-                    .level()
-                    .unwrap_or(GENERIC_LEVEL)
-                    .cmp(&sup_fv.level().unwrap_or(GENERIC_LEVEL))
-                {
-                    std::cmp::Ordering::Less => {
-                        sub_fv.update_constraint(new_constraint, false);
-                        sup_fv.link(maybe_sub);
+                // e.g. intersec == Int, rsup == Add(?T)
+                //   => ?T(:> Int)
+                self.sub_unify(&intersec, &rsup, loc, param_name)?;
+                self.sub_unify(&rsub, &union, loc, param_name)?;
+                // self.sub_unify(&intersec, &lsup, loc, param_name)?;
+                // self.sub_unify(&lsub, &union, loc, param_name)?;
+                if union == intersec {
+                    match sub_fv
+                        .level()
+                        .unwrap_or(GENERIC_LEVEL)
+                        .cmp(&sup_fv.level().unwrap_or(GENERIC_LEVEL))
+                    {
+                        std::cmp::Ordering::Less => {
+                            maybe_sub.link(&union);
+                            maybe_sup.link(maybe_sub);
+                        }
+                        std::cmp::Ordering::Greater => {
+                            maybe_sup.link(&union);
+                            maybe_sub.link(maybe_sup);
+                        }
+                        std::cmp::Ordering::Equal => {
+                            // choose named one
+                            if sup_fv.is_named_unbound() {
+                                maybe_sup.link(&union);
+                                maybe_sub.link(maybe_sup);
+                            } else {
+                                maybe_sub.link(&union);
+                                maybe_sup.link(maybe_sub);
+                            }
+                        }
                     }
-                    std::cmp::Ordering::Greater => {
-                        sup_fv.update_constraint(new_constraint, false);
-                        sub_fv.link(maybe_sup);
-                    }
-                    std::cmp::Ordering::Equal => {
-                        // choose named one
-                        if sup_fv.is_named_unbound() {
-                            sup_fv.update_constraint(new_constraint, false);
-                            sub_fv.link(maybe_sup);
-                        } else {
+                } else {
+                    let new_constraint = Constraint::new_sandwiched(union, intersec);
+                    match sub_fv
+                        .level()
+                        .unwrap_or(GENERIC_LEVEL)
+                        .cmp(&sup_fv.level().unwrap_or(GENERIC_LEVEL))
+                    {
+                        std::cmp::Ordering::Less => {
                             sub_fv.update_constraint(new_constraint, false);
-                            sup_fv.link(maybe_sub);
+                            maybe_sup.link(maybe_sub);
+                        }
+                        std::cmp::Ordering::Greater => {
+                            sup_fv.update_constraint(new_constraint, false);
+                            maybe_sub.link(maybe_sup);
+                        }
+                        std::cmp::Ordering::Equal => {
+                            // choose named one
+                            if sup_fv.is_named_unbound() {
+                                sup_fv.update_constraint(new_constraint, false);
+                                maybe_sub.link(maybe_sup);
+                            } else {
+                                sub_fv.update_constraint(new_constraint, false);
+                                maybe_sup.link(maybe_sub);
+                            }
                         }
                     }
                 }
@@ -838,7 +874,7 @@ impl Context {
                         }
                     }
                     if sup.contains_union(&new_sub) {
-                        sup_fv.link(&new_sub); // Bool <: ?T <: Bool or Y ==> ?T == Bool
+                        maybe_sup.link(&new_sub); // Bool <: ?T <: Bool or Y ==> ?T == Bool
                     } else {
                         let constr = Constraint::new_sandwiched(new_sub, mem::take(&mut sup));
                         sup_fv.update_constraint(constr, true);
@@ -850,7 +886,7 @@ impl Context {
                         let constr = Constraint::new_supertype_of(maybe_sub.clone());
                         sup_fv.update_constraint(constr, true);
                     } else {
-                        todo!()
+                        todo!("{maybe_sub} <: {maybe_sup}")
                     }
                 }
                 Ok(())
@@ -898,15 +934,16 @@ impl Context {
                     } else {
                         self.intersection(&sup, maybe_sup)
                     };
+                    self.sub_unify(&sub, &new_sup, loc, param_name)?;
                     // ?T(:> Int, <: Int) ==> ?T == Int
                     // ?T(:> Array(Int, 3), <: Array(?T, ?N)) ==> ?T == Array(Int, 3)
+                    // ?T(:> Array(Int, 3), <: Indexable(?K, ?V)) ==> ?T(:> Array(Int, 3), <: Indexable(0..2, Int))
                     if !sub.is_refinement()
                         && new_sup.qual_name() == sub.qual_name()
                         && !new_sup.is_unbound_var()
                         && !sub.is_unbound_var()
                     {
-                        self.sub_unify(&sub, &new_sup, loc, param_name)?;
-                        sub_fv.link(&sub);
+                        maybe_sub.link(&sub);
                     } else {
                         let constr = Constraint::new_sandwiched(sub, new_sup);
                         sub_fv.update_constraint(constr, true);
@@ -918,7 +955,7 @@ impl Context {
                         let constr = Constraint::new_subtype_of(maybe_sup.clone());
                         sub_fv.update_constraint(constr, true);
                     } else {
-                        todo!()
+                        todo!("{maybe_sub} <: {maybe_sup}")
                     }
                 }
                 Ok(())
@@ -1017,11 +1054,13 @@ impl Context {
                         // contravariant
                         self.sub_unify(sup_pt.typ(), sub_pt.typ(), loc, param_name)?;
                     } else {
-                        todo!()
+                        todo!("{maybe_sub} <: {maybe_sup}")
                     }
                 }
-                // covariant
-                self.sub_unify(&sub_subr.return_t, &sup_subr.return_t, loc, param_name)?;
+                if !sub_subr.return_t.is_generalized() {
+                    // covariant
+                    self.sub_unify(&sub_subr.return_t, &sup_subr.return_t, loc, param_name)?;
+                }
                 Ok(())
             }
             (Subr(sub_subr), Quantified(sup_subr)) => {
@@ -1050,11 +1089,13 @@ impl Context {
                         }
                         self.sub_unify(sup_pt.typ(), sub_pt.typ(), loc, param_name)?;
                     } else {
-                        todo!()
+                        todo!("{maybe_sub} <: {maybe_sup}")
                     }
                 }
-                // covariant
-                self.sub_unify(&sub_subr.return_t, &sup_subr.return_t, loc, param_name)?;
+                if !sup_subr.return_t.is_generalized() {
+                    // covariant
+                    self.sub_unify(&sub_subr.return_t, &sup_subr.return_t, loc, param_name)?;
+                }
                 Ok(())
             }
             (
@@ -1212,7 +1253,19 @@ impl Context {
             } else {
                 sub_ctx.super_traits.iter()
             };
+            let mut min_compatible = None;
             for sup_ty in sups {
+                if self.subtype_of(sup_ty, maybe_sup) {
+                    if let Some(min) = min_compatible {
+                        if self.subtype_of(sup_ty, min) {
+                            min_compatible = Some(sup_ty);
+                        }
+                    } else {
+                        min_compatible = Some(sup_ty);
+                    }
+                }
+            }
+            if let Some(sup_ty) = min_compatible {
                 let sub_instance = self.instantiate_def_type(sup_ty).map_err(|errs| {
                     Self::undo_substitute_typarams(sub_def_t);
                     errs
@@ -1221,22 +1274,20 @@ impl Context {
                     .get_nominal_type_ctx(&sub_instance)
                     .map(|(_, ctx)| ctx.type_params_variance().into_iter().map(Some).collect())
                     .unwrap_or(vec![None; sup_params.len()]);
-                if self.supertype_of(maybe_sup, sup_ty) {
-                    for ((l_maybe_sub, r_maybe_sup), variance) in sub_instance
-                        .typarams()
-                        .iter()
-                        .zip(sup_params.iter())
-                        .zip(variances)
-                    {
-                        self.sub_unify_tp(l_maybe_sub, r_maybe_sup, variance, loc, false)
-                            .map_err(|errs| {
-                                Self::undo_substitute_typarams(sub_def_t);
-                                errs
-                            })?;
-                    }
-                    Self::undo_substitute_typarams(sub_def_t);
-                    return Ok(());
+                for ((l_maybe_sub, r_maybe_sup), variance) in sub_instance
+                    .typarams()
+                    .iter()
+                    .zip(sup_params.iter())
+                    .zip(variances)
+                {
+                    self.sub_unify_tp(l_maybe_sub, r_maybe_sup, variance, loc, false)
+                        .map_err(|errs| {
+                            Self::undo_substitute_typarams(sub_def_t);
+                            errs
+                        })?;
                 }
+                Self::undo_substitute_typarams(sub_def_t);
+                return Ok(());
             }
             Self::undo_substitute_typarams(sub_def_t);
         }

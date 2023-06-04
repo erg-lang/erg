@@ -1,0 +1,4 @@
+.registerResult!: (result: Obj) => NoneType
+.removeResult!: (result: Obj) => Bool
+.installHandler!: () => NoneType
+.removeHandler!: |M <: GenericCallable|(method := M) => M

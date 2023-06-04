@@ -15,6 +15,7 @@ use erg_common::traits::DequeStream;
 use erg_compiler::erg_parser::lex::Lexer;
 use erg_compiler::erg_parser::token::{Token, TokenStream};
 
+use crate::_log;
 use crate::server::ELSResult;
 use crate::util::{self, NormalizedUrl};
 
@@ -37,9 +38,9 @@ pub struct FileCacheEntry {
 
 impl FileCacheEntry {
     /// line: 0-based
-    pub fn get_line(&self, line: u32) -> Option<String> {
+    pub fn get_line(&self, line0: u32) -> Option<String> {
         let mut lines = self.code.lines();
-        lines.nth(line as usize).map(|s| s.to_string())
+        lines.nth(line0 as usize).map(|s| s.to_string())
     }
 }
 
@@ -163,9 +164,9 @@ impl FileCache {
     }
 
     /// 0-based
-    pub(crate) fn get_line(&self, uri: &NormalizedUrl, line: u32) -> Option<String> {
+    pub(crate) fn get_line(&self, uri: &NormalizedUrl, line0: u32) -> Option<String> {
         let _ = self.load_once(uri);
-        self.files.borrow_mut().get(uri)?.get_line(line)
+        self.files.borrow_mut().get(uri)?.get_line(line0)
     }
 
     pub(crate) fn get_ranged(
@@ -258,7 +259,9 @@ impl FileCache {
         }
         let mut code = entry.code.clone();
         for change in params.content_changes {
-            let range = change.range.unwrap();
+            let Some(range) = change.range else {
+                continue;
+            };
             let start = util::pos_to_byte_index(&code, range.start);
             let end = util::pos_to_byte_index(&code, range.end);
             code.replace_range(start..end, &change.text);
@@ -276,9 +279,16 @@ impl FileCache {
 
     pub fn rename_files(&mut self, params: &RenameFilesParams) -> ELSResult<()> {
         for file in &params.files {
-            let old_uri = NormalizedUrl::parse(&file.old_uri).unwrap();
-            let new_uri = NormalizedUrl::parse(&file.new_uri).unwrap();
+            let Ok(old_uri) = NormalizedUrl::parse(&file.old_uri) else {
+                _log!("failed to parse old uri: {}", file.old_uri);
+                continue;
+            };
+            let Ok(new_uri) = NormalizedUrl::parse(&file.new_uri) else {
+                _log!("failed to parse new uri: {}", file.new_uri);
+                continue;
+            };
             let Some(entry) = self.files.borrow_mut().remove(&old_uri) else {
+                _log!("failed to find old uri: {}", file.old_uri);
                 continue;
             };
             self.files.borrow_mut().insert(new_uri, entry);

@@ -129,11 +129,18 @@ impl Context {
         );
         let I = mono_q(TY_I, subtypeof(poly(ITERABLE, vec![ty_tp(T.clone())])));
         let t_iter = nd_func(vec![kw(KW_OBJECT, I.clone())], None, proj(I, ITERATOR)).quantify();
-        let t_len = nd_func(
-            vec![kw(KW_S, poly(SEQ, vec![TyParam::erased(Type)]))],
-            None,
-            Nat,
-        );
+        // Python : |L|(seq: Structural({ .__len__ = (L) -> Nat })) -> Nat
+        let t_len = if ERG_MODE {
+            nd_func(
+                vec![kw(KW_S, poly(SEQUENCE, vec![TyParam::erased(Type)]))],
+                None,
+                Nat,
+            )
+        } else {
+            let S = Type::from(dict! { Field::public("__len__".into()) => fn0_met(Never, Nat) })
+                .structuralize();
+            func1(S, Nat)
+        };
         let t_log = func(
             vec![],
             Some(kw(KW_OBJECTS, ref_(Obj))),
@@ -207,7 +214,7 @@ impl Context {
         let t_exit = t_quit.clone();
         let t_repr = nd_func(vec![kw(KW_OBJECT, Obj)], None, Str);
         let t_reversed = nd_func(
-            vec![kw(KW_SEQ, poly(SEQ, vec![ty_tp(T.clone())]))],
+            vec![kw(KW_SEQ, poly(SEQUENCE, vec![ty_tp(T.clone())]))],
             None,
             poly(REVERSED, vec![ty_tp(T.clone())]),
         )
@@ -323,6 +330,54 @@ impl Context {
             Some(FUNDAMENTAL_IMPORT),
         );
         self.register_builtin_py_impl(FUNC_QUIT, t_quit, Immutable, vis.clone(), Some(FUNC_QUIT));
+        let MAX = mono_q_tp("MAX", instanceof(Int));
+        let MIN = mono_q_tp("MIN", instanceof(Int));
+        let t_range = nd_func(
+            vec![kw(KW_START, singleton(Int, MAX.clone()))],
+            None,
+            poly(
+                RANGE,
+                vec![ty_tp((TyParam::value(0u64)..MAX.clone()).into())],
+            ),
+        )
+        .quantify()
+            & nd_func(
+                vec![
+                    kw(KW_START, singleton(Int, MIN.clone())),
+                    kw(KW_STOP, singleton(Int, MAX.clone())),
+                ],
+                None,
+                poly(RANGE, vec![ty_tp((MIN.clone()..MAX.clone()).into())]),
+            )
+            .quantify()
+            & nd_func(
+                vec![
+                    kw(KW_START, singleton(Int, MIN.clone())),
+                    kw(KW_STOP, singleton(Int, MAX.clone())),
+                    kw(KW_STEP, Int),
+                ],
+                None,
+                poly(RANGE, vec![ty_tp((MIN..MAX).into())]),
+            )
+            .quantify()
+            & nd_func(vec![kw(KW_START, Int)], None, poly(RANGE, vec![ty_tp(Int)]))
+            & nd_func(
+                vec![kw(KW_START, Int), kw(KW_STOP, Int)],
+                None,
+                poly(RANGE, vec![ty_tp(Int)]),
+            )
+            & nd_func(
+                vec![kw(KW_START, Int), kw(KW_STOP, Int), kw(KW_STEP, Int)],
+                None,
+                poly(RANGE, vec![ty_tp(Int)]),
+            );
+        self.register_builtin_py_impl(
+            FUNC_RANGE,
+            t_range,
+            Immutable,
+            vis.clone(),
+            Some(FUNC_RANGE),
+        );
         self.register_builtin_py_impl(FUNC_REPR, t_repr, Immutable, vis.clone(), Some(FUNC_REPR));
         self.register_builtin_py_impl(
             FUNC_REVERSED,
@@ -412,22 +467,6 @@ impl Context {
                 Some(FUNC_EXIT),
             );
         } else {
-            let t_range = func(
-                vec![kw(KW_STOP, or(Int, NoneType))],
-                None,
-                vec![
-                    kw(KW_START, or(Int, NoneType)),
-                    kw(KW_STEP, or(Int, NoneType)),
-                ],
-                poly(RANGE, vec![ty_tp(Int)]),
-            );
-            self.register_builtin_py_impl(
-                FUNC_RANGE,
-                t_range,
-                Immutable,
-                vis.clone(),
-                Some(FUNC_RANGE),
-            );
             let t_list = func(
                 vec![],
                 None,
@@ -538,6 +577,58 @@ impl Context {
         );
         let patch = ConstSubr::Builtin(BuiltinConstSubr::new(PATCH, patch_func, patch_t, None));
         self.register_builtin_const(PATCH, vis, ValueObj::Subr(patch));
+    }
+
+    pub(super) fn init_builtin_py_specific_funcs(&mut self) {
+        let hasattr_t = func(vec![kw(KW_OBJ, Obj), kw(KW_NAME, Str)], None, vec![], Bool);
+        self.register_builtin_py_impl(
+            FUNC_HASATTR,
+            hasattr_t,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            None,
+        );
+        let T = type_q("T");
+        let getattr_t = func(
+            vec![kw(KW_OBJ, Obj), kw(KW_NAME, Str)],
+            None,
+            vec![kw_default(KW_DEFAULT, T.clone(), Obj)],
+            T,
+        )
+        .quantify();
+        self.register_builtin_py_impl(
+            FUNC_GETATTR,
+            getattr_t,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            None,
+        );
+        let setattr_t = func(
+            vec![kw(KW_OBJ, Obj), kw(KW_NAME, Str), kw(KW_VALUE, Obj)],
+            None,
+            vec![],
+            NoneType,
+        );
+        self.register_builtin_py_impl(
+            FUNC_SETATTR,
+            setattr_t,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            None,
+        );
+        let delattr_t = func(
+            vec![kw(KW_OBJ, Obj), kw(KW_NAME, Str)],
+            None,
+            vec![],
+            NoneType,
+        );
+        self.register_builtin_py_impl(
+            FUNC_DELATTR,
+            delattr_t,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            None,
+        );
     }
 
     pub(super) fn init_builtin_operators(&mut self) {

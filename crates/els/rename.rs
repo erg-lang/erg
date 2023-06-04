@@ -4,6 +4,7 @@ use std::time::SystemTime;
 
 use erg_common::traits::{Locational, Stream};
 use erg_compiler::artifact::IncompleteArtifact;
+use erg_compiler::erg_parser::parse::Parsable;
 use serde::Deserialize;
 use serde_json::json;
 use serde_json::Value;
@@ -23,7 +24,7 @@ use lsp_types::{
 use crate::server::{send, send_error_info, send_log, ELSResult, Server};
 use crate::util::{self, NormalizedUrl};
 
-impl<Checker: BuildRunnable> Server<Checker> {
+impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     pub(crate) fn rename(&mut self, msg: &Value) -> ELSResult<()> {
         let params = RenameParams::deserialize(&msg["params"])?;
         send_log(format!("rename request: {params:?}"))?;
@@ -67,7 +68,8 @@ impl<Checker: BuildRunnable> Server<Checker> {
                         return send_error_info(error_reason);
                     }
                     Self::commit_change(&mut changes, &vi.def_loc, params.new_name.clone());
-                    if let Some(value) = self.get_index().get_refs(&vi.def_loc) {
+                    if let Some(value) = self.get_index().and_then(|ind| ind.get_refs(&vi.def_loc))
+                    {
                         // send_log(format!("referrers: {referrers:?}"))?;
                         for referrer in value.referrers.iter() {
                             Self::commit_change(&mut changes, referrer, params.new_name.clone());
@@ -108,8 +110,13 @@ impl<Checker: BuildRunnable> Server<Checker> {
         new_name: String,
     ) {
         if let Some(path) = &abs_loc.module {
-            let def_uri = Url::from_file_path(path).unwrap();
-            let edit = TextEdit::new(util::loc_to_range(abs_loc.loc).unwrap(), new_name);
+            let Ok(def_uri) = Url::from_file_path(path) else {
+                return;
+            };
+            let Some(range) = util::loc_to_range(abs_loc.loc) else {
+                return;
+            };
+            let edit = TextEdit::new(range, new_name);
             if let Some(edits) = changes.get_mut(&def_uri) {
                 edits.push(edit);
             } else {
@@ -122,7 +129,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         urls.map(|url| {
             let timestamp = util::get_metadata_from_uri(url)
                 .and_then(|md| Ok(md.modified()?))
-                .unwrap();
+                .unwrap_or(SystemTime::now());
             (url.clone(), timestamp)
         })
         .collect()
@@ -143,6 +150,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         graph.sort().unwrap();
         let self_node = graph.get_node(&path).unwrap();
         graph
+            .ref_inner()
             .iter()
             .filter(|node| node.id == path || self_node.depends_on(&node.id))
             .map(|node| NormalizedUrl::new(Url::from_file_path(&node.id).unwrap()))
@@ -154,6 +162,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let graph = &self.get_shared().unwrap().graph;
         let path = util::uri_to_path(uri);
         graph
+            .ref_inner()
             .iter()
             .filter(|node| node.depends_on(&path))
             .map(|node| NormalizedUrl::new(Url::from_file_path(&node.id).unwrap()))
@@ -161,7 +170,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
     }
 }
 
-impl<Checker: BuildRunnable> Server<Checker> {
+impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     fn collect_module_changes(
         &mut self,
         old_uri: &NormalizedUrl,
@@ -203,7 +212,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let mut imports = vec![];
         if let Some(IncompleteArtifact {
             object: Some(hir), ..
-        }) = self.artifacts.get(target)
+        }) = self.get_artifact(target)
         {
             for chunk in hir.module.iter() {
                 imports.extend(Self::extract_import_symbols(chunk, needle_module_name));
@@ -218,7 +227,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 let Some(Expr::Call(import_call)) = def.body.block.first() else {
                     return vec![];
                 };
-                let module_name = import_call.args.get_left_or_key("Path").unwrap();
+                let Some(module_name) = import_call.args.get_left_or_key("Path") else {
+                    return vec![];
+                };
                 match module_name {
                     Expr::Lit(lit)
                         if lit
@@ -245,9 +256,15 @@ impl<Checker: BuildRunnable> Server<Checker> {
         new_uri: &NormalizedUrl,
     ) {
         if old_uri.as_str().ends_with(".d.er") {
+            let Ok(old_uri) = Url::parse(&old_uri.as_str().replace(".d.er", ".py")) else {
+                return;
+            };
+            let Ok(new_uri) = Url::parse(&new_uri.as_str().replace(".d.er", ".py")) else {
+                return;
+            };
             let rename = DocumentChangeOperation::Op(ResourceOp::Rename(RenameFile {
-                old_uri: Url::parse(&old_uri.as_str().replace(".d.er", ".py")).unwrap(),
-                new_uri: Url::parse(&new_uri.as_str().replace(".d.er", ".py")).unwrap(),
+                old_uri,
+                new_uri,
                 options: None,
                 annotation_id: None,
             }));
@@ -255,9 +272,15 @@ impl<Checker: BuildRunnable> Server<Checker> {
         } else if old_uri.as_str().ends_with(".py") {
             let d_er_file = PathBuf::from(old_uri.as_str().replace(".py", ".d.er"));
             if d_er_file.exists() {
+                let Ok(old_uri) =  Url::from_file_path(&d_er_file) else {
+                    return;
+                };
+                let Ok(new_uri) = Url::parse(&new_uri.as_str().replace(".py", ".d.er")) else {
+                    return;
+                };
                 let rename = DocumentChangeOperation::Op(ResourceOp::Rename(RenameFile {
-                    old_uri: Url::from_file_path(&d_er_file).unwrap(),
-                    new_uri: Url::parse(&new_uri.as_str().replace(".py", ".d.er")).unwrap(),
+                    old_uri,
+                    new_uri,
                     options: None,
                     annotation_id: None,
                 }));
@@ -274,14 +297,20 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let mut edits = HashMap::new();
         let mut renames = vec![];
         for file in &params.files {
-            let old_uri = NormalizedUrl::new(Url::parse(&file.old_uri).unwrap());
-            let new_uri = NormalizedUrl::new(Url::parse(&file.new_uri).unwrap());
-            edits.extend(self.collect_module_changes(&old_uri, &new_uri));
-            self.rename_linked_files(&mut renames, &old_uri, &new_uri);
-            let Some(entry) = self.artifacts.remove(&old_uri) else {
+            let Ok(old) = Url::parse(&file.old_uri) else {
                 continue;
             };
-            self.artifacts.insert(new_uri.clone(), entry);
+            let old_uri = NormalizedUrl::new(old);
+            let Ok(new) = Url::parse(&file.new_uri) else {
+                continue;
+            };
+            let new_uri = NormalizedUrl::new(new);
+            edits.extend(self.collect_module_changes(&old_uri, &new_uri));
+            self.rename_linked_files(&mut renames, &old_uri, &new_uri);
+            let Some(entry) = self.analysis_result.remove(&old_uri) else {
+                continue;
+            };
+            self.analysis_result.insert(new_uri.clone(), entry);
             let Some(entry) = self.modules.remove(&old_uri) else {
                 continue;
             };

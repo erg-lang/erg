@@ -7,6 +7,7 @@ use erg_compiler::erg_parser::ast::{
     Accessor, Args, BinOp, Block, Call, ClassAttr, Def, DefKind, Expr, Identifier, Methods, Params,
     PolyTypeSpec, PreDeclTypeSpec, TypeSpec, UnaryOp, AST,
 };
+use erg_compiler::erg_parser::parse::Parsable;
 use erg_compiler::erg_parser::token::TokenKind;
 use erg_compiler::ASTBuilder;
 
@@ -282,7 +283,7 @@ impl ASTSemanticState {
     }
 }
 
-impl<Checker: BuildRunnable> Server<Checker> {
+impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     pub(crate) fn handle_semantic_tokens_full(
         &mut self,
         params: SemanticTokensParams,

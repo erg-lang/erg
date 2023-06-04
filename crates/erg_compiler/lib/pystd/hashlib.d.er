@@ -1,0 +1,18 @@
+.algorithms_guaranteed: {Str; _}
+.algorithms_available: {Str; _}
+
+.HASH!: ClassType
+.HASH!.
+    name: Str
+    digest_size: Nat
+    block_size: Nat
+    digest: (self: Ref(.HASH!)) -> Bytes
+    hexdigest: (self: Ref(.HASH!)) -> Str
+    update!: (self: RefMut(.HASH!), b: Bytes) => NoneType
+
+.new: (name: Str, b := Bytes) -> .HASH!
+.md5: (b: Bytes) -> .HASH!
+.sha1: (b: Bytes) -> .HASH!
+.sha224: (b: Bytes) -> .HASH!
+.sha256: (b: Bytes) -> .HASH!
+.sha512: (b: Bytes) -> .HASH!

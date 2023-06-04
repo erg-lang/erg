@@ -1,5 +1,6 @@
 #![allow(unused_imports)]
 
+use erg_compiler::erg_parser::parse::Parsable;
 use serde::Deserialize;
 use serde_json::json;
 use serde_json::Value;
@@ -85,7 +86,7 @@ fn param_anot<D: std::fmt::Display>(ln_begin: u32, col_begin: u32, name: D) -> I
     }
 }
 
-impl<Checker: BuildRunnable> Server<Checker> {
+impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     pub(crate) fn handle_inlay_hint(
         &mut self,
         params: InlayHintParams,
@@ -95,7 +96,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let mut result = vec![];
         if let Some(IncompleteArtifact {
             object: Some(hir), ..
-        }) = self.artifacts.get(&uri)
+        }) = self.get_artifact(&uri)
         {
             for chunk in hir.module.iter() {
                 result.extend(self.get_expr_hint(chunk));
@@ -122,36 +123,29 @@ impl<Checker: BuildRunnable> Server<Checker> {
             if nd_param.raw.t_spec.is_some() {
                 continue;
             }
-            let hint = type_anot(
-                nd_param.ln_end().unwrap(),
-                nd_param.col_end().unwrap(),
-                &nd_param.vi.t,
-                false,
-            );
+            let (Some(ln_end), Some(col_end)) = (nd_param.ln_end(), nd_param.col_end()) else {
+                continue;
+            };
+            let hint = type_anot(ln_end, col_end, &nd_param.vi.t, false);
             result.push(hint);
         }
         if let Some(var_params) = &params.var_params {
             if var_params.raw.t_spec.is_some() {
                 return result;
             }
-            let hint = type_anot(
-                var_params.ln_end().unwrap(),
-                var_params.col_end().unwrap(),
-                &var_params.vi.t,
-                false,
-            );
-            result.push(hint);
+            if let (Some(ln_end), Some(col_end)) = (var_params.ln_end(), var_params.col_end()) {
+                let hint = type_anot(ln_end, col_end, &var_params.vi.t, false);
+                result.push(hint);
+            }
         }
         for d_param in params.defaults.iter() {
             if d_param.sig.raw.t_spec.is_some() {
                 continue;
             }
-            let hint = type_anot(
-                d_param.sig.ln_end().unwrap(),
-                d_param.sig.col_end().unwrap(),
-                &d_param.sig.vi.t,
-                false,
-            );
+            let (Some(ln_end), Some(col_end)) = (d_param.sig.ln_end(), d_param.sig.col_end()) else {
+                continue;
+            };
+            let hint = type_anot(ln_end, col_end, &d_param.sig.vi.t, false);
             result.push(hint);
         }
         result
@@ -164,32 +158,26 @@ impl<Checker: BuildRunnable> Server<Checker> {
         if subr.ref_t().is_quantified_subr() && subr.bounds.is_empty() {
             let subr = subr.ref_t().to_string();
             let ty_bounds = format!("|{}|", subr.split('|').nth(1).unwrap_or(""));
-            let hint = type_bounds_anot(
-                def.sig.ident().ln_end().unwrap(),
-                def.sig.ident().col_end().unwrap(),
-                ty_bounds,
-            );
-            result.push(hint);
+            let ident = def.sig.ident();
+            if let Some((ln, col)) = ident.ln_end().zip(ident.col_end()) {
+                let hint = type_bounds_anot(ln, col, ty_bounds);
+                result.push(hint);
+            }
         }
         result.extend(self.get_param_hint(&subr.params));
         if def.sig.t_spec().is_none() {
             let Some(return_t) = subr.ref_t().return_t() else {
                 return result;
             };
-            let hint = type_anot(
-                def.sig.ln_end().unwrap(),
-                def.sig.col_end().unwrap(),
-                return_t,
-                subr.params.parens.is_none(),
-            );
-            result.push(hint);
-            if subr.params.parens.is_none() {
-                let hint = anot(
-                    subr.params.ln_begin().unwrap(),
-                    subr.params.col_begin().unwrap(),
-                    "(".to_string(),
-                );
+            if let Some((ln, col)) = def.sig.ln_end().zip(def.sig.col_end()) {
+                let hint = type_anot(ln, col, return_t, subr.params.parens.is_none());
                 result.push(hint);
+            }
+            if subr.params.parens.is_none() {
+                if let Some((ln, col)) = subr.params.ln_begin().zip(subr.params.col_begin()) {
+                    let hint = anot(ln, col, "(".to_string());
+                    result.push(hint);
+                }
             }
         }
         result
@@ -199,13 +187,10 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let mut result = self.get_block_hint(&def.body.block);
         // don't show hints for compiler internal variables
         if def.sig.t_spec().is_none() && !def.sig.ident().inspect().starts_with(['%']) {
-            let hint = type_anot(
-                def.sig.ln_end().unwrap(),
-                def.sig.col_end().unwrap(),
-                def.sig.ident().ref_t(),
-                false,
-            );
-            result.push(hint);
+            if let Some((ln, col)) = def.sig.ln_begin().zip(def.sig.col_end()) {
+                let hint = type_anot(ln, col, def.sig.ident().ref_t(), false);
+                result.push(hint);
+            }
         }
         result
     }
@@ -214,22 +199,21 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let mut result = vec![];
         result.extend(self.get_block_hint(&lambda.body));
         result.extend(self.get_param_hint(&lambda.params));
-        let return_t = lambda.ref_t().return_t().unwrap();
-        let hint = type_anot(
-            lambda.params.ln_end().unwrap(),
-            lambda.params.col_end().unwrap(),
-            return_t,
-            lambda.params.parens.is_none(),
-        );
         if lambda.params.parens.is_none() {
-            let hint = anot(
-                lambda.params.ln_begin().unwrap(),
-                lambda.params.col_begin().unwrap(),
-                "(".to_string(),
-            );
+            if let Some((ln, col)) = lambda.params.ln_begin().zip(lambda.params.col_begin()) {
+                let hint = anot(ln, col, "(".to_string());
+                result.push(hint);
+            }
+        }
+        if let Some(((ln, col), return_t)) = lambda
+            .params
+            .ln_end()
+            .zip(lambda.params.col_end())
+            .zip(lambda.ref_t().return_t())
+        {
+            let hint = type_anot(ln, col, return_t, lambda.params.parens.is_none());
             result.push(hint);
         }
-        result.push(hint);
         result
     }
 

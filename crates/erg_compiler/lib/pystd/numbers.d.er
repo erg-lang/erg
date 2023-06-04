@@ -1,0 +1,16 @@
+.Number: ClassType
+.Complex: ClassType
+.Complex <: .Number
+.Complex.
+    real: Float
+    imag: Float
+    conjugate: |C <: .Complex|(self: C) -> C
+.Real: ClassType
+.Real <: .Complex
+.Rational: ClassType
+.Rational <: .Real
+.Rational.
+    numerator: Int
+    denominator: Int
+.Integral: ClassType
+.Integral <: .Rational

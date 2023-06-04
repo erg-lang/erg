@@ -1,5 +1,6 @@
 use erg_common::traits::{DequeStream, Locational, NoTypeDisplay};
 use erg_compiler::artifact::BuildRunnable;
+use erg_compiler::erg_parser::parse::Parsable;
 use erg_compiler::erg_parser::token::{Token, TokenKind};
 use erg_compiler::hir::Expr;
 use erg_compiler::ty::{HasType, ParamTy};
@@ -34,7 +35,7 @@ fn get_end(start: usize, pt: &ParamTy) -> usize {
     start + pt.name().map(|n| n.len() + 2).unwrap_or(0) + pt.typ().to_string().len()
 }
 
-impl<Checker: BuildRunnable> Server<Checker> {
+impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     pub(crate) fn handle_signature_help(
         &mut self,
         params: SignatureHelpParams,
@@ -45,7 +46,10 @@ impl<Checker: BuildRunnable> Server<Checker> {
         if params.context.as_ref().map(|ctx| &ctx.trigger_kind)
             == Some(&SignatureHelpTriggerKind::CONTENT_CHANGE)
         {
-            let help = self.resend_help(&uri, pos, params.context.as_ref().unwrap());
+            let Some(ctx) = params.context.as_ref() else {
+                return Ok(None);
+            };
+            let help = self.resend_help(&uri, pos, ctx);
             return Ok(help);
         }
         let trigger = params
@@ -67,7 +71,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         offset: isize,
     ) -> Option<(Token, Expr)> {
         let token = self.file_cache.get_token_relatively(uri, pos, offset)?;
-        send_log(format!("token: {token}")).unwrap();
+        crate::_log!("token: {token}");
         if let Some(visitor) = self.get_visitor(uri) {
             #[allow(clippy::single_match)]
             match visitor.get_min_expr(&token) {
@@ -86,7 +90,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         args_loc: erg_common::error::Location,
         token: &Token,
     ) -> usize {
-        let tks = self.file_cache.get_token_stream(uri).unwrap();
+        let tks = self.file_cache.get_token_stream(uri).unwrap_or_default();
         // we should use the latest commas
         let commas = tks
             .iter()
@@ -96,7 +100,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         let argc = commas.len();
         commas
             .iter()
-            .position(|c| c.col_end().unwrap() >= token.col_end().unwrap())
+            .position(|c| c.col_end() >= token.col_end())
             .unwrap_or(argc) // `commas.col_end() < token.col_end()` means the token is the last argument
     }
 
@@ -107,7 +111,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         ctx: &SignatureHelpContext,
     ) -> Option<SignatureHelp> {
         if let Some(token) = self.file_cache.get_token(uri, pos) {
-            send_log(format!("token: {token}")).unwrap();
+            crate::_log!("token: {token}");
             if let Some(Expr::Call(call)) = &self.current_sig {
                 if call.ln_begin() > token.ln_begin() || call.ln_end() < token.ln_end() {
                     self.current_sig = None;
@@ -117,7 +121,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                 return self.make_sig_help(call.obj.as_ref(), nth);
             }
         } else {
-            send_log("failed to get the token").unwrap();
+            crate::_log!("failed to get the token");
         }
         ctx.active_signature_help.clone()
     }
@@ -126,7 +130,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         if let Some((_token, Expr::Accessor(acc))) = self.get_min_expr(uri, pos, -2) {
             return self.make_sig_help(&acc, 0);
         } else {
-            send_log("lex error occurred").unwrap();
+            crate::_log!("lex error occurred");
         }
         None
     }
@@ -138,7 +142,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             self.current_sig = Some(Expr::Call(call));
             return help;
         } else {
-            send_log("failed to get continuous help").unwrap();
+            crate::_log!("failed to get continuous help");
         }
         None
     }

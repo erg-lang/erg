@@ -2,19 +2,16 @@
 use std::option::Option; // conflicting to Type::Option
 use std::path::{Path, PathBuf};
 
-use erg_common::config::{ErgConfig, Input};
+use erg_common::config::Input;
 use erg_common::consts::{ERG_MODE, PYTHON_MODE};
-use erg_common::dict;
-use erg_common::env::{erg_py_external_lib_path, erg_pystd_path, erg_std_path};
 use erg_common::error::{ErrorCore, Location, SubMessage};
 use erg_common::levenshtein;
-use erg_common::pathutil::add_postfix_foreach;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, NoTypeDisplay, Stream};
 use erg_common::triple::Triple;
 use erg_common::Str;
 use erg_common::{
-    fmt_option, fmt_slice, log, normalize_path, option_enum_unwrap, set, switch_lang,
+    dict, fmt_option, fmt_slice, get_hash, log, option_enum_unwrap, set, switch_lang,
 };
 
 use erg_parser::ast::{self, Identifier, VarName};
@@ -41,7 +38,7 @@ use crate::{unreachable_error, AccessKind};
 use RegistrationMode::*;
 
 use super::instantiate_spec::ParamKind;
-use super::{ContextKind, MethodInfo};
+use super::{ContextKind, MethodPair};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SubstituteResult {
@@ -52,9 +49,14 @@ pub enum SubstituteResult {
 
 impl Context {
     pub(crate) fn get_ctx_from_path(&self, path: &Path) -> Option<&Context> {
+        if self.get_module()
+            .map_or(false, |ctx| matches!((ctx.cfg.input.unescaped_path().canonicalize(), path.canonicalize()), (Ok(l), Ok(r)) if l == r))
+        {
+            return Some(self.get_module().unwrap())
+        }
         self.opt_mod_cache()?
-            .ref_ctx(path)
-            .or_else(|| self.opt_py_mod_cache()?.ref_ctx(path))
+            .raw_ref_ctx(path)
+            .or_else(|| self.opt_py_mod_cache()?.raw_ref_ctx(path))
             .map(|mod_ctx| &mod_ctx.context)
     }
 
@@ -352,6 +354,7 @@ impl Context {
                 &mut dummy_tv_cache,
                 Normal,
                 ParamKind::NonDefault,
+                false,
             )?;
             union_pat_t = self.union(&union_pat_t, &rhs);
             arm_ts.push(rhs);
@@ -1022,20 +1025,23 @@ impl Context {
         let coerced = self
             .coerce(obj.t(), &())
             .map_err(|mut errs| errs.remove(0))?;
-        if &coerced == obj.ref_t() {
-            Err(TyCheckError::no_attr_error(
-                self.cfg.input.clone(),
-                line!() as usize,
-                attr_name.loc(),
-                namespace.name.to_string(),
-                obj.ref_t(),
-                attr_name.inspect(),
-                self.get_similar_attr(obj.ref_t(), attr_name.inspect()),
-            ))
-        } else {
+        if &coerced != obj.ref_t() {
+            let hash = get_hash(obj.ref_t());
             obj.ref_t().coerce();
-            self.search_method_info(obj, attr_name, pos_args, kw_args, input, namespace)
+            if get_hash(obj.ref_t()) != hash {
+                return self
+                    .search_method_info(obj, attr_name, pos_args, kw_args, input, namespace);
+            }
         }
+        Err(TyCheckError::no_attr_error(
+            self.cfg.input.clone(),
+            line!() as usize,
+            attr_name.loc(),
+            namespace.name.to_string(),
+            obj.ref_t(),
+            attr_name.inspect(),
+            self.get_similar_attr(obj.ref_t(), attr_name.inspect()),
+        ))
     }
 
     fn validate_visibility(
@@ -1261,12 +1267,13 @@ impl Context {
                         return Err(self.not_callable_error(obj, attr_name, instance, None));
                     }
                     if sub != Never {
+                        let hash = get_hash(instance);
                         instance.coerce();
                         if instance.is_quantified_subr() {
                             let instance = self.instantiate(instance.clone(), obj)?;
                             self.substitute_call(obj, attr_name, &instance, pos_args, kw_args)?;
                             return Ok(SubstituteResult::Coerced(instance));
-                        } else {
+                        } else if get_hash(instance) != hash {
                             return self
                                 .substitute_call(obj, attr_name, instance, pos_args, kw_args);
                         }
@@ -1294,7 +1301,7 @@ impl Context {
                     let non_default_params = pos_args.iter().map(|a| anon(a.expr.t())).collect();
                     let subr_t = subr_t(kind, non_default_params, None, vec![], ret_t);
                     self.occur(&subr_t, instance, obj)?;
-                    fv.link(&subr_t);
+                    instance.link(&subr_t);
                     Ok(SubstituteResult::Ok)
                 }
             }
@@ -1465,53 +1472,64 @@ impl Context {
                     Err(errs)
                 }
             }
-            other => {
-                let ctxs = self
-                    .get_singular_ctxs_by_hir_expr(obj, self)
-                    .ok()
-                    .unwrap_or(vec![]);
-                let one = attr_name
-                    .as_ref()
-                    .map(|attr| {
-                        ctxs.iter()
-                            .flat_map(|ctx| {
-                                ctx.get_singular_ctxs_by_ident(attr, self)
-                                    .ok()
-                                    .unwrap_or(vec![])
-                            })
-                            .collect()
+            _ => self.substitute_dunder_call(obj, attr_name, instance, pos_args, kw_args),
+        }
+    }
+
+    fn substitute_dunder_call(
+        &self,
+        obj: &hir::Expr,
+        attr_name: &Option<Identifier>,
+        instance: &Type,
+        pos_args: &[hir::PosArg],
+        kw_args: &[hir::KwArg],
+    ) -> TyCheckResult<SubstituteResult> {
+        let ctxs = self
+            .get_singular_ctxs_by_hir_expr(obj, self)
+            .ok()
+            .unwrap_or(vec![]);
+        let one = attr_name
+            .as_ref()
+            .map(|attr| {
+                ctxs.iter()
+                    .flat_map(|ctx| {
+                        ctx.get_singular_ctxs_by_ident(attr, self)
+                            .ok()
+                            .unwrap_or(vec![])
                     })
-                    .unwrap_or(ctxs);
-                let two = obj
-                    .qual_name()
-                    .map(|name| {
-                        self.get_same_name_context(name)
-                            .map_or(vec![], |ctx| vec![ctx])
-                    })
-                    .unwrap_or(vec![]);
-                let fallbacks = one.into_iter().chain(two.into_iter());
-                for typ_ctx in fallbacks {
-                    if let Some(call_vi) =
-                        typ_ctx.get_current_scope_var(&VarName::from_static("__call__"))
-                    {
-                        let instance = self.instantiate_def_type(&call_vi.t)?;
-                        self.substitute_call(obj, attr_name, &instance, pos_args, kw_args)?;
-                        return Ok(SubstituteResult::__Call__(instance));
-                    }
-                }
-                let hint = if self.subtype_of(other, &ClassType) {
-                    Some(switch_lang! {
-                        "japanese" => format!("インスタンスを生成したい場合は、{}.newを使用してください", obj.to_string_notype()),
-                        "simplified_chinese" => format!("如果要生成实例，请使用 {}.new", obj.to_string_notype()),
-                        "traditional_chinese" => format!("如果要生成實例，請使用 {}.new", obj.to_string_notype()),
-                        "english" => format!("If you want to generate an instance, use {}.new", obj.to_string_notype()),
-                    })
-                } else {
-                    None
-                };
-                Err(self.not_callable_error(obj, attr_name, other, hint))
+                    .collect()
+            })
+            .unwrap_or(ctxs);
+        let two = obj
+            .qual_name()
+            .map(|name| {
+                self.get_same_name_context(name)
+                    .map_or(vec![], |ctx| vec![ctx])
+            })
+            .unwrap_or(vec![]);
+        let fallbacks = one.into_iter().chain(two.into_iter());
+        for typ_ctx in fallbacks {
+            if let Some(call_vi) = typ_ctx.get_current_scope_var(&VarName::from_static("__call__"))
+            {
+                let instance = self.instantiate_def_type(&call_vi.t)?;
+                self.substitute_call(obj, attr_name, &instance, pos_args, kw_args)?;
+                return Ok(SubstituteResult::__Call__(instance));
             }
         }
+        let hint = if self.subtype_of(instance, &ClassType) {
+            let acc = attr_name.as_ref().map_or(obj.to_string_notype(), |attr| {
+                obj.to_string_notype() + &attr.to_string()
+            });
+            Some(switch_lang! {
+                "japanese" => format!("インスタンスを生成したい場合は、{acc}.newを使用してください"),
+                "simplified_chinese" => format!("如果要生成实例，请使用 {acc}.new"),
+                "traditional_chinese" => format!("如果要生成實例，請使用 {acc}.new"),
+                "english" => format!("If you want to generate an instance, use {acc}.new"),
+            })
+        } else {
+            None
+        };
+        Err(self.not_callable_error(obj, attr_name, instance, hint))
     }
 
     fn gen_too_many_args_error(
@@ -2442,78 +2460,13 @@ impl Context {
         }
     }
 
-    pub(crate) fn resolve_path(cfg: &ErgConfig, path: &Path) -> Option<PathBuf> {
-        Self::resolve_real_path(cfg, path).or_else(|| Self::resolve_decl_path(cfg, path))
-    }
-
-    pub(crate) fn resolve_real_path(cfg: &ErgConfig, path: &Path) -> Option<PathBuf> {
-        if let Ok(path) = cfg.input.local_resolve(path) {
-            Some(path)
-        } else if let Ok(path) = erg_std_path()
-            .join(format!("{}.er", path.display()))
-            .canonicalize()
-        {
-            Some(normalize_path(path))
-        } else if let Ok(path) = erg_std_path()
-            .join(format!("{}", path.display()))
-            .join("__init__.er")
-            .canonicalize()
-        {
-            Some(normalize_path(path))
-        } else {
-            None
-        }
-    }
-
-    pub(crate) fn resolve_decl_path(cfg: &ErgConfig, path: &Path) -> Option<PathBuf> {
-        if let Ok(path) = cfg.input.local_decl_resolve(path) {
-            Some(path)
-        } else {
-            let py_roots = [erg_pystd_path, erg_py_external_lib_path];
-            for root in py_roots {
-                if let Some(path) = Self::resolve_std_decl_path(root(), path) {
-                    return Some(path);
-                }
-            }
-            None
-        }
-    }
-
-    pub(crate) fn resolve_std_decl_path(root: PathBuf, path: &Path) -> Option<PathBuf> {
-        let mut path = add_postfix_foreach(path, ".d");
-        path.set_extension("d.er"); // set_extension overrides the previous one
-        if let Ok(path) = root.join(&path).canonicalize() {
-            Some(normalize_path(path))
-        // d.er -> .d
-        } else if let Ok(path) = root
-            .join({
-                path.set_extension("");
-                path
-            })
-            .join("__init__.d.er")
-            .canonicalize()
-        {
-            Some(normalize_path(path))
-        } else {
-            None
-        }
-    }
-
-    pub(crate) fn try_push_path(&self, mut path: PathBuf, add: &Path) -> Result<PathBuf, String> {
-        path.pop(); // __init__.d.er
-        if let Ok(path) = path.join(add).canonicalize() {
-            Ok(normalize_path(path))
-        } else if let Ok(path) = path.join(format!("{}.d.er", add.display())).canonicalize() {
-            Ok(normalize_path(path))
-        } else if let Ok(path) = path
-            .join(format!("{}.d", add.display()))
-            .join("__init__.d.er")
-            .canonicalize()
-        {
-            Ok(normalize_path(path))
-        } else {
-            Err(format!("{} // {}", path.display(), add.display()))
-        }
+    pub(crate) fn get_mod_with_path(&self, path: &Path) -> Option<&Context> {
+        (self.cfg.input.path() == Some(path)) // module itself
+            .then_some(self)
+            .or(self
+                .mod_cache()
+                .raw_ref_ctx(path)
+                .map(|mod_ctx| &mod_ctx.context))
     }
 
     // FIXME: 現在の実装だとimportしたモジュールはどこからでも見れる
@@ -2524,23 +2477,23 @@ impl Context {
             self.get_builtins()
         } else {
             let t = self.get_var_info(name).map(|(_, vi)| &vi.t)?;
-            self.get_mod_from_t(t)
+            self.get_mod_with_t(t)
         }
     }
 
-    pub fn get_mod_from_t(&self, mod_t: &Type) -> Option<&Context> {
-        self.get_ctx_from_path(&self.get_path_from_mod_t(mod_t)?)
+    pub fn get_mod_with_t(&self, mod_t: &Type) -> Option<&Context> {
+        self.get_ctx_from_path(&self.get_path_with_mod_t(mod_t)?)
     }
 
-    pub fn get_path_from_mod_t(&self, mod_t: &Type) -> Option<PathBuf> {
+    pub fn get_path_with_mod_t(&self, mod_t: &Type) -> Option<PathBuf> {
         let tps = mod_t.typarams();
         let Some(TyParam::Value(ValueObj::Str(path))) = tps.get(0) else {
             return None;
         };
         if mod_t.is_erg_module() {
-            Self::resolve_path(&self.cfg, Path::new(&path[..]))
+            self.cfg.input.resolve_path(Path::new(&path[..]))
         } else if mod_t.is_py_module() {
-            Self::resolve_decl_path(&self.cfg, Path::new(&path[..]))
+            self.cfg.input.resolve_decl_path(Path::new(&path[..]))
         } else {
             None
         }
@@ -2597,28 +2550,32 @@ impl Context {
         mono(format!("{}{vis}{}", self.name, ident.inspect()))
     }
 
+    pub(crate) fn get_namespace_path(&self, namespace: &Str) -> Option<PathBuf> {
+        let mut namespaces = namespace.split_with(&[".", "::"]);
+        let mut str_namespace = namespaces.first().map(|n| n.to_string())?;
+        namespaces.remove(0);
+        while str_namespace.is_empty() || str_namespace.ends_with('.') {
+            if namespaces.is_empty() {
+                break;
+            }
+            str_namespace.push('.');
+            str_namespace.push_str(namespaces.remove(0));
+        }
+        let path = Path::new(&str_namespace);
+        let mut path = self.cfg.input.resolve_path(path)?;
+        for p in namespaces.into_iter() {
+            path = Input::try_push_path(path, Path::new(p)).ok()?;
+        }
+        Some(path)
+    }
+
     pub(crate) fn get_namespace(&self, namespace: &Str) -> Option<&Context> {
         if &namespace[..] == "global" {
             return self.get_builtins();
         } else if &namespace[..] == "module" {
             return self.get_module();
         }
-        let mut namespaces = namespace.split_with(&[".", "::"]);
-        let mut namespace = namespaces.first().map(|n| n.to_string())?;
-        namespaces.remove(0);
-        while namespace.is_empty() || namespace.ends_with('.') {
-            if namespaces.is_empty() {
-                break;
-            }
-            namespace.push('.');
-            namespace.push_str(namespaces.remove(0));
-        }
-        let path = Path::new(&namespace);
-        let mut path = Self::resolve_path(&self.cfg, path)?;
-        for p in namespaces.into_iter() {
-            path = self.try_push_path(path, Path::new(p)).ok()?;
-        }
-        self.get_ctx_from_path(path.as_path())
+        self.get_ctx_from_path(self.get_namespace_path(namespace)?.as_path())
     }
 
     pub(crate) fn get_mono_type(&self, name: &Str) -> Option<(&Type, &Context)> {
@@ -2815,43 +2772,36 @@ impl Context {
         &self,
         obj: &hir::Expr,
         attr: &Identifier,
-        candidates: &'m [MethodInfo],
-    ) -> Triple<&'m MethodInfo, TyCheckError> {
+        candidates: &'m [MethodPair],
+    ) -> Triple<&'m MethodPair, TyCheckError> {
+        if candidates.first().is_none() {
+            return Triple::None;
+        }
         let matches = candidates
             .iter()
-            .filter(|mi| self.supertype_of(&mi.definition_type, obj.ref_t()))
+            .filter(|mp| self.supertype_of(&mp.definition_type, obj.ref_t()))
             .collect::<Vec<_>>();
         if matches.len() == 1 {
-            let method_info = matches[0];
-            if method_info
+            let method_pair = matches[0];
+            if method_pair
                 .method_info
                 .vis
                 .compatible(&attr.acc_kind(), self)
             {
-                return Triple::Ok(method_info);
+                return Triple::Ok(method_pair);
             }
         }
-        let Some(first) = candidates.first() else {
-            return Triple::None;
-        };
-        if candidates
-            .iter()
-            .skip(1)
-            .all(|mi| mi.method_info == first.method_info)
-        {
-            if first.method_info.vis.compatible(&attr.acc_kind(), self) {
-                return Triple::Ok(first);
-            }
-        } else if self.same_shape(candidates.iter().map(|mi| &mi.method_info.t)) {
+        if self.same_shape(candidates.iter().map(|mp| &mp.method_info.t)) {
             // if all methods have the same return type, the minimum type (has biggest param types) is selected
             // e.g. [Float -> Bool, Int -> Bool] => Float -> Bool
-            if let Some(min) = self.min_type(candidates.iter().map(|mi| &mi.method_info.t)) {
-                let min_info = candidates
+            // REVIEW: should [Int -> Bool, Str -> Bool] => (Str or Int) -> Bool?
+            if let Some(min) = self.min_type(candidates.iter().map(|mp| &mp.method_info.t)) {
+                let min_pair = candidates
                     .iter()
-                    .find(|mi| &mi.method_info.t == min)
+                    .find(|mp| &mp.method_info.t == min)
                     .unwrap();
-                if min_info.method_info.vis.compatible(&attr.acc_kind(), self) {
-                    return Triple::Ok(min_info);
+                if min_pair.method_info.vis.compatible(&attr.acc_kind(), self) {
+                    return Triple::Ok(min_pair);
                 }
             }
         }
@@ -2862,7 +2812,7 @@ impl Context {
             attr,
             &candidates
                 .iter()
-                .map(|t| t.definition_type.clone())
+                .map(|mp| mp.definition_type.clone())
                 .collect::<Vec<_>>(),
             self.caused_by(),
         ))
@@ -2874,7 +2824,7 @@ impl Context {
         &self,
         receiver: &hir::Expr,
         attr: &Identifier,
-    ) -> Triple<&MethodInfo, TyCheckError> {
+    ) -> Triple<&MethodPair, TyCheckError> {
         if let Some(candidates) = self.method_to_traits.get(attr.inspect()) {
             return self.get_attr_type(receiver, attr, candidates);
         }

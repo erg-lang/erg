@@ -12,3 +12,9 @@ print! id(c) == c
 
 consts = import "consts"
 print! consts.physics.G
+
+foo = import "foo"
+assert foo.i == 1
+assert foo.f(2) == 3
+assert foo.FILE == "foo/__init__.er"
+assert foo.bar.i == foo.i

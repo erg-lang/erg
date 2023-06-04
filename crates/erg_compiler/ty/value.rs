@@ -487,7 +487,7 @@ impl fmt::Debug for ValueObj {
                 }
                 Ok(())
             }
-            Self::Str(s) => write!(f, "\"{s}\""),
+            Self::Str(s) => write!(f, "\"{}\"", s.escape()),
             Self::Bool(b) => {
                 if *b {
                     write!(f, "True")
@@ -612,7 +612,11 @@ impl Hash for ValueObj {
 
 impl From<i32> for ValueObj {
     fn from(item: i32) -> Self {
-        ValueObj::Int(item)
+        if item >= 0 {
+            ValueObj::Nat(item as u64)
+        } else {
+            ValueObj::Int(item)
+        }
     }
 }
 

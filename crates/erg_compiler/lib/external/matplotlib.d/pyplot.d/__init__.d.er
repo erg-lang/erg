@@ -1,4 +1,4 @@
-lines = pyimport "../lines"
+# lines = pyimport "../lines"
 text = pyimport "../text"
 legend = pyimport "../legend"
 
