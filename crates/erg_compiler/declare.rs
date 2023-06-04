@@ -411,25 +411,50 @@ impl ASTLowerer {
         let (non_defaults_, var_params_, defaults_, parens) = params.deconstruct();
         let mut non_defaults = vec![];
         for non_default_ in non_defaults_.into_iter() {
-            let non_default =
-                hir::NonDefaultParamSignature::new(non_default_, VarInfo::default(), None);
+            let t_spec_as_expr = non_default_
+                .t_spec
+                .as_ref()
+                .map(|t_spec| self.fake_lower_expr(*t_spec.t_spec_as_expr.clone()))
+                .transpose()?;
+            let non_default = hir::NonDefaultParamSignature::new(
+                non_default_,
+                VarInfo::default(),
+                t_spec_as_expr,
+            );
             non_defaults.push(non_default);
         }
-        let var_args = var_params_.map(|var_args| {
-            Box::new(hir::NonDefaultParamSignature::new(
-                *var_args,
+        let var_params = if let Some(var_params) = var_params_ {
+            let t_spec_as_expr = var_params
+                .t_spec
+                .as_ref()
+                .map(|t_spec| self.fake_lower_expr(*t_spec.t_spec_as_expr.clone()))
+                .transpose()?;
+            Some(Box::new(hir::NonDefaultParamSignature::new(
+                *var_params,
                 VarInfo::default(),
-                None,
-            ))
-        });
+                t_spec_as_expr,
+            )))
+        } else {
+            None
+        };
         let mut defaults = vec![];
         for default_ in defaults_.into_iter() {
+            let t_spec_as_expr = default_
+                .sig
+                .t_spec
+                .as_ref()
+                .map(|t_spec| self.fake_lower_expr(*t_spec.t_spec_as_expr.clone()))
+                .transpose()?;
             let default_val = self.fake_lower_expr(default_.default_val)?;
-            let sig = hir::NonDefaultParamSignature::new(default_.sig, VarInfo::default(), None);
+            let sig = hir::NonDefaultParamSignature::new(
+                default_.sig,
+                VarInfo::default(),
+                t_spec_as_expr,
+            );
             let default = hir::DefaultParamSignature::new(sig, default_val);
             defaults.push(default);
         }
-        Ok(hir::Params::new(non_defaults, var_args, defaults, parens))
+        Ok(hir::Params::new(non_defaults, var_params, defaults, parens))
     }
 
     fn fake_lower_block(&self, block: ast::Block) -> LowerResult<hir::Block> {
