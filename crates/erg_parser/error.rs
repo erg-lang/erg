@@ -177,8 +177,8 @@ impl LexError {
             vec![SubMessage::ambiguous_new(loc, vec![], None)],
             switch_lang!(
                 "japanese" => format!("{expected}が期待されましたが、{got}となっています"),
-                "simplified_chinese" => format!("期待: {expected}，得到: {got}"),
-                "traditional_chinese" => format!("期待: {expected}，得到: {got}"),
+                "simplified_chinese" => format!("期望: {expected}，得到: {got}"),
+                "traditional_chinese" => format!("期望: {expected}，得到: {got}"),
                 "english" => format!("expected: {expected}, got: {got}"),
             ),
             errno,
@@ -271,8 +271,8 @@ impl LexError {
     ) -> LexError {
         let hint = switch_lang!(
             "japanese" => format!("{}が期待されましたが、{got}が与えれられました", fmt_vec_split_with(expected, " または ")),
-            "simplified_chinese" => format!("期待: {}，得到: {got}", fmt_vec_split_with(expected, " 或 ")),
-            "traditional_chinese" => format!("期待: {}，得到: {got}", fmt_vec_split_with(expected, " 或 ")),
+            "simplified_chinese" => format!("期望: {}，但找到: {got}", fmt_vec_split_with(expected, " 或 ")),
+            "traditional_chinese" => format!("期望: {}，但找到: {got}", fmt_vec_split_with(expected, " 或 ")),
             "english" => format!("expect: {}, got: {got}", fmt_vec_split_with(expected, " or ")),
         );
         let msg = switch_lang!(
@@ -396,8 +396,8 @@ impl LexError {
         );
         let hint = switch_lang!(
             "japanese" => "カンマを削除してください",
-            "simplified_chinese" => "逗号应该去掉",
-            "traditional_chinese" => "逗號應該去掉",
+            "simplified_chinese" => "应该去掉逗号",
+            "traditional_chinese" => "應該去掉逗號",
             "english" => "comma should be removed",
         )
         .to_string();
@@ -490,14 +490,14 @@ impl LexError {
                 let lit = StyledStr::new("NatLit", Some(HINT), Some(ATTR));
                 let newline = StyledStr::new("换行", Some(HINT), Some(ATTR));
                 let arr = StyledStr::new("数组", Some(HINT), Some(ATTR));
-                format!("expect: {method}, {lit}, {newline}, {arr}")
+                format!("期望: {method}, {lit}, {newline}, {arr}")
             },
             "traditional_chinese" => {
                 let method = StyledStr::new("方法", Some(HINT), Some(ATTR));
                 let lit = StyledStr::new("NatLit", Some(HINT), Some(ATTR));
                 let newline = StyledStr::new("换行", Some(HINT), Some(ATTR));
                 let arr = StyledStr::new("數組", Some(HINT), Some(ATTR));
-                format!("expect: {method}, {lit}, {newline}, {arr}")
+                format!("期望: {method}, {lit}, {newline}, {arr}")
             },
             "english" => {
                 let method = StyledStr::new("method", Some(HINT), Some(ATTR));
