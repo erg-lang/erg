@@ -301,6 +301,13 @@ impl Context {
                         panic!("err: {err}");
                     }
                 }
+            } else if typ.has_undoable_linked_var() {
+                if let Err(err) = self.overwrite_typarams(typ, rhs) {
+                    Self::undo_substitute_typarams(typ);
+                    if DEBUG_MODE {
+                        panic!("err: {err}");
+                    }
+                }
             }
             for rhs_sup in rhs_ctx.super_traits.iter() {
                 // Not `supertype_of` (only structures are compared)
@@ -459,8 +466,8 @@ impl Context {
             //   => ?P.undoable_link(Int)
             //   => Mul Int :> Int
             (FreeVar(lfv), rhs) => {
-                if let FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } = &*lfv.borrow() {
-                    return self.supertype_of(t, rhs);
+                if let Some(t) = lfv.get_linked() {
+                    return self.supertype_of(&t, rhs);
                 }
                 if let Some((_sub, sup)) = lfv.get_subsup() {
                     lfv.undoable_link(rhs);
@@ -482,8 +489,8 @@ impl Context {
                 }
             }
             (lhs, FreeVar(rfv)) => {
-                if let FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } = &*rfv.borrow() {
-                    return self.supertype_of(lhs, t);
+                if let Some(t) = rfv.get_linked() {
+                    return self.supertype_of(lhs, &t);
                 }
                 if let Some((sub, _sup)) = rfv.get_subsup() {
                     rfv.undoable_link(lhs);
@@ -908,15 +915,23 @@ impl Context {
                 }
             }
             _ => {
-                if let (Ok(sup), Ok(sub)) = (
+                match (
                     self.convert_tp_into_type(sup_p.clone()),
                     self.convert_tp_into_type(sub_p.clone()),
                 ) {
-                    return match variance {
-                        Variance::Contravariant => self.subtype_of(&sup, &sub),
-                        Variance::Covariant => self.supertype_of(&sup, &sub),
-                        Variance::Invariant => self.same_type_of(&sup, &sub),
-                    };
+                    (Ok(sup), Ok(sub)) => {
+                        return match variance {
+                            Variance::Contravariant => self.subtype_of(&sup, &sub),
+                            Variance::Covariant => self.supertype_of(&sup, &sub),
+                            Variance::Invariant => self.same_type_of(&sup, &sub),
+                        };
+                    }
+                    (Err(le), Err(re)) => {
+                        log!(err "cannot convert {le}, {re} to types")
+                    }
+                    (Err(err), _) | (_, Err(err)) => {
+                        log!(err "cannot convert {err} to a type");
+                    }
                 }
                 self.eq_tp(sup_p, sub_p)
             }

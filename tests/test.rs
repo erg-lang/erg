@@ -345,7 +345,7 @@ fn exec_structural_err() -> Result<(), ()> {
 
 #[test]
 fn exec_subtyping_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/subtyping.er", 0, 15)
+    expect_failure("tests/should_err/subtyping.er", 0, 17)
 }
 
 #[test]

@@ -341,6 +341,21 @@ impl Predicate {
         }
     }
 
+    pub fn has_undoable_linked_var(&self) -> bool {
+        match self {
+            Self::Value(_) => false,
+            Self::Const(_) => false,
+            Self::Equal { rhs, .. }
+            | Self::GreaterEqual { rhs, .. }
+            | Self::LessEqual { rhs, .. }
+            | Self::NotEqual { rhs, .. } => rhs.has_undoable_linked_var(),
+            Self::Or(lhs, rhs) | Self::And(lhs, rhs) => {
+                lhs.has_undoable_linked_var() || rhs.has_undoable_linked_var()
+            }
+            Self::Not(pred) => pred.has_undoable_linked_var(),
+        }
+    }
+
     pub fn min_max<'a>(
         &'a self,
         min: Option<&'a TyParam>,
