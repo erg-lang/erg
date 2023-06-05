@@ -642,8 +642,13 @@ impl Input {
             return Some(path);
         }
         // e.g. root: lib/external/pandas.d, path: pandas/core/frame
-        if let Some(dir) = self.project_root().as_ref().and_then(|root| root.parent()) {
-            if let Ok(path) = self.resolve_local_decl(dir.to_path_buf(), path) {
+        if let Some(mut dir) = self.project_root() {
+            let mut path = path.iter().skip(1).collect::<PathBuf>();
+            if path == Path::new("") {
+                path.extend(dir.iter().last());
+                dir.pop();
+            }
+            if let Ok(path) = self.resolve_local_decl(dir, &path) {
                 return Some(path);
             }
         }
