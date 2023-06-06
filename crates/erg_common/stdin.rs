@@ -6,7 +6,7 @@ use std::io::{stdin, BufRead, BufReader};
 
 #[cfg(feature = "full-repl")]
 use crossterm::{
-    cursor::{MoveToColumn},
+    cursor::MoveToColumn,
     event::{read, Event, KeyCode, KeyEvent, KeyModifiers},
     execute,
     style::Print,
@@ -123,7 +123,8 @@ impl StdinReader {
         {
             consult_history = false;
             match (code, modifiers) {
-                (KeyCode::Char('z'), KeyModifiers::CONTROL) | (KeyCode::Char('d'), KeyModifiers::CONTROL) => {
+                (KeyCode::Char('z'), KeyModifiers::CONTROL)
+                | (KeyCode::Char('d'), KeyModifiers::CONTROL) => {
                     println!();
                     line.clear();
                     line.push_str(":exit");
