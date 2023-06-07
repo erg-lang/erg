@@ -574,19 +574,23 @@ impl Context {
     ) -> TyCheckResult<Type> {
         match poly_spec.acc.to_string().trim_start_matches([':', '.']) {
             "Array" => {
+                let ctx = self
+                    .get_nominal_type_ctx(&array_t(Type::Obj, TyParam::Failure))
+                    .unwrap()
+                    .1;
                 // TODO: kw
                 let mut args = poly_spec.args.pos_args();
                 if let Some(first) = args.next() {
                     let t = self.instantiate_const_expr_as_type(
                         &first.expr,
-                        None,
+                        Some((ctx, 0)),
                         tmp_tv_cache,
                         not_found_is_qvar,
                     )?;
                     let len = if let Some(len) = args.next() {
                         self.instantiate_const_expr(
                             &len.expr,
-                            None,
+                            Some((ctx, 1)),
                             tmp_tv_cache,
                             not_found_is_qvar,
                         )?
@@ -824,21 +828,24 @@ impl Context {
                 self.instantiate_acc(acc, erased_idx, tmp_tv_cache, not_found_is_qvar)
             }
             ast::ConstExpr::App(app) => {
-                let name = match &app.acc {
-                    ast::ConstAccessor::Local(local) => local.inspect(),
-                    _ => return type_feature_error!(self, app.loc(), "instantiating const callee"),
+                let ast::ConstAccessor::Local(ident) = &app.acc else {
+                    return type_feature_error!(self, app.loc(), "instantiating const callee");
                 };
+                let &ctx = self
+                    .get_singular_ctxs_by_ident(ident, self)?
+                    .first()
+                    .unwrap_or(&self);
                 let mut args = vec![];
                 for (i, arg) in app.args.pos_args().enumerate() {
                     let arg_t = self.instantiate_const_expr(
                         &arg.expr,
-                        Some((self, i)),
+                        Some((ctx, i)),
                         tmp_tv_cache,
                         not_found_is_qvar,
                     )?;
                     args.push(arg_t);
                 }
-                Ok(TyParam::app(name.clone(), args))
+                Ok(TyParam::app(ident.inspect().clone(), args))
             }
             ast::ConstExpr::Array(ConstArray::Normal(array)) => {
                 let mut tp_arr = vec![];
