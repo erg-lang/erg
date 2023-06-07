@@ -452,6 +452,7 @@ impl Context {
                 if self
                     .registered_info(name.inspect(), name.is_const())
                     .is_some()
+                    && &name.inspect()[..] != "_"
                 {
                     Err(TyCheckErrors::from(TyCheckError::reassign_error(
                         self.cfg.input.clone(),
