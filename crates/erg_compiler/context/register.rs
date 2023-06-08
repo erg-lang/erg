@@ -1288,9 +1288,7 @@ impl Context {
                         2,
                         self.level,
                     );
-                    if ERG_MODE {
-                        self.gen_class_new_method(&gen, &mut ctx)?;
-                    }
+                    self.gen_class_new_method(&gen, &mut ctx)?;
                     self.register_gen_mono_type(ident, gen, ctx, Const)
                 } else {
                     let params = gen
@@ -1307,9 +1305,7 @@ impl Context {
                         2,
                         self.level,
                     );
-                    if ERG_MODE {
-                        self.gen_class_new_method(&gen, &mut ctx)?;
-                    }
+                    self.gen_class_new_method(&gen, &mut ctx)?;
                     self.register_gen_poly_type(ident, gen, ctx, Const)
                 }
             }
@@ -1558,16 +1554,31 @@ impl Context {
         } else {
             func0(gen.typ().clone())
         };
-        methods.register_fixed_auto_impl(
-            "__new__",
-            new_t.clone(),
-            Immutable,
-            Visibility::BUILTIN_PRIVATE,
-            Some("__call__".into()),
-        )?;
-        // 必要なら、ユーザーが独自に上書きする
-        // users can override this if necessary
-        methods.register_auto_impl("new", new_t, Immutable, Visibility::BUILTIN_PUBLIC, None)?;
+        if ERG_MODE {
+            methods.register_fixed_auto_impl(
+                "__new__",
+                new_t.clone(),
+                Immutable,
+                Visibility::BUILTIN_PRIVATE,
+                Some("__call__".into()),
+            )?;
+            // users can override this if necessary
+            methods.register_auto_impl(
+                "new",
+                new_t,
+                Immutable,
+                Visibility::BUILTIN_PUBLIC,
+                None,
+            )?;
+        } else {
+            methods.register_auto_impl(
+                "__call__",
+                new_t,
+                Immutable,
+                Visibility::BUILTIN_PUBLIC,
+                Some("__call__".into()),
+            )?;
+        }
         ctx.methods_list
             .push((ClassDefType::Simple(gen.typ().clone()), methods));
         Ok(())

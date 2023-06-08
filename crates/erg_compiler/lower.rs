@@ -1730,21 +1730,19 @@ impl ASTLowerer {
         if let Some(sup_type) = call.args.get_left_or_key("Super") {
             Self::check_inheritable(&self.cfg, &mut self.errs, type_obj, sup_type, &hir_def.sig);
         }
-        let (__new__, need_to_gen_new) = if let (Some(dunder_new_vi), Some(new_vi)) = (
-            class_ctx.get_current_scope_var(&VarName::from_static("__new__")),
-            class_ctx.get_current_scope_var(&VarName::from_static("new")),
-        ) {
-            (dunder_new_vi.t.clone(), new_vi.kind == VarKind::Auto)
-        } else {
+        let Some(__new__) = class_ctx.get_current_scope_var(&VarName::from_static("__new__")).or(class_ctx.get_current_scope_var(&VarName::from_static("__call__"))) else {
             return unreachable_error!(LowerErrors, LowerError, self);
         };
+        let need_to_gen_new = class_ctx
+            .get_current_scope_var(&VarName::from_static("new"))
+            .map_or(false, |vi| vi.kind == VarKind::Auto);
         let require_or_sup = Self::get_require_or_sup_or_base(hir_def.body.block.remove(0));
         Ok(hir::ClassDef::new(
             type_obj.clone(),
             hir_def.sig,
             require_or_sup,
             need_to_gen_new,
-            __new__,
+            __new__.t.clone(),
             hir_methods,
         ))
     }
