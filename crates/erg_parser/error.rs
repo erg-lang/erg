@@ -11,6 +11,7 @@ use erg_common::style::{Attribute, Color, StyledStr, StyledString, StyledStrings
 use erg_common::traits::Stream;
 use erg_common::{fmt_iter, impl_display_and_error, impl_stream, switch_lang};
 
+use crate::ast::Module;
 use crate::token::TokenKind;
 
 #[derive(Debug)]
@@ -50,6 +51,7 @@ impl fmt::Display for LexErrors {
 impl std::error::Error for LexErrors {}
 
 const ERR: Color = THEME.colors.error;
+const WARN: Color = THEME.colors.warning;
 const HINT: Color = THEME.colors.hint;
 const ACCENT: Color = THEME.colors.accent;
 
@@ -319,12 +321,30 @@ impl LexError {
             loc,
         ))
     }
+
+    pub fn duplicate_elem_warning(errno: usize, loc: Location, elem: String) -> Self {
+        let elem = StyledString::new(elem, Some(WARN), Some(Attribute::Underline));
+        Self::new(ErrorCore::new(
+            vec![SubMessage::only_loc(loc)],
+            switch_lang!(
+                "japanese" => format!("重複する要素です: {elem}"),
+                "simplified_chinese" => format!("{elem}"),
+                "traditional_chinese" => format!("{elem}"),
+                "english" => format!("duplicated element: {elem}"),
+            ),
+            errno,
+            SyntaxWarning,
+            loc,
+        ))
+    }
 }
 
 pub type LexResult<T> = Result<T, LexError>;
 
 pub type ParseError = LexError;
 pub type ParseErrors = LexErrors;
+pub type ParseWarning = LexError;
+pub type ParseWarnings = LexErrors;
 pub type ParseResult<T> = Result<T, ()>;
 
 #[derive(Debug)]
@@ -403,4 +423,71 @@ pub type ParserRunnerResult<T> = Result<T, ParserRunnerError>;
 
 pub type LexerRunnerError = ParserRunnerError;
 pub type LexerRunnerErrors = ParserRunnerErrors;
+pub type ParserRunnerWarning = ParserRunnerError;
+pub type ParserRunnerWarnings = ParserRunnerErrors;
 pub type LexerRunnerResult<T> = Result<T, LexerRunnerError>;
+
+#[derive(Debug)]
+pub struct CompleteArtifact<A = Module, Es = ParseErrors> {
+    pub ast: A,
+    pub warns: Es,
+}
+
+impl<A, Es> CompleteArtifact<A, Es> {
+    pub fn new(ast: A, warns: Es) -> Self {
+        Self { ast, warns }
+    }
+}
+
+#[derive(Debug)]
+pub struct IncompleteArtifact<A = Module, Es = ParseErrors> {
+    pub ast: Option<A>,
+    pub warns: Es,
+    pub errors: Es,
+}
+
+impl<A> From<ParserRunnerErrors> for IncompleteArtifact<A, ParserRunnerErrors> {
+    fn from(value: ParserRunnerErrors) -> IncompleteArtifact<A, ParserRunnerErrors> {
+        IncompleteArtifact::new(None, ParserRunnerErrors::empty(), value)
+    }
+}
+
+impl<A> From<LexErrors> for IncompleteArtifact<A, ParseErrors> {
+    fn from(value: LexErrors) -> IncompleteArtifact<A, ParseErrors> {
+        IncompleteArtifact::new(None, ParseErrors::empty(), value)
+    }
+}
+
+impl<A, Es> IncompleteArtifact<A, Es> {
+    pub fn new(ast: Option<A>, warns: Es, errors: Es) -> Self {
+        Self { ast, warns, errors }
+    }
+
+    pub fn map_errs<U>(self, f: impl Fn(Es) -> U) -> IncompleteArtifact<A, U> {
+        IncompleteArtifact {
+            ast: self.ast,
+            warns: f(self.warns),
+            errors: f(self.errors),
+        }
+    }
+
+    pub fn map_mod<U>(self, f: impl Fn(A) -> U) -> IncompleteArtifact<U, Es> {
+        IncompleteArtifact {
+            ast: self.ast.map(f),
+            warns: self.warns,
+            errors: self.errors,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct ErrorArtifact<Es = ParseErrors> {
+    pub warns: Es,
+    pub errors: Es,
+}
+
+impl<Es> ErrorArtifact<Es> {
+    pub fn new(warns: Es, errors: Es) -> ErrorArtifact<Es> {
+        Self { warns, errors }
+    }
+}

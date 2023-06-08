@@ -1004,6 +1004,15 @@ impl_nested_display_for_enum!(RecordAttrOrIdent; Attr, Ident);
 impl_display_for_enum!(RecordAttrOrIdent; Attr, Ident);
 impl_locational_for_enum!(RecordAttrOrIdent; Attr, Ident);
 
+impl RecordAttrOrIdent {
+    pub fn ident(&self) -> Option<&Identifier> {
+        match self {
+            Self::Attr(attr) => attr.sig.ident(),
+            Self::Ident(ident) => Some(ident),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct NormalSet {
     pub l_brace: Token,

@@ -167,19 +167,19 @@ impl Runnable for Compiler {
         let warns = self
             .compile_and_dump_as_pyc(path, src, "exec")
             .map_err(|eart| {
-                eart.warns.fmt_all_stderr();
+                eart.warns.write_all_stderr();
                 eart.errors
             })?;
-        warns.fmt_all_stderr();
+        warns.write_all_stderr();
         Ok(ExitStatus::compile_passed(warns.len()))
     }
 
     fn eval(&mut self, src: String) -> Result<String, CompileErrors> {
         let arti = self.compile(src, "eval").map_err(|eart| {
-            eart.warns.fmt_all_stderr();
+            eart.warns.write_all_stderr();
             eart.errors
         })?;
-        arti.warns.fmt_all_stderr();
+        arti.warns.write_all_stderr();
         Ok(arti.object.code_info(Some(self.code_generator.py_version)))
     }
 }

@@ -19,7 +19,7 @@ use crate::util::{self, NormalizedUrl};
 impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     pub(crate) fn get_ast(&self, uri: &NormalizedUrl) -> Option<Module> {
         let code = self.file_cache.get_entire_code(uri).ok()?;
-        Parser::parse(code).ok()
+        Parser::parse(code).ok().map(|artifact| artifact.ast)
     }
 
     pub(crate) fn check_file<S: Into<String>>(

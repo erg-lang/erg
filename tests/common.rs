@@ -1,7 +1,8 @@
 #![allow(dead_code)]
 use std::path::PathBuf;
 
-use erg_common::config::{DummyStdin, ErgConfig, Input};
+use erg_common::config::{DummyStdin, ErgConfig, Input, Output};
+use erg_common::consts::DEBUG_MODE;
 use erg_common::error::MultiErrorDisplay;
 use erg_common::python_util::PythonVersion;
 use erg_common::spawn::exec_new_thread;
@@ -21,8 +22,10 @@ pub(crate) fn expect_repl_success(name: &'static str, lines: Vec<String>) -> Res
             Err(())
         }
         Err(errs) => {
+            if DEBUG_MODE {
+                errs.write_all_stderr();
+            }
             println!("err: should succeed, but got compile errors");
-            errs.fmt_all_stderr();
             Err(())
         }
     }
@@ -46,8 +49,10 @@ pub(crate) fn expect_success(file_path: &'static str, num_warns: usize) -> Resul
             Err(())
         }
         Err(errs) => {
+            if DEBUG_MODE {
+                errs.write_all_stderr();
+            }
             println!("err: should succeed, but got compile errors");
-            errs.fmt_all_stderr();
             Err(())
         }
     }
@@ -71,8 +76,10 @@ pub(crate) fn expect_compile_success(file_path: &'static str, num_warns: usize) 
             Err(())
         }
         Err(errs) => {
+            if DEBUG_MODE {
+                errs.write_all_stderr();
+            }
             println!("err: should succeed, but got compile errors");
-            errs.fmt_all_stderr();
             Err(())
         }
     }
@@ -97,8 +104,10 @@ pub(crate) fn expect_repl_failure(
             }
         }
         Err(errs) => {
+            if DEBUG_MODE {
+                errs.write_all_stderr();
+            }
             println!("err: should succeed, but got compile errors");
-            errs.fmt_all_stderr();
             Err(())
         }
     }
@@ -119,8 +128,10 @@ pub(crate) fn expect_end_with(file_path: &'static str, code: i32) -> Result<(), 
             }
         }
         Err(errs) => {
+            if DEBUG_MODE {
+                errs.write_all_stderr();
+            }
             println!("err: should end with {code}, but got compile errors");
-            errs.fmt_all_stderr();
             Err(())
         }
     }
@@ -148,7 +159,9 @@ pub(crate) fn expect_failure(
             }
         }
         Err(errs) => {
-            errs.fmt_all_stderr();
+            if DEBUG_MODE {
+                errs.write_all_stderr();
+            }
             if errs.len() == num_errs {
                 Ok(())
             } else {
@@ -184,7 +197,12 @@ fn set_cfg(mut cfg: ErgConfig) -> ErgConfig {
 /// To execute on other versions, change the version and magic number.
 fn _exec_file(file_path: &'static str) -> Result<ExitStatus, CompileErrors> {
     println!("{DEBUG_MAIN}[test] exec {file_path}{RESET}");
-    let cfg = ErgConfig::with_main_path(PathBuf::from(file_path));
+    let mut cfg = ErgConfig::with_main_path(PathBuf::from(file_path));
+    cfg.output = if DEBUG_MODE {
+        Output::stdout()
+    } else {
+        Output::Null
+    };
     let mut vm = DummyVM::new(set_cfg(cfg));
     vm.exec()
 }

@@ -975,9 +975,15 @@ macro_rules! impl_display_and_error {
 }
 
 pub trait MultiErrorDisplay<Item: ErrorDisplay>: Stream<Item> {
-    fn fmt_all_stderr(&self) {
+    fn write_all_stderr(&self) {
         for err in self.iter() {
             err.write_to_stderr();
+        }
+    }
+
+    fn write_all_to(&self, w: &mut impl std::io::Write) {
+        for err in self.iter() {
+            err.write_to(w);
         }
     }
 

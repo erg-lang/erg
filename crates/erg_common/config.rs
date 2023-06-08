@@ -5,9 +5,10 @@ use std::env;
 use std::ffi::OsStr;
 use std::fmt;
 use std::fs::File;
-use std::io::{stdin, BufRead, BufReader, IsTerminal, Read, Write};
+use std::io::{stdin, BufRead, BufReader, IsTerminal, Read, Stdout, Write};
 use std::path::{Path, PathBuf};
 use std::process;
+use std::process::Stdio;
 use std::str::FromStr;
 
 use crate::consts::{ERG_MODE, EXPERIMENTAL_MODE};
@@ -18,6 +19,7 @@ use crate::pathutil::add_postfix_foreach;
 use crate::python_util::{detect_magic_number, get_python_version, get_sys_path, PythonVersion};
 use crate::random::random;
 use crate::serialize::{get_magic_num_from_bytes, get_ver_from_magic_num};
+use crate::shared::AtomicShared;
 use crate::stdin::GLOBAL_STDIN;
 use crate::{normalize_path, power_assert, read_file};
 
@@ -747,6 +749,48 @@ impl Input {
     }
 }
 
+#[derive(Debug, Clone, Default)]
+pub enum Output {
+    Stdout(AtomicShared<Stdout>),
+    File(AtomicShared<File>),
+    #[default]
+    Null,
+}
+
+impl std::io::Write for Output {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        match self {
+            Output::Stdout(stdout) => stdout.borrow_mut().write(buf),
+            Output::File(file) => file.borrow_mut().write(buf),
+            Output::Null => Ok(buf.len()),
+        }
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        match self {
+            Output::Stdout(stdout) => stdout.borrow_mut().flush(),
+            Output::File(file) => file.borrow_mut().flush(),
+            Output::Null => Ok(()),
+        }
+    }
+}
+
+impl From<Output> for Stdio {
+    fn from(output: Output) -> Self {
+        match output {
+            Output::Stdout(_stdout) => Stdio::inherit(),
+            Output::File(file) => Stdio::from(file.into_inner()),
+            Output::Null => Stdio::null(),
+        }
+    }
+}
+
+impl Output {
+    pub fn stdout() -> Self {
+        Self::Stdout(AtomicShared::new(std::io::stdout()))
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ErgConfig {
     pub mode: ErgMode,
@@ -764,6 +808,7 @@ pub struct ErgConfig {
     pub quiet_repl: bool,
     pub show_type: bool,
     pub input: Input,
+    pub output: Output,
     pub output_dir: Option<&'static str>,
     /// module name to be executed
     pub module: &'static str,
@@ -791,6 +836,7 @@ impl Default for ErgConfig {
             quiet_repl: false,
             show_type: false,
             input: Input::repl(),
+            output: Output::stdout(),
             output_dir: None,
             module: "<module>",
             verbose: 1,

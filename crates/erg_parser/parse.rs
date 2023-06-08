@@ -18,7 +18,10 @@ use erg_common::{
 
 use crate::ast::*;
 use crate::desugar::Desugarer;
-use crate::error::{ParseError, ParseErrors, ParseResult, ParserRunnerError, ParserRunnerErrors};
+use crate::error::{
+    CompleteArtifact, IncompleteArtifact, ParseError, ParseErrors, ParseResult, ParserRunnerError,
+    ParserRunnerErrors,
+};
 use crate::lex::Lexer;
 use crate::token::{Token, TokenCategory, TokenKind, TokenStream};
 
@@ -97,13 +100,13 @@ macro_rules! expect_pop {
 }
 
 pub trait Parsable {
-    fn parse(code: String) -> Result<Module, ParseErrors>;
+    fn parse(code: String) -> Result<CompleteArtifact, IncompleteArtifact<Module, ParseErrors>>;
 }
 
 pub struct SimpleParser {}
 
 impl Parsable for SimpleParser {
-    fn parse(code: String) -> Result<Module, ParseErrors> {
+    fn parse(code: String) -> Result<CompleteArtifact, IncompleteArtifact> {
         let ts = Lexer::from_str(code).lex()?;
         let mut parser = Parser::new(ts);
         parser.parse()
@@ -326,59 +329,77 @@ impl Runnable for ParserRunner {
 
     fn exec(&mut self) -> Result<ExitStatus, Self::Errs> {
         let src = self.cfg_mut().input.read();
-        let ast = self.parse(src)?;
-        println!("{ast}");
+        let artifact = self.parse(src).map_err(|iart| iart.errors)?;
+        println!("{}", artifact.ast);
         Ok(ExitStatus::OK)
     }
 
     fn eval(&mut self, src: String) -> Result<String, ParserRunnerErrors> {
-        let ast = self.parse(src)?;
-        Ok(format!("{ast}"))
+        let artifact = self.parse(src).map_err(|iart| iart.errors)?;
+        Ok(format!("{}", artifact.ast))
     }
 }
 
 impl ParserRunner {
-    pub fn parse_token_stream(&mut self, ts: TokenStream) -> Result<Module, ParserRunnerErrors> {
+    pub fn parse_token_stream(
+        &mut self,
+        ts: TokenStream,
+    ) -> Result<CompleteArtifact, IncompleteArtifact<Module, ParserRunnerErrors>> {
         Parser::new(ts)
             .parse()
-            .map_err(|errs| ParserRunnerErrors::convert(self.input(), errs))
+            .map_err(|iart| iart.map_errs(|errs| ParserRunnerErrors::convert(self.input(), errs)))
     }
 
-    pub fn parse(&mut self, src: String) -> Result<Module, ParserRunnerErrors> {
+    pub fn parse(
+        &mut self,
+        src: String,
+    ) -> Result<CompleteArtifact, IncompleteArtifact<Module, ParserRunnerErrors>> {
         let ts = Lexer::new(Input::new(InputKind::Str(src), self.cfg.input.id()))
             .lex()
             .map_err(|errs| ParserRunnerErrors::convert(self.input(), errs))?;
         Parser::new(ts)
             .parse()
-            .map_err(|errs| ParserRunnerErrors::convert(self.input(), errs))
+            .map_err(|iart| iart.map_errs(|errs| ParserRunnerErrors::convert(self.input(), errs)))
     }
 }
 
 impl Parser {
-    pub fn parse(&mut self) -> Result<Module, ParseErrors> {
+    pub fn parse(&mut self) -> Result<CompleteArtifact, IncompleteArtifact> {
         if self.tokens.is_empty() {
-            return Ok(Module::empty());
+            return Ok(CompleteArtifact::new(Module::empty(), ParseErrors::empty()));
         }
         log!(info "the parsing process has started.");
         log!(info "token stream: {}", self.tokens);
         let module = match self.try_reduce_module() {
             Ok(module) => module,
             Err(_) => {
-                return Err(mem::take(&mut self.errs));
+                return Err(IncompleteArtifact::new(
+                    None,
+                    mem::take(&mut self.warns),
+                    mem::take(&mut self.errs),
+                ));
             }
         };
         if !self.cur_is(EOF) {
             let loc = self.peek().map(|t| t.loc()).unwrap_or_default();
             self.errs
                 .push(ParseError::compiler_bug(0, loc, fn_name!(), line!()));
-            return Err(mem::take(&mut self.errs));
+            return Err(IncompleteArtifact::new(
+                Some(module),
+                mem::take(&mut self.warns),
+                mem::take(&mut self.errs),
+            ));
         }
         log!(info "the parsing process has completed (errs: {}).", self.errs.len());
         log!(info "AST:\n{module}");
         if self.errs.is_empty() {
-            Ok(module)
+            Ok(CompleteArtifact::new(module, mem::take(&mut self.warns)))
         } else {
-            Err(mem::take(&mut self.errs))
+            Err(IncompleteArtifact::new(
+                Some(module),
+                mem::take(&mut self.warns),
+                mem::take(&mut self.errs),
+            ))
         }
     }
 
@@ -2242,6 +2263,17 @@ impl Parser {
                         .map_err(|_| self.stack_dec(fn_name!()))?;
                     match next {
                         Expr::Def(def) => {
+                            if attrs.iter().any(|attr| {
+                                attr.ident()
+                                    .zip(def.sig.ident())
+                                    .is_some_and(|(l, r)| l == r)
+                            }) {
+                                self.warns.push(ParseError::duplicate_elem_warning(
+                                    line!() as usize,
+                                    def.sig.loc(),
+                                    def.sig.to_string(),
+                                ));
+                            }
                             attrs.push(RecordAttrOrIdent::Attr(def));
                         }
                         Expr::Accessor(acc) => {

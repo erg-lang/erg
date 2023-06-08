@@ -3,7 +3,7 @@
 //! CPythonを呼び出すためのユーティリティー
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 use crate::fn_name_full;
 use crate::pathutil::remove_verbatim;
@@ -727,10 +727,11 @@ pub fn get_sys_path(working_dir: Option<&Path>) -> Result<Vec<PathBuf>, std::io:
 }
 
 /// executes over a shell, cause `python` may not exist as an executable file (like pyenv)
-pub fn exec_pyc<S: Into<String>>(
+pub fn exec_pyc<S: Into<String>, T: Into<Stdio>>(
     file: S,
     py_command: Option<&str>,
     argv: &[&'static str],
+    stdout: T,
 ) -> Option<i32> {
     let command = py_command
         .map(ToString::to_string)
@@ -741,6 +742,7 @@ pub fn exec_pyc<S: Into<String>>(
             .arg(command)
             .arg(&file.into())
             .args(argv)
+            .stdout(stdout)
             .spawn()
             .expect("cannot execute python")
     } else {
@@ -748,6 +750,7 @@ pub fn exec_pyc<S: Into<String>>(
         Command::new("sh")
             .arg("-c")
             .arg(exec_command)
+            .stdout(stdout)
             .spawn()
             .expect("cannot execute python")
     };
