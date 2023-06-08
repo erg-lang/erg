@@ -319,6 +319,10 @@ impl ContextKind {
         matches!(self, Self::MethodDefs(_))
     }
 
+    pub const fn is_trait_impl(&self) -> bool {
+        matches!(self, Self::MethodDefs(Some(_)))
+    }
+
     pub const fn is_type(&self) -> bool {
         matches!(self, Self::Class | Self::Trait | Self::StructuralTrait)
     }

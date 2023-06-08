@@ -9,6 +9,7 @@ use std::time::{Duration, SystemTime};
 
 use erg_common::config::ErgMode;
 use erg_common::consts::{ERG_MODE, PYTHON_MODE};
+use erg_common::dict::Dict;
 use erg_common::env::{is_pystd_main_module, is_std_decl_path};
 use erg_common::erg_util::BUILTIN_ERG_MODS;
 use erg_common::levenshtein::get_similar_name;
@@ -32,7 +33,7 @@ use crate::ty::free::{Constraint, HasLevel};
 use crate::ty::typaram::TyParam;
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{
-    GuardType, HasType, ParamTy, SubrType, Type, Variable, Visibility, VisibilityModifier,
+    Field, GuardType, HasType, ParamTy, SubrType, Type, Variable, Visibility, VisibilityModifier,
 };
 
 use crate::build_hir::HIRBuilder;
@@ -200,7 +201,10 @@ impl Context {
         } else {
             None
         };
-        if let Some(_decl) = self.decls.remove(&ident.name) {
+        if self
+            .remove_class_attr(ident.name.inspect())
+            .is_some_and(|(_, decl)| !decl.kind.is_auto())
+        {
             Err(TyCheckErrors::from(TyCheckError::duplicate_decl_error(
                 self.cfg.input.clone(),
                 line!() as usize,
@@ -266,7 +270,10 @@ impl Context {
             self.absolutize(sig.ident.name.loc()),
         );
         self.index().register(&vi);
-        if let Some(_decl) = self.decls.remove(name) {
+        if self
+            .remove_class_attr(name)
+            .is_some_and(|(_, decl)| !decl.kind.is_auto())
+        {
             Err(TyCheckErrors::from(TyCheckError::duplicate_decl_error(
                 self.cfg.input.clone(),
                 line!() as usize,
@@ -1347,16 +1354,7 @@ impl Context {
                                 ..
                             } = additional
                             {
-                                for (field, t) in rec.iter() {
-                                    let varname = VarName::from_str(field.symbol.clone());
-                                    let vi = VarInfo::instance_attr(
-                                        field.clone(),
-                                        t.clone(),
-                                        self.impl_of(),
-                                        ctx.name.clone(),
-                                    );
-                                    ctx.decls.insert(varname, vi);
-                                }
+                                self.register_instance_attrs(&mut ctx, rec)?;
                             }
                             param_t
                                 .map(|t| self.intersection(t, additional.typ()))
@@ -1418,16 +1416,7 @@ impl Context {
                         self.level,
                     );
                     let Some(TypeObj::Builtin{ t: Type::Record(req), .. }) = gen.base_or_sup() else { todo!("{gen}") };
-                    for (field, t) in req.iter() {
-                        let vi = VarInfo::instance_attr(
-                            field.clone(),
-                            t.clone(),
-                            self.impl_of(),
-                            ctx.name.clone(),
-                        );
-                        ctx.decls
-                            .insert(VarName::from_str(field.symbol.clone()), vi);
-                    }
+                    self.register_instance_attrs(&mut ctx, req)?;
                     self.register_gen_mono_type(ident, gen, ctx, Const)
                 } else {
                     feature_error!(
@@ -1460,16 +1449,7 @@ impl Context {
                         None
                     };
                     if let Some(additional) = additional {
-                        for (field, t) in additional.iter() {
-                            let vi = VarInfo::instance_attr(
-                                field.clone(),
-                                t.clone(),
-                                self.impl_of(),
-                                ctx.name.clone(),
-                            );
-                            ctx.decls
-                                .insert(VarName::from_str(field.symbol.clone()), vi);
-                        }
+                        self.register_instance_attrs(&mut ctx, additional)?;
                     }
                     for sup in super_classes.into_iter() {
                         if let Some((_, sup_ctx)) = self.get_nominal_type_ctx(&sup) {
@@ -1521,6 +1501,29 @@ impl Context {
         }
     }
 
+    fn register_instance_attrs(
+        &self,
+        ctx: &mut Context,
+        rec: &Dict<Field, Type>,
+    ) -> CompileResult<()> {
+        for (field, t) in rec.iter() {
+            let varname = VarName::from_str(field.symbol.clone());
+            let vi =
+                VarInfo::instance_attr(field.clone(), t.clone(), self.impl_of(), ctx.name.clone());
+            // self.index().register(&vi);
+            if let Some(_ent) = ctx.decls.insert(varname.clone(), vi) {
+                return Err(CompileErrors::from(CompileError::duplicate_decl_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    varname.loc(),
+                    self.caused_by(),
+                    varname.inspect(),
+                )));
+            }
+        }
+        Ok(())
+    }
+
     fn gen_class_new_method(&self, gen: &GenTypeObj, ctx: &mut Context) -> CompileResult<()> {
         let mut methods = Self::methods(None, self.cfg.clone(), self.shared.clone(), 2, self.level);
         let new_t = if let Some(base) = gen.base_or_sup() {
@@ -1529,16 +1532,7 @@ impl Context {
                     t: Type::Record(rec),
                     ..
                 } => {
-                    for (field, t) in rec.iter() {
-                        let varname = VarName::from_str(field.symbol.clone());
-                        let vi = VarInfo::instance_attr(
-                            field.clone(),
-                            t.clone(),
-                            self.impl_of(),
-                            ctx.name.clone(),
-                        );
-                        ctx.decls.insert(varname, vi);
-                    }
+                    self.register_instance_attrs(ctx, rec)?;
                 }
                 other => {
                     methods.register_fixed_auto_impl(

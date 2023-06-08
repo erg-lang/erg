@@ -646,8 +646,8 @@ impl PyCodeGenerator {
             }
             StoreLoadKind::Local | StoreLoadKind::LocalConst => match acc_kind {
                 Name => LOAD_NAME as u8,
-                Attr => LOAD_ATTR as u8,
-                Method => LOAD_METHOD as u8,
+                UnboundAttr => LOAD_ATTR as u8,
+                BoundAttr => LOAD_METHOD as u8,
             },
         }
     }
@@ -669,9 +669,9 @@ impl PyCodeGenerator {
             StoreLoadKind::Local | StoreLoadKind::LocalConst => {
                 match acc_kind {
                     Name => STORE_NAME as u8,
-                    Attr => STORE_ATTR as u8,
+                    UnboundAttr => STORE_ATTR as u8,
                     // cannot overwrite methods directly
-                    Method => STORE_ATTR as u8,
+                    BoundAttr => STORE_ATTR as u8,
                 }
             }
         }
@@ -792,9 +792,9 @@ impl PyCodeGenerator {
         log!(info "entered {} ({ident})", fn_name!());
         let escaped = escape_ident(ident);
         let name = self
-            .local_search(&escaped, Attr)
+            .local_search(&escaped, UnboundAttr)
             .unwrap_or_else(|| self.register_attr(escaped));
-        let instr = self.select_load_instr(name.kind, Attr);
+        let instr = self.select_load_instr(name.kind, UnboundAttr);
         self.write_instr(instr);
         self.write_arg(name.idx);
         if self.py_version.minor >= Some(11) {
@@ -809,9 +809,9 @@ impl PyCodeGenerator {
         }
         let escaped = escape_ident(ident);
         let name = self
-            .local_search(&escaped, Method)
+            .local_search(&escaped, BoundAttr)
             .unwrap_or_else(|| self.register_method(escaped));
-        let instr = self.select_load_instr(name.kind, Method);
+        let instr = self.select_load_instr(name.kind, BoundAttr);
         self.write_instr(instr);
         self.write_arg(name.idx);
         if self.py_version.minor >= Some(11) {
@@ -866,7 +866,7 @@ impl PyCodeGenerator {
             }
             Accessor::Attr(attr) => {
                 self.emit_expr(*attr.obj);
-                self.emit_store_instr(attr.ident, Attr);
+                self.emit_store_instr(attr.ident, UnboundAttr);
             }
         }
     }
@@ -1010,7 +1010,7 @@ impl PyCodeGenerator {
             self.emit_precall_and_call(argc);
         } else {
             match kind {
-                AccessKind::Method => self.write_instr(Opcode310::CALL_METHOD),
+                AccessKind::BoundAttr => self.write_instr(Opcode310::CALL_METHOD),
                 _ => self.write_instr(Opcode310::CALL_FUNCTION),
             }
             self.write_arg(argc);
@@ -2188,7 +2188,7 @@ impl PyCodeGenerator {
         let is_py_api = method_name.is_py_api();
         self.emit_expr(obj);
         self.emit_load_method_instr(method_name);
-        self.emit_args_311(args, Method, is_py_api);
+        self.emit_args_311(args, BoundAttr, is_py_api);
     }
 
     fn emit_var_args_311(&mut self, pos_len: usize, var_args: &PosArg) {
@@ -3121,7 +3121,7 @@ impl PyCodeGenerator {
         self.emit_load_name_instr(Identifier::private("#path"));
         self.emit_load_method_instr(Identifier::public("append"));
         self.emit_load_const(erg_std_path().to_str().unwrap());
-        self.emit_call_instr(1, Method);
+        self.emit_call_instr(1, BoundAttr);
         self.stack_dec();
         self.emit_pop_top();
         let erg_std_mod = Identifier::public("_erg_std_prelude");
