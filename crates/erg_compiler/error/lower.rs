@@ -946,7 +946,7 @@ impl LowerError {
                     Some(hint.to_string())
                 }
                 (None, Some(py)) => {
-                    py_str.push_str("similar name python module exits: ");
+                    py_str.push_str("similar name python module exists: ");
                     py_str.push_str_with_color_and_attr(py, HINT, ATTR);
                     let mut hint  = StyledStrings::default();
                     hint.push_str("to import python modules, use ");

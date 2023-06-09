@@ -1,6 +1,6 @@
-result = if Bool.sample():
-    0
-    1
+result = if Bool.sample!():
+    do 0
+    do 1
 print! result
 
 if True, () -> log "hello"
