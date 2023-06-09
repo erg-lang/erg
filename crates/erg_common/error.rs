@@ -5,7 +5,7 @@ use std::cmp::{self, Ordering};
 use std::fmt;
 use std::io::{stderr, BufWriter, Write as _};
 
-use crate::config::{Input, InputKind};
+use crate::io::{Input, InputKind};
 use crate::style::Attribute;
 use crate::style::Characters;
 use crate::style::Color;

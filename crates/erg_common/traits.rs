@@ -9,9 +9,10 @@ use std::mem;
 use std::process;
 use std::slice::{Iter, IterMut};
 
-use crate::config::{ErgConfig, Input, InputKind};
+use crate::config::ErgConfig;
 use crate::consts::{BUILD_DATE, GIT_HASH_SHORT, SEMVER};
 use crate::error::{ErrorDisplay, ErrorKind, Location, MultiErrorDisplay};
+use crate::io::{Input, InputKind};
 use crate::{addr_eq, chomp, log, switch_unreachable};
 
 pub trait DequeStream<T>: Sized {

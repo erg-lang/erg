@@ -7,10 +7,10 @@ use std::hash::{Hash, Hasher};
 use std::ops::Neg;
 use std::sync::Arc;
 
-use erg_common::config::Input;
 use erg_common::dict::Dict;
 use erg_common::error::{ErrorCore, ErrorKind, Location};
 use erg_common::fresh::fresh_varname;
+use erg_common::io::Input;
 use erg_common::python_util::PythonVersion;
 use erg_common::serialize::*;
 use erg_common::set::Set;

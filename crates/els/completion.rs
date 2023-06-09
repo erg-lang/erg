@@ -3,10 +3,11 @@ use erg_compiler::erg_parser::parse::Parsable;
 use lsp_types::CompletionResponse;
 use serde_json::Value;
 
-use erg_common::config::{ErgConfig, Input};
+use erg_common::config::ErgConfig;
 use erg_common::dict::Dict;
 use erg_common::env::erg_pystd_path;
 use erg_common::impl_u8_enum;
+use erg_common::io::Input;
 use erg_common::python_util::BUILTIN_PYTHON_MODS;
 use erg_common::set::Set;
 use erg_common::shared::AtomicShared;

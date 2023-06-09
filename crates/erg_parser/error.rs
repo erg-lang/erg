@@ -3,10 +3,10 @@
 //! パーサーが出すエラーを定義
 use std::fmt;
 
-use erg_common::config::Input;
 use erg_common::error::{
     ErrorCore, ErrorDisplay, ErrorKind::*, Location, MultiErrorDisplay, SubMessage,
 };
+use erg_common::io::Input;
 use erg_common::style::{Attribute, Color, StyledStr, StyledString, StyledStrings, THEME};
 use erg_common::traits::Stream;
 use erg_common::{fmt_iter, impl_display_and_error, impl_stream, switch_lang};

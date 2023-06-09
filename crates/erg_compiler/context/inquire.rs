@@ -2,9 +2,9 @@
 use std::option::Option; // conflicting to Type::Option
 use std::path::{Path, PathBuf};
 
-use erg_common::config::Input;
 use erg_common::consts::{ERG_MODE, PYTHON_MODE};
 use erg_common::error::{ErrorCore, Location, SubMessage};
+use erg_common::io::Input;
 use erg_common::levenshtein;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, NoTypeDisplay, Stream};

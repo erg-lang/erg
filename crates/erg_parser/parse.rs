@@ -6,8 +6,8 @@ use std::fmt::Debug;
 use std::mem;
 
 use erg_common::config::ErgConfig;
-use erg_common::config::{Input, InputKind};
 use erg_common::error::Location;
+use erg_common::io::{Input, InputKind};
 use erg_common::set::Set as HashSet;
 use erg_common::str::Str;
 use erg_common::traits::{DequeStream, ExitStatus, Locational, Runnable, Stream};

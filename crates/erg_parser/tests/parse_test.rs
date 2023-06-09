@@ -1,6 +1,7 @@
-use erg_common::config::{ErgConfig, Input};
+use erg_common::config::ErgConfig;
 use erg_common::consts::DEBUG_MODE;
 use erg_common::error::MultiErrorDisplay;
+use erg_common::io::Input;
 use erg_common::spawn::exec_new_thread;
 use erg_common::traits::{Runnable, Stream};
 

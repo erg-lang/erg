@@ -1,5 +1,6 @@
-use erg_common::config::{ErgConfig, Output};
+use erg_common::config::ErgConfig;
 use erg_common::error::MultiErrorDisplay;
+use erg_common::io::Output;
 use erg_common::spawn::exec_new_thread;
 use erg_common::traits::Runnable;
 
