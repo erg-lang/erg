@@ -274,6 +274,11 @@ fn exec_assert_cast() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_class_attr_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/class_attr.er", 1, 1)
+}
+
+#[test]
 fn exec_collection_err() -> Result<(), ()> {
     expect_failure("tests/should_err/collection.er", 0, 4)
 }
@@ -345,7 +350,7 @@ fn exec_structural_err() -> Result<(), ()> {
 
 #[test]
 fn exec_subtyping_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/subtyping.er", 0, 15)
+    expect_failure("tests/should_err/subtyping.er", 0, 17)
 }
 
 #[test]

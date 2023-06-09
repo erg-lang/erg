@@ -1,5 +1,5 @@
-use erg_common::config::Input;
 use erg_common::error::{ErrorCore, ErrorKind::*, Location, SubMessage};
+use erg_common::io::Input;
 use erg_common::switch_lang;
 
 use crate::error::*;

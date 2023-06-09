@@ -1,0 +1,14 @@
+{.Index;} = pyimport "./indexes/api"
+
+# I := Nat, V := Obj
+.DataFrame!: (C: Type, I: Type, V: Type) -> ClassType
+.DataFrame!(C, I, V) <: Input(C)
+.DataFrame!(C, I, V) <: Input(I)
+.DataFrame!(C, I, V) <: Output(V)
+.DataFrame!.
+    __call__: |K, V, I|(dic: {K: [V; _]} or Iterable(Iterable(V)), index: [I; _] := [Nat; _]) -> .DataFrame!(K, I, V)
+    shape: (Nat, Nat)
+    index: .Index(_) # TODO
+    head: |C, I, V|(self: .DataFrame!(C, I, V), tail: Nat := {5}) -> .DataFrame!(C, I, V)
+    tail: |C, I, V|(self: .DataFrame!(C, I, V), tail: Nat := {5}) -> .DataFrame!(C, I, V)
+    info!: (self: .DataFrame!(_, _, _)) => NoneType

@@ -1,6 +1,6 @@
 use std::iter::Iterator;
 
-use erg_common::config::Input;
+use erg_common::io::Input;
 
 // use erg_compiler::parser;
 

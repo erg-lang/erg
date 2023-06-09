@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
-use erg_common::config::Input;
 use erg_common::error::{ErrorCore, ErrorKind::*, Location, SubMessage};
+use erg_common::io::Input;
 use erg_common::set::Set;
 use erg_common::style::{StyledStr, StyledString, StyledStrings, Stylize};
 use erg_common::traits::{Locational, NoTypeDisplay};

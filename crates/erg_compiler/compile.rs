@@ -80,19 +80,31 @@ impl Name {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AccessKind {
     Name,
-    Attr,
-    Method,
+    /// class/module attr
+    /// e.g. `Str.center`
+    UnboundAttr,
+    /// method/instance attr
+    /// e.g. `"aaa".center`
+    ///
+    /// can also access class/module attrs
+    BoundAttr,
 }
 
 impl AccessKind {
     pub const fn is_local(&self) -> bool {
         matches!(self, Self::Name)
     }
-    pub const fn is_attr(&self) -> bool {
-        matches!(self, Self::Attr)
+    pub const fn is_unbound_attr(&self) -> bool {
+        matches!(self, Self::UnboundAttr)
     }
-    pub const fn is_method(&self) -> bool {
-        matches!(self, Self::Method)
+    pub const fn is_bound_attr(&self) -> bool {
+        matches!(self, Self::BoundAttr)
+    }
+    pub fn matches(&self, vi: &VarInfo) -> bool {
+        match self {
+            Self::Name | Self::BoundAttr => true,
+            Self::UnboundAttr => !vi.kind.is_instance_attr(),
+        }
     }
 }
 
@@ -155,19 +167,19 @@ impl Runnable for Compiler {
         let warns = self
             .compile_and_dump_as_pyc(path, src, "exec")
             .map_err(|eart| {
-                eart.warns.fmt_all_stderr();
+                eart.warns.write_all_stderr();
                 eart.errors
             })?;
-        warns.fmt_all_stderr();
+        warns.write_all_stderr();
         Ok(ExitStatus::compile_passed(warns.len()))
     }
 
     fn eval(&mut self, src: String) -> Result<String, CompileErrors> {
         let arti = self.compile(src, "eval").map_err(|eart| {
-            eart.warns.fmt_all_stderr();
+            eart.warns.write_all_stderr();
             eart.errors
         })?;
-        arti.warns.fmt_all_stderr();
+        arti.warns.write_all_stderr();
         Ok(arti.object.code_info(Some(self.code_generator.py_version)))
     }
 }

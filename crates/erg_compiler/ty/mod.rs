@@ -444,6 +444,22 @@ impl SubrType {
             || self.return_t.has_qvar()
     }
 
+    pub fn has_undoable_linked_var(&self) -> bool {
+        self.non_default_params
+            .iter()
+            .any(|pt| pt.typ().has_undoable_linked_var())
+            || self
+                .var_params
+                .as_ref()
+                .map(|pt| pt.typ().has_undoable_linked_var())
+                .unwrap_or(false)
+            || self
+                .default_params
+                .iter()
+                .any(|pt| pt.typ().has_undoable_linked_var())
+            || self.return_t.has_undoable_linked_var()
+    }
+
     pub fn typarams(&self) -> Vec<TyParam> {
         [
             self.non_default_params
@@ -2446,6 +2462,58 @@ impl Type {
             Self::Structural(ty) => ty.has_qvar(),
             Self::Guard(guard) => guard.to.has_qvar(),
             Self::Bounded { sub, sup } => sub.has_qvar() || sup.has_qvar(),
+            _ => false,
+        }
+    }
+
+    pub fn has_undoable_linked_var(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_undoable_linked() => true,
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().has_undoable_linked_var(),
+            Self::FreeVar(fv) => {
+                if let Some((sub, sup)) = fv.get_subsup() {
+                    fv.dummy_link();
+                    let res_sub = sub.has_undoable_linked_var();
+                    let res_sup = sup.has_undoable_linked_var();
+                    fv.undo();
+                    res_sub || res_sup
+                } else {
+                    let opt_t = fv.get_type();
+                    opt_t.map_or(false, |t| t.has_undoable_linked_var())
+                }
+            }
+            Self::Ref(ty) => ty.has_undoable_linked_var(),
+            Self::RefMut { before, after } => {
+                before.has_undoable_linked_var()
+                    || after
+                        .as_ref()
+                        .map(|t| t.has_undoable_linked_var())
+                        .unwrap_or(false)
+            }
+            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => {
+                lhs.has_undoable_linked_var() || rhs.has_undoable_linked_var()
+            }
+            Self::Not(ty) => ty.has_undoable_linked_var(),
+            Self::Callable { param_ts, return_t } => {
+                param_ts.iter().any(|t| t.has_undoable_linked_var())
+                    || return_t.has_undoable_linked_var()
+            }
+            Self::Subr(subr) => subr.has_undoable_linked_var(),
+            Self::Quantified(quant) => quant.has_undoable_linked_var(),
+            Self::Record(r) => r.values().any(|t| t.has_undoable_linked_var()),
+            Self::Refinement(refine) => {
+                refine.t.has_undoable_linked_var() || refine.pred.has_undoable_linked_var()
+            }
+            Self::Poly { params, .. } => params.iter().any(|tp| tp.has_undoable_linked_var()),
+            Self::Proj { lhs, .. } => lhs.has_undoable_linked_var(),
+            Self::ProjCall { lhs, args, .. } => {
+                lhs.has_undoable_linked_var() || args.iter().any(|tp| tp.has_undoable_linked_var())
+            }
+            Self::Structural(ty) => ty.has_undoable_linked_var(),
+            Self::Guard(guard) => guard.to.has_undoable_linked_var(),
+            Self::Bounded { sub, sup } => {
+                sub.has_undoable_linked_var() || sup.has_undoable_linked_var()
+            }
             _ => false,
         }
     }

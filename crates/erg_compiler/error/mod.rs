@@ -4,15 +4,15 @@ pub mod tycheck;
 
 use std::fmt;
 
-use erg_common::config::Input;
 use erg_common::error::{
     ErrorCore, ErrorDisplay, ErrorKind::*, Location, MultiErrorDisplay, SubMessage,
 };
+use erg_common::io::Input;
 use erg_common::style::{Attribute, Color, StyledStr, StyledString, StyledStrings, Theme, THEME};
 use erg_common::traits::{Locational, Stream};
 use erg_common::{impl_display_and_error, impl_stream, switch_lang};
 
-use erg_parser::error::{ParserRunnerError, ParserRunnerErrors};
+use erg_parser::error::{ParseError, ParseErrors, ParserRunnerError, ParserRunnerErrors};
 
 pub use crate::error::eval::*;
 pub use crate::error::lower::*;
@@ -497,6 +497,18 @@ impl From<CompileError> for CompileErrors {
     }
 }
 
+impl From<CompileError> for ParseError {
+    fn from(err: CompileError) -> Self {
+        Self::new(*err.core)
+    }
+}
+
+impl From<CompileErrors> for ParseErrors {
+    fn from(err: CompileErrors) -> Self {
+        Self::new(err.into_iter().map(ParseError::from).collect())
+    }
+}
+
 impl MultiErrorDisplay<CompileError> for CompileErrors {}
 
 impl fmt::Display for CompileErrors {
@@ -524,7 +536,7 @@ mod test {
         ty::{Predicate, Type},
         varinfo::{AbsLocation, VarInfo},
     };
-    use erg_common::{config::Input, error::Location};
+    use erg_common::{error::Location, io::Input};
     use erg_parser::ast::{VarName, VisModifierSpec};
 
     // These Erg codes are not correct grammar.

@@ -6,6 +6,9 @@ assert x == 3
 g _: Int = None
 g 10
 
+h _: Int, _: Int = None
+h 10, 20
+
 #[
 and: [Bool; 2] -> Bool
 and [True, t] = t

@@ -287,11 +287,16 @@ impl Runnable for DummyVM {
             .compiler
             .compile_and_dump_as_pyc(&filename, src, "exec")
             .map_err(|eart| {
-                eart.warns.fmt_all_stderr();
+                eart.warns.write_all_to(&mut self.cfg_mut().output);
                 eart.errors
             })?;
-        warns.fmt_all_stderr();
-        let code = exec_pyc(&filename, self.cfg().py_command, &self.cfg().runtime_args);
+        warns.write_all_to(&mut self.cfg_mut().output);
+        let code = exec_pyc(
+            &filename,
+            self.cfg().py_command,
+            &self.cfg().runtime_args,
+            self.cfg().output.clone(),
+        );
         remove_file(&filename).unwrap();
         Ok(ExitStatus::new(code.unwrap_or(1), warns.len(), 0))
     }

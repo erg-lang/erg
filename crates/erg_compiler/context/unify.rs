@@ -446,11 +446,13 @@ impl Context {
                 Ok(())
             }
             (TyParam::Dict(sub), TyParam::Dict(sup)) => {
-                for (lk, lv) in sub.iter() {
-                    if let Some(rv) = sup.get(lk).or_else(|| sub_tpdict_get(sup, lk, self)) {
-                        self.sub_unify_tp(lv, rv, _variance, loc, allow_divergence)?;
+                for (sub_k, sub_v) in sub.iter() {
+                    if let Some(sup_v) = sup.get(sub_k).or_else(|| sub_tpdict_get(sup, sub_k, self))
+                    {
+                        // self.sub_unify_tp(sub_k, sup_k, _variance, loc, allow_divergence)?;
+                        self.sub_unify_tp(sub_v, sup_v, _variance, loc, allow_divergence)?;
                     } else {
-                        log!(err "{sup} does not have key {lk}");
+                        log!(err "{sup} does not have key {sub_k}");
                         // TODO:
                         return Err(TyCheckErrors::from(TyCheckError::unreachable(
                             self.cfg.input.clone(),

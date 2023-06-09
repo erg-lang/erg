@@ -294,9 +294,9 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         let src = self.file_cache.get_entire_code(&uri)?;
         let mut builder = ASTBuilder::new(self.cfg.inherit(path));
         let result = match builder.build_without_desugaring(src) {
-            Ok(ast) => {
+            Ok(artifact) => {
                 let mut state = ASTSemanticState::new();
-                let tokens = state.enumerate_tokens(ast);
+                let tokens = state.enumerate_tokens(artifact.ast);
                 Some(SemanticTokensResult::Tokens(tokens))
             }
             Err(_) => None,

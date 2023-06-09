@@ -10,7 +10,7 @@ use erg_parser::build_ast::ASTBuilder;
 use crate::artifact::{BuildRunnable, Buildable, CompleteArtifact, IncompleteArtifact};
 use crate::context::{Context, ContextProvider, ModuleContext};
 use crate::effectcheck::SideEffectChecker;
-use crate::error::{CompileError, CompileErrors};
+use crate::error::{CompileError, CompileErrors, LowerWarnings};
 use crate::lower::ASTLowerer;
 use crate::module::SharedCompilerResource;
 use crate::ownercheck::OwnershipChecker;
@@ -66,18 +66,26 @@ impl Runnable for HIRBuilder {
 
     fn exec(&mut self) -> Result<ExitStatus, Self::Errs> {
         let mut builder = ASTBuilder::new(self.cfg().copy());
-        let ast = builder.build(self.cfg_mut().input.read())?;
-        let artifact = self.check(ast, "exec").map_err(|arti| arti.errors)?;
-        artifact.warns.fmt_all_stderr();
+        let artifact = builder
+            .build(self.cfg_mut().input.read())
+            .map_err(|arti| arti.errors)?;
+        artifact.warns.write_all_stderr();
+        let artifact = self
+            .check(artifact.ast, "exec")
+            .map_err(|arti| arti.errors)?;
+        artifact.warns.write_all_stderr();
         println!("{}", artifact.object);
         Ok(ExitStatus::compile_passed(artifact.warns.len()))
     }
 
     fn eval(&mut self, src: String) -> Result<String, Self::Errs> {
         let mut builder = ASTBuilder::new(self.cfg().copy());
-        let ast = builder.build(src)?;
-        let artifact = self.check(ast, "eval").map_err(|arti| arti.errors)?;
-        artifact.warns.fmt_all_stderr();
+        let artifact = builder.build(src).map_err(|arti| arti.errors)?;
+        artifact.warns.write_all_stderr();
+        let artifact = self
+            .check(artifact.ast, "eval")
+            .map_err(|arti| arti.errors)?;
+        artifact.warns.write_all_stderr();
         Ok(artifact.object.to_string())
     }
 }
@@ -148,10 +156,13 @@ impl HIRBuilder {
         mode: &str,
     ) -> Result<CompleteArtifact, IncompleteArtifact> {
         let mut ast_builder = ASTBuilder::new(self.cfg().copy());
-        let ast = ast_builder.build(src).map_err(|errs| {
-            IncompleteArtifact::new(None, CompileErrors::from(errs), CompileErrors::empty())
-        })?;
-        self.check(ast, mode)
+        let artifact = ast_builder
+            .build(src)
+            .map_err(|iart| IncompleteArtifact::new(None, iart.errors.into(), iart.warns.into()))?;
+        self.lowerer
+            .warns
+            .extend(LowerWarnings::from(artifact.warns));
+        self.check(artifact.ast, mode)
     }
 
     pub fn pop_mod_ctx(&mut self) -> Option<ModuleContext> {

@@ -215,12 +215,12 @@ impl ASTLowerer {
                         format!("{}{code}", "\n".repeat(first_line as usize))
                     };
                     match ASTBuilder::new(self.cfg().clone()).build(code) {
-                        Ok(ast) => {
-                            self.check_doc_ast(ast);
+                        Ok(artifact) => {
+                            self.check_doc_ast(artifact.ast);
                         }
-                        Err(errs) => {
-                            let errs = CompileErrors::from(errs);
-                            self.errs.extend(errs);
+                        Err(iart) => {
+                            self.errs.extend(CompileErrors::from(iart.errors));
+                            self.warns.extend(CompileErrors::from(iart.warns));
                         }
                     }
                 }

@@ -4,7 +4,7 @@ use erg_common::Str;
 
 use crate::ast::AST;
 use crate::desugar::Desugarer;
-use crate::error::{ParserRunnerError, ParserRunnerErrors};
+use crate::error::{CompleteArtifact, IncompleteArtifact, ParserRunnerError, ParserRunnerErrors};
 use crate::parse::ParserRunner;
 
 /// Summarize parsing and desugaring
@@ -45,31 +45,55 @@ impl Runnable for ASTBuilder {
 
     fn exec(&mut self) -> Result<ExitStatus, Self::Errs> {
         let src = self.cfg_mut().input.read();
-        let ast = self.build(src)?;
-        println!("{ast}");
+        let artifact = self.build(src).map_err(|iart| iart.errors)?;
+        println!("{}", artifact.ast);
         Ok(ExitStatus::OK)
     }
 
     fn eval(&mut self, src: String) -> Result<String, ParserRunnerErrors> {
-        let ast = self.build(src)?;
-        Ok(format!("{ast}"))
+        let artifact = self.build(src).map_err(|iart| iart.errors)?;
+        Ok(format!("{}", artifact.ast))
     }
 }
 
 impl ASTBuilder {
-    pub fn build(&mut self, src: String) -> Result<AST, ParserRunnerErrors> {
-        let module = self.runner.parse(src)?;
+    pub fn build(
+        &mut self,
+        src: String,
+    ) -> Result<
+        CompleteArtifact<AST, ParserRunnerErrors>,
+        IncompleteArtifact<AST, ParserRunnerErrors>,
+    > {
+        let name = Str::rc(self.runner.cfg().input.unescaped_filename());
+        let artifact = self
+            .runner
+            .parse(src)
+            .map_err(|iart| iart.map_mod(|module| AST::new(name.clone(), module)))?;
         let mut desugarer = Desugarer::new();
-        let module = desugarer.desugar(module);
-        let name = self.runner.cfg().input.unescaped_filename();
-        let ast = AST::new(Str::rc(name), module);
-        Ok(ast)
+        let module = desugarer.desugar(artifact.ast);
+        let ast = AST::new(name, module);
+        Ok(CompleteArtifact::new(
+            ast,
+            ParserRunnerErrors::convert(self.input(), artifact.warns),
+        ))
     }
 
-    pub fn build_without_desugaring(&mut self, src: String) -> Result<AST, ParserRunnerErrors> {
-        let module = self.runner.parse(src)?;
-        let name = self.runner.cfg().input.unescaped_filename();
-        let ast = AST::new(Str::rc(name), module);
-        Ok(ast)
+    pub fn build_without_desugaring(
+        &mut self,
+        src: String,
+    ) -> Result<
+        CompleteArtifact<AST, ParserRunnerErrors>,
+        IncompleteArtifact<AST, ParserRunnerErrors>,
+    > {
+        let name = Str::rc(self.runner.cfg().input.unescaped_filename());
+        let artifact = self
+            .runner
+            .parse(src)
+            .map_err(|iart| iart.map_mod(|module| AST::new(name.clone(), module)))?;
+        let ast = AST::new(name, artifact.ast);
+        Ok(CompleteArtifact::new(
+            ast,
+            ParserRunnerErrors::convert(self.input(), artifact.warns),
+        ))
     }
 }

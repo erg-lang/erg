@@ -1062,6 +1062,29 @@ impl TyParam {
         !self.has_unbound_var()
     }
 
+    pub fn has_undoable_linked_var(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) => fv.is_undoable_linked(),
+            Self::Type(t) => t.has_undoable_linked_var(),
+            Self::Proj { obj, .. } => obj.has_undoable_linked_var(),
+            Self::Array(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.has_undoable_linked_var()),
+            Self::Set(ts) => ts.iter().any(|t| t.has_undoable_linked_var()),
+            Self::Dict(kv) => kv
+                .iter()
+                .any(|(k, v)| k.has_undoable_linked_var() || v.has_undoable_linked_var()),
+            Self::Record(rec) => rec.iter().any(|(_, v)| v.has_undoable_linked_var()),
+            Self::Lambda(lambda) => lambda.body.iter().any(|t| t.has_undoable_linked_var()),
+            Self::UnaryOp { val, .. } => val.has_undoable_linked_var(),
+            Self::BinOp { lhs, rhs, .. } => {
+                lhs.has_undoable_linked_var() || rhs.has_undoable_linked_var()
+            }
+            Self::App { args, .. } => args.iter().any(|p| p.has_undoable_linked_var()),
+            Self::Erased(t) => t.has_undoable_linked_var(),
+            Self::Value(ValueObj::Type(t)) => t.typ().has_undoable_linked_var(),
+            _ => false,
+        }
+    }
+
     pub fn union_size(&self) -> usize {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().union_size(),

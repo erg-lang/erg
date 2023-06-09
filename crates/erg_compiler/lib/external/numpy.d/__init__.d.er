@@ -8,6 +8,9 @@
     dtype: Type
     size: Nat
 
+.nan: Float
+.Nan: Float
+
 .abs: |T|(object: .NDArray(T),) -> .NDArray(T)
 .add: |T|(object: .NDArray(T), other: .NDArray(T)) -> .NDArray(T)
 .all: |T <: Num|(object: .NDArray(T),) -> Bool

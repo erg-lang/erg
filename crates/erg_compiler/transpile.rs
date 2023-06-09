@@ -148,10 +148,10 @@ impl Runnable for Transpiler {
         path.set_extension("py");
         let src = self.cfg.input.read();
         let artifact = self.transpile(src, "exec").map_err(|eart| {
-            eart.warns.fmt_all_stderr();
+            eart.warns.write_all_stderr();
             eart.errors
         })?;
-        artifact.warns.fmt_all_stderr();
+        artifact.warns.write_all_stderr();
         let mut f = File::create(path).unwrap();
         f.write_all(artifact.object.code.as_bytes()).unwrap();
         Ok(ExitStatus::compile_passed(artifact.warns.len()))
@@ -159,10 +159,10 @@ impl Runnable for Transpiler {
 
     fn eval(&mut self, src: String) -> Result<String, CompileErrors> {
         let artifact = self.transpile(src, "eval").map_err(|eart| {
-            eart.warns.fmt_all_stderr();
+            eart.warns.write_all_stderr();
             eart.errors
         })?;
-        artifact.warns.fmt_all_stderr();
+        artifact.warns.write_all_stderr();
         Ok(artifact.object.code)
     }
 }

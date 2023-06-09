@@ -177,7 +177,7 @@ impl ASTLowerer {
                     for ctx in ctxs {
                         if let Triple::Ok(vi) = ctx.rec_get_var_info(
                             &ident.raw,
-                            AccessKind::Attr,
+                            AccessKind::UnboundAttr,
                             self.input(),
                             &self.module.context,
                         ) {
