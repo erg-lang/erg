@@ -2,7 +2,6 @@
 //!
 //! パーサーを実装する
 //!
-use std::fmt::Debug;
 use std::mem;
 
 use erg_common::config::ErgConfig;
@@ -12,8 +11,8 @@ use erg_common::set::Set as HashSet;
 use erg_common::str::Str;
 use erg_common::traits::{DequeStream, ExitStatus, Locational, Runnable, Stream};
 use erg_common::{
-    caused_by, debug_power_assert, enum_unwrap, fn_name, impl_locational_for_enum, log, set,
-    switch_lang, switch_unreachable,
+    caused_by, debug_power_assert, enum_unwrap, fn_name, impl_display_for_enum,
+    impl_locational_for_enum, log, set, switch_lang, switch_unreachable,
 };
 
 use crate::ast::*;
@@ -141,6 +140,17 @@ pub enum BraceContainer {
 }
 
 impl_locational_for_enum!(BraceContainer; Set, Dict, Record);
+impl_display_for_enum!(BraceContainer; Set, Dict, Record);
+
+impl BraceContainer {
+    pub const fn kind(&self) -> &str {
+        match self {
+            BraceContainer::Set(_) => "Set",
+            BraceContainer::Dict(_) => "Dict",
+            BraceContainer::Record(_) => "Record",
+        }
+    }
+}
 
 pub enum ArgsStyle {
     SingleCommaWithParen,
@@ -263,17 +273,97 @@ impl Parser {
         }
     }
 
-    fn skip_and_throw_syntax_err(&mut self, caused_by: &str) -> ParseError {
+    fn until_dedent(&mut self) {
+        let mut nest_cnt = 1;
+        while let Some(t) = self.peek() {
+            match t.kind {
+                Indent => {
+                    self.skip();
+                    nest_cnt += 1;
+                }
+                Dedent => {
+                    self.skip();
+                    nest_cnt -= 1;
+                    if nest_cnt <= 0 {
+                        return;
+                    }
+                }
+                EOF => return,
+                _ => {
+                    self.skip();
+                }
+            }
+        }
+    }
+
+    fn unexpected_none(&self, errno: u32, caused_by: &str) -> ParseError {
+        log!(err "error caused by: {caused_by}");
+        ParseError::invalid_none_match(0, Location::Unknown, file!(), errno)
+    }
+
+    fn skip_and_throw_syntax_err(&mut self, errno: u32, caused_by: &str) -> ParseError {
         let loc = self.peek().map(|t| t.loc()).unwrap_or_default();
         log!(err "error caused by: {caused_by}");
         self.next_expr();
-        ParseError::simple_syntax_error(0, loc)
+        ParseError::simple_syntax_error(errno as usize, loc)
     }
 
-    fn skip_and_throw_invalid_chunk_err(&mut self, caused_by: &str, loc: Location) -> ParseError {
+    fn skip_and_throw_invalid_unclosed_err(
+        &mut self,
+        caused_by: &str,
+        line: u32,
+        closer: &str,
+        ty: &str,
+    ) -> ParseError {
+        log!(err "error caused by: {caused_by}");
+        let loc = self.peek().map(|t| t.loc()).unwrap_or_default();
+        self.next_expr();
+        ParseError::unclosed_error(line as usize, loc, closer, ty)
+    }
+
+    fn skip_and_throw_invalid_seq_err<S: std::fmt::Display>(
+        &mut self,
+        caused_by: &str,
+        errno: usize,
+        expected: &[S],
+        found: TokenKind,
+    ) -> ParseError {
+        log!(err "error caused by: {caused_by}");
+        let loc = self.peek().map(|t| t.loc()).unwrap_or_default();
+        self.next_expr();
+        ParseError::invalid_seq_elems_error(errno, loc, expected, found)
+    }
+
+    fn skip_and_throw_invalid_chunk_err(
+        &mut self,
+        caused_by: &str,
+        line: u32,
+        loc: Location,
+    ) -> ParseError {
         log!(err "error caused by: {caused_by}");
         self.next_line();
-        ParseError::invalid_chunk_error(line!() as usize, loc)
+        ParseError::invalid_chunk_error(line as usize, loc)
+    }
+
+    fn get_stream_op_syntax_error(
+        &mut self,
+        errno: usize,
+        loc: Location,
+        caused_by: &str,
+    ) -> ParseError {
+        log!(err "error caused by: {caused_by}");
+        self.next_expr();
+        ParseError::syntax_error(
+            errno,
+            loc,
+            switch_lang!(
+                "japanese" => "パイプ演算子の後には関数・メソッド・サブルーチンのみ呼び出しができます",
+                "simplified_chinese" => "流操作符后只能调用函数、方法或子程序",
+                "traditional_chinese" => "流操作符後只能調用函數、方法或子程序",
+                "english" => "Only a call of function, method or subroutine is available after stream operator",
+            ),
+            None,
+        )
     }
 
     #[inline]
@@ -404,7 +494,6 @@ impl Parser {
     }
 
     /// Reduce to the largest unit of syntax, the module (this is called only once)
-    /// 構文の最大単位であるモジュールに還元する(これが呼ばれるのは一度きり)
     #[inline]
     fn try_reduce_module(&mut self) -> ParseResult<Module> {
         debug_call_info!(self);
@@ -419,19 +508,21 @@ impl Parser {
                 }
                 Some(_) => {
                     if let Ok(expr) = self.try_reduce_chunk(true, false) {
-                        chunks.push(expr);
                         if !self.cur_is(EOF) && !self.cur_category_is(TC::Separator) {
                             let err = self.skip_and_throw_invalid_chunk_err(
                                 caused_by!(),
-                                chunks.last().unwrap().loc(),
+                                line!(),
+                                expr.loc(),
                             );
                             self.errs.push(err);
                         }
+                        chunks.push(expr);
                     }
                 }
                 None => {
                     if !self.errs.is_empty() {
                         debug_exit_info!(self);
+                        self.errs.push(self.unexpected_none(line!(), caused_by!()));
                         return Err(());
                     } else {
                         switch_unreachable!()
@@ -457,13 +548,19 @@ impl Parser {
                 && !self.cur_category_is(TC::Separator)
                 && !self.cur_category_is(TC::REnclosure)
             {
-                let err = self
-                    .skip_and_throw_invalid_chunk_err(caused_by!(), block.last().unwrap().loc());
+                let err = self.skip_and_throw_invalid_chunk_err(
+                    caused_by!(),
+                    line!(),
+                    block.last().unwrap().loc(),
+                );
                 debug_exit_info!(self);
                 self.errs.push(err);
             }
             if block.last().unwrap().is_definition() {
-                let err = ParseError::simple_syntax_error(0, block.last().unwrap().loc());
+                let err = ParseError::invalid_definition_of_last_block(
+                    line!() as usize,
+                    block.last().unwrap().loc(),
+                );
                 self.errs.push(err);
                 debug_exit_info!(self);
                 return Err(());
@@ -498,15 +595,16 @@ impl Parser {
                 }
                 Some(_) => {
                     if let Ok(expr) = self.try_reduce_chunk(true, false) {
-                        block.push(expr);
                         if !self.cur_is(Dedent) && !self.cur_category_is(TC::Separator) {
                             let err = self.skip_and_throw_invalid_chunk_err(
                                 caused_by!(),
-                                block.last().unwrap().loc(),
+                                line!(),
+                                expr.loc(),
                             );
                             debug_exit_info!(self);
                             self.errs.push(err);
                         }
+                        block.push(expr);
                     }
                 }
                 None => {
@@ -528,7 +626,8 @@ impl Parser {
             debug_exit_info!(self);
             Err(())
         } else if block.last().unwrap().is_definition() {
-            let err = ParseError::invalid_chunk_error(line!() as usize, block.loc());
+            let err =
+                ParseError::invalid_chunk_error(line!() as usize, block.last().unwrap().loc());
             self.errs.push(err);
             debug_exit_info!(self);
             Err(())
@@ -545,7 +644,17 @@ impl Parser {
             self.lpop();
             let expr = self
                 .try_reduce_expr(false, false, false, false)
-                .map_err(|_| self.stack_dec(fn_name!()))?;
+                .map_err(|_| {
+                    if let Some(err) = self.errs.last_mut() {
+                        err.set_hint(switch_lang!(
+                            "japanese" => "予期: デコレータ",
+                            "simplified_chinese" => "期望: 装饰器",
+                            "traditional_chinese" => "期望: 裝飾器",
+                            "english" => "expect: decorator",
+                        ))
+                    }
+                    self.stack_dec(fn_name!())
+                })?;
             debug_exit_info!(self);
             Ok(Some(Decorator::new(expr)))
         } else {
@@ -575,9 +684,19 @@ impl Parser {
         let args = match self.peek_kind() {
             Some(SubtypeOf) => {
                 let op = self.lpop();
-                let t_spec_as_expr = self
-                    .try_reduce_expr(false, true, false, false)
-                    .map_err(|_| self.stack_dec(fn_name!()))?;
+                let t_spec_as_expr =
+                    self.try_reduce_expr(false, true, false, false)
+                        .map_err(|_| {
+                            if let Some(err) = self.errs.last_mut() {
+                                err.set_hint(switch_lang!(
+                                    "japanese" => "予期: 型指定",
+                                    "simplified_chinese" => "期望: 类型规范",
+                                    "traditional_chinese" => "期望: 類型規範",
+                                    "english" => "expect: type specification",
+                                ))
+                            }
+                            self.stack_dec(fn_name!())
+                        })?;
                 match Parser::expr_to_type_spec(t_spec_as_expr.clone()) {
                     Ok(t_spec) => {
                         let t_spec = TypeSpecWithOp::new(op, t_spec, t_spec_as_expr);
@@ -644,7 +763,7 @@ impl Parser {
                 if maybe_symbol.is(Symbol) {
                     Accessor::public(dot, maybe_symbol)
                 } else {
-                    let err = self.skip_and_throw_syntax_err(caused_by!());
+                    let err = self.skip_and_throw_syntax_err(line!(), caused_by!());
                     self.errs.push(err);
                     debug_exit_info!(self);
                     return Err(());
@@ -664,7 +783,7 @@ impl Parser {
                 }
             }
             _ => {
-                let err = self.skip_and_throw_syntax_err(caused_by!());
+                let err = self.skip_and_throw_syntax_err(line!(), caused_by!());
                 self.errs.push(err);
                 debug_exit_info!(self);
                 return Err(());
@@ -674,8 +793,7 @@ impl Parser {
         Ok(acc)
     }
 
-    /// For parsing elements of arrays and tuples
-    fn try_reduce_elems(&mut self) -> ParseResult<ArrayInner> {
+    fn try_reduce_array_elems(&mut self) -> ParseResult<ArrayInner> {
         debug_call_info!(self);
         if self.cur_category_is(TC::REnclosure) {
             let args = Args::empty();
@@ -691,16 +809,25 @@ impl Parser {
                 self.lpop();
                 let len = self
                     .try_reduce_expr(false, false, false, false)
-                    .map_err(|_| self.stack_dec(fn_name!()))?;
+                    .map_err(|_| {
+                        if let Some(err) = self.errs.last_mut() {
+                            err.set_hint(switch_lang!(
+                                "japanese" => "予期: Nat型",
+                                "simplified_chinese" => "期望: Nat类型",
+                                "traditional_chinese" => "期望: Nat類型",
+                                "english" => "expect: Nat type",
+                            ))
+                        }
+                        self.stack_dec(fn_name!())
+                    })?;
                 debug_exit_info!(self);
                 return Ok(ArrayInner::WithLength(elems.remove_pos(0), len));
             }
             Some(VBar) => {
-                let err = ParseError::feature_error(
-                    line!() as usize,
-                    self.peek().unwrap().loc(),
-                    "comprehension",
-                );
+                let caused_by = caused_by!();
+                log!(err "error caused by: {caused_by}");
+                let err =
+                    ParseError::feature_error(line!() as usize, self.lpop().loc(), "comprehension");
                 self.lpop();
                 self.errs.push(err);
                 debug_exit_info!(self);
@@ -714,8 +841,7 @@ impl Parser {
                 elems.push_pos(elem);
             }
             None => {
-                let err = self.skip_and_throw_syntax_err(caused_by!());
-                self.errs.push(err);
+                self.errs.push(self.unexpected_none(line!(), caused_by!()));
                 debug_exit_info!(self);
                 return Err(());
             }
@@ -725,7 +851,12 @@ impl Parser {
                 Some(Comma) => {
                     self.skip();
                     if self.cur_is(Comma) {
-                        let err = self.skip_and_throw_syntax_err(caused_by!());
+                        let err = self.skip_and_throw_invalid_seq_err(
+                            caused_by!(),
+                            line!() as usize,
+                            &["]", "element"],
+                            Comma,
+                        );
                         self.errs.push(err);
                         debug_exit_info!(self);
                         return Err(());
@@ -738,10 +869,19 @@ impl Parser {
                 Some(RParen | RSqBr | RBrace | Dedent) => {
                     break;
                 }
-                _ => {
-                    self.skip();
-                    let err = self.skip_and_throw_syntax_err(caused_by!());
+                Some(_other) => {
+                    let err = self.skip_and_throw_invalid_unclosed_err(
+                        caused_by!(),
+                        line!(),
+                        "]",
+                        "array",
+                    );
                     self.errs.push(err);
+                    debug_exit_info!(self);
+                    return Err(());
+                }
+                None => {
+                    self.errs.push(self.unexpected_none(line!(), caused_by!()));
                     debug_exit_info!(self);
                     return Err(());
                 }
@@ -761,7 +901,11 @@ impl Parser {
                 debug_exit_info!(self);
                 Ok(PosArg::new(expr))
             }
-            None => switch_unreachable!(),
+            None => {
+                self.errs.push(self.unexpected_none(line!(), caused_by!()));
+                debug_exit_info!(self);
+                Err(())
+            }
         }
     }
 
@@ -843,7 +987,7 @@ impl Parser {
             match self.peek_kind() {
                 Some(Colon) if style.is_colon() || lp.is_some() => {
                     self.skip();
-                    let err = self.skip_and_throw_syntax_err(caused_by!());
+                    let err = self.skip_and_throw_syntax_err(line!(), caused_by!());
                     self.errs.push(err);
                     debug_exit_info!(self);
                     return Err(());
@@ -859,8 +1003,12 @@ impl Parser {
                 Some(Comma) => {
                     self.skip();
                     if style.is_colon() || self.cur_is(Comma) {
-                        let err = self.skip_and_throw_syntax_err(caused_by!());
+                        let caused_by = caused_by!();
+                        log!(err "error caused by: {caused_by}");
+                        let loc = self.peek().map(|t| t.loc()).unwrap_or_default();
+                        let err = ParseError::invalid_colon_style(line!() as usize, loc);
                         self.errs.push(err);
+                        self.until_dedent();
                         debug_exit_info!(self);
                         return Err(());
                     }
@@ -912,6 +1060,17 @@ impl Parser {
                 }
                 Some(Newline) => {
                     if !style.is_colon() {
+                        if style.needs_parens() && !style.is_multi_comma() {
+                            let err = self.skip_and_throw_invalid_seq_err(
+                                caused_by!(),
+                                line!() as usize,
+                                &[")"],
+                                Newline,
+                            );
+                            self.errs.push(err);
+                            debug_exit_info!(self);
+                            return Err(());
+                        }
                         if style.is_multi_comma() {
                             self.skip();
                             while self.cur_is(Dedent) {
@@ -956,9 +1115,12 @@ impl Parser {
                         }
                     }
                 }
-                _ => {
-                    break;
+                None => {
+                    self.errs.push(self.unexpected_none(line!(), caused_by!()));
+                    debug_exit_info!(self);
+                    return Err(());
                 }
+                _ => break,
             }
         }
         debug_exit_info!(self);
@@ -978,7 +1140,9 @@ impl Parser {
                     let kw = if let Accessor::Ident(n) = acc {
                         n.name.into_token()
                     } else {
-                        let err = ParseError::simple_syntax_error(0, acc.loc());
+                        let caused_by = caused_by!();
+                        log!(err "error caused by: {caused_by}");
+                        let err = ParseError::expect_keyword(line!() as usize, acc.loc());
                         self.errs.push(err);
                         self.next_expr();
                         debug_exit_info!(self);
@@ -986,13 +1150,33 @@ impl Parser {
                     };
                     let expr = self
                         .try_reduce_expr(false, in_type_args, false, false)
-                        .map_err(|_| self.stack_dec(fn_name!()))?;
+                        .map_err(|_| {
+                            if let Some(err) = self.errs.last_mut() {
+                                err.set_hint(switch_lang!(
+                                    "japanese" => "予期: Nat型",
+                                    "simplified_chinese" => "期望: Nat类型",
+                                    "traditional_chinese" => "期望: Nat類型",
+                                    "english" => "expect: Nat type",
+                                ))
+                            }
+                            self.stack_dec(fn_name!())
+                        })?;
                     debug_exit_info!(self);
                     Ok(ArgKind::Kw(KwArg::new(kw, None, expr)))
                 } else {
                     let expr = self
                         .try_reduce_expr(false, in_type_args, false, false)
-                        .map_err(|_| self.stack_dec(fn_name!()))?;
+                        .map_err(|_| {
+                            if let Some(err) = self.errs.last_mut() {
+                                err.set_hint(switch_lang!(
+                                    "japanese" => "予期: 型指定",
+                                    "simplified_chinese" => "期望: 类型规范",
+                                    "traditional_chinese" => "期望: 類型規範",
+                                    "english" => "expect: type specification",
+                                ))
+                            }
+                            self.stack_dec(fn_name!())
+                        })?;
                     if self.cur_is(Walrus) {
                         self.skip();
                         let (kw, t_spec) = match expr {
@@ -1001,15 +1185,21 @@ impl Parser {
                                 if let Expr::Accessor(Accessor::Ident(n)) = *tasc.expr {
                                     (n.name.into_token(), Some(tasc.t_spec))
                                 } else {
-                                    let err = ParseError::simple_syntax_error(0, tasc.loc());
+                                    let err = self.skip_and_throw_invalid_seq_err(
+                                        caused_by!(),
+                                        line!() as usize,
+                                        &["right enclosure", "element"],
+                                        Comma,
+                                    );
                                     self.errs.push(err);
-                                    self.next_expr();
                                     debug_exit_info!(self);
                                     return Err(());
                                 }
                             }
                             _ => {
-                                let err = ParseError::simple_syntax_error(0, expr.loc());
+                                let caused_by = caused_by!();
+                                log!(err "error caused by: {caused_by}");
+                                let err = ParseError::expect_keyword(line!() as usize, expr.loc());
                                 self.errs.push(err);
                                 self.next_expr();
                                 debug_exit_info!(self);
@@ -1018,7 +1208,17 @@ impl Parser {
                         };
                         let expr = self
                             .try_reduce_expr(false, in_type_args, false, false)
-                            .map_err(|_| self.stack_dec(fn_name!()))?;
+                            .map_err(|_| {
+                                if let Some(err) = self.errs.last_mut() {
+                                    err.set_hint(switch_lang!(
+                                        "japanese" => "予期: 型指定",
+                                        "simplified_chinese" => "期望: 类型规范",
+                                        "traditional_chinese" => "期望: 類型規範",
+                                        "english" => "expect: type specification",
+                                    ))
+                                }
+                                self.stack_dec(fn_name!())
+                            })?;
                         debug_exit_info!(self);
                         Ok(ArgKind::Kw(KwArg::new(kw, t_spec, expr)))
                     } else {
@@ -1031,7 +1231,17 @@ impl Parser {
                 self.skip();
                 let expr = self
                     .try_reduce_expr(false, in_type_args, false, false)
-                    .map_err(|_| self.stack_dec(fn_name!()))?;
+                    .map_err(|_| {
+                        if let Some(err) = self.errs.last_mut() {
+                            err.set_hint(switch_lang!(
+                                "japanese" => "予期: 型指定",
+                                "simplified_chinese" => "期望: 类型规范",
+                                "traditional_chinese" => "期望: 類型規範",
+                                "english" => "expect: type specification",
+                            ))
+                        }
+                        self.stack_dec(fn_name!())
+                    })?;
                 debug_exit_info!(self);
                 Ok(ArgKind::Var(PosArg::new(expr)))
             }
@@ -1042,7 +1252,11 @@ impl Parser {
                 debug_exit_info!(self);
                 Ok(ArgKind::Pos(PosArg::new(expr)))
             }
-            None => switch_unreachable!(),
+            None => {
+                self.errs.push(self.unexpected_none(line!(), caused_by!()));
+                debug_exit_info!(self);
+                Err(())
+            }
         }
     }
 
@@ -1059,35 +1273,66 @@ impl Parser {
                     let keyword = if let Accessor::Ident(n) = acc {
                         n.name.into_token()
                     } else {
-                        self.errs
-                            .push(ParseError::simple_syntax_error(0, acc.loc()));
+                        let caused_by = caused_by!();
+                        log!(err "error caused by: {caused_by}");
+                        let err = ParseError::expect_keyword(line!() as usize, acc.loc());
+                        self.errs.push(err);
                         self.next_expr();
                         debug_exit_info!(self);
                         return Err(());
                     };
                     let expr = self
                         .try_reduce_expr(false, in_type_args, false, false)
-                        .map_err(|_| self.stack_dec(fn_name!()))?;
+                        .map_err(|_| {
+                            if let Some(err) = self.errs.last_mut() {
+                                err.set_hint(switch_lang!(
+                                    "japanese" => "予期: 引数",
+                                    "simplified_chinese" => "期望: 参数",
+                                    "traditional_chinese" => "期望: 參數",
+                                    "english" => "expect: an argument",
+                                ))
+                            }
+                            self.stack_dec(fn_name!())
+                        })?;
                     debug_exit_info!(self);
                     Ok(KwArg::new(keyword, None, expr))
                 } else {
-                    let loc = t.loc();
-                    self.errs.push(ParseError::simple_syntax_error(0, loc));
+                    let caused_by = caused_by!();
+                    log!(err "error caused by: {caused_by}");
+                    let err = ParseError::invalid_non_default_parameter(line!() as usize, t.loc());
+                    self.errs.push(err);
+                    self.next_expr();
                     debug_exit_info!(self);
                     Err(())
                 }
             }
-            Some(other) => {
-                let loc = other.loc();
-                self.errs.push(ParseError::simple_syntax_error(0, loc));
+            Some(lit) if lit.category_is(TC::Literal) => {
+                let caused_by = caused_by!();
+                log!(err "error caused by: {caused_by}");
+                let err = ParseError::invalid_non_default_parameter(line!() as usize, lit.loc());
+                self.errs.push(err);
+                self.next_expr();
                 debug_exit_info!(self);
                 Err(())
             }
-            None => switch_unreachable!(),
+            Some(other) => {
+                let caused_by = caused_by!();
+                log!(err "error caused by: {caused_by}");
+                let err = ParseError::expect_keyword(line!() as usize, other.loc());
+                self.errs.push(err);
+                self.next_expr();
+                debug_exit_info!(self);
+                Err(())
+            }
+            None => {
+                self.errs.push(self.unexpected_none(line!(), caused_by!()));
+                debug_exit_info!(self);
+                Err(())
+            }
         }
     }
 
-    fn try_reduce_method_defs(
+    fn try_reduce_class_attr_defs(
         &mut self,
         class: Expr,
         vis: VisModifierSpec,
@@ -1097,17 +1342,44 @@ impl Parser {
         while self.cur_is(Newline) {
             self.skip();
         }
-        let first = self
-            .try_reduce_chunk(false, false)
-            .map_err(|_| self.stack_dec(fn_name!()))?;
+        let first = self.try_reduce_chunk(false, false).map_err(|_| {
+            if let Some(err) = self.errs.last_mut() {
+                err.set_hint(switch_lang!(
+                    "japanese" => "メソッドか属性のみ定義できます",
+                    "simplified_chinese" => "只能定义方法或属性",
+                    "traditional_chinese" => "只能定義方法或屬性",
+                    "english" => "only a method or attribute can be defined",
+                ))
+            }
+            self.stack_dec(fn_name!())
+        })?;
         let first = match first {
             Expr::Def(def) => ClassAttr::Def(def),
             Expr::TypeAscription(tasc) => ClassAttr::Decl(tasc),
             Expr::Literal(lit) if lit.is_doc_comment() => ClassAttr::Doc(lit),
-            _ => {
-                // self.restore();
-                let err = self.skip_and_throw_syntax_err(caused_by!());
+            other => {
+                let caused_by = caused_by!();
+                log!(err "error caused by: {caused_by}");
+                let hint = switch_lang!(
+                    "japanese" => "メソッドか属性のみ定義できます",
+                    "simplified_chinese" => "只能定义方法或属性",
+                    "traditional_chinese" => "只能定義方法或屬性",
+                    "english" => "only a method or attribute can be defined",
+                )
+                .to_string();
+                let err = ParseError::syntax_error(
+                    line!() as usize,
+                    other.loc(),
+                    switch_lang!(
+                        "japanese" => "クラス属性を定義するのに失敗しました",
+                        "simplified_chinese" => "定义类属性失败",
+                        "traditional_chinese" => "定義類屬性失敗",
+                        "english" => "failed to define a class attribute",
+                    ),
+                    Some(hint),
+                );
                 self.errs.push(err);
+                self.until_dedent();
                 debug_exit_info!(self);
                 return Err(());
             }
@@ -1121,13 +1393,25 @@ impl Parser {
                     self.restore(nl);
                     break;
                 }
+                Some(t) if t.is(Dedent) => {
+                    self.skip();
+                    break;
+                }
                 Some(t) if t.category_is(TC::Separator) => {
                     self.skip();
                 }
                 Some(_) => {
-                    let def = self
-                        .try_reduce_chunk(false, false)
-                        .map_err(|_| self.stack_dec(fn_name!()))?;
+                    let def = self.try_reduce_chunk(false, false).map_err(|_| {
+                        if let Some(err) = self.errs.last_mut() {
+                            err.set_hint(switch_lang!(
+                                "japanese" => "クラス属性かメソッドを定義してください",
+                                "simplified_chinese" => "应声明类属性或方法",
+                                "traditional_chinese" => "應聲明類屬性或方法",
+                                "english" => "class attribute or method should be declared",
+                            ))
+                        }
+                        self.stack_dec(fn_name!())
+                    })?;
                     match def {
                         Expr::Def(def) => {
                             attrs.push(ClassAttr::Def(def));
@@ -1139,14 +1423,46 @@ impl Parser {
                             attrs.push(ClassAttr::Doc(lit));
                         }
                         other => {
-                            self.errs
-                                .push(ParseError::simple_syntax_error(0, other.loc()));
+                            let caused_by = caused_by!();
+                            log!(err "error caused by: {caused_by}");
+                            let err = ParseError::syntax_error(
+                                line!() as usize,
+                                other.loc(),
+                                switch_lang!(
+                                    "japanese" => "クラス属性を定義するのに失敗しました",
+                                    "simplified_chinese" => "定义类属性失败",
+                                    "traditional_chinese" => "定義類屬性失敗",
+                                    "english" => "failed to define a class attribute",
+                                ),
+                                None,
+                            );
+                            self.errs.push(err);
+                            self.next_expr();
+                            debug_exit_info!(self);
+                            return Err(());
+                        }
+                    }
+                    match self.peek() {
+                        Some(t) if !t.is(Dedent) && !t.category_is(TC::Separator) => {
+                            let err = self.skip_and_throw_invalid_chunk_err(
+                                caused_by!(),
+                                line!(),
+                                t.loc(),
+                            );
+                            self.errs.push(err);
+                            debug_exit_info!(self);
+                            return Err(());
+                        }
+                        Some(_) => {}
+                        None => {
+                            self.errs.push(self.unexpected_none(line!(), caused_by!()));
+                            debug_exit_info!(self);
+                            return Err(());
                         }
                     }
                 }
-                _ => {
-                    let err = self.skip_and_throw_syntax_err(caused_by!());
-                    self.errs.push(err);
+                None => {
+                    self.errs.push(self.unexpected_none(line!(), caused_by!()));
                     debug_exit_info!(self);
                     return Err(());
                 }
@@ -1181,7 +1497,17 @@ impl Parser {
         } else {
             let expr = self
                 .try_reduce_expr(false, false, false, false)
-                .map_err(|_| self.stack_dec(fn_name!()))?;
+                .map_err(|_| {
+                    if let Some(err) = self.errs.last_mut() {
+                        err.set_hint(switch_lang!(
+                            "japanese" => "予期: 式",
+                            "simplified_chinese" => "期望: 表达",
+                            "traditional_chinese" => "期望: 表達",
+                            "english" => "expect: expression",
+                        ))
+                    }
+                    self.stack_dec(fn_name!())
+                })?;
             let block = Block::new(vec![expr]);
             debug_exit_info!(self);
             Ok(Lambda::new(sig, op, block, self.counter))
@@ -1218,9 +1544,19 @@ impl Parser {
                             .map_err(|_| self.stack_dec(fn_name!()))?
                     } else {
                         // precedence: `=` < `,`
-                        let expr = self
-                            .try_reduce_expr(true, false, false, false)
-                            .map_err(|_| self.stack_dec(fn_name!()))?;
+                        let expr =
+                            self.try_reduce_expr(true, false, false, false)
+                                .map_err(|_| {
+                                    if let Some(err) = self.errs.last_mut() {
+                                        err.set_hint(switch_lang!(
+                                            "japanese" => "予期: 式",
+                                            "simplified_chinese" => "期望: 表达",
+                                            "traditional_chinese" => "期望: 表達",
+                                            "english" => "expect: expression",
+                                        ))
+                                    }
+                                    self.stack_dec(fn_name!())
+                                })?;
                         Block::new(vec![expr])
                     };
                     let body = DefBody::new(op, block, self.counter);
@@ -1240,9 +1576,19 @@ impl Parser {
                             .map_err(|_| self.stack_dec(fn_name!()))?
                     } else {
                         // precedence: `->` > `,`
-                        let expr = self
-                            .try_reduce_expr(false, false, false, false)
-                            .map_err(|_| self.stack_dec(fn_name!()))?;
+                        let expr =
+                            self.try_reduce_expr(false, false, false, false)
+                                .map_err(|_| {
+                                    if let Some(err) = self.errs.last_mut() {
+                                        err.set_hint(switch_lang!(
+                                            "japanese" => "予期: 式",
+                                            "simplified_chinese" => "期望: 表达",
+                                            "traditional_chinese" => "期望: 表達",
+                                            "english" => "expect: expression",
+                                        ))
+                                    }
+                                    self.stack_dec(fn_name!())
+                                })?;
                         Block::new(vec![expr])
                     };
                     stack.push(ExprOrOp::Expr(Expr::Lambda(Lambda::new(
@@ -1296,8 +1642,17 @@ impl Parser {
                     }
                     stack.push(ExprOrOp::Op(self.lpop()));
                     stack.push(ExprOrOp::Expr(
-                        self.try_reduce_bin_lhs(false, in_brace)
-                            .map_err(|_| self.stack_dec(fn_name!()))?,
+                        self.try_reduce_bin_lhs(false, in_brace).map_err(|_| {
+                            if let Some(err) = self.errs.last_mut() {
+                                err.set_hint(switch_lang!(
+                                    "japanese" => "予期: 数値、式",
+                                    "simplified_chinese" => "期望: 数字或表达式",
+                                    "traditional_chinese" => "期望: 數字或表達式",
+                                    "english" => "expect: number or expression",
+                                ));
+                            }
+                            self.stack_dec(fn_name!())
+                        })?,
                     ));
                 }
                 Some(t) if t.is(DblColon) => {
@@ -1305,7 +1660,7 @@ impl Parser {
                     match self.lpop() {
                         symbol if symbol.is(Symbol) => {
                             let Some(ExprOrOp::Expr(obj)) = stack.pop() else {
-                                let err = self.skip_and_throw_syntax_err(caused_by!());
+                                let err = self.skip_and_throw_syntax_err(line!(), caused_by!());
                                 self.errs.push(err);
                                 debug_exit_info!(self);
                                 return Err(());
@@ -1328,7 +1683,7 @@ impl Parser {
                         line_break if line_break.is(Newline) => {
                             let maybe_class = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                             let defs = self
-                                .try_reduce_method_defs(maybe_class, vis)
+                                .try_reduce_class_attr_defs(maybe_class, vis)
                                 .map_err(|_| self.stack_dec(fn_name!()))?;
                             let expr = Expr::Methods(defs);
                             assert_eq!(stack.len(), 0);
@@ -1346,9 +1701,12 @@ impl Parser {
                                     let pack = DataPack::new(maybe_class, vis, args);
                                     stack.push(ExprOrOp::Expr(Expr::DataPack(pack)));
                                 }
-                                BraceContainer::Dict(_) | BraceContainer::Set(_) => {
-                                    // self.restore(other);
-                                    let err = self.skip_and_throw_syntax_err(caused_by!());
+                                other => {
+                                    let err = ParseError::invalid_data_pack_definition(
+                                        line!() as usize,
+                                        other.loc(),
+                                        other.kind(),
+                                    );
                                     self.errs.push(err);
                                     debug_exit_info!(self);
                                     return Err(());
@@ -1357,7 +1715,7 @@ impl Parser {
                         }
                         other => {
                             self.restore(other);
-                            let err = self.skip_and_throw_syntax_err(caused_by!());
+                            let err = self.skip_and_throw_syntax_err(line!(), caused_by!());
                             self.errs.push(err);
                             debug_exit_info!(self);
                             return Err(());
@@ -1369,7 +1727,7 @@ impl Parser {
                     match self.lpop() {
                         symbol if symbol.is(Symbol) => {
                             let Some(ExprOrOp::Expr(obj)) = stack.pop() else {
-                                let err = self.skip_and_throw_syntax_err(caused_by!());
+                                let err = self.skip_and_throw_syntax_err(line!(), caused_by!());
                                 self.errs.push(err);
                                 debug_exit_info!(self);
                                 return Err(());
@@ -1391,14 +1749,14 @@ impl Parser {
                             let vis = VisModifierSpec::Public(dot);
                             let maybe_class = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                             let defs = self
-                                .try_reduce_method_defs(maybe_class, vis)
+                                .try_reduce_class_attr_defs(maybe_class, vis)
                                 .map_err(|_| self.stack_dec(fn_name!()))?;
                             debug_exit_info!(self);
                             return Ok(Expr::Methods(defs));
                         }
                         other => {
                             self.restore(other);
-                            let err = self.skip_and_throw_syntax_err(caused_by!());
+                            let err = self.skip_and_throw_syntax_err(line!(), caused_by!());
                             self.errs.push(err);
                             debug_exit_info!(self);
                             return Err(());
@@ -1407,7 +1765,7 @@ impl Parser {
                 }
                 Some(t) if t.is(LSqBr) => {
                     let Some(ExprOrOp::Expr(obj)) = stack.pop() else {
-                        let err = self.skip_and_throw_syntax_err(caused_by!());
+                        let err = self.skip_and_throw_syntax_err(line!(), caused_by!());
                         self.errs.push(err);
                         debug_exit_info!(self);
                         return Err(());
@@ -1415,7 +1773,17 @@ impl Parser {
                     self.skip();
                     let index = self
                         .try_reduce_expr(false, false, in_brace, false)
-                        .map_err(|_| self.stack_dec(fn_name!()))?;
+                        .map_err(|_| {
+                            if let Some(err) = self.errs.last_mut() {
+                                err.set_hint(switch_lang!(
+                                    "japanese" => "予期: Nat型",
+                                    "simplified_chinese" => "期望: Nat类型",
+                                    "traditional_chinese" => "期望: Nat類型",
+                                    "english" => "expect: Nat type",
+                                ))
+                            }
+                            self.stack_dec(fn_name!())
+                        })?;
                     let r_sqbr = expect_pop!(self, fail_next RSqBr);
                     let acc = Accessor::subscr(obj, index, r_sqbr);
                     stack.push(ExprOrOp::Expr(Expr::Accessor(acc)));
@@ -1439,7 +1807,7 @@ impl Parser {
                     .try_reduce_stream_operator(&mut stack)
                     .map_err(|_| self.stack_dec(fn_name!()))?,
                 Some(t) if t.category_is(TC::Reserved) => {
-                    let err = self.skip_and_throw_syntax_err(caused_by!());
+                    let err = self.skip_and_throw_syntax_err(line!(), caused_by!());
                     self.errs.push(err);
                     debug_exit_info!(self);
                     return Err(());
@@ -1539,11 +1907,19 @@ impl Parser {
                     let t_spec_as_expr = self
                         .try_reduce_expr(false, in_type_args, in_brace, false)
                         .map(Desugarer::desugar_simple_expr)
-                        .map_err(|_| self.stack_dec(fn_name!()))?;
-                    let t_spec = Self::expr_to_type_spec(t_spec_as_expr.clone()).map_err(|e| {
-                        self.errs.push(e);
-                        self.stack_dec(fn_name!())
-                    })?;
+                        .map_err(|_| {
+                            if let Some(err) = self.errs.last_mut() {
+                                err.set_hint(switch_lang!(
+                                    "japanese" => "予期: Nat型",
+                                    "simplified_chinese" => "期望: Nat类型",
+                                    "traditional_chinese" => "期望: Nat類型",
+                                    "english" => "expect: Nat type",
+                                ))
+                            }
+                            self.stack_dec(fn_name!())
+                        })?;
+                    let t_spec = Self::expr_to_type_spec(t_spec_as_expr.clone())
+                        .map_err(|e| self.errs.push(e))?;
                     let t_spec_op = TypeSpecWithOp::new(op, t_spec, t_spec_as_expr);
                     let expr = lhs.type_asc_expr(t_spec_op);
                     stack.push(ExprOrOp::Expr(expr));
@@ -1571,7 +1947,17 @@ impl Parser {
                     stack.push(ExprOrOp::Op(self.lpop()));
                     stack.push(ExprOrOp::Expr(
                         self.try_reduce_bin_lhs(in_type_args, in_brace)
-                            .map_err(|_| self.stack_dec(fn_name!()))?,
+                            .map_err(|_| {
+                                if let Some(err) = self.errs.last_mut() {
+                                    err.set_hint(switch_lang!(
+                                    "japanese" => "予期: 式、被演算子",
+                                    "simplified_chinese" => "期望：表达式或操作数",
+                                    "traditional_chinese" => "期望：表達式或操作數",
+                                    "english" => "expect: expression or operand",
+                                    ))
+                                }
+                                self.stack_dec(fn_name!())
+                            })?,
                     ));
                 }
                 Some(t) if t.is(Dot) => {
@@ -1579,7 +1965,7 @@ impl Parser {
                     match self.lpop() {
                         symbol if symbol.is(Symbol) => {
                             let Some(ExprOrOp::Expr(obj)) = stack.pop() else {
-                                let err = self.skip_and_throw_syntax_err(caused_by!());
+                                let err = self.skip_and_throw_syntax_err(line!(), caused_by!());
                                 self.errs.push(err);
                                 debug_exit_info!(self);
                                 return Err(());
@@ -1605,7 +1991,7 @@ impl Parser {
                         }
                         other => {
                             self.restore(other);
-                            let err = self.skip_and_throw_syntax_err(caused_by!());
+                            let err = self.skip_and_throw_syntax_err(line!(), caused_by!());
                             self.errs.push(err);
                             debug_exit_info!(self);
                             return Err(());
@@ -1614,20 +2000,32 @@ impl Parser {
                 }
                 Some(t) if t.is(LSqBr) => {
                     let Some(ExprOrOp::Expr(obj)) = stack.pop() else {
-                        let err = self.skip_and_throw_syntax_err(caused_by!());
+                        let err = self.skip_and_throw_syntax_err(line!(), caused_by!());
                         self.errs.push(err);
                         debug_exit_info!(self);
                         return Err(());
                     };
-                    self.skip();
+                    self.skip(); // l_sqbr
                     let index = self
                         .try_reduce_expr(false, false, in_brace, false)
-                        .map_err(|_| self.stack_dec(fn_name!()))?;
+                        .map_err(|_| {
+                            if let Some(err) = self.errs.last_mut() {
+                                err.set_hint(switch_lang!(
+                                    "japanese" => "予期: Nat型",
+                                    "simplified_chinese" => "期望: Nat类型",
+                                    "traditional_chinese" => "期望: Nat類型",
+                                    "english" => "expect: Nat type",
+                                ))
+                            }
+                            self.stack_dec(fn_name!());
+                        })?;
                     let r_sqbr = self.lpop();
                     if !r_sqbr.is(RSqBr) {
-                        self.restore(r_sqbr);
-                        let err = self.skip_and_throw_syntax_err(caused_by!());
+                        let caused_by = caused_by!();
+                        log!(err "error caused by: {caused_by}");
+                        let err = ParseError::expect_accessor(line!() as usize, index.loc());
                         self.errs.push(err);
+                        self.next_expr();
                         debug_exit_info!(self);
                         return Err(());
                     }
@@ -1653,7 +2051,7 @@ impl Parser {
                     .try_reduce_stream_operator(&mut stack)
                     .map_err(|_| self.stack_dec(fn_name!()))?,
                 Some(t) if t.category_is(TC::Reserved) => {
-                    let err = self.skip_and_throw_syntax_err(caused_by!());
+                    let err = self.skip_and_throw_syntax_err(line!(), caused_by!());
                     self.errs.push(err);
                     debug_exit_info!(self);
                     return Err(());
@@ -1711,15 +2109,21 @@ impl Parser {
                 if let Expr::Accessor(Accessor::Ident(ident)) = *tasc.expr {
                     (ident.name.into_token(), Some(tasc.t_spec))
                 } else {
-                    let err = ParseError::simple_syntax_error(line!() as usize, tasc.loc());
+                    let caused_by = caused_by!();
+                    log!(err "error caused by: {caused_by}");
+                    let err = ParseError::expect_keyword(line!() as usize, tasc.loc());
                     self.errs.push(err);
+                    self.next_expr();
                     debug_exit_info!(self);
                     return Err(());
                 }
             }
             other => {
-                let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
+                let caused_by = caused_by!();
+                log!(err "error caused by: {caused_by}");
+                let err = ParseError::expect_keyword(line!() as usize, other.loc());
                 self.errs.push(err);
+                self.next_expr();
                 debug_exit_info!(self);
                 return Err(());
             }
@@ -1727,7 +2131,17 @@ impl Parser {
         self.skip(); // :=
         let rhs = self
             .try_reduce_expr(false, false, in_brace, false)
-            .map_err(|_| self.stack_dec(fn_name!()))?;
+            .map_err(|_| {
+                if let Some(err) = self.errs.last_mut() {
+                    err.set_hint(switch_lang!(
+                        "japanese" => "予期: デフォルト引数",
+                        "simplified_chinese" => "期望: 默认参数",
+                        "traditional_chinese" => "期望: 默認參數",
+                        "english" => "expect: default parameter",
+                    ))
+                }
+                self.stack_dec(fn_name!())
+            })?;
         let first_elem = ArgKind::Kw(KwArg::new(keyword, t_spec, rhs));
         let tuple = self
             .try_reduce_nonempty_tuple(first_elem, self.nth_is(1, Newline))
@@ -1754,10 +2168,21 @@ impl Parser {
                     .map_err(|_| self.stack_dec(fn_name!()))?;
                 if let Some(tk) = self.peek() {
                     if tk.is(Mutate) {
-                        let err = ParseError::invalid_mutable_symbol(
+                        self.skip();
+                        let main_msg = switch_lang!(
+                            "japanese" => "可変演算子は、後置演算子ではなく前置演算子です ",
+                            "simplified_chinese" => "突变运算符是前缀运算符，不是后缀运算符",
+                            "traditional_chinese" => "突變運算符是前綴運算符，不是後綴運算符",
+                            "english" => "the mutation operator is a prefix operator, not a postfix operator ",
+                        );
+                        let lit_loc = lit.loc();
+                        let lit = lit.token.inspect();
+                        let err = ParseError::invalid_token_error(
                             line!() as usize,
-                            &lit.token.inspect()[..],
-                            lit.loc(),
+                            lit_loc,
+                            main_msg,
+                            &format!("!{lit}"),
+                            &format!("{lit}!"),
                         );
                         self.errs.push(err);
                         debug_exit_info!(self);
@@ -1775,15 +2200,21 @@ impl Parser {
                 Ok(str_interp)
             }
             Some(t) if t.is(AtSign) => {
-                let decos = self
-                    .opt_reduce_decorators()
-                    .map_err(|_| self.stack_dec(fn_name!()))?;
-                let expr = self
-                    .try_reduce_chunk(false, in_brace)
-                    .map_err(|_| self.stack_dec(fn_name!()))?;
+                let decos = self.opt_reduce_decorators()?;
+                let expr = self.try_reduce_chunk(false, in_brace).map_err(|_| {
+                    if let Some(err) = self.errs.last_mut() {
+                        err.set_hint(switch_lang!(
+                            "japanese" => "期待: デコレータ",
+                            "simplified_chinese" => "期望: 装饰器",
+                            "traditions_chinese" => "期望: 裝飾器",
+                            "english" => "expect: decorator",
+                        ))
+                    }
+                    self.stack_dec(fn_name!())
+                })?;
                 let Expr::Def(mut def) = expr else {
                     // self.restore(other);
-                    let err = self.skip_and_throw_syntax_err(caused_by!());
+                    let err = self.skip_and_throw_syntax_err(line!(), caused_by!());
                     self.errs.push(err);
                     debug_exit_info!(self);
                     return Err(());
@@ -1818,7 +2249,17 @@ impl Parser {
                 let _ = self.lpop();
                 let expr = self
                     .try_reduce_expr(false, in_type_args, in_brace, false)
-                    .map_err(|_| self.stack_dec(fn_name!()))?;
+                    .map_err(|_| {
+                        if let Some(err) = self.errs.last_mut() {
+                            err.set_hint(switch_lang!(
+                                "japanese" => "期待: 可変長引数",
+                                "simplified_chinese" => "期望: 可变长度参数",
+                                "traditional_chinese" => "期望: 可變長度參數",
+                                "english" => "expect: variable-length arguments",
+                            ))
+                        }
+                        self.stack_dec(fn_name!())
+                    })?;
                 let tuple = self
                     .try_reduce_nonempty_tuple(ArgKind::Var(PosArg::new(expr)), false)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
@@ -1852,14 +2293,43 @@ impl Parser {
                 }
                 let mut expr = self
                     .try_reduce_expr(true, false, false, line_break)
-                    .map_err(|_| self.stack_dec(fn_name!()))?;
-                while self.cur_is(Newline) {
-                    self.skip();
+                    .map_err(|_| {
+                        if let Some(err) = self.errs.last_mut() {
+                            err.set_hint(switch_lang!(
+                                "japanese" => "期待: 要素",
+                                "simplified_chinese" => "期望: 元素",
+                                "traditional_chinese" => "期望: 元素",
+                                "english" => "expect: an element",
+                            ))
+                        }
+                        self.stack_dec(fn_name!())
+                    })?;
+                if line_break {
+                    while self.cur_is(Newline) {
+                        self.skip();
+                    }
+                    if self.cur_is(Dedent) {
+                        self.skip();
+                    }
                 }
-                if self.cur_is(Dedent) {
-                    self.skip();
-                }
-                let rparen = expect_pop!(self, fail_next RParen);
+                let rparen = match self.peek_kind() {
+                    Some(RParen) => self.lpop(),
+                    Some(_) => {
+                        let err = self.skip_and_throw_invalid_unclosed_err(
+                            caused_by!(),
+                            line!(),
+                            ")",
+                            "tuple",
+                        );
+                        self.errs.push(err);
+                        return Err(());
+                    }
+                    None => {
+                        self.errs.push(self.unexpected_none(line!(), caused_by!()));
+                        debug_exit_info!(self);
+                        return Err(());
+                    }
+                };
                 if let Expr::Tuple(Tuple::Normal(tup)) = &mut expr {
                     tup.elems.paren = Some((lparen, rparen));
                 }
@@ -1917,6 +2387,8 @@ impl Parser {
             }
             Some(t) if t.is(UBar) => {
                 let token = self.lpop();
+                let caused_by = caused_by!();
+                log!(err "error caused by: {caused_by}");
                 self.errs.push(ParseError::feature_error(
                     line!() as usize,
                     token.loc(),
@@ -1925,9 +2397,14 @@ impl Parser {
                 debug_exit_info!(self);
                 Err(())
             }
-            _other => {
-                let err = self.skip_and_throw_syntax_err(caused_by!());
+            Some(_other) => {
+                let err = self.skip_and_throw_syntax_err(line!(), caused_by!());
                 self.errs.push(err);
+                debug_exit_info!(self);
+                Err(())
+            }
+            None => {
+                self.errs.push(self.unexpected_none(line!(), caused_by!()));
                 debug_exit_info!(self);
                 Err(())
             }
@@ -1963,7 +2440,17 @@ impl Parser {
                     let _l_sqbr = self.lpop();
                     let index = self
                         .try_reduce_expr(true, false, false, false)
-                        .map_err(|_| self.stack_dec(fn_name!()))?;
+                        .map_err(|_| {
+                            if let Some(err) = self.errs.last_mut() {
+                                err.set_hint(switch_lang!(
+                                    "japanese" => "期待: Nat型",
+                                    "simplified_chinese" => "期望: Nat类型",
+                                    "traditional_chinese" => "期望: Nat類型",
+                                    "english" => "expect: Nat type",
+                                ))
+                            }
+                            self.stack_dec(fn_name!())
+                        })?;
                     let r_sqbr = expect_pop!(self, fail_next RSqBr);
                     obj = Expr::Accessor(Accessor::subscr(obj, index, r_sqbr));
                 }
@@ -1986,8 +2473,11 @@ impl Parser {
                             break;
                         }
                         _ => {
-                            self.restore(token);
-                            let err = self.skip_and_throw_syntax_err(caused_by!());
+                            let err = ParseError::invalid_acc_chain(
+                                line!() as usize,
+                                token.loc(),
+                                &token.inspect()[..],
+                            );
                             self.errs.push(err);
                             debug_exit_info!(self);
                             return Err(());
@@ -2024,9 +2514,10 @@ impl Parser {
                                     obj = Expr::DataPack(DataPack::new(obj, vis, args));
                                 }
                                 other => {
-                                    let err = ParseError::simple_syntax_error(
+                                    let err = ParseError::invalid_data_pack_definition(
                                         line!() as usize,
                                         other.loc(),
+                                        other.kind(),
                                     );
                                     self.errs.push(err);
                                     debug_exit_info!(self);
@@ -2042,7 +2533,7 @@ impl Parser {
                         }
                         _ => {
                             self.restore(token);
-                            let err = self.skip_and_throw_syntax_err(caused_by!());
+                            let err = self.skip_and_throw_syntax_err(line!(), caused_by!());
                             self.errs.push(err);
                             debug_exit_info!(self);
                             return Err(());
@@ -2081,7 +2572,17 @@ impl Parser {
         let op = self.lpop();
         let expr = self
             .try_reduce_expr(false, false, false, false)
-            .map_err(|_| self.stack_dec(fn_name!()))?;
+            .map_err(|_| {
+                if let Some(err) = self.errs.last_mut() {
+                    err.set_hint(switch_lang!(
+                        "japanese" => "予期: 式",
+                        "simplified_chinese" => "期待：表达式",
+                        "traditional_chinese" => "期待：表達式",
+                        "english" => "expect: expression",
+                    ))
+                }
+                self.stack_dec(fn_name!())
+            })?;
         debug_exit_info!(self);
         Ok(UnaryOp::new(op, expr))
     }
@@ -2091,7 +2592,7 @@ impl Parser {
         debug_call_info!(self);
         let l_sqbr = expect_pop!(self, fail_next LSqBr);
         let inner = self
-            .try_reduce_elems()
+            .try_reduce_array_elems()
             .map_err(|_| self.stack_dec(fn_name!()))?;
         let r_sqbr = expect_pop!(self, fail_next RSqBr);
         let arr = match inner {
@@ -2115,6 +2616,8 @@ impl Parser {
                 Array::WithLength(ArrayWithLength::new(l_sqbr, r_sqbr, elem, len))
             }
             ArrayInner::Comprehension { .. } => {
+                let caused_by = caused_by!();
+                log!(err "error caused by: {caused_by}");
                 self.errs.push(ParseError::feature_error(
                     line!() as usize,
                     Location::concat(&l_sqbr, &r_sqbr),
@@ -2154,8 +2657,31 @@ impl Parser {
                         debug_exit_info!(self);
                         return Ok(BraceContainer::Record(Record::empty(l_brace, r_brace)));
                     }
+                } else {
+                    let caused_by = caused_by!();
+                    let err = self.unexpected_none(line!(), caused_by);
+                    self.errs.push(err);
+                    return Err(());
                 }
-                let err = self.skip_and_throw_syntax_err(caused_by!());
+                let t = self.lpop();
+                let mut err = ParseError::invalid_token_error(
+                    line!() as usize,
+                    t.loc(),
+                    switch_lang!(
+                        "japanese" => "無効なレコードの宣言です",
+                        "simplified_chinese" => "无效的Record定义",
+                        "traditional_chinese" => "無效的Record定義",
+                        "english" => "invalid record",
+                    ),
+                    "}",
+                    &t.inspect()[..],
+                );
+                err.set_hint(switch_lang!(
+                    "japanese" => "空のレコードが期待されています: {=}",
+                    "simplified_chinese" => "期望空Record: {=}",
+                    "traditional_chinese" => "期望空Record: {=}",
+                    "english" => "expect empty record: {=}",
+                ));
                 self.errs.push(err);
                 debug_exit_info!(self);
                 return Err(());
@@ -2169,8 +2695,31 @@ impl Parser {
                         debug_exit_info!(self);
                         return Ok(BraceContainer::Dict(Dict::Normal(dict)));
                     }
+                } else {
+                    let caused_by = caused_by!();
+                    let err = self.unexpected_none(line!(), caused_by);
+                    self.errs.push(err);
+                    return Err(());
                 }
-                let err = self.skip_and_throw_syntax_err(caused_by!());
+                let t = self.lpop();
+                let mut err = ParseError::invalid_token_error(
+                    line!() as usize,
+                    t.loc(),
+                    switch_lang!(
+                        "japanese" => "無効な辞書の宣言です",
+                        "simplified_chinese" => "无效的字典定义",
+                        "traditional_chinese" => "無效的字典定義",
+                        "english" => "invalid dict",
+                    ),
+                    "}",
+                    &t.inspect()[..],
+                );
+                err.set_hint(switch_lang!(
+                    "japanese" => "空の辞書が期待されています: {:}",
+                    "simplified_chinese" => "期望空字典: {:}",
+                    "traditional_chinese" => "期望空字典: {:}",
+                    "english" => "expect empty dict: {:}",
+                ));
                 self.errs.push(err);
                 debug_exit_info!(self);
                 return Err(());
@@ -2178,9 +2727,17 @@ impl Parser {
             _ => {}
         }
 
-        let first = self
-            .try_reduce_chunk(false, true)
-            .map_err(|_| self.stack_dec(fn_name!()))?;
+        let first = self.try_reduce_chunk(false, true).map_err(|_| {
+            if let Some(err) = self.errs.last_mut() {
+                err.set_hint(switch_lang!(
+                    "japanese" => "期待: 要素",
+                    "simplified_chinese" => "期望: 元素",
+                    "traditional_chinese" => "期望: 元素",
+                    "english" => "expect: an element",
+                ))
+            }
+            self.stack_dec(fn_name!())
+        })?;
         match first {
             Expr::Def(def) => {
                 let attr = RecordAttrOrIdent::Attr(def);
@@ -2199,8 +2756,12 @@ impl Parser {
                 let ident = match acc {
                     Accessor::Ident(ident) => ident,
                     other => {
-                        let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
+                        let caused_by = caused_by!();
+                        log!(err "error caused by: {caused_by}");
+                        let err =
+                            ParseError::invalid_record_element_err(line!() as usize, other.loc());
                         self.errs.push(err);
+                        self.next_expr();
                         debug_exit_info!(self);
                         return Err(());
                     }
@@ -2212,7 +2773,6 @@ impl Parser {
                 debug_exit_info!(self);
                 Ok(BraceContainer::Record(record))
             }
-            // Dict
             other if self.cur_is(Colon) => {
                 let res = self
                     .try_reduce_normal_dict_or_set_comp(l_brace, other)
@@ -2221,6 +2781,16 @@ impl Parser {
                 Ok(res)
             }
             other => {
+                match self.peek() {
+                    Some(r_brace) if r_brace.is(RBrace) => {
+                        let arg = Args::new(vec![PosArg::new(other)], None, vec![], None);
+                        let r_brace = self.lpop();
+                        return Ok(BraceContainer::Set(Set::Normal(NormalSet::new(
+                            l_brace, r_brace, arg,
+                        ))));
+                    }
+                    _ => {}
+                }
                 let set = self
                     .try_reduce_set(l_brace, other)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
@@ -2245,6 +2815,25 @@ impl Parser {
             match self.peek_kind() {
                 Some(Newline | Semi) => {
                     self.skip();
+                    match self.peek() {
+                        Some(t) if t.is(Semi) => {
+                            let err = self.skip_and_throw_invalid_seq_err(
+                                caused_by!(),
+                                line!() as usize,
+                                &["}", "element"],
+                                Semi,
+                            );
+                            self.errs.push(err);
+                            debug_exit_info!(self);
+                            return Err(());
+                        }
+                        Some(_) => {}
+                        None => {
+                            self.errs.push(self.unexpected_none(line!(), caused_by!()));
+                            debug_exit_info!(self);
+                            return Err(());
+                        }
+                    }
                 }
                 Some(Dedent) => {
                     self.skip();
@@ -2258,9 +2847,17 @@ impl Parser {
                     return Ok(Record::new_mixed(l_brace, r_brace, attrs));
                 }
                 Some(_) => {
-                    let next = self
-                        .try_reduce_chunk(false, false)
-                        .map_err(|_| self.stack_dec(fn_name!()))?;
+                    let next = self.try_reduce_chunk(false, false).map_err(|_| {
+                        if let Some(err) = self.errs.last_mut() {
+                            err.set_hint(switch_lang!(
+                                "japanese" => "予期: 属性",
+                                "simplified_chinese" => "期望: 属性",
+                                "traditional_chinese" => "期望: 屬性",
+                                "english" => "expect: an attribute",
+                            ))
+                        }
+                        self.stack_dec(fn_name!())
+                    })?;
                     match next {
                         Expr::Def(def) => {
                             if attrs.iter().any(|attr| {
@@ -2280,7 +2877,7 @@ impl Parser {
                             let ident = match acc {
                                 Accessor::Ident(ident) => ident,
                                 other => {
-                                    let err = ParseError::simple_syntax_error(
+                                    let err = ParseError::invalid_record_element_err(
                                         line!() as usize,
                                         other.loc(),
                                     );
@@ -2291,18 +2888,22 @@ impl Parser {
                             };
                             attrs.push(RecordAttrOrIdent::Ident(ident));
                         }
-                        _ => {
-                            let err = self.skip_and_throw_syntax_err(caused_by!());
+                        other => {
+                            let caused_by = caused_by!();
+                            log!(err "error caused by: {caused_by}");
+                            let err = ParseError::invalid_record_element_err(
+                                line!() as usize,
+                                other.loc(),
+                            );
                             self.errs.push(err);
+                            self.next_expr();
                             debug_exit_info!(self);
                             return Err(());
                         }
                     }
                 }
-                _ => {
-                    //  self.restore(other);
-                    let err = self.skip_and_throw_syntax_err(caused_by!());
-                    self.errs.push(err);
+                None => {
+                    self.errs.push(self.unexpected_none(line!(), caused_by!()));
                     debug_exit_info!(self);
                     return Err(());
                 }
@@ -2359,7 +2960,12 @@ impl Parser {
                     self.skip();
                     match self.peek_kind() {
                         Some(Comma) => {
-                            let err = self.skip_and_throw_syntax_err(caused_by!());
+                            let err = self.skip_and_throw_invalid_seq_err(
+                                caused_by!(),
+                                line!() as usize,
+                                &["}", "element"],
+                                Comma,
+                            );
                             self.errs.push(err);
                             debug_exit_info!(self);
                             return Err(());
@@ -2378,9 +2984,17 @@ impl Parser {
                         .try_reduce_expr(false, false, true, false)
                         .map_err(|_| self.stack_dec(fn_name!()))?;
                     expect_pop!(self, fail_next Colon);
-                    let value = self
-                        .try_reduce_chunk(false, false)
-                        .map_err(|_| self.stack_dec(fn_name!()))?;
+                    let value = self.try_reduce_chunk(false, false).map_err(|_| {
+                        if let Some(err) = self.errs.last_mut() {
+                            err.set_hint(switch_lang!(
+                                "japanese" => "予期: キー",
+                                "simplified_chinese" => "期望: 关键",
+                                "traditional_chinese" => "期望: 關鍵",
+                                "english" => "expect: key",
+                            ))
+                        }
+                        self.stack_dec(fn_name!())
+                    })?;
                     kvs.push(KeyValue::new(key, value));
                 }
                 Some(Newline | Indent | Dedent) => {
@@ -2391,11 +3005,24 @@ impl Parser {
                     debug_exit_info!(self);
                     return Ok(dict);
                 }
-                _ => {
-                    break;
+                Some(_) => {
+                    let caused_by = caused_by!();
+                    log!(err "error caused by: {caused_by}");
+                    let err = ParseError::unclosed_error(
+                        line!() as usize,
+                        self.lpop().loc(),
+                        "}",
+                        "dict",
+                    );
+                    self.errs.push(err);
+                    debug_exit_info!(self);
+                    return Err(());
                 }
+                _ => break,
             }
         }
+        let caused_by = caused_by!();
+        log!(err "error caused by: {caused_by}");
         debug_exit_info!(self);
         Err(())
     }
@@ -2403,12 +3030,41 @@ impl Parser {
     fn try_reduce_set(&mut self, l_brace: Token, first_elem: Expr) -> ParseResult<Set> {
         debug_call_info!(self);
         if self.cur_is(Semi) {
+            match first_elem {
+                Expr::Accessor(_) => {}
+                other => {
+                    let err = ParseError::expect_type_specified(line!() as usize, other.loc());
+                    self.errs.push(err);
+                    debug_exit_info!(self);
+                    return Err(());
+                }
+            }
             self.skip();
             let len = self
                 .try_reduce_expr(false, false, false, false)
-                .map_err(|_| self.stack_dec(fn_name!()))?;
-            let r_brace = expect_pop!(self, fail_next RBrace);
-            debug_exit_info!(self);
+                .map_err(|_| {
+                    if let Some(err) = self.errs.last_mut() {
+                        err.set_hint(switch_lang!(
+                            "japanese" => "予期: }か要素",
+                            "simplified_chinese" => "期望: }或元素",
+                            "traditional_chinese" => "期望: }或元素",
+                            "english" => "expect: } or element",
+                        ))
+                    }
+                    self.stack_dec(fn_name!())
+                })?;
+            let r_brace = self.lpop();
+            if !r_brace.is(RBrace) {
+                let err = self.skip_and_throw_invalid_unclosed_err(
+                    caused_by!(),
+                    line!(),
+                    "}",
+                    "set type specification",
+                );
+                self.errs.push(err);
+                debug_exit_info!(self);
+                return Err(());
+            }
             return Ok(Set::WithLength(SetWithLength::new(
                 l_brace,
                 r_brace,
@@ -2423,7 +3079,12 @@ impl Parser {
                     self.skip();
                     match self.peek_kind() {
                         Some(Comma) => {
-                            let err = self.skip_and_throw_syntax_err(caused_by!());
+                            let err = self.skip_and_throw_invalid_seq_err(
+                                caused_by!(),
+                                line!() as usize,
+                                &["}", "element"],
+                                Comma,
+                            );
                             self.errs.push(err);
                             debug_exit_info!(self);
                             return Err(());
@@ -2475,13 +3136,24 @@ impl Parser {
                     debug_exit_info!(self);
                     return Ok(set);
                 }
-                _ => {
-                    break;
+                Some(other) => {
+                    let err = self.skip_and_throw_invalid_seq_err(
+                        caused_by!(),
+                        line!() as usize,
+                        &["}", "element"],
+                        other,
+                    );
+                    self.errs.push(err);
+                    debug_exit_info!(self);
+                    return Err(());
+                }
+                None => {
+                    self.errs.push(self.unexpected_none(line!(), caused_by!()));
+                    debug_exit_info!(self);
+                    return Err(());
                 }
             }
         }
-        debug_exit_info!(self);
-        Err(())
     }
 
     fn try_reduce_nonempty_tuple(
@@ -2504,7 +3176,12 @@ impl Parser {
                         self.skip();
                     }
                     if self.cur_is(Comma) {
-                        let err = self.skip_and_throw_syntax_err(caused_by!());
+                        let err = self.skip_and_throw_invalid_seq_err(
+                            caused_by!(),
+                            line!() as usize,
+                            &[")", "element"],
+                            Comma,
+                        );
                         self.errs.push(err);
                         debug_exit_info!(self);
                         return Err(());
@@ -2534,13 +3211,14 @@ impl Parser {
                                 arg.loc(),
                                 switch_lang!(
                                     "japanese" => "非デフォルト引数はデフォルト引数の後に指定できません",
-                                    "simplified_chinese" => "默认实参后面跟着非默认实参",
-                                    "traditional_chinese" => "默認實參後面跟著非默認實參",
-                                    "english" => "non-default argument follows default argument",
+                                    "simplified_chinese" => "不能在默认参数之后指定非默认参数",
+                                    "traditional_chinese" => "不能在默認參數之後指定非默認參數",
+                                    "english" => "Non-default arguments cannot be specified after default arguments",
                                 ),
                                 None,
                             );
                             self.errs.push(err);
+                            self.next_expr();
                             debug_exit_info!(self);
                             return Err(());
                         }
@@ -2551,8 +3229,13 @@ impl Parser {
                         }
                     }
                 }
-                _ => {
+                Some(_other) => {
                     break;
+                }
+                None => {
+                    self.errs.push(self.unexpected_none(line!(), caused_by!()));
+                    debug_exit_info!(self);
+                    return Err(());
                 }
             }
         }
@@ -2564,12 +3247,23 @@ impl Parser {
     #[inline]
     fn try_reduce_lit(&mut self) -> ParseResult<Literal> {
         debug_call_info!(self);
-        debug_exit_info!(self);
         match self.peek() {
             Some(t) if t.category_is(TC::Literal) => Ok(Literal::from(self.lpop())),
-            _ => {
-                let err = self.skip_and_throw_syntax_err(caused_by!());
+            Some(other) => {
+                let caused_by = caused_by!();
+                log!(err "error caused by: {caused_by}");
+                let err = ParseError::unexpected_token_error(
+                    line!() as usize,
+                    other.loc(),
+                    &other.inspect()[..],
+                );
                 self.errs.push(err);
+                debug_exit_info!(self);
+                Err(())
+            }
+            None => {
+                self.errs.push(self.unexpected_none(line!(), caused_by!()));
+                debug_exit_info!(self);
                 Err(())
             }
         }
@@ -2600,6 +3294,24 @@ impl Parser {
                     expr = Expr::BinOp(BinOp::new(op, expr, right));
                     debug_exit_info!(self);
                     return Ok(expr);
+                }
+                Some(t) if t.is(EOF) => {
+                    let caused_by = caused_by!();
+                    log!(err "error caused by: {caused_by}");
+                    let err = ParseError::syntax_error(
+                        line!() as usize,
+                        expr.loc(),
+                        switch_lang!(
+                            "japanese" => "文字列補間の終わりが見つかりませんでした",
+                            "simplified_chinese" => "未找到字符串的结束插值",
+                            "traditional_chinese" => "未找到字符串的結束插值",
+                            "english" => "end of a string interpolation not found",
+                        ),
+                        None,
+                    );
+                    self.errs.push(err);
+                    debug_exit_info!(self);
+                    return Err(());
                 }
                 Some(_) => {
                     let mid_expr = self
@@ -2637,18 +3349,7 @@ impl Parser {
                     }
                 }
                 None => {
-                    let err = ParseError::syntax_error(
-                        line!() as usize,
-                        expr.loc(),
-                        switch_lang!(
-                            "japanese" => "文字列補間の終わりが見つかりませんでした",
-                            "simplified_chinese" => "未找到字符串插值结束",
-                            "traditional_chinese" => "未找到字符串插值結束",
-                            "english" => "end of string interpolation not found",
-                        ),
-                        None,
-                    );
-                    self.errs.push(err);
+                    self.errs.push(self.unexpected_none(line!(), caused_by!()));
                     debug_exit_info!(self);
                     return Err(());
                 }
@@ -2664,25 +3365,12 @@ impl Parser {
             collect_last_binop_on_stack(stack);
         }
         if stack.len() == 2 {
-            self.errs
-                .push(ParseError::compiler_bug(0, op.loc(), fn_name!(), line!()));
-            debug_exit_info!(self);
+            let caused_by = caused_by!();
+            log!(err "error caused by: {caused_by}");
+            let err = ParseError::compiler_bug(0, op.loc(), fn_name!(), line!());
+            self.errs.push(err);
             debug_exit_info!(self);
             return Err(());
-        }
-
-        fn get_stream_op_syntax_error(loc: Location) -> ParseError {
-            ParseError::syntax_error(
-                0,
-                loc,
-                switch_lang!(
-                    "japanese" => "パイプ演算子の後には関数・メソッド・サブルーチン呼び出しのみが使用できます。",
-                    "simplified_chinese" => "流操作符后只能调用函数、方法或子程序",
-                    "traditional_chinese" => "流操作符後只能調用函數、方法或子程序",
-                    "english" => "Only a call of function, method or subroutine is available after stream operator.",
-                ),
-                None,
-            )
         }
 
         if matches!(self.peek_kind(), Some(Dot)) {
@@ -2691,7 +3379,7 @@ impl Parser {
             match self.lpop() {
                 symbol if symbol.is(Symbol) => {
                     let Some(ExprOrOp::Expr(obj)) = stack.pop() else {
-                        let err = self.skip_and_throw_syntax_err(caused_by!());
+                        let err = self.skip_and_throw_syntax_err(line!(), caused_by!());
                         self.errs.push(err);
                         debug_exit_info!(self);
                         return Err(());
@@ -2710,15 +3398,20 @@ impl Parser {
                         }
                         stack.push(ExprOrOp::Expr(call));
                     } else {
-                        self.errs.push(get_stream_op_syntax_error(obj.loc()));
-                        debug_exit_info!(self);
+                        let err = self.get_stream_op_syntax_error(
+                            line!() as usize,
+                            obj.loc(),
+                            caused_by!(),
+                        );
+                        self.errs.push(err);
                         debug_exit_info!(self);
                         return Err(());
                     }
                 }
                 other => {
-                    self.restore(other);
-                    let err = self.skip_and_throw_syntax_err(caused_by!());
+                    let caused_by = caused_by!();
+                    log!(err "error caused by: {caused_by}");
+                    let err = ParseError::expect_method_error(line!() as usize, other.loc());
                     self.errs.push(err);
                     debug_exit_info!(self);
                     return Err(());
@@ -2729,13 +3422,18 @@ impl Parser {
                 .try_reduce_call_or_acc(false)
                 .map_err(|_| self.stack_dec(fn_name!()))?;
             let Expr::Call(mut call) = expect_call else {
-                self.errs.push(get_stream_op_syntax_error(expect_call.loc()));
+                    let caused_by = caused_by!();
+                    log!(err "error caused by: {caused_by}");
+                let err = self.get_stream_op_syntax_error(line!() as usize, expect_call.loc(), caused_by!());
+                self.errs.push(err);
                 debug_exit_info!(self);
                 return Err(());
             };
             let ExprOrOp::Expr(first_arg) = stack.pop().unwrap() else {
+                    let caused_by = caused_by!();
+                    log!(err "error caused by: {caused_by}");
                 self.errs
-                    .push(ParseError::compiler_bug(0, call.loc(), fn_name!(), line!()));
+                    .push(ParseError::compiler_bug(line!() as usize, call.loc(), fn_name!(), line!()));
                 debug_exit_info!(self);
                 return Err(());
             };

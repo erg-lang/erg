@@ -65,6 +65,21 @@ fn parse_str_literal() -> Result<(), ()> {
 }
 
 #[test]
+fn parse_invalid_chunk() -> Result<(), ()> {
+    expect_failure("tests/invalid_chunk.er", 0, 62)
+}
+
+#[test]
+fn parse_invalid_collections() -> Result<(), ()> {
+    expect_failure("tests/invalid_collections.er", 0, 29)
+}
+
+#[test]
+fn parse_invalid_class_definition() -> Result<(), ()> {
+    expect_failure("tests/invalid_class_definition.er", 0, 7)
+}
+
+#[test]
 fn exec_invalid_chunk_prs_err() -> Result<(), ()> {
     expect_failure("tests/invalid_chunk.er", 0, 62)
 }
