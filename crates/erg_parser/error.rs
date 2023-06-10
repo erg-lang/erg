@@ -652,6 +652,13 @@ impl<A, Es> CompleteArtifact<A, Es> {
     pub fn new(ast: A, warns: Es) -> Self {
         Self { ast, warns }
     }
+
+    pub fn map<U>(self, f: impl FnOnce(A) -> U) -> CompleteArtifact<U, Es> {
+        CompleteArtifact {
+            ast: f(self.ast),
+            warns: self.warns,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -686,7 +693,7 @@ impl<A, Es> IncompleteArtifact<A, Es> {
         }
     }
 
-    pub fn map_mod<U>(self, f: impl Fn(A) -> U) -> IncompleteArtifact<U, Es> {
+    pub fn map_mod<U>(self, f: impl FnOnce(A) -> U) -> IncompleteArtifact<U, Es> {
         IncompleteArtifact {
             ast: self.ast.map(f),
             warns: self.warns,

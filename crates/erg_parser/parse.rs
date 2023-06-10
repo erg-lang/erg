@@ -108,7 +108,11 @@ impl Parsable for SimpleParser {
     fn parse(code: String) -> Result<CompleteArtifact, IncompleteArtifact> {
         let ts = Lexer::from_str(code).lex()?;
         let mut parser = Parser::new(ts);
-        parser.parse()
+        let mut desugarer = Desugarer::new();
+        let artifact = parser
+            .parse()
+            .map_err(|iart| iart.map_mod(|module| desugarer.desugar(module)))?;
+        Ok(artifact.map(|module| desugarer.desugar(module)))
     }
 }
 

@@ -1080,12 +1080,11 @@ impl Context {
         }
     }
 
-    pub(crate) fn check_decls_and_pop(&mut self) -> Result<Context, TyCheckErrors> {
-        self.check_decls().map_err(|errs| {
-            self.pop();
-            errs
-        })?;
-        Ok(self.pop())
+    pub(crate) fn check_decls_and_pop(&mut self) -> (Context, TyCheckErrors) {
+        match self.check_decls() {
+            Ok(_) => (self.pop(), TyCheckErrors::empty()),
+            Err(errs) => (self.pop(), errs),
+        }
     }
 
     pub(crate) fn check_decls(&mut self) -> Result<(), TyCheckErrors> {

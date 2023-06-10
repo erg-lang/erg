@@ -555,10 +555,7 @@ impl Desugarer {
     fn rec_desugar_lambda_pattern(&mut self, expr: Expr) -> Expr {
         match expr {
             Expr::Lambda(mut lambda) => {
-                let non_defaults = lambda.sig.params.non_defaults.iter_mut();
-                for param in non_defaults {
-                    self.desugar_nd_param(param, &mut lambda.body);
-                }
+                self.desugar_params_patterns(&mut lambda.sig.params, &mut lambda.body);
                 lambda.body = self.desugar_pattern_in_block(lambda.body);
                 Expr::Lambda(lambda)
             }
@@ -694,10 +691,7 @@ impl Desugarer {
                     sig: Signature::Subr(mut subr),
                     mut body,
                 }) => {
-                    let non_defaults = subr.params.non_defaults.iter_mut();
-                    for param in non_defaults {
-                        self.desugar_nd_param(param, &mut body.block);
-                    }
+                    self.desugar_params_patterns(&mut subr.params, &mut body.block);
                     let block = body
                         .block
                         .into_iter()
@@ -719,6 +713,18 @@ impl Desugarer {
             }
         }
         new
+    }
+
+    fn desugar_params_patterns(&mut self, params: &mut Params, body: &mut Block) {
+        for param in params.non_defaults.iter_mut() {
+            self.desugar_nd_param(param, body);
+        }
+        if let Some(var_params) = params.var_params.as_mut() {
+            self.desugar_nd_param(var_params, body);
+        }
+        for param in params.defaults.iter_mut() {
+            self.desugar_nd_param(&mut param.sig, body);
+        }
     }
 
     fn desugar_nested_var_pattern(

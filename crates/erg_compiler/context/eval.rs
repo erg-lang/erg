@@ -338,23 +338,12 @@ impl Context {
                 self.pop();
                 errs
             })?;
-            match self.check_decls_and_pop() {
-                Ok(_) => {
-                    self.register_gen_const(
-                        def.sig.ident().unwrap(),
-                        obj,
-                        def.def_kind().is_other(),
-                    )?;
-                    Ok(ValueObj::None)
-                }
-                Err(errs) => {
-                    self.register_gen_const(
-                        def.sig.ident().unwrap(),
-                        obj,
-                        def.def_kind().is_other(),
-                    )?;
-                    Err(errs)
-                }
+            let (_ctx, errs) = self.check_decls_and_pop();
+            self.register_gen_const(def.sig.ident().unwrap(), obj, def.def_kind().is_other())?;
+            if errs.is_empty() {
+                Ok(ValueObj::None)
+            } else {
+                Err(errs)
             }
         } else {
             Err(EvalErrors::from(EvalError::not_const_expr(

@@ -190,13 +190,11 @@ impl ASTLowerer {
     }
 
     fn pop_append_errs(&mut self) {
-        match self.module.context.check_decls_and_pop() {
-            Ok(ctx) if self.cfg.mode == ErgMode::LanguageServer && !ctx.dir().is_empty() => {
-                self.module.scope.insert(ctx.name.clone(), ctx);
-            }
-            Err(errs) => self.errs.extend(errs),
-            _ => {}
+        let (ctx, errs) = self.module.context.check_decls_and_pop();
+        if self.cfg.mode == ErgMode::LanguageServer && !ctx.dir().is_empty() {
+            self.module.scope.insert(ctx.name.clone(), ctx);
         }
+        self.errs.extend(errs);
     }
 
     pub fn pop_mod_ctx(&mut self) -> Option<ModuleContext> {

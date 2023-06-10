@@ -65,11 +65,13 @@ impl ASTBuilder {
         IncompleteArtifact<AST, ParserRunnerErrors>,
     > {
         let name = Str::rc(self.runner.cfg().input.unescaped_filename());
-        let artifact = self
-            .runner
-            .parse(src)
-            .map_err(|iart| iart.map_mod(|module| AST::new(name.clone(), module)))?;
         let mut desugarer = Desugarer::new();
+        let artifact = self.runner.parse(src).map_err(|iart| {
+            iart.map_mod(|module| {
+                let module = desugarer.desugar(module);
+                AST::new(name.clone(), module)
+            })
+        })?;
         let module = desugarer.desugar(artifact.ast);
         let ast = AST::new(name, module);
         Ok(CompleteArtifact::new(
