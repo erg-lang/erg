@@ -169,6 +169,25 @@ impl LexError {
         ))
     }
 
+    pub fn expect_next_line_error(errno: usize, loc: Location, caused: &str) -> Self {
+        Self::new(ErrorCore::new(
+            vec![SubMessage::ambiguous_new(
+                loc,
+                vec![caused.to_string()],
+                None,
+            )],
+            switch_lang!(
+                "japanese" => "ブロックが期待されていますが、EOFが与えられました",
+                "simplified_chinese" => "该块是预期的，但是是 EOF",
+                "traditional_chinese" => "該塊是預期的，但是是 EOF",
+                "english" => "The block is expected, but is EOF",
+            ),
+            errno,
+            ExpectNextLine,
+            loc,
+        ))
+    }
+
     pub fn syntax_error<S: Into<String>>(
         errno: usize,
         loc: Location,
