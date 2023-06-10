@@ -526,7 +526,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                     // e.g. fv == ?T(<: Int, :> Add(?T))
                     //      fv == ?T(:> ?T.Output, <: Add(Int))
                     let fv_t = Type::FreeVar(fv.clone());
-                    match (sub_t.contains(&fv_t), super_t.contains(&fv_t)) {
+                    match (sub_t.contains_type(&fv_t), super_t.contains_type(&fv_t)) {
                         // REVIEW: to prevent infinite recursion, but this may cause a nonsense error
                         (true, true) => {
                             fv.dummy_link();

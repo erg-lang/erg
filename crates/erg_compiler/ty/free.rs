@@ -893,11 +893,11 @@ impl<T: Clone> Free<T> {
     }
 
     #[track_caller]
-    pub fn get_previous(&self) -> Option<RefMut<Box<FreeKind<T>>>> {
+    pub fn get_previous(&self) -> Option<Ref<Box<FreeKind<T>>>> {
         if !self.is_undoable_linked() {
             None
         } else {
-            let mapped = RefMut::map(self.borrow_mut(), |f| match f {
+            let mapped = Ref::map(self.borrow(), |f| match f {
                 FreeKind::UndoableLinked { previous, .. } => previous,
                 _ => unreachable!(),
             });

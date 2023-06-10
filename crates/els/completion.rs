@@ -1,4 +1,5 @@
 use erg_common::consts::PYTHON_MODE;
+use erg_common::spawn::exec_new_thread;
 use erg_compiler::erg_parser::parse::Parsable;
 use lsp_types::CompletionResponse;
 use serde_json::Value;
@@ -320,10 +321,13 @@ impl CompletionCache {
     pub fn new(cfg: ErgConfig) -> Self {
         let cache = AtomicShared::new(Dict::default());
         let clone = cache.clone();
-        std::thread::spawn(move || {
-            crate::_log!("load_modules");
-            load_modules(cfg, clone)
-        });
+        exec_new_thread(
+            move || {
+                crate::_log!("load_modules");
+                load_modules(cfg, clone)
+            },
+            "load_modules",
+        );
         Self { cache }
     }
 
