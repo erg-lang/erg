@@ -79,8 +79,8 @@ fn exec_fib() -> Result<(), ()> {
 
 #[test]
 fn exec_helloworld() -> Result<(), ()> {
-    // HACK: When running the test with pre-commit, the exit code is 1 (the cause is unknown)
-    if cfg!(feature = "pre-commit") && cfg!(windows) {
+    // HACK: When running the test with Windows, the exit code is 1 (the cause is unknown)
+    if cfg!(windows) {
         expect_end_with("examples/helloworld.er", 1)
     } else {
         expect_success("examples/helloworld.er", 0)

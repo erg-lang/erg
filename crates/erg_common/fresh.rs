@@ -1,21 +1,15 @@
-use crate::shared::Shared;
+use std::sync::atomic::AtomicUsize;
 
-thread_local! {
-    static VAR_ID: Shared<usize> = Shared::new(0);
-}
+static VAR_ID: AtomicUsize = AtomicUsize::new(0);
 
 pub fn fresh_varname() -> String {
-    VAR_ID.with(|id| {
-        *id.borrow_mut() += 1;
-        let i = *id.borrow();
-        format!("%v{i}")
-    })
+    VAR_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    let i = VAR_ID.load(std::sync::atomic::Ordering::SeqCst);
+    format!("%v{i}")
 }
 
 pub fn fresh_param_name() -> String {
-    VAR_ID.with(|id| {
-        *id.borrow_mut() += 1;
-        let i = *id.borrow();
-        format!("%p{i}")
-    })
+    VAR_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    let i = VAR_ID.load(std::sync::atomic::Ordering::SeqCst);
+    format!("%p{i}")
 }

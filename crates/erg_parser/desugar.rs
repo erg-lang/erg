@@ -3,7 +3,8 @@
 //! Syntax sugarをdesugarする
 //! e.g. Literal parameters, Multi assignment
 //! 型チェックなどによる検証は行わない
-use erg_common::fresh::fresh_varname;
+use std::sync::atomic::AtomicUsize;
+
 use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
 use erg_common::{enum_unwrap, get_hash, log, set};
@@ -31,14 +32,22 @@ enum BufIndex<'i> {
 #[derive(Debug)]
 pub struct Desugarer {
     // _desugared: Set<Str>,
-    // var_id: usize, // must be global
+    var_id: AtomicUsize,
 }
 
 impl Desugarer {
     pub fn new() -> Desugarer {
         Self {
             // _desugared: Set::default(),
+            var_id: AtomicUsize::new(0),
         }
+    }
+
+    fn fresh_varname(&self) -> String {
+        let i = self.var_id.load(std::sync::atomic::Ordering::SeqCst);
+        self.var_id
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        format!("%v{i}")
     }
 
     pub fn desugar(&mut self, module: Module) -> Module {
@@ -54,7 +63,7 @@ impl Desugarer {
 
     pub fn desugar_simple_expr(expr: Expr) -> Expr {
         let expr = Self::rec_desugar_shortened_record(expr);
-        let expr = Self::rec_desugar_lambda_pattern(&mut Desugarer {}, expr);
+        let expr = Self::rec_desugar_lambda_pattern(&mut Desugarer::new(), expr);
         Self::rec_desugar_acc(expr)
     }
 
@@ -508,9 +517,10 @@ impl Desugarer {
         let sig = LambdaSignature::new(params, return_t_spec.clone(), sig.bounds);
         let second_branch = Lambda::new(sig, op, def.body.block, def.body.id);
         let first_arg = if params_len == 1 {
-            Expr::dummy_local(&fresh_varname())
+            Expr::dummy_local(&self.fresh_varname())
         } else {
-            let args = (0..params_len).map(|_| PosArg::new(Expr::dummy_local(&fresh_varname())));
+            let args =
+                (0..params_len).map(|_| PosArg::new(Expr::dummy_local(&self.fresh_varname())));
             Expr::Tuple(Tuple::Normal(NormalTuple::new(Args::pos_only(
                 args.collect(),
                 None,
@@ -538,7 +548,7 @@ impl Desugarer {
         line: u32,
         t_spec: Option<TypeSpecWithOp>,
     ) -> (String, Signature) {
-        let buf_name = fresh_varname();
+        let buf_name = self.fresh_varname();
         let buf_sig = Signature::Var(VarSignature::new(
             VarPattern::Ident(Identifier::private_with_line(Str::rc(&buf_name), line)),
             t_spec,
@@ -547,7 +557,7 @@ impl Desugarer {
     }
 
     fn gen_buf_nd_param(&mut self, line: u32) -> (String, ParamPattern) {
-        let buf_name = fresh_varname();
+        let buf_name = self.fresh_varname();
         let pat = ParamPattern::VarName(VarName::from_str_and_line(Str::rc(&buf_name), line));
         (buf_name, pat)
     }
