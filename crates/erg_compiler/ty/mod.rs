@@ -13,6 +13,7 @@ pub mod typaram;
 pub mod value;
 pub mod vis;
 
+use std::cell::RefMut;
 use std::fmt;
 use std::ops::{BitAnd, BitOr, Deref, Not, Range, RangeInclusive};
 use std::path::PathBuf;
