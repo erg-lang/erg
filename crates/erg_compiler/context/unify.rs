@@ -2,7 +2,7 @@
 use std::mem;
 use std::option::Option;
 
-use erg_common::fresh::fresh_varname;
+use erg_common::fresh::FRESH_GEN;
 use erg_common::traits::Locational;
 use erg_common::Str;
 #[allow(unused_imports)]
@@ -576,7 +576,7 @@ impl Context {
         match target {
             TyParam::FreeVar(fv) => {
                 if let Ok(evaled) = self.eval_tp(value.clone()) {
-                    let pred = Predicate::ge(fresh_varname().into(), evaled);
+                    let pred = Predicate::ge(FRESH_GEN.fresh_varname(), evaled);
                     let new_type = self.type_from_pred(pred);
                     let new_constr = Constraint::new_type_of(Type::from(new_type));
                     fv.update_constraint(new_constr, false);

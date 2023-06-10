@@ -1,5 +1,6 @@
-//! Implements `Parser` for Erg. `Parser` parses the source code to generate `AST`,
-//! and performs type checking and other optimizations if necessary.
+//! Implements `Parser` for Erg. `Parser` parses the source code to generate `AST`.
+//! The generated `AST`s are guaranteed to be identical if the source code is identical.
+//! However, identical `AST`s may be generated even if the source code is (a bit) different.
 #![allow(clippy::large_enum_variant)]
 extern crate erg_common;
 

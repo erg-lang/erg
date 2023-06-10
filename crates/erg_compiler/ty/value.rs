@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use erg_common::dict::Dict;
 use erg_common::error::{ErrorCore, ErrorKind, Location};
-use erg_common::fresh::fresh_varname;
+use erg_common::fresh::FRESH_GEN;
 use erg_common::io::Input;
 use erg_common::python_util::PythonVersion;
 use erg_common::serialize::*;
@@ -714,7 +714,7 @@ impl HasType for ValueObj {
     /// その要素だけの集合型を返す、クラスが欲しい場合は.classで
     #[inline]
     fn t(&self) -> Type {
-        let name = Str::from(fresh_varname());
+        let name = FRESH_GEN.fresh_varname();
         let pred = Predicate::eq(name.clone(), TyParam::Value(self.clone()));
         refinement(name, self.class(), pred)
     }

@@ -16,7 +16,6 @@ use erg_common::config::ErgConfig;
 use erg_common::consts::{DEBUG_MODE, ERG_MODE, PYTHON_MODE};
 use erg_common::dict;
 use erg_common::error::Location;
-use erg_common::fresh::fresh_varname;
 #[allow(unused_imports)]
 use erg_common::log;
 use erg_common::Str;

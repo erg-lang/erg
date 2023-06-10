@@ -20,7 +20,7 @@ use std::path::PathBuf;
 
 use erg_common::dict::Dict;
 use erg_common::error::Location;
-use erg_common::fresh::fresh_varname;
+use erg_common::fresh::FRESH_GEN;
 #[allow(unused_imports)]
 use erg_common::log;
 use erg_common::set::Set;
@@ -2296,7 +2296,7 @@ impl Type {
         match self {
             Type::FreeVar(fv) if fv.is_linked() => fv.crack().clone().into_refinement(),
             Type::Nat => {
-                let var = Str::from(fresh_varname());
+                let var = FRESH_GEN.fresh_varname();
                 RefinementType::new(
                     var.clone(),
                     Type::Int,
@@ -2304,7 +2304,7 @@ impl Type {
                 )
             }
             Type::Bool => {
-                let var = Str::from(fresh_varname());
+                let var = FRESH_GEN.fresh_varname();
                 RefinementType::new(
                     var.clone(),
                     Type::Int,

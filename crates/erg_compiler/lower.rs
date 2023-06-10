@@ -8,7 +8,7 @@ use erg_common::consts::{ERG_MODE, PYTHON_MODE};
 use erg_common::dict;
 use erg_common::dict::Dict;
 use erg_common::error::{Location, MultiErrorDisplay};
-use erg_common::fresh::fresh_varname;
+use erg_common::fresh::FreshNameGenerator;
 use erg_common::set;
 use erg_common::set::Set;
 use erg_common::traits::{ExitStatus, Locational, NoTypeDisplay, Runnable, Stream};
@@ -75,6 +75,7 @@ pub struct ASTLowerer {
     pub(crate) module: ModuleContext,
     pub(crate) errs: LowerErrors,
     pub(crate) warns: LowerWarnings,
+    fresh_gen: FreshNameGenerator,
 }
 
 impl Default for ASTLowerer {
@@ -177,6 +178,7 @@ impl ASTLowerer {
             cfg,
             errs: LowerErrors::empty(),
             warns: LowerWarnings::empty(),
+            fresh_gen: FreshNameGenerator::new("lower"),
         }
     }
 
@@ -186,6 +188,7 @@ impl ASTLowerer {
             module,
             errs: LowerErrors::empty(),
             warns: LowerWarnings::empty(),
+            fresh_gen: FreshNameGenerator::new("lower"),
         }
     }
 
@@ -754,7 +757,7 @@ impl ASTLowerer {
             TokenKind::Gre => {
                 let value = self.module.context.expr_to_value(rhs.clone())?;
                 let t = value.class();
-                let varname = Str::from(fresh_varname());
+                let varname = self.fresh_gen.fresh_varname();
                 let pred = Predicate::gt(varname.clone(), TyParam::value(value));
                 let refine = refinement(varname, t, pred);
                 Some(guard(var, refine))
@@ -762,7 +765,7 @@ impl ASTLowerer {
             TokenKind::GreEq => {
                 let value = self.module.context.expr_to_value(rhs.clone())?;
                 let t = value.class();
-                let varname = Str::from(fresh_varname());
+                let varname = self.fresh_gen.fresh_varname();
                 let pred = Predicate::ge(varname.clone(), TyParam::value(value));
                 let refine = refinement(varname, t, pred);
                 Some(guard(var, refine))
@@ -770,7 +773,7 @@ impl ASTLowerer {
             TokenKind::Less => {
                 let value = self.module.context.expr_to_value(rhs.clone())?;
                 let t = value.class();
-                let varname = Str::from(fresh_varname());
+                let varname = self.fresh_gen.fresh_varname();
                 let pred = Predicate::lt(varname.clone(), TyParam::value(value));
                 let refine = refinement(varname, t, pred);
                 Some(guard(var, refine))
@@ -778,7 +781,7 @@ impl ASTLowerer {
             TokenKind::LessEq => {
                 let value = self.module.context.expr_to_value(rhs.clone())?;
                 let t = value.class();
-                let varname = Str::from(fresh_varname());
+                let varname = self.fresh_gen.fresh_varname();
                 let pred = Predicate::le(varname.clone(), TyParam::value(value));
                 let refine = refinement(varname, t, pred);
                 Some(guard(var, refine))

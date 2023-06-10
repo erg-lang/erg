@@ -1,7 +1,7 @@
 use erg_common::consts::{ERG_MODE, PYTHON_MODE};
+use erg_common::fresh::FRESH_GEN;
 #[allow(unused_imports)]
 use erg_common::log;
-use erg_common::Str as StrStruct;
 
 use crate::ty::constructors::*;
 use crate::ty::typaram::TyParam;
@@ -1233,7 +1233,7 @@ impl Context {
             mut_type,
         );
         array_.register_trait(arr_t.clone(), array_mutizable);
-        let var = StrStruct::from(fresh_varname());
+        let var = FRESH_GEN.fresh_varname();
         let input = refinement(
             var.clone(),
             Nat,

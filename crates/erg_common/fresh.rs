@@ -1,15 +1,33 @@
 use std::sync::atomic::AtomicUsize;
 
-static VAR_ID: AtomicUsize = AtomicUsize::new(0);
+use crate::Str;
 
-pub fn fresh_varname() -> String {
-    VAR_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-    let i = VAR_ID.load(std::sync::atomic::Ordering::SeqCst);
-    format!("%v{i}")
+#[derive(Debug, Default)]
+pub struct FreshNameGenerator {
+    id: AtomicUsize,
+    /// To avoid conflicts with variable names generated in another phase
+    prefix: &'static str,
 }
 
-pub fn fresh_param_name() -> String {
-    VAR_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-    let i = VAR_ID.load(std::sync::atomic::Ordering::SeqCst);
-    format!("%p{i}")
+impl FreshNameGenerator {
+    pub const fn new(prefix: &'static str) -> Self {
+        Self {
+            id: AtomicUsize::new(0),
+            prefix,
+        }
+    }
+
+    pub fn fresh_varname(&self) -> Str {
+        self.id.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let i = self.id.load(std::sync::atomic::Ordering::SeqCst);
+        Str::from(format!("%v_{}_{i}", self.prefix))
+    }
+
+    pub fn fresh_param_name(&self) -> Str {
+        self.id.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let i = self.id.load(std::sync::atomic::Ordering::SeqCst);
+        Str::from(format!("%p_{}_{i}", self.prefix))
+    }
 }
+
+pub static FRESH_GEN: FreshNameGenerator = FreshNameGenerator::new("global");

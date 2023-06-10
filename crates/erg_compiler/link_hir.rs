@@ -2,6 +2,7 @@ use std::mem;
 use std::path::{Path, PathBuf};
 
 use erg_common::config::ErgConfig;
+use erg_common::fresh::FreshNameGenerator;
 use erg_common::pathutil::squash;
 use erg_common::traits::Locational;
 use erg_common::Str;
@@ -13,7 +14,6 @@ use erg_parser::token::{Token, TokenKind, DOT, EQUAL};
 use crate::ty::typaram::TyParam;
 use crate::ty::value::ValueObj;
 use crate::ty::HasType;
-use erg_common::fresh::fresh_varname;
 
 use crate::hir::*;
 use crate::module::SharedModuleCache;
@@ -23,11 +23,16 @@ use crate::module::SharedModuleCache;
 pub struct HIRLinker<'a> {
     cfg: &'a ErgConfig,
     mod_cache: &'a SharedModuleCache,
+    fresh_gen: FreshNameGenerator,
 }
 
 impl<'a> HIRLinker<'a> {
     pub fn new(cfg: &'a ErgConfig, mod_cache: &'a SharedModuleCache) -> Self {
-        Self { cfg, mod_cache }
+        Self {
+            cfg,
+            mod_cache,
+            fresh_gen: FreshNameGenerator::new("hir_linker"),
+        }
     }
 
     pub fn link(&self, mut main: HIR) -> HIR {
@@ -351,7 +356,7 @@ impl<'a> HIRLinker<'a> {
                 Expr::Accessor(Accessor::private_with_line(Str::ever("#ModuleType"), line));
             let args = Args::single(PosArg::new(mod_name.clone()));
             let block = Block::new(vec![module_type.call_expr(args)]);
-            let tmp = Identifier::private_with_line(Str::from(fresh_varname()), line);
+            let tmp = Identifier::private_with_line(self.fresh_gen.fresh_varname(), line);
             let mod_def = Expr::Def(Def::new(
                 Signature::Var(VarSignature::new(tmp.clone(), None)),
                 DefBody::new(EQUAL, block, DefId(0)),
