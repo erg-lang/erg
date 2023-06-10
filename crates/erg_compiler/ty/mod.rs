@@ -3051,6 +3051,8 @@ impl Type {
 
     fn addr_eq(&self, other: &Type) -> bool {
         match (self, other) {
+            (Self::FreeVar(slf), _) if slf.is_linked() => slf.crack().addr_eq(other),
+            (_, Self::FreeVar(otr)) if otr.is_linked() => otr.crack().addr_eq(self),
             (Self::FreeVar(slf), Self::FreeVar(otr)) => slf.addr_eq(otr),
             _ => self == other,
         }
@@ -3063,6 +3065,17 @@ impl Type {
         match self {
             Self::FreeVar(fv) => fv.link(to),
             Self::Refinement(refine) => refine.t.link(to),
+            _ => panic!("{self} is not a free variable"),
+        }
+    }
+
+    pub(crate) fn undoable_link(&self, to: &Type) {
+        if self.addr_eq(to) {
+            return;
+        }
+        match self {
+            Self::FreeVar(fv) => fv.undoable_link(to),
+            Self::Refinement(refine) => refine.t.undoable_link(to),
             _ => panic!("{self} is not a free variable"),
         }
     }

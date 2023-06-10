@@ -470,7 +470,7 @@ impl Context {
                     return self.supertype_of(&t, rhs);
                 }
                 if let Some((_sub, sup)) = lfv.get_subsup() {
-                    lfv.undoable_link(rhs);
+                    lhs.undoable_link(rhs);
                     let res = self.supertype_of(&sup, rhs);
                     lfv.undo();
                     res
@@ -493,7 +493,7 @@ impl Context {
                     return self.supertype_of(lhs, &t);
                 }
                 if let Some((sub, _sup)) = rfv.get_subsup() {
-                    rfv.undoable_link(lhs);
+                    rhs.undoable_link(lhs);
                     let res = self.supertype_of(lhs, &sub);
                     rfv.undo();
                     res

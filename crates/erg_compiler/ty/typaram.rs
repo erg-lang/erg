@@ -1163,6 +1163,8 @@ impl TyParam {
 
     fn addr_eq(&self, other: &TyParam) -> bool {
         match (self, other) {
+            (Self::FreeVar(slf), _) if slf.is_linked() => slf.crack().addr_eq(other),
+            (_, Self::FreeVar(otr)) if otr.is_linked() => otr.crack().addr_eq(self),
             (Self::FreeVar(slf), Self::FreeVar(otr)) => slf.addr_eq(otr),
             _ => self == other,
         }
@@ -1174,6 +1176,16 @@ impl TyParam {
         }
         match self {
             Self::FreeVar(fv) => fv.link(to),
+            _ => panic!("{self} is not a free variable"),
+        }
+    }
+
+    pub(crate) fn undoable_link(&self, to: &TyParam) {
+        if self.addr_eq(to) {
+            return;
+        }
+        match self {
+            Self::FreeVar(fv) => fv.undoable_link(to),
             _ => panic!("{self} is not a free variable"),
         }
     }

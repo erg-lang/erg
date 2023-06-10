@@ -532,10 +532,10 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                             fv.dummy_link();
                         }
                         (true, false) => {
-                            fv.undoable_link(&super_t);
+                            fv_t.undoable_link(&super_t);
                         }
                         (false, true | false) => {
-                            fv.undoable_link(&sub_t);
+                            fv_t.undoable_link(&sub_t);
                         }
                     }
                     let res = self.validate_subsup(sub_t, super_t);

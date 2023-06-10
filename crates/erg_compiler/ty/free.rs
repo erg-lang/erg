@@ -821,7 +821,7 @@ impl<T: Clone> Free<T> {
     }
 
     #[track_caller]
-    pub fn undoable_link(&self, to: &T) {
+    pub(super) fn undoable_link(&self, to: &T) {
         if self.is_linked() && addr_eq!(*self.crack(), *to) {
             panic!("link to self");
         }

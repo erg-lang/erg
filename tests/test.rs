@@ -53,6 +53,11 @@ fn exec_control_expr() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_dependent() -> Result<(), ()> {
+    expect_success("tests/should_ok/dependent.er", 0)
+}
+
+#[test]
 fn exec_dict() -> Result<(), ()> {
     expect_success("examples/dict.er", 0)
 }
@@ -284,8 +289,8 @@ fn exec_collection_err() -> Result<(), ()> {
 }
 
 #[test]
-fn exec_dependent() -> Result<(), ()> {
-    expect_failure("tests/should_err/dependent.er", 0, 4)
+fn exec_dependent_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/dependent.er", 0, 5)
 }
 
 /// This file compiles successfully, but causes a run-time error due to incomplete method dispatching
