@@ -604,7 +604,7 @@ impl Input {
 
     /// 1. `site-packages/{path/to}.d.er`
     /// 2. `site-packages/{path.d/to.d}/__init__.d.er`
-    fn resolve_std_decl_path(root: PathBuf, path: &Path) -> Option<PathBuf> {
+    fn resolve_std_decl_path(root: &Path, path: &Path) -> Option<PathBuf> {
         let mut path = add_postfix_foreach(path, ".d");
         path.set_extension("d.er"); // set_extension overrides the previous one
         if let Ok(path) = root.join(&path).canonicalize() {
@@ -629,7 +629,7 @@ impl Input {
     ///
     /// e.g. `toml/encoder`
     ///     -> `site-packages/toml/__pycache__/encoder.d.er`, `site-packages/toml/encoder/__pycache__/__init__.d.er`
-    fn resolve_site_pkgs_decl_path(site_packages: PathBuf, path: &Path) -> Option<PathBuf> {
+    fn resolve_site_pkgs_decl_path(site_packages: &Path, path: &Path) -> Option<PathBuf> {
         let dir = path.parent().unwrap_or_else(|| Path::new(""));
         let mut file_path = PathBuf::from(path.file_stem().unwrap_or_default());
         file_path.set_extension("d.er"); // set_extension overrides the previous one

@@ -1,6 +1,5 @@
-use std::cell::RefCell;
 use std::io;
-use std::io::{stdin, stdout, BufRead, Read, StdinLock, StdoutLock, Write};
+use std::io::{stdin, stdout, BufRead, Read, Write};
 use std::ops::Not;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -123,39 +122,24 @@ macro_rules! _log {
     };
 }
 
-thread_local! {
-    static INPUT: RefCell<StdinLock<'static>> = RefCell::new(stdin().lock());
-    static OUTPUT: RefCell<StdoutLock<'static>> = RefCell::new(stdout().lock());
-}
-
 fn send_stdout<T: ?Sized + Serialize>(message: &T) -> ELSResult<()> {
     let msg = serde_json::to_string(message)?;
-    OUTPUT.with(|out| {
-        write!(
-            out.borrow_mut(),
-            "Content-Length: {}\r\n\r\n{}",
-            msg.len(),
-            msg
-        )?;
-        out.borrow_mut().flush()?;
-        Ok(())
-    })
+    let mut stdout = stdout().lock();
+    write!(stdout, "Content-Length: {}\r\n\r\n{}", msg.len(), msg)?;
+    stdout.flush()?;
+    Ok(())
 }
 
 fn read_line() -> io::Result<String> {
     let mut line = String::new();
-    INPUT.with(|input| {
-        input.borrow_mut().read_line(&mut line)?;
-        Ok(line)
-    })
+    stdin().lock().read_line(&mut line)?;
+    Ok(line)
 }
 
 fn read_exact(len: usize) -> io::Result<Vec<u8>> {
     let mut buf = vec![0; len];
-    INPUT.with(|input| {
-        input.borrow_mut().read_exact(&mut buf)?;
-        Ok(buf)
-    })
+    stdin().lock().read_exact(&mut buf)?;
+    Ok(buf)
 }
 
 pub(crate) fn send<T: ?Sized + Serialize>(message: &T) -> ELSResult<()> {
@@ -228,7 +212,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             comp_cache: CompletionCache::new(cfg.copy()),
             cfg,
             home: normalize_path(std::env::current_dir().unwrap_or_default()),
-            erg_path: erg_path(), // already normalized
+            erg_path: erg_path().clone(), // already normalized
             client_capas: ClientCapabilities::default(),
             disabled_features: vec![],
             opt_features: vec![],
