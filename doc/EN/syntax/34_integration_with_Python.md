@@ -61,25 +61,45 @@ class C:
 
 No syntax other than declarations and definitions (aliasing) are allowed in ``d.er``.
 
-Note that all Python functions can only be registered as procedures, and all classes as variable classes.
+## Overloading
+
+A special type that can be used only with Python typing is the overloaded type. This is a type that can accept multiple types.
 
 ```python
-foo = pyimport "foo"
-assert foo.bar!(1) in Int
+f: (Int -> Str) and (Str -> Int)
 ```
 
-This ensures type safety by performing type checking at runtime. The checking mechanism generally works as follows.
+Overloaded types can be declared by taking a subroutine type intersection (`and`, not union `or`).
+
+This allows you to declare a function whose return type depends on the type of its arguments.
 
 ```python
-decl_proc proc!: Proc, T =
-    x =>
-        assert x in T.Input
-        y = proc!(x)
-        assert y in T.Output
-        y
+f(1): Str
+f("1"): Int
 ```
 
-This is a runtime overhead, so [a project to statically type analyze Python scripts with Erg's type system](https://github.com/mtshiba/pylyzer) is underway.
+The type decisions are collated from left to right, and the first match is applied.
+
+Such polymorphism is called ad hoc polymorphism and is different from Erg's polymorphism, which uses type variables and trait bounds. Ad hoc polymorphism is generally discouraged, but it is a necessary  because of its universal use in Python code.
+
+Parameter types of overloaded types may be in a subtype relationship and may have different number of parameters, but they must not be of the same type, i.e. return type overload is not allowed.
+
+```python
+# OK
+f: (Nat -> Str) and (Int -> Int)
+f: ((Int, Int) -> Str) and (Int -> Int)
+```
+
+```python,compile_fail
+# NG
+f: (Int -> Str) and (Int -> Int)
+```
+
+## Notes
+
+Currently, Erg unconditionally trusts the contents of type declarations. In other words, you can declare a variable of type `Str` even if it is actually a variable of type `Int`, or declare a subroutine as a function even if it has side effects, etc.
+
+Also, it is troublesome that type declarations cannot be omitted even for trivial code, so the [Project for static type analysis of Python scripts with Erg's type system](https://github.com/mtshiba/pylyzer) is underway.
 
 <p align='center'>
     <a href='./33_pipeline.md'>Previous</a> | <a href='./35_package_system.md'>Next</a>

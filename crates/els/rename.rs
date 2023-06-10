@@ -4,6 +4,7 @@ use std::time::SystemTime;
 
 use erg_common::traits::{Locational, Stream};
 use erg_compiler::artifact::IncompleteArtifact;
+use erg_compiler::erg_parser::parse::Parsable;
 use serde::Deserialize;
 use serde_json::json;
 use serde_json::Value;
@@ -23,7 +24,7 @@ use lsp_types::{
 use crate::server::{send, send_error_info, send_log, ELSResult, Server};
 use crate::util::{self, NormalizedUrl};
 
-impl<Checker: BuildRunnable> Server<Checker> {
+impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     pub(crate) fn rename(&mut self, msg: &Value) -> ELSResult<()> {
         let params = RenameParams::deserialize(&msg["params"])?;
         send_log(format!("rename request: {params:?}"))?;
@@ -169,7 +170,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
     }
 }
 
-impl<Checker: BuildRunnable> Server<Checker> {
+impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     fn collect_module_changes(
         &mut self,
         old_uri: &NormalizedUrl,

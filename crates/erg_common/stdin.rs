@@ -1,12 +1,11 @@
-// use std::cell::RefCell;
-// use std::thread::LocalKey;
+use std::sync::OnceLock;
 
 #[cfg(not(feature = "full-repl"))]
 use std::io::{stdin, BufRead, BufReader};
 
 #[cfg(feature = "full-repl")]
 use crossterm::{
-    cursor::{CursorShape, MoveToColumn, SetCursorShape},
+    cursor::MoveToColumn,
     event::{read, Event, KeyCode, KeyEvent, KeyModifiers},
     execute,
     style::Print,
@@ -17,6 +16,8 @@ use crossterm::{
 use std::process::Command;
 #[cfg(feature = "full-repl")]
 use std::process::Output;
+
+use crate::shared::Shared;
 
 /// e.g.
 /// ```erg
@@ -103,7 +104,6 @@ impl StdinReader {
     pub fn read(&mut self) -> String {
         enable_raw_mode().unwrap();
         let mut output = std::io::stdout();
-        execute!(output, SetCursorShape(CursorShape::Line)).unwrap();
         let mut line = String::new();
         self.input(&mut line).unwrap();
         disable_raw_mode().unwrap();
@@ -124,7 +124,8 @@ impl StdinReader {
         {
             consult_history = false;
             match (code, modifiers) {
-                (KeyCode::Char('z'), KeyModifiers::CONTROL) => {
+                (KeyCode::Char('z'), KeyModifiers::CONTROL)
+                | (KeyCode::Char('d'), KeyModifiers::CONTROL) => {
                     println!();
                     line.clear();
                     line.push_str(":exit");
@@ -261,51 +262,55 @@ impl StdinReader {
     }
 }
 
-static READER: crate::shared::RwLock<StdinReader> = crate::shared::RwLock::new(StdinReader {
-    block_begin: 1,
-    lineno: 1,
-    buf: vec![],
-    #[cfg(feature = "full-repl")]
-    history_input_position: 1,
-    indent: 1,
-});
-
 #[derive(Debug)]
-pub struct GlobalStdin(&'static crate::shared::RwLock<StdinReader>);
+pub struct GlobalStdin(OnceLock<Shared<StdinReader>>);
 
-pub static GLOBAL_STDIN: GlobalStdin = GlobalStdin(&READER);
+pub static GLOBAL_STDIN: GlobalStdin = GlobalStdin(OnceLock::new());
 
 impl GlobalStdin {
+    fn get(&'static self) -> &'static Shared<StdinReader> {
+        self.0.get_or_init(|| {
+            Shared::new(StdinReader {
+                block_begin: 1,
+                lineno: 1,
+                buf: vec![],
+                #[cfg(feature = "full-repl")]
+                history_input_position: 1,
+                indent: 1,
+            })
+        })
+    }
+
     pub fn read(&'static self) -> String {
-        self.0.write().read()
+        self.get().borrow_mut().read()
     }
 
     pub fn reread(&'static self) -> String {
-        self.0.read().reread()
+        self.get().borrow_mut().reread()
     }
 
     pub fn reread_lines(&'static self, ln_begin: usize, ln_end: usize) -> Vec<String> {
-        self.0.read().reread_lines(ln_begin, ln_end)
+        self.get().borrow_mut().reread_lines(ln_begin, ln_end)
     }
 
     pub fn lineno(&'static self) -> usize {
-        self.0.read().lineno
+        self.get().borrow_mut().lineno
     }
 
     pub fn block_begin(&'static self) -> usize {
-        self.0.read().block_begin
+        self.get().borrow_mut().block_begin
     }
 
     pub fn set_block_begin(&'static self, n: usize) {
-        self.0.write().block_begin = n;
+        self.get().borrow_mut().block_begin = n;
     }
 
     pub fn set_indent(&'static self, n: usize) {
-        self.0.write().indent = n as u16;
+        self.get().borrow_mut().indent = n as u16;
     }
 
     pub fn insert_whitespace(&'static self, whitespace: &str) {
-        if let Some(line) = self.0.write().last_line() {
+        if let Some(line) = self.get().borrow_mut().last_line() {
             line.insert_str(0, whitespace);
         }
     }

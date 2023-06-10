@@ -1,3 +1,5 @@
+use erg_compiler::erg_parser::ast::Module;
+use erg_compiler::erg_parser::parse::Parsable;
 use serde_json::json;
 
 use erg_common::style::*;
@@ -6,13 +8,20 @@ use erg_common::traits::Stream;
 use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::error::CompileErrors;
 
-use lsp_types::{Diagnostic, DiagnosticSeverity, Position, PublishDiagnosticsParams, Range, Url};
+use lsp_types::{
+    Diagnostic, DiagnosticSeverity, NumberOrString, Position, PublishDiagnosticsParams, Range, Url,
+};
 
 use crate::diff::{ASTDiff, HIRDiff};
 use crate::server::{send, send_log, AnalysisResult, DefaultFeatures, ELSResult, Server};
 use crate::util::{self, NormalizedUrl};
 
-impl<Checker: BuildRunnable> Server<Checker> {
+impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
+    pub(crate) fn get_ast(&self, uri: &NormalizedUrl) -> Option<Module> {
+        let code = self.file_cache.get_entire_code(uri).ok()?;
+        Parser::parse(code).ok().map(|artifact| artifact.ast)
+    }
+
     pub(crate) fn check_file<S: Into<String>>(
         &mut self,
         uri: NormalizedUrl,
@@ -36,7 +45,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                     send_log(format!("{uri}, warns: {}", diags.len()))?;
                     self.send_diagnostics(uri, diags)?;
                 }
-                if let Some(module) = self.file_cache.get_ast(&uri) {
+                if let Some(module) = self.get_ast(&uri) {
                     self.analysis_result
                         .insert(uri.clone(), AnalysisResult::new(module, artifact.into()));
                 }
@@ -58,7 +67,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
                     send_log(format!("{uri}, errs & warns: {}", diags.len()))?;
                     self.send_diagnostics(uri, diags)?;
                 }
-                if let Some(module) = self.file_cache.get_ast(&uri) {
+                if let Some(module) = self.get_ast(&uri) {
                     self.analysis_result
                         .insert(uri.clone(), AnalysisResult::new(module, artifact));
                 }
@@ -82,7 +91,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             crate::_log!("not found");
             return Ok(());
         };
-        let Some(new) = self.file_cache.get_ast(&uri) else {
+        let Some(new) = self.get_ast(&uri) else {
             crate::_log!("not found");
             return Ok(());
         };
@@ -144,7 +153,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             let diag = Diagnostic::new(
                 Range::new(start, end),
                 Some(severity),
-                None,
+                Some(NumberOrString::String(format!("E{}", err.core.errno))),
                 None,
                 message,
                 None,

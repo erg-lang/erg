@@ -1,8 +1,8 @@
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::mem;
+use std::sync::atomic::AtomicUsize;
 
-use erg_common::fresh::VAR_ID;
 use erg_common::shared::{MappedRwLockReadGuard, RwLockReadGuard, RwLockWriteGuard};
 use erg_common::shared::{MappedRwLockWriteGuard, Shared};
 use erg_common::traits::{LimitedDisplay, StructuralEq};
@@ -17,6 +17,7 @@ pub type Id = usize;
 
 /// HACK: see doc/compiler/inference.md for details
 pub const GENERIC_LEVEL: usize = usize::MAX;
+static UNBOUND_ID: AtomicUsize = AtomicUsize::new(0);
 
 pub trait HasLevel {
     fn level(&self) -> Option<Level>;
@@ -426,9 +427,9 @@ impl<T> FreeKind<T> {
     }
 
     pub fn new_unbound(lev: Level, constraint: Constraint) -> Self {
-        *VAR_ID.borrow_mut() += 1;
+        UNBOUND_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         Self::Unbound {
-            id: *VAR_ID.borrow(),
+            id: UNBOUND_ID.load(std::sync::atomic::Ordering::SeqCst),
             lev,
             constraint,
         }
@@ -722,9 +723,9 @@ impl<T> Free<T> {
     }
 
     pub fn new_unbound(level: Level, constraint: Constraint) -> Self {
-        *VAR_ID.borrow_mut() += 1;
+        UNBOUND_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         Self(Shared::new(FreeKind::unbound(
-            *VAR_ID.borrow(),
+            UNBOUND_ID.load(std::sync::atomic::Ordering::SeqCst),
             level,
             constraint,
         )))
@@ -814,7 +815,7 @@ impl<T: Clone + fmt::Debug> Free<T> {
     }
 
     #[track_caller]
-    pub fn undoable_link(&self, to: &T) {
+    pub(super) fn undoable_link(&self, to: &T) {
         if self.is_linked() && addr_eq!(*self.crack(), *to) {
             panic!("link to self");
         }

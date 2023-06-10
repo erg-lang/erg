@@ -1,12 +1,12 @@
-use std::cell::RefCell;
 use std::io;
-use std::io::{stdin, stdout, BufRead, Read, StdinLock, StdoutLock, Write};
+use std::io::{stdin, stdout, BufRead, Read, Write};
 use std::ops::Not;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use erg_common::consts::PYTHON_MODE;
 use erg_compiler::erg_parser::ast::Module;
+use erg_compiler::erg_parser::parse::{Parsable, SimpleParser};
 use erg_compiler::lower::ASTLowerer;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -14,7 +14,7 @@ use serde_json::Value;
 
 use erg_common::config::ErgConfig;
 use erg_common::dict::Dict;
-use erg_common::env::ERG_PATH;
+use erg_common::env::erg_path;
 use erg_common::normalize_path;
 
 use erg_compiler::artifact::{BuildRunnable, IncompleteArtifact};
@@ -25,9 +25,9 @@ use erg_compiler::module::{SharedCompilerResource, SharedModuleIndex};
 use erg_compiler::ty::HasType;
 
 use lsp_types::request::{
-    CodeActionRequest, CodeLensRequest, Completion, ExecuteCommand, GotoDefinition, HoverRequest,
-    InlayHintRequest, References, Rename, Request, ResolveCompletionItem,
-    SemanticTokensFullRequest, SignatureHelpRequest, WillRenameFiles,
+    CodeActionRequest, CodeActionResolveRequest, CodeLensRequest, Completion, ExecuteCommand,
+    GotoDefinition, HoverRequest, InlayHintRequest, References, Rename, Request,
+    ResolveCompletionItem, SemanticTokensFullRequest, SignatureHelpRequest, WillRenameFiles,
 };
 use lsp_types::{
     ClientCapabilities, CodeActionKind, CodeActionOptions, CodeActionProviderCapability,
@@ -47,6 +47,8 @@ use crate::util::{self, NormalizedUrl};
 pub type ELSResult<T> = Result<T, Box<dyn std::error::Error>>;
 
 pub type ErgLanguageServer = Server<HIRBuilder>;
+
+pub type Handler<Server, Params, Out> = fn(&mut Server, Params) -> ELSResult<Out>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DefaultFeatures {
@@ -120,39 +122,24 @@ macro_rules! _log {
     };
 }
 
-thread_local! {
-    static INPUT: RefCell<StdinLock<'static>> = RefCell::new(stdin().lock());
-    static OUTPUT: RefCell<StdoutLock<'static>> = RefCell::new(stdout().lock());
-}
-
 fn send_stdout<T: ?Sized + Serialize>(message: &T) -> ELSResult<()> {
     let msg = serde_json::to_string(message)?;
-    OUTPUT.with(|out| {
-        write!(
-            out.borrow_mut(),
-            "Content-Length: {}\r\n\r\n{}",
-            msg.len(),
-            msg
-        )?;
-        out.borrow_mut().flush()?;
-        Ok(())
-    })
+    let mut stdout = stdout().lock();
+    write!(stdout, "Content-Length: {}\r\n\r\n{}", msg.len(), msg)?;
+    stdout.flush()?;
+    Ok(())
 }
 
 fn read_line() -> io::Result<String> {
     let mut line = String::new();
-    INPUT.with(|input| {
-        input.borrow_mut().read_line(&mut line)?;
-        Ok(line)
-    })
+    stdin().lock().read_line(&mut line)?;
+    Ok(line)
 }
 
 fn read_exact(len: usize) -> io::Result<Vec<u8>> {
     let mut buf = vec![0; len];
-    INPUT.with(|input| {
-        input.borrow_mut().read_exact(&mut buf)?;
-        Ok(buf)
-    })
+    stdin().lock().read_exact(&mut buf)?;
+    Ok(buf)
 }
 
 pub(crate) fn send<T: ?Sized + Serialize>(message: &T) -> ELSResult<()> {
@@ -203,7 +190,7 @@ pub(crate) const TRIGGER_CHARS: [&str; 4] = [".", ":", "(", " "];
 
 /// A Language Server, which can be used any object implementing `BuildRunnable` internally by passing it as a generic parameter.
 #[derive(Debug)]
-pub struct Server<Checker: BuildRunnable = HIRBuilder> {
+pub struct Server<Checker: BuildRunnable = HIRBuilder, Parser: Parsable = SimpleParser> {
     pub(crate) cfg: ErgConfig,
     pub(crate) home: PathBuf,
     pub(crate) erg_path: PathBuf,
@@ -215,16 +202,17 @@ pub struct Server<Checker: BuildRunnable = HIRBuilder> {
     pub(crate) modules: Dict<NormalizedUrl, ModuleContext>,
     pub(crate) analysis_result: Dict<NormalizedUrl, AnalysisResult>,
     pub(crate) current_sig: Option<Expr>,
+    pub(crate) _parser: std::marker::PhantomData<Parser>,
     pub(crate) _checker: std::marker::PhantomData<Checker>,
 }
 
-impl<Checker: BuildRunnable> Server<Checker> {
+impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     pub fn new(cfg: ErgConfig) -> Self {
         Self {
             comp_cache: CompletionCache::new(cfg.copy()),
             cfg,
             home: normalize_path(std::env::current_dir().unwrap_or_default()),
-            erg_path: ERG_PATH.clone(), // already normalized
+            erg_path: erg_path().clone(), // already normalized
             client_capas: ClientCapabilities::default(),
             disabled_features: vec![],
             opt_features: vec![],
@@ -232,6 +220,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
             modules: Dict::new(),
             analysis_result: Dict::new(),
             current_sig: None,
+            _parser: std::marker::PhantomData,
             _checker: std::marker::PhantomData,
         }
     }
@@ -239,7 +228,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
     pub fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         loop {
             let msg = self.read_message()?;
-            self.dispatch(msg)?;
+            if let Err(err) = self.dispatch(msg) {
+                send_error_info(format!("err: {err:?}"))?;
+            }
         }
         // Ok(())
     }
@@ -328,7 +319,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         } else {
             let options = CodeActionProviderCapability::Options(CodeActionOptions {
                 code_action_kinds: Some(vec![CodeActionKind::QUICKFIX, CodeActionKind::REFACTOR]),
-                resolve_provider: Some(false),
+                resolve_provider: Some(true),
                 work_done_progress_options: WorkDoneProgressOptions::default(),
             });
             Some(options)
@@ -458,7 +449,7 @@ impl<Checker: BuildRunnable> Server<Checker> {
         &mut self,
         id: i64,
         msg: &Value,
-        handler: fn(&mut Server<Checker>, R::Params) -> ELSResult<R::Result>,
+        handler: Handler<Server<Checker, Parser>, R::Params, R::Result>,
     ) -> ELSResult<()>
     where
         R: lsp_types::request::Request + 'static,
@@ -490,6 +481,9 @@ impl<Checker: BuildRunnable> Server<Checker> {
             }
             CodeActionRequest::METHOD => {
                 self.wrap::<CodeActionRequest>(id, msg, Self::handle_code_action)
+            }
+            CodeActionResolveRequest::METHOD => {
+                self.wrap::<CodeActionResolveRequest>(id, msg, Self::handle_code_action_resolve)
             }
             SignatureHelpRequest::METHOD => {
                 self.wrap::<SignatureHelpRequest>(id, msg, Self::handle_signature_help)

@@ -5,7 +5,7 @@ use std::cmp::{self, Ordering};
 use std::fmt;
 use std::io::{stderr, BufWriter, Write as _};
 
-use crate::config::{Input, InputKind};
+use crate::io::{Input, InputKind};
 use crate::style::Attribute;
 use crate::style::Characters;
 use crate::style::Color;
@@ -790,15 +790,25 @@ impl ErrorCore {
             Some(Attribute::Underline),
         );
 
-        let m_msg = switch_lang!(
-            "japanese" => format!("これはErgのバグです、開発者に報告して下さい({URL})\n{fn_name}:{line}より発生"),
-            "simplified_chinese" => format!("这是Erg的bug，请报告给{URL}\n原因来自: {fn_name}:{line}"),
-            "traditional_chinese" => format!("这是Erg的bug，请报告给{URL}\n原因来自: {fn_name}:{line}"),
-            "english" => format!("this is a bug of Erg, please report it to {URL}\ncaused from: {fn_name}:{line}"),
+        let main_msg = switch_lang!(
+            "japanese" => format!("\
+    これはErgのバグです、開発者に報告して下さい({URL})
+    発生箇所: {fn_name}:{line}"),
+            "simplified_chinese" => format!("\
+    这是Erg的bug，请报告给{URL}
+    原因来自: {fn_name}:{line}"),
+            "traditional_chinese" => format!("\
+    這是Erg的bug，請報告給{URL}
+    原因來自: {fn_name}:{line}"),
+            "english" => format!("\
+    This is a bug of Erg, please report it to {URL}
+    Caused from: {fn_name}:{line}"),
         );
+        let main_msg =
+            StyledStr::new(&main_msg, Some(Color::Red), Some(Attribute::Bold)).to_string();
         Self::new(
             vec![SubMessage::only_loc(loc)],
-            m_msg,
+            main_msg,
             errno,
             CompilerSystemError,
             loc,
@@ -975,9 +985,15 @@ macro_rules! impl_display_and_error {
 }
 
 pub trait MultiErrorDisplay<Item: ErrorDisplay>: Stream<Item> {
-    fn fmt_all_stderr(&self) {
+    fn write_all_stderr(&self) {
         for err in self.iter() {
             err.write_to_stderr();
+        }
+    }
+
+    fn write_all_to(&self, w: &mut impl std::io::Write) {
+        for err in self.iter() {
+            err.write_to(w);
         }
     }
 

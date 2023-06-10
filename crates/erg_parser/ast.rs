@@ -3,6 +3,7 @@ use std::borrow::Borrow;
 use std::fmt;
 use std::fmt::Write as _;
 
+use erg_common::consts::ERG_MODE;
 use erg_common::error::Location;
 use erg_common::set::Set as HashSet;
 // use erg_common::dict::Dict as HashMap;
@@ -1002,6 +1003,15 @@ pub enum RecordAttrOrIdent {
 impl_nested_display_for_enum!(RecordAttrOrIdent; Attr, Ident);
 impl_display_for_enum!(RecordAttrOrIdent; Attr, Ident);
 impl_locational_for_enum!(RecordAttrOrIdent; Attr, Ident);
+
+impl RecordAttrOrIdent {
+    pub fn ident(&self) -> Option<&Identifier> {
+        match self {
+            Self::Attr(attr) => attr.sig.ident(),
+            Self::Ident(ident) => Some(ident),
+        }
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct NormalSet {
@@ -2092,7 +2102,12 @@ impl_locational_for_enum!(ConstExpr; Lit, Accessor, App, Array, Set, Dict, Tuple
 
 impl ConstExpr {
     pub fn need_to_be_closed(&self) -> bool {
-        matches!(self, Self::BinOp(_) | Self::UnaryOp(_))
+        match self {
+            Self::BinOp(_) | Self::UnaryOp(_) | Self::Lambda(_) | Self::TypeAsc(_) => true,
+            Self::Tuple(tup) => tup.elems.paren.is_none(),
+            Self::App(app) if ERG_MODE => app.args.paren.is_none(),
+            _ => false,
+        }
     }
 
     pub fn downgrade(self) -> Expr {
@@ -3857,7 +3872,7 @@ pub struct SubrSignature {
     pub ident: Identifier,
     pub bounds: TypeBoundSpecs,
     pub params: Params,
-    pub return_t_spec: Option<TypeSpec>,
+    pub return_t_spec: Option<TypeSpecWithOp>,
 }
 
 impl NestedDisplay for SubrSignature {
@@ -3903,14 +3918,14 @@ impl SubrSignature {
         ident: Identifier,
         bounds: TypeBoundSpecs,
         params: Params,
-        return_t: Option<TypeSpec>,
+        return_t_spec: Option<TypeSpecWithOp>,
     ) -> Self {
         Self {
             decorators,
             ident,
             bounds,
             params,
-            return_t_spec: return_t,
+            return_t_spec,
         }
     }
 
@@ -3927,7 +3942,7 @@ impl SubrSignature {
 pub struct LambdaSignature {
     pub bounds: TypeBoundSpecs,
     pub params: Params,
-    pub return_t_spec: Option<TypeSpec>,
+    pub return_t_spec: Option<TypeSpecWithOp>,
 }
 
 impl fmt::Display for LambdaSignature {
@@ -3968,7 +3983,7 @@ impl Locational for LambdaSignature {
 impl LambdaSignature {
     pub const fn new(
         params: Params,
-        return_t_spec: Option<TypeSpec>,
+        return_t_spec: Option<TypeSpecWithOp>,
         bounds: TypeBoundSpecs,
     ) -> Self {
         Self {
@@ -4103,7 +4118,7 @@ impl Signature {
     pub fn t_spec(&self) -> Option<&TypeSpec> {
         match self {
             Self::Var(v) => v.t_spec.as_ref().map(|t| &t.t_spec),
-            Self::Subr(c) => c.return_t_spec.as_ref(),
+            Self::Subr(c) => c.return_t_spec.as_ref().map(|t| &t.t_spec),
         }
     }
 
@@ -4499,10 +4514,12 @@ impl Expr {
     }
 
     pub fn need_to_be_closed(&self) -> bool {
-        matches!(
-            self,
-            Expr::BinOp(_) | Expr::UnaryOp(_) | Expr::Lambda(_) | Expr::TypeAscription(_)
-        )
+        match self {
+            Self::BinOp(_) | Self::UnaryOp(_) | Self::Lambda(_) | Self::TypeAscription(_) => true,
+            Self::Tuple(tup) => tup.paren().is_none(),
+            Self::Call(call) if ERG_MODE => call.args.paren.is_none(),
+            _ => false,
+        }
     }
 
     pub fn get_name(&self) -> Option<&Str> {

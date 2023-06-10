@@ -1,6 +1,7 @@
 /// defines High-level Intermediate Representation
 use std::fmt;
 
+use erg_common::consts::ERG_MODE;
 use erg_common::dict::Dict as HashMap;
 use erg_common::error::Location;
 #[allow(unused_imports)]
@@ -1816,7 +1817,7 @@ pub struct SubrSignature {
     pub ident: Identifier,
     pub bounds: TypeBoundSpecs,
     pub params: Params,
-    pub return_t_spec: Option<TypeSpec>,
+    pub return_t_spec: Option<TypeSpecWithOp>,
 }
 
 impl NestedDisplay for SubrSignature {
@@ -1868,7 +1869,7 @@ impl SubrSignature {
         ident: Identifier,
         bounds: TypeBoundSpecs,
         params: Params,
-        return_t_spec: Option<TypeSpec>,
+        return_t_spec: Option<TypeSpecWithOp>,
     ) -> Self {
         Self {
             ident,
@@ -2013,6 +2014,13 @@ impl Signature {
     pub fn t_spec(&self) -> Option<&TypeSpec> {
         match self {
             Self::Var(v) => v.t_spec.as_ref().map(|t| &t.raw.t_spec),
+            Self::Subr(s) => s.return_t_spec.as_ref().map(|t| &t.raw.t_spec),
+        }
+    }
+
+    pub fn t_spec_with_op(&self) -> Option<&TypeSpecWithOp> {
+        match self {
+            Self::Var(v) => v.t_spec.as_ref(),
             Self::Subr(s) => s.return_t_spec.as_ref(),
         }
     }
@@ -2557,6 +2565,17 @@ impl Expr {
             Self::PatchDef(_) => "patch definition",
             Self::ReDef(_) => "re-definition",
             Self::Dummy(_) => "dummy",
+        }
+    }
+
+    pub fn need_to_be_closed(&self) -> bool {
+        match self {
+            Self::BinOp(_) | Self::UnaryOp(_) | Self::Lambda(_) | Self::TypeAsc(_) => true,
+            Self::Tuple(tup) => match tup {
+                Tuple::Normal(tup) => tup.elems.paren.is_none(),
+            },
+            Self::Call(call) if ERG_MODE => call.args.paren.is_none(),
+            _ => false,
         }
     }
 

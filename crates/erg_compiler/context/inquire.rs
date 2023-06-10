@@ -2,9 +2,9 @@
 use std::option::Option; // conflicting to Type::Option
 use std::path::{Path, PathBuf};
 
-use erg_common::config::Input;
 use erg_common::consts::{ERG_MODE, PYTHON_MODE};
 use erg_common::error::{ErrorCore, Location, SubMessage};
+use erg_common::io::Input;
 use erg_common::levenshtein;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, NoTypeDisplay, Stream};
@@ -420,7 +420,7 @@ impl Context {
     ) -> Triple<VarInfo, TyCheckError> {
         if let Some(vi) = self.get_current_scope_var(&ident.name) {
             match self.validate_visibility(ident, vi, input, namespace) {
-                Ok(()) => {
+                Ok(()) if acc_kind.matches(vi) => {
                     return Triple::Ok(vi.clone());
                 }
                 Err(err) => {
@@ -428,6 +428,7 @@ impl Context {
                         return Triple::Err(err);
                     }
                 }
+                _ => {}
             }
         } else if let Some((name, _vi)) = self
             .future_defined_locals
@@ -453,6 +454,17 @@ impl Context {
                 self.get_similar_name(ident.inspect()),
             ));
         }
+        for (_, method_ctx) in self.methods_list.iter() {
+            match method_ctx.rec_get_var_info(ident, acc_kind, input, namespace) {
+                Triple::Ok(vi) => {
+                    return Triple::Ok(vi);
+                }
+                Triple::Err(e) => {
+                    return Triple::Err(e);
+                }
+                Triple::None => {}
+            }
+        }
         if acc_kind.is_local() {
             if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
                 return parent.rec_get_var_info(ident, acc_kind, input, namespace);
@@ -468,7 +480,7 @@ impl Context {
     ) -> Option<&mut VarInfo> {
         if let Some(vi) = self.get_current_scope_var(&ident.name) {
             match self.validate_visibility(ident, vi, &self.cfg.input, self) {
-                Ok(()) => {
+                Ok(()) if acc_kind.matches(vi) => {
                     let vi = self.get_mut_current_scope_var(&ident.name).unwrap();
                     return Some(vi);
                 }
@@ -477,6 +489,7 @@ impl Context {
                         return None;
                     }
                 }
+                _ => {}
             }
         }
         if acc_kind.is_local() {
@@ -500,7 +513,7 @@ impl Context {
             .or_else(|| self.future_defined_locals.get(&ident.inspect()[..]))
         {
             match self.validate_visibility(ident, vi, input, namespace) {
-                Ok(()) => {
+                Ok(()) if acc_kind.matches(vi) => {
                     return Triple::Ok(vi.clone());
                 }
                 Err(err) => {
@@ -508,6 +521,7 @@ impl Context {
                         return Triple::Err(err);
                     }
                 }
+                _ => {}
             }
         }
         if acc_kind.is_local() {
@@ -562,9 +576,10 @@ impl Context {
             }
             _ => {}
         }
+        // class/module attr
         if let Ok(singular_ctxs) = self.get_singular_ctxs_by_hir_expr(obj, namespace) {
             for ctx in singular_ctxs {
-                match ctx.rec_get_var_info(ident, AccessKind::Attr, input, namespace) {
+                match ctx.rec_get_var_info(ident, AccessKind::UnboundAttr, input, namespace) {
                     Triple::Ok(vi) => {
                         return Triple::Ok(vi);
                     }
@@ -575,7 +590,8 @@ impl Context {
                 }
             }
         }
-        match self.get_attr_from_nominal_t(obj, ident, input, namespace) {
+        // bound method/instance attr
+        match self.get_bound_attr_from_nominal_t(obj, ident, input, namespace) {
             Triple::Ok(vi) => {
                 if let Some(self_t) = vi.t.self_t() {
                     match self
@@ -636,7 +652,7 @@ impl Context {
         Triple::None
     }
 
-    fn get_attr_from_nominal_t(
+    fn get_bound_attr_from_nominal_t(
         &self,
         obj: &hir::Expr,
         ident: &Identifier,
@@ -646,7 +662,7 @@ impl Context {
         let self_t = obj.t();
         if let Some(sups) = self.get_nominal_super_type_ctxs(&self_t) {
             for ctx in sups {
-                match ctx.rec_get_var_info(ident, AccessKind::Attr, input, namespace) {
+                match ctx.rec_get_var_info(ident, AccessKind::BoundAttr, input, namespace) {
                     Triple::Ok(vi) => {
                         return Triple::Ok(vi);
                     }
@@ -657,7 +673,7 @@ impl Context {
                 }
                 // if self is a methods context
                 if let Some(ctx) = self.get_same_name_context(&ctx.name) {
-                    match ctx.rec_get_var_info(ident, AccessKind::Method, input, namespace) {
+                    match ctx.rec_get_var_info(ident, AccessKind::BoundAttr, input, namespace) {
                         Triple::Ok(vi) => {
                             return Triple::Ok(vi);
                         }
@@ -691,7 +707,7 @@ impl Context {
                 }
             };
             for ctx in ctxs {
-                match ctx.rec_get_var_info(ident, AccessKind::Attr, input, namespace) {
+                match ctx.rec_get_var_info(ident, AccessKind::BoundAttr, input, namespace) {
                     Triple::Ok(vi) => {
                         obj.ref_t().coerce();
                         return Triple::Ok(vi);
@@ -702,7 +718,7 @@ impl Context {
                     _ => {}
                 }
                 if let Some(ctx) = self.get_same_name_context(&ctx.name) {
-                    match ctx.rec_get_var_info(ident, AccessKind::Method, input, namespace) {
+                    match ctx.rec_get_var_info(ident, AccessKind::BoundAttr, input, namespace) {
                         Triple::Ok(vi) => {
                             return Triple::Ok(vi);
                         }
@@ -946,7 +962,7 @@ impl Context {
                 }
             }
             if let Some(ctx) = self.get_same_name_context(&ctx.name) {
-                match ctx.rec_get_var_info(attr_name, AccessKind::Method, input, namespace) {
+                match ctx.rec_get_var_info(attr_name, AccessKind::BoundAttr, input, namespace) {
                     Triple::Ok(t) => {
                         return Ok(t);
                     }
@@ -2550,28 +2566,32 @@ impl Context {
         mono(format!("{}{vis}{}", self.name, ident.inspect()))
     }
 
+    pub(crate) fn get_namespace_path(&self, namespace: &Str) -> Option<PathBuf> {
+        let mut namespaces = namespace.split_with(&[".", "::"]);
+        let mut str_namespace = namespaces.first().map(|n| n.to_string())?;
+        namespaces.remove(0);
+        while str_namespace.is_empty() || str_namespace.ends_with('.') {
+            if namespaces.is_empty() {
+                break;
+            }
+            str_namespace.push('.');
+            str_namespace.push_str(namespaces.remove(0));
+        }
+        let path = Path::new(&str_namespace);
+        let mut path = self.cfg.input.resolve_path(path)?;
+        for p in namespaces.into_iter() {
+            path = Input::try_push_path(path, Path::new(p)).ok()?;
+        }
+        Some(path)
+    }
+
     pub(crate) fn get_namespace(&self, namespace: &Str) -> Option<&Context> {
         if &namespace[..] == "global" {
             return self.get_builtins();
         } else if &namespace[..] == "module" {
             return self.get_module();
         }
-        let mut namespaces = namespace.split_with(&[".", "::"]);
-        let mut namespace = namespaces.first().map(|n| n.to_string())?;
-        namespaces.remove(0);
-        while namespace.is_empty() || namespace.ends_with('.') {
-            if namespaces.is_empty() {
-                break;
-            }
-            namespace.push('.');
-            namespace.push_str(namespaces.remove(0));
-        }
-        let path = Path::new(&namespace);
-        let mut path = self.cfg.input.resolve_path(path)?;
-        for p in namespaces.into_iter() {
-            path = Input::try_push_path(path, Path::new(p)).ok()?;
-        }
-        self.get_ctx_from_path(path.as_path())
+        self.get_ctx_from_path(self.get_namespace_path(namespace)?.as_path())
     }
 
     pub(crate) fn get_mono_type(&self, name: &Str) -> Option<(&Type, &Context)> {
@@ -3066,6 +3086,60 @@ impl Context {
                 &guard.to,
                 None,
             )))
+        }
+    }
+
+    pub(crate) fn get_instance_attr(&self, name: &str) -> Option<&VarInfo> {
+        if let Some(vi) = self.locals.get(name) {
+            if vi.kind.is_instance_attr() {
+                return Some(vi);
+            }
+        }
+        if let Some(vi) = self.decls.get(name) {
+            if vi.kind.is_instance_attr() {
+                return Some(vi);
+            }
+        }
+        if self.kind.is_method_def() {
+            self.get_nominal_type_ctx(&mono(&self.name))
+                .and_then(|(_, ctx)| ctx.get_instance_attr(name))
+        } else {
+            self.methods_list.iter().find_map(|(_, ctx)| {
+                if ctx.kind.is_trait_impl() {
+                    None
+                } else {
+                    ctx.get_instance_attr(name)
+                }
+            })
+        }
+    }
+
+    /// does not remove instance attribute declarations
+    pub(crate) fn remove_class_attr(&mut self, name: &str) -> Option<(VarName, VarInfo)> {
+        if let Some((k, v)) = self.locals.remove_entry(name) {
+            if v.kind.is_instance_attr() {
+                self.locals.insert(k, v);
+            } else {
+                return Some((k, v));
+            }
+        } else if let Some((k, v)) = self.decls.remove_entry(name) {
+            if v.kind.is_instance_attr() {
+                self.decls.insert(k, v);
+            } else {
+                return Some((k, v));
+            }
+        }
+        if self.kind.is_method_def() {
+            self.get_mut_nominal_type_ctx(&mono(&self.name))
+                .and_then(|(_, ctx)| ctx.remove_class_attr(name))
+        } else {
+            self.methods_list.iter_mut().find_map(|(_, ctx)| {
+                if ctx.kind.is_trait_impl() {
+                    None
+                } else {
+                    ctx.remove_class_attr(name)
+                }
+            })
         }
     }
 }

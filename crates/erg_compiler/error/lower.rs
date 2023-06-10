@@ -1,5 +1,5 @@
-use erg_common::config::Input;
 use erg_common::error::{ErrorCore, ErrorKind::*, Location, SubMessage};
+use erg_common::io::Input;
 use erg_common::style::{StyledStr, StyledString, StyledStrings, Stylize};
 use erg_common::traits::Locational;
 use erg_common::{switch_lang, Str};
@@ -485,11 +485,12 @@ impl LowerError {
     ) -> Self {
         let hint = similar_name.map(|n| {
             let vis = similar_info.map_or("".into(), |vi| vi.vis.modifier.display());
+            let kind = similar_info.map_or("", |vi| vi.kind.display());
             switch_lang!(
-                "japanese" => format!("似た名前の{vis}属性があります: {n}"),
-                "simplified_chinese" => format!("具有相同名称的{vis}属性: {n}"),
-                "traditional_chinese" => format!("具有相同名稱的{vis}屬性: {n}"),
-                "english" => format!("has a similar name {vis} attribute: {n}"),
+                "japanese" => format!("似た名前の{vis}{kind}属性があります: {n}"),
+                "simplified_chinese" => format!("具有相同名称的{vis}{kind}属性: {n}"),
+                "traditional_chinese" => format!("具有相同名稱的{vis}{kind}屬性: {n}"),
+                "english" => format!("has a similar name {vis} {kind} attribute: {n}"),
             )
         });
         let found = StyledString::new(name, Some(ERR), Some(ATTR));
@@ -945,7 +946,7 @@ impl LowerError {
                     Some(hint.to_string())
                 }
                 (None, Some(py)) => {
-                    py_str.push_str("similar name python module exits: ");
+                    py_str.push_str("similar name python module exists: ");
                     py_str.push_str_with_color_and_attr(py, HINT, ATTR);
                     let mut hint  = StyledStrings::default();
                     hint.push_str("to import python modules, use ");
@@ -1151,6 +1152,32 @@ impl LowerWarning {
                 ),
                 errno,
                 TypeWarning,
+                loc,
+            ),
+            input,
+            caused_by,
+        )
+    }
+
+    pub fn same_name_instance_attr_warning(
+        input: Input,
+        errno: usize,
+        loc: Location,
+        caused_by: String,
+        name: &str,
+    ) -> Self {
+        let name = StyledStr::new(readable_name(name), Some(WARN), Some(ATTR));
+        Self::new(
+            ErrorCore::new(
+                vec![SubMessage::only_loc(loc)],
+                switch_lang!(
+                    "japanese" => format!("同名のインスタンス属性{name}が存在します"),
+                    "simplified_chinese" => format!("同名的实例属性{name}已存在"),
+                    "traditional_chinese" => format!("同名的實例屬性{name}已存在"),
+                    "english" => format!("an instance attribute named {name} already exists"),
+                ),
+                errno,
+                NameWarning,
                 loc,
             ),
             input,

@@ -209,9 +209,13 @@ impl TyVarCache {
 
     pub(crate) fn get_tyvar(&self, name: &str) -> Option<&Type> {
         self.tyvar_instances.get(name).or_else(|| {
-            self.typaram_instances
-                .get(name)
-                .map(|tp| <&Type>::try_from(tp).unwrap())
+            self.typaram_instances.get(name).and_then(|tp| {
+                <&Type>::try_from(tp)
+                    .map_err(|_| {
+                        log!(err "cannot convert {tp} into a type");
+                    })
+                    .ok()
+            })
         })
     }
 

@@ -1,11 +1,13 @@
 use erg_common::consts::PYTHON_MODE;
+use erg_compiler::erg_parser::parse::Parsable;
 use lsp_types::CompletionResponse;
 use serde_json::Value;
 
-use erg_common::config::{ErgConfig, Input};
+use erg_common::config::ErgConfig;
 use erg_common::dict::Dict;
-use erg_common::env::ERG_PYSTD_PATH;
+use erg_common::env::erg_pystd_path;
 use erg_common::impl_u8_enum;
+use erg_common::io::Input;
 use erg_common::python_util::BUILTIN_PYTHON_MODS;
 use erg_common::set::Set;
 use erg_common::shared::Shared;
@@ -296,7 +298,7 @@ fn load_modules(cfg: ErgConfig, cache: Cache) {
     if cache.get("<module>").is_none() {
         cache.insert("<module>".into(), module_completions());
     }
-    let std_path = ERG_PYSTD_PATH.display().to_string().replace('\\', "/");
+    let std_path = erg_pystd_path().display().to_string().replace('\\', "/");
     for (path, entry) in shared.py_mod_cache.ref_inner().iter() {
         let dir = entry.module.context.local_dir();
         let mod_name = path.display().to_string().replace('\\', "/");
@@ -348,7 +350,7 @@ impl CompletionCache {
     }
 }
 
-impl<Checker: BuildRunnable> Server<Checker> {
+impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     pub(crate) fn handle_completion(
         &mut self,
         params: CompletionParams,

@@ -16,3 +16,7 @@ for! range(3), i =>
 # ERR
 for! range(4), i =>
     print! arr[i]
+
+concat|T: Type, M: Nat, N: Nat|(l: [T; M], r: [T; N]): [T; M + N] = l + r
+l = concat [1, 2, 3], [4, 5, 6]
+_ = l[6] # ERR

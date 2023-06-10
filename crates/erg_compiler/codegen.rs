@@ -7,9 +7,11 @@ use std::process;
 use crate::ty::codeobj::{CodeObj, CodeObjFlags, MakeFunctionFlags};
 use crate::ty::value::GenTypeObj;
 use erg_common::cache::CacheSet;
-use erg_common::config::{ErgConfig, Input};
-use erg_common::env::ERG_STD_PATH;
+use erg_common::config::ErgConfig;
+use erg_common::env::erg_std_path;
 use erg_common::error::{ErrorDisplay, Location};
+use erg_common::fresh::FreshNameGenerator;
+use erg_common::io::Input;
 use erg_common::opcode::{CommonOpcode, CompareOp};
 use erg_common::opcode308::Opcode308;
 use erg_common::opcode310::Opcode310;
@@ -38,7 +40,6 @@ use crate::hir::{
 use crate::ty::value::ValueObj;
 use crate::ty::{HasType, Type, TypeCode, TypePair, VisibilityModifier};
 use crate::varinfo::VarInfo;
-use erg_common::fresh::fresh_varname;
 use AccessKind::*;
 use Type::*;
 
@@ -171,6 +172,7 @@ pub struct PyCodeGenerator {
     abc_loaded: bool,
     unit_size: usize,
     units: PyCodeGenStack,
+    fresh_gen: FreshNameGenerator,
 }
 
 impl PyCodeGenerator {
@@ -189,6 +191,7 @@ impl PyCodeGenerator {
             abc_loaded: false,
             unit_size: 0,
             units: PyCodeGenStack::empty(),
+            fresh_gen: FreshNameGenerator::new("codegen"),
         }
     }
 
@@ -646,8 +649,8 @@ impl PyCodeGenerator {
             }
             StoreLoadKind::Local | StoreLoadKind::LocalConst => match acc_kind {
                 Name => LOAD_NAME as u8,
-                Attr => LOAD_ATTR as u8,
-                Method => LOAD_METHOD as u8,
+                UnboundAttr => LOAD_ATTR as u8,
+                BoundAttr => LOAD_METHOD as u8,
             },
         }
     }
@@ -669,9 +672,9 @@ impl PyCodeGenerator {
             StoreLoadKind::Local | StoreLoadKind::LocalConst => {
                 match acc_kind {
                     Name => STORE_NAME as u8,
-                    Attr => STORE_ATTR as u8,
+                    UnboundAttr => STORE_ATTR as u8,
                     // cannot overwrite methods directly
-                    Method => STORE_ATTR as u8,
+                    BoundAttr => STORE_ATTR as u8,
                 }
             }
         }
@@ -792,9 +795,9 @@ impl PyCodeGenerator {
         log!(info "entered {} ({ident})", fn_name!());
         let escaped = escape_ident(ident);
         let name = self
-            .local_search(&escaped, Attr)
+            .local_search(&escaped, UnboundAttr)
             .unwrap_or_else(|| self.register_attr(escaped));
-        let instr = self.select_load_instr(name.kind, Attr);
+        let instr = self.select_load_instr(name.kind, UnboundAttr);
         self.write_instr(instr);
         self.write_arg(name.idx);
         if self.py_version.minor >= Some(11) {
@@ -809,9 +812,9 @@ impl PyCodeGenerator {
         }
         let escaped = escape_ident(ident);
         let name = self
-            .local_search(&escaped, Method)
+            .local_search(&escaped, BoundAttr)
             .unwrap_or_else(|| self.register_method(escaped));
-        let instr = self.select_load_instr(name.kind, Method);
+        let instr = self.select_load_instr(name.kind, BoundAttr);
         self.write_instr(instr);
         self.write_arg(name.idx);
         if self.py_version.minor >= Some(11) {
@@ -866,7 +869,7 @@ impl PyCodeGenerator {
             }
             Accessor::Attr(attr) => {
                 self.emit_expr(*attr.obj);
-                self.emit_store_instr(attr.ident, Attr);
+                self.emit_store_instr(attr.ident, UnboundAttr);
             }
         }
     }
@@ -1010,7 +1013,7 @@ impl PyCodeGenerator {
             self.emit_precall_and_call(argc);
         } else {
             match kind {
-                AccessKind::Method => self.write_instr(Opcode310::CALL_METHOD),
+                AccessKind::BoundAttr => self.write_instr(Opcode310::CALL_METHOD),
                 _ => self.write_instr(Opcode310::CALL_FUNCTION),
             }
             self.write_arg(argc);
@@ -1996,7 +1999,7 @@ impl PyCodeGenerator {
         self.stack_inc_n(2);
         let lambda_line = lambda.body.last().unwrap().ln_begin().unwrap_or(0);
         self.emit_with_block(lambda.body, params);
-        let stash = Identifier::private_with_line(Str::from(fresh_varname()), lambda_line);
+        let stash = Identifier::private_with_line(self.fresh_gen.fresh_varname(), lambda_line);
         self.emit_store_instr(stash.clone(), Name);
         self.emit_load_const(ValueObj::None);
         self.emit_load_const(ValueObj::None);
@@ -2045,7 +2048,7 @@ impl PyCodeGenerator {
         self.stack_inc_n(2);
         let lambda_line = lambda.body.last().unwrap().ln_begin().unwrap_or(0);
         self.emit_with_block(lambda.body, params);
-        let stash = Identifier::private_with_line(Str::from(fresh_varname()), lambda_line);
+        let stash = Identifier::private_with_line(self.fresh_gen.fresh_varname(), lambda_line);
         self.emit_store_instr(stash.clone(), Name);
         self.write_instr(POP_BLOCK);
         self.write_arg(0);
@@ -2098,7 +2101,7 @@ impl PyCodeGenerator {
         // self.stack_inc_n(2);
         let lambda_line = lambda.body.last().unwrap().ln_begin().unwrap_or(0);
         self.emit_with_block(lambda.body, params);
-        let stash = Identifier::private_with_line(Str::from(fresh_varname()), lambda_line);
+        let stash = Identifier::private_with_line(self.fresh_gen.fresh_varname(), lambda_line);
         self.emit_store_instr(stash.clone(), Name);
         self.write_instr(POP_BLOCK);
         self.write_arg(0);
@@ -2188,7 +2191,7 @@ impl PyCodeGenerator {
         let is_py_api = method_name.is_py_api();
         self.emit_expr(obj);
         self.emit_load_method_instr(method_name);
-        self.emit_args_311(args, Method, is_py_api);
+        self.emit_args_311(args, BoundAttr, is_py_api);
     }
 
     fn emit_var_args_311(&mut self, pos_len: usize, var_args: &PosArg) {
@@ -2848,9 +2851,9 @@ impl PyCodeGenerator {
         let (param_name, params) = if let Some(new_first_param) = new_first_param {
             let param_name = new_first_param
                 .name()
-                .map(|s| s.to_string())
-                .unwrap_or_else(fresh_varname);
-            let param = VarName::from_str_and_line(Str::from(param_name.clone()), line);
+                .cloned()
+                .unwrap_or_else(|| self.fresh_gen.fresh_varname());
+            let param = VarName::from_str_and_line(param_name.clone(), line);
             let raw =
                 erg_parser::ast::NonDefaultParamSignature::new(ParamPattern::VarName(param), None);
             let vi = VarInfo::nd_parameter(
@@ -2865,7 +2868,7 @@ impl PyCodeGenerator {
             ("_".into(), Params::single(self_param))
         };
         let bounds = TypeBoundSpecs::empty();
-        let subr_sig = SubrSignature::new(ident, bounds, params, sig.t_spec().cloned());
+        let subr_sig = SubrSignature::new(ident, bounds, params, sig.t_spec_with_op().cloned());
         let mut attrs = vec![];
         match new_first_param.map(|pt| pt.typ()) {
             // namedtupleは仕様上::xなどの名前を使えない
@@ -2931,9 +2934,9 @@ impl PyCodeGenerator {
         if let Some(new_first_param) = ident.vi.t.non_default_params().unwrap().first() {
             let param_name = new_first_param
                 .name()
-                .map(|s| s.to_string())
-                .unwrap_or_else(fresh_varname);
-            let param = VarName::from_str_and_line(Str::from(param_name.clone()), line);
+                .cloned()
+                .unwrap_or_else(|| self.fresh_gen.fresh_varname());
+            let param = VarName::from_str_and_line(param_name.clone(), line);
             let vi = VarInfo::nd_parameter(
                 new_first_param.typ().clone(),
                 ident.vi.def_loc.clone(),
@@ -2944,10 +2947,9 @@ impl PyCodeGenerator {
             let param = NonDefaultParamSignature::new(raw, vi, None);
             let params = Params::single(param);
             let bounds = TypeBoundSpecs::empty();
-            let sig = SubrSignature::new(ident, bounds, params, sig.t_spec().cloned());
+            let sig = SubrSignature::new(ident, bounds, params, sig.t_spec_with_op().cloned());
             let arg = PosArg::new(Expr::Accessor(Accessor::private_with_line(
-                Str::from(param_name),
-                line,
+                param_name, line,
             )));
             let call = class_new.call_expr(Args::single(arg));
             let block = Block::new(vec![call]);
@@ -2956,7 +2958,7 @@ impl PyCodeGenerator {
         } else {
             let params = Params::empty();
             let bounds = TypeBoundSpecs::empty();
-            let sig = SubrSignature::new(ident, bounds, params, sig.t_spec().cloned());
+            let sig = SubrSignature::new(ident, bounds, params, sig.t_spec_with_op().cloned());
             let call = class_new.call_expr(Args::empty());
             let block = Block::new(vec![call]);
             let body = DefBody::new(EQUAL, block, DefId(0));
@@ -3120,8 +3122,8 @@ impl PyCodeGenerator {
         );
         self.emit_load_name_instr(Identifier::private("#path"));
         self.emit_load_method_instr(Identifier::public("append"));
-        self.emit_load_const(ERG_STD_PATH.to_str().unwrap());
-        self.emit_call_instr(1, Method);
+        self.emit_load_const(erg_std_path().to_str().unwrap());
+        self.emit_call_instr(1, BoundAttr);
         self.stack_dec();
         self.emit_pop_top();
         let erg_std_mod = Identifier::public("_erg_std_prelude");

@@ -6,7 +6,7 @@ use unicode_xid::UnicodeXID;
 
 use erg_common::cache::CacheSet;
 use erg_common::config::ErgConfig;
-use erg_common::config::Input;
+use erg_common::io::Input;
 use erg_common::traits::DequeStream;
 use erg_common::traits::{Locational, Runnable, Stream};
 use erg_common::{debug_power_assert, fn_name_full, normalize_newline, switch_lang};
@@ -14,6 +14,18 @@ use erg_common::{debug_power_assert, fn_name_full, normalize_newline, switch_lan
 use crate::error::{LexError, LexErrors, LexResult, LexerRunnerError, LexerRunnerErrors};
 use crate::token::{Token, TokenCategory, TokenKind, TokenStream};
 use TokenKind::*;
+
+pub trait Lexable {
+    fn lex(code: String) -> Result<TokenStream, LexErrors>;
+}
+
+pub struct SimpleLexer {}
+
+impl Lexable for SimpleLexer {
+    fn lex(code: String) -> Result<TokenStream, LexErrors> {
+        Lexer::from_str(code).lex()
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OpFix {

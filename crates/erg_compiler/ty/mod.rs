@@ -19,11 +19,11 @@ use std::path::PathBuf;
 
 use erg_common::dict::Dict;
 use erg_common::error::Location;
-use erg_common::fresh::fresh_varname;
+use erg_common::fresh::FRESH_GEN;
 #[allow(unused_imports)]
 use erg_common::log;
 use erg_common::set::Set;
-use erg_common::shared::{RwLockWriteGuard, MappedRwLockWriteGuard};
+use erg_common::shared::{MappedRwLockWriteGuard, RwLockWriteGuard};
 use erg_common::traits::{LimitedDisplay, Locational, StructuralEq};
 use erg_common::{enum_unwrap, fmt_option, ref_addr_eq, set, Str};
 
@@ -442,6 +442,22 @@ impl SubrType {
                 .unwrap_or(false)
             || self.default_params.iter().any(|pt| pt.typ().has_qvar())
             || self.return_t.has_qvar()
+    }
+
+    pub fn has_undoable_linked_var(&self) -> bool {
+        self.non_default_params
+            .iter()
+            .any(|pt| pt.typ().has_undoable_linked_var())
+            || self
+                .var_params
+                .as_ref()
+                .map(|pt| pt.typ().has_undoable_linked_var())
+                .unwrap_or(false)
+            || self
+                .default_params
+                .iter()
+                .any(|pt| pt.typ().has_undoable_linked_var())
+            || self.return_t.has_undoable_linked_var()
     }
 
     pub fn typarams(&self) -> Vec<TyParam> {
@@ -1814,6 +1830,7 @@ impl Type {
             Self::Subr(_) => true,
             Self::Quantified(quant) => quant.is_subr(),
             Self::Refinement(refine) => refine.t.is_subr(),
+            Self::And(l, r) => l.is_subr() && r.is_subr(),
             _ => false,
         }
     }
@@ -1823,6 +1840,7 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_quantified_subr(),
             Self::Quantified(_) => true,
             Self::Refinement(refine) => refine.t.is_quantified_subr(),
+            Self::And(l, r) => l.is_quantified_subr() && r.is_quantified_subr(),
             _ => false,
         }
     }
@@ -1841,6 +1859,24 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_structural(),
             Self::Structural(_) => true,
             Self::Refinement(refine) => refine.t.is_structural(),
+            _ => false,
+        }
+    }
+
+    pub fn is_failure(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_failure(),
+            Self::Refinement(refine) => refine.t.is_failure(),
+            Self::Failure => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_class_type(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_class_type(),
+            Self::Refinement(refine) => refine.t.is_class_type(),
+            Self::ClassType => true,
             _ => false,
         }
     }
@@ -2260,7 +2296,7 @@ impl Type {
         match self {
             Type::FreeVar(fv) if fv.is_linked() => fv.crack().clone().into_refinement(),
             Type::Nat => {
-                let var = Str::from(fresh_varname());
+                let var = FRESH_GEN.fresh_varname();
                 RefinementType::new(
                     var.clone(),
                     Type::Int,
@@ -2268,7 +2304,7 @@ impl Type {
                 )
             }
             Type::Bool => {
-                let var = Str::from(fresh_varname());
+                let var = FRESH_GEN.fresh_varname();
                 RefinementType::new(
                     var.clone(),
                     Type::Int,
@@ -2426,6 +2462,58 @@ impl Type {
             Self::Structural(ty) => ty.has_qvar(),
             Self::Guard(guard) => guard.to.has_qvar(),
             Self::Bounded { sub, sup } => sub.has_qvar() || sup.has_qvar(),
+            _ => false,
+        }
+    }
+
+    pub fn has_undoable_linked_var(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_undoable_linked() => true,
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().has_undoable_linked_var(),
+            Self::FreeVar(fv) => {
+                if let Some((sub, sup)) = fv.get_subsup() {
+                    fv.dummy_link();
+                    let res_sub = sub.has_undoable_linked_var();
+                    let res_sup = sup.has_undoable_linked_var();
+                    fv.undo();
+                    res_sub || res_sup
+                } else {
+                    let opt_t = fv.get_type();
+                    opt_t.map_or(false, |t| t.has_undoable_linked_var())
+                }
+            }
+            Self::Ref(ty) => ty.has_undoable_linked_var(),
+            Self::RefMut { before, after } => {
+                before.has_undoable_linked_var()
+                    || after
+                        .as_ref()
+                        .map(|t| t.has_undoable_linked_var())
+                        .unwrap_or(false)
+            }
+            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => {
+                lhs.has_undoable_linked_var() || rhs.has_undoable_linked_var()
+            }
+            Self::Not(ty) => ty.has_undoable_linked_var(),
+            Self::Callable { param_ts, return_t } => {
+                param_ts.iter().any(|t| t.has_undoable_linked_var())
+                    || return_t.has_undoable_linked_var()
+            }
+            Self::Subr(subr) => subr.has_undoable_linked_var(),
+            Self::Quantified(quant) => quant.has_undoable_linked_var(),
+            Self::Record(r) => r.values().any(|t| t.has_undoable_linked_var()),
+            Self::Refinement(refine) => {
+                refine.t.has_undoable_linked_var() || refine.pred.has_undoable_linked_var()
+            }
+            Self::Poly { params, .. } => params.iter().any(|tp| tp.has_undoable_linked_var()),
+            Self::Proj { lhs, .. } => lhs.has_undoable_linked_var(),
+            Self::ProjCall { lhs, args, .. } => {
+                lhs.has_undoable_linked_var() || args.iter().any(|tp| tp.has_undoable_linked_var())
+            }
+            Self::Structural(ty) => ty.has_undoable_linked_var(),
+            Self::Guard(guard) => guard.to.has_undoable_linked_var(),
+            Self::Bounded { sub, sup } => {
+                sub.has_undoable_linked_var() || sup.has_undoable_linked_var()
+            }
             _ => false,
         }
     }
@@ -2963,6 +3051,8 @@ impl Type {
 
     fn addr_eq(&self, other: &Type) -> bool {
         match (self, other) {
+            (Self::FreeVar(slf), _) if slf.is_linked() => slf.crack().addr_eq(other),
+            (_, Self::FreeVar(otr)) if otr.is_linked() => otr.crack().addr_eq(self),
             (Self::FreeVar(slf), Self::FreeVar(otr)) => slf.addr_eq(otr),
             _ => self == other,
         }
@@ -2975,6 +3065,17 @@ impl Type {
         match self {
             Self::FreeVar(fv) => fv.link(to),
             Self::Refinement(refine) => refine.t.link(to),
+            _ => panic!("{self} is not a free variable"),
+        }
+    }
+
+    pub(crate) fn undoable_link(&self, to: &Type) {
+        if self.addr_eq(to) {
+            return;
+        }
+        match self {
+            Self::FreeVar(fv) => fv.undoable_link(to),
+            Self::Refinement(refine) => refine.t.undoable_link(to),
             _ => panic!("{self} is not a free variable"),
         }
     }

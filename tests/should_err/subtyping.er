@@ -70,3 +70,9 @@ _: Array!({"a", "b"}, 2) = !["a", "b"] # OK
 _: Array!({"a", "b", "c"}, 2) = !["a", "b"] # OK
 _: Array!({"a", "c"}, 2) = !["a", "b"] # ERR
 _: Array!({"a"}, 2) = !["a", "b"] # ERR
+
+ii _: Iterable(Iterable(Str)) = None
+ii [1] # ERR
+ii [[1]] # ERR
+ii [["a"]]
+ii ["aaa"] # Str <: Iterable Str

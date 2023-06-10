@@ -338,23 +338,12 @@ impl Context {
                 self.pop();
                 errs
             })?;
-            match self.check_decls_and_pop() {
-                Ok(_) => {
-                    self.register_gen_const(
-                        def.sig.ident().unwrap(),
-                        obj,
-                        def.def_kind().is_other(),
-                    )?;
-                    Ok(ValueObj::None)
-                }
-                Err(errs) => {
-                    self.register_gen_const(
-                        def.sig.ident().unwrap(),
-                        obj,
-                        def.def_kind().is_other(),
-                    )?;
-                    Err(errs)
-                }
+            let (_ctx, errs) = self.check_decls_and_pop();
+            self.register_gen_const(def.sig.ident().unwrap(), obj, def.def_kind().is_other())?;
+            if errs.is_empty() {
+                Ok(ValueObj::None)
+            } else {
+                Err(errs)
             }
         } else {
             Err(EvalErrors::from(EvalError::not_const_expr(
@@ -1338,6 +1327,11 @@ impl Context {
             TyParam::FreeVar(fv) if fv.is_linked() => self.convert_tp_into_type(fv.crack().clone()),
             TyParam::Type(t) => Ok(t.as_ref().clone()),
             TyParam::Mono(name) => Ok(Type::Mono(name)),
+            TyParam::App { name, args } => Ok(Type::Poly { name, params: args }),
+            TyParam::Proj { obj, attr } => {
+                let lhs = self.convert_tp_into_type(*obj)?;
+                Ok(lhs.proj(attr))
+            }
             // TyParam::Erased(_t) => Ok(Type::Obj),
             TyParam::Value(v) => self.convert_value_into_type(v).map_err(TyParam::Value),
             // TODO: Dict, Set
@@ -1640,6 +1634,9 @@ impl Context {
         let qtps = qt.typarams();
         let stps = st.typarams();
         if qt.qual_name() != st.qual_name() || qtps.len() != stps.len() {
+            if let Some(sub) = st.get_sub() {
+                return self.substitute_typarams(qt, &sub);
+            }
             log!(err "{qt} / {st}");
             log!(err "[{}] [{}]", erg_common::fmt_vec(&qtps), erg_common::fmt_vec(&stps));
             return Ok(()); // TODO: e.g. Sub(Int) / Eq and Sub(?T)
@@ -1650,11 +1647,25 @@ impl Context {
         Ok(())
     }
 
+    pub(crate) fn overwrite_typarams(&self, qt: &Type, st: &Type) -> EvalResult<()> {
+        let qtps = qt.typarams();
+        let stps = st.typarams();
+        if qt.qual_name() != st.qual_name() || qtps.len() != stps.len() {
+            log!(err "{qt} / {st}");
+            log!(err "[{}] [{}]", erg_common::fmt_vec(&qtps), erg_common::fmt_vec(&stps));
+            return Ok(()); // TODO: e.g. Sub(Int) / Eq and Sub(?T)
+        }
+        for (qtp, stp) in qtps.into_iter().zip(stps.into_iter()) {
+            self.overwrite_typaram(qtp, stp)?;
+        }
+        Ok(())
+    }
+
     fn substitute_typaram(&self, qtp: TyParam, stp: TyParam) -> EvalResult<()> {
         match qtp {
             TyParam::FreeVar(ref fv) if fv.is_generalized() => {
                 if !stp.is_unbound_var() || !stp.is_generalized() {
-                    fv.undoable_link(&stp);
+                    qtp.undoable_link(&stp);
                 }
                 if let Err(errs) = self.sub_unify_tp(&stp, &qtp, None, &(), false) {
                     log!(err "{errs}");
@@ -1677,15 +1688,54 @@ impl Context {
                 &tp.to_string(),
             )
         })?;
-        if qt.is_generalized() {
-            if let Ok(qt) = <&FreeTyVar>::try_from(&qt) {
-                if !st.is_unbound_var() || !st.is_generalized() {
-                    qt.undoable_link(&st);
-                }
-            }
+        if qt.is_generalized() && qt.is_free_var() && (!st.is_unbound_var() || !st.is_generalized())
+        {
+            qt.undoable_link(&st);
         }
         if !st.is_unbound_var() || !st.is_generalized() {
             self.substitute_typarams(&qt, &st)?;
+        }
+        if st.has_no_unbound_var() && qt.has_no_unbound_var() {
+            return Ok(());
+        }
+        if let Err(errs) = self.sub_unify(&st, &qt, &(), None) {
+            log!(err "{errs}");
+        }
+        Ok(())
+    }
+
+    fn overwrite_typaram(&self, qtp: TyParam, stp: TyParam) -> EvalResult<()> {
+        match qtp {
+            TyParam::FreeVar(ref fv) if fv.is_undoable_linked() => {
+                if !stp.is_unbound_var() || !stp.is_generalized() {
+                    qtp.undoable_link(&stp);
+                }
+                if let Err(errs) = self.sub_unify_tp(&stp, &qtp, None, &(), false) {
+                    log!(err "{errs}");
+                }
+                Ok(())
+            }
+            TyParam::Type(qt) => self.overwrite_type(stp, *qt),
+            TyParam::Value(ValueObj::Type(qt)) => self.overwrite_type(stp, qt.into_typ()),
+            _ => Ok(()),
+        }
+    }
+
+    fn overwrite_type(&self, stp: TyParam, qt: Type) -> EvalResult<()> {
+        let st = self.convert_tp_into_type(stp).map_err(|tp| {
+            EvalError::not_a_type_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                ().loc(),
+                self.caused_by(),
+                &tp.to_string(),
+            )
+        })?;
+        if qt.has_undoable_linked_var() && (!st.is_unbound_var() || !st.is_generalized()) {
+            qt.undoable_link(&st);
+        }
+        if !st.is_unbound_var() || !st.is_generalized() {
+            self.overwrite_typarams(&qt, &st)?;
         }
         if let Err(errs) = self.sub_unify(&st, &qt, &(), None) {
             log!(err "{errs}");

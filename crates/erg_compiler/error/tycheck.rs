@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
-use erg_common::config::Input;
 use erg_common::error::{ErrorCore, ErrorKind::*, Location, SubMessage};
+use erg_common::io::Input;
 use erg_common::set::Set;
 use erg_common::style::{StyledStr, StyledString, StyledStrings, Stylize};
 use erg_common::traits::{Locational, NoTypeDisplay};
@@ -770,6 +770,53 @@ passed keyword args:    {kw_args_len}"
         )
     }
 
+    pub fn invariant_error(
+        input: Input,
+        errno: usize,
+        sub_t: &Type,
+        sup_t: &Type,
+        loc: Location,
+        caused_by: String,
+    ) -> Self {
+        let mut sub_type = StyledStrings::default();
+        switch_lang!(
+            "japanese" => sub_type.push_str("部分型: "),
+            "simplified_chinese" => sub_type.push_str("子类型: "),
+            "simplified_chinese" =>sub_type.push_str("子類型:"),
+            "english" => sub_type.push_str("subtype: "),
+        );
+        sub_type.push_str_with_color_and_attr(format!("{sub_t}"), HINT, ATTR);
+
+        let mut sup_type = StyledStrings::default();
+        switch_lang!(
+            "japanese" => sup_type.push_str("汎化型: "),
+            "simplified_chinese" => sup_type.push_str("父类型: "),
+            "simplified_chinese" => sup_type.push_str("父類型: "),
+            "english" =>sup_type.push_str("supertype: "),
+        );
+        sup_type.push_str_with_color_and_attr(format!("{sup_t}"), ERR, ATTR);
+        Self::new(
+            ErrorCore::new(
+                vec![SubMessage::ambiguous_new(
+                    loc,
+                    vec![sub_type.to_string(), sup_type.to_string()],
+                    None,
+                )],
+                switch_lang!(
+                    "japanese" => "不変な型パラメータを一意に決定できません",
+                    "simplified_chinese" => "无法唯一确定不变型的类型参数",
+                    "traditional_chinese" => "無法唯一確定不變型的類型參數",
+                    "english" => "cannot uniquely determine the type parameter of the invariant type",
+                ),
+                errno,
+                TypeError,
+                loc,
+            ),
+            input,
+            caused_by,
+        )
+    }
+
     pub fn pred_unification_error(
         input: Input,
         errno: usize,
@@ -1205,7 +1252,7 @@ passed keyword args:    {kw_args_len}"
                 vec![SubMessage::only_loc(loc)],
                 switch_lang!(
                     "japanese" => format!("型が期待されましたが、{tp}は型ではありません"),
-                    "simplified_chinese" => format!("期望一个类型，但是得到了{tp}"),
+                    "simplified_chinese" => format!("期望类型，但是得到了{tp}"),
                     "traditional_chinese" => format!("期望一個類型，但是得到了{tp}"),
                     "english" => format!("expected a type, but got {tp}"),
                 ),

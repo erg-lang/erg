@@ -1,7 +1,6 @@
 use std::env::var;
 use std::path::{Path, PathBuf};
-
-use once_cell::sync::Lazy;
+use std::sync::OnceLock;
 
 use crate::normalize_path;
 use crate::python_util::get_sys_path;
@@ -68,19 +67,41 @@ fn _python_site_packages() -> impl Iterator<Item = PathBuf> {
         })
 }
 
-pub static ERG_PATH: Lazy<PathBuf> = Lazy::new(|| normalize_path(_erg_path()));
-pub static ERG_STD_PATH: Lazy<PathBuf> = Lazy::new(|| normalize_path(_erg_std_path()));
-pub static ERG_STD_DECL_PATH: Lazy<PathBuf> = Lazy::new(|| normalize_path(_erg_std_decl_path()));
-pub static ERG_PYSTD_PATH: Lazy<PathBuf> = Lazy::new(|| normalize_path(_erg_pystd_path()));
-pub static ERG_EXTERNAL_LIB_PATH: Lazy<PathBuf> =
-    Lazy::new(|| normalize_path(_erg_external_lib_path()));
-pub static PYTHON_SITE_PACKAGES: Lazy<Vec<PathBuf>> =
-    Lazy::new(|| _python_site_packages().collect());
+pub static ERG_PATH: OnceLock<PathBuf> = OnceLock::new();
+pub static ERG_STD_PATH: OnceLock<PathBuf> = OnceLock::new();
+pub static ERG_STD_DECL_PATH: OnceLock<PathBuf> = OnceLock::new();
+pub static ERG_PYSTD_PATH: OnceLock<PathBuf> = OnceLock::new();
+pub static ERG_EXTERNAL_LIB_PATH: OnceLock<PathBuf> = OnceLock::new();
+pub static PYTHON_SITE_PACKAGES: OnceLock<Vec<PathBuf>> = OnceLock::new();
+
+pub fn erg_path() -> &'static PathBuf {
+    ERG_PATH.get_or_init(|| normalize_path(_erg_path())) // .with(|s| s.clone())
+}
+
+pub fn erg_std_path() -> &'static PathBuf {
+    ERG_STD_PATH.get_or_init(|| normalize_path(_erg_std_path()))
+}
+
+pub fn erg_std_decl_path() -> &'static PathBuf {
+    ERG_STD_DECL_PATH.get_or_init(|| normalize_path(_erg_std_decl_path()))
+}
+
+pub fn erg_pystd_path() -> &'static PathBuf {
+    ERG_PYSTD_PATH.get_or_init(|| normalize_path(_erg_pystd_path()))
+}
+
+pub fn erg_py_external_lib_path() -> &'static PathBuf {
+    ERG_EXTERNAL_LIB_PATH.get_or_init(|| normalize_path(_erg_external_lib_path()))
+}
+
+pub fn python_site_packages() -> &'static Vec<PathBuf> {
+    PYTHON_SITE_PACKAGES.get_or_init(|| _python_site_packages().collect())
+}
 
 pub fn is_std_decl_path(path: &Path) -> bool {
-    path.starts_with(ERG_PYSTD_PATH.as_path())
-        || path.starts_with(ERG_STD_DECL_PATH.as_path())
-        || path.starts_with(ERG_EXTERNAL_LIB_PATH.as_path())
+    path.starts_with(erg_pystd_path().as_path())
+        || path.starts_with(erg_std_decl_path().as_path())
+        || path.starts_with(erg_py_external_lib_path().as_path())
 }
 
 pub fn is_pystd_main_module(path: &Path) -> bool {
@@ -91,6 +112,5 @@ pub fn is_pystd_main_module(path: &Path) -> bool {
     } else {
         path.pop();
     }
-    // let pystd_path = erg_pystd_path();
-    path == ERG_PYSTD_PATH.as_path()
+    path == erg_pystd_path().as_path()
 }

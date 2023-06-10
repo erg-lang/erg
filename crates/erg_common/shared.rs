@@ -89,13 +89,18 @@ impl<T: ?Sized> Shared<T> {
         {
             *self.borrowed_at.try_write().unwrap() = Some(std::panic::Location::caller());
         }
-        self.data.try_read().unwrap_or_else(|| if cfg!(feature = "debug") {
-            panic!(
-                "Shared::borrow: already borrowed at {}",
-                self.borrowed_at.read().as_ref().unwrap()
-            )
-        } else {
-            panic!("Shared::borrow: already borrowed")
+        self.data.try_read().unwrap_or_else(|| {
+            #[cfg(feature = "debug")]
+            {
+                panic!(
+                    "Shared::borrow: already borrowed at {}",
+                    self.borrowed_at.read().as_ref().unwrap()
+                )
+            }
+            #[cfg(not(feature = "debug"))]
+            {
+                panic!("Shared::borrow: already borrowed")
+            }
         })
     }
 
@@ -106,13 +111,18 @@ impl<T: ?Sized> Shared<T> {
         {
             *self.borrowed_at.try_write().unwrap() = Some(std::panic::Location::caller());
         }
-        self.data.try_write().unwrap_or_else(|| if cfg!(feature = "debug") {
-            panic!(
-                "Shared::borrow_mut: already borrowed at {}",
-                self.borrowed_at.read().as_ref().unwrap()
-            )
-        } else {
-            panic!("Shared::borrow_mut: already borrowed")
+        self.data.try_write().unwrap_or_else(|| {
+            #[cfg(feature = "debug")]
+            {
+                panic!(
+                    "Shared::borrow_mut: already borrowed at {}",
+                    self.borrowed_at.read().as_ref().unwrap()
+                )
+            }
+            #[cfg(not(feature = "debug"))]
+            {
+                panic!("Shared::borrow_mut: already borrowed")
+            }
         })
     }
 

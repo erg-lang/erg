@@ -148,10 +148,10 @@ impl Runnable for Transpiler {
         path.set_extension("py");
         let src = self.cfg.input.read();
         let artifact = self.transpile(src, "exec").map_err(|eart| {
-            eart.warns.fmt_all_stderr();
+            eart.warns.write_all_stderr();
             eart.errors
         })?;
-        artifact.warns.fmt_all_stderr();
+        artifact.warns.write_all_stderr();
         let mut f = File::create(path).unwrap();
         f.write_all(artifact.object.code.as_bytes()).unwrap();
         Ok(ExitStatus::compile_passed(artifact.warns.len()))
@@ -159,10 +159,10 @@ impl Runnable for Transpiler {
 
     fn eval(&mut self, src: String) -> Result<String, CompileErrors> {
         let artifact = self.transpile(src, "eval").map_err(|eart| {
-            eart.warns.fmt_all_stderr();
+            eart.warns.write_all_stderr();
             eart.errors
         })?;
-        artifact.warns.fmt_all_stderr();
+        artifact.warns.write_all_stderr();
         Ok(artifact.object.code)
     }
 }
@@ -618,8 +618,12 @@ impl ScriptGenerator {
                 let iter = call.args.remove(0);
                 let Expr::Lambda(block) = call.args.remove(0) else { todo!() };
                 let non_default = block.params.non_defaults.get(0).unwrap();
-                let ParamPattern::VarName(param) = &non_default.raw.pat else { todo!() };
-                code += &format!("{}__ ", &param.token().content);
+                let param = match &non_default.raw.pat {
+                    ParamPattern::VarName(name) => name.token(),
+                    ParamPattern::Discard(token) => token,
+                    _ => unreachable!(),
+                };
+                code += &format!("{}__ ", &param.content);
                 code += &format!("in {}:\n", self.transpile_expr(iter));
                 code += &self.transpile_block(block.body, Discard);
                 code
@@ -812,12 +816,21 @@ impl ScriptGenerator {
             }
         }
         for default in params.defaults {
-            let ParamPattern::VarName(param) = default.sig.raw.pat else { todo!() };
-            code += &format!(
-                "{}__ = {},",
-                replace_non_symbolic(&param.into_token().content),
-                self.transpile_expr(default.default_val)
-            );
+            match default.sig.raw.pat {
+                ParamPattern::VarName(param) => {
+                    code += &format!(
+                        "{}__ = {},",
+                        replace_non_symbolic(&param.into_token().content),
+                        self.transpile_expr(default.default_val),
+                    );
+                }
+                ParamPattern::Discard(_) => {
+                    let n = self.fresh_var_n;
+                    code += &format!("_{n} = {},", self.transpile_expr(default.default_val),);
+                    self.fresh_var_n += 1;
+                }
+                _ => unreachable!(),
+            }
         }
         code
     }

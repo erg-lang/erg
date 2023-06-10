@@ -532,10 +532,10 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                             fv.dummy_link();
                         }
                         (true, false) => {
-                            fv.undoable_link(&super_t);
+                            fv_t.undoable_link(&super_t);
                         }
                         (false, true | false) => {
-                            fv.undoable_link(&sub_t);
+                            fv_t.undoable_link(&sub_t);
                         }
                     }
                     let res = self.validate_subsup(sub_t, super_t);
@@ -782,7 +782,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                     if self.ctx.supertype_of(&sub_t, &super_t) {
                         Ok(sub_t)
                     } else {
-                        Err(TyCheckErrors::from(TyCheckError::subtyping_error(
+                        Err(TyCheckErrors::from(TyCheckError::invariant_error(
                             self.ctx.cfg.input.clone(),
                             line!() as usize,
                             &sub_t,

@@ -252,7 +252,7 @@ impl Parser {
                     subr.ident,
                     subr.bounds,
                     subr.params,
-                    Some(tasc.t_spec.t_spec),
+                    Some(tasc.t_spec),
                 );
                 Signature::Subr(subr)
             }

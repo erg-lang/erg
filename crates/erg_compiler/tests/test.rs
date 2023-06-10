@@ -1,5 +1,7 @@
 use erg_common::config::ErgConfig;
 use erg_common::error::MultiErrorDisplay;
+use erg_common::io::Output;
+use erg_common::spawn::exec_new_thread;
 use erg_common::traits::Runnable;
 
 use erg_compiler::context::{Context, ModuleContext};
@@ -12,7 +14,8 @@ use erg_compiler::ty::constructors::{
 use erg_compiler::ty::Type::*;
 
 fn load_file(path: &'static str) -> Result<ModuleContext, CompileErrors> {
-    let cfg = ErgConfig::with_main_path(path.into());
+    let mut cfg = ErgConfig::with_main_path(path.into());
+    cfg.output = Output::Null;
     let mut lowerer = ASTLowerer::new(cfg);
     lowerer.exec()?;
     Ok(lowerer.pop_mod_ctx().unwrap())
@@ -20,8 +23,12 @@ fn load_file(path: &'static str) -> Result<ModuleContext, CompileErrors> {
 
 #[test]
 fn test_infer_types() -> Result<(), ()> {
+    exec_new_thread(_test_infer_types, "test_infer_types")
+}
+
+fn _test_infer_types() -> Result<(), ()> {
     let module = load_file("tests/infer.er").map_err(|errs| {
-        errs.fmt_all_stderr();
+        errs.write_all_stderr();
     })?;
     let t = type_q("T");
     let u = type_q("U");

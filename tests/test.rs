@@ -1,5 +1,6 @@
 mod common;
-use common::{expect_end_with, expect_failure, expect_success};
+use common::{expect_compile_success, expect_end_with, expect_failure, expect_success};
+use erg_common::python_util::{module_exists, opt_which_python};
 
 #[test]
 fn exec_addition_ok() -> Result<(), ()> {
@@ -52,8 +53,23 @@ fn exec_control_expr() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_dependent() -> Result<(), ()> {
+    expect_success("tests/should_ok/dependent.er", 0)
+}
+
+#[test]
 fn exec_dict() -> Result<(), ()> {
     expect_success("examples/dict.er", 0)
+}
+
+#[test]
+fn exec_external() -> Result<(), ()> {
+    let py_command = opt_which_python().unwrap();
+    if module_exists(&py_command, "matplotlib") && module_exists(&py_command, "tqdm") {
+        expect_success("tests/should_ok/external.er", 0)
+    } else {
+        expect_compile_success("tests/should_ok/external.er", 0)
+    }
 }
 
 #[test]
@@ -63,8 +79,8 @@ fn exec_fib() -> Result<(), ()> {
 
 #[test]
 fn exec_helloworld() -> Result<(), ()> {
-    // HACK: When running the test with pre-commit, the exit code is 1 (the cause is unknown)
-    if cfg!(feature = "pre-commit") {
+    // HACK: When running the test with Windows, the exit code is 1 (the cause is unknown)
+    if cfg!(windows) {
         expect_end_with("examples/helloworld.er", 1)
     } else {
         expect_success("examples/helloworld.er", 0)
@@ -263,13 +279,18 @@ fn exec_assert_cast() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_class_attr_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/class_attr.er", 1, 1)
+}
+
+#[test]
 fn exec_collection_err() -> Result<(), ()> {
     expect_failure("tests/should_err/collection.er", 0, 4)
 }
 
 #[test]
-fn exec_dependent() -> Result<(), ()> {
-    expect_failure("tests/should_err/dependent.er", 0, 4)
+fn exec_dependent_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/dependent.er", 0, 5)
 }
 
 /// This file compiles successfully, but causes a run-time error due to incomplete method dispatching
@@ -334,7 +355,7 @@ fn exec_structural_err() -> Result<(), ()> {
 
 #[test]
 fn exec_subtyping_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/subtyping.er", 0, 15)
+    expect_failure("tests/should_err/subtyping.er", 0, 17)
 }
 
 #[test]

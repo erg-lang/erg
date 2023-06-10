@@ -2,21 +2,22 @@ use std::mem;
 
 use erg_common::consts::PYTHON_MODE;
 use erg_common::traits::{Locational, Runnable, Stream};
-use erg_common::{enum_unwrap, fn_name, log, set, Str};
+use erg_common::{enum_unwrap, fn_name, log, set, Str, Triple};
 
 use erg_parser::ast::{self, AscriptionKind, Identifier, VarName, AST};
 
+use crate::context::instantiate::TyVarCache;
 use crate::lower::ASTLowerer;
-use crate::ty::constructors::{mono, v_enum};
+use crate::ty::constructors::{mono, poly, ty_tp, type_q, v_enum};
 use crate::ty::free::HasLevel;
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{HasType, Type, Visibility};
 
 use crate::compile::AccessKind;
 use crate::error::{LowerError, LowerErrors, LowerResult};
-use crate::hir;
 use crate::hir::HIR;
 use crate::varinfo::{Mutability, VarInfo, VarKind};
+use crate::{feature_error, hir};
 
 impl ASTLowerer {
     fn declare_var(
@@ -49,7 +50,18 @@ impl ASTLowerer {
             _ => sig.inspect().cloned(),
         };
         let found_body_t = chunk.ref_t();
-        let ast::VarPattern::Ident(ident) = &sig.pat else { unreachable!() };
+        let ident = match &sig.pat {
+            ast::VarPattern::Ident(ident) => ident,
+            ast::VarPattern::Discard(token) => {
+                return Err(LowerErrors::from(LowerError::declare_error(
+                    self.cfg().input.clone(),
+                    line!() as usize,
+                    token.loc(),
+                    self.module.context.caused_by(),
+                )));
+            }
+            _ => unreachable!(),
+        };
         let id = body.id;
         if let Some(spec_t) = opt_spec_t {
             self.module
@@ -156,7 +168,24 @@ impl ASTLowerer {
             }
             ast::Accessor::Attr(attr) => {
                 let obj = self.fake_lower_expr(*attr.obj)?;
-                let ident = hir::Identifier::bare(attr.ident);
+                let mut ident = hir::Identifier::bare(attr.ident);
+                if let Ok(ctxs) = self
+                    .module
+                    .context
+                    .get_singular_ctxs_by_hir_expr(&obj, &self.module.context)
+                {
+                    for ctx in ctxs {
+                        if let Triple::Ok(vi) = ctx.rec_get_var_info(
+                            &ident.raw,
+                            AccessKind::UnboundAttr,
+                            self.input(),
+                            &self.module.context,
+                        ) {
+                            ident.vi = vi;
+                            break;
+                        }
+                    }
+                }
                 Ok(obj.attr(ident))
             }
             other => Err(LowerErrors::from(LowerError::declare_error(
@@ -280,7 +309,14 @@ impl ASTLowerer {
             ast::Signature::Subr(subr) => {
                 let ident = hir::Identifier::bare(subr.ident);
                 let params = self.fake_lower_params(subr.params)?;
-                let sig = hir::SubrSignature::new(ident, subr.bounds, params, subr.return_t_spec);
+                let ret_t_spec = if let Some(ts) = subr.return_t_spec {
+                    let spec_t = self.module.context.instantiate_typespec(&ts.t_spec)?;
+                    let expr = self.fake_lower_expr(*ts.t_spec_as_expr.clone())?;
+                    Some(hir::TypeSpecWithOp::new(ts, expr, spec_t))
+                } else {
+                    None
+                };
+                let sig = hir::SubrSignature::new(ident, subr.bounds, params, ret_t_spec);
                 Ok(hir::Signature::Subr(sig))
             }
         }
@@ -375,25 +411,50 @@ impl ASTLowerer {
         let (non_defaults_, var_params_, defaults_, parens) = params.deconstruct();
         let mut non_defaults = vec![];
         for non_default_ in non_defaults_.into_iter() {
-            let non_default =
-                hir::NonDefaultParamSignature::new(non_default_, VarInfo::default(), None);
+            let t_spec_as_expr = non_default_
+                .t_spec
+                .as_ref()
+                .map(|t_spec| self.fake_lower_expr(*t_spec.t_spec_as_expr.clone()))
+                .transpose()?;
+            let non_default = hir::NonDefaultParamSignature::new(
+                non_default_,
+                VarInfo::default(),
+                t_spec_as_expr,
+            );
             non_defaults.push(non_default);
         }
-        let var_args = var_params_.map(|var_args| {
-            Box::new(hir::NonDefaultParamSignature::new(
-                *var_args,
+        let var_params = if let Some(var_params) = var_params_ {
+            let t_spec_as_expr = var_params
+                .t_spec
+                .as_ref()
+                .map(|t_spec| self.fake_lower_expr(*t_spec.t_spec_as_expr.clone()))
+                .transpose()?;
+            Some(Box::new(hir::NonDefaultParamSignature::new(
+                *var_params,
                 VarInfo::default(),
-                None,
-            ))
-        });
+                t_spec_as_expr,
+            )))
+        } else {
+            None
+        };
         let mut defaults = vec![];
         for default_ in defaults_.into_iter() {
+            let t_spec_as_expr = default_
+                .sig
+                .t_spec
+                .as_ref()
+                .map(|t_spec| self.fake_lower_expr(*t_spec.t_spec_as_expr.clone()))
+                .transpose()?;
             let default_val = self.fake_lower_expr(default_.default_val)?;
-            let sig = hir::NonDefaultParamSignature::new(default_.sig, VarInfo::default(), None);
+            let sig = hir::NonDefaultParamSignature::new(
+                default_.sig,
+                VarInfo::default(),
+                t_spec_as_expr,
+            );
             let default = hir::DefaultParamSignature::new(sig, default_val);
             defaults.push(default);
         }
-        Ok(hir::Params::new(non_defaults, var_args, defaults, parens))
+        Ok(hir::Params::new(non_defaults, var_params, defaults, parens))
     }
 
     fn fake_lower_block(&self, block: ast::Block) -> LowerResult<hir::Block> {
@@ -541,6 +602,48 @@ impl ASTLowerer {
                 let t_spec = hir::TypeSpecWithOp::new(tasc.t_spec, t_spec_expr, Type::Failure);
                 Ok(attr.type_asc(t_spec))
             }
+            ast::Expr::Call(call) => {
+                let ast::Expr::Accessor(ast::Accessor::Ident(ident)) = *call.obj else {
+                    return feature_error!(
+                        LowerErrors,
+                        LowerError,
+                        &self.module.context,
+                        call.obj.loc(),
+                        "complex polymorphic type declaration"
+                    );
+                };
+                let py_name = Str::rc(ident.inspect().trim_end_matches('!'));
+                let mut tv_cache = TyVarCache::new(self.module.context.level, &self.module.context);
+                if let Some((t, _)) = self.module.context.get_type(ident.inspect()) {
+                    for (tp, arg) in t.typarams().iter().zip(call.args.pos_args()) {
+                        if let ast::Expr::Accessor(ast::Accessor::Ident(ident)) = &arg.expr {
+                            tv_cache.push_or_init_typaram(&ident.name, tp, &self.module.context);
+                        }
+                    }
+                }
+                let t = self
+                    .module
+                    .context
+                    .instantiate_typespec_with_tv_cache(&tasc.t_spec.t_spec, &mut tv_cache)?;
+                t.lift();
+                let t = self.module.context.generalize_t(t);
+                match kind {
+                    AscriptionKind::TypeOf | AscriptionKind::AsCast => {
+                        self.declare_instance(&ident, &t, py_name)?;
+                    }
+                    AscriptionKind::SubtypeOf => {
+                        self.declare_subtype(&ident, &t)?;
+                    }
+                    _ => {
+                        log!(err "supertype ascription is not supported yet");
+                    }
+                }
+                let acc = self.fake_lower_acc(ast::Accessor::Ident(ident))?;
+                let args = self.fake_lower_args(call.args)?;
+                let t_spec_expr = self.fake_lower_expr(*tasc.t_spec.t_spec_as_expr.clone())?;
+                let t_spec = hir::TypeSpecWithOp::new(tasc.t_spec, t_spec_expr, Type::Failure);
+                Ok(hir::Expr::Accessor(acc).call_expr(args).type_asc(t_spec))
+            }
             other => Err(LowerErrors::from(LowerError::declare_error(
                 self.cfg().input.clone(),
                 line!() as usize,
@@ -559,6 +662,20 @@ impl ASTLowerer {
         // .X = 'x': Type
         if ident.is_raw() {
             return Ok(());
+        }
+        if self
+            .module
+            .context
+            .registered_info(ident.inspect(), ident.is_const())
+            .is_some_and(|(_, vi)| !vi.kind.is_builtin())
+        {
+            return Err(LowerErrors::from(LowerError::reassign_error(
+                self.cfg().input.clone(),
+                line!() as usize,
+                ident.loc(),
+                self.module.context.caused_by(),
+                ident.inspect(),
+            )));
         }
         let new_ident = if PYTHON_MODE {
             let mut symbol = ident.name.clone().into_token();
@@ -579,6 +696,17 @@ impl ASTLowerer {
                 let ty_obj =
                     GenTypeObj::trait_(t.clone(), TypeObj::builtin_type(Type::Uninited), None);
                 let t = v_enum(set! { ValueObj::builtin_trait(t) });
+                (t, Some(ty_obj))
+            }
+            Type::Subr(subr) if subr.return_t.is_class_type() => {
+                let params = subr
+                    .non_default_params
+                    .iter()
+                    .map(|p| ty_tp(type_q(p.name().unwrap_or(&Str::ever("_")))))
+                    .collect();
+                let t = poly(format!("{}{ident}", self.module.context.path()), params);
+                let ty_obj = GenTypeObj::class(t.clone(), None, None);
+                let t = v_enum(set! { ValueObj::builtin_class(t) });
                 (t, Some(ty_obj))
             }
             _ => (t.clone(), None),
