@@ -1,5 +1,7 @@
 use std::convert::TryInto;
 
+use erg_common::fresh::FRESH_GEN;
+
 use crate::ty::*;
 
 #[inline]
@@ -92,7 +94,7 @@ pub fn v_enum(s: Set<ValueObj>) -> Type {
     if !is_homogeneous(&s) {
         panic!("{s} is not homogeneous");
     }
-    let name = Str::from(fresh_varname());
+    let name = FRESH_GEN.fresh_varname();
     let t = inner_class(&s);
     let preds = s
         .into_iter()
@@ -103,7 +105,7 @@ pub fn v_enum(s: Set<ValueObj>) -> Type {
 }
 
 pub fn tp_enum(ty: Type, s: Set<TyParam>) -> Type {
-    let name = Str::from(fresh_varname());
+    let name = FRESH_GEN.fresh_varname();
     let preds = s
         .into_iter()
         .map(|tp| Predicate::eq(name.clone(), tp))
@@ -113,7 +115,7 @@ pub fn tp_enum(ty: Type, s: Set<TyParam>) -> Type {
 }
 
 pub fn singleton(ty: Type, tp: TyParam) -> Type {
-    let name = Str::from(fresh_varname());
+    let name = FRESH_GEN.fresh_varname();
     let preds = Predicate::eq(name.clone(), tp);
     let refine = RefinementType::new(name, ty, preds);
     Type::Refinement(refine)
@@ -129,7 +131,7 @@ where
 {
     let l = l.try_into().unwrap_or_else(|l| todo!("{l:?}"));
     let r = r.try_into().unwrap_or_else(|r| todo!("{r:?}"));
-    let name = Str::from(fresh_varname());
+    let name = FRESH_GEN.fresh_varname();
     let pred = match op {
         IntervalOp::LeftOpen if l == TyParam::value(NegInf) => Predicate::le(name.clone(), r),
         // l<..r => {I: classof(l) | I >= l+ε and I <= r}

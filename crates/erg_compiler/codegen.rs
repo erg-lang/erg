@@ -10,6 +10,7 @@ use erg_common::cache::CacheSet;
 use erg_common::config::ErgConfig;
 use erg_common::env::erg_std_path;
 use erg_common::error::{ErrorDisplay, Location};
+use erg_common::fresh::FreshNameGenerator;
 use erg_common::io::Input;
 use erg_common::opcode::{CommonOpcode, CompareOp};
 use erg_common::opcode308::Opcode308;
@@ -39,7 +40,6 @@ use crate::hir::{
 use crate::ty::value::ValueObj;
 use crate::ty::{HasType, Type, TypeCode, TypePair, VisibilityModifier};
 use crate::varinfo::VarInfo;
-use erg_common::fresh::fresh_varname;
 use AccessKind::*;
 use Type::*;
 
@@ -172,6 +172,7 @@ pub struct PyCodeGenerator {
     abc_loaded: bool,
     unit_size: usize,
     units: PyCodeGenStack,
+    fresh_gen: FreshNameGenerator,
 }
 
 impl PyCodeGenerator {
@@ -190,6 +191,7 @@ impl PyCodeGenerator {
             abc_loaded: false,
             unit_size: 0,
             units: PyCodeGenStack::empty(),
+            fresh_gen: FreshNameGenerator::new("codegen"),
         }
     }
 
@@ -1997,7 +1999,7 @@ impl PyCodeGenerator {
         self.stack_inc_n(2);
         let lambda_line = lambda.body.last().unwrap().ln_begin().unwrap_or(0);
         self.emit_with_block(lambda.body, params);
-        let stash = Identifier::private_with_line(Str::from(fresh_varname()), lambda_line);
+        let stash = Identifier::private_with_line(self.fresh_gen.fresh_varname(), lambda_line);
         self.emit_store_instr(stash.clone(), Name);
         self.emit_load_const(ValueObj::None);
         self.emit_load_const(ValueObj::None);
@@ -2046,7 +2048,7 @@ impl PyCodeGenerator {
         self.stack_inc_n(2);
         let lambda_line = lambda.body.last().unwrap().ln_begin().unwrap_or(0);
         self.emit_with_block(lambda.body, params);
-        let stash = Identifier::private_with_line(Str::from(fresh_varname()), lambda_line);
+        let stash = Identifier::private_with_line(self.fresh_gen.fresh_varname(), lambda_line);
         self.emit_store_instr(stash.clone(), Name);
         self.write_instr(POP_BLOCK);
         self.write_arg(0);
@@ -2099,7 +2101,7 @@ impl PyCodeGenerator {
         // self.stack_inc_n(2);
         let lambda_line = lambda.body.last().unwrap().ln_begin().unwrap_or(0);
         self.emit_with_block(lambda.body, params);
-        let stash = Identifier::private_with_line(Str::from(fresh_varname()), lambda_line);
+        let stash = Identifier::private_with_line(self.fresh_gen.fresh_varname(), lambda_line);
         self.emit_store_instr(stash.clone(), Name);
         self.write_instr(POP_BLOCK);
         self.write_arg(0);
@@ -2849,9 +2851,9 @@ impl PyCodeGenerator {
         let (param_name, params) = if let Some(new_first_param) = new_first_param {
             let param_name = new_first_param
                 .name()
-                .map(|s| s.to_string())
-                .unwrap_or_else(fresh_varname);
-            let param = VarName::from_str_and_line(Str::from(param_name.clone()), line);
+                .cloned()
+                .unwrap_or_else(|| self.fresh_gen.fresh_varname());
+            let param = VarName::from_str_and_line(param_name.clone(), line);
             let raw =
                 erg_parser::ast::NonDefaultParamSignature::new(ParamPattern::VarName(param), None);
             let vi = VarInfo::nd_parameter(
@@ -2932,9 +2934,9 @@ impl PyCodeGenerator {
         if let Some(new_first_param) = ident.vi.t.non_default_params().unwrap().first() {
             let param_name = new_first_param
                 .name()
-                .map(|s| s.to_string())
-                .unwrap_or_else(fresh_varname);
-            let param = VarName::from_str_and_line(Str::from(param_name.clone()), line);
+                .cloned()
+                .unwrap_or_else(|| self.fresh_gen.fresh_varname());
+            let param = VarName::from_str_and_line(param_name.clone(), line);
             let vi = VarInfo::nd_parameter(
                 new_first_param.typ().clone(),
                 ident.vi.def_loc.clone(),
@@ -2947,8 +2949,7 @@ impl PyCodeGenerator {
             let bounds = TypeBoundSpecs::empty();
             let sig = SubrSignature::new(ident, bounds, params, sig.t_spec_with_op().cloned());
             let arg = PosArg::new(Expr::Accessor(Accessor::private_with_line(
-                Str::from(param_name),
-                line,
+                param_name, line,
             )));
             let call = class_new.call_expr(Args::single(arg));
             let block = Block::new(vec![call]);

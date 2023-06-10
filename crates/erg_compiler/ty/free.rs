@@ -2,6 +2,7 @@ use std::cell::{Ref, RefMut};
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::mem;
+use std::sync::atomic::AtomicUsize;
 
 use erg_common::shared::Shared;
 use erg_common::traits::{LimitedDisplay, StructuralEq};
@@ -16,10 +17,7 @@ pub type Id = usize;
 
 /// HACK: see doc/compiler/inference.md for details
 pub const GENERIC_LEVEL: usize = usize::MAX;
-
-thread_local! {
-    static UNBOUND_ID: Shared<usize> = Shared::new(0);
-}
+static UNBOUND_ID: AtomicUsize = AtomicUsize::new(0);
 
 pub trait HasLevel {
     fn level(&self) -> Option<Level>;
@@ -429,14 +427,12 @@ impl<T> FreeKind<T> {
     }
 
     pub fn new_unbound(lev: Level, constraint: Constraint) -> Self {
-        UNBOUND_ID.with(|id| {
-            *id.borrow_mut() += 1;
-            Self::Unbound {
-                id: *id.borrow(),
-                lev,
-                constraint,
-            }
-        })
+        UNBOUND_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        Self::Unbound {
+            id: UNBOUND_ID.load(std::sync::atomic::Ordering::SeqCst),
+            lev,
+            constraint,
+        }
     }
 
     pub const fn named_unbound(name: Str, lev: Level, constraint: Constraint) -> Self {
@@ -727,14 +723,12 @@ impl<T> Free<T> {
     }
 
     pub fn new_unbound(level: Level, constraint: Constraint) -> Self {
-        UNBOUND_ID.with(|id| {
-            *id.borrow_mut() += 1;
-            Self(Shared::new(FreeKind::unbound(
-                *id.borrow(),
-                level,
-                constraint,
-            )))
-        })
+        UNBOUND_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        Self(Shared::new(FreeKind::unbound(
+            UNBOUND_ID.load(std::sync::atomic::Ordering::SeqCst),
+            level,
+            constraint,
+        )))
     }
 
     pub fn new_named_unbound(name: Str, level: Level, constraint: Constraint) -> Self {
