@@ -28,8 +28,6 @@ experimental = []
 backtrace-on-stack-overflow = { version = "0.2.0", optional = true }
 
 [dependencies]
-backtrace = "0.3"
-once_cell = "1.17"
 crossterm = { optional = true, version = "0.25.0" }
 parking_lot = "0.12"
 
