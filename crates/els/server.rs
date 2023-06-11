@@ -118,7 +118,7 @@ impl From<&str> for OptionalFeatures {
 macro_rules! _log {
     ($($arg:tt)*) => {
         let s = format!($($arg)*);
-        $crate::server::send_log(format!("{}:{}: {s}", file!(), line!())).unwrap();
+        $crate::server::send_log(format!("{}@{}: {s}", file!(), line!())).unwrap();
     };
 }
 
@@ -576,7 +576,11 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         let mut ctxs = vec![];
         if let Some(mod_ctx) = &self.modules.get(uri) {
             if let Some(visitor) = self.get_visitor(uri) {
-                let ns = visitor.get_namespace(pos);
+                // FIXME:
+                let mut ns = visitor.get_namespace(pos);
+                if &mod_ctx.context.name[..] == "<module>" {
+                    ns[0] = "<module>".into();
+                }
                 for i in 1..ns.len() {
                     let ns = ns[..=ns.len() - i].join("");
                     if let Some(ctx) = mod_ctx.scope.get(&ns[..]) {

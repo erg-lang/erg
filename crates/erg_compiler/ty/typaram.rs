@@ -3,11 +3,11 @@ use std::fmt;
 use std::ops::{Add, Div, Mul, Neg, Range, RangeInclusive, Sub};
 use std::sync::Arc;
 
+use erg_common::consts::DEBUG_MODE;
 use erg_common::dict::Dict;
 use erg_common::set::Set;
 use erg_common::traits::{LimitedDisplay, StructuralEq};
-use erg_common::Str;
-use erg_common::{dict, log, set};
+use erg_common::{dict, log, ref_addr_eq, set, Str};
 
 use erg_parser::ast::ConstLambda;
 
@@ -1001,23 +1001,47 @@ impl TyParam {
         }
     }
 
-    pub fn contains(&self, target: &Type) -> bool {
+    pub fn contains_type(&self, target: &Type) -> bool {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains(target),
-            Self::Type(t) => t.contains(target),
-            Self::Erased(t) => t.contains(target),
-            Self::Proj { obj, .. } => obj.contains(target),
-            Self::Array(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.contains(target)),
-            Self::Set(ts) => ts.iter().any(|t| t.contains(target)),
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains_type(target),
+            Self::Type(t) => t.contains_type(target),
+            Self::Erased(t) => t.contains_type(target),
+            Self::Proj { obj, .. } => obj.contains_type(target),
+            Self::Array(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.contains_type(target)),
+            Self::Set(ts) => ts.iter().any(|t| t.contains_type(target)),
             Self::Dict(ts) => ts
                 .iter()
-                .any(|(k, v)| k.contains(target) || v.contains(target)),
-            Self::Record(rec) => rec.iter().any(|(_, tp)| tp.contains(target)),
-            Self::Lambda(lambda) => lambda.body.iter().any(|tp| tp.contains(target)),
-            Self::UnaryOp { val, .. } => val.contains(target),
-            Self::BinOp { lhs, rhs, .. } => lhs.contains(target) || rhs.contains(target),
-            Self::App { args, .. } => args.iter().any(|p| p.contains(target)),
-            Self::Value(ValueObj::Type(t)) => t.typ().contains(target),
+                .any(|(k, v)| k.contains_type(target) || v.contains_type(target)),
+            Self::Record(rec) => rec.iter().any(|(_, tp)| tp.contains_type(target)),
+            Self::Lambda(lambda) => lambda.body.iter().any(|tp| tp.contains_type(target)),
+            Self::UnaryOp { val, .. } => val.contains_type(target),
+            Self::BinOp { lhs, rhs, .. } => lhs.contains_type(target) || rhs.contains_type(target),
+            Self::App { args, .. } => args.iter().any(|p| p.contains_type(target)),
+            Self::Value(ValueObj::Type(t)) => t.typ().contains_type(target),
+            _ => false,
+        }
+    }
+
+    pub fn contains_tp(&self, target: &TyParam) -> bool {
+        if self == target {
+            return true;
+        }
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains_tp(target),
+            Self::Type(t) => t.contains_tp(target),
+            Self::Erased(t) => t.contains_tp(target),
+            Self::Proj { obj, .. } => obj.contains_tp(target),
+            Self::Array(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.contains_tp(target)),
+            Self::Set(ts) => ts.iter().any(|t| t.contains_tp(target)),
+            Self::Dict(ts) => ts
+                .iter()
+                .any(|(k, v)| k.contains_tp(target) || v.contains_tp(target)),
+            Self::Record(rec) => rec.iter().any(|(_, tp)| tp.contains_tp(target)),
+            Self::Lambda(lambda) => lambda.body.iter().any(|tp| tp.contains_tp(target)),
+            Self::UnaryOp { val, .. } => val.contains_tp(target),
+            Self::BinOp { lhs, rhs, .. } => lhs.contains_tp(target) || rhs.contains_tp(target),
+            Self::App { args, .. } => args.iter().any(|p| p.contains_tp(target)),
+            Self::Value(ValueObj::Type(t)) => t.typ().contains_tp(target),
             _ => false,
         }
     }
@@ -1166,7 +1190,7 @@ impl TyParam {
             (Self::FreeVar(slf), _) if slf.is_linked() => slf.crack().addr_eq(other),
             (_, Self::FreeVar(otr)) if otr.is_linked() => otr.crack().addr_eq(self),
             (Self::FreeVar(slf), Self::FreeVar(otr)) => slf.addr_eq(otr),
-            _ => self == other,
+            _ => ref_addr_eq!(self, other),
         }
     }
 
@@ -1182,6 +1206,12 @@ impl TyParam {
 
     pub(crate) fn undoable_link(&self, to: &TyParam) {
         if self.addr_eq(to) {
+            return;
+        }
+        if to.contains_tp(self) {
+            if DEBUG_MODE {
+                panic!("cyclic: {self} / {to}");
+            }
             return;
         }
         match self {

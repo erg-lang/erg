@@ -379,20 +379,36 @@ impl SubrType {
             || self.return_t.contains_tvar(target)
     }
 
-    pub fn contains(&self, target: &Type) -> bool {
+    pub fn contains_type(&self, target: &Type) -> bool {
         self.non_default_params
             .iter()
-            .any(|pt| pt.typ().contains(target))
+            .any(|pt| pt.typ().contains_type(target))
             || self
                 .var_params
                 .as_ref()
-                .map(|pt| pt.typ().contains(target))
+                .map(|pt| pt.typ().contains_type(target))
                 .unwrap_or(false)
             || self
                 .default_params
                 .iter()
-                .any(|pt| pt.typ().contains(target))
-            || self.return_t.contains(target)
+                .any(|pt| pt.typ().contains_type(target))
+            || self.return_t.contains_type(target)
+    }
+
+    pub fn contains_tp(&self, target: &TyParam) -> bool {
+        self.non_default_params
+            .iter()
+            .any(|pt| pt.typ().contains_tp(target))
+            || self
+                .var_params
+                .as_ref()
+                .map(|pt| pt.typ().contains_tp(target))
+                .unwrap_or(false)
+            || self
+                .default_params
+                .iter()
+                .any(|pt| pt.typ().contains_tp(target))
+            || self.return_t.contains_tp(target)
     }
 
     pub fn qvars(&self) -> Set<(Str, Constraint)> {
@@ -1927,40 +1943,76 @@ impl Type {
         }
     }
 
-    pub fn contains(&self, target: &Type) -> bool {
+    pub fn contains_type(&self, target: &Type) -> bool {
         if self == target {
             // This operation can also be performed for recursive types
             return true;
         }
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains(target),
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains_type(target),
             Self::FreeVar(fv) => {
                 fv.get_subsup().map_or(false, |(sub, sup)| {
                     fv.dummy_link();
-                    let res = sub.contains(target) || sup.contains(target);
+                    let res = sub.contains_type(target) || sup.contains_type(target);
                     fv.undo();
                     res
-                }) || fv.get_type().map_or(false, |t| t.contains(target))
+                }) || fv.get_type().map_or(false, |t| t.contains_type(target))
             }
-            Self::Record(rec) => rec.iter().any(|(_, t)| t.contains(target)),
-            Self::Poly { params, .. } => params.iter().any(|tp| tp.contains(target)),
-            Self::Quantified(t) => t.contains(target),
-            Self::Subr(subr) => subr.contains(target),
+            Self::Record(rec) => rec.iter().any(|(_, t)| t.contains_type(target)),
+            Self::Poly { params, .. } => params.iter().any(|tp| tp.contains_type(target)),
+            Self::Quantified(t) => t.contains_type(target),
+            Self::Subr(subr) => subr.contains_type(target),
             // TODO: preds
-            Self::Refinement(refine) => refine.t.contains(target),
-            Self::Structural(ty) => ty.contains(target),
-            Self::Proj { lhs, .. } => lhs.contains(target),
+            Self::Refinement(refine) => refine.t.contains_type(target),
+            Self::Structural(ty) => ty.contains_type(target),
+            Self::Proj { lhs, .. } => lhs.contains_type(target),
             Self::ProjCall { lhs, args, .. } => {
-                lhs.contains(target) || args.iter().any(|t| t.contains(target))
+                lhs.contains_type(target) || args.iter().any(|t| t.contains_type(target))
             }
-            Self::And(lhs, rhs) => lhs.contains(target) || rhs.contains(target),
-            Self::Or(lhs, rhs) => lhs.contains(target) || rhs.contains(target),
-            Self::Not(t) => t.contains(target),
-            Self::Ref(t) => t.contains(target),
+            Self::And(lhs, rhs) => lhs.contains_type(target) || rhs.contains_type(target),
+            Self::Or(lhs, rhs) => lhs.contains_type(target) || rhs.contains_type(target),
+            Self::Not(t) => t.contains_type(target),
+            Self::Ref(t) => t.contains_type(target),
             Self::RefMut { before, after } => {
-                before.contains(target) || after.as_ref().map_or(false, |t| t.contains(target))
+                before.contains_type(target)
+                    || after.as_ref().map_or(false, |t| t.contains_type(target))
             }
-            Self::Bounded { sub, sup } => sub.contains(target) || sup.contains(target),
+            Self::Bounded { sub, sup } => sub.contains_type(target) || sup.contains_type(target),
+            _ => false,
+        }
+    }
+
+    pub fn contains_tp(&self, target: &TyParam) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains_tp(target),
+            Self::FreeVar(fv) => {
+                fv.get_subsup().map_or(false, |(sub, sup)| {
+                    fv.dummy_link();
+                    let res = sub.contains_tp(target) || sup.contains_tp(target);
+                    fv.undo();
+                    res
+                }) || fv.get_type().map_or(false, |t| t.contains_tp(target))
+            }
+            Self::Record(rec) => rec.iter().any(|(_, t)| t.contains_tp(target)),
+            Self::Poly { params, .. } => params.iter().any(|tp| tp.contains_tp(target)),
+            Self::Quantified(t) => t.contains_tp(target),
+            Self::Subr(subr) => subr.contains_tp(target),
+            // TODO: preds
+            Self::Refinement(refine) => refine.t.contains_tp(target),
+            Self::Structural(ty) => ty.contains_tp(target),
+            Self::Proj { lhs, .. } => lhs.contains_tp(target),
+            Self::ProjCall { lhs, args, .. } => {
+                lhs.contains_tp(target) || args.iter().any(|t| t.contains_tp(target))
+            }
+            Self::And(lhs, rhs) => lhs.contains_tp(target) || rhs.contains_tp(target),
+            Self::Or(lhs, rhs) => lhs.contains_tp(target) || rhs.contains_tp(target),
+            Self::Not(t) => t.contains_tp(target),
+            Self::Ref(t) => t.contains_tp(target),
+            Self::RefMut { before, after } => {
+                before.contains_tp(target)
+                    || after.as_ref().map_or(false, |t| t.contains_tp(target))
+            }
+            Self::Bounded { sub, sup } => sub.contains_tp(target) || sup.contains_tp(target),
             _ => false,
         }
     }
@@ -1970,25 +2022,28 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_recursive(),
             Self::FreeVar(fv) => fv
                 .get_subsup()
-                .map(|(sub, sup)| sub.contains(self) || sup.contains(self))
+                .map(|(sub, sup)| sub.contains_type(self) || sup.contains_type(self))
                 .unwrap_or(false),
-            Self::Record(rec) => rec.iter().any(|(_, t)| t.contains(self)),
-            Self::Poly { params, .. } => params.iter().any(|tp| tp.contains(self)),
-            Self::Quantified(t) => t.contains(self),
-            Self::Subr(subr) => subr.contains(self),
-            Self::Refinement(refine) => refine.t.contains(self),
-            Self::Structural(ty) => ty.contains(self),
-            Self::Proj { lhs, .. } => lhs.contains(self),
+            Self::Record(rec) => rec.iter().any(|(_, t)| t.contains_type(self)),
+            Self::Poly { params, .. } => params.iter().any(|tp| tp.contains_type(self)),
+            Self::Quantified(t) => t.contains_type(self),
+            Self::Subr(subr) => subr.contains_type(self),
+            Self::Refinement(refine) => refine.t.contains_type(self),
+            Self::Structural(ty) => ty.contains_type(self),
+            Self::Proj { lhs, .. } => lhs.contains_type(self),
             Self::ProjCall { lhs, args, .. } => {
-                lhs.contains(self) || args.iter().any(|t| t.contains(self))
+                lhs.contains_type(self) || args.iter().any(|t| t.contains_type(self))
             }
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => lhs.contains(self) || rhs.contains(self),
-            Self::Not(t) => t.contains(self),
-            Self::Ref(t) => t.contains(self),
+            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => {
+                lhs.contains_type(self) || rhs.contains_type(self)
+            }
+            Self::Not(t) => t.contains_type(self),
+            Self::Ref(t) => t.contains_type(self),
             Self::RefMut { before, after } => {
-                before.contains(self) || after.as_ref().map_or(false, |t| t.contains(self))
+                before.contains_type(self)
+                    || after.as_ref().map_or(false, |t| t.contains_type(self))
             }
-            Self::Bounded { sub, sup } => sub.contains(self) || sup.contains(self),
+            Self::Bounded { sub, sup } => sub.contains_type(self) || sup.contains_type(self),
             _ => false,
         }
     }
@@ -3054,7 +3109,7 @@ impl Type {
             (Self::FreeVar(slf), _) if slf.is_linked() => slf.crack().addr_eq(other),
             (_, Self::FreeVar(otr)) if otr.is_linked() => otr.crack().addr_eq(self),
             (Self::FreeVar(slf), Self::FreeVar(otr)) => slf.addr_eq(otr),
-            _ => self == other,
+            _ => ref_addr_eq!(self, other),
         }
     }
 

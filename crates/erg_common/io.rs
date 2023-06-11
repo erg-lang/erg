@@ -6,7 +6,9 @@ use std::process;
 use std::process::Stdio;
 
 use crate::consts::{ERG_MODE, EXPERIMENTAL_MODE};
-use crate::env::{erg_py_external_lib_path, erg_pystd_path, erg_std_path, python_site_packages};
+use crate::env::{
+    erg_path, erg_py_external_lib_path, erg_pystd_path, erg_std_path, python_site_packages,
+};
 use crate::pathutil::add_postfix_foreach;
 use crate::python_util::get_sys_path;
 use crate::random::random;
@@ -736,4 +738,24 @@ impl Output {
     pub fn file(filename: String) -> Self {
         Self::File(File::open(&filename).unwrap(), filename)
     }
+}
+
+/// Log to `$ERG_PATH/els.log`
+pub fn lsp_log(file: &str, line: u32, msg: &str) {
+    let file_path = erg_path().join("els.log");
+    let mut f = if file_path.exists() {
+        File::options().write(true).open(file_path).unwrap()
+    } else {
+        File::create(file_path).unwrap()
+    };
+    f.write_all(format!("{file}@{line}: {msg}").as_bytes())
+        .unwrap();
+}
+
+#[macro_export]
+macro_rules! lsp_log {
+    ($($arg:tt)*) => {
+        let msg = format!($($arg)*);
+        $crate::io::lsp_log(file!(), line!(), &msg);
+    };
 }
