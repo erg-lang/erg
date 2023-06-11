@@ -131,7 +131,7 @@ impl<T: ?Sized> Shared<T> {
     }
 
     pub fn as_ptr(&self) -> *mut T {
-        Arc::as_ptr(&self.data) as *mut T
+        RwLock::data_ptr(&self.data)
     }
 
     pub fn can_borrow(&self) -> bool {
