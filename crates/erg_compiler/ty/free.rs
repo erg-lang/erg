@@ -502,10 +502,10 @@ impl Hash for Free<Type> {
             lev.hash(state);
         }
         if let Some((sub, sup)) = self.get_subsup() {
-            self.dummy_link();
-            sub.hash(state);
-            sup.hash(state);
-            self.undo();
+            self.do_avoiding_recursion(|| {
+                sub.hash(state);
+                sup.hash(state);
+            });
         } else if let Some(t) = self.get_type() {
             t.hash(state);
         } else if self.is_linked() {
@@ -628,7 +628,33 @@ impl Free<Type> {
             self.constraint().unwrap(),
         )
     }
+
+    pub fn is_recursive(&self) -> bool {
+        Type::FreeVar(self.clone()).is_recursive()
+    }
+
+    fn _do_avoiding_recursion<O, F: FnOnce() -> O>(&self, placeholder: Option<&Type>, f: F) -> O {
+        let placeholder = placeholder.unwrap_or(&Type::Failure);
+        let is_recursive = self.is_recursive();
+        if is_recursive {
+            self.undoable_link(placeholder);
+        }
+        let res = f();
+        if is_recursive {
+            self.undo();
+        }
+        res
+    }
+
+    pub fn do_avoiding_recursion<O, F: FnOnce() -> O>(&self, f: F) -> O {
+        self._do_avoiding_recursion(None, f)
+    }
+
+    pub fn do_avoiding_recursion_with<O, F: FnOnce() -> O>(&self, placeholder: &Type, f: F) -> O {
+        self._do_avoiding_recursion(Some(placeholder), f)
+    }
 }
+
 impl Free<TyParam> {
     pub fn deep_clone(&self) -> Self {
         Self::new_named_unbound(
@@ -674,10 +700,10 @@ impl HasLevel for Free<Type> {
         if let Some(linked) = self.get_linked() {
             linked.set_level(level);
         } else if let Some((sub, sup)) = self.get_subsup() {
-            self.dummy_link();
-            sub.set_level(level);
-            sup.set_level(level);
-            self.undo();
+            self.do_avoiding_recursion(|| {
+                sub.set_level(level);
+                sup.set_level(level);
+            });
         } else if let Some(t) = self.get_type() {
             t.set_level(level);
         }
