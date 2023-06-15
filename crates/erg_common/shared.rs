@@ -5,12 +5,50 @@ pub use parking_lot::{
     MappedRwLockReadGuard, MappedRwLockWriteGuard, RwLock, RwLockReadGuard, RwLockWriteGuard,
 };
 use std::sync::Arc;
+use std::time::Duration;
+
+const TIMEOUT: Duration = Duration::from_secs(2);
+
+#[derive(Debug)]
+pub struct BorrowInfo {
+    location: Option<&'static std::panic::Location<'static>>,
+    thread_name: String,
+}
+
+impl std::fmt::Display for BorrowInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.location {
+            Some(location) => write!(
+                f,
+                "{}:{}, thread: {}",
+                location.file(),
+                location.line(),
+                self.thread_name
+            ),
+            None => write!(f, "unknown, thread: {}", self.thread_name),
+        }
+    }
+}
+
+impl BorrowInfo {
+    pub fn new(location: Option<&'static std::panic::Location<'static>>) -> Self {
+        Self {
+            location,
+            thread_name: std::thread::current()
+                .name()
+                .unwrap_or("unknown")
+                .to_string(),
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct Shared<T: ?Sized> {
     data: Arc<RwLock<T>>,
-    #[cfg(feature = "debug")]
-    borrowed_at: Arc<RwLock<Option<&'static std::panic::Location<'static>>>>,
+    #[cfg(any(debug_assertions, feature = "debug"))]
+    last_borrowed_at: Arc<RwLock<BorrowInfo>>,
+    #[cfg(any(debug_assertions, feature = "debug"))]
+    last_mut_borrowed_at: Arc<RwLock<BorrowInfo>>,
 }
 
 impl<T: PartialEq> PartialEq for Shared<T>
@@ -27,8 +65,10 @@ impl<T: ?Sized> Clone for Shared<T> {
     fn clone(&self) -> Shared<T> {
         Self {
             data: Arc::clone(&self.data),
-            #[cfg(feature = "debug")]
-            borrowed_at: self.borrowed_at.clone(),
+            #[cfg(any(debug_assertions, feature = "debug"))]
+            last_borrowed_at: self.last_borrowed_at.clone(),
+            #[cfg(any(debug_assertions, feature = "debug"))]
+            last_mut_borrowed_at: self.last_mut_borrowed_at.clone(),
         }
     }
 }
@@ -37,7 +77,7 @@ impl<T: Eq> Eq for Shared<T> where RwLock<T>: Eq {}
 
 impl<T: Hash> Hash for Shared<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.borrow_mut().hash(state);
+        self.borrow().hash(state);
     }
 }
 
@@ -49,7 +89,7 @@ impl<T: Default> Default for Shared<T> {
 
 impl<T: fmt::Display> fmt::Display for Shared<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.borrow_mut())
+        write!(f, "{}", self.borrow())
     }
 }
 
@@ -57,8 +97,10 @@ impl<T> Shared<T> {
     pub fn new(t: T) -> Self {
         Self {
             data: Arc::new(RwLock::new(t)),
-            #[cfg(feature = "debug")]
-            borrowed_at: Arc::new(RwLock::new(None)),
+            #[cfg(any(debug_assertions, feature = "debug"))]
+            last_borrowed_at: Arc::new(RwLock::new(BorrowInfo::new(None))),
+            #[cfg(any(debug_assertions, feature = "debug"))]
+            last_mut_borrowed_at: Arc::new(RwLock::new(BorrowInfo::new(None))),
         }
     }
 
@@ -77,27 +119,31 @@ impl<T: ?Sized> Shared<T> {
     pub fn copy(&self) -> Self {
         Self {
             data: self.data.clone(),
-            #[cfg(feature = "debug")]
-            borrowed_at: self.borrowed_at.clone(),
+            #[cfg(any(debug_assertions, feature = "debug"))]
+            last_borrowed_at: self.last_borrowed_at.clone(),
+            #[cfg(any(debug_assertions, feature = "debug"))]
+            last_mut_borrowed_at: self.last_mut_borrowed_at.clone(),
         }
     }
 
     #[inline]
     #[track_caller]
     pub fn borrow(&self) -> RwLockReadGuard<'_, T> {
-        #[cfg(feature = "debug")]
+        #[cfg(any(debug_assertions, feature = "debug"))]
         {
-            *self.borrowed_at.try_write().unwrap() = Some(std::panic::Location::caller());
+            *self.last_borrowed_at.try_write_for(TIMEOUT).unwrap() =
+                BorrowInfo::new(Some(std::panic::Location::caller()));
         }
-        self.data.try_read().unwrap_or_else(|| {
-            #[cfg(feature = "debug")]
+        self.data.try_read_for(TIMEOUT).unwrap_or_else(|| {
+            #[cfg(any(debug_assertions, feature = "debug"))]
             {
                 panic!(
-                    "Shared::borrow: already borrowed at {}",
-                    self.borrowed_at.read().as_ref().unwrap()
+                    "Shared::borrow: already borrowed at {}, mutably borrowed at {:?}",
+                    self.last_borrowed_at.try_read_for(TIMEOUT).unwrap(),
+                    self.last_mut_borrowed_at.try_read_for(TIMEOUT).unwrap()
                 )
             }
-            #[cfg(not(feature = "debug"))]
+            #[cfg(not(any(debug_assertions, feature = "debug")))]
             {
                 panic!("Shared::borrow: already borrowed")
             }
@@ -107,19 +153,23 @@ impl<T: ?Sized> Shared<T> {
     #[inline]
     #[track_caller]
     pub fn borrow_mut(&self) -> RwLockWriteGuard<'_, T> {
-        #[cfg(feature = "debug")]
+        #[cfg(any(debug_assertions, feature = "debug"))]
         {
-            *self.borrowed_at.try_write().unwrap() = Some(std::panic::Location::caller());
+            let caller = std::panic::Location::caller();
+            *self.last_borrowed_at.try_write_for(TIMEOUT).unwrap() = BorrowInfo::new(Some(caller));
+            *self.last_mut_borrowed_at.try_write_for(TIMEOUT).unwrap() =
+                BorrowInfo::new(Some(caller));
         }
-        self.data.try_write().unwrap_or_else(|| {
-            #[cfg(feature = "debug")]
+        self.data.try_write_for(TIMEOUT).unwrap_or_else(|| {
+            #[cfg(any(debug_assertions, feature = "debug"))]
             {
                 panic!(
-                    "Shared::borrow_mut: already borrowed at {}",
-                    self.borrowed_at.read().as_ref().unwrap()
+                    "Shared::borrow_mut: already borrowed at {}, mutabbly borrowed at {}",
+                    self.last_borrowed_at.try_read_for(TIMEOUT).unwrap(),
+                    self.last_mut_borrowed_at.try_read_for(TIMEOUT).unwrap()
                 )
             }
-            #[cfg(not(feature = "debug"))]
+            #[cfg(not(any(debug_assertions, feature = "debug")))]
             {
                 panic!("Shared::borrow_mut: already borrowed")
             }
@@ -134,12 +184,12 @@ impl<T: ?Sized> Shared<T> {
         RwLock::data_ptr(&self.data)
     }
 
-    pub fn can_borrow(&self) -> bool {
-        self.data.try_read().is_some()
+    pub fn try_borrow(&self) -> Option<RwLockReadGuard<'_, T>> {
+        self.data.try_read()
     }
 
-    pub fn can_borrow_mut(&self) -> bool {
-        self.data.try_write().is_some()
+    pub fn try_borrow_mut(&self) -> Option<RwLockWriteGuard<'_, T>> {
+        self.data.try_write()
     }
 
     /// # Safety
@@ -152,6 +202,6 @@ impl<T: ?Sized> Shared<T> {
 impl<T: Clone> Shared<T> {
     #[inline]
     pub fn clone_inner(&self) -> T {
-        self.borrow_mut().clone()
+        self.borrow().clone()
     }
 }

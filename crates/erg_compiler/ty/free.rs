@@ -612,11 +612,11 @@ impl<T> Free<T> {
     pub fn forced_as_ref(&self) -> &FreeKind<T> {
         unsafe { self.as_ptr().as_ref() }.unwrap()
     }
-    pub fn can_borrow(&self) -> bool {
-        self.0.can_borrow()
+    pub fn try_borrow(&self) -> Option<RwLockReadGuard<'_, FreeKind<T>>> {
+        self.0.try_borrow()
     }
-    pub fn can_borrow_mut(&self) -> bool {
-        self.0.can_borrow_mut()
+    pub fn try_borrow_mut(&self) -> Option<RwLockWriteGuard<'_, FreeKind<T>>> {
+        self.0.try_borrow_mut()
     }
 }
 
