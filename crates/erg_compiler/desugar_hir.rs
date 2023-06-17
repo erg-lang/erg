@@ -32,34 +32,54 @@ impl HIRDesugarer {
     /// ```
     fn desugar_class_member(mut hir: HIR) -> HIR {
         for chunk in hir.module.iter_mut() {
-            let static_members = match chunk {
-                Expr::ClassDef(class_def) => {
-                    let class = Expr::Accessor(Accessor::Ident(class_def.sig.ident().clone()));
-                    let methods = std::mem::take(class_def.methods.ref_mut_payload());
-                    let (methods, static_members): (Vec<_>, Vec<_>) = methods
-                        .into_iter()
-                        .partition(|attr| matches!(attr, Expr::Def(def) if def.sig.is_subr()));
-                    class_def.methods.extend(methods);
-                    static_members
-                        .into_iter()
-                        .map(|expr| match expr {
-                            Expr::Def(def) => {
-                                let acc = class.clone().attr(def.sig.into_ident());
-                                let redef = ReDef::new(acc, def.body.block);
-                                Expr::ReDef(redef)
-                            }
-                            _ => expr,
-                        })
-                        .collect()
-                }
-                _ => vec![],
-            };
-            if !static_members.is_empty() {
-                *chunk = Expr::Compound(Block::new(
-                    [vec![std::mem::take(chunk)], static_members].concat(),
-                ));
-            }
+            Self::desugar_class_member_expr(chunk);
         }
         hir
+    }
+
+    fn desugar_class_member_expr(chunk: &mut Expr) {
+        match chunk {
+            Expr::ClassDef(class_def) => {
+                let class = Expr::Accessor(Accessor::Ident(class_def.sig.ident().clone()));
+                let methods = std::mem::take(class_def.methods.ref_mut_payload());
+                let (methods, static_members): (Vec<_>, Vec<_>) = methods
+                    .into_iter()
+                    .partition(|attr| matches!(attr, Expr::Def(def) if def.sig.is_subr()));
+                class_def.methods.extend(methods);
+                let static_members = static_members
+                    .into_iter()
+                    .map(|expr| match expr {
+                        Expr::Def(def) => {
+                            let acc = class.clone().attr(def.sig.into_ident());
+                            let redef = ReDef::new(acc, def.body.block);
+                            Expr::ReDef(redef)
+                        }
+                        _ => expr,
+                    })
+                    .collect::<Vec<_>>();
+                if !static_members.is_empty() {
+                    *chunk = Expr::Compound(Block::new(
+                        [vec![std::mem::take(chunk)], static_members].concat(),
+                    ));
+                }
+            }
+            Expr::Code(block) | Expr::Compound(block) => {
+                for expr in block.iter_mut() {
+                    Self::desugar_class_member_expr(expr);
+                }
+            }
+            Expr::Def(def) => {
+                for chunk in def.body.block.iter_mut() {
+                    Self::desugar_class_member_expr(chunk);
+                }
+            }
+            // `HIRLinker` binds the modules and embed as the argument for the `exec` function call
+            Expr::Call(call) => {
+                call.args.pos_args.iter_mut().for_each(|arg| {
+                    Self::desugar_class_member_expr(&mut arg.expr);
+                });
+            }
+            _ => {}
+        };
     }
 }
