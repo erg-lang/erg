@@ -1750,10 +1750,7 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().union_size(),
             Self::FreeVar(fv) if fv.constraint_is_sandwiched() => {
                 let (sub, sup) = fv.get_subsup().unwrap();
-                fv.dummy_link();
-                let res = sub.union_size().max(sup.union_size());
-                fv.undo();
-                res
+                fv.do_avoiding_recursion(|| sub.union_size().max(sup.union_size()))
             }
             // Or(Or(Int, Str), Nat) == 3
             Self::Or(l, r) => l.union_size() + r.union_size(),
@@ -1912,10 +1909,9 @@ impl Type {
                     || fv
                         .get_subsup()
                         .map(|(sub, sup)| {
-                            fv.dummy_link();
-                            let res = sub.contains_tvar(target) || sup.contains_tvar(target);
-                            fv.undo();
-                            res
+                            fv.do_avoiding_recursion(|| {
+                                sub.contains_tvar(target) || sup.contains_tvar(target)
+                            })
                         })
                         .unwrap_or(false)
             }
@@ -1952,10 +1948,9 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains_type(target),
             Self::FreeVar(fv) => {
                 fv.get_subsup().map_or(false, |(sub, sup)| {
-                    fv.dummy_link();
-                    let res = sub.contains_type(target) || sup.contains_type(target);
-                    fv.undo();
-                    res
+                    fv.do_avoiding_recursion(|| {
+                        sub.contains_type(target) || sup.contains_type(target)
+                    })
                 }) || fv.get_type().map_or(false, |t| t.contains_type(target))
             }
             Self::Record(rec) => rec.iter().any(|(_, t)| t.contains_type(target)),
@@ -1987,10 +1982,7 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains_tp(target),
             Self::FreeVar(fv) => {
                 fv.get_subsup().map_or(false, |(sub, sup)| {
-                    fv.dummy_link();
-                    let res = sub.contains_tp(target) || sup.contains_tp(target);
-                    fv.undo();
-                    res
+                    fv.do_avoiding_recursion(|| sub.contains_tp(target) || sup.contains_tp(target))
                 }) || fv.get_type().map_or(false, |t| t.contains_tp(target))
             }
             Self::Record(rec) => rec.iter().any(|(_, t)| t.contains_tp(target)),
@@ -2422,15 +2414,9 @@ impl Type {
             Self::FreeVar(fv) if !fv.constraint_is_uninited() => {
                 let base = set! {(fv.unbound_name().unwrap(), fv.constraint().unwrap())};
                 if let Some((sub, sup)) = fv.get_subsup() {
-                    fv.dummy_link();
-                    let res = base.concat(sub.qvars()).concat(sup.qvars());
-                    fv.undo();
-                    res
+                    fv.do_avoiding_recursion(|| base.concat(sub.qvars()).concat(sup.qvars()))
                 } else if let Some(ty) = fv.get_type() {
-                    fv.dummy_link();
-                    let res = base.concat(ty.qvars());
-                    fv.undo();
-                    res
+                    fv.do_avoiding_recursion(|| base.concat(ty.qvars()))
                 } else {
                     base
                 }
@@ -2486,11 +2472,7 @@ impl Type {
             Self::FreeVar(fv) if fv.is_unbound() && fv.is_generalized() => true,
             Self::FreeVar(fv) => {
                 if let Some((sub, sup)) = fv.get_subsup() {
-                    fv.dummy_link();
-                    let res_sub = sub.has_qvar();
-                    let res_sup = sup.has_qvar();
-                    fv.undo();
-                    res_sub || res_sup
+                    fv.do_avoiding_recursion(|| sub.has_qvar() || sup.has_qvar())
                 } else {
                     let opt_t = fv.get_type();
                     opt_t.map_or(false, |t| t.has_qvar())
@@ -2527,11 +2509,9 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().has_undoable_linked_var(),
             Self::FreeVar(fv) => {
                 if let Some((sub, sup)) = fv.get_subsup() {
-                    fv.dummy_link();
-                    let res_sub = sub.has_undoable_linked_var();
-                    let res_sup = sup.has_undoable_linked_var();
-                    fv.undo();
-                    res_sub || res_sup
+                    fv.do_avoiding_recursion(|| {
+                        sub.has_undoable_linked_var() || sup.has_undoable_linked_var()
+                    })
                 } else {
                     let opt_t = fv.get_type();
                     opt_t.map_or(false, |t| t.has_undoable_linked_var())
@@ -2840,11 +2820,10 @@ impl Type {
                 if let Some((sub, sup)) = fv.get_subsup() {
                     // if fv == ?T(:> {1, 2}, <: Sub(?T)), derefine() will cause infinite loop
                     // so we need to force linking
-                    fv.dummy_link();
-                    let constraint = Constraint::new_sandwiched(sub.derefine(), sup.derefine());
-                    let free = Self::FreeVar(Free::new_named_unbound(name, level, constraint));
-                    fv.undo();
-                    free
+                    fv.do_avoiding_recursion(|| {
+                        let constraint = Constraint::new_sandwiched(sub.derefine(), sup.derefine());
+                        Self::FreeVar(Free::new_named_unbound(name, level, constraint))
+                    })
                 } else {
                     let t = fv.get_type().unwrap().derefine();
                     let constraint = Constraint::new_type_of(t);

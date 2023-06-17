@@ -470,10 +470,7 @@ impl Context {
                     return self.supertype_of(&t, rhs);
                 }
                 if let Some((_sub, sup)) = lfv.get_subsup() {
-                    lhs.undoable_link(rhs);
-                    let res = self.supertype_of(&sup, rhs);
-                    lfv.undo();
-                    res
+                    lfv.do_avoiding_recursion_with(rhs, || self.supertype_of(&sup, rhs))
                 } else if let Some(lfvt) = lfv.get_type() {
                     // e.g. lfv: ?L(: Int) is unreachable
                     // but
@@ -493,10 +490,7 @@ impl Context {
                     return self.supertype_of(lhs, &t);
                 }
                 if let Some((sub, _sup)) = rfv.get_subsup() {
-                    rhs.undoable_link(lhs);
-                    let res = self.supertype_of(lhs, &sub);
-                    rfv.undo();
-                    res
+                    rfv.do_avoiding_recursion_with(lhs, || self.supertype_of(lhs, &sub))
                 } else if let Some(rfvt) = rfv.get_type() {
                     let lhs_meta = self.meta_type(lhs);
                     self.supertype_of(&lhs_meta, &rfvt)
