@@ -1,0 +1,5 @@
+a = import "a"
+b = import "b"
+
+assert a.x == 1
+assert b.y == 1

@@ -2538,6 +2538,13 @@ impl PyCodeGenerator {
         debug_assert_eq!(self.stack_len(), init_stack_len + 1);
     }
 
+    /// Emits independent code blocks (e.g., linked other modules)
+    fn emit_code(&mut self, code: Block) {
+        let mut gen = Self::new(self.cfg.clone());
+        let code = gen.emit_block(code, None, vec![], 0);
+        self.emit_load_const(code);
+    }
+
     pub(crate) fn get_root(acc: &Accessor) -> Identifier {
         match acc {
             Accessor::Ident(ident) => ident.clone(),
@@ -2642,10 +2649,7 @@ impl PyCodeGenerator {
             Expr::Set(set) => self.emit_set(set),
             Expr::Dict(dict) => self.emit_dict(dict),
             Expr::Record(rec) => self.emit_record(rec),
-            Expr::Code(code) => {
-                let code = self.emit_block(code, None, vec![], 0);
-                self.emit_load_const(code);
-            }
+            Expr::Code(code) => self.emit_code(code),
             Expr::Compound(chunks) => self.emit_compound(chunks),
             Expr::Import(acc) => self.emit_import(acc),
             Expr::Dummy(_) | Expr::TypeAsc(_) => {}
@@ -2717,10 +2721,7 @@ impl PyCodeGenerator {
             Expr::Set(set) => self.emit_set(set),
             Expr::Dict(dict) => self.emit_dict(dict),
             Expr::Record(rec) => self.emit_record(rec),
-            Expr::Code(code) => {
-                let code = self.emit_block(code, None, vec![], 0);
-                self.emit_load_const(code);
-            }
+            Expr::Code(code) => self.emit_code(code),
             Expr::Compound(chunks) => self.emit_compound(chunks),
             Expr::TypeAsc(tasc) => self.emit_expr(*tasc.expr),
             Expr::Import(acc) => self.emit_import(acc),
