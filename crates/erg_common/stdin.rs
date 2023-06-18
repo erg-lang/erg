@@ -17,7 +17,7 @@ use std::process::Command;
 #[cfg(feature = "full-repl")]
 use std::process::Output;
 
-use crate::shared::AtomicShared;
+use crate::shared::Shared;
 
 /// e.g.
 /// ```erg
@@ -263,14 +263,14 @@ impl StdinReader {
 }
 
 #[derive(Debug)]
-pub struct GlobalStdin(OnceLock<AtomicShared<StdinReader>>);
+pub struct GlobalStdin(OnceLock<Shared<StdinReader>>);
 
 pub static GLOBAL_STDIN: GlobalStdin = GlobalStdin(OnceLock::new());
 
 impl GlobalStdin {
-    fn get(&'static self) -> &'static AtomicShared<StdinReader> {
+    fn get(&'static self) -> &'static Shared<StdinReader> {
         self.0.get_or_init(|| {
-            AtomicShared::new(StdinReader {
+            Shared::new(StdinReader {
                 block_begin: 1,
                 lineno: 1,
                 buf: vec![],

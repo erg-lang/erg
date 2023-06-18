@@ -462,4 +462,77 @@ impl SideEffectChecker {
             | Expr::Dummy(_) => {}
         }
     }
+
+    pub(crate) fn is_impure(expr: &Expr) -> bool {
+        match expr {
+            Expr::Call(call) => {
+                call.ref_t().is_procedure()
+                    || call
+                        .args
+                        .pos_args
+                        .iter()
+                        .any(|parg| Self::is_impure(&parg.expr))
+                    || call
+                        .args
+                        .var_args
+                        .iter()
+                        .any(|varg| Self::is_impure(&varg.expr))
+                    || call
+                        .args
+                        .kw_args
+                        .iter()
+                        .any(|kwarg| Self::is_impure(&kwarg.expr))
+            }
+            Expr::BinOp(bin) => Self::is_impure(&bin.lhs) || Self::is_impure(&bin.rhs),
+            Expr::UnaryOp(unary) => Self::is_impure(&unary.expr),
+            Expr::Array(arr) => match arr {
+                Array::Normal(arr) => arr
+                    .elems
+                    .pos_args
+                    .iter()
+                    .any(|elem| Self::is_impure(&elem.expr)),
+                Array::WithLength(arr) => Self::is_impure(&arr.elem) || Self::is_impure(&arr.len),
+                _ => todo!(),
+            },
+            Expr::Tuple(tup) => match tup {
+                Tuple::Normal(tup) => tup
+                    .elems
+                    .pos_args
+                    .iter()
+                    .any(|elem| Self::is_impure(&elem.expr)),
+            },
+            Expr::Set(set) => match set {
+                Set::Normal(set) => set
+                    .elems
+                    .pos_args
+                    .iter()
+                    .any(|elem| Self::is_impure(&elem.expr)),
+                Set::WithLength(set) => Self::is_impure(&set.elem) || Self::is_impure(&set.len),
+            },
+            Expr::Dict(dict) => match dict {
+                Dict::Normal(dict) => dict
+                    .kvs
+                    .iter()
+                    .any(|kv| Self::is_impure(&kv.key) || Self::is_impure(&kv.value)),
+                _ => todo!(),
+            },
+            Expr::Lambda(lambda) => {
+                lambda.op.is_procedural() || lambda.body.iter().any(Self::is_impure)
+            }
+            Expr::Def(def) => def.sig.is_procedural() || def.body.block.iter().any(Self::is_impure),
+            /*
+            Expr::ClassDef(class_def) => {
+                class_def.methods.iter().any(|def| Self::is_impure(def))
+            }
+            Expr::PatchDef(patch_def) => {
+                patch_def.methods.iter().any(|def| Self::is_impure(def))
+            }*/
+            Expr::Code(block) | Expr::Compound(block) => block.iter().any(Self::is_impure),
+            _ => false,
+        }
+    }
+
+    pub(crate) fn is_pure(expr: &Expr) -> bool {
+        !Self::is_impure(expr)
+    }
 }

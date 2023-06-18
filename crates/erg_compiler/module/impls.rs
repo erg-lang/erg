@@ -1,11 +1,12 @@
 use std::borrow::Borrow;
-use std::cell::{Ref, RefMut};
 use std::fmt;
 use std::hash::Hash;
 
 use erg_common::dict::Dict;
 use erg_common::set::Set;
-use erg_common::shared::Shared;
+use erg_common::shared::{
+    MappedRwLockReadGuard, MappedRwLockWriteGuard, RwLockReadGuard, RwLockWriteGuard, Shared,
+};
 use erg_common::Str;
 
 use crate::context::TraitImpl;
@@ -77,23 +78,31 @@ impl SharedTraitImpls {
         Self(Shared::new(TraitImpls::new()))
     }
 
-    pub fn get<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<Ref<Set<TraitImpl>>>
+    pub fn get<Q: Eq + Hash + ?Sized>(
+        &self,
+        path: &Q,
+    ) -> Option<MappedRwLockReadGuard<Set<TraitImpl>>>
     where
         Str: Borrow<Q>,
     {
         if self.0.borrow().get(path).is_some() {
-            Some(Ref::map(self.0.borrow(), |tis| tis.get(path).unwrap()))
+            Some(RwLockReadGuard::map(self.0.borrow(), |tis| {
+                tis.get(path).unwrap()
+            }))
         } else {
             None
         }
     }
 
-    pub fn get_mut<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<RefMut<Set<TraitImpl>>>
+    pub fn get_mut<Q: Eq + Hash + ?Sized>(
+        &self,
+        path: &Q,
+    ) -> Option<MappedRwLockWriteGuard<Set<TraitImpl>>>
     where
         Str: Borrow<Q>,
     {
         if self.0.borrow().get(path).is_some() {
-            Some(RefMut::map(self.0.borrow_mut(), |tis| {
+            Some(RwLockWriteGuard::map(self.0.borrow_mut(), |tis| {
                 tis.get_mut(path).unwrap()
             }))
         } else {
@@ -112,8 +121,8 @@ impl SharedTraitImpls {
         self.0.borrow_mut().remove(path)
     }
 
-    pub fn ref_inner(&self) -> Ref<Dict<Str, Set<TraitImpl>>> {
-        Ref::map(self.0.borrow(), |tis| &tis.cache)
+    pub fn ref_inner(&self) -> MappedRwLockReadGuard<Dict<Str, Set<TraitImpl>>> {
+        RwLockReadGuard::map(self.0.borrow(), |tis| &tis.cache)
     }
 
     pub fn initialize(&self) {

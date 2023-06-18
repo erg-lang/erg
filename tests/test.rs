@@ -244,6 +244,11 @@ fn exec_unpack() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_unused_import() -> Result<(), ()> {
+    expect_success("tests/should_ok/many_import/unused_import.er", 2)
+}
+
+#[test]
 fn exec_use_py() -> Result<(), ()> {
     expect_success("examples/use_py.er", 0)
 }

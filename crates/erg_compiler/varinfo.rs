@@ -236,7 +236,7 @@ impl Default for VarInfo {
 }
 
 impl VarInfo {
-    pub const ILLEGAL: &'static Self = &Self::const_default_private();
+    pub const ILLEGAL: Self = Self::const_default_private();
 
     pub const fn const_default_private() -> Self {
         Self::new(

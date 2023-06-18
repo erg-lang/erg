@@ -6,6 +6,7 @@ use super::cache::SharedModuleCache;
 use super::graph::SharedModuleGraph;
 use super::impls::SharedTraitImpls;
 use super::index::SharedModuleIndex;
+use super::promise::SharedPromises;
 
 #[derive(Debug, Clone, Default)]
 pub struct SharedCompilerResource {
@@ -17,6 +18,7 @@ pub struct SharedCompilerResource {
     /// K: トレイトの名前, V: (型, その型が実装する単相化トレイト)
     /// e.g. { "Named": [(Type, Named), (Func, Named), ...], "Add": [(Nat, Add(Nat)), (Int, Add(Int)), ...], ... }
     pub trait_impls: SharedTraitImpls,
+    pub promises: SharedPromises,
 }
 
 impl SharedCompilerResource {
@@ -29,6 +31,7 @@ impl SharedCompilerResource {
             index: SharedModuleIndex::new(),
             graph: SharedModuleGraph::new(),
             trait_impls: SharedTraitImpls::new(),
+            promises: SharedPromises::new(),
         };
         Context::init_builtins(cfg, self_.clone());
         self_

@@ -37,7 +37,7 @@ use crate::context::instantiate::TyVarCache;
 use crate::context::instantiate_spec::ConstTemplate;
 use crate::error::{TyCheckError, TyCheckErrors};
 use crate::module::{
-    SharedCompilerResource, SharedModuleCache, SharedModuleIndex, SharedTraitImpls,
+    SharedCompilerResource, SharedModuleCache, SharedModuleIndex, SharedPromises, SharedTraitImpls,
 };
 use crate::ty::value::ValueObj;
 use crate::ty::GuardType;
@@ -1165,6 +1165,10 @@ impl Context {
 
     pub fn shared(&self) -> &SharedCompilerResource {
         self.shared.as_ref().unwrap()
+    }
+
+    pub fn promises(&self) -> &SharedPromises {
+        &self.shared().promises
     }
 
     pub fn control_kind(&self) -> Option<ControlKind> {

@@ -16,6 +16,7 @@ use erg_common::levenshtein::get_similar_name;
 use erg_common::pathutil::{DirKind, FileKind};
 use erg_common::python_util::BUILTIN_PYTHON_MODS;
 use erg_common::set::Set;
+use erg_common::spawn::spawn_new_thread;
 use erg_common::traits::{Locational, Stream};
 use erg_common::triple::Triple;
 use erg_common::{get_hash, log, set, unique_in_place, Str};
@@ -26,6 +27,7 @@ use ast::{
 };
 use erg_parser::ast;
 
+use crate::artifact::ErrorArtifact;
 use crate::ty::constructors::{
     free_var, func, func0, func1, proc, ref_, ref_mut, tp_enum, unknown_len_array_t, v_enum,
 };
@@ -1912,36 +1914,50 @@ impl Context {
         Ok(())
     }
 
+    /// Start a new build process and let it do the module analysis.
+    /// Currently the analysis is speculative and handles for unused modules may not be joined.
+    /// In that case, the `HIROptimizer` will remove unused imports from the `HIR`.
     fn build_erg_mod(
         &self,
         path: PathBuf,
         __name__: &Str,
         loc: &impl Locational,
     ) -> CompileResult<PathBuf> {
-        let mod_cache = self.mod_cache();
         let mut cfg = self.cfg.inherit(path.clone());
         let src = cfg
             .input
             .try_read()
             .map_err(|_| self.import_err(line!(), __name__, loc))?;
-        let mut builder =
-            HIRBuilder::new_with_cache(cfg, __name__, self.shared.as_ref().unwrap().clone());
-        match builder.build(src, "exec") {
-            Ok(artifact) => {
-                mod_cache.register(
-                    path.clone(),
-                    Some(artifact.object),
-                    builder.pop_mod_ctx().unwrap(),
-                );
-                Ok(path)
-            }
-            Err(artifact) => {
-                if let Some(hir) = artifact.object {
-                    mod_cache.register(path, Some(hir), builder.pop_mod_ctx().unwrap());
+        let name = __name__.clone();
+        let _path = path.clone();
+        let shared = self.shared.as_ref().unwrap().clone();
+        let run = move || {
+            let mut builder = HIRBuilder::new_with_cache(cfg, name, shared.clone());
+            match builder.build(src, "exec") {
+                Ok(artifact) => {
+                    shared.mod_cache.register(
+                        _path.clone(),
+                        Some(artifact.object),
+                        builder.pop_mod_ctx().unwrap(),
+                    );
+                    // shared.warns.extend(artifact.warns);
+                    Ok(())
                 }
-                Err(artifact.errors)
+                Err(artifact) => {
+                    if let Some(hir) = artifact.object {
+                        shared
+                            .mod_cache
+                            .register(_path, Some(hir), builder.pop_mod_ctx().unwrap());
+                    }
+                    // shared.warns.extend(artifact.warns);
+                    // shared.errors.extend(artifact.errors);
+                    Err(ErrorArtifact::new(artifact.errors, artifact.warns))
+                }
             }
-        }
+        };
+        let handle = spawn_new_thread(run, __name__);
+        self.shared().promises.insert(path.clone(), handle);
+        Ok(path)
     }
 
     fn similar_builtin_py_mod_name(&self, name: &Str) -> Option<Str> {

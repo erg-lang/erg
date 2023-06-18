@@ -1,8 +1,7 @@
-use std::cell::Ref;
 use std::fmt;
 use std::path::{Path, PathBuf};
 
-use erg_common::shared::Shared;
+use erg_common::shared::{MappedRwLockReadGuard, RwLockReadGuard, Shared};
 use erg_common::tsort::{tsort, Graph, Node, TopoSortError};
 use erg_common::{normalize_path, set};
 
@@ -110,9 +109,9 @@ impl SharedModuleGraph {
         Self(Shared::new(ModuleGraph::new()))
     }
 
-    pub fn get_node(&self, path: &Path) -> Option<Ref<Node<PathBuf, ()>>> {
+    pub fn get_node(&self, path: &Path) -> Option<MappedRwLockReadGuard<Node<PathBuf, ()>>> {
         if self.0.borrow().get_node(path).is_some() {
-            Some(Ref::map(self.0.borrow(), |graph| {
+            Some(RwLockReadGuard::map(self.0.borrow(), |graph| {
                 graph.get_node(path).unwrap()
             }))
         } else {
@@ -128,7 +127,7 @@ impl SharedModuleGraph {
         self.0.borrow_mut().inc_ref(referrer, depends_on);
     }
 
-    pub fn ref_inner(&self) -> Ref<ModuleGraph> {
+    pub fn ref_inner(&self) -> RwLockReadGuard<ModuleGraph> {
         self.0.borrow()
     }
 

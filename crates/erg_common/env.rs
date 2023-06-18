@@ -99,9 +99,9 @@ pub fn python_site_packages() -> &'static Vec<PathBuf> {
 }
 
 pub fn is_std_decl_path(path: &Path) -> bool {
-    path.starts_with(erg_pystd_path())
-        || path.starts_with(erg_std_decl_path())
-        || path.starts_with(erg_py_external_lib_path())
+    path.starts_with(erg_pystd_path().as_path())
+        || path.starts_with(erg_std_decl_path().as_path())
+        || path.starts_with(erg_py_external_lib_path().as_path())
 }
 
 pub fn is_pystd_main_module(path: &Path) -> bool {

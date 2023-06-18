@@ -11,7 +11,7 @@ use erg_common::impl_u8_enum;
 use erg_common::io::Input;
 use erg_common::python_util::BUILTIN_PYTHON_MODS;
 use erg_common::set::Set;
-use erg_common::shared::AtomicShared;
+use erg_common::shared::Shared;
 use erg_common::traits::Locational;
 
 use erg_compiler::artifact::{BuildRunnable, Buildable};
@@ -177,7 +177,7 @@ impl<'b> CompletionOrderSetter<'b> {
     }
 }
 
-type Cache = AtomicShared<Dict<String, Vec<CompletionItem>>>;
+type Cache = Shared<Dict<String, Vec<CompletionItem>>>;
 
 #[derive(Debug)]
 pub struct CompletionCache {
@@ -319,7 +319,7 @@ fn load_modules(cfg: ErgConfig, cache: Cache) {
 
 impl CompletionCache {
     pub fn new(cfg: ErgConfig) -> Self {
-        let cache = AtomicShared::new(Dict::default());
+        let cache = Shared::new(Dict::default());
         let clone = cache.clone();
         exec_new_thread(
             move || {

@@ -632,7 +632,7 @@ impl ASTLowerer {
                     Triple::Ok(vi) => vi,
                     Triple::Err(errs) => {
                         self.errs.push(errs);
-                        VarInfo::ILLEGAL.clone()
+                        VarInfo::ILLEGAL
                     }
                     Triple::None => {
                         let self_t = obj.t();
@@ -652,7 +652,7 @@ impl ASTLowerer {
                             similar_info,
                         );
                         self.errs.push(err);
-                        VarInfo::ILLEGAL.clone()
+                        VarInfo::ILLEGAL
                     }
                 };
                 self.inc_ref(&vi, &attr.ident.name);
@@ -694,7 +694,7 @@ impl ASTLowerer {
                 Triple::Ok(vi) => vi,
                 Triple::Err(err) => {
                     self.errs.push(err);
-                    VarInfo::ILLEGAL.clone()
+                    VarInfo::ILLEGAL
                 }
                 Triple::None => {
                     let (similar_info, similar_name) = self
@@ -712,7 +712,7 @@ impl ASTLowerer {
                         similar_info,
                     );
                     self.errs.push(err);
-                    VarInfo::ILLEGAL.clone()
+                    VarInfo::ILLEGAL
                 }
             };
             (
@@ -813,7 +813,7 @@ impl ASTLowerer {
             .get_binop_t(&bin.op, &args, &self.cfg.input, &self.module.context)
             .unwrap_or_else(|errs| {
                 self.errs.extend(errs);
-                VarInfo::ILLEGAL.clone()
+                VarInfo::ILLEGAL
             });
         if let Some(guard) = guard {
             if let Some(return_t) = vi.t.mut_return_t() {
@@ -852,7 +852,7 @@ impl ASTLowerer {
             .get_unaryop_t(&unary.op, &args, &self.cfg.input, &self.module.context)
             .unwrap_or_else(|errs| {
                 self.errs.extend(errs);
-                VarInfo::ILLEGAL.clone()
+                VarInfo::ILLEGAL
             });
         let mut args = args.into_iter();
         let expr = args.next().unwrap().expr;
@@ -973,7 +973,7 @@ impl ASTLowerer {
             Err((vi, es)) => {
                 self.module.context.higher_order_caller.pop();
                 errs.extend(es);
-                vi.unwrap_or(VarInfo::ILLEGAL.clone())
+                vi.unwrap_or(VarInfo::ILLEGAL)
             }
         };
         if let Err(es) = self.module.context.propagate(&mut vi.t, &obj) {
@@ -1102,7 +1102,7 @@ impl ASTLowerer {
             Ok(vi) => vi,
             Err((vi, errs)) => {
                 self.errs.extend(errs);
-                vi.unwrap_or(VarInfo::ILLEGAL.clone())
+                vi.unwrap_or(VarInfo::ILLEGAL)
             }
         };
         let args = hir::Args::pos_only(args, None);

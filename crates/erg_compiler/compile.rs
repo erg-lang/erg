@@ -12,6 +12,7 @@ use erg_parser::ast::VarName;
 
 use crate::artifact::{CompleteArtifact, ErrorArtifact};
 use crate::context::{Context, ContextProvider};
+use crate::optimize::HIROptimizer;
 use crate::ty::codeobj::CodeObj;
 
 use crate::build_hir::HIRBuilder;
@@ -20,7 +21,7 @@ use crate::desugar_hir::HIRDesugarer;
 use crate::error::{CompileError, CompileErrors, CompileWarnings};
 use crate::hir::Expr;
 use crate::link_hir::HIRLinker;
-use crate::module::{SharedCompilerResource, SharedModuleCache};
+use crate::module::SharedCompilerResource;
 use crate::varinfo::VarInfo;
 
 /// * registered as global -> Global
@@ -113,7 +114,7 @@ impl AccessKind {
 pub struct Compiler {
     pub cfg: ErgConfig,
     builder: HIRBuilder,
-    mod_cache: SharedModuleCache,
+    shared: SharedCompilerResource,
     code_generator: PyCodeGenerator,
 }
 
@@ -131,7 +132,7 @@ impl Runnable for Compiler {
     fn new(cfg: ErgConfig) -> Self {
         let shared = SharedCompilerResource::new(cfg.copy());
         Self {
-            mod_cache: shared.mod_cache.clone(),
+            shared: shared.clone(),
             builder: HIRBuilder::new_with_cache(cfg.copy(), "<module>", shared),
             code_generator: PyCodeGenerator::new(cfg.copy()),
             cfg,
@@ -231,7 +232,7 @@ impl Compiler {
         mode: &str,
     ) -> Result<CompleteArtifact<CodeObj>, ErrorArtifact> {
         log!(info "the compiling process has started.");
-        let arti = self.build_link_desugar(src, mode)?;
+        let arti = self.build_optimize_link_desugar(src, mode)?;
         let codeobj = self.code_generator.emit(arti.object);
         log!(info "code object:\n{}", codeobj.code_info(Some(self.code_generator.py_version)));
         log!(info "the compiling process has completed");
@@ -244,7 +245,7 @@ impl Compiler {
         mode: &str,
     ) -> Result<CompleteArtifact<(CodeObj, Option<Expr>)>, ErrorArtifact> {
         log!(info "the compiling process has started.");
-        let arti = self.build_link_desugar(src, mode)?;
+        let arti = self.build_optimize_link_desugar(src, mode)?;
         let last = arti.object.module.last().cloned();
         let codeobj = self.code_generator.emit(arti.object);
         log!(info "code object:\n{}", codeobj.code_info(Some(self.code_generator.py_version)));
@@ -252,14 +253,15 @@ impl Compiler {
         Ok(CompleteArtifact::new((codeobj, last), arti.warns))
     }
 
-    fn build_link_desugar(
+    fn build_optimize_link_desugar(
         &mut self,
         src: String,
         mode: &str,
     ) -> Result<CompleteArtifact, ErrorArtifact> {
         let artifact = self.builder.build(src, mode)?;
-        let linker = HIRLinker::new(&self.cfg, &self.mod_cache);
-        let hir = linker.link(artifact.object);
+        let optimized = HIROptimizer::optimize(self.shared.clone(), artifact.object);
+        let linker = HIRLinker::new(&self.cfg, &self.shared.mod_cache);
+        let hir = linker.link(optimized);
         let desugared = HIRDesugarer::desugar(hir);
         Ok(CompleteArtifact::new(desugared, artifact.warns))
     }

@@ -1,14 +1,15 @@
 use std::borrow::Borrow;
-use std::cell::{Ref, RefMut};
 use std::fmt;
 use std::hash::Hash;
 use std::path::PathBuf;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use erg_common::config::ErgConfig;
 use erg_common::dict::Dict;
 use erg_common::levenshtein::get_similar_name;
-use erg_common::shared::Shared;
+use erg_common::shared::{
+    MappedRwLockReadGuard, MappedRwLockWriteGuard, RwLockReadGuard, RwLockWriteGuard, Shared,
+};
 use erg_common::Str;
 
 use crate::context::ModuleContext;
@@ -33,7 +34,7 @@ impl ModId {
 pub struct ModuleEntry {
     pub id: ModId, // builtin == 0, __main__ == 1
     pub hir: Option<HIR>,
-    pub module: Rc<ModuleContext>,
+    pub module: Arc<ModuleContext>,
 }
 
 impl fmt::Display for ModuleEntry {
@@ -51,7 +52,7 @@ impl ModuleEntry {
         Self {
             id,
             hir,
-            module: Rc::new(ctx),
+            module: Arc::new(ctx),
         }
     }
 
@@ -59,7 +60,7 @@ impl ModuleEntry {
         Self {
             id: ModId::builtin(),
             hir: None,
-            module: Rc::new(ctx),
+            module: Arc::new(ctx),
         }
     }
 
@@ -174,23 +175,28 @@ impl SharedModuleCache {
         self.0.borrow().cache.len()
     }
 
-    pub fn get<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<Ref<ModuleEntry>>
+    pub fn get<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<MappedRwLockReadGuard<ModuleEntry>>
     where
         PathBuf: Borrow<Q>,
     {
         if self.0.borrow().get(path).is_some() {
-            Some(Ref::map(self.0.borrow(), |cache| cache.get(path).unwrap()))
+            Some(RwLockReadGuard::map(self.0.borrow(), |cache| {
+                cache.get(path).unwrap()
+            }))
         } else {
             None
         }
     }
 
-    pub fn get_mut<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<RefMut<ModuleEntry>>
+    pub fn get_mut<Q: Eq + Hash + ?Sized>(
+        &self,
+        path: &Q,
+    ) -> Option<MappedRwLockWriteGuard<ModuleEntry>>
     where
         PathBuf: Borrow<Q>,
     {
         if self.0.borrow().get(path).is_some() {
-            Some(RefMut::map(self.0.borrow_mut(), |cache| {
+            Some(RwLockWriteGuard::map(self.0.borrow_mut(), |cache| {
                 cache.get_mut(path).unwrap()
             }))
         } else {
@@ -198,19 +204,22 @@ impl SharedModuleCache {
         }
     }
 
-    pub fn get_ctx<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<Rc<ModuleContext>>
+    pub fn get_ctx<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<Arc<ModuleContext>>
     where
         PathBuf: Borrow<Q>,
     {
         self.0.borrow().get(path).map(|entry| entry.module.clone())
     }
 
-    pub fn ref_ctx<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<Ref<ModuleContext>>
+    pub fn ref_ctx<Q: Eq + Hash + ?Sized>(
+        &self,
+        path: &Q,
+    ) -> Option<MappedRwLockReadGuard<ModuleContext>>
     where
         PathBuf: Borrow<Q>,
     {
         if self.0.borrow().get(path).is_some() {
-            Some(Ref::map(self.0.borrow(), |cache| {
+            Some(RwLockReadGuard::map(self.0.borrow(), |cache| {
                 cache.get(path).unwrap().module.as_ref()
             }))
         } else {
@@ -253,14 +262,14 @@ impl SharedModuleCache {
         for path in self.ref_inner().keys() {
             self.remove(path);
         }
-        self.register(builtin_path, None, Rc::try_unwrap(builtin.module).unwrap());
+        self.register(builtin_path, None, Arc::try_unwrap(builtin.module).unwrap());
     }
 
     pub fn rename_path(&self, path: &PathBuf, new: PathBuf) {
         self.0.borrow_mut().rename_path(path, new);
     }
 
-    pub fn ref_inner(&self) -> Ref<Dict<PathBuf, ModuleEntry>> {
-        Ref::map(self.0.borrow(), |mc| &mc.cache)
+    pub fn ref_inner(&self) -> MappedRwLockReadGuard<Dict<PathBuf, ModuleEntry>> {
+        RwLockReadGuard::map(self.0.borrow(), |mc| &mc.cache)
     }
 }

@@ -1,6 +1,6 @@
 #[cfg(all(unix, any(feature = "debug", feature = "backtrace")))]
 pub use backtrace_on_stack_overflow;
-use std::thread;
+use std::thread::{self, JoinHandle};
 
 #[macro_export]
 macro_rules! enable_overflow_stacktrace {
@@ -36,4 +36,18 @@ where
     } else {
         run()
     }
+}
+
+pub fn spawn_new_thread<F, T>(run: F, name: &str) -> JoinHandle<T>
+where
+    F: FnOnce() -> T + Send + 'static,
+    T: Send + 'static,
+{
+    enable_overflow_stacktrace!();
+    const STACK_SIZE: usize = 4 * 1024 * 1024;
+    thread::Builder::new()
+        .name(name.to_string())
+        .stack_size(STACK_SIZE)
+        .spawn(run)
+        .unwrap()
 }
