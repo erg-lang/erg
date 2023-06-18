@@ -266,7 +266,7 @@ impl Generalizer {
         }
     }
 
-    fn generalize_constraint<T: CanbeFree>(&mut self, fv: &Free<T>) -> Constraint {
+    fn generalize_constraint<T: CanbeFree + Send + Clone>(&mut self, fv: &Free<T>) -> Constraint {
         if let Some((sub, sup)) = fv.get_subsup() {
             let sub = self.generalize_t(sub, true);
             let sup = self.generalize_t(sup, true);
@@ -509,9 +509,10 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 let t = fv.unwrap_linked();
                 self.deref_tyvar(t)
             }
-            Type::FreeVar(fv)
+            Type::FreeVar(mut fv)
                 if fv.is_generalized() && self.qnames.contains(&fv.unbound_name().unwrap()) =>
             {
+                fv.update_init();
                 Ok(Type::FreeVar(fv))
             }
             // ?T(:> Nat, <: Int)[n] ==> Nat (self.level <= n)

@@ -1,11 +1,16 @@
 use std::fmt;
 use std::hash::{Hash, Hasher};
+use std::thread::ThreadId;
 // use std::rc::Rc;
 pub use parking_lot::{
     MappedRwLockReadGuard, MappedRwLockWriteGuard, RwLock, RwLockReadGuard, RwLockWriteGuard,
 };
+use std::cell::RefCell;
+use std::ops::Deref;
 use std::sync::Arc;
 use std::time::Duration;
+
+use thread_local::ThreadLocal;
 
 const TIMEOUT: Duration = Duration::from_secs(2);
 
@@ -45,10 +50,11 @@ impl BorrowInfo {
 #[derive(Debug)]
 pub struct Shared<T: ?Sized> {
     data: Arc<RwLock<T>>,
-    #[cfg(any(debug_assertions, feature = "debug"))]
+    #[cfg(any(feature = "backtrace", feature = "debug"))]
     last_borrowed_at: Arc<RwLock<BorrowInfo>>,
-    #[cfg(any(debug_assertions, feature = "debug"))]
+    #[cfg(any(feature = "backtrace", feature = "debug"))]
     last_mut_borrowed_at: Arc<RwLock<BorrowInfo>>,
+    lock_thread_id: Arc<RwLock<Vec<ThreadId>>>,
 }
 
 impl<T: PartialEq> PartialEq for Shared<T>
@@ -65,10 +71,11 @@ impl<T: ?Sized> Clone for Shared<T> {
     fn clone(&self) -> Shared<T> {
         Self {
             data: Arc::clone(&self.data),
-            #[cfg(any(debug_assertions, feature = "debug"))]
+            #[cfg(any(feature = "backtrace", feature = "debug"))]
             last_borrowed_at: self.last_borrowed_at.clone(),
-            #[cfg(any(debug_assertions, feature = "debug"))]
+            #[cfg(any(feature = "backtrace", feature = "debug"))]
             last_mut_borrowed_at: self.last_mut_borrowed_at.clone(),
+            lock_thread_id: self.lock_thread_id.clone(),
         }
     }
 }
@@ -89,7 +96,7 @@ impl<T: Default> Default for Shared<T> {
 
 impl<T: fmt::Display> fmt::Display for Shared<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.borrow())
+        self.borrow().fmt(f)
     }
 }
 
@@ -97,10 +104,11 @@ impl<T> Shared<T> {
     pub fn new(t: T) -> Self {
         Self {
             data: Arc::new(RwLock::new(t)),
-            #[cfg(any(debug_assertions, feature = "debug"))]
+            #[cfg(any(feature = "backtrace", feature = "debug"))]
             last_borrowed_at: Arc::new(RwLock::new(BorrowInfo::new(None))),
-            #[cfg(any(debug_assertions, feature = "debug"))]
+            #[cfg(any(feature = "backtrace", feature = "debug"))]
             last_mut_borrowed_at: Arc::new(RwLock::new(BorrowInfo::new(None))),
+            lock_thread_id: Arc::new(RwLock::new(vec![])),
         }
     }
 
@@ -115,27 +123,33 @@ impl<T> Shared<T> {
 }
 
 impl<T: ?Sized> Shared<T> {
-    #[inline]
-    pub fn copy(&self) -> Self {
-        Self {
-            data: self.data.clone(),
-            #[cfg(any(debug_assertions, feature = "debug"))]
-            last_borrowed_at: self.last_borrowed_at.clone(),
-            #[cfg(any(debug_assertions, feature = "debug"))]
-            last_mut_borrowed_at: self.last_mut_borrowed_at.clone(),
+    #[track_caller]
+    fn wait_until_unlocked(&self) {
+        let mut timeout = TIMEOUT;
+        loop {
+            let lock_thread = self.lock_thread_id.try_read_for(TIMEOUT).unwrap();
+            if lock_thread.is_empty() || lock_thread.last() == Some(&std::thread::current().id()) {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(1));
+            timeout -= Duration::from_millis(1);
+            if timeout == Duration::from_secs(0) {
+                panic!("timeout");
+            }
         }
     }
 
     #[inline]
     #[track_caller]
     pub fn borrow(&self) -> RwLockReadGuard<'_, T> {
-        #[cfg(any(debug_assertions, feature = "debug"))]
+        self.wait_until_unlocked();
+        #[cfg(any(feature = "backtrace", feature = "debug"))]
         {
             *self.last_borrowed_at.try_write_for(TIMEOUT).unwrap() =
                 BorrowInfo::new(Some(std::panic::Location::caller()));
         }
         self.data.try_read_for(TIMEOUT).unwrap_or_else(|| {
-            #[cfg(any(debug_assertions, feature = "debug"))]
+            #[cfg(any(feature = "backtrace", feature = "debug"))]
             {
                 panic!(
                     "Shared::borrow: already borrowed at {}, mutably borrowed at {:?}",
@@ -143,7 +157,7 @@ impl<T: ?Sized> Shared<T> {
                     self.last_mut_borrowed_at.try_read_for(TIMEOUT).unwrap()
                 )
             }
-            #[cfg(not(any(debug_assertions, feature = "debug")))]
+            #[cfg(not(any(feature = "backtrace", feature = "debug")))]
             {
                 panic!("Shared::borrow: already borrowed")
             }
@@ -153,7 +167,8 @@ impl<T: ?Sized> Shared<T> {
     #[inline]
     #[track_caller]
     pub fn borrow_mut(&self) -> RwLockWriteGuard<'_, T> {
-        #[cfg(any(debug_assertions, feature = "debug"))]
+        self.wait_until_unlocked();
+        #[cfg(any(feature = "backtrace", feature = "debug"))]
         {
             let caller = std::panic::Location::caller();
             *self.last_borrowed_at.try_write_for(TIMEOUT).unwrap() = BorrowInfo::new(Some(caller));
@@ -161,7 +176,7 @@ impl<T: ?Sized> Shared<T> {
                 BorrowInfo::new(Some(caller));
         }
         self.data.try_write_for(TIMEOUT).unwrap_or_else(|| {
-            #[cfg(any(debug_assertions, feature = "debug"))]
+            #[cfg(any(feature = "backtrace", feature = "debug"))]
             {
                 panic!(
                     "Shared::borrow_mut: already borrowed at {}, mutabbly borrowed at {}",
@@ -169,11 +184,56 @@ impl<T: ?Sized> Shared<T> {
                     self.last_mut_borrowed_at.try_read_for(TIMEOUT).unwrap()
                 )
             }
-            #[cfg(not(any(debug_assertions, feature = "debug")))]
+            #[cfg(not(any(feature = "backtrace", feature = "debug")))]
             {
                 panic!("Shared::borrow_mut: already borrowed")
             }
         })
+    }
+
+    /// Lock the data and deny access from other threads.
+    /// Locking can be done any number of times and will not be available until unlocked the same number of times.
+    pub fn inter_thread_lock(&self) {
+        let mut lock_thread = self.lock_thread_id.try_write_for(TIMEOUT).unwrap();
+        loop {
+            if lock_thread.is_empty() || lock_thread.last() == Some(&std::thread::current().id()) {
+                break;
+            }
+            drop(lock_thread);
+            lock_thread = self.lock_thread_id.try_write_for(TIMEOUT).unwrap();
+        }
+        lock_thread.push(std::thread::current().id());
+    }
+
+    #[track_caller]
+    pub fn inter_thread_unlock(&self) {
+        let mut lock_thread = self.lock_thread_id.try_write_for(TIMEOUT).unwrap();
+        loop {
+            if lock_thread.is_empty() {
+                panic!("not locked");
+            } else if lock_thread.last() == Some(&std::thread::current().id()) {
+                break;
+            }
+            drop(lock_thread);
+            lock_thread = self.lock_thread_id.try_write_for(TIMEOUT).unwrap();
+        }
+        lock_thread.pop();
+    }
+
+    pub fn inter_thread_unlock_using_id(&self, id: ThreadId) {
+        let mut lock_thread = self.lock_thread_id.try_write_for(TIMEOUT).unwrap();
+        loop {
+            if lock_thread.is_empty() {
+                panic!("not locked");
+            } else if lock_thread.last() == Some(&id)
+                || lock_thread.last() == Some(&std::thread::current().id())
+            {
+                break;
+            }
+            drop(lock_thread);
+            lock_thread = self.lock_thread_id.try_write_for(TIMEOUT).unwrap();
+        }
+        lock_thread.pop();
     }
 
     pub fn get_mut(&mut self) -> Option<&mut T> {
@@ -203,5 +263,56 @@ impl<T: Clone> Shared<T> {
     #[inline]
     pub fn clone_inner(&self) -> T {
         self.borrow().clone()
+    }
+}
+
+/// Thread-local objects that can be shared among threads.
+/// The initial value can be shared globally, but the changes are not reflected in other threads.
+/// Otherwise, this behaves as a `RefCell`.
+#[derive(Clone)]
+pub struct LocalShared<T: Send + Clone> {
+    data: Arc<ThreadLocal<RefCell<T>>>,
+    init: Arc<T>,
+}
+
+impl<T: fmt::Debug + Send + Clone> fmt::Debug for LocalShared<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.deref().fmt(f)
+    }
+}
+
+impl<T: fmt::Display + Send + Clone> fmt::Display for LocalShared<T>
+where
+    RefCell<T>: fmt::Display,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.deref().fmt(f)
+    }
+}
+
+impl<T: Send + Clone> Deref for LocalShared<T> {
+    type Target = RefCell<T>;
+    fn deref(&self) -> &Self::Target {
+        self.data
+            .get_or(|| RefCell::new(self.init.clone().as_ref().clone()))
+    }
+}
+
+impl<T: Send + Clone> LocalShared<T> {
+    pub fn new(init: T) -> Self {
+        Self {
+            data: Arc::new(ThreadLocal::new()),
+            init: Arc::new(init),
+        }
+    }
+
+    pub fn update_init(&mut self) {
+        let clone = self.clone_inner();
+        // NG: self.init = Arc::new(clone);
+        *self = Self::new(clone);
+    }
+
+    pub fn clone_inner(&self) -> T {
+        self.deref().borrow().clone()
     }
 }

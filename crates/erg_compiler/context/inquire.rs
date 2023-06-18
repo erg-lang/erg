@@ -49,10 +49,19 @@ pub enum SubstituteResult {
 
 impl Context {
     pub(crate) fn get_ctx_from_path(&self, path: &Path) -> Option<&Context> {
+        if self.module_path() == Some(path) {
+            return self.get_module();
+        }
         if self.get_module()
             .map_or(false, |ctx| matches!((ctx.cfg.input.unescaped_path().canonicalize(), path.canonicalize()), (Ok(l), Ok(r)) if l == r))
         {
             return Some(self.get_module().unwrap())
+        }
+        if self.shared.is_some()
+            && self.promises().is_registered(path)
+            && !self.promises().is_finished(path)
+        {
+            let _result = self.promises().join(path);
         }
         self.opt_mod_cache()?
             .raw_ref_ctx(path)
@@ -743,7 +752,7 @@ impl Context {
     ) -> Triple<VarInfo, TyCheckError> {
         match t {
             // (obj: Never).foo: Never
-            Type::Never => Triple::Ok(VarInfo::ILLEGAL.clone()),
+            Type::Never => Triple::Ok(VarInfo::ILLEGAL),
             Type::FreeVar(fv) if fv.is_linked() => {
                 self.get_attr_info_from_attributive(&fv.crack(), ident)
             }

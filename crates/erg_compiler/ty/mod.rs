@@ -13,6 +13,7 @@ pub mod typaram;
 pub mod value;
 pub mod vis;
 
+use std::cell::RefMut;
 use std::fmt;
 use std::ops::{BitAnd, BitOr, Deref, Not, Range, RangeInclusive};
 use std::path::PathBuf;
@@ -23,7 +24,6 @@ use erg_common::fresh::FRESH_GEN;
 #[allow(unused_imports)]
 use erg_common::log;
 use erg_common::set::Set;
-use erg_common::shared::{MappedRwLockWriteGuard, RwLockWriteGuard};
 use erg_common::traits::{LimitedDisplay, Locational, StructuralEq};
 use erg_common::{enum_unwrap, fmt_option, ref_addr_eq, set, Str};
 
@@ -2782,12 +2782,12 @@ impl Type {
         }
     }
 
-    pub fn tyvar_mut_return_t(&mut self) -> Option<MappedRwLockWriteGuard<Type>> {
+    pub fn tyvar_mut_return_t(&mut self) -> Option<RefMut<Type>> {
         match self {
             Self::FreeVar(fv)
                 if fv.is_linked() && fv.get_linked().unwrap().return_t().is_some() =>
             {
-                Some(RwLockWriteGuard::map(fv.borrow_mut(), |fk| {
+                Some(RefMut::map(fv.borrow_mut(), |fk| {
                     fk.linked_mut().unwrap().mut_return_t().unwrap()
                 }))
             }
