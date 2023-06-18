@@ -270,18 +270,18 @@ impl<T: Clone> Shared<T> {
 /// The initial value can be shared globally, but the changes are not reflected in other threads.
 /// Otherwise, this behaves as a `RefCell`.
 #[derive(Clone)]
-pub struct LocalShared<T: Send + Clone> {
+pub struct Forkable<T: Send + Clone> {
     data: Arc<ThreadLocal<RefCell<T>>>,
     init: Arc<T>,
 }
 
-impl<T: fmt::Debug + Send + Clone> fmt::Debug for LocalShared<T> {
+impl<T: fmt::Debug + Send + Clone> fmt::Debug for Forkable<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.deref().fmt(f)
     }
 }
 
-impl<T: fmt::Display + Send + Clone> fmt::Display for LocalShared<T>
+impl<T: fmt::Display + Send + Clone> fmt::Display for Forkable<T>
 where
     RefCell<T>: fmt::Display,
 {
@@ -290,7 +290,7 @@ where
     }
 }
 
-impl<T: Send + Clone> Deref for LocalShared<T> {
+impl<T: Send + Clone> Deref for Forkable<T> {
     type Target = RefCell<T>;
     fn deref(&self) -> &Self::Target {
         self.data
@@ -298,7 +298,7 @@ impl<T: Send + Clone> Deref for LocalShared<T> {
     }
 }
 
-impl<T: Send + Clone> LocalShared<T> {
+impl<T: Send + Clone> Forkable<T> {
     pub fn new(init: T) -> Self {
         Self {
             data: Arc::new(ThreadLocal::new()),

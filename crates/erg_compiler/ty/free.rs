@@ -4,7 +4,7 @@ use std::hash::{Hash, Hasher};
 use std::mem;
 use std::sync::atomic::AtomicUsize;
 
-use erg_common::shared::LocalShared;
+use erg_common::shared::Forkable;
 use erg_common::traits::{LimitedDisplay, StructuralEq};
 use erg_common::Str;
 use erg_common::{addr_eq, log};
@@ -491,7 +491,7 @@ impl<T> FreeKind<T> {
 }
 
 #[derive(Debug, Clone)]
-pub struct Free<T: Send + Clone>(LocalShared<FreeKind<T>>);
+pub struct Free<T: Send + Clone>(Forkable<FreeKind<T>>);
 
 impl Hash for Free<Type> {
     fn hash<H: Hasher>(&self, state: &mut H) {
@@ -745,12 +745,12 @@ impl HasLevel for Free<TyParam> {
 
 impl<T: Send + Clone> Free<T> {
     pub fn new(f: FreeKind<T>) -> Self {
-        Self(LocalShared::new(f))
+        Self(Forkable::new(f))
     }
 
     pub fn new_unbound(level: Level, constraint: Constraint) -> Self {
         UNBOUND_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        Self(LocalShared::new(FreeKind::unbound(
+        Self(Forkable::new(FreeKind::unbound(
             UNBOUND_ID.load(std::sync::atomic::Ordering::SeqCst),
             level,
             constraint,
@@ -758,13 +758,13 @@ impl<T: Send + Clone> Free<T> {
     }
 
     pub fn new_named_unbound(name: Str, level: Level, constraint: Constraint) -> Self {
-        Self(LocalShared::new(FreeKind::named_unbound(
+        Self(Forkable::new(FreeKind::named_unbound(
             name, level, constraint,
         )))
     }
 
     pub fn new_linked(t: T) -> Self {
-        Self(LocalShared::new(FreeKind::Linked(t)))
+        Self(Forkable::new(FreeKind::Linked(t)))
     }
 
     /// returns linked type (panic if self is unbounded)
