@@ -37,14 +37,20 @@ src: [erg_compiler/link_ast.rs](../../../crates/erg_compiler/link_ast.rs)
 
 (main) src: [erg_compiler/lower.rs](../../../crates/erg_compiler/lower.rs)
 
-## 3.1 Name Resolution
+### 3.1 Name Resolution
 
 In the current implementation it is done during type checking.
 
 * All ASTs (including imported modules) are scanned for name resolution before type inference.
 * In addition to performing cycle checking and reordering, a context is created for type inference (however, most of the information on variables registered in this context is not yet finalized).
 
-### 3.2 Type checking & inference
+### 3.2 import resolution
+
+* When `import` is called, a new thread is created for analysis.
+* `JoinHandle` is stored in `SharedCompilerResource` and is joined when the module is needed.
+* Unused modules may not be joined, but currently all such modules are also analyzed.
+
+### 3.3 Type checking & inference
 
 src: [erg_compiler/lower.rs](../../../crates/erg_compiler/lower.rs)
 
@@ -62,19 +68,25 @@ src: [erg_compiler/effectcheck.rs](../../../crates/erg_compiler/effectcheck.rs)
 
 src: [erg_compiler/ownercheck.rs](../../../crates/erg_compiler/ownercheck.rs)
 
-## 6. Desugar `HIR`
+## 6. Optimize `HIR`
 
-src: [erg_compiler/desugar_hir.rs](../../../crates/erg_compiler/desugar_hir.rs)
+src: [erg_compiler/optimize.rs](../../../crates/erg_compiler/optimize.rs)
 
-Convert parts that are not consistent with Python syntax
-
-* Convert class member variables to functions
+* Eliminate dead code (unused variables, imports, etc.)
 
 ## 7. Link
 
 src: [erg_compiler/link_hir.rs](../../../crates/erg_compiler/link_hir.rs)
 
 * Load all modules, resolve dependencies, and combine into a single HIR
+
+## 8. Desugar `HIR`
+
+src: [erg_compiler/desugar_hir.rs](../../../crates/erg_compiler/desugar_hir.rs)
+
+Convert parts that are not consistent with Python syntax
+
+* Convert class member variables to functions
 
 ## 8. Generate Bytecode (`CodeObj`) from `HIR`
 
