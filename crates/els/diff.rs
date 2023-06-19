@@ -1,5 +1,6 @@
 use std::cmp::Ordering::*;
 use std::fmt;
+use std::ops::{Deref, DerefMut};
 
 use erg_common::traits::Stream;
 use erg_compiler::erg_parser::ast;
@@ -35,7 +36,10 @@ impl fmt::Display for ASTDiff {
 /// diff(old: {x, y, z}, new: {x, a, z}) => ASTDiff::Modification(1)
 /// diff(old: {x, y, z}, new: {x, y, z}) => ASTDiff::Nop
 impl ASTDiff {
-    pub fn diff(old: &Module, new: &Module) -> ASTDiff {
+    pub fn diff<M1: Deref<Target = Module>, M2: Deref<Target = Module>>(
+        old: M1,
+        new: M2,
+    ) -> ASTDiff {
         match old.len().cmp(&new.len()) {
             Less => {
                 let idx = new
@@ -96,7 +100,7 @@ impl HIRDiff {
         }
     }
 
-    pub fn update(self, old: &mut HIR) {
+    pub fn update<H: DerefMut<Target = HIR>>(self, mut old: H) {
         match self {
             Self::Addition(idx, expr) => {
                 old.module.insert(idx, expr);

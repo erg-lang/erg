@@ -5,6 +5,9 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use erg_common::consts::PYTHON_MODE;
+use erg_common::shared::{
+    MappedRwLockReadGuard, MappedRwLockWriteGuard, RwLockReadGuard, RwLockWriteGuard, Shared,
+};
 use erg_compiler::erg_parser::ast::Module;
 use erg_compiler::erg_parser::parse::{Parsable, SimpleParser};
 use erg_compiler::lower::ASTLowerer;
@@ -20,7 +23,7 @@ use erg_common::normalize_path;
 use erg_compiler::artifact::{BuildRunnable, IncompleteArtifact};
 use erg_compiler::build_hir::HIRBuilder;
 use erg_compiler::context::{Context, ModuleContext};
-use erg_compiler::hir::Expr;
+use erg_compiler::hir::{Expr, HIR};
 use erg_compiler::module::{SharedCompilerResource, SharedModuleIndex};
 use erg_compiler::ty::HasType;
 
@@ -188,6 +191,80 @@ impl AnalysisResult {
 
 pub(crate) const TRIGGER_CHARS: [&str; 4] = [".", ":", "(", " "];
 
+#[derive(Debug, Default)]
+pub struct AnalysisResultCache(Shared<Dict<NormalizedUrl, AnalysisResult>>);
+
+impl AnalysisResultCache {
+    pub fn new() -> Self {
+        Self(Shared::new(Dict::new()))
+    }
+
+    pub fn insert(&self, uri: NormalizedUrl, result: AnalysisResult) {
+        self.0.borrow_mut().insert(uri, result);
+    }
+
+    pub fn get(&self, uri: &NormalizedUrl) -> Option<MappedRwLockReadGuard<AnalysisResult>> {
+        if self.0.borrow().get(uri).is_none() {
+            None
+        } else {
+            Some(RwLockReadGuard::map(self.0.borrow(), |dict| {
+                dict.get(uri).unwrap()
+            }))
+        }
+    }
+
+    pub fn get_mut(&self, uri: &NormalizedUrl) -> Option<MappedRwLockWriteGuard<AnalysisResult>> {
+        if self.0.borrow().get(uri).is_none() {
+            None
+        } else {
+            Some(RwLockWriteGuard::map(self.0.borrow_mut(), |dict| {
+                dict.get_mut(uri).unwrap()
+            }))
+        }
+    }
+
+    pub fn get_ast(&self, uri: &NormalizedUrl) -> Option<MappedRwLockReadGuard<Module>> {
+        self.get(uri)
+            .map(|r| MappedRwLockReadGuard::map(r, |r| &r.ast))
+    }
+
+    pub fn get_mut_hir(&self, uri: &NormalizedUrl) -> Option<MappedRwLockWriteGuard<HIR>> {
+        self.get_mut(uri).and_then(|r| {
+            if r.artifact.object.is_none() {
+                None
+            } else {
+                Some(MappedRwLockWriteGuard::map(r, |r| {
+                    r.artifact.object.as_mut().unwrap()
+                }))
+            }
+        })
+    }
+
+    pub fn get_artifact(
+        &self,
+        uri: &NormalizedUrl,
+    ) -> Option<MappedRwLockReadGuard<IncompleteArtifact>> {
+        self.get(uri)
+            .map(|r| MappedRwLockReadGuard::map(r, |r| &r.artifact))
+    }
+
+    pub fn get_hir(&self, uri: &NormalizedUrl) -> Option<MappedRwLockReadGuard<HIR>> {
+        self.get(uri).and_then(|r| {
+            if r.artifact.object.is_none() {
+                None
+            } else {
+                Some(MappedRwLockReadGuard::map(r, |r| {
+                    r.artifact.object.as_ref().unwrap()
+                }))
+            }
+        })
+    }
+
+    pub fn remove(&self, uri: &NormalizedUrl) -> Option<AnalysisResult> {
+        self.0.borrow_mut().remove(uri)
+    }
+}
+
 /// A Language Server, which can be used any object implementing `BuildRunnable` internally by passing it as a generic parameter.
 #[derive(Debug)]
 pub struct Server<Checker: BuildRunnable = HIRBuilder, Parser: Parsable = SimpleParser> {
@@ -199,8 +276,9 @@ pub struct Server<Checker: BuildRunnable = HIRBuilder, Parser: Parsable = Simple
     pub(crate) opt_features: Vec<OptionalFeatures>,
     pub(crate) file_cache: FileCache,
     pub(crate) comp_cache: CompletionCache,
+    // TODO: ModuleContextCache
     pub(crate) modules: Dict<NormalizedUrl, ModuleContext>,
-    pub(crate) analysis_result: Dict<NormalizedUrl, AnalysisResult>,
+    pub(crate) analysis_result: AnalysisResultCache,
     pub(crate) current_sig: Option<Expr>,
     pub(crate) _parser: std::marker::PhantomData<Parser>,
     pub(crate) _checker: std::marker::PhantomData<Checker>,
@@ -218,7 +296,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             opt_features: vec![],
             file_cache: FileCache::new(),
             modules: Dict::new(),
-            analysis_result: Dict::new(),
+            analysis_result: AnalysisResultCache::new(),
             current_sig: None,
             _parser: std::marker::PhantomData,
             _checker: std::marker::PhantomData,
@@ -548,12 +626,13 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         }
     }
 
-    pub(crate) fn get_lowerer(&mut self, uri: &NormalizedUrl) -> Option<ASTLowerer> {
-        let module = std::mem::take(self.modules.get_mut(uri)?);
+    pub(crate) fn steal_lowerer(&mut self, uri: &NormalizedUrl) -> Option<ASTLowerer> {
+        let module = self.modules.remove(uri)?;
         Some(ASTLowerer::new_with_ctx(module))
     }
 
-    pub(crate) fn restore_mod_ctx(&mut self, uri: NormalizedUrl, module: ModuleContext) {
+    pub(crate) fn restore_lowerer(&mut self, uri: NormalizedUrl, mut lowerer: ASTLowerer) {
+        let module = lowerer.pop_mod_ctx().unwrap();
         if let Some(m) = self.modules.get_mut(&uri) {
             *m = module;
         } else {
@@ -561,14 +640,9 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         }
     }
 
-    pub(crate) fn get_artifact(&self, uri: &NormalizedUrl) -> Option<&IncompleteArtifact> {
-        self.analysis_result.get(uri).map(|r| &r.artifact)
-    }
-
     pub(crate) fn get_visitor(&self, uri: &NormalizedUrl) -> Option<HIRVisitor> {
-        self.get_artifact(uri)?
-            .object
-            .as_ref()
+        self.analysis_result
+            .get_hir(uri)
             .map(|hir| HIRVisitor::new(hir, &self.file_cache, uri.clone()))
     }
 

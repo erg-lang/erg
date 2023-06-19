@@ -1,4 +1,5 @@
 use erg_common::consts::ERG_MODE;
+use erg_common::shared::MappedRwLockReadGuard;
 use erg_common::traits::Locational;
 use erg_common::Str;
 use erg_compiler::erg_parser::token::Token;
@@ -14,14 +15,18 @@ use crate::util::{self, NormalizedUrl};
 /// * cursor(`Token`) -> `Expr` mapping (`get_min_expr`)
 /// * cursor(`Token`) -> `VarInfo` mapping (`get_info`)
 pub struct HIRVisitor<'a> {
-    hir: &'a HIR,
+    hir: MappedRwLockReadGuard<'a, HIR>,
     file_cache: &'a FileCache,
     uri: NormalizedUrl,
     strict_cmp: bool,
 }
 
 impl<'a> HIRVisitor<'a> {
-    pub fn new(hir: &'a HIR, file_cache: &'a FileCache, uri: NormalizedUrl) -> Self {
+    pub fn new(
+        hir: MappedRwLockReadGuard<'a, HIR>,
+        file_cache: &'a FileCache,
+        uri: NormalizedUrl,
+    ) -> Self {
         Self {
             hir,
             file_cache,
