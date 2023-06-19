@@ -227,10 +227,14 @@ impl SharedModuleCache {
         }
     }
 
+    /// FIXME: see the comment in this function
     pub fn raw_ref_ctx<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<&ModuleContext>
     where
         PathBuf: Borrow<Q>,
     {
+        // Check if the module can be borrowed
+        // If you delete `_ref`, this function returns `None` even if the key exists in rare cases
+        let _ref = self.0.borrow();
         let ref_ = unsafe { self.0.as_ptr().as_ref().unwrap() };
         ref_.get(path).map(|entry| entry.module.as_ref())
     }
