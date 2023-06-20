@@ -103,4 +103,4 @@ pub trait Buildable<T = HIR> {
     fn get_context(&self) -> Option<&ModuleContext>;
 }
 
-pub trait BuildRunnable<T = HIR>: Buildable<T> + Runnable {}
+pub trait BuildRunnable<T = HIR>: Buildable<T> + Runnable + 'static {}

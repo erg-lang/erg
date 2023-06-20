@@ -179,7 +179,7 @@ impl<'b> CompletionOrderSetter<'b> {
 
 type Cache = Shared<Dict<String, Vec<CompletionItem>>>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CompletionCache {
     cache: Cache,
 }
