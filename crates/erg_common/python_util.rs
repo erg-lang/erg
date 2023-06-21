@@ -530,6 +530,24 @@ pub const BUILTIN_PYTHON_MODS: [&str; 165] = [
     "zlib",
     "zoneinfo",
 ];
+pub const EXT_PYTHON_MODS: [&str; 7] = [
+    "matplotlib",
+    "numpy",
+    "pandas",
+    "requests",
+    "setuptools",
+    "tqdm",
+    "urllib3",
+];
+pub const EXT_COMMON_ALIAS: [&str; 7] = [
+    "mpl",
+    "np",
+    "pd",
+    "requests",
+    "setuptools",
+    "tqdm",
+    "urllib3",
+];
 
 pub fn opt_which_python() -> Result<String, String> {
     let (cmd, python) = if cfg!(windows) {

@@ -1,17 +1,19 @@
+use std::path::Path;
+
 use erg_common::consts::PYTHON_MODE;
-use erg_common::spawn::exec_new_thread;
+use erg_common::spawn::spawn_new_thread;
 use erg_compiler::erg_parser::parse::Parsable;
 use lsp_types::CompletionResponse;
 use serde_json::Value;
 
 use erg_common::config::ErgConfig;
 use erg_common::dict::Dict;
-use erg_common::env::erg_pystd_path;
+use erg_common::env::{erg_py_external_lib_path, erg_pystd_path};
 use erg_common::impl_u8_enum;
 use erg_common::io::Input;
-use erg_common::python_util::BUILTIN_PYTHON_MODS;
+use erg_common::python_util::{BUILTIN_PYTHON_MODS, EXT_COMMON_ALIAS, EXT_PYTHON_MODS};
 use erg_common::set::Set;
-use erg_common::shared::Shared;
+use erg_common::shared::{MappedRwLockReadGuard, RwLockReadGuard, Shared};
 use erg_common::traits::Locational;
 
 use erg_compiler::artifact::{BuildRunnable, Buildable};
@@ -227,7 +229,7 @@ fn module_item(name: &str, mistype: bool, insert: Option<u32>) -> CompletionItem
 
 fn module_completions() -> Vec<CompletionItem> {
     let mut comps = Vec::with_capacity(BUILTIN_PYTHON_MODS.len());
-    for mod_name in BUILTIN_PYTHON_MODS {
+    for mod_name in BUILTIN_PYTHON_MODS.into_iter() {
         let mut item = CompletionItem::new_simple(
             format!("{mod_name} (import from std)"),
             "PyModule".to_string(),
@@ -264,28 +266,56 @@ fn module_completions() -> Vec<CompletionItem> {
         item.filter_text = Some(mod_name.to_string());
         comps.push(item);
     }
+    for (mod_name, alias) in EXT_PYTHON_MODS.into_iter().zip(EXT_COMMON_ALIAS) {
+        let mut item = CompletionItem::new_simple(
+            format!("{mod_name} (external library)"),
+            "PyModule".to_string(),
+        );
+        item.sort_text = Some(format!("{}_{}", CompletionOrder::STD_ITEM, item.label));
+        item.kind = Some(CompletionItemKind::MODULE);
+        let import = if PYTHON_MODE {
+            format!("import {mod_name}\n")
+        } else {
+            format!("{mod_name} = pyimport \"{mod_name}\"\n")
+        };
+        item.additional_text_edits = Some(vec![TextEdit {
+            range: Range::new(Position::new(0, 0), Position::new(0, 0)),
+            new_text: import,
+        }]);
+        item.insert_text = Some(mod_name.trim_end_matches('\0').to_string());
+        item.filter_text = Some(mod_name.to_string());
+        comps.push(item);
+        if mod_name != alias {
+            let mut item = CompletionItem::new_simple(
+                format!("{alias} (external library, alias of {mod_name})"),
+                "PyModule".to_string(),
+            );
+            item.sort_text = Some(format!("{}_{}", CompletionOrder::STD_ITEM, item.label));
+            item.kind = Some(CompletionItemKind::MODULE);
+            let import = if PYTHON_MODE {
+                format!("import {mod_name} as {alias}\n")
+            } else {
+                format!("{alias} = pyimport \"{mod_name}\"\n")
+            };
+            item.additional_text_edits = Some(vec![TextEdit {
+                range: Range::new(Position::new(0, 0), Position::new(0, 0)),
+                new_text: import,
+            }]);
+            item.insert_text = Some(alias.trim_end_matches('\0').to_string());
+            item.filter_text = Some(mod_name.to_string());
+            comps.push(item);
+        }
+    }
     comps
 }
 
-fn load_modules(cfg: ErgConfig, cache: Cache) {
-    let major_mods = [
-        "datetime",
-        "glob",
-        "http",
-        "http/client",
-        "http/server",
-        "io",
-        "json",
-        "math",
-        "os",
-        "os/path",
-        "random",
-        "re",
-        "sys",
-        "time",
-        "urllib",
-    ];
-    let src = major_mods.into_iter().fold("".to_string(), |acc, module| {
+fn load_modules<'a>(
+    cfg: ErgConfig,
+    cache: Cache,
+    root: &Path,
+    mods: impl Iterator<Item = &'a str>,
+) {
+    let src = mods.fold("".to_string(), |acc, module| {
         acc + &format!("_ = pyimport \"{module}\"\n")
     });
     let cfg = ErgConfig {
@@ -299,7 +329,7 @@ fn load_modules(cfg: ErgConfig, cache: Cache) {
     if cache.get("<module>").is_none() {
         cache.insert("<module>".into(), module_completions());
     }
-    let std_path = erg_pystd_path().display().to_string().replace('\\', "/");
+    let std_path = root.display().to_string().replace('\\', "/");
     for (path, entry) in shared.py_mod_cache.ref_inner().iter() {
         let dir = entry.module.context.local_dir();
         let mod_name = path.display().to_string().replace('\\', "/");
@@ -321,18 +351,52 @@ impl CompletionCache {
     pub fn new(cfg: ErgConfig) -> Self {
         let cache = Shared::new(Dict::default());
         let clone = cache.clone();
-        exec_new_thread(
+        spawn_new_thread(
             move || {
                 crate::_log!("load_modules");
-                load_modules(cfg, clone)
+                let major_mods = [
+                    "datetime",
+                    "glob",
+                    "http",
+                    "http/client",
+                    "http/server",
+                    "io",
+                    "json",
+                    "math",
+                    "os",
+                    "os/path",
+                    "random",
+                    "re",
+                    "sys",
+                    "time",
+                    "urllib",
+                ];
+                #[cfg(feature = "py_compat")]
+                let py_specific_mods = ["typing", "collections/abc"];
+                #[cfg(not(feature = "py_compat"))]
+                let py_specific_mods = [];
+                let ext_mods = ["numpy", "pandas", "matplotlib", "matplotlib/pyplot"];
+                load_modules(
+                    cfg.clone(),
+                    clone.clone(),
+                    erg_pystd_path(),
+                    major_mods.into_iter().chain(py_specific_mods),
+                );
+                load_modules(cfg, clone, erg_py_external_lib_path(), ext_mods.into_iter());
             },
             "load_modules",
         );
         Self { cache }
     }
 
-    pub fn get(&mut self, namespace: &str) -> Option<&Vec<CompletionItem>> {
-        self.cache.get_mut().and_then(|cache| cache.get(namespace))
+    pub fn get(&self, namespace: &str) -> Option<MappedRwLockReadGuard<Vec<CompletionItem>>> {
+        if self.cache.borrow().get(namespace).is_none() {
+            None
+        } else {
+            Some(RwLockReadGuard::map(self.cache.borrow(), |cache| {
+                cache.get(namespace).unwrap()
+            }))
+        }
     }
 
     pub fn insert(&self, namespace: String, items: Vec<CompletionItem>) {
