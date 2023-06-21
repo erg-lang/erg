@@ -25,7 +25,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
 
     fn send_trait_impls_lens(&mut self, uri: &NormalizedUrl) -> ELSResult<Vec<CodeLens>> {
         let mut result = vec![];
-        if let Some(hir) = self.get_artifact(uri).and_then(|a| a.object.as_ref()) {
+        if let Some(hir) = self.analysis_result.get_hir(uri) {
             for chunk in hir.module.iter() {
                 match chunk {
                     Expr::Def(def) if def.def_kind().is_trait() => {

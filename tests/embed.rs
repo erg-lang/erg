@@ -10,7 +10,7 @@ use erg_compiler::Transpiler;
 fn test_vm_embedding() -> Result<(), ()> {
     let mut vm = DummyVM::default();
     vm.eval("print! \"Hello, world!\"".into()).map_err(|es| {
-        es.fmt_all_stderr();
+        es.write_all_stderr();
     })?;
     vm.eval("prin \"Hello, world!\"".into())
         .expect_err("should err");
@@ -23,7 +23,7 @@ fn test_transpiler_embedding() -> Result<(), ()> {
     let res = trans
         .transpile("print!(\"\")".into(), "exec")
         .map_err(|es| {
-            es.errors.fmt_all_stderr();
+            es.errors.write_all_stderr();
         })?;
     assert!(res.object.code.ends_with("(print)(Str(\"\"),)\n"));
     Ok(())

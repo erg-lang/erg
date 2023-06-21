@@ -1,0 +1,9 @@
+C = Class { .x = Int; .y = Int }
+C.
+    x = "aa"
+
+_: Str = C.x
+_ = C.y # ERR
+c = C.new({.x = 1; .y = 2})
+_: Int = c.x
+_: Int = c.y

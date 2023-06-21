@@ -1,15 +1,15 @@
 use std::borrow::{Borrow, ToOwned};
-use std::cell::RefCell;
 use std::hash::Hash;
 use std::sync::Arc;
 use std::thread::LocalKey;
 
 use crate::dict::Dict;
 use crate::set::Set;
+use crate::shared::Shared;
 use crate::{ArcArray, Str};
 
 #[derive(Debug)]
-pub struct CacheSet<T: ?Sized>(RefCell<Set<Arc<T>>>);
+pub struct CacheSet<T: ?Sized>(Shared<Set<Arc<T>>>);
 
 impl<T: ?Sized> Default for CacheSet<T> {
     fn default() -> Self {
@@ -19,7 +19,7 @@ impl<T: ?Sized> Default for CacheSet<T> {
 
 impl<T: ?Sized> CacheSet<T> {
     pub fn new() -> Self {
-        Self(RefCell::new(Set::new()))
+        Self(Shared::new(Set::new()))
     }
 }
 
@@ -72,6 +72,6 @@ impl<T: Hash + Eq> CacheSet<T> {
     }
 }
 
-pub struct CacheDict<K, V: ?Sized>(RefCell<Dict<K, Arc<V>>>);
+pub struct CacheDict<K, V: ?Sized>(Shared<Dict<K, Arc<V>>>);
 
-pub struct GlobalCacheDict<K: 'static, V: ?Sized + 'static>(LocalKey<RefCell<CacheDict<K, V>>>);
+pub struct GlobalCacheDict<K: 'static, V: ?Sized + 'static>(LocalKey<Shared<CacheDict<K, V>>>);

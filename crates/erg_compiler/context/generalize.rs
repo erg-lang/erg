@@ -266,7 +266,7 @@ impl Generalizer {
         }
     }
 
-    fn generalize_constraint<T: CanbeFree>(&mut self, fv: &Free<T>) -> Constraint {
+    fn generalize_constraint<T: CanbeFree + Send + Clone>(&mut self, fv: &Free<T>) -> Constraint {
         if let Some((sub, sup)) = fv.get_subsup() {
             let sub = self.generalize_t(sub, true);
             let sup = self.generalize_t(sup, true);
@@ -509,9 +509,10 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 let t = fv.unwrap_linked();
                 self.deref_tyvar(t)
             }
-            Type::FreeVar(fv)
+            Type::FreeVar(mut fv)
                 if fv.is_generalized() && self.qnames.contains(&fv.unbound_name().unwrap()) =>
             {
+                fv.update_init();
                 Ok(Type::FreeVar(fv))
             }
             // ?T(:> Nat, <: Int)[n] ==> Nat (self.level <= n)
@@ -526,16 +527,16 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                     // e.g. fv == ?T(<: Int, :> Add(?T))
                     //      fv == ?T(:> ?T.Output, <: Add(Int))
                     let fv_t = Type::FreeVar(fv.clone());
-                    match (sub_t.contains(&fv_t), super_t.contains(&fv_t)) {
+                    match (sub_t.contains_type(&fv_t), super_t.contains_type(&fv_t)) {
                         // REVIEW: to prevent infinite recursion, but this may cause a nonsense error
                         (true, true) => {
                             fv.dummy_link();
                         }
                         (true, false) => {
-                            fv.undoable_link(&super_t);
+                            fv_t.undoable_link(&super_t);
                         }
                         (false, true | false) => {
-                            fv.undoable_link(&sub_t);
+                            fv_t.undoable_link(&sub_t);
                         }
                     }
                     let res = self.validate_subsup(sub_t, super_t);
@@ -782,7 +783,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                     if self.ctx.supertype_of(&sub_t, &super_t) {
                         Ok(sub_t)
                     } else {
-                        Err(TyCheckErrors::from(TyCheckError::subtyping_error(
+                        Err(TyCheckErrors::from(TyCheckError::invariant_error(
                             self.ctx.cfg.input.clone(),
                             line!() as usize,
                             &sub_t,

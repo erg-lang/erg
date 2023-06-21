@@ -1,6 +1,6 @@
 # Pythonとの連携
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/32_integration_with_Python.md%26commit_hash%3De959b3e54bfa8cee4929743b0193a129e7525c61)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/33_integration_with_Python.md&commit_hash=e959b3e54bfa8cee4929743b0193a129e7525c61)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/34_integration_with_Python.md%26commit_hash%3D0150fcc2b15ec6b4521de2b84fa42174547c2339)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/34_integration_with_Python.md&commit_hash=0150fcc2b15ec6b4521de2b84fa42174547c2339)
 
 ## Pythonへのexport
 
@@ -64,25 +64,45 @@ class C:
 
 `d.er`内では宣言と定義(エイリアシング)以外の構文は使えません。
 
-Pythonの関数はすべてプロシージャとして、クラスはすべて可変クラスとしてしか登録できないことに注意してください。
+## オーバーロード
+
+Pythonの型付けだけで使える特殊な型として、オーバーロード型があります。これは、複数の型を受け取ることができる型です。
 
 ```python
-foo = pyimport "foo"
-assert foo.bar!(1) in Int
+f: (Int -> Str) and (Str -> Int)
 ```
 
-これは、実行時に型チェックを行うことで型安全性を担保しています。チェック機構は概念的には以下のように動作します。
+オーバーロード型はサブルーチン型のintersection(`and`)を取ることで宣言できます。`or`ではないことに注意してください。
+
+こうすると、引数の型によって戻り値の型が変わる関数を宣言できます。
 
 ```python
-decl_proc proc!: Proc, T =
-    x =>
-        assert x in T.Input
-        y = proc!(x)
-        assert y in T.Output
-        y
+f(1): Str
+f("1"): Int
 ```
 
-これは実行時オーバーヘッドとなるので、[PythonスクリプトをErgの型システムで静的に型解析するプロジェクト](https://github.com/mtshiba/pylyzer)が進められています。
+型判定は左から順に照合され、最初にマッチしたものが適用されます。
+
+このような多相はアドホック多相と呼ばれ、型変数とトレイト境界を用いるErgの多相とは異なるものです。アドホック多相は一般的にはあまり推奨されませんが、Pythonのコードでは普遍的に使われているので、必要悪として存在します。
+
+オーバーロード型の引数型は部分型関係にあっても良く、引数数が違っていいても良いですが、同じ型であってはいけません。すなわち、return type overloadingは許可されません。
+
+```python
+# OK
+f: (Nat -> Str) and (Int -> Int)
+f: ((Int, Int) -> Str) and (Int -> Int)
+```
+
+```python,compile_fail
+# NG
+f: (Int -> Str) and (Int -> Int)
+```
+
+## 注意点
+
+現在のところ、Ergはこの型宣言の内容を無条件に信用します。すなわち、実際にはInt型の変数でもStr型として宣言する、副作用のあるサブルーチンでも関数として宣言する、などができてしまいます。
+
+また、自明な型付けでも型宣言を省略できないのは面倒なので、[PythonスクリプトをErgの型システムで静的に型解析するプロジェクト](https://github.com/mtshiba/pylyzer)が進められています。
 
 <p align='center'>
     <a href='./33_pipeline.md'>Previous</a> | <a href='./35_package_system.md'>Next</a>

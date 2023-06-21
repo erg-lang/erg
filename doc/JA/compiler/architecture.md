@@ -40,14 +40,20 @@ src: [erg_compiler/link_ast.rs](../../../crates/erg_compiler/link_ast.rs)
 
 (主要な)ソースコード: [erg_compiler/lower.rs](../../../crates/erg_compiler/lower.rs)
 
-## 3.1 名前解決
+### 3.1 名前解決
 
 現在の実装では型チェック中に行われる
 
 * 型推論の前に全てのAST(importされたモジュール含む)を走査し、名前解決を行う
 * 定数の循環検査や並び替えなどが行われるほか、型推論のためのContextが作成される(ただし、このContextに登録された変数の情報ははまだ殆どが未確定)
 
-### 3.2 型チェックと推論
+### 3.2 import解決
+
+* `import`に出会うと、新しくスレッドを作成して検査を行う
+* `JoinHandle`は`SharedCompilerResource`に格納され、該当モジュールが必要になったときにjoinされる
+* 使用されなかったモジュールはjoinされないことがあるが、現在のところはそのようなモジュールも全て検査される
+
+### 3.3 型チェックと推論
 
 ソースコード: [erg_compiler/lower.rs](../../../crates/erg_compiler/lower.rs)
 
@@ -65,18 +71,24 @@ src: [erg_compiler/link_ast.rs](../../../crates/erg_compiler/link_ast.rs)
 
 ソースコード: [erg_compiler/ownercheck.rs](../../../crates/erg_compiler/ownercheck.rs)
 
-## 6. `HIR`の脱糖
+## 6. 最適化
 
-ソースコード: [erg_compiler/desugar_hir.rs](../../../crates/erg_compiler/desugar_hir.rs)
+ソースコード: [erg_compiler/optimize.rs](../../../crates/erg_compiler/optimize.rs)
 
-* Pythonの文法と整合しない部分を変換する
-  * クラスのメンバ変数を関数に変換
+* 不要な変数(import含む)を削除する
 
 ## 7. リンク
 
 ソースコード: [erg_compiler/link_hir.rs](../../../crates/erg_compiler/link_hir.rs)
 
 * 全てのモジュールを読み込み、依存関係を解決し、単一のHIRに結合する
+
+## 8. `HIR`の脱糖
+
+ソースコード: [erg_compiler/desugar_hir.rs](../../../crates/erg_compiler/desugar_hir.rs)
+
+* Pythonの文法と整合しない部分を変換する
+  * クラスのメンバ変数を関数に変換
 
 ## 8. `HIR` からバイトコード (`CodeObj`) を生成
 

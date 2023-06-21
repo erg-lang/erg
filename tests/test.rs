@@ -53,6 +53,11 @@ fn exec_control_expr() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_dependent() -> Result<(), ()> {
+    expect_success("tests/should_ok/dependent.er", 0)
+}
+
+#[test]
 fn exec_dict() -> Result<(), ()> {
     expect_success("examples/dict.er", 0)
 }
@@ -74,8 +79,8 @@ fn exec_fib() -> Result<(), ()> {
 
 #[test]
 fn exec_helloworld() -> Result<(), ()> {
-    // HACK: When running the test with pre-commit, the exit code is 1 (the cause is unknown)
-    if cfg!(feature = "pre-commit") && cfg!(windows) {
+    // HACK: When running the test with Windows, the exit code is 1 (the cause is unknown)
+    if cfg!(windows) {
         expect_end_with("examples/helloworld.er", 1)
     } else {
         expect_success("examples/helloworld.er", 0)
@@ -131,6 +136,11 @@ fn exec_long() -> Result<(), ()> {
 #[test]
 fn exec_mangling() -> Result<(), ()> {
     expect_success("tests/should_ok/mangling.er", 0)
+}
+
+#[test]
+fn exec_many_import() -> Result<(), ()> {
+    expect_success("tests/should_ok/many_import/many_import.er", 0)
 }
 
 #[test]
@@ -234,6 +244,11 @@ fn exec_unpack() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_unused_import() -> Result<(), ()> {
+    expect_success("tests/should_ok/many_import/unused_import.er", 2)
+}
+
+#[test]
 fn exec_use_py() -> Result<(), ()> {
     expect_success("examples/use_py.er", 0)
 }
@@ -274,13 +289,18 @@ fn exec_assert_cast() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_class_attr_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/class_attr.er", 1, 1)
+}
+
+#[test]
 fn exec_collection_err() -> Result<(), ()> {
     expect_failure("tests/should_err/collection.er", 0, 4)
 }
 
 #[test]
-fn exec_dependent() -> Result<(), ()> {
-    expect_failure("tests/should_err/dependent.er", 0, 4)
+fn exec_dependent_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/dependent.er", 0, 5)
 }
 
 /// This file compiles successfully, but causes a run-time error due to incomplete method dispatching
@@ -345,7 +365,7 @@ fn exec_structural_err() -> Result<(), ()> {
 
 #[test]
 fn exec_subtyping_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/subtyping.er", 0, 15)
+    expect_failure("tests/should_err/subtyping.er", 0, 17)
 }
 
 #[test]

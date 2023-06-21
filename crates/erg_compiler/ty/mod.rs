@@ -20,7 +20,7 @@ use std::path::PathBuf;
 
 use erg_common::dict::Dict;
 use erg_common::error::Location;
-use erg_common::fresh::fresh_varname;
+use erg_common::fresh::FRESH_GEN;
 #[allow(unused_imports)]
 use erg_common::log;
 use erg_common::set::Set;
@@ -379,20 +379,36 @@ impl SubrType {
             || self.return_t.contains_tvar(target)
     }
 
-    pub fn contains(&self, target: &Type) -> bool {
+    pub fn contains_type(&self, target: &Type) -> bool {
         self.non_default_params
             .iter()
-            .any(|pt| pt.typ().contains(target))
+            .any(|pt| pt.typ().contains_type(target))
             || self
                 .var_params
                 .as_ref()
-                .map(|pt| pt.typ().contains(target))
+                .map(|pt| pt.typ().contains_type(target))
                 .unwrap_or(false)
             || self
                 .default_params
                 .iter()
-                .any(|pt| pt.typ().contains(target))
-            || self.return_t.contains(target)
+                .any(|pt| pt.typ().contains_type(target))
+            || self.return_t.contains_type(target)
+    }
+
+    pub fn contains_tp(&self, target: &TyParam) -> bool {
+        self.non_default_params
+            .iter()
+            .any(|pt| pt.typ().contains_tp(target))
+            || self
+                .var_params
+                .as_ref()
+                .map(|pt| pt.typ().contains_tp(target))
+                .unwrap_or(false)
+            || self
+                .default_params
+                .iter()
+                .any(|pt| pt.typ().contains_tp(target))
+            || self.return_t.contains_tp(target)
     }
 
     pub fn qvars(&self) -> Set<(Str, Constraint)> {
@@ -442,6 +458,22 @@ impl SubrType {
                 .unwrap_or(false)
             || self.default_params.iter().any(|pt| pt.typ().has_qvar())
             || self.return_t.has_qvar()
+    }
+
+    pub fn has_undoable_linked_var(&self) -> bool {
+        self.non_default_params
+            .iter()
+            .any(|pt| pt.typ().has_undoable_linked_var())
+            || self
+                .var_params
+                .as_ref()
+                .map(|pt| pt.typ().has_undoable_linked_var())
+                .unwrap_or(false)
+            || self
+                .default_params
+                .iter()
+                .any(|pt| pt.typ().has_undoable_linked_var())
+            || self.return_t.has_undoable_linked_var()
     }
 
     pub fn typarams(&self) -> Vec<TyParam> {
@@ -1718,10 +1750,7 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().union_size(),
             Self::FreeVar(fv) if fv.constraint_is_sandwiched() => {
                 let (sub, sup) = fv.get_subsup().unwrap();
-                fv.dummy_link();
-                let res = sub.union_size().max(sup.union_size());
-                fv.undo();
-                res
+                fv.do_avoiding_recursion(|| sub.union_size().max(sup.union_size()))
             }
             // Or(Or(Int, Str), Nat) == 3
             Self::Or(l, r) => l.union_size() + r.union_size(),
@@ -1847,6 +1876,24 @@ impl Type {
         }
     }
 
+    pub fn is_failure(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_failure(),
+            Self::Refinement(refine) => refine.t.is_failure(),
+            Self::Failure => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_class_type(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_class_type(),
+            Self::Refinement(refine) => refine.t.is_class_type(),
+            Self::ClassType => true,
+            _ => false,
+        }
+    }
+
     pub fn as_free(&self) -> Option<&FreeTyVar> {
         <&FreeTyVar>::try_from(self).ok()
     }
@@ -1862,10 +1909,9 @@ impl Type {
                     || fv
                         .get_subsup()
                         .map(|(sub, sup)| {
-                            fv.dummy_link();
-                            let res = sub.contains_tvar(target) || sup.contains_tvar(target);
-                            fv.undo();
-                            res
+                            fv.do_avoiding_recursion(|| {
+                                sub.contains_tvar(target) || sup.contains_tvar(target)
+                            })
                         })
                         .unwrap_or(false)
             }
@@ -1893,40 +1939,72 @@ impl Type {
         }
     }
 
-    pub fn contains(&self, target: &Type) -> bool {
+    pub fn contains_type(&self, target: &Type) -> bool {
         if self == target {
             // This operation can also be performed for recursive types
             return true;
         }
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains(target),
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains_type(target),
             Self::FreeVar(fv) => {
                 fv.get_subsup().map_or(false, |(sub, sup)| {
-                    fv.dummy_link();
-                    let res = sub.contains(target) || sup.contains(target);
-                    fv.undo();
-                    res
-                }) || fv.get_type().map_or(false, |t| t.contains(target))
+                    fv.do_avoiding_recursion(|| {
+                        sub.contains_type(target) || sup.contains_type(target)
+                    })
+                }) || fv.get_type().map_or(false, |t| t.contains_type(target))
             }
-            Self::Record(rec) => rec.iter().any(|(_, t)| t.contains(target)),
-            Self::Poly { params, .. } => params.iter().any(|tp| tp.contains(target)),
-            Self::Quantified(t) => t.contains(target),
-            Self::Subr(subr) => subr.contains(target),
+            Self::Record(rec) => rec.iter().any(|(_, t)| t.contains_type(target)),
+            Self::Poly { params, .. } => params.iter().any(|tp| tp.contains_type(target)),
+            Self::Quantified(t) => t.contains_type(target),
+            Self::Subr(subr) => subr.contains_type(target),
             // TODO: preds
-            Self::Refinement(refine) => refine.t.contains(target),
-            Self::Structural(ty) => ty.contains(target),
-            Self::Proj { lhs, .. } => lhs.contains(target),
+            Self::Refinement(refine) => refine.t.contains_type(target),
+            Self::Structural(ty) => ty.contains_type(target),
+            Self::Proj { lhs, .. } => lhs.contains_type(target),
             Self::ProjCall { lhs, args, .. } => {
-                lhs.contains(target) || args.iter().any(|t| t.contains(target))
+                lhs.contains_type(target) || args.iter().any(|t| t.contains_type(target))
             }
-            Self::And(lhs, rhs) => lhs.contains(target) || rhs.contains(target),
-            Self::Or(lhs, rhs) => lhs.contains(target) || rhs.contains(target),
-            Self::Not(t) => t.contains(target),
-            Self::Ref(t) => t.contains(target),
+            Self::And(lhs, rhs) => lhs.contains_type(target) || rhs.contains_type(target),
+            Self::Or(lhs, rhs) => lhs.contains_type(target) || rhs.contains_type(target),
+            Self::Not(t) => t.contains_type(target),
+            Self::Ref(t) => t.contains_type(target),
             Self::RefMut { before, after } => {
-                before.contains(target) || after.as_ref().map_or(false, |t| t.contains(target))
+                before.contains_type(target)
+                    || after.as_ref().map_or(false, |t| t.contains_type(target))
             }
-            Self::Bounded { sub, sup } => sub.contains(target) || sup.contains(target),
+            Self::Bounded { sub, sup } => sub.contains_type(target) || sup.contains_type(target),
+            _ => false,
+        }
+    }
+
+    pub fn contains_tp(&self, target: &TyParam) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains_tp(target),
+            Self::FreeVar(fv) => {
+                fv.get_subsup().map_or(false, |(sub, sup)| {
+                    fv.do_avoiding_recursion(|| sub.contains_tp(target) || sup.contains_tp(target))
+                }) || fv.get_type().map_or(false, |t| t.contains_tp(target))
+            }
+            Self::Record(rec) => rec.iter().any(|(_, t)| t.contains_tp(target)),
+            Self::Poly { params, .. } => params.iter().any(|tp| tp.contains_tp(target)),
+            Self::Quantified(t) => t.contains_tp(target),
+            Self::Subr(subr) => subr.contains_tp(target),
+            // TODO: preds
+            Self::Refinement(refine) => refine.t.contains_tp(target),
+            Self::Structural(ty) => ty.contains_tp(target),
+            Self::Proj { lhs, .. } => lhs.contains_tp(target),
+            Self::ProjCall { lhs, args, .. } => {
+                lhs.contains_tp(target) || args.iter().any(|t| t.contains_tp(target))
+            }
+            Self::And(lhs, rhs) => lhs.contains_tp(target) || rhs.contains_tp(target),
+            Self::Or(lhs, rhs) => lhs.contains_tp(target) || rhs.contains_tp(target),
+            Self::Not(t) => t.contains_tp(target),
+            Self::Ref(t) => t.contains_tp(target),
+            Self::RefMut { before, after } => {
+                before.contains_tp(target)
+                    || after.as_ref().map_or(false, |t| t.contains_tp(target))
+            }
+            Self::Bounded { sub, sup } => sub.contains_tp(target) || sup.contains_tp(target),
             _ => false,
         }
     }
@@ -1936,25 +2014,28 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_recursive(),
             Self::FreeVar(fv) => fv
                 .get_subsup()
-                .map(|(sub, sup)| sub.contains(self) || sup.contains(self))
+                .map(|(sub, sup)| sub.contains_type(self) || sup.contains_type(self))
                 .unwrap_or(false),
-            Self::Record(rec) => rec.iter().any(|(_, t)| t.contains(self)),
-            Self::Poly { params, .. } => params.iter().any(|tp| tp.contains(self)),
-            Self::Quantified(t) => t.contains(self),
-            Self::Subr(subr) => subr.contains(self),
-            Self::Refinement(refine) => refine.t.contains(self),
-            Self::Structural(ty) => ty.contains(self),
-            Self::Proj { lhs, .. } => lhs.contains(self),
+            Self::Record(rec) => rec.iter().any(|(_, t)| t.contains_type(self)),
+            Self::Poly { params, .. } => params.iter().any(|tp| tp.contains_type(self)),
+            Self::Quantified(t) => t.contains_type(self),
+            Self::Subr(subr) => subr.contains_type(self),
+            Self::Refinement(refine) => refine.t.contains_type(self),
+            Self::Structural(ty) => ty.contains_type(self),
+            Self::Proj { lhs, .. } => lhs.contains_type(self),
             Self::ProjCall { lhs, args, .. } => {
-                lhs.contains(self) || args.iter().any(|t| t.contains(self))
+                lhs.contains_type(self) || args.iter().any(|t| t.contains_type(self))
             }
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => lhs.contains(self) || rhs.contains(self),
-            Self::Not(t) => t.contains(self),
-            Self::Ref(t) => t.contains(self),
+            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => {
+                lhs.contains_type(self) || rhs.contains_type(self)
+            }
+            Self::Not(t) => t.contains_type(self),
+            Self::Ref(t) => t.contains_type(self),
             Self::RefMut { before, after } => {
-                before.contains(self) || after.as_ref().map_or(false, |t| t.contains(self))
+                before.contains_type(self)
+                    || after.as_ref().map_or(false, |t| t.contains_type(self))
             }
-            Self::Bounded { sub, sup } => sub.contains(self) || sup.contains(self),
+            Self::Bounded { sub, sup } => sub.contains_type(self) || sup.contains_type(self),
             _ => false,
         }
     }
@@ -2262,7 +2343,7 @@ impl Type {
         match self {
             Type::FreeVar(fv) if fv.is_linked() => fv.crack().clone().into_refinement(),
             Type::Nat => {
-                let var = Str::from(fresh_varname());
+                let var = FRESH_GEN.fresh_varname();
                 RefinementType::new(
                     var.clone(),
                     Type::Int,
@@ -2270,7 +2351,7 @@ impl Type {
                 )
             }
             Type::Bool => {
-                let var = Str::from(fresh_varname());
+                let var = FRESH_GEN.fresh_varname();
                 RefinementType::new(
                     var.clone(),
                     Type::Int,
@@ -2333,15 +2414,9 @@ impl Type {
             Self::FreeVar(fv) if !fv.constraint_is_uninited() => {
                 let base = set! {(fv.unbound_name().unwrap(), fv.constraint().unwrap())};
                 if let Some((sub, sup)) = fv.get_subsup() {
-                    fv.dummy_link();
-                    let res = base.concat(sub.qvars()).concat(sup.qvars());
-                    fv.undo();
-                    res
+                    fv.do_avoiding_recursion(|| base.concat(sub.qvars()).concat(sup.qvars()))
                 } else if let Some(ty) = fv.get_type() {
-                    fv.dummy_link();
-                    let res = base.concat(ty.qvars());
-                    fv.undo();
-                    res
+                    fv.do_avoiding_recursion(|| base.concat(ty.qvars()))
                 } else {
                     base
                 }
@@ -2397,11 +2472,7 @@ impl Type {
             Self::FreeVar(fv) if fv.is_unbound() && fv.is_generalized() => true,
             Self::FreeVar(fv) => {
                 if let Some((sub, sup)) = fv.get_subsup() {
-                    fv.dummy_link();
-                    let res_sub = sub.has_qvar();
-                    let res_sup = sup.has_qvar();
-                    fv.undo();
-                    res_sub || res_sup
+                    fv.do_avoiding_recursion(|| sub.has_qvar() || sup.has_qvar())
                 } else {
                     let opt_t = fv.get_type();
                     opt_t.map_or(false, |t| t.has_qvar())
@@ -2428,6 +2499,56 @@ impl Type {
             Self::Structural(ty) => ty.has_qvar(),
             Self::Guard(guard) => guard.to.has_qvar(),
             Self::Bounded { sub, sup } => sub.has_qvar() || sup.has_qvar(),
+            _ => false,
+        }
+    }
+
+    pub fn has_undoable_linked_var(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_undoable_linked() => true,
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().has_undoable_linked_var(),
+            Self::FreeVar(fv) => {
+                if let Some((sub, sup)) = fv.get_subsup() {
+                    fv.do_avoiding_recursion(|| {
+                        sub.has_undoable_linked_var() || sup.has_undoable_linked_var()
+                    })
+                } else {
+                    let opt_t = fv.get_type();
+                    opt_t.map_or(false, |t| t.has_undoable_linked_var())
+                }
+            }
+            Self::Ref(ty) => ty.has_undoable_linked_var(),
+            Self::RefMut { before, after } => {
+                before.has_undoable_linked_var()
+                    || after
+                        .as_ref()
+                        .map(|t| t.has_undoable_linked_var())
+                        .unwrap_or(false)
+            }
+            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => {
+                lhs.has_undoable_linked_var() || rhs.has_undoable_linked_var()
+            }
+            Self::Not(ty) => ty.has_undoable_linked_var(),
+            Self::Callable { param_ts, return_t } => {
+                param_ts.iter().any(|t| t.has_undoable_linked_var())
+                    || return_t.has_undoable_linked_var()
+            }
+            Self::Subr(subr) => subr.has_undoable_linked_var(),
+            Self::Quantified(quant) => quant.has_undoable_linked_var(),
+            Self::Record(r) => r.values().any(|t| t.has_undoable_linked_var()),
+            Self::Refinement(refine) => {
+                refine.t.has_undoable_linked_var() || refine.pred.has_undoable_linked_var()
+            }
+            Self::Poly { params, .. } => params.iter().any(|tp| tp.has_undoable_linked_var()),
+            Self::Proj { lhs, .. } => lhs.has_undoable_linked_var(),
+            Self::ProjCall { lhs, args, .. } => {
+                lhs.has_undoable_linked_var() || args.iter().any(|tp| tp.has_undoable_linked_var())
+            }
+            Self::Structural(ty) => ty.has_undoable_linked_var(),
+            Self::Guard(guard) => guard.to.has_undoable_linked_var(),
+            Self::Bounded { sub, sup } => {
+                sub.has_undoable_linked_var() || sup.has_undoable_linked_var()
+            }
             _ => false,
         }
     }
@@ -2699,11 +2820,10 @@ impl Type {
                 if let Some((sub, sup)) = fv.get_subsup() {
                     // if fv == ?T(:> {1, 2}, <: Sub(?T)), derefine() will cause infinite loop
                     // so we need to force linking
-                    fv.dummy_link();
-                    let constraint = Constraint::new_sandwiched(sub.derefine(), sup.derefine());
-                    let free = Self::FreeVar(Free::new_named_unbound(name, level, constraint));
-                    fv.undo();
-                    free
+                    fv.do_avoiding_recursion(|| {
+                        let constraint = Constraint::new_sandwiched(sub.derefine(), sup.derefine());
+                        Self::FreeVar(Free::new_named_unbound(name, level, constraint))
+                    })
                 } else {
                     let t = fv.get_type().unwrap().derefine();
                     let constraint = Constraint::new_type_of(t);
@@ -2965,8 +3085,10 @@ impl Type {
 
     fn addr_eq(&self, other: &Type) -> bool {
         match (self, other) {
+            (Self::FreeVar(slf), _) if slf.is_linked() => slf.crack().addr_eq(other),
+            (_, Self::FreeVar(otr)) if otr.is_linked() => otr.crack().addr_eq(self),
             (Self::FreeVar(slf), Self::FreeVar(otr)) => slf.addr_eq(otr),
-            _ => self == other,
+            _ => ref_addr_eq!(self, other),
         }
     }
 
@@ -2977,6 +3099,17 @@ impl Type {
         match self {
             Self::FreeVar(fv) => fv.link(to),
             Self::Refinement(refine) => refine.t.link(to),
+            _ => panic!("{self} is not a free variable"),
+        }
+    }
+
+    pub(crate) fn undoable_link(&self, to: &Type) {
+        if self.addr_eq(to) {
+            return;
+        }
+        match self {
+            Self::FreeVar(fv) => fv.undoable_link(to),
+            Self::Refinement(refine) => refine.t.undoable_link(to),
             _ => panic!("{self} is not a free variable"),
         }
     }

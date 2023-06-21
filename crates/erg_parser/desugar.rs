@@ -3,7 +3,8 @@
 //! Syntax sugarをdesugarする
 //! e.g. Literal parameters, Multi assignment
 //! 型チェックなどによる検証は行わない
-use erg_common::fresh::fresh_varname;
+
+use erg_common::fresh::FreshNameGenerator;
 use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
 use erg_common::{enum_unwrap, get_hash, log, set};
@@ -31,13 +32,14 @@ enum BufIndex<'i> {
 #[derive(Debug)]
 pub struct Desugarer {
     // _desugared: Set<Str>,
-    // var_id: usize, // must be global
+    var_gen: FreshNameGenerator,
 }
 
 impl Desugarer {
     pub fn new() -> Desugarer {
         Self {
             // _desugared: Set::default(),
+            var_gen: FreshNameGenerator::new("desugar"),
         }
     }
 
@@ -54,7 +56,7 @@ impl Desugarer {
 
     pub fn desugar_simple_expr(expr: Expr) -> Expr {
         let expr = Self::rec_desugar_shortened_record(expr);
-        let expr = Self::rec_desugar_lambda_pattern(&mut Desugarer {}, expr);
+        let expr = Self::rec_desugar_lambda_pattern(&mut Desugarer::new(), expr);
         Self::rec_desugar_acc(expr)
     }
 
@@ -508,9 +510,10 @@ impl Desugarer {
         let sig = LambdaSignature::new(params, return_t_spec.clone(), sig.bounds);
         let second_branch = Lambda::new(sig, op, def.body.block, def.body.id);
         let first_arg = if params_len == 1 {
-            Expr::dummy_local(&fresh_varname())
+            Expr::dummy_local(&self.var_gen.fresh_varname())
         } else {
-            let args = (0..params_len).map(|_| PosArg::new(Expr::dummy_local(&fresh_varname())));
+            let args = (0..params_len)
+                .map(|_| PosArg::new(Expr::dummy_local(&self.var_gen.fresh_varname())));
             Expr::Tuple(Tuple::Normal(NormalTuple::new(Args::pos_only(
                 args.collect(),
                 None,
@@ -537,8 +540,8 @@ impl Desugarer {
         &mut self,
         line: u32,
         t_spec: Option<TypeSpecWithOp>,
-    ) -> (String, Signature) {
-        let buf_name = fresh_varname();
+    ) -> (Str, Signature) {
+        let buf_name = self.var_gen.fresh_varname();
         let buf_sig = Signature::Var(VarSignature::new(
             VarPattern::Ident(Identifier::private_with_line(Str::rc(&buf_name), line)),
             t_spec,
@@ -546,8 +549,8 @@ impl Desugarer {
         (buf_name, buf_sig)
     }
 
-    fn gen_buf_nd_param(&mut self, line: u32) -> (String, ParamPattern) {
-        let buf_name = fresh_varname();
+    fn gen_buf_nd_param(&mut self, line: u32) -> (Str, ParamPattern) {
+        let buf_name = self.var_gen.fresh_varname();
         let pat = ParamPattern::VarName(VarName::from_str_and_line(Str::rc(&buf_name), line));
         (buf_name, pat)
     }
@@ -555,10 +558,7 @@ impl Desugarer {
     fn rec_desugar_lambda_pattern(&mut self, expr: Expr) -> Expr {
         match expr {
             Expr::Lambda(mut lambda) => {
-                let non_defaults = lambda.sig.params.non_defaults.iter_mut();
-                for param in non_defaults {
-                    self.desugar_nd_param(param, &mut lambda.body);
-                }
+                self.desugar_params_patterns(&mut lambda.sig.params, &mut lambda.body);
                 lambda.body = self.desugar_pattern_in_block(lambda.body);
                 Expr::Lambda(lambda)
             }
@@ -694,10 +694,7 @@ impl Desugarer {
                     sig: Signature::Subr(mut subr),
                     mut body,
                 }) => {
-                    let non_defaults = subr.params.non_defaults.iter_mut();
-                    for param in non_defaults {
-                        self.desugar_nd_param(param, &mut body.block);
-                    }
+                    self.desugar_params_patterns(&mut subr.params, &mut body.block);
                     let block = body
                         .block
                         .into_iter()
@@ -719,6 +716,18 @@ impl Desugarer {
             }
         }
         new
+    }
+
+    fn desugar_params_patterns(&mut self, params: &mut Params, body: &mut Block) {
+        for param in params.non_defaults.iter_mut() {
+            self.desugar_nd_param(param, body);
+        }
+        if let Some(var_params) = params.var_params.as_mut() {
+            self.desugar_nd_param(var_params, body);
+        }
+        for param in params.defaults.iter_mut() {
+            self.desugar_nd_param(&mut param.sig, body);
+        }
     }
 
     fn desugar_nested_var_pattern(

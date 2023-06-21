@@ -1,4 +1,3 @@
-use std::cell::Ref;
 use std::collections::hash_map::{Iter, Keys, Values};
 use std::fmt;
 use std::path::Path;
@@ -6,11 +5,11 @@ use std::path::Path;
 use erg_common::dict::Dict;
 use erg_common::set;
 use erg_common::set::Set;
-use erg_common::shared::Shared;
+use erg_common::shared::{MappedRwLockReadGuard, RwLockReadGuard, Shared};
 
 use crate::varinfo::{AbsLocation, VarInfo};
 
-pub struct Members<'a>(Ref<'a, Dict<AbsLocation, ModuleIndexValue>>);
+pub struct Members<'a>(MappedRwLockReadGuard<'a, Dict<AbsLocation, ModuleIndexValue>>);
 
 impl<'a> Members<'a> {
     pub fn iter(&self) -> Iter<AbsLocation, ModuleIndexValue> {
@@ -118,9 +117,12 @@ impl SharedModuleIndex {
         self.0.borrow_mut().register(vi);
     }
 
-    pub fn get_refs(&self, referee: &AbsLocation) -> Option<Ref<ModuleIndexValue>> {
+    pub fn get_refs(
+        &self,
+        referee: &AbsLocation,
+    ) -> Option<MappedRwLockReadGuard<ModuleIndexValue>> {
         if self.0.borrow().get_refs(referee).is_some() {
-            Some(Ref::map(self.0.borrow(), |index| {
+            Some(RwLockReadGuard::map(self.0.borrow(), |index| {
                 index.get_refs(referee).unwrap()
             }))
         } else {
@@ -129,7 +131,7 @@ impl SharedModuleIndex {
     }
 
     pub fn members(&self) -> Members {
-        Members(Ref::map(self.0.borrow(), |mi| &mi.members))
+        Members(RwLockReadGuard::map(self.0.borrow(), |mi| &mi.members))
     }
 
     pub fn initialize(&self) {

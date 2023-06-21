@@ -2,8 +2,9 @@ use std::cell::{Ref, RefMut};
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::mem;
+use std::sync::atomic::AtomicUsize;
 
-use erg_common::shared::Shared;
+use erg_common::shared::Forkable;
 use erg_common::traits::{LimitedDisplay, StructuralEq};
 use erg_common::Str;
 use erg_common::{addr_eq, log};
@@ -16,10 +17,7 @@ pub type Id = usize;
 
 /// HACK: see doc/compiler/inference.md for details
 pub const GENERIC_LEVEL: usize = usize::MAX;
-
-thread_local! {
-    static UNBOUND_ID: Shared<usize> = Shared::new(0);
-}
+static UNBOUND_ID: AtomicUsize = AtomicUsize::new(0);
 
 pub trait HasLevel {
     fn level(&self) -> Option<Level>;
@@ -238,7 +236,7 @@ pub trait CanbeFree {
     fn update_constraint(&self, constraint: Constraint, in_instantiation: bool);
 }
 
-impl<T: CanbeFree> Free<T> {
+impl<T: CanbeFree + Send + Clone> Free<T> {
     pub fn unbound_name(&self) -> Option<Str> {
         self.borrow().unbound_name()
     }
@@ -429,14 +427,12 @@ impl<T> FreeKind<T> {
     }
 
     pub fn new_unbound(lev: Level, constraint: Constraint) -> Self {
-        UNBOUND_ID.with(|id| {
-            *id.borrow_mut() += 1;
-            Self::Unbound {
-                id: *id.borrow(),
-                lev,
-                constraint,
-            }
-        })
+        UNBOUND_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        Self::Unbound {
+            id: UNBOUND_ID.load(std::sync::atomic::Ordering::SeqCst),
+            lev,
+            constraint,
+        }
     }
 
     pub const fn named_unbound(name: Str, lev: Level, constraint: Constraint) -> Self {
@@ -495,7 +491,7 @@ impl<T> FreeKind<T> {
 }
 
 #[derive(Debug, Clone)]
-pub struct Free<T>(Shared<FreeKind<T>>);
+pub struct Free<T: Send + Clone>(Forkable<FreeKind<T>>);
 
 impl Hash for Free<Type> {
     fn hash<H: Hasher>(&self, state: &mut H) {
@@ -506,10 +502,10 @@ impl Hash for Free<Type> {
             lev.hash(state);
         }
         if let Some((sub, sup)) = self.get_subsup() {
-            self.dummy_link();
-            sub.hash(state);
-            sup.hash(state);
-            self.undo();
+            self.do_avoiding_recursion(|| {
+                sub.hash(state);
+                sup.hash(state);
+            });
         } else if let Some(t) = self.get_type() {
             t.hash(state);
         } else if self.is_linked() {
@@ -588,19 +584,19 @@ impl PartialEq for Free<TyParam> {
 impl Eq for Free<Type> {}
 impl Eq for Free<TyParam> {}
 
-impl<T: LimitedDisplay> fmt::Display for Free<T> {
+impl<T: LimitedDisplay + Send + Clone> fmt::Display for Free<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0.borrow())
     }
 }
 
-impl<T: LimitedDisplay> LimitedDisplay for Free<T> {
+impl<T: LimitedDisplay + Send + Clone> LimitedDisplay for Free<T> {
     fn limited_fmt(&self, f: &mut fmt::Formatter<'_>, limit: usize) -> fmt::Result {
         self.0.borrow().limited_fmt(f, limit)
     }
 }
 
-impl<T> Free<T> {
+impl<T: Send + Clone> Free<T> {
     #[track_caller]
     pub fn borrow(&self) -> Ref<'_, FreeKind<T>> {
         self.0.borrow()
@@ -616,12 +612,6 @@ impl<T> Free<T> {
     pub fn forced_as_ref(&self) -> &FreeKind<T> {
         unsafe { self.as_ptr().as_ref() }.unwrap()
     }
-    pub fn can_borrow(&self) -> bool {
-        self.0.can_borrow()
-    }
-    pub fn can_borrow_mut(&self) -> bool {
-        self.0.can_borrow_mut()
-    }
 }
 
 impl Free<Type> {
@@ -632,7 +622,33 @@ impl Free<Type> {
             self.constraint().unwrap(),
         )
     }
+
+    pub fn is_recursive(&self) -> bool {
+        Type::FreeVar(self.clone()).is_recursive()
+    }
+
+    fn _do_avoiding_recursion<O, F: FnOnce() -> O>(&self, placeholder: Option<&Type>, f: F) -> O {
+        let placeholder = placeholder.unwrap_or(&Type::Failure);
+        let is_recursive = self.is_recursive();
+        if is_recursive {
+            self.undoable_link(placeholder);
+        }
+        let res = f();
+        if is_recursive {
+            self.undo();
+        }
+        res
+    }
+
+    pub fn do_avoiding_recursion<O, F: FnOnce() -> O>(&self, f: F) -> O {
+        self._do_avoiding_recursion(None, f)
+    }
+
+    pub fn do_avoiding_recursion_with<O, F: FnOnce() -> O>(&self, placeholder: &Type, f: F) -> O {
+        self._do_avoiding_recursion(Some(placeholder), f)
+    }
 }
+
 impl Free<TyParam> {
     pub fn deep_clone(&self) -> Self {
         Self::new_named_unbound(
@@ -643,7 +659,9 @@ impl Free<TyParam> {
     }
 }
 
-impl<T: StructuralEq + CanbeFree + Clone + Default> StructuralEq for Free<T> {
+impl<T: StructuralEq + CanbeFree + Clone + Default + fmt::Debug + Send + Sync + 'static>
+    StructuralEq for Free<T>
+{
     fn structural_eq(&self, other: &Self) -> bool {
         if let (Some((l, r)), Some((l2, r2))) = (self.get_subsup(), other.get_subsup()) {
             self.dummy_link();
@@ -658,9 +676,13 @@ impl<T: StructuralEq + CanbeFree + Clone + Default> StructuralEq for Free<T> {
     }
 }
 
-impl<T: Clone> Free<T> {
+impl<T: Send + Clone> Free<T> {
     pub fn clone_inner(&self) -> FreeKind<T> {
         self.0.clone_inner()
+    }
+
+    pub fn update_init(&mut self) {
+        self.0.update_init();
     }
 }
 
@@ -678,10 +700,10 @@ impl HasLevel for Free<Type> {
         if let Some(linked) = self.get_linked() {
             linked.set_level(level);
         } else if let Some((sub, sup)) = self.get_subsup() {
-            self.dummy_link();
-            sub.set_level(level);
-            sup.set_level(level);
-            self.undo();
+            self.do_avoiding_recursion(|| {
+                sub.set_level(level);
+                sup.set_level(level);
+            });
         } else if let Some(t) = self.get_type() {
             t.set_level(level);
         }
@@ -721,39 +743,28 @@ impl HasLevel for Free<TyParam> {
     }
 }
 
-impl<T> Free<T> {
+impl<T: Send + Clone> Free<T> {
     pub fn new(f: FreeKind<T>) -> Self {
-        Self(Shared::new(f))
+        Self(Forkable::new(f))
     }
 
     pub fn new_unbound(level: Level, constraint: Constraint) -> Self {
-        UNBOUND_ID.with(|id| {
-            *id.borrow_mut() += 1;
-            Self(Shared::new(FreeKind::unbound(
-                *id.borrow(),
-                level,
-                constraint,
-            )))
-        })
+        UNBOUND_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        Self(Forkable::new(FreeKind::unbound(
+            UNBOUND_ID.load(std::sync::atomic::Ordering::SeqCst),
+            level,
+            constraint,
+        )))
     }
 
     pub fn new_named_unbound(name: Str, level: Level, constraint: Constraint) -> Self {
-        Self(Shared::new(FreeKind::named_unbound(
+        Self(Forkable::new(FreeKind::named_unbound(
             name, level, constraint,
         )))
     }
 
     pub fn new_linked(t: T) -> Self {
-        Self(Shared::new(FreeKind::Linked(t)))
-    }
-
-    #[track_caller]
-    pub fn replace(&self, to: FreeKind<T>) {
-        // prevent linking to self
-        if self.is_linked() && addr_eq!(*self.borrow(), to) {
-            return;
-        }
-        *self.borrow_mut() = to;
+        Self(Forkable::new(FreeKind::Linked(t)))
     }
 
     /// returns linked type (panic if self is unbounded)
@@ -778,6 +789,21 @@ impl<T> Free<T> {
         })
     }
 
+    pub fn unsafe_crack(&self) -> &T {
+        match unsafe { self.as_ptr().as_ref().unwrap() } {
+            FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => t,
+            FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => {
+                panic!("the value is unbounded")
+            }
+        }
+    }
+
+    pub fn addr_eq(&self, other: &Self) -> bool {
+        self.as_ptr() == other.as_ptr()
+    }
+}
+
+impl<T: Send + Sync + 'static + Clone> Free<T> {
     pub fn is_linked(&self) -> bool {
         self.borrow().linked().is_some()
     }
@@ -794,21 +820,17 @@ impl<T> Free<T> {
         self.borrow().is_unnamed_unbound()
     }
 
-    pub fn unsafe_crack(&self) -> &T {
-        match unsafe { self.as_ptr().as_ref().unwrap() } {
-            FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => t,
-            FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => {
-                panic!("the value is unbounded")
-            }
+    #[track_caller]
+    pub fn replace(&self, to: FreeKind<T>) {
+        // prevent linking to self
+        if self.is_linked() && addr_eq!(*self.borrow(), to) {
+            return;
         }
-    }
-
-    pub fn addr_eq(&self, other: &Self) -> bool {
-        self.as_ptr() == other.as_ptr()
+        *self.borrow_mut() = to;
     }
 }
 
-impl<T: Clone> Free<T> {
+impl<T: Clone + fmt::Debug + Send + Sync + 'static> Free<T> {
     /// SAFETY: use `Type/TyParam::link` instead of this.
     /// This method may cause circular references.
     #[track_caller]
@@ -821,7 +843,7 @@ impl<T: Clone> Free<T> {
     }
 
     #[track_caller]
-    pub fn undoable_link(&self, to: &T) {
+    pub(super) fn undoable_link(&self, to: &T) {
         if self.is_linked() && addr_eq!(*self.crack(), *to) {
             panic!("link to self");
         }
@@ -899,11 +921,11 @@ impl<T: Clone> Free<T> {
     }
 
     #[track_caller]
-    pub fn get_previous(&self) -> Option<RefMut<Box<FreeKind<T>>>> {
+    pub fn get_previous(&self) -> Option<Ref<Box<FreeKind<T>>>> {
         if !self.is_undoable_linked() {
             None
         } else {
-            let mapped = RefMut::map(self.borrow_mut(), |f| match f {
+            let mapped = Ref::map(self.borrow(), |f| match f {
                 FreeKind::UndoableLinked { previous, .. } => previous,
                 _ => unreachable!(),
             });
@@ -919,13 +941,14 @@ impl<T: Clone> Free<T> {
     }
 }
 
-impl<T: Default + Clone> Free<T> {
+impl<T: Default + Clone + fmt::Debug + Send + Sync + 'static> Free<T> {
+    #[track_caller]
     pub fn dummy_link(&self) {
         self.undoable_link(&T::default());
     }
 }
 
-impl<T: CanbeFree> Free<T> {
+impl<T: CanbeFree + Send + Clone> Free<T> {
     pub fn get_type(&self) -> Option<Type> {
         self.constraint().and_then(|c| c.get_type().cloned())
     }

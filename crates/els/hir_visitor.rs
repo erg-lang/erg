@@ -1,4 +1,5 @@
 use erg_common::consts::ERG_MODE;
+use erg_common::shared::MappedRwLockReadGuard;
 use erg_common::traits::Locational;
 use erg_common::Str;
 use erg_compiler::erg_parser::token::Token;
@@ -14,14 +15,18 @@ use crate::util::{self, NormalizedUrl};
 /// * cursor(`Token`) -> `Expr` mapping (`get_min_expr`)
 /// * cursor(`Token`) -> `VarInfo` mapping (`get_info`)
 pub struct HIRVisitor<'a> {
-    hir: &'a HIR,
+    hir: MappedRwLockReadGuard<'a, HIR>,
     file_cache: &'a FileCache,
     uri: NormalizedUrl,
     strict_cmp: bool,
 }
 
 impl<'a> HIRVisitor<'a> {
-    pub fn new(hir: &'a HIR, file_cache: &'a FileCache, uri: NormalizedUrl) -> Self {
+    pub fn new(
+        hir: MappedRwLockReadGuard<'a, HIR>,
+        file_cache: &'a FileCache,
+        uri: NormalizedUrl,
+    ) -> Self {
         Self {
             hir,
             file_cache,
@@ -496,7 +501,7 @@ impl<'a> HIRVisitor<'a> {
             Expr::Record(record) => self.get_record_info(record, token),
             Expr::Set(set) => self.get_set_info(set, token),
             Expr::Tuple(tuple) => self.get_tuple_info(tuple, token),
-            Expr::TypeAsc(type_asc) => self.get_expr_info(&type_asc.expr, token),
+            Expr::TypeAsc(type_asc) => self.get_tasc_info(type_asc, token),
             Expr::Dummy(dummy) => self.get_dummy_info(dummy, token),
             Expr::Compound(block) | Expr::Code(block) => self.get_block_info(block, token),
             Expr::ReDef(redef) => self.get_redef_info(redef, token),
@@ -701,5 +706,10 @@ impl<'a> HIRVisitor<'a> {
             Tuple::Normal(tuple) => self.get_args_info(&tuple.elems, token),
             // _ => None, // todo!(),
         }
+    }
+
+    fn get_tasc_info(&self, tasc: &TypeAscription, token: &Token) -> Option<VarInfo> {
+        self.get_expr_info(&tasc.expr, token)
+            .or_else(|| self.get_expr_info(&tasc.spec.expr, token))
     }
 }

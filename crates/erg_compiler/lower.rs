@@ -8,7 +8,7 @@ use erg_common::consts::{ERG_MODE, PYTHON_MODE};
 use erg_common::dict;
 use erg_common::dict::Dict;
 use erg_common::error::{Location, MultiErrorDisplay};
-use erg_common::fresh::fresh_varname;
+use erg_common::fresh::FreshNameGenerator;
 use erg_common::set;
 use erg_common::set::Set;
 use erg_common::traits::{ExitStatus, Locational, NoTypeDisplay, Runnable, Stream};
@@ -37,8 +37,8 @@ use crate::context::{
     RegistrationMode, TraitImpl,
 };
 use crate::error::{
-    CompileError, CompileErrors, LowerError, LowerErrors, LowerResult, LowerWarning, LowerWarnings,
-    SingleLowerResult,
+    CompileError, CompileErrors, CompileWarning, LowerError, LowerErrors, LowerResult,
+    LowerWarning, LowerWarnings, SingleLowerResult,
 };
 use crate::hir;
 use crate::hir::HIR;
@@ -75,6 +75,7 @@ pub struct ASTLowerer {
     pub(crate) module: ModuleContext,
     pub(crate) errs: LowerErrors,
     pub(crate) warns: LowerWarnings,
+    fresh_gen: FreshNameGenerator,
 }
 
 impl Default for ASTLowerer {
@@ -125,22 +126,27 @@ impl Runnable for ASTLowerer {
 
     fn exec(&mut self) -> Result<ExitStatus, Self::Errs> {
         let mut ast_builder = ASTBuilder::new(self.cfg.copy());
-        let ast = ast_builder.build(self.cfg.input.read())?;
-        let artifact = self
-            .lower(ast, "exec")
+        let artifact = ast_builder
+            .build(self.cfg.input.read())
             .map_err(|artifact| artifact.errors)?;
-        artifact.warns.fmt_all_stderr();
-        println!("{}", artifact.object);
+        artifact.warns.write_all_to(&mut self.cfg.output);
+        let artifact = self
+            .lower(artifact.ast, "exec")
+            .map_err(|artifact| artifact.errors)?;
+        artifact.warns.write_all_to(&mut self.cfg.output);
+        use std::io::Write;
+        write!(self.cfg.output, "{}", artifact.object).unwrap();
         Ok(ExitStatus::compile_passed(artifact.warns.len()))
     }
 
     fn eval(&mut self, src: String) -> Result<String, Self::Errs> {
         let mut ast_builder = ASTBuilder::new(self.cfg.copy());
-        let ast = ast_builder.build(src)?;
+        let artifact = ast_builder.build(src).map_err(|artifact| artifact.errors)?;
+        artifact.warns.write_all_stderr();
         let artifact = self
-            .lower(ast, "eval")
+            .lower(artifact.ast, "eval")
             .map_err(|artifact| artifact.errors)?;
-        artifact.warns.fmt_all_stderr();
+        artifact.warns.write_all_stderr();
         Ok(format!("{}", artifact.object))
     }
 }
@@ -172,6 +178,7 @@ impl ASTLowerer {
             cfg,
             errs: LowerErrors::empty(),
             warns: LowerWarnings::empty(),
+            fresh_gen: FreshNameGenerator::new("lower"),
         }
     }
 
@@ -181,17 +188,16 @@ impl ASTLowerer {
             module,
             errs: LowerErrors::empty(),
             warns: LowerWarnings::empty(),
+            fresh_gen: FreshNameGenerator::new("lower"),
         }
     }
 
     fn pop_append_errs(&mut self) {
-        match self.module.context.check_decls_and_pop() {
-            Ok(ctx) if self.cfg.mode == ErgMode::LanguageServer && !ctx.dir().is_empty() => {
-                self.module.scope.insert(ctx.name.clone(), ctx);
-            }
-            Err(errs) => self.errs.extend(errs),
-            _ => {}
+        let (ctx, errs) = self.module.context.check_decls_and_pop();
+        if self.cfg.mode == ErgMode::LanguageServer && !ctx.dir().is_empty() {
+            self.module.scope.insert(ctx.name.clone(), ctx);
         }
+        self.errs.extend(errs);
     }
 
     pub fn pop_mod_ctx(&mut self) -> Option<ModuleContext> {
@@ -217,6 +223,10 @@ impl ASTLowerer {
 
     pub fn get_var_info(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
         ContextProvider::get_var_info(self, name)
+    }
+
+    pub fn unregister(&mut self, name: &str) -> Option<VarInfo> {
+        self.module.context.unregister(name)
     }
 }
 
@@ -626,7 +636,7 @@ impl ASTLowerer {
                     Triple::Ok(vi) => vi,
                     Triple::Err(errs) => {
                         self.errs.push(errs);
-                        VarInfo::ILLEGAL.clone()
+                        VarInfo::ILLEGAL
                     }
                     Triple::None => {
                         let self_t = obj.t();
@@ -646,7 +656,7 @@ impl ASTLowerer {
                             similar_info,
                         );
                         self.errs.push(err);
-                        VarInfo::ILLEGAL.clone()
+                        VarInfo::ILLEGAL
                     }
                 };
                 self.inc_ref(&vi, &attr.ident.name);
@@ -688,7 +698,7 @@ impl ASTLowerer {
                 Triple::Ok(vi) => vi,
                 Triple::Err(err) => {
                     self.errs.push(err);
-                    VarInfo::ILLEGAL.clone()
+                    VarInfo::ILLEGAL
                 }
                 Triple::None => {
                     let (similar_info, similar_name) = self
@@ -706,7 +716,7 @@ impl ASTLowerer {
                         similar_info,
                     );
                     self.errs.push(err);
-                    VarInfo::ILLEGAL.clone()
+                    VarInfo::ILLEGAL
                 }
             };
             (
@@ -751,7 +761,7 @@ impl ASTLowerer {
             TokenKind::Gre => {
                 let value = self.module.context.expr_to_value(rhs.clone())?;
                 let t = value.class();
-                let varname = Str::from(fresh_varname());
+                let varname = self.fresh_gen.fresh_varname();
                 let pred = Predicate::gt(varname.clone(), TyParam::value(value));
                 let refine = refinement(varname, t, pred);
                 Some(guard(var, refine))
@@ -759,7 +769,7 @@ impl ASTLowerer {
             TokenKind::GreEq => {
                 let value = self.module.context.expr_to_value(rhs.clone())?;
                 let t = value.class();
-                let varname = Str::from(fresh_varname());
+                let varname = self.fresh_gen.fresh_varname();
                 let pred = Predicate::ge(varname.clone(), TyParam::value(value));
                 let refine = refinement(varname, t, pred);
                 Some(guard(var, refine))
@@ -767,7 +777,7 @@ impl ASTLowerer {
             TokenKind::Less => {
                 let value = self.module.context.expr_to_value(rhs.clone())?;
                 let t = value.class();
-                let varname = Str::from(fresh_varname());
+                let varname = self.fresh_gen.fresh_varname();
                 let pred = Predicate::lt(varname.clone(), TyParam::value(value));
                 let refine = refinement(varname, t, pred);
                 Some(guard(var, refine))
@@ -775,7 +785,7 @@ impl ASTLowerer {
             TokenKind::LessEq => {
                 let value = self.module.context.expr_to_value(rhs.clone())?;
                 let t = value.class();
-                let varname = Str::from(fresh_varname());
+                let varname = self.fresh_gen.fresh_varname();
                 let pred = Predicate::le(varname.clone(), TyParam::value(value));
                 let refine = refinement(varname, t, pred);
                 Some(guard(var, refine))
@@ -807,7 +817,7 @@ impl ASTLowerer {
             .get_binop_t(&bin.op, &args, &self.cfg.input, &self.module.context)
             .unwrap_or_else(|errs| {
                 self.errs.extend(errs);
-                VarInfo::ILLEGAL.clone()
+                VarInfo::ILLEGAL
             });
         if let Some(guard) = guard {
             if let Some(return_t) = vi.t.mut_return_t() {
@@ -846,7 +856,7 @@ impl ASTLowerer {
             .get_unaryop_t(&unary.op, &args, &self.cfg.input, &self.module.context)
             .unwrap_or_else(|errs| {
                 self.errs.extend(errs);
-                VarInfo::ILLEGAL.clone()
+                VarInfo::ILLEGAL
             });
         let mut args = args.into_iter();
         let expr = args.next().unwrap().expr;
@@ -967,7 +977,7 @@ impl ASTLowerer {
             Err((vi, es)) => {
                 self.module.context.higher_order_caller.pop();
                 errs.extend(es);
-                vi.unwrap_or(VarInfo::ILLEGAL.clone())
+                vi.unwrap_or(VarInfo::ILLEGAL)
             }
         };
         if let Err(es) = self.module.context.propagate(&mut vi.t, &obj) {
@@ -1096,7 +1106,7 @@ impl ASTLowerer {
             Ok(vi) => vi,
             Err((vi, errs)) => {
                 self.errs.extend(errs);
-                vi.unwrap_or(VarInfo::ILLEGAL.clone())
+                vi.unwrap_or(VarInfo::ILLEGAL)
             }
         };
         let args = hir::Args::pos_only(args, None);
@@ -1663,6 +1673,23 @@ impl ASTLowerer {
                             self.pop_append_errs();
                             errs
                         })?;
+                        if let Some(ident) = def.sig.ident() {
+                            if self
+                                .module
+                                .context
+                                .get_instance_attr(ident.inspect())
+                                .is_some()
+                            {
+                                self.warns
+                                    .push(CompileWarning::same_name_instance_attr_warning(
+                                        self.cfg.input.clone(),
+                                        line!() as usize,
+                                        ident.loc(),
+                                        self.module.context.caused_by(),
+                                        ident.inspect(),
+                                    ));
+                            }
+                        }
                     }
                     ast::ClassAttr::Decl(_) | ast::ClassAttr::Doc(_) => {}
                 }
@@ -1730,21 +1757,19 @@ impl ASTLowerer {
         if let Some(sup_type) = call.args.get_left_or_key("Super") {
             Self::check_inheritable(&self.cfg, &mut self.errs, type_obj, sup_type, &hir_def.sig);
         }
-        let (__new__, need_to_gen_new) = if let (Some(dunder_new_vi), Some(new_vi)) = (
-            class_ctx.get_current_scope_var(&VarName::from_static("__new__")),
-            class_ctx.get_current_scope_var(&VarName::from_static("new")),
-        ) {
-            (dunder_new_vi.t.clone(), new_vi.kind == VarKind::Auto)
-        } else {
+        let Some(__new__) = class_ctx.get_current_scope_var(&VarName::from_static("__new__")).or(class_ctx.get_current_scope_var(&VarName::from_static("__call__"))) else {
             return unreachable_error!(LowerErrors, LowerError, self);
         };
+        let need_to_gen_new = class_ctx
+            .get_current_scope_var(&VarName::from_static("new"))
+            .map_or(false, |vi| vi.kind == VarKind::Auto);
         let require_or_sup = Self::get_require_or_sup_or_base(hir_def.body.block.remove(0));
         Ok(hir::ClassDef::new(
             type_obj.clone(),
             hir_def.sig,
             require_or_sup,
             need_to_gen_new,
-            __new__,
+            __new__.t.clone(),
             hir_methods,
         ))
     }
@@ -2352,7 +2377,7 @@ impl ASTLowerer {
 
     // Call.obj == Accessor cannot be type inferred by itself (it can only be inferred with arguments)
     // so turn off type checking (check=false)
-    pub fn lower_expr(&mut self, expr: ast::Expr) -> LowerResult<hir::Expr> {
+    fn lower_expr(&mut self, expr: ast::Expr) -> LowerResult<hir::Expr> {
         log!(info "entered {}", fn_name!());
         match expr {
             ast::Expr::Literal(lit) => Ok(hir::Expr::Lit(self.lower_literal(lit)?)),
@@ -2380,7 +2405,7 @@ impl ASTLowerer {
     /// The meaning of TypeAscription changes between chunk and expr.
     /// For example, `x: Int`, as expr, is `x` itself,
     /// but as chunk, it declares that `x` is of type `Int`, and is valid even before `x` is defined.
-    pub(crate) fn lower_chunk(&mut self, chunk: ast::Expr) -> LowerResult<hir::Expr> {
+    pub fn lower_chunk(&mut self, chunk: ast::Expr) -> LowerResult<hir::Expr> {
         log!(info "entered {}", fn_name!());
         match chunk {
             ast::Expr::Def(def) => Ok(hir::Expr::Def(self.lower_def(def)?)),

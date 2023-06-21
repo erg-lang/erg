@@ -37,7 +37,7 @@ use crate::context::instantiate::TyVarCache;
 use crate::context::instantiate_spec::ConstTemplate;
 use crate::error::{TyCheckError, TyCheckErrors};
 use crate::module::{
-    SharedCompilerResource, SharedModuleCache, SharedModuleIndex, SharedTraitImpls,
+    SharedCompilerResource, SharedModuleCache, SharedModuleIndex, SharedPromises, SharedTraitImpls,
 };
 use crate::ty::value::ValueObj;
 use crate::ty::GuardType;
@@ -182,7 +182,7 @@ impl std::ops::Mul for Variance {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ParamSpec {
-    pub(crate) name: Option<&'static str>,
+    pub(crate) name: Option<Str>,
     // TODO: `:` or `<:`
     pub(crate) t: Type,
     pub is_var_params: bool,
@@ -191,15 +191,15 @@ pub struct ParamSpec {
 }
 
 impl ParamSpec {
-    pub const fn new(
-        name: Option<&'static str>,
+    pub fn new<S: Into<Str>>(
+        name: Option<S>,
         t: Type,
         is_var_params: bool,
         default: DefaultInfo,
         loc: AbsLocation,
     ) -> Self {
         Self {
-            name,
+            name: name.map(|s| s.into()),
             t,
             is_var_params,
             default_info: default,
@@ -207,8 +207,8 @@ impl ParamSpec {
         }
     }
 
-    pub const fn named(
-        name: &'static str,
+    pub fn named<S: Into<Str>>(
+        name: S,
         t: Type,
         is_var_params: bool,
         default: DefaultInfo,
@@ -222,7 +222,7 @@ impl ParamSpec {
         )
     }
 
-    pub const fn named_nd(name: &'static str, t: Type) -> Self {
+    pub fn named_nd<S: Into<Str>>(name: S, t: Type) -> Self {
         Self::new(
             Some(name),
             t,
@@ -232,7 +232,7 @@ impl ParamSpec {
         )
     }
 
-    pub const fn t(name: &'static str, is_var_params: bool, default: DefaultInfo) -> Self {
+    pub fn t<S: Into<Str>>(name: S, is_var_params: bool, default: DefaultInfo) -> Self {
         Self::new(
             Some(name),
             Type,
@@ -242,7 +242,7 @@ impl ParamSpec {
         )
     }
 
-    pub const fn t_nd(name: &'static str) -> Self {
+    pub fn t_nd<S: Into<Str>>(name: S) -> Self {
         Self::new(
             Some(name),
             Type,
@@ -317,6 +317,10 @@ impl fmt::Display for ContextKind {
 impl ContextKind {
     pub const fn is_method_def(&self) -> bool {
         matches!(self, Self::MethodDefs(_))
+    }
+
+    pub const fn is_trait_impl(&self) -> bool {
+        matches!(self, Self::MethodDefs(Some(_)))
     }
 
     pub const fn is_type(&self) -> bool {
@@ -529,6 +533,16 @@ impl Context {
         let ctx = self.get_namespace(&namespace)?;
         ctx.get_var_info(&typ.local_name())
     }
+
+    pub fn unregister(&mut self, name: &str) -> Option<VarInfo> {
+        self.mono_types.remove(name);
+        self.poly_types.remove(name);
+        self.patches.remove(name);
+        self.erg_to_py_names.remove(name);
+        self.locals
+            .remove(name)
+            .or_else(|| self.locals.remove(name))
+    }
 }
 
 impl Context {
@@ -574,18 +588,18 @@ impl Context {
             let id = DefId(get_hash(&(&name, &param)));
             if let Some(name) = param.name {
                 let kind = VarKind::parameter(id, param.is_var_params, param.default_info);
-                let muty = Mutability::from(name);
+                let muty = Mutability::from(&name[..]);
                 let vi = VarInfo::new(
                     param.t,
                     muty,
-                    Visibility::private(name),
+                    Visibility::private(&name),
                     kind,
                     None,
                     None,
                     None,
                     param.loc,
                 );
-                params_.push((Some(VarName::new(Token::static_symbol(name))), vi));
+                params_.push((Some(VarName::new(Token::symbol(&name))), vi));
             } else {
                 let kind = VarKind::parameter(id, param.is_var_params, param.default_info);
                 let muty = Mutability::Immutable;
@@ -1076,12 +1090,11 @@ impl Context {
         }
     }
 
-    pub(crate) fn check_decls_and_pop(&mut self) -> Result<Context, TyCheckErrors> {
-        self.check_decls().map_err(|errs| {
-            self.pop();
-            errs
-        })?;
-        Ok(self.pop())
+    pub(crate) fn check_decls_and_pop(&mut self) -> (Context, TyCheckErrors) {
+        match self.check_decls() {
+            Ok(_) => (self.pop(), TyCheckErrors::empty()),
+            Err(errs) => (self.pop(), errs),
+        }
     }
 
     pub(crate) fn check_decls(&mut self) -> Result<(), TyCheckErrors> {
@@ -1162,6 +1175,10 @@ impl Context {
 
     pub fn shared(&self) -> &SharedCompilerResource {
         self.shared.as_ref().unwrap()
+    }
+
+    pub fn promises(&self) -> &SharedPromises {
+        &self.shared().promises
     }
 
     pub fn control_kind(&self) -> Option<ControlKind> {

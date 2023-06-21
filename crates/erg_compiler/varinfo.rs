@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use erg_common::error::Location;
 use erg_common::set::Set;
-use erg_common::Str;
+use erg_common::{switch_lang, Str};
 
 use erg_parser::ast::DefId;
 
@@ -39,6 +39,7 @@ use Mutability::*;
 pub enum VarKind {
     Defined(DefId),
     Declared,
+    InstanceAttr,
     Parameter {
         def_id: DefId,
         var: bool,
@@ -87,6 +88,38 @@ impl VarKind {
 
     pub const fn is_builtin(&self) -> bool {
         matches!(self, Self::Builtin)
+    }
+
+    pub const fn is_auto(&self) -> bool {
+        matches!(self, Self::Auto)
+    }
+
+    pub const fn is_instance_attr(&self) -> bool {
+        matches!(self, Self::InstanceAttr)
+    }
+
+    pub const fn display(&self) -> &'static str {
+        match self {
+            Self::Auto | Self::FixedAuto => switch_lang!(
+                "japanese" => "自動",
+                "simplified_chinese" => "自动",
+                "traditional_chinese" => "自動",
+                "english" => "auto",
+            ),
+            Self::Builtin => switch_lang!(
+                "japanese" => "組み込み",
+                "simplified_chinese" => "内置",
+                "traditional_chinese" => "內置",
+                "english" => "builtin",
+            ),
+            Self::InstanceAttr => switch_lang!(
+                "japanese" => "インスタンス",
+                "simplified_chinese" => "实例",
+                "traditional_chinese" => "實例",
+                "english" => "instance",
+            ),
+            _ => "",
+        }
     }
 }
 
@@ -203,7 +236,7 @@ impl Default for VarInfo {
 }
 
 impl VarInfo {
-    pub const ILLEGAL: &'static Self = &Self::const_default_private();
+    pub const ILLEGAL: Self = Self::const_default_private();
 
     pub const fn const_default_private() -> Self {
         Self::new(
@@ -285,12 +318,11 @@ impl VarInfo {
         } else {
             Mutability::Immutable
         };
-        let kind = VarKind::Declared;
         Self::new(
             t,
             muty,
             Visibility::new(field.vis, namespace),
-            kind,
+            VarKind::InstanceAttr,
             None,
             impl_of,
             None,

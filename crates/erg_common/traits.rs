@@ -9,9 +9,10 @@ use std::mem;
 use std::process;
 use std::slice::{Iter, IterMut};
 
-use crate::config::{ErgConfig, Input, InputKind};
+use crate::config::ErgConfig;
 use crate::consts::{BUILD_DATE, GIT_HASH_SHORT, SEMVER};
 use crate::error::{ErrorDisplay, ErrorKind, Location, MultiErrorDisplay};
+use crate::io::{Input, InputKind};
 use crate::{addr_eq, chomp, log, switch_unreachable};
 
 pub trait DequeStream<T>: Sized {
@@ -248,6 +249,10 @@ pub trait Stream<T>: Sized {
         I: IntoIterator<Item = T>,
     {
         self.ref_mut_payload().extend(iter);
+    }
+
+    fn split_off(&mut self, at: usize) -> Vec<T> {
+        self.ref_mut_payload().split_off(at)
     }
 }
 
@@ -792,7 +797,7 @@ pub trait Runnable: Sized + Default {
                                         instance.quit_successfully(output);
                                     }
                                     num_errors += errs.len();
-                                    errs.fmt_all_stderr();
+                                    errs.write_all_stderr();
                                 }
                             }
                             instance.input().set_block_begin();
@@ -916,7 +921,7 @@ pub trait Runnable: Sized + Default {
                                     return ExitStatus::new(0, 0, num_errors);
                                 }
                                 num_errors += errs.len();
-                                errs.fmt_all_stderr();
+                                errs.write_all_stderr();
                             }
                         }
                         instance.input().set_block_begin();
@@ -931,7 +936,7 @@ pub trait Runnable: Sized + Default {
             Ok(status) => status,
             Err(errs) => {
                 num_errors += errs.len();
-                errs.fmt_all_stderr();
+                errs.write_all_stderr();
                 ExitStatus::new(1, 0, num_errors)
             }
         }
@@ -943,6 +948,7 @@ pub trait Locational {
     /// If possible, delay the computation by passing `&impl Locational` or other means.
     fn loc(&self) -> Location;
 
+    /// 1-origin
     fn ln_begin(&self) -> Option<u32> {
         match self.loc() {
             Location::Range { ln_begin, .. } | Location::LineRange(ln_begin, _) => Some(ln_begin),
@@ -959,6 +965,7 @@ pub trait Locational {
         }
     }
 
+    /// 0-origin
     fn col_begin(&self) -> Option<u32> {
         match self.loc() {
             Location::Range { col_begin, .. } => Some(col_begin),

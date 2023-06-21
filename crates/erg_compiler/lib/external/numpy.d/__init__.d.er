@@ -1,12 +1,15 @@
 # TODO: dependent (static shaped)
-.NDArray = 'ndarray': ClassType
-.NDArray <: Iterable Obj
-.NDArray <: Num
+.NDArray = 'ndarray': (T: Type) -> ClassType
+.NDArray(T) <: Output T
+.NDArray(_) <: Num
 .NDArray.
     shape: [Nat; _]
     ndim: Nat
     dtype: Type
     size: Nat
+
+.nan: Float
+.Nan: Float
 
 .abs: |T|(object: .NDArray(T),) -> .NDArray(T)
 .add: |T|(object: .NDArray(T), other: .NDArray(T)) -> .NDArray(T)

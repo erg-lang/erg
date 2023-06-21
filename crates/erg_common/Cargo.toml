@@ -29,6 +29,8 @@ backtrace-on-stack-overflow = { version = "0.2.0", optional = true }
 
 [dependencies]
 crossterm = { optional = true, version = "0.25.0" }
+parking_lot = "0.12"
+thread_local = "1.1"
 
 [lib]
 path = "lib.rs"

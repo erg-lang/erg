@@ -32,73 +32,73 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         let pos = params.text_document_position.position;
         if let Some(tok) = self.file_cache.get_token(&uri, pos) {
             // send_log(format!("token: {tok}"))?;
-            if let Some(visitor) = self.get_visitor(&uri) {
-                if let Some(vi) = visitor.get_info(&tok) {
-                    let mut changes: HashMap<Url, Vec<TextEdit>> = HashMap::new();
-                    let is_std = vi
-                        .def_loc
-                        .module
-                        .as_ref()
-                        .map(|path| path.starts_with(&self.erg_path))
-                        .unwrap_or(false);
-                    let kind = if vi.t.is_method() {
-                        "method"
-                    } else if vi.t.is_subr() {
-                        "subroutine"
-                    } else {
-                        "variable"
-                    };
-                    if vi.def_loc.loc.is_unknown() || is_std {
-                        let error_reason = match vi.kind {
-                            VarKind::Builtin => {
-                                format!("this is a builtin {kind} and cannot be renamed")
-                            }
-                            VarKind::FixedAuto => {
-                                format!("this is a fixed auto {kind} and cannot be renamed")
-                            }
-                            _ if is_std => {
-                                "this is a standard library API and cannot be renamed".to_string()
-                            }
-                            _ => format!("this {kind} cannot be renamed"),
-                        };
-                        let edit = WorkspaceEdit::new(changes);
-                        send(
-                            &json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": edit }),
-                        )?;
-                        return send_error_info(error_reason);
-                    }
-                    Self::commit_change(&mut changes, &vi.def_loc, params.new_name.clone());
-                    if let Some(value) = self.get_index().and_then(|ind| ind.get_refs(&vi.def_loc))
-                    {
-                        // send_log(format!("referrers: {referrers:?}"))?;
-                        for referrer in value.referrers.iter() {
-                            Self::commit_change(&mut changes, referrer, params.new_name.clone());
+            if let Some(vi) = self
+                .get_visitor(&uri)
+                .and_then(|visitor| visitor.get_info(&tok))
+            {
+                let mut changes: HashMap<Url, Vec<TextEdit>> = HashMap::new();
+                let is_std = vi
+                    .def_loc
+                    .module
+                    .as_ref()
+                    .map(|path| path.starts_with(&self.erg_path))
+                    .unwrap_or(false);
+                let kind = if vi.t.is_method() {
+                    "method"
+                } else if vi.t.is_subr() {
+                    "subroutine"
+                } else {
+                    "variable"
+                };
+                if vi.def_loc.loc.is_unknown() || is_std {
+                    let error_reason = match vi.kind {
+                        VarKind::Builtin => {
+                            format!("this is a builtin {kind} and cannot be renamed")
                         }
-                    }
-                    let dependencies = self.dependencies_of(&uri);
-                    for uri in changes.keys() {
-                        self.clear_cache(&NormalizedUrl::new(uri.clone()));
-                    }
-                    let timestamps = self.get_timestamps(changes.keys());
+                        VarKind::FixedAuto => {
+                            format!("this is a fixed auto {kind} and cannot be renamed")
+                        }
+                        _ if is_std => {
+                            "this is a standard library API and cannot be renamed".to_string()
+                        }
+                        _ => format!("this {kind} cannot be renamed"),
+                    };
                     let edit = WorkspaceEdit::new(changes);
                     send(
                         &json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": edit }),
                     )?;
-                    for _ in 0..20 {
-                        send_log("waiting for file to be modified...")?;
-                        if self.all_changed(&timestamps) {
-                            break;
-                        }
-                        std::thread::sleep(std::time::Duration::from_millis(50));
-                    }
-                    // recheck dependencies and finally the file itself
-                    for dep in dependencies {
-                        let code = self.file_cache.get_entire_code(&dep)?.to_string();
-                        self.check_file(dep, code)?;
-                    }
-                    // dependents are checked after changes are committed
-                    return Ok(());
+                    return send_error_info(error_reason);
                 }
+                Self::commit_change(&mut changes, &vi.def_loc, params.new_name.clone());
+                if let Some(value) = self.get_index().and_then(|ind| ind.get_refs(&vi.def_loc)) {
+                    // send_log(format!("referrers: {referrers:?}"))?;
+                    for referrer in value.referrers.iter() {
+                        Self::commit_change(&mut changes, referrer, params.new_name.clone());
+                    }
+                }
+                let dependencies = self.dependencies_of(&uri);
+                for uri in changes.keys() {
+                    self.clear_cache(&NormalizedUrl::new(uri.clone()));
+                }
+                let timestamps = self.get_timestamps(changes.keys());
+                let edit = WorkspaceEdit::new(changes);
+                send(
+                    &json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": edit }),
+                )?;
+                for _ in 0..20 {
+                    send_log("waiting for file to be modified...")?;
+                    if self.all_changed(&timestamps) {
+                        break;
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+                }
+                // recheck dependencies and finally the file itself
+                for dep in dependencies {
+                    let code = self.file_cache.get_entire_code(&dep)?.to_string();
+                    self.check_file(dep, code)?;
+                }
+                // dependents are checked after changes are committed
+                return Ok(());
             }
         }
         send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": Value::Null }))
@@ -191,10 +191,6 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         let mut changes = HashMap::new();
         for dep in self.dependents_of(old_uri) {
             let imports = self.search_imports(&dep, old_path);
-            for import in imports.iter() {
-                let range = util::loc_to_range(import.loc()).unwrap();
-                self.file_cache.ranged_update(&dep, range, new_path);
-            }
             let edits = imports.iter().map(|lit| {
                 TextEdit::new(
                     util::loc_to_range(lit.loc()).unwrap(),
@@ -208,11 +204,11 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
 
     /// TODO: multi-path imports
     /// returning exprs: import symbol (string literal)
-    fn search_imports(&self, target: &NormalizedUrl, needle_module_name: &str) -> Vec<&Literal> {
+    fn search_imports(&self, target: &NormalizedUrl, needle_module_name: &str) -> Vec<Literal> {
         let mut imports = vec![];
         if let Some(IncompleteArtifact {
             object: Some(hir), ..
-        }) = self.get_artifact(target)
+        }) = self.analysis_result.get_artifact(target).as_deref()
         {
             for chunk in hir.module.iter() {
                 imports.extend(Self::extract_import_symbols(chunk, needle_module_name));
@@ -221,7 +217,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         imports
     }
 
-    fn extract_import_symbols<'e>(expr: &'e Expr, needle_module_name: &str) -> Vec<&'e Literal> {
+    fn extract_import_symbols(expr: &Expr, needle_module_name: &str) -> Vec<Literal> {
         match expr {
             Expr::Def(def) if def.def_kind().is_import() => {
                 let Some(Expr::Call(import_call)) = def.body.block.first() else {
@@ -240,7 +236,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                             .ends_with(needle_module_name) =>
                     // FIXME: Possibly a submodule of the same name of another module
                     {
-                        vec![lit]
+                        vec![lit.clone()]
                     }
                     _ => vec![],
                 }
@@ -289,6 +285,8 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         }
     }
 
+    /// Rename .er files and rewrite the imports of the dependent files.
+    /// This does not update `file_cache`, the editing is done by a `didChange` request.
     pub(crate) fn handle_will_rename_files(
         &mut self,
         params: RenameFilesParams,

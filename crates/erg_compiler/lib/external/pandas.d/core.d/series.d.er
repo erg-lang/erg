@@ -1,0 +1,8 @@
+{.Index;} = pyimport "./indexes/api"
+
+# K := Nat, V := Obj
+.Series!: (K: Type, V: Type) -> ClassType
+.Series!(K, V) <: Input(K)
+.Series!(K, V) <: Output(V)
+.Series!.
+    __call__: |K, V|(iterable: Iterable(V), index: [K; _] or .Index(K) := [Nat; _]) -> .Series! K, V

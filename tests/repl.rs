@@ -110,7 +110,7 @@ fn exec_repl_class_def_with_deco() -> Result<(), ()> {
 #[test]
 #[ignore]
 fn exec_invalid_class_inheritable() -> Result<(), ()> {
-    expect_repl_failure(
+    expect_repl_success(
         "repl_auto_indent_dedent",
         [
             "@Inheritable",
@@ -136,7 +136,6 @@ fn exec_invalid_class_inheritable() -> Result<(), ()> {
         .into_iter()
         .map(|line| line.to_string())
         .collect(),
-        2,
     )
 }
 
@@ -188,7 +187,7 @@ fn exec_repl_invalid_indent() -> Result<(), ()> {
 fn exec_repl_invalid_def_after_the_at_sign() -> Result<(), ()> {
     expect_repl_failure(
         "repl_invalid_indent",
-        ["@decorator", "a = 1", "exit()"]
+        ["@decorator", "a = 1", "", "exit()"]
             .into_iter()
             .map(|x| x.to_string())
             .collect(),

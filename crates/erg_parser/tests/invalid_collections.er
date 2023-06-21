@@ -1,0 +1,40 @@
+#[array]#
+[1,,]
+[Nat;2;] # [Nat; 1]
+a = [1: "a"] # [1: Nat]
+[1, 2,,]
+
+
+#[tuple]#
+(1,,)
+a,,
+
+
+#[set]#
+{1,,}
+{Nat;;} # {Int; 1}
+{1; 3}
+
+#[dict]#
+{"a": 1,,}
+{"a": 1, "b" 2}
+{:1}
+{"a":}
+
+#[record]#
+{x=}
+{=x}
+{x;;}
+{;x}
+
+#[collection access]#
+a = [1, 2, 3]
+a[1;2]
+a[Nat; 3]
+a[1: 1]
+
+t = (1, True, "a")
+t.-1
+
+r = {name = "John Doe"; age = 21; from="Unknown"}
+r.attr

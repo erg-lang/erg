@@ -5,7 +5,7 @@ use std::cmp::{self, Ordering};
 use std::fmt;
 use std::io::{stderr, BufWriter, Write as _};
 
-use crate::config::{Input, InputKind};
+use crate::io::{Input, InputKind};
 use crate::style::Attribute;
 use crate::style::Characters;
 use crate::style::Color;
@@ -231,9 +231,9 @@ pub enum Location {
     ///
     /// Location used for basic errors
     /// ```erg
-    /// // erg
+    /// # erg
     /// a = 1
-    /// a = 2
+    /// a = 2 # Error, `a` is assigned twice
     /// // Value assigned to the structure
     /// Location::Range {
     ///    ln_begin: 2,
@@ -244,7 +244,9 @@ pub enum Location {
     /// ```
     ///
     Range {
+        /// 1-origin
         ln_begin: u32,
+        /// 0-origin
         col_begin: u32,
         ln_end: u32,
         col_end: u32,
@@ -392,6 +394,7 @@ impl Location {
         }
     }
 
+    /// 1-origin
     pub const fn ln_begin(&self) -> Option<u32> {
         match self {
             Self::Range { ln_begin, .. } | Self::LineRange(ln_begin, _) | Self::Line(ln_begin) => {
@@ -410,6 +413,7 @@ impl Location {
         }
     }
 
+    /// 0-origin
     pub const fn col_begin(&self) -> Option<u32> {
         match self {
             Self::Range { col_begin, .. } => Some(*col_begin),
@@ -790,15 +794,25 @@ impl ErrorCore {
             Some(Attribute::Underline),
         );
 
-        let m_msg = switch_lang!(
-            "japanese" => format!("これはErgのバグです、開発者に報告して下さい({URL})\n{fn_name}:{line}より発生"),
-            "simplified_chinese" => format!("这是Erg的bug，请报告给{URL}\n原因来自: {fn_name}:{line}"),
-            "traditional_chinese" => format!("这是Erg的bug，请报告给{URL}\n原因来自: {fn_name}:{line}"),
-            "english" => format!("this is a bug of Erg, please report it to {URL}\ncaused from: {fn_name}:{line}"),
+        let main_msg = switch_lang!(
+            "japanese" => format!("\
+    これはErgのバグです、開発者に報告して下さい({URL})
+    発生箇所: {fn_name}:{line}"),
+            "simplified_chinese" => format!("\
+    这是Erg的bug，请报告给{URL}
+    原因来自: {fn_name}:{line}"),
+            "traditional_chinese" => format!("\
+    這是Erg的bug，請報告給{URL}
+    原因來自: {fn_name}:{line}"),
+            "english" => format!("\
+    This is a bug of Erg, please report it to {URL}
+    Caused from: {fn_name}:{line}"),
         );
+        let main_msg =
+            StyledStr::new(&main_msg, Some(Color::Red), Some(Attribute::Bold)).to_string();
         Self::new(
             vec![SubMessage::only_loc(loc)],
-            m_msg,
+            main_msg,
             errno,
             CompilerSystemError,
             loc,
@@ -975,9 +989,15 @@ macro_rules! impl_display_and_error {
 }
 
 pub trait MultiErrorDisplay<Item: ErrorDisplay>: Stream<Item> {
-    fn fmt_all_stderr(&self) {
+    fn write_all_stderr(&self) {
         for err in self.iter() {
             err.write_to_stderr();
+        }
+    }
+
+    fn write_all_to(&self, w: &mut impl std::io::Write) {
+        for err in self.iter() {
+            err.write_to(w);
         }
     }
 

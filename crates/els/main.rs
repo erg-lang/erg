@@ -1,3 +1,4 @@
+mod channels;
 mod code_action;
 mod code_lens;
 mod command;

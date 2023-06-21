@@ -8,7 +8,9 @@ use erg_common::traits::Stream;
 use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::error::CompileErrors;
 
-use lsp_types::{Diagnostic, DiagnosticSeverity, Position, PublishDiagnosticsParams, Range, Url};
+use lsp_types::{
+    Diagnostic, DiagnosticSeverity, NumberOrString, Position, PublishDiagnosticsParams, Range, Url,
+};
 
 use crate::diff::{ASTDiff, HIRDiff};
 use crate::server::{send, send_log, AnalysisResult, DefaultFeatures, ELSResult, Server};
@@ -17,7 +19,7 @@ use crate::util::{self, NormalizedUrl};
 impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     pub(crate) fn get_ast(&self, uri: &NormalizedUrl) -> Option<Module> {
         let code = self.file_cache.get_entire_code(uri).ok()?;
-        Parser::parse(code).ok()
+        Parser::parse(code).ok().map(|artifact| artifact.ast)
     }
 
     pub(crate) fn check_file<S: Into<String>>(
@@ -85,7 +87,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     }
 
     pub(crate) fn quick_check_file(&mut self, uri: NormalizedUrl) -> ELSResult<()> {
-        let Some(old) = self.analysis_result.get(&uri).map(|r| &r.ast) else {
+        let Some(old) = self.analysis_result.get_ast(&uri) else {
             crate::_log!("not found");
             return Ok(());
         };
@@ -95,16 +97,13 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         };
         let ast_diff = ASTDiff::diff(old, &new);
         crate::_log!("diff: {ast_diff}");
-        if let Some(mut lowerer) = self.get_lowerer(&uri) {
-            let hir = self
-                .analysis_result
-                .get_mut(&uri)
-                .and_then(|r| r.artifact.object.as_mut());
+        if let Some(mut lowerer) = self.steal_lowerer(&uri) {
+            let hir = self.analysis_result.get_mut_hir(&uri);
             if let Some((hir_diff, hir)) = HIRDiff::new(ast_diff, &mut lowerer).zip(hir) {
                 crate::_log!("hir_diff: {hir_diff}");
                 hir_diff.update(hir);
             }
-            self.restore_mod_ctx(uri, lowerer.pop_mod_ctx().unwrap());
+            self.restore_lowerer(uri, lowerer);
         }
         // skip checking for dependents
         Ok(())
@@ -151,7 +150,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             let diag = Diagnostic::new(
                 Range::new(start, end),
                 Some(severity),
-                None,
+                Some(NumberOrString::String(format!("E{}", err.core.errno))),
                 None,
                 message,
                 None,
