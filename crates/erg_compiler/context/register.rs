@@ -1854,7 +1854,7 @@ impl Context {
             let graph = &self.shared.as_ref().unwrap().graph;
             graph.inc_ref(referrer, path.clone());
         }
-        if self.get_mod_with_path(&path).is_some() {
+        if self.mod_registered(&path) {
             return Ok(path);
         }
         self.build_erg_mod(path, __name__, loc)
