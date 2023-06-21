@@ -533,6 +533,16 @@ impl Context {
         let ctx = self.get_namespace(&namespace)?;
         ctx.get_var_info(&typ.local_name())
     }
+
+    pub fn unregister(&mut self, name: &str) -> Option<VarInfo> {
+        self.mono_types.remove(name);
+        self.poly_types.remove(name);
+        self.patches.remove(name);
+        self.erg_to_py_names.remove(name);
+        self.locals
+            .remove(name)
+            .or_else(|| self.locals.remove(name))
+    }
 }
 
 impl Context {

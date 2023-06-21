@@ -702,8 +702,13 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             }
             "textDocument/didChange" => {
                 let params = DidChangeTextDocumentParams::deserialize(msg["params"].clone())?;
-                // check before updating, because `x.`/`x::` will result in an error
-                if TRIGGER_CHARS.contains(&&params.content_changes[0].text[..]) {
+                // Check before updating, because `x.`/`x::` will result in an error
+                // Checking should only be performed when needed for completion, i.e., when a trigger character is entered or at the beginning of a line
+                if TRIGGER_CHARS.contains(&&params.content_changes[0].text[..])
+                    || params.content_changes[0]
+                        .range
+                        .is_some_and(|r| r.start.character == 0)
+                {
                     let uri = NormalizedUrl::new(params.text_document.uri.clone());
                     // TODO: reset mutable dependent types
                     self.quick_check_file(uri)?;

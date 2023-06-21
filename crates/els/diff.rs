@@ -89,11 +89,29 @@ impl HIRDiff {
         match diff {
             ASTDiff::Deletion(idx) => Some(Self::Deletion(idx)),
             ASTDiff::Addition(idx, expr) => {
-                let expr = lowerer.lower_expr(expr).ok()?;
+                let expr = lowerer
+                    .lower_chunk(expr)
+                    .map_err(|err| {
+                        crate::_log!("err: {err}");
+                    })
+                    .ok()?;
                 Some(Self::Addition(idx, expr))
             }
             ASTDiff::Modification(idx, expr) => {
-                let expr = lowerer.lower_expr(expr).ok()?;
+                if let ast::Expr::Def(def)
+                | ast::Expr::ClassDef(ast::ClassDef { def, .. })
+                | ast::Expr::PatchDef(ast::PatchDef { def, .. }) = &expr
+                {
+                    if let Some(name) = def.sig.name_as_str() {
+                        lowerer.unregister(name);
+                    }
+                }
+                let expr = lowerer
+                    .lower_chunk(expr)
+                    .map_err(|err| {
+                        crate::_log!("err: {err}");
+                    })
+                    .ok()?;
                 Some(Self::Modification(idx, expr))
             }
             ASTDiff::Nop => Some(Self::Nop),

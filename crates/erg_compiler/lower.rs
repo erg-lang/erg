@@ -224,6 +224,10 @@ impl ASTLowerer {
     pub fn get_var_info(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
         ContextProvider::get_var_info(self, name)
     }
+
+    pub fn unregister(&mut self, name: &str) -> Option<VarInfo> {
+        self.module.context.unregister(name)
+    }
 }
 
 impl ASTLowerer {
@@ -2373,7 +2377,7 @@ impl ASTLowerer {
 
     // Call.obj == Accessor cannot be type inferred by itself (it can only be inferred with arguments)
     // so turn off type checking (check=false)
-    pub fn lower_expr(&mut self, expr: ast::Expr) -> LowerResult<hir::Expr> {
+    fn lower_expr(&mut self, expr: ast::Expr) -> LowerResult<hir::Expr> {
         log!(info "entered {}", fn_name!());
         match expr {
             ast::Expr::Literal(lit) => Ok(hir::Expr::Lit(self.lower_literal(lit)?)),
@@ -2401,7 +2405,7 @@ impl ASTLowerer {
     /// The meaning of TypeAscription changes between chunk and expr.
     /// For example, `x: Int`, as expr, is `x` itself,
     /// but as chunk, it declares that `x` is of type `Int`, and is valid even before `x` is defined.
-    pub(crate) fn lower_chunk(&mut self, chunk: ast::Expr) -> LowerResult<hir::Expr> {
+    pub fn lower_chunk(&mut self, chunk: ast::Expr) -> LowerResult<hir::Expr> {
         log!(info "entered {}", fn_name!());
         match chunk {
             ast::Expr::Def(def) => Ok(hir::Expr::Def(self.lower_def(def)?)),
