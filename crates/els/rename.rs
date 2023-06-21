@@ -191,10 +191,6 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         let mut changes = HashMap::new();
         for dep in self.dependents_of(old_uri) {
             let imports = self.search_imports(&dep, old_path);
-            for import in imports.iter() {
-                let range = util::loc_to_range(import.loc()).unwrap();
-                self.file_cache.ranged_update(&dep, range, new_path);
-            }
             let edits = imports.iter().map(|lit| {
                 TextEdit::new(
                     util::loc_to_range(lit.loc()).unwrap(),
@@ -289,6 +285,8 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         }
     }
 
+    /// Rename .er files and rewrite the imports of the dependent files.
+    /// This does not update `file_cache`, the editing is done by a `didChange` request.
     pub(crate) fn handle_will_rename_files(
         &mut self,
         params: RenameFilesParams,
