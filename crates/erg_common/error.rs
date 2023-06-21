@@ -234,8 +234,6 @@ pub enum Location {
     /// # erg
     /// a = 1
     /// a = 2 # Error, `a` is assigned twice
-    /// ```
-    /// ```rust
     /// // Value assigned to the structure
     /// Location::Range {
     ///    ln_begin: 2,
