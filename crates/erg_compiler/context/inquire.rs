@@ -48,7 +48,13 @@ pub enum SubstituteResult {
 }
 
 impl Context {
-    pub(crate) fn get_ctx_from_path(&self, path: &Path) -> Option<&Context> {
+    pub(crate) fn mod_registered(&self, path: &Path) -> bool {
+        self.shared.is_some() && self.promises().is_registered(path)
+    }
+
+    /// Get the context of the module. If it was in analysis, wait until analysis is complete and join the thread.
+    /// If you only want to know if the module is registered, use `mod_registered`.
+    pub(crate) fn get_mod_with_path(&self, path: &Path) -> Option<&Context> {
         if self.module_path() == Some(path) {
             return self.get_module();
         }
@@ -2485,15 +2491,6 @@ impl Context {
         }
     }
 
-    pub(crate) fn get_mod_with_path(&self, path: &Path) -> Option<&Context> {
-        (self.cfg.input.path() == Some(path)) // module itself
-            .then_some(self)
-            .or(self
-                .mod_cache()
-                .raw_ref_ctx(path)
-                .map(|mod_ctx| &mod_ctx.context))
-    }
-
     // FIXME: 現在の実装だとimportしたモジュールはどこからでも見れる
     pub(crate) fn get_mod(&self, name: &str) -> Option<&Context> {
         if name == "module" && ERG_MODE {
@@ -2507,7 +2504,7 @@ impl Context {
     }
 
     pub fn get_mod_with_t(&self, mod_t: &Type) -> Option<&Context> {
-        self.get_ctx_from_path(&self.get_path_with_mod_t(mod_t)?)
+        self.get_mod_with_path(&self.get_path_with_mod_t(mod_t)?)
     }
 
     pub fn get_path_with_mod_t(&self, mod_t: &Type) -> Option<PathBuf> {
@@ -2600,7 +2597,7 @@ impl Context {
         } else if &namespace[..] == "module" {
             return self.get_module();
         }
-        self.get_ctx_from_path(self.get_namespace_path(namespace)?.as_path())
+        self.get_mod_with_path(self.get_namespace_path(namespace)?.as_path())
     }
 
     pub(crate) fn get_mono_type(&self, name: &Str) -> Option<(&Type, &Context)> {

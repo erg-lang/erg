@@ -231,9 +231,9 @@ pub enum Location {
     ///
     /// Location used for basic errors
     /// ```erg
-    /// // erg
+    /// # erg
     /// a = 1
-    /// a = 2
+    /// a = 2 # Error, `a` is assigned twice
     /// // Value assigned to the structure
     /// Location::Range {
     ///    ln_begin: 2,
@@ -244,7 +244,9 @@ pub enum Location {
     /// ```
     ///
     Range {
+        /// 1-origin
         ln_begin: u32,
+        /// 0-origin
         col_begin: u32,
         ln_end: u32,
         col_end: u32,
@@ -392,6 +394,7 @@ impl Location {
         }
     }
 
+    /// 1-origin
     pub const fn ln_begin(&self) -> Option<u32> {
         match self {
             Self::Range { ln_begin, .. } | Self::LineRange(ln_begin, _) | Self::Line(ln_begin) => {
@@ -410,6 +413,7 @@ impl Location {
         }
     }
 
+    /// 0-origin
     pub const fn col_begin(&self) -> Option<u32> {
         match self {
             Self::Range { col_begin, .. } => Some(*col_begin),

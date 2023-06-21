@@ -102,6 +102,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             match self.get_definition(&uri, &token)? {
                 Some(vi) => {
                     if let Some(line) = vi.def_loc.loc.ln_begin() {
+                        let line0 = line.saturating_sub(1);
                         let Some(file_path) = vi.def_loc.module.as_ref() else {
                             return Ok(None);
                         };
@@ -137,7 +138,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                             let uri = NormalizedUrl::try_from(file_path.as_path())?;
                             code_block += self
                                 .file_cache
-                                .get_line(&uri, line)
+                                .get_line(&uri, line0)
                                 .unwrap_or_default()
                                 .trim_start();
                             match code_block.chars().last() {

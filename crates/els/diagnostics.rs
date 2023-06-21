@@ -87,7 +87,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     }
 
     pub(crate) fn quick_check_file(&mut self, uri: NormalizedUrl) -> ELSResult<()> {
-        let Some(old) = self.analysis_result.get(&uri).map(|r| &r.ast) else {
+        let Some(old) = self.analysis_result.get_ast(&uri) else {
             crate::_log!("not found");
             return Ok(());
         };
@@ -97,16 +97,13 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         };
         let ast_diff = ASTDiff::diff(old, &new);
         crate::_log!("diff: {ast_diff}");
-        if let Some(mut lowerer) = self.get_lowerer(&uri) {
-            let hir = self
-                .analysis_result
-                .get_mut(&uri)
-                .and_then(|r| r.artifact.object.as_mut());
+        if let Some(mut lowerer) = self.steal_lowerer(&uri) {
+            let hir = self.analysis_result.get_mut_hir(&uri);
             if let Some((hir_diff, hir)) = HIRDiff::new(ast_diff, &mut lowerer).zip(hir) {
                 crate::_log!("hir_diff: {hir_diff}");
                 hir_diff.update(hir);
             }
-            self.restore_mod_ctx(uri, lowerer.pop_mod_ctx().unwrap());
+            self.restore_lowerer(uri, lowerer);
         }
         // skip checking for dependents
         Ok(())

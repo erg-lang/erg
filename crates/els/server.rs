@@ -3,24 +3,25 @@ use std::io::{stdin, stdout, BufRead, Read, Write};
 use std::ops::Not;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-
-use erg_common::consts::PYTHON_MODE;
-use erg_compiler::erg_parser::ast::Module;
-use erg_compiler::erg_parser::parse::{Parsable, SimpleParser};
-use erg_compiler::lower::ASTLowerer;
-use serde::{Deserialize, Serialize};
-use serde_json::json;
-use serde_json::Value;
+use std::sync::mpsc;
 
 use erg_common::config::ErgConfig;
+use erg_common::consts::PYTHON_MODE;
 use erg_common::dict::Dict;
 use erg_common::env::erg_path;
-use erg_common::normalize_path;
+use erg_common::shared::{
+    MappedRwLockReadGuard, MappedRwLockWriteGuard, RwLockReadGuard, RwLockWriteGuard, Shared,
+};
+use erg_common::spawn::spawn_new_thread;
+use erg_common::{fn_name, normalize_path};
 
 use erg_compiler::artifact::{BuildRunnable, IncompleteArtifact};
 use erg_compiler::build_hir::HIRBuilder;
 use erg_compiler::context::{Context, ModuleContext};
-use erg_compiler::hir::Expr;
+use erg_compiler::erg_parser::ast::Module;
+use erg_compiler::erg_parser::parse::{Parsable, SimpleParser};
+use erg_compiler::hir::{Expr, HIR};
+use erg_compiler::lower::ASTLowerer;
 use erg_compiler::module::{SharedCompilerResource, SharedModuleIndex};
 use erg_compiler::ty::HasType;
 
@@ -38,6 +39,11 @@ use lsp_types::{
     WorkDoneProgressOptions,
 };
 
+use serde::{Deserialize, Serialize};
+use serde_json::json;
+use serde_json::Value;
+
+use crate::channels::{SendChannels, Sendable};
 use crate::completion::CompletionCache;
 use crate::file_cache::FileCache;
 use crate::hir_visitor::HIRVisitor;
@@ -188,6 +194,115 @@ impl AnalysisResult {
 
 pub(crate) const TRIGGER_CHARS: [&str; 4] = [".", ":", "(", " "];
 
+#[derive(Debug, Clone, Default)]
+pub struct AnalysisResultCache(Shared<Dict<NormalizedUrl, AnalysisResult>>);
+
+impl AnalysisResultCache {
+    pub fn new() -> Self {
+        Self(Shared::new(Dict::new()))
+    }
+
+    pub fn insert(&self, uri: NormalizedUrl, result: AnalysisResult) {
+        self.0.borrow_mut().insert(uri, result);
+    }
+
+    pub fn get(&self, uri: &NormalizedUrl) -> Option<MappedRwLockReadGuard<AnalysisResult>> {
+        if self.0.borrow().get(uri).is_none() {
+            None
+        } else {
+            Some(RwLockReadGuard::map(self.0.borrow(), |dict| {
+                dict.get(uri).unwrap()
+            }))
+        }
+    }
+
+    pub fn get_mut(&self, uri: &NormalizedUrl) -> Option<MappedRwLockWriteGuard<AnalysisResult>> {
+        if self.0.borrow().get(uri).is_none() {
+            None
+        } else {
+            Some(RwLockWriteGuard::map(self.0.borrow_mut(), |dict| {
+                dict.get_mut(uri).unwrap()
+            }))
+        }
+    }
+
+    pub fn get_ast(&self, uri: &NormalizedUrl) -> Option<MappedRwLockReadGuard<Module>> {
+        self.get(uri)
+            .map(|r| MappedRwLockReadGuard::map(r, |r| &r.ast))
+    }
+
+    pub fn get_mut_hir(&self, uri: &NormalizedUrl) -> Option<MappedRwLockWriteGuard<HIR>> {
+        self.get_mut(uri).and_then(|r| {
+            if r.artifact.object.is_none() {
+                None
+            } else {
+                Some(MappedRwLockWriteGuard::map(r, |r| {
+                    r.artifact.object.as_mut().unwrap()
+                }))
+            }
+        })
+    }
+
+    pub fn get_artifact(
+        &self,
+        uri: &NormalizedUrl,
+    ) -> Option<MappedRwLockReadGuard<IncompleteArtifact>> {
+        self.get(uri)
+            .map(|r| MappedRwLockReadGuard::map(r, |r| &r.artifact))
+    }
+
+    pub fn get_hir(&self, uri: &NormalizedUrl) -> Option<MappedRwLockReadGuard<HIR>> {
+        self.get(uri).and_then(|r| {
+            if r.artifact.object.is_none() {
+                None
+            } else {
+                Some(MappedRwLockReadGuard::map(r, |r| {
+                    r.artifact.object.as_ref().unwrap()
+                }))
+            }
+        })
+    }
+
+    pub fn remove(&self, uri: &NormalizedUrl) -> Option<AnalysisResult> {
+        self.0.borrow_mut().remove(uri)
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ModuleCache(Shared<Dict<NormalizedUrl, ModuleContext>>);
+
+impl ModuleCache {
+    pub fn new() -> Self {
+        Self(Shared::new(Dict::new()))
+    }
+
+    pub fn get(&self, uri: &NormalizedUrl) -> Option<&ModuleContext> {
+        let _ref = self.0.borrow();
+        let ref_ = unsafe { self.0.as_ptr().as_ref() };
+        ref_.unwrap().get(uri)
+    }
+
+    pub fn get_mut(&self, uri: &NormalizedUrl) -> Option<&mut ModuleContext> {
+        let _ref = self.0.borrow_mut();
+        let ref_ = unsafe { self.0.as_ptr().as_mut() };
+        ref_.unwrap().get_mut(uri)
+    }
+
+    pub fn insert(&self, uri: NormalizedUrl, module: ModuleContext) {
+        self.0.borrow_mut().insert(uri, module);
+    }
+
+    pub fn remove(&self, uri: &NormalizedUrl) -> Option<ModuleContext> {
+        self.0.borrow_mut().remove(uri)
+    }
+
+    pub fn values(&self) -> std::collections::hash_map::Values<NormalizedUrl, ModuleContext> {
+        let _ref = self.0.borrow();
+        let ref_ = unsafe { self.0.as_ptr().as_ref() };
+        ref_.unwrap().values()
+    }
+}
+
 /// A Language Server, which can be used any object implementing `BuildRunnable` internally by passing it as a generic parameter.
 #[derive(Debug)]
 pub struct Server<Checker: BuildRunnable = HIRBuilder, Parser: Parsable = SimpleParser> {
@@ -199,11 +314,33 @@ pub struct Server<Checker: BuildRunnable = HIRBuilder, Parser: Parsable = Simple
     pub(crate) opt_features: Vec<OptionalFeatures>,
     pub(crate) file_cache: FileCache,
     pub(crate) comp_cache: CompletionCache,
-    pub(crate) modules: Dict<NormalizedUrl, ModuleContext>,
-    pub(crate) analysis_result: Dict<NormalizedUrl, AnalysisResult>,
+    pub(crate) modules: ModuleCache,
+    pub(crate) analysis_result: AnalysisResultCache,
     pub(crate) current_sig: Option<Expr>,
-    pub(crate) _parser: std::marker::PhantomData<Parser>,
-    pub(crate) _checker: std::marker::PhantomData<Checker>,
+    pub(crate) channels: Option<SendChannels>,
+    pub(crate) _parser: std::marker::PhantomData<fn() -> Parser>,
+    pub(crate) _checker: std::marker::PhantomData<fn() -> Checker>,
+}
+
+impl<C: BuildRunnable, P: Parsable> Clone for Server<C, P> {
+    fn clone(&self) -> Self {
+        Self {
+            cfg: self.cfg.clone(),
+            home: self.home.clone(),
+            erg_path: self.erg_path.clone(),
+            client_capas: self.client_capas.clone(),
+            disabled_features: self.disabled_features.clone(),
+            opt_features: self.opt_features.clone(),
+            file_cache: self.file_cache.clone(),
+            comp_cache: self.comp_cache.clone(),
+            modules: self.modules.clone(),
+            analysis_result: self.analysis_result.clone(),
+            current_sig: self.current_sig.clone(),
+            channels: self.channels.clone(),
+            _parser: std::marker::PhantomData,
+            _checker: std::marker::PhantomData,
+        }
+    }
 }
 
 impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
@@ -217,9 +354,10 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             disabled_features: vec![],
             opt_features: vec![],
             file_cache: FileCache::new(),
-            modules: Dict::new(),
-            analysis_result: Dict::new(),
+            modules: ModuleCache::new(),
+            analysis_result: AnalysisResultCache::new(),
             current_sig: None,
+            channels: None,
             _parser: std::marker::PhantomData,
             _checker: std::marker::PhantomData,
         }
@@ -342,11 +480,51 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         result.capabilities.code_lens_provider = Some(CodeLensOptions {
             resolve_provider: Some(false),
         });
+        self.init_services();
         send(&json!({
             "jsonrpc": "2.0",
             "id": id,
             "result": result,
         }))
+    }
+
+    fn init_services(&mut self) {
+        let (senders, receivers) = SendChannels::new();
+        self.channels = Some(senders);
+        self.start_service::<Completion>(receivers.completion, Self::handle_completion);
+        self.start_service::<ResolveCompletionItem>(
+            receivers.resolve_completion,
+            Self::handle_resolve_completion,
+        );
+        self.start_service::<GotoDefinition>(
+            receivers.goto_definition,
+            Self::handle_goto_definition,
+        );
+        self.start_service::<SemanticTokensFullRequest>(
+            receivers.semantic_tokens_full,
+            Self::handle_semantic_tokens_full,
+        );
+        self.start_service::<InlayHintRequest>(receivers.inlay_hint, Self::handle_inlay_hint);
+        self.start_service::<HoverRequest>(receivers.hover, Self::handle_hover);
+        self.start_service::<References>(receivers.references, Self::handle_references);
+        self.start_service::<CodeLensRequest>(receivers.code_lens, Self::handle_code_lens);
+        self.start_service::<CodeActionRequest>(receivers.code_action, Self::handle_code_action);
+        self.start_service::<CodeActionResolveRequest>(
+            receivers.code_action_resolve,
+            Self::handle_code_action_resolve,
+        );
+        self.start_service::<SignatureHelpRequest>(
+            receivers.signature_help,
+            Self::handle_signature_help,
+        );
+        self.start_service::<WillRenameFiles>(
+            receivers.will_rename_files,
+            Self::handle_will_rename_files,
+        );
+        self.start_service::<ExecuteCommand>(
+            receivers.execute_command,
+            Self::handle_execute_command,
+        );
     }
 
     fn exit(&self) -> ELSResult<()> {
@@ -445,18 +623,34 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         }
     }
 
-    fn wrap<R>(
-        &mut self,
-        id: i64,
-        msg: &Value,
-        handler: Handler<Server<Checker, Parser>, R::Params, R::Result>,
-    ) -> ELSResult<()>
+    fn parse_send<R>(&self, id: i64, msg: &Value) -> ELSResult<()>
     where
         R: lsp_types::request::Request + 'static,
         R::Result: Serialize,
+        Server<Checker, Parser>: Sendable<R>,
     {
         let params = R::Params::deserialize(&msg["params"])?;
-        send(&LSPResult::new(id, handler(self, params)?))
+        self.send(id, params);
+        Ok(())
+    }
+
+    fn start_service<R>(
+        &self,
+        receiver: mpsc::Receiver<(i64, R::Params)>,
+        handler: Handler<Server<Checker, Parser>, R::Params, R::Result>,
+    ) where
+        R: lsp_types::request::Request + 'static,
+        R::Params: Send,
+        R::Result: Serialize,
+    {
+        let mut _self = self.clone();
+        spawn_new_thread(
+            move || loop {
+                let (id, params) = receiver.recv().unwrap();
+                let _ = send(&LSPResult::new(id, handler(&mut _self, params).unwrap()));
+            },
+            fn_name!(),
+        );
     }
 
     fn handle_request(&mut self, msg: &Value, id: i64, method: &str) -> ELSResult<()> {
@@ -464,39 +658,23 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             "initialize" => self.init(msg, id),
             "shutdown" => self.shutdown(id),
             Rename::METHOD => self.rename(msg),
-            Completion::METHOD => self.wrap::<Completion>(id, msg, Self::handle_completion),
-            ResolveCompletionItem::METHOD => {
-                self.wrap::<ResolveCompletionItem>(id, msg, Self::handle_resolve_completion)
-            }
-            GotoDefinition::METHOD => {
-                self.wrap::<GotoDefinition>(id, msg, Self::handle_goto_definition)
-            }
-            HoverRequest::METHOD => self.wrap::<HoverRequest>(id, msg, Self::handle_hover),
-            References::METHOD => self.wrap::<References>(id, msg, Self::handle_references),
+            Completion::METHOD => self.parse_send::<Completion>(id, msg),
+            ResolveCompletionItem::METHOD => self.parse_send::<ResolveCompletionItem>(id, msg),
+            GotoDefinition::METHOD => self.parse_send::<GotoDefinition>(id, msg),
+            HoverRequest::METHOD => self.parse_send::<HoverRequest>(id, msg),
+            References::METHOD => self.parse_send::<References>(id, msg),
             SemanticTokensFullRequest::METHOD => {
-                self.wrap::<SemanticTokensFullRequest>(id, msg, Self::handle_semantic_tokens_full)
+                self.parse_send::<SemanticTokensFullRequest>(id, msg)
             }
-            InlayHintRequest::METHOD => {
-                self.wrap::<InlayHintRequest>(id, msg, Self::handle_inlay_hint)
-            }
-            CodeActionRequest::METHOD => {
-                self.wrap::<CodeActionRequest>(id, msg, Self::handle_code_action)
-            }
+            InlayHintRequest::METHOD => self.parse_send::<InlayHintRequest>(id, msg),
+            CodeActionRequest::METHOD => self.parse_send::<CodeActionRequest>(id, msg),
             CodeActionResolveRequest::METHOD => {
-                self.wrap::<CodeActionResolveRequest>(id, msg, Self::handle_code_action_resolve)
+                self.parse_send::<CodeActionResolveRequest>(id, msg)
             }
-            SignatureHelpRequest::METHOD => {
-                self.wrap::<SignatureHelpRequest>(id, msg, Self::handle_signature_help)
-            }
-            CodeLensRequest::METHOD => {
-                self.wrap::<CodeLensRequest>(id, msg, Self::handle_code_lens)
-            }
-            WillRenameFiles::METHOD => {
-                self.wrap::<WillRenameFiles>(id, msg, Self::handle_will_rename_files)
-            }
-            ExecuteCommand::METHOD => {
-                self.wrap::<ExecuteCommand>(id, msg, Self::handle_execute_command)
-            }
+            SignatureHelpRequest::METHOD => self.parse_send::<SignatureHelpRequest>(id, msg),
+            CodeLensRequest::METHOD => self.parse_send::<CodeLensRequest>(id, msg),
+            WillRenameFiles::METHOD => self.parse_send::<WillRenameFiles>(id, msg),
+            ExecuteCommand::METHOD => self.parse_send::<ExecuteCommand>(id, msg),
             other => send_error(Some(id), -32600, format!("{other} is not supported")),
         }
     }
@@ -548,12 +726,13 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         }
     }
 
-    pub(crate) fn get_lowerer(&mut self, uri: &NormalizedUrl) -> Option<ASTLowerer> {
-        let module = std::mem::take(self.modules.get_mut(uri)?);
+    pub(crate) fn steal_lowerer(&mut self, uri: &NormalizedUrl) -> Option<ASTLowerer> {
+        let module = self.modules.remove(uri)?;
         Some(ASTLowerer::new_with_ctx(module))
     }
 
-    pub(crate) fn restore_mod_ctx(&mut self, uri: NormalizedUrl, module: ModuleContext) {
+    pub(crate) fn restore_lowerer(&mut self, uri: NormalizedUrl, mut lowerer: ASTLowerer) {
+        let module = lowerer.pop_mod_ctx().unwrap();
         if let Some(m) = self.modules.get_mut(&uri) {
             *m = module;
         } else {
@@ -561,14 +740,9 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         }
     }
 
-    pub(crate) fn get_artifact(&self, uri: &NormalizedUrl) -> Option<&IncompleteArtifact> {
-        self.analysis_result.get(uri).map(|r| &r.artifact)
-    }
-
     pub(crate) fn get_visitor(&self, uri: &NormalizedUrl) -> Option<HIRVisitor> {
-        self.get_artifact(uri)?
-            .object
-            .as_ref()
+        self.analysis_result
+            .get_hir(uri)
             .map(|hir| HIRVisitor::new(hir, &self.file_cache, uri.clone()))
     }
 

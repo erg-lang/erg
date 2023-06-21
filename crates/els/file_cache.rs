@@ -232,7 +232,7 @@ impl FileCache {
         );
     }
 
-    pub(crate) fn ranged_update(&self, uri: &NormalizedUrl, old: Range, new_code: &str) {
+    pub(crate) fn _ranged_update(&self, uri: &NormalizedUrl, old: Range, new_code: &str) {
         let mut ent = self.files.borrow_mut();
         let Some(entry) = ent.get_mut(uri) else {
             return;

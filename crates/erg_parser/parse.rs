@@ -98,7 +98,7 @@ macro_rules! expect_pop {
     };
 }
 
-pub trait Parsable {
+pub trait Parsable: 'static {
     fn parse(code: String) -> Result<CompleteArtifact, IncompleteArtifact<Module, ParseErrors>>;
 }
 

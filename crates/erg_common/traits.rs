@@ -948,6 +948,7 @@ pub trait Locational {
     /// If possible, delay the computation by passing `&impl Locational` or other means.
     fn loc(&self) -> Location;
 
+    /// 1-origin
     fn ln_begin(&self) -> Option<u32> {
         match self.loc() {
             Location::Range { ln_begin, .. } | Location::LineRange(ln_begin, _) => Some(ln_begin),
@@ -964,6 +965,7 @@ pub trait Locational {
         }
     }
 
+    /// 0-origin
     fn col_begin(&self) -> Option<u32> {
         match self.loc() {
             Location::Range { col_begin, .. } => Some(col_begin),

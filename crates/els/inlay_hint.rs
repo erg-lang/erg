@@ -96,7 +96,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         let mut result = vec![];
         if let Some(IncompleteArtifact {
             object: Some(hir), ..
-        }) = self.get_artifact(&uri)
+        }) = self.analysis_result.get_artifact(&uri).as_deref()
         {
             for chunk in hir.module.iter() {
                 result.extend(self.get_expr_hint(chunk));
