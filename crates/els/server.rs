@@ -774,6 +774,23 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         ctxs
     }
 
+    pub(crate) fn get_neighbor_ctxs(&self, uri: &NormalizedUrl) -> Vec<&Context> {
+        let mut ctxs = vec![];
+        if let Ok(dir) = uri
+            .to_file_path()
+            .and_then(|p| p.parent().unwrap().read_dir().map_err(|_| ()))
+        {
+            for neighbor in dir {
+                let Ok(neighbor) = neighbor else { continue; };
+                let uri = NormalizedUrl::from_file_path(neighbor.path()).unwrap();
+                if let Some(mod_ctx) = &self.modules.get(&uri) {
+                    ctxs.push(&mod_ctx.context);
+                }
+            }
+        }
+        ctxs
+    }
+
     pub(crate) fn get_receiver_ctxs(
         &self,
         uri: &NormalizedUrl,

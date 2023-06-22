@@ -419,6 +419,45 @@ impl CompletionCache {
 }
 
 impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
+    /// Returns completion candidates from modules in the same directory
+    fn neighbor_completion(
+        &self,
+        uri: &NormalizedUrl,
+        arg_pt: Option<ParamTy>,
+    ) -> Vec<CompletionItem> {
+        let mut comps = vec![];
+        for mod_ctx in self.get_neighbor_ctxs(uri) {
+            for (name, vi) in mod_ctx.local_dir() {
+                if vi.vis.is_private() {
+                    continue;
+                }
+                let path = vi.def_loc.module.as_ref().unwrap();
+                let path = path.file_stem().unwrap().to_string_lossy();
+                let mut item = CompletionItem::new_simple(
+                    format!("{name} (import from {path})"),
+                    vi.t.to_string(),
+                );
+                CompletionOrderSetter::new(vi, arg_pt.as_ref(), mod_ctx, item.label.clone())
+                    .set(&mut item);
+                // item.sort_text = Some(format!("{}_{}", CompletionOrder::OtherNamespace, item.label));
+                item.kind = Some(comp_item_kind(vi));
+                let import = if PYTHON_MODE {
+                    format!("from {path} import {name}\n")
+                } else {
+                    format!("{{{name};}} = import \"{path}\"\n")
+                };
+                item.additional_text_edits = Some(vec![TextEdit {
+                    range: Range::new(Position::new(0, 0), Position::new(0, 0)),
+                    new_text: import,
+                }]);
+                item.insert_text = Some(name.inspect().trim_end_matches('\0').to_string());
+                item.filter_text = Some(name.inspect().to_string());
+                comps.push(item);
+            }
+        }
+        comps
+    }
+
     pub(crate) fn handle_completion(
         &mut self,
         params: CompletionParams,
@@ -560,6 +599,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 self.comp_cache.insert("<module>".into(), comps.clone());
                 result.extend(comps);
             }
+            result.extend(self.neighbor_completion(&uri, arg_pt));
         }
         send_log(format!("completion items: {}", result.len()))?;
         Ok(Some(CompletionResponse::Array(result)))
