@@ -27,7 +27,6 @@ use ast::{
 };
 use erg_parser::ast;
 
-use crate::artifact::ErrorArtifact;
 use crate::ty::constructors::{
     free_var, func, func0, func1, proc, ref_, ref_mut, tp_enum, unknown_len_array_t, v_enum,
 };
@@ -225,7 +224,7 @@ impl Context {
                 py_name,
                 self.absolutize(ident.name.loc()),
             );
-            self.index().register(&vi);
+            self.index().register(ident.inspect().clone(), &vi);
             self.future_defined_locals.insert(ident.name.clone(), vi);
             Ok(())
         }
@@ -271,7 +270,7 @@ impl Context {
             py_name,
             self.absolutize(sig.ident.name.loc()),
         );
-        self.index().register(&vi);
+        self.index().register(sig.ident.inspect().clone(), &vi);
         if self
             .remove_class_attr(name)
             .is_some_and(|(_, decl)| !decl.kind.is_auto())
@@ -505,7 +504,7 @@ impl Context {
                         None,
                         self.absolutize(name.loc()),
                     );
-                    self.index().register(&vi);
+                    self.index().register(name.inspect().clone(), &vi);
                     sig.vi = vi.clone();
                     self.params.push((Some(name.clone()), vi));
                     if errs.is_empty() {
@@ -1272,7 +1271,7 @@ impl Context {
                         None,
                         self.absolutize(ident.name.loc()),
                     );
-                    self.index().register(&vi);
+                    self.index().register(ident.inspect().clone(), &vi);
                     self.decls.insert(ident.name.clone(), vi);
                     self.consts.insert(ident.name.clone(), other);
                     Ok(())
@@ -1619,7 +1618,7 @@ impl Context {
                 None,
                 self.absolutize(name.loc()),
             );
-            self.index().register(&vi);
+            self.index().register(name.inspect().clone(), &vi);
             self.decls.insert(name.clone(), vi);
             self.consts.insert(name.clone(), val);
             Ok(())
@@ -1667,7 +1666,7 @@ impl Context {
                 None,
                 self.absolutize(name.loc()),
             );
-            self.index().register(&vi);
+            self.index().register(name.inspect().clone(), &vi);
             self.decls.insert(name.clone(), vi);
             self.consts.insert(name.clone(), val);
             self.register_methods(&t, &ctx);
@@ -1727,7 +1726,7 @@ impl Context {
                 None,
                 self.absolutize(name.loc()),
             );
-            self.index().register(&vi);
+            self.index().register(name.inspect().clone(), &vi);
             self.decls.insert(name.clone(), vi);
             self.consts.insert(name.clone(), val);
             self.register_methods(&t, &ctx);
@@ -1940,8 +1939,7 @@ impl Context {
                         Some(artifact.object),
                         builder.pop_mod_ctx().unwrap(),
                     );
-                    // shared.warns.extend(artifact.warns);
-                    Ok(())
+                    shared.warns.extend(artifact.warns);
                 }
                 Err(artifact) => {
                     if let Some(hir) = artifact.object {
@@ -1949,9 +1947,8 @@ impl Context {
                             .mod_cache
                             .register(_path, Some(hir), builder.pop_mod_ctx().unwrap());
                     }
-                    // shared.warns.extend(artifact.warns);
-                    // shared.errors.extend(artifact.errors);
-                    Err(ErrorArtifact::new(artifact.errors, artifact.warns))
+                    shared.warns.extend(artifact.warns);
+                    shared.errors.extend(artifact.errors);
                 }
             }
         };
@@ -2233,9 +2230,15 @@ impl Context {
         Ok(())
     }
 
-    pub(crate) fn inc_ref<L: Locational>(&self, vi: &VarInfo, name: &L, namespace: &Context) {
+    pub(crate) fn inc_ref<L: Locational>(
+        &self,
+        name: &Str,
+        vi: &VarInfo,
+        loc: &L,
+        namespace: &Context,
+    ) {
         if let Some(index) = self.opt_index() {
-            index.inc_ref(vi, namespace.absolutize(name.loc()));
+            index.inc_ref(name, vi, namespace.absolutize(loc.loc()));
         }
     }
 
@@ -2288,7 +2291,7 @@ impl Context {
             &self.cfg.input,
             self,
         ) {
-            self.inc_ref(&vi, &ident.name, namespace);
+            self.inc_ref(ident.inspect(), &vi, &ident.name, namespace);
             true
         } else {
             false
@@ -2307,7 +2310,7 @@ impl Context {
             &self.cfg.input,
             self,
         ) {
-            self.inc_ref(&vi, &local.name, namespace);
+            self.inc_ref(local.inspect(), &vi, &local.name, namespace);
             true
         } else {
             &local.inspect()[..] == "module" || &local.inspect()[..] == "global"

@@ -34,10 +34,13 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         } else {
             "exec"
         };
-        let mut checker = self.get_checker(path);
-        match checker.build(code.into(), mode) {
+        let mut checker = self.get_checker(path.clone());
+        let artifact = match checker.build(code.into(), mode) {
             Ok(artifact) => {
-                send_log(format!("checking {uri} passed"))?;
+                send_log(format!(
+                    "checking {uri} passed, found warns: {}",
+                    artifact.warns.len()
+                ))?;
                 let uri_and_diags = self.make_uri_and_diags(uri.clone(), artifact.warns.clone());
                 // clear previous diagnostics
                 self.send_diagnostics(uri.clone().raw(), vec![])?;
@@ -45,10 +48,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     send_log(format!("{uri}, warns: {}", diags.len()))?;
                     self.send_diagnostics(uri, diags)?;
                 }
-                if let Some(module) = self.get_ast(&uri) {
-                    self.analysis_result
-                        .insert(uri.clone(), AnalysisResult::new(module, artifact.into()));
-                }
+                artifact.into()
             }
             Err(artifact) => {
                 send_log(format!("found errors: {}", artifact.errors.len()))?;
@@ -67,11 +67,27 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     send_log(format!("{uri}, errs & warns: {}", diags.len()))?;
                     self.send_diagnostics(uri, diags)?;
                 }
-                if let Some(module) = self.get_ast(&uri) {
-                    self.analysis_result
-                        .insert(uri.clone(), AnalysisResult::new(module, artifact));
-                }
+                artifact
             }
+        };
+        if let Some(shared) = self.get_shared() {
+            if mode == "declare" {
+                shared.py_mod_cache.register(
+                    path,
+                    artifact.object.clone(),
+                    checker.get_context().unwrap().clone(),
+                );
+            } else {
+                shared.mod_cache.register(
+                    path,
+                    artifact.object.clone(),
+                    checker.get_context().unwrap().clone(),
+                );
+            }
+        }
+        if let Some(module) = self.get_ast(&uri) {
+            self.analysis_result
+                .insert(uri.clone(), AnalysisResult::new(module, artifact));
         }
         if let Some(module) = checker.pop_context() {
             send_log(format!("{uri}: {}", module.context.name))?;
@@ -118,11 +134,12 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         for err in errors.into_iter() {
             let loc = err.core.get_loc_with_fallback();
             let res_uri = if let Some(path) = err.input.path() {
-                Url::from_file_path(path)
+                Url::from_file_path(path.canonicalize().unwrap())
             } else {
                 Ok(uri.clone().raw())
             };
             let Ok(err_uri) = res_uri else {
+                crate::_log!("failed to get uri: {}", err.input.path().unwrap().display());
                 continue;
             };
             let mut message = remove_style(&err.core.main_message);

@@ -18,4 +18,10 @@ impl SharedCompileErrors {
     pub fn take(&self) -> CompileErrors {
         self.0.borrow_mut().take_all().into()
     }
+
+    pub fn clear(&self) {
+        self.0.borrow_mut().clear();
+    }
 }
+
+pub type SharedCompileWarnings = SharedCompileErrors;

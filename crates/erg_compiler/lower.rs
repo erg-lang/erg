@@ -4,7 +4,7 @@
 use std::mem;
 
 use erg_common::config::{ErgConfig, ErgMode};
-use erg_common::consts::{ERG_MODE, PYTHON_MODE};
+use erg_common::consts::{ELS, ERG_MODE, PYTHON_MODE};
 use erg_common::dict;
 use erg_common::dict::Dict;
 use erg_common::error::{Location, MultiErrorDisplay};
@@ -659,7 +659,7 @@ impl ASTLowerer {
                         VarInfo::ILLEGAL
                     }
                 };
-                self.inc_ref(&vi, &attr.ident.name);
+                self.inc_ref(attr.ident.inspect(), &vi, &attr.ident.name);
                 let ident = hir::Identifier::new(attr.ident, None, vi);
                 let acc = hir::Accessor::Attr(hir::Attribute::new(obj, ident));
                 Ok(acc)
@@ -728,7 +728,7 @@ impl ASTLowerer {
                     .map(|ctx| ctx.first().unwrap().name.clone()),
             )
         };
-        self.inc_ref(&vi, &ident.name);
+        self.inc_ref(ident.inspect(), &vi, &ident.name);
         let ident = hir::Identifier::new(ident, __name__, vi);
         Ok(ident)
     }
@@ -998,7 +998,7 @@ impl ASTLowerer {
             }
         }
         let attr_name = if let Some(attr_name) = call.attr_name {
-            self.inc_ref(&vi, &attr_name.name);
+            self.inc_ref(attr_name.inspect(), &vi, &attr_name.name);
             Some(hir::Identifier::new(attr_name, None, vi))
         } else {
             if let hir::Expr::Call(call) = &obj {
@@ -1251,13 +1251,21 @@ impl ASTLowerer {
         // suppress warns of lambda types, e.g. `(x: Int, y: Int) -> Int`
         if self.module.context.subtype_of(body.ref_t(), &Type::Type) {
             for param in params.non_defaults.iter() {
-                self.inc_ref(&param.vi, param);
+                self.inc_ref(param.inspect().unwrap_or(&"_".into()), &param.vi, param);
             }
             if let Some(var_param) = params.var_params.as_deref() {
-                self.inc_ref(&var_param.vi, var_param);
+                self.inc_ref(
+                    var_param.inspect().unwrap_or(&"_".into()),
+                    &var_param.vi,
+                    var_param,
+                );
             }
             for default in params.defaults.iter() {
-                self.inc_ref(&default.sig.vi, &default.sig);
+                self.inc_ref(
+                    default.sig.inspect().unwrap_or(&"_".into()),
+                    &default.sig.vi,
+                    &default.sig,
+                );
             }
         }
         let (non_default_params, default_params): (Vec<_>, Vec<_>) = self
@@ -2456,7 +2464,7 @@ impl ASTLowerer {
         log!(info "the AST lowering process has started.");
         log!(info "the type-checking process has started.");
         if let Some(path) = self.cfg.input.path() {
-            let graph = &self.module.context.shared.as_ref().unwrap().graph;
+            let graph = &self.module.context.shared().graph;
             graph.add_node_if_none(path);
         }
         let ast = ASTLinker::new(self.cfg.clone())
@@ -2511,8 +2519,19 @@ impl ASTLowerer {
         };
         self.warn_implicit_union(&hir);
         self.warn_unused_expr(&hir.module, mode);
-        self.warn_unused_vars(mode);
         self.check_doc_comments(&hir);
+        if &self.module.context.name[..] == "<module>" || ELS {
+            self.warn_unused_local_vars(mode);
+            if ELS {
+                self.module.context.shared().promises.join_children();
+            } else {
+                self.module.context.shared().promises.join_all();
+            }
+            let errs = self.module.context.shared().errors.take();
+            let warns = self.module.context.shared().warns.take();
+            self.errs.extend(errs);
+            self.warns.extend(warns);
+        }
         if self.errs.is_empty() {
             log!(info "the AST lowering process has completed.");
             Ok(CompleteArtifact::new(

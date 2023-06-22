@@ -192,6 +192,12 @@ impl<T: Hash + Eq> Set<T> {
         self.elems.extend(other.elems);
         self
     }
+
+    /// remove all elements for which the predicate returns false
+    #[inline]
+    pub fn retain(&mut self, f: impl FnMut(&T) -> bool) {
+        self.elems.retain(f);
+    }
 }
 
 impl<T: Hash + Eq + Clone> Set<T> {
