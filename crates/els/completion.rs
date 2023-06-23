@@ -431,7 +431,9 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 if vi.vis.is_private() {
                     continue;
                 }
-                let path = vi.def_loc.module.as_ref().unwrap();
+                let Some(path) = vi.def_loc.module.as_ref() else {
+                    continue;
+                };
                 let path = path.file_stem().unwrap().to_string_lossy();
                 let mut item = CompletionItem::new_simple(
                     format!("{name} (import from {path})"),

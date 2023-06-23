@@ -389,9 +389,11 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             .and_then(|index| index.get_refs(&def.sig.ident().vi.def_loc))
         {
             for ref_ in index.referrers.iter() {
+                let Some(path) = ref_.module.as_ref() else {
+                    continue;
+                };
                 let edit = TextEdit::new(util::loc_to_range(ref_.loc).unwrap(), code.clone());
-                let uri =
-                    NormalizedUrl::new(Url::from_file_path(ref_.module.as_ref().unwrap()).unwrap());
+                let uri = NormalizedUrl::new(Url::from_file_path(path).unwrap());
                 changes.entry(uri.raw()).or_insert(vec![]).push(edit);
             }
         }
