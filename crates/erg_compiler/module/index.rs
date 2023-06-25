@@ -35,7 +35,11 @@ pub struct ModuleIndexValue {
 
 impl fmt::Display for ModuleIndexValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{{ vi: {}, referrers: {} }}", self.vi, self.referrers)
+        write!(
+            f,
+            "{{ name: {}, vi: {}, referrers: {} }}",
+            self.name, self.vi, self.referrers
+        )
     }
 }
 

@@ -2520,8 +2520,8 @@ impl ASTLowerer {
         self.warn_implicit_union(&hir);
         self.warn_unused_expr(&hir.module, mode);
         self.check_doc_comments(&hir);
+        self.warn_unused_local_vars(mode);
         if &self.module.context.name[..] == "<module>" || ELS {
-            self.warn_unused_local_vars(mode);
             if ELS {
                 self.module.context.shared().promises.join_children();
             } else {
