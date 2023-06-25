@@ -259,11 +259,11 @@ impl Compiler {
         mode: &str,
     ) -> Result<CompleteArtifact, ErrorArtifact> {
         let artifact = self.builder.build(src, mode)?;
-        let optimized = HIROptimizer::optimize(self.shared.clone(), artifact.object);
         let linker = HIRLinker::new(&self.cfg, &self.shared.mod_cache);
-        let hir = linker.link(optimized);
-        let desugared = HIRDesugarer::desugar(hir);
-        Ok(CompleteArtifact::new(desugared, artifact.warns))
+        let hir = linker.link(artifact.object);
+        let hir = HIRDesugarer::desugar(hir);
+        let hir = HIROptimizer::optimize(self.cfg.clone(), self.shared.clone(), hir);
+        Ok(CompleteArtifact::new(hir, artifact.warns))
     }
 
     pub fn initialize_generator(&mut self) {
