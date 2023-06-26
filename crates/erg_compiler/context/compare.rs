@@ -549,10 +549,12 @@ impl Context {
             }
             (Type, Poly { name, params }) if &name[..] == "Dict" => {
                 // Type :> Dict T == Type :> T
-                // e.g. Type :> Dict {Str: Int} == false
+                // e.g.
+                //      Type :> Dict {"a": 1} == false
+                //      Type :> Dict {Str: Int} == true
                 //      Type :> Dict {Type: Type} == true
-                if let Ok(dict_t) = self.convert_tp_into_type(params[0].clone()) {
-                    return self.supertype_of(&Type, &dict_t);
+                if let Ok(_dict_t) = self.convert_tp_into_type(params[0].clone()) {
+                    return true;
                 }
                 // HACK: e.g. ?D: GenericDict
                 let Ok(dict) = Dict::try_from(params[0].clone()) else {
