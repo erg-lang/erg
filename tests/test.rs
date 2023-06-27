@@ -105,7 +105,7 @@ fn exec_import() -> Result<(), ()> {
 
 #[test]
 fn exec_import_cyclic() -> Result<(), ()> {
-    expect_success("tests/should_ok/cyclic/import_cyclic.er", 0)
+    expect_success("tests/should_ok/cyclic/import.er", 0)
 }
 
 #[test]
@@ -327,6 +327,11 @@ fn exec_impl_err() -> Result<(), ()> {
 #[test]
 fn exec_import_err() -> Result<(), ()> {
     expect_failure("tests/should_err/import.er", 0, 2)
+}
+
+#[test]
+fn exec_import_cyclic_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/cyclic/import.er", 0, 1)
 }
 
 #[test]

@@ -1,0 +1,3 @@
+a = import "a"
+
+print! a.x

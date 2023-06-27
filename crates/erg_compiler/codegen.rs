@@ -2983,7 +2983,7 @@ impl PyCodeGenerator {
         let name = if let Some(name) = opt_name {
             name
         } else {
-            "<block>".into()
+            self.fresh_gen.fresh_varname()
         };
         let firstlineno = block
             .first()
