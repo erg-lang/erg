@@ -1,3 +1,4 @@
+use std::fmt;
 use std::path::{Path, PathBuf};
 use std::thread::{current, JoinHandle, ThreadId};
 
@@ -11,6 +12,17 @@ pub enum Promise {
         handle: JoinHandle<()>,
     },
     Finished,
+}
+
+impl fmt::Display for Promise {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Running { handle, .. } => {
+                write!(f, "running on thread {:?}", handle.thread().id())
+            }
+            Self::Finished => write!(f, "finished"),
+        }
+    }
 }
 
 impl Promise {
@@ -49,6 +61,16 @@ impl Promise {
 
 #[derive(Debug, Clone, Default)]
 pub struct SharedPromises(Shared<Dict<PathBuf, Promise>>);
+
+impl fmt::Display for SharedPromises {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "SharedPromises {{ ")?;
+        for (path, promise) in self.0.borrow().iter() {
+            writeln!(f, "{}: {}, ", path.display(), promise)?;
+        }
+        write!(f, "}}")
+    }
+}
 
 impl SharedPromises {
     pub fn new() -> Self {

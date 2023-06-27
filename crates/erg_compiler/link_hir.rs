@@ -2,8 +2,10 @@ use std::mem;
 use std::path::{Path, PathBuf};
 
 use erg_common::config::ErgConfig;
+use erg_common::dict::Dict as Dic;
 use erg_common::fresh::FreshNameGenerator;
 use erg_common::pathutil::squash;
+use erg_common::shared::Shared;
 use erg_common::traits::Locational;
 use erg_common::Str;
 use erg_common::{enum_unwrap, log};
@@ -23,6 +25,7 @@ use crate::module::SharedModuleCache;
 pub struct HIRLinker<'a> {
     cfg: &'a ErgConfig,
     mod_cache: &'a SharedModuleCache,
+    removed_mods: Shared<Dic<PathBuf, Expr>>,
     fresh_gen: FreshNameGenerator,
 }
 
@@ -31,6 +34,16 @@ impl<'a> HIRLinker<'a> {
         Self {
             cfg,
             mod_cache,
+            removed_mods: Shared::new(Dic::new()),
+            fresh_gen: FreshNameGenerator::new("hir_linker"),
+        }
+    }
+
+    fn inherit(&self, cfg: &'a ErgConfig) -> Self {
+        Self {
+            cfg,
+            mod_cache: self.mod_cache,
+            removed_mods: self.removed_mods.clone(),
             fresh_gen: FreshNameGenerator::new("hir_linker"),
         }
     }
@@ -256,6 +269,9 @@ impl<'a> HIRLinker<'a> {
                     for arg in call.args.pos_args.iter_mut() {
                         self.replace_import(&mut arg.expr);
                     }
+                    if let Some(arg) = call.args.var_args.as_deref_mut() {
+                        self.replace_py_import(&mut arg.expr);
+                    }
                     for arg in call.args.kw_args.iter_mut() {
                         self.replace_import(&mut arg.expr);
                     }
@@ -349,19 +365,20 @@ impl<'a> HIRLinker<'a> {
         // let sig = option_enum_unwrap!(&def.sig, Signature::Var)
         //    .unwrap_or_else(|| todo!("module subroutines are not allowed"));
         if let Some((hir, cfg)) = hir_cfg {
-            let linker = HIRLinker::new(&cfg, self.mod_cache);
+            let tmp = Identifier::private_with_line(self.fresh_gen.fresh_varname(), line);
+            let module = Expr::Accessor(Accessor::Ident(tmp.clone()));
+            self.removed_mods.borrow_mut().insert(path, module.clone());
+            let linker = self.inherit(&cfg);
             let hir = linker.link(hir);
             let code = Expr::Code(Block::new(Vec::from(hir.module)));
             let module_type =
                 Expr::Accessor(Accessor::private_with_line(Str::ever("#ModuleType"), line));
             let args = Args::single(PosArg::new(mod_name.clone()));
             let block = Block::new(vec![module_type.call_expr(args)]);
-            let tmp = Identifier::private_with_line(self.fresh_gen.fresh_varname(), line);
             let mod_def = Expr::Def(Def::new(
-                Signature::Var(VarSignature::new(tmp.clone(), None)),
+                Signature::Var(VarSignature::global(tmp, None)),
                 DefBody::new(EQUAL, block, DefId(0)),
             ));
-            let module = Expr::Accessor(Accessor::Ident(tmp));
             let __dict__ = Identifier::public("__dict__");
             let m_dict = module.clone().attr_expr(__dict__);
             let locals = Expr::Accessor(Accessor::public_with_line(Str::ever("locals"), line));
@@ -377,6 +394,8 @@ impl<'a> HIRLinker<'a> {
             let exec_code = exec.call_expr(args);
             let compound = Block::new(vec![mod_def, mod_update, exec_code, module]);
             *expr = Expr::Compound(compound);
+        } else if let Some(module) = self.removed_mods.borrow().get(&path) {
+            *expr = module.clone();
         }
     }
 

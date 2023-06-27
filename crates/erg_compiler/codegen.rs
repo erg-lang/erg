@@ -1281,7 +1281,11 @@ impl PyCodeGenerator {
         } else {
             self.emit_frameless_block(body.block, vec![]);
         }
-        self.emit_store_instr(sig.ident, Name);
+        if sig.global {
+            self.emit_store_global_instr(sig.ident);
+        } else {
+            self.emit_store_instr(sig.ident, Name);
+        }
     }
 
     fn emit_subr_def(&mut self, class_name: Option<&str>, sig: SubrSignature, body: DefBody) {

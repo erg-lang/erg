@@ -342,6 +342,10 @@ impl ContextKind {
     pub const fn is_patch(&self) -> bool {
         matches!(self, Self::Patch(_) | Self::GluePatch(_))
     }
+
+    pub const fn is_module(&self) -> bool {
+        matches!(self, Self::Module)
+    }
 }
 
 /// Indicates the mode registered in the Context
@@ -1082,7 +1086,11 @@ impl Context {
     pub fn pop_mod(&mut self) -> Option<Context> {
         if self.outer.is_some() {
             log!(err "not in the top-level context");
-            None
+            if self.kind.is_module() {
+                Some(self.pop())
+            } else {
+                None
+            }
         } else {
             log!(info "{}: current namespace: <builtins>", fn_name!());
             // toplevel

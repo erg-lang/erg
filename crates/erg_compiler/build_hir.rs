@@ -8,12 +8,13 @@ use erg_parser::ast::{VarName, AST};
 use erg_parser::build_ast::ASTBuilder;
 
 use crate::artifact::{BuildRunnable, Buildable, CompleteArtifact, IncompleteArtifact};
-use crate::context::{Context, ContextProvider, ModuleContext};
+use crate::context::{Context, ContextKind, ContextProvider, ModuleContext};
 use crate::effectcheck::SideEffectChecker;
 use crate::error::{CompileError, CompileErrors, LowerWarnings};
 use crate::lower::ASTLowerer;
 use crate::module::SharedCompilerResource;
 use crate::ownercheck::OwnershipChecker;
+use crate::ty::VisibilityModifier;
 use crate::varinfo::VarInfo;
 
 /// Summarize lowering, side-effect checking, and ownership checking
@@ -131,6 +132,19 @@ impl HIRBuilder {
         Self {
             lowerer: ASTLowerer::new_with_cache(cfg.copy(), mod_name, shared),
             ownership_checker: OwnershipChecker::new(cfg),
+        }
+    }
+
+    pub fn new_with_ctx(mut mod_ctx: ModuleContext) -> Self {
+        mod_ctx.context.grow(
+            "<module>",
+            ContextKind::Module,
+            VisibilityModifier::Private,
+            None,
+        );
+        Self {
+            ownership_checker: OwnershipChecker::new(mod_ctx.get_top_cfg()),
+            lowerer: ASTLowerer::new_with_ctx(mod_ctx),
         }
     }
 
