@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use erg_common::config::ErgConfig;
 
@@ -30,18 +30,30 @@ impl SharedCompilerResource {
     /// Initialize the shared compiler resource.
     /// This API is normally called only once throughout the compilation phase.
     pub fn new(cfg: ErgConfig) -> Self {
+        let graph = SharedModuleGraph::new();
         let self_ = Self {
             mod_cache: SharedModuleCache::new(),
             py_mod_cache: SharedModuleCache::new(),
             index: SharedModuleIndex::new(),
-            graph: SharedModuleGraph::new(),
+            graph: graph.clone(),
             trait_impls: SharedTraitImpls::new(),
-            promises: SharedPromises::new(),
+            promises: SharedPromises::new(
+                graph,
+                cfg.input
+                    .path()
+                    .map_or(PathBuf::default(), |p| p.canonicalize().unwrap()),
+            ),
             errors: SharedCompileErrors::new(),
             warns: SharedCompileWarnings::new(),
         };
         Context::init_builtins(cfg, self_.clone());
         self_
+    }
+
+    pub fn inherit(&self, path: PathBuf) -> Self {
+        let mut _self = self.clone();
+        _self.promises.path = path;
+        _self
     }
 
     pub fn clear_all(&self) {

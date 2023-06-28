@@ -1976,7 +1976,7 @@ impl Context {
             .map_err(|_| self.import_err(line!(), __name__, loc))?;
         let name = __name__.clone();
         let _path = path.clone();
-        let shared = self.shared.as_ref().unwrap().clone();
+        let shared = self.shared.as_ref().unwrap().inherit(path.clone());
         let run = move || {
             let mut builder = HIRBuilder::new_with_cache(cfg, name, shared.clone());
             match builder.build(src, "exec") {
