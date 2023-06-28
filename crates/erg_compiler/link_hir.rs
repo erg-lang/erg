@@ -1,11 +1,12 @@
+use std::cell::RefCell;
 use std::mem;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 
 use erg_common::config::ErgConfig;
 use erg_common::dict::Dict as Dic;
 use erg_common::fresh::FreshNameGenerator;
 use erg_common::pathutil::squash;
-use erg_common::shared::Shared;
 use erg_common::traits::Locational;
 use erg_common::Str;
 use erg_common::{enum_unwrap, log};
@@ -25,8 +26,8 @@ use crate::module::SharedModuleCache;
 pub struct HIRLinker<'a> {
     cfg: &'a ErgConfig,
     mod_cache: &'a SharedModuleCache,
-    removed_mods: Shared<Dic<PathBuf, Expr>>,
-    fresh_gen: FreshNameGenerator,
+    removed_mods: Rc<RefCell<Dic<PathBuf, Expr>>>,
+    fresh_gen: Rc<RefCell<FreshNameGenerator>>,
 }
 
 impl<'a> HIRLinker<'a> {
@@ -34,8 +35,8 @@ impl<'a> HIRLinker<'a> {
         Self {
             cfg,
             mod_cache,
-            removed_mods: Shared::new(Dic::new()),
-            fresh_gen: FreshNameGenerator::new("hir_linker"),
+            removed_mods: Rc::new(RefCell::new(Dic::new())),
+            fresh_gen: Rc::new(RefCell::new(FreshNameGenerator::new("hir_linker"))),
         }
     }
 
@@ -44,7 +45,7 @@ impl<'a> HIRLinker<'a> {
             cfg,
             mod_cache: self.mod_cache,
             removed_mods: self.removed_mods.clone(),
-            fresh_gen: FreshNameGenerator::new("hir_linker"),
+            fresh_gen: self.fresh_gen.clone(),
         }
     }
 
@@ -56,7 +57,7 @@ impl<'a> HIRLinker<'a> {
         for chunk in main.module.iter_mut() {
             Self::resolve_pymod_path(chunk);
         }
-        log!(info "linked: {main}");
+        log!(info "linked:\n{main}");
         main
     }
 
@@ -365,7 +366,7 @@ impl<'a> HIRLinker<'a> {
         // let sig = option_enum_unwrap!(&def.sig, Signature::Var)
         //    .unwrap_or_else(|| todo!("module subroutines are not allowed"));
         if let Some((hir, cfg)) = hir_cfg {
-            let tmp = Identifier::private_with_line(self.fresh_gen.fresh_varname(), line);
+            let tmp = Identifier::private_with_line(self.fresh_gen.borrow().fresh_varname(), line);
             let module = Expr::Accessor(Accessor::Ident(tmp.clone()));
             self.removed_mods.borrow_mut().insert(path, module.clone());
             let linker = self.inherit(&cfg);

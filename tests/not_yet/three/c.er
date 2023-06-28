@@ -1,0 +1,3 @@
+a = import "a"
+
+.f() = a.x
