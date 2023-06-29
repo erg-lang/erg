@@ -128,6 +128,9 @@ pub fn remove_postfix_foreach<P: AsRef<Path>>(path: P, extension: &str) -> PathB
 /// let path = PathBuf::from("erg.d.er");
 /// let path = remove_postfix(path, ".er");
 /// assert_eq!(path, PathBuf::from("erg.d"));
+/// let path = PathBuf::from("erg.d/foo.d/bar.d");
+/// let path = remove_postfix(path, ".d");
+/// assert_eq!(path, PathBuf::from("erg.d/foo.d/bar"));
 pub fn remove_postfix<P: AsRef<Path>>(path: P, extension: &str) -> PathBuf {
     let string = path.as_ref().to_string_lossy();
     PathBuf::from(string.trim_end_matches(extension))

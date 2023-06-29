@@ -1884,7 +1884,7 @@ impl Context {
         let mod_ctx = ModuleContext::new(self.clone(), dict! {});
         let mut builder = HIRBuilder::new_with_ctx(mod_ctx);
         let src = Input::file(path.to_path_buf()).read();
-        let mode = if path.ends_with(".d.er") {
+        let mode = if path.to_string_lossy().ends_with(".d.er") {
             "declare"
         } else {
             "exec"
@@ -1895,7 +1895,7 @@ impl Context {
             Err(art) => art.object,
         };
         let ctx = builder.pop_mod_ctx().unwrap();
-        let cache = if path.ends_with("d.er") {
+        let cache = if path.to_string_lossy().ends_with("d.er") {
             &self.shared().py_mod_cache
         } else {
             &self.shared().mod_cache
