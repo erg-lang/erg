@@ -1,0 +1,7 @@
+a = import "a"
+
+.x = 1
+.f() = a.f()
+
+.odd 0 = False
+.odd n = a.even(n - 1)

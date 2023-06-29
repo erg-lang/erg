@@ -314,6 +314,7 @@ pub struct Server<Checker: BuildRunnable = HIRBuilder, Parser: Parsable = Simple
     pub(crate) opt_features: Vec<OptionalFeatures>,
     pub(crate) file_cache: FileCache,
     pub(crate) comp_cache: CompletionCache,
+    // TODO: remove modules, analysis_result, and add `shared: SharedCompilerResource`
     pub(crate) modules: ModuleCache,
     pub(crate) analysis_result: AnalysisResultCache,
     pub(crate) current_sig: Option<Expr>,
@@ -723,8 +724,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     pub(crate) fn get_checker(&self, path: PathBuf) -> Checker {
         if let Some(shared) = self.get_shared() {
             let shared = shared.clone();
-            shared.mod_cache.remove(&path);
-            shared.py_mod_cache.remove(&path);
+            shared.clear(&path);
             Checker::inherit(self.cfg.inherit(path), shared)
         } else {
             Checker::new(self.cfg.inherit(path))
@@ -771,6 +771,23 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         }
         let builtin_ctx = self.get_builtin_module();
         ctxs.extend(builtin_ctx);
+        ctxs
+    }
+
+    pub(crate) fn get_neighbor_ctxs(&self, uri: &NormalizedUrl) -> Vec<&Context> {
+        let mut ctxs = vec![];
+        if let Ok(dir) = uri
+            .to_file_path()
+            .and_then(|p| p.parent().unwrap().read_dir().map_err(|_| ()))
+        {
+            for neighbor in dir {
+                let Ok(neighbor) = neighbor else { continue; };
+                let uri = NormalizedUrl::from_file_path(neighbor.path()).unwrap();
+                if let Some(mod_ctx) = &self.modules.get(&uri) {
+                    ctxs.push(&mod_ctx.context);
+                }
+            }
+        }
         ctxs
     }
 

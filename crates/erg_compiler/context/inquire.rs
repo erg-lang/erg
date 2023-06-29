@@ -58,14 +58,10 @@ impl Context {
         if self.module_path() == Some(path) {
             return self.get_module();
         }
-        if self.get_module()
-            .map_or(false, |ctx| matches!((ctx.cfg.input.unescaped_path().canonicalize(), path.canonicalize()), (Ok(l), Ok(r)) if l == r))
-        {
-            return Some(self.get_module().unwrap())
-        }
         if self.shared.is_some()
             && self.promises().is_registered(path)
             && !self.promises().is_finished(path)
+            && (self.mod_cache().get(path).is_none() && self.py_mod_cache().get(path).is_none())
         {
             let _result = self.promises().join(path);
         }
@@ -2588,7 +2584,7 @@ impl Context {
         for p in namespaces.into_iter() {
             path = Input::try_push_path(path, Path::new(p)).ok()?;
         }
-        Some(path)
+        Some(path) // NG: path.canonicalize().ok()
     }
 
     pub(crate) fn get_namespace(&self, namespace: &Str) -> Option<&Context> {

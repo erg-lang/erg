@@ -1,16 +1,25 @@
+use erg_common::config::ErgConfig;
+
 use crate::effectcheck::SideEffectChecker;
 use crate::hir::*;
 use crate::module::SharedCompilerResource;
 // use crate::erg_common::traits::Stream;
 
+/// Optimizes a `HIR`.
+/// This should not be used in the context of sequential execution (e.g. REPL), since it assumes that the given code is all there is.
+/// The optimizer determines the optimization level using `opt_level` in `cfg: ErgConfig`.
 #[derive(Debug)]
 pub struct HIROptimizer {
+    cfg: ErgConfig,
     shared: SharedCompilerResource,
 }
 
 impl HIROptimizer {
-    pub fn optimize(shared: SharedCompilerResource, hir: HIR) -> HIR {
-        let mut optimizer = HIROptimizer { shared };
+    pub fn optimize(cfg: ErgConfig, shared: SharedCompilerResource, hir: HIR) -> HIR {
+        let mut optimizer = HIROptimizer { cfg, shared };
+        if optimizer.cfg.opt_level == 0 || optimizer.cfg.input.is_repl() {
+            return hir;
+        }
         optimizer.eliminate_dead_code(hir)
     }
 

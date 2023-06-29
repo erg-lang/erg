@@ -10,7 +10,7 @@ use erg_common::cache::CacheSet;
 use erg_common::config::ErgConfig;
 use erg_common::env::erg_std_path;
 use erg_common::error::{ErrorDisplay, Location};
-use erg_common::fresh::FreshNameGenerator;
+use erg_common::fresh::SharedFreshNameGenerator;
 use erg_common::io::Input;
 use erg_common::opcode::{CommonOpcode, CompareOp};
 use erg_common::opcode308::Opcode308;
@@ -172,7 +172,7 @@ pub struct PyCodeGenerator {
     abc_loaded: bool,
     unit_size: usize,
     units: PyCodeGenStack,
-    fresh_gen: FreshNameGenerator,
+    fresh_gen: SharedFreshNameGenerator,
 }
 
 impl PyCodeGenerator {
@@ -191,7 +191,26 @@ impl PyCodeGenerator {
             abc_loaded: false,
             unit_size: 0,
             units: PyCodeGenStack::empty(),
-            fresh_gen: FreshNameGenerator::new("codegen"),
+            fresh_gen: SharedFreshNameGenerator::new("codegen"),
+        }
+    }
+
+    pub fn inherit(&self) -> Self {
+        Self {
+            cfg: self.cfg.clone(),
+            py_version: self.py_version,
+            str_cache: self.str_cache.clone(),
+            prelude_loaded: false,
+            mutate_op_loaded: false,
+            in_op_loaded: false,
+            record_type_loaded: false,
+            module_type_loaded: false,
+            control_loaded: false,
+            convertors_loaded: false,
+            abc_loaded: false,
+            unit_size: 0,
+            units: PyCodeGenStack::empty(),
+            fresh_gen: self.fresh_gen.clone(),
         }
     }
 
@@ -682,6 +701,10 @@ impl PyCodeGenerator {
 
     fn emit_load_name_instr(&mut self, ident: Identifier) {
         log!(info "entered {}({ident})", fn_name!());
+        if &ident.inspect()[..] == "#ModuleType" && !self.module_type_loaded {
+            self.load_module_type();
+            self.module_type_loaded = true;
+        }
         let escaped = escape_ident(ident);
         match &escaped[..] {
             "if__" | "for__" | "while__" | "with__" | "discard__" => {
@@ -953,10 +976,6 @@ impl PyCodeGenerator {
         log!(info "entered {} ({acc})", fn_name!());
         match acc {
             Accessor::Ident(ident) => {
-                if &ident.inspect()[..] == "#ModuleType" && !self.module_type_loaded {
-                    self.load_module_type();
-                    self.module_type_loaded = true;
-                }
                 self.emit_load_name_instr(ident);
             }
             Accessor::Attr(mut a) => {
@@ -1281,7 +1300,11 @@ impl PyCodeGenerator {
         } else {
             self.emit_frameless_block(body.block, vec![]);
         }
-        self.emit_store_instr(sig.ident, Name);
+        if sig.global {
+            self.emit_store_global_instr(sig.ident);
+        } else {
+            self.emit_store_instr(sig.ident, Name);
+        }
     }
 
     fn emit_subr_def(&mut self, class_name: Option<&str>, sig: SubrSignature, body: DefBody) {
@@ -2540,7 +2563,7 @@ impl PyCodeGenerator {
 
     /// Emits independent code blocks (e.g., linked other modules)
     fn emit_code(&mut self, code: Block) {
-        let mut gen = Self::new(self.cfg.clone());
+        let mut gen = self.inherit();
         let code = gen.emit_block(code, None, vec![], 0);
         self.emit_load_const(code);
     }
@@ -2979,7 +3002,7 @@ impl PyCodeGenerator {
         let name = if let Some(name) = opt_name {
             name
         } else {
-            "<block>".into()
+            self.fresh_gen.fresh_varname()
         };
         let firstlineno = block
             .first()

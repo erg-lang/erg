@@ -6,6 +6,7 @@ use erg_common::dict::Dict;
 use erg_common::set;
 use erg_common::set::Set;
 use erg_common::shared::{MappedRwLockReadGuard, RwLockReadGuard, Shared};
+use erg_common::Str;
 
 use crate::varinfo::{AbsLocation, VarInfo};
 
@@ -25,21 +26,30 @@ impl<'a> Members<'a> {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct ModuleIndexValue {
+    pub name: Str,
     pub vi: VarInfo,
     pub referrers: Set<AbsLocation>,
 }
 
 impl fmt::Display for ModuleIndexValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{{ vi: {}, referrers: {} }}", self.vi, self.referrers)
+        write!(
+            f,
+            "{{ name: {}, vi: {}, referrers: {} }}",
+            self.name, self.vi, self.referrers
+        )
     }
 }
 
 impl ModuleIndexValue {
-    pub const fn new(vi: VarInfo, referrers: Set<AbsLocation>) -> Self {
-        Self { vi, referrers }
+    pub const fn new(name: Str, vi: VarInfo, referrers: Set<AbsLocation>) -> Self {
+        Self {
+            name,
+            vi,
+            referrers,
+        }
     }
 
     pub fn push_ref(&mut self, referrer: AbsLocation) {
@@ -65,19 +75,19 @@ impl ModuleIndex {
         }
     }
 
-    pub fn inc_ref(&mut self, vi: &VarInfo, referrer: AbsLocation) {
+    pub fn inc_ref(&mut self, name: &Str, vi: &VarInfo, referrer: AbsLocation) {
         let referee = vi.def_loc.clone();
         if let Some(referrers) = self.members.get_mut(&referee) {
             referrers.push_ref(referrer);
         } else {
-            let value = ModuleIndexValue::new(vi.clone(), set! {referrer});
+            let value = ModuleIndexValue::new(name.clone(), vi.clone(), set! {referrer});
             self.members.insert(referee, value);
         }
     }
 
-    pub fn register(&mut self, vi: &VarInfo) {
+    pub fn register(&mut self, name: Str, vi: &VarInfo) {
         let referee = vi.def_loc.clone();
-        let value = ModuleIndexValue::new(vi.clone(), set! {});
+        let value = ModuleIndexValue::new(name, vi.clone(), set! {});
         self.members.insert(referee, value);
     }
 
@@ -90,8 +100,12 @@ impl ModuleIndex {
     }
 
     pub fn remove_path(&mut self, path: &Path) {
-        self.members
-            .retain(|loc, _| loc.module.as_deref() != Some(path));
+        self.members.retain(|loc, value| {
+            value
+                .referrers
+                .retain(|ref_loc| ref_loc.module.as_deref() != Some(path));
+            loc.module.as_deref() != Some(path)
+        });
     }
 }
 
@@ -109,12 +123,12 @@ impl SharedModuleIndex {
         Self(Shared::new(ModuleIndex::new()))
     }
 
-    pub fn inc_ref(&self, vi: &VarInfo, referrer: AbsLocation) {
-        self.0.borrow_mut().inc_ref(vi, referrer);
+    pub fn inc_ref(&self, name: &Str, vi: &VarInfo, referrer: AbsLocation) {
+        self.0.borrow_mut().inc_ref(name, vi, referrer);
     }
 
-    pub fn register(&self, vi: &VarInfo) {
-        self.0.borrow_mut().register(vi);
+    pub fn register(&self, name: Str, vi: &VarInfo) {
+        self.0.borrow_mut().register(name, vi);
     }
 
     pub fn get_refs(

@@ -36,6 +36,8 @@ jobs:
       matrix:
         os: [windows-latest, ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    env:
+      RUST_BACKTRACE: full
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
@@ -43,13 +45,7 @@ jobs:
           python-version: "3.11.3"
       - uses: Swatinem/rust-cache@v2
       - run: rustup update stable
-      - name: Run tests (Windows)
-        if: runner.os == 'Windows'
-        # HACK: The cause is unknown, but on windows, the exit code is 1 even if tests are successful.
-        run: cargo test --features large_thread --features pre-commit --all --verbose -- --include-ignored
-      - name: Run tests (Other OS)
-        if: runner.os != 'Windows'
-        run: cargo test --features large_thread --all --verbose -- --include-ignored
+      - run: cargo test --all --verbose -- --include-ignored
 
   build-check:
     strategy:

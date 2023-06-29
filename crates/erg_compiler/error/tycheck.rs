@@ -1326,4 +1326,23 @@ passed keyword args:    {kw_args_len}"
             caused_by,
         )
     }
+
+    pub fn self_type_error(input: Input, errno: usize, loc: Location, caused_by: String) -> Self {
+        Self::new(
+            ErrorCore::new(
+                vec![SubMessage::only_loc(loc)],
+                switch_lang!(
+                    "japanese" => format!("`Self`型はこの場所では使えません"),
+                    "simplified_chinese" => format!("`Self`类型不能用于此处"),
+                    "traditional_chinese" => format!("`Self`類型不能用於此處"),
+                    "english" => format!("`Self` type cannot be used here"),
+                ),
+                errno,
+                TypeError,
+                loc,
+            ),
+            input,
+            caused_by,
+        )
+    }
 }

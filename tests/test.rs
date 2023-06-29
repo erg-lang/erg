@@ -99,8 +99,13 @@ fn exec_impl() -> Result<(), ()> {
 
 #[test]
 fn exec_import() -> Result<(), ()> {
-    // 1 warn: a11y
-    expect_success("examples/import.er", 1)
+    // 2 warns: a11y
+    expect_success("examples/import.er", 2)
+}
+
+#[test]
+fn exec_import_cyclic() -> Result<(), ()> {
+    expect_success("tests/should_ok/cyclic/import.er", 0)
 }
 
 #[test]
@@ -303,6 +308,11 @@ fn exec_dependent_err() -> Result<(), ()> {
     expect_failure("tests/should_err/dependent.er", 0, 5)
 }
 
+#[test]
+fn exec_err_import() -> Result<(), ()> {
+    expect_failure("tests/should_err/err_import.er", 0, 9)
+}
+
 /// This file compiles successfully, but causes a run-time error due to incomplete method dispatching
 #[test]
 fn exec_tests_impl() -> Result<(), ()> {
@@ -317,6 +327,11 @@ fn exec_impl_err() -> Result<(), ()> {
 #[test]
 fn exec_import_err() -> Result<(), ()> {
     expect_failure("tests/should_err/import.er", 0, 2)
+}
+
+#[test]
+fn exec_import_cyclic_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/cyclic/import.er", 0, 1)
 }
 
 #[test]

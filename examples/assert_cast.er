@@ -14,3 +14,9 @@ f(opt_i: Int or NoneType) =
     log opt_i + 1 # ERR
 
 f(1)
+
+json = pyimport "json"
+s = "{ \"key\": \"value\" }"
+jdata = json.loads(s)
+assert jdata in {Str: Str}
+assert jdata["key"] == "value"

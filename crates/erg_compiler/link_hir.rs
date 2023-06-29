@@ -1,10 +1,13 @@
-use std::mem;
+use std::cell::RefCell;
+use std::mem::{replace, take};
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 
 use erg_common::config::ErgConfig;
-use erg_common::fresh::FreshNameGenerator;
+use erg_common::dict::Dict as Dic;
+use erg_common::fresh::SharedFreshNameGenerator;
 use erg_common::pathutil::squash;
-use erg_common::traits::Locational;
+use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
 use erg_common::{enum_unwrap, log};
 
@@ -18,12 +21,27 @@ use crate::ty::HasType;
 use crate::hir::*;
 use crate::module::SharedModuleCache;
 
+pub struct Mod {
+    variable: Expr,
+    definition: Expr,
+}
+
+impl Mod {
+    const fn new(variable: Expr, definition: Expr) -> Self {
+        Self {
+            variable,
+            definition,
+        }
+    }
+}
+
 /// Link code using the module cache.
 /// Erg links all non-Python modules into a single pyc file.
 pub struct HIRLinker<'a> {
     cfg: &'a ErgConfig,
     mod_cache: &'a SharedModuleCache,
-    fresh_gen: FreshNameGenerator,
+    removed_mods: Rc<RefCell<Dic<PathBuf, Mod>>>,
+    fresh_gen: SharedFreshNameGenerator,
 }
 
 impl<'a> HIRLinker<'a> {
@@ -31,7 +49,17 @@ impl<'a> HIRLinker<'a> {
         Self {
             cfg,
             mod_cache,
-            fresh_gen: FreshNameGenerator::new("hir_linker"),
+            removed_mods: Rc::new(RefCell::new(Dic::new())),
+            fresh_gen: SharedFreshNameGenerator::new("hir_linker"),
+        }
+    }
+
+    fn inherit(&self, cfg: &'a ErgConfig) -> Self {
+        Self {
+            cfg,
+            mod_cache: self.mod_cache,
+            removed_mods: self.removed_mods.clone(),
+            fresh_gen: self.fresh_gen.clone(),
         }
     }
 
@@ -40,11 +68,25 @@ impl<'a> HIRLinker<'a> {
         for chunk in main.module.iter_mut() {
             self.replace_import(chunk);
         }
+        // declare all modules first (due to cyclic modules)
+        for (i, module) in self.removed_mods.borrow_mut().values_mut().enumerate() {
+            main.module.insert(i, take(&mut module.definition));
+        }
         for chunk in main.module.iter_mut() {
             Self::resolve_pymod_path(chunk);
         }
-        log!(info "linked: {main}");
+        log!(info "linked:\n{main}");
         main
+    }
+
+    fn link_child(&self, mut hir: HIR) -> HIR {
+        for chunk in hir.module.iter_mut() {
+            self.replace_import(chunk);
+        }
+        for chunk in hir.module.iter_mut() {
+            Self::resolve_pymod_path(chunk);
+        }
+        hir
     }
 
     /// ```erg
@@ -65,7 +107,7 @@ impl<'a> HIRLinker<'a> {
                     Self::resolve_pymod_path(&mut attr.obj);
                     if acc.ref_t().is_py_module() {
                         let import = Expr::Import(acc.clone());
-                        *expr = Expr::Compound(Block::new(vec![import, mem::take(expr)]));
+                        *expr = Expr::Compound(Block::new(vec![import, take(expr)]));
                     }
                 }
             }
@@ -256,6 +298,9 @@ impl<'a> HIRLinker<'a> {
                     for arg in call.args.pos_args.iter_mut() {
                         self.replace_import(&mut arg.expr);
                     }
+                    if let Some(arg) = call.args.var_args.as_deref_mut() {
+                        self.replace_py_import(&mut arg.expr);
+                    }
                     for arg in call.args.kw_args.iter_mut() {
                         self.replace_import(&mut arg.expr);
                     }
@@ -349,21 +394,24 @@ impl<'a> HIRLinker<'a> {
         // let sig = option_enum_unwrap!(&def.sig, Signature::Var)
         //    .unwrap_or_else(|| todo!("module subroutines are not allowed"));
         if let Some((hir, cfg)) = hir_cfg {
-            let linker = HIRLinker::new(&cfg, self.mod_cache);
-            let hir = linker.link(hir);
-            let code = Expr::Code(Block::new(Vec::from(hir.module)));
+            let tmp = Identifier::private_with_line(self.fresh_gen.fresh_varname(), line);
+            let mod_var = Expr::Accessor(Accessor::Ident(tmp.clone()));
             let module_type =
                 Expr::Accessor(Accessor::private_with_line(Str::ever("#ModuleType"), line));
             let args = Args::single(PosArg::new(mod_name.clone()));
             let block = Block::new(vec![module_type.call_expr(args)]);
-            let tmp = Identifier::private_with_line(self.fresh_gen.fresh_varname(), line);
             let mod_def = Expr::Def(Def::new(
-                Signature::Var(VarSignature::new(tmp.clone(), None)),
+                Signature::Var(VarSignature::global(tmp, None)),
                 DefBody::new(EQUAL, block, DefId(0)),
             ));
-            let module = Expr::Accessor(Accessor::Ident(tmp));
+            self.removed_mods
+                .borrow_mut()
+                .insert(path, Mod::new(mod_var.clone(), mod_def));
+            let linker = self.inherit(&cfg);
+            let hir = linker.link_child(hir);
+            let code = Expr::Code(Block::new(Vec::from(hir.module)));
             let __dict__ = Identifier::public("__dict__");
-            let m_dict = module.clone().attr_expr(__dict__);
+            let m_dict = mod_var.clone().attr_expr(__dict__);
             let locals = Expr::Accessor(Accessor::public_with_line(Str::ever("locals"), line));
             let locals_call = locals.call_expr(Args::empty());
             let args = Args::single(PosArg::new(locals_call));
@@ -375,8 +423,10 @@ impl<'a> HIRLinker<'a> {
             let exec = Expr::Accessor(Accessor::public_with_line(Str::ever("exec"), line));
             let args = Args::pos_only(vec![PosArg::new(code), PosArg::new(m_dict)], None);
             let exec_code = exec.call_expr(args);
-            let compound = Block::new(vec![mod_def, mod_update, exec_code, module]);
+            let compound = Block::new(vec![mod_update, exec_code, mod_var]);
             *expr = Expr::Compound(compound);
+        } else if let Some(module) = self.removed_mods.borrow().get(&path) {
+            *expr = module.variable.clone();
         }
     }
 
@@ -424,13 +474,12 @@ impl<'a> HIRLinker<'a> {
         args.insert_pos(0, PosArg::new(mod_name));
         let line = expr.ln_begin().unwrap_or(0);
         for attr in comps {
-            *expr = mem::replace(expr, Expr::Code(Block::empty())).attr_expr(
-                Identifier::public_with_line(
+            *expr =
+                replace(expr, Expr::Code(Block::empty())).attr_expr(Identifier::public_with_line(
                     DOT,
                     Str::rc(attr.as_os_str().to_str().unwrap()),
                     line,
-                ),
-            );
+                ));
         }
     }
 }

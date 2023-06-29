@@ -161,19 +161,23 @@ impl ASTLowerer {
         }
     }
 
-    pub(crate) fn inc_ref<L: Locational>(&self, vi: &VarInfo, name: &L) {
-        self.module.context.inc_ref(vi, name, &self.module.context);
+    pub(crate) fn inc_ref<L: Locational>(&self, name: &Str, vi: &VarInfo, loc: &L) {
+        self.module
+            .context
+            .inc_ref(name, vi, loc, &self.module.context);
     }
 
-    pub(crate) fn warn_unused_vars(&mut self, mode: &str) {
+    pub(crate) fn warn_unused_local_vars(&mut self, mode: &str) {
         if mode == "eval" {
             return;
         }
+        let self_path = self.module.context.module_path();
         for (referee, value) in self.module.context.index().members().iter() {
-            let code = referee.code();
-            let name = code.as_ref().map(|s| &s[..]).unwrap_or("");
-            let name_is_auto =
-                name == "_" || !Lexer::is_valid_start_symbol_ch(name.chars().next().unwrap_or(' '));
+            if referee.module.as_deref() != self_path {
+                continue;
+            }
+            let name_is_auto = &value.name[..] == "_"
+                || !Lexer::is_valid_start_symbol_ch(value.name.chars().next().unwrap_or(' '));
             if value.referrers.is_empty() && value.vi.vis.is_private() && !name_is_auto {
                 let input = referee
                     .module
@@ -183,7 +187,7 @@ impl ASTLowerer {
                     input,
                     line!() as usize,
                     referee.loc,
-                    name,
+                    &value.name,
                     self.module.context.caused_by(),
                 );
                 self.warns.push(warn);

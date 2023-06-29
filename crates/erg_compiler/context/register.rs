@@ -12,6 +12,7 @@ use erg_common::consts::{ERG_MODE, PYTHON_MODE};
 use erg_common::dict::Dict;
 use erg_common::env::{is_pystd_main_module, is_std_decl_path};
 use erg_common::erg_util::BUILTIN_ERG_MODS;
+use erg_common::io::Input;
 use erg_common::levenshtein::get_similar_name;
 use erg_common::pathutil::{DirKind, FileKind};
 use erg_common::python_util::BUILTIN_PYTHON_MODS;
@@ -19,7 +20,7 @@ use erg_common::set::Set;
 use erg_common::spawn::spawn_new_thread;
 use erg_common::traits::{Locational, Stream};
 use erg_common::triple::Triple;
-use erg_common::{get_hash, log, set, unique_in_place, Str};
+use erg_common::{dict, get_hash, log, set, unique_in_place, Str};
 
 use ast::{
     ConstIdentifier, Decorator, DefId, Identifier, OperationKind, PolyTypeSpec, PreDeclTypeSpec,
@@ -27,7 +28,6 @@ use ast::{
 };
 use erg_parser::ast;
 
-use crate::artifact::ErrorArtifact;
 use crate::ty::constructors::{
     free_var, func, func0, func1, proc, ref_, ref_mut, tp_enum, unknown_len_array_t, v_enum,
 };
@@ -52,7 +52,7 @@ use RegistrationMode::*;
 
 use super::instantiate::TyVarCache;
 use super::instantiate_spec::ParamKind;
-use super::ParamSpec;
+use super::{ModuleContext, ParamSpec};
 
 pub fn valid_mod_name(name: &str) -> bool {
     !name.is_empty() && !name.starts_with('/') && name.trim() == name
@@ -225,7 +225,7 @@ impl Context {
                 py_name,
                 self.absolutize(ident.name.loc()),
             );
-            self.index().register(&vi);
+            self.index().register(ident.inspect().clone(), &vi);
             self.future_defined_locals.insert(ident.name.clone(), vi);
             Ok(())
         }
@@ -271,7 +271,7 @@ impl Context {
             py_name,
             self.absolutize(sig.ident.name.loc()),
         );
-        self.index().register(&vi);
+        self.index().register(sig.ident.inspect().clone(), &vi);
         if self
             .remove_class_attr(name)
             .is_some_and(|(_, decl)| !decl.kind.is_auto())
@@ -505,7 +505,7 @@ impl Context {
                         None,
                         self.absolutize(name.loc()),
                     );
-                    self.index().register(&vi);
+                    self.index().register(name.inspect().clone(), &vi);
                     sig.vi = vi.clone();
                     self.params.push((Some(name.clone()), vi));
                     if errs.is_empty() {
@@ -1272,7 +1272,7 @@ impl Context {
                         None,
                         self.absolutize(ident.name.loc()),
                     );
-                    self.index().register(&vi);
+                    self.index().register(ident.inspect().clone(), &vi);
                     self.decls.insert(ident.name.clone(), vi);
                     self.consts.insert(ident.name.clone(), other);
                     Ok(())
@@ -1619,7 +1619,7 @@ impl Context {
                 None,
                 self.absolutize(name.loc()),
             );
-            self.index().register(&vi);
+            self.index().register(name.inspect().clone(), &vi);
             self.decls.insert(name.clone(), vi);
             self.consts.insert(name.clone(), val);
             Ok(())
@@ -1667,7 +1667,7 @@ impl Context {
                 None,
                 self.absolutize(name.loc()),
             );
-            self.index().register(&vi);
+            self.index().register(name.inspect().clone(), &vi);
             self.decls.insert(name.clone(), vi);
             self.consts.insert(name.clone(), val);
             self.register_methods(&t, &ctx);
@@ -1727,7 +1727,7 @@ impl Context {
                 None,
                 self.absolutize(name.loc()),
             );
-            self.index().register(&vi);
+            self.index().register(name.inspect().clone(), &vi);
             self.decls.insert(name.clone(), vi);
             self.consts.insert(name.clone(), val);
             self.register_methods(&t, &ctx);
@@ -1851,13 +1851,56 @@ impl Context {
             self.check_mod_vis(path.as_path(), __name__, loc)?;
         }
         if let Some(referrer) = self.cfg.input.path() {
-            let graph = &self.shared.as_ref().unwrap().graph;
-            graph.inc_ref(referrer, path.clone());
-        }
-        if self.mod_registered(&path) {
-            return Ok(path);
+            if self.shared().graph.inc_ref(referrer, path.clone()).is_err() {
+                self.build_cyclic_mod(&path);
+            }
         }
         self.build_erg_mod(path, __name__, loc)
+    }
+
+    /// e.g.
+    /// ```erg
+    /// # a.er
+    /// b = import "b"
+    /// .f() = b.f()
+    /// ```
+    /// ```erg
+    /// # b.er (entry point)
+    /// a = import "a"
+    /// .f() = 1
+    /// print! a.f()
+    /// ```
+    /// ↓
+    /// ```erg
+    /// # a.er (pseudo code)
+    /// b = {
+    ///     # a = import "a"
+    ///     .f() = 1
+    ///     # print! a.f()
+    /// }
+    /// .f() = b.f()
+    /// ```
+    fn build_cyclic_mod(&self, path: &Path) {
+        let mod_ctx = ModuleContext::new(self.clone(), dict! {});
+        let mut builder = HIRBuilder::new_with_ctx(mod_ctx);
+        let src = Input::file(path.to_path_buf()).read();
+        let mode = if path.ends_with(".d.er") {
+            "declare"
+        } else {
+            "exec"
+        };
+        let res = builder.build(src, mode);
+        let hir = match res {
+            Ok(art) => Some(art.object),
+            Err(art) => art.object,
+        };
+        let ctx = builder.pop_mod_ctx().unwrap();
+        let cache = if path.ends_with("d.er") {
+            &self.shared().py_mod_cache
+        } else {
+            &self.shared().mod_cache
+        };
+        cache.register(path.to_path_buf(), hir, ctx);
     }
 
     /// If the path is like `foo/bar`, check if `bar` is a public module (the definition is in `foo/__init__.er`)
@@ -1923,6 +1966,9 @@ impl Context {
         __name__: &Str,
         loc: &impl Locational,
     ) -> CompileResult<PathBuf> {
+        if self.mod_registered(&path) {
+            return Ok(path);
+        }
         let mut cfg = self.cfg.inherit(path.clone());
         let src = cfg
             .input
@@ -1930,7 +1976,7 @@ impl Context {
             .map_err(|_| self.import_err(line!(), __name__, loc))?;
         let name = __name__.clone();
         let _path = path.clone();
-        let shared = self.shared.as_ref().unwrap().clone();
+        let shared = self.shared.as_ref().unwrap().inherit(path.clone());
         let run = move || {
             let mut builder = HIRBuilder::new_with_cache(cfg, name, shared.clone());
             match builder.build(src, "exec") {
@@ -1940,8 +1986,7 @@ impl Context {
                         Some(artifact.object),
                         builder.pop_mod_ctx().unwrap(),
                     );
-                    // shared.warns.extend(artifact.warns);
-                    Ok(())
+                    shared.warns.extend(artifact.warns);
                 }
                 Err(artifact) => {
                     if let Some(hir) = artifact.object {
@@ -1949,9 +1994,8 @@ impl Context {
                             .mod_cache
                             .register(_path, Some(hir), builder.pop_mod_ctx().unwrap());
                     }
-                    // shared.warns.extend(artifact.warns);
-                    // shared.errors.extend(artifact.errors);
-                    Err(ErrorArtifact::new(artifact.errors, artifact.warns))
+                    shared.warns.extend(artifact.warns);
+                    shared.errors.extend(artifact.errors);
                 }
             }
         };
@@ -2119,8 +2163,9 @@ impl Context {
             return Ok(path);
         }
         if let Some(referrer) = self.cfg.input.path() {
-            let graph = &self.shared.as_ref().unwrap().graph;
-            graph.inc_ref(referrer, path.clone());
+            if self.shared().graph.inc_ref(referrer, path.clone()).is_err() {
+                self.build_cyclic_mod(&path);
+            }
         }
         if py_mod_cache.get(&path).is_some() {
             return Ok(path);
@@ -2233,9 +2278,15 @@ impl Context {
         Ok(())
     }
 
-    pub(crate) fn inc_ref<L: Locational>(&self, vi: &VarInfo, name: &L, namespace: &Context) {
+    pub(crate) fn inc_ref<L: Locational>(
+        &self,
+        name: &Str,
+        vi: &VarInfo,
+        loc: &L,
+        namespace: &Context,
+    ) {
         if let Some(index) = self.opt_index() {
-            index.inc_ref(vi, namespace.absolutize(name.loc()));
+            index.inc_ref(name, vi, namespace.absolutize(loc.loc()));
         }
     }
 
@@ -2288,7 +2339,7 @@ impl Context {
             &self.cfg.input,
             self,
         ) {
-            self.inc_ref(&vi, &ident.name, namespace);
+            self.inc_ref(ident.inspect(), &vi, &ident.name, namespace);
             true
         } else {
             false
@@ -2307,7 +2358,7 @@ impl Context {
             &self.cfg.input,
             self,
         ) {
-            self.inc_ref(&vi, &local.name, namespace);
+            self.inc_ref(local.inspect(), &vi, &local.name, namespace);
             true
         } else {
             &local.inspect()[..] == "module" || &local.inspect()[..] == "global"

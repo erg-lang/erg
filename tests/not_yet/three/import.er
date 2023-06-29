@@ -1,0 +1,3 @@
+a = import "a"
+
+assert a.f() == 1

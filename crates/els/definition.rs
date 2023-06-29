@@ -71,9 +71,10 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                                     .and_then(|ctx| ctx.get_mod_with_t(mod_t))
                                     .and_then(|mod_ctx| mod_ctx.get_var_info(token.inspect()))
                                 {
-                                    let def_uri =
-                                        Url::from_file_path(vi.def_loc.module.as_ref().unwrap())
-                                            .unwrap();
+                                    let Some(path) = vi.def_loc.module.as_ref() else {
+                                        return Ok(GotoDefinitionResponse::Array(vec![]));
+                                    };
+                                    let def_uri = Url::from_file_path(path).unwrap();
                                     let resp = GotoDefinitionResponse::Array(vec![
                                         lsp_types::Location::new(
                                             def_uri,
