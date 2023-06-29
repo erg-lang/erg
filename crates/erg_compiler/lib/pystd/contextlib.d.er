@@ -1,0 +1,12 @@
+.contextmanager: |F <: GenericCallable|(F) -> F
+.closing!: |T|(thing: Structural { .close = (self: T) -> Obj }) => NoneType
+
+.ExitStack!: ClassType
+.ExitStack! <: ContextManager
+.ExitStack!.
+    __call__: () -> .ExitStack!
+    enter_context!: (self: .ExitStack!, cm: ContextManager) => NoneType
+    push!: (self: .ExitStack!, exit: GenericCallable) => NoneType
+    callback!: (self: .ExitStack!, callback: GenericCallable) => NoneType
+    pop_all!: (self: .ExitStack!) => [GenericCallable; _]
+    close!: (self: .ExitStack!) => NoneType
