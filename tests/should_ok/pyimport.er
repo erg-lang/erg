@@ -5,3 +5,9 @@ dt = DateTime
 print! dt.max
 print! dt.today!()
 print! dt 2022, 8, 10
+
+ul = pyimport "urllib"
+_ = ul.error.__dict__
+
+error = pyimport "urllib/error"
+_ = error.__dict__

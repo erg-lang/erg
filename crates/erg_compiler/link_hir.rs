@@ -95,9 +95,20 @@ impl<'a> HIRLinker<'a> {
     /// ```
     /// ↓
     /// ```python
-    /// urllib = __import__("urllib.request")
+    /// urllib = __import__("urllib")
     /// import urllib.request
     /// urllib.request.urlopen("https://example.com")
+    /// ```
+    /// other example:
+    /// ```erg
+    /// mpl = pyimport "matplotlib"
+    /// mpl.pyplot.plot! [1, 2, 3]
+    /// ```
+    /// ↓
+    /// ```python
+    /// mpl = __import__("matplotlib")
+    /// import matplotlib.pyplot # mpl.pyplot.foo is now allowed
+    /// mpl.pyplot.plot([1, 2, 3])
     /// ```
     fn resolve_pymod_path(expr: &mut Expr) {
         match expr {

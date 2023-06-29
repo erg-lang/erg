@@ -2584,7 +2584,10 @@ impl PyCodeGenerator {
     fn emit_import(&mut self, acc: Accessor) {
         self.emit_load_const(0i32);
         self.emit_load_const(ValueObj::None);
-        let full_name = Str::from(acc.show());
+        let full_name = Str::from(
+            acc.qual_name()
+                .map_or(acc.show(), |s| s.replace(".__init__", "")),
+        );
         let name = self
             .local_search(&full_name, Name)
             .unwrap_or_else(|| self.register_name(full_name));

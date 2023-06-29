@@ -1010,7 +1010,7 @@ impl Context {
                 line!() as usize,
                 attr_name.loc(),
                 namespace.name.to_string(),
-                obj.qual_name().unwrap_or("?"),
+                obj.qual_name().as_deref().unwrap_or("?"),
                 obj.ref_t(),
                 attr_name.inspect(),
                 self.get_similar_attr_from_singular(obj, attr_name.inspect()),
@@ -1530,7 +1530,7 @@ impl Context {
         let two = obj
             .qual_name()
             .map(|name| {
-                self.get_same_name_context(name)
+                self.get_same_name_context(&name)
                     .map_or(vec![], |ctx| vec![ctx])
             })
             .unwrap_or(vec![]);

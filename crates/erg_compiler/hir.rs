@@ -631,11 +631,17 @@ impl Accessor {
         }
     }
 
-    // 参照するオブジェクト自体が持っている固有の名前(クラス、モジュールなど)
-    pub fn qual_name(&self) -> Option<&str> {
+    /// Unique name of the object (class, module, etc.) to which the accessor points
+    pub fn qual_name(&self) -> Option<Str> {
         match self {
-            Self::Ident(ident) => ident.qual_name.as_ref().map(|s| &s[..]),
-            _ => None,
+            Self::Attr(attr) => attr.obj.qual_name().map(|obj_qn| {
+                if let Some(id_qn) = attr.ident.qual_name.as_ref() {
+                    Str::from(format!("{obj_qn}.{id_qn}"))
+                } else {
+                    Str::from(format!("{obj_qn}.{}", attr.ident.inspect()))
+                }
+            }),
+            Self::Ident(ident) => ident.qual_name.as_ref().cloned(),
         }
     }
 
@@ -1416,7 +1422,7 @@ impl Call {
             "Del" => Some(OperationKind::Del),
             "assert" => Some(OperationKind::Assert),
             _ => {
-                if self.obj.qual_name() == Some("typing")
+                if self.obj.qual_name() == Some("typing".into())
                     && self
                         .attr_name
                         .as_ref()
@@ -2524,7 +2530,7 @@ impl Expr {
     }
 
     /// 参照するオブジェクト自体が持っている名前(e.g. Int.qual_name == Some("int"), Socket!.qual_name == Some("io.Socket!"))
-    pub fn qual_name(&self) -> Option<&str> {
+    pub fn qual_name(&self) -> Option<Str> {
         match self {
             Expr::Accessor(acc) => acc.qual_name(),
             _ => None,
