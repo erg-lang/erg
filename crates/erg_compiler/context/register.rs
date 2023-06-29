@@ -1884,7 +1884,7 @@ impl Context {
         let mod_ctx = ModuleContext::new(self.clone(), dict! {});
         let mut builder = HIRBuilder::new_with_ctx(mod_ctx);
         let src = Input::file(path.to_path_buf()).read();
-        let mode = if path.to_string_lossy().ends_with(".d.er") {
+        let mode = if path.to_string_lossy().ends_with("d.er") {
             "declare"
         } else {
             "exec"
