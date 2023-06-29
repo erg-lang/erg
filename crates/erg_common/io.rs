@@ -9,7 +9,7 @@ use crate::consts::{ERG_MODE, EXPERIMENTAL_MODE};
 use crate::env::{
     erg_path, erg_py_external_lib_path, erg_pystd_path, erg_std_path, python_site_packages,
 };
-use crate::pathutil::add_postfix_foreach;
+use crate::pathutil::{add_postfix_foreach, remove_postfix};
 use crate::python_util::get_sys_path;
 use crate::random::random;
 use crate::stdin::GLOBAL_STDIN;
@@ -579,15 +579,19 @@ impl Input {
         if let Ok(path) = self.resolve_local_decl(self.dir(), path) {
             return Some(path);
         }
-        // e.g. root: lib/external/pandas.d, path: pandas/core/frame
-        if let Some(mut dir) = self.project_root() {
-            let mut path = path.iter().skip(1).collect::<PathBuf>();
-            if path == Path::new("") {
-                path.extend(dir.iter().last());
-                dir.pop();
-            }
-            if let Ok(path) = self.resolve_local_decl(dir, &path) {
-                return Some(path);
+        // e.g.
+        // root: lib/external/pandas.d, path: pandas/core/frame
+        // -> lib/external/pandas.d/core/frame
+        // root: lib/external/pandas.d, path: pandas
+        // -> lib/external/pandas.d
+        // root: lib/external/pandas.d, path: contextlib
+        // -> NO
+        if let Some((root, first)) = self.project_root().zip(path.components().next()) {
+            if root.ends_with(first) || remove_postfix(root.clone(), ".d").ends_with(first) {
+                let path = path.iter().skip(1).collect::<PathBuf>();
+                if let Ok(path) = self.resolve_local_decl(root, &path) {
+                    return Some(path);
+                }
             }
         }
         let py_roots = [erg_pystd_path, erg_py_external_lib_path];

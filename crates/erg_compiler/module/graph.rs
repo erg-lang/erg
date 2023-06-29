@@ -22,6 +22,7 @@ pub struct ModuleGraph(Graph<PathBuf, ()>);
 
 impl fmt::Display for ModuleGraph {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "ModuleGraph {{")?;
         for node in self.0.iter() {
             writeln!(f, "{} depends on {{", node.id.display())?;
             for dep in node.depends_on.iter() {
@@ -29,7 +30,7 @@ impl fmt::Display for ModuleGraph {
             }
             writeln!(f, "}}, ")?;
         }
-        Ok(())
+        write!(f, "}}")
     }
 }
 
