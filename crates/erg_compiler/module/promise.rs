@@ -13,6 +13,7 @@ pub enum Promise {
         parent: ThreadId,
         handle: JoinHandle<()>,
     },
+    Joining,
     Finished,
 }
 
@@ -22,6 +23,7 @@ impl fmt::Display for Promise {
             Self::Running { handle, .. } => {
                 write!(f, "running on thread {:?}", handle.thread().id())
             }
+            Self::Joining => write!(f, "joining"),
             Self::Finished => write!(f, "finished"),
         }
     }
@@ -38,26 +40,27 @@ impl Promise {
     pub fn is_finished(&self) -> bool {
         match self {
             Self::Finished => true,
+            Self::Joining => false,
             Self::Running { handle, .. } => handle.is_finished(),
         }
     }
 
     pub fn thread_id(&self) -> Option<ThreadId> {
         match self {
-            Self::Finished => None,
+            Self::Finished | Self::Joining => None,
             Self::Running { handle, .. } => Some(handle.thread().id()),
         }
     }
 
     pub fn parent_thread_id(&self) -> Option<ThreadId> {
         match self {
-            Self::Finished => None,
+            Self::Finished | Self::Joining => None,
             Self::Running { parent, .. } => Some(*parent),
         }
     }
 
     pub fn take(&mut self) -> Self {
-        std::mem::replace(self, Self::Finished)
+        std::mem::replace(self, Self::Joining)
     }
 }
 
@@ -88,6 +91,10 @@ impl SharedPromises {
     }
 
     pub fn insert(&self, path: PathBuf, handle: JoinHandle<()>) {
+        if self.promises.borrow().get(&path).is_some() {
+            // panic!("already registered: {}", path.display());
+            return;
+        }
         self.promises
             .borrow_mut()
             .insert(path, Promise::running(handle));
@@ -116,10 +123,15 @@ impl SharedPromises {
                 Promise::Running { parent, handle };
             return Ok(());
         }
-        handle.join()
+        let res = handle.join();
+        *self.promises.borrow_mut().get_mut(path).unwrap() = Promise::Finished;
+        res
     }
 
     pub fn join(&self, path: &Path) -> std::thread::Result<()> {
+        while let Some(Promise::Joining) | None = self.promises.borrow().get(path) {
+            std::thread::yield_now();
+        }
         let promise = self.promises.borrow_mut().get_mut(path).unwrap().take();
         self.join_checked(path, promise)
     }

@@ -2,3 +2,6 @@ b = import "b"
 
 .x = 1
 .f() = b.x
+
+.even 0 = True
+.even n: Nat = b.odd(n - 1)

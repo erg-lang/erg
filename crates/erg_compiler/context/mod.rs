@@ -1019,6 +1019,16 @@ impl Context {
             .or(Some(self))
     }
 
+    pub(crate) fn _get_module_from_stack(&self, path: &Path) -> Option<&Context> {
+        self.get_outer().and_then(|outer| {
+            if outer.kind == ContextKind::Module && outer.module_path() == Some(path) {
+                Some(outer)
+            } else {
+                outer._get_module_from_stack(path)
+            }
+        })
+    }
+
     /// This method is intended to be called __only__ in the top-level module.
     /// `.cfg` is not initialized and is used around.
     pub fn initialize(&mut self) {
