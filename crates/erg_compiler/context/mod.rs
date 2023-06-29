@@ -342,6 +342,10 @@ impl ContextKind {
     pub const fn is_patch(&self) -> bool {
         matches!(self, Self::Patch(_) | Self::GluePatch(_))
     }
+
+    pub const fn is_module(&self) -> bool {
+        matches!(self, Self::Module)
+    }
 }
 
 /// Indicates the mode registered in the Context
@@ -1015,6 +1019,16 @@ impl Context {
             .or(Some(self))
     }
 
+    pub(crate) fn _get_module_from_stack(&self, path: &Path) -> Option<&Context> {
+        self.get_outer().and_then(|outer| {
+            if outer.kind == ContextKind::Module && outer.module_path() == Some(path) {
+                Some(outer)
+            } else {
+                outer._get_module_from_stack(path)
+            }
+        })
+    }
+
     /// This method is intended to be called __only__ in the top-level module.
     /// `.cfg` is not initialized and is used around.
     pub fn initialize(&mut self) {
@@ -1082,7 +1096,11 @@ impl Context {
     pub fn pop_mod(&mut self) -> Option<Context> {
         if self.outer.is_some() {
             log!(err "not in the top-level context");
-            None
+            if self.kind.is_module() {
+                Some(self.pop())
+            } else {
+                None
+            }
         } else {
             log!(info "{}: current namespace: <builtins>", fn_name!());
             // toplevel

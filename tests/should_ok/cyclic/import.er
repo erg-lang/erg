@@ -1,0 +1,6 @@
+a = import "a"
+b = import "b"
+
+assert a.f() == 1
+assert a.even 2
+assert b.odd 3

@@ -12,6 +12,7 @@ use erg_common::consts::{ERG_MODE, PYTHON_MODE};
 use erg_common::dict::Dict;
 use erg_common::env::{is_pystd_main_module, is_std_decl_path};
 use erg_common::erg_util::BUILTIN_ERG_MODS;
+use erg_common::io::Input;
 use erg_common::levenshtein::get_similar_name;
 use erg_common::pathutil::{DirKind, FileKind};
 use erg_common::python_util::BUILTIN_PYTHON_MODS;
@@ -19,7 +20,7 @@ use erg_common::set::Set;
 use erg_common::spawn::spawn_new_thread;
 use erg_common::traits::{Locational, Stream};
 use erg_common::triple::Triple;
-use erg_common::{get_hash, log, set, unique_in_place, Str};
+use erg_common::{dict, get_hash, log, set, unique_in_place, Str};
 
 use ast::{
     ConstIdentifier, Decorator, DefId, Identifier, OperationKind, PolyTypeSpec, PreDeclTypeSpec,
@@ -51,7 +52,7 @@ use RegistrationMode::*;
 
 use super::instantiate::TyVarCache;
 use super::instantiate_spec::ParamKind;
-use super::ParamSpec;
+use super::{ModuleContext, ParamSpec};
 
 pub fn valid_mod_name(name: &str) -> bool {
     !name.is_empty() && !name.starts_with('/') && name.trim() == name
@@ -1850,13 +1851,56 @@ impl Context {
             self.check_mod_vis(path.as_path(), __name__, loc)?;
         }
         if let Some(referrer) = self.cfg.input.path() {
-            let graph = &self.shared.as_ref().unwrap().graph;
-            graph.inc_ref(referrer, path.clone());
-        }
-        if self.mod_registered(&path) {
-            return Ok(path);
+            if self.shared().graph.inc_ref(referrer, path.clone()).is_err() {
+                self.build_cyclic_mod(&path);
+            }
         }
         self.build_erg_mod(path, __name__, loc)
+    }
+
+    /// e.g.
+    /// ```erg
+    /// # a.er
+    /// b = import "b"
+    /// .f() = b.f()
+    /// ```
+    /// ```erg
+    /// # b.er (entry point)
+    /// a = import "a"
+    /// .f() = 1
+    /// print! a.f()
+    /// ```
+    /// ↓
+    /// ```erg
+    /// # a.er (pseudo code)
+    /// b = {
+    ///     # a = import "a"
+    ///     .f() = 1
+    ///     # print! a.f()
+    /// }
+    /// .f() = b.f()
+    /// ```
+    fn build_cyclic_mod(&self, path: &Path) {
+        let mod_ctx = ModuleContext::new(self.clone(), dict! {});
+        let mut builder = HIRBuilder::new_with_ctx(mod_ctx);
+        let src = Input::file(path.to_path_buf()).read();
+        let mode = if path.ends_with(".d.er") {
+            "declare"
+        } else {
+            "exec"
+        };
+        let res = builder.build(src, mode);
+        let hir = match res {
+            Ok(art) => Some(art.object),
+            Err(art) => art.object,
+        };
+        let ctx = builder.pop_mod_ctx().unwrap();
+        let cache = if path.ends_with("d.er") {
+            &self.shared().py_mod_cache
+        } else {
+            &self.shared().mod_cache
+        };
+        cache.register(path.to_path_buf(), hir, ctx);
     }
 
     /// If the path is like `foo/bar`, check if `bar` is a public module (the definition is in `foo/__init__.er`)
@@ -1922,6 +1966,9 @@ impl Context {
         __name__: &Str,
         loc: &impl Locational,
     ) -> CompileResult<PathBuf> {
+        if self.mod_registered(&path) {
+            return Ok(path);
+        }
         let mut cfg = self.cfg.inherit(path.clone());
         let src = cfg
             .input
@@ -1929,7 +1976,7 @@ impl Context {
             .map_err(|_| self.import_err(line!(), __name__, loc))?;
         let name = __name__.clone();
         let _path = path.clone();
-        let shared = self.shared.as_ref().unwrap().clone();
+        let shared = self.shared.as_ref().unwrap().inherit(path.clone());
         let run = move || {
             let mut builder = HIRBuilder::new_with_cache(cfg, name, shared.clone());
             match builder.build(src, "exec") {
@@ -2116,8 +2163,9 @@ impl Context {
             return Ok(path);
         }
         if let Some(referrer) = self.cfg.input.path() {
-            let graph = &self.shared.as_ref().unwrap().graph;
-            graph.inc_ref(referrer, path.clone());
+            if self.shared().graph.inc_ref(referrer, path.clone()).is_err() {
+                self.build_cyclic_mod(&path);
+            }
         }
         if py_mod_cache.get(&path).is_some() {
             return Ok(path);

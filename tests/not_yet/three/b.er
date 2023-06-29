@@ -1,0 +1,3 @@
+c = import "c"
+
+.x = c.f()

@@ -1,9 +1,21 @@
 use std::fmt;
 use std::path::{Path, PathBuf};
 
+use erg_common::set::Set;
 use erg_common::shared::{MappedRwLockReadGuard, RwLockReadGuard, Shared};
 use erg_common::tsort::{tsort, Graph, Node, TopoSortError};
 use erg_common::{normalize_path, set};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum IncRefError {
+    CycleDetected,
+}
+
+impl IncRefError {
+    pub const fn is_cycle_detected(&self) -> bool {
+        matches!(self, Self::CycleDetected)
+    }
+}
 
 #[derive(Debug, Clone, Default)]
 pub struct ModuleGraph(Graph<PathBuf, ()>);
@@ -40,6 +52,23 @@ impl ModuleGraph {
         self.0.iter().find(|n| n.id == path)
     }
 
+    fn parents(&self, path: &Path) -> Option<&Set<PathBuf>> {
+        let path = normalize_path(path.to_path_buf());
+        self.0.iter().find(|n| n.id == path).map(|n| &n.depends_on)
+    }
+
+    pub fn ancestors(&self, path: &Path) -> Set<PathBuf> {
+        let path = normalize_path(path.to_path_buf());
+        let mut ancestors = set! {};
+        if let Some(parents) = self.parents(&path) {
+            for parent in parents.iter() {
+                ancestors.insert(parent.clone());
+                ancestors.extend(self.ancestors(parent));
+            }
+        }
+        ancestors
+    }
+
     pub fn add_node_if_none(&mut self, path: &Path) {
         let path = normalize_path(path.to_path_buf());
         if self.0.iter().all(|n| n.id != path) {
@@ -48,17 +77,22 @@ impl ModuleGraph {
         }
     }
 
-    pub fn inc_ref(&mut self, referrer: &Path, depends_on: PathBuf) {
+    /// returns Err (and do nothing) if this operation makes a cycle
+    pub fn inc_ref(&mut self, referrer: &Path, depends_on: PathBuf) -> Result<(), IncRefError> {
         let referrer = normalize_path(referrer.to_path_buf());
         let depends_on = normalize_path(depends_on);
+        if self.ancestors(&depends_on).contains(&referrer) && referrer != depends_on {
+            return Err(IncRefError::CycleDetected);
+        }
         if let Some(node) = self.0.iter_mut().find(|n| n.id == referrer) {
             if referrer == depends_on {
-                return;
+                return Ok(());
             }
             node.push_dep(depends_on);
         } else {
             unreachable!("node not found: {}", referrer.display());
         }
+        Ok(())
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &Node<PathBuf, ()>> {
@@ -119,12 +153,16 @@ impl SharedModuleGraph {
         }
     }
 
+    pub fn ancestors(&self, path: &Path) -> Set<PathBuf> {
+        self.0.borrow().ancestors(path)
+    }
+
     pub fn add_node_if_none(&self, path: &Path) {
         self.0.borrow_mut().add_node_if_none(path);
     }
 
-    pub fn inc_ref(&self, referrer: &Path, depends_on: PathBuf) {
-        self.0.borrow_mut().inc_ref(referrer, depends_on);
+    pub fn inc_ref(&self, referrer: &Path, depends_on: PathBuf) -> Result<(), IncRefError> {
+        self.0.borrow_mut().inc_ref(referrer, depends_on)
     }
 
     pub fn ref_inner(&self) -> RwLockReadGuard<ModuleGraph> {

@@ -1554,6 +1554,8 @@ impl Locational for Dummy {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct VarSignature {
     pub ident: Identifier,
+    /// if this flag is `true`, the variable is stored as `global`
+    pub global: bool,
     pub t_spec: Option<TypeSpecWithOp>,
 }
 
@@ -1587,7 +1589,19 @@ impl HasType for VarSignature {
 
 impl VarSignature {
     pub const fn new(ident: Identifier, t_spec: Option<TypeSpecWithOp>) -> Self {
-        Self { ident, t_spec }
+        Self {
+            ident,
+            global: false,
+            t_spec,
+        }
+    }
+
+    pub const fn global(ident: Identifier, t_spec: Option<TypeSpecWithOp>) -> Self {
+        Self {
+            ident,
+            global: true,
+            t_spec,
+        }
     }
 
     pub fn inspect(&self) -> &Str {
