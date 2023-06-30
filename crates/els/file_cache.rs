@@ -295,4 +295,12 @@ impl FileCache {
         }
         Ok(())
     }
+
+    pub fn entries(&self) -> Vec<NormalizedUrl> {
+        self.files.borrow().keys().cloned().collect()
+    }
+
+    pub fn get_ver(&self, uri: &NormalizedUrl) -> Option<i32> {
+        self.files.borrow().get(uri).map(|x| x.ver)
+    }
 }

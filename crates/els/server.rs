@@ -526,6 +526,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             receivers.execute_command,
             Self::handle_execute_command,
         );
+        self.start_auto_diagnostics();
     }
 
     fn exit(&self) -> ELSResult<()> {

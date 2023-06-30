@@ -1,16 +1,20 @@
-use erg_compiler::erg_parser::ast::Module;
-use erg_compiler::erg_parser::parse::Parsable;
-use serde_json::json;
+use std::thread::sleep;
+use std::time::Duration;
 
+use erg_common::dict::Dict;
+use erg_common::fn_name;
+use erg_common::spawn::spawn_new_thread;
 use erg_common::style::*;
 use erg_common::traits::Stream;
-
 use erg_compiler::artifact::BuildRunnable;
+use erg_compiler::erg_parser::ast::Module;
+use erg_compiler::erg_parser::parse::Parsable;
 use erg_compiler::error::CompileErrors;
 
 use lsp_types::{
     Diagnostic, DiagnosticSeverity, NumberOrString, Position, PublishDiagnosticsParams, Range, Url,
 };
+use serde_json::json;
 
 use crate::diff::{ASTDiff, HIRDiff};
 use crate::server::{send, send_log, AnalysisResult, DefaultFeatures, ELSResult, Server};
@@ -206,5 +210,30 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             send_log("the client does not support diagnostics")?;
         }
         Ok(())
+    }
+
+    /// Periodically send diagnostics without a request from the server.
+    /// This is necessary to perform reactive error highlighting in editors such as Vim, where no action is taken until the buffer is saved.
+    pub(crate) fn start_auto_diagnostics(&mut self) {
+        let mut _self = self.clone();
+        spawn_new_thread(
+            move || {
+                let mut file_vers = Dict::<NormalizedUrl, i32>::new();
+                loop {
+                    for uri in _self.file_cache.entries() {
+                        let latest_ver = _self.file_cache.get_ver(&uri);
+                        let ver = file_vers.get(&uri);
+                        if latest_ver.as_ref() != ver {
+                            if let Ok(code) = _self.file_cache.get_entire_code(&uri) {
+                                let _ = _self.check_file(uri.clone(), code);
+                                file_vers.insert(uri, latest_ver.unwrap());
+                            }
+                        }
+                    }
+                    sleep(Duration::from_millis(500));
+                }
+            },
+            fn_name!(),
+        );
     }
 }
