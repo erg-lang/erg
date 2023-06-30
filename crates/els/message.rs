@@ -80,7 +80,7 @@ impl ShowMessage {
 
 #[derive(Serialize)]
 pub struct LSPResult<R: Serialize> {
-    jsonrpc: f32,
+    jsonrpc: String,
     id: i64,
     result: R,
 }
@@ -88,7 +88,7 @@ pub struct LSPResult<R: Serialize> {
 impl<R: Serialize> LSPResult<R> {
     pub fn new(id: i64, result: R) -> Self {
         Self {
-            jsonrpc: 2.0,
+            jsonrpc: "2.0".into(),
             id,
             result,
         }
