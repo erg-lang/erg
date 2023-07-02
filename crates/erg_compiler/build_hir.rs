@@ -179,6 +179,11 @@ impl HIRBuilder {
         self.check(artifact.ast, mode)
     }
 
+    pub fn build_module(&mut self) -> Result<CompleteArtifact, IncompleteArtifact> {
+        let src = self.cfg_mut().input.read();
+        self.build(src, "exec")
+    }
+
     pub fn pop_mod_ctx(&mut self) -> Option<ModuleContext> {
         self.lowerer.pop_mod_ctx()
     }

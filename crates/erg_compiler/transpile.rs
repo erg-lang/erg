@@ -223,6 +223,11 @@ impl Transpiler {
         Ok(CompleteArtifact::new(script, artifact.warns))
     }
 
+    pub fn transpile_module(&mut self) -> Result<CompleteArtifact<PyScript>, ErrorArtifact> {
+        let src = self.cfg.input.read();
+        self.transpile(src, "exec")
+    }
+
     fn build_link_desugar(
         &mut self,
         src: String,

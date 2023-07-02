@@ -103,4 +103,9 @@ pub trait Buildable<T = HIR> {
     fn get_context(&self) -> Option<&ModuleContext>;
 }
 
-pub trait BuildRunnable<T = HIR>: Buildable<T> + Runnable + 'static {}
+pub trait BuildRunnable<T = HIR>: Buildable<T> + Runnable + 'static {
+    fn build_module(&mut self) -> Result<CompleteArtifact<T>, IncompleteArtifact<T>> {
+        let src = self.cfg_mut().input.read();
+        self.build(src, "exec")
+    }
+}

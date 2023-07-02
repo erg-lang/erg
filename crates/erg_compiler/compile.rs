@@ -239,6 +239,11 @@ impl Compiler {
         Ok(CompleteArtifact::new(codeobj, arti.warns))
     }
 
+    pub fn compile_module(&mut self) -> Result<CompleteArtifact<CodeObj>, ErrorArtifact> {
+        let src = self.cfg.input.read();
+        self.compile(src, "exec")
+    }
+
     pub fn eval_compile(
         &mut self,
         src: String,
