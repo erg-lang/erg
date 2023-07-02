@@ -138,7 +138,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         for err in errors.into_iter() {
             let loc = err.core.get_loc_with_fallback();
             let res_uri = if let Some(path) = err.input.path() {
-                Url::from_file_path(path.canonicalize().unwrap())
+                Url::from_file_path(path.canonicalize().unwrap_or(path.to_path_buf()))
             } else {
                 Ok(uri.clone().raw())
             };

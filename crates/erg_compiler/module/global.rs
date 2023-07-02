@@ -41,7 +41,7 @@ impl SharedCompilerResource {
                 graph,
                 cfg.input
                     .path()
-                    .map_or(PathBuf::default(), |p| p.canonicalize().unwrap()),
+                    .map_or(PathBuf::default(), |p| p.canonicalize().unwrap_or_default()),
             ),
             errors: SharedCompileErrors::new(),
             warns: SharedCompileWarnings::new(),
