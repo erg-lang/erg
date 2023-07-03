@@ -155,7 +155,11 @@ pub fn unique_in_place<T: Eq + std::hash::Hash + Clone>(v: &mut Vec<T>) {
 /// at least, this is necessary for Windows and macOS
 pub fn normalize_path(path: PathBuf) -> PathBuf {
     let verbatim_replaced = path.to_str().unwrap().replace("\\\\?\\", "");
-    let lower = verbatim_replaced.to_lowercase();
+    let lower = if cfg!(windows) {
+        verbatim_replaced.to_lowercase()
+    } else {
+        verbatim_replaced
+    };
     PathBuf::from(lower)
 }
 

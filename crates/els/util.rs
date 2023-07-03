@@ -42,14 +42,21 @@ impl TryFrom<&Path> for NormalizedUrl {
 }
 
 impl NormalizedUrl {
+    fn normalize(url: &str) -> String {
+        // FIXME: Some directories are case-sensitive even in Windows
+        if cfg!(windows) {
+            url.replace("c%3A", "C:").to_lowercase()
+        } else {
+            url.to_string()
+        }
+    }
+
     pub fn new(url: Url) -> NormalizedUrl {
-        Self(Url::parse(&url.as_str().replace("c%3A", "C:").to_lowercase()).unwrap())
+        Self(Url::parse(&Self::normalize(url.as_str())).unwrap())
     }
 
     pub fn parse(uri: &str) -> ELSResult<NormalizedUrl> {
-        Ok(NormalizedUrl(Url::parse(
-            &uri.replace("c%3A", "C:").to_lowercase(),
-        )?))
+        Ok(NormalizedUrl(Url::parse(&Self::normalize(uri))?))
     }
 
     pub fn from_file_path<P: AsRef<Path>>(path: P) -> ELSResult<Self> {
