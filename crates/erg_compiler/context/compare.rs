@@ -625,8 +625,16 @@ impl Context {
             }
             // ({I: Int | True} :> Int) == true, ({N: Nat | ...} :> Int) == false, ({I: Int | I >= 0} :> Int) == false
             (Refinement(l), r) => {
-                if l.pred.mentions(&l.var) && l.pred.can_be_false() {
-                    return false;
+                if l.pred.mentions(&l.var) {
+                    match l.pred.can_be_false() {
+                        Some(true) => {
+                            return false;
+                        }
+                        None => {
+                            log!(err "evaluating {}", l.pred);
+                        }
+                        Some(false) => {}
+                    }
                 }
                 self.supertype_of(&l.t, r)
             }
@@ -1420,8 +1428,19 @@ impl Context {
                 Pred::GreaterEqual { .. } | Pred::LessEqual { .. } | Pred::NotEqual { .. },
             )
             | (Pred::LessEqual { .. }, Pred::GreaterEqual { .. })
-            | (Pred::GreaterEqual { .. }, Pred::LessEqual { .. })
-            | (Pred::NotEqual { .. }, Pred::Equal { .. }) => false,
+            | (Pred::GreaterEqual { .. }, Pred::LessEqual { .. }) => false,
+            // I != 1 == All - {1} :> I == 2
+            (Pred::NotEqual { rhs: rhs_ne, .. }, Pred::Equal { rhs: rhs_eq, .. }) => {
+                rhs_ne != rhs_eq
+            }
+            // I != 1 == All - {1} :> I >= 2
+            (Pred::NotEqual { rhs: rhs_ne, .. }, Pred::GreaterEqual { rhs: rhs_ge, .. }) => {
+                self.try_cmp(rhs_ne, rhs_ge).is_some_and(|ord| ord.is_lt())
+            }
+            // I != 1 == All - {1} :> I <= 0
+            (Pred::NotEqual { rhs: rhs_ne, .. }, Pred::LessEqual { rhs: rhs_le, .. }) => {
+                self.try_cmp(rhs_ne, rhs_le).is_some_and(|ord| ord.is_gt())
+            }
             (Pred::NotEqual { rhs, .. }, Pred::NotEqual { rhs: rhs2, .. }) => self
                 .try_cmp(rhs, rhs2)
                 .map(|ord| ord.canbe_eq())

@@ -290,14 +290,14 @@ impl Predicate {
         }
     }
 
-    pub fn can_be_false(&self) -> bool {
+    pub fn can_be_false(&self) -> Option<bool> {
         match self {
-            Self::Value(l) => matches!(l, ValueObj::Bool(false)),
-            Self::Const(_) => todo!(),
-            Self::Or(lhs, rhs) => lhs.can_be_false() || rhs.can_be_false(),
-            Self::And(lhs, rhs) => lhs.can_be_false() && rhs.can_be_false(),
-            Self::Not(pred) => !pred.can_be_false(),
-            _ => true,
+            Self::Value(l) => Some(matches!(l, ValueObj::Bool(false))),
+            Self::Const(_) => None,
+            Self::Or(lhs, rhs) => Some(lhs.can_be_false()? || rhs.can_be_false()?),
+            Self::And(lhs, rhs) => Some(lhs.can_be_false()? && rhs.can_be_false()?),
+            Self::Not(pred) => Some(!pred.can_be_false()?),
+            _ => Some(true),
         }
     }
 

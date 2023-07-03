@@ -209,6 +209,11 @@ fn exec_record() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_refinement() -> Result<(), ()> {
+    expect_success("tests/should_ok/refinement.er", 0)
+}
+
+#[test]
 fn exec_return() -> Result<(), ()> {
     expect_success("tests/should_ok/return.er", 0)
 }
@@ -424,8 +429,8 @@ fn exec_quantified_err() -> Result<(), ()> {
 }
 
 #[test]
-fn exec_refinement() -> Result<(), ()> {
-    expect_failure("tests/should_err/refinement.er", 0, 4)
+fn exec_refinement_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/refinement.er", 0, 8)
 }
 
 #[test]
