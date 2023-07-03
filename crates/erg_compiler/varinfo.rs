@@ -329,4 +329,8 @@ impl VarInfo {
             AbsLocation::unknown(),
         )
     }
+
+    pub fn is_untyped_parameter(&self) -> bool {
+        self.kind.is_parameter() && self.t.is_unbound_var()
+    }
 }

@@ -552,7 +552,7 @@ impl Context {
     ) -> Triple<VarInfo, TyCheckError> {
         // get_attr_info(?T, aaa) == None
         // => ?T(<: Structural({ .aaa = ?U }))
-        if self.in_subr() && PYTHON_MODE {
+        if PYTHON_MODE && obj.var_info().is_some_and(|vi| vi.is_untyped_parameter()) {
             let t = free_var(self.level, Constraint::new_type_of(Type));
             if let Some(fv) = obj.ref_t().as_free() {
                 if fv.get_sub().is_some() {
@@ -894,7 +894,7 @@ impl Context {
     ) -> SingleTyCheckResult<VarInfo> {
         // search_method_info(?T, aaa, pos_args: [1, 2]) == None
         // => ?T(<: Structural({ .aaa = (self: ?T, ?U, ?V) -> ?W }))
-        if PYTHON_MODE && self.in_subr() {
+        if PYTHON_MODE && obj.var_info().is_some_and(|vi| vi.is_untyped_parameter()) {
             let nd_params = pos_args
                 .iter()
                 .map(|_| ParamTy::Pos(free_var(self.level, Constraint::new_type_of(Type))))
@@ -2557,10 +2557,6 @@ impl Context {
         } else {
             None
         }
-    }
-
-    pub(crate) fn in_subr(&self) -> bool {
-        self.kind.is_subr() || self.get_outer().map_or(false, |ctx| ctx.in_subr())
     }
 
     pub(crate) fn gen_type(&self, ident: &ast::Identifier) -> Type {

@@ -2529,6 +2529,14 @@ impl Expr {
         }
     }
 
+    pub fn var_info(&self) -> Option<&VarInfo> {
+        match self {
+            Expr::Accessor(acc) => Some(acc.var_info()),
+            Expr::TypeAsc(t_asc) => t_asc.expr.var_info(),
+            _ => None,
+        }
+    }
+
     /// 参照するオブジェクト自体が持っている名前(e.g. Int.qual_name == Some("int"), Socket!.qual_name == Some("io.Socket!"))
     pub fn qual_name(&self) -> Option<Str> {
         match self {
