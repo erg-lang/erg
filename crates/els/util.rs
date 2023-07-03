@@ -2,6 +2,7 @@ use std::fmt;
 use std::fs::{metadata, Metadata};
 use std::path::{Path, PathBuf};
 
+use erg_common::consts::CASE_SENSITIVE;
 use erg_common::normalize_path;
 use erg_common::traits::{DequeStream, Locational};
 
@@ -44,8 +45,10 @@ impl TryFrom<&Path> for NormalizedUrl {
 impl NormalizedUrl {
     fn normalize(url: &str) -> String {
         // FIXME: Some directories are case-sensitive even in Windows
-        if cfg!(windows) {
+        if cfg!(windows) && !CASE_SENSITIVE {
             url.replace("c%3A", "C:").to_lowercase()
+        } else if !CASE_SENSITIVE {
+            url.to_lowercase()
         } else {
             url.to_string()
         }

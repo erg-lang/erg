@@ -15,5 +15,18 @@ fn main() -> std::io::Result<()> {
     println!("cargo:rustc-env=GIT_HASH_SHORT={git_hash_short}");
     println!("cargo:rustc-env=BUILD_DATE={now}");
     println!("cargo:rustc-env=CARGO_ERG_PATH={}", erg_path.display());
+    let case_sensitive = if cfg!(windows) {
+        false
+    } else if cfg!(target_os = "macos") {
+        let command = Command::new("diskutil")
+            .args(["info", "/"])
+            .output()
+            .expect("failed to get the file system type");
+        let output = String::from_utf8_lossy(&command.stdout);
+        output.contains("Case-sensitive")
+    } else {
+        true
+    };
+    println!("cargo:rustc-env=CASE_SENSITIVE={}", case_sensitive);
     Ok(())
 }
