@@ -4,6 +4,7 @@ use std::ops::{BitAnd, BitOr, Not};
 #[allow(unused_imports)]
 use erg_common::log;
 use erg_common::set::Set;
+use erg_common::traits::LimitedDisplay;
 use erg_common::{set, Str};
 
 use super::free::{Constraint, HasLevel};
@@ -50,6 +51,53 @@ impl fmt::Display for Predicate {
             Self::Or(l, r) => write!(f, "({l}) or ({r})"),
             Self::And(l, r) => write!(f, "({l}) and ({r})"),
             Self::Not(p) => write!(f, "not ({p})"),
+        }
+    }
+}
+
+impl LimitedDisplay for Predicate {
+    fn limited_fmt(&self, f: &mut std::fmt::Formatter<'_>, limit: usize) -> std::fmt::Result {
+        if limit == 0 {
+            return write!(f, "...");
+        }
+        match self {
+            Self::Value(v) => v.limited_fmt(f, limit),
+            Self::Const(c) => write!(f, "{c}"),
+            Self::Equal { lhs, rhs } => {
+                write!(f, "{lhs} == ")?;
+                rhs.limited_fmt(f, limit - 1)
+            }
+            Self::GreaterEqual { lhs, rhs } => {
+                write!(f, "{lhs} >= ")?;
+                rhs.limited_fmt(f, limit - 1)
+            }
+            Self::LessEqual { lhs, rhs } => {
+                write!(f, "{lhs} <= ")?;
+                rhs.limited_fmt(f, limit - 1)
+            }
+            Self::NotEqual { lhs, rhs } => {
+                write!(f, "{lhs} != ")?;
+                rhs.limited_fmt(f, limit - 1)
+            }
+            Self::Or(l, r) => {
+                write!(f, "(")?;
+                l.limited_fmt(f, limit - 1)?;
+                write!(f, ") or (")?;
+                r.limited_fmt(f, limit - 1)?;
+                write!(f, ")")
+            }
+            Self::And(l, r) => {
+                write!(f, "(")?;
+                l.limited_fmt(f, limit - 1)?;
+                write!(f, ") and (")?;
+                r.limited_fmt(f, limit - 1)?;
+                write!(f, ")")
+            }
+            Self::Not(p) => {
+                write!(f, "not (")?;
+                p.limited_fmt(f, limit - 1)?;
+                write!(f, ")")
+            }
         }
     }
 }

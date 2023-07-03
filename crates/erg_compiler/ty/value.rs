@@ -14,6 +14,7 @@ use erg_common::io::Input;
 use erg_common::python_util::PythonVersion;
 use erg_common::serialize::*;
 use erg_common::set::Set;
+use erg_common::traits::LimitedDisplay;
 use erg_common::{dict, fmt_iter, impl_display_from_debug, log, switch_lang};
 use erg_common::{ArcArray, Str};
 use erg_parser::ast::{ConstArgs, ConstExpr};
@@ -27,6 +28,7 @@ use super::codeobj::CodeObj;
 use super::constructors::{array_t, dict_t, refinement, set_t, tuple_t};
 use super::typaram::TyParam;
 use super::{ConstSubr, Field, HasType, Predicate, Type};
+use super::{CONTAINER_OMIT_THRESHOLD, STR_OMIT_THRESHOLD};
 
 pub struct EvalValueError(pub Box<ErrorCore>);
 
@@ -212,6 +214,14 @@ impl fmt::Display for GenTypeObj {
     }
 }
 
+impl LimitedDisplay for GenTypeObj {
+    fn limited_fmt(&self, f: &mut std::fmt::Formatter<'_>, limit: usize) -> std::fmt::Result {
+        write!(f, "<")?;
+        self.typ().limited_fmt(f, limit)?;
+        write!(f, ">")
+    }
+}
+
 impl GenTypeObj {
     pub fn class(t: Type, require: Option<TypeObj>, impls: Option<TypeObj>) -> Self {
         GenTypeObj::Class(ClassTypeObj::new(t, require, impls))
@@ -384,6 +394,31 @@ impl fmt::Display for TypeObj {
     }
 }
 
+impl LimitedDisplay for TypeObj {
+    fn limited_fmt(&self, f: &mut std::fmt::Formatter<'_>, limit: usize) -> std::fmt::Result {
+        match self {
+            TypeObj::Builtin { t, .. } => {
+                if cfg!(feature = "debug") {
+                    write!(f, "<type ")?;
+                    t.limited_fmt(f, limit - 1)?;
+                    write!(f, "{t}>")
+                } else {
+                    t.limited_fmt(f, limit - 1)
+                }
+            }
+            TypeObj::Generated(t) => {
+                if cfg!(feature = "debug") {
+                    write!(f, "<user type ")?;
+                    t.limited_fmt(f, limit - 1)?;
+                    write!(f, "{t}>")
+                } else {
+                    t.limited_fmt(f, limit - 1)
+                }
+            }
+        }
+    }
+}
+
 impl TypeObj {
     pub fn builtin_type(t: Type) -> Self {
         TypeObj::Builtin {
@@ -542,6 +577,98 @@ impl fmt::Debug for ValueObj {
 }
 
 impl_display_from_debug!(ValueObj);
+
+impl LimitedDisplay for ValueObj {
+    fn limited_fmt(&self, f: &mut std::fmt::Formatter<'_>, limit: usize) -> std::fmt::Result {
+        if limit == 0 {
+            return write!(f, "...");
+        }
+        match self {
+            Self::Str(s) => {
+                if s.len() >= STR_OMIT_THRESHOLD {
+                    write!(f, "...")
+                } else {
+                    write!(f, "\"{}\"", s.escape())
+                }
+            }
+            Self::Array(arr) => {
+                write!(f, "[")?;
+                for (i, item) in arr.iter().enumerate() {
+                    if i != 0 {
+                        write!(f, ", ")?;
+                    }
+                    if i >= CONTAINER_OMIT_THRESHOLD {
+                        write!(f, "...")?;
+                        break;
+                    }
+                    item.limited_fmt(f, limit - 1)?;
+                }
+                write!(f, "]")
+            }
+            Self::Dict(dict) => {
+                write!(f, "{{")?;
+                for (i, (k, v)) in dict.iter().enumerate() {
+                    if i != 0 {
+                        write!(f, ", ")?;
+                    }
+                    if i >= CONTAINER_OMIT_THRESHOLD {
+                        write!(f, "...")?;
+                        break;
+                    }
+                    k.limited_fmt(f, limit - 1)?;
+                    write!(f, ": ")?;
+                    v.limited_fmt(f, limit - 1)?;
+                }
+                write!(f, "}}")
+            }
+            Self::Tuple(tup) => {
+                write!(f, "(")?;
+                for (i, item) in tup.iter().enumerate() {
+                    if i != 0 {
+                        write!(f, ", ")?;
+                    }
+                    if i >= CONTAINER_OMIT_THRESHOLD {
+                        write!(f, "...")?;
+                        break;
+                    }
+                    item.limited_fmt(f, limit - 1)?;
+                }
+                write!(f, ")")
+            }
+            Self::Set(st) => {
+                write!(f, "{{")?;
+                for (i, item) in st.iter().enumerate() {
+                    if i != 0 {
+                        write!(f, ", ")?;
+                    }
+                    if i >= CONTAINER_OMIT_THRESHOLD {
+                        write!(f, "...")?;
+                        break;
+                    }
+                    item.limited_fmt(f, limit - 1)?;
+                }
+                write!(f, "}}")
+            }
+            Self::Record(rec) => {
+                write!(f, "{{")?;
+                for (i, (field, v)) in rec.iter().enumerate() {
+                    if i != 0 {
+                        write!(f, "; ")?;
+                    }
+                    if i >= CONTAINER_OMIT_THRESHOLD {
+                        write!(f, "...")?;
+                        break;
+                    }
+                    write!(f, "{field} = ")?;
+                    v.limited_fmt(f, limit - 1)?;
+                }
+                write!(f, "}}")
+            }
+            Self::Type(typ) => typ.limited_fmt(f, limit),
+            _ => write!(f, "{self}"),
+        }
+    }
+}
 
 impl Eq for ValueObj {}
 

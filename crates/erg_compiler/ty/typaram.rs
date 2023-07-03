@@ -16,8 +16,8 @@ use super::free::{
     CanbeFree, Constraint, FreeKind, FreeTyParam, FreeTyVar, HasLevel, Level, GENERIC_LEVEL,
 };
 use super::value::ValueObj;
-use super::Type;
 use super::{ConstSubr, Field, ParamTy, UserConstSubr};
+use super::{Type, CONTAINER_OMIT_THRESHOLD};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
@@ -308,10 +308,10 @@ impl LimitedDisplay for TyParam {
             return write!(f, "...");
         }
         match self {
-            Self::Value(v) => write!(f, "{v}"),
+            Self::Value(v) => v.limited_fmt(f, limit),
             Self::Failure => write!(f, "<Failure>"),
-            Self::Type(t) => t.limited_fmt(f, limit - 1),
-            Self::FreeVar(fv) => fv.limited_fmt(f, limit - 1),
+            Self::Type(t) => t.limited_fmt(f, limit),
+            Self::FreeVar(fv) => fv.limited_fmt(f, limit),
             Self::UnaryOp { op, val } => {
                 write!(f, "{op}")?;
                 val.limited_fmt(f, limit - 1)
@@ -349,6 +349,10 @@ impl LimitedDisplay for TyParam {
                     if i > 0 {
                         write!(f, ", ")?;
                     }
+                    if i >= CONTAINER_OMIT_THRESHOLD {
+                        write!(f, "...")?;
+                        break;
+                    }
                     t.limited_fmt(f, limit - 1)?;
                 }
                 write!(f, "]")
@@ -358,6 +362,10 @@ impl LimitedDisplay for TyParam {
                 for (i, t) in st.iter().enumerate() {
                     if i > 0 {
                         write!(f, ", ")?;
+                    }
+                    if i >= CONTAINER_OMIT_THRESHOLD {
+                        write!(f, "...")?;
+                        break;
                     }
                     t.limited_fmt(f, limit - 1)?;
                 }
@@ -369,6 +377,10 @@ impl LimitedDisplay for TyParam {
                     if i > 0 {
                         write!(f, ", ")?;
                     }
+                    if i >= CONTAINER_OMIT_THRESHOLD {
+                        write!(f, "...")?;
+                        break;
+                    }
                     k.limited_fmt(f, limit - 1)?;
                     write!(f, ": ")?;
                     v.limited_fmt(f, limit - 1)?;
@@ -377,11 +389,15 @@ impl LimitedDisplay for TyParam {
             }
             Self::Record(rec) => {
                 write!(f, "{{")?;
-                for (i, (k, v)) in rec.iter().enumerate() {
+                for (i, (field, v)) in rec.iter().enumerate() {
                     if i > 0 {
                         write!(f, "; ")?;
                     }
-                    write!(f, "{k} = ")?;
+                    if i >= CONTAINER_OMIT_THRESHOLD {
+                        write!(f, "...")?;
+                        break;
+                    }
+                    write!(f, "{field} = ")?;
                     v.limited_fmt(f, limit - 1)?;
                 }
                 write!(f, "}}")
@@ -392,6 +408,10 @@ impl LimitedDisplay for TyParam {
                 for (i, t) in tuple.iter().enumerate() {
                     if i > 0 {
                         write!(f, ", ")?;
+                    }
+                    if i >= CONTAINER_OMIT_THRESHOLD {
+                        write!(f, "...")?;
+                        break;
                     }
                     t.limited_fmt(f, limit - 1)?;
                 }

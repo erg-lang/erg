@@ -41,6 +41,9 @@ pub use vis::*;
 
 use self::constructors::subr_t;
 
+pub const STR_OMIT_THRESHOLD: usize = 16;
+pub const CONTAINER_OMIT_THRESHOLD: usize = 8;
+
 /// cloneのコストがあるためなるべく.ref_tを使うようにすること
 /// いくつかの構造体は直接Typeを保持していないので、その場合は.tを使う
 #[allow(unused_variables)]
@@ -584,9 +587,12 @@ impl LimitedDisplay for RefinementType {
             .all(|p| p.is_equal() && p.subject() == first_subj);
         if is_simple_type && is_simple_preds {
             write!(f, "{{")?;
-            for pred in self.pred.ors() {
+            for (i, pred) in self.pred.ors().into_iter().enumerate() {
+                if i > 0 {
+                    write!(f, ", ")?;
+                }
                 let (_, rhs) = enum_unwrap!(pred, Predicate::Equal { lhs, rhs });
-                write!(f, "{rhs}, ")?;
+                rhs.limited_fmt(f, limit - 1)?;
             }
             write!(f, "}}")?;
             Ok(())
@@ -1059,11 +1065,14 @@ impl LimitedDisplay for Type {
             }
             Self::Record(attrs) => {
                 write!(f, "{{")?;
-                if let Some((field, t)) = attrs.iter().next() {
-                    write!(f, "{field} = ")?;
-                    t.limited_fmt(f, limit - 1)?;
-                }
-                for (field, t) in attrs.iter().skip(1) {
+                for (i, (field, t)) in attrs.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, "; ")?;
+                    }
+                    if i >= CONTAINER_OMIT_THRESHOLD {
+                        write!(f, "...")?;
+                        break;
+                    }
                     write!(f, "; {field} = ")?;
                     t.limited_fmt(f, limit - 1)?;
                 }
