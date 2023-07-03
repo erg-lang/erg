@@ -1,6 +1,7 @@
 use std::thread::sleep;
 use std::time::Duration;
 
+use erg_common::consts::PYTHON_MODE;
 use erg_common::dict::Dict;
 use erg_common::fn_name;
 use erg_common::spawn::spawn_new_thread;
@@ -168,11 +169,12 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             } else {
                 DiagnosticSeverity::ERROR
             };
+            let source = if PYTHON_MODE { "pylyzer" } else { "els" };
             let diag = Diagnostic::new(
                 Range::new(start, end),
                 Some(severity),
                 Some(NumberOrString::String(format!("E{}", err.core.errno))),
-                None,
+                Some(source.to_string()),
                 message,
                 None,
                 None,
