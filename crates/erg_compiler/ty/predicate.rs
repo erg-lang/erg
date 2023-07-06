@@ -56,7 +56,7 @@ impl fmt::Display for Predicate {
 }
 
 impl LimitedDisplay for Predicate {
-    fn limited_fmt(&self, f: &mut std::fmt::Formatter<'_>, limit: usize) -> std::fmt::Result {
+    fn limited_fmt<W: std::fmt::Write>(&self, f: &mut W, limit: isize) -> std::fmt::Result {
         if limit == 0 {
             return write!(f, "...");
         }

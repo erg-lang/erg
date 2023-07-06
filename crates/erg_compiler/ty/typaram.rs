@@ -303,7 +303,7 @@ impl fmt::Display for TyParam {
 }
 
 impl LimitedDisplay for TyParam {
-    fn limited_fmt(&self, f: &mut fmt::Formatter<'_>, limit: usize) -> fmt::Result {
+    fn limited_fmt<W: std::fmt::Write>(&self, f: &mut W, limit: isize) -> fmt::Result {
         if limit == 0 {
             return write!(f, "...");
         }
@@ -349,7 +349,7 @@ impl LimitedDisplay for TyParam {
                     if i > 0 {
                         write!(f, ", ")?;
                     }
-                    if i >= CONTAINER_OMIT_THRESHOLD {
+                    if limit.is_positive() && i >= CONTAINER_OMIT_THRESHOLD {
                         write!(f, "...")?;
                         break;
                     }
@@ -363,7 +363,7 @@ impl LimitedDisplay for TyParam {
                     if i > 0 {
                         write!(f, ", ")?;
                     }
-                    if i >= CONTAINER_OMIT_THRESHOLD {
+                    if limit.is_positive() && i >= CONTAINER_OMIT_THRESHOLD {
                         write!(f, "...")?;
                         break;
                     }
@@ -377,7 +377,7 @@ impl LimitedDisplay for TyParam {
                     if i > 0 {
                         write!(f, ", ")?;
                     }
-                    if i >= CONTAINER_OMIT_THRESHOLD {
+                    if limit.is_positive() && i >= CONTAINER_OMIT_THRESHOLD {
                         write!(f, "...")?;
                         break;
                     }
@@ -393,7 +393,7 @@ impl LimitedDisplay for TyParam {
                     if i > 0 {
                         write!(f, "; ")?;
                     }
-                    if i >= CONTAINER_OMIT_THRESHOLD {
+                    if limit.is_positive() && i >= CONTAINER_OMIT_THRESHOLD {
                         write!(f, "...")?;
                         break;
                     }
@@ -412,7 +412,7 @@ impl LimitedDisplay for TyParam {
                     if i > 0 {
                         write!(f, ", ")?;
                     }
-                    if i >= CONTAINER_OMIT_THRESHOLD {
+                    if limit.is_positive() && i >= CONTAINER_OMIT_THRESHOLD {
                         write!(f, "...")?;
                         break;
                     }

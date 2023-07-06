@@ -215,7 +215,7 @@ impl fmt::Display for GenTypeObj {
 }
 
 impl LimitedDisplay for GenTypeObj {
-    fn limited_fmt(&self, f: &mut std::fmt::Formatter<'_>, limit: usize) -> std::fmt::Result {
+    fn limited_fmt<W: std::fmt::Write>(&self, f: &mut W, limit: isize) -> std::fmt::Result {
         write!(f, "<")?;
         self.typ().limited_fmt(f, limit)?;
         write!(f, ">")
@@ -395,7 +395,7 @@ impl fmt::Display for TypeObj {
 }
 
 impl LimitedDisplay for TypeObj {
-    fn limited_fmt(&self, f: &mut std::fmt::Formatter<'_>, limit: usize) -> std::fmt::Result {
+    fn limited_fmt<W: std::fmt::Write>(&self, f: &mut W, limit: isize) -> std::fmt::Result {
         match self {
             TypeObj::Builtin { t, .. } => {
                 if cfg!(feature = "debug") {
@@ -579,13 +579,13 @@ impl fmt::Debug for ValueObj {
 impl_display_from_debug!(ValueObj);
 
 impl LimitedDisplay for ValueObj {
-    fn limited_fmt(&self, f: &mut std::fmt::Formatter<'_>, limit: usize) -> std::fmt::Result {
+    fn limited_fmt<W: std::fmt::Write>(&self, f: &mut W, limit: isize) -> std::fmt::Result {
         if limit == 0 {
             return write!(f, "...");
         }
         match self {
             Self::Str(s) => {
-                if s.len() >= STR_OMIT_THRESHOLD {
+                if limit.is_positive() && s.len() >= STR_OMIT_THRESHOLD {
                     write!(f, "\"(...)\"")
                 } else {
                     write!(f, "\"{}\"", s.escape())
@@ -597,7 +597,7 @@ impl LimitedDisplay for ValueObj {
                     if i != 0 {
                         write!(f, ", ")?;
                     }
-                    if i >= CONTAINER_OMIT_THRESHOLD {
+                    if limit.is_positive() && i >= CONTAINER_OMIT_THRESHOLD {
                         write!(f, "...")?;
                         break;
                     }
@@ -611,7 +611,7 @@ impl LimitedDisplay for ValueObj {
                     if i != 0 {
                         write!(f, ", ")?;
                     }
-                    if i >= CONTAINER_OMIT_THRESHOLD {
+                    if limit.is_positive() && i >= CONTAINER_OMIT_THRESHOLD {
                         write!(f, "...")?;
                         break;
                     }
@@ -627,7 +627,7 @@ impl LimitedDisplay for ValueObj {
                     if i != 0 {
                         write!(f, ", ")?;
                     }
-                    if i >= CONTAINER_OMIT_THRESHOLD {
+                    if limit.is_positive() && i >= CONTAINER_OMIT_THRESHOLD {
                         write!(f, "...")?;
                         break;
                     }
@@ -641,7 +641,7 @@ impl LimitedDisplay for ValueObj {
                     if i != 0 {
                         write!(f, ", ")?;
                     }
-                    if i >= CONTAINER_OMIT_THRESHOLD {
+                    if limit.is_positive() && i >= CONTAINER_OMIT_THRESHOLD {
                         write!(f, "...")?;
                         break;
                     }
@@ -655,7 +655,7 @@ impl LimitedDisplay for ValueObj {
                     if i != 0 {
                         write!(f, "; ")?;
                     }
-                    if i >= CONTAINER_OMIT_THRESHOLD {
+                    if limit.is_positive() && i >= CONTAINER_OMIT_THRESHOLD {
                         write!(f, "...")?;
                         break;
                     }

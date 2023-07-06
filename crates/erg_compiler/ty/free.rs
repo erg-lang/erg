@@ -74,7 +74,7 @@ impl fmt::Debug for Constraint {
 }
 
 impl LimitedDisplay for Constraint {
-    fn limited_fmt(&self, f: &mut fmt::Formatter<'_>, limit: usize) -> fmt::Result {
+    fn limited_fmt<W: std::fmt::Write>(&self, f: &mut W, limit: isize) -> fmt::Result {
         if limit == 0 {
             return write!(f, "...");
         }
@@ -120,7 +120,7 @@ impl Constraint {
         Self::Sandwiched { sub, sup }
     }
 
-    pub fn named_fmt(&self, f: &mut fmt::Formatter<'_>, name: &str, limit: usize) -> fmt::Result {
+    pub fn named_fmt(&self, f: &mut impl fmt::Write, name: &str, limit: isize) -> fmt::Result {
         if limit == 0 {
             return write!(f, "...");
         }
@@ -353,7 +353,7 @@ impl<T: LimitedDisplay> fmt::Display for FreeKind<T> {
 }
 
 impl<T: LimitedDisplay> LimitedDisplay for FreeKind<T> {
-    fn limited_fmt(&self, f: &mut fmt::Formatter<'_>, limit: usize) -> fmt::Result {
+    fn limited_fmt<W: std::fmt::Write>(&self, f: &mut W, limit: isize) -> fmt::Result {
         if limit == 0 {
             return write!(f, "...");
         }
@@ -591,7 +591,7 @@ impl<T: LimitedDisplay + Send + Clone> fmt::Display for Free<T> {
 }
 
 impl<T: LimitedDisplay + Send + Clone> LimitedDisplay for Free<T> {
-    fn limited_fmt(&self, f: &mut fmt::Formatter<'_>, limit: usize) -> fmt::Result {
+    fn limited_fmt<W: std::fmt::Write>(&self, f: &mut W, limit: isize) -> fmt::Result {
         self.0.borrow().limited_fmt(f, limit)
     }
 }

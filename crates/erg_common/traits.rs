@@ -499,7 +499,14 @@ pub trait ImmutableStream<T>: Sized {
 }
 
 pub trait LimitedDisplay {
-    fn limited_fmt(&self, f: &mut std::fmt::Formatter<'_>, limit: usize) -> std::fmt::Result;
+    /// If `limit` was set to a negative value, it will be displayed without abbreviation.
+    /// FIXME:
+    fn limited_fmt<W: std::fmt::Write>(&self, f: &mut W, limit: isize) -> std::fmt::Result;
+    fn to_string_unabbreviated(&self) -> String {
+        let mut s = "".to_string();
+        self.limited_fmt(&mut s, -1).unwrap();
+        s
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]

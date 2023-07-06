@@ -1,6 +1,10 @@
 //! defines `Type` (type kind).
+//! Some structures implement `Display` using `LimitedDisplay`. This is omitted when the display width is somewhat longer.
+//! If you want to get the full display, use `LimitedDisplay::to_string_unabbreviated`.
 //!
-//! Type(コンパイラ等で使われる「型」を表現する)を定義する
+//! `Type`(コンパイラ等で使われる「型」を表現する)を定義する。
+//! 各種の構造体は`LimitedDisplay`を使って`Display`が実装されている。これは表示の幅がある程度長くなる場合省略を行う。
+//! フルの表示を得たい場合は、`LimitedDisplay::to_string_unabbreviated`を使うこと。
 #![allow(clippy::derived_hash_with_manual_eq)]
 #![allow(clippy::large_enum_variant)]
 pub mod codeobj;
@@ -288,7 +292,7 @@ impl<'t> TryFrom<&'t Type> for &'t SubrType {
 }
 
 impl LimitedDisplay for SubrType {
-    fn limited_fmt(&self, f: &mut fmt::Formatter<'_>, limit: usize) -> fmt::Result {
+    fn limited_fmt<W: std::fmt::Write>(&self, f: &mut W, limit: isize) -> fmt::Result {
         if limit == 0 {
             return write!(f, "...");
         }
@@ -574,7 +578,7 @@ impl fmt::Display for RefinementType {
 }
 
 impl LimitedDisplay for RefinementType {
-    fn limited_fmt(&self, f: &mut std::fmt::Formatter<'_>, limit: usize) -> std::fmt::Result {
+    fn limited_fmt<W: std::fmt::Write>(&self, f: &mut W, limit: isize) -> std::fmt::Result {
         if limit == 0 {
             return write!(f, "...");
         }
@@ -1030,7 +1034,7 @@ impl fmt::Display for Type {
 }
 
 impl LimitedDisplay for Type {
-    fn limited_fmt(&self, f: &mut fmt::Formatter<'_>, limit: usize) -> fmt::Result {
+    fn limited_fmt<W: std::fmt::Write>(&self, f: &mut W, limit: isize) -> fmt::Result {
         if limit == 0 {
             return write!(f, "...");
         }
@@ -1069,7 +1073,7 @@ impl LimitedDisplay for Type {
                     if i > 0 {
                         write!(f, "; ")?;
                     }
-                    if i >= CONTAINER_OMIT_THRESHOLD {
+                    if limit.is_positive() && i >= CONTAINER_OMIT_THRESHOLD {
                         write!(f, "...")?;
                         break;
                     }
