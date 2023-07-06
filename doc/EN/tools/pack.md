@@ -13,7 +13,7 @@ The following are typical options.
 
 This document explains how to manage your own packages.
 See [install.md](./install.md) if you want to install or search for external packages.
-Also see [package_system.md](../syntax/33_package_system.md) for the Erg package system.
+Also see [package_system.md](../syntax/35_package_system.md) for the Erg package system.
 
 ## Standard directory structure for the whole package (for application packages)
 
@@ -98,3 +98,6 @@ Additionally, although it's not a very desirable state, if only a certain minor 
 Packages can be published with the `publish` subcommand. Publishing requires a GitHub account.
 Packages are registered with `(owner_name)/(package_name)` by default. If you meet certain conditions (number of downloads, frequency of maintenance, etc.), you can apply to register an alias that omits the owner name.
 Note that package names are case-insensitive and delimiters such as `_` and `-` are not distinguished.
+
+Packages are stored in the registry to ensure reproducibility. Note that basically, once uploaded, the contents cannot be changed or deleted.
+Updating can be accomplished only by publishing a new version.

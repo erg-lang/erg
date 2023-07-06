@@ -15,7 +15,7 @@ Erg 標配有一個包管理器，您可以使用 `pack` 子命令調用它
 
 本文檔解釋了如何管理您自己的包
 如果要安裝或搜索外部包，請參閱 [install.md](./install.md)
-另請參閱 [package_system.md](../syntax/33_package_system.md) 了解 Erg 包系統
+另請參閱 [package_system.md](../syntax/34_package_system.md) 了解 Erg 包系統
 
 ## 整個包的標準目錄結構(對于應用程序包)
 
