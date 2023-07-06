@@ -586,7 +586,7 @@ impl LimitedDisplay for ValueObj {
         match self {
             Self::Str(s) => {
                 if s.len() >= STR_OMIT_THRESHOLD {
-                    write!(f, "...")
+                    write!(f, "\"(...)\"")
                 } else {
                     write!(f, "\"{}\"", s.escape())
                 }
@@ -661,6 +661,9 @@ impl LimitedDisplay for ValueObj {
                     }
                     write!(f, "{field} = ")?;
                     v.limited_fmt(f, limit - 1)?;
+                }
+                if rec.is_empty() {
+                    write!(f, "=")?;
                 }
                 write!(f, "}}")
             }

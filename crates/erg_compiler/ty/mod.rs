@@ -1073,8 +1073,11 @@ impl LimitedDisplay for Type {
                         write!(f, "...")?;
                         break;
                     }
-                    write!(f, "; {field} = ")?;
+                    write!(f, "{field} = ")?;
                     t.limited_fmt(f, limit - 1)?;
+                }
+                if attrs.is_empty() {
+                    write!(f, "=")?;
                 }
                 write!(f, "}}")
             }

@@ -400,6 +400,9 @@ impl LimitedDisplay for TyParam {
                     write!(f, "{field} = ")?;
                     v.limited_fmt(f, limit - 1)?;
                 }
+                if rec.is_empty() {
+                    write!(f, "=")?;
+                }
                 write!(f, "}}")
             }
             Self::Lambda(lambda) => write!(f, "{lambda}"),
