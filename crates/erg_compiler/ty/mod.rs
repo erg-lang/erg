@@ -309,6 +309,9 @@ impl LimitedDisplay for SubrType {
                 write!(f, ", ")?;
             }
             write!(f, "*")?;
+            if let Some(name) = var_params.name() {
+                write!(f, "{}: ", name)?;
+            }
             var_params.typ().limited_fmt(f, limit - 1)?;
         }
         for (i, pt) in self.default_params.iter().enumerate() {

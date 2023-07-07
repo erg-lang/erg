@@ -1,4 +1,4 @@
-use erg_common::traits::{DequeStream, Locational, NoTypeDisplay};
+use erg_common::traits::{DequeStream, LimitedDisplay, Locational, NoTypeDisplay};
 use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::erg_parser::parse::Parsable;
 use erg_compiler::erg_parser::token::{Token, TokenKind};
@@ -31,8 +31,19 @@ impl From<String> for Trigger {
     }
 }
 
-fn get_end(start: usize, pt: &ParamTy) -> usize {
-    start + pt.name().map(|n| n.len() + 2).unwrap_or(0) + pt.typ().to_string().len()
+pub enum ParamKind {
+    NonDefault,
+    VarArgs,
+    Default,
+}
+
+fn get_end(start: usize, pt: &ParamTy, kind: ParamKind) -> usize {
+    let pad = match kind {
+        ParamKind::NonDefault => 2, // 2: `: `
+        ParamKind::VarArgs => 3,    // 3: `*{name}: `
+        ParamKind::Default => 4,    // 4: ` := `
+    };
+    start + pt.name().map(|n| n.len() + pad).unwrap_or(0) + pt.typ().to_string_unabbreviated().len()
 }
 
 impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
@@ -155,11 +166,11 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         let sig_t = sig.ref_t();
         let mut parameters = vec![];
         let sig = sig.to_string_notype();
-        let label = format!("{sig}: {sig_t}");
+        let label = format!("{sig}: {}", sig_t.to_string_unabbreviated());
         let mut end = sig.len() + 1; // +1: (
         for nd_param in sig_t.non_default_params()? {
             let start = end + 2;
-            end = get_end(start, nd_param);
+            end = get_end(start, nd_param, ParamKind::NonDefault);
             let param_info = ParameterInformation {
                 label: ParameterLabel::LabelOffsets([start as u32, end as u32]),
                 documentation: None, //Some(Documentation::String(nd_param.typ().to_string())),
@@ -168,14 +179,30 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         }
         if let Some(var_params) = sig_t.var_params() {
             let start = end + 2;
-            end = get_end(start, var_params);
+            end = get_end(start, var_params, ParamKind::VarArgs);
             let param_info = ParameterInformation {
                 label: ParameterLabel::LabelOffsets([start as u32, end as u32]),
                 documentation: None, //Some(Documentation::String(var_params.typ().to_string())),
             };
             parameters.push(param_info);
         }
-        let nth = (parameters.len() as u32 - 1).min(nth);
+        let var_args_nth = if sig_t.var_params().is_some() {
+            sig_t.non_default_params()?.len() as u32
+        } else {
+            u32::MAX
+        };
+        for d_params in sig_t.default_params()? {
+            let start = end + 2;
+            end = get_end(start, d_params, ParamKind::Default);
+            let param_info = ParameterInformation {
+                label: ParameterLabel::LabelOffsets([start as u32, end as u32]),
+                documentation: None, //Some(Documentation::String(d_params.typ().to_string())),
+            };
+            parameters.push(param_info);
+        }
+        let nth = (parameters.len().saturating_sub(1) as u32)
+            .min(nth)
+            .min(var_args_nth);
         let info = SignatureInformation {
             label,
             documentation: None,

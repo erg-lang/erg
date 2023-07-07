@@ -1300,6 +1300,50 @@ impl Parser {
                         })?;
                     debug_exit_info!(self);
                     Ok(KwArg::new(keyword, None, expr))
+                } else if self.nth_is(1, Colon) {
+                    let acc = self
+                        .try_reduce_acc_lhs()
+                        .map_err(|_| self.stack_dec(fn_name!()))?;
+                    let colon = expect_pop!(self, Colon);
+                    let t_spec_as_expr = self
+                        .try_reduce_expr(false, true, false, false)
+                        .map_err(|_| self.stack_dec(fn_name!()))?;
+                    let t_spec = match Parser::expr_to_type_spec(t_spec_as_expr.clone()) {
+                        Ok(t_spec) => TypeSpecWithOp::new(colon, t_spec, t_spec_as_expr),
+                        Err(err) => {
+                            self.errs.push(err);
+                            debug_exit_info!(self);
+                            return Err(());
+                        }
+                    };
+                    debug_power_assert!(self.cur_is(Walrus));
+                    self.skip();
+                    let keyword = if let Accessor::Ident(n) = acc {
+                        n.name.into_token()
+                    } else {
+                        let caused_by = caused_by!();
+                        log!(err "error caused by: {caused_by}");
+                        let err = ParseError::expect_keyword(line!() as usize, acc.loc());
+                        self.errs.push(err);
+                        self.next_expr();
+                        debug_exit_info!(self);
+                        return Err(());
+                    };
+                    let expr = self
+                        .try_reduce_expr(false, in_type_args, false, false)
+                        .map_err(|_| {
+                            if let Some(err) = self.errs.last_mut() {
+                                err.set_hint(switch_lang!(
+                                    "japanese" => "予期: 引数",
+                                    "simplified_chinese" => "期望: 参数",
+                                    "traditional_chinese" => "期望: 參數",
+                                    "english" => "expect: an argument",
+                                ))
+                            }
+                            self.stack_dec(fn_name!())
+                        })?;
+                    debug_exit_info!(self);
+                    Ok(KwArg::new(keyword, Some(t_spec), expr))
                 } else {
                     let caused_by = caused_by!();
                     log!(err "error caused by: {caused_by}");

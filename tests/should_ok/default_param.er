@@ -1,0 +1,5 @@
+f x: Int, y: Int := 1, z: Nat := 2 = x + y + z
+
+assert f(1) == 4
+assert f(1, 2) == 5
+assert f(1, 2, 3) == 6
