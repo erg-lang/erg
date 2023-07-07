@@ -3785,13 +3785,14 @@ pub struct Params {
 
 impl fmt::Display for Params {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "({}, {}, {})",
-            fmt_vec(&self.non_defaults),
-            fmt_option!(pre "*", &self.var_params),
-            fmt_vec(&self.defaults)
-        )
+        write!(f, "({}", fmt_vec(&self.non_defaults))?;
+        if let Some(var_params) = &self.var_params {
+            write!(f, ", *{var_params}")?;
+        }
+        if !self.defaults.is_empty() {
+            write!(f, ", {}", fmt_vec(&self.defaults))?;
+        }
+        write!(f, ")")
     }
 }
 

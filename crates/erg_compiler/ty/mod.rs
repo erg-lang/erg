@@ -311,8 +311,11 @@ impl LimitedDisplay for SubrType {
             write!(f, "*")?;
             var_params.typ().limited_fmt(f, limit - 1)?;
         }
-        for pt in self.default_params.iter() {
-            write!(f, ", {} := ", pt.name().unwrap())?;
+        for (i, pt) in self.default_params.iter().enumerate() {
+            if i > 0 || !self.non_default_params.is_empty() || self.var_params.is_some() {
+                write!(f, ", ")?;
+            }
+            write!(f, "{} := ", pt.name().unwrap())?;
             pt.typ().limited_fmt(f, limit - 1)?;
         }
         write!(f, ") {} ", self.kind.arrow())?;

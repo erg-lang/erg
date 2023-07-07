@@ -236,7 +236,7 @@ impl Context {
             A,
         )
         .quantify();
-        let t_unreachable = nd_func(vec![], None, Never);
+        let t_unreachable = d_func(vec![kw(KW_MSG, Obj)], Never);
         let t_zip = nd_func(
             vec![
                 kw(KW_ITERABLE1, poly(ITERABLE, vec![ty_tp(T.clone())])),
@@ -461,6 +461,13 @@ impl Context {
             // TODO: original implementation
             self.register_builtin_py_impl(
                 FUNC_UNREACHABLE,
+                t_unreachable.clone(),
+                Immutable,
+                vis.clone(),
+                Some(FUNC_EXIT),
+            );
+            self.register_builtin_py_impl(
+                FUNC_TODO,
                 t_unreachable,
                 Immutable,
                 vis,

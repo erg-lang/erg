@@ -350,6 +350,11 @@ pub fn nd_proc(params: Vec<ParamTy>, var_params: Option<ParamTy>, ret: Type) -> 
 }
 
 #[inline]
+pub fn d_func(default_params: Vec<ParamTy>, return_t: Type) -> Type {
+    func(vec![], None, default_params, return_t)
+}
+
+#[inline]
 pub fn nd_proc1(pt: ParamTy, ret: Type) -> Type {
     nd_proc(vec![pt], None, ret)
 }

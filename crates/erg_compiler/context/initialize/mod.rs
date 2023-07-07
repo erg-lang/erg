@@ -345,6 +345,7 @@ const FUNC_NAT: &str = "nat";
 const FUNC_NAT__: &str = "nat__";
 const FUNC_PANIC: &str = "panic";
 const FUNC_UNREACHABLE: &str = "unreachable";
+const FUNC_TODO: &str = "todo";
 const SUBSUME: &str = "Subsume";
 const INHERIT: &str = "Inherit";
 const INHERITABLE: &str = "Inheritable";
