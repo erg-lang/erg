@@ -1,12 +1,13 @@
 use std::borrow::Borrow;
 use std::fmt;
 use std::hash::Hash;
-use std::path::PathBuf;
+use std::path::Path;
 use std::sync::Arc;
 
 use erg_common::config::ErgConfig;
 use erg_common::dict::Dict;
 use erg_common::levenshtein::get_similar_name;
+use erg_common::pathutil::NormalizedPathBuf;
 use erg_common::shared::{
     MappedRwLockReadGuard, MappedRwLockWriteGuard, RwLockReadGuard, RwLockWriteGuard, Shared,
 };
@@ -74,7 +75,7 @@ impl ModuleEntry {
 /// (Erg links all scripts defined in erg and outputs them to a single pyc file).
 #[derive(Debug, Default)]
 pub struct ModuleCache {
-    cache: Dict<PathBuf, ModuleEntry>,
+    cache: Dict<NormalizedPathBuf, ModuleEntry>,
     last_id: usize,
 }
 
@@ -98,19 +99,19 @@ impl ModuleCache {
 
     pub fn get<P: Eq + Hash + ?Sized>(&self, path: &P) -> Option<&ModuleEntry>
     where
-        PathBuf: Borrow<P>,
+        NormalizedPathBuf: Borrow<P>,
     {
         self.cache.get(path)
     }
 
     pub fn get_mut<Q: Eq + Hash + ?Sized>(&mut self, path: &Q) -> Option<&mut ModuleEntry>
     where
-        PathBuf: Borrow<Q>,
+        NormalizedPathBuf: Borrow<Q>,
     {
         self.cache.get_mut(path)
     }
 
-    pub fn register(&mut self, path: PathBuf, hir: Option<HIR>, ctx: ModuleContext) {
+    pub fn register(&mut self, path: NormalizedPathBuf, hir: Option<HIR>, ctx: ModuleContext) {
         self.last_id += 1;
         let id = ModId::new(self.last_id);
         let entry = ModuleEntry::new(id, hir, ctx);
@@ -119,7 +120,7 @@ impl ModuleCache {
 
     pub fn remove<Q: Eq + Hash + ?Sized>(&mut self, path: &Q) -> Option<ModuleEntry>
     where
-        PathBuf: Borrow<Q>,
+        NormalizedPathBuf: Borrow<Q>,
     {
         self.cache.remove(path)
     }
@@ -142,14 +143,18 @@ impl ModuleCache {
         get_similar_name(self.cache.iter().map(|(v, _)| v.to_str().unwrap()), name).map(Str::rc)
     }
 
-    pub fn rename_path(&mut self, old: &PathBuf, new: PathBuf) {
+    pub fn rename_path(&mut self, old: &Path, new: NormalizedPathBuf) {
         if let Some(entry) = self.cache.remove(old) {
             self.cache.insert(new, entry);
         }
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (&PathBuf, &ModuleEntry)> {
+    pub fn iter(&self) -> impl Iterator<Item = (&NormalizedPathBuf, &ModuleEntry)> {
         self.cache.iter()
+    }
+
+    pub fn clear(&mut self) {
+        self.cache.clear();
     }
 }
 
@@ -177,7 +182,7 @@ impl SharedModuleCache {
 
     pub fn get<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<MappedRwLockReadGuard<ModuleEntry>>
     where
-        PathBuf: Borrow<Q>,
+        NormalizedPathBuf: Borrow<Q>,
     {
         if self.0.borrow().get(path).is_some() {
             Some(RwLockReadGuard::map(self.0.borrow(), |cache| {
@@ -193,7 +198,7 @@ impl SharedModuleCache {
         path: &Q,
     ) -> Option<MappedRwLockWriteGuard<ModuleEntry>>
     where
-        PathBuf: Borrow<Q>,
+        NormalizedPathBuf: Borrow<Q>,
     {
         if self.0.borrow().get(path).is_some() {
             Some(RwLockWriteGuard::map(self.0.borrow_mut(), |cache| {
@@ -206,7 +211,7 @@ impl SharedModuleCache {
 
     pub fn get_ctx<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<Arc<ModuleContext>>
     where
-        PathBuf: Borrow<Q>,
+        NormalizedPathBuf: Borrow<Q>,
     {
         self.0.borrow().get(path).map(|entry| entry.module.clone())
     }
@@ -216,7 +221,7 @@ impl SharedModuleCache {
         path: &Q,
     ) -> Option<MappedRwLockReadGuard<ModuleContext>>
     where
-        PathBuf: Borrow<Q>,
+        NormalizedPathBuf: Borrow<Q>,
     {
         if self.0.borrow().get(path).is_some() {
             Some(RwLockReadGuard::map(self.0.borrow(), |cache| {
@@ -230,7 +235,7 @@ impl SharedModuleCache {
     /// FIXME: see the comment in this function
     pub fn raw_ref_ctx<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<&ModuleContext>
     where
-        PathBuf: Borrow<Q>,
+        NormalizedPathBuf: Borrow<Q>,
     {
         // Check if the module can be borrowed
         // If you delete `_ref`, this function returns `None` even if the key exists in rare cases
@@ -239,13 +244,18 @@ impl SharedModuleCache {
         ref_.get(path).map(|entry| entry.module.as_ref())
     }
 
-    pub fn register(&self, path: PathBuf, hir: Option<HIR>, ctx: ModuleContext) {
-        self.0.borrow_mut().register(path, hir, ctx);
+    pub fn register<P: Into<NormalizedPathBuf>>(
+        &self,
+        path: P,
+        hir: Option<HIR>,
+        ctx: ModuleContext,
+    ) {
+        self.0.borrow_mut().register(path.into(), hir, ctx);
     }
 
     pub fn remove<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<ModuleEntry>
     where
-        PathBuf: Borrow<Q>,
+        NormalizedPathBuf: Borrow<Q>,
     {
         self.0.borrow_mut().remove(path)
     }
@@ -259,21 +269,19 @@ impl SharedModuleCache {
     }
 
     pub fn initialize(&self) {
-        let builtin_path = PathBuf::from("<builtins>");
+        let builtin_path = NormalizedPathBuf::from("<builtins>");
         let Some(builtin) = self.remove(&builtin_path) else {
             return;
         };
-        for path in self.ref_inner().keys() {
-            self.remove(path);
-        }
+        self.0.borrow_mut().clear();
         self.register(builtin_path, None, Arc::try_unwrap(builtin.module).unwrap());
     }
 
-    pub fn rename_path(&self, path: &PathBuf, new: PathBuf) {
-        self.0.borrow_mut().rename_path(path, new);
+    pub fn rename_path<P: Into<NormalizedPathBuf>>(&self, path: &Path, new: P) {
+        self.0.borrow_mut().rename_path(path, new.into());
     }
 
-    pub fn ref_inner(&self) -> MappedRwLockReadGuard<Dict<PathBuf, ModuleEntry>> {
+    pub fn ref_inner(&self) -> MappedRwLockReadGuard<Dict<NormalizedPathBuf, ModuleEntry>> {
         RwLockReadGuard::map(self.0.borrow(), |mc| &mc.cache)
     }
 }

@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use std::thread::{current, JoinHandle, ThreadId};
 
 use erg_common::dict::Dict;
+use erg_common::pathutil::NormalizedPathBuf;
 use erg_common::shared::Shared;
 
 use super::SharedModuleGraph;
@@ -68,7 +69,7 @@ impl Promise {
 pub struct SharedPromises {
     graph: SharedModuleGraph,
     pub(crate) path: PathBuf,
-    promises: Shared<Dict<PathBuf, Promise>>,
+    promises: Shared<Dict<NormalizedPathBuf, Promise>>,
 }
 
 impl fmt::Display for SharedPromises {
@@ -90,7 +91,8 @@ impl SharedPromises {
         }
     }
 
-    pub fn insert(&self, path: PathBuf, handle: JoinHandle<()>) {
+    pub fn insert<P: Into<NormalizedPathBuf>>(&self, path: P, handle: JoinHandle<()>) {
+        let path = path.into();
         if self.promises.borrow().get(&path).is_some() {
             // panic!("already registered: {}", path.display());
             return;

@@ -1,6 +1,6 @@
 use std::collections::hash_map::{Iter, Keys, Values};
 use std::fmt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use erg_common::dict::Dict;
 use erg_common::set;
@@ -107,6 +107,39 @@ impl ModuleIndex {
             loc.module.as_deref() != Some(path)
         });
     }
+
+    pub fn rename_path(&mut self, old: &Path, new: PathBuf) {
+        let mut new_members = Dict::new();
+        for (loc, mut value) in std::mem::take(&mut self.members) {
+            if value.vi.def_loc.module.as_deref() == Some(old) {
+                value.vi.def_loc.module = Some(new.clone());
+            }
+            let mut new_referrers = set! {};
+            for referee in value.referrers.into_iter() {
+                if referee.module.as_deref() == Some(old) {
+                    new_referrers.insert(AbsLocation {
+                        module: Some(new.clone()),
+                        ..referee
+                    });
+                } else {
+                    new_referrers.insert(referee);
+                }
+            }
+            value.referrers = new_referrers;
+            if loc.module.as_deref() != Some(old) {
+                new_members.insert(loc.clone(), value.clone());
+            } else {
+                new_members.insert(
+                    AbsLocation {
+                        module: Some(new.clone()),
+                        ..loc
+                    },
+                    value,
+                );
+            }
+        }
+        self.members = new_members;
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -154,5 +187,9 @@ impl SharedModuleIndex {
 
     pub fn remove_path(&self, path: &Path) {
         self.0.borrow_mut().remove_path(path);
+    }
+
+    pub fn rename_path(&self, old: &Path, new: PathBuf) {
+        self.0.borrow_mut().rename_path(old, new);
     }
 }

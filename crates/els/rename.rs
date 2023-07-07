@@ -145,7 +145,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
 
     /// self is __included__
     pub fn dependencies_of(&self, uri: &NormalizedUrl) -> Vec<NormalizedUrl> {
-        let graph = &self.get_shared().unwrap().graph;
+        let graph = self.get_graph().unwrap();
         let path = util::uri_to_path(uri);
         graph.sort().unwrap();
         let self_node = graph.get_node(&path).unwrap();
@@ -159,7 +159,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
 
     /// self is __not included__
     pub fn dependents_of(&self, uri: &NormalizedUrl) -> Vec<NormalizedUrl> {
-        let graph = &self.get_shared().unwrap().graph;
+        let graph = self.get_graph().unwrap();
         let path = util::uri_to_path(uri);
         graph
             .ref_inner()
@@ -312,10 +312,13 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             let Some(entry) = self.modules.remove(&old_uri) else {
                 continue;
             };
-            self.modules.insert(new_uri, entry);
             if let Some(shared) = self.get_shared() {
-                shared.clear_all();
+                shared.rename_path(
+                    &old_uri.to_file_path().unwrap(),
+                    new_uri.to_file_path().unwrap(),
+                );
             }
+            self.modules.insert(new_uri, entry);
         }
         self.file_cache.rename_files(&params)?;
         let changes = {

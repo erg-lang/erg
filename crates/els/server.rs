@@ -22,7 +22,7 @@ use erg_compiler::erg_parser::ast::Module;
 use erg_compiler::erg_parser::parse::{Parsable, SimpleParser};
 use erg_compiler::hir::{Expr, HIR};
 use erg_compiler::lower::ASTLowerer;
-use erg_compiler::module::{SharedCompilerResource, SharedModuleIndex};
+use erg_compiler::module::{SharedCompilerResource, SharedModuleGraph, SharedModuleIndex};
 use erg_compiler::ty::HasType;
 
 use lsp_types::request::{
@@ -835,6 +835,13 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             .values()
             .next()
             .map(|module| module.context.index())
+    }
+
+    pub(crate) fn get_graph(&self) -> Option<&SharedModuleGraph> {
+        self.modules
+            .values()
+            .next()
+            .map(|module| module.context.graph())
     }
 
     pub(crate) fn get_shared(&self) -> Option<&SharedCompilerResource> {

@@ -116,6 +116,20 @@ impl ModuleGraph {
         self.0.retain(|n| n.id != path);
     }
 
+    pub fn rename_path(&mut self, old: &Path, new: PathBuf) {
+        let old = normalize_path(old.to_path_buf());
+        let new = normalize_path(new);
+        for node in self.0.iter_mut() {
+            if node.id == old {
+                node.id = new.clone();
+            }
+            if node.depends_on.contains(&old) {
+                node.depends_on.insert(new.clone());
+            }
+            node.depends_on.retain(|p| *p != old);
+        }
+    }
+
     pub fn initialize(&mut self) {
         self.0.clear();
     }
@@ -172,6 +186,10 @@ impl SharedModuleGraph {
 
     pub fn remove(&self, path: &Path) {
         self.0.borrow_mut().remove(path);
+    }
+
+    pub fn rename_path(&self, old: &Path, new: PathBuf) {
+        self.0.borrow_mut().rename_path(old, new);
     }
 
     #[allow(clippy::result_unit_err)]

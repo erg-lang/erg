@@ -35,6 +35,8 @@ pub mod traits;
 pub mod triple;
 pub mod tsort;
 
+use consts::CASE_SENSITIVE;
+
 use crate::set::Set;
 pub use crate::str::Str;
 pub use crate::triple::Triple;
@@ -155,7 +157,7 @@ pub fn unique_in_place<T: Eq + std::hash::Hash + Clone>(v: &mut Vec<T>) {
 /// at least, this is necessary for Windows and macOS
 pub fn normalize_path(path: PathBuf) -> PathBuf {
     let verbatim_replaced = path.to_str().unwrap().replace("\\\\?\\", "");
-    let lower = if cfg!(windows) {
+    let lower = if !CASE_SENSITIVE {
         verbatim_replaced.to_lowercase()
     } else {
         verbatim_replaced

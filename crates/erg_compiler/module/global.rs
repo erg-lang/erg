@@ -72,4 +72,11 @@ impl SharedCompilerResource {
         self.index.remove_path(path);
         self.graph.remove(path);
     }
+
+    pub fn rename_path(&self, old: &Path, new: PathBuf) {
+        self.mod_cache.rename_path(old, new.clone());
+        self.py_mod_cache.rename_path(old, new.clone());
+        self.index.rename_path(old, new.clone());
+        self.graph.rename_path(old, new);
+    }
 }

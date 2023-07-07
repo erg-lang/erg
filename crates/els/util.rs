@@ -12,6 +12,7 @@ use lsp_types::{Position, Range, Url};
 
 use crate::server::ELSResult;
 
+/// See also: `erg_common::pathutil::NormalizedPathBuf`
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NormalizedUrl(Url);
 

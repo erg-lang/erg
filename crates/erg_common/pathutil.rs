@@ -1,5 +1,49 @@
+use std::borrow::Borrow;
 use std::ffi::OsStr;
+use std::ops::Deref;
 use std::path::{Component, Path, PathBuf};
+
+use crate::normalize_path;
+
+/// Guaranteed equivalence path.
+///
+/// `PathBuf` may give false equivalence decisions in non-case-sensitive file systems.
+/// Use this for dictionary keys, etc.
+/// See also: `els::util::NormalizedUrl`
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct NormalizedPathBuf(PathBuf);
+
+impl<P: Into<PathBuf>> From<P> for NormalizedPathBuf {
+    fn from(path: P) -> Self {
+        NormalizedPathBuf::new(path.into())
+    }
+}
+
+impl Borrow<PathBuf> for NormalizedPathBuf {
+    fn borrow(&self) -> &PathBuf {
+        &self.0
+    }
+}
+
+impl Borrow<Path> for NormalizedPathBuf {
+    fn borrow(&self) -> &Path {
+        self.0.as_path()
+    }
+}
+
+impl Deref for NormalizedPathBuf {
+    type Target = Path;
+
+    fn deref(&self) -> &Self::Target {
+        self.0.as_path()
+    }
+}
+
+impl NormalizedPathBuf {
+    pub fn new(path: PathBuf) -> Self {
+        NormalizedPathBuf(normalize_path(path))
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DirKind {

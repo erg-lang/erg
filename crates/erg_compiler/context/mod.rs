@@ -36,6 +36,7 @@ use erg_parser::token::Token;
 use crate::context::instantiate::TyVarCache;
 use crate::context::instantiate_spec::ConstTemplate;
 use crate::error::{TyCheckError, TyCheckErrors};
+use crate::module::SharedModuleGraph;
 use crate::module::{
     SharedCompilerResource, SharedModuleCache, SharedModuleIndex, SharedPromises, SharedTraitImpls,
 };
@@ -1185,6 +1186,10 @@ impl Context {
 
     pub fn index(&self) -> &SharedModuleIndex {
         &self.shared().index
+    }
+
+    pub fn graph(&self) -> &SharedModuleGraph {
+        &self.shared().graph
     }
 
     pub fn trait_impls(&self) -> &SharedTraitImpls {
