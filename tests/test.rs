@@ -174,6 +174,11 @@ fn exec_nested() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_never() -> Result<(), ()> {
+    expect_success("tests/should_ok/never.er", 0)
+}
+
+#[test]
 fn exec_patch() -> Result<(), ()> {
     expect_success("examples/patch.er", 0)
 }

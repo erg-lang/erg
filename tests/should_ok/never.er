@@ -1,0 +1,2 @@
+f() = if True, todo()
+if True, f

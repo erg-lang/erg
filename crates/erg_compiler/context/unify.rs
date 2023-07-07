@@ -131,10 +131,10 @@ impl Context {
                 self.occur_inner(lhs, l, loc)?;
                 self.occur_inner(lhs, r, loc)
             }
-            (Or(l, r), rhs) | (And(l, r), rhs) => {
+            /*(Or(l, r), rhs) | (And(l, r), rhs) => {
                 self.occur_inner(l, rhs, loc)?;
                 self.occur_inner(r, rhs, loc)
-            }
+            }*/
             _ => Ok(()),
         }
     }
