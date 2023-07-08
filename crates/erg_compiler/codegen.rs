@@ -87,7 +87,15 @@ fn escape_name(name: &str, vis: &VisibilityModifier, def_line: u32, def_col: u32
 
 fn escape_ident(ident: Identifier) -> Str {
     let vis = ident.vis();
-    if let Some(py_name) = ident.vi.py_name {
+    if &ident.inspect()[..] == "Self" {
+        let Ok(ty) = <&Type>::try_from(ident.vi.t.singleton_value().unwrap()) else { unreachable!() };
+        escape_name(
+            &ty.local_name(),
+            &ident.vi.vis.modifier,
+            ident.vi.def_loc.loc.ln_begin().unwrap_or(0),
+            ident.vi.def_loc.loc.col_begin().unwrap_or(0),
+        )
+    } else if let Some(py_name) = ident.vi.py_name {
         py_name
     } else {
         escape_name(

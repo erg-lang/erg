@@ -429,6 +429,16 @@ impl Context {
         input: &Input,
         namespace: &Context,
     ) -> Triple<VarInfo, TyCheckError> {
+        if ident.inspect() == "Self" {
+            if let Some(self_t) = self.rec_get_self_t() {
+                return self.rec_get_var_info(
+                    &Identifier::auto(self_t.local_name()),
+                    acc_kind,
+                    input,
+                    namespace,
+                );
+            }
+        }
         if let Some(vi) = self.get_current_scope_var(&ident.name) {
             match self.validate_visibility(ident, vi, input, namespace) {
                 Ok(()) if acc_kind.matches(vi) => {
@@ -2521,6 +2531,11 @@ impl Context {
     pub(crate) fn rec_get_const_obj(&self, name: &str) -> Option<&ValueObj> {
         #[cfg(feature = "py_compat")]
         let name = self.erg_to_py_names.get(name).map_or(name, |s| &s[..]);
+        if name == "Self" {
+            if let Some(ty) = self.rec_get_self_t() {
+                return self.rec_get_const_obj(&ty.local_name());
+            }
+        }
         if let Some(val) = self.consts.get(name) {
             return Some(val);
         }

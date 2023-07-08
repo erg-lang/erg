@@ -3161,6 +3161,10 @@ impl Identifier {
         Self::new(VisModifierSpec::Public(dot), VarName::new(symbol))
     }
 
+    pub fn auto(name: Str) -> Self {
+        Self::new(VisModifierSpec::Auto, VarName::from_str(name))
+    }
+
     pub fn is_const(&self) -> bool {
         self.name.is_const()
     }

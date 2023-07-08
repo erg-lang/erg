@@ -21,6 +21,13 @@ impl PartialEq for Str {
     }
 }
 
+impl PartialEq<str> for Str {
+    #[inline]
+    fn eq(&self, other: &str) -> bool {
+        self[..] == other[..]
+    }
+}
+
 impl Add<&str> for Str {
     type Output = Str;
     #[inline]

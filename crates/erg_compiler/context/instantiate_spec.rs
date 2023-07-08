@@ -469,8 +469,12 @@ impl Context {
                         tmp_tv_cache,
                         not_found_is_qvar,
                     ) {
-                        let rhs = t.inspect();
-                        return Ok(proj(receiver_t, rhs));
+                        return self.eval_proj(
+                            receiver_t,
+                            t.inspect().clone(),
+                            self.level,
+                            predecl,
+                        );
                     }
                 }
                 let ctxs = self.get_singular_ctxs(namespace.as_ref(), self)?;
