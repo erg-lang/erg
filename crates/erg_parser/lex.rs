@@ -226,6 +226,17 @@ impl Lexer /*<'a>*/ {
         }
     }
 
+    fn emit_multiline_token(&mut self, kind: TokenKind, col_begin: u32, cont: &str) -> Token {
+        let cont = self.str_cache.get(cont);
+        let lineno = (self.lineno_token_starts + 2).saturating_sub(cont.lines().count() as u32);
+        // cannot use String::len() for multi-byte characters
+        let cont_len = cont.chars().count();
+        let token = Token::new(kind, cont, lineno, col_begin);
+        self.prev_token = token.clone();
+        self.col_token_starts += cont_len as u32;
+        token
+    }
+
     fn emit_token(&mut self, kind: TokenKind, cont: &str) -> Token {
         let cont = self.str_cache.get(cont);
         let lineno = (self.lineno_token_starts + 2).saturating_sub(cont.lines().count() as u32);
@@ -878,6 +889,7 @@ impl Lexer /*<'a>*/ {
     }
 
     fn lex_multi_line_str(&mut self, quote: Quote) -> LexResult<Token> {
+        let col_begin = self.col_token_starts;
         let mut s = quote.quotes().to_string();
         while let Some(c) = self.peek_cur_ch() {
             if c == quote.char() {
@@ -885,7 +897,7 @@ impl Lexer /*<'a>*/ {
                 let next_c = self.peek_cur_ch();
                 let aft_next_c = self.peek_next_ch();
                 if next_c.is_none() {
-                    let token = self.emit_token(Illegal, &s);
+                    let token = self.emit_multiline_token(Illegal, col_begin, &s);
                     return Err(Self::unclosed_string_error(
                         token,
                         quote.quotes(),
@@ -894,7 +906,7 @@ impl Lexer /*<'a>*/ {
                 }
                 if aft_next_c.is_none() {
                     s.push(self.consume().unwrap());
-                    let token = self.emit_token(Illegal, &s);
+                    let token = self.emit_multiline_token(Illegal, col_begin, &s);
                     return Err(Self::unclosed_string_error(
                         token,
                         quote.quotes(),
@@ -905,7 +917,7 @@ impl Lexer /*<'a>*/ {
                     self.consume().unwrap();
                     self.consume().unwrap();
                     s.push_str(quote.quotes());
-                    let token = self.emit_token(quote.token_kind(), &s);
+                    let token = self.emit_multiline_token(quote.token_kind(), col_begin, &s);
                     return Ok(token);
                 }
                 // else unclosed_string_error
@@ -919,7 +931,7 @@ impl Lexer /*<'a>*/ {
                             '{' => {
                                 s.push_str("\\{");
                                 self.interpol_stack.push(Interpolation::MultiLine(quote));
-                                let token = self.emit_token(StrInterpLeft, &s);
+                                let token = self.emit_multiline_token(StrInterpLeft, col_begin, &s);
                                 return Ok(token);
                             }
                             '0' => s.push('\0'),
@@ -935,7 +947,11 @@ impl Lexer /*<'a>*/ {
                                 continue;
                             }
                             _ => {
-                                let token = self.emit_token(Illegal, &format!("\\{next_c}"));
+                                let token = self.emit_multiline_token(
+                                    Illegal,
+                                    col_begin,
+                                    &format!("\\{next_c}"),
+                                );
                                 return Err(Self::invalid_escape_error(next_c, token));
                             }
                         }
@@ -993,13 +1009,14 @@ impl Lexer /*<'a>*/ {
                     }
                 },
                 '"' => {
-                    s.push(self.consume().unwrap());
+                    let c = self.consume().unwrap();
                     match self.interpol_stack.last().copied().unwrap() {
                         Interpolation::MultiLine(quote) => {
                             let next_c = self.peek_cur_ch();
                             let aft_next_c = self.peek_next_ch();
                             if next_c.is_none() {
                                 self.interpol_stack.pop();
+                                s.push(c);
                                 let token = self.emit_token(Illegal, &s);
                                 return Err(Self::unclosed_string_error(
                                     token,
@@ -1009,6 +1026,7 @@ impl Lexer /*<'a>*/ {
                             }
                             if aft_next_c.is_none() {
                                 self.interpol_stack.pop();
+                                s.push(c);
                                 s.push(self.consume().unwrap());
                                 let token = self.emit_token(Illegal, &s);
                                 return Err(Self::unclosed_string_error(

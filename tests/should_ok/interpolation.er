@@ -10,3 +10,7 @@ y
 \{1}
 \{2}
 """
+
+bcd = "bcd"
+abcde = """a\"\{bcd}\"e"""
+assert abcde == "a\"bcd\"e"

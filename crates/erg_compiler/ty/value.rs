@@ -917,7 +917,7 @@ impl ValueObj {
         matches!(self, Self::Type(_))
     }
 
-    pub fn from_str(t: Type, content: Str) -> Option<Self> {
+    pub fn from_str(t: Type, mut content: Str) -> Option<Self> {
         match t {
             Type::Int => content.replace('_', "").parse::<i32>().ok().map(Self::Int),
             Type::Nat => content
@@ -941,10 +941,17 @@ impl ValueObj {
                 if &content[..] == "\"\"" {
                     Some(Self::Str(Str::from("")))
                 } else {
-                    let replaced = content
-                        .trim_start_matches(['\"', '\''])
-                        .trim_end_matches(['\"', '\'']);
-                    Some(Self::Str(Str::rc(replaced)))
+                    if content.get(..3) == Some("\"\"\"") {
+                        content = Str::rc(&content[3..]);
+                    } else if content.get(..1) == Some("\"") {
+                        content = Str::rc(&content[1..]);
+                    }
+                    if content.len() >= 3 && content.get(content.len() - 3..) == Some("\"\"\"") {
+                        content = Str::rc(&content[..content.len() - 3]);
+                    } else if content.len() >= 1 && content.get(content.len() - 1..) == Some("\"") {
+                        content = Str::rc(&content[..content.len() - 1]);
+                    }
+                    Some(Self::Str(content))
                 }
             }
             Type::Bool => Some(Self::Bool(&content[..] == "True")),
