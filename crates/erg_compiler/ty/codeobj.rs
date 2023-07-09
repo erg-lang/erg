@@ -34,6 +34,51 @@ pub fn consts_into_bytes(consts: Vec<ValueObj>, python_ver: PythonVersion) -> Ve
     tuple
 }
 
+pub fn jump_abs_addr(minor_ver: u8, op: u8, idx: usize, arg: usize) -> usize {
+    match minor_ver {
+        7 | 8 => jump_abs_addr_308(Opcode308::from(op), idx, arg),
+        9 | 10 => jump_abs_addr_310(Opcode310::from(op), idx, arg),
+        11 => jump_abs_addr_311(Opcode311::from(op), idx, arg),
+        n => todo!("unsupported version: {n}"),
+    }
+}
+
+fn jump_abs_addr_308(op: Opcode308, idx: usize, arg: usize) -> usize {
+    match op {
+        Opcode308::FOR_ITER | Opcode308::JUMP_FORWARD => idx + arg * 2 + 2,
+        Opcode308::JUMP_ABSOLUTE | Opcode308::POP_JUMP_IF_FALSE | Opcode308::POP_JUMP_IF_TRUE => {
+            arg * 2
+        }
+        Opcode308::SETUP_WITH => idx + arg * 2 + 2,
+        _ => unreachable!(),
+    }
+}
+
+fn jump_abs_addr_310(op: Opcode310, idx: usize, arg: usize) -> usize {
+    match op {
+        Opcode310::FOR_ITER | Opcode310::JUMP_FORWARD => idx + arg * 2 + 2,
+        Opcode310::JUMP_ABSOLUTE | Opcode310::POP_JUMP_IF_FALSE | Opcode310::POP_JUMP_IF_TRUE => {
+            arg * 2
+        }
+        Opcode310::SETUP_WITH => idx + arg * 2 + 2,
+        _ => unreachable!(),
+    }
+}
+
+fn jump_abs_addr_311(op: Opcode311, idx: usize, arg: usize) -> usize {
+    match op {
+        Opcode311::POP_JUMP_FORWARD_IF_FALSE
+        | Opcode311::POP_JUMP_FORWARD_IF_TRUE
+        | Opcode311::JUMP_BACKWARD
+        | Opcode311::FOR_ITER
+        | Opcode311::JUMP_FORWARD => idx + arg * 2 + 2,
+        Opcode311::POP_JUMP_BACKWARD_IF_FALSE | Opcode311::POP_JUMP_BACKWARD_IF_TRUE => {
+            idx - arg * 2 + 2
+        }
+        _ => unreachable!(),
+    }
+}
+
 /// Kind can be multiple (e.g. Local + Cell = 0x60)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
@@ -463,6 +508,7 @@ impl CodeObj {
         if *sdelta != 0 {
             writeln!(instrs, "{lineno}:").unwrap();
         }
+        let mut extended_arg = vec![];
         loop {
             if *sdelta as usize == line_offset {
                 line_offset = 0;
@@ -472,6 +518,28 @@ impl CodeObj {
                 ldelta = lnotab_iter.next().unwrap_or(&0);
             }
             if let (Some(op), Some(arg)) = (code_iter.next(), code_iter.next()) {
+                let pushed = if CommonOpcode::try_from(*op) == Ok(CommonOpcode::EXTENDED_ARG) {
+                    extended_arg.push(*arg);
+                    true
+                } else {
+                    false
+                };
+                let arg = if extended_arg.is_empty() || pushed {
+                    *arg as usize
+                } else {
+                    let arg = match extended_arg.len() {
+                        1 => u16::from_be_bytes([extended_arg[0], *arg]) as usize,
+                        3 => u32::from_be_bytes([
+                            extended_arg[0],
+                            extended_arg[1],
+                            extended_arg[2],
+                            *arg,
+                        ]) as usize,
+                        n => unreachable!("{n}"),
+                    };
+                    extended_arg.clear();
+                    arg
+                };
                 match py_ver.and_then(|pv| pv.minor) {
                     Some(8) => self.read_instr_308(op, arg, idx, &mut instrs),
                     // Some(9) => self.read_instr_3_9(op, arg, idx, &mut instrs),
@@ -488,7 +556,7 @@ impl CodeObj {
         instrs
     }
 
-    fn read_instr_308(&self, op: &u8, arg: &u8, idx: usize, instrs: &mut String) {
+    fn read_instr_308(&self, op: &u8, arg: usize, idx: usize, instrs: &mut String) {
         let op308 = Opcode308::from(*op);
         let s_op = op308.to_string();
         write!(instrs, "{idx:>15} {s_op:<25}").unwrap();
@@ -497,40 +565,30 @@ impl CodeObj {
         }
         match op308 {
             Opcode308::STORE_DEREF | Opcode308::LOAD_DEREF => {
-                write!(
-                    instrs,
-                    "{arg} ({})",
-                    self.freevars.get(*arg as usize).unwrap()
-                )
-                .unwrap();
+                write!(instrs, "{arg} ({})", self.freevars.get(arg).unwrap()).unwrap();
             }
             Opcode308::LOAD_CLOSURE => {
-                write!(
-                    instrs,
-                    "{arg} ({})",
-                    self.cellvars.get(*arg as usize).unwrap()
-                )
-                .unwrap();
+                write!(instrs, "{arg} ({})", self.cellvars.get(arg).unwrap()).unwrap();
             }
             Opcode308::JUMP_ABSOLUTE => {
-                write!(instrs, "{arg} (to {})", *arg as usize * 2).unwrap();
+                write!(instrs, "{arg} (to {})", arg * 2).unwrap();
             }
             // REVIEW: *2?
             Opcode308::POP_JUMP_IF_FALSE | Opcode308::POP_JUMP_IF_TRUE => {
-                write!(instrs, "{arg} (to {})", *arg as usize * 2).unwrap();
+                write!(instrs, "{arg} (to {})", arg * 2).unwrap();
             }
             Opcode308::BINARY_ADD
             | Opcode308::BINARY_SUBTRACT
             | Opcode308::BINARY_MULTIPLY
             | Opcode308::BINARY_TRUE_DIVIDE => {
-                write!(instrs, "{arg} ({:?})", TypePair::from(*arg)).unwrap();
+                write!(instrs, "{arg} ({:?})", TypePair::from(arg as u8)).unwrap();
             }
             _ => {}
         }
         instrs.push('\n');
     }
 
-    fn read_instr_310(&self, op: &u8, arg: &u8, idx: usize, instrs: &mut String) {
+    fn read_instr_310(&self, op: &u8, arg: usize, idx: usize, instrs: &mut String) {
         let op310 = Opcode310::from(*op);
         let s_op = op310.to_string();
         write!(instrs, "{idx:>15} {s_op:<25}").unwrap();
@@ -539,42 +597,32 @@ impl CodeObj {
         }
         match op310 {
             Opcode310::STORE_DEREF | Opcode310::LOAD_DEREF => {
-                write!(
-                    instrs,
-                    "{arg} ({})",
-                    self.freevars.get(*arg as usize).unwrap()
-                )
-                .unwrap();
+                write!(instrs, "{arg} ({})", self.freevars.get(arg).unwrap()).unwrap();
             }
             Opcode310::LOAD_CLOSURE => {
-                write!(
-                    instrs,
-                    "{arg} ({})",
-                    self.cellvars.get(*arg as usize).unwrap()
-                )
-                .unwrap();
+                write!(instrs, "{arg} ({})", self.cellvars.get(arg).unwrap()).unwrap();
             }
             Opcode310::JUMP_ABSOLUTE => {
-                write!(instrs, "{arg} (to {})", *arg as usize * 2).unwrap();
+                write!(instrs, "{arg} (to {})", arg * 2).unwrap();
             }
             Opcode310::POP_JUMP_IF_FALSE | Opcode310::POP_JUMP_IF_TRUE => {
-                write!(instrs, "{arg} (to {})", *arg as usize * 2).unwrap();
+                write!(instrs, "{arg} (to {})", arg * 2).unwrap();
             }
             Opcode310::BINARY_ADD
             | Opcode310::BINARY_SUBTRACT
             | Opcode310::BINARY_MULTIPLY
             | Opcode310::BINARY_TRUE_DIVIDE => {
-                write!(instrs, "{arg} ({:?})", TypePair::from(*arg)).unwrap();
+                write!(instrs, "{arg} ({:?})", TypePair::from(arg as u8)).unwrap();
             }
             Opcode310::SETUP_WITH => {
-                write!(instrs, "{arg} (to {})", idx + *arg as usize * 2 + 2).unwrap();
+                write!(instrs, "{arg} (to {})", idx + arg * 2 + 2).unwrap();
             }
             _ => {}
         }
         instrs.push('\n');
     }
 
-    fn read_instr_311(&self, op: &u8, arg: &u8, idx: usize, instrs: &mut String) {
+    fn read_instr_311(&self, op: &u8, arg: usize, idx: usize, instrs: &mut String) {
         let op311 = Opcode311::from(*op);
         let s_op = op311.to_string();
         write!(instrs, "{idx:>15} {s_op:<26}").unwrap();
@@ -583,29 +631,19 @@ impl CodeObj {
         }
         match op311 {
             Opcode311::STORE_DEREF | Opcode311::LOAD_DEREF => {
-                write!(
-                    instrs,
-                    "{arg} ({})",
-                    self.varnames.get(*arg as usize).unwrap()
-                )
-                .unwrap();
+                write!(instrs, "{arg} ({})", self.varnames.get(arg).unwrap()).unwrap();
             }
             Opcode311::MAKE_CELL | Opcode311::LOAD_CLOSURE => {
-                write!(
-                    instrs,
-                    "{arg} ({})",
-                    self.cellvars.get(*arg as usize).unwrap()
-                )
-                .unwrap();
+                write!(instrs, "{arg} ({})", self.cellvars.get(arg).unwrap()).unwrap();
             }
             Opcode311::POP_JUMP_FORWARD_IF_FALSE | Opcode311::POP_JUMP_FORWARD_IF_TRUE => {
-                write!(instrs, "{arg} (to {})", idx + *arg as usize * 2 + 2).unwrap();
+                write!(instrs, "{arg} (to {})", idx + arg * 2 + 2).unwrap();
             }
             Opcode311::POP_JUMP_BACKWARD_IF_FALSE | Opcode311::POP_JUMP_BACKWARD_IF_TRUE => {
-                write!(instrs, "{arg} (to {})", idx - *arg as usize * 2 + 2).unwrap();
+                write!(instrs, "{arg} (to {})", idx - arg * 2 + 2).unwrap();
             }
             Opcode311::JUMP_BACKWARD => {
-                write!(instrs, "{arg} (to {})", idx - *arg as usize * 2 + 2).unwrap();
+                write!(instrs, "{arg} (to {})", idx - arg * 2 + 2).unwrap();
             }
             Opcode311::PRECALL
             | Opcode311::CALL
@@ -615,22 +653,17 @@ impl CodeObj {
                 write!(instrs, "{arg}").unwrap();
             }
             Opcode311::KW_NAMES => {
-                write!(
-                    instrs,
-                    "{arg} ({})",
-                    self.consts.get(*arg as usize).unwrap()
-                )
-                .unwrap();
+                write!(instrs, "{arg} ({})", self.consts.get(arg).unwrap()).unwrap();
             }
             Opcode311::BINARY_OP => {
-                write!(instrs, "{arg} ({:?})", BinOpCode::from(*arg)).unwrap();
+                write!(instrs, "{arg} ({:?})", BinOpCode::from(arg as u8)).unwrap();
             }
             _ => {}
         }
         instrs.push('\n');
     }
 
-    fn dump_additional_info(&self, op: CommonOpcode, arg: &u8, idx: usize, instrs: &mut String) {
+    fn dump_additional_info(&self, op: CommonOpcode, arg: usize, idx: usize, instrs: &mut String) {
         match op {
             CommonOpcode::COMPARE_OP => {
                 let op = match arg {
@@ -653,29 +686,19 @@ impl CodeObj {
             | CommonOpcode::LOAD_METHOD
             | CommonOpcode::IMPORT_NAME
             | CommonOpcode::IMPORT_FROM => {
-                write!(instrs, "{arg} ({})", self.names.get(*arg as usize).unwrap()).unwrap();
+                write!(instrs, "{arg} ({})", self.names.get(arg).unwrap()).unwrap();
             }
             CommonOpcode::STORE_FAST | CommonOpcode::LOAD_FAST => {
-                write!(
-                    instrs,
-                    "{arg} ({})",
-                    self.varnames.get(*arg as usize).unwrap()
-                )
-                .unwrap();
+                write!(instrs, "{arg} ({})", self.varnames.get(arg).unwrap()).unwrap();
             }
             CommonOpcode::LOAD_CONST => {
-                write!(
-                    instrs,
-                    "{arg} ({})",
-                    self.consts.get(*arg as usize).unwrap()
-                )
-                .unwrap();
+                write!(instrs, "{arg} ({})", self.consts.get(arg).unwrap()).unwrap();
             }
             CommonOpcode::FOR_ITER => {
-                write!(instrs, "{arg} (to {})", idx + *arg as usize * 2 + 2).unwrap();
+                write!(instrs, "{arg} (to {})", idx + arg * 2 + 2).unwrap();
             }
             CommonOpcode::JUMP_FORWARD => {
-                write!(instrs, "{arg} (to {})", idx + *arg as usize * 2 + 2).unwrap();
+                write!(instrs, "{arg} (to {})", idx + arg * 2 + 2).unwrap();
             }
             CommonOpcode::MAKE_FUNCTION => {
                 let flag = match arg {
