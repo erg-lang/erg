@@ -262,4 +262,39 @@ _ = if!, True, do!:
     print!()
 while! do! False, do!:
     print!()
+
+flg = !False
+mode = "z"
+match! mode:
+    "a" => print! "a"
+    "b" => print! "b"
+    "c" => print! "c"
+    "d" => print! "d"
+    "e" => print! "e"
+    "f" => print! "f"
+    "g" => print! "g"
+    "h" => print! "h"
+    "i" => print! "i"
+    "j" => print! "j"
+    "k" => print! "k"
+    "l" => print! "l"
+    "m" => print! "m"
+    "n" => print! "n"
+    "o" => print! "o"
+    "p" => print! "p"
+    "q" => print! "q"
+    "r" => print! "r"
+    "s" => print! "s"
+    "t" => print! "t"
+    "u" => print! "u"
+    "v" => print! "v"
+    "w" => print! "w"
+    "x" => print! "x"
+    "y" => print! "y"
+    other =>
+        print! other
+        flg.invert!()
+print! flg
+assert flg
+
 print! "done"

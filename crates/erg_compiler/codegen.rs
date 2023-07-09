@@ -376,6 +376,18 @@ impl PyCodeGenerator {
         }
     }
 
+    fn fill_jump(&mut self, idx: usize, jump_to: usize) {
+        let arg = if self.py_version.minor >= Some(10) {
+            jump_to / 2
+        } else {
+            jump_to
+        };
+        let delta = self.jump_delta(arg);
+        let bytes = u16::try_from(arg + delta).unwrap().to_be_bytes();
+        *self.mut_cur_block_codeobj().code.get_mut(idx).unwrap() = bytes[0];
+        *self.mut_cur_block_codeobj().code.get_mut(idx + 2).unwrap() = bytes[1];
+    }
+
     /// returns: shift bytes
     fn calc_edit_jump(&mut self, idx: usize, jump_to: usize) -> usize {
         let arg = if self.py_version.minor >= Some(10) {
@@ -926,6 +938,7 @@ impl PyCodeGenerator {
 
     /// Compileが継続不能になった際呼び出す
     /// 極力使わないこと
+    #[track_caller]
     fn crash(&mut self, description: &str) -> ! {
         if cfg!(feature = "debug") {
             println!("current block: {}", self.cur_block());
@@ -1867,6 +1880,7 @@ impl PyCodeGenerator {
             Expr::Accessor(acc) => Expr::Accessor(acc).call_expr(Args::empty()),
             _ => todo!(),
         };
+        // Evaluate again at the end of the loop
         self.emit_expr(cond.clone());
         let idx_while = self.lasti();
         self.write_instr(Opcode310::POP_JUMP_IF_FALSE);
@@ -1933,15 +1947,17 @@ impl PyCodeGenerator {
                 } else {
                     self.lasti() + 2
                 };
-                self.calc_edit_jump(pop_jump_point + 1, idx); // jump to POP_TOP
+                self.fill_jump(pop_jump_point + 1, idx); // jump to POP_TOP
                 jump_forward_points.push(self.lasti());
+                self.write_instr(EXTENDED_ARG);
+                self.write_arg(0);
                 self.write_instr(JUMP_FORWARD); // jump to the end
                 self.write_arg(0);
             }
         }
         let lasti = self.lasti();
         for jump_point in jump_forward_points.into_iter() {
-            self.calc_edit_jump(jump_point + 1, lasti - jump_point - 1);
+            self.fill_jump(jump_point + 1, lasti - jump_point - 1 - 2);
         }
         self.stack_inc();
         debug_assert_eq!(self.stack_len(), init_stack_len + 1);
@@ -1994,6 +2010,11 @@ impl PyCodeGenerator {
                 }
                 self.stack_dec();
                 pop_jump_points.push(self.lasti());
+                // HACK: match branches often jump very far (beyond the u8 range),
+                // so the jump destination should be reserved as the u16 range.
+                // Other jump instructions may need to be replaced by this way.
+                self.write_instr(EXTENDED_ARG);
+                self.write_arg(0);
                 // in 3.11, POP_JUMP_IF_FALSE is replaced with POP_JUMP_FORWARD_IF_FALSE
                 // but the numbers are the same, only the way the jumping points are calculated is different.
                 self.write_instr(Opcode310::POP_JUMP_IF_FALSE); // jump to the next case
