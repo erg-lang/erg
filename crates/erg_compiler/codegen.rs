@@ -1883,6 +1883,8 @@ impl PyCodeGenerator {
         // Evaluate again at the end of the loop
         self.emit_expr(cond.clone());
         let idx_while = self.lasti();
+        self.write_instr(EXTENDED_ARG);
+        self.write_arg(0);
         self.write_instr(Opcode310::POP_JUMP_IF_FALSE);
         self.write_arg(0);
         self.stack_dec();
@@ -1906,14 +1908,20 @@ impl PyCodeGenerator {
                 idx_while + 2
             }
         };
-        self.write_arg(arg);
+        let shift_bytes = match arg {
+            0..=255 => 1,
+            256..=65535 => 2,
+            65536..=4294967295 => 3,
+            n => todo!("too large: {n}"),
+        };
+        self.write_arg(arg - shift_bytes);
         self.stack_dec();
         let idx_end = if self.py_version.minor >= Some(11) {
             self.lasti() - idx_while - 1
         } else {
             self.lasti()
         };
-        self.calc_edit_jump(idx_while + 1, idx_end);
+        self.fill_jump(idx_while + 1, idx_end - 2);
         self.emit_load_const(ValueObj::None);
         debug_assert_eq!(self.stack_len(), _init_stack_len + 1);
     }
