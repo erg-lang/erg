@@ -940,7 +940,7 @@ impl PyCodeGenerator {
     /// 極力使わないこと
     #[track_caller]
     fn crash(&mut self, description: &str) -> ! {
-        if cfg!(feature = "debug") {
+        if cfg!(debug_assertions) || cfg!(feature = "debug") {
             println!("current block: {}", self.cur_block());
             panic!("internal error: {description}");
         } else {
@@ -1760,6 +1760,8 @@ impl PyCodeGenerator {
         let cond = args.remove(0);
         self.emit_expr(cond);
         let idx_pop_jump_if_false = self.lasti();
+        self.write_instr(EXTENDED_ARG);
+        self.write_arg(0);
         // Opcode310::POP_JUMP_IF_FALSE == Opcode311::POP_JUMP_FORWARD_IF_FALSE
         self.write_instr(Opcode310::POP_JUMP_IF_FALSE);
         // cannot detect where to jump to at this moment, so put as 0
@@ -1775,7 +1777,9 @@ impl PyCodeGenerator {
             }
         }
         if args.get(0).is_some() {
-            let mut idx_jump_forward = self.lasti();
+            let idx_jump_forward = self.lasti();
+            self.write_instr(EXTENDED_ARG);
+            self.write_arg(0);
             self.write_instr(JUMP_FORWARD); // jump to end
             self.write_arg(0);
             // else block
@@ -1784,7 +1788,7 @@ impl PyCodeGenerator {
             } else {
                 self.lasti()
             };
-            idx_jump_forward += self.calc_edit_jump(idx_pop_jump_if_false + 1, idx_else_begin);
+            self.fill_jump(idx_pop_jump_if_false + 1, idx_else_begin - 2);
             match args.remove(0) {
                 Expr::Lambda(lambda) => {
                     // let params = self.gen_param_names(&lambda.params);
@@ -1795,7 +1799,7 @@ impl PyCodeGenerator {
                 }
             }
             let idx_end = self.lasti();
-            self.calc_edit_jump(idx_jump_forward + 1, idx_end - idx_jump_forward - 2);
+            self.fill_jump(idx_jump_forward + 1, idx_end - idx_jump_forward - 2 - 1);
             // FIXME: this is a hack to make sure the stack is balanced
             while self.stack_len() != init_stack_len + 1 {
                 self.stack_dec();
@@ -1809,7 +1813,7 @@ impl PyCodeGenerator {
             } else {
                 self.lasti()
             };
-            self.calc_edit_jump(idx_pop_jump_if_false + 1, idx_end);
+            self.fill_jump(idx_pop_jump_if_false + 1, idx_end - 2);
             self.emit_load_const(ValueObj::None);
             while self.stack_len() != init_stack_len + 1 {
                 self.stack_dec();
