@@ -541,9 +541,10 @@ impl CodeObj {
                     arg
                 };
                 match py_ver.and_then(|pv| pv.minor) {
+                    Some(7) => self.read_instr_307(op, arg, idx, &mut instrs),
                     Some(8) => self.read_instr_308(op, arg, idx, &mut instrs),
-                    // Some(9) => self.read_instr_3_9(op, arg, idx, &mut instrs),
-                    Some(10) => self.read_instr_310(op, arg, idx, &mut instrs),
+                    // Some(9) => self.read_instr_309(op, arg, idx, &mut instrs),
+                    Some(9 | 10) => self.read_instr_310(op, arg, idx, &mut instrs),
                     Some(11) => self.read_instr_311(op, arg, idx, &mut instrs),
                     _ => {}
                 }
@@ -554,6 +555,40 @@ impl CodeObj {
             }
         }
         instrs
+    }
+
+    fn read_instr_307(&self, op: &u8, arg: usize, idx: usize, instrs: &mut String) {
+        let op307 = Opcode308::from(*op);
+        let s_op = op307.to_string();
+        write!(instrs, "{idx:>15} {s_op:<25}").unwrap();
+        if let Ok(op) = CommonOpcode::try_from(*op) {
+            self.dump_additional_info(op, arg, idx, instrs);
+        }
+        match op307 {
+            Opcode308::STORE_DEREF | Opcode308::LOAD_DEREF => {
+                write!(instrs, "{arg} ({})", self.freevars.get(arg).unwrap()).unwrap();
+            }
+            Opcode308::LOAD_CLOSURE => {
+                write!(instrs, "{arg} ({})", self.cellvars.get(arg).unwrap()).unwrap();
+            }
+            Opcode308::JUMP_ABSOLUTE => {
+                write!(instrs, "{arg} (to {})", arg).unwrap();
+            }
+            Opcode308::JUMP_FORWARD => {
+                write!(instrs, "{arg} (to {})", idx + arg + 2).unwrap();
+            }
+            Opcode308::POP_JUMP_IF_FALSE | Opcode308::POP_JUMP_IF_TRUE => {
+                write!(instrs, "{arg} (to {})", arg).unwrap();
+            }
+            Opcode308::BINARY_ADD
+            | Opcode308::BINARY_SUBTRACT
+            | Opcode308::BINARY_MULTIPLY
+            | Opcode308::BINARY_TRUE_DIVIDE => {
+                write!(instrs, "{arg} ({:?})", TypePair::from(arg as u8)).unwrap();
+            }
+            _ => {}
+        }
+        instrs.push('\n');
     }
 
     fn read_instr_308(&self, op: &u8, arg: usize, idx: usize, instrs: &mut String) {
@@ -572,6 +607,9 @@ impl CodeObj {
             }
             Opcode308::JUMP_ABSOLUTE => {
                 write!(instrs, "{arg} (to {})", arg * 2).unwrap();
+            }
+            Opcode308::JUMP_FORWARD => {
+                write!(instrs, "{arg} (to {})", idx + arg * 2 + 2).unwrap();
             }
             // REVIEW: *2?
             Opcode308::POP_JUMP_IF_FALSE | Opcode308::POP_JUMP_IF_TRUE => {
@@ -604,6 +642,9 @@ impl CodeObj {
             }
             Opcode310::JUMP_ABSOLUTE => {
                 write!(instrs, "{arg} (to {})", arg * 2).unwrap();
+            }
+            Opcode310::JUMP_FORWARD => {
+                write!(instrs, "{arg} (to {})", idx + arg * 2 + 2).unwrap();
             }
             Opcode310::POP_JUMP_IF_FALSE | Opcode310::POP_JUMP_IF_TRUE => {
                 write!(instrs, "{arg} (to {})", arg * 2).unwrap();
@@ -641,6 +682,9 @@ impl CodeObj {
             }
             Opcode311::POP_JUMP_BACKWARD_IF_FALSE | Opcode311::POP_JUMP_BACKWARD_IF_TRUE => {
                 write!(instrs, "{arg} (to {})", idx - arg * 2 + 2).unwrap();
+            }
+            Opcode311::JUMP_FORWARD => {
+                write!(instrs, "{arg} (to {})", idx + arg * 2 + 2).unwrap();
             }
             Opcode311::JUMP_BACKWARD => {
                 write!(instrs, "{arg} (to {})", idx - arg * 2 + 2).unwrap();
@@ -695,9 +739,6 @@ impl CodeObj {
                 write!(instrs, "{arg} ({})", self.consts.get(arg).unwrap()).unwrap();
             }
             CommonOpcode::FOR_ITER => {
-                write!(instrs, "{arg} (to {})", idx + arg * 2 + 2).unwrap();
-            }
-            CommonOpcode::JUMP_FORWARD => {
                 write!(instrs, "{arg} (to {})", idx + arg * 2 + 2).unwrap();
             }
             CommonOpcode::MAKE_FUNCTION => {

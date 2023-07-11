@@ -1780,7 +1780,7 @@ impl PyCodeGenerator {
             let idx_jump_forward = self.lasti();
             self.write_instr(EXTENDED_ARG);
             self.write_arg(0);
-            self.write_instr(JUMP_FORWARD); // jump to end
+            self.write_instr(Opcode308::JUMP_FORWARD); // jump to end
             self.write_arg(0);
             // else block
             let idx_else_begin = if self.py_version.minor >= Some(11) {
@@ -1805,7 +1805,7 @@ impl PyCodeGenerator {
                 self.stack_dec();
             }
         } else {
-            self.write_instr(JUMP_FORWARD);
+            self.write_instr(Opcode308::JUMP_FORWARD);
             self.write_arg(1);
             // no else block
             let idx_end = if self.py_version.minor >= Some(11) {
@@ -1963,7 +1963,7 @@ impl PyCodeGenerator {
                 jump_forward_points.push(self.lasti());
                 self.write_instr(EXTENDED_ARG);
                 self.write_arg(0);
-                self.write_instr(JUMP_FORWARD); // jump to the end
+                self.write_instr(Opcode308::JUMP_FORWARD); // jump to the end
                 self.write_arg(0);
             }
         }
@@ -2128,7 +2128,7 @@ impl PyCodeGenerator {
         self.stack_dec_n((1 + 3) - 1);
         self.emit_pop_top();
         let idx_jump_forward = self.lasti();
-        self.write_instr(JUMP_FORWARD);
+        self.write_instr(Opcode310::JUMP_FORWARD);
         self.write_arg(0);
         self.edit_code(idx_setup_with + 1, (self.lasti() - idx_setup_with - 2) / 2);
         self.write_instr(Opcode310::WITH_EXCEPT_START);
