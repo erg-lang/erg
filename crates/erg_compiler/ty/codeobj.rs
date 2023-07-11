@@ -580,6 +580,11 @@ impl CodeObj {
             Opcode308::POP_JUMP_IF_FALSE | Opcode308::POP_JUMP_IF_TRUE => {
                 write!(instrs, "{arg} (to {})", arg).unwrap();
             }
+            Opcode308::CALL_FUNCTION
+            | Opcode308::CALL_FUNCTION_EX
+            | Opcode308::CALL_FUNCTION_KW => {
+                write!(instrs, "{arg}").unwrap();
+            }
             Opcode308::BINARY_ADD
             | Opcode308::BINARY_SUBTRACT
             | Opcode308::BINARY_MULTIPLY
@@ -614,6 +619,11 @@ impl CodeObj {
             // REVIEW: *2?
             Opcode308::POP_JUMP_IF_FALSE | Opcode308::POP_JUMP_IF_TRUE => {
                 write!(instrs, "{arg} (to {})", arg * 2).unwrap();
+            }
+            Opcode308::CALL_FUNCTION
+            | Opcode308::CALL_FUNCTION_EX
+            | Opcode308::CALL_FUNCTION_KW => {
+                write!(instrs, "{arg}").unwrap();
             }
             Opcode308::BINARY_ADD
             | Opcode308::BINARY_SUBTRACT
@@ -654,6 +664,11 @@ impl CodeObj {
             | Opcode310::BINARY_MULTIPLY
             | Opcode310::BINARY_TRUE_DIVIDE => {
                 write!(instrs, "{arg} ({:?})", TypePair::from(arg as u8)).unwrap();
+            }
+            Opcode310::CALL_FUNCTION
+            | Opcode310::CALL_FUNCTION_EX
+            | Opcode310::CALL_FUNCTION_KW => {
+                write!(instrs, "{arg}").unwrap();
             }
             Opcode310::SETUP_WITH => {
                 write!(instrs, "{arg} (to {})", idx + arg * 2 + 2).unwrap();
