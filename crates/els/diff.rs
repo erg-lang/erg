@@ -124,10 +124,14 @@ impl HIRDiff {
                 old.module.insert(idx, expr);
             }
             Self::Deletion(usize) => {
-                old.module.remove(usize);
+                if old.module.get(usize).is_some() {
+                    old.module.remove(usize);
+                }
             }
             Self::Modification(idx, expr) => {
-                *old.module.get_mut(idx).unwrap() = expr;
+                if let Some(old_expr) = old.module.get_mut(idx) {
+                    *old_expr = expr;
+                }
             }
             Self::Nop => {}
         }

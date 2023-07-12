@@ -24,6 +24,12 @@ pub enum TokenKind {
     NatLit,
     /// e.g. -1, -2
     IntLit,
+    /// e.g. 0b101
+    BinLit,
+    /// e.g. 0o777
+    OctLit,
+    /// e.g. 0xdeadbeef
+    HexLit,
     RatioLit,
     BoolLit,
     StrLit,
@@ -232,8 +238,8 @@ impl TokenKind {
     pub const fn category(&self) -> TokenCategory {
         match self {
             Symbol => TokenCategory::Symbol,
-            NatLit | IntLit | RatioLit | StrLit | BoolLit | NoneLit | EllipsisLit | InfLit
-            | DocComment => TokenCategory::Literal,
+            NatLit | BinLit | OctLit | HexLit | IntLit | RatioLit | StrLit | BoolLit | NoneLit
+            | EllipsisLit | InfLit | DocComment => TokenCategory::Literal,
             StrInterpLeft => TokenCategory::StrInterpLeft,
             StrInterpMid => TokenCategory::StrInterpMid,
             StrInterpRight => TokenCategory::StrInterpRight,

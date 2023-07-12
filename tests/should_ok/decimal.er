@@ -1,0 +1,8 @@
+b = 0b010010
+assert b == 18
+
+o = 0o22
+assert o == 18
+
+h = 0x12
+assert h == 18
