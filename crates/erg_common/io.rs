@@ -216,7 +216,11 @@ impl Input {
         match &self.kind {
             InputKind::File(filename) => format!(
                 "{}_{}",
-                filename.file_stem().and_then(|f| f.to_str()).unwrap_or("_"),
+                filename
+                    .file_stem()
+                    .and_then(|f| f.to_str())
+                    .unwrap_or("_")
+                    .trim_end_matches(".d"),
                 self.id
             ),
             InputKind::REPL | InputKind::Pipe(_) => format!("stdin_{}", self.id),
@@ -248,9 +252,11 @@ impl Input {
 
     pub fn unescaped_file_stem(&self) -> &str {
         match &self.kind {
-            InputKind::File(filename) => {
-                filename.file_stem().and_then(|f| f.to_str()).unwrap_or("_")
-            }
+            InputKind::File(filename) => filename
+                .file_stem()
+                .and_then(|f| f.to_str())
+                .unwrap_or("_")
+                .trim_end_matches(".d"),
             InputKind::REPL | InputKind::Pipe(_) => "stdin",
             InputKind::DummyREPL(_stdin) => "stdin",
             InputKind::Str(_) => "string",
@@ -260,9 +266,11 @@ impl Input {
 
     pub fn unescaped_filename(&self) -> &str {
         match &self.kind {
-            InputKind::File(filename) => {
-                filename.file_name().and_then(|f| f.to_str()).unwrap_or("_")
-            }
+            InputKind::File(filename) => filename
+                .file_name()
+                .and_then(|f| f.to_str())
+                .unwrap_or("_")
+                .trim_end_matches(".d"),
             InputKind::REPL | InputKind::Pipe(_) => "stdin",
             InputKind::DummyREPL(_stdin) => "stdin",
             InputKind::Str(_) => "string",
@@ -283,7 +291,9 @@ impl Input {
     pub fn module_name(&self) -> String {
         match &self.kind {
             InputKind::File(filename) => {
-                let file_stem = if filename.file_stem() == Some(OsStr::new("__init__")) {
+                let file_stem = if filename.file_stem() == Some(OsStr::new("__init__"))
+                    || filename.file_stem() == Some(OsStr::new("__init__.d"))
+                {
                     filename.parent().and_then(|p| p.file_stem())
                 } else {
                     filename.file_stem()
@@ -291,6 +301,7 @@ impl Input {
                 file_stem
                     .and_then(|f| f.to_str())
                     .unwrap_or("_")
+                    .trim_end_matches(".d")
                     .to_string()
             }
             InputKind::REPL | InputKind::Pipe(_) => "<stdin>".to_string(),
@@ -748,11 +759,11 @@ impl Output {
 pub fn lsp_log(file: &str, line: u32, msg: &str) {
     let file_path = erg_path().join("els.log");
     let mut f = if file_path.exists() {
-        File::options().write(true).open(file_path).unwrap()
+        File::options().append(true).open(file_path).unwrap()
     } else {
         File::create(file_path).unwrap()
     };
-    f.write_all(format!("{file}@{line}: {msg}").as_bytes())
+    f.write_all(format!("{file}@{line}: {msg}\n").as_bytes())
         .unwrap();
 }
 
