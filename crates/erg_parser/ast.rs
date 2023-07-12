@@ -2569,8 +2569,10 @@ impl Locational for TupleTypeSpec {
     fn loc(&self) -> Location {
         if let Some((lparen, rparen)) = &self.parens {
             Location::concat(lparen, rparen)
-        } else {
+        } else if !self.tys.is_empty() {
             Location::concat(self.tys.first().unwrap(), self.tys.last().unwrap())
+        } else {
+            Location::Unknown
         }
     }
 }
@@ -2701,8 +2703,20 @@ impl Locational for TypeSpec {
             Self::Array(arr) => arr.loc(),
             Self::SetWithLen(set) => set.loc(),
             Self::Tuple(tup) => tup.loc(),
-            Self::Dict(dict) => Location::concat(&dict.first().unwrap().0, &dict.last().unwrap().1),
-            Self::Record(rec) => Location::concat(&rec.first().unwrap().0, &rec.last().unwrap().1),
+            Self::Dict(dict) => {
+                if dict.is_empty() {
+                    Location::Unknown
+                } else {
+                    Location::concat(&dict.first().unwrap().0, &dict.last().unwrap().1)
+                }
+            }
+            Self::Record(rec) => {
+                if rec.is_empty() {
+                    Location::Unknown
+                } else {
+                    Location::concat(&rec.first().unwrap().0, &rec.last().unwrap().1)
+                }
+            }
             Self::Enum(set) => set.loc(),
             Self::Interval { lhs, rhs, .. } => Location::concat(lhs, rhs),
             Self::Subr(s) => s.loc(),
@@ -2854,7 +2868,11 @@ impl_displayable_stream_for_wrapper!(TypeBoundSpecs, TypeBoundSpec);
 
 impl Locational for TypeBoundSpecs {
     fn loc(&self) -> Location {
-        Location::concat(self.first().unwrap(), self.last().unwrap())
+        if self.0.is_empty() {
+            Location::Unknown
+        } else {
+            Location::concat(self.first().unwrap(), self.last().unwrap())
+        }
     }
 }
 
@@ -3003,7 +3021,11 @@ impl NestedDisplay for Namespaces {
 
 impl Locational for Namespaces {
     fn loc(&self) -> Location {
-        Location::concat(self.first().unwrap(), self.last().unwrap())
+        if self.0.is_empty() {
+            Location::Unknown
+        } else {
+            Location::concat(self.first().unwrap(), self.last().unwrap())
+        }
     }
 }
 
@@ -3252,7 +3274,7 @@ impl Locational for VarTuplePattern {
     fn loc(&self) -> Location {
         match &self.paren {
             Some((l, r)) => Location::concat(l, r),
-            None => Location::concat(&self.elems[0], self.elems.last().unwrap()),
+            None => self.elems.loc(),
         }
     }
 }
@@ -3505,6 +3527,16 @@ impl NestedDisplay for Vars {
 
 impl_display_from_nested!(Vars);
 impl_stream!(Vars, VarSignature, elems);
+
+impl Locational for Vars {
+    fn loc(&self) -> Location {
+        if self.elems.is_empty() {
+            Location::Unknown
+        } else {
+            Location::concat(self.first().unwrap(), self.last().unwrap())
+        }
+    }
+}
 
 impl Vars {
     pub const fn new(elems: Vec<VarSignature>) -> Self {
