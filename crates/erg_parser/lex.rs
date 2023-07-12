@@ -621,6 +621,18 @@ impl Lexer /*<'a>*/ {
                 n if n.is_ascii_digit() || n == '_' => {
                     num.push(self.consume().unwrap());
                 }
+                'b' | 'B' => {
+                    num.push(self.consume().unwrap());
+                    return self.lex_bin(num);
+                }
+                'o' | 'O' => {
+                    num.push(self.consume().unwrap());
+                    return self.lex_oct(num);
+                }
+                'x' | 'X' => {
+                    num.push(self.consume().unwrap());
+                    return self.lex_hex(num);
+                }
                 c if Self::is_valid_continue_symbol_ch(c) => {
                     // exponent (e.g. 10e+3)
                     if c == 'e'
@@ -680,6 +692,39 @@ impl Lexer /*<'a>*/ {
                 self.lex_ratio(num)
             }
         }
+    }
+
+    fn lex_bin(&mut self, mut num: String) -> LexResult<Token> {
+        while let Some(cur) = self.peek_cur_ch() {
+            if cur == '0' || cur == '1' || cur == '_' {
+                num.push(self.consume().unwrap());
+            } else {
+                break;
+            }
+        }
+        Ok(self.emit_token(BinLit, &num))
+    }
+
+    fn lex_oct(&mut self, mut num: String) -> LexResult<Token> {
+        while let Some(cur) = self.peek_cur_ch() {
+            if matches!(cur, '0'..='7') || cur == '_' {
+                num.push(self.consume().unwrap());
+            } else {
+                break;
+            }
+        }
+        Ok(self.emit_token(OctLit, &num))
+    }
+
+    fn lex_hex(&mut self, mut num: String) -> LexResult<Token> {
+        while let Some(cur) = self.peek_cur_ch() {
+            if cur.is_ascii_hexdigit() || cur == '_' {
+                num.push(self.consume().unwrap());
+            } else {
+                break;
+            }
+        }
+        Ok(self.emit_token(HexLit, &num))
     }
 
     /// int_part_and_point must be like `12.`
@@ -1547,7 +1592,7 @@ impl Iterator for Lexer /*<'a>*/ {
                     None,
                 )))
             }
-            // IntLit or RatioLit
+            // IntLit (or Bin/Oct/Hex) or RatioLit
             Some(n) if n.is_ascii_digit() => Some(self.lex_num(n)),
             // Symbol (includes '_')
             Some(c) if Self::is_valid_start_symbol_ch(c) => Some(self.lex_symbol(c)),

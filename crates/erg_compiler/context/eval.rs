@@ -48,7 +48,7 @@ pub fn type_from_token_kind(kind: TokenKind) -> Type {
     use TokenKind::*;
 
     match kind {
-        NatLit => Type::Nat,
+        NatLit | BinLit | OctLit | HexLit => Type::Nat,
         IntLit => Type::Int,
         RatioLit => Type::Ratio,
         StrLit | DocComment => Type::Str,

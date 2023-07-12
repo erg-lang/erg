@@ -53,6 +53,11 @@ fn exec_control_expr() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_decimal() -> Result<(), ()> {
+    expect_success("tests/should_ok/decimal.er", 0)
+}
+
+#[test]
 fn exec_default_param() -> Result<(), ()> {
     expect_success("tests/should_ok/default_param.er", 0)
 }

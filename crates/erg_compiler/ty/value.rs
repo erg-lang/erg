@@ -920,12 +920,29 @@ impl ValueObj {
     pub fn from_str(t: Type, mut content: Str) -> Option<Self> {
         match t {
             Type::Int => content.replace('_', "").parse::<i32>().ok().map(Self::Int),
-            Type::Nat => content
-                .trim_start_matches('-') // -0 -> 0
-                .replace('_', "")
-                .parse::<u64>()
-                .ok()
-                .map(Self::Nat),
+            Type::Nat => {
+                let content = content
+                    .trim_start_matches('-') // -0 -> 0
+                    .replace('_', "");
+                if content.len() <= 1 {
+                    return content.parse::<u64>().ok().map(Self::Nat);
+                }
+                match &content[0..=1] {
+                    pre @ ("0b" | "0B") => {
+                        let content = content.trim_start_matches(pre);
+                        u64::from_str_radix(content, 2).ok().map(Self::Nat)
+                    }
+                    pre @ ("0o" | "0O") => {
+                        let content = content.trim_start_matches(pre);
+                        u64::from_str_radix(content, 8).ok().map(Self::Nat)
+                    }
+                    pre @ ("0x" | "0X") => {
+                        let content = content.trim_start_matches(pre);
+                        u64::from_str_radix(content, 16).ok().map(Self::Nat)
+                    }
+                    _ => content.parse::<u64>().ok().map(Self::Nat),
+                }
+            }
             Type::Float => content
                 .replace('_', "")
                 .parse::<f64>()
