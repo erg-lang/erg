@@ -1,7 +1,37 @@
 .PurePath: ClassType
-.PurePath.parts: [Str; _]
+.PurePath.
+    parts: [Str; _]
+    drive: Str
+    root: Str
+    anchor: Str
+    parents: [.PurePath; _]
+    parent: .PurePath
+    name: Str
+    suffix: Str
+    suffixes: [Str; _]
+    stem: Str
+    __call__: (*segments: Str) -> .PurePath
+    as_posix: (self: .PurePath) -> Str
+    as_uri: (self: .PurePath) -> Str
+    is_absolute: (self: .PurePath) -> Bool
+    is_relative_to: (self: .PurePath, *other: .PurePath) -> Bool
+    is_reserved: (self: .PurePath) -> Bool
+    joinpath: (self: .PurePath, *other: .PurePath) -> .PurePath
+    match: (self: .PurePath, pattern: Str) -> Bool
+    relative_to: (self: .PurePath, *other: .PurePath) -> .PurePath
+    with_name: (self: .PurePath, name: Str) -> .PurePath
+    with_stem: (self: .PurePath, suffix: Str) -> .PurePath
+    with_suffix: (self: .PurePath, suffix: Str) -> .PurePath
 .PurePosixPath: ClassType
 .PureWindowsPath: ClassType
 .Path: ClassType
+.Path <: .PurePath
+.Path.
+    __call__: (*segments: Str) -> .Path
+    cwd!: () => .Path
+    home!: () => .Path
+    samefile!: (self: .Path, other: .Path) => Bool
+    open!: (self: .Path, mode := Str) => File!
+    chmod!: (self: .Path, mode: Nat) => NoneType
 .PosixPath: ClassType
 .WindowsPath: ClassType
