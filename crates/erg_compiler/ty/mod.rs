@@ -47,6 +47,7 @@ use self::constructors::subr_t;
 
 pub const STR_OMIT_THRESHOLD: usize = 16;
 pub const CONTAINER_OMIT_THRESHOLD: usize = 8;
+pub const DEFAULT_PARAMS_THRESHOLD: usize = 5;
 
 /// cloneのコストがあるためなるべく.ref_tを使うようにすること
 /// いくつかの構造体は直接Typeを保持していないので、その場合は.tを使う
@@ -315,6 +316,10 @@ impl LimitedDisplay for SubrType {
             var_params.typ().limited_fmt(f, limit - 1)?;
         }
         for (i, pt) in self.default_params.iter().enumerate() {
+            if limit.is_positive() && i >= DEFAULT_PARAMS_THRESHOLD {
+                write!(f, ", ...")?;
+                break;
+            }
             if i > 0 || !self.non_default_params.is_empty() || self.var_params.is_some() {
                 write!(f, ", ")?;
             }
