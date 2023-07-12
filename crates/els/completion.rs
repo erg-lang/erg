@@ -355,24 +355,44 @@ impl CompletionCache {
             move || {
                 crate::_log!("load_modules");
                 let major_mods = [
+                    "argparse",
+                    "array",
+                    "asyncio",
+                    "base64",
                     "datetime",
+                    "decimal",
+                    "fraction",
                     "glob",
+                    "html",
                     "http",
                     "http/client",
                     "http/server",
                     "io",
                     "json",
+                    "logging",
                     "math",
                     "os",
                     "os/path",
+                    "pathlib",
+                    "platform",
                     "random",
                     "re",
+                    "shutil",
+                    "socket",
+                    "sqlite3",
+                    "ssl",
+                    "string",
+                    "subprocess",
                     "sys",
+                    "tempfile",
                     "time",
+                    "timeit",
+                    "unittest",
                     "urllib",
+                    "zipfile",
                 ];
                 #[cfg(feature = "py_compat")]
-                let py_specific_mods = ["typing", "collections/abc"];
+                let py_specific_mods = ["dataclasses", "typing", "collections/abc"];
                 #[cfg(not(feature = "py_compat"))]
                 let py_specific_mods = [];
                 let ext_mods = ["numpy", "pandas", "matplotlib", "matplotlib/pyplot"];
