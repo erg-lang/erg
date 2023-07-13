@@ -18,6 +18,11 @@ fn exec_array() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_array_member() -> Result<(), ()> {
+    expect_success("tests/should_ok/array_member.er", 0)
+}
+
+#[test]
 fn exec_class() -> Result<(), ()> {
     expect_success("examples/class.er", 0)
 }
@@ -306,6 +311,11 @@ fn exec_args() -> Result<(), ()> {
 #[test]
 fn exec_array_err() -> Result<(), ()> {
     expect_failure("examples/array.er", 0, 1)
+}
+
+#[test]
+fn exec_array_member_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/array_member.er", 0, 3)
 }
 
 #[test]

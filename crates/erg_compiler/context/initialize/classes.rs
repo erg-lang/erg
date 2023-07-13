@@ -1181,7 +1181,7 @@ impl Context {
         );
         /* Array */
         let mut array_ =
-            Self::builtin_poly_class(ARRAY, vec![PS::t_nd(TY_T), PS::named_nd(TY_N, Nat)], 10);
+            Self::builtin_poly_class(ARRAY, vec![PS::t_nd(TY_T), PS::default(TY_N, Nat)], 10);
         array_.register_superclass(mono(GENERIC_ARRAY), &generic_array);
         array_
             .register_marker_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))

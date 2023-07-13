@@ -29,8 +29,8 @@ use Type::*;
 use crate::context::instantiate_spec::ConstTemplate;
 use crate::context::{Context, RegistrationMode, TraitImpl, TyVarCache, Variance};
 use crate::error::{
-    binop_to_dname, readable_name, unaryop_to_dname, SingleTyCheckResult, TyCheckError,
-    TyCheckErrors, TyCheckResult,
+    binop_to_dname, ordinal_num, readable_name, unaryop_to_dname, SingleTyCheckResult,
+    TyCheckError, TyCheckErrors, TyCheckResult,
 };
 use crate::varinfo::{AbsLocation, Mutability, VarInfo, VarKind};
 use crate::{feature_error, hir};
@@ -1486,7 +1486,12 @@ impl Context {
                     let missing_params = subr
                         .non_default_params
                         .iter()
-                        .map(|pt| pt.name().cloned().unwrap_or(Str::ever("_")))
+                        .enumerate()
+                        .map(|(i, pt)| {
+                            pt.name().cloned().unwrap_or_else(|| {
+                                Str::from(format!("({} param)", ordinal_num(i + 1)))
+                            })
+                        })
                         .filter(|pt| !passed_params.contains(pt))
                         .collect::<Vec<_>>();
                     if !missing_params.is_empty() {
@@ -1666,6 +1671,8 @@ impl Context {
             } else {
                 passed_params.insert(name.clone());
             }
+        } else {
+            passed_params.insert(Str::from(format!("({} param)", ordinal_num(nth))));
         }
         self.sub_unify(arg_t, param_t, arg, param.name())
             .map_err(|errs| {

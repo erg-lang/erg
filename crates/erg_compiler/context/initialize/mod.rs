@@ -33,7 +33,9 @@ use crate::module::SharedCompilerResource;
 use crate::ty::constructors::*;
 use crate::ty::free::Constraint;
 use crate::ty::value::ValueObj;
-use crate::ty::{BuiltinConstSubr, ConstSubr, ParamTy, Predicate, TyParam, Type, Visibility};
+use crate::ty::{
+    BuiltinConstSubr, ConstSubr, GenConstSubr, ParamTy, Predicate, TyParam, Type, Visibility,
+};
 use crate::varinfo::{AbsLocation, Mutability, VarInfo, VarKind};
 use Mutability::*;
 use ParamSpec as PS;
@@ -780,23 +782,48 @@ impl Context {
         muty: Mutability,
         py_name: Option<&'static str>,
     ) {
-        // FIXME: panic
         if let Some((_, root_ctx)) = self.poly_types.get_mut(&t.local_name()) {
             root_ctx.methods_list.push((ClassDefType::Simple(t), ctx));
         } else {
-            let val = match ctx.kind {
+            let ret_val = match ctx.kind {
                 ContextKind::Class => ValueObj::builtin_class(t.clone()),
                 ContextKind::Trait => ValueObj::builtin_trait(t.clone()),
                 _ => ValueObj::builtin_type(t.clone()),
             };
+            let qual_name = t.qual_name();
             let name = VarName::from_str(t.local_name());
-            // e.g Array!: |T, N|(_: {T}, _: {N}) -> {Array!(T, N)}
-            let params = t
-                .typarams()
-                .into_iter()
-                .map(|tp| ParamTy::Pos(tp_enum(self.get_tp_t(&tp).unwrap_or(Obj), set! { tp })))
-                .collect();
-            let meta_t = func(params, None, vec![], v_enum(set! { val.clone() })).quantify();
+            // e.g Array!: |T, N|(_: {T}, _:= {N}) -> {Array!(T, N)}
+            let nd_params = ctx
+                .params_spec
+                .iter()
+                .filter_map(|ps| (!ps.has_default()).then_some(ParamTy::from(ps)))
+                .collect::<Vec<_>>();
+            let num_nd = nd_params.len();
+            let d_params = ctx
+                .params_spec
+                .iter()
+                .filter_map(|ps| ps.has_default().then_some(ParamTy::from(ps)))
+                .collect::<Vec<_>>();
+            let num_d = d_params.len();
+            let meta_t =
+                func(nd_params, None, d_params.clone(), v_enum(set! { ret_val })).quantify();
+            let subr = move |args, _ctx: &Context| {
+                let passed = Vec::<TyParam>::from(args);
+                let lack = num_nd + num_d - passed.len();
+                let erased = d_params
+                    .clone()
+                    .into_iter()
+                    .take(lack)
+                    .map(|pt| TyParam::erased(pt.typ().clone()));
+                let params = passed.into_iter().chain(erased).collect::<Vec<_>>();
+                Ok(ValueObj::builtin_type(poly(qual_name.clone(), params)))
+            };
+            let subr = ConstSubr::Gen(GenConstSubr::new(
+                t.local_name(),
+                subr,
+                meta_t.clone(),
+                Some(t.clone()),
+            ));
             if ERG_MODE {
                 self.locals.insert(
                     name.clone(),
@@ -812,7 +839,7 @@ impl Context {
                     ),
                 );
             }
-            self.consts.insert(name.clone(), val);
+            self.consts.insert(name.clone(), ValueObj::Subr(subr));
             self.register_methods(&t, &ctx);
             self.poly_types.insert(name, (t, ctx));
         }

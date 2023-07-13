@@ -41,6 +41,9 @@ impl Generalizer {
     fn generalize_tp(&mut self, free: TyParam, uninit: bool) -> TyParam {
         match free {
             TyParam::Type(t) => TyParam::t(self.generalize_t(*t, uninit)),
+            TyParam::Value(ValueObj::Type(t)) => {
+                TyParam::t(self.generalize_t(t.into_typ(), uninit))
+            }
             TyParam::FreeVar(fv) if fv.is_generalized() => TyParam::FreeVar(fv),
             TyParam::FreeVar(fv) if fv.is_linked() => {
                 self.generalize_tp(fv.crack().clone(), uninit)
@@ -122,7 +125,7 @@ impl Generalizer {
                 TyParam::unary(op, val)
             }
             other if other.has_no_unbound_var() => other,
-            other => todo!("{other}"),
+            other => todo!("{other:?}"),
         }
     }
 

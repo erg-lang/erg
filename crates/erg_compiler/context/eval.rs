@@ -303,10 +303,40 @@ impl Context {
 
     fn call(&self, subr: ConstSubr, args: ValueArgs, loc: Location) -> EvalResult<ValueObj> {
         match subr {
-            ConstSubr::User(_user) => {
-                feature_error!(self, loc, "calling user-defined subroutines").map_err(Into::into)
+            ConstSubr::User(user) => {
+                // HACK: should avoid cloning
+                let mut subr_ctx = Context::instant(
+                    user.name.clone(),
+                    self.cfg.clone(),
+                    2,
+                    self.shared.clone(),
+                    self.clone(),
+                );
+                // TODO: var_args
+                for (arg, sig) in args
+                    .pos_args
+                    .into_iter()
+                    .zip(user.params.non_defaults.iter())
+                {
+                    let name = VarName::from_str(sig.inspect().unwrap().clone());
+                    subr_ctx.consts.insert(name, arg);
+                }
+                for (name, arg) in args.kw_args.into_iter() {
+                    subr_ctx.consts.insert(VarName::from_str(name), arg);
+                }
+                subr_ctx.eval_const_block(&user.block())
             }
             ConstSubr::Builtin(builtin) => builtin.call(args, self).map_err(|mut e| {
+                if e.0.loc.is_unknown() {
+                    e.0.loc = loc;
+                }
+                EvalErrors::from(EvalError::new(
+                    *e.0,
+                    self.cfg.input.clone(),
+                    self.caused_by(),
+                ))
+            }),
+            ConstSubr::Gen(gen) => gen.call(args, self).map_err(|mut e| {
                 if e.0.loc.is_unknown() {
                     e.0.loc = loc;
                 }

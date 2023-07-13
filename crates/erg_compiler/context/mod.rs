@@ -42,6 +42,7 @@ use crate::module::{
 };
 use crate::ty::value::ValueObj;
 use crate::ty::GuardType;
+use crate::ty::ParamTy;
 use crate::ty::{Predicate, Type, Visibility, VisibilityModifier};
 use crate::varinfo::{AbsLocation, Mutability, VarInfo, VarKind};
 use Type::*;
@@ -233,6 +234,16 @@ impl ParamSpec {
         )
     }
 
+    pub fn default<S: Into<Str>>(name: S, t: Type) -> Self {
+        Self::new(
+            Some(name),
+            t,
+            false,
+            DefaultInfo::WithDefault,
+            AbsLocation::unknown(),
+        )
+    }
+
     pub fn t<S: Into<Str>>(name: S, is_var_params: bool, default: DefaultInfo) -> Self {
         Self::new(
             Some(name),
@@ -251,6 +262,20 @@ impl ParamSpec {
             DefaultInfo::NonDefault,
             AbsLocation::unknown(),
         )
+    }
+
+    pub fn has_default(&self) -> bool {
+        self.default_info.has_default()
+    }
+}
+
+impl From<&ParamSpec> for ParamTy {
+    fn from(param: &ParamSpec) -> Self {
+        if let Some(name) = &param.name {
+            ParamTy::kw(name.clone(), param.t.clone())
+        } else {
+            ParamTy::Pos(param.t.clone())
+        }
     }
 }
 
@@ -434,6 +459,7 @@ pub struct Context {
     /// => locals: {"x": T, "y": T}
     /// TODO: impl params desugaring and replace to `Dict`
     pub(crate) params: Vec<(Option<VarName>, VarInfo)>,
+    pub(crate) params_spec: Vec<ParamSpec>,
     pub(crate) locals: Dict<VarName, VarInfo>,
     pub(crate) consts: Dict<VarName, ValueObj>,
     // {"Nat": ctx, "Int": ctx, ...}
@@ -589,7 +615,7 @@ impl Context {
         level: usize,
     ) -> Self {
         let mut params_ = Vec::new();
-        for param in params.into_iter() {
+        for param in params.clone().into_iter() {
             let id = DefId(get_hash(&(&name, &param)));
             if let Some(name) = param.name {
                 let kind = VarKind::parameter(id, param.is_var_params, param.default_info);
@@ -635,6 +661,7 @@ impl Context {
             method_to_classes: Dict::default(),
             method_impl_patches: Dict::default(),
             params: params_,
+            params_spec: params,
             decls: Dict::default(),
             future_defined_locals: Dict::default(),
             deleted_locals: Dict::default(),

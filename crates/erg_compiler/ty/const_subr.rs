@@ -1,24 +1,25 @@
 use std::fmt;
+use std::sync::Arc;
 
 use erg_common::dict::Dict;
 #[allow(unused_imports)]
 use erg_common::log;
 use erg_common::Str;
 
-use erg_parser::ast::{ConstBlock, Params};
+use erg_parser::ast::{Block, ConstBlock, Params};
 
 use super::constructors::subr_t;
 use super::value::{EvalValueResult, ValueObj};
-use super::{Predicate, Type};
+use super::{Predicate, TyParam, Type};
 
 use crate::context::Context;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct UserConstSubr {
-    name: Str,
-    params: Params,
-    block: ConstBlock,
-    sig_t: Type,
+    pub name: Str,
+    pub(crate) params: Params,
+    pub(crate) block: ConstBlock,
+    pub(crate) sig_t: Type,
 }
 
 impl UserConstSubr {
@@ -30,12 +31,23 @@ impl UserConstSubr {
             sig_t,
         }
     }
+
+    pub fn block(self) -> Block {
+        self.block.downgrade()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ValueArgs {
     pub pos_args: Vec<ValueObj>,
     pub kw_args: Dict<Str, ValueObj>,
+}
+
+impl From<ValueArgs> for Vec<TyParam> {
+    fn from(args: ValueArgs) -> Self {
+        // TODO: kw_args
+        args.pos_args.into_iter().map(TyParam::Value).collect()
+    }
 }
 
 impl ValueArgs {
@@ -54,7 +66,7 @@ impl ValueArgs {
 
 #[derive(Clone)]
 pub struct BuiltinConstSubr {
-    name: &'static str,
+    name: Str,
     subr: fn(ValueArgs, &Context) -> EvalValueResult<ValueObj>,
     sig_t: Type,
     as_type: Option<Type>,
@@ -91,15 +103,77 @@ impl fmt::Display for BuiltinConstSubr {
 }
 
 impl BuiltinConstSubr {
-    pub const fn new(
-        name: &'static str,
+    pub fn new<S: Into<Str>>(
+        name: S,
         subr: fn(ValueArgs, &Context) -> EvalValueResult<ValueObj>,
         sig_t: Type,
         as_type: Option<Type>,
     ) -> Self {
         Self {
-            name,
+            name: name.into(),
             subr,
+            sig_t,
+            as_type,
+        }
+    }
+
+    pub fn call(&self, args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
+        (self.subr)(args, ctx)
+    }
+}
+
+#[allow(clippy::type_complexity)]
+#[derive(Clone)]
+pub struct GenConstSubr {
+    name: Str,
+    subr: Arc<dyn Fn(ValueArgs, &Context) -> EvalValueResult<ValueObj>>,
+    sig_t: Type,
+    as_type: Option<Type>,
+}
+
+unsafe impl Send for GenConstSubr {}
+unsafe impl Sync for GenConstSubr {}
+
+impl std::fmt::Debug for GenConstSubr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BuiltinConstSubr")
+            .field("name", &self.name)
+            .field("sig_t", &self.sig_t)
+            .field("as_type", &self.as_type)
+            .finish()
+    }
+}
+
+impl PartialEq for GenConstSubr {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+    }
+}
+
+impl Eq for GenConstSubr {}
+
+impl std::hash::Hash for GenConstSubr {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.name.hash(state);
+    }
+}
+
+impl fmt::Display for GenConstSubr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "<const subroutine '{}'>", self.name)
+    }
+}
+
+impl GenConstSubr {
+    pub fn new<S: Into<Str>>(
+        name: S,
+        subr: impl Fn(ValueArgs, &Context) -> EvalValueResult<ValueObj> + 'static,
+        sig_t: Type,
+        as_type: Option<Type>,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            subr: Arc::new(subr),
             sig_t,
             as_type,
         }
@@ -114,6 +188,7 @@ impl BuiltinConstSubr {
 pub enum ConstSubr {
     User(UserConstSubr),
     Builtin(BuiltinConstSubr),
+    Gen(GenConstSubr),
 }
 
 impl fmt::Display for ConstSubr {
@@ -123,6 +198,7 @@ impl fmt::Display for ConstSubr {
                 write!(f, "<user-defined const subroutine '{}'>", subr.name)
             }
             ConstSubr::Builtin(subr) => write!(f, "{subr}"),
+            ConstSubr::Gen(subr) => write!(f, "{subr}"),
         }
     }
 }
@@ -132,10 +208,10 @@ impl ConstSubr {
         match self {
             ConstSubr::User(user) => &user.sig_t,
             ConstSubr::Builtin(builtin) => &builtin.sig_t,
+            ConstSubr::Gen(gen) => &gen.sig_t,
         }
     }
 
-    /// ConstSubr{sig_t: Int -> {Int}, ..}.as_type() == Int -> Int
     pub fn as_type(&self, ctx: &Context) -> Option<Type> {
         match self {
             ConstSubr::User(user) => {
@@ -170,6 +246,7 @@ impl ConstSubr {
                 None
             }
             ConstSubr::Builtin(builtin) => builtin.as_type.clone(),
+            ConstSubr::Gen(gen) => gen.as_type.clone(),
         }
     }
 }
