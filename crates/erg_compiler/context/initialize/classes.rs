@@ -1330,6 +1330,12 @@ impl Context {
             array_t(T.clone(), TyParam::erased(Nat)),
         );
         array_.register_py_builtin(FUNC_DEDUP, t.quantify(), Some(FUNC_DEDUP), 28);
+        /* Slice */
+        let mut slice = Self::builtin_mono_class(SLICE, 3);
+        slice.register_superclass(Obj, &obj);
+        slice.register_builtin_erg_impl(KW_START, Int, Immutable, Visibility::BUILTIN_PUBLIC);
+        slice.register_builtin_erg_impl(KW_STOP, Int, Immutable, Visibility::BUILTIN_PUBLIC);
+        slice.register_builtin_erg_impl(KW_STEP, Int, Immutable, Visibility::BUILTIN_PUBLIC);
         /* GenericSet */
         let mut generic_set = Self::builtin_mono_class(GENERIC_SET, 1);
         generic_set.register_superclass(Obj, &obj);
@@ -2370,6 +2376,7 @@ impl Context {
             Some(ARRAY),
         );
         self.register_builtin_type(arr_t, array_, vis.clone(), Const, Some(ARRAY));
+        self.register_builtin_type(mono(SLICE), slice, vis.clone(), Const, Some(FUNC_SLICE));
         self.register_builtin_type(
             mono(GENERIC_SET),
             generic_set,
