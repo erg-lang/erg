@@ -1,5 +1,4 @@
 use std::fmt;
-use std::sync::Arc;
 
 use erg_common::dict::Dict;
 #[allow(unused_imports)]
@@ -10,7 +9,7 @@ use erg_parser::ast::{Block, ConstBlock, Params};
 
 use super::constructors::subr_t;
 use super::value::{EvalValueResult, ValueObj};
-use super::{Predicate, TyParam, Type};
+use super::{ParamTy, Predicate, TyParam, Type};
 
 use crate::context::Context;
 
@@ -122,17 +121,32 @@ impl BuiltinConstSubr {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ClosureData {
+    pub(crate) nd_params: Vec<ParamTy>,
+    pub(crate) d_params: Vec<ParamTy>,
+    pub(crate) qual_name: Str,
+}
+
+impl ClosureData {
+    pub const fn new(nd_params: Vec<ParamTy>, d_params: Vec<ParamTy>, qual_name: Str) -> Self {
+        Self {
+            nd_params,
+            d_params,
+            qual_name,
+        }
+    }
+}
+
 #[allow(clippy::type_complexity)]
 #[derive(Clone)]
 pub struct GenConstSubr {
     name: Str,
-    subr: Arc<dyn Fn(ValueArgs, &Context) -> EvalValueResult<ValueObj>>,
+    data: ClosureData,
+    subr: fn(ClosureData, ValueArgs, &Context) -> EvalValueResult<ValueObj>,
     sig_t: Type,
     as_type: Option<Type>,
 }
-
-unsafe impl Send for GenConstSubr {}
-unsafe impl Sync for GenConstSubr {}
 
 impl std::fmt::Debug for GenConstSubr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -167,20 +181,22 @@ impl fmt::Display for GenConstSubr {
 impl GenConstSubr {
     pub fn new<S: Into<Str>>(
         name: S,
-        subr: impl Fn(ValueArgs, &Context) -> EvalValueResult<ValueObj> + 'static,
+        data: ClosureData,
+        subr: fn(ClosureData, ValueArgs, &Context) -> EvalValueResult<ValueObj>,
         sig_t: Type,
         as_type: Option<Type>,
     ) -> Self {
         Self {
             name: name.into(),
-            subr: Arc::new(subr),
+            data,
+            subr,
             sig_t,
             as_type,
         }
     }
 
     pub fn call(&self, args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
-        (self.subr)(args, ctx)
+        (self.subr)(self.data.clone(), args, ctx)
     }
 }
 

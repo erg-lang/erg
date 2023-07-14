@@ -34,7 +34,8 @@ use crate::ty::constructors::*;
 use crate::ty::free::Constraint;
 use crate::ty::value::ValueObj;
 use crate::ty::{
-    BuiltinConstSubr, ConstSubr, GenConstSubr, ParamTy, Predicate, TyParam, Type, Visibility,
+    BuiltinConstSubr, ClosureData, ConstSubr, GenConstSubr, ParamTy, Predicate, TyParam, Type,
+    Visibility,
 };
 use crate::varinfo::{AbsLocation, Mutability, VarInfo, VarKind};
 use Mutability::*;
@@ -798,28 +799,33 @@ impl Context {
                 .iter()
                 .filter_map(|ps| (!ps.has_default()).then_some(ParamTy::from(ps)))
                 .collect::<Vec<_>>();
-            let num_nd = nd_params.len();
             let d_params = ctx
                 .params_spec
                 .iter()
                 .filter_map(|ps| ps.has_default().then_some(ParamTy::from(ps)))
                 .collect::<Vec<_>>();
-            let num_d = d_params.len();
-            let meta_t =
-                func(nd_params, None, d_params.clone(), v_enum(set! { ret_val })).quantify();
-            let subr = move |args, _ctx: &Context| {
+            let meta_t = func(
+                nd_params.clone(),
+                None,
+                d_params.clone(),
+                v_enum(set! { ret_val }),
+            )
+            .quantify();
+            let subr = move |data: ClosureData, args, _ctx: &Context| {
                 let passed = Vec::<TyParam>::from(args);
-                let lack = num_nd + num_d - passed.len();
-                let erased = d_params
+                let lack = data.nd_params.len() + data.d_params.len() - passed.len();
+                let erased = data
+                    .d_params
                     .clone()
                     .into_iter()
                     .take(lack)
                     .map(|pt| TyParam::erased(pt.typ().clone()));
                 let params = passed.into_iter().chain(erased).collect::<Vec<_>>();
-                Ok(ValueObj::builtin_type(poly(qual_name.clone(), params)))
+                Ok(ValueObj::builtin_type(poly(data.qual_name, params)))
             };
             let subr = ConstSubr::Gen(GenConstSubr::new(
                 t.local_name(),
+                ClosureData::new(nd_params, d_params, qual_name),
                 subr,
                 meta_t.clone(),
                 Some(t.clone()),
