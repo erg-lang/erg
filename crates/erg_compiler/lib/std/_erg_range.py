@@ -12,6 +12,13 @@ class Range:
     def __contains__(self, item):
         pass
 
+    @staticmethod
+    def from_slice(slice):
+        pass
+
+    def into_slice(self):
+        pass
+
     def __getitem__(self, item):
         res = self.start + item
         if res in self:
@@ -56,6 +63,13 @@ class RightOpenRange(Range):
     def __contains__(self, item):
         return self.start <= item < self.end
 
+    @staticmethod
+    def from_slice(slice):
+        return Range(slice.start, slice.stop)
+
+    def into_slice(self):
+        return slice(self.start, self.end)
+
 
 # represents `start<..<end`
 class OpenRange(Range):
@@ -67,6 +81,13 @@ class OpenRange(Range):
 class ClosedRange(Range):
     def __contains__(self, item):
         return self.start <= item <= self.end
+
+    @staticmethod
+    def from_slice(slice):
+        return Range(slice.start, slice.stop - 1)
+
+    def into_slice(self):
+        return slice(self.start, self.end + 1)
 
 
 class RangeIterator:

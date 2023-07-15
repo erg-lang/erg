@@ -2,7 +2,6 @@ from _erg_result import Error
 from _erg_int import Int
 from _erg_control import then__
 
-
 class Str(str):
     def __instancecheck__(cls, obj):
         return isinstance(obj, str)
@@ -39,6 +38,15 @@ class Str(str):
 
     def __mod__(self, other):
         return then__(str.__mod__(other, self), Str)
+
+    def __getitem__(self, index_or_slice):
+        from _erg_range import Range
+        if isinstance(index_or_slice, slice):
+            return Str(str.__getitem__(self, index_or_slice))
+        elif isinstance(index_or_slice, Range):
+            return Str(str.__getitem__(self, index_or_slice.into_slice()))
+        else:
+            return str.__getitem__(self, index_or_slice)
 
 
 class StrMut:  # Inherits Str

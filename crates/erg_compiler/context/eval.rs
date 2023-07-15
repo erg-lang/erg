@@ -1508,24 +1508,29 @@ impl Context {
         }
     }
 
-    fn convert_type_to_array(&self, ty: Type) -> Result<Vec<ValueObj>, ()> {
+    fn convert_type_to_array(&self, ty: Type) -> Result<Vec<ValueObj>, Type> {
         match ty {
             Type::Poly { name, params } if &name[..] == "Array" || &name[..] == "Array!" => {
-                let t = self
-                    .convert_tp_into_type(params[0].clone())
-                    .map_err(|_| ())?;
+                let Ok(t) = self.convert_tp_into_type(params[0].clone()) else {
+                    return Err(poly(name, params));
+                };
                 let TyParam::Value(ValueObj::Nat(len)) = params[1] else { unreachable!() };
                 Ok(vec![ValueObj::builtin_type(t); len as usize])
             }
-            _ => Err(()),
+            _ => Err(ty),
         }
     }
 
-    pub(crate) fn convert_value_into_array(&self, val: ValueObj) -> Result<Vec<ValueObj>, ()> {
+    pub(crate) fn convert_value_into_array(
+        &self,
+        val: ValueObj,
+    ) -> Result<Vec<ValueObj>, ValueObj> {
         match val {
             ValueObj::Array(arr) => Ok(arr.to_vec()),
-            ValueObj::Type(t) => self.convert_type_to_array(t.into_typ()),
-            _ => Err(()),
+            ValueObj::Type(t) => self
+                .convert_type_to_array(t.into_typ())
+                .map_err(ValueObj::builtin_type),
+            _ => Err(val),
         }
     }
 
@@ -1814,9 +1819,8 @@ impl Context {
         })? {
             if let Ok(obj) = ty_ctx.get_const_local(&Token::symbol(&attr_name), &self.name) {
                 if let ValueObj::Subr(subr) = obj {
-                    let is_method = subr.sig_t().self_t().is_some();
                     let mut pos_args = vec![];
-                    if is_method {
+                    if subr.sig_t().is_method() {
                         match ValueObj::try_from(lhs) {
                             Ok(value) => {
                                 pos_args.push(value);

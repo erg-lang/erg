@@ -831,10 +831,10 @@ impl Context {
         if let Some(attr_name) = attr_name.as_ref() {
             let mut vi =
                 self.search_method_info(obj, attr_name, pos_args, kw_args, input, namespace)?;
-            vi.t = self.resolve_overload(vi.t, pos_args, kw_args, attr_name)?;
+            vi.t = self.resolve_overload(obj, vi.t, pos_args, kw_args, attr_name)?;
             Ok(vi)
         } else {
-            let t = self.resolve_overload(obj.t(), pos_args, kw_args, obj)?;
+            let t = self.resolve_overload(obj, obj.t(), pos_args, kw_args, obj)?;
             Ok(VarInfo {
                 t,
                 ..VarInfo::default()
@@ -844,6 +844,7 @@ impl Context {
 
     fn resolve_overload(
         &self,
+        obj: &hir::Expr,
         instance: Type,
         pos_args: &[hir::PosArg],
         kw_args: &[hir::KwArg],
@@ -853,7 +854,7 @@ impl Context {
         if intersecs.len() == 1 {
             Ok(instance)
         } else {
-            let input_t = subr_t(
+            let mut input_t = subr_t(
                 SubrKind::Proc,
                 pos_args
                     .iter()
@@ -867,6 +868,18 @@ impl Context {
                 Obj,
             );
             for ty in intersecs.iter() {
+                match (ty.is_method(), input_t.is_method()) {
+                    (true, false) => {
+                        let Type::Subr(sub) = &mut input_t else { unreachable!() };
+                        sub.non_default_params
+                            .insert(0, ParamTy::kw(Str::ever("self"), obj.t()));
+                    }
+                    (false, true) => {
+                        let Type::Subr(sub) = &mut input_t else { unreachable!() };
+                        sub.non_default_params.remove(0);
+                    }
+                    _ => {}
+                }
                 if self.subtype_of(ty, &input_t) {
                     return Ok(ty.clone());
                 }

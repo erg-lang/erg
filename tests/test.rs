@@ -124,6 +124,11 @@ fn exec_import_cyclic() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_index() -> Result<(), ()> {
+    expect_success("tests/should_ok/index.er", 0)
+}
+
+#[test]
 fn exec_inherit() -> Result<(), ()> {
     expect_success("tests/should_ok/inherit.er", 0)
 }

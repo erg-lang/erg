@@ -42,6 +42,19 @@ pub struct ValueArgs {
     pub kw_args: Dict<Str, ValueObj>,
 }
 
+impl fmt::Display for ValueArgs {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut args = Vec::new();
+        for arg in &self.pos_args {
+            args.push(arg.to_string());
+        }
+        for (key, arg) in self.kw_args.iter() {
+            args.push(format!("{key} := {arg}"));
+        }
+        write!(f, "({})", args.join(", "))
+    }
+}
+
 impl From<ValueArgs> for Vec<TyParam> {
     fn from(args: ValueArgs) -> Self {
         // TODO: kw_args

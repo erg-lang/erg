@@ -2717,6 +2717,10 @@ impl PyCodeGenerator {
                     self.emit_load_name_instr(Identifier::public("Str"));
                 }
                 other => match &other.qual_name()[..] {
+                    "Bytes" => {
+                        self.emit_push_null();
+                        self.emit_load_name_instr(Identifier::public("Bytes"));
+                    }
                     "Array" => {
                         self.emit_push_null();
                         self.emit_load_name_instr(Identifier::public("Array"));

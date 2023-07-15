@@ -1717,6 +1717,7 @@ impl Type {
             Self::Quantified(t) => t.is_procedure(),
             Self::Subr(subr) if subr.kind == SubrKind::Proc => true,
             Self::Refinement(refine) => refine.t.is_procedure(),
+            Self::And(lhs, rhs) => lhs.is_procedure() && rhs.is_procedure(),
             _ => false,
         }
     }
@@ -1819,6 +1820,7 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_refinement(),
             Self::Refinement(_) => true,
+            Self::And(l, r) => l.is_refinement() && r.is_refinement(),
             _ => false,
         }
     }
@@ -1860,6 +1862,7 @@ impl Type {
             Self::Refinement(refine) => refine.t.is_method(),
             Self::Subr(subr) => subr.is_method(),
             Self::Quantified(quant) => quant.is_method(),
+            Self::And(l, r) => l.is_method() && r.is_method(),
             _ => false,
         }
     }
@@ -2271,6 +2274,11 @@ impl Type {
         match self {
             Type::FreeVar(fv) if fv.is_linked() => fv.crack().intersection_types(),
             Type::Refinement(refine) => refine.t.intersection_types(),
+            Type::Quantified(tys) => tys
+                .intersection_types()
+                .into_iter()
+                .map(|t| t.quantify())
+                .collect(),
             Type::And(t1, t2) => {
                 let mut types = t1.intersection_types();
                 types.extend(t2.intersection_types());

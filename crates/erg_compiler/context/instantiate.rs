@@ -602,7 +602,25 @@ impl Context {
                             )?;
                         }
                     }
-                    _ => unreachable!(),
+                    Type::And(l, r) => {
+                        if let Some(self_t) = l.self_t() {
+                            self.sub_unify(
+                                callee.ref_t(),
+                                self_t,
+                                callee,
+                                Some(&Str::ever("self")),
+                            )?;
+                        }
+                        if let Some(self_t) = r.self_t() {
+                            self.sub_unify(
+                                callee.ref_t(),
+                                self_t,
+                                callee,
+                                Some(&Str::ever("self")),
+                            )?;
+                        }
+                    }
+                    other => unreachable!("{other}"),
                 }
                 Ok(t)
             }

@@ -897,7 +897,7 @@ impl Context {
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
-        let str_getitem_t = fn1_kw_met(Str, kw(KW_IDX, Nat), Str);
+        let str_getitem_t = fn1_kw_met(Str, kw(KW_IDX, Nat | poly(RANGE, vec![ty_tp(Int)])), Str);
         str_.register_builtin_erg_impl(
             FUNDAMENTAL_GETITEM,
             str_getitem_t,
@@ -1240,11 +1240,16 @@ impl Context {
             Predicate::le(var, N.clone() - value(1usize)),
         );
         // __getitem__: |T, N|(self: [T; N], _: {I: Nat | I <= N}) -> T
-        let array_getitem_t = fn1_kw_met(
+        //              and (self: [T; N], _: Range(Int)) -> [T; _]
+        let array_getitem_t = (fn1_kw_met(
             array_t(T.clone(), N.clone()),
             anon(input.clone()),
             T.clone(),
-        )
+        ) & fn1_kw_met(
+            array_t(T.clone(), N.clone()),
+            anon(poly(RANGE, vec![ty_tp(Int)])),
+            unknown_len_array_t(T.clone()),
+        ))
         .quantify();
         let get_item = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNDAMENTAL_GETITEM,
@@ -1540,6 +1545,29 @@ impl Context {
             Str,
         );
         bytes.register_py_builtin(FUNC_DECODE, decode_t, Some(FUNC_DECODE), 6);
+        let bytes_getitem_t = fn1_kw_met(mono(BYTES), kw(KW_IDX, Nat), Int)
+            & fn1_kw_met(
+                mono(BYTES),
+                kw(KW_IDX, poly(RANGE, vec![ty_tp(Int)])),
+                mono(BYTES),
+            );
+        bytes.register_builtin_erg_impl(
+            FUNDAMENTAL_GETITEM,
+            bytes_getitem_t,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        bytes
+            .register_marker_trait(self, poly(INDEXABLE, vec![ty_tp(Nat), ty_tp(Int)]))
+            .unwrap();
+        let mut bytes_eq = Self::builtin_methods(Some(mono(EQ)), 2);
+        bytes_eq.register_builtin_erg_impl(
+            OP_EQ,
+            fn1_met(mono(BYTES), mono(BYTES), Bool),
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        bytes.register_trait(mono(BYTES), bytes_eq);
         /* GenericTuple */
         let mut generic_tuple = Self::builtin_mono_class(GENERIC_TUPLE, 1);
         generic_tuple.register_superclass(Obj, &obj);
