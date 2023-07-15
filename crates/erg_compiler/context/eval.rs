@@ -14,6 +14,7 @@ use OpKind::*;
 use erg_parser::ast::Dict as AstDict;
 use erg_parser::ast::Set as AstSet;
 use erg_parser::ast::*;
+use erg_parser::desugar::Desugarer;
 use erg_parser::token::{Token, TokenKind};
 
 use crate::ty::constructors::{
@@ -459,7 +460,9 @@ impl Context {
     fn eval_const_record(&self, record: &Record) -> EvalResult<ValueObj> {
         match record {
             Record::Normal(rec) => self.eval_const_normal_record(rec),
-            Record::Mixed(_rec) => unreachable_error!(self), // should be desugared
+            Record::Mixed(mixed) => self.eval_const_normal_record(
+                &Desugarer::desugar_shortened_record_inner(mixed.clone()),
+            ),
         }
     }
 

@@ -261,16 +261,11 @@ impl Desugarer {
                 for chunk in def.body.block.into_iter() {
                     chunks.push(desugar(chunk));
                 }
+                if let Some(t_op) = def.sig.t_spec_op_mut() {
+                    *t_op.t_spec_as_expr = desugar(*t_op.t_spec_as_expr.clone());
+                }
                 if let Signature::Subr(mut subr) = def.sig {
-                    let mut defaults = vec![];
-                    for default in subr.params.defaults.into_iter() {
-                        let default_val = desugar(default.default_val);
-                        defaults.push(DefaultParamSignature {
-                            default_val,
-                            ..default
-                        });
-                    }
-                    subr.params.defaults = defaults;
+                    subr.params = Self::perform_desugar_params(desugar, subr.params);
                     def.sig = Signature::Subr(subr);
                 }
                 let body = DefBody::new(def.body.op, Block::new(chunks), def.body.id);
@@ -304,15 +299,10 @@ impl Desugarer {
                 for chunk in lambda.body.into_iter() {
                     chunks.push(desugar(chunk));
                 }
-                let mut defaults = vec![];
-                for default in lambda.sig.params.defaults.into_iter() {
-                    let default_val = desugar(default.default_val);
-                    defaults.push(DefaultParamSignature {
-                        default_val,
-                        ..default
-                    });
+                if let Some(t_op) = &mut lambda.sig.return_t_spec {
+                    *t_op.t_spec_as_expr = desugar(*t_op.t_spec_as_expr.clone());
                 }
-                lambda.sig.params.defaults = defaults;
+                lambda.sig.params = Self::perform_desugar_params(desugar, lambda.sig.params);
                 let body = Block::new(chunks);
                 Expr::Lambda(Lambda::new(lambda.sig, lambda.op, body, lambda.id))
             }
@@ -368,6 +358,36 @@ impl Desugarer {
                 Expr::Dummy(Dummy::new(loc, chunks))
             }
         }
+    }
+
+    fn perform_desugar_params(mut desugar: impl FnMut(Expr) -> Expr, mut params: Params) -> Params {
+        let mut non_defaults = vec![];
+        for mut non_default in params.non_defaults.into_iter() {
+            non_default.t_spec = non_default.t_spec.map(|t_spec| {
+                TypeSpecWithOp::new(t_spec.op, t_spec.t_spec, desugar(*t_spec.t_spec_as_expr))
+            });
+            non_defaults.push(non_default);
+        }
+        params.var_params = params.var_params.map(|mut var_params| {
+            var_params.t_spec = var_params.t_spec.map(|t_spec| {
+                TypeSpecWithOp::new(t_spec.op, t_spec.t_spec, desugar(*t_spec.t_spec_as_expr))
+            });
+            var_params
+        });
+        let mut defaults = vec![];
+        for mut default in params.defaults.into_iter() {
+            let default_val = desugar(default.default_val);
+            default.sig.t_spec = default.sig.t_spec.map(|t_spec| {
+                TypeSpecWithOp::new(t_spec.op, t_spec.t_spec, desugar(*t_spec.t_spec_as_expr))
+            });
+            defaults.push(DefaultParamSignature {
+                default_val,
+                ..default
+            });
+        }
+        params.non_defaults = non_defaults;
+        params.defaults = defaults;
+        params
     }
 
     /// `fib 0 = 0; fib 1 = 1; fib n = fib(n-1) + fib(n-2)`
@@ -856,7 +876,7 @@ impl Desugarer {
         }
     }
 
-    pub(crate) fn desugar_shortened_record_inner(record: MixedRecord) -> NormalRecord {
+    pub fn desugar_shortened_record_inner(record: MixedRecord) -> NormalRecord {
         let attrs = record
             .attrs
             .into_iter()
