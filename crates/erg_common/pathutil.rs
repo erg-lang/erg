@@ -10,7 +10,7 @@ use crate::normalize_path;
 /// `PathBuf` may give false equivalence decisions in non-case-sensitive file systems.
 /// Use this for dictionary keys, etc.
 /// See also: `els::util::NormalizedUrl`
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct NormalizedPathBuf(PathBuf);
 
 impl<P: Into<PathBuf>> From<P> for NormalizedPathBuf {
@@ -41,7 +41,7 @@ impl Deref for NormalizedPathBuf {
 
 impl NormalizedPathBuf {
     pub fn new(path: PathBuf) -> Self {
-        NormalizedPathBuf(normalize_path(path))
+        NormalizedPathBuf(normalize_path(path.canonicalize().unwrap_or(path)))
     }
 }
 

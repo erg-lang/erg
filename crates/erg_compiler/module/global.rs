@@ -52,7 +52,7 @@ impl SharedCompilerResource {
 
     pub fn inherit(&self, path: PathBuf) -> Self {
         let mut _self = self.clone();
-        _self.promises.path = path;
+        _self.promises.path = path.into();
         _self
     }
 
