@@ -477,7 +477,7 @@ impl PyCodeGenerator {
                     let before_instr = self.lasti().saturating_sub(1);
                     self.mut_cur_block_codeobj().code.push(bytes[1]);
                     self.mut_cur_block().lasti += 1;
-                    self.extend_arg(before_instr, &bytes)
+                    self.extend_arg(before_instr, &bytes) + 1
                 }
                 Err(_) => {
                     let delta =
@@ -493,7 +493,7 @@ impl PyCodeGenerator {
                     let before_instr = self.lasti().saturating_sub(1);
                     self.mut_cur_block_codeobj().code.push(bytes[3]);
                     self.mut_cur_block().lasti += 1;
-                    self.extend_arg(before_instr, &bytes)
+                    self.extend_arg(before_instr, &bytes) + 1
                 }
             },
         }
@@ -1833,6 +1833,8 @@ impl PyCodeGenerator {
         self.write_instr(GET_ITER);
         self.write_arg(0);
         let idx_for_iter = self.lasti();
+        self.write_instr(EXTENDED_ARG);
+        self.write_arg(0);
         self.write_instr(FOR_ITER);
         self.stack_inc();
         // FOR_ITER pushes a value onto the stack, but we can't know how many
@@ -1865,7 +1867,7 @@ impl PyCodeGenerator {
             _ => todo!("not supported Python version"),
         }
         let idx_end = self.lasti();
-        self.calc_edit_jump(idx_for_iter + 1, idx_end - idx_for_iter - 2);
+        self.fill_jump(idx_for_iter + 1, idx_end - idx_for_iter - 2 - 2);
         self.stack_dec();
         self.emit_load_const(ValueObj::None);
         debug_assert_eq!(self.stack_len(), _init_stack_len + 1);
