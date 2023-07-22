@@ -153,6 +153,20 @@ impl CommonOpcode {
     pub fn is_jump_op(op: u8) -> bool {
         [93, 110, 111, 112, 113, 114, 115, 140, 143, 175, 176].contains(&op)
     }
+
+    pub fn is_relative_jump_op(minor: u8, op: u8) -> bool {
+        match op {
+            93 | 110 | 140 | 143 | 175 | 176 => true,
+            // JUMP_IF_TRUE/FALSE_OR_POP
+            111 | 112 => minor >= 11,
+            // JUMP_ABSOLUTE
+            // 113 => false,
+            // POP_JUMP_FORWARD_IF_TRUE/FALSE
+            // POP_JUMP_IF_TRUE/FALSE
+            114 | 115 => minor >= 10,
+            _ => false,
+        }
+    }
 }
 
 impl_u8_enum! {CompareOp;
@@ -162,6 +176,7 @@ impl_u8_enum! {CompareOp;
     NE = 3,
     GT = 4,
     GE = 5,
+    NOT_IMPLEMENTED = 255,
 }
 
 impl CompareOp {
@@ -173,6 +188,7 @@ impl CompareOp {
             CompareOp::NE => "!=",
             CompareOp::GT => ">",
             CompareOp::GE => ">=",
+            CompareOp::NOT_IMPLEMENTED => "???",
         }
     }
 }

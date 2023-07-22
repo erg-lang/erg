@@ -178,4 +178,5 @@ impl_u8_enum! {BinOpCode;
     InplaceSubtract = 23,
     InplaceTrueDivide = 24,
     InplaceXor = 25,
+    NOT_IMPLEMENTED = 255,
 }

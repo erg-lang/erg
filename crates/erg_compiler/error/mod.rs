@@ -239,22 +239,24 @@ impl CompileError {
         loc: Location,
         fn_name: &str,
         line: u32,
+        msg: Option<String>,
     ) -> Self {
+        let description = msg.unwrap_or_default();
         Self::new(
             ErrorCore::new(
                 vec![SubMessage::only_loc(loc)],
                 switch_lang!(
-                    "japanese" => format!("これはErg compilerのバグです、開発者に報告して下さい ({URL})\n\n{fn_name}:{line}より発生"),
-                    "simplified_chinese" => format!("这是Erg编译器的错误，请报告给{URL}\n\n原因来自: {fn_name}:{line}"),
-                    "traditional_chinese" => format!("這是Erg編譯器的錯誤，請報告給{URL}\n\n原因來自: {fn_name}:{line}"),
-                    "english" => format!("this is a bug of the Erg compiler, please report it to {URL}\n\ncaused from: {fn_name}:{line}"),
+                    "japanese" => format!("これはErg compilerのバグです、開発者に報告して下さい ({URL})\n\n{description}\n{fn_name}:{line}より発生"),
+                    "simplified_chinese" => format!("这是Erg编译器的错误，请报告给{URL}\n\n{description}\n原因来自: {fn_name}:{line}"),
+                    "traditional_chinese" => format!("這是Erg編譯器的錯誤，請報告給{URL}\n\n{description}\n原因來自: {fn_name}:{line}"),
+                    "english" => format!("this is a bug of the Erg compiler, please report it to {URL}\n\n{description}\ncaused from: {fn_name}:{line}"),
                 ),
                 errno,
                 CompilerSystemError,
                 loc,
             ),
             input,
-            "".to_owned(),
+            "".to_string(),
         )
     }
 

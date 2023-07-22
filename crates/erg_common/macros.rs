@@ -56,7 +56,7 @@ macro_rules! impl_u8_enum {
             fn from(byte: u8) -> Self {
                 match byte {
                     $(v if v == $Enum::$Variant as u8 => $Enum::$Variant,)*
-                    _ => todo!("unknown: {byte}"),
+                    _ => $Enum::NOT_IMPLEMENTED,
                 }
             }
         }
@@ -80,7 +80,7 @@ macro_rules! impl_u8_enum {
             fn from(byte: u8) -> Self {
                 match byte {
                     $($val => $Enum::$Variant,)*
-                    _ => todo!("unknown opcode: {byte}"),
+                    _ => $Enum::NOT_IMPLEMENTED,
                 }
             }
         }
