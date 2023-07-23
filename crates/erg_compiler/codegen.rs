@@ -14,6 +14,7 @@ use erg_common::fresh::SharedFreshNameGenerator;
 use erg_common::io::Input;
 use erg_common::opcode::{CommonOpcode, CompareOp};
 use erg_common::opcode308::Opcode308;
+use erg_common::opcode309::Opcode309;
 use erg_common::opcode310::Opcode310;
 use erg_common::opcode311::{BinOpCode, Opcode311};
 use erg_common::option_enum_unwrap;
@@ -1763,13 +1764,13 @@ impl PyCodeGenerator {
         }
         if args.get(0).is_some() {
             let mut idx_jump_forward = self.lasti();
-            self.write_instr(JUMP_FORWARD); // jump to end
+            self.write_instr(Opcode311::JUMP_FORWARD); // jump to end
             self.write_arg(0);
             // else block
-            let idx_else_begin = if self.py_version.minor >= Some(11) {
-                self.lasti() - idx_pop_jump_if_false - 2
-            } else {
-                self.lasti()
+            let idx_else_begin = match self.py_version.minor {
+                Some(11) => self.lasti() - idx_pop_jump_if_false - 2,
+                Some(10) => self.lasti(),
+                _ => self.lasti(),
             };
             idx_jump_forward += self.calc_edit_jump(idx_pop_jump_if_false + 1, idx_else_begin);
             match args.remove(0) {
@@ -1782,14 +1783,19 @@ impl PyCodeGenerator {
                 }
             }
             let idx_end = self.lasti();
-            self.calc_edit_jump(idx_jump_forward + 1, idx_end - idx_jump_forward - 2);
+            let jump_to = idx_end - idx_jump_forward - 2;
+            self.calc_edit_jump(idx_jump_forward + 1, jump_to);
             // FIXME: this is a hack to make sure the stack is balanced
             while self.stack_len() != init_stack_len + 1 {
                 self.stack_dec();
             }
         } else {
-            self.write_instr(JUMP_FORWARD);
-            self.write_arg(1);
+            self.write_instr(Opcode311::JUMP_FORWARD);
+            let jump_to = match self.py_version.minor {
+                Some(11 | 10) => 1,
+                _ => 2,
+            };
+            self.write_arg(jump_to);
             // no else block
             let idx_end = if self.py_version.minor >= Some(11) {
                 self.lasti() - idx_pop_jump_if_false - 1
@@ -1842,7 +1848,7 @@ impl PyCodeGenerator {
                 self.write_arg(idx_for_iter / 2);
             }
             Some(9 | 8 | 7) => {
-                self.write_instr(Opcode308::JUMP_ABSOLUTE);
+                self.write_instr(Opcode309::JUMP_ABSOLUTE);
                 self.write_arg(idx_for_iter);
             }
             _ => todo!("not supported Python version"),
@@ -1935,7 +1941,7 @@ impl PyCodeGenerator {
                 };
                 self.calc_edit_jump(pop_jump_point + 1, idx); // jump to POP_TOP
                 jump_forward_points.push(self.lasti());
-                self.write_instr(JUMP_FORWARD); // jump to the end
+                self.write_instr(Opcode311::JUMP_FORWARD); // jump to the end
                 self.write_arg(0);
             }
         }
@@ -2042,7 +2048,7 @@ impl PyCodeGenerator {
         self.write_arg(0);
         self.write_instr(Opcode311::PUSH_EXC_INFO);
         self.write_arg(0);
-        self.write_instr(Opcode308::WITH_EXCEPT_START);
+        self.write_instr(Opcode309::WITH_EXCEPT_START);
         self.write_arg(0);
         self.write_instr(Opcode311::POP_JUMP_FORWARD_IF_TRUE);
         self.write_arg(4);
@@ -2095,7 +2101,7 @@ impl PyCodeGenerator {
         self.stack_dec_n((1 + 3) - 1);
         self.emit_pop_top();
         let idx_jump_forward = self.lasti();
-        self.write_instr(JUMP_FORWARD);
+        self.write_instr(Opcode311::JUMP_FORWARD);
         self.write_arg(0);
         self.edit_code(idx_setup_with + 1, (self.lasti() - idx_setup_with - 2) / 2);
         self.write_instr(Opcode310::WITH_EXCEPT_START);
@@ -2116,6 +2122,59 @@ impl PyCodeGenerator {
         self.emit_load_name_instr(stash);
     }
 
+    fn emit_with_instr_309(&mut self, mut args: Args) {
+        log!(info "entered {}", fn_name!());
+        if !matches!(args.get(1).unwrap(), Expr::Lambda(_)) {
+            return self.deopt_instr(ControlKind::With, args);
+        }
+        let expr = args.remove(0);
+        let Expr::Lambda(lambda) = args.remove(0) else { unreachable!() };
+        let params = self.gen_param_names(&lambda.params);
+        self.emit_expr(expr);
+        let idx_setup_with = self.lasti();
+        self.write_instr(Opcode310::SETUP_WITH);
+        self.write_arg(0);
+        // push __exit__, __enter__() to the stack
+        self.stack_inc_n(2);
+        let lambda_line = lambda.body.last().unwrap().ln_begin().unwrap_or(0);
+        self.emit_with_block(lambda.body, params);
+        let stash = Identifier::private_with_line(self.fresh_gen.fresh_varname(), lambda_line);
+        self.emit_store_instr(stash.clone(), Name);
+        self.write_instr(POP_BLOCK);
+        self.write_arg(0);
+        self.emit_load_const(ValueObj::None);
+        self.write_instr(Opcode310::DUP_TOP);
+        self.write_arg(0);
+        self.stack_inc();
+        self.write_instr(Opcode310::DUP_TOP);
+        self.write_arg(0);
+        self.stack_inc();
+        self.write_instr(Opcode310::CALL_FUNCTION);
+        self.write_arg(3);
+        self.stack_dec_n((1 + 3) - 1);
+        self.emit_pop_top();
+        let idx_jump_forward = self.lasti();
+        self.write_instr(Opcode311::JUMP_FORWARD);
+        self.write_arg(0);
+        self.edit_code(idx_setup_with + 1, self.lasti() - idx_setup_with - 2);
+        self.write_instr(Opcode310::WITH_EXCEPT_START);
+        self.write_arg(0);
+        let idx_pop_jump_if_true = self.lasti();
+        self.write_instr(Opcode310::POP_JUMP_IF_TRUE);
+        self.write_arg(0);
+        self.write_instr(Opcode309::RERAISE);
+        self.write_arg(1);
+        self.edit_code(idx_pop_jump_if_true + 1, self.lasti());
+        // self.emit_pop_top();
+        // self.emit_pop_top();
+        self.emit_pop_top();
+        self.write_instr(Opcode310::POP_EXCEPT);
+        self.write_arg(0);
+        let idx_end = self.lasti();
+        self.edit_code(idx_jump_forward + 1, idx_end - idx_jump_forward - 2);
+        self.emit_load_name_instr(stash);
+    }
+
     fn emit_with_instr_308(&mut self, mut args: Args) {
         log!(info "entered {}", fn_name!());
         if !matches!(args.get(1).unwrap(), Expr::Lambda(_)) {
@@ -2126,7 +2185,7 @@ impl PyCodeGenerator {
         let params = self.gen_param_names(&lambda.params);
         self.emit_expr(expr);
         let idx_setup_with = self.lasti();
-        self.write_instr(Opcode308::SETUP_WITH);
+        self.write_instr(Opcode309::SETUP_WITH);
         self.write_arg(0);
         // push __exit__, __enter__() to the stack
         // self.stack_inc_n(2);
@@ -2184,7 +2243,8 @@ impl PyCodeGenerator {
             "with!" => match self.py_version.minor {
                 Some(11) => self.emit_with_instr_311(args),
                 Some(10) => self.emit_with_instr_310(args),
-                Some(9 | 8 | 7) => self.emit_with_instr_308(args),
+                Some(9) => self.emit_with_instr_309(args),
+                Some(8) => self.emit_with_instr_308(args),
                 _ => todo!("not supported Python version"),
             },
             // "pyimport" | "py" are here
@@ -2246,7 +2306,7 @@ impl PyCodeGenerator {
         }
         self.emit_expr(var_args.expr.clone());
         if pos_len > 0 {
-            self.write_instr(Opcode308::BUILD_TUPLE_UNPACK_WITH_CALL);
+            self.write_instr(Opcode309::BUILD_TUPLE_UNPACK_WITH_CALL);
             self.write_arg(2);
         }
     }

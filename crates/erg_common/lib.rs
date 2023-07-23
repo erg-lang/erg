@@ -19,6 +19,7 @@ pub mod levenshtein;
 pub mod macros;
 pub mod opcode;
 pub mod opcode308;
+pub mod opcode309;
 pub mod opcode310;
 pub mod opcode311;
 pub mod pathutil;
