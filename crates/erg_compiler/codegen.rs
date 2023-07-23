@@ -2222,6 +2222,38 @@ impl PyCodeGenerator {
         self.emit_load_name_instr(stash);
     }
 
+    fn emit_with_instr_307(&mut self, mut args: Args) {
+        log!(info "entered {}", fn_name!());
+        if !matches!(args.get(1).unwrap(), Expr::Lambda(_)) {
+            return self.deopt_instr(ControlKind::With, args);
+        }
+        let expr = args.remove(0);
+        let Expr::Lambda(lambda) = args.remove(0) else { unreachable!() };
+        let params = self.gen_param_names(&lambda.params);
+        self.emit_expr(expr);
+        let idx_setup_with = self.lasti();
+        self.write_instr(Opcode309::SETUP_WITH);
+        self.write_arg(0);
+        // push __exit__, __enter__() to the stack
+        // self.stack_inc_n(2);
+        let lambda_line = lambda.body.last().unwrap().ln_begin().unwrap_or(0);
+        self.emit_with_block(lambda.body, params);
+        let stash = Identifier::private_with_line(self.fresh_gen.fresh_varname(), lambda_line);
+        self.emit_store_instr(stash.clone(), Name);
+        self.write_instr(POP_BLOCK);
+        self.write_arg(0);
+        self.emit_load_const(ValueObj::None);
+        self.stack_dec();
+        self.write_instr(Opcode308::WITH_CLEANUP_START);
+        self.write_arg(0);
+        self.edit_code(idx_setup_with + 1, (self.lasti() - idx_setup_with - 2) / 2);
+        self.write_instr(Opcode308::WITH_CLEANUP_FINISH);
+        self.write_arg(0);
+        self.write_instr(Opcode308::END_FINALLY);
+        self.write_arg(0);
+        self.emit_load_name_instr(stash);
+    }
+
     fn emit_call(&mut self, call: Call) {
         log!(info "entered {} ({call})", fn_name!());
         let init_stack_len = self.stack_len();
@@ -2260,6 +2292,7 @@ impl PyCodeGenerator {
                 Some(10) => self.emit_with_instr_310(args),
                 Some(9) => self.emit_with_instr_309(args),
                 Some(8) => self.emit_with_instr_308(args),
+                Some(7) => self.emit_with_instr_307(args),
                 _ => todo!("not supported Python version"),
             },
             // "pyimport" | "py" are here
@@ -2314,7 +2347,7 @@ impl PyCodeGenerator {
         }
     }
 
-    fn emit_var_args_38(&mut self, pos_len: usize, var_args: &PosArg) {
+    fn emit_var_args_308(&mut self, pos_len: usize, var_args: &PosArg) {
         if pos_len > 0 {
             self.write_instr(BUILD_TUPLE);
             self.write_arg(pos_len);
@@ -2337,7 +2370,7 @@ impl PyCodeGenerator {
             if self.py_version.minor >= Some(10) {
                 self.emit_var_args_311(pos_len, var_args);
             } else {
-                self.emit_var_args_38(pos_len, var_args);
+                self.emit_var_args_308(pos_len, var_args);
             }
         }
         while let Some(arg) = args.try_remove_kw(0) {
