@@ -1836,18 +1836,19 @@ impl PyCodeGenerator {
             self.emit_pop_top();
         }
         debug_assert_eq!(self.stack_len(), init_stack_len - 1); // the iterator is remained
+        let idx = self.lasti();
+        self.write_instr(EXTENDED_ARG);
+        self.write_arg(0);
         match self.py_version.minor {
             Some(11) => {
                 self.write_instr(Opcode311::JUMP_BACKWARD);
-                self.write_arg((self.lasti() - idx_for_iter + 2) / 2);
+                self.write_arg(0);
+                self.fill_jump(idx + 1, self.lasti() - idx_for_iter);
             }
-            Some(10) => {
-                self.write_instr(Opcode310::JUMP_ABSOLUTE);
-                self.write_arg((idx_for_iter - 2) / 2);
-            }
-            Some(9 | 8 | 7) => {
+            Some(10 | 9 | 8 | 7) => {
                 self.write_instr(Opcode309::JUMP_ABSOLUTE);
-                self.write_arg(idx_for_iter);
+                self.write_arg(0);
+                self.fill_jump(idx + 1, idx_for_iter);
             }
             _ => todo!("not supported Python version"),
         }
@@ -1952,7 +1953,7 @@ impl PyCodeGenerator {
         let lasti = self.lasti();
         for jump_point in jump_forward_points.into_iter() {
             let jump_to = match self.py_version.minor {
-                Some(11 | 10) => lasti - jump_point - 1 - 2,
+                Some(11 | 10) => lasti - jump_point - 2 - 2,
                 _ => lasti - jump_point - 2 - 2,
             };
             self.fill_jump(jump_point + 1, jump_to);
