@@ -434,6 +434,29 @@ impl PyCodeGenerator {
         self.mut_code().push(code.into());
     }
 
+    fn write_u16<C: Into<u8>>(&mut self, op: C, mut code: u16) {
+        let op = op.into();
+        if CommonOpcode::is_relative_jump_op(self.py_version.minor.unwrap_or(11), op) {
+            code = self.lasti() as u16 - code;
+        }
+        if CommonOpcode::is_jump_op(op) {
+            code /= 2;
+        }
+        let delta = if CommonOpcode::is_jump_op(*self.cur_block_codeobj().code.last().unwrap()) {
+            let shift_bytes = 2;
+            self.jump_delta(code as usize) + shift_bytes
+        } else {
+            0
+        };
+        let arg = code + delta as u16;
+        let bytes = arg.to_be_bytes(); // [u8; 2]
+        self.push_code(EXTENDED_ARG);
+        self.push_code(bytes[0]);
+        self.push_code(op);
+        self.push_code(bytes[1]);
+        self.mut_cur_block().lasti += 4;
+    }
+
     fn write<C: Into<u8>>(&mut self, op: C, mut code: usize) {
         let op = op.into();
         if CommonOpcode::is_relative_jump_op(self.py_version.minor.unwrap_or(11), op) {
@@ -1744,10 +1767,18 @@ impl PyCodeGenerator {
                 }
             }
             let code = self.pop_code();
-            self.write(JUMP_FORWARD, idx_jump_forward);
+            self.write_u16(JUMP_FORWARD, u16::try_from(idx_jump_forward).unwrap());
             self.mut_code().extend(code);
             let code = self.pop_code();
-            self.write(Opcode310::POP_JUMP_IF_FALSE, self.lasti() - idx_else_begin);
+            let jump_to = if self.py_version.minor >= Some(11) {
+                self.lasti() - idx_else_begin - 2
+            } else {
+                idx_else_begin + 2
+            };
+            self.write_u16(
+                Opcode310::POP_JUMP_IF_FALSE,
+                u16::try_from(jump_to).unwrap(),
+            );
             self.mut_code().extend(code);
             // FIXME: this is a hack to make sure the stack is balanced
             while self.stack_len() != init_stack_len + 1 {
@@ -1755,9 +1786,12 @@ impl PyCodeGenerator {
             }
         } else {
             // no else block
-            self.write(JUMP_FORWARD, self.lasti() - 2);
+            self.write_u16(JUMP_FORWARD, u16::try_from(self.lasti() - 2).unwrap());
             let code = self.pop_code();
-            self.write(Opcode310::POP_JUMP_IF_FALSE, idx_pop_jump_if_false);
+            self.write_u16(
+                Opcode310::POP_JUMP_IF_FALSE,
+                u16::try_from(idx_pop_jump_if_false).unwrap(),
+            );
             self.mut_code().extend(code);
             self.emit_load_const(ValueObj::None);
             while self.stack_len() != init_stack_len + 1 {
@@ -1791,14 +1825,20 @@ impl PyCodeGenerator {
         debug_assert_eq!(self.stack_len(), init_stack_len - 1); // the iterator is remained
         match self.py_version.minor {
             Some(11) => {
-                self.write(Opcode311::JUMP_BACKWARD, idx_for_iter - 4);
+                self.write_u16(
+                    Opcode311::JUMP_BACKWARD,
+                    u16::try_from(idx_for_iter - 8).unwrap(),
+                );
             }
             _ => {
-                self.write(Opcode308::JUMP_ABSOLUTE, idx_for_iter);
+                self.write_u16(
+                    Opcode308::JUMP_ABSOLUTE,
+                    u16::try_from(idx_for_iter).unwrap(),
+                );
             }
         }
         let code = self.pop_code();
-        self.write(FOR_ITER, idx_for_iter);
+        self.write_u16(FOR_ITER, u16::try_from(idx_for_iter).unwrap());
         self.mut_code().extend(code);
         self.stack_dec();
         self.emit_load_const(ValueObj::None);
@@ -1829,20 +1869,26 @@ impl PyCodeGenerator {
         if self.stack_len() > init_stack_len {
             self.emit_pop_top();
         }
+        /* back to the top of the loop */
         self.emit_expr(cond);
         if self.py_version.minor >= Some(11) {
-            self.write(Opcode311::POP_JUMP_BACKWARD_IF_TRUE, idx_while - 2);
+            self.write_u16(
+                Opcode311::POP_JUMP_BACKWARD_IF_TRUE,
+                u16::try_from(idx_while - 4).unwrap(),
+            );
         } else {
-            self.write(Opcode310::POP_JUMP_IF_TRUE, idx_while - 2);
+            self.write_u16(
+                Opcode310::POP_JUMP_IF_TRUE,
+                u16::try_from(idx_while).unwrap(),
+            );
         }
         self.stack_dec();
-        let idx_end = if self.py_version.minor >= Some(11) {
-            idx_while - 1
-        } else {
-            0
-        };
+        /* */
         let code = self.pop_code();
-        self.write(Opcode310::POP_JUMP_IF_FALSE, idx_end);
+        self.write_u16(
+            Opcode310::POP_JUMP_IF_FALSE,
+            u16::try_from(idx_while).unwrap(),
+        );
         self.mut_code().extend(code);
         self.emit_load_const(ValueObj::None);
         debug_assert_eq!(self.stack_len(), _init_stack_len + 1);
@@ -1873,9 +1919,9 @@ impl PyCodeGenerator {
             self.stack_dec();
             if let Some(pop_jump_point) = pop_jump_point {
                 let idx = if self.py_version.minor >= Some(11) {
-                    pop_jump_point - 2
+                    pop_jump_point - 4
                 } else {
-                    2
+                    4
                 };
                 let code = self.pop_code();
                 self.write(Opcode310::POP_JUMP_IF_FALSE, idx);
@@ -1886,13 +1932,14 @@ impl PyCodeGenerator {
         }
         for jump_point in jump_forward_points.into_iter().rev() {
             let code = self.pop_code();
-            self.write(JUMP_FORWARD, jump_point);
+            self.write_u16(JUMP_FORWARD, u16::try_from(jump_point).unwrap());
             self.mut_code().extend(code);
         }
         self.stack_inc();
         debug_assert_eq!(self.stack_len(), init_stack_len + 1);
     }
 
+    /// last arm: None
     fn emit_match_pattern(
         &mut self,
         param: NonDefaultParamSignature,

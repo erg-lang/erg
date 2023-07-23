@@ -1,16 +1,28 @@
 a = if True:
-    do 1
-    do 2
+    do:
+        log 1
+        1
+    do:
+        log 2
+        2
 b = if False:
-    do 1
-    do 2
+    do:
+        log 1
+        1
+    do:
+        log 2
+        2
 assert a == 1
 assert b == 2
 
 c = if True:
-    do 1
+    do:
+        log 1
+        1
 d = if False:
-    do 1
+    do:
+        log 1
+        1
 
 assert c == 1
 assert d == None

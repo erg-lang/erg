@@ -163,7 +163,7 @@ impl CommonOpcode {
             // 113 => false,
             // POP_JUMP_FORWARD_IF_TRUE/FALSE
             // POP_JUMP_IF_TRUE/FALSE
-            114 | 115 => minor >= 10,
+            114 | 115 => minor >= 11,
             _ => false,
         }
     }
