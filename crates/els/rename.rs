@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::SystemTime;
 
+use erg_common::pathutil::NormalizedPathBuf;
 use erg_common::traits::{Locational, Stream};
 use erg_compiler::artifact::IncompleteArtifact;
 use erg_compiler::erg_parser::parse::Parsable;
@@ -146,26 +147,26 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     /// self is __included__
     pub fn dependencies_of(&self, uri: &NormalizedUrl) -> Vec<NormalizedUrl> {
         let graph = self.get_graph().unwrap();
-        let path = util::uri_to_path(uri);
+        let path = NormalizedPathBuf::from(util::uri_to_path(uri));
         graph.sort().unwrap();
         let self_node = graph.get_node(&path).unwrap();
         graph
             .ref_inner()
             .iter()
             .filter(|node| node.id == path || self_node.depends_on(&node.id))
-            .map(|node| NormalizedUrl::new(Url::from_file_path(&node.id).unwrap()))
+            .map(|node| NormalizedUrl::new(Url::from_file_path(node.id.to_path_buf()).unwrap()))
             .collect()
     }
 
     /// self is __not included__
     pub fn dependents_of(&self, uri: &NormalizedUrl) -> Vec<NormalizedUrl> {
         let graph = self.get_graph().unwrap();
-        let path = util::uri_to_path(uri);
+        let path = NormalizedPathBuf::from(util::uri_to_path(uri));
         graph
             .ref_inner()
             .iter()
             .filter(|node| node.depends_on(&path))
-            .map(|node| NormalizedUrl::new(Url::from_file_path(&node.id).unwrap()))
+            .map(|node| NormalizedUrl::new(Url::from_file_path(node.id.to_path_buf()).unwrap()))
             .collect()
     }
 }

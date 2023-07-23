@@ -18,6 +18,7 @@ use erg_common::{fmt_option, fn_name, log, switch_lang, Str};
 use erg_parser::ast::{self, AscriptionKind, VisModifierSpec};
 use erg_parser::ast::{OperationKind, TypeSpecWithOp, VarName, AST};
 use erg_parser::build_ast::ASTBuilder;
+use erg_parser::desugar::Desugarer;
 use erg_parser::token::{Token, TokenKind};
 use erg_parser::Parser;
 
@@ -381,7 +382,9 @@ impl ASTLowerer {
         log!(info "entered {}({record})", fn_name!());
         match record {
             ast::Record::Normal(rec) => self.lower_normal_record(rec),
-            ast::Record::Mixed(_rec) => unreachable!(), // should be desugared
+            ast::Record::Mixed(mixed) => {
+                self.lower_normal_record(Desugarer::desugar_shortened_record_inner(mixed))
+            }
         }
     }
 

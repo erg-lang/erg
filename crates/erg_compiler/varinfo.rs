@@ -312,6 +312,24 @@ impl VarInfo {
         )
     }
 
+    pub fn d_parameter(t: Type, def_loc: AbsLocation, namespace: Str) -> Self {
+        let kind = VarKind::Parameter {
+            def_id: DefId(0),
+            var: false,
+            default: DefaultInfo::WithDefault,
+        };
+        Self::new(
+            t,
+            Immutable,
+            Visibility::private(namespace),
+            kind,
+            None,
+            None,
+            None,
+            def_loc,
+        )
+    }
+
     pub fn instance_attr(field: Field, t: Type, impl_of: Option<Type>, namespace: Str) -> Self {
         let muty = if field.is_const() {
             Mutability::Const

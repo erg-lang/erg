@@ -375,22 +375,7 @@ impl Hash for TypeObj {
 
 impl fmt::Display for TypeObj {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            TypeObj::Builtin { t, .. } => {
-                if cfg!(feature = "debug") {
-                    write!(f, "<type {t}>")
-                } else {
-                    write!(f, "{t}")
-                }
-            }
-            TypeObj::Generated(t) => {
-                if cfg!(feature = "debug") {
-                    write!(f, "<user type {t}>")
-                } else {
-                    write!(f, "{t}")
-                }
-            }
-        }
+        self.limited_fmt(f, 10)
     }
 }
 
@@ -401,7 +386,7 @@ impl LimitedDisplay for TypeObj {
                 if cfg!(feature = "debug") {
                     write!(f, "<type ")?;
                     t.limited_fmt(f, limit - 1)?;
-                    write!(f, "{t}>")
+                    write!(f, ">")
                 } else {
                     t.limited_fmt(f, limit - 1)
                 }
@@ -410,7 +395,7 @@ impl LimitedDisplay for TypeObj {
                 if cfg!(feature = "debug") {
                     write!(f, "<user type ")?;
                     t.limited_fmt(f, limit - 1)?;
-                    write!(f, "{t}>")
+                    write!(f, ">")
                 } else {
                     t.limited_fmt(f, limit - 1)
                 }

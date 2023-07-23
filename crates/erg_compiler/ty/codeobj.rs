@@ -8,7 +8,7 @@ use erg_common::impl_display_from_debug;
 #[allow(unused_imports)]
 use erg_common::log;
 use erg_common::opcode::CommonOpcode;
-use erg_common::opcode308::Opcode308;
+use erg_common::opcode309::Opcode309;
 use erg_common::opcode310::Opcode310;
 use erg_common::opcode311::{BinOpCode, Opcode311};
 use erg_common::python_util::{env_magic_number, PythonVersion};
@@ -36,20 +36,20 @@ pub fn consts_into_bytes(consts: Vec<ValueObj>, python_ver: PythonVersion) -> Ve
 
 pub fn jump_abs_addr(minor_ver: u8, op: u8, idx: usize, arg: usize) -> usize {
     match minor_ver {
-        7 | 8 => jump_abs_addr_308(Opcode308::from(op), idx, arg),
-        9 | 10 => jump_abs_addr_310(Opcode310::from(op), idx, arg),
+        7 | 8 | 9 => jump_abs_addr_309(Opcode309::from(op), idx, arg),
+        10 => jump_abs_addr_310(Opcode310::from(op), idx, arg),
         11 => jump_abs_addr_311(Opcode311::from(op), idx, arg),
         n => todo!("unsupported version: {n}"),
     }
 }
 
-fn jump_abs_addr_308(op: Opcode308, idx: usize, arg: usize) -> usize {
+fn jump_abs_addr_309(op: Opcode309, idx: usize, arg: usize) -> usize {
     match op {
-        Opcode308::FOR_ITER | Opcode308::JUMP_FORWARD => idx + arg * 2 + 2,
-        Opcode308::JUMP_ABSOLUTE | Opcode308::POP_JUMP_IF_FALSE | Opcode308::POP_JUMP_IF_TRUE => {
-            arg * 2
+        Opcode309::FOR_ITER | Opcode309::JUMP_FORWARD => idx + arg + 2,
+        Opcode309::JUMP_ABSOLUTE | Opcode309::POP_JUMP_IF_FALSE | Opcode309::POP_JUMP_IF_TRUE => {
+            arg
         }
-        Opcode308::SETUP_WITH => idx + arg * 2 + 2,
+        Opcode309::SETUP_WITH => idx + arg + 2,
         _ => unreachable!(),
     }
 }
@@ -541,10 +541,8 @@ impl CodeObj {
                     arg
                 };
                 match py_ver.and_then(|pv| pv.minor) {
-                    Some(7) => self.read_instr_307(op, arg, idx, &mut instrs),
-                    Some(8) => self.read_instr_308(op, arg, idx, &mut instrs),
-                    // Some(9) => self.read_instr_309(op, arg, idx, &mut instrs),
-                    Some(9 | 10) => self.read_instr_310(op, arg, idx, &mut instrs),
+                    Some(7 | 8 | 9) => self.read_instr_309(op, arg, idx, &mut instrs),
+                    Some(10) => self.read_instr_310(op, arg, idx, &mut instrs),
                     Some(11) => self.read_instr_311(op, arg, idx, &mut instrs),
                     _ => {}
                 }
@@ -557,78 +555,34 @@ impl CodeObj {
         instrs
     }
 
-    fn read_instr_307(&self, op: &u8, arg: usize, idx: usize, instrs: &mut String) {
-        let op307 = Opcode308::from(*op);
-        let s_op = op307.to_string();
+    fn read_instr_309(&self, op: &u8, arg: usize, idx: usize, instrs: &mut String) {
+        let op309 = Opcode309::from(*op);
+        let s_op = op309.to_string();
         write!(instrs, "{idx:>15} {s_op:<25}").unwrap();
         if let Ok(op) = CommonOpcode::try_from(*op) {
             self.dump_additional_info(op, arg, idx, instrs);
         }
-        match op307 {
-            Opcode308::STORE_DEREF | Opcode308::LOAD_DEREF => {
+        match op309 {
+            Opcode309::STORE_DEREF | Opcode309::LOAD_DEREF => {
                 write!(instrs, "{arg} ({})", self.freevars.get(arg).unwrap()).unwrap();
             }
-            Opcode308::LOAD_CLOSURE => {
+            Opcode309::LOAD_CLOSURE => {
                 write!(instrs, "{arg} ({})", self.cellvars.get(arg).unwrap()).unwrap();
             }
-            Opcode308::JUMP_ABSOLUTE => {
+            Opcode309::JUMP_ABSOLUTE => {
                 write!(instrs, "{arg} (to {})", arg).unwrap();
             }
-            Opcode308::JUMP_FORWARD => {
+            Opcode309::JUMP_FORWARD => {
                 write!(instrs, "{arg} (to {})", idx + arg + 2).unwrap();
             }
-            Opcode308::POP_JUMP_IF_FALSE | Opcode308::POP_JUMP_IF_TRUE => {
+            // REVIEW: *2?
+            Opcode309::POP_JUMP_IF_FALSE | Opcode309::POP_JUMP_IF_TRUE => {
                 write!(instrs, "{arg} (to {})", arg).unwrap();
             }
-            Opcode308::CALL_FUNCTION
-            | Opcode308::CALL_FUNCTION_EX
-            | Opcode308::CALL_FUNCTION_KW => {
-                write!(instrs, "{arg}").unwrap();
-            }
-            Opcode308::BINARY_ADD
-            | Opcode308::BINARY_SUBTRACT
-            | Opcode308::BINARY_MULTIPLY
-            | Opcode308::BINARY_TRUE_DIVIDE => {
-                write!(instrs, "{arg} ({:?})", TypePair::from(arg as u8)).unwrap();
-            }
-            _ => {}
-        }
-        instrs.push('\n');
-    }
-
-    fn read_instr_308(&self, op: &u8, arg: usize, idx: usize, instrs: &mut String) {
-        let op308 = Opcode308::from(*op);
-        let s_op = op308.to_string();
-        write!(instrs, "{idx:>15} {s_op:<25}").unwrap();
-        if let Ok(op) = CommonOpcode::try_from(*op) {
-            self.dump_additional_info(op, arg, idx, instrs);
-        }
-        match op308 {
-            Opcode308::STORE_DEREF | Opcode308::LOAD_DEREF => {
-                write!(instrs, "{arg} ({})", self.freevars.get(arg).unwrap()).unwrap();
-            }
-            Opcode308::LOAD_CLOSURE => {
-                write!(instrs, "{arg} ({})", self.cellvars.get(arg).unwrap()).unwrap();
-            }
-            Opcode308::JUMP_ABSOLUTE => {
-                write!(instrs, "{arg} (to {})", arg * 2).unwrap();
-            }
-            Opcode308::JUMP_FORWARD => {
-                write!(instrs, "{arg} (to {})", idx + arg * 2 + 2).unwrap();
-            }
-            // REVIEW: *2?
-            Opcode308::POP_JUMP_IF_FALSE | Opcode308::POP_JUMP_IF_TRUE => {
-                write!(instrs, "{arg} (to {})", arg * 2).unwrap();
-            }
-            Opcode308::CALL_FUNCTION
-            | Opcode308::CALL_FUNCTION_EX
-            | Opcode308::CALL_FUNCTION_KW => {
-                write!(instrs, "{arg}").unwrap();
-            }
-            Opcode308::BINARY_ADD
-            | Opcode308::BINARY_SUBTRACT
-            | Opcode308::BINARY_MULTIPLY
-            | Opcode308::BINARY_TRUE_DIVIDE => {
+            Opcode309::BINARY_ADD
+            | Opcode309::BINARY_SUBTRACT
+            | Opcode309::BINARY_MULTIPLY
+            | Opcode309::BINARY_TRUE_DIVIDE => {
                 write!(instrs, "{arg} ({:?})", TypePair::from(arg as u8)).unwrap();
             }
             _ => {}

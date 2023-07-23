@@ -5,6 +5,7 @@ use erg_common::traits::{Locational, Runnable, Stream};
 use erg_common::{enum_unwrap, fn_name, log, set, Str, Triple};
 
 use erg_parser::ast::{self, AscriptionKind, Identifier, VarName, AST};
+use erg_parser::desugar::Desugarer;
 
 use crate::context::instantiate::TyVarCache;
 use crate::lower::ASTLowerer;
@@ -332,7 +333,7 @@ impl ASTLowerer {
     fn fake_lower_record(&self, rec: ast::Record) -> LowerResult<hir::Record> {
         let rec = match rec {
             ast::Record::Normal(rec) => rec,
-            ast::Record::Mixed(_mixed) => unreachable!(),
+            ast::Record::Mixed(mixed) => Desugarer::desugar_shortened_record_inner(mixed),
         };
         let mut elems = Vec::new();
         for elem in rec.attrs.into_iter() {

@@ -1,10 +1,11 @@
 use std::fmt;
 use std::path::{Path, PathBuf};
 
+use erg_common::pathutil::NormalizedPathBuf;
+use erg_common::set;
 use erg_common::set::Set;
 use erg_common::shared::{MappedRwLockReadGuard, RwLockReadGuard, Shared};
 use erg_common::tsort::{tsort, Graph, Node, TopoSortError};
-use erg_common::{normalize_path, set};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum IncRefError {
@@ -18,7 +19,7 @@ impl IncRefError {
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct ModuleGraph(Graph<PathBuf, ()>);
+pub struct ModuleGraph(Graph<NormalizedPathBuf, ()>);
 
 impl fmt::Display for ModuleGraph {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -35,7 +36,7 @@ impl fmt::Display for ModuleGraph {
 }
 
 impl IntoIterator for ModuleGraph {
-    type Item = Node<PathBuf, ()>;
+    type Item = Node<NormalizedPathBuf, ()>;
     type IntoIter = std::vec::IntoIter<Self::Item>;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -48,20 +49,45 @@ impl ModuleGraph {
         Self(Graph::new())
     }
 
-    pub fn get_node(&self, path: &Path) -> Option<&Node<PathBuf, ()>> {
-        let path = normalize_path(path.to_path_buf());
+    pub fn get_node(&self, path: &Path) -> Option<&Node<NormalizedPathBuf, ()>> {
+        let path = NormalizedPathBuf::new(path.to_path_buf());
         self.0.iter().find(|n| n.id == path)
     }
 
-    fn parents(&self, path: &Path) -> Option<&Set<PathBuf>> {
-        let path = normalize_path(path.to_path_buf());
+    /// if `path` depends on `target`, returns `true`, else `false`.
+    /// if `path` not found, returns `false`
+    pub fn depends_on(&self, path: &Path, target: &Path) -> bool {
+        let path = NormalizedPathBuf::new(path.to_path_buf());
+        let target = NormalizedPathBuf::new(target.to_path_buf());
+        self.0
+            .iter()
+            .find(|n| n.id == path)
+            .map(|n| n.depends_on.contains(&target))
+            .unwrap_or(false)
+    }
+
+    pub fn children(&self, path: &Path) -> Set<NormalizedPathBuf> {
+        let path = NormalizedPathBuf::new(path.to_path_buf());
+        self.0
+            .iter()
+            .filter(|n| n.depends_on.contains(&path))
+            .map(|n| n.id.clone())
+            .collect()
+    }
+
+    fn parents(&self, path: &Path) -> Option<&Set<NormalizedPathBuf>> {
+        let path = NormalizedPathBuf::new(path.to_path_buf());
         self.0.iter().find(|n| n.id == path).map(|n| &n.depends_on)
     }
 
-    pub fn ancestors(&self, path: &Path) -> Set<PathBuf> {
-        let path = normalize_path(path.to_path_buf());
+    /// ```erg
+    /// # a.er
+    /// b = import "b"
+    /// ```
+    /// -> a: child, b: parent
+    pub fn ancestors(&self, path: &Path) -> Set<NormalizedPathBuf> {
         let mut ancestors = set! {};
-        if let Some(parents) = self.parents(&path) {
+        if let Some(parents) = self.parents(path) {
             for parent in parents.iter() {
                 ancestors.insert(parent.clone());
                 ancestors.extend(self.ancestors(parent));
@@ -71,7 +97,7 @@ impl ModuleGraph {
     }
 
     pub fn add_node_if_none(&mut self, path: &Path) {
-        let path = normalize_path(path.to_path_buf());
+        let path = NormalizedPathBuf::new(path.to_path_buf());
         if self.0.iter().all(|n| n.id != path) {
             let node = Node::new(path, (), set! {});
             self.0.push(node);
@@ -80,8 +106,8 @@ impl ModuleGraph {
 
     /// returns Err (and do nothing) if this operation makes a cycle
     pub fn inc_ref(&mut self, referrer: &Path, depends_on: PathBuf) -> Result<(), IncRefError> {
-        let referrer = normalize_path(referrer.to_path_buf());
-        let depends_on = normalize_path(depends_on);
+        let referrer = NormalizedPathBuf::new(referrer.to_path_buf());
+        let depends_on = NormalizedPathBuf::new(depends_on);
         if self.ancestors(&depends_on).contains(&referrer) && referrer != depends_on {
             return Err(IncRefError::CycleDetected);
         }
@@ -96,7 +122,7 @@ impl ModuleGraph {
         Ok(())
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &Node<PathBuf, ()>> {
+    pub fn iter(&self) -> impl Iterator<Item = &Node<NormalizedPathBuf, ()>> {
         self.0.iter()
     }
 
@@ -112,13 +138,13 @@ impl ModuleGraph {
     }
 
     pub fn remove(&mut self, path: &Path) {
-        let path = normalize_path(path.to_path_buf());
+        let path = NormalizedPathBuf::new(path.to_path_buf());
         self.0.retain(|n| n.id != path);
     }
 
     pub fn rename_path(&mut self, old: &Path, new: PathBuf) {
-        let old = normalize_path(old.to_path_buf());
-        let new = normalize_path(new);
+        let old = NormalizedPathBuf::new(old.to_path_buf());
+        let new = NormalizedPathBuf::new(new);
         for node in self.0.iter_mut() {
             if node.id == old {
                 node.id = new.clone();
@@ -145,7 +171,7 @@ impl fmt::Display for SharedModuleGraph {
 }
 
 impl IntoIterator for SharedModuleGraph {
-    type Item = Node<PathBuf, ()>;
+    type Item = Node<NormalizedPathBuf, ()>;
     type IntoIter = std::vec::IntoIter<Self::Item>;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -158,7 +184,10 @@ impl SharedModuleGraph {
         Self(Shared::new(ModuleGraph::new()))
     }
 
-    pub fn get_node(&self, path: &Path) -> Option<MappedRwLockReadGuard<Node<PathBuf, ()>>> {
+    pub fn get_node(
+        &self,
+        path: &Path,
+    ) -> Option<MappedRwLockReadGuard<Node<NormalizedPathBuf, ()>>> {
         if self.0.borrow().get_node(path).is_some() {
             Some(RwLockReadGuard::map(self.0.borrow(), |graph| {
                 graph.get_node(path).unwrap()
@@ -168,7 +197,15 @@ impl SharedModuleGraph {
         }
     }
 
-    pub fn ancestors(&self, path: &Path) -> Set<PathBuf> {
+    pub fn depends_on(&self, path: &Path, target: &Path) -> bool {
+        self.0.borrow().depends_on(path, target)
+    }
+
+    pub fn children(&self, path: &Path) -> Set<NormalizedPathBuf> {
+        self.0.borrow().children(path)
+    }
+
+    pub fn ancestors(&self, path: &Path) -> Set<NormalizedPathBuf> {
         self.0.borrow().ancestors(path)
     }
 

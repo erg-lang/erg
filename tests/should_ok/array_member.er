@@ -1,0 +1,3 @@
+D = Class { .a = Array(Int, 1) }
+d = D.new { .a = [1] }
+assert d.a[0] == 1

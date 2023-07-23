@@ -7,7 +7,7 @@
 
 use crate::impl_u8_enum;
 
-impl_u8_enum! {Opcode308;
+impl_u8_enum! {Opcode309;
     POP_TOP = 1,
     ROT_TWO = 2,
     ROT_THREE = 3,
@@ -38,11 +38,12 @@ impl_u8_enum! {Opcode308;
     // PUSH_EXC_INFO = 35,
     // CHECK_EXC_MATCH = 36,
     // CHECK_EG_MATCH = 37,
-    // WITH_EXCEPT_START = 49,
+    RERAISE = 48,
+    WITH_EXCEPT_START = 49,
     GET_AITER = 50,
     GET_ANEXT = 51,
     BEFORE_ASYNC_WITH = 52,
-    BEGIN_FINALLY = 53,
+    // BEGIN_FINALLY = 53,
     END_ASYNC_FOR = 54,
     // TODO:
     INPLACE_ADD = 55,
@@ -58,14 +59,14 @@ impl_u8_enum! {Opcode308;
     PRINT_EXPR = 70,
     LOAD_BUILD_CLASS = 71,
     // LOAD_ASSERTION_ERROR = 74,
-    WITH_CLEANUP_START = 81,
+    // WITH_CLEANUP_START = 81,
     WITH_CLEANUP_FINISH = 82,
     RETURN_VALUE = 83,
     IMPORT_STAR = 84,
     SETUP_ANNOTATIONS = 85,
     YIELD_VALUE = 86,
     POP_BLOCK = 87,
-    END_FINALLY = 88,
+    // END_FINALLY = 88,
     POP_EXCEPT = 89,
     /* ↓ These opcodes take an arg */
     STORE_NAME = 90,
@@ -92,10 +93,8 @@ impl_u8_enum! {Opcode308;
     POP_JUMP_IF_FALSE = 114,
     POP_JUMP_IF_TRUE = 115,
     LOAD_GLOBAL = 116,
-    // IS_OP = 117,
-    // CONTAINS_OP = 118,
-    // RERAISE = 119,
-    SETUP_FINALLY = 122,
+    IS_OP = 117,
+    CONTAINS_OP = 118,
     LOAD_FAST = 124,
     STORE_FAST = 125,
     DELETE_FAST = 126,

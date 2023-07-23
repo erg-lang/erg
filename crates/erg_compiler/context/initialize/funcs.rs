@@ -220,6 +220,12 @@ impl Context {
         )
         .quantify();
         let t_round = nd_func(vec![kw(KW_NUMBER, Float)], None, Int);
+        let t_slice = func(
+            vec![kw(KW_START, Int)],
+            None,
+            vec![kw(KW_STOP, Int), kw(KW_STEP, Int)],
+            mono(SLICE),
+        );
         let t_sorted = nd_func(
             vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())]))],
             None,
@@ -392,6 +398,13 @@ impl Context {
             Immutable,
             vis.clone(),
             Some(FUNC_ROUND),
+        );
+        self.register_builtin_py_impl(
+            FUNC_SLICE,
+            t_slice,
+            Immutable,
+            vis.clone(),
+            Some(FUNC_SLICE),
         );
         self.register_builtin_py_impl(
             FUNC_SORTED,

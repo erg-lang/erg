@@ -68,7 +68,7 @@ impl Promise {
 #[derive(Debug, Clone, Default)]
 pub struct SharedPromises {
     graph: SharedModuleGraph,
-    pub(crate) path: PathBuf,
+    pub(crate) path: NormalizedPathBuf,
     promises: Shared<Dict<NormalizedPathBuf, Promise>>,
 }
 
@@ -86,7 +86,7 @@ impl SharedPromises {
     pub fn new(graph: SharedModuleGraph, path: PathBuf) -> Self {
         Self {
             graph,
-            path,
+            path: NormalizedPathBuf::new(path),
             promises: Shared::new(Dict::new()),
         }
     }
@@ -124,6 +124,26 @@ impl SharedPromises {
             *self.promises.borrow_mut().get_mut(path).unwrap() =
                 Promise::Running { parent, handle };
             return Ok(());
+        }
+        // Suppose A depends on B and C, and B depends on C.
+        // In this case, B must join C before A joins C. Otherwise, a deadlock will occur.
+        let children = self.graph.children(path);
+        for child in children.iter() {
+            if child == &self.path {
+                continue;
+            } else if self.graph.depends_on(&self.path, child) {
+                *self.promises.borrow_mut().get_mut(path).unwrap() =
+                    Promise::Running { parent, handle };
+                while self
+                    .promises
+                    .borrow()
+                    .get(path)
+                    .is_some_and(|p| !p.is_finished())
+                {
+                    std::thread::yield_now();
+                }
+                return Ok(());
+            }
         }
         let res = handle.join();
         *self.promises.borrow_mut().get_mut(path).unwrap() = Promise::Finished;

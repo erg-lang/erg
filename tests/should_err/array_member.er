@@ -1,0 +1,12 @@
+C = Class { .a = Array(Int) }
+_ = C.new { .a = [1] } # OK
+_ = C.new { .a = ["a"] } # ERR
+
+D = Class { .a = Array(Int, 1) }
+_ = D.new { .a = [1] } # OK
+d = D.new { .a = [1, 2] } # OK
+assert d.a[0] == "a" # ERR
+
+E = Class { .a = Array(Int, 2) }
+_ = E.new { .a = [1, 2] } # OK
+_ = E.new { .a = [1] } # ERR

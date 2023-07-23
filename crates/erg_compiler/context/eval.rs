@@ -14,6 +14,7 @@ use OpKind::*;
 use erg_parser::ast::Dict as AstDict;
 use erg_parser::ast::Set as AstSet;
 use erg_parser::ast::*;
+use erg_parser::desugar::Desugarer;
 use erg_parser::token::{Token, TokenKind};
 
 use crate::ty::constructors::{
@@ -303,10 +304,40 @@ impl Context {
 
     fn call(&self, subr: ConstSubr, args: ValueArgs, loc: Location) -> EvalResult<ValueObj> {
         match subr {
-            ConstSubr::User(_user) => {
-                feature_error!(self, loc, "calling user-defined subroutines").map_err(Into::into)
+            ConstSubr::User(user) => {
+                // HACK: should avoid cloning
+                let mut subr_ctx = Context::instant(
+                    user.name.clone(),
+                    self.cfg.clone(),
+                    2,
+                    self.shared.clone(),
+                    self.clone(),
+                );
+                // TODO: var_args
+                for (arg, sig) in args
+                    .pos_args
+                    .into_iter()
+                    .zip(user.params.non_defaults.iter())
+                {
+                    let name = VarName::from_str(sig.inspect().unwrap().clone());
+                    subr_ctx.consts.insert(name, arg);
+                }
+                for (name, arg) in args.kw_args.into_iter() {
+                    subr_ctx.consts.insert(VarName::from_str(name), arg);
+                }
+                subr_ctx.eval_const_block(&user.block())
             }
             ConstSubr::Builtin(builtin) => builtin.call(args, self).map_err(|mut e| {
+                if e.0.loc.is_unknown() {
+                    e.0.loc = loc;
+                }
+                EvalErrors::from(EvalError::new(
+                    *e.0,
+                    self.cfg.input.clone(),
+                    self.caused_by(),
+                ))
+            }),
+            ConstSubr::Gen(gen) => gen.call(args, self).map_err(|mut e| {
                 if e.0.loc.is_unknown() {
                     e.0.loc = loc;
                 }
@@ -429,7 +460,9 @@ impl Context {
     fn eval_const_record(&self, record: &Record) -> EvalResult<ValueObj> {
         match record {
             Record::Normal(rec) => self.eval_const_normal_record(rec),
-            Record::Mixed(_rec) => unreachable_error!(self), // should be desugared
+            Record::Mixed(mixed) => self.eval_const_normal_record(
+                &Desugarer::desugar_shortened_record_inner(mixed.clone()),
+            ),
         }
     }
 
@@ -1478,24 +1511,29 @@ impl Context {
         }
     }
 
-    fn convert_type_to_array(&self, ty: Type) -> Result<Vec<ValueObj>, ()> {
+    fn convert_type_to_array(&self, ty: Type) -> Result<Vec<ValueObj>, Type> {
         match ty {
             Type::Poly { name, params } if &name[..] == "Array" || &name[..] == "Array!" => {
-                let t = self
-                    .convert_tp_into_type(params[0].clone())
-                    .map_err(|_| ())?;
+                let Ok(t) = self.convert_tp_into_type(params[0].clone()) else {
+                    return Err(poly(name, params));
+                };
                 let TyParam::Value(ValueObj::Nat(len)) = params[1] else { unreachable!() };
                 Ok(vec![ValueObj::builtin_type(t); len as usize])
             }
-            _ => Err(()),
+            _ => Err(ty),
         }
     }
 
-    pub(crate) fn convert_value_into_array(&self, val: ValueObj) -> Result<Vec<ValueObj>, ()> {
+    pub(crate) fn convert_value_into_array(
+        &self,
+        val: ValueObj,
+    ) -> Result<Vec<ValueObj>, ValueObj> {
         match val {
             ValueObj::Array(arr) => Ok(arr.to_vec()),
-            ValueObj::Type(t) => self.convert_type_to_array(t.into_typ()),
-            _ => Err(()),
+            ValueObj::Type(t) => self
+                .convert_type_to_array(t.into_typ())
+                .map_err(ValueObj::builtin_type),
+            _ => Err(val),
         }
     }
 
@@ -1784,9 +1822,8 @@ impl Context {
         })? {
             if let Ok(obj) = ty_ctx.get_const_local(&Token::symbol(&attr_name), &self.name) {
                 if let ValueObj::Subr(subr) = obj {
-                    let is_method = subr.sig_t().self_t().is_some();
                     let mut pos_args = vec![];
-                    if is_method {
+                    if subr.sig_t().is_method() {
                         match ValueObj::try_from(lhs) {
                             Ok(value) => {
                                 pos_args.push(value);

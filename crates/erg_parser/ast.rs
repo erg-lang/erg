@@ -4159,6 +4159,13 @@ impl Signature {
         }
     }
 
+    pub fn t_spec_op_mut(&mut self) -> Option<&mut TypeSpecWithOp> {
+        match self {
+            Self::Var(v) => v.t_spec.as_mut(),
+            Self::Subr(c) => c.return_t_spec.as_mut(),
+        }
+    }
+
     pub fn is_const(&self) -> bool {
         match self {
             Self::Var(var) => var.is_const(),

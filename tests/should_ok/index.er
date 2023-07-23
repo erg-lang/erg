@@ -1,0 +1,11 @@
+a = [1, 2, 3]
+assert a[0] == 1
+assert a[1..2] == [2, 3]
+
+s = "abcd"
+assert s[0] == "a"
+assert s[1..2] == "bc"
+
+b = bytes("abcd", "utf-8")
+assert b[0] == 97
+assert b[1..2] == bytes("bc", "utf-8")
