@@ -362,19 +362,15 @@ impl PyCodeGenerator {
         self.emit_print_expr();
     }
 
-    #[inline]
-    fn jump_delta(&self, jump_to: usize) -> usize {
-        if self.py_version.minor >= Some(10) {
-            if self.lasti() <= jump_to * 2 {
-                3
-            } else {
-                0
-            }
-        } else if self.lasti() <= jump_to {
-            6
+    fn fill_jump(&mut self, idx: usize, jump_to: usize) {
+        let arg = if self.py_version.minor >= Some(10) {
+            jump_to / 2
         } else {
-            0
-        }
+            jump_to
+        };
+        let bytes = u16::try_from(arg).unwrap().to_be_bytes();
+        *self.mut_cur_block_codeobj().code.get_mut(idx).unwrap() = bytes[0];
+        *self.mut_cur_block_codeobj().code.get_mut(idx + 2).unwrap() = bytes[1];
     }
 
     /// returns: shift bytes
@@ -404,8 +400,7 @@ impl PyCodeGenerator {
             Err(_e) => {
                 // TODO: use u16 as long as possible
                 // see write_arg's comment
-                let delta = self.jump_delta(arg);
-                let bytes = u32::try_from(arg + delta).unwrap().to_be_bytes();
+                let bytes = u32::try_from(arg).unwrap().to_be_bytes();
                 let before_instr = idx.saturating_sub(1);
                 *self.mut_cur_block_codeobj().code.get_mut(idx).unwrap() = bytes[3];
                 self.extend_arg(before_instr, &bytes)
@@ -456,8 +451,7 @@ impl PyCodeGenerator {
                     let delta =
                         if CommonOpcode::is_jump_op(*self.cur_block_codeobj().code.last().unwrap())
                         {
-                            let shift_bytes = 2;
-                            self.jump_delta(code) + shift_bytes
+                            2
                         } else {
                             0
                         };
@@ -466,23 +460,21 @@ impl PyCodeGenerator {
                     let before_instr = self.lasti().saturating_sub(1);
                     self.mut_cur_block_codeobj().code.push(bytes[1]);
                     self.mut_cur_block().lasti += 1;
-                    self.extend_arg(before_instr, &bytes)
+                    self.extend_arg(before_instr, &bytes) + 1
                 }
                 Err(_) => {
-                    let delta =
-                        if CommonOpcode::is_jump_op(*self.cur_block_codeobj().code.last().unwrap())
-                        {
-                            let shift_bytes = 6;
-                            self.jump_delta(code) + shift_bytes
-                        } else {
-                            0
-                        };
+                    let delta = 0;
+                    if CommonOpcode::is_jump_op(*self.cur_block_codeobj().code.last().unwrap()) {
+                        6
+                    } else {
+                        0
+                    };
                     let arg = code + delta;
                     let bytes = u32::try_from(arg).unwrap().to_be_bytes(); // [u8; 4]
                     let before_instr = self.lasti().saturating_sub(1);
                     self.mut_cur_block_codeobj().code.push(bytes[3]);
                     self.mut_cur_block().lasti += 1;
-                    self.extend_arg(before_instr, &bytes)
+                    self.extend_arg(before_instr, &bytes) + 1
                 }
             },
         }
@@ -927,8 +919,9 @@ impl PyCodeGenerator {
 
     /// Compileが継続不能になった際呼び出す
     /// 極力使わないこと
+    #[track_caller]
     fn crash(&mut self, description: &str) -> ! {
-        if cfg!(feature = "debug") {
+        if cfg!(debug_assertions) || cfg!(feature = "debug") {
             println!("current block: {}", self.cur_block());
             panic!("internal error: {description}");
         } else {
@@ -1748,6 +1741,8 @@ impl PyCodeGenerator {
         let cond = args.remove(0);
         self.emit_expr(cond);
         let idx_pop_jump_if_false = self.lasti();
+        self.write_instr(EXTENDED_ARG);
+        self.write_arg(0);
         // Opcode310::POP_JUMP_IF_FALSE == Opcode311::POP_JUMP_FORWARD_IF_FALSE
         self.write_instr(Opcode310::POP_JUMP_IF_FALSE);
         // cannot detect where to jump to at this moment, so put as 0
@@ -1763,16 +1758,18 @@ impl PyCodeGenerator {
             }
         }
         if args.get(0).is_some() {
-            let mut idx_jump_forward = self.lasti();
-            self.write_instr(Opcode311::JUMP_FORWARD); // jump to end
+            let idx_jump_forward = self.lasti();
+            self.write_instr(EXTENDED_ARG);
+            self.write_arg(0);
+            self.write_instr(Opcode308::JUMP_FORWARD); // jump to end
             self.write_arg(0);
             // else block
             let idx_else_begin = match self.py_version.minor {
                 Some(11) => self.lasti() - idx_pop_jump_if_false - 2,
-                Some(10) => self.lasti(),
-                _ => self.lasti(),
+                Some(10 | 9 | 8 | 7) => self.lasti() + 2,
+                _ => self.lasti() + 2,
             };
-            idx_jump_forward += self.calc_edit_jump(idx_pop_jump_if_false + 1, idx_else_begin);
+            self.fill_jump(idx_pop_jump_if_false + 1, idx_else_begin - 2);
             match args.remove(0) {
                 Expr::Lambda(lambda) => {
                     // let params = self.gen_param_names(&lambda.params);
@@ -1783,8 +1780,7 @@ impl PyCodeGenerator {
                 }
             }
             let idx_end = self.lasti();
-            let jump_to = idx_end - idx_jump_forward - 2;
-            self.calc_edit_jump(idx_jump_forward + 1, jump_to);
+            self.fill_jump(idx_jump_forward + 1, idx_end - idx_jump_forward - 2 - 1);
             // FIXME: this is a hack to make sure the stack is balanced
             while self.stack_len() != init_stack_len + 1 {
                 self.stack_dec();
@@ -1800,9 +1796,9 @@ impl PyCodeGenerator {
             let idx_end = if self.py_version.minor >= Some(11) {
                 self.lasti() - idx_pop_jump_if_false - 1
             } else {
-                self.lasti()
+                self.lasti() + 2
             };
-            self.calc_edit_jump(idx_pop_jump_if_false + 1, idx_end);
+            self.fill_jump(idx_pop_jump_if_false + 1, idx_end - 2);
             self.emit_load_const(ValueObj::None);
             while self.stack_len() != init_stack_len + 1 {
                 self.stack_dec();
@@ -1822,6 +1818,8 @@ impl PyCodeGenerator {
         self.write_instr(GET_ITER);
         self.write_arg(0);
         let idx_for_iter = self.lasti();
+        self.write_instr(EXTENDED_ARG);
+        self.write_arg(0);
         self.write_instr(FOR_ITER);
         self.stack_inc();
         // FOR_ITER pushes a value onto the stack, but we can't know how many
@@ -1838,23 +1836,24 @@ impl PyCodeGenerator {
             self.emit_pop_top();
         }
         debug_assert_eq!(self.stack_len(), init_stack_len - 1); // the iterator is remained
+        let idx = self.lasti();
+        self.write_instr(EXTENDED_ARG);
+        self.write_arg(0);
         match self.py_version.minor {
             Some(11) => {
                 self.write_instr(Opcode311::JUMP_BACKWARD);
-                self.write_arg((self.lasti() - idx_for_iter + 2) / 2);
+                self.write_arg(0);
+                self.fill_jump(idx + 1, self.lasti() - idx_for_iter);
             }
-            Some(10) => {
-                self.write_instr(Opcode310::JUMP_ABSOLUTE);
-                self.write_arg(idx_for_iter / 2);
-            }
-            Some(9 | 8 | 7) => {
+            Some(10 | 9 | 8 | 7) => {
                 self.write_instr(Opcode309::JUMP_ABSOLUTE);
-                self.write_arg(idx_for_iter);
+                self.write_arg(0);
+                self.fill_jump(idx + 1, idx_for_iter);
             }
             _ => todo!("not supported Python version"),
         }
         let idx_end = self.lasti();
-        self.calc_edit_jump(idx_for_iter + 1, idx_end - idx_for_iter - 2);
+        self.fill_jump(idx_for_iter + 1, idx_end - idx_for_iter - 2 - 2);
         self.stack_dec();
         self.emit_load_const(ValueObj::None);
         debug_assert_eq!(self.stack_len(), _init_stack_len + 1);
@@ -1873,8 +1872,11 @@ impl PyCodeGenerator {
             Expr::Accessor(acc) => Expr::Accessor(acc).call_expr(Args::empty()),
             _ => todo!(),
         };
+        // Evaluate again at the end of the loop
         self.emit_expr(cond.clone());
         let idx_while = self.lasti();
+        self.write_instr(EXTENDED_ARG);
+        self.write_arg(0);
         self.write_instr(Opcode310::POP_JUMP_IF_FALSE);
         self.write_arg(0);
         self.stack_dec();
@@ -1886,26 +1888,27 @@ impl PyCodeGenerator {
             self.emit_pop_top();
         }
         self.emit_expr(cond);
+        let idx = self.lasti();
+        self.write_instr(EXTENDED_ARG);
+        self.write_arg(0);
         let arg = if self.py_version.minor >= Some(11) {
             let arg = self.lasti() - (idx_while + 2);
             self.write_instr(Opcode311::POP_JUMP_BACKWARD_IF_TRUE);
-            arg / 2 + 1
+            self.write_arg(0);
+            arg
         } else {
             self.write_instr(Opcode310::POP_JUMP_IF_TRUE);
-            if self.py_version.minor >= Some(10) {
-                (idx_while + 2) / 2
-            } else {
-                idx_while + 2
-            }
+            self.write_arg(0);
+            idx_while + 4
         };
-        self.write_arg(arg);
+        self.fill_jump(idx + 1, arg);
         self.stack_dec();
-        let idx_end = if self.py_version.minor >= Some(11) {
-            self.lasti() - idx_while - 1
-        } else {
-            self.lasti()
+        let idx_end = match self.py_version.minor {
+            Some(11) => self.lasti() - idx_while - 1,
+            Some(10) => self.lasti(),
+            _ => self.lasti() + 2,
         };
-        self.calc_edit_jump(idx_while + 1, idx_end);
+        self.fill_jump(idx_while + 1, idx_end - 2);
         self.emit_load_const(ValueObj::None);
         debug_assert_eq!(self.stack_len(), _init_stack_len + 1);
     }
@@ -1928,38 +1931,45 @@ impl PyCodeGenerator {
                 todo!("default values in match expression are not supported yet")
             }
             let param = lambda.params.non_defaults.remove(0);
-            let pop_jump_points = self.emit_match_pattern(param, args.is_empty());
+            let pop_jump_point = self.emit_match_pattern(param, args.is_empty());
             self.emit_frameless_block(lambda.body, Vec::new());
             // If we move on to the next arm, the stack size will increase
             // so `self.stack_dec();` for now (+1 at the end).
             self.stack_dec();
-            for pop_jump_point in pop_jump_points.into_iter() {
-                let idx = if self.py_version.minor >= Some(11) {
-                    self.lasti() - pop_jump_point // - 2
-                } else {
-                    self.lasti() + 2
+            if let Some(pop_jump_point) = pop_jump_point {
+                let idx = match self.py_version.minor {
+                    Some(11) => self.lasti() - pop_jump_point,
+                    Some(10) => self.lasti() + 4,
+                    _ => self.lasti() + 4,
                 };
-                self.calc_edit_jump(pop_jump_point + 1, idx); // jump to POP_TOP
+                self.fill_jump(pop_jump_point + 1, idx); // jump to POP_TOP
                 jump_forward_points.push(self.lasti());
-                self.write_instr(Opcode311::JUMP_FORWARD); // jump to the end
+                self.write_instr(EXTENDED_ARG);
+                self.write_arg(0);
+                self.write_instr(Opcode308::JUMP_FORWARD); // jump to the end
                 self.write_arg(0);
             }
         }
         let lasti = self.lasti();
         for jump_point in jump_forward_points.into_iter() {
-            self.calc_edit_jump(jump_point + 1, lasti - jump_point - 1);
+            let jump_to = match self.py_version.minor {
+                Some(11 | 10) => lasti - jump_point - 2 - 2,
+                _ => lasti - jump_point - 2 - 2,
+            };
+            self.fill_jump(jump_point + 1, jump_to);
         }
         self.stack_inc();
         debug_assert_eq!(self.stack_len(), init_stack_len + 1);
     }
 
+    /// return `None` if the arm is the last one
     fn emit_match_pattern(
         &mut self,
         param: NonDefaultParamSignature,
         is_last_arm: bool,
-    ) -> Vec<usize> {
+    ) -> Option<usize> {
         log!(info "entered {}", fn_name!());
-        let mut pop_jump_points = vec![];
+        let mut pop_jump_point = None;
         if let Some(t_spec) = param.t_spec_as_expr {
             // If it's the last arm, there's no need to inspect it
             if !is_last_arm {
@@ -1999,7 +2009,12 @@ impl PyCodeGenerator {
                     self.write_arg(2);
                 }
                 self.stack_dec();
-                pop_jump_points.push(self.lasti());
+                pop_jump_point = Some(self.lasti());
+                // HACK: match branches often jump very far (beyond the u8 range),
+                // so the jump destination should be reserved as the u16 range.
+                // Other jump instructions may need to be replaced by this way.
+                self.write_instr(EXTENDED_ARG);
+                self.write_arg(0);
                 // in 3.11, POP_JUMP_IF_FALSE is replaced with POP_JUMP_FORWARD_IF_FALSE
                 // but the numbers are the same, only the way the jumping points are calculated is different.
                 self.write_instr(Opcode310::POP_JUMP_IF_FALSE); // jump to the next case
@@ -2018,7 +2033,7 @@ impl PyCodeGenerator {
             }
             _other => unreachable!(),
         }
-        pop_jump_points
+        pop_jump_point
     }
 
     fn emit_with_instr_311(&mut self, mut args: Args) {
@@ -2101,7 +2116,7 @@ impl PyCodeGenerator {
         self.stack_dec_n((1 + 3) - 1);
         self.emit_pop_top();
         let idx_jump_forward = self.lasti();
-        self.write_instr(Opcode311::JUMP_FORWARD);
+        self.write_instr(Opcode310::JUMP_FORWARD);
         self.write_arg(0);
         self.edit_code(idx_setup_with + 1, (self.lasti() - idx_setup_with - 2) / 2);
         self.write_instr(Opcode310::WITH_EXCEPT_START);
@@ -2454,6 +2469,8 @@ impl PyCodeGenerator {
         let init_stack_len = self.stack_len();
         self.emit_expr(args.remove(0));
         let pop_jump_point = self.lasti();
+        self.write_instr(EXTENDED_ARG);
+        self.write_arg(0);
         self.write_instr(Opcode310::POP_JUMP_IF_TRUE);
         self.write_arg(0);
         self.stack_dec();
@@ -2477,12 +2494,12 @@ impl PyCodeGenerator {
         self.write_arg(1);
         self.stack_dec();
         let idx = match self.py_version.minor {
-            Some(11) => (self.lasti() - pop_jump_point - 2) / 2,
-            Some(10) => self.lasti() / 2,
+            Some(11) => self.lasti() - pop_jump_point - 4,
+            Some(10) => self.lasti(),
             Some(_) => self.lasti(),
             _ => todo!(),
         };
-        self.edit_code(pop_jump_point + 1, idx);
+        self.fill_jump(pop_jump_point + 1, idx);
         self.emit_load_const(ValueObj::None);
         debug_assert_eq!(self.stack_len(), init_stack_len + 1);
     }

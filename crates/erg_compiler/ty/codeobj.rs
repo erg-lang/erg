@@ -619,6 +619,11 @@ impl CodeObj {
             | Opcode310::BINARY_TRUE_DIVIDE => {
                 write!(instrs, "{arg} ({:?})", TypePair::from(arg as u8)).unwrap();
             }
+            Opcode310::CALL_FUNCTION
+            | Opcode310::CALL_FUNCTION_EX
+            | Opcode310::CALL_FUNCTION_KW => {
+                write!(instrs, "{arg}").unwrap();
+            }
             Opcode310::SETUP_WITH => {
                 write!(instrs, "{arg} (to {})", idx + arg * 2 + 2).unwrap();
             }
@@ -647,11 +652,11 @@ impl CodeObj {
             Opcode311::POP_JUMP_BACKWARD_IF_FALSE | Opcode311::POP_JUMP_BACKWARD_IF_TRUE => {
                 write!(instrs, "{arg} (to {})", idx - arg * 2 + 2).unwrap();
             }
-            Opcode311::JUMP_BACKWARD => {
-                write!(instrs, "{arg} (to {})", idx - arg * 2 + 2).unwrap();
-            }
             Opcode311::JUMP_FORWARD => {
                 write!(instrs, "{arg} (to {})", idx + arg * 2 + 2).unwrap();
+            }
+            Opcode311::JUMP_BACKWARD => {
+                write!(instrs, "{arg} (to {})", idx - arg * 2 + 2).unwrap();
             }
             Opcode311::PRECALL
             | Opcode311::CALL
