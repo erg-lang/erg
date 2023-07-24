@@ -1558,7 +1558,7 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
         );
         bytes
-            .register_marker_trait(self, poly(INDEXABLE, vec![ty_tp(Nat), ty_tp(Int)]))
+            .register_marker_trait(self, poly(SEQUENCE, vec![ty_tp(Int)]))
             .unwrap();
         let mut bytes_eq = Self::builtin_methods(Some(mono(EQ)), 2);
         bytes_eq.register_builtin_erg_impl(
@@ -1595,6 +1595,7 @@ impl Context {
         // __Tuple_getitem__: (self: Tuple(Ts), _: {N}) -> Ts[N]
         let input_t = tp_enum(Nat, set! {N.clone()});
         let return_t = proj_call(Ts.clone(), FUNDAMENTAL_GETITEM, vec![N.clone()]);
+        let union_t = proj_call(Ts.clone(), UNION_FUNC, vec![]);
         let tuple_getitem_t =
             fn1_met(_tuple_t.clone(), input_t.clone(), return_t.clone()).quantify();
         tuple_.register_builtin_py_impl(
@@ -1642,6 +1643,9 @@ impl Context {
             ValueObj::builtin_class(tuple_iterator),
         );
         tuple_.register_trait(_tuple_t.clone(), tuple_iterable);
+        tuple_
+            .register_marker_trait(self, poly(SEQUENCE, vec![ty_tp(union_t)]))
+            .unwrap();
         /* record */
         let mut record = Self::builtin_mono_class(RECORD, 2);
         record.register_superclass(Obj, &obj);

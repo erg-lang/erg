@@ -4,7 +4,7 @@ _io = pyimport "io"
 math = pyimport "math"
 _os = pyimport "os"
 _posix = pyimport "posix" # This will be an error on Non-Unix OSs
-_random = pyimport "random"
+random = pyimport "random"
 _re = pyimport "re"
 _socket = pyimport "socket"
 sub = pyimport "subprocess"
@@ -13,6 +13,7 @@ _urllib = pyimport "urllib"
 _iter = pyimport "itertools"
 {DateTime;} = pyimport "datetime"
 
+print! random.choice! 1..10
 print! math.pi
 print! importlib.util.MAGIC_NUMBER
 _ = importlib.util.find_spec "os"

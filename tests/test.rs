@@ -96,7 +96,7 @@ fn exec_fib() -> Result<(), ()> {
 fn exec_helloworld() -> Result<(), ()> {
     // HACK: When running the test with Windows, the exit code is 1 (the cause is unknown)
     if cfg!(windows) {
-        expect_end_with("examples/helloworld.er", 1)
+        expect_end_with("examples/helloworld.er", 0, 1)
     } else {
         expect_success("examples/helloworld.er", 0)
     }
@@ -356,7 +356,7 @@ fn exec_err_import() -> Result<(), ()> {
 /// This file compiles successfully, but causes a run-time error due to incomplete method dispatching
 #[test]
 fn exec_tests_impl() -> Result<(), ()> {
-    expect_end_with("tests/should_ok/impl.er", 1)
+    expect_end_with("tests/should_ok/impl.er", 0, 1)
 }
 
 #[test]
@@ -397,7 +397,7 @@ fn exec_move_check() -> Result<(), ()> {
 #[test]
 fn exec_pyimport() -> Result<(), ()> {
     if cfg!(unix) {
-        expect_end_with("examples/pyimport.er", 111)
+        expect_end_with("examples/pyimport.er", 8, 111)
     } else {
         expect_failure("examples/pyimport.er", 8, 1)
     }

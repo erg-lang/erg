@@ -353,6 +353,15 @@ impl GenTypeObj {
             Self::Patch(patch) => patch.t,
         }
     }
+
+    pub fn map_t(&mut self, f: impl FnOnce(Type) -> Type) {
+        *self.typ_mut() = f(self.typ().clone());
+    }
+
+    pub fn try_map_t<E>(&mut self, f: impl FnOnce(Type) -> Result<Type, E>) -> Result<(), E> {
+        *self.typ_mut() = f(self.typ().clone())?;
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, Eq)]
@@ -444,6 +453,23 @@ impl TypeObj {
         match self {
             TypeObj::Builtin { t, .. } => t.contains_intersec(other),
             TypeObj::Generated(t) => t.typ().contains_intersec(other),
+        }
+    }
+
+    pub fn map_t(&mut self, f: impl FnOnce(Type) -> Type) {
+        match self {
+            TypeObj::Builtin { t, .. } => *t = f(t.clone()),
+            TypeObj::Generated(t) => t.map_t(f),
+        }
+    }
+
+    pub fn try_map_t<E>(&mut self, f: impl FnOnce(Type) -> Result<Type, E>) -> Result<(), E> {
+        match self {
+            TypeObj::Builtin { t, .. } => {
+                *t = f(t.clone())?;
+                Ok(())
+            }
+            TypeObj::Generated(t) => t.try_map_t(f),
         }
     }
 }

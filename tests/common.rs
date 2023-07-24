@@ -114,19 +114,29 @@ pub(crate) fn expect_repl_failure(
     }
 }
 
-pub(crate) fn expect_end_with(file_path: &'static str, code: i32) -> Result<(), ()> {
+pub(crate) fn expect_end_with(
+    file_path: &'static str,
+    num_warns: usize,
+    code: i32,
+) -> Result<(), ()> {
     match exec_file(file_path) {
         Ok(stat) if stat.succeed() => {
             println!("err: should end with {code}, but end with 0");
             Err(())
         }
         Ok(stat) => {
-            if stat.code == code {
-                Ok(())
-            } else {
+            if stat.code != code {
                 println!("err: end with {}", stat.code);
-                Err(())
+                return Err(());
             }
+            if stat.num_warns != num_warns {
+                println!(
+                    "err: number of warnings should be {num_warns}, but got {}",
+                    stat.num_warns
+                );
+                return Err(());
+            }
+            Ok(())
         }
         Err(errs) => {
             if DEBUG_MODE {

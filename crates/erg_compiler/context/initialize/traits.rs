@@ -249,6 +249,7 @@ impl Context {
             poly(INDEXABLE, vec![ty_tp(Nat), ty_tp(T.clone())]),
             &indexable,
         );
+        sequence.register_superclass(poly(OUTPUT, vec![ty_tp(T.clone())]), &output);
         /* Sequence! */
         let mut mut_sequence = Self::builtin_poly_trait(MUTABLE_SEQUENCE, vec![PS::t_nd(TY_T)], 2);
         mut_sequence.register_superclass(poly(SEQUENCE, vec![ty_tp(T.clone())]), &sequence);

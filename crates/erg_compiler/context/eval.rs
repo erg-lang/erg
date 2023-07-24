@@ -21,7 +21,7 @@ use crate::ty::constructors::{
     array_t, dict_t, mono, poly, proj, proj_call, ref_, ref_mut, refinement, set_t, subr_t,
     tp_enum, tuple_t, v_enum,
 };
-use crate::ty::free::{FreeTyVar, HasLevel};
+use crate::ty::free::{Constraint, FreeTyVar, HasLevel};
 use crate::ty::typaram::{OpKind, TyParam};
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{ConstSubr, HasType, Predicate, SubrKind, Type, UserConstSubr, ValueArgs};
@@ -1035,7 +1035,22 @@ impl Context {
                 }
                 Ok(TyParam::Set(new_set))
             }
-            TyParam::Type(_) | TyParam::Erased(_) | TyParam::Value(_) => Ok(p.clone()),
+            TyParam::Type(t) => self
+                .eval_t_params(*t, self.level, &())
+                .map(TyParam::t)
+                .map_err(|(_, errs)| errs),
+            TyParam::Erased(t) => self
+                .eval_t_params(*t, self.level, &())
+                .map(TyParam::erased)
+                .map_err(|(_, errs)| errs),
+            TyParam::Value(ValueObj::Type(mut t)) => {
+                t.try_map_t(|t| {
+                    self.eval_t_params(t, self.level, &())
+                        .map_err(|(_, errs)| errs)
+                })?;
+                Ok(TyParam::Value(ValueObj::Type(t)))
+            }
+            TyParam::Value(_) => Ok(p.clone()),
             _other => feature_error!(self, Location::Unknown, "???"),
         }
     }
@@ -1051,6 +1066,22 @@ impl Context {
         match substituted {
             Type::FreeVar(fv) if fv.is_linked() => {
                 self.eval_t_params(fv.crack().clone(), level, t_loc)
+            }
+            Type::FreeVar(fv) if fv.constraint_is_sandwiched() => {
+                let (sub, sup) = fv.get_subsup().unwrap();
+                let sub = if sub.is_recursive() {
+                    sub
+                } else {
+                    self.eval_t_params(sub, level, t_loc)?
+                };
+                let sup = if sup.is_recursive() {
+                    sup
+                } else {
+                    self.eval_t_params(sup, level, t_loc)?
+                };
+                let new_constraint = Constraint::new_sandwiched(sub, sup);
+                fv.update_constraint(new_constraint, false);
+                Ok(Type::FreeVar(fv))
             }
             Type::Subr(mut subr) => {
                 for pt in subr.non_default_params.iter_mut() {
@@ -1319,6 +1350,7 @@ impl Context {
 
     /// ```erg
     /// TyParam::Type(Int) => Int
+    /// [{1}, {2}, {3}] => [{1, 2, 3}; 3]
     /// (Int, Str) => Tuple([Int, Str])
     /// {x = Int; y = Int} => Type::Record({x = Int, y = Int})
     /// {Str: Int} => Dict({Str: Int})
@@ -1332,6 +1364,14 @@ impl Context {
                     ts.push(self.convert_tp_into_type(elem_tp)?);
                 }
                 Ok(tuple_t(ts))
+            }
+            TyParam::Array(tps) => {
+                let mut union = Type::Never;
+                let len = tps.len();
+                for tp in tps {
+                    union = self.union(&union, &self.convert_tp_into_type(tp)?);
+                }
+                Ok(array_t(union, TyParam::value(len)))
             }
             TyParam::Set(tps) => {
                 let mut union = Type::Never;
@@ -1802,6 +1842,46 @@ impl Context {
         }
     }
 
+    fn do_proj_call(
+        &self,
+        obj: ValueObj,
+        lhs: TyParam,
+        args: Vec<TyParam>,
+        t_loc: &impl Locational,
+    ) -> EvalResult<Type> {
+        if let ValueObj::Subr(subr) = obj {
+            let mut pos_args = vec![];
+            if subr.sig_t().is_method() {
+                match ValueObj::try_from(lhs) {
+                    Ok(value) => {
+                        pos_args.push(value);
+                    }
+                    Err(_) => {
+                        return feature_error!(self, t_loc.loc(), "??");
+                    }
+                }
+            }
+            for pos_arg in args.into_iter() {
+                match ValueObj::try_from(pos_arg) {
+                    Ok(value) => {
+                        pos_args.push(value);
+                    }
+                    Err(_) => {
+                        return feature_error!(self, t_loc.loc(), "??");
+                    }
+                }
+            }
+            let args = ValueArgs::new(pos_args, dict! {});
+            let t = self.call(subr, args, t_loc.loc())?;
+            let t = self
+                .convert_value_into_type(t)
+                .unwrap_or_else(|value| todo!("Type::try_from {value}"));
+            Ok(t)
+        } else {
+            feature_error!(self, t_loc.loc(), "??")
+        }
+    }
+
     pub(crate) fn eval_proj_call(
         &self,
         lhs: TyParam,
@@ -1821,61 +1901,11 @@ impl Context {
             )
         })? {
             if let Ok(obj) = ty_ctx.get_const_local(&Token::symbol(&attr_name), &self.name) {
-                if let ValueObj::Subr(subr) = obj {
-                    let mut pos_args = vec![];
-                    if subr.sig_t().is_method() {
-                        match ValueObj::try_from(lhs) {
-                            Ok(value) => {
-                                pos_args.push(value);
-                            }
-                            Err(_) => {
-                                return feature_error!(self, t_loc.loc(), "??");
-                            }
-                        }
-                    }
-                    for pos_arg in args.into_iter() {
-                        match ValueObj::try_from(pos_arg) {
-                            Ok(value) => {
-                                pos_args.push(value);
-                            }
-                            Err(_) => {
-                                return feature_error!(self, t_loc.loc(), "??");
-                            }
-                        }
-                    }
-                    let args = ValueArgs::new(pos_args, dict! {});
-                    let t = self.call(subr, args, t_loc.loc())?;
-                    let t = self
-                        .convert_value_into_type(t)
-                        .unwrap_or_else(|value| todo!("Type::try_from {value}"));
-                    return Ok(t);
-                } else {
-                    return feature_error!(self, t_loc.loc(), "??");
-                }
+                return self.do_proj_call(obj, lhs, args, t_loc);
             }
             for (_class, methods) in ty_ctx.methods_list.iter() {
                 if let Ok(obj) = methods.get_const_local(&Token::symbol(&attr_name), &self.name) {
-                    if let ValueObj::Subr(subr) = obj {
-                        let mut pos_args = vec![];
-                        for pos_arg in args.into_iter() {
-                            match ValueObj::try_from(pos_arg) {
-                                Ok(value) => {
-                                    pos_args.push(value);
-                                }
-                                Err(_) => {
-                                    return feature_error!(self, t_loc.loc(), "??");
-                                }
-                            }
-                        }
-                        let args = ValueArgs::new(pos_args, dict! {});
-                        let t = self.call(subr, args, t_loc.loc())?;
-                        let t = self
-                            .convert_value_into_type(t)
-                            .unwrap_or_else(|value| todo!("Type::try_from {value}"));
-                        return Ok(t);
-                    } else {
-                        return feature_error!(self, t_loc.loc(), "??");
-                    }
+                    return self.do_proj_call(obj, lhs, args, t_loc);
                 }
             }
         }
