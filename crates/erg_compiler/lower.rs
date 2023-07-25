@@ -1940,12 +1940,36 @@ impl ASTLowerer {
 
     fn lower_redef(&mut self, redef: ast::ReDef) -> LowerResult<hir::ReDef> {
         log!(info "entered {}({redef})", fn_name!());
-        let attr = self.lower_acc(redef.attr)?;
+        let mut attr = self.lower_acc(redef.attr)?;
         let expr = self.lower_expr(*redef.expr)?;
         if let Err(err) =
             self.var_result_t_check(&attr, &Str::from(attr.show()), attr.ref_t(), expr.ref_t())
         {
-            self.errs.push(err);
+            if PYTHON_MODE {
+                let derefined = attr.ref_t().derefine();
+                match self.var_result_t_check(
+                    &attr,
+                    &Str::from(attr.show()),
+                    &derefined,
+                    expr.ref_t(),
+                ) {
+                    Err(err) => self.errs.push(err),
+                    Ok(_) => {
+                        *attr.ref_mut_t() = derefined.clone();
+                        if let hir::Accessor::Ident(ident) = &attr {
+                            if let Some(vi) = self
+                                .module
+                                .context
+                                .rec_get_mut_var_info(&ident.raw, AccessKind::Name)
+                            {
+                                vi.t = derefined;
+                            }
+                        }
+                    }
+                }
+            } else {
+                self.errs.push(err);
+            }
         }
         Ok(hir::ReDef::new(attr, hir::Block::new(vec![expr])))
     }

@@ -1527,6 +1527,7 @@ impl Context {
                     Err(errs)
                 }
             }
+            Type::Failure => Ok(SubstituteResult::Ok),
             _ => self.substitute_dunder_call(obj, attr_name, instance, pos_args, kw_args),
         }
     }
