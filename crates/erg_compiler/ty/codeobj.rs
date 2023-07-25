@@ -3,8 +3,10 @@ use std::fmt::Write as _;
 use std::fs::File;
 use std::io::{BufReader, Read, Write as _};
 use std::path::Path;
+use std::process::ExitStatus;
 
 use erg_common::impl_display_from_debug;
+use erg_common::io::Output;
 #[allow(unused_imports)]
 use erg_common::log;
 use erg_common::opcode::CommonOpcode;
@@ -12,7 +14,7 @@ use erg_common::opcode308::Opcode308;
 use erg_common::opcode309::Opcode309;
 use erg_common::opcode310::Opcode310;
 use erg_common::opcode311::{BinOpCode, Opcode311};
-use erg_common::python_util::{env_magic_number, PythonVersion};
+use erg_common::python_util::{env_magic_number, exec_py_code, PythonVersion};
 use erg_common::serialize::*;
 use erg_common::Str;
 
@@ -437,6 +439,19 @@ impl CodeObj {
         bytes.append(&mut self.into_bytes(python_ver));
         file.write_all(&bytes[..])?;
         Ok(())
+    }
+
+    pub fn exec(self, py_magic_num: Option<u32>, output: Output) -> std::io::Result<ExitStatus> {
+        let mut bytes = Vec::with_capacity(16);
+        let py_magic_num = py_magic_num.unwrap_or_else(env_magic_number);
+        let python_ver = get_ver_from_magic_num(py_magic_num);
+        bytes.append(&mut self.into_bytes(python_ver));
+        let mut bytecode = "".to_string();
+        for b in bytes {
+            write!(bytecode, "\\x{b:0>2x}").unwrap();
+        }
+        let code = format!("import marshal; exec(marshal.loads(b'{bytecode}'))");
+        exec_py_code(&code, output)
     }
 
     fn tables_info(&self) -> String {

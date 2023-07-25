@@ -3,9 +3,10 @@
 //! CPythonを呼び出すためのユーティリティー
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{Command, ExitStatus, Stdio};
 
 use crate::fn_name_full;
+use crate::io::Output;
 use crate::pathutil::remove_verbatim;
 use crate::serialize::get_magic_num_from_bytes;
 
@@ -848,4 +849,24 @@ pub fn spawn_py(py_command: Option<&str>, code: &str) {
             .spawn()
             .expect("cannot execute python");
     }
+}
+
+pub fn exec_py_code(code: &str, output: Output) -> std::io::Result<ExitStatus> {
+    let mut out = if cfg!(windows) {
+        Command::new(which_python())
+            .arg("-c")
+            .arg(code)
+            .stdout(output)
+            .spawn()
+            .expect("cannot execute python")
+    } else {
+        let exec_command = format!("{} -c \"{code}\"", which_python());
+        Command::new("sh")
+            .arg("-c")
+            .arg(exec_command)
+            .stdout(output)
+            .spawn()
+            .expect("cannot execute python")
+    };
+    out.wait()
 }

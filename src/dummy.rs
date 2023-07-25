@@ -281,24 +281,14 @@ impl Runnable for DummyVM {
 
     fn exec(&mut self) -> Result<ExitStatus, Self::Errs> {
         // Parallel execution is not possible without dumping with a unique file name.
-        let filename = self.cfg().dump_pyc_filename();
+        // let filename = self.cfg().dump_pyc_filename();
         let src = self.cfg_mut().input.read();
-        let warns = self
-            .compiler
-            .compile_and_dump_as_pyc(&filename, src, "exec")
-            .map_err(|eart| {
-                eart.warns.write_all_to(&mut self.cfg_mut().output);
-                eart.errors
-            })?;
-        warns.write_all_to(&mut self.cfg_mut().output);
-        let code = exec_pyc(
-            &filename,
-            self.cfg().py_command,
-            &self.cfg().runtime_args,
-            self.cfg().output.clone(),
-        );
-        remove_file(&filename).unwrap();
-        Ok(ExitStatus::new(code.unwrap_or(1), warns.len(), 0))
+        let art = self.compiler.exec_compile(src, "exec").map_err(|eart| {
+            eart.warns.write_all_to(&mut self.cfg_mut().output);
+            eart.errors
+        })?;
+        art.warns.write_all_to(&mut self.cfg_mut().output);
+        Ok(art.object)
     }
 
     fn eval(&mut self, src: String) -> Result<String, EvalErrors> {
