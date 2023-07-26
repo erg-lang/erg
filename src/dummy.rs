@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use erg_common::config::ErgConfig;
 use erg_common::error::MultiErrorDisplay;
-use erg_common::python_util::{exec_pyc, spawn_py};
+use erg_common::python_util::spawn_py;
 use erg_common::traits::{ExitStatus, Runnable, Stream};
 
 use erg_compiler::hir::Expr;
@@ -33,6 +33,8 @@ enum Inst {
     Initialize = 0x04,
     /// Informs that the connection is to be / should be terminated.
     Exit = 0x05,
+    /// Send from client to server. Let the server to execute the code.
+    Execute = 0x06,
     /// Informs that it is not a supported instruction.
     Unknown = 0x00,
 }
@@ -45,6 +47,7 @@ impl From<u8> for Inst {
             0x03 => Inst::Exception,
             0x04 => Inst::Initialize,
             0x05 => Inst::Exit,
+            0x06 => Inst::Execute,
             _ => Inst::Unknown,
         }
     }
@@ -280,34 +283,26 @@ impl Runnable for DummyVM {
     }
 
     fn exec(&mut self) -> Result<ExitStatus, Self::Errs> {
-        // Parallel execution is not possible without dumping with a unique file name.
-        let filename = self.cfg().dump_pyc_filename();
         let src = self.cfg_mut().input.read();
-        let warns = self
-            .compiler
-            .compile_and_dump_as_pyc(&filename, src, "exec")
-            .map_err(|eart| {
-                eart.warns.write_all_to(&mut self.cfg_mut().output);
-                eart.errors
-            })?;
-        warns.write_all_to(&mut self.cfg_mut().output);
-        let code = exec_pyc(
-            &filename,
-            self.cfg().py_command,
-            &self.cfg().runtime_args,
-            self.cfg().output.clone(),
-        );
-        remove_file(&filename).unwrap();
-        Ok(ExitStatus::new(code.unwrap_or(1), warns.len(), 0))
+        let art = self.compiler.compile(src, "exec").map_err(|eart| {
+            eart.warns.write_all_to(&mut self.cfg_mut().output);
+            eart.errors
+        })?;
+        art.warns.write_all_to(&mut self.cfg_mut().output);
+        let stat = art
+            .object
+            .exec(self.cfg().py_magic_num, self.cfg().output.clone())
+            .expect("failed to execute");
+        let stat = ExitStatus::new(stat.code().unwrap_or(0), art.warns.len(), 0);
+        Ok(stat)
     }
 
     fn eval(&mut self, src: String) -> Result<String, EvalErrors> {
-        let path = self.cfg().dump_pyc_filename();
         let arti = self
             .compiler
-            .eval_compile_and_dump_as_pyc(path, src, "eval")
+            .eval_compile(src, "eval")
             .map_err(|eart| eart.errors)?;
-        let (last, warns) = (arti.object, arti.warns);
+        let ((code, last), warns) = (arti.object, arti.warns);
         let mut res = warns.to_string();
 
         macro_rules! err_handle {
@@ -323,12 +318,13 @@ impl Runnable for DummyVM {
         }
 
         // Tell the REPL server to execute the code
-        if let Err(err) = self
-            .stream
-            .as_mut()
-            .unwrap()
-            .send_msg(&Message::new(Inst::Load, None))
-        {
+        if let Err(err) = self.stream.as_mut().unwrap().send_msg(&Message::new(
+            Inst::Execute,
+            Some(
+                code.executable_code(self.compiler.cfg.py_magic_num)
+                    .into_bytes(),
+            ),
+        )) {
             err_handle!("Sending error: {err}");
         };
 
@@ -349,7 +345,7 @@ impl Runnable for DummyVM {
                     Inst::Print => String::from_utf8(msg.data.unwrap_or_default()),
                     Inst::Exit => err_handle!("Receiving inst {:?} from server", msg.inst),
                     // `load` can only be sent from the client to the server
-                    Inst::Load | Inst::Unknown => {
+                    Inst::Load | Inst::Execute | Inst::Unknown => {
                         err_handle!("Receiving unexpected inst {:?} from server", msg.inst)
                     }
                 };

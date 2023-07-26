@@ -383,7 +383,7 @@ impl<'a> HIRLinker<'a> {
         // ↓
         // # module.er
         // self = __import__(__name__)
-        if matches!((path.canonicalize(), self.cfg.input.unescaped_path().canonicalize()), (Ok(l), Ok(r)) if l == r)
+        if matches!((path.canonicalize(), self.cfg.input.path().canonicalize()), (Ok(l), Ok(r)) if l == r)
         {
             *expr = Self::self_module();
             return;

@@ -73,14 +73,17 @@ impl InputKind {
         matches!(self, Self::REPL | Self::DummyREPL(_))
     }
 
-    pub fn path(&self) -> Option<&Path> {
+    pub fn path(&self) -> &Path {
         match self {
-            Self::File(path) => Some(path),
-            _ => None,
+            Self::File(filename) => filename.as_path(),
+            Self::REPL | Self::Pipe(_) => Path::new("<stdin>"),
+            Self::DummyREPL(_stdin) => Path::new("<stdin>"),
+            Self::Str(_) => Path::new("<string>"),
+            Self::Dummy => Path::new("<dummy>"),
         }
     }
 
-    pub fn enclosed_name(&self) -> &str {
+    pub fn as_str(&self) -> &str {
         match self {
             Self::File(filename) => filename.to_str().unwrap_or("_"),
             Self::REPL | Self::DummyREPL(_) | Self::Pipe(_) => "<stdin>",
@@ -176,10 +179,6 @@ impl Input {
         self.id
     }
 
-    pub fn path(&self) -> Option<&Path> {
-        self.kind.path()
-    }
-
     pub fn dir(&self) -> PathBuf {
         self.kind.dir()
     }
@@ -189,7 +188,7 @@ impl Input {
     }
 
     pub fn enclosed_name(&self) -> &str {
-        self.kind.enclosed_name()
+        self.kind.as_str()
     }
 
     pub fn lineno(&self) -> usize {
@@ -214,78 +213,40 @@ impl Input {
 
     pub fn file_stem(&self) -> String {
         match &self.kind {
-            InputKind::File(filename) => format!(
-                "{}_{}",
-                filename
-                    .file_stem()
-                    .and_then(|f| f.to_str())
-                    .unwrap_or("_")
-                    .trim_end_matches(".d"),
-                self.id
-            ),
-            InputKind::REPL | InputKind::Pipe(_) => format!("stdin_{}", self.id),
-            InputKind::DummyREPL(stdin) => format!("stdin_{}_{}", stdin.name, self.id),
-            InputKind::Str(_) => format!("string_{}", self.id),
-            InputKind::Dummy => "dummy".to_string(),
+            InputKind::File(filename) => filename
+                .file_stem()
+                .and_then(|f| f.to_str())
+                .unwrap_or("_")
+                .trim_end_matches(".d")
+                .to_string(),
+            InputKind::REPL | InputKind::Pipe(_) => "<stdin>".to_string(),
+            InputKind::DummyREPL(stdin) => format!("<stdin_{}>", stdin.name),
+            InputKind::Str(_) => "<string>".to_string(),
+            InputKind::Dummy => "<dummy>".to_string(),
         }
     }
 
     pub fn full_path(&self) -> PathBuf {
         match &self.kind {
-            InputKind::File(filename) => {
-                PathBuf::from(format!("{}_{}", filename.display(), self.id))
-            }
+            InputKind::File(filename) => filename.clone(),
             _ => PathBuf::from(self.file_stem()),
         }
     }
 
     pub fn filename(&self) -> String {
         match &self.kind {
-            InputKind::File(filename) => format!(
-                "{}_{}",
-                filename.file_name().and_then(|f| f.to_str()).unwrap_or("_"),
-                self.id
-            ),
-            _ => self.file_stem(),
-        }
-    }
-
-    pub fn unescaped_file_stem(&self) -> &str {
-        match &self.kind {
-            InputKind::File(filename) => filename
-                .file_stem()
-                .and_then(|f| f.to_str())
-                .unwrap_or("_")
-                .trim_end_matches(".d"),
-            InputKind::REPL | InputKind::Pipe(_) => "stdin",
-            InputKind::DummyREPL(_stdin) => "stdin",
-            InputKind::Str(_) => "string",
-            InputKind::Dummy => "dummy",
-        }
-    }
-
-    pub fn unescaped_filename(&self) -> &str {
-        match &self.kind {
             InputKind::File(filename) => filename
                 .file_name()
                 .and_then(|f| f.to_str())
                 .unwrap_or("_")
-                .trim_end_matches(".d"),
-            InputKind::REPL | InputKind::Pipe(_) => "stdin",
-            InputKind::DummyREPL(_stdin) => "stdin",
-            InputKind::Str(_) => "string",
-            InputKind::Dummy => "dummy",
+                .trim_end_matches(".d")
+                .to_string(),
+            _ => self.file_stem(),
         }
     }
 
-    pub fn unescaped_path(&self) -> &Path {
-        match &self.kind {
-            InputKind::File(filename) => filename.as_path(),
-            InputKind::REPL | InputKind::Pipe(_) => Path::new("stdin"),
-            InputKind::DummyREPL(_stdin) => Path::new("stdin"),
-            InputKind::Str(_) => Path::new("string"),
-            InputKind::Dummy => Path::new("dummy"),
-        }
+    pub fn path(&self) -> &Path {
+        self.kind.path()
     }
 
     pub fn module_name(&self) -> String {
@@ -432,7 +393,7 @@ impl Input {
     }
 
     pub fn sys_path(&self) -> Result<Vec<PathBuf>, std::io::Error> {
-        get_sys_path(self.unescaped_path().parent())
+        get_sys_path(self.path().parent())
     }
 
     /// resolution order:
@@ -687,7 +648,7 @@ impl Input {
     }
 
     pub fn decl_file_is(&self, decl_path: &Path) -> bool {
-        let mut py_path = self.unescaped_path().to_path_buf();
+        let mut py_path = self.path().to_path_buf();
         py_path.set_extension("d.er");
         if decl_path == py_path {
             return true;

@@ -111,10 +111,7 @@ impl Deserializer {
     }
 
     pub fn run(cfg: ErgConfig) -> ExitStatus {
-        let Some(filename) = cfg.input.path() else {
-            eprintln!("{:?} is not a filename", cfg.input);
-            return ExitStatus::ERR1;
-        };
+        let filename = cfg.input.path();
         match CodeObj::from_pyc(filename) {
             Ok(codeobj) => {
                 println!("{}", codeobj.code_info(None));

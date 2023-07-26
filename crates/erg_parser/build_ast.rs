@@ -64,7 +64,7 @@ impl ASTBuilder {
         CompleteArtifact<AST, ParserRunnerErrors>,
         IncompleteArtifact<AST, ParserRunnerErrors>,
     > {
-        let name = Str::rc(self.runner.cfg().input.unescaped_filename());
+        let name = Str::from(self.runner.cfg().input.filename());
         let mut desugarer = Desugarer::new();
         let artifact = self.runner.parse(src).map_err(|iart| {
             iart.map_mod(|module| {
@@ -87,7 +87,7 @@ impl ASTBuilder {
         CompleteArtifact<AST, ParserRunnerErrors>,
         IncompleteArtifact<AST, ParserRunnerErrors>,
     > {
-        let name = Str::rc(self.runner.cfg().input.unescaped_filename());
+        let name = Str::from(self.runner.cfg().input.filename());
         let artifact = self
             .runner
             .parse(src)

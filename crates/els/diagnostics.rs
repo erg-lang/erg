@@ -46,7 +46,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     "checking {uri} passed, found warns: {}",
                     artifact.warns.len()
                 ))?;
-                let uri_and_diags = self.make_uri_and_diags(uri.clone(), artifact.warns.clone());
+                let uri_and_diags = self.make_uri_and_diags(artifact.warns.clone());
                 // clear previous diagnostics
                 self.send_diagnostics(uri.clone().raw(), vec![])?;
                 for (uri, diags) in uri_and_diags.into_iter() {
@@ -64,7 +64,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     .into_iter()
                     .chain(artifact.warns.clone().into_iter())
                     .collect();
-                let uri_and_diags = self.make_uri_and_diags(uri.clone(), diags);
+                let uri_and_diags = self.make_uri_and_diags(diags);
                 if uri_and_diags.is_empty() {
                     self.send_diagnostics(uri.clone().raw(), vec![])?;
                 }
@@ -130,21 +130,18 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         Ok(())
     }
 
-    fn make_uri_and_diags(
-        &mut self,
-        uri: NormalizedUrl,
-        errors: CompileErrors,
-    ) -> Vec<(Url, Vec<Diagnostic>)> {
+    fn make_uri_and_diags(&mut self, errors: CompileErrors) -> Vec<(Url, Vec<Diagnostic>)> {
         let mut uri_and_diags: Vec<(Url, Vec<Diagnostic>)> = vec![];
         for err in errors.into_iter() {
             let loc = err.core.get_loc_with_fallback();
-            let res_uri = if let Some(path) = err.input.path() {
-                Url::from_file_path(path.canonicalize().unwrap_or(path.to_path_buf()))
-            } else {
-                Ok(uri.clone().raw())
-            };
+            let res_uri = Url::from_file_path(
+                err.input
+                    .path()
+                    .canonicalize()
+                    .unwrap_or(err.input.path().to_path_buf()),
+            );
             let Ok(err_uri) = res_uri else {
-                crate::_log!("failed to get uri: {}", err.input.path().unwrap().display());
+                crate::_log!("failed to get uri: {}", err.input.path().display());
                 continue;
             };
             let mut message = remove_style(&err.core.main_message);

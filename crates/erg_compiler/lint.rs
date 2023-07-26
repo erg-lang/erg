@@ -173,7 +173,7 @@ impl ASTLowerer {
         }
         let self_path = self.module.context.module_path();
         for (referee, value) in self.module.context.index().members().iter() {
-            if referee.module.as_deref() != self_path {
+            if referee.module.as_deref() != Some(self_path) {
                 continue;
             }
             let name_is_auto = &value.name[..] == "_"

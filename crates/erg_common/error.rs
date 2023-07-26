@@ -933,7 +933,7 @@ pub trait ErrorDisplay {
         let (color, mark) = core.specified_theme();
         let (gutter_color, chars) = core.theme.characters();
         let mut msg = String::new();
-        msg += &core.fmt_header(color, self.caused_by(), self.input().kind.enclosed_name());
+        msg += &core.fmt_header(color, self.caused_by(), self.input().kind.as_str());
         msg += "\n\n";
         for sub_msg in &core.sub_messages {
             msg += &sub_msg.format_code_and_pointer(self, color, gutter_color, mark, chars);
@@ -957,7 +957,7 @@ pub trait ErrorDisplay {
         write!(
             f,
             "{}\n\n",
-            core.fmt_header(color, self.caused_by(), self.input().kind.enclosed_name())
+            core.fmt_header(color, self.caused_by(), self.input().kind.as_str())
         )?;
         for sub_msg in &core.sub_messages {
             write!(

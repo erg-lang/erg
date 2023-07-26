@@ -39,9 +39,7 @@ impl SharedCompilerResource {
             trait_impls: SharedTraitImpls::new(),
             promises: SharedPromises::new(
                 graph,
-                cfg.input
-                    .path()
-                    .map_or(PathBuf::default(), |p| p.canonicalize().unwrap_or_default()),
+                cfg.input.path().canonicalize().unwrap_or_default(),
             ),
             errors: SharedCompileErrors::new(),
             warns: SharedCompileWarnings::new(),
