@@ -441,7 +441,7 @@ impl CodeObj {
         Ok(())
     }
 
-    pub fn exec(self, py_magic_num: Option<u32>, output: Output) -> std::io::Result<ExitStatus> {
+    pub fn executable_code(self, py_magic_num: Option<u32>) -> String {
         let mut bytes = Vec::with_capacity(16);
         let py_magic_num = py_magic_num.unwrap_or_else(env_magic_number);
         let python_ver = get_ver_from_magic_num(py_magic_num);
@@ -450,8 +450,11 @@ impl CodeObj {
         for b in bytes {
             write!(bytecode, "\\x{b:0>2x}").unwrap();
         }
-        let code = format!("import marshal; exec(marshal.loads(b'{bytecode}'))");
-        exec_py_code(&code, output)
+        format!("import marshal; exec(marshal.loads(b'{bytecode}'))")
+    }
+
+    pub fn exec(self, py_magic_num: Option<u32>, output: Output) -> std::io::Result<ExitStatus> {
+        exec_py_code(&self.executable_code(py_magic_num), output)
     }
 
     fn tables_info(&self) -> String {

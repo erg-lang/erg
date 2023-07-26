@@ -18,6 +18,8 @@ class INST:
     INITIALIZE = 0x04
     # Informs that the connection is to be / should be terminated.
     EXIT = 0x05
+    # Send from client to server. Let the REPL server to execute the code.
+    EXECUTE = 0x06
 
 class MessageStream:
     def __init__(self, socket):
@@ -31,8 +33,7 @@ class MessageStream:
         data_len = int.from_bytes(self._read_buf[1:3], 'big')
         self._read_buf.extend(self.socket.recv(data_len))
 
-        return (inst, self._read_buf[3:].decode())
-
+        return (inst, self._read_buf[3:].decode('utf-8'))
 
     def send_msg(self, inst, data=''):
         data_bytes = data.encode()
@@ -57,7 +58,7 @@ client_stream = MessageStream(client_socket)
 
 while True:
     try:
-        inst, _ = client_stream.recv_msg()
+        inst, data = client_stream.recv_msg()
     except ConnectionResetError: # when the server was crashed
         break
     if inst == INST.EXIT: # when the server was closed successfully
@@ -76,6 +77,31 @@ while True:
             else:
                 res = str(exec('import __MODULE__', ctx))
             already_loaded = True
+        except SystemExit:
+            client_stream.send_msg(INST.EXCEPTION, 'SystemExit')
+            continue
+        except Exception as e:
+            try:
+                excs = traceback.format_exception(e)
+            except:
+                excs = traceback.format_exception_only(e.__class__, e)
+            exc = ''.join(excs).rstrip()
+            traceback.clear_frames(e.__traceback__)
+            resp_inst = INST.INITIALIZE
+        out = sys.stdout.getvalue()[:-1]
+        if out and exc or res:
+            out += '\n'
+        res = out + exc + res
+        buf.append(res)
+        client_stream.send_msg(resp_inst, ''.join(buf))
+    elif inst == INST.EXECUTE:
+        sys.stdout = io.StringIO()
+        res = ''
+        exc = ''
+        resp_inst = INST.PRINT
+        buf = []
+        try:
+            res = str(exec(data, ctx))
         except SystemExit:
             client_stream.send_msg(INST.EXCEPTION, 'SystemExit')
             continue

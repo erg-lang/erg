@@ -2466,10 +2466,9 @@ impl ASTLowerer {
     pub fn lower(&mut self, ast: AST, mode: &str) -> Result<CompleteArtifact, IncompleteArtifact> {
         log!(info "the AST lowering process has started.");
         log!(info "the type-checking process has started.");
-        if let Some(path) = self.cfg.input.path() {
-            let graph = &self.module.context.shared().graph;
-            graph.add_node_if_none(path);
-        }
+        let path = self.cfg.input.path();
+        let graph = &self.module.context.shared().graph;
+        graph.add_node_if_none(path);
         let ast = ASTLinker::new(self.cfg.clone())
             .link(ast, mode)
             .map_err(|errs| {

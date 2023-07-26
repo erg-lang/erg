@@ -976,12 +976,12 @@ impl Context {
         )
     }
 
-    pub(crate) fn module_path(&self) -> Option<&Path> {
+    pub(crate) fn module_path(&self) -> &Path {
         self.cfg.input.path()
     }
 
     pub(crate) fn absolutize(&self, loc: Location) -> AbsLocation {
-        AbsLocation::new(self.module_path().map(PathBuf::from), loc)
+        AbsLocation::new(Some(PathBuf::from(self.module_path())), loc)
     }
 
     #[inline]
@@ -1049,7 +1049,7 @@ impl Context {
 
     pub(crate) fn _get_module_from_stack(&self, path: &Path) -> Option<&Context> {
         self.get_outer().and_then(|outer| {
-            if outer.kind == ContextKind::Module && outer.module_path() == Some(path) {
+            if outer.kind == ContextKind::Module && outer.module_path() == path {
                 Some(outer)
             } else {
                 outer._get_module_from_stack(path)

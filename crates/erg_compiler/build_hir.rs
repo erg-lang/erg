@@ -93,7 +93,7 @@ impl Runnable for HIRBuilder {
 
 impl Buildable for HIRBuilder {
     fn inherit(cfg: ErgConfig, shared: SharedCompilerResource) -> Self {
-        let mod_name = Str::rc(cfg.input.unescaped_file_stem());
+        let mod_name = Str::from(cfg.input.file_stem());
         Self::new_with_cache(cfg, mod_name, shared)
     }
     fn build(&mut self, src: String, mode: &str) -> Result<CompleteArtifact, IncompleteArtifact> {

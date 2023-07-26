@@ -1854,10 +1854,9 @@ impl Context {
         if ERG_MODE {
             self.check_mod_vis(path.as_path(), __name__, loc)?;
         }
-        if let Some(referrer) = self.cfg.input.path() {
-            if self.shared().graph.inc_ref(referrer, path.clone()).is_err() {
-                self.build_cyclic_mod(&path);
-            }
+        let referrer = self.cfg.input.path();
+        if self.shared().graph.inc_ref(referrer, path.clone()).is_err() {
+            self.build_cyclic_mod(&path);
         }
         self.build_erg_mod(path, __name__, loc)
     }
@@ -2123,7 +2122,7 @@ impl Context {
 
     fn try_gen_py_decl_file(&self, __name__: &Str) -> Result<PathBuf, ()> {
         if let Ok(path) = self.cfg.input.resolve_py(Path::new(&__name__[..])) {
-            if self.cfg.input.path() == Some(path.as_path()) {
+            if self.cfg.input.path() == path.as_path() {
                 return Ok(path);
             }
             let (out, err) = if self.cfg.mode == ErgMode::LanguageServer || self.cfg.quiet_repl {
@@ -2163,13 +2162,12 @@ impl Context {
         let py_mod_cache = self.py_mod_cache();
         let path = self.get_decl_path(__name__, loc)?;
         // module itself
-        if self.cfg.input.path() == Some(path.as_path()) {
+        if self.cfg.input.path() == path.as_path() {
             return Ok(path);
         }
-        if let Some(referrer) = self.cfg.input.path() {
-            if self.shared().graph.inc_ref(referrer, path.clone()).is_err() {
-                self.build_cyclic_mod(&path);
-            }
+        let referrer = self.cfg.input.path();
+        if self.shared().graph.inc_ref(referrer, path.clone()).is_err() {
+            self.build_cyclic_mod(&path);
         }
         if py_mod_cache.get(&path).is_some() {
             return Ok(path);

@@ -55,7 +55,7 @@ impl Context {
     /// Get the context of the module. If it was in analysis, wait until analysis is complete and join the thread.
     /// If you only want to know if the module is registered, use `mod_registered`.
     pub(crate) fn get_mod_with_path(&self, path: &Path) -> Option<&Context> {
-        if self.module_path() == Some(path) {
+        if self.module_path() == path {
             return self.get_module();
         }
         if self.shared.is_some()
