@@ -226,20 +226,6 @@ impl Compiler {
         Ok(CompleteArtifact::new(last, arti.warns))
     }
 
-    pub fn exec_compile(
-        &mut self,
-        src: String,
-        mode: &str,
-    ) -> Result<CompleteArtifact<ExitStatus>, ErrorArtifact> {
-        let arti = self.compile(src, mode)?;
-        let stat = arti
-            .object
-            .exec(self.cfg.py_magic_num, self.cfg.output.clone())
-            .expect("failed to dump a .pyc file (maybe permission denied)");
-        let stat = ExitStatus::new(stat.code().unwrap_or(0), arti.warns.len(), 0);
-        Ok(CompleteArtifact::new(stat, arti.warns))
-    }
-
     pub fn compile(
         &mut self,
         src: String,
