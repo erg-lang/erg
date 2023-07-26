@@ -8,7 +8,7 @@ use std::time::Duration;
 use erg_common::config::ErgConfig;
 use erg_common::error::MultiErrorDisplay;
 use erg_common::python_util::spawn_py;
-use erg_common::traits::{ExitStatus, Runnable};
+use erg_common::traits::{ExitStatus, Runnable, Stream};
 
 use erg_compiler::hir::Expr;
 use erg_compiler::ty::HasType;
@@ -284,12 +284,17 @@ impl Runnable for DummyVM {
 
     fn exec(&mut self) -> Result<ExitStatus, Self::Errs> {
         let src = self.cfg_mut().input.read();
-        let art = self.compiler.exec_compile(src, "exec").map_err(|eart| {
+        let art = self.compiler.compile(src, "exec").map_err(|eart| {
             eart.warns.write_all_to(&mut self.cfg_mut().output);
             eart.errors
         })?;
         art.warns.write_all_to(&mut self.cfg_mut().output);
-        Ok(art.object)
+        let stat = art
+            .object
+            .exec(self.cfg().py_magic_num, self.cfg().output.clone())
+            .expect("failed to execute");
+        let stat = ExitStatus::new(stat.code().unwrap_or(0), art.warns.len(), 0);
+        Ok(stat)
     }
 
     fn eval(&mut self, src: String) -> Result<String, EvalErrors> {
