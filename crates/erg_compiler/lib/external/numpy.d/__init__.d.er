@@ -1,7 +1,6 @@
-# TODO: dependent (static shaped)
-.NDArray = 'ndarray': (T: Type) -> ClassType
-.NDArray(T) <: Output T
-.NDArray(_) <: Num
+.NDArray = 'ndarray': (T: Type, Shape: [Nat; _]) -> ClassType
+.NDArray(T, _) <: Output T
+.NDArray(_, _) <: Num
 .NDArray.
     shape: [Nat; _]
     ndim: Nat
@@ -16,7 +15,7 @@
 .all: |T <: Num|(object: .NDArray(T),) -> Bool
 .any: |T <: Num|(object: .NDArray(T),) -> Bool
 .arange: |T <: Num|(start: T, stop := T, step := T) -> .NDArray(T)
-.array: |T|(object: Iterable(T),) -> .NDArray(T)
+.array: |T, S: [Nat; _]|(object: Iterable(T) and Shape(S),) -> .NDArray(T, S)
 .linspace: |T <: Num|(start: T, stop: T, num := Nat, endpoint := Bool, retstep := Bool, dtype := Type, axis := Nat) -> .NDArray(T)
 .max: |T <: Num|(object: .NDArray(T),) -> T
 .mean: |T <: Num|(object: .NDArray(T),) -> T

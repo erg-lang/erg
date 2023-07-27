@@ -557,6 +557,16 @@ impl<'t> TryFrom<&'t TyParam> for &'t FreeTyParam {
     }
 }
 
+impl<'t> TryFrom<&'t TyParam> for &'t FreeTyVar {
+    type Error = ();
+    fn try_from(t: &'t TyParam) -> Result<&'t FreeTyVar, ()> {
+        match t {
+            TyParam::Type(ty) => <&FreeTyVar>::try_from(ty.as_ref()),
+            _ => Err(()),
+        }
+    }
+}
+
 impl TryFrom<TyParam> for ValueObj {
     type Error = ();
     fn try_from(tp: TyParam) -> Result<Self, ()> {

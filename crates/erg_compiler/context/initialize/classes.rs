@@ -1261,6 +1261,9 @@ impl Context {
         array_
             .register_marker_trait(self, poly(INDEXABLE, vec![ty_tp(input), ty_tp(T.clone())]))
             .unwrap();
+        array_
+            .register_marker_trait(self, poly(SHAPE, vec![TyParam::Array(vec![N.clone()])]))
+            .unwrap();
         let mut array_sized = Self::builtin_methods(Some(mono(SIZED)), 2);
         array_sized.register_builtin_erg_impl(
             FUNDAMENTAL_LEN,

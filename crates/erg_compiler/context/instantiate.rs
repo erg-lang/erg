@@ -12,6 +12,7 @@ use erg_common::Str;
 use erg_parser::ast::VarName;
 
 use crate::ty::constructors::*;
+use crate::ty::free::FreeTyParam;
 use crate::ty::free::{Constraint, HasLevel};
 use crate::ty::typaram::{TyParam, TyParamLambda};
 use crate::ty::ValueObj;
@@ -154,7 +155,7 @@ impl TyVarCache {
         // T<inst> is uninitialized
         // T<inst>.link(T<tv>);
         // T <: Eq(T <: Eq(T <: ...))
-        let free_inst = enum_unwrap!(inst, Type::FreeVar);
+        let Type::FreeVar(free_inst) = inst else { todo!("{inst}") };
         if free_inst.constraint_is_uninited() {
             inst.link(tv);
         } else {
@@ -165,7 +166,7 @@ impl TyVarCache {
             // tv: ?T(:> Nat)
             // => ?T(:> Nat or Str)
             let (old_sub, old_sup) = free_inst.get_subsup().unwrap();
-            let tv = enum_unwrap!(tv, Type::FreeVar);
+            let Type::FreeVar(tv) = tv else { todo!("{tv}") };
             let (new_sub, new_sup) = tv.get_subsup().unwrap();
             let new_constraint = Constraint::new_sandwiched(
                 ctx.union(&old_sub, &new_sub),
@@ -191,12 +192,18 @@ impl TyVarCache {
     }
 
     fn update_typaram(&self, inst: &TyParam, tp: &TyParam, ctx: &Context) {
-        let free_inst = enum_unwrap!(inst, TyParam::FreeVar);
+        let Ok(free_inst) = <&FreeTyParam>::try_from(inst) else {
+            if let (Ok(inst), Ok(t)) = (<&Type>::try_from(inst), <&Type>::try_from(tp)) {
+                return self.update_tyvar(inst, t, ctx);
+            } else {
+                todo!("{inst}");
+            }
+        };
         if free_inst.constraint_is_uninited() {
             inst.link(tp);
         } else {
             let old_type = free_inst.get_type().unwrap();
-            let tv = enum_unwrap!(tp, TyParam::FreeVar);
+            let Ok(tv) = <&FreeTyParam>::try_from(tp) else { todo!("{tp}") };
             let new_type = tv.get_type().unwrap();
             let new_constraint = Constraint::new_type_of(ctx.intersection(&old_type, &new_type));
             free_inst.update_constraint(new_constraint, true);
