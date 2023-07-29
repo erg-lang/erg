@@ -11,6 +11,7 @@ use crate::artifact::{BuildRunnable, Buildable, CompleteArtifact, IncompleteArti
 use crate::context::{Context, ContextKind, ContextProvider, ModuleContext};
 use crate::effectcheck::SideEffectChecker;
 use crate::error::{CompileError, CompileErrors, LowerWarnings};
+use crate::link_hir::HIRLinker;
 use crate::lower::ASTLowerer;
 use crate::module::SharedCompilerResource;
 use crate::ownercheck::OwnershipChecker;
@@ -182,6 +183,13 @@ impl HIRBuilder {
     pub fn build_module(&mut self) -> Result<CompleteArtifact, IncompleteArtifact> {
         let src = self.cfg_mut().input.read();
         self.build(src, "exec")
+    }
+
+    pub fn build_linked_module(&mut self) -> Result<CompleteArtifact, IncompleteArtifact> {
+        let artifact = self.build_module()?;
+        let linker = HIRLinker::new(self.cfg(), self.lowerer.module.context.mod_cache());
+        let hir = linker.link(artifact.object);
+        Ok(CompleteArtifact::new(hir, artifact.warns))
     }
 
     pub fn pop_mod_ctx(&mut self) -> Option<ModuleContext> {

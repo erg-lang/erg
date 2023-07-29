@@ -232,7 +232,7 @@ impl Compiler {
         mode: &str,
     ) -> Result<CompleteArtifact<CodeObj>, ErrorArtifact> {
         log!(info "the compiling process has started.");
-        let arti = self.build_optimize_link_desugar(src, mode)?;
+        let arti = self.build_link_desugar_optimize(src, mode)?;
         let codeobj = self.code_generator.emit(arti.object);
         log!(info "code object:\n{}", codeobj.code_info(Some(self.code_generator.py_version)));
         log!(info "the compiling process has completed");
@@ -250,7 +250,7 @@ impl Compiler {
         mode: &str,
     ) -> Result<CompleteArtifact<(CodeObj, Option<Expr>)>, ErrorArtifact> {
         log!(info "the compiling process has started.");
-        let arti = self.build_optimize_link_desugar(src, mode)?;
+        let arti = self.build_link_desugar_optimize(src, mode)?;
         let last = arti.object.module.last().cloned();
         let codeobj = self.code_generator.emit(arti.object);
         log!(info "code object:\n{}", codeobj.code_info(Some(self.code_generator.py_version)));
@@ -258,7 +258,7 @@ impl Compiler {
         Ok(CompleteArtifact::new((codeobj, last), arti.warns))
     }
 
-    fn build_optimize_link_desugar(
+    fn build_link_desugar_optimize(
         &mut self,
         src: String,
         mode: &str,
