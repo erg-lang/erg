@@ -640,10 +640,12 @@ impl Context {
         // In this case, there is no new information to be gained
         // この場合、特に新しく得られる情報はない
         if maybe_sub == &Type::Never || maybe_sup == &Type::Obj || maybe_sup == maybe_sub {
+            log!(info "no-op:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_sup}");
             return Ok(());
         }
         // API definition was failed and inspection is useless after this
         if maybe_sub == &Type::Failure || maybe_sup == &Type::Failure {
+            log!(info "no-op:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_sup}");
             return Ok(());
         }
         self.occur(maybe_sub, maybe_sup, loc).map_err(|err| {
@@ -666,6 +668,7 @@ impl Context {
                 self.get_simple_type_mismatch_hint(maybe_sup, maybe_sub),
             )));
         } else if maybe_sub.has_no_unbound_var() && maybe_sup.has_no_unbound_var() {
+            log!(info "no-op:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_sup}");
             return Ok(());
         }
         match (maybe_sub, maybe_sup) {
@@ -686,6 +689,7 @@ impl Context {
                 if sub_fv.constraint_is_sandwiched() && sup_fv.constraint_is_sandwiched() =>
             {
                 if sub_fv.is_generalized() || sup_fv.is_generalized() {
+                    log!(info "generalized:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_sup}");
                     return Ok(());
                 }
                 let (lsub, lsup) = sub_fv.get_subsup().unwrap();
@@ -1302,6 +1306,8 @@ impl Context {
                 }
                 Self::undo_substitute_typarams(sub_def_t);
                 return Ok(());
+            } else {
+                log!(err "no compatible supertype found: {maybe_sub} <: {maybe_sup}");
             }
             Self::undo_substitute_typarams(sub_def_t);
         }

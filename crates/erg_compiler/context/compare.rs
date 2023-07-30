@@ -252,38 +252,62 @@ impl Context {
         None
     }
 
-    fn classes_supertype_of(&self, lhs: &Type, rhs: &Type) -> (Credibility, bool) {
-        if !self.is_class(lhs) || !self.is_class(rhs) {
-            return (Maybe, false);
-        }
+    fn _nominal_subtype_of<'c>(
+        &'c self,
+        lhs: &Type,
+        rhs: &Type,
+        op: impl FnOnce(&'c Context) -> &'c [Type],
+    ) -> (Credibility, bool) {
         if let Some((typ, ty_ctx)) = self.get_nominal_type_ctx(rhs) {
-            if typ.has_qvar() {
+            let substitute = typ.has_qvar();
+            let overwrite = typ.has_undoable_linked_var();
+            if substitute {
                 if let Err(err) = self.substitute_typarams(typ, rhs) {
                     Self::undo_substitute_typarams(typ);
                     if DEBUG_MODE {
                         panic!("{typ} / {rhs}: err: {err}");
                     }
                 }
+            } else if overwrite {
+                if let Err(err) = self.overwrite_typarams(typ, rhs) {
+                    Self::undo_substitute_typarams(typ);
+                    if DEBUG_MODE {
+                        panic!("err: {err}");
+                    }
+                }
             }
-            for rhs_sup in ty_ctx.super_classes.iter() {
+            for rhs_sup in op(ty_ctx) {
                 // Not `supertype_of` (only structures are compared)
                 match Self::cheap_supertype_of(lhs, rhs_sup) {
                     (Absolutely, true) => {
-                        Self::undo_substitute_typarams(typ);
+                        if substitute || overwrite {
+                            Self::undo_substitute_typarams(typ);
+                        }
                         return (Absolutely, true);
                     }
                     (Maybe, _) => {
                         if self.structural_supertype_of(lhs, rhs_sup) {
-                            Self::undo_substitute_typarams(typ);
+                            if substitute || overwrite {
+                                Self::undo_substitute_typarams(typ);
+                            }
                             return (Absolutely, true);
                         }
                     }
                     _ => {}
                 }
             }
-            Self::undo_substitute_typarams(typ);
+            if substitute || overwrite {
+                Self::undo_substitute_typarams(typ);
+            }
         }
         (Maybe, false)
+    }
+
+    fn classes_supertype_of(&self, lhs: &Type, rhs: &Type) -> (Credibility, bool) {
+        if !self.is_class(lhs) || !self.is_class(rhs) {
+            return (Maybe, false);
+        }
+        self._nominal_subtype_of(lhs, rhs, |ty_ctx| &ty_ctx.super_classes)
     }
 
     // e.g. Eq(Nat) :> Nat
@@ -293,41 +317,7 @@ impl Context {
         if !self.is_trait(lhs) {
             return (Maybe, false);
         }
-        if let Some((typ, rhs_ctx)) = self.get_nominal_type_ctx(rhs) {
-            if typ.has_qvar() {
-                if let Err(err) = self.substitute_typarams(typ, rhs) {
-                    Self::undo_substitute_typarams(typ);
-                    if DEBUG_MODE {
-                        panic!("err: {err}");
-                    }
-                }
-            } else if typ.has_undoable_linked_var() {
-                if let Err(err) = self.overwrite_typarams(typ, rhs) {
-                    Self::undo_substitute_typarams(typ);
-                    if DEBUG_MODE {
-                        panic!("err: {err}");
-                    }
-                }
-            }
-            for rhs_sup in rhs_ctx.super_traits.iter() {
-                // Not `supertype_of` (only structures are compared)
-                match Self::cheap_supertype_of(lhs, rhs_sup) {
-                    (Absolutely, true) => {
-                        Self::undo_substitute_typarams(typ);
-                        return (Absolutely, true);
-                    }
-                    (Maybe, _) => {
-                        if self.structural_supertype_of(lhs, rhs_sup) {
-                            Self::undo_substitute_typarams(typ);
-                            return (Absolutely, true);
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            Self::undo_substitute_typarams(typ);
-        }
-        (Maybe, false)
+        self._nominal_subtype_of(lhs, rhs, |ty_ctx| &ty_ctx.super_traits)
     }
 
     /// lhs :> rhs?
