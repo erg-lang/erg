@@ -1010,7 +1010,7 @@ impl Context {
         if let Some(outer) = self.get_outer() {
             outer.path()
         } else if self.kind == ContextKind::Module {
-            self.name.clone()
+            self.name.replace(".__init__", "").into()
         } else {
             BUILTINS.clone()
         }
