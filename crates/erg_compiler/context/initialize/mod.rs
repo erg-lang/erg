@@ -826,7 +826,7 @@ impl Context {
                     .take(lack)
                     .map(|pt| TyParam::erased(pt.typ().clone()));
                 let params = passed.into_iter().chain(erased).collect::<Vec<_>>();
-                Ok(ValueObj::builtin_type(poly(data.qual_name, params)))
+                Ok(TyParam::t(poly(data.qual_name, params)))
             };
             let subr = ConstSubr::Gen(GenConstSubr::new(
                 t.local_name(),

@@ -244,6 +244,18 @@ impl Context {
     }
 
     fn eval_const_call(&self, call: &Call) -> EvalResult<ValueObj> {
+        let tp = self.tp_eval_const_call(call)?;
+        ValueObj::try_from(tp).map_err(|_| {
+            EvalErrors::from(EvalError::not_const_expr(
+                self.cfg.input.clone(),
+                line!() as usize,
+                call.loc(),
+                self.caused_by(),
+            ))
+        })
+    }
+
+    fn tp_eval_const_call(&self, call: &Call) -> EvalResult<TyParam> {
         if let Expr::Accessor(acc) = call.obj.as_ref() {
             match acc {
                 Accessor::Ident(ident) => {
@@ -302,7 +314,7 @@ impl Context {
         }
     }
 
-    fn call(&self, subr: ConstSubr, args: ValueArgs, loc: Location) -> EvalResult<ValueObj> {
+    fn call(&self, subr: ConstSubr, args: ValueArgs, loc: Location) -> EvalResult<TyParam> {
         match subr {
             ConstSubr::User(user) => {
                 // HACK: should avoid cloning
@@ -325,7 +337,7 @@ impl Context {
                 for (name, arg) in args.kw_args.into_iter() {
                     subr_ctx.consts.insert(VarName::from_str(name), arg);
                 }
-                subr_ctx.eval_const_block(&user.block())
+                subr_ctx.eval_const_block(&user.block()).map(TyParam::value)
             }
             ConstSubr::Builtin(builtin) => builtin.call(args, self).map_err(|mut e| {
                 if e.0.loc.is_unknown() {
@@ -1050,9 +1062,7 @@ impl Context {
                 })?;
                 Ok(TyParam::Value(ValueObj::Type(t)))
             }
-            TyParam::ProjCall { obj, attr, args } => self
-                .eval_proj_call(*obj, attr, args, &())
-                .map(TyParam::value),
+            TyParam::ProjCall { obj, attr, args } => self.eval_proj_call(*obj, attr, args, &()),
             TyParam::Value(_) => Ok(p.clone()),
             _other => feature_error!(self, Location::Unknown, "???"),
         }
@@ -1577,6 +1587,9 @@ impl Context {
                 };
                 let Ok(len) = usize::try_from(&params[1]) else {
                     log!(err "cannot convert to usize: {}", params[1]);
+                    if DEBUG_MODE {
+                        panic!("cannot convert to usize: {}", params[1]);
+                    }
                     return Err(poly(name, params));
                 };
                 Ok(vec![ValueObj::builtin_type(t); len])
@@ -1869,7 +1882,7 @@ impl Context {
         lhs: TyParam,
         args: Vec<TyParam>,
         t_loc: &impl Locational,
-    ) -> EvalResult<ValueObj> {
+    ) -> EvalResult<TyParam> {
         if let ValueObj::Subr(subr) = obj {
             let mut pos_args = vec![];
             if subr.sig_t().is_method() {
@@ -1893,8 +1906,8 @@ impl Context {
                 }
             }
             let args = ValueArgs::new(pos_args, dict! {});
-            let v = self.call(subr, args, t_loc.loc())?;
-            Ok(v)
+            let tp = self.call(subr, args, t_loc.loc())?;
+            Ok(tp)
         } else {
             feature_error!(self, t_loc.loc(), "do_proj_call: ??")
         }
@@ -1907,8 +1920,8 @@ impl Context {
         args: Vec<TyParam>,
         t_loc: &impl Locational,
     ) -> EvalResult<Type> {
-        let v = self.do_proj_call(obj, lhs, args, t_loc)?;
-        self.convert_value_into_type(v).map_err(|e| {
+        let tp = self.do_proj_call(obj, lhs, args, t_loc)?;
+        self.convert_tp_into_type(tp).map_err(|e| {
             EvalError::feature_error(
                 self.cfg.input.clone(),
                 t_loc.loc(),
@@ -2003,7 +2016,7 @@ impl Context {
         attr_name: Str,
         args: Vec<TyParam>,
         t_loc: &impl Locational,
-    ) -> EvalResult<ValueObj> {
+    ) -> EvalResult<TyParam> {
         let t = self.get_tp_t(&lhs)?;
         for ty_ctx in self.get_nominal_super_type_ctxs(&t).ok_or_else(|| {
             EvalError::type_not_found(
@@ -2196,9 +2209,8 @@ impl Context {
                 }
             },
             TyParam::ProjCall { obj, attr, args } => {
-                let v = self.eval_proj_call(*obj, attr, args, &())?;
-                log!(err "{v}");
-                Ok(v_enum(set![v]))
+                let tp = self.eval_proj_call(*obj, attr, args, &())?;
+                Ok(tp_enum(self.get_tp_t(&tp).unwrap_or(Type::Obj), set![tp]))
             }
             other => feature_error!(
                 self,

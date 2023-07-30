@@ -2,9 +2,9 @@ use std::fmt::Display;
 use std::mem;
 
 use erg_common::dict::Dict;
+use erg_common::enum_unwrap;
 #[allow(unused_imports)]
 use erg_common::log;
-use erg_common::{enum_unwrap, ArcArray};
 
 use crate::context::Context;
 use crate::feature_error;
@@ -57,7 +57,7 @@ fn type_mismatch(expected: impl Display, got: impl Display, param: &str) -> Eval
 }
 
 /// Base := Type or NoneType, Impl := Type -> ClassType
-pub(crate) fn class_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
+pub(crate) fn class_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
     let base = args.remove_left_or_key("Base");
     let impls = args.remove_left_or_key("Impl");
     let impls = impls.map(|v| v.as_type(ctx).unwrap());
@@ -65,17 +65,17 @@ pub(crate) fn class_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<
     match base {
         Some(value) => {
             if let Some(base) = value.as_type(ctx) {
-                Ok(ValueObj::gen_t(GenTypeObj::class(t, Some(base), impls)))
+                Ok(ValueObj::gen_t(GenTypeObj::class(t, Some(base), impls)).into())
             } else {
                 Err(type_mismatch("type", value, "Base"))
             }
         }
-        None => Ok(ValueObj::gen_t(GenTypeObj::class(t, None, impls))),
+        None => Ok(ValueObj::gen_t(GenTypeObj::class(t, None, impls)).into()),
     }
 }
 
 /// Super: ClassType, Impl := Type, Additional := Type -> ClassType
-pub(crate) fn inherit_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
+pub(crate) fn inherit_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
     let sup = args
         .remove_left_or_key("Super")
         .ok_or_else(|| not_passed("Super"))?;
@@ -87,14 +87,12 @@ pub(crate) fn inherit_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResul
     let additional = args.remove_left_or_key("Additional");
     let additional = additional.map(|v| v.as_type(ctx).unwrap());
     let t = mono(ctx.name.clone());
-    Ok(ValueObj::gen_t(GenTypeObj::inherited(
-        t, sup, impls, additional,
-    )))
+    Ok(ValueObj::gen_t(GenTypeObj::inherited(t, sup, impls, additional)).into())
 }
 
 /// Class: ClassType -> ClassType (with `InheritableType`)
 /// This function is used by the compiler to mark a class as inheritable and does nothing in terms of actual operation.
-pub(crate) fn inheritable_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<ValueObj> {
+pub(crate) fn inheritable_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
     let class = args
         .remove_left_or_key("Class")
         .ok_or_else(|| not_passed("Class"))?;
@@ -113,7 +111,7 @@ pub(crate) fn inheritable_func(mut args: ValueArgs, _ctx: &Context) -> EvalValue
                     }
                 }
             }
-            Ok(ValueObj::Type(TypeObj::Generated(gen)))
+            Ok(ValueObj::Type(TypeObj::Generated(gen)).into())
         }
         other => feature_error!(
             EvalValueError,
@@ -125,7 +123,7 @@ pub(crate) fn inheritable_func(mut args: ValueArgs, _ctx: &Context) -> EvalValue
 }
 
 /// Base: Type, Impl := Type -> TraitType
-pub(crate) fn trait_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
+pub(crate) fn trait_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
     let req = args
         .remove_left_or_key("Requirement")
         .ok_or_else(|| not_passed("Requirement"))?;
@@ -135,11 +133,11 @@ pub(crate) fn trait_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<
     let impls = args.remove_left_or_key("Impl");
     let impls = impls.map(|v| v.as_type(ctx).unwrap());
     let t = mono(ctx.name.clone());
-    Ok(ValueObj::gen_t(GenTypeObj::trait_(t, req, impls)))
+    Ok(ValueObj::gen_t(GenTypeObj::trait_(t, req, impls)).into())
 }
 
 /// Base: Type, Impl := Type -> Patch
-pub(crate) fn patch_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
+pub(crate) fn patch_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
     let base = args
         .remove_left_or_key("Base")
         .ok_or_else(|| not_passed("Base"))?;
@@ -149,11 +147,11 @@ pub(crate) fn patch_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<
     let impls = args.remove_left_or_key("Impl");
     let impls = impls.map(|v| v.as_type(ctx).unwrap());
     let t = mono(ctx.name.clone());
-    Ok(ValueObj::gen_t(GenTypeObj::patch(t, base, impls)))
+    Ok(ValueObj::gen_t(GenTypeObj::patch(t, base, impls)).into())
 }
 
 /// Super: TraitType, Impl := Type, Additional := Type -> TraitType
-pub(crate) fn subsume_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
+pub(crate) fn subsume_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
     let sup = args
         .remove_left_or_key("Super")
         .ok_or_else(|| not_passed("Super"))?;
@@ -165,12 +163,10 @@ pub(crate) fn subsume_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResul
     let additional = args.remove_left_or_key("Additional");
     let additional = additional.map(|v| v.as_type(ctx).unwrap());
     let t = mono(ctx.name.clone());
-    Ok(ValueObj::gen_t(GenTypeObj::subsumed(
-        t, sup, impls, additional,
-    )))
+    Ok(ValueObj::gen_t(GenTypeObj::subsumed(t, sup, impls, additional)).into())
 }
 
-pub(crate) fn structural_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
+pub(crate) fn structural_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
     let type_ = args
         .remove_left_or_key("Type")
         .ok_or_else(|| not_passed("Type"))?;
@@ -178,10 +174,10 @@ pub(crate) fn structural_func(mut args: ValueArgs, ctx: &Context) -> EvalValueRe
         return Err(type_mismatch("type", type_, "Type"));
     };
     let t = base.typ().clone().structuralize();
-    Ok(ValueObj::gen_t(GenTypeObj::structural(t, base)))
+    Ok(ValueObj::gen_t(GenTypeObj::structural(t, base)).into())
 }
 
-pub(crate) fn __array_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
+pub(crate) fn __array_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
     let slf = args
         .remove_left_or_key("Self")
         .ok_or_else(|| not_passed("Self"))?;
@@ -193,7 +189,7 @@ pub(crate) fn __array_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValue
         .ok_or_else(|| not_passed("Index"))?;
     let index = enum_unwrap!(index, ValueObj::Nat);
     if let Some(v) = slf.get(index as usize) {
-        Ok(v.clone())
+        Ok(v.clone().into())
     } else {
         Err(ErrorCore::new(
             vec![SubMessage::only_loc(Location::Unknown)],
@@ -275,7 +271,7 @@ pub(crate) fn sub_tpdict_get<'d>(
     None
 }
 
-pub(crate) fn __dict_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
+pub(crate) fn __dict_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
     let slf = args
         .remove_left_or_key("Self")
         .ok_or_else(|| not_passed("Self"))?;
@@ -284,7 +280,7 @@ pub(crate) fn __dict_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueR
         .remove_left_or_key("Index")
         .ok_or_else(|| not_passed("Index"))?;
     if let Some(v) = slf.get(&index).or_else(|| sub_vdict_get(&slf, &index, ctx)) {
-        Ok(v.clone())
+        Ok(v.clone().into())
     } else {
         let index = if let ValueObj::Type(t) = &index {
             let derefed = ctx.coerce(t.typ().clone(), &()).unwrap_or(t.typ().clone());
@@ -297,7 +293,7 @@ pub(crate) fn __dict_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueR
 }
 
 /// `{Str: Int, Int: Float}.keys() == DictKeys(Str or Int)`
-pub(crate) fn dict_keys(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
+pub(crate) fn dict_keys(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
     let slf = args
         .remove_left_or_key("Self")
         .ok_or_else(|| not_passed("Self"))?;
@@ -315,11 +311,11 @@ pub(crate) fn dict_keys(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<V
         .keys()
         .fold(Type::Never, |union, t| ctx.union(&union, t));
     let keys = poly(DICT_KEYS, vec![ty_tp(union)]);
-    Ok(ValueObj::builtin_class(keys))
+    Ok(ValueObj::builtin_class(keys).into())
 }
 
 /// `{Str: Int, Int: Float}.values() == DictValues(Int or Float)`
-pub(crate) fn dict_values(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
+pub(crate) fn dict_values(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
     let slf = args
         .remove_left_or_key("Self")
         .ok_or_else(|| not_passed("Self"))?;
@@ -337,11 +333,11 @@ pub(crate) fn dict_values(mut args: ValueArgs, ctx: &Context) -> EvalValueResult
         .values()
         .fold(Type::Never, |union, t| ctx.union(&union, t));
     let values = poly(DICT_VALUES, vec![ty_tp(union)]);
-    Ok(ValueObj::builtin_class(values))
+    Ok(ValueObj::builtin_class(values).into())
 }
 
 /// `{Str: Int, Int: Float}.items() == DictItems((Str, Int) or (Int, Float))`
-pub(crate) fn dict_items(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
+pub(crate) fn dict_items(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
     let slf = args
         .remove_left_or_key("Self")
         .ok_or_else(|| not_passed("Self"))?;
@@ -359,11 +355,11 @@ pub(crate) fn dict_items(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<
         ctx.union(&union, &tuple_t(vec![k.clone(), v.clone()]))
     });
     let items = poly(DICT_ITEMS, vec![ty_tp(union)]);
-    Ok(ValueObj::builtin_class(items))
+    Ok(ValueObj::builtin_class(items).into())
 }
 
 /// `[Int, Str].union() == Int or Str`
-pub(crate) fn array_union(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
+pub(crate) fn array_union(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
     let slf = args
         .remove_left_or_key("Self")
         .ok_or_else(|| not_passed("Self"))?;
@@ -375,24 +371,31 @@ pub(crate) fn array_union(mut args: ValueArgs, ctx: &Context) -> EvalValueResult
     let union = slf
         .iter()
         .fold(Type::Never, |union, t| ctx.union(&union, t));
-    Ok(ValueObj::builtin_type(union))
+    Ok(ValueObj::builtin_type(union).into())
 }
 
-// TODO
-fn _arr_shape(arr: ArcArray<ValueObj>, ctx: &Context) -> Result<Vec<ValueObj>, String> {
+fn _arr_shape(arr: ValueObj, ctx: &Context) -> Result<Vec<TyParam>, String> {
     let mut shape = vec![];
     let mut arr = arr;
     loop {
-        shape.push(ValueObj::from(arr.len()));
-        match arr.get(0) {
-            Some(ValueObj::Array(arr_)) => {
-                arr = arr_.clone();
+        match arr {
+            ValueObj::Array(a) => {
+                shape.push(ValueObj::from(a.len()).into());
+                match a.get(0) {
+                    Some(arr_ @ (ValueObj::Array(_) | ValueObj::Type(_))) => {
+                        arr = arr_.clone();
+                    }
+                    _ => {
+                        break;
+                    }
+                }
             }
-            Some(ValueObj::Type(t)) => {
-                let Ok(arr_) = ctx.convert_type_to_array(t.typ().clone()) else {
-                    break;
-                };
-                arr = arr_.into();
+            ValueObj::Type(ref t) if &t.typ().qual_name()[..] == "Array" => {
+                let mut tps = t.typ().typarams();
+                let elem = ctx.convert_tp_into_type(tps.remove(0)).unwrap();
+                let len = tps.remove(0);
+                shape.push(len);
+                arr = ValueObj::builtin_type(elem);
             }
             _ => {
                 break;
@@ -408,26 +411,16 @@ fn _arr_shape(arr: ArcArray<ValueObj>, ctx: &Context) -> Result<Vec<ValueObj>, S
 /// [1, 2].shape() == [2,]
 /// [[1, 2], [3, 4], [5, 6]].shape() == [3, 2]
 /// ```
-pub(crate) fn array_shape(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
+pub(crate) fn array_shape(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
     let arr = args
         .remove_left_or_key("Self")
         .ok_or_else(|| not_passed("Self"))?;
-    let arr = match arr {
-        ValueObj::Array(arr) => arr,
-        ValueObj::Type(t) => ctx
-            .convert_type_to_array(t.into_typ())
-            .map_err(|arr| type_mismatch("array", arr, "Self"))?
-            .into(),
-        _ => {
-            return Err(type_mismatch("array", arr, "Self"));
-        }
-    };
     let res = _arr_shape(arr, ctx).unwrap();
-    let arr = ValueObj::Array(ArcArray::from(res));
+    let arr = TyParam::Array(res);
     Ok(arr)
 }
 
-pub(crate) fn __range_getitem__(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<ValueObj> {
+pub(crate) fn __range_getitem__(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
     let (_name, fields) = enum_unwrap!(
         args.remove_left_or_key("Self")
             .ok_or_else(|| not_passed("Self"))?,
@@ -445,7 +438,7 @@ pub(crate) fn __range_getitem__(mut args: ValueArgs, _ctx: &Context) -> EvalValu
     let end = *enum_unwrap!(end, ValueObj::Nat);
     // FIXME <= if inclusive
     if start + index < end {
-        Ok(ValueObj::Nat(start + index))
+        Ok(ValueObj::Nat(start + index).into())
     } else {
         Err(ErrorCore::new(
             vec![SubMessage::only_loc(Location::Unknown)],

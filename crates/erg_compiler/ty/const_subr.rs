@@ -79,7 +79,7 @@ impl ValueArgs {
 #[derive(Clone)]
 pub struct BuiltinConstSubr {
     name: Str,
-    subr: fn(ValueArgs, &Context) -> EvalValueResult<ValueObj>,
+    subr: fn(ValueArgs, &Context) -> EvalValueResult<TyParam>,
     sig_t: Type,
     as_type: Option<Type>,
 }
@@ -117,7 +117,7 @@ impl fmt::Display for BuiltinConstSubr {
 impl BuiltinConstSubr {
     pub fn new<S: Into<Str>>(
         name: S,
-        subr: fn(ValueArgs, &Context) -> EvalValueResult<ValueObj>,
+        subr: fn(ValueArgs, &Context) -> EvalValueResult<TyParam>,
         sig_t: Type,
         as_type: Option<Type>,
     ) -> Self {
@@ -129,7 +129,7 @@ impl BuiltinConstSubr {
         }
     }
 
-    pub fn call(&self, args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
+    pub fn call(&self, args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
         (self.subr)(args, ctx)
     }
 }
@@ -156,7 +156,7 @@ impl ClosureData {
 pub struct GenConstSubr {
     name: Str,
     data: ClosureData,
-    subr: fn(ClosureData, ValueArgs, &Context) -> EvalValueResult<ValueObj>,
+    subr: fn(ClosureData, ValueArgs, &Context) -> EvalValueResult<TyParam>,
     sig_t: Type,
     as_type: Option<Type>,
 }
@@ -195,7 +195,7 @@ impl GenConstSubr {
     pub fn new<S: Into<Str>>(
         name: S,
         data: ClosureData,
-        subr: fn(ClosureData, ValueArgs, &Context) -> EvalValueResult<ValueObj>,
+        subr: fn(ClosureData, ValueArgs, &Context) -> EvalValueResult<TyParam>,
         sig_t: Type,
         as_type: Option<Type>,
     ) -> Self {
@@ -208,7 +208,7 @@ impl GenConstSubr {
         }
     }
 
-    pub fn call(&self, args: ValueArgs, ctx: &Context) -> EvalValueResult<ValueObj> {
+    pub fn call(&self, args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
         (self.subr)(self.data.clone(), args, ctx)
     }
 }
