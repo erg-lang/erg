@@ -1050,6 +1050,9 @@ impl Context {
                 })?;
                 Ok(TyParam::Value(ValueObj::Type(t)))
             }
+            TyParam::ProjCall { obj, attr, args } => self
+                .eval_proj_call(*obj, attr, args, &())
+                .map(TyParam::value),
             TyParam::Value(_) => Ok(p.clone()),
             _other => feature_error!(self, Location::Unknown, "???"),
         }
@@ -1145,7 +1148,7 @@ impl Context {
                 attr_name,
                 args,
             } => self
-                .eval_proj_call(*lhs, attr_name, args, level, t_loc)
+                .eval_proj_call_t(*lhs, attr_name, args, level, t_loc)
                 .map_err(|errs| (Failure, errs)),
             Type::Ref(l) => match self.eval_t_params(*l, level, t_loc) {
                 Ok(t) => Ok(ref_(t)),
@@ -1405,6 +1408,7 @@ impl Context {
                 let lhs = self.convert_tp_into_type(*obj)?;
                 Ok(lhs.proj(attr))
             }
+            TyParam::ProjCall { obj, attr, args } => Ok(proj_call(*obj, attr, args)),
             // TyParam::Erased(_t) => Ok(Type::Obj),
             TyParam::Value(v) => self.convert_value_into_type(v).map_err(TyParam::Value),
             // TODO: Dict, Set
@@ -1412,8 +1416,12 @@ impl Context {
         }
     }
 
+    #[allow(clippy::only_used_in_recursion)]
     pub(crate) fn convert_tp_into_value(&self, tp: TyParam) -> Result<ValueObj, TyParam> {
         match tp {
+            TyParam::FreeVar(fv) if fv.is_linked() => {
+                self.convert_tp_into_value(fv.crack().clone())
+            }
             TyParam::Value(v) => Ok(v),
             other => Err(other),
         }
@@ -1421,6 +1429,9 @@ impl Context {
 
     pub(crate) fn convert_singular_type_into_value(&self, typ: Type) -> Result<ValueObj, Type> {
         match typ {
+            Type::FreeVar(fv) if fv.is_linked() => {
+                self.convert_singular_type_into_value(fv.crack().clone())
+            }
             Type::Refinement(ref refine) => {
                 if let Predicate::Equal { rhs, .. } = refine.pred.as_ref() {
                     self.convert_tp_into_value(rhs.clone()).map_err(|_| typ)
@@ -1537,6 +1548,10 @@ impl Context {
 
     fn _convert_type_to_dict_type(&self, ty: Type) -> Result<Dict<Type, Type>, ()> {
         match ty {
+            Type::FreeVar(fv) if fv.is_linked() => {
+                self._convert_type_to_dict_type(fv.crack().clone())
+            }
+            Type::Refinement(refine) => self._convert_type_to_dict_type(*refine.t),
             Type::Poly { name, params } if &name[..] == "Dict" => {
                 let dict = Dict::try_from(params[0].clone())?;
                 let mut new_dict = dict! {};
@@ -1551,14 +1566,20 @@ impl Context {
         }
     }
 
-    fn convert_type_to_array(&self, ty: Type) -> Result<Vec<ValueObj>, Type> {
+    pub(crate) fn convert_type_to_array(&self, ty: Type) -> Result<Vec<ValueObj>, Type> {
         match ty {
+            Type::FreeVar(fv) if fv.is_linked() => self.convert_type_to_array(fv.crack().clone()),
+            Type::Refinement(refine) => self.convert_type_to_array(*refine.t),
             Type::Poly { name, params } if &name[..] == "Array" || &name[..] == "Array!" => {
                 let Ok(t) = self.convert_tp_into_type(params[0].clone()) else {
+                    log!(err "cannot convert to type: {}", params[0]);
                     return Err(poly(name, params));
                 };
-                let TyParam::Value(ValueObj::Nat(len)) = params[1] else { unreachable!() };
-                Ok(vec![ValueObj::builtin_type(t); len as usize])
+                let Ok(len) = usize::try_from(&params[1]) else {
+                    log!(err "cannot convert to usize: {}", params[1]);
+                    return Err(poly(name, params));
+                };
+                Ok(vec![ValueObj::builtin_type(t); len])
             }
             _ => Err(ty),
         }
@@ -1848,7 +1869,7 @@ impl Context {
         lhs: TyParam,
         args: Vec<TyParam>,
         t_loc: &impl Locational,
-    ) -> EvalResult<Type> {
+    ) -> EvalResult<ValueObj> {
         if let ValueObj::Subr(subr) = obj {
             let mut pos_args = vec![];
             if subr.sig_t().is_method() {
@@ -1872,13 +1893,107 @@ impl Context {
                 }
             }
             let args = ValueArgs::new(pos_args, dict! {});
-            let t = self.call(subr, args, t_loc.loc())?;
-            let t = self
-                .convert_value_into_type(t)
-                .unwrap_or_else(|value| todo!("Type::try_from {value}"));
-            Ok(t)
+            let v = self.call(subr, args, t_loc.loc())?;
+            Ok(v)
         } else {
-            feature_error!(self, t_loc.loc(), "??")
+            feature_error!(self, t_loc.loc(), "do_proj_call: ??")
+        }
+    }
+
+    fn do_proj_call_t(
+        &self,
+        obj: ValueObj,
+        lhs: TyParam,
+        args: Vec<TyParam>,
+        t_loc: &impl Locational,
+    ) -> EvalResult<Type> {
+        let v = self.do_proj_call(obj, lhs, args, t_loc)?;
+        self.convert_value_into_type(v).map_err(|e| {
+            EvalError::feature_error(
+                self.cfg.input.clone(),
+                t_loc.loc(),
+                &format!("converting {e} to a type"),
+                self.caused_by(),
+            )
+            .into()
+        })
+    }
+
+    pub(crate) fn eval_proj_call_t(
+        &self,
+        lhs: TyParam,
+        attr_name: Str,
+        args: Vec<TyParam>,
+        level: usize,
+        t_loc: &impl Locational,
+    ) -> EvalResult<Type> {
+        let t = self.get_tp_t(&lhs)?;
+        for ty_ctx in self.get_nominal_super_type_ctxs(&t).ok_or_else(|| {
+            EvalError::type_not_found(
+                self.cfg.input.clone(),
+                line!() as usize,
+                t_loc.loc(),
+                self.caused_by(),
+                &t,
+            )
+        })? {
+            if let Ok(obj) = ty_ctx.get_const_local(&Token::symbol(&attr_name), &self.name) {
+                return self.do_proj_call_t(obj, lhs, args, t_loc);
+            }
+            for (_class, methods) in ty_ctx.methods_list.iter() {
+                if let Ok(obj) = methods.get_const_local(&Token::symbol(&attr_name), &self.name) {
+                    return self.do_proj_call_t(obj, lhs, args, t_loc);
+                }
+            }
+        }
+        if let TyParam::FreeVar(fv) = &lhs {
+            if let Some((sub, sup)) = fv.get_subsup() {
+                if self.is_trait(&sup) && !self.trait_impl_exists(&sub, &sup) {
+                    // to prevent double error reporting
+                    lhs.link(&TyParam::t(Never));
+                    let sub = if cfg!(feature = "debug") {
+                        sub
+                    } else {
+                        self.readable_type(sub)
+                    };
+                    let sup = if cfg!(feature = "debug") {
+                        sup
+                    } else {
+                        self.readable_type(sup)
+                    };
+                    return Err(EvalErrors::from(EvalError::no_trait_impl_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        &sub,
+                        &sup,
+                        t_loc.loc(),
+                        self.caused_by(),
+                        self.get_simple_type_mismatch_hint(&sup, &sub),
+                    )));
+                }
+            }
+        }
+        // if the target can't be found in the supertype, the type will be dereferenced.
+        // In many cases, it is still better to determine the type variable than if the target is not found.
+        let coerced = self.coerce_tp(lhs.clone(), t_loc)?;
+        if lhs != coerced {
+            let proj = proj_call(coerced, attr_name, args);
+            self.eval_t_params(proj, level, t_loc)
+                .map(|t| {
+                    lhs.coerce();
+                    t
+                })
+                .map_err(|(_, errs)| errs)
+        } else {
+            let proj = proj_call(lhs, attr_name, args);
+            Err(EvalErrors::from(EvalError::no_candidate_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                &proj,
+                t_loc.loc(),
+                self.caused_by(),
+                self.get_no_candidate_hint(&proj),
+            )))
         }
     }
 
@@ -1887,9 +2002,8 @@ impl Context {
         lhs: TyParam,
         attr_name: Str,
         args: Vec<TyParam>,
-        level: usize,
         t_loc: &impl Locational,
-    ) -> EvalResult<Type> {
+    ) -> EvalResult<ValueObj> {
         let t = self.get_tp_t(&lhs)?;
         for ty_ctx in self.get_nominal_super_type_ctxs(&t).ok_or_else(|| {
             EvalError::type_not_found(
@@ -1940,13 +2054,7 @@ impl Context {
         // In many cases, it is still better to determine the type variable than if the target is not found.
         let coerced = self.coerce_tp(lhs.clone(), t_loc)?;
         if lhs != coerced {
-            let proj = proj_call(coerced, attr_name, args);
-            self.eval_t_params(proj, level, t_loc)
-                .map(|t| {
-                    lhs.coerce();
-                    t
-                })
-                .map_err(|(_, errs)| errs)
+            self.eval_proj_call(coerced, attr_name, args, t_loc)
         } else {
             let proj = proj_call(lhs, attr_name, args);
             Err(EvalErrors::from(EvalError::no_candidate_error(
@@ -2087,6 +2195,11 @@ impl Context {
                     )
                 }
             },
+            TyParam::ProjCall { obj, attr, args } => {
+                let v = self.eval_proj_call(*obj, attr, args, &())?;
+                log!(err "{v}");
+                Ok(v_enum(set![v]))
+            }
             other => feature_error!(
                 self,
                 Location::Unknown,

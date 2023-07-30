@@ -693,7 +693,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 }
                 let proj = self
                     .ctx
-                    .eval_proj_call(lhs, attr_name, new_args, self.ctx.level, self.loc)
+                    .eval_proj_call_t(lhs, attr_name, new_args, self.ctx.level, self.loc)
                     .unwrap_or(Failure);
                 Ok(proj)
             }

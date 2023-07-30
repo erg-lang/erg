@@ -426,7 +426,7 @@ impl Context {
                 },
                 _,
             ) => {
-                if let Ok(evaled) = self.eval_proj_call(
+                if let Ok(evaled) = self.eval_proj_call_t(
                     *l.clone(),
                     attr_name.clone(),
                     args.clone(),
@@ -447,7 +447,7 @@ impl Context {
                     args,
                 },
             ) => {
-                if let Ok(evaled) = self.eval_proj_call(
+                if let Ok(evaled) = self.eval_proj_call_t(
                     *r.clone(),
                     attr_name.clone(),
                     args.clone(),

@@ -1308,7 +1308,10 @@ impl Context {
                         .typ()
                         .typarams()
                         .into_iter()
-                        .map(|tp| ParamSpec::t_nd(tp.qual_name().unwrap_or(Str::ever("_"))))
+                        .map(|tp| {
+                            let name = tp.qual_name().unwrap_or(Str::ever("_"));
+                            ParamSpec::named_nd(name, self.get_tp_t(&tp).unwrap_or(Type::Obj))
+                        })
                         .collect();
                     let mut ctx = Self::poly_class(
                         gen.typ().qual_name(),

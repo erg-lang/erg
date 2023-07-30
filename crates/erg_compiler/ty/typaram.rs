@@ -214,6 +214,11 @@ pub enum TyParam {
         obj: Box<TyParam>,
         attr: Str,
     },
+    ProjCall {
+        obj: Box<TyParam>,
+        attr: Str,
+        args: Vec<TyParam>,
+    },
     App {
         name: Str,
         args: Vec<TyParam>,
@@ -342,6 +347,20 @@ impl LimitedDisplay for TyParam {
                 obj.limited_fmt(f, limit - 1)?;
                 write!(f, ".")?;
                 write!(f, "{attr}")
+            }
+            Self::ProjCall { obj, attr, args } => {
+                obj.limited_fmt(f, limit - 1)?;
+                write!(f, ".")?;
+                write!(f, "{attr}")?;
+                write!(f, "(")?;
+                for (i, arg) in args.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    arg.limited_fmt(f, limit - 1)?;
+                }
+                write!(f, ")")?;
+                Ok(())
             }
             Self::Array(arr) => {
                 write!(f, "[")?;
@@ -657,6 +676,17 @@ impl<'a> TryFrom<&'a TyParam> for &'a Type {
     }
 }
 
+impl TryFrom<&TyParam> for usize {
+    type Error = ();
+    fn try_from(tp: &TyParam) -> Result<Self, ()> {
+        match tp {
+            TyParam::FreeVar(fv) if fv.is_linked() => usize::try_from(&*fv.crack()),
+            TyParam::Value(v) => usize::try_from(v),
+            _ => Err(()),
+        }
+    }
+}
+
 impl HasLevel for TyParam {
     fn level(&self) -> Option<Level> {
         match self {
@@ -839,10 +869,10 @@ impl TyParam {
         }
     }
 
-    pub fn proj_call(self, attr_name: Str, args: Vec<TyParam>) -> Type {
-        Type::ProjCall {
-            lhs: Box::new(self),
-            attr_name,
+    pub fn proj_call(self, attr: Str, args: Vec<TyParam>) -> Self {
+        Self::ProjCall {
+            obj: Box::new(self),
+            attr,
             args,
         }
     }

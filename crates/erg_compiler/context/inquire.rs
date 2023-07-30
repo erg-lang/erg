@@ -2390,7 +2390,7 @@ impl Context {
                 attr_name,
                 args,
             } => {
-                if let Ok(typ) = self.eval_proj_call(
+                if let Ok(typ) = self.eval_proj_call_t(
                     *lhs.clone(),
                     attr_name.clone(),
                     args.clone(),

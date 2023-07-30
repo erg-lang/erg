@@ -380,6 +380,18 @@ impl Context {
                 }
                 Ok(TyParam::app(name, new_args))
             }
+            TyParam::ProjCall { obj, attr, args } => {
+                let obj = self.instantiate_tp(*obj, tmp_tv_cache, loc)?;
+                let mut new_args = Vec::with_capacity(args.len());
+                for arg in args {
+                    new_args.push(self.instantiate_tp(arg, tmp_tv_cache, loc)?);
+                }
+                Ok(TyParam::proj_call(obj, attr, new_args))
+            }
+            TyParam::Proj { obj, attr } => {
+                let obj = self.instantiate_tp(*obj, tmp_tv_cache, loc)?;
+                Ok(TyParam::proj(obj, attr))
+            }
             TyParam::Type(t) => {
                 let t = self.instantiate_t_inner(*t, tmp_tv_cache, loc)?;
                 Ok(TyParam::t(t))

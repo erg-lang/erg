@@ -379,9 +379,6 @@ impl Context {
                 self.sub_unify_tp(lhs, lhs2, _variance, loc, allow_divergence)?;
                 self.sub_unify_tp(rhs, rhs2, _variance, loc, allow_divergence)
             }
-            (TyParam::Lambda(_l), TyParam::Lambda(_r)) => {
-                todo!("{_l}/{_r}")
-            }
             (sub, TyParam::Erased(t)) => {
                 let sub_t = self.get_tp_t(sub)?;
                 if self.subtype_of(&sub_t, t) {
@@ -462,6 +459,24 @@ impl Context {
                     }
                 }
                 Ok(())
+            }
+            (
+                TyParam::ProjCall { obj, attr, args },
+                TyParam::ProjCall {
+                    obj: o2,
+                    attr: a2,
+                    args: args2,
+                },
+            ) => {
+                if attr == a2 {
+                    self.sub_unify_tp(obj, o2, _variance, loc, allow_divergence)?;
+                    for (l, r) in args.iter().zip(args2.iter()) {
+                        self.sub_unify_tp(l, r, _variance, loc, allow_divergence)?;
+                    }
+                    Ok(())
+                } else {
+                    todo!()
+                }
             }
             (l, r) => {
                 log!(err "{l} / {r}");

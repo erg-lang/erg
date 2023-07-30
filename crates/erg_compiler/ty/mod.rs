@@ -43,7 +43,7 @@ pub use value::ValueObj;
 use value::ValueObj::{Inf, NegInf};
 pub use vis::*;
 
-use self::constructors::subr_t;
+use self::constructors::{proj_call, subr_t};
 
 pub const STR_OMIT_THRESHOLD: usize = 16;
 pub const CONTAINER_OMIT_THRESHOLD: usize = 8;
@@ -2904,7 +2904,7 @@ impl Type {
                         other => other.clone(),
                     })
                     .collect();
-                lhs.proj_call(attr_name.clone(), args)
+                proj_call(lhs, attr_name.clone(), args)
             }
             Self::Structural(ty) => ty.derefine().structuralize(),
             Self::Guard(guard) => {
@@ -3043,7 +3043,7 @@ impl Type {
                 args,
             } => {
                 let args = args.into_iter().map(|tp| tp.replace(target, to)).collect();
-                lhs.replace(target, to).proj_call(attr_name, args)
+                proj_call(lhs.replace(target, to), attr_name, args)
             }
             Self::Structural(ty) => ty._replace(target, to).structuralize(),
             Self::Guard(guard) => Self::Guard(GuardType::new(
@@ -3086,7 +3086,7 @@ impl Type {
                 args,
             } => {
                 let args = args.into_iter().map(|tp| tp.normalize()).collect();
-                lhs.normalize().proj_call(attr_name, args)
+                proj_call(lhs.normalize(), attr_name, args)
             }
             Self::Ref(t) => Self::Ref(Box::new(t.normalize())),
             Self::RefMut { before, after } => Self::RefMut {

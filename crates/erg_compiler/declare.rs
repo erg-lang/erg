@@ -9,8 +9,8 @@ use erg_parser::desugar::Desugarer;
 
 use crate::context::instantiate::TyVarCache;
 use crate::lower::ASTLowerer;
-use crate::ty::constructors::{mono, poly, ty_tp, type_q, v_enum};
-use crate::ty::free::HasLevel;
+use crate::ty::constructors::{mono, mono_q_tp, poly, v_enum};
+use crate::ty::free::{Constraint, HasLevel};
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{HasType, Type, Visibility};
 
@@ -703,7 +703,10 @@ impl ASTLowerer {
                 let params = subr
                     .non_default_params
                     .iter()
-                    .map(|p| ty_tp(type_q(p.name().unwrap_or(&Str::ever("_")))))
+                    .map(|p| {
+                        let c = Constraint::new_type_of(p.typ().clone());
+                        mono_q_tp(p.name().unwrap_or(&Str::ever("_")), c)
+                    })
                     .collect();
                 let t = poly(format!("{}{ident}", self.module.context.path()), params);
                 let ty_obj = GenTypeObj::class(t.clone(), None, None);

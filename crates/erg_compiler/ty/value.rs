@@ -832,6 +832,19 @@ impl TryFrom<&ValueObj> for f64 {
     }
 }
 
+impl TryFrom<&ValueObj> for usize {
+    type Error = ();
+    fn try_from(val: &ValueObj) -> Result<usize, Self::Error> {
+        match val {
+            ValueObj::Int(i) => usize::try_from(*i).map_err(|_| ()),
+            ValueObj::Nat(n) => usize::try_from(*n).map_err(|_| ()),
+            ValueObj::Float(f) => Ok(*f as usize),
+            ValueObj::Bool(b) => Ok(if *b { 1 } else { 0 }),
+            _ => Err(()),
+        }
+    }
+}
+
 impl<'a> TryFrom<&'a ValueObj> for &'a Type {
     type Error = ();
     fn try_from(val: &'a ValueObj) -> Result<Self, ()> {

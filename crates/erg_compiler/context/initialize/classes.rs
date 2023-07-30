@@ -1262,7 +1262,13 @@ impl Context {
             .register_marker_trait(self, poly(INDEXABLE, vec![ty_tp(input), ty_tp(T.clone())]))
             .unwrap();
         array_
-            .register_marker_trait(self, poly(SHAPE, vec![TyParam::Array(vec![N.clone()])]))
+            .register_marker_trait(
+                self,
+                poly(
+                    SHAPE,
+                    vec![ty_tp(arr_t.clone()).proj_call(FUNC_SHAPE.into(), vec![])],
+                ),
+            )
             .unwrap();
         let mut array_sized = Self::builtin_methods(Some(mono(SIZED)), 2);
         array_sized.register_builtin_erg_impl(
@@ -1275,12 +1281,25 @@ impl Context {
         // union: (self: [Type; _]) -> Type
         let array_union_t = fn0_met(array_t(Type, TyParam::erased(Nat)), Type).quantify();
         let union = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
-            UNION_FUNC,
+            FUNC_UNION,
             array_union,
             array_union_t,
             None,
         )));
-        array_.register_builtin_const(UNION_FUNC, Visibility::BUILTIN_PUBLIC, union);
+        array_.register_builtin_const(FUNC_UNION, Visibility::BUILTIN_PUBLIC, union);
+        // shape: (self: [Type; _]) -> [Nat; _]
+        let array_shape_t = fn0_met(
+            array_t(Type, TyParam::erased(Nat)),
+            unknown_len_array_t(Nat),
+        )
+        .quantify();
+        let shape = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+            FUNC_SHAPE,
+            array_shape,
+            array_shape_t,
+            None,
+        )));
+        array_.register_builtin_const(FUNC_SHAPE, Visibility::BUILTIN_PUBLIC, shape);
         let mut array_eq = Self::builtin_methods(Some(mono(EQ)), 2);
         array_eq.register_builtin_erg_impl(
             OP_EQ,
@@ -1598,7 +1617,7 @@ impl Context {
         // __Tuple_getitem__: (self: Tuple(Ts), _: {N}) -> Ts[N]
         let input_t = tp_enum(Nat, set! {N.clone()});
         let return_t = proj_call(Ts.clone(), FUNDAMENTAL_GETITEM, vec![N.clone()]);
-        let union_t = proj_call(Ts.clone(), UNION_FUNC, vec![]);
+        let union_t = proj_call(Ts.clone(), FUNC_UNION, vec![]);
         let tuple_getitem_t =
             fn1_met(_tuple_t.clone(), input_t.clone(), return_t.clone()).quantify();
         tuple_.register_builtin_py_impl(
@@ -1623,13 +1642,13 @@ impl Context {
         let mut tuple_iterable = Self::builtin_methods(
             Some(poly(
                 ITERABLE,
-                vec![ty_tp(proj_call(Ts.clone(), UNION_FUNC, vec![]))],
+                vec![ty_tp(proj_call(Ts.clone(), FUNC_UNION, vec![]))],
             )),
             2,
         );
         let tuple_iterator = poly(
             TUPLE_ITERATOR,
-            vec![ty_tp(proj_call(Ts, UNION_FUNC, vec![]))],
+            vec![ty_tp(proj_call(Ts, FUNC_UNION, vec![]))],
         );
         // Tuple(Ts) -> TupleIterator(Ts.union())
         let t = fn0_met(_tuple_t.clone(), tuple_iterator.clone()).quantify();
@@ -1791,7 +1810,7 @@ impl Context {
             Some(SYMMETRIC_DIFFERENCE),
             3,
         );
-        frozenset.register_py_builtin(UNION_FUNC, bin_t, Some(UNION_FUNC), 3);
+        frozenset.register_py_builtin(FUNC_UNION, bin_t, Some(FUNC_UNION), 3);
         let memview_t = mono(MEMORYVIEW);
         let mut memoryview = Self::builtin_mono_class(MEMORYVIEW, 2);
         memoryview.register_superclass(Obj, &obj);
