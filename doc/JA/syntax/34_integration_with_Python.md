@@ -64,6 +64,8 @@ class C:
 
 `d.er`内では宣言と定義(エイリアシング)以外の構文は使えません。
 
+Python側での識別子がErgでは有効な識別子ではない場合、シングルクォーテーション(`'`)で囲むことでエスケープできます。
+
 ## オーバーロード
 
 Pythonの型付けだけで使える特殊な型として、オーバーロード型があります。これは、複数の型を受け取ることができる型です。
@@ -96,6 +98,18 @@ f: ((Int, Int) -> Str) and (Int -> Int)
 ```python,compile_fail
 # NG
 f: (Int -> Str) and (Int -> Int)
+```
+
+## トレイト実装宣言
+
+クラスに対してトレイトの実装とトレイトメンバーの宣言を行う場合、以下のように記述します([numpy.NDArrayの型宣言](https://github.com/erg-lang/erg/blob/main/crates/erg_compiler/lib/external/numpy.d/__init__.d.er)より抜粋)。
+
+```erg
+.NDArray = 'ndarray': (T: Type, Shape: [Nat; _]) -> ClassType
+...
+.NDArray(T, S)|<: Add .NDArray(T, S)|.
+    Output: {.NDArray(T, S)}
+    __add__: (self: .NDArray(T, S), other: .NDArray(T, S)) -> .NDArray(T, S)
 ```
 
 ## 注意点
