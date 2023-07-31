@@ -1433,7 +1433,7 @@ impl Context {
                 self.convert_tp_into_value(fv.crack().clone())
             }
             TyParam::Value(v) => Ok(v),
-            other => Err(other),
+            other => self.convert_tp_into_type(other).map(ValueObj::builtin_type),
         }
     }
 
@@ -2210,7 +2210,8 @@ impl Context {
             },
             TyParam::ProjCall { obj, attr, args } => {
                 let tp = self.eval_proj_call(*obj, attr, args, &())?;
-                Ok(tp_enum(self.get_tp_t(&tp).unwrap_or(Type::Obj), set![tp]))
+                let ty = self.get_tp_t(&tp).unwrap_or(Type::Obj).derefine();
+                Ok(tp_enum(ty, set![tp]))
             }
             other => feature_error!(
                 self,

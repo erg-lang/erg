@@ -820,6 +820,7 @@ impl<T: Send + Sync + 'static + Clone> Free<T> {
         self.borrow().is_unnamed_unbound()
     }
 
+    /// interior-mut
     #[track_caller]
     pub fn replace(&self, to: FreeKind<T>) {
         // prevent linking to self
@@ -831,6 +832,7 @@ impl<T: Send + Sync + 'static + Clone> Free<T> {
 }
 
 impl<T: Clone + fmt::Debug + Send + Sync + 'static> Free<T> {
+    /// interior-mut
     /// SAFETY: use `Type/TyParam::link` instead of this.
     /// This method may cause circular references.
     #[track_caller]
@@ -842,6 +844,7 @@ impl<T: Clone + fmt::Debug + Send + Sync + 'static> Free<T> {
         self.borrow_mut().replace(to.clone());
     }
 
+    /// interior-mut
     #[track_caller]
     pub(super) fn undoable_link(&self, to: &T) {
         if self.is_linked() && addr_eq!(*self.crack(), *to) {
@@ -855,6 +858,7 @@ impl<T: Clone + fmt::Debug + Send + Sync + 'static> Free<T> {
         *self.borrow_mut() = new;
     }
 
+    /// interior-mut
     pub fn undo(&self) {
         let prev = match &*self.borrow() {
             FreeKind::UndoableLinked { previous, .. } => *previous.clone(),
@@ -942,6 +946,7 @@ impl<T: Clone + fmt::Debug + Send + Sync + 'static> Free<T> {
 }
 
 impl<T: Default + Clone + fmt::Debug + Send + Sync + 'static> Free<T> {
+    /// interior-mut
     #[track_caller]
     pub fn dummy_link(&self) {
         self.undoable_link(&T::default());
@@ -991,8 +996,12 @@ impl<T: CanbeFree + Send + Clone> Free<T> {
         self.constraint().map(|c| c.is_uninited()).unwrap_or(false)
     }
 
+    /// interior-mut
     /// if `in_inst_or_gen` is true, constraint will be updated forcibly
     pub fn update_constraint(&self, new_constraint: Constraint, in_inst_or_gen: bool) {
+        if new_constraint.get_type() == Some(&Type::Never) {
+            panic!();
+        }
         match &mut *self.borrow_mut() {
             FreeKind::Unbound {
                 lev, constraint, ..
@@ -1015,6 +1024,7 @@ impl<T: CanbeFree + Send + Clone> Free<T> {
         }
     }
 
+    /// interior-mut
     pub fn update_sub<F>(&self, f: F)
     where
         F: FnOnce(Type) -> Type,
@@ -1024,6 +1034,7 @@ impl<T: CanbeFree + Send + Clone> Free<T> {
         self.update_constraint(new_constraint, true);
     }
 
+    /// interior-mut
     pub fn update_super<F>(&self, f: F)
     where
         F: FnOnce(Type) -> Type,

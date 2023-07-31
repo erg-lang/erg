@@ -16,6 +16,8 @@ use crate::context::TraitImpl;
 /// (Erg links all scripts defined in erg and outputs them to a single pyc file).
 #[derive(Debug, Default)]
 pub struct TraitImpls {
+    /// * key: trait qualified name
+    /// * value: set of trait impls
     cache: Dict<Str, Set<TraitImpl>>,
 }
 

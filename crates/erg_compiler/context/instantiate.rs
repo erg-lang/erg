@@ -13,6 +13,7 @@ use erg_parser::ast::VarName;
 
 use crate::ty::constructors::*;
 use crate::ty::free::FreeTyParam;
+use crate::ty::free::GENERIC_LEVEL;
 use crate::ty::free::{Constraint, HasLevel};
 use crate::ty::typaram::{TyParam, TyParamLambda};
 use crate::ty::ValueObj;
@@ -44,7 +45,7 @@ impl fmt::Display for TyVarCache {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "TyVarInstContext {{ tyvar_instances: {}, typaram_instances: {} }}",
+            "TyVarContext {{ tyvar_instances: {}, typaram_instances: {} }}",
             self.tyvar_instances, self.typaram_instances,
         )
     }
@@ -192,6 +193,10 @@ impl TyVarCache {
     }
 
     fn update_typaram(&self, inst: &TyParam, tp: &TyParam, ctx: &Context) {
+        if inst.level() == Some(GENERIC_LEVEL) {
+            log!(err "{inst} is fixed");
+            return;
+        }
         let Ok(free_inst) = <&FreeTyParam>::try_from(inst) else {
             if let (Ok(inst), Ok(t)) = (<&Type>::try_from(inst), <&Type>::try_from(tp)) {
                 return self.update_tyvar(inst, t, ctx);

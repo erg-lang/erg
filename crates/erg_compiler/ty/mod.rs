@@ -3127,9 +3127,13 @@ impl Type {
         }
     }
 
+    /// interior-mut
     pub(crate) fn link(&self, to: &Type) {
         if self.addr_eq(to) {
             return;
+        }
+        if self.level() == Some(GENERIC_LEVEL) {
+            panic!("{self} is fixed");
         }
         match self {
             Self::FreeVar(fv) => fv.link(to),
@@ -3138,6 +3142,7 @@ impl Type {
         }
     }
 
+    /// interior-mut
     pub(crate) fn undoable_link(&self, to: &Type) {
         if self.addr_eq(to) {
             return;

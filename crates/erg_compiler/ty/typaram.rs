@@ -1257,9 +1257,13 @@ impl TyParam {
         }
     }
 
+    /// interior-mut
     pub(crate) fn link(&self, to: &TyParam) {
         if self.addr_eq(to) {
             return;
+        }
+        if self.level() == Some(GENERIC_LEVEL) {
+            panic!("{self} is fixed");
         }
         match self {
             Self::FreeVar(fv) => fv.link(to),
@@ -1267,6 +1271,7 @@ impl TyParam {
         }
     }
 
+    /// interior-mut
     pub(crate) fn undoable_link(&self, to: &TyParam) {
         if self.addr_eq(to) {
             return;

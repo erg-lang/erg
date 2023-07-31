@@ -5,8 +5,8 @@ use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
 
 use erg_parser::ast::{
-    Accessor, ClassAttr, ClassDef, Expr, Identifier, Methods, Module, PatchDef, PreDeclTypeSpec,
-    TypeAscription, TypeSpec, AST,
+    Accessor, ClassAttr, ClassDef, Expr, Identifier, Methods, Module, PatchDef, TypeAscription,
+    TypeSpec, AST,
 };
 
 use crate::error::{TyCheckError, TyCheckErrors};
@@ -77,13 +77,12 @@ impl ASTLinker {
                         }
                     }
                     match &methods.class {
-                        TypeSpec::PreDeclTy(PreDeclTypeSpec::Mono(ident)) => {
-                            self.link_methods(ident.inspect().clone(), &mut new, methods, mode)
+                        TypeSpec::PreDeclTy(predecl) => {
+                            self.link_methods(predecl.ident().into(), &mut new, methods, mode)
                         }
                         TypeSpec::TypeApp { spec, .. } => {
-                            if let TypeSpec::PreDeclTy(PreDeclTypeSpec::Mono(ident)) = spec.as_ref()
-                            {
-                                self.link_methods(ident.inspect().clone(), &mut new, methods, mode)
+                            if let Some(ident) = spec.ident() {
+                                self.link_methods(ident.into(), &mut new, methods, mode)
                             } else {
                                 let similar_name = self
                                     .def_root_pos_map

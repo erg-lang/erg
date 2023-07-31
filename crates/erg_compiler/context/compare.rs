@@ -791,7 +791,7 @@ impl Context {
         rparams: &[TyParam],
     ) -> bool {
         log!(
-            "poly_supertype_of: {}, {}, {}",
+            "poly_supertype_of: {}\nlps: {}\nrps: {}",
             typ.qual_name(),
             erg_common::fmt_vec(lparams),
             erg_common::fmt_vec(rparams)

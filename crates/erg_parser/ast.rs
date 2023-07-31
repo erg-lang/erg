@@ -1227,6 +1227,18 @@ impl NestedDisplay for Call {
     }
 }
 
+impl TryFrom<Expr> for Call {
+    type Error = Expr;
+    fn try_from(expr: Expr) -> Result<Self, Self::Error> {
+        match expr {
+            Expr::Call(call) => Ok(call),
+            Expr::TypeAscription(tasc) => Self::try_from(*tasc.expr),
+            Expr::Accessor(Accessor::TypeApp(tapp)) => Self::try_from(*tapp.obj),
+            _ => Err(expr),
+        }
+    }
+}
+
 impl_display_from_nested!(Call);
 
 impl Locational for Call {
@@ -2021,6 +2033,8 @@ impl NestedDisplay for ConstApp {
     }
 }
 
+impl_display_from_nested!(ConstApp);
+
 impl Locational for ConstApp {
     fn loc(&self) -> Location {
         if self.args.is_empty() {
@@ -2317,6 +2331,10 @@ impl PolyTypeSpec {
     pub const fn new(acc: ConstAccessor, args: ConstArgs) -> Self {
         Self { acc, args }
     }
+
+    pub fn ident(&self) -> String {
+        self.acc.to_string()
+    }
 }
 
 // OK:
@@ -2382,6 +2400,15 @@ impl PreDeclTypeSpec {
 
     pub fn poly(acc: ConstAccessor, args: ConstArgs) -> Self {
         Self::Poly(PolyTypeSpec::new(acc, args))
+    }
+
+    pub fn ident(&self) -> String {
+        match self {
+            Self::Mono(name) => name.inspect().to_string(),
+            Self::Poly(poly) => poly.ident(),
+            Self::Attr { namespace, t } => format!("{namespace}{t}"),
+            other => todo!("{other}"),
+        }
     }
 }
 
@@ -2769,6 +2796,14 @@ impl TypeSpec {
 
     pub fn poly(acc: ConstAccessor, args: ConstArgs) -> Self {
         Self::PreDeclTy(PreDeclTypeSpec::Poly(PolyTypeSpec::new(acc, args)))
+    }
+
+    pub fn ident(&self) -> Option<String> {
+        match self {
+            Self::PreDeclTy(predecl) => Some(predecl.ident()),
+            Self::TypeApp { spec, .. } => spec.ident(),
+            _ => None,
+        }
     }
 }
 

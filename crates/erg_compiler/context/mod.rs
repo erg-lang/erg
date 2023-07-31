@@ -139,6 +139,27 @@ impl ClassDefType {
     pub const fn impl_trait(class: Type, impl_trait: Type) -> Self {
         ClassDefType::ImplTrait { class, impl_trait }
     }
+
+    pub fn class(&self) -> &Type {
+        match self {
+            ClassDefType::Simple(class) => class,
+            ClassDefType::ImplTrait { class, .. } => class,
+        }
+    }
+
+    pub fn is_class_of(&self, t: &Type) -> bool {
+        match self {
+            ClassDefType::Simple(class) => class == t,
+            ClassDefType::ImplTrait { class, .. } => class == t,
+        }
+    }
+
+    pub fn is_impl_of(&self, trait_: &Type) -> bool {
+        match self {
+            ClassDefType::ImplTrait { impl_trait, .. } => impl_trait == trait_,
+            _ => false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

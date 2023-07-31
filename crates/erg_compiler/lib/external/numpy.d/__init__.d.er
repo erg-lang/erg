@@ -1,6 +1,9 @@
 .NDArray = 'ndarray': (T: Type, Shape: [Nat; _]) -> ClassType
 .NDArray(T, _) <: Output T
 .NDArray(_, _) <: Num
+.NDArray(T, S)|<: Add .NDArray(T, S)|.
+    Output: {.NDArray(T, S)}
+    __add__: |T, S: [Nat; _]|(self: .NDArray(T, S), other: .NDArray(T, S)) -> .NDArray(T, S)
 .NDArray.
     shape: [Nat; _]
     ndim: Nat
@@ -11,7 +14,7 @@
 .Nan: Float
 
 .abs: |T|(object: .NDArray(T),) -> .NDArray(T)
-.add: |T|(object: .NDArray(T), other: .NDArray(T)) -> .NDArray(T)
+.add: |T, S: [Nat; _]|(object: .NDArray(T, S), other: .NDArray(T, S)) -> .NDArray(T, S)
 .all: |T <: Num|(object: .NDArray(T),) -> Bool
 .any: |T <: Num|(object: .NDArray(T),) -> Bool
 .arange: |T <: Num|(start: T, stop := T, step := T) -> .NDArray(T)

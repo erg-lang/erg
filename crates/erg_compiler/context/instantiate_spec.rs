@@ -850,7 +850,11 @@ impl Context {
                     )?;
                     args.push(arg_t);
                 }
-                Ok(TyParam::app(ident.inspect().clone(), args))
+                if ctx.kind.is_type() && !ctx.params.is_empty() {
+                    Ok(TyParam::t(poly(ctx.name.clone(), args)))
+                } else {
+                    Ok(TyParam::app(ident.inspect().clone(), args))
+                }
             }
             ast::ConstExpr::Array(ConstArray::Normal(array)) => {
                 let mut tp_arr = vec![];
@@ -1445,7 +1449,7 @@ impl Context {
                     )?);
                 }
                 let ty = new_set.iter().fold(Type::Never, |t, tp| {
-                    self.union(&t, &self.get_tp_t(tp).unwrap())
+                    self.union(&t, &self.get_tp_t(tp).unwrap().derefine())
                 });
                 Ok(tp_enum(ty, new_set))
             }
