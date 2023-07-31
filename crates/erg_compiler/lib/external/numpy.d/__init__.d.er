@@ -3,7 +3,7 @@
 .NDArray(_, _) <: Num
 .NDArray(T, S)|<: Add .NDArray(T, S)|.
     Output: {.NDArray(T, S)}
-    __add__: |T, S: [Nat; _]|(self: .NDArray(T, S), other: .NDArray(T, S)) -> .NDArray(T, S)
+    __add__: (self: .NDArray(T, S), other: .NDArray(T, S)) -> .NDArray(T, S)
 .NDArray.
     shape: [Nat; _]
     ndim: Nat
