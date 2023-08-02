@@ -1513,6 +1513,7 @@ impl Context {
                     mode,
                     not_found_is_qvar,
                 )?;
+                // no quantification at this point (in `generalize_t`)
                 Ok(subr_t(
                     SubrKind::from(subr.arrow.kind),
                     non_defaults,

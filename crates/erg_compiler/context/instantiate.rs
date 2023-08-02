@@ -599,6 +599,11 @@ impl Context {
     pub(crate) fn instantiate(&self, quantified: Type, callee: &hir::Expr) -> TyCheckResult<Type> {
         match quantified {
             FreeVar(fv) if fv.is_linked() => self.instantiate(fv.crack().clone(), callee),
+            And(lhs, rhs) => {
+                let lhs = self.instantiate(*lhs, callee)?;
+                let rhs = self.instantiate(*rhs, callee)?;
+                Ok(lhs & rhs)
+            }
             Quantified(quant) => {
                 let mut tmp_tv_cache = TyVarCache::new(self.level, self);
                 let ty = self.instantiate_t_inner(*quant, &mut tmp_tv_cache, callee)?;
@@ -656,6 +661,11 @@ impl Context {
     pub(crate) fn instantiate_dummy(&self, quantified: Type) -> TyCheckResult<Type> {
         match quantified {
             FreeVar(fv) if fv.is_linked() => self.instantiate_dummy(fv.crack().clone()),
+            And(lhs, rhs) => {
+                let lhs = self.instantiate_dummy(*lhs)?;
+                let rhs = self.instantiate_dummy(*rhs)?;
+                Ok(lhs & rhs)
+            }
             Quantified(quant) => {
                 let mut tmp_tv_cache = TyVarCache::new(self.level, self);
                 let ty = self.instantiate_t_inner(*quant, &mut tmp_tv_cache, &())?;
