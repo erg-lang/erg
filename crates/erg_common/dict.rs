@@ -3,6 +3,7 @@ use std::collections::hash_map::{Entry, IntoValues, Iter, IterMut, Keys, Values,
 use std::fmt::{self, Write};
 use std::hash::{Hash, Hasher};
 use std::iter::FromIterator;
+use std::ops::{Index, IndexMut};
 
 use crate::fxhash::FxHashMap;
 
@@ -56,6 +57,29 @@ impl<K: Hash + Eq, V> FromIterator<(K, V)> for Dict<K, V> {
         let mut dict = Dict::new();
         dict.extend(iter);
         dict
+    }
+}
+
+impl<K: Hash + Eq, V, Q: ?Sized> Index<&Q> for Dict<K, V>
+where
+    K: Borrow<Q>,
+    Q: Hash + Eq,
+{
+    type Output = V;
+    #[inline]
+    fn index(&self, index: &Q) -> &V {
+        self.dict.get(index).unwrap()
+    }
+}
+
+impl<K: Hash + Eq, V, Q: ?Sized> IndexMut<&Q> for Dict<K, V>
+where
+    K: Borrow<Q>,
+    Q: Hash + Eq,
+{
+    #[inline]
+    fn index_mut(&mut self, index: &Q) -> &mut V {
+        self.dict.get_mut(index).unwrap()
     }
 }
 

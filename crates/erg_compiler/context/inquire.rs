@@ -101,6 +101,11 @@ impl Context {
                 }
                 None
             })
+            .or_else(|| {
+                self.tv_cache
+                    .as_ref()
+                    .and_then(|tv_cache| tv_cache.var_infos.get(name))
+            })
     }
 
     pub(crate) fn get_mut_current_scope_var(&mut self, name: &VarName) -> Option<&mut VarInfo> {
@@ -3045,20 +3050,23 @@ impl Context {
         }
     }
 
-    pub(crate) fn get_tp_from_tv_cache(
-        &self,
+    pub(crate) fn get_tp_from_tv_cache<'v>(
+        &'v self,
         name: &str,
-        tmp_tv_cache: &TyVarCache,
-    ) -> Option<TyParam> {
+        tmp_tv_cache: &'v TyVarCache,
+    ) -> Option<(TyParam, &'v VarInfo)> {
         if let Some(tp) = tmp_tv_cache.get_typaram(name) {
-            Some(tp.clone())
+            Some((tp.clone(), &tmp_tv_cache.var_infos[name]))
         } else if let Some(t) = tmp_tv_cache.get_tyvar(name) {
-            Some(TyParam::t(t.clone()))
+            Some((TyParam::t(t.clone()), &tmp_tv_cache.var_infos[name]))
         } else if let Some(tv_ctx) = &self.tv_cache {
             if let Some(t) = tv_ctx.get_tyvar(name) {
-                Some(TyParam::t(t.clone()))
+                Some((TyParam::t(t.clone()), &tv_ctx.var_infos[name]))
             } else {
-                tv_ctx.get_typaram(name).cloned()
+                tv_ctx
+                    .get_typaram(name)
+                    .cloned()
+                    .map(|tp| (tp, &tv_ctx.var_infos[name]))
             }
         } else {
             None

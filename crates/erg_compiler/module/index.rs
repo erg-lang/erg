@@ -86,6 +86,9 @@ impl ModuleIndex {
     }
 
     pub fn register(&mut self, name: Str, vi: &VarInfo) {
+        if self.members.contains_key(&vi.def_loc) {
+            return;
+        }
         let referee = vi.def_loc.clone();
         let value = ModuleIndexValue::new(name, vi.clone(), set! {});
         self.members.insert(referee, value);

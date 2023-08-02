@@ -799,6 +799,8 @@ impl ASTLowerer {
                 }
             }
         }
-        HIR::new(ast.name, module)
+        let hir = HIR::new(ast.name, module);
+        self.lint(&hir, "declare");
+        hir
     }
 }

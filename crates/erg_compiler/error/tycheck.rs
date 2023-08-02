@@ -11,7 +11,9 @@ use crate::error::*;
 use crate::ty::{ParamTy, Predicate, TyParam, Type};
 
 pub type TyCheckError = CompileError;
+pub type TyCheckWarning = CompileWarning;
 pub type TyCheckErrors = CompileErrors;
+pub type TyCheckWarnings = CompileWarnings;
 pub type TyCheckResult<T> = CompileResult<T>;
 pub type SingleTyCheckResult<T> = SingleCompileResult<T>;
 
@@ -1339,6 +1341,33 @@ passed keyword args:    {kw_args_len}"
                 ),
                 errno,
                 TypeError,
+                loc,
+            ),
+            input,
+            caused_by,
+        )
+    }
+}
+
+impl TyCheckWarning {
+    pub fn unnecessary_tyvar_warning(
+        input: Input,
+        errno: usize,
+        loc: Location,
+        name: &str,
+        caused_by: String,
+    ) -> Self {
+        Self::new(
+            ErrorCore::new(
+                vec![SubMessage::only_loc(loc)],
+                switch_lang!(
+                    "japanese" => format!("`{name}`は1回しか使われておらず、型変数として宣言する必要がありません"),
+                    "simplified_chinese" => format!("`{name}`只被使用了一次，不需要声明为类型变量"),
+                    "traditional_chinese" => format!("`{name}`只被使用了一次，不需要聲明為類型變量"),
+                    "english" => format!("`{name}` is used only once, so it is not necessary to declare it as a type variable"),
+                ),
+                errno,
+                TypeWarning,
                 loc,
             ),
             input,

@@ -2171,7 +2171,7 @@ impl ConstKwArg {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstArgs {
     pos_args: Vec<ConstPosArg>,
-    var_args: Option<Box<ConstPosArg>>,
+    pub var_args: Option<Box<ConstPosArg>>,
     kw_args: Vec<ConstKwArg>,
     paren: Option<(Token, Token)>,
 }
