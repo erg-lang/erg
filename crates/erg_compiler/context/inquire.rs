@@ -2606,6 +2606,17 @@ impl Context {
     }
 
     pub(crate) fn get_namespace_path(&self, namespace: &Str) -> Option<PathBuf> {
+        // get the true name
+        let namespace = if let Some((_, vi)) = self.get_var_info(namespace) {
+            // m: PyModule("math") -> math
+            if vi.t.is_module() {
+                vi.t.typarams()[0].to_string().replace('"', "").into()
+            } else {
+                namespace.clone()
+            }
+        } else {
+            namespace.clone()
+        };
         let mut namespaces = namespace.split_with(&[".", "::"]);
         let mut str_namespace = namespaces.first().map(|n| n.to_string())?;
         namespaces.remove(0);
