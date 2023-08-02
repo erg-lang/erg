@@ -1667,7 +1667,10 @@ impl Type {
 
     pub fn quantify(self) -> Self {
         debug_assert!(self.is_subr(), "{self} is not subr");
-        Self::Quantified(Box::new(self))
+        match self {
+            Self::And(lhs, rhs) => lhs.quantify() & rhs.quantify(),
+            other => Self::Quantified(Box::new(other)),
+        }
     }
 
     pub fn proj<S: Into<Str>>(self, attr: S) -> Self {
@@ -2469,7 +2472,8 @@ impl Type {
             Self::Subr(subr) => subr.qvars(),
             Self::Record(r) => r.values().fold(set! {}, |acc, t| acc.concat(t.qvars())),
             Self::Refinement(refine) => refine.t.qvars().concat(refine.pred.qvars()),
-            Self::Quantified(quant) => quant.qvars(),
+            // ((|T| T -> T) and U).qvars() == U.qvars()
+            // Self::Quantified(quant) => quant.qvars(),
             Self::Poly { params, .. } => params
                 .iter()
                 .fold(set! {}, |acc, tp| acc.concat(tp.qvars())),
