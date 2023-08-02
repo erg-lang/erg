@@ -328,6 +328,7 @@ impl Context {
             };
             free_var(level, Constraint::new_type_of(Type))
         };
+        // tmp_tv_cache.warn_isolated_vars(self);
         let typ = if sig.ident.is_procedural() {
             proc(non_defaults, var_args, defaults, spec_return_t)
         } else {
@@ -415,7 +416,7 @@ impl Context {
             .and_then(|name| self.get_const_local(name.token(), &self.name).ok())
         {
             return Ok(ParamTy::Pos(v_enum(set! { value })));
-        } else if let Some(tp) = sig
+        } else if let Some((tp, _vi)) = sig
             .name()
             .and_then(|name| self.get_tp_from_tv_cache(name.inspect(), tmp_tv_cache))
         {
@@ -453,7 +454,7 @@ impl Context {
         tmp_tv_cache: &mut TyVarCache,
         not_found_is_qvar: bool,
     ) -> TyCheckResult<Type> {
-        self.inc_ref_predecl_typespec(predecl, self);
+        self.inc_ref_predecl_typespec(predecl, self, tmp_tv_cache);
         match predecl {
             ast::PreDeclTypeSpec::Mono(simple) => {
                 self.instantiate_mono_t(simple, opt_decl_t, tmp_tv_cache, not_found_is_qvar)
@@ -537,7 +538,9 @@ impl Context {
                 ident.inspect(),
             ))),
             other => {
-                if let Some(TyParam::Type(t)) = self.get_tp_from_tv_cache(other, tmp_tv_cache) {
+                if let Some((TyParam::Type(t), vi)) = self.get_tp_from_tv_cache(other, tmp_tv_cache)
+                {
+                    self.inc_ref(ident.inspect(), vi, ident, self);
                     return Ok(*t);
                 }
                 if let Some(outer) = &self.outer {
@@ -744,7 +747,7 @@ impl Context {
         tmp_tv_cache: &mut TyVarCache,
         not_found_is_qvar: bool,
     ) -> TyCheckResult<TyParam> {
-        self.inc_ref_acc(&acc.clone().downgrade(), self);
+        self.inc_ref_acc(&acc.clone().downgrade(), self, tmp_tv_cache);
         match acc {
             ast::ConstAccessor::Attr(attr) => {
                 let obj = self.instantiate_const_expr(
@@ -794,7 +797,7 @@ impl Context {
             };
             return Ok(TyParam::erased(t));
         }
-        if let Some(tp) = self.get_tp_from_tv_cache(name.inspect(), tmp_tv_cache) {
+        if let Some((tp, _vi)) = self.get_tp_from_tv_cache(name.inspect(), tmp_tv_cache) {
             return Ok(tp);
         }
         if let Some(value) = self.rec_get_const_obj(name.inspect()) {
@@ -1205,13 +1208,26 @@ impl Context {
         default_t: Option<&TypeSpec>,
         tmp_tv_cache: &mut TyVarCache,
         mode: RegistrationMode,
+        not_found_is_qvar: bool,
     ) -> TyCheckResult<ParamTy> {
-        let t = self.instantiate_typespec_full(&p.ty, opt_decl_t, tmp_tv_cache, mode, false)?;
+        let t = self.instantiate_typespec_full(
+            &p.ty,
+            opt_decl_t,
+            tmp_tv_cache,
+            mode,
+            not_found_is_qvar,
+        )?;
         if let Some(default_t) = default_t {
             Ok(ParamTy::kw_default(
                 p.name.as_ref().unwrap().inspect().to_owned(),
                 t,
-                self.instantiate_typespec_full(default_t, opt_decl_t, tmp_tv_cache, mode, false)?,
+                self.instantiate_typespec_full(
+                    default_t,
+                    opt_decl_t,
+                    tmp_tv_cache,
+                    mode,
+                    not_found_is_qvar,
+                )?,
             ))
         } else {
             Ok(ParamTy::pos_or_kw(
@@ -1486,13 +1502,27 @@ impl Context {
                     tmp_tv_cache
                 };
                 let non_defaults = try_map_mut(subr.non_defaults.iter(), |p| {
-                    self.instantiate_func_param_spec(p, opt_decl_t, None, tmp_tv_ctx, mode)
+                    self.instantiate_func_param_spec(
+                        p,
+                        opt_decl_t,
+                        None,
+                        tmp_tv_ctx,
+                        mode,
+                        not_found_is_qvar,
+                    )
                 })?;
                 let var_params = subr
                     .var_params
                     .as_ref()
                     .map(|p| {
-                        self.instantiate_func_param_spec(p, opt_decl_t, None, tmp_tv_ctx, mode)
+                        self.instantiate_func_param_spec(
+                            p,
+                            opt_decl_t,
+                            None,
+                            tmp_tv_ctx,
+                            mode,
+                            not_found_is_qvar,
+                        )
                     })
                     .transpose()?;
                 let defaults = try_map_mut(subr.defaults.iter(), |p| {
@@ -1502,6 +1532,7 @@ impl Context {
                         Some(&p.default),
                         tmp_tv_ctx,
                         mode,
+                        not_found_is_qvar,
                     )
                 })?
                 .into_iter()

@@ -348,6 +348,19 @@ impl VarInfo {
         )
     }
 
+    pub fn type_var(t: Type, def_loc: AbsLocation, namespace: Str) -> Self {
+        Self::new(
+            t,
+            Const,
+            Visibility::private(namespace),
+            VarKind::Declared,
+            None,
+            None,
+            None,
+            def_loc,
+        )
+    }
+
     pub fn is_untyped_parameter(&self) -> bool {
         self.kind.is_parameter() && self.t.is_unbound_var()
     }

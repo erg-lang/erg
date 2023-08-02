@@ -1,7 +1,7 @@
 use erg_common::shared::Shared;
 use erg_common::traits::Stream;
 
-use crate::error::CompileErrors;
+use crate::error::{CompileError, CompileErrors};
 
 #[derive(Debug, Clone, Default)]
 pub struct SharedCompileErrors(Shared<CompileErrors>);
@@ -9,6 +9,10 @@ pub struct SharedCompileErrors(Shared<CompileErrors>);
 impl SharedCompileErrors {
     pub fn new() -> Self {
         Self(Shared::new(CompileErrors::empty()))
+    }
+
+    pub fn push(&self, error: CompileError) {
+        self.0.borrow_mut().push(error);
     }
 
     pub fn extend(&self, errors: CompileErrors) {

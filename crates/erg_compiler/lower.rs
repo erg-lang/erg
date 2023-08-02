@@ -2490,6 +2490,13 @@ impl ASTLowerer {
         )
     }
 
+    pub(crate) fn lint(&mut self, hir: &HIR, mode: &str) {
+        self.warn_implicit_union(hir);
+        self.warn_unused_expr(&hir.module, mode);
+        self.check_doc_comments(hir);
+        self.warn_unused_local_vars(mode);
+    }
+
     pub fn lower(&mut self, ast: AST, mode: &str) -> Result<CompleteArtifact, IncompleteArtifact> {
         log!(info "the AST lowering process has started.");
         log!(info "the type-checking process has started.");
@@ -2546,10 +2553,7 @@ impl ASTLowerer {
                 return Err(self.return_incomplete_artifact(hir));
             }
         };
-        self.warn_implicit_union(&hir);
-        self.warn_unused_expr(&hir.module, mode);
-        self.check_doc_comments(&hir);
-        self.warn_unused_local_vars(mode);
+        self.lint(&hir, mode);
         if &self.module.context.name[..] == "<module>" || ELS {
             if ELS {
                 self.module.context.shared().promises.join_children();

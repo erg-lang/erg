@@ -21,7 +21,7 @@ use crate::ty::{HasType, Predicate, Type};
 use crate::{type_feature_error, unreachable_error};
 use Type::*;
 
-use crate::context::Context;
+use crate::context::{Context, VarInfo};
 use crate::error::{TyCheckError, TyCheckErrors, TyCheckResult};
 use crate::hir;
 
@@ -38,6 +38,7 @@ pub struct TyVarCache {
     pub(crate) already_appeared: Set<Str>,
     pub(crate) tyvar_instances: Dict<VarName, Type>,
     pub(crate) typaram_instances: Dict<VarName, TyParam>,
+    pub(crate) var_infos: Dict<VarName, VarInfo>,
     pub(crate) structural_inner: bool,
 }
 
@@ -45,8 +46,8 @@ impl fmt::Display for TyVarCache {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "TyVarContext {{ tyvar_instances: {}, typaram_instances: {} }}",
-            self.tyvar_instances, self.typaram_instances,
+            "TyVarContext {{ tyvar_instances: {}, typaram_instances: {}, var_infos: {} }}",
+            self.tyvar_instances, self.typaram_instances, self.var_infos
         )
     }
 }
@@ -58,6 +59,7 @@ impl TyVarCache {
             already_appeared: Set::new(),
             tyvar_instances: Dict::new(),
             typaram_instances: Dict::new(),
+            var_infos: Dict::new(),
             structural_inner: false,
         }
     }
@@ -89,6 +91,25 @@ impl TyVarCache {
         }
         for name in other.typaram_instances.keys() {
             self.typaram_instances.remove(name);
+        }
+    }
+
+    /// Warn when a type does not need to be a type variable, such as `|T| T -> Int` (it should be `Obj -> Int`).
+    ///
+    /// TODO: This warning is currently disabled because it raises a false warning in cases like `|T|(x: T) -> (y: T) -> (x, y)`.
+    pub fn warn_isolated_vars(&self, ctx: &Context) {
+        for (name, vi) in self.var_infos.iter() {
+            let refs = &ctx.index().get_refs(&vi.def_loc).unwrap().referrers;
+            if refs.len() == 1 {
+                let warn = TyCheckError::unnecessary_tyvar_warning(
+                    ctx.cfg.input.clone(),
+                    line!() as usize,
+                    vi.def_loc.loc,
+                    name.inspect(),
+                    ctx.caused_by(),
+                );
+                ctx.shared().warns.push(warn);
+            }
         }
     }
 
@@ -148,6 +169,25 @@ impl TyVarCache {
             }
         } else {
             self.tyvar_instances.insert(name.clone(), tv.clone());
+            let vi = VarInfo::type_var(Type::Type, ctx.absolutize(name.loc()), ctx.name.clone());
+            ctx.index().register(name.inspect().clone(), &vi);
+            self.var_infos.insert(name.clone(), vi);
+        }
+    }
+
+    pub(crate) fn dummy_push_or_init_tyvar(&mut self, name: &VarName, tv: &Type, ctx: &Context) {
+        if let Some(inst) = self.tyvar_instances.get(name) {
+            self.update_tyvar(inst, tv, ctx);
+        } else if let Some(inst) = self.typaram_instances.get(name) {
+            if let Ok(inst) = <&Type>::try_from(inst) {
+                self.update_tyvar(inst, tv, ctx);
+            } else if let TyParam::FreeVar(_fv) = inst {
+                inst.link(&TyParam::t(tv.clone()));
+            } else {
+                unreachable!()
+            }
+        } else {
+            self.tyvar_instances.insert(name.clone(), tv.clone());
         }
     }
 
@@ -178,6 +218,30 @@ impl TyVarCache {
     }
 
     pub(crate) fn push_or_init_typaram(&mut self, name: &VarName, tp: &TyParam, ctx: &Context) {
+        // FIXME:
+        if let Some(inst) = self.typaram_instances.get(name) {
+            self.update_typaram(inst, tp, ctx);
+        } else if let Some(inst) = self.tyvar_instances.get(name) {
+            if let Ok(tv) = <&Type>::try_from(tp) {
+                self.update_tyvar(inst, tv, ctx);
+            } else {
+                unreachable!()
+            }
+        } else {
+            let t = ctx.get_tp_t(tp).unwrap_or(Type::Obj);
+            let vi = VarInfo::type_var(t, ctx.absolutize(name.loc()), ctx.name.clone());
+            ctx.index().register(name.inspect().clone(), &vi);
+            self.var_infos.insert(name.clone(), vi);
+            self.typaram_instances.insert(name.clone(), tp.clone());
+        }
+    }
+
+    pub(crate) fn dummy_push_or_init_typaram(
+        &mut self,
+        name: &VarName,
+        tp: &TyParam,
+        ctx: &Context,
+    ) {
         // FIXME:
         if let Some(inst) = self.typaram_instances.get(name) {
             self.update_typaram(inst, tp, ctx);
@@ -282,7 +346,7 @@ impl Context {
                     if tmp_tv_cache.appeared(&name) {
                         let tp =
                             TyParam::named_free_var(name.clone(), self.level, Constraint::Uninited);
-                        tmp_tv_cache.push_or_init_typaram(&varname, &tp, self);
+                        tmp_tv_cache.dummy_push_or_init_typaram(&varname, &tp, self);
                         return Ok(tp);
                     }
                     if let Some(tv_cache) = &self.tv_cache {
@@ -295,7 +359,7 @@ impl Context {
                     tmp_tv_cache.push_appeared(name.clone());
                     let constr = tmp_tv_cache.instantiate_constraint(constr, self, loc)?;
                     let tp = TyParam::named_free_var(name.clone(), self.level, constr);
-                    tmp_tv_cache.push_or_init_typaram(&varname, &tp, self);
+                    tmp_tv_cache.dummy_push_or_init_typaram(&varname, &tp, self);
                     Ok(tp)
                 }
             }
@@ -450,7 +514,7 @@ impl Context {
                     let varname = VarName::from_str(name.clone());
                     if tmp_tv_cache.appeared(&name) {
                         let tyvar = named_free_var(name.clone(), self.level, Constraint::Uninited);
-                        tmp_tv_cache.push_or_init_tyvar(&varname, &tyvar, self);
+                        tmp_tv_cache.dummy_push_or_init_tyvar(&varname, &tyvar, self);
                         return Ok(tyvar);
                     }
                     if let Some(tv_ctx) = &self.tv_cache {
@@ -471,7 +535,7 @@ impl Context {
                     tmp_tv_cache.push_appeared(name.clone());
                     let constr = tmp_tv_cache.instantiate_constraint(constr, self, loc)?;
                     let tyvar = named_free_var(name.clone(), self.level, constr);
-                    tmp_tv_cache.push_or_init_tyvar(&varname, &tyvar, self);
+                    tmp_tv_cache.dummy_push_or_init_tyvar(&varname, &tyvar, self);
                     Ok(tyvar)
                 }
             }

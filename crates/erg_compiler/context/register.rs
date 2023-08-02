@@ -2295,21 +2295,29 @@ impl Context {
         }
     }
 
-    pub(crate) fn inc_ref_acc(&self, acc: &ast::Accessor, namespace: &Context) -> bool {
+    pub(crate) fn inc_ref_acc(
+        &self,
+        acc: &ast::Accessor,
+        namespace: &Context,
+        tmp_tv_cache: &TyVarCache,
+    ) -> bool {
         match acc {
-            ast::Accessor::Ident(ident) => self.inc_ref_local(ident, namespace),
+            ast::Accessor::Ident(ident) => self.inc_ref_local(ident, namespace, tmp_tv_cache),
             ast::Accessor::Attr(attr) => {
-                self.inc_ref_expr(&attr.obj, namespace);
+                self.inc_ref_expr(&attr.obj, namespace, tmp_tv_cache);
                 if let Ok(ctxs) = self.get_singular_ctxs(&attr.obj, self) {
                     for ctx in ctxs {
-                        if ctx.inc_ref_local(&attr.ident, namespace) {
+                        if ctx.inc_ref_local(&attr.ident, namespace, tmp_tv_cache) {
                             return true;
                         }
                     }
                 }
                 false
             }
-            _ => false,
+            other => {
+                log!(err "inc_ref_acc: {other}");
+                false
+            }
         }
     }
 
@@ -2317,15 +2325,20 @@ impl Context {
         &self,
         predecl: &PreDeclTypeSpec,
         namespace: &Context,
+        tmp_tv_cache: &TyVarCache,
     ) -> bool {
         match predecl {
-            PreDeclTypeSpec::Mono(mono) => self.inc_ref_mono_typespec(mono, namespace),
-            PreDeclTypeSpec::Poly(poly) => self.inc_ref_poly_typespec(poly, namespace),
+            PreDeclTypeSpec::Mono(mono) => {
+                self.inc_ref_mono_typespec(mono, namespace, tmp_tv_cache)
+            }
+            PreDeclTypeSpec::Poly(poly) => {
+                self.inc_ref_poly_typespec(poly, namespace, tmp_tv_cache)
+            }
             PreDeclTypeSpec::Attr { namespace: obj, t } => {
-                self.inc_ref_expr(obj, namespace);
+                self.inc_ref_expr(obj, namespace, tmp_tv_cache);
                 if let Ok(ctxs) = self.get_singular_ctxs(obj, self) {
                     for ctx in ctxs {
-                        if ctx.inc_ref_mono_typespec(t, namespace) {
+                        if ctx.inc_ref_mono_typespec(t, namespace, tmp_tv_cache) {
                             return true;
                         }
                     }
@@ -2337,7 +2350,12 @@ impl Context {
         }
     }
 
-    fn inc_ref_mono_typespec(&self, ident: &Identifier, namespace: &Context) -> bool {
+    fn inc_ref_mono_typespec(
+        &self,
+        ident: &Identifier,
+        namespace: &Context,
+        tmp_tv_cache: &TyVarCache,
+    ) -> bool {
         if let Triple::Ok(vi) = self.rec_get_var_info(
             ident,
             crate::compile::AccessKind::Name,
@@ -2346,17 +2364,39 @@ impl Context {
         ) {
             self.inc_ref(ident.inspect(), &vi, &ident.name, namespace);
             true
+        } else if let Some(vi) = tmp_tv_cache.var_infos.get(&ident.name) {
+            self.inc_ref(ident.inspect(), vi, &ident.name, namespace);
+            true
         } else {
             false
         }
     }
 
-    /// TODO: params
-    fn inc_ref_poly_typespec(&self, poly: &PolyTypeSpec, namespace: &Context) -> bool {
-        self.inc_ref_acc(&poly.acc.clone().downgrade(), namespace)
+    fn inc_ref_poly_typespec(
+        &self,
+        poly: &PolyTypeSpec,
+        namespace: &Context,
+        tmp_tv_cache: &TyVarCache,
+    ) -> bool {
+        for arg in poly.args.pos_args() {
+            log!(err "{}", arg.expr);
+            self.inc_ref_expr(&arg.expr.clone().downgrade(), namespace, tmp_tv_cache);
+        }
+        if let Some(arg) = poly.args.var_args.as_ref() {
+            self.inc_ref_expr(&arg.expr.clone().downgrade(), namespace, tmp_tv_cache);
+        }
+        for arg in poly.args.kw_args() {
+            self.inc_ref_expr(&arg.expr.clone().downgrade(), namespace, tmp_tv_cache);
+        }
+        self.inc_ref_acc(&poly.acc.clone().downgrade(), namespace, tmp_tv_cache)
     }
 
-    fn inc_ref_local(&self, local: &ConstIdentifier, namespace: &Context) -> bool {
+    fn inc_ref_local(
+        &self,
+        local: &ConstIdentifier,
+        namespace: &Context,
+        tmp_tv_cache: &TyVarCache,
+    ) -> bool {
         if let Triple::Ok(vi) = self.rec_get_var_info(
             local,
             crate::compile::AccessKind::Name,
@@ -2365,17 +2405,51 @@ impl Context {
         ) {
             self.inc_ref(local.inspect(), &vi, &local.name, namespace);
             true
+        } else if let Some(vi) = tmp_tv_cache.var_infos.get(&local.name) {
+            self.inc_ref(local.inspect(), vi, &local.name, namespace);
+            true
         } else {
             &local.inspect()[..] == "module" || &local.inspect()[..] == "global"
         }
     }
 
-    fn inc_ref_expr(&self, expr: &ast::Expr, namespace: &Context) -> bool {
+    fn inc_ref_block(
+        &self,
+        block: &ast::Block,
+        namespace: &Context,
+        tmp_tv_cache: &TyVarCache,
+    ) -> bool {
+        let mut res = false;
+        for expr in block.iter() {
+            if self.inc_ref_expr(expr, namespace, tmp_tv_cache) {
+                res = true;
+            }
+        }
+        res
+    }
+
+    fn inc_ref_expr(
+        &self,
+        expr: &ast::Expr,
+        namespace: &Context,
+        tmp_tv_cache: &TyVarCache,
+    ) -> bool {
         #[allow(clippy::single_match)]
         match expr {
-            ast::Expr::Accessor(acc) => self.inc_ref_acc(acc, namespace),
-            // TODO:
-            _ => false,
+            ast::Expr::Accessor(acc) => self.inc_ref_acc(acc, namespace, tmp_tv_cache),
+            ast::Expr::Record(ast::Record::Normal(rec)) => {
+                let mut res = false;
+                for val in rec.attrs.iter() {
+                    if self.inc_ref_block(&val.body.block, namespace, tmp_tv_cache) {
+                        res = true;
+                    }
+                }
+                res
+            }
+            other => {
+                log!(err "inc_ref_expr: {other}");
+                false
+            }
         }
     }
 }
