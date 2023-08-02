@@ -274,7 +274,7 @@ impl ErgConfig {
                         .parse::<u8>()
                         .expect("the value of `-o` is not a number");
                 }
-                "--output-dir" | "--dest" => {
+                "--output-dir" | "--dest" | "--dist" | "--dest-dir" | "--dist-dir" => {
                     let output_dir = args
                         .next()
                         .expect("the value of `--output-dir` is not passed")
@@ -317,7 +317,7 @@ impl ErgConfig {
                         .parse::<u64>()
                         .expect("the value of `--py-server-timeout` is not a number");
                 }
-                "--quiet-startup" | "--quiet-repl" => {
+                "-q" | "--quiet-startup" | "--quiet-repl" => {
                     cfg.quiet_repl = true;
                 }
                 "-t" | "--show-type" => {
@@ -331,7 +331,7 @@ impl ErgConfig {
                         .expect("the value of `--target-version` is not a valid Python version");
                     cfg.target_version = Some(target_version);
                 }
-                "--verbose" => {
+                "-v" | "--verbose" => {
                     cfg.verbose = args
                         .next()
                         .expect("the value of `--verbose` is not passed")
