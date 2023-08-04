@@ -422,10 +422,10 @@ impl LowerError {
             ErrorCore::new(
                 vec![SubMessage::ambiguous_new(loc, vec![], hint)],
                 switch_lang!(
-                    "japanese" => format!("{typ}という型は定義されていません"),
+                    "japanese" => format!("{typ}という型が見つかりませんでした"),
                     "simplified_chinese" => format!("{typ}未定义"),
                     "traditional_chinese" => format!("{typ}未定義"),
-                    "english" => format!("Type {typ} is not defined"),
+                    "english" => format!("Type {typ} is not found"),
                 ),
                 errno,
                 NameError,

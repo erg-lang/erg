@@ -1924,6 +1924,7 @@ impl Context {
         self.convert_tp_into_type(tp).map_err(|e| {
             EvalError::feature_error(
                 self.cfg.input.clone(),
+                line!() as usize,
                 t_loc.loc(),
                 &format!("converting {e} to a type"),
                 self.caused_by(),

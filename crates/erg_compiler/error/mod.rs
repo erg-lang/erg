@@ -43,6 +43,7 @@ macro_rules! feature_error {
     ($Strcs: ident, $Strc: ident, $ctx: expr, $loc: expr, $name: expr) => {
         Err($Strcs::from($Strc::feature_error(
             $ctx.cfg.input.clone(),
+            line!() as usize,
             $loc,
             $name,
             $ctx.caused_by(),
@@ -295,7 +296,13 @@ caused from: {fn_name}"),
         )
     }
 
-    pub fn feature_error(input: Input, loc: Location, name: &str, caused_by: String) -> Self {
+    pub fn feature_error(
+        input: Input,
+        errno: usize,
+        loc: Location,
+        name: &str,
+        caused_by: String,
+    ) -> Self {
         Self::new(
             ErrorCore::new(
                 vec![SubMessage::only_loc(loc)],
@@ -305,7 +312,7 @@ caused from: {fn_name}"),
                     "traditional_chinese" => format!("此功能（{name}）尚未實現"),
                     "english" => format!("this feature({name}) is not implemented yet"),
                 ),
-                0,
+                errno,
                 FeatureError,
                 loc,
             ),
