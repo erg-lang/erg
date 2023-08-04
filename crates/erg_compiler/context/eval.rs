@@ -1843,7 +1843,7 @@ impl Context {
                 &tp.to_string(),
             )
         })?;
-        if qt.has_undoable_linked_var() && (!st.is_unbound_var() || !st.is_generalized()) {
+        if qt.is_undoable_linked_var() && (!st.is_unbound_var() || !st.is_generalized()) {
             qt.undoable_link(&st);
         }
         if !st.is_unbound_var() || !st.is_generalized() {

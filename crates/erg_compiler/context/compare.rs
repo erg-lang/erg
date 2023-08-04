@@ -153,8 +153,8 @@ impl Context {
         }
         match (lhs, rhs) {
             (Obj, _) | (_, Never | Failure) => (Absolutely, true),
-            (_, Obj) if lhs.is_simple_class() => (Absolutely, false),
-            (Never | Failure, _) if rhs.is_simple_class() => (Absolutely, false),
+            (_, Obj) if lhs.is_mono_value_class() => (Absolutely, false),
+            (Never | Failure, _) if rhs.is_mono_value_class() => (Absolutely, false),
             (Complex | Float | Ratio | Int | Nat | Bool, Bool)
             | (Complex | Float | Ratio | Int | Nat, Nat)
             | (Complex | Float | Ratio | Int, Int)
@@ -202,7 +202,9 @@ impl Context {
                 _ => (Maybe, false),
             },
             (Mono(n), Subr(_) | Quantified(_)) if &n[..] == "GenericCallable" => (Absolutely, true),
-            (lhs, rhs) if lhs.is_simple_class() && rhs.is_simple_class() => (Absolutely, false),
+            (lhs, rhs) if lhs.is_mono_value_class() && rhs.is_mono_value_class() => {
+                (Absolutely, false)
+            }
             _ => (Maybe, false),
         }
     }

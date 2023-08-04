@@ -2379,7 +2379,6 @@ impl Context {
         tmp_tv_cache: &TyVarCache,
     ) -> bool {
         for arg in poly.args.pos_args() {
-            log!(err "{}", arg.expr);
             self.inc_ref_expr(&arg.expr.clone().downgrade(), namespace, tmp_tv_cache);
         }
         if let Some(arg) = poly.args.var_args.as_ref() {
@@ -2391,7 +2390,7 @@ impl Context {
         self.inc_ref_acc(&poly.acc.clone().downgrade(), namespace, tmp_tv_cache)
     }
 
-    fn inc_ref_local(
+    pub(crate) fn inc_ref_local(
         &self,
         local: &ConstIdentifier,
         namespace: &Context,

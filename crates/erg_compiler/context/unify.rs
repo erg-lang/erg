@@ -805,6 +805,83 @@ impl Context {
                     }
                 }
             }
+            (
+                Bounded {
+                    sub: lsub,
+                    sup: lsup,
+                },
+                FreeVar(sup_fv),
+            ) if sup_fv.constraint_is_sandwiched() => {
+                if sup_fv.is_generalized() {
+                    log!(info "generalized:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_sup}");
+                    return Ok(());
+                }
+                let (rsub, rsup) = sup_fv.get_subsup().unwrap();
+                // ?T(<: Add(?T))
+                // ?U(:> {1, 2}, <: Add(?U)) ==> {1, 2}
+                sup_fv.dummy_link();
+                if lsub.qual_name() == rsub.qual_name() {
+                    for (lps, rps) in lsub.typarams().iter().zip(rsub.typarams().iter()) {
+                        self.sub_unify_tp(lps, rps, None, loc, false)
+                            .map_err(|errs| {
+                                sup_fv.undo();
+                                errs
+                            })?;
+                    }
+                }
+                // lsup: Add(?X(:> Int)), rsup: Add(?Y(:> Nat))
+                //   => lsup: Add(?X(:> Int)), rsup: Add((?X(:> Int)))
+                if lsup.qual_name() == rsup.qual_name() {
+                    for (lps, rps) in lsup.typarams().iter().zip(rsup.typarams().iter()) {
+                        self.sub_unify_tp(lps, rps, None, loc, false)
+                            .map_err(|errs| {
+                                sup_fv.undo();
+                                errs
+                            })?;
+                    }
+                }
+                sup_fv.undo();
+                let intersec = self.intersection(lsup, &rsup);
+                if intersec == Type::Never {
+                    return Err(TyCheckErrors::from(TyCheckError::subtyping_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        maybe_sub,
+                        maybe_sup,
+                        loc.loc(),
+                        self.caused_by(),
+                    )));
+                }
+                let union = self.union(lsub, &rsub);
+                if lsub.union_size().max(rsub.union_size()) < union.union_size() {
+                    let (l, r) = union.union_pair().unwrap_or((*lsub.clone(), rsub.clone()));
+                    let unified = self.unify(&l, &r);
+                    if unified.is_none() {
+                        let maybe_sub = self.readable_type(maybe_sub.clone());
+                        let union = self.readable_type(union);
+                        return Err(TyCheckErrors::from(TyCheckError::implicit_widening_error(
+                            self.cfg.input.clone(),
+                            line!() as usize,
+                            loc.loc(),
+                            self.caused_by(),
+                            &maybe_sub,
+                            &union,
+                        )));
+                    }
+                }
+                // e.g. intersec == Int, rsup == Add(?T)
+                //   => ?T(:> Int)
+                self.sub_unify(&intersec, &rsup, loc, param_name)?;
+                self.sub_unify(&rsub, &union, loc, param_name)?;
+                // self.sub_unify(&intersec, &lsup, loc, param_name)?;
+                // self.sub_unify(&lsub, &union, loc, param_name)?;
+                if union == intersec {
+                    maybe_sup.link(&union);
+                } else {
+                    let new_constraint = Constraint::new_sandwiched(union, intersec);
+                    sup_fv.update_constraint(new_constraint, false);
+                }
+            }
             // (Int or ?T) <: (?U or Int)
             // OK: (Int <: Int); (?T <: ?U)
             // NG: (Int <: ?U); (?T <: Int)

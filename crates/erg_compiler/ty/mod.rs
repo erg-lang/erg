@@ -43,7 +43,7 @@ pub use value::ValueObj;
 use value::ValueObj::{Inf, NegInf};
 pub use vis::*;
 
-use self::constructors::{proj_call, subr_t};
+use self::constructors::{bounded, proj_call, subr_t};
 
 pub const STR_OMIT_THRESHOLD: usize = 16;
 pub const CONTAINER_OMIT_THRESHOLD: usize = 8;
@@ -594,7 +594,7 @@ impl LimitedDisplay for RefinementType {
             return write!(f, "...");
         }
         let first_subj = self.pred.ors().iter().next().and_then(|p| p.subject());
-        let is_simple_type = self.t.is_simple_class();
+        let is_simple_type = self.t.is_value_class();
         let is_simple_preds = self
             .pred
             .ors()
@@ -1684,9 +1684,9 @@ impl Type {
         Self::Structural(Box::new(self))
     }
 
-    pub fn is_simple_class(&self) -> bool {
+    pub fn is_mono_value_class(&self) -> bool {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_simple_class(),
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_mono_value_class(),
             Self::Obj
             | Self::Int
             | Self::Nat
@@ -1709,6 +1709,23 @@ impl Type {
             | Self::Ellipsis
             | Self::Never => true,
             _ => false,
+        }
+    }
+
+    /// value class := mono value object class | (Array | Set)(value class)
+    pub fn is_value_class(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_value_class(),
+            Self::Refinement(refine) => refine.t.is_value_class(),
+            Self::Poly { name, params } => {
+                if &name[..] == "Array" || &name[..] == "Set" {
+                    let elem_t = <&Type>::try_from(params.first().unwrap()).unwrap();
+                    elem_t.is_value_class()
+                } else {
+                    false
+                }
+            }
+            _ => self.is_mono_value_class(),
         }
     }
 
@@ -2542,6 +2559,14 @@ impl Type {
         }
     }
 
+    pub fn is_undoable_linked_var(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_undoable_linked() => true,
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().has_undoable_linked_var(),
+            _ => false,
+        }
+    }
+
     pub fn has_undoable_linked_var(&self) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_undoable_linked() => true,
@@ -3155,6 +3180,18 @@ impl Type {
             Self::FreeVar(fv) => fv.undoable_link(to),
             Self::Refinement(refine) => refine.t.undoable_link(to),
             _ => panic!("{self} is not a free variable"),
+        }
+    }
+
+    pub fn into_bounded(&self) -> Type {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().clone().into_bounded(),
+            Self::FreeVar(fv) if fv.constraint_is_sandwiched() => {
+                let (sub, sup) = fv.get_subsup().unwrap();
+                bounded(sub, sup)
+            }
+            Self::Refinement(refine) => refine.t.as_ref().clone().into_bounded(),
+            _ => self.clone(),
         }
     }
 }
