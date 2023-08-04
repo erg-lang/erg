@@ -19,14 +19,14 @@ pub(crate) fn expect_repl_success(name: &'static str, lines: Vec<String>) -> Res
     match exec_repl(name, lines) {
         Ok(stat) if stat.succeed() => Ok(()),
         Ok(stat) => {
-            println!("err: should succeed, but got: {stat:?}");
+            println!("err[{name}]: should succeed, but got: {stat:?}");
             Err(())
         }
         Err(errs) => {
             if DEBUG_MODE {
                 errs.write_all_stderr();
             }
-            println!("err: should succeed, but got compile errors");
+            println!("err[{name}]: should succeed, but got compile errors");
             Err(())
         }
     }
@@ -39,21 +39,24 @@ pub(crate) fn expect_success(file_path: &'static str, num_warns: usize) -> Resul
                 Ok(())
             } else {
                 println!(
-                    "err: number of warnings should be {num_warns}, but got {}",
+                    "err[{file_path}]: number of warnings should be {num_warns}, but got {}",
                     stat.num_warns
                 );
                 Err(())
             }
         }
         Ok(stat) => {
-            println!("err: should succeed, but end with {}", stat.code);
+            println!(
+                "err[{file_path}]: should succeed, but end with {}",
+                stat.code
+            );
             Err(())
         }
         Err(errs) => {
             if DEBUG_MODE {
                 errs.write_all_stderr();
             }
-            println!("err: should succeed, but got compile errors");
+            println!("err[{file_path}]: should succeed, but got compile errors");
             Err(())
         }
     }
@@ -66,21 +69,24 @@ pub(crate) fn expect_compile_success(file_path: &'static str, num_warns: usize) 
                 Ok(())
             } else {
                 println!(
-                    "err: number of warnings should be {num_warns}, but got {}",
+                    "err[{file_path}]: number of warnings should be {num_warns}, but got {}",
                     stat.num_warns
                 );
                 Err(())
             }
         }
         Ok(stat) => {
-            println!("err: should succeed, but end with {}", stat.code);
+            println!(
+                "err[{file_path}]: should succeed, but end with {}",
+                stat.code
+            );
             Err(())
         }
         Err(errs) => {
             if DEBUG_MODE {
                 errs.write_all_stderr();
             }
-            println!("err: should succeed, but got compile errors");
+            println!("err[{file_path}]: should succeed, but got compile errors");
             Err(())
         }
     }
@@ -98,7 +104,7 @@ pub(crate) fn expect_repl_failure(
                 Ok(())
             } else {
                 println!(
-                    "err: number of errors should be {num_errs}, but got {}",
+                    "err[{name}]: number of errors should be {num_errs}, but got {}",
                     stat.num_errors
                 );
                 Err(())
@@ -108,7 +114,7 @@ pub(crate) fn expect_repl_failure(
             if DEBUG_MODE {
                 errs.write_all_stderr();
             }
-            println!("err: should succeed, but got compile errors");
+            println!("err[{name}]: should succeed, but got compile errors");
             Err(())
         }
     }
@@ -121,17 +127,17 @@ pub(crate) fn expect_end_with(
 ) -> Result<(), ()> {
     match exec_file(file_path) {
         Ok(stat) if stat.succeed() => {
-            println!("err: should end with {code}, but end with 0");
+            println!("err[{file_path}]: should end with {code}, but end with 0");
             Err(())
         }
         Ok(stat) => {
             if stat.code != code {
-                println!("err: end with {}", stat.code);
+                println!("err[{file_path}]: end with {}", stat.code);
                 return Err(());
             }
             if stat.num_warns != num_warns {
                 println!(
-                    "err: number of warnings should be {num_warns}, but got {}",
+                    "err[{file_path}]: number of warnings should be {num_warns}, but got {}",
                     stat.num_warns
                 );
                 return Err(());
@@ -142,7 +148,7 @@ pub(crate) fn expect_end_with(
             if DEBUG_MODE {
                 errs.write_all_stderr();
             }
-            println!("err: should end with {code}, but got compile errors");
+            println!("err[{file_path}]: should end with {code}, but got compile errors");
             Err(())
         }
     }
@@ -155,7 +161,7 @@ pub(crate) fn expect_failure(
 ) -> Result<(), ()> {
     match exec_file(file_path) {
         Ok(stat) if stat.succeed() => {
-            println!("err: should fail, but end with 0");
+            println!("err[{file_path}]: should fail, but end with 0");
             Err(())
         }
         Ok(stat) => {
@@ -163,7 +169,7 @@ pub(crate) fn expect_failure(
                 Ok(())
             } else {
                 println!(
-                    "err: number of warnings should be {num_warns}, but got {}",
+                    "err[{file_path}]: number of warnings should be {num_warns}, but got {}",
                     stat.num_warns
                 );
                 Err(())
@@ -177,7 +183,7 @@ pub(crate) fn expect_failure(
                 Ok(())
             } else {
                 println!(
-                    "err: number of errors should be {num_errs}, but got {}",
+                    "err[{file_path}]: number of errors should be {num_errs}, but got {}",
                     errs.len()
                 );
                 Err(())
