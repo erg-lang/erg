@@ -256,7 +256,7 @@ impl Context {
         &'c self,
         lhs: &Type,
         rhs: &Type,
-        op: impl FnOnce(&'c Context) -> &'c [Type],
+        get_types: impl FnOnce(&'c Context) -> &'c [Type],
     ) -> (Credibility, bool) {
         if let Some((typ, ty_ctx)) = self.get_nominal_type_ctx(rhs) {
             let substitute = typ.has_qvar();
@@ -276,7 +276,7 @@ impl Context {
                     }
                 }
             }
-            for rhs_sup in op(ty_ctx) {
+            for rhs_sup in get_types(ty_ctx) {
                 // Not `supertype_of` (only structures are compared)
                 match Self::cheap_supertype_of(lhs, rhs_sup) {
                     (Absolutely, true) => {
@@ -580,13 +580,13 @@ impl Context {
                 }
                 self.is_super_pred_of(&l.pred, &r.pred)
             }
-            (Nat, re @ Refinement(_)) => {
-                let nat = Type::Refinement(Nat.into_refinement());
-                self.structural_supertype_of(&nat, re)
+            (Nat | Bool, re @ Refinement(_)) => {
+                let refine = Type::Refinement(lhs.clone().into_refinement());
+                self.structural_supertype_of(&refine, re)
             }
-            (re @ Refinement(_), Nat) => {
-                let nat = Type::Refinement(Nat.into_refinement());
-                self.structural_supertype_of(re, &nat)
+            (re @ Refinement(_), Nat | Bool) => {
+                let refine = Type::Refinement(rhs.clone().into_refinement());
+                self.structural_supertype_of(re, &refine)
             }
             (Structural(_), Refinement(refine)) => self.supertype_of(lhs, &refine.t),
             // Int :> {I: Int | ...} == true
@@ -596,21 +596,24 @@ impl Context {
             // => true
             // Bool :> {1} == true
             // Bool :> {2} == false
+            // [2, 3]: {A: Array(Nat) | A.prod() == 6}
             (l, Refinement(r)) => {
                 // Type / {S: Set(Str) | S == {"a", "b"}}
-                if let Predicate::Equal { rhs, .. } = r.pred.as_ref() {
+                if let Pred::Equal { rhs, .. } = r.pred.as_ref() {
                     if self.subtype_of(l, &Type) && self.convert_tp_into_type(rhs.clone()).is_ok() {
                         return true;
                     }
                 }
                 if self.supertype_of(l, &r.t) {
                     return true;
+                } else if self.subtype_of(l, &r.t) {
+                    return false;
                 }
                 let l = l.derefine();
                 if self.supertype_of(&l, &r.t) {
                     return true;
                 }
-                let l = Type::Refinement(l.into_refinement());
+                let l = Type::Refinement(l.clone().into_refinement());
                 self.structural_supertype_of(&l, rhs)
             }
             // ({I: Int | True} :> Int) == true, ({N: Nat | ...} :> Int) == false, ({I: Int | I >= 0} :> Int) == false
@@ -800,7 +803,12 @@ impl Context {
             .get_nominal_type_ctx(typ)
             .unwrap_or_else(|| panic!("{typ} is not found"));
         let variances = ctx.type_params_variance();
-        debug_assert_eq!(lparams.len(), variances.len());
+        debug_assert_eq!(
+            lparams.len(),
+            variances.len(),
+            "{} / {variances:?}",
+            erg_common::fmt_vec(lparams)
+        );
         lparams
             .iter()
             .zip(rparams.iter())
@@ -907,6 +915,26 @@ impl Context {
                 } else {
                     self.eq_tp(sup_p, sub_p)
                 }
+            }
+            (TyParam::ProjCall { obj, attr, args }, _) => {
+                if let Ok(evaled) =
+                    self.eval_proj_call(obj.as_ref().clone(), attr.clone(), args.clone(), &())
+                {
+                    if sup_p != &evaled {
+                        return self.supertype_of_tp(&evaled, sub_p, variance);
+                    }
+                }
+                false
+            }
+            (_, TyParam::ProjCall { obj, attr, args }) => {
+                if let Ok(evaled) =
+                    self.eval_proj_call(obj.as_ref().clone(), attr.clone(), args.clone(), &())
+                {
+                    if sub_p != &evaled {
+                        return self.supertype_of_tp(sup_p, &evaled, variance);
+                    }
+                }
+                false
             }
             _ => {
                 match (
