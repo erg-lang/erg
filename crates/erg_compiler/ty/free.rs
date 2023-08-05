@@ -46,7 +46,7 @@ pub trait HasLevel {
 ///
 /// __NOTE__: you should use `Free::get_type/get_subsup` instead of deconstructing the constraint by `match`.
 /// Constraints may contain cycles, in which case using `match` to get the contents will cause memory destructions.
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Constraint {
     // : Type --> (:> Never, <: Obj)
     // :> Sub --> (:> Sub, <: Obj)
@@ -62,12 +62,6 @@ pub enum Constraint {
 }
 
 impl fmt::Display for Constraint {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.limited_fmt(f, 10)
-    }
-}
-
-impl fmt::Debug for Constraint {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.limited_fmt(f, 10)
     }
@@ -252,6 +246,7 @@ pub enum FreeKind<T> {
     UndoableLinked {
         t: T,
         previous: Box<FreeKind<T>>,
+        count: usize,
     },
     Unbound {
         id: Id,
@@ -487,6 +482,29 @@ impl<T> FreeKind<T> {
 
     pub const fn is_undoable_linked(&self) -> bool {
         matches!(self, Self::UndoableLinked { .. })
+    }
+
+    pub fn undo_count(&self) -> usize {
+        match self {
+            Self::UndoableLinked { count, .. } => *count,
+            _ => 0,
+        }
+    }
+
+    pub fn inc_undo_count(&mut self) {
+        #[allow(clippy::single_match)]
+        match self {
+            Self::UndoableLinked { count, .. } => *count += 1,
+            _ => {}
+        }
+    }
+
+    pub fn dec_undo_count(&mut self) {
+        #[allow(clippy::single_match)]
+        match self {
+            Self::UndoableLinked { count, .. } => *count -= 1,
+            _ => {}
+        }
     }
 }
 
@@ -854,17 +872,34 @@ impl<T: Clone + fmt::Debug + Send + Sync + 'static> Free<T> {
         let new = FreeKind::UndoableLinked {
             t: to.clone(),
             previous: Box::new(prev),
+            count: 0,
         };
         *self.borrow_mut() = new;
     }
 
     /// interior-mut
     pub fn undo(&self) {
-        let prev = match &*self.borrow() {
-            FreeKind::UndoableLinked { previous, .. } => *previous.clone(),
+        let prev = match &mut *self.borrow_mut() {
+            FreeKind::UndoableLinked {
+                previous, count, ..
+            } => {
+                if *count > 0 {
+                    *count -= 1;
+                    return;
+                }
+                *previous.clone()
+            }
             _other => panic!("cannot undo"),
         };
         self.replace(prev);
+    }
+
+    pub fn undo_stack_size(&self) -> usize {
+        self.borrow().undo_count()
+    }
+
+    pub fn inc_undo_count(&self) {
+        self.borrow_mut().inc_undo_count();
     }
 
     pub fn unwrap_unbound(self) -> (Option<Str>, usize, Constraint) {

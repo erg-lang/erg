@@ -3172,13 +3172,24 @@ impl Type {
     }
 
     /// interior-mut
+    ///
+    /// `inc/dec_undo_count` due to the number of `substitute_typarams/undo_typarams` must be matched
     pub(crate) fn undoable_link(&self, to: &Type) {
         if self.addr_eq(to) {
+            self.inc_undo_count();
             return;
         }
         match self {
             Self::FreeVar(fv) => fv.undoable_link(to),
             Self::Refinement(refine) => refine.t.undoable_link(to),
+            _ => panic!("{self} is not a free variable"),
+        }
+    }
+
+    fn inc_undo_count(&self) {
+        match self {
+            Self::FreeVar(fv) => fv.inc_undo_count(),
+            Self::Refinement(refine) => refine.t.inc_undo_count(),
             _ => panic!("{self} is not a free variable"),
         }
     }

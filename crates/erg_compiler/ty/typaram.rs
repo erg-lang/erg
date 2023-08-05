@@ -632,7 +632,7 @@ impl TryFrom<TyParam> for ValueObj {
             TyParam::Type(t) => Ok(ValueObj::builtin_type(*t)),
             TyParam::Value(v) => Ok(v),
             _ => {
-                log!(err "Expected value, got {:?}", tp);
+                log!(err "Expected value, got {tp} ({tp:?})");
                 Err(())
             }
         }
@@ -1274,6 +1274,7 @@ impl TyParam {
     /// interior-mut
     pub(crate) fn undoable_link(&self, to: &TyParam) {
         if self.addr_eq(to) {
+            self.inc_undo_count();
             return;
         }
         if to.contains_tp(self) {
@@ -1285,6 +1286,23 @@ impl TyParam {
         match self {
             Self::FreeVar(fv) => fv.undoable_link(to),
             _ => panic!("{self} is not a free variable"),
+        }
+    }
+
+    fn inc_undo_count(&self) {
+        match self {
+            Self::FreeVar(fv) => fv.inc_undo_count(),
+            _ => panic!("{self} is not a free variable"),
+        }
+    }
+
+    pub fn typarams(&self) -> Vec<TyParam> {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().typarams(),
+            Self::Type(t) => t.typarams(),
+            Self::Value(ValueObj::Type(t)) => t.typ().typarams(),
+            Self::App { args, .. } => args.clone(),
+            _ => vec![],
         }
     }
 }
