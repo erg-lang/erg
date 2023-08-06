@@ -2291,7 +2291,7 @@ impl Context {
 
     /// include `typ` itself.
     /// if `typ` is a refinement type, include the base type (refine.t)
-    pub(crate) fn _get_super_classes(
+    pub(crate) fn get_super_classes(
         &self,
         typ: &Type,
     ) -> Option<impl Iterator<Item = Type> + Clone> {
