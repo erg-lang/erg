@@ -163,7 +163,7 @@ impl TyVarCache {
             if let Ok(inst) = <&Type>::try_from(inst) {
                 self.update_tyvar(inst, tv, ctx);
             } else if let TyParam::FreeVar(_fv) = inst {
-                inst.link(&TyParam::t(tv.clone()));
+                inst.destructive_link(&TyParam::t(tv.clone()));
             } else {
                 unreachable!()
             }
@@ -182,7 +182,7 @@ impl TyVarCache {
             if let Ok(inst) = <&Type>::try_from(inst) {
                 self.update_tyvar(inst, tv, ctx);
             } else if let TyParam::FreeVar(_fv) = inst {
-                inst.link(&TyParam::t(tv.clone()));
+                inst.destructive_link(&TyParam::t(tv.clone()));
             } else {
                 unreachable!()
             }
@@ -198,7 +198,7 @@ impl TyVarCache {
         // T <: Eq(T <: Eq(T <: ...))
         let Type::FreeVar(free_inst) = inst else { todo!("{inst}") };
         if free_inst.constraint_is_uninited() {
-            inst.link(tv);
+            inst.destructive_link(tv);
         } else {
             // inst: ?T(<: Int) => old_sub: Never, old_sup: Int
             // tv: ?T(:> Nat) => new_sub: Nat, new_sup: Obj
@@ -269,7 +269,7 @@ impl TyVarCache {
             }
         };
         if free_inst.constraint_is_uninited() {
-            inst.link(tp);
+            inst.destructive_link(tp);
         } else {
             let old_type = free_inst.get_type().unwrap();
             let Ok(tv) = <&FreeTyParam>::try_from(tp) else { todo!("{tp}") };

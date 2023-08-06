@@ -1258,7 +1258,7 @@ impl TyParam {
     }
 
     /// interior-mut
-    pub(crate) fn link(&self, to: &TyParam) {
+    pub(crate) fn destructive_link(&self, to: &TyParam) {
         if self.addr_eq(to) {
             return;
         }
@@ -1286,6 +1286,14 @@ impl TyParam {
         match self {
             Self::FreeVar(fv) => fv.undoable_link(to),
             _ => panic!("{self} is not a free variable"),
+        }
+    }
+
+    pub(crate) fn link(&self, to: &TyParam, undoable: bool) {
+        if undoable {
+            self.undoable_link(to);
+        } else {
+            self.destructive_link(to);
         }
     }
 

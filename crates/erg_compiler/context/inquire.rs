@@ -1386,7 +1386,7 @@ impl Context {
                     let non_default_params = pos_args.iter().map(|a| anon(a.expr.t())).collect();
                     let subr_t = subr_t(kind, non_default_params, None, vec![], ret_t);
                     self.occur(&subr_t, instance, obj)?;
-                    instance.link(&subr_t);
+                    instance.destructive_link(&subr_t);
                     Ok(SubstituteResult::Ok)
                 }
             }

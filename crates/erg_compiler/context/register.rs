@@ -978,7 +978,7 @@ impl Context {
             return res;
         };
         if let Some(_fv) = vi.t.as_free() {
-            vi.t.link(&typ);
+            vi.t.destructive_link(&typ);
         }
         res
     }

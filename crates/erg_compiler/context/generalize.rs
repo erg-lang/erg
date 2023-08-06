@@ -151,7 +151,7 @@ impl Generalizer {
                     if sub == sup {
                         let t = self.generalize_t(sub, uninit);
                         let res = FreeVar(fv);
-                        res.link(&t);
+                        res.destructive_link(&t);
                         res
                     } else if sup != Obj
                         && !self.qnames.contains(&fv.unbound_name().unwrap())
@@ -551,7 +551,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                             Ok(ty)
                         }
                         Err(errs) => {
-                            Type::FreeVar(fv).link(&Never);
+                            Type::FreeVar(fv).destructive_link(&Never);
                             Err(errs)
                         }
                     }

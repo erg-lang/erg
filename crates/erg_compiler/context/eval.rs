@@ -1318,7 +1318,7 @@ impl Context {
             let (sub, sup) = fv.get_subsup().unwrap();
             if self.is_trait(&sup) && !self.trait_impl_exists(&sub, &sup) {
                 // link to `Never` to prevent double errors from being reported
-                lhs.link(&Never);
+                lhs.destructive_link(&Never);
                 let sub = if cfg!(feature = "debug") {
                     sub
                 } else {
@@ -2037,7 +2037,7 @@ impl Context {
             if let Some((sub, sup)) = fv.get_subsup() {
                 if self.is_trait(&sup) && !self.trait_impl_exists(&sub, &sup) {
                     // to prevent double error reporting
-                    lhs.link(&TyParam::t(Never));
+                    lhs.destructive_link(&TyParam::t(Never));
                     let sub = if cfg!(feature = "debug") {
                         sub
                     } else {
@@ -2114,7 +2114,7 @@ impl Context {
             if let Some((sub, sup)) = fv.get_subsup() {
                 if self.is_trait(&sup) && !self.trait_impl_exists(&sub, &sup) {
                     // to prevent double error reporting
-                    lhs.link(&TyParam::t(Never));
+                    lhs.destructive_link(&TyParam::t(Never));
                     let sub = if cfg!(feature = "debug") {
                         sub
                     } else {

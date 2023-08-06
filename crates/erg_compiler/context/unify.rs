@@ -27,7 +27,6 @@ use super::initialize::const_func::sub_tpdict_get;
 pub struct Unifier<'c, 'l, L: Locational> {
     ctx: &'c Context,
     loc: &'l L,
-    #[allow(unused)]
     undoable: bool,
     param_name: Option<Str>,
 }
@@ -288,10 +287,10 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
             {
                 if sub_fv.level().unwrap() > sup_fv.level().unwrap() {
                     if !sub_fv.is_generalized() {
-                        maybe_sub.link(maybe_sup);
+                        maybe_sub.link(maybe_sup, self.undoable);
                     }
                 } else if !sup_fv.is_generalized() {
-                    maybe_sup.link(maybe_sub);
+                    maybe_sup.link(maybe_sub, self.undoable);
                 }
                 Ok(())
             }
@@ -317,7 +316,7 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
                             sub_fv.update_constraint(new_constraint, false);
                         }
                     } else {
-                        maybe_sub.link(sup_tp);
+                        maybe_sub.link(sup_tp, self.undoable);
                     }
                     Ok(())
                 } else if allow_divergence
@@ -325,7 +324,7 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
                         || self.ctx.eq_tp(sup_tp, &TyParam::value(NegInf)))
                     && self.ctx.subtype_of(&fv_t, &mono("Num"))
                 {
-                    maybe_sub.link(sup_tp);
+                    maybe_sub.link(sup_tp, self.undoable);
                     Ok(())
                 } else {
                     Err(TyCheckErrors::from(TyCheckError::unreachable(
@@ -357,7 +356,7 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
                             sup_fv.update_constraint(new_constraint, false);
                         }
                     } else {
-                        maybe_sup.link(sub_tp);
+                        maybe_sup.link(sub_tp, self.undoable);
                     }
                     Ok(())
                 } else if allow_divergence
@@ -365,7 +364,7 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
                         || self.ctx.eq_tp(sub_tp, &TyParam::value(NegInf)))
                     && self.ctx.subtype_of(&fv_t, &mono("Num"))
                 {
-                    maybe_sup.link(sub_tp);
+                    maybe_sup.link(sub_tp, self.undoable);
                     Ok(())
                 } else {
                     Err(TyCheckErrors::from(TyCheckError::unreachable(
@@ -752,21 +751,21 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
                         .cmp(&sup_fv.level().unwrap_or(GENERIC_LEVEL))
                     {
                         std::cmp::Ordering::Less => {
-                            maybe_sub.link(&union);
-                            maybe_sup.link(maybe_sub);
+                            maybe_sub.link(&union, self.undoable);
+                            maybe_sup.link(maybe_sub, self.undoable);
                         }
                         std::cmp::Ordering::Greater => {
-                            maybe_sup.link(&union);
-                            maybe_sub.link(maybe_sup);
+                            maybe_sup.link(&union, self.undoable);
+                            maybe_sub.link(maybe_sup, self.undoable);
                         }
                         std::cmp::Ordering::Equal => {
                             // choose named one
                             if sup_fv.is_named_unbound() {
-                                maybe_sup.link(&union);
-                                maybe_sub.link(maybe_sup);
+                                maybe_sup.link(&union, self.undoable);
+                                maybe_sub.link(maybe_sup, self.undoable);
                             } else {
-                                maybe_sub.link(&union);
-                                maybe_sup.link(maybe_sub);
+                                maybe_sub.link(&union, self.undoable);
+                                maybe_sup.link(maybe_sub, self.undoable);
                             }
                         }
                     }
@@ -779,20 +778,20 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
                     {
                         std::cmp::Ordering::Less => {
                             sub_fv.update_constraint(new_constraint, false);
-                            maybe_sup.link(maybe_sub);
+                            maybe_sup.link(maybe_sub, self.undoable);
                         }
                         std::cmp::Ordering::Greater => {
                             sup_fv.update_constraint(new_constraint, false);
-                            maybe_sub.link(maybe_sup);
+                            maybe_sub.link(maybe_sup, self.undoable);
                         }
                         std::cmp::Ordering::Equal => {
                             // choose named one
                             if sup_fv.is_named_unbound() {
                                 sup_fv.update_constraint(new_constraint, false);
-                                maybe_sub.link(maybe_sup);
+                                maybe_sub.link(maybe_sup, self.undoable);
                             } else {
                                 sub_fv.update_constraint(new_constraint, false);
-                                maybe_sup.link(maybe_sub);
+                                maybe_sup.link(maybe_sub, self.undoable);
                             }
                         }
                     }
@@ -867,7 +866,7 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
                 // self.sub_unify(&intersec, &lsup, loc, param_name)?;
                 // self.sub_unify(&lsub, &union, loc, param_name)?;
                 if union == intersec {
-                    maybe_sup.link(&union);
+                    maybe_sup.link(&union, self.undoable);
                 } else {
                     let new_constraint = Constraint::new_sandwiched(union, intersec);
                     sup_fv.update_constraint(new_constraint, false);
@@ -953,7 +952,7 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
                         }
                     }
                     if sup.contains_union(&new_sub) {
-                        maybe_sup.link(&new_sub); // Bool <: ?T <: Bool or Y ==> ?T == Bool
+                        maybe_sup.link(&new_sub, self.undoable); // Bool <: ?T <: Bool or Y ==> ?T == Bool
                     } else {
                         let constr = Constraint::new_sandwiched(new_sub, mem::take(&mut sup));
                         sup_fv.update_constraint(constr, true);
@@ -1020,7 +1019,7 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
                         && !new_sup.is_unbound_var()
                         && !sub.is_unbound_var()
                     {
-                        maybe_sub.link(&sub);
+                        maybe_sub.link(&sub, self.undoable);
                     } else {
                         let constr = Constraint::new_sandwiched(sub, new_sup);
                         sub_fv.update_constraint(constr, true);

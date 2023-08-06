@@ -2445,7 +2445,7 @@ impl Type {
             Type::FreeVar(fv) if fv.is_unbound() => {
                 let (sub, _sup) = fv.get_subsup().unwrap();
                 sub.coerce();
-                self.link(&sub);
+                self.destructive_link(&sub);
             }
             Type::And(l, r) | Type::Or(l, r) => {
                 l.coerce();
@@ -3157,7 +3157,7 @@ impl Type {
     }
 
     /// interior-mut
-    pub(crate) fn link(&self, to: &Type) {
+    pub(crate) fn destructive_link(&self, to: &Type) {
         if self.addr_eq(to) {
             return;
         }
@@ -3166,7 +3166,7 @@ impl Type {
         }
         match self {
             Self::FreeVar(fv) => fv.link(to),
-            Self::Refinement(refine) => refine.t.link(to),
+            Self::Refinement(refine) => refine.t.destructive_link(to),
             _ => panic!("{self} is not a free variable"),
         }
     }
@@ -3183,6 +3183,14 @@ impl Type {
             Self::FreeVar(fv) => fv.undoable_link(to),
             Self::Refinement(refine) => refine.t.undoable_link(to),
             _ => panic!("{self} is not a free variable"),
+        }
+    }
+
+    pub(crate) fn link(&self, to: &Type, undoable: bool) {
+        if undoable {
+            self.undoable_link(to);
+        } else {
+            self.destructive_link(to);
         }
     }
 
