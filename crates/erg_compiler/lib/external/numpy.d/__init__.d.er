@@ -9,6 +9,10 @@
     ndim: Nat
     dtype: Type
     size: Nat
+    reshape: |T, Old: [Nat; _], S: [Nat; _]|(
+        self: .NDArray(T, Old),
+        shape: {S},
+    ) -> .NDArray(T, S)
 
 .nan: Float
 .Nan: Float
@@ -29,3 +33,5 @@
 .sum: |T|(object: .NDArray(T),) -> T
 .sqrt: |T|(object: .NDArray(T),) -> .NDArray(T)
 .transpose: |T|(object: .NDArray(T), axes := [Nat; _]) -> .NDArray(T)
+.zeros: (|N: Nat|(shape: {N}, dtype := Type) -> .NDArray(Nat, [N])) \
+    and (|S: [Nat; _]|(shape: {S}, dtype := Type) -> .NDArray(Nat, S))
