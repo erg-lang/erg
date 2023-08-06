@@ -43,7 +43,7 @@ pub use value::ValueObj;
 use value::ValueObj::{Inf, NegInf};
 pub use vis::*;
 
-use self::constructors::{bounded, proj_call, subr_t};
+use self::constructors::{bounded, free_var, named_free_var, proj_call, subr_t};
 
 pub const STR_OMIT_THRESHOLD: usize = 16;
 pub const CONTAINER_OMIT_THRESHOLD: usize = 8;
@@ -3191,6 +3191,46 @@ impl Type {
             self.undoable_link(to);
         } else {
             self.destructive_link(to);
+        }
+    }
+
+    pub(crate) fn undo(&self) {
+        match self {
+            Self::FreeVar(fv) if fv.is_undoable_linked() => fv.undo(),
+            Self::FreeVar(fv) if fv.constraint_is_sandwiched() => {
+                let (sub, sup) = fv.get_subsup().unwrap();
+                sub.undo();
+                sup.undo();
+            }
+            Self::Poly { params, .. } => {
+                for param in params {
+                    param.undo();
+                }
+            }
+            _ => {}
+        }
+    }
+
+    pub(crate) fn undoable_update_constraint(&self, new_constraint: Constraint) {
+        let level = self.level().unwrap();
+        let new = if let Some(name) = self.unbound_name() {
+            named_free_var(name, level, new_constraint)
+        } else {
+            free_var(level, new_constraint)
+        };
+        self.undoable_link(&new);
+    }
+
+    pub(crate) fn replace_constraint(
+        &self,
+        new_constraint: Constraint,
+        undoable: bool,
+        in_instantiation: bool,
+    ) {
+        if undoable {
+            self.undoable_update_constraint(new_constraint);
+        } else {
+            self.update_constraint(new_constraint, in_instantiation);
         }
     }
 

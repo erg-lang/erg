@@ -877,9 +877,13 @@ impl TyParam {
         }
     }
 
-    pub fn free_var(level: usize, t: Type) -> Self {
+    pub fn free_instance(level: usize, t: Type) -> Self {
         let constraint = Constraint::new_type_of(t);
         Self::FreeVar(FreeTyParam::new_unbound(level, constraint))
+    }
+
+    pub fn free_var(level: usize, constr: Constraint) -> Self {
+        Self::FreeVar(FreeTyParam::new_unbound(level, constr))
     }
 
     pub fn named_free_var(name: Str, level: usize, constr: Constraint) -> Self {
@@ -1294,6 +1298,43 @@ impl TyParam {
             self.undoable_link(to);
         } else {
             self.destructive_link(to);
+        }
+    }
+
+    pub(crate) fn undo(&self) {
+        match self {
+            Self::FreeVar(fv) if fv.is_undoable_linked() => fv.undo(),
+            Self::Type(t) => t.undo(),
+            Self::Value(ValueObj::Type(t)) => t.typ().undo(),
+            Self::App { args, .. } => {
+                for arg in args {
+                    arg.undo();
+                }
+            }
+            _ => {}
+        }
+    }
+
+    pub(crate) fn undoable_update_constraint(&self, new_constraint: Constraint) {
+        let level = self.level().unwrap();
+        let new = if let Some(name) = self.unbound_name() {
+            Self::named_free_var(name, level, new_constraint)
+        } else {
+            Self::free_var(level, new_constraint)
+        };
+        self.undoable_link(&new);
+    }
+
+    pub(crate) fn replace_constraint(
+        &self,
+        new_constraint: Constraint,
+        undoable: bool,
+        in_instantiation: bool,
+    ) {
+        if undoable {
+            self.undoable_update_constraint(new_constraint);
+        } else {
+            self.update_constraint(new_constraint, in_instantiation);
         }
     }
 

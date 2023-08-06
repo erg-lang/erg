@@ -849,7 +849,7 @@ impl<T: Send + Sync + 'static + Clone> Free<T> {
     }
 }
 
-impl<T: Clone + fmt::Debug + Send + Sync + 'static> Free<T> {
+impl<T: Clone + Send + Sync + 'static> Free<T> {
     /// interior-mut
     /// SAFETY: use `Type/TyParam::link` instead of this.
     /// This method may cause circular references.

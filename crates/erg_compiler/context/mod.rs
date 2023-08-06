@@ -20,6 +20,7 @@ use std::option::Option; // conflicting to Type::Option
 use std::path::{Path, PathBuf};
 
 use erg_common::config::ErgConfig;
+use erg_common::consts::DEBUG_MODE;
 use erg_common::consts::PYTHON_MODE;
 use erg_common::dict::Dict;
 use erg_common::error::Location;
@@ -140,10 +141,17 @@ impl ClassDefType {
         ClassDefType::ImplTrait { class, impl_trait }
     }
 
-    pub fn class(&self) -> &Type {
+    pub fn get_class(&self) -> &Type {
         match self {
             ClassDefType::Simple(class) => class,
             ClassDefType::ImplTrait { class, .. } => class,
+        }
+    }
+
+    pub fn get_impl_trait(&self) -> Option<&Type> {
+        match self {
+            ClassDefType::Simple(_) => None,
+            ClassDefType::ImplTrait { impl_trait, .. } => Some(impl_trait),
         }
     }
 
@@ -1130,6 +1138,7 @@ impl Context {
     }
 
     pub fn pop(&mut self) -> Context {
+        self.check_types();
         if let Some(parent) = self.outer.as_mut() {
             let parent = mem::take(parent);
             let ctx = mem::take(self);
@@ -1143,6 +1152,7 @@ impl Context {
 
     /// unlike `pop`, `outer` must be `None`.
     pub fn pop_mod(&mut self) -> Option<Context> {
+        self.check_types();
         if self.outer.is_some() {
             log!(err "not in the top-level context");
             if self.kind.is_module() {
@@ -1256,6 +1266,32 @@ impl Context {
         self.higher_order_caller
             .last()
             .and_then(|caller| ControlKind::try_from(&caller[..]).ok())
+    }
+
+    pub(crate) fn check_types(&self) {
+        if DEBUG_MODE {
+            for (_, (t, ctx)) in self.poly_types.iter() {
+                if t.has_undoable_linked_var() {
+                    panic!("{t} has undoable linked vars");
+                }
+                ctx.check_types();
+            }
+            for (typ, methods) in self.methods_list.iter() {
+                if typ.get_class().has_undoable_linked_var() {
+                    panic!("{typ} has undoable linked vars");
+                }
+                if typ
+                    .get_impl_trait()
+                    .is_some_and(|t| t.has_undoable_linked_var())
+                {
+                    panic!("{typ} has undoable linked vars");
+                }
+                methods.check_types();
+            }
+            if let Some(outer) = self.get_outer() {
+                outer.check_types();
+            }
+        }
     }
 }
 

@@ -4,7 +4,7 @@ use erg_common::consts::DEBUG_MODE;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
-use erg_common::{dict, fn_name, set};
+use erg_common::{dict, fn_name, get_hash, set};
 #[allow(unused_imports)]
 use erg_common::{fmt_vec, log};
 
@@ -912,6 +912,8 @@ impl Context {
     }
 
     fn poly_class_trait_impl_exists(&self, class: &Type, trait_: &Type) -> bool {
+        let class_hash = get_hash(&class);
+        let trait_hash = get_hash(&trait_);
         for imp in self.get_trait_impls(trait_).into_iter() {
             self.substitute_typarams(&imp.sub_type, class).unwrap_or(());
             self.substitute_typarams(&imp.sup_trait, trait_)
@@ -920,10 +922,22 @@ impl Context {
             {
                 Self::undo_substitute_typarams(&imp.sub_type);
                 Self::undo_substitute_typarams(&imp.sup_trait);
+                if class_hash != get_hash(&class) {
+                    class.undo();
+                }
+                if trait_hash != get_hash(&trait_) {
+                    trait_.undo();
+                }
                 return true;
             }
             Self::undo_substitute_typarams(&imp.sub_type);
             Self::undo_substitute_typarams(&imp.sup_trait);
+            if class_hash != get_hash(&class) {
+                class.undo();
+            }
+            if trait_hash != get_hash(&trait_) {
+                trait_.undo();
+            }
         }
         false
     }

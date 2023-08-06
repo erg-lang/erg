@@ -398,16 +398,18 @@ impl Context {
         }
     }
 
-    fn eval_const_array(&self, arr: &Array) -> EvalResult<ValueObj> {
+    pub(crate) fn eval_const_normal_array(&self, arr: &NormalArray) -> EvalResult<ValueObj> {
         let mut elems = vec![];
+        for elem in arr.elems.pos_args().iter() {
+            let elem = self.eval_const_expr(&elem.expr)?;
+            elems.push(elem);
+        }
+        Ok(ValueObj::Array(ArcArray::from(elems)))
+    }
+
+    fn eval_const_array(&self, arr: &Array) -> EvalResult<ValueObj> {
         match arr {
-            Array::Normal(arr) => {
-                for elem in arr.elems.pos_args().iter() {
-                    let elem = self.eval_const_expr(&elem.expr)?;
-                    elems.push(elem);
-                }
-                Ok(ValueObj::Array(ArcArray::from(elems)))
-            }
+            Array::Normal(arr) => self.eval_const_normal_array(arr),
             _ => Err(EvalErrors::from(EvalError::not_const_expr(
                 self.cfg.input.clone(),
                 line!() as usize,
@@ -1847,7 +1849,13 @@ impl Context {
         if st.has_no_unbound_var() && qt.has_no_unbound_var() {
             return Ok(());
         }
-        if let Err(errs) = self.sub_unify(&st, &qt, &(), None) {
+        let qt = if qt.has_undoable_linked_var() {
+            let mut tv_cache = TyVarCache::new(self.level, self);
+            self.detach(qt, &mut tv_cache)
+        } else {
+            qt
+        };
+        if let Err(errs) = self.undoable_sub_unify(&st, &qt, &(), None) {
             log!(err "{errs}");
         }
         Ok(())
@@ -1913,7 +1921,13 @@ impl Context {
         if !st.is_unbound_var() || !st.is_generalized() {
             self.overwrite_typarams(&qt, &st)?;
         }
-        if let Err(errs) = self.sub_unify(&st, &qt, &(), None) {
+        let qt = if qt.has_undoable_linked_var() {
+            let mut tv_cache = TyVarCache::new(self.level, self);
+            self.detach(qt, &mut tv_cache)
+        } else {
+            qt
+        };
+        if let Err(errs) = self.undoable_sub_unify(&st, &qt, &(), None) {
             log!(err "{errs}");
         }
         Ok(())

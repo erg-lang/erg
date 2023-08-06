@@ -94,6 +94,12 @@ impl TyVarCache {
         }
     }
 
+    pub fn remove(&mut self, name: &str) {
+        self.tyvar_instances.remove(name);
+        self.typaram_instances.remove(name);
+        self.var_infos.remove(name);
+    }
+
     /// Warn when a type does not need to be a type variable, such as `|T| T -> Int` (it should be `Obj -> Int`).
     ///
     /// TODO: This warning is currently disabled because it raises a false warning in cases like `|T|(x: T) -> (y: T) -> (x, y)`.

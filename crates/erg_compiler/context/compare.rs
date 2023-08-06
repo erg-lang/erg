@@ -274,7 +274,7 @@ impl Context {
                 if let Err(err) = self.overwrite_typarams(typ, rhs) {
                     Self::undo_substitute_typarams(typ);
                     if DEBUG_MODE {
-                        panic!("err: {err}");
+                        panic!("{typ} / {rhs}: err: {err}");
                     }
                 }
             }

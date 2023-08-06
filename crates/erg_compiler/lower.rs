@@ -26,7 +26,7 @@ use crate::artifact::{CompleteArtifact, IncompleteArtifact};
 use crate::context::instantiate::TyVarCache;
 use crate::module::SharedCompilerResource;
 use crate::ty::constructors::{
-    array_t, free_var, func, guard, mono, poly, proc, refinement, set_t, ty_tp, v_enum,
+    array_t, free_var, func, guard, mono, poly, proc, refinement, set_t, singleton, ty_tp, v_enum,
 };
 use crate::ty::free::Constraint;
 use crate::ty::typaram::TyParam;
@@ -290,6 +290,7 @@ impl ASTLowerer {
     fn lower_normal_array(&mut self, array: ast::NormalArray) -> LowerResult<hir::NormalArray> {
         log!(info "entered {}({array})", fn_name!());
         let mut new_array = vec![];
+        let eval_result = self.module.context.eval_const_normal_array(&array);
         let (elems, ..) = array.elems.deconstruct();
         let mut union = Type::Never;
         for elem in elems.into_iter() {
@@ -330,12 +331,14 @@ impl ASTLowerer {
         } else {
             union
         };
-        Ok(hir::NormalArray::new(
-            array.l_sqbr,
-            array.r_sqbr,
-            elem_t,
-            hir::Args::values(new_array, None),
-        ))
+        let elems = hir::Args::values(new_array, None);
+        let t = array_t(elem_t, TyParam::value(elems.len()));
+        let t = if let Ok(value) = eval_result {
+            singleton(t, TyParam::Value(value))
+        } else {
+            t
+        };
+        Ok(hir::NormalArray::new(array.l_sqbr, array.r_sqbr, t, elems))
     }
 
     fn lower_array_with_length(

@@ -20,7 +20,7 @@ use erg_parser::ast::{
 };
 use erg_parser::token::{Token, TokenKind, DOT};
 
-use crate::ty::constructors::{array_t, dict_t, set_t, tuple_t};
+use crate::ty::constructors::{dict_t, set_t, tuple_t};
 use crate::ty::typaram::TyParam;
 use crate::ty::value::{GenTypeObj, ValueObj};
 use crate::ty::{Field, HasType, Type, VisibilityModifier};
@@ -774,8 +774,7 @@ impl_locational!(NormalArray, l_sqbr, elems, r_sqbr);
 impl_t!(NormalArray);
 
 impl NormalArray {
-    pub fn new(l_sqbr: Token, r_sqbr: Token, elem_t: Type, elems: Args) -> Self {
-        let t = array_t(elem_t, TyParam::value(elems.len()));
+    pub fn new(l_sqbr: Token, r_sqbr: Token, t: Type, elems: Args) -> Self {
         Self {
             l_sqbr,
             r_sqbr,

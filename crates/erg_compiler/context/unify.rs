@@ -313,7 +313,7 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
                             .is_sub_constraint_of(&sub_fv.constraint().unwrap(), &new_constraint)
                             || sub_fv.constraint().unwrap().get_type() == Some(&Type)
                         {
-                            sub_fv.update_constraint(new_constraint, false);
+                            maybe_sub.replace_constraint(new_constraint, self.undoable, false);
                         }
                     } else {
                         maybe_sub.link(sup_tp, self.undoable);
@@ -353,7 +353,7 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
                             .is_sub_constraint_of(&sup_fv.constraint().unwrap(), &new_constraint)
                             || sup_fv.constraint().unwrap().get_type() == Some(&Type)
                         {
-                            sup_fv.update_constraint(new_constraint, false);
+                            maybe_sup.replace_constraint(new_constraint, self.undoable, false);
                         }
                     } else {
                         maybe_sup.link(sub_tp, self.undoable);
@@ -589,12 +589,12 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
 
     fn coerce_greater_than(&self, target: &TyParam, value: &TyParam) -> TyCheckResult<()> {
         match target {
-            TyParam::FreeVar(fv) => {
+            TyParam::FreeVar(_fv) => {
                 if let Ok(evaled) = self.ctx.eval_tp(value.clone()) {
                     let pred = Predicate::ge(FRESH_GEN.fresh_varname(), evaled);
                     let new_type = self.ctx.type_from_pred(pred);
                     let new_constr = Constraint::new_type_of(Type::from(new_type));
-                    fv.update_constraint(new_constr, false);
+                    target.replace_constraint(new_constr, self.undoable, false);
                 }
                 Ok(())
             }
@@ -777,20 +777,20 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
                         .cmp(&sup_fv.level().unwrap_or(GENERIC_LEVEL))
                     {
                         std::cmp::Ordering::Less => {
-                            sub_fv.update_constraint(new_constraint, false);
+                            maybe_sub.replace_constraint(new_constraint, self.undoable, false);
                             maybe_sup.link(maybe_sub, self.undoable);
                         }
                         std::cmp::Ordering::Greater => {
-                            sup_fv.update_constraint(new_constraint, false);
+                            maybe_sup.replace_constraint(new_constraint, self.undoable, false);
                             maybe_sub.link(maybe_sup, self.undoable);
                         }
                         std::cmp::Ordering::Equal => {
                             // choose named one
                             if sup_fv.is_named_unbound() {
-                                sup_fv.update_constraint(new_constraint, false);
+                                maybe_sup.replace_constraint(new_constraint, self.undoable, false);
                                 maybe_sub.link(maybe_sup, self.undoable);
                             } else {
-                                sub_fv.update_constraint(new_constraint, false);
+                                maybe_sup.replace_constraint(new_constraint, self.undoable, false);
                                 maybe_sup.link(maybe_sub, self.undoable);
                             }
                         }
@@ -869,7 +869,7 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
                     maybe_sup.link(&union, self.undoable);
                 } else {
                     let new_constraint = Constraint::new_sandwiched(union, intersec);
-                    sup_fv.update_constraint(new_constraint, false);
+                    maybe_sup.replace_constraint(new_constraint, self.undoable, false);
                 }
             }
             // (Int or ?T) <: (?U or Int)
@@ -955,14 +955,14 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
                         maybe_sup.link(&new_sub, self.undoable); // Bool <: ?T <: Bool or Y ==> ?T == Bool
                     } else {
                         let constr = Constraint::new_sandwiched(new_sub, mem::take(&mut sup));
-                        sup_fv.update_constraint(constr, true);
+                        maybe_sup.replace_constraint(constr, self.undoable, true);
                     }
                 }
                 // sub_unify(Nat, ?T(: Type)): (/* ?T(:> Nat) */)
                 else if let Some(ty) = sup_fv.get_type() {
                     if self.ctx.supertype_of(&Type, &ty) {
                         let constr = Constraint::new_supertype_of(maybe_sub.clone());
-                        sup_fv.update_constraint(constr, true);
+                        maybe_sup.replace_constraint(constr, self.undoable, true);
                     } else {
                         todo!("{maybe_sub} <: {maybe_sup}")
                     }
@@ -1022,14 +1022,14 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
                         maybe_sub.link(&sub, self.undoable);
                     } else {
                         let constr = Constraint::new_sandwiched(sub, new_sup);
-                        sub_fv.update_constraint(constr, true);
+                        maybe_sub.replace_constraint(constr, self.undoable, true);
                     }
                 }
                 // sub_unify(?T(: Type), Int): (?T(<: Int))
                 else if let Some(ty) = sub_fv.get_type() {
                     if self.ctx.supertype_of(&Type, &ty) {
                         let constr = Constraint::new_subtype_of(maybe_sup.clone());
-                        sub_fv.update_constraint(constr, true);
+                        maybe_sub.replace_constraint(constr, self.undoable, true);
                     } else {
                         todo!("{maybe_sub} <: {maybe_sup}")
                     }
@@ -1456,6 +1456,17 @@ impl Context {
         param_name: Option<&Str>,
     ) -> TyCheckResult<()> {
         let unifier = Unifier::new(self, loc, false, param_name.cloned());
+        unifier.sub_unify(maybe_sub, maybe_sup)
+    }
+
+    pub(crate) fn undoable_sub_unify(
+        &self,
+        maybe_sub: &Type,
+        maybe_sup: &Type,
+        loc: &impl Locational,
+        param_name: Option<&Str>,
+    ) -> TyCheckResult<()> {
+        let unifier = Unifier::new(self, loc, true, param_name.cloned());
         unifier.sub_unify(maybe_sub, maybe_sup)
     }
 }

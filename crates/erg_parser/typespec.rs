@@ -124,13 +124,14 @@ impl Parser {
             }
             Expr::Call(call) => {
                 let obj = Self::validate_const_expr(*call.obj)?;
-                let ConstExpr::Accessor(acc) = obj else {
+                /*let ConstExpr::Accessor(acc) = obj else {
                     return Err(ParseError::feature_error(
                         line!() as usize,
                         obj.loc(),
                         "complex const function call",
                     ));
-                };
+                };*/
+                let attr_name = call.attr_name;
                 let (pos_args, _, _, paren) = call.args.deconstruct();
                 let mut const_pos_args = vec![];
                 for elem in pos_args.into_iter() {
@@ -138,7 +139,7 @@ impl Parser {
                     const_pos_args.push(ConstPosArg::new(const_expr));
                 }
                 let args = ConstArgs::pos_only(const_pos_args, paren);
-                Ok(ConstExpr::App(ConstApp::new(acc, args)))
+                Ok(ConstExpr::App(ConstApp::new(obj, attr_name, args)))
             }
             Expr::Def(def) => Self::validate_const_def(def).map(ConstExpr::Def),
             Expr::Lambda(lambda) => {

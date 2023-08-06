@@ -10,10 +10,10 @@ use erg_parser::desugar::Desugarer;
 use crate::context::instantiate::TyVarCache;
 use crate::context::{ClassDefType, Context, MethodPair, TraitImpl};
 use crate::lower::ASTLowerer;
-use crate::ty::constructors::{mono, mono_q_tp, poly, v_enum};
+use crate::ty::constructors::{array_t, mono, mono_q_tp, poly, v_enum};
 use crate::ty::free::{Constraint, HasLevel};
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
-use crate::ty::{HasType, Type, Visibility};
+use crate::ty::{HasType, TyParam, Type, Visibility};
 
 use crate::compile::AccessKind;
 use crate::error::{LowerError, LowerErrors, LowerResult};
@@ -264,11 +264,9 @@ impl ASTLowerer {
                     elems.push(hir::PosArg::new(elem));
                 }
                 let elems = hir::Args::new(elems, None, vec![], None);
+                let t = array_t(Type::Failure, TyParam::value(elems.len()));
                 Ok(hir::Array::Normal(hir::NormalArray::new(
-                    arr.l_sqbr,
-                    arr.r_sqbr,
-                    Type::Failure,
-                    elems,
+                    arr.l_sqbr, arr.r_sqbr, t, elems,
                 )))
             }
             other => Err(LowerErrors::from(LowerError::declare_error(
