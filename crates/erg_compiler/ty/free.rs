@@ -227,7 +227,7 @@ impl Constraint {
 pub trait CanbeFree {
     fn unbound_name(&self) -> Option<Str>;
     fn constraint(&self) -> Option<Constraint>;
-    fn update_constraint(&self, constraint: Constraint, in_instantiation: bool);
+    fn destructive_update_constraint(&self, constraint: Constraint, in_instantiation: bool);
 }
 
 impl<T: CanbeFree + Send + Clone> Free<T> {
@@ -1054,7 +1054,7 @@ impl<T: CanbeFree + Send + Clone> Free<T> {
                 *constraint = new_constraint;
             }
             FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => {
-                t.update_constraint(new_constraint, in_inst_or_gen);
+                t.destructive_update_constraint(new_constraint, in_inst_or_gen);
             }
         }
     }

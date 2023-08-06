@@ -1210,7 +1210,7 @@ impl CanbeFree for Type {
         }
     }
 
-    fn update_constraint(&self, new_constraint: Constraint, in_instantiation: bool) {
+    fn destructive_update_constraint(&self, new_constraint: Constraint, in_instantiation: bool) {
         if let Some(fv) = self.as_free() {
             fv.update_constraint(new_constraint, in_instantiation);
         }
@@ -3221,7 +3221,7 @@ impl Type {
         self.undoable_link(&new);
     }
 
-    pub(crate) fn replace_constraint(
+    pub(crate) fn update_constraint(
         &self,
         new_constraint: Constraint,
         undoable: bool,
@@ -3230,7 +3230,7 @@ impl Type {
         if undoable {
             self.undoable_update_constraint(new_constraint);
         } else {
-            self.update_constraint(new_constraint, in_instantiation);
+            self.destructive_update_constraint(new_constraint, in_instantiation);
         }
     }
 

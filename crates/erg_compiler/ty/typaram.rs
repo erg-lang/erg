@@ -3,7 +3,6 @@ use std::fmt;
 use std::ops::{Add, Div, Mul, Neg, Range, RangeInclusive, Sub};
 use std::sync::Arc;
 
-use erg_common::consts::DEBUG_MODE;
 use erg_common::dict::Dict;
 use erg_common::set::Set;
 use erg_common::traits::{LimitedDisplay, StructuralEq};
@@ -462,16 +461,17 @@ impl CanbeFree for TyParam {
         }
     }
 
-    fn update_constraint(&self, new_constraint: Constraint, in_instantiation: bool) {
+    fn destructive_update_constraint(&self, new_constraint: Constraint, in_instantiation: bool) {
         match self {
             Self::FreeVar(fv) => {
                 fv.update_constraint(new_constraint, in_instantiation);
             }
             Self::Type(t) => {
-                t.update_constraint(new_constraint, in_instantiation);
+                t.destructive_update_constraint(new_constraint, in_instantiation);
             }
             Self::Value(ValueObj::Type(ty)) => {
-                ty.typ().update_constraint(new_constraint, in_instantiation);
+                ty.typ()
+                    .destructive_update_constraint(new_constraint, in_instantiation);
             }
             _ => {}
         }
@@ -1281,12 +1281,6 @@ impl TyParam {
             self.inc_undo_count();
             return;
         }
-        if to.contains_tp(self) {
-            if DEBUG_MODE {
-                panic!("cyclic: {self} / {to}");
-            }
-            return;
-        }
         match self {
             Self::FreeVar(fv) => fv.undoable_link(to),
             _ => panic!("{self} is not a free variable"),
@@ -1325,7 +1319,7 @@ impl TyParam {
         self.undoable_link(&new);
     }
 
-    pub(crate) fn replace_constraint(
+    pub(crate) fn update_constraint(
         &self,
         new_constraint: Constraint,
         undoable: bool,
@@ -1334,7 +1328,7 @@ impl TyParam {
         if undoable {
             self.undoable_update_constraint(new_constraint);
         } else {
-            self.update_constraint(new_constraint, in_instantiation);
+            self.destructive_update_constraint(new_constraint, in_instantiation);
         }
     }
 
