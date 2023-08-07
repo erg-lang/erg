@@ -797,6 +797,9 @@ impl StructuralEq for TyParam {
                 true
             }
             (Self::Set(l), Self::Set(r)) => {
+                if l.len() != r.len() {
+                    return false;
+                }
                 for l_val in l.iter() {
                     if r.get_by(l_val, |l, r| l.structural_eq(r)).is_none() {
                         return false;

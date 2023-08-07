@@ -1,6 +1,7 @@
 use erg_common::config::ErgConfig;
 use erg_common::error::MultiErrorDisplay;
 use erg_common::io::Output;
+use erg_common::set;
 use erg_common::spawn::exec_new_thread;
 use erg_common::traits::Runnable;
 
@@ -9,7 +10,8 @@ use erg_compiler::error::CompileErrors;
 use erg_compiler::lower::ASTLowerer;
 
 use erg_compiler::ty::constructors::{
-    func0, func1, func2, kw, mono, nd_func, nd_proc, or, poly, proc1, subtype_q, ty_tp, type_q,
+    array_t, func0, func1, func2, kw, mono, nd_func, nd_proc, or, poly, proc1, subtype_q, ty_tp,
+    type_q, v_enum,
 };
 use erg_compiler::ty::Type::*;
 
@@ -64,6 +66,11 @@ fn _test_infer_types() -> Result<(), ()> {
     module.context.assert_var_type("abs_", &abs_t)?;
     let norm_t = func1(mono("<module>::Norm"), Nat);
     module.context.assert_var_type("norm", &norm_t)?;
+    let a_t = array_t(
+        v_enum(set! {1.into(), 2.into(), 3.into(), 4.into()}),
+        4.into(),
+    );
+    module.context.assert_var_type("a", &a_t)?;
     Ok(())
 }
 

@@ -4,7 +4,7 @@ use std::ops::{BitAnd, BitOr, Not};
 #[allow(unused_imports)]
 use erg_common::log;
 use erg_common::set::Set;
-use erg_common::traits::LimitedDisplay;
+use erg_common::traits::{LimitedDisplay, StructuralEq};
 use erg_common::{set, Str};
 
 use super::free::{Constraint, HasLevel};
@@ -98,6 +98,50 @@ impl LimitedDisplay for Predicate {
                 p.limited_fmt(f, limit - 1)?;
                 write!(f, ")")
             }
+        }
+    }
+}
+
+impl StructuralEq for Predicate {
+    fn structural_eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Equal { rhs, .. }, Self::Equal { rhs: r2, .. })
+            | (Self::NotEqual { rhs, .. }, Self::NotEqual { rhs: r2, .. })
+            | (Self::GreaterEqual { rhs, .. }, Self::GreaterEqual { rhs: r2, .. })
+            | (Self::LessEqual { rhs, .. }, Self::LessEqual { rhs: r2, .. }) => {
+                rhs.structural_eq(r2)
+            }
+            (Self::Or(_, _), Self::Or(_, _)) => {
+                let self_ors = self.ors();
+                let other_ors = other.ors();
+                if self_ors.len() != other_ors.len() {
+                    return false;
+                }
+                for l_val in self_ors.iter() {
+                    if other_ors.get_by(l_val, |l, r| l.structural_eq(r)).is_none() {
+                        return false;
+                    }
+                }
+                true
+            }
+            (Self::And(_, _), Self::And(_, _)) => {
+                let self_ands = self.ands();
+                let other_ands = other.ands();
+                if self_ands.len() != other_ands.len() {
+                    return false;
+                }
+                for l_val in self_ands.iter() {
+                    if other_ands
+                        .get_by(l_val, |l, r| l.structural_eq(r))
+                        .is_none()
+                    {
+                        return false;
+                    }
+                }
+                true
+            }
+            (Self::Not(p1), Self::Not(p2)) => p1.structural_eq(p2),
+            _ => self == other,
         }
     }
 }

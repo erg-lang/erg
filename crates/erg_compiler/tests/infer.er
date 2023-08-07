@@ -11,3 +11,5 @@ abs_ x = x.abs()
 
 Norm = Trait { .norm = (self: Self) -> Nat }
 norm x = x.norm()
+
+a = [1, 2] + [3, 4]

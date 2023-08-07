@@ -1534,7 +1534,7 @@ impl StructuralEq for Type {
             }
             (Self::FreeVar(fv), Self::FreeVar(fv2)) => fv.structural_eq(fv2),
             (Self::Refinement(refine), Self::Refinement(refine2)) => {
-                refine.t.structural_eq(&refine2.t) && refine.pred == refine2.pred
+                refine.t.structural_eq(&refine2.t) && refine.pred.structural_eq(&refine2.pred)
             }
             (Self::Record(rec), Self::Record(rec2)) => {
                 for (k, v) in rec.iter() {
