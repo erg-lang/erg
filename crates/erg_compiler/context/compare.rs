@@ -30,6 +30,7 @@ pub enum Credibility {
 
 use Credibility::*;
 
+use super::eval::Substituter;
 use super::ContextKind;
 
 impl Context {
@@ -263,43 +264,42 @@ impl Context {
         if let Some((typ, ty_ctx)) = self.get_nominal_type_ctx(rhs) {
             let substitute = typ.has_qvar();
             let overwrite = typ.has_undoable_linked_var();
-            if substitute {
-                if let Err(err) = self.substitute_typarams(typ, rhs) {
-                    Self::undo_substitute_typarams(typ);
-                    if DEBUG_MODE {
-                        panic!("{typ} / {rhs}: err: {err}");
+            let _substituter = if substitute {
+                match Substituter::substitute_typarams(self, typ, rhs) {
+                    Ok(subs) => Some(subs),
+                    Err(err) => {
+                        if DEBUG_MODE {
+                            panic!("{typ} / {rhs}: err: {err}");
+                        }
+                        None
                     }
                 }
             } else if overwrite {
-                if let Err(err) = self.overwrite_typarams(typ, rhs) {
-                    Self::undo_substitute_typarams(typ);
-                    if DEBUG_MODE {
-                        panic!("{typ} / {rhs}: err: {err}");
+                match Substituter::overwrite_typarams(self, typ, rhs) {
+                    Ok(subs) => Some(subs),
+                    Err(err) => {
+                        if DEBUG_MODE {
+                            panic!("{typ} / {rhs}: err: {err}");
+                        }
+                        None
                     }
                 }
-            }
+            } else {
+                None
+            };
             for rhs_sup in get_types(ty_ctx) {
                 // Not `supertype_of` (only structures are compared)
                 match Self::cheap_supertype_of(lhs, rhs_sup) {
                     (Absolutely, true) => {
-                        if substitute || overwrite {
-                            Self::undo_substitute_typarams(typ);
-                        }
                         return (Absolutely, true);
                     }
                     (Maybe, _) => {
                         if self.structural_supertype_of(lhs, rhs_sup) {
-                            if substitute || overwrite {
-                                Self::undo_substitute_typarams(typ);
-                            }
                             return (Absolutely, true);
                         }
                     }
                     _ => {}
                 }
-            }
-            if substitute || overwrite {
-                Self::undo_substitute_typarams(typ);
             }
         }
         (Maybe, false)

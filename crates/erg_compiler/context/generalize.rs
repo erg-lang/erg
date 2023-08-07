@@ -21,6 +21,8 @@ use crate::{feature_error, hir};
 use Type::*;
 use Variance::*;
 
+use super::eval::Substituter;
+
 pub struct Generalizer {
     level: usize,
     variance: Variance,
@@ -915,13 +917,12 @@ impl Context {
         let class_hash = get_hash(&class);
         let trait_hash = get_hash(&trait_);
         for imp in self.get_trait_impls(trait_).into_iter() {
-            self.substitute_typarams(&imp.sub_type, class).unwrap_or(());
-            self.substitute_typarams(&imp.sup_trait, trait_)
-                .unwrap_or(());
+            let _sub_substituter =
+                Substituter::substitute_typarams(self, &imp.sub_type, class).ok();
+            let _sup_substituter =
+                Substituter::substitute_typarams(self, &imp.sup_trait, trait_).ok();
             if self.supertype_of(&imp.sub_type, class) && self.supertype_of(&imp.sup_trait, trait_)
             {
-                Self::undo_substitute_typarams(&imp.sub_type);
-                Self::undo_substitute_typarams(&imp.sup_trait);
                 if class_hash != get_hash(&class) {
                     class.undo();
                 }
@@ -930,8 +931,6 @@ impl Context {
                 }
                 return true;
             }
-            Self::undo_substitute_typarams(&imp.sub_type);
-            Self::undo_substitute_typarams(&imp.sup_trait);
             if class_hash != get_hash(&class) {
                 class.undo();
             }

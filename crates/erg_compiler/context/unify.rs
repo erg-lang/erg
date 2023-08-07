@@ -8,6 +8,7 @@ use erg_common::Str;
 #[allow(unused_imports)]
 use erg_common::{fmt_vec, fn_name, log};
 
+use crate::context::eval::Substituter;
 use crate::ty::constructors::*;
 use crate::ty::free::{Constraint, FreeKind, HasLevel, GENERIC_LEVEL};
 use crate::ty::typaram::{OpKind, TyParam};
@@ -1333,12 +1334,7 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
             // sub_def_t: Zip(T, U) ==> Zip(Int, Str)
             // super_traits: [Iterable((T, U)), ...] ==> [Iterable((Int, Str)), ...]
             // TODO: user-defined types substitution
-            self.ctx
-                .substitute_typarams(sub_def_t, maybe_sub)
-                .map_err(|errs| {
-                    Context::undo_substitute_typarams(sub_def_t);
-                    errs
-                })?;
+            let _substituter = Substituter::substitute_typarams(self.ctx, sub_def_t, maybe_sub)?;
             let sups = if self.ctx.is_class(maybe_sup) {
                 sub_ctx.super_classes.iter()
             } else {
@@ -1357,10 +1353,7 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
                 }
             }
             if let Some(sup_ty) = min_compatible {
-                let sub_instance = self.ctx.instantiate_def_type(sup_ty).map_err(|errs| {
-                    Context::undo_substitute_typarams(sub_def_t);
-                    errs
-                })?;
+                let sub_instance = self.ctx.instantiate_def_type(sup_ty)?;
                 let variances = self
                     .ctx
                     .get_nominal_type_ctx(&sub_instance)
@@ -1372,18 +1365,12 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
                     .zip(sup_params.iter())
                     .zip(variances)
                 {
-                    self.sub_unify_tp(l_maybe_sub, r_maybe_sup, variance, false)
-                        .map_err(|errs| {
-                            Context::undo_substitute_typarams(sub_def_t);
-                            errs
-                        })?;
+                    self.sub_unify_tp(l_maybe_sub, r_maybe_sup, variance, false)?;
                 }
-                Context::undo_substitute_typarams(sub_def_t);
                 return Ok(());
             } else {
                 log!(err "no compatible supertype found: {maybe_sub} <: {maybe_sup}");
             }
-            Context::undo_substitute_typarams(sub_def_t);
         }
         Err(TyCheckErrors::from(TyCheckError::unification_error(
             self.ctx.cfg.input.clone(),
