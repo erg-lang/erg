@@ -264,8 +264,8 @@ impl Context {
         if let Some((typ, ty_ctx)) = self.get_nominal_type_ctx(rhs) {
             let substitute = typ.has_qvar();
             let overwrite = typ.has_undoable_linked_var();
-            let _substituter = if substitute {
-                match Substituter::substitute_typarams(self, typ, rhs) {
+            let _substituter = if overwrite {
+                match Substituter::overwrite_typarams(self, typ, rhs) {
                     Ok(subs) => Some(subs),
                     Err(err) => {
                         if DEBUG_MODE {
@@ -274,8 +274,8 @@ impl Context {
                         None
                     }
                 }
-            } else if overwrite {
-                match Substituter::overwrite_typarams(self, typ, rhs) {
+            } else if substitute {
+                match Substituter::substitute_typarams(self, typ, rhs) {
                     Ok(subs) => Some(subs),
                     Err(err) => {
                         if DEBUG_MODE {
@@ -1255,7 +1255,11 @@ impl Context {
         }
     }
 
-    fn union_refinement(&self, lhs: &RefinementType, rhs: &RefinementType) -> RefinementType {
+    pub(crate) fn union_refinement(
+        &self,
+        lhs: &RefinementType,
+        rhs: &RefinementType,
+    ) -> RefinementType {
         // TODO: warn if lhs.t !:> rhs.t && rhs.t !:> lhs.t
         let union = self.union(&lhs.t, &rhs.t);
         let name = lhs.var.clone();

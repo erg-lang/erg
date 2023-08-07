@@ -1333,7 +1333,6 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
             // maybe_sub: Zip(Int, Str)
             // sub_def_t: Zip(T, U) ==> Zip(Int, Str)
             // super_traits: [Iterable((T, U)), ...] ==> [Iterable((Int, Str)), ...]
-            // TODO: user-defined types substitution
             let _substituter = Substituter::substitute_typarams(self.ctx, sub_def_t, maybe_sub)?;
             let sups = if self.ctx.is_class(maybe_sup) {
                 sub_ctx.super_classes.iter()
@@ -1393,6 +1392,18 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
     /// unify(Eq, Int) == None
     /// ```
     fn unify(&self, lhs: &Type, rhs: &Type) -> Option<Type> {
+        #[allow(clippy::single_match)]
+        match (lhs, rhs) {
+            (Type::FreeVar(fv), _) if fv.is_linked() => return self.unify(&fv.crack(), rhs),
+            (_, Type::FreeVar(fv)) if fv.is_linked() => return self.unify(lhs, &fv.crack()),
+            (Type::Refinement(lhs), Type::Refinement(rhs)) => {
+                if let Some(_union) = self.unify(&lhs.t, &rhs.t) {
+                    return Some(self.ctx.union_refinement(lhs, rhs).into());
+                } else {
+                }
+            }
+            _ => {}
+        }
         let l_sups = self.ctx.get_super_classes(lhs)?;
         let r_sups = self.ctx.get_super_classes(rhs)?;
         for l_sup in l_sups {
@@ -1455,5 +1466,10 @@ impl Context {
     ) -> TyCheckResult<()> {
         let unifier = Unifier::new(self, loc, true, param_name.cloned());
         unifier.sub_unify(maybe_sub, maybe_sup)
+    }
+
+    pub(crate) fn unify(&self, lhs: &Type, rhs: &Type) -> Option<Type> {
+        let unifier = Unifier::new(self, &(), false, None);
+        unifier.unify(lhs, rhs)
     }
 }

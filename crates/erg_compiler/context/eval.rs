@@ -227,9 +227,32 @@ impl<'c> Substituter<'c> {
                 &tp.to_string(),
             )
         })?;
-        if qt.is_generalized() && qt.is_free_var() && (!st.is_unbound_var() || !st.is_generalized())
+        if !qt.is_undoable_linked_var()
+            && qt.is_generalized()
+            && qt.is_free_var()
+            && (!st.is_unbound_var() || !st.is_generalized())
         {
             qt.undoable_link(&st);
+        } else if qt.is_undoable_linked_var()
+            && (!st.is_unbound_var() || !st.is_generalized())
+            && qt != st
+        {
+            // e.g. Array(T, N) <: Add(Array(T, M))
+            // Array((Int), (3)) <: Add(Array((Int), (4))): OK
+            // Array((Int), (3)) <: Add(Array((Str), (4))): NG
+            if let Some(union) = self.ctx.unify(&qt, &st) {
+                qt.undoable_link(&union);
+            } else {
+                return Err(EvalError::unification_error(
+                    self.ctx.cfg.input.clone(),
+                    line!() as usize,
+                    &qt,
+                    &st,
+                    ().loc(),
+                    self.ctx.caused_by(),
+                )
+                .into());
+            }
         }
         if !st.is_unbound_var() || !st.is_generalized() {
             self.child = Self::substitute_typarams(self.ctx, &qt, &st)?.map(Box::new);
