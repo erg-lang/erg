@@ -14,6 +14,12 @@ class Array(list):
                 self.remove(remove)
             return self
 
+    def get(self, index, default=None):
+        try:
+            return self[index]
+        except IndexError:
+            return default
+
     def push(self, value):
         self.append(value)
         return self

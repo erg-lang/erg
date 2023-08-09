@@ -1199,6 +1199,15 @@ impl Context {
         let t_count =
             fn_met(arr_t.clone(), vec![kw(KW_X, T.clone())], None, vec![], Nat).quantify();
         array_.register_py_builtin(FUNC_COUNT, t_count, Some(FUNC_COUNT), 17);
+        let t_get = fn_met(
+            arr_t.clone(),
+            vec![pos(Nat)],
+            None,
+            vec![ParamTy::kw_default(KW_DEFAULT.into(), U.clone(), NoneType)],
+            or(T.clone(), U.clone()),
+        )
+        .quantify();
+        array_.register_builtin_erg_impl(FUNC_GET, t_get, Immutable, Visibility::BUILTIN_PUBLIC);
         // Array(T, N)|<: Add(Array(T, M))|.
         //     Output = Array(T, N + M)
         //     __add__: (self: Array(T, N), other: Array(T, M)) -> Array(T, N + M) = Array.concat
