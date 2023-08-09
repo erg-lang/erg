@@ -8,6 +8,7 @@ use erg_common::Str;
 #[allow(unused_imports)]
 use erg_common::{fmt_vec, fn_name, log};
 
+use crate::context::eval::Substituter;
 use crate::ty::constructors::*;
 use crate::ty::free::{Constraint, FreeKind, HasLevel, GENERIC_LEVEL};
 use crate::ty::typaram::{OpKind, TyParam};
@@ -27,7 +28,6 @@ use super::initialize::const_func::sub_tpdict_get;
 pub struct Unifier<'c, 'l, L: Locational> {
     ctx: &'c Context,
     loc: &'l L,
-    #[allow(unused)]
     undoable: bool,
     param_name: Option<Str>,
 }
@@ -288,10 +288,10 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
             {
                 if sub_fv.level().unwrap() > sup_fv.level().unwrap() {
                     if !sub_fv.is_generalized() {
-                        maybe_sub.link(maybe_sup);
+                        maybe_sub.link(maybe_sup, self.undoable);
                     }
                 } else if !sup_fv.is_generalized() {
-                    maybe_sup.link(maybe_sub);
+                    maybe_sup.link(maybe_sub, self.undoable);
                 }
                 Ok(())
             }
@@ -314,10 +314,10 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
                             .is_sub_constraint_of(&sub_fv.constraint().unwrap(), &new_constraint)
                             || sub_fv.constraint().unwrap().get_type() == Some(&Type)
                         {
-                            sub_fv.update_constraint(new_constraint, false);
+                            maybe_sub.update_constraint(new_constraint, self.undoable, false);
                         }
                     } else {
-                        maybe_sub.link(sup_tp);
+                        maybe_sub.link(sup_tp, self.undoable);
                     }
                     Ok(())
                 } else if allow_divergence
@@ -325,7 +325,7 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
                         || self.ctx.eq_tp(sup_tp, &TyParam::value(NegInf)))
                     && self.ctx.subtype_of(&fv_t, &mono("Num"))
                 {
-                    maybe_sub.link(sup_tp);
+                    maybe_sub.link(sup_tp, self.undoable);
                     Ok(())
                 } else {
                     Err(TyCheckErrors::from(TyCheckError::unreachable(
@@ -354,10 +354,10 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
                             .is_sub_constraint_of(&sup_fv.constraint().unwrap(), &new_constraint)
                             || sup_fv.constraint().unwrap().get_type() == Some(&Type)
                         {
-                            sup_fv.update_constraint(new_constraint, false);
+                            maybe_sup.update_constraint(new_constraint, self.undoable, false);
                         }
                     } else {
-                        maybe_sup.link(sub_tp);
+                        maybe_sup.link(sub_tp, self.undoable);
                     }
                     Ok(())
                 } else if allow_divergence
@@ -365,7 +365,7 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
                         || self.ctx.eq_tp(sub_tp, &TyParam::value(NegInf)))
                     && self.ctx.subtype_of(&fv_t, &mono("Num"))
                 {
-                    maybe_sup.link(sub_tp);
+                    maybe_sup.link(sub_tp, self.undoable);
                     Ok(())
                 } else {
                     Err(TyCheckErrors::from(TyCheckError::unreachable(
@@ -390,9 +390,6 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
             ) if lop == rop => {
                 self.sub_unify_tp(lhs, lhs2, _variance, allow_divergence)?;
                 self.sub_unify_tp(rhs, rhs2, _variance, allow_divergence)
-            }
-            (TyParam::Lambda(_l), TyParam::Lambda(_r)) => {
-                todo!("{_l}/{_r}")
             }
             (sub, TyParam::Erased(t)) => {
                 let sub_t = self.ctx.get_tp_t(sub)?;
@@ -476,6 +473,24 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
                     }
                 }
                 Ok(())
+            }
+            (
+                TyParam::ProjCall { obj, attr, args },
+                TyParam::ProjCall {
+                    obj: o2,
+                    attr: a2,
+                    args: args2,
+                },
+            ) => {
+                if attr == a2 {
+                    self.sub_unify_tp(obj, o2, _variance, allow_divergence)?;
+                    for (l, r) in args.iter().zip(args2.iter()) {
+                        self.sub_unify_tp(l, r, _variance, allow_divergence)?;
+                    }
+                    Ok(())
+                } else {
+                    todo!()
+                }
             }
             (l, r) => {
                 log!(err "{l} / {r}");
@@ -575,12 +590,12 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
 
     fn coerce_greater_than(&self, target: &TyParam, value: &TyParam) -> TyCheckResult<()> {
         match target {
-            TyParam::FreeVar(fv) => {
+            TyParam::FreeVar(_fv) => {
                 if let Ok(evaled) = self.ctx.eval_tp(value.clone()) {
                     let pred = Predicate::ge(FRESH_GEN.fresh_varname(), evaled);
                     let new_type = self.ctx.type_from_pred(pred);
                     let new_constr = Constraint::new_type_of(Type::from(new_type));
-                    fv.update_constraint(new_constr, false);
+                    target.update_constraint(new_constr, self.undoable, false);
                 }
                 Ok(())
             }
@@ -620,10 +635,12 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
         // In this case, there is no new information to be gained
         // この場合、特に新しく得られる情報はない
         if maybe_sub == &Type::Never || maybe_sup == &Type::Obj || maybe_sup == maybe_sub {
+            log!(info "no-op:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_sup}");
             return Ok(());
         }
         // API definition was failed and inspection is useless after this
         if maybe_sub == &Type::Failure || maybe_sup == &Type::Failure {
+            log!(info "no-op:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_sup}");
             return Ok(());
         }
         self.occur(maybe_sub, maybe_sup).map_err(|err| {
@@ -646,6 +663,7 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
                 self.ctx.get_simple_type_mismatch_hint(maybe_sup, maybe_sub),
             )));
         } else if maybe_sub.has_no_unbound_var() && maybe_sup.has_no_unbound_var() {
+            log!(info "no-op:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_sup}");
             return Ok(());
         }
         match (maybe_sub, maybe_sup) {
@@ -666,6 +684,7 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
                 if sub_fv.constraint_is_sandwiched() && sup_fv.constraint_is_sandwiched() =>
             {
                 if sub_fv.is_generalized() || sup_fv.is_generalized() {
+                    log!(info "generalized:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_sup}");
                     return Ok(());
                 }
                 let (lsub, lsup) = sub_fv.get_subsup().unwrap();
@@ -733,21 +752,21 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
                         .cmp(&sup_fv.level().unwrap_or(GENERIC_LEVEL))
                     {
                         std::cmp::Ordering::Less => {
-                            maybe_sub.link(&union);
-                            maybe_sup.link(maybe_sub);
+                            maybe_sub.link(&union, self.undoable);
+                            maybe_sup.link(maybe_sub, self.undoable);
                         }
                         std::cmp::Ordering::Greater => {
-                            maybe_sup.link(&union);
-                            maybe_sub.link(maybe_sup);
+                            maybe_sup.link(&union, self.undoable);
+                            maybe_sub.link(maybe_sup, self.undoable);
                         }
                         std::cmp::Ordering::Equal => {
                             // choose named one
                             if sup_fv.is_named_unbound() {
-                                maybe_sup.link(&union);
-                                maybe_sub.link(maybe_sup);
+                                maybe_sup.link(&union, self.undoable);
+                                maybe_sub.link(maybe_sup, self.undoable);
                             } else {
-                                maybe_sub.link(&union);
-                                maybe_sup.link(maybe_sub);
+                                maybe_sub.link(&union, self.undoable);
+                                maybe_sup.link(maybe_sub, self.undoable);
                             }
                         }
                     }
@@ -759,21 +778,21 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
                         .cmp(&sup_fv.level().unwrap_or(GENERIC_LEVEL))
                     {
                         std::cmp::Ordering::Less => {
-                            sub_fv.update_constraint(new_constraint, false);
-                            maybe_sup.link(maybe_sub);
+                            maybe_sub.update_constraint(new_constraint, self.undoable, false);
+                            maybe_sup.link(maybe_sub, self.undoable);
                         }
                         std::cmp::Ordering::Greater => {
-                            sup_fv.update_constraint(new_constraint, false);
-                            maybe_sub.link(maybe_sup);
+                            maybe_sup.update_constraint(new_constraint, self.undoable, false);
+                            maybe_sub.link(maybe_sup, self.undoable);
                         }
                         std::cmp::Ordering::Equal => {
                             // choose named one
                             if sup_fv.is_named_unbound() {
-                                sup_fv.update_constraint(new_constraint, false);
-                                maybe_sub.link(maybe_sup);
+                                maybe_sup.update_constraint(new_constraint, self.undoable, false);
+                                maybe_sub.link(maybe_sup, self.undoable);
                             } else {
-                                sub_fv.update_constraint(new_constraint, false);
-                                maybe_sup.link(maybe_sub);
+                                maybe_sup.update_constraint(new_constraint, self.undoable, false);
+                                maybe_sup.link(maybe_sub, self.undoable);
                             }
                         }
                     }
@@ -848,10 +867,10 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
                 // self.sub_unify(&intersec, &lsup, loc, param_name)?;
                 // self.sub_unify(&lsub, &union, loc, param_name)?;
                 if union == intersec {
-                    maybe_sup.link(&union);
+                    maybe_sup.link(&union, self.undoable);
                 } else {
                     let new_constraint = Constraint::new_sandwiched(union, intersec);
-                    sup_fv.update_constraint(new_constraint, false);
+                    maybe_sup.update_constraint(new_constraint, self.undoable, false);
                 }
             }
             // (Int or ?T) <: (?U or Int)
@@ -934,17 +953,17 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
                         }
                     }
                     if sup.contains_union(&new_sub) {
-                        maybe_sup.link(&new_sub); // Bool <: ?T <: Bool or Y ==> ?T == Bool
+                        maybe_sup.link(&new_sub, self.undoable); // Bool <: ?T <: Bool or Y ==> ?T == Bool
                     } else {
                         let constr = Constraint::new_sandwiched(new_sub, mem::take(&mut sup));
-                        sup_fv.update_constraint(constr, true);
+                        maybe_sup.update_constraint(constr, self.undoable, true);
                     }
                 }
                 // sub_unify(Nat, ?T(: Type)): (/* ?T(:> Nat) */)
                 else if let Some(ty) = sup_fv.get_type() {
                     if self.ctx.supertype_of(&Type, &ty) {
                         let constr = Constraint::new_supertype_of(maybe_sub.clone());
-                        sup_fv.update_constraint(constr, true);
+                        maybe_sup.update_constraint(constr, self.undoable, true);
                     } else {
                         todo!("{maybe_sub} <: {maybe_sup}")
                     }
@@ -1001,17 +1020,17 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
                         && !new_sup.is_unbound_var()
                         && !sub.is_unbound_var()
                     {
-                        maybe_sub.link(&sub);
+                        maybe_sub.link(&sub, self.undoable);
                     } else {
                         let constr = Constraint::new_sandwiched(sub, new_sup);
-                        sub_fv.update_constraint(constr, true);
+                        maybe_sub.update_constraint(constr, self.undoable, true);
                     }
                 }
                 // sub_unify(?T(: Type), Int): (?T(<: Int))
                 else if let Some(ty) = sub_fv.get_type() {
                     if self.ctx.supertype_of(&Type, &ty) {
                         let constr = Constraint::new_subtype_of(maybe_sup.clone());
-                        sub_fv.update_constraint(constr, true);
+                        maybe_sub.update_constraint(constr, self.undoable, true);
                     } else {
                         todo!("{maybe_sub} <: {maybe_sup}")
                     }
@@ -1314,13 +1333,7 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
             // maybe_sub: Zip(Int, Str)
             // sub_def_t: Zip(T, U) ==> Zip(Int, Str)
             // super_traits: [Iterable((T, U)), ...] ==> [Iterable((Int, Str)), ...]
-            // TODO: user-defined types substitution
-            self.ctx
-                .substitute_typarams(sub_def_t, maybe_sub)
-                .map_err(|errs| {
-                    Context::undo_substitute_typarams(sub_def_t);
-                    errs
-                })?;
+            let _substituter = Substituter::substitute_typarams(self.ctx, sub_def_t, maybe_sub)?;
             let sups = if self.ctx.is_class(maybe_sup) {
                 sub_ctx.super_classes.iter()
             } else {
@@ -1339,10 +1352,7 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
                 }
             }
             if let Some(sup_ty) = min_compatible {
-                let sub_instance = self.ctx.instantiate_def_type(sup_ty).map_err(|errs| {
-                    Context::undo_substitute_typarams(sub_def_t);
-                    errs
-                })?;
+                let sub_instance = self.ctx.instantiate_def_type(sup_ty)?;
                 let variances = self
                     .ctx
                     .get_nominal_type_ctx(&sub_instance)
@@ -1354,16 +1364,12 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
                     .zip(sup_params.iter())
                     .zip(variances)
                 {
-                    self.sub_unify_tp(l_maybe_sub, r_maybe_sup, variance, false)
-                        .map_err(|errs| {
-                            Context::undo_substitute_typarams(sub_def_t);
-                            errs
-                        })?;
+                    self.sub_unify_tp(l_maybe_sub, r_maybe_sup, variance, false)?;
                 }
-                Context::undo_substitute_typarams(sub_def_t);
                 return Ok(());
+            } else {
+                log!(err "no compatible supertype found: {maybe_sub} <: {maybe_sup}");
             }
-            Context::undo_substitute_typarams(sub_def_t);
         }
         Err(TyCheckErrors::from(TyCheckError::unification_error(
             self.ctx.cfg.input.clone(),
@@ -1386,6 +1392,18 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
     /// unify(Eq, Int) == None
     /// ```
     fn unify(&self, lhs: &Type, rhs: &Type) -> Option<Type> {
+        #[allow(clippy::single_match)]
+        match (lhs, rhs) {
+            (Type::FreeVar(fv), _) if fv.is_linked() => return self.unify(&fv.crack(), rhs),
+            (_, Type::FreeVar(fv)) if fv.is_linked() => return self.unify(lhs, &fv.crack()),
+            (Type::Refinement(lhs), Type::Refinement(rhs)) => {
+                if let Some(_union) = self.unify(&lhs.t, &rhs.t) {
+                    return Some(self.ctx.union_refinement(lhs, rhs).into());
+                } else {
+                }
+            }
+            _ => {}
+        }
         let l_sups = self.ctx.get_super_classes(lhs)?;
         let r_sups = self.ctx.get_super_classes(rhs)?;
         for l_sup in l_sups {
@@ -1437,5 +1455,21 @@ impl Context {
     ) -> TyCheckResult<()> {
         let unifier = Unifier::new(self, loc, false, param_name.cloned());
         unifier.sub_unify(maybe_sub, maybe_sup)
+    }
+
+    pub(crate) fn undoable_sub_unify(
+        &self,
+        maybe_sub: &Type,
+        maybe_sup: &Type,
+        loc: &impl Locational,
+        param_name: Option<&Str>,
+    ) -> TyCheckResult<()> {
+        let unifier = Unifier::new(self, loc, true, param_name.cloned());
+        unifier.sub_unify(maybe_sub, maybe_sup)
+    }
+
+    pub(crate) fn unify(&self, lhs: &Type, rhs: &Type) -> Option<Type> {
+        let unifier = Unifier::new(self, &(), false, None);
+        unifier.unify(lhs, rhs)
     }
 }

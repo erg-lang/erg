@@ -1,22 +1,28 @@
-# TODO: dependent (static shaped)
-.NDArray = 'ndarray': (T: Type) -> ClassType
-.NDArray(T) <: Output T
-.NDArray(_) <: Num
+.NDArray = 'ndarray': (T: Type, Shape: [Nat; _]) -> ClassType
+.NDArray(T, _) <: Output T
+.NDArray(_, _) <: Num
+.NDArray(T, S)|<: Add .NDArray(T, S)|.
+    Output: {.NDArray(T, S)}
+    __add__: (self: .NDArray(T, S), other: .NDArray(T, S)) -> .NDArray(T, S)
 .NDArray.
     shape: [Nat; _]
     ndim: Nat
     dtype: Type
     size: Nat
+    reshape: |T, Old: [Nat; _], S: [Nat; _]|(
+        self: .NDArray(T, Old),
+        shape: {S},
+    ) -> .NDArray(T, S)
 
 .nan: Float
 .Nan: Float
 
 .abs: |T|(object: .NDArray(T),) -> .NDArray(T)
-.add: |T|(object: .NDArray(T), other: .NDArray(T)) -> .NDArray(T)
+.add: |T, S: [Nat; _]|(object: .NDArray(T, S), other: .NDArray(T, S)) -> .NDArray(T, S)
 .all: |T <: Num|(object: .NDArray(T),) -> Bool
 .any: |T <: Num|(object: .NDArray(T),) -> Bool
 .arange: |T <: Num|(start: T, stop := T, step := T) -> .NDArray(T)
-.array: |T|(object: Iterable(T),) -> .NDArray(T)
+.array: |T, S: [Nat; _]|(object: Iterable(T) and Shape(S),) -> .NDArray(T, S)
 .linspace: |T <: Num|(start: T, stop: T, num := Nat, endpoint := Bool, retstep := Bool, dtype := Type, axis := Nat) -> .NDArray(T)
 .max: |T <: Num|(object: .NDArray(T),) -> T
 .mean: |T <: Num|(object: .NDArray(T),) -> T
@@ -27,3 +33,5 @@
 .sum: |T|(object: .NDArray(T),) -> T
 .sqrt: |T|(object: .NDArray(T),) -> .NDArray(T)
 .transpose: |T|(object: .NDArray(T), axes := [Nat; _]) -> .NDArray(T)
+.zeros: (|N: Nat|(shape: {N}, dtype := Type) -> .NDArray(Nat, [N])) \
+    and (|S: [Nat; _]|(shape: {S}, dtype := Type) -> .NDArray(Nat, S))

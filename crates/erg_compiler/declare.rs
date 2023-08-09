@@ -4,15 +4,16 @@ use erg_common::consts::PYTHON_MODE;
 use erg_common::traits::{Locational, Runnable, Stream};
 use erg_common::{enum_unwrap, fn_name, log, set, Str, Triple};
 
-use erg_parser::ast::{self, AscriptionKind, Identifier, VarName, AST};
+use erg_parser::ast::{self, AscriptionKind, Identifier, TypeAppArgsKind, VarName, AST};
 use erg_parser::desugar::Desugarer;
 
 use crate::context::instantiate::TyVarCache;
+use crate::context::{ClassDefType, Context, MethodPair, TraitImpl};
 use crate::lower::ASTLowerer;
-use crate::ty::constructors::{mono, poly, ty_tp, type_q, v_enum};
-use crate::ty::free::HasLevel;
+use crate::ty::constructors::{array_t, mono, mono_q_tp, poly, v_enum};
+use crate::ty::free::{Constraint, HasLevel};
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
-use crate::ty::{HasType, Type, Visibility};
+use crate::ty::{HasType, TyParam, Type, Visibility};
 
 use crate::compile::AccessKind;
 use crate::error::{LowerError, LowerErrors, LowerResult};
@@ -155,6 +156,7 @@ impl ASTLowerer {
     }
 
     fn fake_lower_acc(&self, acc: ast::Accessor) -> LowerResult<hir::Accessor> {
+        // TypeApp is lowered in `fake_lower_expr`
         match acc {
             ast::Accessor::Ident(ident) => {
                 // to resolve `py_name`
@@ -262,11 +264,9 @@ impl ASTLowerer {
                     elems.push(hir::PosArg::new(elem));
                 }
                 let elems = hir::Args::new(elems, None, vec![], None);
+                let t = array_t(Type::Failure, TyParam::value(elems.len()));
                 Ok(hir::Array::Normal(hir::NormalArray::new(
-                    arr.l_sqbr,
-                    arr.r_sqbr,
-                    Type::Failure,
-                    elems,
+                    arr.l_sqbr, arr.r_sqbr, t, elems,
                 )))
             }
             other => Err(LowerErrors::from(LowerError::declare_error(
@@ -509,6 +509,7 @@ impl ASTLowerer {
             ast::Expr::Record(rec) => Ok(hir::Expr::Record(self.fake_lower_record(rec)?)),
             ast::Expr::Set(set) => Ok(hir::Expr::Set(self.fake_lower_set(set)?)),
             ast::Expr::Dict(dict) => Ok(hir::Expr::Dict(self.fake_lower_dict(dict)?)),
+            ast::Expr::Accessor(ast::Accessor::TypeApp(tapp)) => self.fake_lower_expr(*tapp.obj),
             ast::Expr::Accessor(acc) => Ok(hir::Expr::Accessor(self.fake_lower_acc(acc)?)),
             ast::Expr::Call(call) => Ok(hir::Expr::Call(self.fake_lower_call(call)?)),
             ast::Expr::Lambda(lambda) => Ok(hir::Expr::Lambda(self.fake_lower_lambda(lambda)?)),
@@ -523,6 +524,18 @@ impl ASTLowerer {
                 self.module.context.caused_by(),
             ))),
         }
+    }
+
+    fn get_tv_ctx(&self, ident: &ast::Identifier, args: &ast::Args) -> TyVarCache {
+        let mut tv_ctx = TyVarCache::new(self.module.context.level, &self.module.context);
+        if let Some((t, _)) = self.module.context.get_type(ident.inspect()) {
+            for (tp, arg) in t.typarams().iter().zip(args.pos_args()) {
+                if let ast::Expr::Accessor(ast::Accessor::Ident(ident)) = &arg.expr {
+                    tv_ctx.push_or_init_typaram(&ident.name, tp, &self.module.context);
+                }
+            }
+        }
+        tv_ctx
     }
 
     fn declare_ident(&mut self, tasc: ast::TypeAscription) -> LowerResult<hir::TypeAscription> {
@@ -567,20 +580,98 @@ impl ASTLowerer {
             }
             ast::Expr::Accessor(ast::Accessor::Attr(attr)) => {
                 let py_name = Str::rc(attr.ident.inspect().trim_end_matches('!'));
+                let mut tv_cache = if let Ok(call) = ast::Call::try_from(*attr.obj.clone()) {
+                    let ast::Expr::Accessor(ast::Accessor::Ident(ident)) = *call.obj else {
+                        return feature_error!(
+                            LowerErrors,
+                            LowerError,
+                            &self.module.context,
+                            call.obj.loc(),
+                            "complex polymorphic type declaration"
+                        );
+                    };
+                    self.get_tv_ctx(&ident, &call.args)
+                } else {
+                    TyVarCache::new(self.module.context.level, &self.module.context)
+                };
                 let t = self
                     .module
                     .context
-                    .instantiate_typespec(&tasc.t_spec.t_spec)?;
-                let ctx = self
-                    .module
-                    .context
-                    .get_mut_singular_ctx(attr.obj.as_ref(), &self.module.context.name.clone())?;
-                ctx.assign_var_sig(
+                    .instantiate_typespec_with_tv_cache(&tasc.t_spec.t_spec, &mut tv_cache)?;
+                let impl_trait = if let ast::Expr::Accessor(ast::Accessor::TypeApp(tapp)) =
+                    attr.obj.as_ref()
+                {
+                    match &tapp.type_args.args {
+                        TypeAppArgsKind::SubtypeOf(typ) => {
+                            let trait_ = self
+                                .module
+                                .context
+                                .instantiate_typespec_with_tv_cache(&typ.t_spec, &mut tv_cache)?;
+                            Some(trait_)
+                        }
+                        TypeAppArgsKind::Args(args) => {
+                            log!(err "{args}");
+                            None
+                        }
+                    }
+                } else {
+                    None
+                };
+                let (class, ctx) = self.module.context.get_mut_singular_ctx_and_t(
+                    attr.obj.as_ref(),
+                    &self.module.context.name.clone(),
+                )?;
+                let class = class.clone();
+                let ctx = if let Some(impl_trait) = impl_trait {
+                    match ctx
+                        .methods_list
+                        .iter_mut()
+                        .find(|(class, _ctx)| class.is_impl_of(&impl_trait))
+                    {
+                        Some((_, impl_ctx)) => impl_ctx,
+                        None => {
+                            let impl_ctx = Context::methods(
+                                Some(impl_trait.clone()),
+                                self.cfg.copy(),
+                                ctx.shared.clone(),
+                                0,
+                                ctx.level,
+                            );
+                            ctx.super_traits.push(impl_trait.clone());
+                            if let Some(mut impls) =
+                                ctx.trait_impls().get_mut(&impl_trait.qual_name())
+                            {
+                                impls.insert(TraitImpl::new(class.clone(), impl_trait.clone()));
+                            }
+                            ctx.methods_list.push((
+                                ClassDefType::impl_trait(class.clone(), impl_trait),
+                                impl_ctx,
+                            ));
+                            &mut ctx.methods_list.iter_mut().last().unwrap().1
+                        }
+                    }
+                } else {
+                    ctx
+                };
+                let vi = ctx.assign_var_sig(
                     &ast::VarSignature::new(ast::VarPattern::Ident(attr.ident.clone()), None),
                     &t,
                     ast::DefId(0),
                     Some(py_name.clone()),
                 )?;
+                if let Some(types) = self
+                    .module
+                    .context
+                    .method_to_classes
+                    .get_mut(attr.ident.inspect())
+                {
+                    types.push(MethodPair::new(class, vi.clone()));
+                } else {
+                    self.module.context.method_to_classes.insert(
+                        attr.ident.inspect().clone(),
+                        vec![MethodPair::new(class, vi.clone())],
+                    );
+                }
                 let obj = self.fake_lower_expr(*attr.obj)?;
                 let muty = Mutability::from(&attr.ident.inspect()[..]);
                 let vis = self
@@ -614,14 +705,7 @@ impl ASTLowerer {
                     );
                 };
                 let py_name = Str::rc(ident.inspect().trim_end_matches('!'));
-                let mut tv_cache = TyVarCache::new(self.module.context.level, &self.module.context);
-                if let Some((t, _)) = self.module.context.get_type(ident.inspect()) {
-                    for (tp, arg) in t.typarams().iter().zip(call.args.pos_args()) {
-                        if let ast::Expr::Accessor(ast::Accessor::Ident(ident)) = &arg.expr {
-                            tv_cache.push_or_init_typaram(&ident.name, tp, &self.module.context);
-                        }
-                    }
-                }
+                let mut tv_cache = self.get_tv_ctx(&ident, &call.args);
                 let t = self
                     .module
                     .context
@@ -703,7 +787,10 @@ impl ASTLowerer {
                 let params = subr
                     .non_default_params
                     .iter()
-                    .map(|p| ty_tp(type_q(p.name().unwrap_or(&Str::ever("_")))))
+                    .map(|p| {
+                        let c = Constraint::new_type_of(p.typ().clone());
+                        mono_q_tp(p.name().unwrap_or(&Str::ever("_")), c)
+                    })
                     .collect();
                 let t = poly(format!("{}{ident}", self.module.context.path()), params);
                 let ty_obj = GenTypeObj::class(t.clone(), None, None);

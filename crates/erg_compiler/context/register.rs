@@ -978,7 +978,7 @@ impl Context {
             return res;
         };
         if let Some(_fv) = vi.t.as_free() {
-            vi.t.link(&typ);
+            vi.t.destructive_link(&typ);
         }
         res
     }
@@ -1308,7 +1308,10 @@ impl Context {
                         .typ()
                         .typarams()
                         .into_iter()
-                        .map(|tp| ParamSpec::t_nd(tp.qual_name().unwrap_or(Str::ever("_"))))
+                        .map(|tp| {
+                            let name = tp.qual_name().unwrap_or(Str::ever("_"));
+                            ParamSpec::named_nd(name, self.get_tp_t(&tp).unwrap_or(Type::Obj))
+                        })
                         .collect();
                     let mut ctx = Self::poly_class(
                         gen.typ().qual_name(),
@@ -2376,7 +2379,6 @@ impl Context {
         tmp_tv_cache: &TyVarCache,
     ) -> bool {
         for arg in poly.args.pos_args() {
-            log!(err "{}", arg.expr);
             self.inc_ref_expr(&arg.expr.clone().downgrade(), namespace, tmp_tv_cache);
         }
         if let Some(arg) = poly.args.var_args.as_ref() {
@@ -2388,7 +2390,7 @@ impl Context {
         self.inc_ref_acc(&poly.acc.clone().downgrade(), namespace, tmp_tv_cache)
     }
 
-    fn inc_ref_local(
+    pub(crate) fn inc_ref_local(
         &self,
         local: &ConstIdentifier,
         namespace: &Context,

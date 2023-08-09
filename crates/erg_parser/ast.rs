@@ -1227,6 +1227,18 @@ impl NestedDisplay for Call {
     }
 }
 
+impl TryFrom<Expr> for Call {
+    type Error = Expr;
+    fn try_from(expr: Expr) -> Result<Self, Self::Error> {
+        match expr {
+            Expr::Call(call) => Ok(call),
+            Expr::TypeAscription(tasc) => Self::try_from(*tasc.expr),
+            Expr::Accessor(Accessor::TypeApp(tapp)) => Self::try_from(*tapp.obj),
+            _ => Err(expr),
+        }
+    }
+}
+
 impl_display_from_nested!(Call);
 
 impl Locational for Call {
@@ -2010,34 +2022,53 @@ impl ConstUnaryOp {
 /// ex. `Vec Int` of `Option Vec Int`
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstApp {
-    pub acc: ConstAccessor,
+    pub obj: Box<ConstExpr>,
+    pub attr_name: Option<ConstIdentifier>,
     pub args: ConstArgs,
 }
 
 impl NestedDisplay for ConstApp {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, level: usize) -> std::fmt::Result {
-        writeln!(f, "{}:", self.acc)?;
-        self.args.fmt_nest(f, level + 1)
+        writeln!(f, "{}", self.obj)?;
+        if let Some(attr_name) = &self.attr_name {
+            writeln!(f, "{}", attr_name)?;
+        }
+        writeln!(f, "(")?;
+        self.args.fmt_nest(f, level + 1)?;
+        writeln!(f, ")")
     }
 }
+
+impl_display_from_nested!(ConstApp);
 
 impl Locational for ConstApp {
     fn loc(&self) -> Location {
         if self.args.is_empty() {
-            self.acc.loc()
+            self.obj.loc()
         } else {
-            Location::concat(&self.acc, &self.args)
+            Location::concat(self.obj.as_ref(), &self.args)
         }
     }
 }
 
 impl ConstApp {
-    pub const fn new(acc: ConstAccessor, args: ConstArgs) -> Self {
-        Self { acc, args }
+    pub fn new(obj: ConstExpr, attr_name: Option<ConstIdentifier>, args: ConstArgs) -> Self {
+        Self {
+            obj: Box::new(obj),
+            attr_name,
+            args,
+        }
     }
 
     pub fn downgrade(self) -> Call {
-        Expr::Accessor(self.acc.downgrade()).call(self.args.downgrade())
+        if let Some(attr_name) = self.attr_name {
+            self.obj
+                .downgrade()
+                .attr_expr(attr_name)
+                .call(self.args.downgrade())
+        } else {
+            self.obj.downgrade().call(self.args.downgrade())
+        }
     }
 }
 
@@ -2317,6 +2348,10 @@ impl PolyTypeSpec {
     pub const fn new(acc: ConstAccessor, args: ConstArgs) -> Self {
         Self { acc, args }
     }
+
+    pub fn ident(&self) -> String {
+        self.acc.to_string()
+    }
 }
 
 // OK:
@@ -2382,6 +2417,15 @@ impl PreDeclTypeSpec {
 
     pub fn poly(acc: ConstAccessor, args: ConstArgs) -> Self {
         Self::Poly(PolyTypeSpec::new(acc, args))
+    }
+
+    pub fn ident(&self) -> String {
+        match self {
+            Self::Mono(name) => name.inspect().to_string(),
+            Self::Poly(poly) => poly.ident(),
+            Self::Attr { namespace, t } => format!("{namespace}{t}"),
+            other => todo!("{other}"),
+        }
     }
 }
 
@@ -2769,6 +2813,14 @@ impl TypeSpec {
 
     pub fn poly(acc: ConstAccessor, args: ConstArgs) -> Self {
         Self::PreDeclTy(PreDeclTypeSpec::Poly(PolyTypeSpec::new(acc, args)))
+    }
+
+    pub fn ident(&self) -> Option<String> {
+        match self {
+            Self::PreDeclTy(predecl) => Some(predecl.ident()),
+            Self::TypeApp { spec, .. } => spec.ident(),
+            _ => None,
+        }
     }
 }
 

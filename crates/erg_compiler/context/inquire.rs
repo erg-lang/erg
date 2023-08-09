@@ -192,6 +192,7 @@ impl Context {
                 }
                 Ok(ctxs)
             }
+            hir::Expr::TypeAsc(tasc) => self.get_singular_ctxs_by_hir_expr(&tasc.expr, namespace),
             // TODO: change error
             _ => Err(TyCheckError::no_var_error(
                 self.cfg.input.clone(),
@@ -231,11 +232,21 @@ impl Context {
             })
     }
 
+    #[allow(unused)]
     pub(crate) fn get_mut_singular_ctxs_by_ident(
         &mut self,
         ident: &ast::Identifier,
         namespace: &Str,
     ) -> SingleTyCheckResult<&mut Context> {
+        self.get_mut_singular_ctxs_and_t_by_ident(ident, namespace)
+            .map(|(_, ctx)| ctx)
+    }
+
+    pub(crate) fn get_mut_singular_ctxs_and_t_by_ident(
+        &mut self,
+        ident: &ast::Identifier,
+        namespace: &Str,
+    ) -> SingleTyCheckResult<(&Type, &mut Context)> {
         let err = TyCheckError::no_var_error(
             self.cfg.input.clone(),
             line!() as usize,
@@ -244,9 +255,7 @@ impl Context {
             ident.inspect(),
             self.get_similar_name(ident.inspect()),
         );
-        self.rec_get_mut_type(ident.inspect())
-            .map(|(_, ctx)| ctx)
-            .ok_or(err)
+        self.rec_get_mut_type(ident.inspect()).ok_or(err)
     }
 
     pub(crate) fn get_singular_ctxs(
@@ -267,6 +276,44 @@ impl Context {
                 }
                 Ok(ctxs)
             }
+            ast::Expr::Accessor(ast::Accessor::TypeApp(tapp)) => {
+                self.get_singular_ctxs(&tapp.obj, namespace)
+            }
+            ast::Expr::Call(call) => self.get_singular_ctxs(&call.obj, namespace),
+            ast::Expr::TypeAscription(tasc) => self.get_singular_ctxs(&tasc.expr, namespace),
+            _ => Err(TyCheckError::no_var_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                obj.loc(),
+                self.caused_by(),
+                &obj.to_string(),
+                None,
+            )),
+        }
+    }
+
+    pub(crate) fn get_mut_singular_ctx_and_t(
+        &mut self,
+        obj: &ast::Expr,
+        namespace: &Str,
+    ) -> SingleTyCheckResult<(&Type, &mut Context)> {
+        match obj {
+            ast::Expr::Accessor(ast::Accessor::Ident(ident)) => {
+                self.get_mut_singular_ctxs_and_t_by_ident(ident, namespace)
+            }
+            ast::Expr::Accessor(ast::Accessor::Attr(attr)) => {
+                // REVIEW: 両方singularとは限らない?
+                let ctx = self.get_mut_singular_ctx(&attr.obj, namespace)?;
+                let attr = ast::Expr::Accessor(ast::Accessor::Ident(attr.ident.clone()));
+                ctx.get_mut_singular_ctx_and_t(&attr, namespace)
+            }
+            ast::Expr::Accessor(ast::Accessor::TypeApp(tapp)) => {
+                self.get_mut_singular_ctx_and_t(&tapp.obj, namespace)
+            }
+            ast::Expr::Call(call) => self.get_mut_singular_ctx_and_t(&call.obj, namespace),
+            ast::Expr::TypeAscription(tasc) => {
+                self.get_mut_singular_ctx_and_t(&tasc.expr, namespace)
+            }
             _ => Err(TyCheckError::no_var_error(
                 self.cfg.input.clone(),
                 line!() as usize,
@@ -283,25 +330,8 @@ impl Context {
         obj: &ast::Expr,
         namespace: &Str,
     ) -> SingleTyCheckResult<&mut Context> {
-        match obj {
-            ast::Expr::Accessor(ast::Accessor::Ident(ident)) => {
-                self.get_mut_singular_ctxs_by_ident(ident, namespace)
-            }
-            ast::Expr::Accessor(ast::Accessor::Attr(attr)) => {
-                // REVIEW: 両方singularとは限らない?
-                let ctx = self.get_mut_singular_ctx(&attr.obj, namespace)?;
-                let attr = ast::Expr::Accessor(ast::Accessor::Ident(attr.ident.clone()));
-                ctx.get_mut_singular_ctx(&attr, namespace)
-            }
-            _ => Err(TyCheckError::no_var_error(
-                self.cfg.input.clone(),
-                line!() as usize,
-                obj.loc(),
-                self.caused_by(),
-                &obj.to_string(),
-                None,
-            )),
-        }
+        self.get_mut_singular_ctx_and_t(obj, namespace)
+            .map(|(_, ctx)| ctx)
     }
 
     fn get_match_call_t(
@@ -1356,7 +1386,7 @@ impl Context {
                     let non_default_params = pos_args.iter().map(|a| anon(a.expr.t())).collect();
                     let subr_t = subr_t(kind, non_default_params, None, vec![], ret_t);
                     self.occur(&subr_t, instance, obj)?;
-                    instance.link(&subr_t);
+                    instance.destructive_link(&subr_t);
                     Ok(SubstituteResult::Ok)
                 }
             }
@@ -1917,7 +1947,10 @@ impl Context {
         log!(info "Substituted:\ninstance: {instance}");
         let res = self
             .eval_t_params(instance, self.level, obj)
-            .map_err(|(t, errs)| (Some(VarInfo { t, ..found.clone() }), errs))?;
+            .map_err(|(t, errs)| {
+                log!(err "failed to eval: {t}");
+                (Some(VarInfo { t, ..found.clone() }), errs)
+            })?;
         debug_assert!(res.has_no_qvar(), "{res} has qvar");
         log!(info "Params evaluated:\nres: {res}\n");
         let res = VarInfo { t: res, ..found };
@@ -2395,7 +2428,7 @@ impl Context {
                 attr_name,
                 args,
             } => {
-                if let Ok(typ) = self.eval_proj_call(
+                if let Ok(typ) = self.eval_proj_call_t(
                     *lhs.clone(),
                     attr_name.clone(),
                     args.clone(),
@@ -3042,9 +3075,10 @@ impl Context {
     /// Int.meta_type() == ClassType (<: Type)
     /// Show.meta_type() == TraitType (<: Type)
     /// [Int; 3].meta_type() == [ClassType; 3] (<: Type)
+    /// Indexable(T).meta_type() == TraitType (<: Type)
     pub fn meta_type(&self, typ: &Type) -> Type {
         match typ {
-            Type::Poly { name, params } => poly(
+            Type::Poly { name, params } if &name[..] == "Array" || &name[..] == "Set" => poly(
                 name.clone(),
                 params
                     .iter()

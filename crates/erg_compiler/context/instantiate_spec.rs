@@ -836,13 +836,21 @@ impl Context {
                 self.instantiate_acc(acc, erased_idx, tmp_tv_cache, not_found_is_qvar)
             }
             ast::ConstExpr::App(app) => {
-                let ast::ConstAccessor::Local(ident) = &app.acc else {
-                    return type_feature_error!(self, app.loc(), "instantiating const callee");
-                };
-                let &ctx = self
-                    .get_singular_ctxs_by_ident(ident, self)?
-                    .first()
-                    .unwrap_or(&self);
+                let obj = self.instantiate_const_expr(
+                    &app.obj,
+                    erased_idx,
+                    tmp_tv_cache,
+                    not_found_is_qvar,
+                )?;
+                let ctx = self
+                    .get_singular_ctxs(&app.obj.clone().downgrade(), self)
+                    .ok()
+                    .and_then(|ctxs| ctxs.first().copied())
+                    .or_else(|| {
+                        let typ = self.get_tp_t(&obj).ok()?;
+                        self.get_nominal_type_ctx(&typ).map(|(_, ctx)| ctx)
+                    })
+                    .unwrap_or(self);
                 let mut args = vec![];
                 for (i, arg) in app.args.pos_args().enumerate() {
                     let arg_t = self.instantiate_const_expr(
@@ -853,7 +861,16 @@ impl Context {
                     )?;
                     args.push(arg_t);
                 }
-                Ok(TyParam::app(ident.inspect().clone(), args))
+                if let Some(attr_name) = app.attr_name.as_ref() {
+                    Ok(obj.proj_call(attr_name.inspect().clone(), args))
+                } else if ctx.kind.is_type() && !ctx.params.is_empty() {
+                    Ok(TyParam::t(poly(ctx.name.clone(), args)))
+                } else {
+                    let ast::ConstExpr::Accessor(ast::ConstAccessor::Local(ident)) = app.obj.as_ref() else {
+                        return type_feature_error!(self, app.loc(), "instantiating const callee");
+                    };
+                    Ok(TyParam::app(ident.inspect().clone(), args))
+                }
             }
             ast::ConstExpr::Array(ConstArray::Normal(array)) => {
                 let mut tp_arr = vec![];
@@ -1236,7 +1253,7 @@ impl Context {
     fn instantiate_pred(
         &self,
         expr: &ast::ConstExpr,
-        _tmp_tv_cache: &mut TyVarCache,
+        tmp_tv_cache: &mut TyVarCache,
     ) -> TyCheckResult<Predicate> {
         match expr {
             ast::ConstExpr::Lit(lit) => {
@@ -1244,11 +1261,12 @@ impl Context {
                 Ok(Predicate::Value(value))
             }
             ast::ConstExpr::Accessor(ast::ConstAccessor::Local(local)) => {
+                self.inc_ref_local(local, self, tmp_tv_cache);
                 Ok(Predicate::Const(local.inspect().clone()))
             }
             ast::ConstExpr::BinOp(bin) => {
-                let lhs = self.instantiate_pred(&bin.lhs, _tmp_tv_cache)?;
-                let rhs = self.instantiate_pred(&bin.rhs, _tmp_tv_cache)?;
+                let lhs = self.instantiate_pred(&bin.lhs, tmp_tv_cache)?;
+                let rhs = self.instantiate_pred(&bin.rhs, tmp_tv_cache)?;
                 match bin.op.kind {
                     TokenKind::DblEq
                     | TokenKind::NotEq
@@ -1295,7 +1313,7 @@ impl Context {
                 }
             }
             ast::ConstExpr::UnaryOp(unop) => {
-                let pred = self.instantiate_pred(&unop.expr, _tmp_tv_cache)?;
+                let pred = self.instantiate_pred(&unop.expr, tmp_tv_cache)?;
                 match unop.op.kind {
                     TokenKind::PreBitNot => Ok(!pred),
                     _ => type_feature_error!(
@@ -1461,7 +1479,7 @@ impl Context {
                     )?);
                 }
                 let ty = new_set.iter().fold(Type::Never, |t, tp| {
-                    self.union(&t, &self.get_tp_t(tp).unwrap())
+                    self.union(&t, &self.get_tp_t(tp).unwrap().derefine())
                 });
                 Ok(tp_enum(ty, new_set))
             }
@@ -1564,7 +1582,20 @@ impl Context {
                     mode,
                     not_found_is_qvar,
                 )?;
-                let pred = self.instantiate_pred(&refine.pred, tmp_tv_cache)?;
+                let name = VarName::new(refine.var.clone());
+                let tp = TyParam::named_free_var(
+                    refine.var.inspect().clone(),
+                    self.level,
+                    Constraint::new_type_of(t.clone()),
+                );
+                tmp_tv_cache.push_or_init_typaram(&name, &tp, self);
+                let pred = self
+                    .instantiate_pred(&refine.pred, tmp_tv_cache)
+                    .map_err(|err| {
+                        tmp_tv_cache.remove(name.inspect());
+                        err
+                    })?;
+                tmp_tv_cache.remove(name.inspect());
                 let refine =
                     Type::Refinement(RefinementType::new(refine.var.inspect().clone(), t, pred));
                 Ok(refine)

@@ -4,7 +4,7 @@ use erg_common::consts::DEBUG_MODE;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
-use erg_common::{dict, fn_name, set};
+use erg_common::{dict, fn_name, get_hash, set};
 #[allow(unused_imports)]
 use erg_common::{fmt_vec, log};
 
@@ -20,6 +20,8 @@ use crate::{feature_error, hir};
 
 use Type::*;
 use Variance::*;
+
+use super::eval::Substituter;
 
 pub struct Generalizer {
     level: usize,
@@ -151,7 +153,7 @@ impl Generalizer {
                     if sub == sup {
                         let t = self.generalize_t(sub, uninit);
                         let res = FreeVar(fv);
-                        res.link(&t);
+                        res.destructive_link(&t);
                         res
                     } else if sup != Obj
                         && !self.qnames.contains(&fv.unbound_name().unwrap())
@@ -551,7 +553,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                             Ok(ty)
                         }
                         Err(errs) => {
-                            Type::FreeVar(fv).link(&Never);
+                            Type::FreeVar(fv).destructive_link(&Never);
                             Err(errs)
                         }
                     }
@@ -693,7 +695,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 }
                 let proj = self
                     .ctx
-                    .eval_proj_call(lhs, attr_name, new_args, self.ctx.level, self.loc)
+                    .eval_proj_call_t(lhs, attr_name, new_args, self.ctx.level, self.loc)
                     .unwrap_or(Failure);
                 Ok(proj)
             }
@@ -912,22 +914,29 @@ impl Context {
     }
 
     fn poly_class_trait_impl_exists(&self, class: &Type, trait_: &Type) -> bool {
-        let mut super_exists = false;
+        let class_hash = get_hash(&class);
+        let trait_hash = get_hash(&trait_);
         for imp in self.get_trait_impls(trait_).into_iter() {
-            self.substitute_typarams(&imp.sub_type, class).unwrap_or(());
-            self.substitute_typarams(&imp.sup_trait, trait_)
-                .unwrap_or(());
+            let _sub_subs = Substituter::substitute_typarams(self, &imp.sub_type, class).ok();
+            let _sup_subs = Substituter::substitute_typarams(self, &imp.sup_trait, trait_).ok();
             if self.supertype_of(&imp.sub_type, class) && self.supertype_of(&imp.sup_trait, trait_)
             {
-                super_exists = true;
-                Self::undo_substitute_typarams(&imp.sub_type);
-                Self::undo_substitute_typarams(&imp.sup_trait);
-                break;
+                if class_hash != get_hash(&class) {
+                    class.undo();
+                }
+                if trait_hash != get_hash(&trait_) {
+                    trait_.undo();
+                }
+                return true;
             }
-            Self::undo_substitute_typarams(&imp.sub_type);
-            Self::undo_substitute_typarams(&imp.sup_trait);
+            if class_hash != get_hash(&class) {
+                class.undo();
+            }
+            if trait_hash != get_hash(&trait_) {
+                trait_.undo();
+            }
         }
-        super_exists
+        false
     }
 
     fn check_trait_impl(

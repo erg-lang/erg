@@ -346,10 +346,14 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNDAMENTAL_EXIT),
         );
+        /* Shape */
+        let S = mono_q_tp(TY_S, instanceof(unknown_len_array_t(Nat)));
+        let params = vec![PS::named_nd("S", unknown_len_array_t(Nat))];
+        let shape = Self::builtin_poly_trait(SHAPE, params.clone(), 2);
+        /* Num */
         let R = mono_q(TY_R, instanceof(Type));
         let params = vec![PS::t(TY_R, false, WithDefault)];
         let ty_params = vec![ty_tp(R.clone())];
-        /* Num */
         /* Add */
         let mut add = Self::builtin_poly_trait(ADD, params.clone(), 2);
         // Covariant with `R` (independent of the type of __add__)
@@ -541,6 +545,7 @@ impl Context {
             Const,
             None,
         );
+        self.register_builtin_type(poly(SHAPE, vec![S]), shape, vis.clone(), Const, None);
         self.register_builtin_type(poly(ADD, ty_params.clone()), add, vis.clone(), Const, None);
         self.register_builtin_type(poly(SUB, ty_params.clone()), sub, vis.clone(), Const, None);
         self.register_builtin_type(poly(MUL, ty_params.clone()), mul, vis.clone(), Const, None);

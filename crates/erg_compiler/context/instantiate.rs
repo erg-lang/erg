@@ -12,6 +12,8 @@ use erg_common::Str;
 use erg_parser::ast::VarName;
 
 use crate::ty::constructors::*;
+use crate::ty::free::FreeTyParam;
+use crate::ty::free::GENERIC_LEVEL;
 use crate::ty::free::{Constraint, HasLevel};
 use crate::ty::typaram::{TyParam, TyParamLambda};
 use crate::ty::ValueObj;
@@ -92,6 +94,12 @@ impl TyVarCache {
         }
     }
 
+    pub fn remove(&mut self, name: &str) {
+        self.tyvar_instances.remove(name);
+        self.typaram_instances.remove(name);
+        self.var_infos.remove(name);
+    }
+
     /// Warn when a type does not need to be a type variable, such as `|T| T -> Int` (it should be `Obj -> Int`).
     ///
     /// TODO: This warning is currently disabled because it raises a false warning in cases like `|T|(x: T) -> (y: T) -> (x, y)`.
@@ -161,7 +169,7 @@ impl TyVarCache {
             if let Ok(inst) = <&Type>::try_from(inst) {
                 self.update_tyvar(inst, tv, ctx);
             } else if let TyParam::FreeVar(_fv) = inst {
-                inst.link(&TyParam::t(tv.clone()));
+                inst.destructive_link(&TyParam::t(tv.clone()));
             } else {
                 unreachable!()
             }
@@ -180,7 +188,7 @@ impl TyVarCache {
             if let Ok(inst) = <&Type>::try_from(inst) {
                 self.update_tyvar(inst, tv, ctx);
             } else if let TyParam::FreeVar(_fv) = inst {
-                inst.link(&TyParam::t(tv.clone()));
+                inst.destructive_link(&TyParam::t(tv.clone()));
             } else {
                 unreachable!()
             }
@@ -194,9 +202,9 @@ impl TyVarCache {
         // T<inst> is uninitialized
         // T<inst>.link(T<tv>);
         // T <: Eq(T <: Eq(T <: ...))
-        let free_inst = enum_unwrap!(inst, Type::FreeVar);
+        let Type::FreeVar(free_inst) = inst else { todo!("{inst}") };
         if free_inst.constraint_is_uninited() {
-            inst.link(tv);
+            inst.destructive_link(tv);
         } else {
             // inst: ?T(<: Int) => old_sub: Never, old_sup: Int
             // tv: ?T(:> Nat) => new_sub: Nat, new_sup: Obj
@@ -205,7 +213,7 @@ impl TyVarCache {
             // tv: ?T(:> Nat)
             // => ?T(:> Nat or Str)
             let (old_sub, old_sup) = free_inst.get_subsup().unwrap();
-            let tv = enum_unwrap!(tv, Type::FreeVar);
+            let Type::FreeVar(tv) = tv else { todo!("{tv}") };
             let (new_sub, new_sup) = tv.get_subsup().unwrap();
             let new_constraint = Constraint::new_sandwiched(
                 ctx.union(&old_sub, &new_sub),
@@ -255,12 +263,22 @@ impl TyVarCache {
     }
 
     fn update_typaram(&self, inst: &TyParam, tp: &TyParam, ctx: &Context) {
-        let free_inst = enum_unwrap!(inst, TyParam::FreeVar);
+        if inst.level() == Some(GENERIC_LEVEL) {
+            log!(err "{inst} is fixed");
+            return;
+        }
+        let Ok(free_inst) = <&FreeTyParam>::try_from(inst) else {
+            if let (Ok(inst), Ok(t)) = (<&Type>::try_from(inst), <&Type>::try_from(tp)) {
+                return self.update_tyvar(inst, t, ctx);
+            } else {
+                todo!("{inst}");
+            }
+        };
         if free_inst.constraint_is_uninited() {
-            inst.link(tp);
+            inst.destructive_link(tp);
         } else {
             let old_type = free_inst.get_type().unwrap();
-            let tv = enum_unwrap!(tp, TyParam::FreeVar);
+            let Ok(tv) = <&FreeTyParam>::try_from(tp) else { todo!("{tp}") };
             let new_type = tv.get_type().unwrap();
             let new_constraint = Constraint::new_type_of(ctx.intersection(&old_type, &new_type));
             free_inst.update_constraint(new_constraint, true);
@@ -436,6 +454,18 @@ impl Context {
                     new_args.push(self.instantiate_tp(arg, tmp_tv_cache, loc)?);
                 }
                 Ok(TyParam::app(name, new_args))
+            }
+            TyParam::ProjCall { obj, attr, args } => {
+                let obj = self.instantiate_tp(*obj, tmp_tv_cache, loc)?;
+                let mut new_args = Vec::with_capacity(args.len());
+                for arg in args {
+                    new_args.push(self.instantiate_tp(arg, tmp_tv_cache, loc)?);
+                }
+                Ok(TyParam::proj_call(obj, attr, new_args))
+            }
+            TyParam::Proj { obj, attr } => {
+                let obj = self.instantiate_tp(*obj, tmp_tv_cache, loc)?;
+                Ok(TyParam::proj(obj, attr))
             }
             TyParam::Type(t) => {
                 let t = self.instantiate_t_inner(*t, tmp_tv_cache, loc)?;

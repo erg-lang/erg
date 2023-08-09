@@ -43,7 +43,7 @@ pub use value::ValueObj;
 use value::ValueObj::{Inf, NegInf};
 pub use vis::*;
 
-use self::constructors::subr_t;
+use self::constructors::{bounded, free_var, named_free_var, proj_call, subr_t};
 
 pub const STR_OMIT_THRESHOLD: usize = 16;
 pub const CONTAINER_OMIT_THRESHOLD: usize = 8;
@@ -594,7 +594,7 @@ impl LimitedDisplay for RefinementType {
             return write!(f, "...");
         }
         let first_subj = self.pred.ors().iter().next().and_then(|p| p.subject());
-        let is_simple_type = self.t.is_simple_class();
+        let is_simple_type = self.t.is_value_class();
         let is_simple_preds = self
             .pred
             .ors()
@@ -1210,7 +1210,7 @@ impl CanbeFree for Type {
         }
     }
 
-    fn update_constraint(&self, new_constraint: Constraint, in_instantiation: bool) {
+    fn destructive_update_constraint(&self, new_constraint: Constraint, in_instantiation: bool) {
         if let Some(fv) = self.as_free() {
             fv.update_constraint(new_constraint, in_instantiation);
         }
@@ -1534,7 +1534,7 @@ impl StructuralEq for Type {
             }
             (Self::FreeVar(fv), Self::FreeVar(fv2)) => fv.structural_eq(fv2),
             (Self::Refinement(refine), Self::Refinement(refine2)) => {
-                refine.t.structural_eq(&refine2.t) && refine.pred == refine2.pred
+                refine.t.structural_eq(&refine2.t) && refine.pred.structural_eq(&refine2.pred)
             }
             (Self::Record(rec), Self::Record(rec2)) => {
                 for (k, v) in rec.iter() {
@@ -1684,9 +1684,9 @@ impl Type {
         Self::Structural(Box::new(self))
     }
 
-    pub fn is_simple_class(&self) -> bool {
+    pub fn is_mono_value_class(&self) -> bool {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_simple_class(),
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_mono_value_class(),
             Self::Obj
             | Self::Int
             | Self::Nat
@@ -1709,6 +1709,23 @@ impl Type {
             | Self::Ellipsis
             | Self::Never => true,
             _ => false,
+        }
+    }
+
+    /// value class := mono value object class | (Array | Set)(value class)
+    pub fn is_value_class(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_value_class(),
+            Self::Refinement(refine) => refine.t.is_value_class(),
+            Self::Poly { name, params } => {
+                if &name[..] == "Array" || &name[..] == "Set" {
+                    let elem_t = <&Type>::try_from(params.first().unwrap()).unwrap();
+                    elem_t.is_value_class()
+                } else {
+                    false
+                }
+            }
+            _ => self.is_mono_value_class(),
         }
     }
 
@@ -2428,7 +2445,7 @@ impl Type {
             Type::FreeVar(fv) if fv.is_unbound() => {
                 let (sub, _sup) = fv.get_subsup().unwrap();
                 sub.coerce();
-                self.link(&sub);
+                self.destructive_link(&sub);
             }
             Type::And(l, r) | Type::Or(l, r) => {
                 l.coerce();
@@ -2538,6 +2555,14 @@ impl Type {
             Self::Structural(ty) => ty.has_qvar(),
             Self::Guard(guard) => guard.to.has_qvar(),
             Self::Bounded { sub, sup } => sub.has_qvar() || sup.has_qvar(),
+            _ => false,
+        }
+    }
+
+    pub fn is_undoable_linked_var(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_undoable_linked() => true,
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().has_undoable_linked_var(),
             _ => false,
         }
     }
@@ -2908,7 +2933,7 @@ impl Type {
                         other => other.clone(),
                     })
                     .collect();
-                lhs.proj_call(attr_name.clone(), args)
+                proj_call(lhs, attr_name.clone(), args)
             }
             Self::Structural(ty) => ty.derefine().structuralize(),
             Self::Guard(guard) => {
@@ -3047,7 +3072,7 @@ impl Type {
                 args,
             } => {
                 let args = args.into_iter().map(|tp| tp.replace(target, to)).collect();
-                lhs.replace(target, to).proj_call(attr_name, args)
+                proj_call(lhs.replace(target, to), attr_name, args)
             }
             Self::Structural(ty) => ty._replace(target, to).structuralize(),
             Self::Guard(guard) => Self::Guard(GuardType::new(
@@ -3090,7 +3115,7 @@ impl Type {
                 args,
             } => {
                 let args = args.into_iter().map(|tp| tp.normalize()).collect();
-                lhs.normalize().proj_call(attr_name, args)
+                proj_call(lhs.normalize(), attr_name, args)
             }
             Self::Ref(t) => Self::Ref(Box::new(t.normalize())),
             Self::RefMut { before, after } => Self::RefMut {
@@ -3131,25 +3156,101 @@ impl Type {
         }
     }
 
-    pub(crate) fn link(&self, to: &Type) {
+    /// interior-mut
+    pub(crate) fn destructive_link(&self, to: &Type) {
         if self.addr_eq(to) {
             return;
         }
+        if self.level() == Some(GENERIC_LEVEL) {
+            panic!("{self} is fixed");
+        }
         match self {
             Self::FreeVar(fv) => fv.link(to),
-            Self::Refinement(refine) => refine.t.link(to),
+            Self::Refinement(refine) => refine.t.destructive_link(to),
             _ => panic!("{self} is not a free variable"),
         }
     }
 
+    /// interior-mut
+    ///
+    /// `inc/dec_undo_count` due to the number of `substitute_typarams/undo_typarams` must be matched
     pub(crate) fn undoable_link(&self, to: &Type) {
         if self.addr_eq(to) {
+            self.inc_undo_count();
             return;
         }
         match self {
             Self::FreeVar(fv) => fv.undoable_link(to),
             Self::Refinement(refine) => refine.t.undoable_link(to),
             _ => panic!("{self} is not a free variable"),
+        }
+    }
+
+    pub(crate) fn link(&self, to: &Type, undoable: bool) {
+        if undoable {
+            self.undoable_link(to);
+        } else {
+            self.destructive_link(to);
+        }
+    }
+
+    pub(crate) fn undo(&self) {
+        match self {
+            Self::FreeVar(fv) if fv.is_undoable_linked() => fv.undo(),
+            Self::FreeVar(fv) if fv.constraint_is_sandwiched() => {
+                let (sub, sup) = fv.get_subsup().unwrap();
+                sub.undo();
+                sup.undo();
+            }
+            Self::Poly { params, .. } => {
+                for param in params {
+                    param.undo();
+                }
+            }
+            _ => {}
+        }
+    }
+
+    pub(crate) fn undoable_update_constraint(&self, new_constraint: Constraint) {
+        let level = self.level().unwrap();
+        let new = if let Some(name) = self.unbound_name() {
+            named_free_var(name, level, new_constraint)
+        } else {
+            free_var(level, new_constraint)
+        };
+        self.undoable_link(&new);
+    }
+
+    pub(crate) fn update_constraint(
+        &self,
+        new_constraint: Constraint,
+        undoable: bool,
+        in_instantiation: bool,
+    ) {
+        if undoable {
+            self.undoable_update_constraint(new_constraint);
+        } else {
+            self.destructive_update_constraint(new_constraint, in_instantiation);
+        }
+    }
+
+    fn inc_undo_count(&self) {
+        match self {
+            Self::FreeVar(fv) => fv.inc_undo_count(),
+            Self::Refinement(refine) => refine.t.inc_undo_count(),
+            _ => panic!("{self} is not a free variable"),
+        }
+    }
+
+    pub fn into_bounded(&self) -> Type {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().clone().into_bounded(),
+            Self::FreeVar(fv) if fv.constraint_is_sandwiched() => {
+                let (sub, sup) = fv.get_subsup().unwrap();
+                bounded(sub, sup)
+            }
+            Self::Refinement(refine) => refine.t.as_ref().clone().into_bounded(),
+            _ => self.clone(),
         }
     }
 }

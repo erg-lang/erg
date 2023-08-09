@@ -61,6 +61,8 @@ class C:
 
 No syntax other than declarations and definitions (aliasing) are allowed in ``d.er``.
 
+If an identifier on the Python side is not a valid identifier in Erg, it can be escaped by enclosing it in single quotes (`'`).
+
 ## Overloading
 
 A special type that can be used only with Python typing is the overloaded type. This is a type that can accept multiple types.
@@ -93,6 +95,18 @@ f: ((Int, Int) -> Str) and (Int -> Int)
 ```python,compile_fail
 # NG
 f: (Int -> Str) and (Int -> Int)
+```
+
+## Declaration of Trait Implementation
+
+To implement a trait and declare trait members for a class, write the following (taken from [type declarations for numpy.NDArray](https://github.com/erg-lang/erg/blob/main/crates/erg_compiler/lib/external/numpy.d/__init__.d.er)).
+
+```erg
+.NDArray = 'ndarray': (T: Type, Shape: [Nat; _]) -> ClassType
+...
+.NDArray(T, S)|<: Add .NDArray(T, S)|.
+    Output: {.NDArray(T, S)}
+    __add__: (self: .NDArray(T, S), other: .NDArray(T, S)) -> .NDArray(T, S)
 ```
 
 ## Notes

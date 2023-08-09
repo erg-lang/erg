@@ -1438,6 +1438,7 @@ impl PyCodeGenerator {
             _ => {
                 CompileError::feature_error(
                     self.cfg.input.clone(),
+                    line!() as usize,
                     unary.op.loc(),
                     &unary.op.inspect().clone(),
                     String::from(unary.op.content),
@@ -1550,6 +1551,7 @@ impl PyCodeGenerator {
             _ => {
                 CompileError::feature_error(
                     self.cfg.input.clone(),
+                    line!() as usize,
                     binop.loc(),
                     &binop.inspect().clone(),
                     String::from(binop.content),
@@ -1624,6 +1626,7 @@ impl PyCodeGenerator {
             _ => {
                 CompileError::feature_error(
                     self.cfg.input.clone(),
+                    line!() as usize,
                     binop.loc(),
                     &binop.inspect().clone(),
                     String::from(binop.content),

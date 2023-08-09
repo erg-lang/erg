@@ -46,7 +46,7 @@ pub trait HasLevel {
 ///
 /// __NOTE__: you should use `Free::get_type/get_subsup` instead of deconstructing the constraint by `match`.
 /// Constraints may contain cycles, in which case using `match` to get the contents will cause memory destructions.
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Constraint {
     // : Type --> (:> Never, <: Obj)
     // :> Sub --> (:> Sub, <: Obj)
@@ -62,12 +62,6 @@ pub enum Constraint {
 }
 
 impl fmt::Display for Constraint {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.limited_fmt(f, 10)
-    }
-}
-
-impl fmt::Debug for Constraint {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.limited_fmt(f, 10)
     }
@@ -233,7 +227,7 @@ impl Constraint {
 pub trait CanbeFree {
     fn unbound_name(&self) -> Option<Str>;
     fn constraint(&self) -> Option<Constraint>;
-    fn update_constraint(&self, constraint: Constraint, in_instantiation: bool);
+    fn destructive_update_constraint(&self, constraint: Constraint, in_instantiation: bool);
 }
 
 impl<T: CanbeFree + Send + Clone> Free<T> {
@@ -252,6 +246,7 @@ pub enum FreeKind<T> {
     UndoableLinked {
         t: T,
         previous: Box<FreeKind<T>>,
+        count: usize,
     },
     Unbound {
         id: Id,
@@ -487,6 +482,29 @@ impl<T> FreeKind<T> {
 
     pub const fn is_undoable_linked(&self) -> bool {
         matches!(self, Self::UndoableLinked { .. })
+    }
+
+    pub fn undo_count(&self) -> usize {
+        match self {
+            Self::UndoableLinked { count, .. } => *count,
+            _ => 0,
+        }
+    }
+
+    pub fn inc_undo_count(&mut self) {
+        #[allow(clippy::single_match)]
+        match self {
+            Self::UndoableLinked { count, .. } => *count += 1,
+            _ => {}
+        }
+    }
+
+    pub fn dec_undo_count(&mut self) {
+        #[allow(clippy::single_match)]
+        match self {
+            Self::UndoableLinked { count, .. } => *count -= 1,
+            _ => {}
+        }
     }
 }
 
@@ -820,6 +838,7 @@ impl<T: Send + Sync + 'static + Clone> Free<T> {
         self.borrow().is_unnamed_unbound()
     }
 
+    /// interior-mut
     #[track_caller]
     pub fn replace(&self, to: FreeKind<T>) {
         // prevent linking to self
@@ -830,7 +849,8 @@ impl<T: Send + Sync + 'static + Clone> Free<T> {
     }
 }
 
-impl<T: Clone + fmt::Debug + Send + Sync + 'static> Free<T> {
+impl<T: Clone + Send + Sync + 'static> Free<T> {
+    /// interior-mut
     /// SAFETY: use `Type/TyParam::link` instead of this.
     /// This method may cause circular references.
     #[track_caller]
@@ -842,6 +862,7 @@ impl<T: Clone + fmt::Debug + Send + Sync + 'static> Free<T> {
         self.borrow_mut().replace(to.clone());
     }
 
+    /// interior-mut
     #[track_caller]
     pub(super) fn undoable_link(&self, to: &T) {
         if self.is_linked() && addr_eq!(*self.crack(), *to) {
@@ -851,16 +872,34 @@ impl<T: Clone + fmt::Debug + Send + Sync + 'static> Free<T> {
         let new = FreeKind::UndoableLinked {
             t: to.clone(),
             previous: Box::new(prev),
+            count: 0,
         };
         *self.borrow_mut() = new;
     }
 
+    /// interior-mut
     pub fn undo(&self) {
-        let prev = match &*self.borrow() {
-            FreeKind::UndoableLinked { previous, .. } => *previous.clone(),
+        let prev = match &mut *self.borrow_mut() {
+            FreeKind::UndoableLinked {
+                previous, count, ..
+            } => {
+                if *count > 0 {
+                    *count -= 1;
+                    return;
+                }
+                *previous.clone()
+            }
             _other => panic!("cannot undo"),
         };
         self.replace(prev);
+    }
+
+    pub fn undo_stack_size(&self) -> usize {
+        self.borrow().undo_count()
+    }
+
+    pub fn inc_undo_count(&self) {
+        self.borrow_mut().inc_undo_count();
     }
 
     pub fn unwrap_unbound(self) -> (Option<Str>, usize, Constraint) {
@@ -942,6 +981,7 @@ impl<T: Clone + fmt::Debug + Send + Sync + 'static> Free<T> {
 }
 
 impl<T: Default + Clone + fmt::Debug + Send + Sync + 'static> Free<T> {
+    /// interior-mut
     #[track_caller]
     pub fn dummy_link(&self) {
         self.undoable_link(&T::default());
@@ -991,8 +1031,12 @@ impl<T: CanbeFree + Send + Clone> Free<T> {
         self.constraint().map(|c| c.is_uninited()).unwrap_or(false)
     }
 
+    /// interior-mut
     /// if `in_inst_or_gen` is true, constraint will be updated forcibly
     pub fn update_constraint(&self, new_constraint: Constraint, in_inst_or_gen: bool) {
+        if new_constraint.get_type() == Some(&Type::Never) {
+            panic!();
+        }
         match &mut *self.borrow_mut() {
             FreeKind::Unbound {
                 lev, constraint, ..
@@ -1010,11 +1054,12 @@ impl<T: CanbeFree + Send + Clone> Free<T> {
                 *constraint = new_constraint;
             }
             FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => {
-                t.update_constraint(new_constraint, in_inst_or_gen);
+                t.destructive_update_constraint(new_constraint, in_inst_or_gen);
             }
         }
     }
 
+    /// interior-mut
     pub fn update_sub<F>(&self, f: F)
     where
         F: FnOnce(Type) -> Type,
@@ -1024,6 +1069,7 @@ impl<T: CanbeFree + Send + Clone> Free<T> {
         self.update_constraint(new_constraint, true);
     }
 
+    /// interior-mut
     pub fn update_super<F>(&self, f: F)
     where
         F: FnOnce(Type) -> Type,

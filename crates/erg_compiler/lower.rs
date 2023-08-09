@@ -26,7 +26,7 @@ use crate::artifact::{CompleteArtifact, IncompleteArtifact};
 use crate::context::instantiate::TyVarCache;
 use crate::module::SharedCompilerResource;
 use crate::ty::constructors::{
-    array_t, free_var, func, guard, mono, poly, proc, refinement, set_t, ty_tp, v_enum,
+    array_t, free_var, func, guard, mono, poly, proc, refinement, set_t, singleton, ty_tp, v_enum,
 };
 use crate::ty::free::Constraint;
 use crate::ty::typaram::TyParam;
@@ -72,7 +72,7 @@ pub fn expr_to_variable(expr: &ast::Expr) -> Option<Variable> {
 /// Checks & infers types of an AST, and convert (lower) it into a HIR
 #[derive(Debug)]
 pub struct ASTLowerer {
-    cfg: ErgConfig,
+    pub(crate) cfg: ErgConfig,
     pub(crate) module: ModuleContext,
     pub(crate) errs: LowerErrors,
     pub(crate) warns: LowerWarnings,
@@ -290,6 +290,7 @@ impl ASTLowerer {
     fn lower_normal_array(&mut self, array: ast::NormalArray) -> LowerResult<hir::NormalArray> {
         log!(info "entered {}({array})", fn_name!());
         let mut new_array = vec![];
+        let eval_result = self.module.context.eval_const_normal_array(&array);
         let (elems, ..) = array.elems.deconstruct();
         let mut union = Type::Never;
         for elem in elems.into_iter() {
@@ -330,12 +331,14 @@ impl ASTLowerer {
         } else {
             union
         };
-        Ok(hir::NormalArray::new(
-            array.l_sqbr,
-            array.r_sqbr,
-            elem_t,
-            hir::Args::values(new_array, None),
-        ))
+        let elems = hir::Args::values(new_array, None);
+        let t = array_t(elem_t, TyParam::value(elems.len()));
+        let t = if let Ok(value) = eval_result {
+            singleton(t, TyParam::Value(value))
+        } else {
+            t
+        };
+        Ok(hir::NormalArray::new(array.l_sqbr, array.r_sqbr, t, elems))
     }
 
     fn lower_array_with_length(
@@ -1741,10 +1744,10 @@ impl ASTLowerer {
             } else {
                 self.check_override(&class, None);
             }
-            if let Err(err) = self.check_trait_impl(impl_trait, &class) {
+            if let Err(err) = self.check_trait_impl(impl_trait.clone(), &class) {
                 self.errs.push(err);
             }
-            self.check_collision_and_push(class);
+            self.check_collision_and_push(class, impl_trait.map(|(t, _)| t));
         }
         let class = self.module.context.gen_type(&hir_def.sig.ident().raw);
         let Some((_, class_ctx)) = self.module.context.get_nominal_type_ctx(&class) else {
@@ -2180,7 +2183,7 @@ impl ASTLowerer {
         (unverified_names, errors)
     }
 
-    fn check_collision_and_push(&mut self, class: Type) {
+    fn check_collision_and_push(&mut self, class: Type, impl_trait: Option<Type>) {
         let methods = self.module.context.pop();
         let Some((_, class_root)) = self
             .module
@@ -2214,9 +2217,12 @@ impl ASTLowerer {
                 }
             }
         }
-        class_root
-            .methods_list
-            .push((ClassDefType::Simple(class), methods));
+        let typ = if let Some(impl_trait) = impl_trait {
+            ClassDefType::impl_trait(class, impl_trait)
+        } else {
+            ClassDefType::Simple(class)
+        };
+        class_root.methods_list.push((typ, methods));
     }
 
     fn push_patch(&mut self) {

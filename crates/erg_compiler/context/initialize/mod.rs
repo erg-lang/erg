@@ -96,6 +96,7 @@ const COLLECTION: &str = "Collection";
 const INDEXABLE: &str = "Indexable";
 const MAPPING: &str = "Mapping";
 const MUTABLE_MAPPING: &str = "Mapping!";
+const SHAPE: &str = "Shape";
 const EQ: &str = "Eq";
 const ORD: &str = "Ord";
 const TO_STR: &str = "to_str";
@@ -140,7 +141,7 @@ const COMPLEX: &str = "Complex";
 const INT: &str = "Int";
 const MUT_INT: &str = "Int!";
 const RATIO: &str = "Ratio";
-const MUT_RATIO: &str = "Raltio!";
+const MUT_RATIO: &str = "Ratio!";
 const FUNC_ABS: &str = "abs";
 const FUNC_SUCC: &str = "succ";
 const FUNC_PRED: &str = "pred";
@@ -244,7 +245,8 @@ const ISSUBSET: &str = "issubset";
 const ISSUPERSET: &str = "issuperset";
 const SYMMETRIC_DIFFERENCE: &str = "symmetric_difference";
 const MEMORYVIEW: &str = "MemoryView";
-const UNION_FUNC: &str = "union";
+const FUNC_UNION: &str = "union";
+const FUNC_SHAPE: &str = "shape";
 const FUNC_INC: &str = "inc";
 const PROC_INC: &str = "inc!";
 const FUNC_DEC: &str = "dec";
@@ -446,6 +448,7 @@ const TY_TS: &str = "Ts";
 const TY_I: &str = "I";
 const TY_P: &str = "P";
 const TY_R: &str = "R";
+const TY_S: &str = "S";
 const TY_U: &str = "U";
 const TY_L: &str = "L";
 const TY_N: &str = "N";
@@ -823,7 +826,7 @@ impl Context {
                     .take(lack)
                     .map(|pt| TyParam::erased(pt.typ().clone()));
                 let params = passed.into_iter().chain(erased).collect::<Vec<_>>();
-                Ok(ValueObj::builtin_type(poly(data.qual_name, params)))
+                Ok(TyParam::t(poly(data.qual_name, params)))
             };
             let subr = ConstSubr::Gen(GenConstSubr::new(
                 t.local_name(),

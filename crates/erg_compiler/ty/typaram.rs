@@ -3,7 +3,6 @@ use std::fmt;
 use std::ops::{Add, Div, Mul, Neg, Range, RangeInclusive, Sub};
 use std::sync::Arc;
 
-use erg_common::consts::DEBUG_MODE;
 use erg_common::dict::Dict;
 use erg_common::set::Set;
 use erg_common::traits::{LimitedDisplay, StructuralEq};
@@ -214,6 +213,11 @@ pub enum TyParam {
         obj: Box<TyParam>,
         attr: Str,
     },
+    ProjCall {
+        obj: Box<TyParam>,
+        attr: Str,
+        args: Vec<TyParam>,
+    },
     App {
         name: Str,
         args: Vec<TyParam>,
@@ -343,6 +347,20 @@ impl LimitedDisplay for TyParam {
                 write!(f, ".")?;
                 write!(f, "{attr}")
             }
+            Self::ProjCall { obj, attr, args } => {
+                obj.limited_fmt(f, limit - 1)?;
+                write!(f, ".")?;
+                write!(f, "{attr}")?;
+                write!(f, "(")?;
+                for (i, arg) in args.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    arg.limited_fmt(f, limit - 1)?;
+                }
+                write!(f, ")")?;
+                Ok(())
+            }
             Self::Array(arr) => {
                 write!(f, "[")?;
                 for (i, t) in arr.iter().enumerate() {
@@ -443,16 +461,17 @@ impl CanbeFree for TyParam {
         }
     }
 
-    fn update_constraint(&self, new_constraint: Constraint, in_instantiation: bool) {
+    fn destructive_update_constraint(&self, new_constraint: Constraint, in_instantiation: bool) {
         match self {
             Self::FreeVar(fv) => {
                 fv.update_constraint(new_constraint, in_instantiation);
             }
             Self::Type(t) => {
-                t.update_constraint(new_constraint, in_instantiation);
+                t.destructive_update_constraint(new_constraint, in_instantiation);
             }
             Self::Value(ValueObj::Type(ty)) => {
-                ty.typ().update_constraint(new_constraint, in_instantiation);
+                ty.typ()
+                    .destructive_update_constraint(new_constraint, in_instantiation);
             }
             _ => {}
         }
@@ -557,6 +576,16 @@ impl<'t> TryFrom<&'t TyParam> for &'t FreeTyParam {
     }
 }
 
+impl<'t> TryFrom<&'t TyParam> for &'t FreeTyVar {
+    type Error = ();
+    fn try_from(t: &'t TyParam) -> Result<&'t FreeTyVar, ()> {
+        match t {
+            TyParam::Type(ty) => <&FreeTyVar>::try_from(ty.as_ref()),
+            _ => Err(()),
+        }
+    }
+}
+
 impl TryFrom<TyParam> for ValueObj {
     type Error = ();
     fn try_from(tp: TyParam) -> Result<Self, ()> {
@@ -603,7 +632,7 @@ impl TryFrom<TyParam> for ValueObj {
             TyParam::Type(t) => Ok(ValueObj::builtin_type(*t)),
             TyParam::Value(v) => Ok(v),
             _ => {
-                log!(err "Expected value, got {:?}", tp);
+                log!(err "Expected value, got {tp} ({tp:?})");
                 Err(())
             }
         }
@@ -642,6 +671,17 @@ impl<'a> TryFrom<&'a TyParam> for &'a Type {
             TyParam::Type(t) => Ok(t.as_ref()),
             TyParam::Value(v) => <&Type>::try_from(v),
             // TODO: Array, Dict, Set
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<&TyParam> for usize {
+    type Error = ();
+    fn try_from(tp: &TyParam) -> Result<Self, ()> {
+        match tp {
+            TyParam::FreeVar(fv) if fv.is_linked() => usize::try_from(&*fv.crack()),
+            TyParam::Value(v) => usize::try_from(v),
             _ => Err(()),
         }
     }
@@ -757,6 +797,9 @@ impl StructuralEq for TyParam {
                 true
             }
             (Self::Set(l), Self::Set(r)) => {
+                if l.len() != r.len() {
+                    return false;
+                }
                 for l_val in l.iter() {
                     if r.get_by(l_val, |l, r| l.structural_eq(r)).is_none() {
                         return false;
@@ -829,17 +872,21 @@ impl TyParam {
         }
     }
 
-    pub fn proj_call(self, attr_name: Str, args: Vec<TyParam>) -> Type {
-        Type::ProjCall {
-            lhs: Box::new(self),
-            attr_name,
+    pub fn proj_call(self, attr: Str, args: Vec<TyParam>) -> Self {
+        Self::ProjCall {
+            obj: Box::new(self),
+            attr,
             args,
         }
     }
 
-    pub fn free_var(level: usize, t: Type) -> Self {
+    pub fn free_instance(level: usize, t: Type) -> Self {
         let constraint = Constraint::new_type_of(t);
         Self::FreeVar(FreeTyParam::new_unbound(level, constraint))
+    }
+
+    pub fn free_var(level: usize, constr: Constraint) -> Self {
+        Self::FreeVar(FreeTyParam::new_unbound(level, constr))
     }
 
     pub fn named_free_var(name: Str, level: usize, constr: Constraint) -> Self {
@@ -1217,9 +1264,13 @@ impl TyParam {
         }
     }
 
-    pub(crate) fn link(&self, to: &TyParam) {
+    /// interior-mut
+    pub(crate) fn destructive_link(&self, to: &TyParam) {
         if self.addr_eq(to) {
             return;
+        }
+        if self.level() == Some(GENERIC_LEVEL) {
+            panic!("{self} is fixed");
         }
         match self {
             Self::FreeVar(fv) => fv.link(to),
@@ -1227,19 +1278,77 @@ impl TyParam {
         }
     }
 
+    /// interior-mut
     pub(crate) fn undoable_link(&self, to: &TyParam) {
         if self.addr_eq(to) {
-            return;
-        }
-        if to.contains_tp(self) {
-            if DEBUG_MODE {
-                panic!("cyclic: {self} / {to}");
-            }
+            self.inc_undo_count();
             return;
         }
         match self {
             Self::FreeVar(fv) => fv.undoable_link(to),
             _ => panic!("{self} is not a free variable"),
+        }
+    }
+
+    pub(crate) fn link(&self, to: &TyParam, undoable: bool) {
+        if undoable {
+            self.undoable_link(to);
+        } else {
+            self.destructive_link(to);
+        }
+    }
+
+    pub(crate) fn undo(&self) {
+        match self {
+            Self::FreeVar(fv) if fv.is_undoable_linked() => fv.undo(),
+            Self::Type(t) => t.undo(),
+            Self::Value(ValueObj::Type(t)) => t.typ().undo(),
+            Self::App { args, .. } => {
+                for arg in args {
+                    arg.undo();
+                }
+            }
+            _ => {}
+        }
+    }
+
+    pub(crate) fn undoable_update_constraint(&self, new_constraint: Constraint) {
+        let level = self.level().unwrap();
+        let new = if let Some(name) = self.unbound_name() {
+            Self::named_free_var(name, level, new_constraint)
+        } else {
+            Self::free_var(level, new_constraint)
+        };
+        self.undoable_link(&new);
+    }
+
+    pub(crate) fn update_constraint(
+        &self,
+        new_constraint: Constraint,
+        undoable: bool,
+        in_instantiation: bool,
+    ) {
+        if undoable {
+            self.undoable_update_constraint(new_constraint);
+        } else {
+            self.destructive_update_constraint(new_constraint, in_instantiation);
+        }
+    }
+
+    fn inc_undo_count(&self) {
+        match self {
+            Self::FreeVar(fv) => fv.inc_undo_count(),
+            _ => panic!("{self} is not a free variable"),
+        }
+    }
+
+    pub fn typarams(&self) -> Vec<TyParam> {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().typarams(),
+            Self::Type(t) => t.typarams(),
+            Self::Value(ValueObj::Type(t)) => t.typ().typarams(),
+            Self::App { args, .. } => args.clone(),
+            _ => vec![],
         }
     }
 }
