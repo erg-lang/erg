@@ -98,6 +98,7 @@ const MAPPING: &str = "Mapping";
 const MUTABLE_MAPPING: &str = "Mapping!";
 const SHAPE: &str = "Shape";
 const EQ: &str = "Eq";
+const PARTIAL_ORD: &str = "PartialOrd";
 const ORD: &str = "Ord";
 const TO_STR: &str = "to_str";
 const ORDERING: &str = "Ordering";

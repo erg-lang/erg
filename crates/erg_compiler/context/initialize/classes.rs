@@ -164,15 +164,14 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
         );
         float.register_marker_trait(self, mono(NUM)).unwrap();
-        float.register_marker_trait(self, mono(ORD)).unwrap();
-        let mut float_ord = Self::builtin_methods(Some(mono(ORD)), 2);
-        float_ord.register_builtin_erg_impl(
+        let mut float_partial_ord = Self::builtin_methods(Some(mono(PARTIAL_ORD)), 2);
+        float_partial_ord.register_builtin_erg_impl(
             OP_CMP,
             fn1_met(Float, Float, mono(ORDERING)),
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        float.register_trait(Float, float_ord);
+        float.register_trait(Float, float_partial_ord);
         // Float doesn't have an `Eq` implementation
         let op_t = fn1_met(Float, Float, Float);
         let mut float_add = Self::builtin_methods(Some(poly(ADD, vec![ty_tp(Float)])), 2);
@@ -1320,6 +1319,7 @@ impl Context {
         array_
             .register_marker_trait(self, poly(SEQUENCE, vec![ty_tp(T.clone())]))
             .unwrap();
+        array_.unregister_trait(&poly(INDEXABLE, vec![ty_tp(Nat), ty_tp(T.clone())]));
         let mut array_show = Self::builtin_methods(Some(mono(SHOW)), 1);
         array_show.register_builtin_py_impl(
             TO_STR,

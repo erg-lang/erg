@@ -18,7 +18,7 @@ use erg_common::pathutil::{DirKind, FileKind};
 use erg_common::python_util::BUILTIN_PYTHON_MODS;
 use erg_common::set::Set;
 use erg_common::spawn::spawn_new_thread;
-use erg_common::traits::{Locational, Stream};
+use erg_common::traits::{Locational, Stream, StructuralEq};
 use erg_common::triple::Triple;
 use erg_common::{dict, get_hash, log, set, unique_in_place, Str};
 
@@ -50,6 +50,7 @@ use crate::{feature_error, hir};
 use Mutability::*;
 use RegistrationMode::*;
 
+use super::eval::Substituter;
 use super::instantiate::TyVarCache;
 use super::instantiate_spec::ParamKind;
 use super::{ModuleContext, ParamSpec};
@@ -1221,7 +1222,7 @@ impl Context {
     }
 
     pub(crate) fn register_marker_trait(&mut self, ctx: &Self, trait_: Type) -> CompileResult<()> {
-        let (_, trait_ctx) = ctx.get_nominal_type_ctx(&trait_).ok_or_else(|| {
+        let (typ, trait_ctx) = ctx.get_nominal_type_ctx(&trait_).ok_or_else(|| {
             CompileError::type_not_found(
                 self.cfg.input.clone(),
                 line!() as usize,
@@ -1230,12 +1231,40 @@ impl Context {
                 &trait_,
             )
         })?;
-        // self.register_supertrait(trait_, ctx);
-        let traits = trait_ctx.super_traits.clone();
-        self.super_traits.push(trait_);
-        self.super_traits.extend(traits);
+        if typ.has_qvar() {
+            let _substituter = Substituter::substitute_typarams(ctx, typ, &trait_)?;
+            self.super_traits.push(trait_);
+            let mut tv_cache = TyVarCache::new(ctx.level, ctx);
+            let traits = trait_ctx.super_classes.iter().cloned().map(|ty| {
+                if ty.has_undoable_linked_var() {
+                    ctx.detach(ty, &mut tv_cache)
+                } else {
+                    ty
+                }
+            });
+            self.super_traits.extend(traits);
+            let traits = trait_ctx.super_traits.iter().cloned().map(|ty| {
+                if ty.has_undoable_linked_var() {
+                    ctx.detach(ty, &mut tv_cache)
+                } else {
+                    ty
+                }
+            });
+            self.super_traits.extend(traits);
+        } else {
+            self.super_traits.push(trait_);
+            let traits = trait_ctx.super_classes.clone();
+            self.super_traits.extend(traits);
+            let traits = trait_ctx.super_traits.clone();
+            self.super_traits.extend(traits);
+        }
         unique_in_place(&mut self.super_traits);
         Ok(())
+    }
+
+    pub(crate) fn unregister_trait(&mut self, trait_: &Type) {
+        self.super_traits.retain(|t| !t.structural_eq(trait_));
+        // .retain(|t| !ctx.same_type_of(t, trait_));
     }
 
     pub(crate) fn register_gen_const(

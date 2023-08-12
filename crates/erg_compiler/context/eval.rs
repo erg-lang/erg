@@ -19,8 +19,8 @@ use erg_parser::desugar::Desugarer;
 use erg_parser::token::{Token, TokenKind};
 
 use crate::ty::constructors::{
-    array_t, dict_t, mono, poly, proj, proj_call, ref_, ref_mut, refinement, set_t, subr_t,
-    tp_enum, tuple_t, v_enum,
+    array_t, dict_t, mono, named_free_var, poly, proj, proj_call, ref_, ref_mut, refinement, set_t,
+    subr_t, tp_enum, tuple_t, v_enum,
 };
 use crate::ty::free::{Constraint, FreeTyVar, HasLevel};
 use crate::ty::typaram::{OpKind, TyParam};
@@ -344,7 +344,7 @@ impl<'c> Substituter<'c> {
         Ok(())
     }
 
-    pub(crate) fn undo_substitute_typarams(substituted_q: &Type) {
+    fn undo_substitute_typarams(substituted_q: &Type) {
         for tp in substituted_q.typarams().into_iter() {
             Self::undo_substitute_typaram(tp);
         }
@@ -1697,6 +1697,12 @@ impl Context {
                 Ok(Type::from(kvs))
             }
             TyParam::FreeVar(fv) if fv.is_linked() => self.convert_tp_into_type(fv.crack().clone()),
+            // TyParam(Ts: Array(Type)) -> Type(Ts: Array(Type))
+            TyParam::FreeVar(fv) if fv.get_type().is_some() => Ok(named_free_var(
+                fv.unbound_name().unwrap(),
+                fv.level().unwrap(),
+                fv.constraint().unwrap(),
+            )),
             TyParam::Type(t) => Ok(t.as_ref().clone()),
             TyParam::Mono(name) => Ok(Type::Mono(name)),
             TyParam::App { name, args } => Ok(Type::Poly { name, params: args }),
@@ -1954,7 +1960,7 @@ impl Context {
     /// e.g.
     /// F((Int), 3) => F(Int, 3)
     /// F(?T, ?T) => F(?1, ?1)
-    fn detach(&self, ty: Type, tv_cache: &mut TyVarCache) -> Type {
+    pub(crate) fn detach(&self, ty: Type, tv_cache: &mut TyVarCache) -> Type {
         match ty {
             Type::FreeVar(fv) if fv.is_linked() => self.detach(fv.crack().clone(), tv_cache),
             Type::FreeVar(fv) => {

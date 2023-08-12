@@ -196,8 +196,14 @@ impl Context {
         // __eq__: |Self <: Eq| (self: Self, other: Self) -> Bool
         let op_t = fn1_met(Slf.clone(), Slf, Bool).quantify();
         eq.register_builtin_erg_decl(OP_EQ, op_t, Visibility::BUILTIN_PUBLIC);
+        /* PartialOrd */
+        let mut partial_ord = Self::builtin_mono_trait(PARTIAL_ORD, 2);
+        let Slf = mono_q(SELF, subtypeof(mono(PARTIAL_ORD)));
+        let op_t = fn1_met(Slf.clone(), Slf, or(mono(ORDERING), NoneType)).quantify();
+        partial_ord.register_builtin_erg_decl(OP_CMP, op_t, Visibility::BUILTIN_PUBLIC);
         /* Ord */
         let mut ord = Self::builtin_mono_trait(ORD, 2);
+        ord.register_superclass(mono(PARTIAL_ORD), &partial_ord);
         ord.register_superclass(mono(EQ), &eq);
         let Slf = mono_q(SELF, subtypeof(mono(ORD)));
         let op_t = fn1_met(Slf.clone(), Slf, or(mono(ORDERING), NoneType)).quantify();
@@ -473,6 +479,7 @@ impl Context {
             None,
         );
         self.register_builtin_type(mono(EQ), eq, vis.clone(), Const, None);
+        self.register_builtin_type(mono(PARTIAL_ORD), partial_ord, vis.clone(), Const, None);
         self.register_builtin_type(mono(ORD), ord, vis.clone(), Const, None);
         self.register_builtin_type(mono(NUM), num, vis.clone(), Const, None);
         self.register_builtin_type(

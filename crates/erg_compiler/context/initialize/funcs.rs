@@ -691,7 +691,7 @@ impl Context {
         let op_t = bin_op(E.clone(), E, Bool).quantify();
         self.register_builtin_erg_impl(OP_EQ, op_t.clone(), Const, Visibility::BUILTIN_PRIVATE);
         self.register_builtin_erg_impl(OP_NE, op_t, Const, Visibility::BUILTIN_PRIVATE);
-        let O = mono_q(TY_O, subtypeof(mono(ORD)));
+        let O = mono_q(TY_O, subtypeof(mono(PARTIAL_ORD)));
         let op_t = bin_op(O.clone(), O.clone(), Bool).quantify();
         self.register_builtin_erg_impl(OP_LT, op_t.clone(), Const, Visibility::BUILTIN_PRIVATE);
         self.register_builtin_erg_impl(OP_LE, op_t.clone(), Const, Visibility::BUILTIN_PRIVATE);
