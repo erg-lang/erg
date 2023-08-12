@@ -740,20 +740,20 @@ impl ASTLowerer {
     }
 
     fn get_guard_type(&self, op: &Token, lhs: &ast::Expr, rhs: &ast::Expr) -> Option<Type> {
-        let var = expr_to_variable(lhs)?;
+        let var = if op.kind == TokenKind::ContainsOp {
+            expr_to_variable(rhs)?
+        } else {
+            expr_to_variable(lhs)?
+        };
         match op.kind {
-            TokenKind::InOp => {
-                let to = self.module.context.expr_to_type(rhs.clone())?;
+            // l in T -> T contains l
+            TokenKind::ContainsOp => {
+                let to = self.module.context.expr_to_type(lhs.clone())?;
                 Some(guard(var, to))
             }
             TokenKind::Symbol if &op.content[..] == "isinstance" => {
                 let to = self.module.context.expr_to_type(rhs.clone())?;
                 Some(guard(var, to))
-            }
-            TokenKind::NotInOp => {
-                let to = self.module.context.expr_to_type(rhs.clone())?;
-                let ty = guard(var, to);
-                Some(self.module.context.complement(&ty))
             }
             TokenKind::IsOp | TokenKind::DblEq => {
                 let value = self.module.context.expr_to_value(rhs.clone())?;

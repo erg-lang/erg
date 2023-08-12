@@ -767,9 +767,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
         };
         if sub_t == super_t {
             Ok(sub_t)
-        }
-        // REVIEW: Even if type constraints can be satisfied, implementation may not exist
-        else if is_subtype {
+        } else if is_subtype {
             match self.variance {
                 // ?T(<: Sup) --> Sup (Sup != Obj), because completion will not work if Never is selected.
                 // ?T(:> Never, <: Obj) --> Never

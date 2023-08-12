@@ -720,12 +720,17 @@ impl Context {
         self.register_builtin_erg_decl(OP_LORNG, op_t.clone(), Visibility::BUILTIN_PRIVATE);
         self.register_builtin_erg_decl(OP_RORNG, op_t.clone(), Visibility::BUILTIN_PRIVATE);
         self.register_builtin_erg_decl(OP_ORNG, op_t, Visibility::BUILTIN_PRIVATE);
-        // TODO: use existential type: |T: Type| (T, In(T)) -> Bool
+        // TODO: use existential type: |T: Type| (Container(T), T) -> Bool
+        // __contains__: |T, C <: Container(T)| (C, T) -> Bool
         let T = mono_q(TY_T, instanceof(Type));
-        let I = mono_q(KW_I, subtypeof(poly(IN, vec![ty_tp(T.clone())])));
-        let op_t = bin_op(I, T, Bool).quantify();
-        self.register_builtin_erg_impl(OP_IN, op_t.clone(), Const, Visibility::BUILTIN_PRIVATE);
-        self.register_builtin_erg_impl(OP_NOT_IN, op_t, Const, Visibility::BUILTIN_PRIVATE);
+        let C = mono_q(TY_C, subtypeof(poly(CONTAINER, vec![ty_tp(T.clone())])));
+        let op_t = bin_op(C, T, Bool).quantify();
+        self.register_builtin_erg_impl(
+            FUNDAMENTAL_CONTAINS,
+            op_t.clone(),
+            Const,
+            Visibility::BUILTIN_PRIVATE,
+        );
         /* unary */
         // TODO: +/- Bool would like to be warned
         let M = mono_q(TY_M, subtypeof(mono(MUTIZABLE)));

@@ -199,6 +199,11 @@ fn exec_never() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_operators() -> Result<(), ()> {
+    expect_success("tests/should_ok/operators.er", 0)
+}
+
+#[test]
 fn exec_patch() -> Result<(), ()> {
     expect_success("examples/patch.er", 0)
 }

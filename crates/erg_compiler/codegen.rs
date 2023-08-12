@@ -174,7 +174,7 @@ pub struct PyCodeGenerator {
     str_cache: CacheSet<str>,
     prelude_loaded: bool,
     mutate_op_loaded: bool,
-    in_op_loaded: bool,
+    contains_op_loaded: bool,
     record_type_loaded: bool,
     module_type_loaded: bool,
     control_loaded: bool,
@@ -193,7 +193,7 @@ impl PyCodeGenerator {
             str_cache: CacheSet::new(),
             prelude_loaded: false,
             mutate_op_loaded: false,
-            in_op_loaded: false,
+            contains_op_loaded: false,
             record_type_loaded: false,
             module_type_loaded: false,
             control_loaded: false,
@@ -212,7 +212,7 @@ impl PyCodeGenerator {
             str_cache: self.str_cache.clone(),
             prelude_loaded: false,
             mutate_op_loaded: false,
-            in_op_loaded: false,
+            contains_op_loaded: false,
             record_type_loaded: false,
             module_type_loaded: false,
             control_loaded: false,
@@ -231,7 +231,7 @@ impl PyCodeGenerator {
     pub fn initialize(&mut self) {
         self.prelude_loaded = false;
         self.mutate_op_loaded = false;
-        self.in_op_loaded = false;
+        self.contains_op_loaded = false;
         self.record_type_loaded = false;
         self.module_type_loaded = false;
         self.control_loaded = false;
@@ -1484,17 +1484,17 @@ impl PyCodeGenerator {
                 self.emit_push_null();
                 self.emit_load_name_instr(Identifier::public("OpenRange"));
             }
-            TokenKind::InOp => {
-                // if no-std, always `x in y == True`
+            TokenKind::ContainsOp => {
+                // if no-std, always `x contains y == True`
                 if self.cfg.no_std {
                     self.emit_load_const(true);
                     return;
                 }
-                if !self.in_op_loaded {
-                    self.load_in_op();
+                if !self.contains_op_loaded {
+                    self.load_contains_op();
                 }
                 self.emit_push_null();
-                self.emit_load_name_instr(Identifier::private("#in_operator"));
+                self.emit_load_name_instr(Identifier::private("#contains_operator"));
             }
             _ => {}
         }
@@ -1547,7 +1547,7 @@ impl PyCodeGenerator {
             | TokenKind::RightOpen
             | TokenKind::Closed
             | TokenKind::Open
-            | TokenKind::InOp => Opcode310::CALL_FUNCTION, // ERG_BINARY_RANGE,
+            | TokenKind::ContainsOp => Opcode310::CALL_FUNCTION, // ERG_BINARY_RANGE,
             _ => {
                 CompileError::feature_error(
                     self.cfg.input.clone(),
@@ -1573,7 +1573,7 @@ impl PyCodeGenerator {
             | TokenKind::RightOpen
             | TokenKind::Closed
             | TokenKind::Open
-            | TokenKind::InOp => 2,
+            | TokenKind::ContainsOp => 2,
             _ => type_pair as usize,
         };
         self.write_instr(instr);
@@ -1584,7 +1584,7 @@ impl PyCodeGenerator {
             | TokenKind::RightOpen
             | TokenKind::Open
             | TokenKind::Closed
-            | TokenKind::InOp => {
+            | TokenKind::ContainsOp => {
                 self.stack_dec();
             }
             _ => {}
@@ -1616,7 +1616,7 @@ impl PyCodeGenerator {
             | TokenKind::RightOpen
             | TokenKind::Closed
             | TokenKind::Open
-            | TokenKind::InOp => {
+            | TokenKind::ContainsOp => {
                 self.write_instr(Opcode311::PRECALL);
                 self.write_arg(2);
                 self.write_arg(0);
@@ -1658,7 +1658,7 @@ impl PyCodeGenerator {
             | TokenKind::RightOpen
             | TokenKind::Closed
             | TokenKind::Open
-            | TokenKind::InOp => 2,
+            | TokenKind::ContainsOp => 2,
             _ => type_pair as usize,
         };
         self.write_instr(instr);
@@ -1681,7 +1681,7 @@ impl PyCodeGenerator {
             | TokenKind::RightOpen
             | TokenKind::Open
             | TokenKind::Closed
-            | TokenKind::InOp => {
+            | TokenKind::ContainsOp => {
                 self.stack_dec();
                 if self.py_version.minor >= Some(11) {
                     self.stack_dec();
@@ -2013,33 +2013,36 @@ impl PyCodeGenerator {
             Some(t_spec) if !is_last_arm => {
                 // < v3.11:
                 // arg
-                // ↓ LOAD_NAME(in_operator)
-                // arg in_operator
+                // ↓ LOAD_NAME(contains_operator)
+                // arg contains_operator
                 // ↓ ROT_TWO
-                // in_operator arg
+                // contains_operator arg
                 // ↓ load expr
-                // in_operator arg expr
+                // contains_operator arg expr
                 //
                 // in v3.11:
                 // arg null
                 // ↓ SWAP 1
                 // null arg
-                // ↓ LOAD_NAME(in_operator)
-                // null arg in_operator
+                // ↓ LOAD_NAME(contains_operator)
+                // null arg contains_operator
                 // ↓ SWAP 1
-                // null in_operator arg
+                // null contains_operator arg
                 // ↓ load expr
-                // null in_operator arg expr
+                // null contains_operator arg expr
+                // ↓ SWAP 1
+                // null contains_operator expr arg
                 if self.py_version.minor >= Some(11) {
                     self.emit_push_null();
                     self.rot2();
                 }
-                if !self.in_op_loaded {
-                    self.load_in_op();
+                if !self.contains_op_loaded {
+                    self.load_contains_op();
                 }
-                self.emit_load_name_instr(Identifier::private("#in_operator"));
+                self.emit_load_name_instr(Identifier::private("#contains_operator"));
                 self.rot2();
                 self.emit_expr(t_spec);
+                self.rot2();
                 if self.py_version.minor >= Some(11) {
                     self.emit_precall_and_call(2);
                 } else {
@@ -3264,16 +3267,16 @@ impl PyCodeGenerator {
         self.cfg.no_std = no_std;
     }
 
-    fn load_in_op(&mut self) {
+    fn load_contains_op(&mut self) {
         let mod_name = Identifier::public("_erg_std_prelude");
         self.emit_global_import_items(
             mod_name,
             vec![(
-                Identifier::public("in_operator"),
-                Some(Identifier::private("#in_operator")),
+                Identifier::public("contains_operator"),
+                Some(Identifier::private("#contains_operator")),
             )],
         );
-        self.in_op_loaded = true;
+        self.contains_op_loaded = true;
     }
 
     fn load_mutate_op(&mut self) {
@@ -3319,8 +3322,8 @@ impl PyCodeGenerator {
         self.emit_global_import_items(
             erg_std_mod.clone(),
             vec![(
-                Identifier::public("in_operator"),
-                Some(Identifier::private("#in_operator")),
+                Identifier::public("contains_operator"),
+                Some(Identifier::private("#contains_operator")),
             )],
         );
         self.emit_import_all_instr(erg_std_mod);

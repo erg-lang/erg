@@ -60,14 +60,6 @@ impl Context {
             8,
         );
         obj.register_py_builtin(FUNDAMENTAL_STR, fn0_met(Obj, Str), Some(FUNDAMENTAL_STR), 9);
-        let mut obj_in = Self::builtin_methods(Some(poly(IN, vec![ty_tp(Type)])), 2);
-        obj_in.register_builtin_erg_impl(
-            OP_IN,
-            fn1_met(Obj, Type, Bool),
-            Const,
-            Visibility::BUILTIN_PUBLIC,
-        );
-        obj.register_trait(Obj, obj_in);
         // Obj does not implement Eq
         let mut complex = Self::builtin_mono_class(COMPLEX, 2);
         complex.register_superclass(Obj, &obj);
@@ -1012,6 +1004,14 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
         );
         type_.register_marker_trait(self, mono(NAMED)).unwrap();
+        let mut type_container = Self::builtin_methods(Some(poly(CONTAINER, vec![ty_tp(Obj)])), 2);
+        type_container.register_builtin_erg_impl(
+            FUNDAMENTAL_CONTAINS,
+            fn1_met(Type, Obj, Bool),
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        type_.register_trait(Type, type_container);
         let mut type_eq = Self::builtin_methods(Some(mono(EQ)), 2);
         type_eq.register_builtin_erg_impl(
             OP_EQ,
@@ -1346,6 +1346,9 @@ impl Context {
             ValueObj::builtin_class(array_iter),
         );
         array_.register_trait(arr_t.clone(), array_iterable);
+        array_
+            .register_marker_trait(self, poly(COLLECTION, vec![ty_tp(T.clone())]))
+            .unwrap();
         let t = fn1_met(
             array_t(T.clone(), TyParam::erased(Nat)),
             func1(T.clone(), Bool),
@@ -1435,6 +1438,8 @@ impl Context {
             ValueObj::builtin_class(set_iter),
         );
         set_.register_trait(set_t.clone(), set_iterable);
+        set_.register_marker_trait(self, poly(COLLECTION, vec![ty_tp(T.clone())]))
+            .unwrap();
         let t_call = func1(poly(ITERABLE, vec![ty_tp(T.clone())]), set_t.clone()).quantify();
         set_.register_builtin_erg_impl(
             FUNDAMENTAL_CALL,
@@ -1638,6 +1643,9 @@ impl Context {
         );
         tuple_
             .register_marker_trait(self, poly(INDEXABLE, vec![ty_tp(input_t), ty_tp(return_t)]))
+            .unwrap();
+        tuple_
+            .register_marker_trait(self, poly(COLLECTION, vec![ty_tp(union_t.clone())]))
             .unwrap();
         // `__Tuple_getitem__` and `__getitem__` are the same thing
         // but `x.0` => `x__Tuple_getitem__(0)` determines that `x` is a tuple, which is better for type inference.

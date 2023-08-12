@@ -178,15 +178,10 @@ impl Context {
             Some(FUNDAMENTAL_STR),
         );
         /* In */
-        let mut in_ = Self::builtin_poly_trait(IN, vec![PS::t_nd(TY_T)], 2);
         let params = vec![PS::t_nd(TY_T)];
         let input = Self::builtin_poly_trait(INPUT, params.clone(), 2);
         let output = Self::builtin_poly_trait(OUTPUT, params, 2);
         let T = mono_q(TY_T, instanceof(Type));
-        let I = mono_q(TY_I, subtypeof(poly(IN, vec![ty_tp(T.clone())])));
-        in_.register_superclass(poly(INPUT, vec![ty_tp(T.clone())]), &input);
-        let op_t = fn1_met(T.clone(), I, Bool).quantify();
-        in_.register_builtin_erg_decl(OP_IN, op_t, Visibility::BUILTIN_PUBLIC);
         /* Eq */
         // Erg does not have a trait equivalent to `PartialEq` in Rust
         // This means, Erg's `Float` cannot be compared with other `Float`
@@ -229,6 +224,7 @@ impl Context {
         /* Container */
         let mut container = Self::builtin_poly_trait(CONTAINER, vec![PS::t_nd(TY_T)], 2);
         let op_t = fn1_met(mono(CONTAINER), T.clone(), Bool).quantify();
+        container.register_superclass(poly(OUTPUT, vec![ty_tp(T.clone())]), &output);
         container.register_builtin_erg_decl(FUNDAMENTAL_CONTAINS, op_t, Visibility::BUILTIN_PUBLIC);
         /* Collection */
         let mut collection = Self::builtin_poly_trait(COLLECTION, vec![PS::t_nd(TY_T)], 2);
@@ -467,13 +463,6 @@ impl Context {
         self.register_builtin_type(
             poly(OUTPUT, vec![ty_tp(T.clone())]),
             output,
-            Visibility::BUILTIN_PRIVATE,
-            Const,
-            None,
-        );
-        self.register_builtin_type(
-            poly(IN, vec![ty_tp(T.clone())]),
-            in_,
             Visibility::BUILTIN_PRIVATE,
             Const,
             None,

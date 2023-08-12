@@ -772,6 +772,7 @@ impl Lexer /*<'a>*/ {
             "or" => OrOp,
             "in" => InOp,
             "notin" => NotInOp,
+            "contains" => ContainsOp,
             "is!" => IsOp,
             "isnot!" => IsNotOp,
             "dot" => DotOp,

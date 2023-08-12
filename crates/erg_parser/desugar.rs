@@ -49,6 +49,7 @@ impl Desugarer {
         let module = self.desugar_pattern_in_module(module);
         let module = Self::desugar_shortened_record(module);
         let module = Self::desugar_acc(module);
+        let module = Self::desugar_operator(module);
         log!(info "AST (desugared):\n{module}");
         log!(info "the desugaring process has completed.");
         module
@@ -1421,6 +1422,33 @@ impl Desugarer {
                 Expr::Accessor(Accessor::Attr(attr))
             }
             other => Expr::Accessor(other),
+        }
+    }
+
+    // TODO: pipeline desugaring (move from `Parser`)
+    fn desugar_operator(module: Module) -> Module {
+        Self::desugar_all_chunks(module, Self::rec_desugar_operator)
+    }
+
+    /// `l in r => r contains l`
+    /// `l notin r => not r contains l`
+    fn rec_desugar_operator(expr: Expr) -> Expr {
+        match expr {
+            Expr::BinOp(bin) if bin.op.is(TokenKind::InOp) => {
+                let (mut op, lhs, rhs) = bin.deconstruct();
+                op.content = Str::from("contains");
+                op.kind = TokenKind::ContainsOp;
+                Expr::BinOp(BinOp::new(op, rhs, lhs))
+            }
+            Expr::BinOp(bin) if bin.op.is(TokenKind::NotInOp) => {
+                let (mut op, lhs, rhs) = bin.deconstruct();
+                op.content = Str::from("contains");
+                op.kind = TokenKind::ContainsOp;
+                let not = Identifier::private("not".into());
+                let bin = Expr::BinOp(BinOp::new(op, rhs, lhs));
+                Expr::Accessor(Accessor::Ident(not)).call1(bin)
+            }
+            expr => Self::perform_desugar(Self::rec_desugar_operator, expr),
         }
     }
 }

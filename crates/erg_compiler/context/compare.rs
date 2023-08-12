@@ -259,7 +259,7 @@ impl Context {
         &'c self,
         lhs: &Type,
         rhs: &Type,
-        get_types: impl FnOnce(&'c Context) -> &'c [Type],
+        get_types: impl Fn(&'c Context) -> &'c [Type],
     ) -> (Credibility, bool) {
         if let Some((typ, ty_ctx)) = self.get_nominal_type_ctx(rhs) {
             let substitute = typ.has_qvar();

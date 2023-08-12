@@ -90,7 +90,6 @@ const INPUT: &str = "Input";
 const OUTPUT: &str = "Output";
 const POW_OUTPUT: &str = "PowOutput";
 const MOD_OUTPUT: &str = "ModOutput";
-const IN: &str = "In";
 const CONTAINER: &str = "Container";
 const COLLECTION: &str = "Collection";
 const INDEXABLE: &str = "Indexable";
@@ -374,8 +373,6 @@ const FUNC_GETATTR: &str = "getattr";
 const FUNC_SETATTR: &str = "setattr";
 const FUNC_DELATTR: &str = "delattr";
 
-const OP_IN: &str = "__in__";
-const OP_NOT_IN: &str = "__notin__";
 const OP_EQ: &str = "__eq__";
 const OP_NE: &str = "__ne__";
 const OP_CMP: &str = "__cmp__";
@@ -442,6 +439,7 @@ const PYCOMPILE: &str = "pycompile";
 
 const TY_A: &str = "A";
 const TY_B: &str = "B";
+const TY_C: &str = "C";
 const TY_D: &str = "D";
 const TY_E: &str = "E";
 const TY_T: &str = "T";

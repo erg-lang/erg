@@ -338,11 +338,12 @@ impl ScriptGenerator {
         }
     }
 
-    fn load_in_op_if_not(&mut self) {
+    fn load_contains_op_if_not(&mut self) {
         if !self.in_op_loaded {
             self.prelude += &Self::replace_import(include_str!("lib/std/_erg_result.py"));
             self.prelude += &Self::replace_import(include_str!("lib/std/_erg_range.py"));
-            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_in_operator.py"));
+            self.prelude +=
+                &Self::replace_import(include_str!("lib/std/_erg_contains_operator.py"));
             self.in_op_loaded = true;
         }
     }
@@ -540,9 +541,9 @@ impl ScriptGenerator {
                 code.push(')');
                 code
             }
-            TokenKind::InOp => {
-                self.load_in_op_if_not();
-                let mut code = "in_operator(".to_string();
+            TokenKind::ContainsOp => {
+                self.load_contains_op_if_not();
+                let mut code = "contains_operator(".to_string();
                 code += &self.transpile_expr(*bin.lhs);
                 code.push(',');
                 code += &self.transpile_expr(*bin.rhs);

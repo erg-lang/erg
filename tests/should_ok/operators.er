@@ -1,0 +1,5 @@
+assert 1 in [1, 2]
+assert 1 in (1, 2)
+assert 1 in {1, 2}
+assert 1 in {1: 2}
+assert 1 in 1..2

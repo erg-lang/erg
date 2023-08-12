@@ -188,9 +188,7 @@ impl<'c> Substituter<'c> {
     fn substitute_typaram(&mut self, qtp: TyParam, stp: TyParam) -> EvalResult<()> {
         match qtp {
             TyParam::FreeVar(ref fv) if fv.is_generalized() => {
-                if !stp.is_unbound_var() || !stp.is_generalized() {
-                    qtp.undoable_link(&stp);
-                }
+                qtp.undoable_link(&stp);
                 /*if let Err(errs) = self.sub_unify_tp(&stp, &qtp, None, &(), false) {
                     log!(err "{errs}");
                 }*/
@@ -227,16 +225,9 @@ impl<'c> Substituter<'c> {
                 &tp.to_string(),
             )
         })?;
-        if !qt.is_undoable_linked_var()
-            && qt.is_generalized()
-            && qt.is_free_var()
-            && (!st.is_unbound_var() || !st.is_generalized())
-        {
+        if !qt.is_undoable_linked_var() && qt.is_generalized() && qt.is_free_var() {
             qt.undoable_link(&st);
-        } else if qt.is_undoable_linked_var()
-            && (!st.is_unbound_var() || !st.is_generalized())
-            && qt != st
-        {
+        } else if qt.is_undoable_linked_var() && qt != st {
             // e.g. Array(T, N) <: Add(Array(T, M))
             // Array((Int), (3)) <: Add(Array((Int), (4))): OK
             // Array((Int), (3)) <: Add(Array((Str), (4))): NG
@@ -275,9 +266,7 @@ impl<'c> Substituter<'c> {
     fn overwrite_typaram(&mut self, qtp: TyParam, stp: TyParam) -> EvalResult<()> {
         match qtp {
             TyParam::FreeVar(ref fv) if fv.is_undoable_linked() => {
-                if !stp.is_unbound_var() || !stp.is_generalized() {
-                    qtp.undoable_link(&stp);
-                }
+                qtp.undoable_link(&stp);
                 /*if let Err(errs) = self.sub_unify_tp(&stp, &qtp, None, &(), false) {
                     log!(err "{errs}");
                 }*/
@@ -287,9 +276,7 @@ impl<'c> Substituter<'c> {
             // Whether this could be a problem is under consideration.
             // e.g. `T` of Array(T, N) <: Add(T, M)
             TyParam::FreeVar(ref fv) if fv.is_generalized() => {
-                if !stp.is_unbound_var() || !stp.is_generalized() {
-                    qtp.undoable_link(&stp);
-                }
+                qtp.undoable_link(&stp);
                 /*if let Err(errs) = self.sub_unify_tp(&stp, &qtp, None, &(), false) {
                     log!(err "{errs}");
                 }*/
@@ -326,7 +313,7 @@ impl<'c> Substituter<'c> {
                 &tp.to_string(),
             )
         })?;
-        if qt.is_undoable_linked_var() && (!st.is_unbound_var() || !st.is_generalized()) {
+        if qt.is_undoable_linked_var() {
             qt.undoable_link(&st);
         }
         if !st.is_unbound_var() || !st.is_generalized() {
@@ -1962,7 +1949,7 @@ impl Context {
     /// F(?T, ?T) => F(?1, ?1)
     pub(crate) fn detach(&self, ty: Type, tv_cache: &mut TyVarCache) -> Type {
         match ty {
-            Type::FreeVar(fv) if fv.is_linked() => self.detach(fv.crack().clone(), tv_cache),
+            Type::FreeVar(fv) if fv.is_linked() => fv.crack().clone(), // self.detach(fv.crack().clone(), tv_cache),
             Type::FreeVar(fv) => {
                 let new_fv = fv.detach();
                 let name = new_fv.unbound_name().unwrap();
