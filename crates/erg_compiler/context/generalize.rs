@@ -153,7 +153,9 @@ impl Generalizer {
                     if sub == sup {
                         let t = self.generalize_t(sub, uninit);
                         let res = FreeVar(fv);
+                        res.set_level(1);
                         res.destructive_link(&t);
+                        res.generalize();
                         res
                     } else if sup != Obj
                         && !self.qnames.contains(&fv.unbound_name().unwrap())
