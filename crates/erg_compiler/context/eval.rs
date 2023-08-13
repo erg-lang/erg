@@ -346,7 +346,7 @@ impl<'c> Substituter<'c> {
                     subst.undo();
                 }
             }
-            TyParam::Type(t) => {
+            /*TyParam::Type(t) => {
                 Self::undo_substitute_typarams(&t);
             }
             TyParam::Value(ValueObj::Type(t)) => {
@@ -356,7 +356,7 @@ impl<'c> Substituter<'c> {
                 for arg in args.into_iter() {
                     Self::undo_substitute_typaram(arg);
                 }
-            }
+            }*/
             _ => {}
         }
     }
@@ -1925,7 +1925,11 @@ impl Context {
                     None
                 };
                 // T -> Int, N -> 4
-                let _sub_subs = Substituter::substitute_typarams(self, quant_sub, sub).ok()?;
+                let _sub_subs = if quant_sub.has_undoable_linked_var() {
+                    Substituter::overwrite_typarams(self, quant_sub, sub).ok()?
+                } else {
+                    Substituter::substitute_typarams(self, quant_sub, sub).ok()?
+                };
                 // [T; M+N] -> [Int; 4+2] -> [Int; 6]
                 let res = self.eval_t_params(projected_t, level, t_loc).ok();
                 if let Some(t) = res {
