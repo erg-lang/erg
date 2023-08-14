@@ -1831,6 +1831,20 @@ impl Context {
                 }
                 Ok(TyParam::Record(new_rec))
             }
+            ValueObj::DataClass { name, fields } => {
+                let mut new_fields = dict! {};
+                for (k, v) in fields.into_iter() {
+                    let v = match Self::convert_value_into_tp(v) {
+                        Ok(tp) => tp,
+                        Err(tp) => tp,
+                    };
+                    new_fields.insert(k, v);
+                }
+                Ok(TyParam::DataClass {
+                    name,
+                    fields: new_fields,
+                })
+            }
             _ => Err(TyParam::Value(value)),
         }
     }

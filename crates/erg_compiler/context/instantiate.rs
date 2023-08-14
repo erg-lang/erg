@@ -411,6 +411,16 @@ impl Context {
                     .collect::<TyCheckResult<_>>()?;
                 Ok(TyParam::Record(rec))
             }
+            TyParam::DataClass { name, fields } => {
+                let fields = fields
+                    .into_iter()
+                    .map(|(k, v)| {
+                        let v = self.instantiate_tp(v, tmp_tv_cache, loc)?;
+                        Ok((k, v))
+                    })
+                    .collect::<TyCheckResult<_>>()?;
+                Ok(TyParam::DataClass { name, fields })
+            }
             TyParam::Lambda(lambda) => {
                 let nd_params = lambda
                     .nd_params

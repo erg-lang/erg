@@ -207,6 +207,10 @@ pub enum TyParam {
     Set(Set<TyParam>),
     Dict(Dict<TyParam, TyParam>),
     Record(Dict<Field, TyParam>),
+    DataClass {
+        name: Str,
+        fields: Dict<Field, TyParam>,
+    },
     Lambda(TyParamLambda),
     Mono(Str),
     Proj {
@@ -245,6 +249,16 @@ impl PartialEq for TyParam {
             (Self::Tuple(l), Self::Tuple(r)) => l == r,
             (Self::Dict(l), Self::Dict(r)) => l == r,
             (Self::Record(l), Self::Record(r)) => l == r,
+            (
+                Self::DataClass {
+                    name: ln,
+                    fields: lfs,
+                },
+                Self::DataClass {
+                    name: rn,
+                    fields: rfs,
+                },
+            ) => ln == rn && lfs == rfs,
             (Self::Set(l), Self::Set(r)) => l == r,
             (Self::Lambda(l), Self::Lambda(r)) => l == r,
             (Self::Mono(l), Self::Mono(r)) => l == r,
@@ -422,6 +436,22 @@ impl LimitedDisplay for TyParam {
                     write!(f, "=")?;
                 }
                 write!(f, "}}")
+            }
+            Self::DataClass { name, fields } => {
+                write!(f, "{name} {{")?;
+                for (i, (field, v)) in fields.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, "; ")?;
+                    }
+                    if limit.is_positive() && i >= CONTAINER_OMIT_THRESHOLD {
+                        write!(f, "...")?;
+                        break;
+                    }
+                    write!(f, "{field} = ")?;
+                    v.limited_fmt(f, limit - 1)?;
+                }
+                write!(f, "}}")?;
+                Ok(())
             }
             Self::Lambda(lambda) => write!(f, "{lambda}"),
             Self::Tuple(tuple) => {
@@ -618,6 +648,13 @@ impl TryFrom<TyParam> for ValueObj {
                 }
                 Ok(ValueObj::Record(vals))
             }
+            TyParam::DataClass { name, fields } => {
+                let mut vals = dict! {};
+                for (k, v) in fields {
+                    vals.insert(k, ValueObj::try_from(v)?);
+                }
+                Ok(ValueObj::DataClass { name, fields: vals })
+            }
             TyParam::Lambda(lambda) => {
                 // TODO: sig_t
                 let lambda = UserConstSubr::new(
@@ -701,7 +738,7 @@ impl HasLevel for TyParam {
                         .min(v.level().unwrap_or(GENERIC_LEVEL))
                 })
                 .min(),
-            Self::Record(rec) => rec
+            Self::Record(rec) | Self::DataClass { fields: rec, .. } => rec
                 .iter()
                 .map(|(_, v)| v.level().unwrap_or(GENERIC_LEVEL))
                 .min(),
@@ -726,7 +763,7 @@ impl HasLevel for TyParam {
                     v.set_level(level);
                 }
             }
-            Self::Record(rec) => {
+            Self::Record(rec) | Self::DataClass { fields: rec, .. } => {
                 for (_, v) in rec.iter() {
                     v.set_level(level);
                 }
@@ -773,6 +810,9 @@ impl StructuralEq for TyParam {
             (Self::Array(l), Self::Array(r)) => l.iter().zip(r).all(|(l, r)| l.structural_eq(r)),
             (Self::Tuple(l), Self::Tuple(r)) => l.iter().zip(r).all(|(l, r)| l.structural_eq(r)),
             (Self::Dict(l), Self::Dict(r)) => {
+                if l.len() != r.len() {
+                    return false;
+                }
                 for (key, val) in l.iter() {
                     if let Some(r_val) = r.get_by(key, |l, r| l.structural_eq(r)) {
                         if !val.structural_eq(r_val) {
@@ -785,8 +825,32 @@ impl StructuralEq for TyParam {
                 true
             }
             (Self::Record(l), Self::Record(r)) => {
+                if l.len() != r.len() {
+                    return false;
+                }
                 for (l_field, l_val) in l.iter() {
                     if let Some((r_field, r_val)) = r.get_key_value(l_field) {
+                        if l_field.vis != r_field.vis || !l_val.structural_eq(r_val) {
+                            return false;
+                        }
+                    } else {
+                        return false;
+                    }
+                }
+                true
+            }
+            (
+                Self::DataClass { name, fields },
+                Self::DataClass {
+                    name: r_name,
+                    fields: r_fields,
+                },
+            ) => {
+                if name != r_name || fields.len() != r_fields.len() {
+                    return false;
+                }
+                for (l_field, l_val) in fields.iter() {
+                    if let Some((r_field, r_val)) = r_fields.get_key_value(l_field) {
                         if l_field.vis != r_field.vis || !l_val.structural_eq(r_val) {
                             return false;
                         }
@@ -877,6 +941,17 @@ impl TyParam {
             obj: Box::new(self),
             attr,
             args,
+        }
+    }
+
+    pub fn range(start: Self, end: Self) -> Self {
+        Self::DataClass {
+            name: "Range".into(),
+            fields: dict! {
+                Field::private("start".into()) => start,
+                Field::private("end".into()) => end,
+                Field::private("step".into()) => ValueObj::None.into(),
+            },
         }
     }
 
@@ -1014,7 +1089,7 @@ impl TyParam {
             Self::Dict(ts) => ts.iter().fold(set! {}, |acc, (k, v)| {
                 acc.concat(k.qvars().concat(v.qvars()))
             }),
-            Self::Record(rec) => rec
+            Self::Record(rec) | Self::DataClass { fields: rec, .. } => rec
                 .iter()
                 .fold(set! {}, |acc, (_, v)| acc.concat(v.qvars())),
             Self::Lambda(lambda) => lambda
@@ -1039,7 +1114,9 @@ impl TyParam {
             Self::Array(tps) | Self::Tuple(tps) => tps.iter().any(|tp| tp.has_qvar()),
             Self::Set(tps) => tps.iter().any(|tp| tp.has_qvar()),
             Self::Dict(tps) => tps.iter().any(|(k, v)| k.has_qvar() || v.has_qvar()),
-            Self::Record(rec) => rec.iter().any(|(_, tp)| tp.has_qvar()),
+            Self::Record(rec) | Self::DataClass { fields: rec, .. } => {
+                rec.iter().any(|(_, tp)| tp.has_qvar())
+            }
             Self::Lambda(lambda) => lambda.body.iter().any(|tp| tp.has_qvar()),
             Self::UnaryOp { val, .. } => val.has_qvar(),
             Self::BinOp { lhs, rhs, .. } => lhs.has_qvar() || rhs.has_qvar(),
@@ -1061,7 +1138,9 @@ impl TyParam {
             Self::Dict(ts) => ts
                 .iter()
                 .any(|(k, v)| k.contains_tvar(target) || v.contains_tvar(target)),
-            Self::Record(rec) => rec.iter().any(|(_, tp)| tp.contains_tvar(target)),
+            Self::Record(rec) | Self::DataClass { fields: rec, .. } => {
+                rec.iter().any(|(_, tp)| tp.contains_tvar(target))
+            }
             Self::Lambda(lambda) => lambda.body.iter().any(|tp| tp.contains_tvar(target)),
             Self::UnaryOp { val, .. } => val.contains_tvar(target),
             Self::BinOp { lhs, rhs, .. } => lhs.contains_tvar(target) || rhs.contains_tvar(target),
@@ -1082,7 +1161,9 @@ impl TyParam {
             Self::Dict(ts) => ts
                 .iter()
                 .any(|(k, v)| k.contains_type(target) || v.contains_type(target)),
-            Self::Record(rec) => rec.iter().any(|(_, tp)| tp.contains_type(target)),
+            Self::Record(rec) | Self::DataClass { fields: rec, .. } => {
+                rec.iter().any(|(_, tp)| tp.contains_type(target))
+            }
             Self::Lambda(lambda) => lambda.body.iter().any(|tp| tp.contains_type(target)),
             Self::UnaryOp { val, .. } => val.contains_type(target),
             Self::BinOp { lhs, rhs, .. } => lhs.contains_type(target) || rhs.contains_type(target),
@@ -1141,7 +1222,9 @@ impl TyParam {
             Self::Dict(kv) => kv
                 .iter()
                 .any(|(k, v)| k.has_unbound_var() || v.has_unbound_var()),
-            Self::Record(rec) => rec.iter().any(|(_, v)| v.has_unbound_var()),
+            Self::Record(rec) | Self::DataClass { fields: rec, .. } => {
+                rec.iter().any(|(_, v)| v.has_unbound_var())
+            }
             Self::Lambda(lambda) => lambda.body.iter().any(|t| t.has_unbound_var()),
             Self::UnaryOp { val, .. } => val.has_unbound_var(),
             Self::BinOp { lhs, rhs, .. } => lhs.has_unbound_var() || rhs.has_unbound_var(),
@@ -1166,7 +1249,9 @@ impl TyParam {
             Self::Dict(kv) => kv
                 .iter()
                 .any(|(k, v)| k.has_undoable_linked_var() || v.has_undoable_linked_var()),
-            Self::Record(rec) => rec.iter().any(|(_, v)| v.has_undoable_linked_var()),
+            Self::Record(rec) | Self::DataClass { fields: rec, .. } => {
+                rec.iter().any(|(_, v)| v.has_undoable_linked_var())
+            }
             Self::Lambda(lambda) => lambda.body.iter().any(|t| t.has_undoable_linked_var()),
             Self::UnaryOp { val, .. } => val.has_undoable_linked_var(),
             Self::BinOp { lhs, rhs, .. } => {
@@ -1193,7 +1278,9 @@ impl TyParam {
                 .map(|(k, v)| k.union_size().max(v.union_size()))
                 .max()
                 .unwrap_or(1),
-            Self::Record(rec) => rec.iter().map(|(_, v)| v.union_size()).max().unwrap_or(1),
+            Self::Record(rec) | Self::DataClass { fields: rec, .. } => {
+                rec.iter().map(|(_, v)| v.union_size()).max().unwrap_or(1)
+            }
             Self::Lambda(lambda) => lambda
                 .body
                 .iter()

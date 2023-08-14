@@ -678,6 +678,24 @@ impl LimitedDisplay for ValueObj {
                 }
                 write!(f, "}}")
             }
+            Self::DataClass { name, fields } => {
+                write!(f, "{name} {{")?;
+                for (i, (field, v)) in fields.iter().enumerate() {
+                    if i != 0 {
+                        write!(f, "; ")?;
+                    }
+                    if limit.is_positive() && i >= CONTAINER_OMIT_THRESHOLD {
+                        write!(f, "...")?;
+                        break;
+                    }
+                    write!(f, "{field} = ")?;
+                    v.limited_fmt(f, limit - 1)?;
+                }
+                if fields.is_empty() {
+                    write!(f, "=")?;
+                }
+                write!(f, "}}")
+            }
             Self::Type(typ) => typ.limited_fmt(f, limit),
             _ => write!(f, "{self}"),
         }
@@ -904,6 +922,17 @@ impl ValueObj {
 
     pub const fn gen_t(gen: GenTypeObj) -> Self {
         ValueObj::Type(TypeObj::Generated(gen))
+    }
+
+    pub fn range(start: Self, end: Self) -> Self {
+        Self::DataClass {
+            name: "Range".into(),
+            fields: dict! {
+                Field::private("start".into()) => start,
+                Field::private("end".into()) => end,
+                Field::private("step".into()) => Self::None,
+            },
+        }
     }
 
     // TODO: add Complex

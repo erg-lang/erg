@@ -77,6 +77,13 @@ impl Generalizer {
                     .map(|(field, tp)| (field, self.generalize_tp(tp, uninit)))
                     .collect(),
             ),
+            TyParam::DataClass { name, fields } => {
+                let fields = fields
+                    .into_iter()
+                    .map(|(field, tp)| (field, self.generalize_tp(tp, uninit)))
+                    .collect();
+                TyParam::DataClass { name, fields }
+            }
             TyParam::Lambda(lambda) => {
                 let nd_params = lambda
                     .nd_params
@@ -448,6 +455,16 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                     new_rec.insert(field, self.deref_tp(tp)?);
                 }
                 Ok(TyParam::Record(new_rec))
+            }
+            TyParam::DataClass { name, fields } => {
+                let mut new_fields = dict! {};
+                for (field, tp) in fields.into_iter() {
+                    new_fields.insert(field, self.deref_tp(tp)?);
+                }
+                Ok(TyParam::DataClass {
+                    name,
+                    fields: new_fields,
+                })
             }
             TyParam::Lambda(lambda) => {
                 let nd_params = lambda
