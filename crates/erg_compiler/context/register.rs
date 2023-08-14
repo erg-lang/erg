@@ -307,6 +307,9 @@ impl Context {
             ast::VarPattern::Discard(_) => {
                 return Ok(VarInfo {
                     t: body_t.clone(),
+                    impl_of: self.impl_of(),
+                    def_loc: self.absolutize(sig.loc()),
+                    py_name,
                     ..VarInfo::const_default_private()
                 });
             }

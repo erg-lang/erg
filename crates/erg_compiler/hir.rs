@@ -488,6 +488,10 @@ impl Identifier {
         self.raw.is_const()
     }
 
+    pub fn is_discarded(&self) -> bool {
+        self.raw.is_discarded()
+    }
+
     pub fn vis(&self) -> &VisibilityModifier {
         &self.vi.vis.modifier
     }

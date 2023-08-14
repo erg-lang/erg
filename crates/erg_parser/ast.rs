@@ -3000,6 +3000,11 @@ impl VarName {
     }
 
     #[inline]
+    pub fn is_discarded(&self) -> bool {
+        &self.0.content[..] == "_"
+    }
+
+    #[inline]
     pub fn is_procedural(&self) -> bool {
         self.0
             .content
@@ -3222,6 +3227,10 @@ impl Identifier {
 
     pub fn is_const(&self) -> bool {
         self.name.is_const()
+    }
+
+    pub fn is_discarded(&self) -> bool {
+        self.name.is_discarded()
     }
 
     pub fn is_raw(&self) -> bool {

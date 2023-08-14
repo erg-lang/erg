@@ -37,6 +37,9 @@ impl HIROptimizer {
     fn eliminate_unused_def(&mut self, expr: &mut Expr) {
         match expr {
             Expr::Def(def) => {
+                if def.sig.ident().is_discarded() {
+                    return;
+                }
                 if self
                     .shared
                     .index
