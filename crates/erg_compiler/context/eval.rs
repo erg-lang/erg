@@ -8,7 +8,7 @@ use erg_common::error::Location;
 use erg_common::log;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream};
-use erg_common::{dict, fmt_vec, fn_name, option_enum_unwrap, set};
+use erg_common::{dict, fmt_vec, fn_name, option_enum_unwrap, set, Triple};
 use erg_common::{ArcArray, Str};
 use OpKind::*;
 
@@ -1541,10 +1541,10 @@ impl Context {
         }
         // in Methods
         if let Some(ctx) = self.get_same_name_context(&sub.qual_name()) {
-            if let Some(t) =
-                ctx.validate_and_project(&sub, opt_sup.as_ref(), &rhs, self, level, t_loc)
-            {
-                return Ok(t);
+            match ctx.validate_and_project(&sub, opt_sup.as_ref(), &rhs, self, level, t_loc) {
+                Triple::Ok(t) => return Ok(t),
+                Triple::Err(err) => return Err(err),
+                Triple::None => {}
             }
         }
         let ty_ctxs = match self.get_nominal_super_type_ctxs(&sub) {
@@ -1561,10 +1561,10 @@ impl Context {
             }
         };
         for ty_ctx in ty_ctxs {
-            if let Some(t) =
-                self.validate_and_project(&sub, opt_sup.as_ref(), &rhs, ty_ctx, level, t_loc)
-            {
-                return Ok(t);
+            match self.validate_and_project(&sub, opt_sup.as_ref(), &rhs, ty_ctx, level, t_loc) {
+                Triple::Ok(t) => return Ok(t),
+                Triple::Err(err) => return Err(err),
+                Triple::None => {}
             }
             for (class, methods) in ty_ctx.methods_list.iter() {
                 match (&class, &opt_sup) {
@@ -1580,10 +1580,11 @@ impl Context {
                     }
                     _ => {}
                 }
-                if let Some(t) =
-                    self.validate_and_project(&sub, opt_sup.as_ref(), &rhs, methods, level, t_loc)
+                match self.validate_and_project(&sub, opt_sup.as_ref(), &rhs, methods, level, t_loc)
                 {
-                    return Ok(t);
+                    Triple::Ok(t) => return Ok(t),
+                    Triple::Err(err) => return Err(err),
+                    Triple::None => {}
                 }
             }
         }
@@ -1912,7 +1913,7 @@ impl Context {
         methods: &Context,
         level: usize,
         t_loc: &impl Locational,
-    ) -> Option<Type> {
+    ) -> Triple<Type, EvalErrors> {
         // e.g. sub: Int, opt_sup: Add(?T), rhs: Output, methods: Int.methods
         //      sub: [Int; 4], opt_sup: Add([Int; 2]), rhs: Output, methods: [T; N].methods
         if let Ok(obj) = methods.get_const_local(&Token::symbol(rhs), &self.name) {
@@ -1922,7 +1923,7 @@ impl Context {
             match (&opt_sup, methods.impl_of()) {
                 (Some(sup), Some(trait_)) => {
                     if !self.supertype_of(&trait_, sup) {
-                        return None;
+                        return Triple::None;
                     }
                 }
                 _ => {}
@@ -1934,15 +1935,26 @@ impl Context {
                 let (quant_sub, _) = self.get_type(&sub.qual_name()).unwrap();
                 let _sup_subs = if let Some((sup, quant_sup)) = opt_sup.zip(methods.impl_of()) {
                     // T -> Int, M -> 2
-                    Substituter::substitute_typarams(self, &quant_sup, sup).ok()?
+                    match Substituter::substitute_typarams(self, &quant_sup, sup) {
+                        Ok(sub_subs) => sub_subs,
+                        Err(errs) => {
+                            return Triple::Err(errs);
+                        }
+                    }
                 } else {
                     None
                 };
                 // T -> Int, N -> 4
-                let _sub_subs = if quant_sub.has_undoable_linked_var() {
+                /*let _sub_subs = if quant_sub.has_undoable_linked_var() {
                     Substituter::overwrite_typarams(self, quant_sub, sub).ok()?
                 } else {
                     Substituter::substitute_typarams(self, quant_sub, sub).ok()?
+                };*/
+                let _sub_subs = match Substituter::substitute_typarams(self, quant_sub, sub) {
+                    Ok(sub_subs) => sub_subs,
+                    Err(errs) => {
+                        return Triple::Err(errs);
+                    }
                 };
                 // [T; M+N] -> [Int; 4+2] -> [Int; 6]
                 let res = self.eval_t_params(projected_t, level, t_loc).ok();
@@ -1950,7 +1962,7 @@ impl Context {
                     let mut tv_cache = TyVarCache::new(self.level, self);
                     let t = self.detach(t, &mut tv_cache);
                     // Int -> T, 2 -> M, 4 -> N
-                    return Some(t);
+                    return Triple::Ok(t);
                 }
             } else {
                 log!(err "{obj}");
@@ -1959,7 +1971,7 @@ impl Context {
                 }
             }
         }
-        None
+        Triple::None
     }
 
     /// e.g.

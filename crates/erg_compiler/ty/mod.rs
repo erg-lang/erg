@@ -974,6 +974,7 @@ impl PartialEq for Type {
             }
             (Self::Refinement(l), Self::Refinement(r)) => l == r,
             (Self::Quantified(l), Self::Quantified(r)) => l == r,
+            // REVIEW: should use the same way as `structural_eq`?
             (Self::And(ll, lr), Self::And(rl, rr)) | (Self::Or(ll, lr), Self::Or(rl, rr)) => {
                 (ll == rl && lr == rr) || (ll == rr && lr == rl)
             }
@@ -1618,9 +1619,36 @@ impl StructuralEq for Type {
             }
             (Self::Structural(l), Self::Structural(r)) => l.structural_eq(r),
             (Self::Guard(l), Self::Guard(r)) => l.structural_eq(r),
-            (Self::And(l, r), Self::And(l2, r2)) | (Self::Or(l, r), Self::Or(l2, r2)) => {
-                (l.structural_eq(l2) && r.structural_eq(r2))
-                    || (l.structural_eq(r2) && r.structural_eq(l2))
+            // NG: (l.structural_eq(l2) && r.structural_eq(r2))
+            //     || (l.structural_eq(r2) && r.structural_eq(l2))
+            (Self::And(_, _), Self::And(_, _)) => {
+                let self_ands = self.ands();
+                let other_ands = other.ands();
+                if self_ands.len() != other_ands.len() {
+                    return false;
+                }
+                for l_val in self_ands.iter() {
+                    if other_ands
+                        .get_by(l_val, |l, r| l.structural_eq(r))
+                        .is_none()
+                    {
+                        return false;
+                    }
+                }
+                true
+            }
+            (Self::Or(_, _), Self::Or(_, _)) => {
+                let self_ors = self.ors();
+                let other_ors = other.ors();
+                if self_ors.len() != other_ors.len() {
+                    return false;
+                }
+                for l_val in self_ors.iter() {
+                    if other_ors.get_by(l_val, |l, r| l.structural_eq(r)).is_none() {
+                        return false;
+                    }
+                }
+                true
             }
             (Self::Not(ty), Self::Not(ty2)) => ty.structural_eq(ty2),
             (
@@ -3251,6 +3279,32 @@ impl Type {
             }
             Self::Refinement(refine) => refine.t.as_ref().clone().into_bounded(),
             _ => self.clone(),
+        }
+    }
+
+    /// ```erg
+    /// Add.ands() == {Add}
+    /// (Add and Sub).ands() == {Add, Sub}
+    /// ```
+    pub fn ands(&self) -> Set<Type> {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().ands(),
+            Self::Refinement(refine) => refine.t.ands(),
+            Self::And(l, r) => l.ands().union(&r.ands()),
+            _ => set![self.clone()],
+        }
+    }
+
+    /// ```erg
+    /// Int.ors() == {Int}
+    /// (Int or Str).ors() == {Int, Str}
+    /// ```
+    pub fn ors(&self) -> Set<Type> {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().ors(),
+            Self::Refinement(refine) => refine.t.ors(),
+            Self::Or(l, r) => l.ors().union(&r.ors()),
+            _ => set![self.clone()],
         }
     }
 }

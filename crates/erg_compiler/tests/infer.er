@@ -13,3 +13,5 @@ Norm = Trait { .norm = (self: Self) -> Nat }
 norm x = x.norm()
 
 a = [1, 2] + [3, 4]
+
+abc = ["c"] + ["a", "b"][1..1000]

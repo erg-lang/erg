@@ -1492,13 +1492,37 @@ impl Context {
                 .map(|ord| ord.canbe_ge())
                 .unwrap_or(false),
             // 0..59 :> 1..20 == { I >= 0 and I < 60 } :> { I >= 1 and I < 20 }
-            (Pred::And(l1, r1), Pred::And(l2, r2)) => {
-                (self.is_super_pred_of(l1, l2) && self.is_super_pred_of(r1, r2))
-                    || (self.is_super_pred_of(l1, r2) && self.is_super_pred_of(r1, l2))
+            // NG: (self.is_super_pred_of(l1, l2) && self.is_super_pred_of(r1, r2))
+            //     || (self.is_super_pred_of(l1, r2) && self.is_super_pred_of(r1, l2))
+            (Pred::And(_, _), Pred::And(_, _)) => {
+                let lhs_ands = lhs.ands();
+                let rhs_ands = rhs.ands();
+                for r_val in rhs_ands.iter() {
+                    if lhs_ands
+                        .get_by(r_val, |l, r| self.is_super_pred_of(l, r))
+                        .is_none()
+                    {
+                        return false;
+                    }
+                }
+                true
             }
-            (Pred::Or(l1, r1), Pred::Or(l2, r2)) => {
-                (self.is_super_pred_of(l1, l2) && self.is_super_pred_of(r1, r2))
-                    || (self.is_super_pred_of(l1, r2) && self.is_super_pred_of(r1, l2))
+            // {I == 0 or I == 1 or I == 2} :> {I == 1 or I == 0}
+            // {I == 1 or I == 0} !:> {I == 0 or I == 1 or I == 3}
+            // NG: (self.is_super_pred_of(l1, l2) && self.is_super_pred_of(r1, r2))
+            //     || (self.is_super_pred_of(l1, r2) && self.is_super_pred_of(r1, l2))
+            (Pred::Or(_, _), Pred::Or(_, _)) => {
+                let lhs_ors = lhs.ors();
+                let rhs_ors = rhs.ors();
+                for r_val in rhs_ors.iter() {
+                    if lhs_ors
+                        .get_by(r_val, |l, r| self.is_super_pred_of(l, r))
+                        .is_none()
+                    {
+                        return false;
+                    }
+                }
+                true
             }
             (lhs, Pred::And(l, r)) => {
                 self.is_super_pred_of(lhs, l) || self.is_super_pred_of(lhs, r)

@@ -1396,6 +1396,16 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
         match (lhs, rhs) {
             (Type::FreeVar(fv), _) if fv.is_linked() => return self.unify(&fv.crack(), rhs),
             (_, Type::FreeVar(fv)) if fv.is_linked() => return self.unify(lhs, &fv.crack()),
+            // TODO: unify(?T, ?U) ?
+            (Type::FreeVar(_), Type::FreeVar(_)) => {}
+            (Type::FreeVar(fv), _) if fv.constraint_is_sandwiched() => {
+                let sub = fv.get_sub()?;
+                return self.unify(&sub, rhs);
+            }
+            (_, Type::FreeVar(fv)) if fv.constraint_is_sandwiched() => {
+                let sub = fv.get_sub()?;
+                return self.unify(lhs, &sub);
+            }
             (Type::Refinement(lhs), Type::Refinement(rhs)) => {
                 if let Some(_union) = self.unify(&lhs.t, &rhs.t) {
                     return Some(self.ctx.union_refinement(lhs, rhs).into());
