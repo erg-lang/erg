@@ -1323,6 +1323,7 @@ impl HasType for Type {
     }
     fn inner_ts(&self) -> Vec<Type> {
         match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().inner_ts(),
             Self::Ref(t) => {
                 vec![t.as_ref().clone()]
             }
@@ -1330,7 +1331,6 @@ impl HasType for Type {
                 // REVIEW:
                 vec![before.as_ref().clone()]
             }
-            // Self::And(ts) | Self::Or(ts) => ,
             Self::Subr(sub) => sub
                 .default_params
                 .iter()
@@ -2242,6 +2242,8 @@ impl Type {
     /// ```
     pub fn namespace(&self) -> Str {
         match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().namespace(),
+            Self::Refinement(refine) => refine.t.namespace(),
             Self::Mono(name) | Self::Poly { name, .. } => {
                 let namespaces = name.split_with(&[".", "::"]);
                 if namespaces.len() > 1 {
@@ -2270,6 +2272,8 @@ impl Type {
     /// ```
     pub fn local_name(&self) -> Str {
         match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().local_name(),
+            Self::Refinement(refine) => refine.t.local_name(),
             Self::Mono(name) | Self::Poly { name, .. } => {
                 let namespaces = name.split_with(&[".", "::"]);
                 Str::rc(namespaces.last().unwrap())
@@ -2281,25 +2285,27 @@ impl Type {
     /// assert!((A and B).contains_intersec(B))
     pub fn contains_intersec(&self, typ: &Type) -> bool {
         match self {
-            Type::And(t1, t2) => t1.contains_intersec(typ) || t2.contains_intersec(typ),
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains_intersec(typ),
+            Self::Refinement(refine) => refine.t.contains_intersec(typ),
+            Self::And(t1, t2) => t1.contains_intersec(typ) || t2.contains_intersec(typ),
             _ => self == typ,
         }
     }
 
     pub fn union_pair(&self) -> Option<(Type, Type)> {
         match self {
-            Type::FreeVar(fv) if fv.is_linked() => fv.crack().union_pair(),
-            Type::Refinement(refine) => refine.t.union_pair(),
-            Type::Or(t1, t2) => Some((*t1.clone(), *t2.clone())),
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().union_pair(),
+            Self::Refinement(refine) => refine.t.union_pair(),
+            Self::Or(t1, t2) => Some((*t1.clone(), *t2.clone())),
             _ => None,
         }
     }
 
     pub fn union_types(&self) -> Vec<Type> {
         match self {
-            Type::FreeVar(fv) if fv.is_linked() => fv.crack().union_types(),
-            Type::Refinement(refine) => refine.t.union_types(),
-            Type::Or(t1, t2) => {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().union_types(),
+            Self::Refinement(refine) => refine.t.union_types(),
+            Self::Or(t1, t2) => {
                 let mut types = t1.union_types();
                 types.extend(t2.union_types());
                 types
@@ -3305,6 +3311,59 @@ impl Type {
             Self::Refinement(refine) => refine.t.ors(),
             Self::Or(l, r) => l.ors().union(&r.ors()),
             _ => set![self.clone()],
+        }
+    }
+
+    /// ```erg
+    /// Int.contained_ts() == {Int}
+    /// Array(Array(Int)).contained_ts() == {Array(Int), Int}
+    /// (Int or Str).contained_ts() == {Int, Str}
+    /// ```
+    pub fn contained_ts(&self) -> Set<Type> {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().contained_ts(),
+            Self::FreeVar(fv) if fv.constraint_is_sandwiched() => {
+                let (sub, sup) = fv.get_subsup().unwrap();
+                sub.contained_ts().union(&sup.contained_ts())
+            }
+            Self::Refinement(refine) => refine.t.contained_ts(),
+            Self::Ref(t) => t.contained_ts(),
+            Self::RefMut { before, .. } => before.contained_ts(),
+            Self::Subr(sub) => {
+                let mut ts = set! {};
+                for nd in sub.non_default_params.iter() {
+                    ts.extend(nd.typ().contained_ts());
+                }
+                if let Some(var) = sub.var_params.as_ref() {
+                    ts.extend(var.typ().contained_ts());
+                }
+                for d in sub.default_params.iter() {
+                    ts.extend(d.typ().contained_ts());
+                }
+                ts.extend(sub.return_t.contained_ts());
+                ts
+            }
+            Self::Callable { param_ts, .. } => {
+                param_ts.iter().flat_map(|t| t.contained_ts()).collect()
+            }
+            Self::And(l, r) | Self::Or(l, r) => l.contained_ts().union(&r.contained_ts()),
+            Self::Not(t) => t.contained_ts(),
+            Self::Bounded { sub, sup } => sub.contained_ts().union(&sup.contained_ts()),
+            Self::Quantified(ty) | Self::Structural(ty) => ty.contained_ts(),
+            Self::Record(rec) => rec.values().flat_map(|t| t.contained_ts()).collect(),
+            Self::Proj { lhs, .. } => lhs.contained_ts(),
+            Self::ProjCall { lhs, args, .. } => {
+                let mut ts = set! {};
+                ts.extend(lhs.contained_ts());
+                ts.extend(args.iter().flat_map(|tp| tp.contained_ts()));
+                ts
+            }
+            Self::Poly { params, .. } => {
+                let mut ts = set! { self.clone() };
+                ts.extend(params.iter().flat_map(|tp| tp.contained_ts()));
+                ts
+            }
+            _ => set! { self.clone() },
         }
     }
 }

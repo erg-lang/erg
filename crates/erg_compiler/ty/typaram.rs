@@ -1438,6 +1438,18 @@ impl TyParam {
             _ => vec![],
         }
     }
+
+    pub fn contained_ts(&self) -> Set<Type> {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().contained_ts(),
+            Self::Type(t) => t.contained_ts(),
+            Self::Value(ValueObj::Type(t)) => t.typ().contained_ts(),
+            Self::App { args, .. } => args
+                .iter()
+                .fold(set! {}, |acc, p| acc.concat(p.contained_ts())),
+            _ => set! {},
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

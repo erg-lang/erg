@@ -4,7 +4,6 @@ use erg_common::trim_eliminate_top_indent;
 use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::erg_parser::parse::Parsable;
 use erg_compiler::erg_parser::token::{Token, TokenCategory, TokenKind};
-use erg_compiler::ty::HasType;
 use erg_compiler::varinfo::{AbsLocation, VarInfo};
 
 use lsp_types::{Hover, HoverContents, HoverParams, MarkedString, Url};
@@ -187,7 +186,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
 
     fn show_type_defs(&mut self, vi: &VarInfo, contents: &mut Vec<MarkedString>) -> ELSResult<()> {
         let mut defs = "".to_string();
-        for inner_t in vi.t.inner_ts() {
+        for inner_t in vi.t.contained_ts() {
             if let Some(path) = &vi.def_loc.module {
                 let Ok(def_uri) = util::NormalizedUrl::try_from(path.as_path()) else {
                     continue;
@@ -199,13 +198,14 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     continue;
                 };
                 if let Some((_, vi)) = module.context.get_type_info(&inner_t) {
-                    if let Some(uri) =
-                        vi.def_loc.module.as_ref().and_then(|path| {
-                            Some(util::denormalize(Url::parse(path.to_str()?).ok()?))
-                        })
+                    if let Some(url) = vi
+                        .def_loc
+                        .module
+                        .as_ref()
+                        .and_then(|path| Url::from_file_path(path).ok())
                     {
                         defs += &format!(
-                            "[{}]({uri}#L{}) ",
+                            "[{}]({url}#L{}) ",
                             inner_t.local_name(),
                             vi.def_loc.loc.ln_begin().unwrap_or(1)
                         );
