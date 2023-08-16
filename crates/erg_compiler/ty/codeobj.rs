@@ -5,8 +5,8 @@ use std::io::{BufReader, Read, Write as _};
 use std::path::Path;
 use std::process::ExitStatus;
 
+use erg_common::config::ErgConfig;
 use erg_common::impl_display_from_debug;
-use erg_common::io::Output;
 #[allow(unused_imports)]
 use erg_common::log;
 use erg_common::opcode::CommonOpcode;
@@ -453,8 +453,12 @@ impl CodeObj {
         format!("import marshal; exec(marshal.loads(b'{bytecode}'))")
     }
 
-    pub fn exec(self, py_magic_num: Option<u32>, output: Output) -> std::io::Result<ExitStatus> {
-        exec_py_code(&self.executable_code(py_magic_num), output)
+    pub fn exec(self, cfg: &ErgConfig) -> std::io::Result<ExitStatus> {
+        exec_py_code(
+            &self.executable_code(cfg.py_magic_num),
+            &cfg.runtime_args,
+            cfg.output.clone(),
+        )
     }
 
     fn tables_info(&self) -> String {

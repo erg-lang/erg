@@ -853,7 +853,7 @@ pub fn spawn_py(py_command: Option<&str>, code: &str) {
     }
 }
 
-pub fn exec_py_code(code: &str, output: Output) -> std::io::Result<ExitStatus> {
+pub fn exec_py_code(code: &str, args: &[&str], output: Output) -> std::io::Result<ExitStatus> {
     let mut out = if cfg!(windows) {
         let fallback = |err: std::io::Error| {
             // if the filename or extension is too long
@@ -867,6 +867,7 @@ pub fn exec_py_code(code: &str, output: Output) -> std::io::Result<ExitStatus> {
                     .unwrap();
                 Command::new(which_python())
                     .arg(tmp_file)
+                    .args(args)
                     .stdout(output.clone())
                     .spawn()
             } else {
@@ -876,12 +877,13 @@ pub fn exec_py_code(code: &str, output: Output) -> std::io::Result<ExitStatus> {
         Command::new(which_python())
             .arg("-c")
             .arg(code)
+            .args(args)
             .stdout(output.clone())
             .spawn()
             .or_else(fallback)
             .expect("cannot execute python")
     } else {
-        let exec_command = format!("{} -c \"{code}\"", which_python());
+        let exec_command = format!("{} -c \"{code}\" {}", which_python(), args.join(" "));
         Command::new("sh")
             .arg("-c")
             .arg(exec_command)

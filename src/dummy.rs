@@ -289,10 +289,7 @@ impl Runnable for DummyVM {
             eart.errors
         })?;
         art.warns.write_all_to(&mut self.cfg_mut().output);
-        let stat = art
-            .object
-            .exec(self.cfg().py_magic_num, self.cfg().output.clone())
-            .expect("failed to execute");
+        let stat = art.object.exec(self.cfg()).expect("failed to execute");
         let stat = ExitStatus::new(stat.code().unwrap_or(0), art.warns.len(), 0);
         Ok(stat)
     }
