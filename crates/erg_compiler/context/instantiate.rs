@@ -592,6 +592,12 @@ impl Context {
                 }
                 Ok(Type::Record(dict))
             }
+            NamedTuple(mut tup) => {
+                for (_, v) in tup.iter_mut() {
+                    *v = self.instantiate_t_inner(mem::take(v), tmp_tv_cache, loc)?;
+                }
+                Ok(Type::NamedTuple(tup))
+            }
             Ref(t) => {
                 let t = self.instantiate_t_inner(*t, tmp_tv_cache, loc)?;
                 Ok(ref_(t))

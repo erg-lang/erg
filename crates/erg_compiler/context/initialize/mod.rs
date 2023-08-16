@@ -229,6 +229,7 @@ const GENERIC_TUPLE: &str = "GenericTuple";
 const TUPLE: &str = "Tuple";
 const TUPLE_ITERATOR: &str = "TupleIterator";
 const RECORD: &str = "Record";
+const NAMED_TUPLE: &str = "NamedTuple";
 const OR: &str = "Or";
 const RANGE_ITERATOR: &str = "RangeIterator";
 const ENUMERATE: &str = "Enumerate";

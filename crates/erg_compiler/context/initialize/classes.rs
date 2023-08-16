@@ -1688,6 +1688,9 @@ impl Context {
         /* record */
         let mut record = Self::builtin_mono_class(RECORD, 2);
         record.register_superclass(Obj, &obj);
+        /* NamedTuple */
+        let mut named_tuple = Self::builtin_mono_class(NAMED_TUPLE, 2);
+        named_tuple.register_superclass(mono(GENERIC_TUPLE), &generic_tuple);
         /* Or (true or type) */
         let or_t = poly(OR, vec![ty_tp(L), ty_tp(R)]);
         let mut or = Self::builtin_poly_class(OR, vec![PS::t_nd(TY_L), PS::t_nd(TY_R)], 2);
@@ -2468,6 +2471,13 @@ impl Context {
         );
         self.register_builtin_type(_tuple_t, tuple_, vis.clone(), Const, Some(FUNC_TUPLE));
         self.register_builtin_type(mono(RECORD), record, vis.clone(), Const, Some(RECORD));
+        self.register_builtin_type(
+            mono(NAMED_TUPLE),
+            named_tuple,
+            vis.clone(),
+            Const,
+            Some(NAMED_TUPLE),
+        );
         self.register_builtin_type(or_t, or, vis.clone(), Const, Some(UNION));
         self.register_builtin_type(
             mono(STR_ITERATOR),

@@ -877,10 +877,13 @@ pub enum Type {
     And(Box<Type>, Box<Type>),
     Or(Box<Type>, Box<Type>),
     Not(Box<Type>),
+    // NOTE: It was found that adding a new variant above `Poly` may cause a subtyping bug,
+    // possibly related to enum internal numbering, but the cause is unknown.
     Poly {
         name: Str,
         params: Vec<TyParam>,
     },
+    NamedTuple(Vec<(Field, Type)>),
     /* Special types (inference-time types) */
     Proj {
         lhs: Box<Type>,
@@ -961,12 +964,26 @@ impl PartialEq for Type {
                     && (lr == rr)
             }
             (Self::Record(lhs), Self::Record(rhs)) => {
+                if lhs.len() != rhs.len() {
+                    return false;
+                }
                 for (l_field, l_t) in lhs.iter() {
                     if let Some(r_t) = rhs.get(l_field) {
                         if !(l_t == r_t) {
                             return false;
                         }
                     } else {
+                        return false;
+                    }
+                }
+                true
+            }
+            (Self::NamedTuple(lhs), Self::NamedTuple(rhs)) => {
+                if lhs.len() != rhs.len() {
+                    return false;
+                }
+                for ((l_field, l_t), (r_field, r_t)) in lhs.iter().zip(rhs) {
+                    if l_field != r_field || l_t != r_t {
                         return false;
                     }
                 }
@@ -1081,6 +1098,24 @@ impl LimitedDisplay for Type {
             }
             Self::Record(attrs) => {
                 write!(f, "{{")?;
+                for (i, (field, t)) in attrs.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, "; ")?;
+                    }
+                    if limit.is_positive() && i >= CONTAINER_OMIT_THRESHOLD {
+                        write!(f, "...")?;
+                        break;
+                    }
+                    write!(f, "{field} = ")?;
+                    t.limited_fmt(f, limit - 1)?;
+                }
+                if attrs.is_empty() {
+                    write!(f, "=")?;
+                }
+                write!(f, "}}")
+            }
+            Self::NamedTuple(attrs) => {
+                write!(f, "NamedTuple {{")?;
                 for (i, (field, t)) in attrs.iter().enumerate() {
                     if i > 0 {
                         write!(f, "; ")?;
@@ -1331,6 +1366,7 @@ impl HasType for Type {
                 // REVIEW:
                 vec![before.as_ref().clone()]
             }
+            Self::NamedTuple(tys) => tys.iter().map(|(_, t)| t.clone()).collect(),
             Self::Subr(sub) => sub
                 .default_params
                 .iter()
@@ -1414,6 +1450,7 @@ impl HasLevel for Type {
             }
             Self::Not(ty) => ty.level(),
             Self::Record(attrs) => attrs.values().filter_map(|t| t.level()).min(),
+            Self::NamedTuple(attrs) => attrs.iter().filter_map(|(_, t)| t.level()).min(),
             Self::Poly { params, .. } => params.iter().filter_map(|p| p.level()).min(),
             Self::Proj { lhs, .. } => lhs.level(),
             Self::ProjCall { lhs, args, .. } => {
@@ -1498,6 +1535,11 @@ impl HasLevel for Type {
                     t.set_level(level);
                 }
             }
+            Self::NamedTuple(attrs) => {
+                for (_, t) in attrs.iter() {
+                    t.set_level(level);
+                }
+            }
             Self::Poly { params, .. } => {
                 for p in params.iter() {
                     p.set_level(level);
@@ -1538,12 +1580,26 @@ impl StructuralEq for Type {
                 refine.t.structural_eq(&refine2.t) && refine.pred.structural_eq(&refine2.pred)
             }
             (Self::Record(rec), Self::Record(rec2)) => {
+                if rec.len() != rec2.len() {
+                    return false;
+                }
                 for (k, v) in rec.iter() {
                     if let Some(v2) = rec2.get(k) {
                         if !v.structural_eq(v2) {
                             return false;
                         }
                     } else {
+                        return false;
+                    }
+                }
+                true
+            }
+            (Self::NamedTuple(rec), Self::NamedTuple(rec2)) => {
+                if rec.len() != rec2.len() {
+                    return false;
+                }
+                for ((k, v), (k2, v2)) in rec.iter().zip(rec2) {
+                    if k != k2 || !v.structural_eq(v2) {
                         return false;
                     }
                 }
@@ -1851,6 +1907,7 @@ impl Type {
                 .unwrap_or(1)
                 .max(subr.return_t.union_size()),
             Self::Record(r) => r.values().map(|t| t.union_size()).max().unwrap_or(1),
+            Self::NamedTuple(r) => r.iter().map(|(_, t)| t.union_size()).max().unwrap_or(1),
             Self::Quantified(quant) => quant.union_size(),
             Self::Poly { params, .. } => params.iter().map(|p| p.union_size()).max().unwrap_or(1),
             Self::Proj { lhs, .. } => lhs.union_size(),
@@ -1994,6 +2051,7 @@ impl Type {
                         .unwrap_or(false)
             }
             Self::Record(rec) => rec.iter().any(|(_, t)| t.contains_tvar(target)),
+            Self::NamedTuple(rec) => rec.iter().any(|(_, t)| t.contains_tvar(target)),
             Self::Poly { params, .. } => params.iter().any(|tp| tp.contains_tvar(target)),
             Self::Quantified(t) => t.contains_tvar(target),
             Self::Subr(subr) => subr.contains_tvar(target),
@@ -2032,6 +2090,7 @@ impl Type {
                 }) || fv.get_type().map_or(false, |t| t.contains_type(target))
             }
             Self::Record(rec) => rec.iter().any(|(_, t)| t.contains_type(target)),
+            Self::NamedTuple(rec) => rec.iter().any(|(_, t)| t.contains_type(target)),
             Self::Poly { params, .. } => params.iter().any(|tp| tp.contains_type(target)),
             Self::Quantified(t) => t.contains_type(target),
             Self::Subr(subr) => subr.contains_type(target),
@@ -2064,6 +2123,7 @@ impl Type {
                 }) || fv.get_type().map_or(false, |t| t.contains_tp(target))
             }
             Self::Record(rec) => rec.iter().any(|(_, t)| t.contains_tp(target)),
+            Self::NamedTuple(rec) => rec.iter().any(|(_, t)| t.contains_tp(target)),
             Self::Poly { params, .. } => params.iter().any(|tp| tp.contains_tp(target)),
             Self::Quantified(t) => t.contains_tp(target),
             Self::Subr(subr) => subr.contains_tp(target),
@@ -2095,6 +2155,7 @@ impl Type {
                 .map(|(sub, sup)| sub.contains_type(self) || sup.contains_type(self))
                 .unwrap_or(false),
             Self::Record(rec) => rec.iter().any(|(_, t)| t.contains_type(self)),
+            Self::NamedTuple(rec) => rec.iter().any(|(_, t)| t.contains_type(self)),
             Self::Poly { params, .. } => params.iter().any(|tp| tp.contains_type(self)),
             Self::Quantified(t) => t.contains_type(self),
             Self::Subr(subr) => subr.contains_type(self),
@@ -2211,6 +2272,7 @@ impl Type {
             }) => Str::ever("Proc"),
             Self::Callable { .. } => Str::ever("Callable"),
             Self::Record(_) => Str::ever("Record"),
+            Self::NamedTuple(_) => Str::ever("NamedTuple"),
             Self::Poly { name, .. } => name.clone(),
             // NOTE: compiler/codegen/convert_to_python_methodでクラス名を使うため、こうすると都合が良い
             Self::Refinement(refine) => refine.t.qual_name(),
@@ -2522,6 +2584,7 @@ impl Type {
                 .concat(return_t.qvars()),
             Self::Subr(subr) => subr.qvars(),
             Self::Record(r) => r.values().fold(set! {}, |acc, t| acc.concat(t.qvars())),
+            Self::NamedTuple(r) => r.iter().fold(set! {}, |acc, (_, t)| acc.concat(t.qvars())),
             Self::Refinement(refine) => refine.t.qvars().concat(refine.pred.qvars()),
             // ((|T| T -> T) and U).qvars() == U.qvars()
             // Self::Quantified(quant) => quant.qvars(),
@@ -2580,6 +2643,7 @@ impl Type {
             Self::Subr(subr) => subr.has_qvar(),
             Self::Quantified(quant) => quant.has_qvar(),
             Self::Record(r) => r.values().any(|t| t.has_qvar()),
+            Self::NamedTuple(r) => r.iter().any(|(_, t)| t.has_qvar()),
             Self::Refinement(refine) => refine.t.has_qvar() || refine.pred.has_qvar(),
             Self::Poly { params, .. } => params.iter().any(|tp| tp.has_qvar()),
             Self::Proj { lhs, .. } => lhs.has_qvar(),
@@ -2634,6 +2698,7 @@ impl Type {
             Self::Subr(subr) => subr.has_undoable_linked_var(),
             Self::Quantified(quant) => quant.has_undoable_linked_var(),
             Self::Record(r) => r.values().any(|t| t.has_undoable_linked_var()),
+            Self::NamedTuple(r) => r.iter().any(|(_, t)| t.has_undoable_linked_var()),
             Self::Refinement(refine) => {
                 refine.t.has_undoable_linked_var() || refine.pred.has_undoable_linked_var()
             }
@@ -2692,6 +2757,7 @@ impl Type {
                     || subr.return_t.has_unbound_var()
             }
             Self::Record(r) => r.values().any(|t| t.has_unbound_var()),
+            Self::NamedTuple(r) => r.iter().any(|(_, t)| t.has_unbound_var()),
             Self::Refinement(refine) => refine.t.has_unbound_var() || refine.pred.has_unbound_var(),
             Self::Quantified(quant) => quant.has_unbound_var(),
             Self::Poly { params, .. } => params.iter().any(|p| p.has_unbound_var()),
@@ -2763,6 +2829,7 @@ impl Type {
                 "Tuple" => Some(params.len()),
                 _ => None,
             },
+            Self::NamedTuple(r) => Some(r.len()),
             _ => None,
         }
     }
@@ -2780,6 +2847,7 @@ impl Type {
             Self::Subr(subr) => subr.typarams(),
             Self::Quantified(quant) => quant.typarams(),
             Self::Callable { param_ts: _, .. } => todo!(),
+            Self::NamedTuple(r) => r.iter().map(|(_, t)| TyParam::t(t.clone())).collect(),
             Self::Poly { params, .. } => params.clone(),
             Self::Proj { lhs, .. } => lhs.typarams(),
             Self::ProjCall { lhs, args, .. } => {
@@ -2947,6 +3015,14 @@ impl Type {
                 before: Box::new(before.derefine()),
                 after: after.as_ref().map(|t| Box::new(t.derefine())),
             },
+            Self::Record(rec) => {
+                let rec = rec.iter().map(|(k, v)| (k.clone(), v.derefine())).collect();
+                Self::Record(rec)
+            }
+            Self::NamedTuple(r) => {
+                let r = r.iter().map(|(k, v)| (k.clone(), v.derefine())).collect();
+                Self::NamedTuple(r)
+            }
             Self::And(l, r) => l.derefine() & r.derefine(),
             Self::Or(l, r) => l.derefine() | r.derefine(),
             Self::Not(ty) => !ty.derefine(),
@@ -3061,6 +3137,12 @@ impl Type {
                 }
                 Self::Record(rec)
             }
+            Self::NamedTuple(mut r) => {
+                for (_, v) in r.iter_mut() {
+                    *v = std::mem::take(v)._replace(target, to);
+                }
+                Self::NamedTuple(r)
+            }
             Self::Subr(mut subr) => {
                 for nd in subr.non_default_params.iter_mut() {
                     *nd.typ_mut() = std::mem::take(nd.typ_mut())._replace(target, to);
@@ -3156,6 +3238,18 @@ impl Type {
                 before: Box::new(before.normalize()),
                 after: after.map(|t| Box::new(t.normalize())),
             },
+            Self::Record(mut rec) => {
+                for v in rec.values_mut() {
+                    *v = std::mem::take(v).normalize();
+                }
+                Self::Record(rec)
+            }
+            Self::NamedTuple(mut r) => {
+                for (_, v) in r.iter_mut() {
+                    *v = std::mem::take(v).normalize();
+                }
+                Self::NamedTuple(r)
+            }
             Self::And(l, r) => l.normalize() & r.normalize(),
             Self::Or(l, r) => l.normalize() | r.normalize(),
             Self::Not(ty) => !ty.normalize(),
@@ -3351,6 +3445,7 @@ impl Type {
             Self::Bounded { sub, sup } => sub.contained_ts().union(&sup.contained_ts()),
             Self::Quantified(ty) | Self::Structural(ty) => ty.contained_ts(),
             Self::Record(rec) => rec.values().flat_map(|t| t.contained_ts()).collect(),
+            Self::NamedTuple(r) => r.iter().flat_map(|(_, t)| t.contained_ts()).collect(),
             Self::Proj { lhs, .. } => lhs.contained_ts(),
             Self::ProjCall { lhs, args, .. } => {
                 let mut ts = set! {};
@@ -3426,6 +3521,16 @@ impl<'t> ReplaceTable<'t> {
                 },
             ) if rhs == rhs2 => {
                 self.iterate(lhs, lhs2);
+            }
+            (Type::Record(rec), Type::Record(rec2)) => {
+                for (l, r) in rec.values().zip(rec2.values()) {
+                    self.iterate(l, r);
+                }
+            }
+            (Type::NamedTuple(r), Type::NamedTuple(r2)) => {
+                for ((_, l), (_, r)) in r.iter().zip(r2.iter()) {
+                    self.iterate(l, r);
+                }
             }
             (Type::And(l, r), Type::And(l2, r2)) => {
                 self.iterate(l, l2);

@@ -507,6 +507,15 @@ impl Context {
                 }
                 true
             }
+            (NamedTuple(lhs), NamedTuple(rhs)) => {
+                for ((l_k, l_t), (r_k, r_t)) in lhs.iter().zip(rhs.iter()) {
+                    if (l_k.vis.is_public() && r_k.vis.is_private()) || !self.supertype_of(l_t, r_t)
+                    {
+                        return false;
+                    }
+                }
+                true
+            }
             (Type, Record(rec)) => {
                 for (_, t) in rec.iter() {
                     if !self.supertype_of(&Type, t) {
@@ -758,6 +767,7 @@ impl Context {
         match t {
             Type::FreeVar(fv) if fv.is_linked() => self.fields(&fv.crack()),
             Type::Record(fields) => fields.clone(),
+            Type::NamedTuple(fields) => fields.iter().cloned().collect(),
             Type::Refinement(refine) => self.fields(&refine.t),
             Type::Structural(t) => self.fields(t),
             other => {

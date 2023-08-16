@@ -217,6 +217,13 @@ impl Generalizer {
                     .collect();
                 Type::Record(fields)
             }
+            NamedTuple(rec) => {
+                let fields = rec
+                    .into_iter()
+                    .map(|(name, t)| (name, self.generalize_t(t, uninit)))
+                    .collect();
+                Type::NamedTuple(fields)
+            }
             Callable { .. } => todo!(),
             Ref(t) => ref_(self.generalize_t(*t, uninit)),
             RefMut { before, after } => {
@@ -671,6 +678,12 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                     *field = self.deref_tyvar(mem::take(field))?;
                 }
                 Ok(Type::Record(rec))
+            }
+            Type::NamedTuple(mut rec) => {
+                for (_, t) in rec.iter_mut() {
+                    *t = self.deref_tyvar(mem::take(t))?;
+                }
+                Ok(Type::NamedTuple(rec))
             }
             Type::Refinement(refine) => {
                 let t = self.deref_tyvar(*refine.t)?;

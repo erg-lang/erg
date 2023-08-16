@@ -835,6 +835,27 @@ impl Context {
                     Triple::None
                 }
             }
+            Type::NamedTuple(tuple) => {
+                if let Some((field, attr_t)) = tuple.iter().find(|(f, _)| &f.symbol == ident.inspect()) {
+                    let muty = Mutability::from(&ident.inspect()[..]);
+                    let vi = VarInfo::new(
+                        attr_t.clone(),
+                        muty,
+                        Visibility::new(field.vis.clone(), Str::ever("<dummy>")),
+                        VarKind::Builtin,
+                        None,
+                        None,
+                        None,
+                        AbsLocation::unknown(),
+                    );
+                    if let Err(err) = self.validate_visibility(ident, &vi, &self.cfg.input, self) {
+                        return Triple::Err(err);
+                    }
+                    Triple::Ok(vi)
+                } else {
+                    Triple::None
+                }
+            }
             Type::Structural(t) => self.get_attr_info_from_attributive(t, ident),
             _other => Triple::None,
         }
@@ -2396,6 +2417,12 @@ impl Context {
                     .get_builtins()
                     .unwrap_or(self)
                     .rec_local_get_mono_type("Record");
+            }
+            Type::NamedTuple(_) => {
+                return self
+                    .get_builtins()
+                    .unwrap_or(self)
+                    .rec_local_get_mono_type("NamedTuple");
             }
             Type::Or(_l, _r) => {
                 if let Some(ctx) = self.get_nominal_type_ctx(&poly("Or", vec![])) {
