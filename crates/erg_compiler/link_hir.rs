@@ -216,7 +216,7 @@ impl<'a> HIRLinker<'a> {
                     Self::resolve_pymod_path(chunk);
                 }
             }
-            Expr::Import(_) => unreachable!(),
+            Expr::Import(_) => {}
             Expr::Dummy(_) => {}
         }
     }
