@@ -2671,7 +2671,7 @@ impl Context {
     pub(crate) fn get_namespace(&self, namespace: &Str) -> Option<&Context> {
         if &namespace[..] == "global" {
             return self.get_builtins();
-        } else if &namespace[..] == "module" {
+        } else if &namespace[..] == "module" || namespace.is_empty() {
             return self.get_module();
         }
         self.get_mod_with_path(self.get_namespace_path(namespace)?.as_path())
@@ -2777,7 +2777,7 @@ impl Context {
         }
     }
 
-    pub(crate) fn get_type(&self, name: &Str) -> Option<(&Type, &Context)> {
+    pub(crate) fn get_type(&self, name: &str) -> Option<(&Type, &Context)> {
         if let Some((t, ctx)) = self.rec_local_get_type(name) {
             return Some((t, ctx));
         }
@@ -2793,6 +2793,10 @@ impl Context {
             }
         }
         None
+    }
+
+    pub fn get_type_info_by_str(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
+        self.get_type(name).and_then(|(t, _)| self.get_type_info(t))
     }
 
     /// you should use `get_type` instead of this

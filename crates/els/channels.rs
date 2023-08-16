@@ -5,13 +5,13 @@ use erg_compiler::erg_parser::parse::Parsable;
 
 use lsp_types::request::{
     CodeActionRequest, CodeActionResolveRequest, CodeLensRequest, Completion, ExecuteCommand,
-    GotoDefinition, HoverRequest, InlayHintRequest, References, ResolveCompletionItem,
-    SemanticTokensFullRequest, SignatureHelpRequest, WillRenameFiles,
+    GotoDefinition, HoverRequest, InlayHintRequest, InlayHintResolveRequest, References,
+    ResolveCompletionItem, SemanticTokensFullRequest, SignatureHelpRequest, WillRenameFiles,
 };
 use lsp_types::{
     CodeAction, CodeActionParams, CodeLensParams, CompletionItem, CompletionParams,
-    ExecuteCommandParams, GotoDefinitionParams, HoverParams, InlayHintParams, ReferenceParams,
-    RenameFilesParams, SemanticTokensParams, SignatureHelpParams,
+    ExecuteCommandParams, GotoDefinitionParams, HoverParams, InlayHint, InlayHintParams,
+    ReferenceParams, RenameFilesParams, SemanticTokensParams, SignatureHelpParams,
 };
 
 use crate::server::Server;
@@ -23,6 +23,7 @@ pub struct SendChannels {
     goto_definition: mpsc::Sender<(i64, GotoDefinitionParams)>,
     semantic_tokens_full: mpsc::Sender<(i64, SemanticTokensParams)>,
     inlay_hint: mpsc::Sender<(i64, InlayHintParams)>,
+    inlay_hint_resolve: mpsc::Sender<(i64, InlayHint)>,
     hover: mpsc::Sender<(i64, HoverParams)>,
     references: mpsc::Sender<(i64, ReferenceParams)>,
     code_lens: mpsc::Sender<(i64, CodeLensParams)>,
@@ -40,6 +41,7 @@ impl SendChannels {
         let (tx_goto_definition, rx_goto_definition) = mpsc::channel();
         let (tx_semantic_tokens_full, rx_semantic_tokens_full) = mpsc::channel();
         let (tx_inlay_hint, rx_inlay_hint) = mpsc::channel();
+        let (tx_inlay_hint_resolve, rx_inlay_hint_resolve) = mpsc::channel();
         let (tx_hover, rx_hover) = mpsc::channel();
         let (tx_references, rx_references) = mpsc::channel();
         let (tx_code_lens, rx_code_lens) = mpsc::channel();
@@ -55,6 +57,7 @@ impl SendChannels {
                 goto_definition: tx_goto_definition,
                 semantic_tokens_full: tx_semantic_tokens_full,
                 inlay_hint: tx_inlay_hint,
+                inlay_hint_resolve: tx_inlay_hint_resolve,
                 hover: tx_hover,
                 references: tx_references,
                 code_lens: tx_code_lens,
@@ -70,6 +73,7 @@ impl SendChannels {
                 goto_definition: rx_goto_definition,
                 semantic_tokens_full: rx_semantic_tokens_full,
                 inlay_hint: rx_inlay_hint,
+                inlay_hint_resolve: rx_inlay_hint_resolve,
                 hover: rx_hover,
                 references: rx_references,
                 code_lens: rx_code_lens,
@@ -90,6 +94,7 @@ pub struct ReceiveChannels {
     pub(crate) goto_definition: mpsc::Receiver<(i64, GotoDefinitionParams)>,
     pub(crate) semantic_tokens_full: mpsc::Receiver<(i64, SemanticTokensParams)>,
     pub(crate) inlay_hint: mpsc::Receiver<(i64, InlayHintParams)>,
+    pub(crate) inlay_hint_resolve: mpsc::Receiver<(i64, InlayHint)>,
     pub(crate) hover: mpsc::Receiver<(i64, HoverParams)>,
     pub(crate) references: mpsc::Receiver<(i64, ReferenceParams)>,
     pub(crate) code_lens: mpsc::Receiver<(i64, CodeLensParams)>,
@@ -130,6 +135,7 @@ impl_sendable!(
     semantic_tokens_full
 );
 impl_sendable!(InlayHintRequest, InlayHintParams, inlay_hint);
+impl_sendable!(InlayHintResolveRequest, InlayHint, inlay_hint_resolve);
 impl_sendable!(HoverRequest, HoverParams, hover);
 impl_sendable!(References, ReferenceParams, references);
 impl_sendable!(CodeLensRequest, CodeLensParams, code_lens);

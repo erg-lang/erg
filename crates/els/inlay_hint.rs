@@ -1,6 +1,8 @@
 #![allow(unused_imports)]
 
 use erg_compiler::erg_parser::parse::Parsable;
+use erg_compiler::varinfo::AbsLocation;
+use lsp_types::InlayHintLabelPart;
 use serde::Deserialize;
 use serde_json::json;
 use serde_json::Value;
@@ -12,97 +14,99 @@ use erg_common::traits::{Locational, Runnable, Stream};
 use erg_compiler::artifact::{BuildRunnable, IncompleteArtifact};
 use erg_compiler::hir::{Block, Call, ClassDef, Def, Expr, Lambda, Params, PatchDef, Signature};
 use erg_compiler::ty::HasType;
-use lsp_types::{InlayHint, InlayHintKind, InlayHintLabel, InlayHintParams, Position};
+use lsp_types::{
+    InlayHint, InlayHintKind, InlayHintLabel, InlayHintParams, InlayHintTooltip, Position,
+};
 
+use crate::_log;
 use crate::server::{send, send_log, ELSResult, Server};
+use crate::util::abs_loc_to_lsp_loc;
 use crate::util::{self, loc_to_range, NormalizedUrl};
 
-fn anot(ln: u32, col: u32, cont: String) -> InlayHint {
-    let position = Position::new(ln - 1, col);
-    let label = InlayHintLabel::String(cont);
-    let kind = Some(InlayHintKind::TYPE);
-    InlayHint {
-        position,
-        label,
-        kind,
-        text_edits: None,
-        tooltip: None,
-        padding_left: Some(false),
-        padding_right: Some(false),
-        data: None,
-    }
+pub struct InlayHintGenerator<'s, C: BuildRunnable, P: Parsable> {
+    _server: &'s Server<C, P>,
+    uri: Value,
 }
 
-fn type_anot<D: std::fmt::Display>(ln_end: u32, col_end: u32, ty: D, return_t: bool) -> InlayHint {
-    let position = Position::new(ln_end - 1, col_end);
-    let string = if return_t {
-        format!("): {ty}")
-    } else {
-        format!(": {ty}")
-    };
-    let label = InlayHintLabel::String(string);
-    let kind = Some(InlayHintKind::TYPE);
-    InlayHint {
-        position,
-        label,
-        kind,
-        text_edits: None,
-        tooltip: None,
-        padding_left: Some(return_t),
-        padding_right: Some(false),
-        data: None,
-    }
-}
-
-fn type_bounds_anot(ln_end: u32, col_end: u32, ty_bounds: String) -> InlayHint {
-    let position = Position::new(ln_end - 1, col_end);
-    let label = InlayHintLabel::String(ty_bounds);
-    let kind = Some(InlayHintKind::TYPE);
-    InlayHint {
-        position,
-        label,
-        kind,
-        text_edits: None,
-        tooltip: None,
-        padding_left: Some(false),
-        padding_right: Some(false),
-        data: None,
-    }
-}
-
-fn param_anot<D: std::fmt::Display>(ln_begin: u32, col_begin: u32, name: D) -> InlayHint {
-    let position = Position::new(ln_begin - 1, col_begin);
-    let label = InlayHintLabel::String(format!("{name}:= "));
-    let kind = Some(InlayHintKind::PARAMETER);
-    InlayHint {
-        position,
-        label,
-        kind,
-        text_edits: None,
-        tooltip: None,
-        padding_left: Some(false),
-        padding_right: Some(false),
-        data: None,
-    }
-}
-
-impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
-    pub(crate) fn handle_inlay_hint(
-        &mut self,
-        params: InlayHintParams,
-    ) -> ELSResult<Option<Vec<InlayHint>>> {
-        send_log(format!("inlay hint request: {params:?}"))?;
-        let uri = NormalizedUrl::new(params.text_document.uri);
-        let mut result = vec![];
-        if let Some(IncompleteArtifact {
-            object: Some(hir), ..
-        }) = self.analysis_result.get_artifact(&uri).as_deref()
-        {
-            for chunk in hir.module.iter() {
-                result.extend(self.get_expr_hint(chunk));
-            }
+impl<'s, C: BuildRunnable, P: Parsable> InlayHintGenerator<'s, C, P> {
+    fn anot(&self, ln: u32, col: u32, cont: String) -> InlayHint {
+        let position = Position::new(ln - 1, col);
+        let label = InlayHintLabel::String(cont);
+        let kind = Some(InlayHintKind::TYPE);
+        InlayHint {
+            position,
+            label,
+            kind,
+            text_edits: None,
+            tooltip: None,
+            padding_left: Some(false),
+            padding_right: Some(false),
+            data: Some(self.uri.clone()),
         }
-        Ok(Some(result))
+    }
+
+    fn type_anot<D: std::fmt::Display>(
+        &self,
+        ln_end: u32,
+        col_end: u32,
+        ty: D,
+        return_t: bool,
+    ) -> InlayHint {
+        let position = Position::new(ln_end - 1, col_end);
+        let string = if return_t {
+            format!("): {ty}")
+        } else {
+            format!(": {ty}")
+        };
+        let label = InlayHintLabel::String(string);
+        let kind = Some(InlayHintKind::TYPE);
+        InlayHint {
+            position,
+            label,
+            kind,
+            text_edits: None,
+            tooltip: None,
+            padding_left: Some(return_t),
+            padding_right: Some(false),
+            data: Some(self.uri.clone()),
+        }
+    }
+
+    fn type_bounds_anot(&self, ln_end: u32, col_end: u32, ty_bounds: String) -> InlayHint {
+        let position = Position::new(ln_end - 1, col_end);
+        let label = InlayHintLabel::String(ty_bounds);
+        let kind = Some(InlayHintKind::TYPE);
+        InlayHint {
+            position,
+            label,
+            kind,
+            text_edits: None,
+            tooltip: None,
+            padding_left: Some(false),
+            padding_right: Some(false),
+            data: Some(self.uri.clone()),
+        }
+    }
+
+    fn param_anot<D: std::fmt::Display>(
+        &self,
+        ln_begin: u32,
+        col_begin: u32,
+        name: D,
+    ) -> InlayHint {
+        let position = Position::new(ln_begin - 1, col_begin);
+        let label = InlayHintLabel::String(format!("{name}:= "));
+        let kind = Some(InlayHintKind::PARAMETER);
+        InlayHint {
+            position,
+            label,
+            kind,
+            text_edits: None,
+            tooltip: None,
+            padding_left: Some(false),
+            padding_right: Some(false),
+            data: Some(self.uri.clone()),
+        }
     }
 
     fn get_expr_hint(&self, expr: &Expr) -> Vec<InlayHint> {
@@ -126,7 +130,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             let (Some(ln_end), Some(col_end)) = (nd_param.ln_end(), nd_param.col_end()) else {
                 continue;
             };
-            let hint = type_anot(ln_end, col_end, &nd_param.vi.t, false);
+            let hint = self.type_anot(ln_end, col_end, &nd_param.vi.t, false);
             result.push(hint);
         }
         if let Some(var_params) = &params.var_params {
@@ -134,7 +138,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 return result;
             }
             if let (Some(ln_end), Some(col_end)) = (var_params.ln_end(), var_params.col_end()) {
-                let hint = type_anot(ln_end, col_end, &var_params.vi.t, false);
+                let hint = self.type_anot(ln_end, col_end, &var_params.vi.t, false);
                 result.push(hint);
             }
         }
@@ -145,7 +149,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             let (Some(ln_end), Some(col_end)) = (d_param.sig.ln_end(), d_param.sig.col_end()) else {
                 continue;
             };
-            let hint = type_anot(ln_end, col_end, &d_param.sig.vi.t, false);
+            let hint = self.type_anot(ln_end, col_end, &d_param.sig.vi.t, false);
             result.push(hint);
         }
         result
@@ -160,7 +164,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             let ty_bounds = format!("|{}|", subr.split('|').nth(1).unwrap_or(""));
             let ident = def.sig.ident();
             if let Some((ln, col)) = ident.ln_end().zip(ident.col_end()) {
-                let hint = type_bounds_anot(ln, col, ty_bounds);
+                let hint = self.type_bounds_anot(ln, col, ty_bounds);
                 result.push(hint);
             }
         }
@@ -170,12 +174,12 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 return result;
             };
             if let Some((ln, col)) = def.sig.ln_end().zip(def.sig.col_end()) {
-                let hint = type_anot(ln, col, return_t, subr.params.parens.is_none());
+                let hint = self.type_anot(ln, col, return_t, subr.params.parens.is_none());
                 result.push(hint);
             }
             if subr.params.parens.is_none() {
                 if let Some((ln, col)) = subr.params.ln_begin().zip(subr.params.col_begin()) {
-                    let hint = anot(ln, col, "(".to_string());
+                    let hint = self.anot(ln, col, "(".to_string());
                     result.push(hint);
                 }
             }
@@ -188,7 +192,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         // don't show hints for compiler internal variables
         if def.sig.t_spec().is_none() && !def.sig.ident().inspect().starts_with(['%']) {
             if let Some((ln, col)) = def.sig.ln_begin().zip(def.sig.col_end()) {
-                let hint = type_anot(ln, col, def.sig.ident().ref_t(), false);
+                let hint = self.type_anot(ln, col, def.sig.ident().ref_t(), false);
                 result.push(hint);
             }
         }
@@ -201,7 +205,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         result.extend(self.get_param_hint(&lambda.params));
         if lambda.params.parens.is_none() {
             if let Some((ln, col)) = lambda.params.ln_begin().zip(lambda.params.col_begin()) {
-                let hint = anot(ln, col, "(".to_string());
+                let hint = self.anot(ln, col, "(".to_string());
                 result.push(hint);
             }
         }
@@ -211,7 +215,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             .zip(lambda.params.col_end())
             .zip(lambda.ref_t().return_t())
         {
-            let hint = type_anot(ln, col, return_t, lambda.params.parens.is_none());
+            let hint = self.type_anot(ln, col, return_t, lambda.params.parens.is_none());
             result.push(hint);
         }
         result
@@ -266,7 +270,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 } else {
                     (name.to_string(), col_begin)
                 };
-                let hint = param_anot(ln_begin, col_begin, name);
+                let hint = self.param_anot(ln_begin, col_begin, name);
                 result.push(hint);
             }
         }
@@ -278,5 +282,58 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             .iter()
             .flat_map(|expr| self.get_expr_hint(expr))
             .collect()
+    }
+}
+
+impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
+    pub(crate) fn handle_inlay_hint(
+        &mut self,
+        params: InlayHintParams,
+    ) -> ELSResult<Option<Vec<InlayHint>>> {
+        send_log(format!("inlay hint request: {params:?}"))?;
+        let uri = NormalizedUrl::new(params.text_document.uri);
+        let mut result = vec![];
+        let gen = InlayHintGenerator {
+            _server: self,
+            uri: uri.clone().raw().to_string().into(),
+        };
+        if let Some(IncompleteArtifact {
+            object: Some(hir), ..
+        }) = self.analysis_result.get_artifact(&uri).as_deref()
+        {
+            for chunk in hir.module.iter() {
+                result.extend(gen.get_expr_hint(chunk));
+            }
+        }
+        Ok(Some(result))
+    }
+
+    pub(crate) fn handle_inlay_hint_resolve(
+        &mut self,
+        mut hint: InlayHint,
+    ) -> ELSResult<InlayHint> {
+        send_log(format!("inlay hint resolve request: {hint:?}"))?;
+        if let Some(data) = &hint.data {
+            let Ok(uri) = data.as_str().unwrap().parse::<NormalizedUrl>() else {
+                return Ok(hint);
+            };
+            if let Some(module) = self.modules.get(&uri) {
+                let InlayHintLabel::String(label) = &hint.label else {
+                    return Ok(hint);
+                };
+                let name = label.trim_start_matches("): ").trim_start_matches(": ");
+                if let Some((_, vi)) = module.context.get_type_info_by_str(name) {
+                    let location = abs_loc_to_lsp_loc(&vi.def_loc);
+                    let parts = InlayHintLabelPart {
+                        value: label.clone(),
+                        tooltip: None,
+                        location,
+                        command: None,
+                    };
+                    hint.label = InlayHintLabel::LabelParts(vec![parts]);
+                }
+            }
+        }
+        Ok(hint)
     }
 }

@@ -27,16 +27,17 @@ use erg_compiler::ty::HasType;
 
 use lsp_types::request::{
     CodeActionRequest, CodeActionResolveRequest, CodeLensRequest, Completion, ExecuteCommand,
-    GotoDefinition, HoverRequest, InlayHintRequest, References, Rename, Request,
-    ResolveCompletionItem, SemanticTokensFullRequest, SignatureHelpRequest, WillRenameFiles,
+    GotoDefinition, HoverRequest, InlayHintRequest, InlayHintResolveRequest, References, Rename,
+    Request, ResolveCompletionItem, SemanticTokensFullRequest, SignatureHelpRequest,
+    WillRenameFiles,
 };
 use lsp_types::{
     ClientCapabilities, CodeActionKind, CodeActionOptions, CodeActionProviderCapability,
     CodeLensOptions, CompletionOptions, DidChangeTextDocumentParams, DidOpenTextDocumentParams,
-    ExecuteCommandOptions, HoverProviderCapability, InitializeResult, OneOf, Position,
-    SemanticTokenType, SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions,
-    SemanticTokensServerCapabilities, ServerCapabilities, SignatureHelpOptions,
-    WorkDoneProgressOptions,
+    ExecuteCommandOptions, HoverProviderCapability, InitializeResult, InlayHintOptions,
+    InlayHintServerCapabilities, OneOf, Position, SemanticTokenType, SemanticTokensFullOptions,
+    SemanticTokensLegend, SemanticTokensOptions, SemanticTokensServerCapabilities,
+    ServerCapabilities, SignatureHelpOptions, WorkDoneProgressOptions,
 };
 
 use serde::{Deserialize, Serialize};
@@ -421,7 +422,12 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             .disabled_features
             .contains(&DefaultFeatures::InlayHint)
             .not()
-            .then_some(OneOf::Left(true));
+            .then_some(OneOf::Right(InlayHintServerCapabilities::Options(
+                InlayHintOptions {
+                    resolve_provider: Some(true),
+                    ..Default::default()
+                },
+            )));
         let mut sema_options = SemanticTokensOptions::default();
         sema_options.range = Some(false);
         sema_options.full = Some(SemanticTokensFullOptions::Bool(true));
@@ -506,6 +512,10 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             Self::handle_semantic_tokens_full,
         );
         self.start_service::<InlayHintRequest>(receivers.inlay_hint, Self::handle_inlay_hint);
+        self.start_service::<InlayHintResolveRequest>(
+            receivers.inlay_hint_resolve,
+            Self::handle_inlay_hint_resolve,
+        );
         self.start_service::<HoverRequest>(receivers.hover, Self::handle_hover);
         self.start_service::<References>(receivers.references, Self::handle_references);
         self.start_service::<CodeLensRequest>(receivers.code_lens, Self::handle_code_lens);
@@ -669,6 +679,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 self.parse_send::<SemanticTokensFullRequest>(id, msg)
             }
             InlayHintRequest::METHOD => self.parse_send::<InlayHintRequest>(id, msg),
+            InlayHintResolveRequest::METHOD => self.parse_send::<InlayHintResolveRequest>(id, msg),
             CodeActionRequest::METHOD => self.parse_send::<CodeActionRequest>(id, msg),
             CodeActionResolveRequest::METHOD => {
                 self.parse_send::<CodeActionResolveRequest>(id, msg)

@@ -1,6 +1,7 @@
 use std::fmt;
 use std::fs::{metadata, Metadata};
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
 use erg_common::consts::CASE_SENSITIVE;
 use erg_common::normalize_path;
@@ -8,6 +9,7 @@ use erg_common::traits::{DequeStream, Locational};
 
 use erg_compiler::erg_parser::token::{Token, TokenStream};
 
+use erg_compiler::varinfo::AbsLocation;
 use lsp_types::{Position, Range, Url};
 
 use crate::server::ELSResult;
@@ -19,6 +21,13 @@ pub struct NormalizedUrl(Url);
 impl fmt::Display for NormalizedUrl {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
+    }
+}
+
+impl FromStr for NormalizedUrl {
+    type Err = Box<dyn std::error::Error>;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        NormalizedUrl::parse(s)
     }
 }
 
@@ -155,4 +164,10 @@ pub(crate) fn uri_to_path(uri: &NormalizedUrl) -> PathBuf {
 
 pub(crate) fn denormalize(uri: Url) -> Url {
     Url::parse(&uri.as_str().replace("c:", "file:///c%3A")).unwrap()
+}
+
+pub(crate) fn abs_loc_to_lsp_loc(loc: &AbsLocation) -> Option<lsp_types::Location> {
+    let uri = Url::from_file_path(loc.module.as_ref()?).ok()?;
+    let range = loc_to_range(loc.loc)?;
+    Some(lsp_types::Location::new(uri, range))
 }
