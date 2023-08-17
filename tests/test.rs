@@ -395,6 +395,11 @@ fn exec_invalid_param() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_iterator() -> Result<(), ()> {
+    expect_success("tests/should_ok/iterator.er", 0)
+}
+
+#[test]
 fn exec_move_check() -> Result<(), ()> {
     expect_failure("examples/move_check.er", 1, 1)
 }
@@ -466,6 +471,11 @@ fn exec_mut_dict_err() -> Result<(), ()> {
 #[test]
 fn exec_quantified_err() -> Result<(), ()> {
     expect_failure("tests/should_err/quantified.er", 0, 3)
+}
+
+#[test]
+fn exec_recursive_fn_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/recursive_fn.er", 0, 2)
 }
 
 #[test]

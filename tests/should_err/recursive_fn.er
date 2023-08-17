@@ -1,0 +1,7 @@
+f() = f # ERR
+
+g 0 = 0
+g _: Int = g # ERR
+
+# left() = right() # ERR
+# right() = left

@@ -145,10 +145,10 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
                 self.occur_inner(lhs, l)?;
                 self.occur_inner(lhs, r)
             }
-            /*(Or(l, r), rhs) | (And(l, r), rhs) => {
-                self.occur_inner(l, rhs, loc)?;
-                self.occur_inner(r, rhs, loc)
-            }*/
+            (Or(l, r), rhs) | (And(l, r), rhs) => {
+                self.occur_inner(l, rhs)?;
+                self.occur_inner(r, rhs)
+            }
             _ => Ok(()),
         }
     }
@@ -158,7 +158,7 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
             (FreeVar(fv), _) if fv.is_linked() => self.occur_inner(&fv.crack(), maybe_sup),
             (_, FreeVar(fv)) if fv.is_linked() => self.occur_inner(maybe_sub, &fv.crack()),
             (FreeVar(sub), FreeVar(sup)) => {
-                if sub.is_unbound() && sup.is_unbound() && sub == sup {
+                if sub.is_unbound() && sup.is_unbound() && sub.addr_eq(sup) {
                     Err(TyCheckErrors::from(TyCheckError::subtyping_error(
                         self.ctx.cfg.input.clone(),
                         line!() as usize,
@@ -168,6 +168,20 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
                         self.ctx.caused_by(),
                     )))
                 } else {
+                    if sub.constraint_is_sandwiched() {
+                        let (sub_t, sup_t) = sub.get_subsup().unwrap();
+                        sub.do_avoiding_recursion(|| {
+                            self.occur_inner(&sub_t, maybe_sup)?;
+                            self.occur_inner(&sup_t, maybe_sup)
+                        })?;
+                    }
+                    if sup.constraint_is_sandwiched() {
+                        let (sub_t, sup_t) = sup.get_subsup().unwrap();
+                        sup.do_avoiding_recursion(|| {
+                            self.occur_inner(maybe_sub, &sub_t)?;
+                            self.occur_inner(maybe_sub, &sup_t)
+                        })?;
+                    }
                     Ok(())
                 }
             }

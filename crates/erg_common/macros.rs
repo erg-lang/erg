@@ -495,6 +495,14 @@ macro_rules! log {
         }
     }};
 
+    (backtrace) => {{
+        if cfg!(feature = "debug") {
+            use $crate::style::*;
+            $crate::debug_info!();
+            println!("\n{}", std::backtrace::Backtrace::capture());
+        }
+    }};
+
     ($($arg: tt)*) => {{
         if cfg!(feature = "debug") {
             use $crate::style::*;
