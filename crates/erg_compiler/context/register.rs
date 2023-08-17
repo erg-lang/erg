@@ -403,11 +403,8 @@ impl Context {
                 ast::ParamPattern::RefMut(_) => ref_mut(self_t, None),
                 _ => self_t,
             };
-            // spec_t == self_t (not spec_t <: self_t)
+            // spec_t <: self_t
             if let Err(es) = self.sub_unify(spec_t, &self_t, name, Some(name.inspect())) {
-                errs.extend(es);
-            }
-            if let Err(es) = self.sub_unify(&self_t, spec_t, name, Some(name.inspect())) {
                 errs.extend(es);
             }
         } else {
