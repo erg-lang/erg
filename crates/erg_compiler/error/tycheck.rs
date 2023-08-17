@@ -178,7 +178,7 @@ impl TyCheckError {
         name: &str,
         expect: &Type,
         found: &Type,
-        hint: Option<String>,
+        // hint: Option<String>,
     ) -> Self {
         let name = name.with_color(Color::Yellow);
         let mut expct = StyledStrings::default();
@@ -198,13 +198,19 @@ impl TyCheckError {
             "english" =>fnd.push_str("but found: "),
         );
         fnd.push_str_with_color_and_attr(format!("{found}"), ERR, ATTR);
+        let hint = switch_lang!(
+            "japanese" => "自身を返す関数は定義できません",
+            "simplified_chinese" => "不能定义返回自身的函数",
+            "traditional_chinese" => "不能定義返回自身的函數",
+            "english" => "cannot define a function that returns itself",
+        );
 
         Self::new(
             ErrorCore::new(
                 vec![SubMessage::ambiguous_new(
                     loc,
                     vec![expct.to_string(), fnd.to_string()],
-                    hint,
+                    Some(hint.into()),
                 )],
                 switch_lang!(
                     "japanese" => format!("{name}の戻り値の型が違います"),

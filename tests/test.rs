@@ -474,6 +474,11 @@ fn exec_quantified_err() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_recursive_fn_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/recursive_fn.er", 0, 2)
+}
+
+#[test]
 fn exec_refinement_err() -> Result<(), ()> {
     expect_failure("tests/should_err/refinement.er", 0, 8)
 }

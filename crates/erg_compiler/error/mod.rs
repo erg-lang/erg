@@ -590,7 +590,6 @@ mod test {
             name,
             &expect,
             &found,
-            None,
         );
         errors.push(err);
 
