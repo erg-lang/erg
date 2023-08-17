@@ -450,3 +450,52 @@ pub(crate) fn __range_getitem__(mut args: ValueArgs, _ctx: &Context) -> EvalValu
         .into())
     }
 }
+
+pub(crate) fn __named_tuple_getitem__(
+    mut args: ValueArgs,
+    ctx: &Context,
+) -> EvalValueResult<TyParam> {
+    let slf = args
+        .remove_left_or_key("Self")
+        .ok_or_else(|| not_passed("Self"))?;
+    let fields = match ctx.convert_value_into_type(slf) {
+        Ok(Type::NamedTuple(fields)) => fields,
+        Ok(other) => {
+            return Err(type_mismatch("NamedTuple", other, "Self"));
+        }
+        Err(val) => {
+            return Err(type_mismatch("NamedTuple", val, "Self"));
+        }
+    };
+    let index = args
+        .remove_left_or_key("Index")
+        .ok_or_else(|| not_passed("Index"))?;
+    let Ok(index) = usize::try_from(&index) else {
+        return Err(type_mismatch("Nat", index, "Index"));
+    };
+    if let Some((_, t)) = fields.get(index) {
+        Ok(TyParam::t(t.clone()))
+    } else {
+        Err(no_key(Type::NamedTuple(fields), index))
+    }
+}
+
+/// `NamedTuple({ .x = Int; .y = Str }).union() == Int or Str`
+pub(crate) fn named_tuple_union(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
+    let slf = args
+        .remove_left_or_key("Self")
+        .ok_or_else(|| not_passed("Self"))?;
+    let fields = match ctx.convert_value_into_type(slf) {
+        Ok(Type::NamedTuple(fields)) => fields,
+        Ok(other) => {
+            return Err(type_mismatch("NamedTuple", other, "Self"));
+        }
+        Err(val) => {
+            return Err(type_mismatch("NamedTuple", val, "Self"));
+        }
+    };
+    let union = fields
+        .iter()
+        .fold(Type::Never, |union, (_, t)| ctx.union(&union, t));
+    Ok(ValueObj::builtin_type(union).into())
+}

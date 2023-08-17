@@ -1066,6 +1066,11 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
                     }
                 }
             }
+            (NamedTuple(sub_tup), NamedTuple(sup_tup)) => {
+                for ((_, lt), (_, rt)) in sub_tup.iter().zip(sup_tup.iter()) {
+                    self.sub_unify(lt, rt)?;
+                }
+            }
             (Subr(sub_subr), Subr(sup_subr)) => {
                 sub_subr
                     .non_default_params

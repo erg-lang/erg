@@ -288,6 +288,7 @@ impl Context {
                 None
             };
             for rhs_sup in get_types(ty_ctx) {
+                let _subs = Substituter::substitute_self(rhs_sup, rhs, self);
                 // Not `supertype_of` (only structures are compared)
                 match Self::cheap_supertype_of(lhs, rhs_sup) {
                     (Absolutely, true) => {
@@ -507,6 +508,15 @@ impl Context {
                 }
                 true
             }
+            (NamedTuple(lhs), NamedTuple(rhs)) => {
+                for ((l_k, l_t), (r_k, r_t)) in lhs.iter().zip(rhs.iter()) {
+                    if (l_k.vis.is_public() && r_k.vis.is_private()) || !self.supertype_of(l_t, r_t)
+                    {
+                        return false;
+                    }
+                }
+                true
+            }
             (Type, Record(rec)) => {
                 for (_, t) in rec.iter() {
                     if !self.supertype_of(&Type, t) {
@@ -516,6 +526,7 @@ impl Context {
                 true
             }
             (Bool, Guard { .. }) => true,
+            (Mono(n), NamedTuple(_)) => &n[..] == "GenericNamedTuple" || &n[..] == "GenericTuple",
             (Type, Subr(subr)) => self.supertype_of(&Type, &subr.return_t),
             (Type, Poly { name, params }) if &name[..] == "Array" || &name[..] == "Set" => {
                 let elem_t = self.convert_tp_into_type(params[0].clone()).unwrap();
@@ -758,6 +769,7 @@ impl Context {
         match t {
             Type::FreeVar(fv) if fv.is_linked() => self.fields(&fv.crack()),
             Type::Record(fields) => fields.clone(),
+            Type::NamedTuple(fields) => fields.iter().cloned().collect(),
             Type::Refinement(refine) => self.fields(&refine.t),
             Type::Structural(t) => self.fields(t),
             other => {

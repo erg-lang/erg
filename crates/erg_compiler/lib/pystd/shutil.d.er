@@ -1,6 +1,13 @@
+._WINDOWS: Bool
+
 .copyfile!: (src: PathLike, dst: PathLike,) => NoneType
 .copy!: (src: PathLike, dst: PathLike,) => NoneType
 .copytree!: (src: PathLike, dst: PathLike,) => NoneType
+.disk_usage!: (path: PathLike,) => NamedTuple {
+    .total = Nat
+    .used = Nat
+    .free = Nat
+}
 .rmtree!: (path: PathLike,) => NoneType
-.move!: (src: PathLike, dst: PathLike) => NoneType
+.move!: (src: PathLike, dst: PathLike) => Str
 .which!: (cmd: Str,) => Str or NoneType

@@ -360,6 +360,24 @@ impl<'c> Substituter<'c> {
             _ => {}
         }
     }
+
+    /// ```erg
+    /// substitute_self(Iterable('Self), Int)
+    /// -> Iterable(Int)
+    /// ```
+    pub(crate) fn substitute_self(qt: &Type, subtype: &Type, ctx: &'c Context) -> Option<Self> {
+        for t in qt.contained_ts() {
+            if t.is_qvar()
+                && &t.qual_name()[..] == "Self"
+                && t.get_super()
+                    .is_some_and(|sup| ctx.supertype_of(&sup, subtype))
+            {
+                t.undoable_link(subtype);
+                return Some(Self::new(ctx, qt.clone(), subtype.clone()));
+            }
+        }
+        None
+    }
 }
 
 impl Context {

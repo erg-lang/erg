@@ -11,3 +11,9 @@ _ = ul.error.__dict__
 
 error = pyimport "urllib/error"
 _ = error.__dict__
+
+shutil = pyimport "shutil"
+usage = shutil.disk_usage! "tests/should_ok/pyimport.er"
+assert usage.total == usage[0]
+for! usage, i =>
+    print! i
