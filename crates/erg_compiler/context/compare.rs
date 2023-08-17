@@ -288,6 +288,7 @@ impl Context {
                 None
             };
             for rhs_sup in get_types(ty_ctx) {
+                let _subs = Substituter::substitute_self(rhs_sup, rhs, self);
                 // Not `supertype_of` (only structures are compared)
                 match Self::cheap_supertype_of(lhs, rhs_sup) {
                     (Absolutely, true) => {

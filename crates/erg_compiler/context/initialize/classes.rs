@@ -1691,7 +1691,7 @@ impl Context {
         /* GenericNamedTuple */
         let mut generic_named_tuple = Self::builtin_mono_class(GENERIC_NAMED_TUPLE, 2);
         generic_named_tuple.register_superclass(mono(GENERIC_TUPLE), &generic_tuple);
-        let Slf = mono("Self");
+        let Slf = mono_q("Self", subtypeof(mono(GENERIC_NAMED_TUPLE)));
         let input_t = tp_enum(Nat, set! {N.clone()});
         let return_t = proj_call(ty_tp(Slf.clone()), FUNDAMENTAL_GETITEM, vec![N.clone()]);
         let named_tuple_getitem =
@@ -1826,7 +1826,10 @@ impl Context {
         let mut enumerate = Self::builtin_poly_class(ENUMERATE, vec![PS::t_nd(TY_T)], 2);
         enumerate.register_superclass(Obj, &obj);
         enumerate
-            .register_marker_trait(self, poly(ITERABLE, vec![ty_tp(T.clone())]))
+            .register_marker_trait(
+                self,
+                poly(ITERABLE, vec![ty_tp(tuple_t(vec![Nat, T.clone()]))]),
+            )
             .unwrap();
         enumerate
             .register_marker_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))

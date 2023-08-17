@@ -3418,7 +3418,11 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().contained_ts(),
             Self::FreeVar(fv) if fv.constraint_is_sandwiched() => {
                 let (sub, sup) = fv.get_subsup().unwrap();
-                sub.contained_ts().union(&sup.contained_ts())
+                fv.do_avoiding_recursion(|| {
+                    set! { self.clone() }
+                        .union(&sub.contained_ts())
+                        .union(&sup.contained_ts())
+                })
             }
             Self::Refinement(refine) => refine.t.contained_ts(),
             Self::Ref(t) => t.contained_ts(),
