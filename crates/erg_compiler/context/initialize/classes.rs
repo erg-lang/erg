@@ -1688,9 +1688,71 @@ impl Context {
         /* record */
         let mut record = Self::builtin_mono_class(RECORD, 2);
         record.register_superclass(Obj, &obj);
-        /* NamedTuple */
-        let mut named_tuple = Self::builtin_mono_class(NAMED_TUPLE, 2);
-        named_tuple.register_superclass(mono(GENERIC_TUPLE), &generic_tuple);
+        /* GenericNamedTuple */
+        let mut generic_named_tuple = Self::builtin_mono_class(GENERIC_NAMED_TUPLE, 2);
+        generic_named_tuple.register_superclass(mono(GENERIC_TUPLE), &generic_tuple);
+        let Slf = mono("Self");
+        let input_t = tp_enum(Nat, set! {N.clone()});
+        let return_t = proj_call(ty_tp(Slf.clone()), FUNDAMENTAL_GETITEM, vec![N.clone()]);
+        let named_tuple_getitem =
+            fn1_met(Slf.clone(), input_t.clone(), return_t.clone()).quantify();
+        let mut named_tuple_indexable = Self::builtin_methods(
+            Some(poly(INDEXABLE, vec![ty_tp(input_t), ty_tp(return_t)])),
+            2,
+        );
+        named_tuple_indexable.register_builtin_py_impl(
+            FUNDAMENTAL_TUPLE_GETITEM,
+            named_tuple_getitem.clone(),
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNDAMENTAL_GETITEM),
+        );
+        generic_named_tuple.register_trait(mono(GENERIC_NAMED_TUPLE), named_tuple_indexable);
+        let get_item = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+            FUNDAMENTAL_GETITEM,
+            __named_tuple_getitem__,
+            named_tuple_getitem,
+            None,
+        )));
+        generic_named_tuple.register_builtin_const(
+            FUNDAMENTAL_GETITEM,
+            Visibility::BUILTIN_PUBLIC,
+            get_item,
+        );
+        let mut named_tuple_iterable = Self::builtin_methods(
+            Some(poly(
+                ITERABLE,
+                vec![ty_tp(proj_call(ty_tp(Slf.clone()), FUNC_UNION, vec![]))],
+            )),
+            2,
+        );
+        let named_tuple_iterator = poly(
+            TUPLE_ITERATOR,
+            vec![ty_tp(proj_call(ty_tp(Slf.clone()), FUNC_UNION, vec![]))],
+        );
+        let t = fn0_met(Slf.clone(), named_tuple_iterator.clone()).quantify();
+        named_tuple_iterable.register_builtin_py_impl(
+            FUNC_ITER,
+            t,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNDAMENTAL_ITER),
+        );
+        named_tuple_iterable.register_builtin_const(
+            ITERATOR,
+            vis.clone(),
+            ValueObj::builtin_class(named_tuple_iterator),
+        );
+        generic_named_tuple.register_trait(mono(GENERIC_NAMED_TUPLE), named_tuple_iterable);
+        // union: (self: NamedTuple({...})) -> Type
+        let named_tuple_union_t = fn0_met(Slf, Type).quantify();
+        let union = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+            FUNC_UNION,
+            named_tuple_union,
+            named_tuple_union_t,
+            None,
+        )));
+        generic_named_tuple.register_builtin_const(FUNC_UNION, Visibility::BUILTIN_PUBLIC, union);
         /* Or (true or type) */
         let or_t = poly(OR, vec![ty_tp(L), ty_tp(R)]);
         let mut or = Self::builtin_poly_class(OR, vec![PS::t_nd(TY_L), PS::t_nd(TY_R)], 2);
@@ -2472,11 +2534,11 @@ impl Context {
         self.register_builtin_type(_tuple_t, tuple_, vis.clone(), Const, Some(FUNC_TUPLE));
         self.register_builtin_type(mono(RECORD), record, vis.clone(), Const, Some(RECORD));
         self.register_builtin_type(
-            mono(NAMED_TUPLE),
-            named_tuple,
+            mono(GENERIC_NAMED_TUPLE),
+            generic_named_tuple,
             vis.clone(),
             Const,
-            Some(NAMED_TUPLE),
+            Some(GENERIC_NAMED_TUPLE),
         );
         self.register_builtin_type(or_t, or, vis.clone(), Const, Some(UNION));
         self.register_builtin_type(

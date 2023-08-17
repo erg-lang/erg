@@ -1115,7 +1115,7 @@ impl LimitedDisplay for Type {
                 write!(f, "}}")
             }
             Self::NamedTuple(attrs) => {
-                write!(f, "NamedTuple {{")?;
+                write!(f, "NamedTuple({{")?;
                 for (i, (field, t)) in attrs.iter().enumerate() {
                     if i > 0 {
                         write!(f, "; ")?;
@@ -1130,7 +1130,7 @@ impl LimitedDisplay for Type {
                 if attrs.is_empty() {
                     write!(f, "=")?;
                 }
-                write!(f, "}}")
+                write!(f, "}})")
             }
             Self::Subr(sub) => sub.limited_fmt(f, limit),
             Self::Refinement(refinement) => refinement.limited_fmt(f, limit),

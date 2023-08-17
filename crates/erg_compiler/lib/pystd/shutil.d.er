@@ -3,7 +3,7 @@
 .copyfile!: (src: PathLike, dst: PathLike,) => NoneType
 .copy!: (src: PathLike, dst: PathLike,) => NoneType
 .copytree!: (src: PathLike, dst: PathLike,) => NoneType
-.disk_usage!: (path: PathLike,) => {
+.disk_usage!: (path: PathLike,) => NamedTuple {
     .total = Nat
     .used = Nat
     .free = Nat

@@ -11,7 +11,7 @@ use ast::{
     TypeBoundSpecs, TypeSpec,
 };
 use erg_parser::ast::{
-    self, ConstArray, ConstSet, Identifier, VarName, VisModifierSpec, VisRestriction,
+    self, ConstArray, ConstExpr, ConstSet, Identifier, VarName, VisModifierSpec, VisRestriction,
 };
 use erg_parser::token::TokenKind;
 use erg_parser::Parser;
@@ -670,6 +670,50 @@ impl Context {
                     not_found_is_qvar,
                 )?;
                 Ok(t.structuralize())
+            }
+            "NamedTuple" => {
+                let mut args = poly_spec.args.pos_args();
+                let Some(first) = args.next() else {
+                    return Err(TyCheckErrors::from(TyCheckError::args_missing_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        poly_spec.args.loc(),
+                        "NamedTuple",
+                        self.caused_by(),
+                        vec![Str::from("Fields")],
+                    )));
+                };
+                let ConstExpr::Record(fields) = &first.expr else {
+                    return Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        first.expr.loc(),
+                        self.caused_by(),
+                        "NamedTuple",
+                        None,
+                        &mono("Record"),
+                        &self.instantiate_const_expr_as_type(
+                            &first.expr,
+                            None,
+                            tmp_tv_cache,
+                            not_found_is_qvar,
+                        )?,
+                        None,
+                        None,
+                    )));
+                };
+                let mut ts = vec![];
+                for def in fields.attrs.iter() {
+                    let t = self.instantiate_const_expr_as_type(
+                        &def.body.block[0],
+                        None,
+                        tmp_tv_cache,
+                        not_found_is_qvar,
+                    )?;
+                    let vis = self.instantiate_vis_modifier(&def.ident.vis)?;
+                    ts.push((Field::new(vis, def.ident.inspect().clone()), t));
+                }
+                Ok(Type::NamedTuple(ts))
             }
             other => {
                 let Some((typ, ctx)) = self.get_type(&Str::rc(other)) else {

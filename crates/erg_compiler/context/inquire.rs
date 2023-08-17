@@ -2422,7 +2422,7 @@ impl Context {
                 return self
                     .get_builtins()
                     .unwrap_or(self)
-                    .rec_local_get_mono_type("NamedTuple");
+                    .rec_local_get_mono_type("GenericNamedTuple");
             }
             Type::Or(_l, _r) => {
                 if let Some(ctx) = self.get_nominal_type_ctx(&poly("Or", vec![])) {
@@ -3103,10 +3103,13 @@ impl Context {
     }
 
     // TODO:
+    /// ```erg
     /// Int.meta_type() == ClassType (<: Type)
     /// Show.meta_type() == TraitType (<: Type)
     /// [Int; 3].meta_type() == [ClassType; 3] (<: Type)
     /// Indexable(T).meta_type() == TraitType (<: Type)
+    /// NamedTuple({ .x = Int; .y = Str }).meta_type() == NamedTuple({ .x = ClassType; .y = ClassType })
+    /// ```
     pub fn meta_type(&self, typ: &Type) -> Type {
         match typ {
             Type::Poly { name, params } if &name[..] == "Array" || &name[..] == "Set" => poly(
@@ -3120,6 +3123,12 @@ impl Context {
                             tp.clone()
                         }
                     })
+                    .collect(),
+            ),
+            NamedTuple(tuple) => NamedTuple(
+                tuple
+                    .iter()
+                    .map(|(name, tp)| (name.clone(), self.meta_type(tp)))
                     .collect(),
             ),
             _ => Type,
