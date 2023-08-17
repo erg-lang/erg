@@ -395,6 +395,11 @@ fn exec_invalid_param() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_iterator() -> Result<(), ()> {
+    expect_success("tests/should_ok/iterator.er", 0)
+}
+
+#[test]
 fn exec_move_check() -> Result<(), ()> {
     expect_failure("examples/move_check.er", 1, 1)
 }

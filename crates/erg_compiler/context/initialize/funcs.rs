@@ -77,7 +77,7 @@ impl Context {
         .quantify();
         let t_filter = nd_func(
             vec![
-                kw(KW_FUNC, nd_func(vec![anon(T.clone())], None, T.clone())),
+                kw(KW_FUNC, nd_func(vec![anon(T.clone())], None, Bool)),
                 kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())])),
             ],
             None,

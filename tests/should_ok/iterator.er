@@ -1,0 +1,8 @@
+for! enumerate(0..3), ((i, j),) =>
+    assert i == j
+for! zip(0..3, 0..3), ((i, j),) =>
+    assert i == j
+for! filter(x -> x > 1, 0..3), i =>
+    assert i > 1
+for! map(x -> "\{x}", [1, 2, 3]), s =>
+    assert str(s) == s

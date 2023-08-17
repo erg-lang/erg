@@ -1761,7 +1761,10 @@ impl Context {
         let mut enumerate = Self::builtin_poly_class(ENUMERATE, vec![PS::t_nd(TY_T)], 2);
         enumerate.register_superclass(Obj, &obj);
         enumerate
-            .register_marker_trait(self, poly(ITERABLE, vec![ty_tp(T.clone())]))
+            .register_marker_trait(
+                self,
+                poly(ITERABLE, vec![ty_tp(tuple_t(vec![Nat, T.clone()]))]),
+            )
             .unwrap();
         enumerate
             .register_marker_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
