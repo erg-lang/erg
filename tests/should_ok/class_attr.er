@@ -4,6 +4,7 @@ C::
     aaa = 1
 C.
     bbb = 1
+    id self = self
     f self = None
 
 D = Inherit C
@@ -24,3 +25,4 @@ D.
 
 d = D.new({.x = 1})
 print! d.bbb, d.ddd, d.g()
+assert d.id().ddd == 1
