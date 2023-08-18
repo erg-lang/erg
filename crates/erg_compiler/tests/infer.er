@@ -15,3 +15,11 @@ norm x = x.norm()
 a = [1, 2] + [3, 4]
 
 abc = ["c"] + ["a", "b"][1..1000]
+
+f! t =
+    arr = ![]
+    result = ![]
+    result.push! t
+    for! arr, t =>
+        result.extend! f! t
+    result

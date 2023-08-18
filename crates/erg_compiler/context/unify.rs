@@ -113,7 +113,7 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
                 self.occur(&lhs.return_t, &rhs.return_t)?;
                 Ok(())
             }
-            (Poly { params, .. }, FreeVar(fv)) if fv.is_unbound() => {
+            /*(Poly { params, .. }, FreeVar(fv)) if fv.is_unbound() => {
                 for param in params.iter().filter_map(|tp| {
                     if let TyParam::Type(t) = tp {
                         Some(t)
@@ -124,7 +124,7 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
                     self.occur_inner(param, maybe_sup)?;
                 }
                 Ok(())
-            }
+            }*/
             (FreeVar(fv), Poly { params, .. }) if fv.is_unbound() => {
                 for param in params.iter().filter_map(|tp| {
                     if let TyParam::Type(t) = tp {
