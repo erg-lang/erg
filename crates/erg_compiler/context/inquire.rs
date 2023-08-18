@@ -1199,9 +1199,18 @@ impl Context {
         namespace: &Context,
     ) -> TyCheckResult<VarInfo> {
         erg_common::debug_power_assert!(args.len() == 2);
-        let cont = Str::rc(binop_to_dname(op.inspect()));
+        let Some(cont) = binop_to_dname(op.inspect()) else {
+            return Err(TyCheckError::no_var_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                op.loc(),
+                namespace.caused_by(),
+                op.inspect(),
+                None,
+            ).into());
+        };
         // not a `Token::from_str(op.kind, cont)` because ops are defined as symbols
-        let symbol = Token::symbol_with_loc(cont, Location::concat(&args[0], &args[1]));
+        let symbol = Token::symbol_with_loc(Str::rc(cont), Location::concat(&args[0], &args[1]));
         let ident = Identifier::private_from_token(symbol.clone());
         let t = self
             .rec_get_var_info(&ident, AccessKind::Name, input, namespace)
@@ -1244,7 +1253,16 @@ impl Context {
         namespace: &Context,
     ) -> TyCheckResult<VarInfo> {
         erg_common::debug_power_assert!(args.len() == 1);
-        let cont = unaryop_to_dname(op.inspect());
+        let Some(cont) = unaryop_to_dname(op.inspect()) else {
+            return Err(TyCheckError::no_var_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                op.loc(),
+                namespace.caused_by(),
+                op.inspect(),
+                None,
+            ).into());
+        };
         let symbol = Token::symbol(cont);
         let ident = Identifier::private_from_token(symbol.clone());
         let vi = self

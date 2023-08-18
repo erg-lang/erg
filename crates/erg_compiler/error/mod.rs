@@ -78,50 +78,50 @@ pub fn ordinal_num(n: usize) -> String {
 }
 
 /// dname is for "double under name"
-pub fn binop_to_dname(op: &str) -> &str {
+pub fn binop_to_dname(op: &str) -> Option<&str> {
     match op {
-        "+" => "__add__",
-        "-" => "__sub__",
-        "*" => "__mul__",
-        "/" => "__div__",
-        "//" => "__floordiv__",
-        "**" => "__pow__",
-        "%" => "__mod__",
-        "@" => "__matmul__",
-        ".." => "__rng__",
-        "<.." => "__lorng__",
-        "..<" => "__rorng__",
-        "<..<" => "__orng__",
-        "&&" | "&" | "and" => "__and__",
-        "||" | "|" | "or" => "__or__",
-        "^^" | "^" => "__xor__",
-        "as" => "__as__",
+        "+" => Some("__add__"),
+        "-" => Some("__sub__"),
+        "*" => Some("__mul__"),
+        "/" => Some("__div__"),
+        "//" => Some("__floordiv__"),
+        "**" => Some("__pow__"),
+        "%" => Some("__mod__"),
+        "@" => Some("__matmul__"),
+        ".." => Some("__rng__"),
+        "<.." => Some("__lorng__"),
+        "..<" => Some("__rorng__"),
+        "<..<" => Some("__orng__"),
+        "&&" | "&" | "and" => Some("__and__"),
+        "||" | "|" | "or" => Some("__or__"),
+        "^^" | "^" => Some("__xor__"),
+        "as" => Some("__as__"),
         // l in r, l notin r -> r contains l, not(r contains l)
-        "contains" => "__contains__",
-        "subof" => "__subof__",
-        "supof" => "__supof__",
-        "is!" => "__is__!",
-        "isnot!" => "__isnot__!",
-        "==" => "__eq__",
-        "!=" => "__ne__",
-        "<" => "__lt__",
-        "<=" => "__le__",
-        ">" => "__gt__",
-        ">=" => "__ge__",
-        "<<" => "__lshift__",
-        ">>" => "__rshift__",
-        other => todo!("no such binary operator: {other}"),
+        "contains" => Some("__contains__"),
+        "subof" => Some("__subof__"),
+        "supof" => Some("__supof__"),
+        "is!" => Some("__is__!"),
+        "isnot!" => Some("__isnot__!"),
+        "==" => Some("__eq__"),
+        "!=" => Some("__ne__"),
+        "<" => Some("__lt__"),
+        "<=" => Some("__le__"),
+        ">" => Some("__gt__"),
+        ">=" => Some("__ge__"),
+        "<<" => Some("__lshift__"),
+        ">>" => Some("__rshift__"),
+        _ => None,
     }
 }
 
-pub fn unaryop_to_dname(op: &str) -> &str {
+pub fn unaryop_to_dname(op: &str) -> Option<&str> {
     match op {
-        "+" => "__pos__",
-        "-" => "__neg__",
-        "~" => "__invert__",
-        "!" => "__mutate__",
-        "..." => "__spread__",
-        other => todo!("no such unary operator: {other}"),
+        "+" => Some("__pos__"),
+        "-" => Some("__neg__"),
+        "~" => Some("__invert__"),
+        "!" => Some("__mutate__"),
+        "..." => Some("__spread__"),
+        _ => None,
     }
 }
 
