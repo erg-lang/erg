@@ -71,6 +71,24 @@ impl fmt::Display for ErgMode {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TranspileTarget {
+    Python,
+    Json,
+    Toml,
+}
+
+impl From<&str> for TranspileTarget {
+    fn from(s: &str) -> Self {
+        match s {
+            "python" | "py" => Self::Python,
+            "json" => Self::Json,
+            "toml" => Self::Toml,
+            _ => panic!("unsupported transpile target: {s}"),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ErgConfig {
     pub mode: ErgMode,
@@ -84,6 +102,7 @@ pub struct ErgConfig {
     pub py_magic_num: Option<u32>, // the magic number cannot be uniquely determined from `target_version`
     pub py_command: Option<&'static str>,
     pub target_version: Option<PythonVersion>,
+    pub transpile_target: Option<TranspileTarget>,
     pub py_server_timeout: u64,
     pub quiet_repl: bool,
     pub show_type: bool,
@@ -112,6 +131,7 @@ impl Default for ErgConfig {
             py_magic_num: None,
             py_command: None,
             target_version: None,
+            transpile_target: None,
             py_server_timeout: 10,
             quiet_repl: false,
             show_type: false,
@@ -330,6 +350,13 @@ impl ErgConfig {
                         .parse::<PythonVersion>()
                         .expect("the value of `--target-version` is not a valid Python version");
                     cfg.target_version = Some(target_version);
+                }
+                "--transpile-target" | "--target" => {
+                    let transpile_target = args
+                        .next()
+                        .expect("the value of `--transpile-target` is not passed")
+                        .into_boxed_str();
+                    cfg.transpile_target = Some(TranspileTarget::from(&transpile_target[..]));
                 }
                 "-v" | "--verbose" => {
                     cfg.verbose = args

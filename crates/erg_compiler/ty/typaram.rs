@@ -9,6 +9,7 @@ use erg_common::traits::{LimitedDisplay, StructuralEq};
 use erg_common::{dict, log, ref_addr_eq, set, Str};
 
 use erg_parser::ast::ConstLambda;
+use erg_parser::token::TokenKind;
 
 use super::constructors::int_interval;
 use super::free::{
@@ -76,6 +77,37 @@ impl fmt::Display for OpKind {
             Self::BitXor => write!(f, "^^"),
             Self::Shl => write!(f, "<<"),
             Self::Shr => write!(f, ">>"),
+        }
+    }
+}
+
+impl TryFrom<TokenKind> for OpKind {
+    type Error = ();
+    fn try_from(tk: TokenKind) -> Result<Self, Self::Error> {
+        match tk {
+            TokenKind::Plus => Ok(Self::Add),
+            TokenKind::Minus => Ok(Self::Sub),
+            TokenKind::Star => Ok(Self::Mul),
+            TokenKind::Slash => Ok(Self::Div),
+            TokenKind::FloorDiv => Ok(Self::FloorDiv),
+            TokenKind::Pow => Ok(Self::Pow),
+            TokenKind::Mod => Ok(Self::Mod),
+            TokenKind::PreBitNot => Ok(Self::Invert),
+            TokenKind::Gre => Ok(Self::Gt),
+            TokenKind::Less => Ok(Self::Lt),
+            TokenKind::GreEq => Ok(Self::Ge),
+            TokenKind::LessEq => Ok(Self::Le),
+            TokenKind::DblEq => Ok(Self::Eq),
+            TokenKind::NotEq => Ok(Self::Ne),
+            TokenKind::As => Ok(Self::As),
+            TokenKind::AndOp => Ok(Self::And),
+            TokenKind::OrOp => Ok(Self::Or),
+            TokenKind::BitAnd => Ok(Self::BitAnd),
+            TokenKind::BitOr => Ok(Self::BitOr),
+            TokenKind::BitXor => Ok(Self::BitXor),
+            TokenKind::Shl => Ok(Self::Shl),
+            TokenKind::Shr => Ok(Self::Shr),
+            _ => Err(()),
         }
     }
 }

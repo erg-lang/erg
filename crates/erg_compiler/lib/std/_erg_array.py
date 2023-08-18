@@ -1,5 +1,7 @@
 from _erg_control import then__
 from _erg_range import Range
+from _erg_nat import NatMut
+from _erg_int import IntMut
 
 class Array(list):
     def dedup(self, same_bucket=None):
@@ -35,6 +37,8 @@ class Array(list):
     def __getitem__(self, index_or_slice):
         if isinstance(index_or_slice, slice):
             return Array(list.__getitem__(self, index_or_slice))
+        elif isinstance(index_or_slice, NatMut) or isinstance(index_or_slice, IntMut):
+            return list.__getitem__(self, int(index_or_slice))
         elif isinstance(index_or_slice, Range):
             return Array(list.__getitem__(self, index_or_slice.into_slice()))
         else:

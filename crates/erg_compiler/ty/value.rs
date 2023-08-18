@@ -26,7 +26,7 @@ use self::value_set::inner_class;
 
 use super::codeobj::CodeObj;
 use super::constructors::{array_t, dict_t, refinement, set_t, tuple_t};
-use super::typaram::TyParam;
+use super::typaram::{OpKind, TyParam};
 use super::{ConstSubr, Field, HasType, Predicate, Type};
 use super::{CONTAINER_OMIT_THRESHOLD, STR_OMIT_THRESHOLD};
 
@@ -1149,6 +1149,22 @@ impl ValueObj {
             Self::Inf => Type::Inf,
             Self::NegInf => Type::NegInf,
             Self::Illegal => Type::Failure,
+        }
+    }
+
+    pub fn try_binary(self, other: Self, op: OpKind) -> Option<Self> {
+        match op {
+            OpKind::Add => self.try_add(other),
+            OpKind::Sub => self.try_sub(other),
+            OpKind::Mul => self.try_mul(other),
+            OpKind::Div => self.try_div(other),
+            OpKind::Lt => self.try_lt(other),
+            OpKind::Gt => self.try_gt(other),
+            OpKind::Le => self.try_le(other),
+            OpKind::Ge => self.try_ge(other),
+            OpKind::Eq => self.try_eq(other),
+            OpKind::Ne => self.try_ne(other),
+            _ => None,
         }
     }
 

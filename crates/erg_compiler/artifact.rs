@@ -84,6 +84,15 @@ impl From<IncompleteArtifact> for ErrorArtifact {
     }
 }
 
+impl From<CompileErrors> for ErrorArtifact {
+    fn from(errors: CompileErrors) -> Self {
+        Self {
+            errors,
+            warns: CompileErrors::empty(),
+        }
+    }
+}
+
 impl ErrorArtifact {
     pub const fn new(errors: CompileErrors, warns: CompileErrors) -> Self {
         Self { errors, warns }
