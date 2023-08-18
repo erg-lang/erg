@@ -2563,6 +2563,7 @@ impl PyCodeGenerator {
             } else {
                 self.write_instr(Opcode310::CALL_FUNCTION);
                 self.write_arg(1);
+                self.stack_dec();
             }
         }
         self.write_instr(RAISE_VARARGS);
