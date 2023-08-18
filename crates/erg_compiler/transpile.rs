@@ -1,11 +1,12 @@
 use std::fs::File;
 use std::io::Write;
 
-use erg_common::config::ErgConfig;
+use erg_common::config::{ErgConfig, TranspileTarget};
+use erg_common::dict;
 use erg_common::dict::Dict as HashMap;
 use erg_common::error::MultiErrorDisplay;
 use erg_common::log;
-use erg_common::traits::{ExitStatus, Runnable, Stream};
+use erg_common::traits::{ExitStatus, Locational, Runnable, Stream};
 use erg_common::Str;
 
 use erg_parser::ast::{ParamPattern, TypeSpec, VarName};
@@ -18,16 +19,17 @@ use crate::build_hir::HIRBuilder;
 use crate::codegen::PyCodeGenerator;
 use crate::context::{Context, ContextProvider, ModuleContext};
 use crate::desugar_hir::HIRDesugarer;
-use crate::error::{CompileError, CompileErrors};
+use crate::error::{CompileError, CompileErrors, CompileResult};
 use crate::hir::{
     Accessor, Args, Array, BinOp, Block, Call, ClassDef, Def, Dict, Expr, Identifier, Lambda,
     Literal, Params, PatchDef, ReDef, Record, Set, Signature, Tuple, UnaryOp, HIR,
 };
 use crate::link_hir::HIRLinker;
 use crate::module::SharedCompilerResource;
+use crate::ty::typaram::OpKind;
 use crate::ty::value::ValueObj;
-use crate::ty::Type;
-use crate::varinfo::VarInfo;
+use crate::ty::{Field, Type};
+use crate::varinfo::{AbsLocation, VarInfo};
 
 /// patch method -> function
 /// patch attr -> variable
@@ -85,8 +87,50 @@ impl LastLineOperation {
     }
 }
 
+#[derive(Debug)]
+pub enum TranspiledFile {
+    PyScript(PyScript),
+    Json(Json),
+}
+
+impl TranspiledFile {
+    pub fn code(&self) -> &str {
+        match self {
+            Self::PyScript(script) => &script.code,
+            Self::Json(json) => &json.code,
+        }
+    }
+
+    pub fn into_code(self) -> String {
+        match self {
+            Self::PyScript(script) => script.code,
+            Self::Json(json) => json.code,
+        }
+    }
+
+    pub fn filename(&self) -> &str {
+        match self {
+            Self::PyScript(script) => &script.filename,
+            Self::Json(json) => &json.filename,
+        }
+    }
+
+    pub fn extension(&self) -> &str {
+        match self {
+            Self::PyScript(_) => "py",
+            Self::Json(_) => "json",
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct PyScript {
+    pub filename: Str,
+    pub code: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct Json {
     pub filename: Str,
     pub code: String,
 }
@@ -97,7 +141,7 @@ pub struct Transpiler {
     pub cfg: ErgConfig,
     builder: HIRBuilder,
     shared: SharedCompilerResource,
-    script_generator: ScriptGenerator,
+    script_generator: PyScriptGenerator,
 }
 
 impl Default for Transpiler {
@@ -116,7 +160,7 @@ impl Runnable for Transpiler {
         Self {
             shared: shared.clone(),
             builder: HIRBuilder::new_with_cache(cfg.copy(), "<module>", shared),
-            script_generator: ScriptGenerator::new(),
+            script_generator: PyScriptGenerator::new(),
             cfg,
         }
     }
@@ -145,15 +189,15 @@ impl Runnable for Transpiler {
 
     fn exec(&mut self) -> Result<ExitStatus, Self::Errs> {
         let mut path = self.cfg.dump_path();
-        path.set_extension("py");
         let src = self.cfg.input.read();
         let artifact = self.transpile(src, "exec").map_err(|eart| {
             eart.warns.write_all_stderr();
             eart.errors
         })?;
         artifact.warns.write_all_stderr();
+        path.set_extension(artifact.object.extension());
         let mut f = File::create(path).unwrap();
-        f.write_all(artifact.object.code.as_bytes()).unwrap();
+        f.write_all(artifact.object.code().as_bytes()).unwrap();
         Ok(ExitStatus::compile_passed(artifact.warns.len()))
     }
 
@@ -163,7 +207,7 @@ impl Runnable for Transpiler {
             eart.errors
         })?;
         artifact.warns.write_all_stderr();
-        Ok(artifact.object.code)
+        Ok(artifact.object.into_code())
     }
 }
 
@@ -181,13 +225,13 @@ impl ContextProvider for Transpiler {
     }
 }
 
-impl Buildable<PyScript> for Transpiler {
+impl Buildable<TranspiledFile> for Transpiler {
     fn inherit(cfg: ErgConfig, shared: SharedCompilerResource) -> Self {
         let mod_name = Str::from(cfg.input.file_stem());
         Self {
             shared: shared.clone(),
             builder: HIRBuilder::new_with_cache(cfg.copy(), mod_name, shared),
-            script_generator: ScriptGenerator::new(),
+            script_generator: PyScriptGenerator::new(),
             cfg,
         }
     }
@@ -195,7 +239,7 @@ impl Buildable<PyScript> for Transpiler {
         &mut self,
         src: String,
         mode: &str,
-    ) -> Result<CompleteArtifact<PyScript>, IncompleteArtifact<PyScript>> {
+    ) -> Result<CompleteArtifact<TranspiledFile>, IncompleteArtifact<TranspiledFile>> {
         self.transpile(src, mode)
             .map_err(|err| IncompleteArtifact::new(None, err.errors, err.warns))
     }
@@ -207,23 +251,29 @@ impl Buildable<PyScript> for Transpiler {
     }
 }
 
-impl BuildRunnable<PyScript> for Transpiler {}
+impl BuildRunnable<TranspiledFile> for Transpiler {}
 
 impl Transpiler {
     pub fn transpile(
         &mut self,
         src: String,
         mode: &str,
-    ) -> Result<CompleteArtifact<PyScript>, ErrorArtifact> {
+    ) -> Result<CompleteArtifact<TranspiledFile>, ErrorArtifact> {
         log!(info "the transpiling process has started.");
         let artifact = self.build_link_desugar(src, mode)?;
-        let script = self.script_generator.transpile(artifact.object);
-        log!(info "code:\n{}", script.code);
+        let file = match self.cfg.transpile_target {
+            Some(TranspileTarget::Json) => {
+                let mut gen = JsonGenerator::new(self.cfg.copy());
+                TranspiledFile::Json(gen.transpile(artifact.object)?)
+            }
+            _ => TranspiledFile::PyScript(self.script_generator.transpile(artifact.object)),
+        };
+        log!(info "code:\n{}", file.code());
         log!(info "the transpiling process has completed");
-        Ok(CompleteArtifact::new(script, artifact.warns))
+        Ok(CompleteArtifact::new(file, artifact.warns))
     }
 
-    pub fn transpile_module(&mut self) -> Result<CompleteArtifact<PyScript>, ErrorArtifact> {
+    pub fn transpile_module(&mut self) -> Result<CompleteArtifact<TranspiledFile>, ErrorArtifact> {
         let src = self.cfg.input.read();
         self.transpile(src, "exec")
     }
@@ -258,7 +308,7 @@ impl Transpiler {
 }
 
 #[derive(Debug, Default)]
-pub struct ScriptGenerator {
+pub struct PyScriptGenerator {
     level: usize,
     fresh_var_n: usize,
     namedtuple_loaded: bool,
@@ -271,7 +321,7 @@ pub struct ScriptGenerator {
     prelude: String,
 }
 
-impl ScriptGenerator {
+impl PyScriptGenerator {
     pub const fn new() -> Self {
         Self {
             level: 0,
@@ -982,6 +1032,184 @@ impl ScriptGenerator {
             let expr = redef.block.remove(0);
             code += &self.transpile_expr(expr);
             code
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct JsonGenerator {
+    cfg: ErgConfig,
+    binds: HashMap<AbsLocation, ValueObj>,
+    errors: CompileErrors,
+}
+
+impl JsonGenerator {
+    pub fn new(cfg: ErgConfig) -> Self {
+        Self {
+            cfg,
+            binds: HashMap::new(),
+            errors: CompileErrors::empty(),
+        }
+    }
+
+    pub fn transpile(&mut self, hir: HIR) -> CompileResult<Json> {
+        let mut code = "".to_string();
+        let mut len = 0;
+        for (i, chunk) in hir.module.into_iter().enumerate() {
+            if i > 0 && len > 0 {
+                code += ",\n";
+            }
+            let expr = self.transpile_expr(chunk);
+            len = expr.len();
+            code += &expr;
+        }
+        if self.errors.is_empty() {
+            Ok(Json {
+                filename: hir.name,
+                code: format!("{{\n{code}\n}}"),
+            })
+        } else {
+            Err(self.errors.take_all().into())
+        }
+    }
+
+    fn expr_into_value(&self, expr: Expr) -> Option<ValueObj> {
+        match expr {
+            Expr::Array(Array::Normal(arr)) => {
+                let mut vals = vec![];
+                for elem in arr.elems.pos_args {
+                    if let Some(val) = self.expr_into_value(elem.expr) {
+                        vals.push(val);
+                    } else {
+                        return None;
+                    }
+                }
+                Some(ValueObj::Array(vals.into()))
+            }
+            Expr::Array(Array::WithLength(arr)) => {
+                let len = self
+                    .expr_into_value(*arr.len)
+                    .and_then(|v| usize::try_from(&v).ok())?;
+                let vals = vec![self.expr_into_value(*arr.elem)?; len];
+                Some(ValueObj::Array(vals.into()))
+            }
+            Expr::Dict(Dict::Normal(dic)) => {
+                let mut kvs = dict! {};
+                for kv in dic.kvs {
+                    let key = self.expr_into_value(kv.key)?;
+                    let val = self.expr_into_value(kv.value)?;
+                    kvs.insert(key, val);
+                }
+                Some(ValueObj::Dict(kvs))
+            }
+            Expr::Record(rec) => {
+                let mut attrs = dict! {};
+                for mut attr in rec.attrs {
+                    let field = Field::from(attr.sig.ident());
+                    let val = self.expr_into_value(attr.body.block.remove(0))?;
+                    attrs.insert(field, val);
+                }
+                Some(ValueObj::Record(attrs))
+            }
+            Expr::Lit(lit) => Some(lit.value),
+            Expr::Accessor(acc) => self.binds.get(&acc.var_info().def_loc).cloned(),
+            Expr::BinOp(bin) => {
+                let lhs = self.expr_into_value(*bin.lhs)?;
+                let rhs = self.expr_into_value(*bin.rhs)?;
+                lhs.try_binary(rhs, OpKind::try_from(bin.op.kind).ok()?)
+            }
+            _ => None,
+        }
+    }
+
+    fn transpile_def(&mut self, mut def: Def) -> String {
+        self.register_def(&def);
+        if def.sig.vis().is_public() {
+            let expr = self.transpile_expr(def.body.block.remove(0));
+            format!("\"{}\": {expr}", def.sig.inspect())
+        } else {
+            "".to_string()
+        }
+    }
+
+    fn register_def(&mut self, def: &Def) {
+        if let Some(val) = def
+            .body
+            .block
+            .first()
+            .cloned()
+            .and_then(|expr| self.expr_into_value(expr))
+        {
+            self.binds.insert(def.sig.ident().vi.def_loc.clone(), val);
+        }
+    }
+
+    fn transpile_expr(&mut self, expr: Expr) -> String {
+        match expr {
+            Expr::Lit(lit) => lit.token.content.to_string(),
+            Expr::Accessor(acc) => {
+                if let Some(val) = self.binds.get(&acc.var_info().def_loc) {
+                    val.to_string()
+                } else {
+                    acc.to_string()
+                }
+            }
+            Expr::Array(array) => match array {
+                Array::Normal(arr) => {
+                    let mut code = "[".to_string();
+                    for (i, elem) in arr.elems.pos_args.into_iter().enumerate() {
+                        if i > 0 {
+                            code += ", ";
+                        }
+                        code += &self.transpile_expr(elem.expr);
+                    }
+                    code += "]";
+                    code
+                }
+                other => todo!("{other}"),
+            },
+            Expr::Record(rec) => {
+                let mut code = "".to_string();
+                for (i, attr) in rec.attrs.into_iter().enumerate() {
+                    code += &self.transpile_def(attr);
+                    if i > 0 {
+                        code += ", ";
+                    }
+                }
+                format!("{{{code}}}")
+            }
+            Expr::Dict(dic) => match dic {
+                Dict::Normal(dic) => {
+                    let mut code = "".to_string();
+                    for (i, kv) in dic.kvs.into_iter().enumerate() {
+                        if i > 0 {
+                            code += ", ";
+                        }
+                        code += &format!(
+                            "{}: {}",
+                            self.transpile_expr(kv.key),
+                            self.transpile_expr(kv.value)
+                        );
+                    }
+                    format!("{{{code}}}")
+                }
+                Dict::Comprehension(other) => todo!("{other}"),
+            },
+            Expr::Def(def) => self.transpile_def(def),
+            other => {
+                let loc = other.loc();
+                if let Some(val) = self.expr_into_value(other) {
+                    val.to_string()
+                } else {
+                    self.errors.push(CompileError::not_const_expr(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        loc,
+                        "".into(),
+                    ));
+                    "".to_string()
+                }
+            }
         }
     }
 }

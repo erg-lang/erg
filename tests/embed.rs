@@ -25,7 +25,7 @@ fn test_transpiler_embedding() -> Result<(), ()> {
         .map_err(|es| {
             es.errors.write_all_stderr();
         })?;
-    assert!(res.object.code.ends_with("(print)(Str(\"\"),)\n"));
+    assert!(res.object.code().ends_with("(print)(Str(\"\"),)\n"));
     Ok(())
 }
 
