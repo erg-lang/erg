@@ -1,13 +1,38 @@
+logging = pyimport "logging"
 ._WINDOWS: Bool
 
+.chown!: (path: PathLike, user := Str, group := Str) => NoneType
 .copyfile!: (src: PathLike, dst: PathLike,) => NoneType
 .copy!: (src: PathLike, dst: PathLike,) => NoneType
+.copy2!: (src: PathLike, dst: PathLike,) => NoneType
 .copytree!: (src: PathLike, dst: PathLike,) => NoneType
 .disk_usage!: (path: PathLike,) => NamedTuple {
     .total = Nat
     .used = Nat
     .free = Nat
 }
+.get_archive_formats!: () => [(Str, Str); _]
+.get_unpack_formats!: () => [(Str, [Str; _], Str); _]
+.register_archive_format!: (name: Str, function: GenericCallable) => NoneType
+.register_unpack_format!: (name: Str, extensions: [Str; _], function: GenericCallable) => NoneType
 .rmtree!: (path: PathLike,) => NoneType
+.make_archive!: (
+    base_name: Str,
+    format: Str,
+    root_dir := Str,
+    base_dir := Str,
+    verbose := Bool,
+    dry_run := Bool,
+    owner := Str,
+    group := Str,
+    logger := logging.Logger!,
+) => Str
 .move!: (src: PathLike, dst: PathLike) => Str
+.unpack_archive!: (
+    filename: PathLike,
+    extract_dir := PathLike,
+    format := Str,
+) => NoneType
+.unregister_archive_format!: (name: Str) => NoneType
+.unregister_unpack_format!: (name: Str) => NoneType
 .which!: (cmd: Str,) => Str or NoneType
