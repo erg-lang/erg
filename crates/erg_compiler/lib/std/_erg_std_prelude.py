@@ -19,6 +19,7 @@ from _erg_set import Set
 from _erg_contains_operator import contains_operator
 from _erg_mutate_operator import mutate_operator
 
+Record = tuple
 
 class Never:
     pass

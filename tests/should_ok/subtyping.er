@@ -7,3 +7,9 @@ higher2(f: ((g: Nat -> Nat) -> Nat)): Nat = f((x: Nat) -> x + 1)
 f(g: Bool -> Nat): Nat = g(False)
 
 print! higher2 f # OK
+
+str_to_int_or_rec(_: {Str: Int or Record}) = None
+
+str_to_int_or_rec { "a": 1 }
+str_to_int_or_rec { "a": {.a = 1} }
+str_to_int_or_rec { "a": {.a = 1}, "b": 1 }

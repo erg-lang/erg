@@ -550,15 +550,14 @@ impl Context {
                         return Ok(t);
                     }
                 }
-                if let Some(decl_t) = opt_decl_t {
-                    return Ok(decl_t.typ().clone());
-                }
                 if let Some((typ, _)) = self.get_type(ident.inspect()) {
                     Ok(typ.clone())
                 } else if not_found_is_qvar {
                     let tyvar = named_free_var(Str::rc(other), self.level, Constraint::Uninited);
                     tmp_tv_cache.push_or_init_tyvar(&ident.name, &tyvar, self);
                     Ok(tyvar)
+                } else if let Some(decl_t) = opt_decl_t {
+                    Ok(decl_t.typ().clone())
                 } else {
                     Err(TyCheckErrors::from(TyCheckError::no_type_error(
                         self.cfg.input.clone(),
@@ -1375,6 +1374,7 @@ impl Context {
         }
     }
 
+    // FIXME: opt_decl_t must be disassembled for each polymorphic type
     pub(crate) fn instantiate_typespec_full(
         &self,
         t_spec: &TypeSpec,

@@ -1695,6 +1695,14 @@ impl Context {
         /* record */
         let mut record = Self::builtin_mono_class(RECORD, 2);
         record.register_superclass(Obj, &obj);
+        let mut record_eq = Self::builtin_methods(Some(mono(EQ)), 2);
+        record_eq.register_builtin_erg_impl(
+            OP_EQ,
+            fn1_met(mono(RECORD), mono(RECORD), Bool),
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        record.register_trait(mono(RECORD), record_eq);
         /* GenericNamedTuple */
         let mut generic_named_tuple = Self::builtin_mono_class(GENERIC_NAMED_TUPLE, 2);
         generic_named_tuple.register_superclass(mono(GENERIC_TUPLE), &generic_tuple);
