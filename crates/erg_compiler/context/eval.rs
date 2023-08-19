@@ -1338,6 +1338,13 @@ impl Context {
                 }
                 Ok(TyParam::Set(new_set))
             }
+            TyParam::Record(dict) => {
+                let mut fields = dict! {};
+                for (name, tp) in dict.into_iter() {
+                    fields.insert(name, self.eval_tp(tp)?);
+                }
+                Ok(TyParam::Record(fields))
+            }
             TyParam::Type(t) => self
                 .eval_t_params(*t, self.level, &())
                 .map(TyParam::t)
@@ -2344,6 +2351,14 @@ impl Context {
                     union = self.union(&union, &tp_t);
                 }
                 Ok(set_t(union, len))
+            }
+            TyParam::Record(dict) => {
+                let mut fields = dict! {};
+                for (name, tp) in dict.into_iter() {
+                    let tp_t = self.get_tp_t(&tp)?;
+                    fields.insert(name, tp_t);
+                }
+                Ok(Type::Record(fields))
             }
             dict @ TyParam::Dict(_) => Ok(dict_t(dict)),
             TyParam::BinOp { op, lhs, rhs } => match op {

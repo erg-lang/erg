@@ -263,6 +263,7 @@ const SYMMETRIC_DIFFERENCE: &str = "symmetric_difference";
 const MEMORYVIEW: &str = "MemoryView";
 const FUNC_UNION: &str = "union";
 const FUNC_SHAPE: &str = "shape";
+const FUNC_AS_DICT: &str = "as_dict";
 const FUNC_INC: &str = "inc";
 const PROC_INC: &str = "inc!";
 const FUNC_DEC: &str = "dec";
@@ -714,6 +715,37 @@ impl Context {
                 None,
                 impl_of,
                 None,
+                AbsLocation::unknown(),
+            );
+            self.consts.insert(VarName::from_str(Str::rc(name)), obj);
+            self.locals.insert(VarName::from_str(Str::rc(name)), vi);
+        }
+    }
+
+    fn register_py_builtin_const(
+        &mut self,
+        name: &str,
+        vis: Visibility,
+        obj: ValueObj,
+        py_name: Option<&'static str>,
+    ) {
+        if self.rec_get_const_obj(name).is_some() {
+            panic!("already registered: {} {name}", self.name);
+        } else {
+            let impl_of = if let ContextKind::MethodDefs(Some(tr)) = &self.kind {
+                Some(tr.clone())
+            } else {
+                None
+            };
+            // TODO: not all value objects are comparable
+            let vi = VarInfo::new(
+                v_enum(set! {obj.clone()}),
+                Const,
+                vis,
+                Builtin,
+                None,
+                impl_of,
+                py_name.map(Str::ever),
                 AbsLocation::unknown(),
             );
             self.consts.insert(VarName::from_str(Str::rc(name)), obj);

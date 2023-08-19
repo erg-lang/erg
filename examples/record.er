@@ -22,3 +22,7 @@ Person! = {
 print! Person!.name
 assert Person!.name == Str
 # assert john in Person!
+
+for! {.x = 1; .y = 2}.as_dict().items(), ((k, v),) =>
+    # k: Str, v: Int
+    print! k, v

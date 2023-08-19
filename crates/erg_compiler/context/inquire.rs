@@ -2424,12 +2424,12 @@ impl Context {
             Type::Poly { name, .. } => {
                 return self.get_poly_type(name);
             }
-            Type::Record(rec) if rec.values().all(|attr| self.supertype_of(&Type, attr)) => {
+            /*Type::Record(rec) if rec.values().all(|attr| self.supertype_of(&Type, attr)) => {
                 return self
                     .get_builtins()
                     .unwrap_or(self)
                     .rec_local_get_mono_type("RecordType");
-            }
+            }*/
             Type::Record(_) => {
                 return self
                     .get_builtins()
@@ -3146,6 +3146,11 @@ impl Context {
             NamedTuple(tuple) => NamedTuple(
                 tuple
                     .iter()
+                    .map(|(name, tp)| (name.clone(), self.meta_type(tp)))
+                    .collect(),
+            ),
+            Record(rec) => Record(
+                rec.iter()
                     .map(|(name, tp)| (name.clone(), self.meta_type(tp)))
                     .collect(),
             ),

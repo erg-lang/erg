@@ -1808,6 +1808,21 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
         );
         record.register_trait(mono(RECORD), record_eq);
+        let Slf = mono_q("Self", subtypeof(mono(RECORD)));
+        let into_dict_t =
+            fn0_met(Slf.clone(), proj_call(ty_tp(Slf), FUNC_AS_DICT, vec![])).quantify();
+        let into_dict = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+            FUNC_UNION,
+            as_dict,
+            into_dict_t,
+            None,
+        )));
+        record.register_py_builtin_const(
+            FUNC_AS_DICT,
+            Visibility::BUILTIN_PUBLIC,
+            into_dict,
+            Some("_asdict"),
+        );
         /* GenericNamedTuple */
         let mut generic_named_tuple = Self::builtin_mono_class(GENERIC_NAMED_TUPLE, 2);
         generic_named_tuple.register_superclass(mono(GENERIC_TUPLE), &generic_tuple);

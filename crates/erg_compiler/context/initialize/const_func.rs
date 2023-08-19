@@ -2,13 +2,13 @@ use std::fmt::Display;
 use std::mem;
 
 use erg_common::dict::Dict;
-use erg_common::enum_unwrap;
 #[allow(unused_imports)]
 use erg_common::log;
+use erg_common::{enum_unwrap, set};
 
 use crate::context::Context;
 use crate::feature_error;
-use crate::ty::constructors::{and, mono, poly, tuple_t, ty_tp};
+use crate::ty::constructors::{and, mono, poly, tuple_t, ty_tp, v_enum};
 use crate::ty::value::{EvalValueError, EvalValueResult, GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{TyParam, Type, ValueArgs};
 use erg_common::error::{ErrorCore, ErrorKind, Location, SubMessage};
@@ -498,4 +498,25 @@ pub(crate) fn named_tuple_union(mut args: ValueArgs, ctx: &Context) -> EvalValue
         .iter()
         .fold(Type::Never, |union, (_, t)| ctx.union(&union, t));
     Ok(ValueObj::builtin_type(union).into())
+}
+
+/// `{ .x = Int; .y = Str }.as_dict() == { "x": Int, "y": Str }`
+pub(crate) fn as_dict(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
+    let slf = args
+        .remove_left_or_key("Self")
+        .ok_or_else(|| not_passed("Self"))?;
+    let fields = match ctx.convert_value_into_type(slf) {
+        Ok(Type::Record(fields)) => fields,
+        Ok(other) => {
+            return Err(type_mismatch("Record", other, "Self"));
+        }
+        Err(val) => {
+            return Err(type_mismatch("Record", val, "Self"));
+        }
+    };
+    let dict = fields
+        .into_iter()
+        .map(|(k, v)| (v_enum(set! {  k.symbol.into() }), v))
+        .collect::<Dict<_, _>>();
+    Ok(ValueObj::builtin_type(Type::from(dict)).into())
 }
