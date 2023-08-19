@@ -2307,7 +2307,7 @@ impl PyCodeGenerator {
                 Expr::Accessor(Accessor::Ident(ident)) if ident.vis().is_private() => {
                     self.emit_call_local(ident, call.args)
                 }
-                other if other.ref_t().is_type() => {
+                other if other.ref_t().is_poly_type_meta() => {
                     self.emit_expr(other);
                     self.emit_index_args(call.args);
                 }
@@ -2341,7 +2341,7 @@ impl PyCodeGenerator {
                 Some(7) => self.emit_with_instr_307(args),
                 _ => todo!("not supported Python version"),
             },
-            _ if local.ref_t().is_type() => {
+            other if local.ref_t().is_poly_type_meta() && other != "classof" => {
                 self.emit_load_name_instr(local);
                 self.emit_index_args(args);
             }
@@ -2377,7 +2377,7 @@ impl PyCodeGenerator {
         if let Some(func_name) = debind(&method_name) {
             return self.emit_call_fake_method(obj, func_name, method_name, args);
         }
-        let is_type = method_name.ref_t().is_type();
+        let is_type = method_name.ref_t().is_poly_type_meta();
         let is_py_api = method_name.is_py_api();
         self.emit_expr(obj);
         self.emit_load_method_instr(method_name);

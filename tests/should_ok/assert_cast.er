@@ -1,5 +1,12 @@
+json = pyimport "json"
+
 arr = ["a"]
 assert arr in Array(Str)
 assert arr in Array(Str, 1)
 assert arr notin Array(Int)
 assert arr notin Array(Str, 2)
+
+j = json.loads "{ \"a\": [1] }"
+assert j in {Str: Obj}
+assert j["a"] in Array(Int)
+assert j["a"] notin Array(Str)

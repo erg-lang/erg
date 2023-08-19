@@ -2040,6 +2040,16 @@ impl Type {
         }
     }
 
+    pub fn is_poly_type_meta(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_poly_type_meta(),
+            Self::Refinement(refine) => refine.t.is_poly_type_meta(),
+            Self::Quantified(q) => q.is_poly_type_meta(),
+            Self::Subr(subr) => subr.return_t.is_type(),
+            _ => false,
+        }
+    }
+
     pub fn as_free(&self) -> Option<&FreeTyVar> {
         <&FreeTyVar>::try_from(self).ok()
     }

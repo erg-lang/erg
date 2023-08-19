@@ -5,6 +5,12 @@ from _erg_int import IntMut
 from _erg_contains_operator import contains_operator
 
 class Array(list):
+    def try_new(arr):  # -> Result[Array]
+        if isinstance(arr, list):
+            return Array(a)
+        else:
+            return Error("not a list")
+
     def dedup(self, same_bucket=None):
         if same_bucket is None:
             return Array(list(set(self)))

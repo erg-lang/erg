@@ -38,5 +38,8 @@ def contains_operator(y, elem):
         type_check = True  # contains_operator(next(iter(y.keys())), x[next(iter(x.keys()))])
         len_check = len(elem) >= len(y)
         return type_check and len_check
+    elif isinstance(elem, list):
+        from _erg_array import Array
+        return contains_operator(y, Array(elem))
     else:
         return elem in y
