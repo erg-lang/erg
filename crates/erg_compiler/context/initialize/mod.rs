@@ -178,6 +178,21 @@ const FUNC_RFIND: &str = "rfind";
 const FUNC_INDEX: &str = "index";
 const FUNC_RINDEX: &str = "rindex";
 const FUNC_COUNT: &str = "count";
+const FUNC_STRIP: &str = "strip";
+const FUNC_REMOVEPREFIX: &str = "removeprefix";
+const FUNC_REMOVESUFFIX: &str = "removesuffix";
+const FUNC_ISNUMERIC: &str = "isnumeric";
+const FUNC_ISALNUM: &str = "isalnum";
+const FUNC_ISALPHA: &str = "isalpha";
+const FUNC_ISASCII: &str = "isascii";
+const FUNC_ISDECIMAL: &str = "isdecimal";
+const FUNC_ISDIGIT: &str = "isdigit";
+const FUNC_ISLOWER: &str = "islower";
+const FUNC_ISUPPER: &str = "isupper";
+const FUNC_ISSPACE: &str = "isspace";
+const FUNC_ISTITLE: &str = "istitle";
+const FUNC_ISIDENTIFIER: &str = "isidentifier";
+const FUNC_ISPRINTABLE: &str = "isprintable";
 const NONE_TYPE: &str = "NoneType";
 const TYPE: &str = "Type";
 const CLASS: &str = "Class";
@@ -521,6 +536,7 @@ const KW_MAXSPLIT: &str = "maxsplit";
 const KW_SUB: &str = "sub";
 const KW_OFFSET: &str = "offset";
 const KW_WHENCE: &str = "whence";
+const KW_CHARS: &str = "chars";
 
 pub fn builtins_path() -> PathBuf {
     erg_pystd_path().join("builtins.d.er")

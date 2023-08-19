@@ -888,6 +888,111 @@ impl Context {
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
+        str_.register_builtin_py_impl(
+            FUNC_STRIP,
+            fn_met(Str, vec![], None, vec![kw(KW_CHARS, Str | NoneType)], Str),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_STRIP),
+        );
+        str_.register_builtin_py_impl(
+            FUNC_REMOVEPREFIX,
+            fn1_met(Str, Str, Str),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_REMOVEPREFIX),
+        );
+        str_.register_builtin_py_impl(
+            FUNC_REMOVESUFFIX,
+            fn1_met(Str, Str, Str),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_REMOVESUFFIX),
+        );
+        str_.register_builtin_py_impl(
+            FUNC_ISALNUM,
+            fn0_met(Str, Bool),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_ISALNUM),
+        );
+        str_.register_builtin_py_impl(
+            FUNC_ISALPHA,
+            fn0_met(Str, Bool),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_ISALPHA),
+        );
+        str_.register_builtin_py_impl(
+            FUNC_ISASCII,
+            fn0_met(Str, Bool),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_ISASCII),
+        );
+        str_.register_builtin_py_impl(
+            FUNC_ISDECIMAL,
+            fn0_met(Str, Bool),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_ISDECIMAL),
+        );
+        str_.register_builtin_py_impl(
+            FUNC_ISDIGIT,
+            fn0_met(Str, Bool),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_ISDIGIT),
+        );
+        str_.register_builtin_py_impl(
+            FUNC_ISLOWER,
+            fn0_met(Str, Bool),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_ISLOWER),
+        );
+        str_.register_builtin_py_impl(
+            FUNC_ISNUMERIC,
+            fn0_met(Str, Bool),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_ISNUMERIC),
+        );
+        str_.register_builtin_py_impl(
+            FUNC_ISSPACE,
+            fn0_met(Str, Bool),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_ISSPACE),
+        );
+        str_.register_builtin_py_impl(
+            FUNC_ISTITLE,
+            fn0_met(Str, Bool),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_ISTITLE),
+        );
+        str_.register_builtin_py_impl(
+            FUNC_ISUPPER,
+            fn0_met(Str, Bool),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_ISUPPER),
+        );
+        str_.register_builtin_py_impl(
+            FUNC_ISIDENTIFIER,
+            fn0_met(Str, Bool),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_ISIDENTIFIER),
+        );
+        str_.register_builtin_py_impl(
+            FUNC_ISPRINTABLE,
+            fn0_met(Str, Bool),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_ISPRINTABLE),
+        );
         let str_getitem_t = fn1_kw_met(Str, kw(KW_IDX, Nat | poly(RANGE, vec![ty_tp(Int)])), Str);
         str_.register_builtin_erg_impl(
             FUNDAMENTAL_GETITEM,
