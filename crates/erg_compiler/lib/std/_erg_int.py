@@ -5,9 +5,9 @@ from _erg_control import then__
 class Int(int):
     def try_new(i):  # -> Result[Nat]
         if isinstance(i, int):
-            Int(i)
+            return Int(i)
         else:
-            Error("not an integer")
+            return Error("not an integer")
 
     def succ(self):
         return Int(self + 1)

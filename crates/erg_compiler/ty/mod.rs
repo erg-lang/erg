@@ -2029,6 +2029,17 @@ impl Type {
         }
     }
 
+    pub fn is_type(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_type(),
+            Self::Refinement(refine) => refine.t.is_type(),
+            Self::ClassType | Self::TraitType | Self::Type => true,
+            Self::Quantified(q) => q.is_type(),
+            Self::Subr(subr) => subr.return_t.is_type(),
+            _ => false,
+        }
+    }
+
     pub fn as_free(&self) -> Option<&FreeTyVar> {
         <&FreeTyVar>::try_from(self).ok()
     }

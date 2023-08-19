@@ -2,6 +2,7 @@ from _erg_control import then__
 from _erg_range import Range
 from _erg_nat import NatMut
 from _erg_int import IntMut
+from _erg_contains_operator import contains_operator
 
 class Array(list):
     def dedup(self, same_bucket=None):
@@ -43,3 +44,22 @@ class Array(list):
             return Array(list.__getitem__(self, index_or_slice.into_slice()))
         else:
             return list.__getitem__(self, index_or_slice)
+
+    def type_check(self, t: type) -> bool:
+        if isinstance(t, list):
+            if len(t) != len(self):
+                return False
+            for (inner_t, elem) in zip(t, self):
+                if not contains_operator(inner_t, elem):
+                    return False
+            return True
+        elif not hasattr(t, "__args__"):
+            return isinstance(self, t)
+        elem_t = t.__args__[0]
+        l = None if len(t.__args__) != 2 else t.__args__[1]
+        if l is not None and l != len(self):
+            return False
+        for elem in self:
+            if not contains_operator(elem_t, elem):
+                return False
+        return True

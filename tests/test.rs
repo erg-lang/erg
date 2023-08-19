@@ -23,6 +23,11 @@ fn exec_array_member() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_assert_cast_ok() -> Result<(), ()> {
+    expect_success("tests/should_ok/assert_cast.er", 0)
+}
+
+#[test]
 fn exec_class() -> Result<(), ()> {
     expect_success("examples/class.er", 0)
 }

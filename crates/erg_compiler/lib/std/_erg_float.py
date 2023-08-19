@@ -7,9 +7,9 @@ class Float(float):
 
     def try_new(i):  # -> Result[Nat]
         if isinstance(i, float):
-            Float(i)
+            return Float(i)
         else:
-            Error("not a float")
+            return Error("not a float")
 
     def mutate(self):
         return FloatMut(self)

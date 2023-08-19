@@ -999,6 +999,13 @@ impl Context {
         type_.register_superclass(Obj, &obj);
         type_.register_builtin_erg_impl(
             FUNC_MRO,
+            fn0_met(Type, array_t(Type, TyParam::erased(Nat))),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        // TODO: PolyType
+        type_.register_builtin_erg_impl(
+            FUNDAMENTAL_ARGS,
             array_t(Type, TyParam::erased(Nat)),
             Immutable,
             Visibility::BUILTIN_PUBLIC,

@@ -14,6 +14,7 @@ Python bytecodeの変数操作系の命令はnamei (name index)を通してア�
   * `COMPARE_OP` (6 byte)
   * `LOAD_GLOBAL` (12 byte)
   * `LOAD_ATTR` (10 byte)
+  * `BINARY_SUBSCR` (8 byte)
 
 ## STORE_NAME(namei)
 

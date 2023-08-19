@@ -1,0 +1,5 @@
+arr = ["a"]
+assert arr in Array(Str)
+assert arr in Array(Str, 1)
+assert arr notin Array(Int)
+assert arr notin Array(Str, 2)

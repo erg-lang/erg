@@ -402,6 +402,7 @@ const OP_MUTATE: &str = "__mutate__";
 const OP_POS: &str = "__pos__";
 const OP_NEG: &str = "__neg__";
 
+const FUNDAMENTAL_ARGS: &str = "__args__";
 const FUNDAMENTAL_LEN: &str = "__len__";
 const FUNDAMENTAL_CONTAINS: &str = "__contains__";
 const FUNDAMENTAL_CALL: &str = "__call__";

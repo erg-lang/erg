@@ -12,6 +12,7 @@ Instructions that do not take arguments also use 2 bytes (the argument part is 0
   * `COMPARE_OP` (6 byte)
   * `LOAD_GLOBAL` (12 byte)
   * `LOAD_ATTR` (10 byte)
+  * `BINARY_SUBSCR` (8 byte)
 
 ## STORE_NAME(namei)
 

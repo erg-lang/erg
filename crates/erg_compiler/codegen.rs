@@ -2307,6 +2307,10 @@ impl PyCodeGenerator {
                 Expr::Accessor(Accessor::Ident(ident)) if ident.vis().is_private() => {
                     self.emit_call_local(ident, call.args)
                 }
+                other if other.ref_t().is_type() => {
+                    self.emit_expr(other);
+                    self.emit_index_args(call.args);
+                }
                 other => {
                     let is_py_api = other.is_py_api();
                     self.emit_push_null();
@@ -2337,6 +2341,10 @@ impl PyCodeGenerator {
                 Some(7) => self.emit_with_instr_307(args),
                 _ => todo!("not supported Python version"),
             },
+            _ if local.ref_t().is_type() => {
+                self.emit_load_name_instr(local);
+                self.emit_index_args(args);
+            }
             // "pyimport" | "py" are here
             _ => {
                 let is_py_api = local.is_py_api();
@@ -2369,10 +2377,15 @@ impl PyCodeGenerator {
         if let Some(func_name) = debind(&method_name) {
             return self.emit_call_fake_method(obj, func_name, method_name, args);
         }
+        let is_type = method_name.ref_t().is_type();
         let is_py_api = method_name.is_py_api();
         self.emit_expr(obj);
         self.emit_load_method_instr(method_name);
-        self.emit_args_311(args, BoundAttr, is_py_api);
+        if is_type {
+            self.emit_index_args(args);
+        } else {
+            self.emit_args_311(args, BoundAttr, is_py_api);
+        }
     }
 
     fn emit_var_args_311(&mut self, pos_len: usize, var_args: &PosArg) {
@@ -2447,6 +2460,24 @@ impl PyCodeGenerator {
         };
         // (1 (subroutine) + argc + kwsc) input objects -> 1 return object
         self.stack_dec_n((1 + argc + kwsc) - 1);
+    }
+
+    fn emit_index_args(&mut self, mut args: Args) {
+        let argc = args.pos_args.len();
+        while let Some(arg) = args.try_remove_pos(0) {
+            self.emit_expr(arg.expr);
+        }
+        if argc > 1 {
+            self.write_instr(BUILD_TUPLE);
+            self.write_arg(argc);
+        }
+        self.write_instr(Opcode311::BINARY_SUBSCR);
+        self.write_arg(0);
+        if self.py_version.minor >= Some(11) {
+            self.write_bytes(&[0; 8]);
+        }
+        // (1 (subroutine) + argc) input objects -> 1 return object
+        self.stack_dec_n((1 + argc) - 1);
     }
 
     /// X.update! x -> x + 1
