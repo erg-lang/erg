@@ -486,11 +486,12 @@ impl ASTLowerer {
         Ok(normal_set)
         */
         let elems = hir::Args::values(new_set, None);
-        // check if elem_t is Eq
+        // check if elem_t is Eq and Hash
+        let eq_hash = mono("Eq") & mono("Hash");
         if let Err(errs) = self
             .module
             .context
-            .sub_unify(&elem_t, &mono("Eq"), &elems, None)
+            .sub_unify(&elem_t, &eq_hash, &elems, None)
         {
             self.errs.extend(errs);
         }
@@ -580,8 +581,9 @@ impl ASTLowerer {
         }
         for key_t in union.keys() {
             let loc = &(&dict.l_brace, &dict.r_brace);
-            // check if key_t is Eq
-            if let Err(errs) = self.module.context.sub_unify(key_t, &mono("Eq"), loc, None) {
+            // check if key_t is Eq and Hash
+            let eq_hash = mono("Eq") & mono("Hash");
+            if let Err(errs) = self.module.context.sub_unify(key_t, &eq_hash, loc, None) {
                 self.errs.extend(errs);
             }
         }

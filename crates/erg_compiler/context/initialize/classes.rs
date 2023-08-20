@@ -310,6 +310,15 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
         );
         ratio.register_trait(Ratio, ratio_eq);
+        let mut ratio_hash = Self::builtin_methods(Some(mono(HASH)), 1);
+        ratio_hash.register_builtin_erg_impl(
+            OP_HASH,
+            fn0_met(Ratio, Nat),
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        ratio.register_trait(Ratio, ratio_hash);
+        ratio.register_marker_trait(self, mono(EQ_HASH)).unwrap();
         let op_t = fn1_met(Ratio, Ratio, Ratio);
         let mut ratio_add = Self::builtin_methods(Some(poly(ADD, vec![ty_tp(Ratio)])), 2);
         ratio_add.register_builtin_erg_impl(
@@ -471,6 +480,15 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
         );
         int.register_trait(Int, int_eq);
+        let mut int_hash = Self::builtin_methods(Some(mono(HASH)), 1);
+        int_hash.register_builtin_erg_impl(
+            OP_HASH,
+            fn0_met(Int, Int),
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        int.register_trait(Int, int_hash);
+        int.register_marker_trait(self, mono(EQ_HASH)).unwrap();
         // __div__ is not included in Int (cast to Ratio)
         let op_t = fn1_met(Int, Int, Int);
         let mut int_add = Self::builtin_methods(Some(poly(ADD, vec![ty_tp(Int)])), 2);
@@ -1017,6 +1035,15 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
         );
         str_.register_trait(Str, str_eq);
+        let mut str_hash = Self::builtin_methods(Some(mono(HASH)), 1);
+        str_hash.register_builtin_erg_impl(
+            OP_HASH,
+            fn0_met(Str, Int),
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        str_.register_trait(Str, str_hash);
+        str_.register_marker_trait(self, mono(EQ_HASH)).unwrap();
         let mut str_seq = Self::builtin_methods(Some(poly(SEQUENCE, vec![ty_tp(Str)])), 2);
         str_seq.register_builtin_erg_impl(
             FUNDAMENTAL_LEN,
@@ -1091,6 +1118,15 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
         );
         nonetype.register_trait(NoneType, nonetype_eq);
+        let mut nonetype_hash = Self::builtin_methods(Some(mono(HASH)), 1);
+        nonetype_hash.register_builtin_erg_impl(
+            OP_HASH,
+            fn0_met(NoneType, Int),
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        nonetype.register_trait(NoneType, nonetype_hash);
+        nonetype.register_marker_trait(self, mono(EQ_HASH)).unwrap();
         let mut nonetype_show = Self::builtin_methods(Some(mono(SHOW)), 1);
         nonetype_show.register_builtin_erg_impl(
             TO_STR,
@@ -1132,6 +1168,14 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
         );
         type_.register_trait(Type, type_eq);
+        let mut type_hash = Self::builtin_methods(Some(mono(HASH)), 1);
+        type_hash.register_builtin_erg_impl(
+            OP_HASH,
+            fn0_met(Type, Int),
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        type_.register_trait(Type, type_hash);
         let mut class_type = Self::builtin_mono_class(CLASS_TYPE, 2);
         class_type.register_superclass(Type, &type_);
         class_type.register_marker_trait(self, mono(NAMED)).unwrap();
@@ -1245,6 +1289,15 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
         );
         code.register_trait(Code, code_eq);
+        let mut code_hash = Self::builtin_methods(Some(mono(HASH)), 1);
+        code_hash.register_builtin_erg_impl(
+            OP_HASH,
+            fn0_met(Code, Int),
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        code.register_trait(Code, code_hash);
+        code.register_marker_trait(self, mono(EQ_HASH)).unwrap();
         let g_module_t = mono(GENERIC_MODULE);
         let mut generic_module = Self::builtin_mono_class(GENERIC_MODULE, 2);
         generic_module.register_superclass(Obj, &obj);
@@ -1259,6 +1312,17 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
         );
         generic_module.register_trait(g_module_t.clone(), generic_module_eq);
+        let mut generic_module_hash = Self::builtin_methods(Some(mono(HASH)), 1);
+        generic_module_hash.register_builtin_erg_impl(
+            OP_HASH,
+            fn0_met(g_module_t.clone(), Int),
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        generic_module.register_trait(g_module_t.clone(), generic_module_hash);
+        generic_module
+            .register_marker_trait(self, mono(EQ_HASH))
+            .unwrap();
         let Path = mono_q_tp(PATH, instanceof(Str));
         let module_t = module(Path.clone());
         let py_module_t = py_module(Path);
@@ -1716,6 +1780,15 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
         );
         bytes.register_trait(mono(BYTES), bytes_eq);
+        let mut bytes_hash = Self::builtin_methods(Some(mono(HASH)), 1);
+        bytes_hash.register_builtin_erg_impl(
+            OP_HASH,
+            fn0_met(mono(BYTES), Int),
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        bytes.register_trait(mono(BYTES), bytes_hash);
+        bytes.register_marker_trait(self, mono(EQ_HASH)).unwrap();
         /* GenericTuple */
         let mut generic_tuple = Self::builtin_mono_class(GENERIC_TUPLE, 1);
         generic_tuple.register_superclass(Obj, &obj);
@@ -1728,6 +1801,17 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
         );
         generic_tuple.register_trait(mono(GENERIC_TUPLE), tuple_eq);
+        let mut tuple_hash = Self::builtin_methods(Some(mono(HASH)), 1);
+        tuple_hash.register_builtin_erg_impl(
+            OP_HASH,
+            fn0_met(mono(GENERIC_TUPLE), Int),
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        generic_tuple.register_trait(mono(GENERIC_TUPLE), tuple_hash);
+        generic_tuple
+            .register_marker_trait(self, mono(EQ_HASH))
+            .unwrap();
         let Ts = mono_q_tp(TY_TS, instanceof(array_t(Type, N.clone())));
         // Ts <: GenericArray
         let _tuple_t = poly(TUPLE, vec![Ts.clone()]);

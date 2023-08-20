@@ -1,0 +1,4 @@
+C = Class()
+
+_ = { 1: C.new() }
+_ = { C.new(): 1 } # ERR

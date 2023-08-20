@@ -177,7 +177,7 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNDAMENTAL_STR),
         );
-        /* In */
+        /* Input/Output */
         let params = vec![PS::t_nd(TY_T)];
         let input = Self::builtin_poly_trait(INPUT, params.clone(), 2);
         let output = Self::builtin_poly_trait(OUTPUT, params, 2);
@@ -191,6 +191,15 @@ impl Context {
         // __eq__: |Self <: Eq| (self: Self, other: Self) -> Bool
         let op_t = fn1_met(Slf.clone(), Slf, Bool).quantify();
         eq.register_builtin_erg_decl(OP_EQ, op_t, Visibility::BUILTIN_PUBLIC);
+        /* Hash */
+        let mut hash = Self::builtin_mono_trait(HASH, 2);
+        let Slf = mono_q(SELF, subtypeof(mono(HASH)));
+        let op_t = fn0_met(Slf.clone(), Int).quantify();
+        hash.register_builtin_erg_decl(OP_HASH, op_t, Visibility::BUILTIN_PUBLIC);
+        /* EqHash */
+        let mut eq_hash = Self::builtin_mono_trait(EQ_HASH, 2);
+        eq_hash.register_superclass(mono(HASH), &hash);
+        eq_hash.register_superclass(mono(EQ), &eq);
         /* PartialOrd */
         let mut partial_ord = Self::builtin_mono_trait(PARTIAL_ORD, 2);
         let Slf = mono_q(SELF, subtypeof(mono(PARTIAL_ORD)));
@@ -468,6 +477,8 @@ impl Context {
             None,
         );
         self.register_builtin_type(mono(EQ), eq, vis.clone(), Const, None);
+        self.register_builtin_type(mono(HASH), hash, vis.clone(), Const, None);
+        self.register_builtin_type(mono(EQ_HASH), eq_hash, vis.clone(), Const, None);
         self.register_builtin_type(mono(PARTIAL_ORD), partial_ord, vis.clone(), Const, None);
         self.register_builtin_type(mono(ORD), ord, vis.clone(), Const, None);
         self.register_builtin_type(mono(NUM), num, vis.clone(), Const, None);

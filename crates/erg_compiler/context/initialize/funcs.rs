@@ -90,6 +90,7 @@ impl Context {
             poly(FROZENSET, vec![ty_tp(T.clone())]),
         )
         .quantify();
+        let t_hash = func1(mono(HASH), Int);
         let t_if = func(
             vec![
                 kw(KW_COND, Bool),
@@ -298,6 +299,7 @@ impl Context {
             Some(FUNC_FILTER),
         );
         self.register_builtin_py_impl(FUNC_FROZENSET, t_frozenset, Immutable, vis.clone(), None);
+        self.register_builtin_py_impl(FUNC_HASH, t_hash, Immutable, vis.clone(), Some(FUNC_HASH));
         self.register_builtin_py_impl(
             FUNC_ISINSTANCE,
             t_isinstance,

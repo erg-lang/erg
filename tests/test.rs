@@ -244,6 +244,11 @@ fn exec_record() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_record_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/record.er", 0, 1)
+}
+
+#[test]
 fn exec_refinement() -> Result<(), ()> {
     expect_success("tests/should_ok/refinement.er", 0)
 }
