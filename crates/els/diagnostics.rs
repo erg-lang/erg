@@ -1,24 +1,28 @@
+use std::sync::mpsc::Receiver;
 use std::thread::sleep;
 use std::time::Duration;
 
 use erg_common::consts::PYTHON_MODE;
 use erg_common::dict::Dict;
-use erg_common::fn_name;
 use erg_common::spawn::spawn_new_thread;
 use erg_common::style::*;
 use erg_common::traits::Stream;
+use erg_common::{fn_name, lsp_log};
 use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::erg_parser::ast::Module;
 use erg_compiler::erg_parser::parse::Parsable;
 use erg_compiler::error::CompileErrors;
 
 use lsp_types::{
-    Diagnostic, DiagnosticSeverity, NumberOrString, Position, PublishDiagnosticsParams, Range, Url,
+    ConfigurationParams, Diagnostic, DiagnosticSeverity, NumberOrString, Position,
+    PublishDiagnosticsParams, Range, Url,
 };
 use serde_json::json;
 
 use crate::diff::{ASTDiff, HIRDiff};
-use crate::server::{send, send_log, AnalysisResult, DefaultFeatures, ELSResult, Server};
+use crate::server::{
+    send, send_log, AnalysisResult, DefaultFeatures, ELSResult, Server, HEALTH_CHECKER_ID,
+};
 use crate::util::{self, NormalizedUrl};
 
 impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
@@ -238,6 +242,46 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 }
             },
             fn_name!(),
+        );
+    }
+
+    /// Send an empty `workspace/configuration` request periodically.
+    /// If there is no response to the request within a certain period of time, terminate the server.
+    pub fn start_client_health_checker(&self, receiver: Receiver<()>) {
+        // let mut self_ = self.clone();
+        spawn_new_thread(
+            move || {
+                loop {
+                    // send_log("checking client health").unwrap();
+                    let params = ConfigurationParams { items: vec![] };
+                    send(&json!({
+                        "jsonrpc": "2.0",
+                        "id": HEALTH_CHECKER_ID,
+                        "method": "workspace/configuration",
+                        "params": params,
+                    }))
+                    .unwrap();
+                    sleep(Duration::from_secs(10));
+                }
+            },
+            "start_client_health_checker_sender",
+        );
+        spawn_new_thread(
+            move || {
+                loop {
+                    match receiver.recv_timeout(Duration::from_secs(20)) {
+                        Ok(_) => {
+                            // send_log("client health check passed").unwrap();
+                        }
+                        Err(_) => {
+                            // send_log("client health check timed out").unwrap();
+                            lsp_log!("client health check timed out");
+                            std::process::exit(1);
+                        }
+                    }
+                }
+            },
+            "start_client_health_checker_receiver",
         );
     }
 }

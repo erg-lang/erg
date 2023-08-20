@@ -51,6 +51,8 @@ use crate::hir_visitor::HIRVisitor;
 use crate::message::{ErrorMessage, LSPResult, LogMessage, ShowMessage};
 use crate::util::{self, NormalizedUrl};
 
+pub const HEALTH_CHECKER_ID: i64 = 10000;
+
 pub type ELSResult<T> = Result<T, Box<dyn std::error::Error>>;
 
 pub type ErgLanguageServer = Server<HIRBuilder>;
@@ -404,21 +406,32 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             }
         }
         let mut result = InitializeResult::default();
-        result.capabilities = ServerCapabilities::default();
-        self.file_cache.set_capabilities(&mut result.capabilities);
+        result.capabilities = self.init_capabilities();
+        self.init_services();
+        send(&json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": result,
+        }))
+    }
+
+    #[allow(clippy::field_reassign_with_default)]
+    fn init_capabilities(&mut self) -> ServerCapabilities {
+        let mut capabilities = ServerCapabilities::default();
+        self.file_cache.set_capabilities(&mut capabilities);
         let mut comp_options = CompletionOptions::default();
         comp_options.trigger_characters = Some(TRIGGER_CHARS.map(String::from).to_vec());
         comp_options.resolve_provider = Some(true);
-        result.capabilities.completion_provider = Some(comp_options);
-        result.capabilities.rename_provider = Some(OneOf::Left(true));
-        result.capabilities.references_provider = Some(OneOf::Left(true));
-        result.capabilities.definition_provider = Some(OneOf::Left(true));
-        result.capabilities.hover_provider = self
+        capabilities.completion_provider = Some(comp_options);
+        capabilities.rename_provider = Some(OneOf::Left(true));
+        capabilities.references_provider = Some(OneOf::Left(true));
+        capabilities.definition_provider = Some(OneOf::Left(true));
+        capabilities.hover_provider = self
             .disabled_features
             .contains(&DefaultFeatures::Hover)
             .not()
             .then_some(HoverProviderCapability::Simple(true));
-        result.capabilities.inlay_hint_provider = self
+        capabilities.inlay_hint_provider = self
             .disabled_features
             .contains(&DefaultFeatures::InlayHint)
             .not()
@@ -449,14 +462,14 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             ],
             token_modifiers: vec![],
         };
-        result.capabilities.semantic_tokens_provider = self
+        capabilities.semantic_tokens_provider = self
             .disabled_features
             .contains(&DefaultFeatures::SemanticTokens)
             .not()
             .then_some(SemanticTokensServerCapabilities::SemanticTokensOptions(
                 sema_options,
             ));
-        result.capabilities.code_action_provider = if self
+        capabilities.code_action_provider = if self
             .disabled_features
             .contains(&DefaultFeatures::CodeAction)
         {
@@ -469,11 +482,11 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             });
             Some(options)
         };
-        result.capabilities.execute_command_provider = Some(ExecuteCommandOptions {
+        capabilities.execute_command_provider = Some(ExecuteCommandOptions {
             commands: vec![format!("{}.eliminate_unused_vars", self.mode())],
             work_done_progress_options: WorkDoneProgressOptions::default(),
         });
-        result.capabilities.signature_help_provider = self
+        capabilities.signature_help_provider = self
             .disabled_features
             .contains(&DefaultFeatures::SignatureHelp)
             .not()
@@ -484,15 +497,10 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     work_done_progress: None,
                 },
             });
-        result.capabilities.code_lens_provider = Some(CodeLensOptions {
+        capabilities.code_lens_provider = Some(CodeLensOptions {
             resolve_provider: Some(false),
         });
-        self.init_services();
-        send(&json!({
-            "jsonrpc": "2.0",
-            "id": id,
-            "result": result,
-        }))
+        capabilities
     }
 
     fn init_services(&mut self) {
@@ -537,6 +545,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             Self::handle_execute_command,
         );
         self.start_auto_diagnostics();
+        self.start_client_health_checker(receivers.health_check);
     }
 
     fn exit(&self) -> ELSResult<()> {
@@ -626,10 +635,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             msg.get("method").and_then(|m| m.as_str()),
         ) {
             (Some(id), Some(method)) => self.handle_request(&msg, id, method),
-            (Some(_id), None) => {
-                // ignore at this time
-                Ok(())
-            }
+            (Some(id), None) => self.handle_response(id, &msg),
             (None, Some(notification)) => self.handle_notification(&msg, notification),
             _ => send_invalid_req_error(),
         }
@@ -731,6 +737,19 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             }
             _ => send_log(format!("received notification: {method}")),
         }
+    }
+
+    fn handle_response(&mut self, id: i64, msg: &Value) -> ELSResult<()> {
+        match id {
+            HEALTH_CHECKER_ID => {
+                self.channels.as_ref().unwrap().health_check.send(())?;
+            }
+            _ => {
+                _log!("received a unknown response: {msg}");
+                // ignore at this time
+            }
+        }
+        Ok(())
     }
 
     pub(crate) fn get_checker(&self, path: PathBuf) -> Checker {

@@ -32,6 +32,7 @@ pub struct SendChannels {
     signature_help: mpsc::Sender<(i64, SignatureHelpParams)>,
     will_rename_files: mpsc::Sender<(i64, RenameFilesParams)>,
     execute_command: mpsc::Sender<(i64, ExecuteCommandParams)>,
+    pub(crate) health_check: mpsc::Sender<()>,
 }
 
 impl SendChannels {
@@ -50,6 +51,7 @@ impl SendChannels {
         let (tx_sig_help, rx_sig_help) = mpsc::channel();
         let (tx_will_rename_files, rx_will_rename_files) = mpsc::channel();
         let (tx_execute_command, rx_execute_command) = mpsc::channel();
+        let (tx_health_check, rx_health_check) = mpsc::channel();
         (
             Self {
                 completion: tx_completion,
@@ -66,6 +68,7 @@ impl SendChannels {
                 signature_help: tx_sig_help,
                 will_rename_files: tx_will_rename_files,
                 execute_command: tx_execute_command,
+                health_check: tx_health_check,
             },
             ReceiveChannels {
                 completion: rx_completion,
@@ -82,6 +85,7 @@ impl SendChannels {
                 signature_help: rx_sig_help,
                 will_rename_files: rx_will_rename_files,
                 execute_command: rx_execute_command,
+                health_check: rx_health_check,
             },
         )
     }
@@ -103,6 +107,7 @@ pub struct ReceiveChannels {
     pub(crate) signature_help: mpsc::Receiver<(i64, SignatureHelpParams)>,
     pub(crate) will_rename_files: mpsc::Receiver<(i64, RenameFilesParams)>,
     pub(crate) execute_command: mpsc::Receiver<(i64, ExecuteCommandParams)>,
+    pub(crate) health_check: mpsc::Receiver<()>,
 }
 
 pub trait Sendable<R: lsp_types::request::Request + 'static> {
