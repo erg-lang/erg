@@ -1809,18 +1809,18 @@ impl Context {
         );
         record.register_trait(mono(RECORD), record_eq);
         let Slf = mono_q("Self", subtypeof(mono(RECORD)));
-        let into_dict_t =
+        let as_dict_t =
             fn0_met(Slf.clone(), proj_call(ty_tp(Slf), FUNC_AS_DICT, vec![])).quantify();
-        let into_dict = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
-            FUNC_UNION,
+        let as_dict = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+            FUNC_AS_DICT,
             as_dict,
-            into_dict_t,
+            as_dict_t,
             None,
         )));
         record.register_py_builtin_const(
             FUNC_AS_DICT,
             Visibility::BUILTIN_PUBLIC,
-            into_dict,
+            as_dict,
             Some("_asdict"),
         );
         /* GenericNamedTuple */

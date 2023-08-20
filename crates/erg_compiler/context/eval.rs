@@ -1788,6 +1788,13 @@ impl Context {
                 Ok(array_t(union, len))
             }
             ValueObj::Set(set) => Ok(v_enum(set)),
+            ValueObj::Dict(dic) => {
+                let dic = dic
+                    .into_iter()
+                    .map(|(k, v)| (TyParam::Value(k), TyParam::Value(v)))
+                    .collect();
+                Ok(dict_t(TyParam::Dict(dic)))
+            }
             ValueObj::Subr(subr) => subr.as_type(self).ok_or(ValueObj::Subr(subr)),
             other => Err(other),
         }

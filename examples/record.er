@@ -26,3 +26,10 @@ assert Person!.name == Str
 for! {.x = 1; .y = 2}.as_dict().items(), ((k, v),) =>
     # k: Str, v: Int
     print! k, v
+
+# {=} means the empty record (type), which is the subtype of all records
+iterate_rec! r: {=} =
+    for! r.as_dict().items(), ((k, v),) =>
+        print! k, v
+iterate_rec! {a = 1; b = 2}
+iterate_rec! {a = 1; b = 1.2; c = "a"}

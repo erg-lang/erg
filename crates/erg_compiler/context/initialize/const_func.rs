@@ -4,6 +4,7 @@ use std::mem;
 use erg_common::dict::Dict;
 #[allow(unused_imports)]
 use erg_common::log;
+use erg_common::{dict, Str};
 use erg_common::{enum_unwrap, set};
 
 use crate::context::Context;
@@ -501,12 +502,17 @@ pub(crate) fn named_tuple_union(mut args: ValueArgs, ctx: &Context) -> EvalValue
 }
 
 /// `{ .x = Int; .y = Str }.as_dict() == { "x": Int, "y": Str }`
+/// `Record.as_dict() == { Obj: Obj }`
 pub(crate) fn as_dict(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
     let slf = args
         .remove_left_or_key("Self")
         .ok_or_else(|| not_passed("Self"))?;
     let fields = match ctx.convert_value_into_type(slf) {
         Ok(Type::Record(fields)) => fields,
+        Ok(Type::Mono(Str::Static("Record"))) => {
+            let dict = dict! { Type::Obj => Type::Obj };
+            return Ok(ValueObj::builtin_type(Type::from(dict)).into());
+        }
         Ok(other) => {
             return Err(type_mismatch("Record", other, "Self"));
         }
