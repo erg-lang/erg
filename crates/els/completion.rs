@@ -444,11 +444,15 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         &self,
         uri: &NormalizedUrl,
         arg_pt: Option<ParamTy>,
+        already_appeared: &mut Set<String>,
     ) -> Vec<CompletionItem> {
         let mut comps = vec![];
         for mod_ctx in self.get_neighbor_ctxs(uri) {
             for (name, vi) in mod_ctx.local_dir() {
                 if vi.vis.is_private() {
+                    continue;
+                }
+                if already_appeared.contains(&name.inspect()[..]) {
                     continue;
                 }
                 let Some(path) = vi.def_loc.module.as_ref() else {
@@ -474,6 +478,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 }]);
                 item.insert_text = Some(name.inspect().trim_end_matches('\0').to_string());
                 item.filter_text = Some(name.inspect().to_string());
+                already_appeared.insert(name.inspect().to_string());
                 comps.push(item);
             }
         }
@@ -621,7 +626,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 self.comp_cache.insert("<module>".into(), comps.clone());
                 result.extend(comps);
             }
-            result.extend(self.neighbor_completion(&uri, arg_pt));
+            self.neighbor_completion(&uri, arg_pt, &mut already_appeared);
         }
         send_log(format!("completion items: {}", result.len()))?;
         Ok(Some(CompletionResponse::Array(result)))
