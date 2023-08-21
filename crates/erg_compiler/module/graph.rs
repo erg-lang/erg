@@ -137,6 +137,7 @@ impl ModuleGraph {
         Ok(())
     }
 
+    /// Do not erase relationships with modules that depend on `path`
     pub fn remove(&mut self, path: &Path) {
         let path = NormalizedPathBuf::new(path.to_path_buf());
         self.0.retain(|n| n.id != path);

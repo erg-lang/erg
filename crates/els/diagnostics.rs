@@ -43,6 +43,12 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         } else {
             "exec"
         };
+        if let Some((old, new)) = self.analysis_result.get_ast(&uri).zip(self.get_ast(&uri)) {
+            if ASTDiff::diff(old, &new).is_nop() {
+                crate::_log!("no changes: {uri}");
+                return Ok(());
+            }
+        }
         let mut checker = self.get_checker(path.clone());
         let artifact = match checker.build(code.into(), mode) {
             Ok(artifact) => {
@@ -248,6 +254,8 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     /// Send an empty `workspace/configuration` request periodically.
     /// If there is no response to the request within a certain period of time, terminate the server.
     pub fn start_client_health_checker(&self, receiver: Receiver<()>) {
+        const INTERVAL: Duration = Duration::from_secs(10);
+        const TIMEOUT: Duration = Duration::from_secs(30);
         // let mut self_ = self.clone();
         spawn_new_thread(
             move || {
@@ -261,7 +269,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                         "params": params,
                     }))
                     .unwrap();
-                    sleep(Duration::from_secs(10));
+                    sleep(INTERVAL);
                 }
             },
             "start_client_health_checker_sender",
@@ -269,7 +277,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         spawn_new_thread(
             move || {
                 loop {
-                    match receiver.recv_timeout(Duration::from_secs(20)) {
+                    match receiver.recv_timeout(TIMEOUT) {
                         Ok(_) => {
                             // send_log("client health check passed").unwrap();
                         }

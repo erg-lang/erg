@@ -102,6 +102,21 @@ impl SharedPromises {
             .insert(path, Promise::running(handle));
     }
 
+    pub fn remove(&self, path: &Path) {
+        self.promises.borrow_mut().remove(path);
+    }
+
+    pub fn initialize(&self) {
+        self.promises.borrow_mut().clear();
+    }
+
+    pub fn rename(&self, old: &Path, new: PathBuf) {
+        let Some(promise) = self.promises.borrow_mut().remove(old) else {
+            return;
+        };
+        self.promises.borrow_mut().insert(new.into(), promise);
+    }
+
     pub fn is_registered(&self, path: &Path) -> bool {
         self.promises.borrow().get(path).is_some()
     }
