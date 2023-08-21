@@ -32,12 +32,13 @@ use lsp_types::request::{
     WillRenameFiles,
 };
 use lsp_types::{
-    ClientCapabilities, CodeActionKind, CodeActionOptions, CodeActionProviderCapability,
-    CodeLensOptions, CompletionOptions, DidChangeTextDocumentParams, DidOpenTextDocumentParams,
-    ExecuteCommandOptions, HoverProviderCapability, InitializeResult, InlayHintOptions,
-    InlayHintServerCapabilities, OneOf, Position, SemanticTokenType, SemanticTokensFullOptions,
-    SemanticTokensLegend, SemanticTokensOptions, SemanticTokensServerCapabilities,
-    ServerCapabilities, SignatureHelpOptions, WorkDoneProgressOptions,
+    CodeActionKind, CodeActionOptions, CodeActionProviderCapability, CodeLensOptions,
+    CompletionOptions, ConfigurationItem, ConfigurationParams, DidChangeTextDocumentParams,
+    DidOpenTextDocumentParams, ExecuteCommandOptions, HoverProviderCapability, InitializeParams,
+    InitializeResult, InlayHintOptions, InlayHintServerCapabilities, OneOf, Position,
+    SemanticTokenType, SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions,
+    SemanticTokensServerCapabilities, ServerCapabilities, SignatureHelpOptions,
+    WorkDoneProgressOptions,
 };
 
 use serde::{Deserialize, Serialize};
@@ -52,6 +53,7 @@ use crate::message::{ErrorMessage, LSPResult, LogMessage, ShowMessage};
 use crate::util::{self, NormalizedUrl};
 
 pub const HEALTH_CHECKER_ID: i64 = 10000;
+pub const ASK_AUTO_SAVE_ID: i64 = 10001;
 
 pub type ELSResult<T> = Result<T, Box<dyn std::error::Error>>;
 
@@ -312,7 +314,8 @@ pub struct Server<Checker: BuildRunnable = HIRBuilder, Parser: Parsable = Simple
     pub(crate) cfg: ErgConfig,
     pub(crate) home: PathBuf,
     pub(crate) erg_path: PathBuf,
-    pub(crate) client_capas: ClientCapabilities,
+    pub(crate) init_params: InitializeParams,
+    pub(crate) client_answers: Shared<Dict<i64, Value>>,
     pub(crate) disabled_features: Vec<DefaultFeatures>,
     pub(crate) opt_features: Vec<OptionalFeatures>,
     pub(crate) file_cache: FileCache,
@@ -332,7 +335,8 @@ impl<C: BuildRunnable, P: Parsable> Clone for Server<C, P> {
             cfg: self.cfg.clone(),
             home: self.home.clone(),
             erg_path: self.erg_path.clone(),
-            client_capas: self.client_capas.clone(),
+            init_params: self.init_params.clone(),
+            client_answers: self.client_answers.clone(),
             disabled_features: self.disabled_features.clone(),
             opt_features: self.opt_features.clone(),
             file_cache: self.file_cache.clone(),
@@ -354,7 +358,8 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             cfg,
             home: normalize_path(std::env::current_dir().unwrap_or_default()),
             erg_path: erg_path().clone(), // already normalized
-            client_capas: ClientCapabilities::default(),
+            init_params: InitializeParams::default(),
+            client_answers: Shared::new(Dict::new()),
             disabled_features: vec![],
             opt_features: vec![],
             file_cache: FileCache::new(),
@@ -390,7 +395,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         send_log("initializing ELS")?;
         // #[allow(clippy::collapsible_if)]
         if msg.get("params").is_some() && msg["params"].get("capabilities").is_some() {
-            self.client_capas = ClientCapabilities::deserialize(&msg["params"]["capabilities"])?;
+            self.init_params = InitializeParams::deserialize(&msg["params"])?;
             // send_log(format!("set client capabilities: {:?}", self.client_capas))?;
         }
         let mut args = self.cfg.runtime_args.iter();
@@ -501,6 +506,21 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             resolve_provider: Some(false),
         });
         capabilities
+    }
+
+    pub(crate) fn ask_auto_save(&self) -> ELSResult<()> {
+        let params = ConfigurationParams {
+            items: vec![ConfigurationItem {
+                scope_uri: None,
+                section: Some("files.autoSave".to_string()),
+            }],
+        };
+        send(&json!({
+            "jsonrpc": "2.0",
+            "id": ASK_AUTO_SAVE_ID,
+            "method": "workspace/configuration",
+            "params": params,
+        }))
     }
 
     fn init_services(&mut self) {
@@ -745,8 +765,10 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 self.channels.as_ref().unwrap().health_check.send(())?;
             }
             _ => {
-                _log!("received a unknown response: {msg}");
-                // ignore at this time
+                _log!("msg: {msg}");
+                if msg.get("error").is_none() {
+                    self.client_answers.borrow_mut().insert(id, msg.clone());
+                }
             }
         }
         Ok(())

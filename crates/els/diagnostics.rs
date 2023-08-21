@@ -19,9 +19,11 @@ use lsp_types::{
 };
 use serde_json::json;
 
+use crate::_log;
 use crate::diff::{ASTDiff, HIRDiff};
 use crate::server::{
-    send, send_log, AnalysisResult, DefaultFeatures, ELSResult, Server, HEALTH_CHECKER_ID,
+    send, send_log, AnalysisResult, DefaultFeatures, ELSResult, Server, ASK_AUTO_SAVE_ID,
+    HEALTH_CHECKER_ID,
 };
 use crate::util::{self, NormalizedUrl};
 
@@ -204,7 +206,8 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         }
         let params = PublishDiagnosticsParams::new(uri, diagnostics, None);
         if self
-            .client_capas
+            .init_params
+            .capabilities
             .text_document
             .as_ref()
             .map(|doc| doc.publish_diagnostics.is_some())
@@ -229,6 +232,25 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             move || {
                 let mut file_vers = Dict::<NormalizedUrl, i32>::new();
                 loop {
+                    if _self
+                        .client_answers
+                        .borrow()
+                        .get(&ASK_AUTO_SAVE_ID)
+                        .is_none()
+                    {
+                        _self.ask_auto_save().unwrap();
+                    } else if _self
+                        .client_answers
+                        .borrow()
+                        .get(&ASK_AUTO_SAVE_ID)
+                        .is_some_and(|val| {
+                            val["result"].as_array().and_then(|a| a[0].as_str())
+                                == Some("afterDelay")
+                        })
+                    {
+                        _log!("Auto saving is enabled");
+                        break;
+                    }
                     for uri in _self.file_cache.entries() {
                         let Some(latest_ver) = _self.file_cache.get_ver(&uri) else {
                             continue;
