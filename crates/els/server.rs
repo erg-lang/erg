@@ -943,9 +943,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         if let Some(module) = self.modules.remove(uri) {
             let shared = module.context.shared();
             let path = util::uri_to_path(uri);
-            shared.mod_cache.remove(&path);
-            shared.index.remove_path(&path);
-            shared.graph.remove(&path);
+            shared.clear(&path);
         }
     }
 }
