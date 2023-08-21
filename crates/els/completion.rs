@@ -423,8 +423,8 @@ impl CompletionCache {
         self.cache.borrow_mut().insert(namespace, items);
     }
 
-    pub fn _clear(&self, namespace: &str) {
-        self.cache.borrow_mut().remove(namespace);
+    pub fn clear(&self) {
+        self.cache.borrow_mut().clear();
     }
 
     pub fn _append(&self, cache: Dict<String, Vec<CompletionItem>>) {

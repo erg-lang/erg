@@ -58,6 +58,10 @@ impl FileCache {
         }
     }
 
+    pub fn clear(&self) {
+        self.files.borrow_mut().clear();
+    }
+
     fn load_once(&self, uri: &NormalizedUrl) -> ELSResult<()> {
         if self.files.borrow_mut().get(uri).is_some() {
             return Ok(());

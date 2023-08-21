@@ -17,22 +17,34 @@ use lsp_types::{
 use crate::server::Server;
 
 #[derive(Debug, Clone)]
+pub enum WorkerMessage<P> {
+    Request(i64, P),
+    Kill,
+}
+
+impl<P> From<(i64, P)> for WorkerMessage<P> {
+    fn from((id, params): (i64, P)) -> Self {
+        Self::Request(id, params)
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct SendChannels {
-    completion: mpsc::Sender<(i64, CompletionParams)>,
-    resolve_completion: mpsc::Sender<(i64, CompletionItem)>,
-    goto_definition: mpsc::Sender<(i64, GotoDefinitionParams)>,
-    semantic_tokens_full: mpsc::Sender<(i64, SemanticTokensParams)>,
-    inlay_hint: mpsc::Sender<(i64, InlayHintParams)>,
-    inlay_hint_resolve: mpsc::Sender<(i64, InlayHint)>,
-    hover: mpsc::Sender<(i64, HoverParams)>,
-    references: mpsc::Sender<(i64, ReferenceParams)>,
-    code_lens: mpsc::Sender<(i64, CodeLensParams)>,
-    code_action: mpsc::Sender<(i64, CodeActionParams)>,
-    code_action_resolve: mpsc::Sender<(i64, CodeAction)>,
-    signature_help: mpsc::Sender<(i64, SignatureHelpParams)>,
-    will_rename_files: mpsc::Sender<(i64, RenameFilesParams)>,
-    execute_command: mpsc::Sender<(i64, ExecuteCommandParams)>,
-    pub(crate) health_check: mpsc::Sender<()>,
+    completion: mpsc::Sender<WorkerMessage<CompletionParams>>,
+    resolve_completion: mpsc::Sender<WorkerMessage<CompletionItem>>,
+    goto_definition: mpsc::Sender<WorkerMessage<GotoDefinitionParams>>,
+    semantic_tokens_full: mpsc::Sender<WorkerMessage<SemanticTokensParams>>,
+    inlay_hint: mpsc::Sender<WorkerMessage<InlayHintParams>>,
+    inlay_hint_resolve: mpsc::Sender<WorkerMessage<InlayHint>>,
+    hover: mpsc::Sender<WorkerMessage<HoverParams>>,
+    references: mpsc::Sender<WorkerMessage<ReferenceParams>>,
+    code_lens: mpsc::Sender<WorkerMessage<CodeLensParams>>,
+    code_action: mpsc::Sender<WorkerMessage<CodeActionParams>>,
+    code_action_resolve: mpsc::Sender<WorkerMessage<CodeAction>>,
+    signature_help: mpsc::Sender<WorkerMessage<SignatureHelpParams>>,
+    will_rename_files: mpsc::Sender<WorkerMessage<RenameFilesParams>>,
+    execute_command: mpsc::Sender<WorkerMessage<ExecuteCommandParams>>,
+    pub(crate) health_check: mpsc::Sender<WorkerMessage<()>>,
 }
 
 impl SendChannels {
@@ -89,25 +101,43 @@ impl SendChannels {
             },
         )
     }
+
+    pub(crate) fn close(&self) {
+        self.completion.send(WorkerMessage::Kill).unwrap();
+        self.resolve_completion.send(WorkerMessage::Kill).unwrap();
+        self.goto_definition.send(WorkerMessage::Kill).unwrap();
+        self.semantic_tokens_full.send(WorkerMessage::Kill).unwrap();
+        self.inlay_hint.send(WorkerMessage::Kill).unwrap();
+        self.inlay_hint_resolve.send(WorkerMessage::Kill).unwrap();
+        self.hover.send(WorkerMessage::Kill).unwrap();
+        self.references.send(WorkerMessage::Kill).unwrap();
+        self.code_lens.send(WorkerMessage::Kill).unwrap();
+        self.code_action.send(WorkerMessage::Kill).unwrap();
+        self.code_action_resolve.send(WorkerMessage::Kill).unwrap();
+        self.signature_help.send(WorkerMessage::Kill).unwrap();
+        self.will_rename_files.send(WorkerMessage::Kill).unwrap();
+        self.execute_command.send(WorkerMessage::Kill).unwrap();
+        self.health_check.send(WorkerMessage::Kill).unwrap();
+    }
 }
 
 #[derive(Debug)]
 pub struct ReceiveChannels {
-    pub(crate) completion: mpsc::Receiver<(i64, CompletionParams)>,
-    pub(crate) resolve_completion: mpsc::Receiver<(i64, CompletionItem)>,
-    pub(crate) goto_definition: mpsc::Receiver<(i64, GotoDefinitionParams)>,
-    pub(crate) semantic_tokens_full: mpsc::Receiver<(i64, SemanticTokensParams)>,
-    pub(crate) inlay_hint: mpsc::Receiver<(i64, InlayHintParams)>,
-    pub(crate) inlay_hint_resolve: mpsc::Receiver<(i64, InlayHint)>,
-    pub(crate) hover: mpsc::Receiver<(i64, HoverParams)>,
-    pub(crate) references: mpsc::Receiver<(i64, ReferenceParams)>,
-    pub(crate) code_lens: mpsc::Receiver<(i64, CodeLensParams)>,
-    pub(crate) code_action: mpsc::Receiver<(i64, CodeActionParams)>,
-    pub(crate) code_action_resolve: mpsc::Receiver<(i64, CodeAction)>,
-    pub(crate) signature_help: mpsc::Receiver<(i64, SignatureHelpParams)>,
-    pub(crate) will_rename_files: mpsc::Receiver<(i64, RenameFilesParams)>,
-    pub(crate) execute_command: mpsc::Receiver<(i64, ExecuteCommandParams)>,
-    pub(crate) health_check: mpsc::Receiver<()>,
+    pub(crate) completion: mpsc::Receiver<WorkerMessage<CompletionParams>>,
+    pub(crate) resolve_completion: mpsc::Receiver<WorkerMessage<CompletionItem>>,
+    pub(crate) goto_definition: mpsc::Receiver<WorkerMessage<GotoDefinitionParams>>,
+    pub(crate) semantic_tokens_full: mpsc::Receiver<WorkerMessage<SemanticTokensParams>>,
+    pub(crate) inlay_hint: mpsc::Receiver<WorkerMessage<InlayHintParams>>,
+    pub(crate) inlay_hint_resolve: mpsc::Receiver<WorkerMessage<InlayHint>>,
+    pub(crate) hover: mpsc::Receiver<WorkerMessage<HoverParams>>,
+    pub(crate) references: mpsc::Receiver<WorkerMessage<ReferenceParams>>,
+    pub(crate) code_lens: mpsc::Receiver<WorkerMessage<CodeLensParams>>,
+    pub(crate) code_action: mpsc::Receiver<WorkerMessage<CodeActionParams>>,
+    pub(crate) code_action_resolve: mpsc::Receiver<WorkerMessage<CodeAction>>,
+    pub(crate) signature_help: mpsc::Receiver<WorkerMessage<SignatureHelpParams>>,
+    pub(crate) will_rename_files: mpsc::Receiver<WorkerMessage<RenameFilesParams>>,
+    pub(crate) execute_command: mpsc::Receiver<WorkerMessage<ExecuteCommandParams>>,
+    pub(crate) health_check: mpsc::Receiver<WorkerMessage<()>>,
 }
 
 pub trait Sendable<R: lsp_types::request::Request + 'static> {
@@ -124,7 +154,7 @@ macro_rules! impl_sendable {
                     .as_ref()
                     .unwrap()
                     .$receiver
-                    .send((id, params))
+                    .send($crate::channels::WorkerMessage::Request(id, params))
                     .unwrap();
             }
         }

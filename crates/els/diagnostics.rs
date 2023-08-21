@@ -20,6 +20,7 @@ use lsp_types::{
 use serde_json::json;
 
 use crate::_log;
+use crate::channels::WorkerMessage;
 use crate::diff::{ASTDiff, HIRDiff};
 use crate::server::{
     send, send_log, AnalysisResult, DefaultFeatures, ELSResult, Server, ASK_AUTO_SAVE_ID,
@@ -275,10 +276,11 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
 
     /// Send an empty `workspace/configuration` request periodically.
     /// If there is no response to the request within a certain period of time, terminate the server.
-    pub fn start_client_health_checker(&self, receiver: Receiver<()>) {
-        const INTERVAL: Duration = Duration::from_secs(10);
-        const TIMEOUT: Duration = Duration::from_secs(30);
+    pub fn start_client_health_checker(&self, receiver: Receiver<WorkerMessage<()>>) {
+        const INTERVAL: Duration = Duration::from_secs(5);
+        const TIMEOUT: Duration = Duration::from_secs(10);
         // let mut self_ = self.clone();
+        // FIXME: close this thread when the server is restarted
         spawn_new_thread(
             move || {
                 loop {
@@ -296,17 +298,24 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             },
             "start_client_health_checker_sender",
         );
+        let mut self_ = self.clone();
         spawn_new_thread(
             move || {
                 loop {
                     match receiver.recv_timeout(TIMEOUT) {
+                        Ok(WorkerMessage::Kill) => {
+                            break;
+                        }
                         Ok(_) => {
                             // send_log("client health check passed").unwrap();
                         }
                         Err(_) => {
                             // send_log("client health check timed out").unwrap();
-                            lsp_log!("client health check timed out");
-                            std::process::exit(1);
+                            lsp_log!("Client health check timed out");
+                            lsp_log!("Restart the server");
+                            _log!("Restart the server");
+                            // send_error_info("Something went wrong, ELS has been restarted").unwrap();
+                            self_.restart();
                         }
                     }
                 }
