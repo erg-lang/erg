@@ -50,3 +50,8 @@ where
         .spawn(run)
         .unwrap()
 }
+
+pub fn safe_yield() {
+    std::thread::yield_now();
+    std::thread::sleep(std::time::Duration::from_millis(10));
+}

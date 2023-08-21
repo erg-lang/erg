@@ -5,6 +5,7 @@ use std::thread::{current, JoinHandle, ThreadId};
 use erg_common::dict::Dict;
 use erg_common::pathutil::NormalizedPathBuf;
 use erg_common::shared::Shared;
+use erg_common::spawn::safe_yield;
 
 use super::SharedModuleGraph;
 
@@ -155,7 +156,7 @@ impl SharedPromises {
                     .get(path)
                     .is_some_and(|p| !p.is_finished())
                 {
-                    std::thread::yield_now();
+                    safe_yield();
                 }
                 return Ok(());
             }
@@ -167,7 +168,7 @@ impl SharedPromises {
 
     pub fn join(&self, path: &Path) -> std::thread::Result<()> {
         while let Some(Promise::Joining) | None = self.promises.borrow().get(path) {
-            std::thread::yield_now();
+            safe_yield();
         }
         let promise = self.promises.borrow_mut().get_mut(path).unwrap().take();
         self.join_checked(path, promise)
