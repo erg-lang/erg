@@ -80,7 +80,7 @@ impl ValueArgs {
 pub struct BuiltinConstSubr {
     name: Str,
     subr: fn(ValueArgs, &Context) -> EvalValueResult<TyParam>,
-    sig_t: Type,
+    pub(crate) sig_t: Type,
     as_type: Option<Type>,
 }
 
@@ -157,7 +157,7 @@ pub struct GenConstSubr {
     name: Str,
     data: ClosureData,
     subr: fn(ClosureData, ValueArgs, &Context) -> EvalValueResult<TyParam>,
-    sig_t: Type,
+    pub(crate) sig_t: Type,
     as_type: Option<Type>,
 }
 

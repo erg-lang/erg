@@ -973,7 +973,7 @@ impl Context {
                         tmp_tv_cache,
                         not_found_is_qvar,
                     )?;
-                    let pred = self.instantiate_pred(&set.pred, tmp_tv_cache)?;
+                    let pred = self.instantiate_pred_from_expr(&set.pred, tmp_tv_cache)?;
                     if let Ok(t) = self.instantiate_tp_as_type(iter, set) {
                         return Ok(TyParam::t(refinement(set.var.inspect().clone(), t, pred)));
                     }
@@ -1293,7 +1293,7 @@ impl Context {
         }
     }
 
-    fn instantiate_pred(
+    fn instantiate_pred_from_expr(
         &self,
         expr: &ast::ConstExpr,
         tmp_tv_cache: &mut TyVarCache,
@@ -1308,8 +1308,8 @@ impl Context {
                 Ok(Predicate::Const(local.inspect().clone()))
             }
             ast::ConstExpr::BinOp(bin) => {
-                let lhs = self.instantiate_pred(&bin.lhs, tmp_tv_cache)?;
-                let rhs = self.instantiate_pred(&bin.rhs, tmp_tv_cache)?;
+                let lhs = self.instantiate_pred_from_expr(&bin.lhs, tmp_tv_cache)?;
+                let rhs = self.instantiate_pred_from_expr(&bin.rhs, tmp_tv_cache)?;
                 match bin.op.kind {
                     TokenKind::DblEq
                     | TokenKind::NotEq
@@ -1356,7 +1356,7 @@ impl Context {
                 }
             }
             ast::ConstExpr::UnaryOp(unop) => {
-                let pred = self.instantiate_pred(&unop.expr, tmp_tv_cache)?;
+                let pred = self.instantiate_pred_from_expr(&unop.expr, tmp_tv_cache)?;
                 match unop.op.kind {
                     TokenKind::PreBitNot => Ok(!pred),
                     _ => type_feature_error!(
@@ -1634,7 +1634,7 @@ impl Context {
                 );
                 tmp_tv_cache.push_or_init_typaram(&name, &tp, self);
                 let pred = self
-                    .instantiate_pred(&refine.pred, tmp_tv_cache)
+                    .instantiate_pred_from_expr(&refine.pred, tmp_tv_cache)
                     .map_err(|err| {
                         tmp_tv_cache.remove(name.inspect());
                         err

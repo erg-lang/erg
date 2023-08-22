@@ -16,6 +16,7 @@ use crate::ty::free::FreeTyParam;
 use crate::ty::free::GENERIC_LEVEL;
 use crate::ty::free::{Constraint, HasLevel};
 use crate::ty::typaram::{TyParam, TyParamLambda};
+use crate::ty::ConstSubr;
 use crate::ty::ValueObj;
 use crate::ty::{HasType, Predicate, Type};
 use crate::{type_feature_error, unreachable_error};
@@ -499,6 +500,135 @@ impl Context {
         }
     }
 
+    fn instantiate_pred(
+        &self,
+        pred: Predicate,
+        tmp_tv_cache: &mut TyVarCache,
+        loc: &impl Locational,
+    ) -> TyCheckResult<Predicate> {
+        match pred {
+            Predicate::And(l, r) => {
+                let l = self.instantiate_pred(*l, tmp_tv_cache, loc)?;
+                let r = self.instantiate_pred(*r, tmp_tv_cache, loc)?;
+                Ok(Predicate::and(l, r))
+            }
+            Predicate::Or(l, r) => {
+                let l = self.instantiate_pred(*l, tmp_tv_cache, loc)?;
+                let r = self.instantiate_pred(*r, tmp_tv_cache, loc)?;
+                Ok(Predicate::or(l, r))
+            }
+            Predicate::Not(pred) => {
+                let pred = self.instantiate_pred(*pred, tmp_tv_cache, loc)?;
+                Ok(Predicate::invert(pred))
+            }
+            Predicate::Equal { lhs, rhs } => {
+                let rhs = self.instantiate_tp(rhs, tmp_tv_cache, loc)?;
+                Ok(Predicate::eq(lhs, rhs))
+            }
+            Predicate::NotEqual { lhs, rhs } => {
+                let rhs = self.instantiate_tp(rhs, tmp_tv_cache, loc)?;
+                Ok(Predicate::ne(lhs, rhs))
+            }
+            Predicate::GreaterEqual { lhs, rhs } => {
+                let rhs = self.instantiate_tp(rhs, tmp_tv_cache, loc)?;
+                Ok(Predicate::ge(lhs, rhs))
+            }
+            Predicate::LessEqual { lhs, rhs } => {
+                let rhs = self.instantiate_tp(rhs, tmp_tv_cache, loc)?;
+                Ok(Predicate::le(lhs, rhs))
+            }
+            Predicate::Value(value) => {
+                let value = self.instantiate_value(value, tmp_tv_cache, loc)?;
+                Ok(Predicate::Value(value))
+            }
+            _ => Ok(pred),
+        }
+    }
+
+    fn instantiate_value(
+        &self,
+        value: ValueObj,
+        tmp_tv_cache: &mut TyVarCache,
+        loc: &impl Locational,
+    ) -> TyCheckResult<ValueObj> {
+        match value {
+            ValueObj::Type(mut typ) => {
+                let t = mem::take(typ.typ_mut());
+                let t = self.instantiate_t_inner(t, tmp_tv_cache, loc)?;
+                *typ.typ_mut() = t;
+                Ok(ValueObj::Type(typ))
+            }
+            ValueObj::Subr(subr) => match subr {
+                ConstSubr::Builtin(mut builtin) => {
+                    let t = mem::take(&mut builtin.sig_t);
+                    let t = self.instantiate_t_inner(t, tmp_tv_cache, loc)?;
+                    builtin.sig_t = t;
+                    Ok(ValueObj::Subr(ConstSubr::Builtin(builtin)))
+                }
+                ConstSubr::Gen(mut gen) => {
+                    let t = mem::take(&mut gen.sig_t);
+                    let t = self.instantiate_t_inner(t, tmp_tv_cache, loc)?;
+                    gen.sig_t = t;
+                    Ok(ValueObj::Subr(ConstSubr::Gen(gen)))
+                }
+                ConstSubr::User(mut user) => {
+                    let t = mem::take(&mut user.sig_t);
+                    let t = self.instantiate_t_inner(t, tmp_tv_cache, loc)?;
+                    user.sig_t = t;
+                    Ok(ValueObj::Subr(ConstSubr::User(user)))
+                }
+            },
+            ValueObj::Array(arr) => {
+                let mut new = vec![];
+                for v in arr.iter().cloned() {
+                    new.push(self.instantiate_value(v, tmp_tv_cache, loc)?);
+                }
+                Ok(ValueObj::Array(new.into()))
+            }
+            ValueObj::Tuple(tup) => {
+                let mut new = vec![];
+                for v in tup.iter().cloned() {
+                    new.push(self.instantiate_value(v, tmp_tv_cache, loc)?);
+                }
+                Ok(ValueObj::Tuple(new.into()))
+            }
+            ValueObj::Set(set) => {
+                let mut new = Set::new();
+                for v in set.into_iter() {
+                    let v = self.instantiate_value(v, tmp_tv_cache, loc)?;
+                    new.insert(v);
+                }
+                Ok(ValueObj::Set(new))
+            }
+            ValueObj::Dict(dict) => {
+                let mut new = Dict::new();
+                for (k, v) in dict.into_iter() {
+                    let k = self.instantiate_value(k, tmp_tv_cache, loc)?;
+                    let v = self.instantiate_value(v, tmp_tv_cache, loc)?;
+                    new.insert(k, v);
+                }
+                Ok(ValueObj::Dict(new))
+            }
+            ValueObj::Record(rec) => {
+                let mut new = Dict::new();
+                for (k, v) in rec.into_iter() {
+                    let v = self.instantiate_value(v, tmp_tv_cache, loc)?;
+                    new.insert(k, v);
+                }
+                Ok(ValueObj::Record(new))
+            }
+            ValueObj::DataClass { name, fields } => {
+                let mut new = Dict::new();
+                for (k, v) in fields.into_iter() {
+                    let v = self.instantiate_value(v, tmp_tv_cache, loc)?;
+                    new.insert(k, v);
+                }
+                Ok(ValueObj::DataClass { name, fields: new })
+            }
+            _ => Ok(value),
+        }
+    }
+
     /// 'T -> ?T (quantified to free)
     fn instantiate_t_inner(
         &self,
@@ -557,9 +687,7 @@ impl Context {
             }
             Refinement(mut refine) => {
                 refine.t = Box::new(self.instantiate_t_inner(*refine.t, tmp_tv_cache, loc)?);
-                for tp in refine.pred.typarams_mut() {
-                    *tp = self.instantiate_tp(mem::take(tp), tmp_tv_cache, loc)?;
-                }
+                refine.pred = Box::new(self.instantiate_pred(*refine.pred, tmp_tv_cache, loc)?);
                 Ok(Type::Refinement(refine))
             }
             Subr(mut subr) => {

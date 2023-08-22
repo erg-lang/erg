@@ -710,6 +710,17 @@ impl Context {
             } else {
                 None
             };
+            if DEBUG_MODE {
+                if let ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr {
+                    sig_t: Type::Subr(subr),
+                    ..
+                })) = &obj
+                {
+                    if subr.has_qvar() {
+                        panic!("not quantified subr: {subr}");
+                    }
+                }
+            }
             // TODO: not all value objects are comparable
             let vi = VarInfo::new(
                 v_enum(set! {obj.clone()}),
@@ -741,6 +752,17 @@ impl Context {
             } else {
                 None
             };
+            if DEBUG_MODE {
+                if let ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr {
+                    sig_t: Type::Subr(subr),
+                    ..
+                })) = &obj
+                {
+                    if subr.has_qvar() {
+                        panic!("not quantified subr: {subr}");
+                    }
+                }
+            }
             // TODO: not all value objects are comparable
             let vi = VarInfo::new(
                 v_enum(set! {obj.clone()}),
