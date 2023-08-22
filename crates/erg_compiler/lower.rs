@@ -31,7 +31,7 @@ use crate::ty::constructors::{
 use crate::ty::free::Constraint;
 use crate::ty::typaram::TyParam;
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
-use crate::ty::{GuardType, HasType, ParamTy, Predicate, Type, Variable, VisibilityModifier};
+use crate::ty::{CastTarget, GuardType, HasType, ParamTy, Predicate, Type, VisibilityModifier};
 
 use crate::context::{
     ClassDefType, Context, ContextKind, ContextProvider, ControlKind, ModuleContext,
@@ -50,26 +50,13 @@ use crate::{feature_error, unreachable_error};
 
 use VisibilityModifier::*;
 
-pub fn acc_to_variable(namespace: Str, acc: &ast::Accessor) -> Option<Variable> {
-    match acc {
-        ast::Accessor::Ident(ident) => Some(Variable::Var {
-            namespace,
+pub fn expr_to_cast_target(expr: &ast::Expr) -> CastTarget {
+    match expr {
+        ast::Expr::Accessor(ast::Accessor::Ident(ident)) => CastTarget::Var {
             name: ident.inspect().clone(),
             loc: ident.loc(),
-        }),
-        ast::Accessor::Attr(attr) => Some(Variable::attr(
-            expr_to_variable(namespace, &attr.obj)?,
-            attr.ident.inspect().clone(),
-            attr.loc(),
-        )),
-        _ => None,
-    }
-}
-
-pub fn expr_to_variable(namespace: Str, expr: &ast::Expr) -> Option<Variable> {
-    match expr {
-        ast::Expr::Accessor(acc) => acc_to_variable(namespace, acc),
-        _ => None,
+        },
+        _ => CastTarget::expr(expr.clone()),
     }
 }
 
@@ -746,28 +733,29 @@ impl ASTLowerer {
     }
 
     fn get_guard_type(&self, op: &Token, lhs: &ast::Expr, rhs: &ast::Expr) -> Option<Type> {
-        let var = if op.kind == TokenKind::ContainsOp {
-            expr_to_variable(self.module.context.name.clone(), rhs)?
+        let target = if op.kind == TokenKind::ContainsOp {
+            expr_to_cast_target(rhs)
         } else {
-            expr_to_variable(self.module.context.name.clone(), lhs)?
+            expr_to_cast_target(lhs)
         };
+        let namespace = self.module.context.name.clone();
         match op.kind {
             // l in T -> T contains l
             TokenKind::ContainsOp => {
                 let to = self.module.context.expr_to_type(lhs.clone())?;
-                Some(guard(var, to))
+                Some(guard(namespace, target, to))
             }
             TokenKind::Symbol if &op.content[..] == "isinstance" => {
                 let to = self.module.context.expr_to_type(rhs.clone())?;
-                Some(guard(var, to))
+                Some(guard(namespace, target, to))
             }
             TokenKind::IsOp | TokenKind::DblEq => {
                 let value = self.module.context.expr_to_value(rhs.clone())?;
-                Some(guard(var, v_enum(set! { value })))
+                Some(guard(namespace, target, v_enum(set! { value })))
             }
             TokenKind::IsNotOp | TokenKind::NotEq => {
                 let value = self.module.context.expr_to_value(rhs.clone())?;
-                let ty = guard(var, v_enum(set! { value }));
+                let ty = guard(namespace, target, v_enum(set! { value }));
                 Some(self.module.context.complement(&ty))
             }
             TokenKind::Gre => {
@@ -776,7 +764,7 @@ impl ASTLowerer {
                 let varname = self.fresh_gen.fresh_varname();
                 let pred = Predicate::gt(varname.clone(), TyParam::value(value));
                 let refine = refinement(varname, t, pred);
-                Some(guard(var, refine))
+                Some(guard(namespace, target, refine))
             }
             TokenKind::GreEq => {
                 let value = self.module.context.expr_to_value(rhs.clone())?;
@@ -784,7 +772,7 @@ impl ASTLowerer {
                 let varname = self.fresh_gen.fresh_varname();
                 let pred = Predicate::ge(varname.clone(), TyParam::value(value));
                 let refine = refinement(varname, t, pred);
-                Some(guard(var, refine))
+                Some(guard(namespace, target, refine))
             }
             TokenKind::Less => {
                 let value = self.module.context.expr_to_value(rhs.clone())?;
@@ -792,7 +780,7 @@ impl ASTLowerer {
                 let varname = self.fresh_gen.fresh_varname();
                 let pred = Predicate::lt(varname.clone(), TyParam::value(value));
                 let refine = refinement(varname, t, pred);
-                Some(guard(var, refine))
+                Some(guard(namespace, target, refine))
             }
             TokenKind::LessEq => {
                 let value = self.module.context.expr_to_value(rhs.clone())?;
@@ -800,7 +788,7 @@ impl ASTLowerer {
                 let varname = self.fresh_gen.fresh_varname();
                 let pred = Predicate::le(varname.clone(), TyParam::value(value));
                 let refine = refinement(varname, t, pred);
-                Some(guard(var, refine))
+                Some(guard(namespace, target, refine))
             }
             _ => None,
         }
@@ -930,7 +918,8 @@ impl ASTLowerer {
                 }
                 1 if kind.is_if() => {
                     let guard = GuardType::new(
-                        guard.var.clone(),
+                        guard.namespace.clone(),
+                        guard.target.clone(),
                         self.module.context.complement(&guard.to),
                     );
                     self.module.context.guards.push(guard);
@@ -1015,10 +1004,10 @@ impl ASTLowerer {
         } else {
             if let hir::Expr::Call(call) = &obj {
                 if call.return_t().is_some() {
-                    *obj.ref_mut_t() = vi.t;
+                    *obj.ref_mut_t().unwrap() = vi.t;
                 }
             } else {
-                *obj.ref_mut_t() = vi.t;
+                *obj.ref_mut_t().unwrap() = vi.t;
             }
             None
         };
@@ -1964,7 +1953,7 @@ impl ASTLowerer {
                 ) {
                     Err(err) => self.errs.push(err),
                     Ok(_) => {
-                        *attr.ref_mut_t() = derefined.clone();
+                        *attr.ref_mut_t().unwrap() = derefined.clone();
                         if let hir::Accessor::Ident(ident) = &attr {
                             if let Some(vi) = self
                                 .module
@@ -2426,27 +2415,36 @@ impl ASTLowerer {
     // so turn off type checking (check=false)
     fn lower_expr(&mut self, expr: ast::Expr) -> LowerResult<hir::Expr> {
         log!(info "entered {}", fn_name!());
-        match expr {
-            ast::Expr::Literal(lit) => Ok(hir::Expr::Lit(self.lower_literal(lit)?)),
-            ast::Expr::Array(arr) => Ok(hir::Expr::Array(self.lower_array(arr)?)),
-            ast::Expr::Tuple(tup) => Ok(hir::Expr::Tuple(self.lower_tuple(tup)?)),
-            ast::Expr::Record(rec) => Ok(hir::Expr::Record(self.lower_record(rec)?)),
-            ast::Expr::Set(set) => Ok(hir::Expr::Set(self.lower_set(set)?)),
-            ast::Expr::Dict(dict) => Ok(hir::Expr::Dict(self.lower_dict(dict)?)),
-            ast::Expr::Accessor(acc) => Ok(hir::Expr::Accessor(self.lower_acc(acc)?)),
-            ast::Expr::BinOp(bin) => Ok(hir::Expr::BinOp(self.lower_bin(bin))),
-            ast::Expr::UnaryOp(unary) => Ok(hir::Expr::UnaryOp(self.lower_unary(unary))),
-            ast::Expr::Call(call) => Ok(hir::Expr::Call(self.lower_call(call)?)),
-            ast::Expr::DataPack(pack) => Ok(hir::Expr::Call(self.lower_pack(pack)?)),
-            ast::Expr::Lambda(lambda) => Ok(hir::Expr::Lambda(self.lower_lambda(lambda)?)),
-            ast::Expr::TypeAscription(tasc) => Ok(hir::Expr::TypeAsc(self.lower_type_asc(tasc)?)),
+        let casted = self.module.context.get_casted_type(&expr);
+        let mut expr = match expr {
+            ast::Expr::Literal(lit) => hir::Expr::Lit(self.lower_literal(lit)?),
+            ast::Expr::Array(arr) => hir::Expr::Array(self.lower_array(arr)?),
+            ast::Expr::Tuple(tup) => hir::Expr::Tuple(self.lower_tuple(tup)?),
+            ast::Expr::Record(rec) => hir::Expr::Record(self.lower_record(rec)?),
+            ast::Expr::Set(set) => hir::Expr::Set(self.lower_set(set)?),
+            ast::Expr::Dict(dict) => hir::Expr::Dict(self.lower_dict(dict)?),
+            ast::Expr::Accessor(acc) => hir::Expr::Accessor(self.lower_acc(acc)?),
+            ast::Expr::BinOp(bin) => hir::Expr::BinOp(self.lower_bin(bin)),
+            ast::Expr::UnaryOp(unary) => hir::Expr::UnaryOp(self.lower_unary(unary)),
+            ast::Expr::Call(call) => hir::Expr::Call(self.lower_call(call)?),
+            ast::Expr::DataPack(pack) => hir::Expr::Call(self.lower_pack(pack)?),
+            ast::Expr::Lambda(lambda) => hir::Expr::Lambda(self.lower_lambda(lambda)?),
+            ast::Expr::TypeAscription(tasc) => hir::Expr::TypeAsc(self.lower_type_asc(tasc)?),
             // Checking is also performed for expressions in Dummy. However, it has no meaning in code generation
-            ast::Expr::Dummy(dummy) => Ok(hir::Expr::Dummy(self.lower_dummy(dummy)?)),
+            ast::Expr::Dummy(dummy) => hir::Expr::Dummy(self.lower_dummy(dummy)?),
             other => {
                 log!(err "unreachable: {other}");
-                unreachable_error!(LowerErrors, LowerError, self.module.context)
+                return unreachable_error!(LowerErrors, LowerError, self.module.context);
+            }
+        };
+        if let Some(casted) = casted {
+            if self.module.context.subtype_of(&casted, expr.ref_t()) {
+                if let Some(ref_mut_t) = expr.ref_mut_t() {
+                    *ref_mut_t = casted;
+                }
             }
         }
+        Ok(expr)
     }
 
     /// The meaning of TypeAscription changes between chunk and expr.

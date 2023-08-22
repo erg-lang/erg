@@ -383,9 +383,9 @@ impl Context {
                 (Some((_, l_sup)), Some((r_sub, _))) => self.supertype_of(&l_sup, &r_sub),
                 _ => {
                     if lfv.is_linked() {
-                        self.supertype_of(&lfv.crack(), rhs)
+                        self.supertype_of(lfv.unsafe_crack(), rhs)
                     } else if rfv.is_linked() {
-                        self.supertype_of(lhs, &rfv.crack())
+                        self.supertype_of(lhs, rfv.unsafe_crack())
                     } else {
                         false
                     }
@@ -1418,7 +1418,8 @@ impl Context {
             Not(t) => *t.clone(),
             Refinement(r) => Type::Refinement(r.clone().invert()),
             Guard(guard) => Type::Guard(GuardType::new(
-                guard.var.clone(),
+                guard.namespace.clone(),
+                guard.target.clone(),
                 self.complement(&guard.to),
             )),
             Or(l, r) => self.intersection(&self.complement(l), &self.complement(r)),

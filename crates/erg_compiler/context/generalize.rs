@@ -1092,9 +1092,9 @@ impl Context {
                     .unbound_name()
                     .map_or(false, |name| !qnames.contains(&name))
                 {
-                    let t = mem::take(acc.ref_mut_t());
+                    let t = mem::take(acc.ref_mut_t().unwrap());
                     let mut dereferencer = Dereferencer::simple(self, qnames, acc);
-                    *acc.ref_mut_t() = dereferencer.deref_tyvar(t)?;
+                    *acc.ref_mut_t().unwrap() = dereferencer.deref_tyvar(t)?;
                 }
                 if let hir::Accessor::Attr(attr) = acc {
                     self.resolve_expr_t(&mut attr.obj, qnames)?;
@@ -1181,10 +1181,10 @@ impl Context {
                 let mut dereferencer = Dereferencer::simple(self, qnames, record);
                 record.t = dereferencer.deref_tyvar(t)?;
                 for attr in record.attrs.iter_mut() {
-                    let t = mem::take(attr.sig.ref_mut_t());
+                    let t = mem::take(attr.sig.ref_mut_t().unwrap());
                     let mut dereferencer = Dereferencer::simple(self, qnames, &attr.sig);
                     let t = dereferencer.deref_tyvar(t)?;
-                    *attr.sig.ref_mut_t() = t;
+                    *attr.sig.ref_mut_t().unwrap() = t;
                     for chunk in attr.body.block.iter_mut() {
                         self.resolve_expr_t(chunk, qnames)?;
                     }
@@ -1232,9 +1232,9 @@ impl Context {
                 } else {
                     qnames.clone()
                 };
-                let t = mem::take(def.sig.ref_mut_t());
+                let t = mem::take(def.sig.ref_mut_t().unwrap());
                 let mut dereferencer = Dereferencer::simple(self, &qnames, &def.sig);
-                *def.sig.ref_mut_t() = dereferencer.deref_tyvar(t)?;
+                *def.sig.ref_mut_t().unwrap() = dereferencer.deref_tyvar(t)?;
                 if let Some(params) = def.sig.params_mut() {
                     self.resolve_params_t(params, &qnames)?;
                 }

@@ -10,3 +10,8 @@ j = json.loads "{ \"a\": [1] }"
 assert j in {Str: Obj}
 assert j["a"] in Array(Int)
 assert j["a"] notin Array(Str)
+_: Array(Int) = j["a"]
+
+.f dic: {Str: Str or Array(Str)} =
+    assert dic["key"] in Str # Required to pass the check on the next line
+    assert dic["key"] in {"a", "b", "c"}

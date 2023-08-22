@@ -2873,6 +2873,14 @@ impl Context {
         }
     }
 
+    pub(crate) fn rec_get_guards(&self) -> Vec<&GuardType> {
+        if let Some(outer) = self.get_outer() {
+            [self.guards.iter().collect(), outer.rec_get_guards()].concat()
+        } else {
+            self.guards.iter().collect()
+        }
+    }
+
     // TODO: `Override` decorator should also be used
     /// e.g.
     /// ```erg
@@ -3203,9 +3211,9 @@ impl Context {
                 return Err(TyCheckErrors::from(TyCheckError::invalid_type_cast_error(
                     self.cfg.input.clone(),
                     line!() as usize,
-                    guard.var.loc(),
+                    guard.target.loc(),
                     self.caused_by(),
-                    &guard.var.to_string(),
+                    &guard.target.to_string(),
                     base,
                     &guard.to,
                     None,
@@ -3229,9 +3237,9 @@ impl Context {
             Err(TyCheckErrors::from(TyCheckError::invalid_type_cast_error(
                 self.cfg.input.clone(),
                 line!() as usize,
-                guard.var.loc(),
+                guard.target.loc(),
                 self.caused_by(),
-                &guard.var.to_string(),
+                &guard.target.to_string(),
                 base,
                 &guard.to,
                 None,

@@ -474,8 +474,8 @@ pub fn not(ty: Type) -> Type {
     Type::Not(Box::new(ty))
 }
 
-pub fn guard(var: Variable, to: Type) -> Type {
-    Type::Guard(GuardType::new(var, to))
+pub fn guard(namespace: Str, target: CastTarget, to: Type) -> Type {
+    Type::Guard(GuardType::new(namespace, target, to))
 }
 
 pub fn bounded(sub: Type, sup: Type) -> Type {
