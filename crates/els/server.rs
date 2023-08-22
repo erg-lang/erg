@@ -586,6 +586,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         }))
     }
 
+    #[allow(unused)]
     pub(crate) fn restart(&mut self) {
         self.file_cache.clear();
         self.comp_cache.clear();
@@ -803,14 +804,13 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     /// Because of the difficulty of caching "transitional types" such as assert casting and mutable dependent types,
     /// the cache is deleted after each analysis.
     pub(crate) fn get_checker(&self, path: PathBuf) -> Checker {
-        /*if let Some(shared) = self.get_shared() {
+        if let Some(shared) = self.get_shared() {
             let shared = shared.clone();
             shared.clear(&path);
             Checker::inherit(self.cfg.inherit(path), shared)
         } else {
             Checker::new(self.cfg.inherit(path))
-        }*/
-        Checker::new(self.cfg.inherit(path))
+        }
     }
 
     pub(crate) fn steal_lowerer(&mut self, uri: &NormalizedUrl) -> Option<ASTLowerer> {

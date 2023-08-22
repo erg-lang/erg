@@ -298,7 +298,6 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             },
             "start_client_health_checker_sender",
         );
-        let mut self_ = self.clone();
         spawn_new_thread(
             move || {
                 loop {
@@ -310,12 +309,12 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                             // send_log("client health check passed").unwrap();
                         }
                         Err(_) => {
-                            // send_log("client health check timed out").unwrap();
                             lsp_log!("Client health check timed out");
-                            lsp_log!("Restart the server");
-                            _log!("Restart the server");
+                            // lsp_log!("Restart the server");
+                            // _log!("Restart the server");
                             // send_error_info("Something went wrong, ELS has been restarted").unwrap();
-                            self_.restart();
+                            // self_.restart();
+                            panic!("Client health check timed out");
                         }
                     }
                 }
