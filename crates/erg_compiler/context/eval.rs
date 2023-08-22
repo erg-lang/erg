@@ -7,6 +7,7 @@ use erg_common::error::Location;
 #[allow(unused)]
 use erg_common::log;
 use erg_common::set::Set;
+use erg_common::shared::Shared;
 use erg_common::traits::{Locational, Stream};
 use erg_common::{dict, fmt_vec, fn_name, option_enum_unwrap, set, Triple};
 use erg_common::{ArcArray, Str};
@@ -22,7 +23,7 @@ use crate::ty::constructors::{
     array_t, dict_t, mono, named_free_var, poly, proj, proj_call, ref_, ref_mut, refinement, set_t,
     subr_t, tp_enum, tuple_t, v_enum,
 };
-use crate::ty::free::{Constraint, FreeTyVar, HasLevel};
+use crate::ty::free::{Constraint, HasLevel};
 use crate::ty::typaram::{OpKind, TyParam};
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{ConstSubr, HasType, Predicate, SubrKind, Type, UserConstSubr, ValueArgs};
@@ -92,27 +93,52 @@ fn op_to_name(op: OpKind) -> &'static str {
     }
 }
 
-#[derive(Debug)]
-pub struct Substituter<'c> {
-    ctx: &'c Context,
-    qt: Type,
-    #[allow(unused)]
-    st: Type,
-    child: Option<Box<Substituter<'c>>>,
+#[derive(Debug, Default)]
+pub struct UndoableLinkedList {
+    tys: Shared<Set<Type>>,
+    tps: Shared<Set<TyParam>>,
 }
 
-impl Drop for Substituter<'_> {
+impl Drop for UndoableLinkedList {
     fn drop(&mut self) {
-        Self::undo_substitute_typarams(&self.qt);
+        for t in self.tys.borrow().iter() {
+            t.undo();
+        }
+        for tp in self.tps.borrow().iter() {
+            tp.undo();
+        }
     }
 }
 
+impl UndoableLinkedList {
+    pub fn new() -> Self {
+        Self {
+            tys: Shared::new(set! {}),
+            tps: Shared::new(set! {}),
+        }
+    }
+
+    pub fn push_t(&self, t: &Type) {
+        self.tys.borrow_mut().insert(t.clone());
+    }
+
+    pub fn push_tp(&self, tp: &TyParam) {
+        self.tps.borrow_mut().insert(tp.clone());
+    }
+}
+
+#[derive(Debug)]
+pub struct Substituter<'c> {
+    ctx: &'c Context,
+    undoable_linked: UndoableLinkedList,
+    child: Option<Box<Substituter<'c>>>,
+}
+
 impl<'c> Substituter<'c> {
-    fn new(ctx: &'c Context, qt: Type, st: Type) -> Self {
+    fn new(ctx: &'c Context) -> Self {
         Self {
             ctx,
-            qt,
-            st,
+            undoable_linked: UndoableLinkedList::new(),
             child: None,
         }
     }
@@ -142,7 +168,7 @@ impl<'c> Substituter<'c> {
             log!(err "[{}] [{}]", erg_common::fmt_vec(&qtps), erg_common::fmt_vec(&stps));
             return Ok(None); // TODO: e.g. Sub(Int) / Eq and Sub(?T)
         }
-        let mut self_ = Self::new(ctx, qt.clone(), st.clone());
+        let mut self_ = Self::new(ctx);
         let mut errs = EvalErrors::empty();
         for (qtp, stp) in qtps.into_iter().zip(stps.into_iter()) {
             if let Err(err) = self_.substitute_typaram(qtp, stp) {
@@ -171,7 +197,7 @@ impl<'c> Substituter<'c> {
             log!(err "[{}] [{}]", erg_common::fmt_vec(&qtps), erg_common::fmt_vec(&stps));
             return Ok(None); // TODO: e.g. Sub(Int) / Eq and Sub(?T)
         }
-        let mut self_ = Self::new(ctx, qt.clone(), st.clone());
+        let mut self_ = Self::new(ctx);
         let mut errs = EvalErrors::empty();
         for (qtp, stp) in qtps.into_iter().zip(stps.into_iter()) {
             if let Err(err) = self_.overwrite_typaram(qtp, stp) {
@@ -188,7 +214,7 @@ impl<'c> Substituter<'c> {
     fn substitute_typaram(&mut self, qtp: TyParam, stp: TyParam) -> EvalResult<()> {
         match qtp {
             TyParam::FreeVar(ref fv) if fv.is_generalized() => {
-                qtp.undoable_link(&stp);
+                qtp.undoable_link(&stp, &self.undoable_linked);
                 /*if let Err(errs) = self.sub_unify_tp(&stp, &qtp, None, &(), false) {
                     log!(err "{errs}");
                 }*/
@@ -226,13 +252,13 @@ impl<'c> Substituter<'c> {
             )
         })?;
         if !qt.is_undoable_linked_var() && qt.is_generalized() && qt.is_free_var() {
-            qt.undoable_link(&st);
+            qt.undoable_link(&st, &self.undoable_linked);
         } else if qt.is_undoable_linked_var() && qt != st {
             // e.g. Array(T, N) <: Add(Array(T, M))
             // Array((Int), (3)) <: Add(Array((Int), (4))): OK
             // Array((Int), (3)) <: Add(Array((Str), (4))): NG
             if let Some(union) = self.ctx.unify(&qt, &st) {
-                qt.undoable_link(&union);
+                qt.undoable_link(&union, &self.undoable_linked);
             } else {
                 return Err(EvalError::unification_error(
                     self.ctx.cfg.input.clone(),
@@ -257,7 +283,10 @@ impl<'c> Substituter<'c> {
         } else {
             qt
         };
-        if let Err(errs) = self.ctx.undoable_sub_unify(&st, &qt, &(), None) {
+        if let Err(errs) = self
+            .ctx
+            .undoable_sub_unify(&st, &qt, &(), &self.undoable_linked, None)
+        {
             log!(err "{errs}");
         }
         Ok(())
@@ -266,7 +295,7 @@ impl<'c> Substituter<'c> {
     fn overwrite_typaram(&mut self, qtp: TyParam, stp: TyParam) -> EvalResult<()> {
         match qtp {
             TyParam::FreeVar(ref fv) if fv.is_undoable_linked() => {
-                qtp.undoable_link(&stp);
+                qtp.undoable_link(&stp, &self.undoable_linked);
                 /*if let Err(errs) = self.sub_unify_tp(&stp, &qtp, None, &(), false) {
                     log!(err "{errs}");
                 }*/
@@ -276,7 +305,7 @@ impl<'c> Substituter<'c> {
             // Whether this could be a problem is under consideration.
             // e.g. `T` of Array(T, N) <: Add(T, M)
             TyParam::FreeVar(ref fv) if fv.is_generalized() => {
-                qtp.undoable_link(&stp);
+                qtp.undoable_link(&stp, &self.undoable_linked);
                 /*if let Err(errs) = self.sub_unify_tp(&stp, &qtp, None, &(), false) {
                     log!(err "{errs}");
                 }*/
@@ -314,7 +343,7 @@ impl<'c> Substituter<'c> {
             )
         })?;
         if qt.is_undoable_linked_var() {
-            qt.undoable_link(&st);
+            qt.undoable_link(&st, &self.undoable_linked);
         }
         if !st.is_unbound_var() || !st.is_generalized() {
             self.child = Self::overwrite_typarams(self.ctx, &qt, &st)?.map(Box::new);
@@ -325,40 +354,13 @@ impl<'c> Substituter<'c> {
         } else {
             qt
         };
-        if let Err(errs) = self.ctx.undoable_sub_unify(&st, &qt, &(), None) {
+        if let Err(errs) = self
+            .ctx
+            .undoable_sub_unify(&st, &qt, &(), &self.undoable_linked, None)
+        {
             log!(err "{errs}");
         }
         Ok(())
-    }
-
-    fn undo_substitute_typarams(substituted_q: &Type) {
-        for tp in substituted_q.typarams().into_iter() {
-            Self::undo_substitute_typaram(tp);
-        }
-    }
-
-    fn undo_substitute_typaram(substituted_q_tp: TyParam) {
-        match substituted_q_tp {
-            TyParam::FreeVar(fv) if fv.is_undoable_linked() => fv.undo(),
-            TyParam::Type(t) if t.is_free_var() => {
-                let Ok(subst) = <&FreeTyVar>::try_from(t.as_ref()) else { unreachable!() };
-                if subst.is_undoable_linked() {
-                    subst.undo();
-                }
-            }
-            /*TyParam::Type(t) => {
-                Self::undo_substitute_typarams(&t);
-            }
-            TyParam::Value(ValueObj::Type(t)) => {
-                Self::undo_substitute_typarams(t.typ());
-            }
-            TyParam::App { args, .. } => {
-                for arg in args.into_iter() {
-                    Self::undo_substitute_typaram(arg);
-                }
-            }*/
-            _ => {}
-        }
     }
 
     /// ```erg
@@ -372,8 +374,9 @@ impl<'c> Substituter<'c> {
                 && t.get_super()
                     .is_some_and(|sup| ctx.supertype_of(&sup, subtype))
             {
-                t.undoable_link(subtype);
-                return Some(Self::new(ctx, qt.clone(), subtype.clone()));
+                let mut _self = Self::new(ctx);
+                t.undoable_link(subtype, &_self.undoable_linked);
+                return Some(_self);
             }
         }
         None
@@ -2173,7 +2176,7 @@ impl Context {
             let proj = proj_call(coerced, attr_name, args);
             self.eval_t_params(proj, level, t_loc)
                 .map(|t| {
-                    lhs.coerce();
+                    lhs.destructive_coerce();
                     t
                 })
                 .map_err(|(_, errs)| errs)

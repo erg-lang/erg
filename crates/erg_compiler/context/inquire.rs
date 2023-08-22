@@ -765,7 +765,7 @@ impl Context {
             for ctx in ctxs {
                 match ctx.rec_get_var_info(ident, AccessKind::BoundAttr, input, namespace) {
                     Triple::Ok(vi) => {
-                        obj.ref_t().coerce();
+                        obj.ref_t().destructive_coerce();
                         return Triple::Ok(vi);
                     }
                     Triple::Err(e) => {
@@ -1133,7 +1133,7 @@ impl Context {
             .map_err(|mut errs| errs.remove(0))?;
         if &coerced != obj.ref_t() {
             let hash = get_hash(obj.ref_t());
-            obj.ref_t().coerce();
+            obj.ref_t().destructive_coerce();
             if get_hash(obj.ref_t()) != hash {
                 return self
                     .search_method_info(obj, attr_name, pos_args, kw_args, input, namespace);
@@ -1392,7 +1392,7 @@ impl Context {
                     }
                     if sub != Never {
                         let hash = get_hash(instance);
-                        instance.coerce();
+                        instance.destructive_coerce();
                         if instance.is_quantified_subr() {
                             let instance = self.instantiate(instance.clone(), obj)?;
                             self.substitute_call(obj, attr_name, &instance, pos_args, kw_args)?;
