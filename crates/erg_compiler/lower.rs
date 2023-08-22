@@ -50,11 +50,15 @@ use crate::{feature_error, unreachable_error};
 
 use VisibilityModifier::*;
 
-pub fn acc_to_variable(acc: &ast::Accessor) -> Option<Variable> {
+pub fn acc_to_variable(namespace: Str, acc: &ast::Accessor) -> Option<Variable> {
     match acc {
-        ast::Accessor::Ident(ident) => Some(Variable::Var(ident.inspect().clone(), ident.loc())),
+        ast::Accessor::Ident(ident) => Some(Variable::Var {
+            namespace,
+            name: ident.inspect().clone(),
+            loc: ident.loc(),
+        }),
         ast::Accessor::Attr(attr) => Some(Variable::attr(
-            expr_to_variable(&attr.obj)?,
+            expr_to_variable(namespace, &attr.obj)?,
             attr.ident.inspect().clone(),
             attr.loc(),
         )),
@@ -62,9 +66,9 @@ pub fn acc_to_variable(acc: &ast::Accessor) -> Option<Variable> {
     }
 }
 
-pub fn expr_to_variable(expr: &ast::Expr) -> Option<Variable> {
+pub fn expr_to_variable(namespace: Str, expr: &ast::Expr) -> Option<Variable> {
     match expr {
-        ast::Expr::Accessor(acc) => acc_to_variable(acc),
+        ast::Expr::Accessor(acc) => acc_to_variable(namespace, acc),
         _ => None,
     }
 }
@@ -743,9 +747,9 @@ impl ASTLowerer {
 
     fn get_guard_type(&self, op: &Token, lhs: &ast::Expr, rhs: &ast::Expr) -> Option<Type> {
         let var = if op.kind == TokenKind::ContainsOp {
-            expr_to_variable(rhs)?
+            expr_to_variable(self.module.context.name.clone(), rhs)?
         } else {
-            expr_to_variable(lhs)?
+            expr_to_variable(self.module.context.name.clone(), lhs)?
         };
         match op.kind {
             // l in T -> T contains l

@@ -2277,7 +2277,13 @@ impl Context {
         guard: GuardType,
         overwritten: &mut Vec<(VarName, VarInfo)>,
     ) -> TyCheckResult<()> {
-        if let Variable::Var(name, _) = &guard.var {
+        if let Variable::Var {
+            namespace, name, ..
+        } = &guard.var
+        {
+            if !self.name.starts_with(&namespace[..]) {
+                return Ok(());
+            }
             let vi = if let Some((name, vi)) = self.locals.remove_entry(name) {
                 overwritten.push((name, vi.clone()));
                 vi
