@@ -494,22 +494,6 @@ impl Predicate {
         }
     }
 
-    pub fn typarams_mut(&mut self) -> Vec<&mut TyParam> {
-        match self {
-            Self::Value(_) | Self::Const(_) => vec![],
-            Self::Equal { rhs, .. }
-            | Self::GreaterEqual { rhs, .. }
-            | Self::LessEqual { rhs, .. }
-            | Self::NotEqual { rhs, .. } => vec![rhs],
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => lhs
-                .typarams_mut()
-                .into_iter()
-                .chain(rhs.typarams_mut())
-                .collect(),
-            Self::Not(pred) => pred.typarams_mut(),
-        }
-    }
-
     pub fn invert(self) -> Self {
         match self {
             Self::Value(ValueObj::Bool(b)) => Self::Value(ValueObj::Bool(!b)),
