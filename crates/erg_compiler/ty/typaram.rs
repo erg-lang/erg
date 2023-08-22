@@ -11,6 +11,8 @@ use erg_common::{dict, log, ref_addr_eq, set, Str};
 use erg_parser::ast::ConstLambda;
 use erg_parser::token::TokenKind;
 
+use crate::context::eval::UndoableLinkedList;
+
 use super::constructors::int_interval;
 use super::free::{
     CanbeFree, Constraint, FreeKind, FreeTyParam, FreeTyVar, HasLevel, Level, GENERIC_LEVEL,
@@ -1090,13 +1092,13 @@ impl TyParam {
         }
     }
 
-    pub fn coerce(&self) {
+    pub fn destructive_coerce(&self) {
         match self {
             TyParam::FreeVar(fv) if fv.is_linked() => {
-                fv.crack().coerce();
+                fv.crack().destructive_coerce();
             }
-            TyParam::Type(t) => t.coerce(),
-            TyParam::Value(ValueObj::Type(t)) => t.typ().coerce(),
+            TyParam::Type(t) => t.destructive_coerce(),
+            TyParam::Value(ValueObj::Type(t)) => t.typ().destructive_coerce(),
             _ => {}
         }
     }
@@ -1398,7 +1400,8 @@ impl TyParam {
     }
 
     /// interior-mut
-    pub(crate) fn undoable_link(&self, to: &TyParam) {
+    pub(crate) fn undoable_link(&self, to: &TyParam, list: &UndoableLinkedList) {
+        list.push_tp(self);
         if self.addr_eq(to) {
             self.inc_undo_count();
             return;
@@ -1409,9 +1412,9 @@ impl TyParam {
         }
     }
 
-    pub(crate) fn link(&self, to: &TyParam, undoable: bool) {
-        if undoable {
-            self.undoable_link(to);
+    pub(crate) fn link(&self, to: &TyParam, list: Option<&UndoableLinkedList>) {
+        if let Some(list) = list {
+            self.undoable_link(to, list);
         } else {
             self.destructive_link(to);
         }
@@ -1422,33 +1425,37 @@ impl TyParam {
             Self::FreeVar(fv) if fv.is_undoable_linked() => fv.undo(),
             Self::Type(t) => t.undo(),
             Self::Value(ValueObj::Type(t)) => t.typ().undo(),
-            Self::App { args, .. } => {
+            /*Self::App { args, .. } => {
                 for arg in args {
                     arg.undo();
                 }
-            }
+            }*/
             _ => {}
         }
     }
 
-    pub(crate) fn undoable_update_constraint(&self, new_constraint: Constraint) {
+    pub(crate) fn undoable_update_constraint(
+        &self,
+        new_constraint: Constraint,
+        list: &UndoableLinkedList,
+    ) {
         let level = self.level().unwrap();
         let new = if let Some(name) = self.unbound_name() {
             Self::named_free_var(name, level, new_constraint)
         } else {
             Self::free_var(level, new_constraint)
         };
-        self.undoable_link(&new);
+        self.undoable_link(&new, list);
     }
 
     pub(crate) fn update_constraint(
         &self,
         new_constraint: Constraint,
-        undoable: bool,
+        list: Option<&UndoableLinkedList>,
         in_instantiation: bool,
     ) {
-        if undoable {
-            self.undoable_update_constraint(new_constraint);
+        if let Some(list) = list {
+            self.undoable_update_constraint(new_constraint, list);
         } else {
             self.destructive_update_constraint(new_constraint, in_instantiation);
         }

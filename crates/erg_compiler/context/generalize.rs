@@ -21,7 +21,7 @@ use crate::{feature_error, hir};
 use Type::*;
 use Variance::*;
 
-use super::eval::Substituter;
+use super::eval::{Substituter, UndoableLinkedList};
 
 pub struct Generalizer {
     level: usize,
@@ -557,21 +557,29 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                     // we need to force linking to avoid infinite loop
                     // e.g. fv == ?T(<: Int, :> Add(?T))
                     //      fv == ?T(:> ?T.Output, <: Add(Int))
+                    let list = UndoableLinkedList::new();
                     let fv_t = Type::FreeVar(fv.clone());
-                    match (sub_t.contains_type(&fv_t), super_t.contains_type(&fv_t)) {
+                    let dummy = match (sub_t.contains_type(&fv_t), super_t.contains_type(&fv_t)) {
                         // REVIEW: to prevent infinite recursion, but this may cause a nonsense error
                         (true, true) => {
                             fv.dummy_link();
+                            true
                         }
                         (true, false) => {
-                            fv_t.undoable_link(&super_t);
+                            fv_t.undoable_link(&super_t, &list);
+                            false
                         }
                         (false, true | false) => {
-                            fv_t.undoable_link(&sub_t);
+                            fv_t.undoable_link(&sub_t, &list);
+                            false
                         }
-                    }
+                    };
                     let res = self.validate_subsup(sub_t, super_t);
-                    fv.undo();
+                    if dummy {
+                        fv.undo();
+                    } else {
+                        drop(list);
+                    }
                     match res {
                         Ok(ty) => {
                             // TODO: T(:> Nat <: Int) -> T(:> Nat, <: Int) ==> Int -> Nat

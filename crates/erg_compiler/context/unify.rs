@@ -23,17 +23,23 @@ use Predicate as Pred;
 use Type::*;
 use ValueObj::{Inf, NegInf};
 
+use super::eval::UndoableLinkedList;
 use super::initialize::const_func::sub_tpdict_get;
 
-pub struct Unifier<'c, 'l, L: Locational> {
+pub struct Unifier<'c, 'l, 'u, L: Locational> {
     ctx: &'c Context,
     loc: &'l L,
-    undoable: bool,
+    undoable: Option<&'u UndoableLinkedList>,
     param_name: Option<Str>,
 }
 
-impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
-    pub fn new(ctx: &'c Context, loc: &'l L, undoable: bool, param_name: Option<Str>) -> Self {
+impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
+    pub fn new(
+        ctx: &'c Context,
+        loc: &'l L,
+        undoable: Option<&'u UndoableLinkedList>,
+        param_name: Option<Str>,
+    ) -> Self {
         Self {
             ctx,
             loc,
@@ -43,7 +49,7 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
     }
 }
 
-impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
+impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
     /// ```erg
     /// occur(?T, ?T) ==> OK
     /// occur(X -> ?T, ?T) ==> Error
@@ -645,7 +651,7 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
     /// sub_unify([?T; 0], Mutate): (/* OK */)
     /// ```
     fn sub_unify(&self, maybe_sub: &Type, maybe_sup: &Type) -> TyCheckResult<()> {
-        log!(info "trying sub_unify:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_sup}");
+        log!(info "trying {}sub_unify:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_sup}", self.undoable.map_or("", |_| "undoable"));
         // In this case, there is no new information to be gained
         // この場合、特に新しく得られる情報はない
         if maybe_sub == &Type::Never || maybe_sup == &Type::Obj || maybe_sup == maybe_sub {
@@ -939,7 +945,7 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
                 // * sub_unify(Bool,  ?T(<: Bool or Y)): (?T == Bool)
                 // * sub_unify(Float, ?T(<: Structural{ .imag = ?U })) ==> ?U == Float
                 if let Some((sub, mut sup)) = sup_fv.get_subsup() {
-                    if sup.is_structural() {
+                    if sup.is_structural() || !sup.is_recursive() {
                         self.sub_unify(maybe_sub, &sup)?;
                     }
                     let new_sub = self.ctx.union(maybe_sub, &sub);
@@ -951,7 +957,9 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
                     {
                         let (l, r) = new_sub.union_pair().unwrap_or((maybe_sub.clone(), sub));
                         let unified = self.unify(&l, &r);
-                        if unified.is_none() {
+                        if let Some(unified) = unified {
+                            log!("unify({l}, {r}) == {unified}");
+                        } else {
                             let maybe_sub = self.ctx.readable_type(maybe_sub.clone());
                             let new_sub = self.ctx.readable_type(new_sub);
                             return Err(TyCheckErrors::from(
@@ -989,7 +997,7 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
                     if let Some((_, sub_ty)) = sub_fields.get_key_value(&sup_field) {
                         self.sub_unify(sub_ty, &sup_ty)?;
                     } else if !self.ctx.subtype_of(&sub_fv.get_sub().unwrap(), &Never) {
-                        maybe_sub.coerce();
+                        maybe_sub.coerce(self.undoable);
                         return self.sub_unify(maybe_sub, maybe_sup);
                     } else {
                         // e.g. ?T / Structural({ .method = (self: ?T) -> Int })
@@ -1371,6 +1379,7 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
                 }
             }
             if let Some(sup_ty) = min_compatible {
+                let _substituter = Substituter::substitute_self(sup_ty, maybe_sub, self.ctx);
                 let sub_instance = self.ctx.instantiate_def_type(sup_ty)?;
                 let variances = self
                     .ctx
@@ -1402,17 +1411,27 @@ impl<'c, 'l, L: Locational> Unifier<'c, 'l, L> {
 
     /// Unify two types into a single type based on the subtype relation.
     ///
-    /// Error if they can't unify without upcasting both types (derefining is allowed) or using the Or type
+    /// Error if they can't unify without upcasting both types (derefining is allowed) or using Or types
     /// ```erg
     /// unify(Int, Nat) == Some(Int)
     /// unify(Int, Str) == None
     /// unify({1.2}, Nat) == Some(Float)
     /// unify(Nat, Int!) == Some(Int)
     /// unify(Eq, Int) == None
+    /// unify(Int or Str, Int) == Some(Int or Str)
+    /// unify(Int or Str, NoneType) == None
     /// ```
     fn unify(&self, lhs: &Type, rhs: &Type) -> Option<Type> {
         #[allow(clippy::single_match)]
         match (lhs, rhs) {
+            (Type::Or(l, r), other) | (other, Type::Or(l, r)) => {
+                if let Some(t) = self.unify(l, other) {
+                    return self.unify(&t, l);
+                } else if let Some(t) = self.unify(r, other) {
+                    return self.unify(&t, l);
+                }
+                return None;
+            }
             (Type::FreeVar(fv), _) if fv.is_linked() => return self.unify(&fv.crack(), rhs),
             (_, Type::FreeVar(fv)) if fv.is_linked() => return self.unify(lhs, &fv.crack()),
             // TODO: unify(?T, ?U) ?
@@ -1459,7 +1478,7 @@ impl Context {
         maybe_sup: &Type,
         loc: &impl Locational,
     ) -> TyCheckResult<()> {
-        let unifier = Unifier::new(self, loc, false, None);
+        let unifier = Unifier::new(self, loc, None, None);
         unifier.occur(maybe_sub, maybe_sup)
     }
 
@@ -1471,7 +1490,7 @@ impl Context {
         loc: &impl Locational,
         is_structural: bool,
     ) -> TyCheckResult<()> {
-        let unifier = Unifier::new(self, loc, is_structural, None);
+        let unifier = Unifier::new(self, loc, None, None);
         unifier.sub_unify_tp(maybe_sub, maybe_sup, variance, is_structural)
     }
 
@@ -1482,7 +1501,7 @@ impl Context {
         loc: &impl Locational,
         param_name: Option<&Str>,
     ) -> TyCheckResult<()> {
-        let unifier = Unifier::new(self, loc, false, param_name.cloned());
+        let unifier = Unifier::new(self, loc, None, param_name.cloned());
         unifier.sub_unify(maybe_sub, maybe_sup)
     }
 
@@ -1491,14 +1510,15 @@ impl Context {
         maybe_sub: &Type,
         maybe_sup: &Type,
         loc: &impl Locational,
+        list: &UndoableLinkedList,
         param_name: Option<&Str>,
     ) -> TyCheckResult<()> {
-        let unifier = Unifier::new(self, loc, true, param_name.cloned());
+        let unifier = Unifier::new(self, loc, Some(list), param_name.cloned());
         unifier.sub_unify(maybe_sub, maybe_sup)
     }
 
     pub(crate) fn unify(&self, lhs: &Type, rhs: &Type) -> Option<Type> {
-        let unifier = Unifier::new(self, &(), false, None);
+        let unifier = Unifier::new(self, &(), None, None);
         unifier.unify(lhs, rhs)
     }
 }

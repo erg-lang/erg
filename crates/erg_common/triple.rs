@@ -1,8 +1,20 @@
+use std::fmt;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Triple<T, E> {
     Ok(T),
     Err(E),
     None,
+}
+
+impl<T: fmt::Display, E: fmt::Display> fmt::Display for Triple<T, E> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Triple::Ok(ok) => write!(f, "Ok({ok})"),
+            Triple::Err(err) => write!(f, "Err({err})"),
+            Triple::None => write!(f, "None"),
+        }
+    }
 }
 
 impl<T, E> Triple<T, E> {

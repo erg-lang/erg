@@ -43,6 +43,8 @@ pub use value::ValueObj;
 use value::ValueObj::{Inf, NegInf};
 pub use vis::*;
 
+use crate::context::eval::UndoableLinkedList;
+
 use self::constructors::{bounded, free_var, named_free_var, proj_call, subr_t};
 
 pub const STR_OMIT_THRESHOLD: usize = 16;
@@ -2558,29 +2560,63 @@ impl Type {
     /// ```erg
     /// ?T(:> ?U(:> Int)).coerce(): ?T == ?U == Int
     /// ```
-    pub fn coerce(&self) {
+    pub fn destructive_coerce(&self) {
         match self {
             Type::FreeVar(fv) if fv.is_linked() => {
-                fv.crack().coerce();
+                fv.crack().destructive_coerce();
             }
             Type::FreeVar(fv) if fv.is_unbound() => {
                 let (sub, _sup) = fv.get_subsup().unwrap();
-                sub.coerce();
+                sub.destructive_coerce();
                 self.destructive_link(&sub);
             }
             Type::And(l, r) | Type::Or(l, r) => {
-                l.coerce();
-                r.coerce();
+                l.destructive_coerce();
+                r.destructive_coerce();
             }
-            Type::Not(l) => l.coerce(),
+            Type::Not(l) => l.destructive_coerce(),
             Type::Poly { params, .. } => {
                 for p in params {
                     if let Ok(t) = <&Type>::try_from(p) {
-                        t.coerce();
+                        t.destructive_coerce();
                     }
                 }
             }
             _ => {}
+        }
+    }
+
+    pub fn undoable_coerce(&self, list: &UndoableLinkedList) {
+        match self {
+            Type::FreeVar(fv) if fv.is_linked() => {
+                fv.crack().undoable_coerce(list);
+            }
+            Type::FreeVar(fv) if fv.is_unbound() => {
+                let (sub, _sup) = fv.get_subsup().unwrap();
+                sub.undoable_coerce(list);
+                self.undoable_link(&sub, list);
+            }
+            Type::And(l, r) | Type::Or(l, r) => {
+                l.undoable_coerce(list);
+                r.undoable_coerce(list);
+            }
+            Type::Not(l) => l.undoable_coerce(list),
+            Type::Poly { params, .. } => {
+                for p in params {
+                    if let Ok(t) = <&Type>::try_from(p) {
+                        t.undoable_coerce(list);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    pub fn coerce(&self, list: Option<&UndoableLinkedList>) {
+        if let Some(list) = list {
+            self.undoable_coerce(list);
+        } else {
+            self.destructive_coerce();
         }
     }
 
@@ -3327,21 +3363,22 @@ impl Type {
     /// interior-mut
     ///
     /// `inc/dec_undo_count` due to the number of `substitute_typarams/undo_typarams` must be matched
-    pub(crate) fn undoable_link(&self, to: &Type) {
+    pub(crate) fn undoable_link(&self, to: &Type, list: &UndoableLinkedList) {
+        list.push_t(self);
         if self.addr_eq(to) {
             self.inc_undo_count();
             return;
         }
         match self {
             Self::FreeVar(fv) => fv.undoable_link(to),
-            Self::Refinement(refine) => refine.t.undoable_link(to),
+            Self::Refinement(refine) => refine.t.undoable_link(to, list),
             _ => panic!("{self} is not a free variable"),
         }
     }
 
-    pub(crate) fn link(&self, to: &Type, undoable: bool) {
-        if undoable {
-            self.undoable_link(to);
+    pub(crate) fn link(&self, to: &Type, list: Option<&UndoableLinkedList>) {
+        if let Some(list) = list {
+            self.undoable_link(to, list);
         } else {
             self.destructive_link(to);
         }
@@ -3350,7 +3387,7 @@ impl Type {
     pub(crate) fn undo(&self) {
         match self {
             Self::FreeVar(fv) if fv.is_undoable_linked() => fv.undo(),
-            Self::FreeVar(fv) if fv.constraint_is_sandwiched() => {
+            /*Self::FreeVar(fv) if fv.constraint_is_sandwiched() => {
                 let (sub, sup) = fv.get_subsup().unwrap();
                 sub.undo();
                 sup.undo();
@@ -3359,29 +3396,33 @@ impl Type {
                 for param in params {
                     param.undo();
                 }
-            }
+            }*/
             _ => {}
         }
     }
 
-    pub(crate) fn undoable_update_constraint(&self, new_constraint: Constraint) {
+    pub(crate) fn undoable_update_constraint(
+        &self,
+        new_constraint: Constraint,
+        list: &UndoableLinkedList,
+    ) {
         let level = self.level().unwrap();
         let new = if let Some(name) = self.unbound_name() {
             named_free_var(name, level, new_constraint)
         } else {
             free_var(level, new_constraint)
         };
-        self.undoable_link(&new);
+        self.undoable_link(&new, list);
     }
 
     pub(crate) fn update_constraint(
         &self,
         new_constraint: Constraint,
-        undoable: bool,
+        list: Option<&UndoableLinkedList>,
         in_instantiation: bool,
     ) {
-        if undoable {
-            self.undoable_update_constraint(new_constraint);
+        if let Some(list) = list {
+            self.undoable_update_constraint(new_constraint, list);
         } else {
             self.destructive_update_constraint(new_constraint, in_instantiation);
         }

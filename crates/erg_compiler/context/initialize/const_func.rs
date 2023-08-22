@@ -4,8 +4,7 @@ use std::mem;
 use erg_common::dict::Dict;
 #[allow(unused_imports)]
 use erg_common::log;
-use erg_common::{dict, Str};
-use erg_common::{enum_unwrap, set};
+use erg_common::{dict, enum_unwrap, set};
 
 use crate::context::Context;
 use crate::feature_error;
@@ -482,12 +481,16 @@ pub(crate) fn __named_tuple_getitem__(
 }
 
 /// `NamedTuple({ .x = Int; .y = Str }).union() == Int or Str`
+/// `GenericNamedTuple.union() == Obj`
 pub(crate) fn named_tuple_union(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
     let slf = args
         .remove_left_or_key("Self")
         .ok_or_else(|| not_passed("Self"))?;
     let fields = match ctx.convert_value_into_type(slf) {
         Ok(Type::NamedTuple(fields)) => fields,
+        Ok(Type::Mono(n)) if &n == "GenericNamedTuple" => {
+            return Ok(ValueObj::builtin_type(Type::Obj).into());
+        }
         Ok(other) => {
             return Err(type_mismatch("NamedTuple", other, "Self"));
         }
@@ -509,7 +512,7 @@ pub(crate) fn as_dict(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyP
         .ok_or_else(|| not_passed("Self"))?;
     let fields = match ctx.convert_value_into_type(slf) {
         Ok(Type::Record(fields)) => fields,
-        Ok(Type::Mono(Str::Static("Record"))) => {
+        Ok(Type::Mono(n)) if &n == "Record" => {
             let dict = dict! { Type::Obj => Type::Obj };
             return Ok(ValueObj::builtin_type(Type::from(dict)).into());
         }
