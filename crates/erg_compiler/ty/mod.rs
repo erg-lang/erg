@@ -756,7 +756,11 @@ pub enum Variable {
         name: Str,
         loc: Location,
     },
-    Var(Str, Location),
+    Var {
+        namespace: Str,
+        name: Str,
+        loc: Location,
+    },
     Attr {
         receiver: Box<Variable>,
         attr: Str,
@@ -768,7 +772,7 @@ impl fmt::Display for Variable {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Param { nth, name, .. } => write!(f, "{name}#{nth}"),
-            Self::Var(name, _) => write!(f, "{name}"),
+            Self::Var { name, .. } => write!(f, "{name}"),
             Self::Attr { receiver, attr, .. } => write!(f, "{receiver}.{attr}"),
         }
     }
@@ -778,7 +782,7 @@ impl Locational for Variable {
     fn loc(&self) -> Location {
         match self {
             Self::Param { loc, .. } => *loc,
-            Self::Var(_, loc) => *loc,
+            Self::Var { loc, .. } => *loc,
             Self::Attr { loc, .. } => *loc,
         }
     }
