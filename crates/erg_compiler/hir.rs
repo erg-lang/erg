@@ -413,8 +413,8 @@ impl HasType for Identifier {
         &self.vi.t
     }
     #[inline]
-    fn ref_mut_t(&mut self) -> &mut Type {
-        &mut self.vi.t
+    fn ref_mut_t(&mut self) -> Option<&mut Type> {
+        Some(&mut self.vi.t)
     }
     #[inline]
     fn signature_t(&self) -> Option<&Type> {
@@ -545,7 +545,7 @@ impl HasType for Attribute {
         self.ident.ref_t()
     }
     #[inline]
-    fn ref_mut_t(&mut self) -> &mut Type {
+    fn ref_mut_t(&mut self) -> Option<&mut Type> {
         self.ident.ref_mut_t()
     }
     #[inline]
@@ -1221,8 +1221,8 @@ impl HasType for BinOp {
     fn ref_t(&self) -> &Type {
         self.info.t.return_t().unwrap()
     }
-    fn ref_mut_t(&mut self) -> &mut Type {
-        self.info.t.mut_return_t().unwrap()
+    fn ref_mut_t(&mut self) -> Option<&mut Type> {
+        self.info.t.mut_return_t()
     }
     #[inline]
     fn lhs_t(&self) -> &Type {
@@ -1268,8 +1268,8 @@ impl HasType for UnaryOp {
     fn ref_t(&self) -> &Type {
         self.info.t.return_t().unwrap()
     }
-    fn ref_mut_t(&mut self) -> &mut Type {
-        self.info.t.mut_return_t().unwrap()
+    fn ref_mut_t(&mut self) -> Option<&mut Type> {
+        self.info.t.mut_return_t()
     }
     #[inline]
     fn lhs_t(&self) -> &Type {
@@ -1357,11 +1357,11 @@ impl HasType for Call {
         }
     }
     #[inline]
-    fn ref_mut_t(&mut self) -> &mut Type {
+    fn ref_mut_t(&mut self) -> Option<&mut Type> {
         if let Some(attr) = self.attr_name.as_mut() {
-            attr.ref_mut_t().mut_return_t().unwrap()
+            attr.ref_mut_t()?.mut_return_t()
         } else {
-            self.obj.ref_mut_t().mut_return_t().unwrap()
+            self.obj.ref_mut_t()?.mut_return_t()
         }
     }
     #[inline]
@@ -1391,12 +1391,12 @@ impl HasType for Call {
     #[inline]
     fn signature_mut_t(&mut self) -> Option<&mut Type> {
         if let Some(attr) = self.attr_name.as_mut() {
-            Some(attr.ref_mut_t())
+            attr.ref_mut_t()
         } else {
             if let Expr::Call(call) = self.obj.as_ref() {
                 call.return_t()?;
             }
-            Some(self.obj.ref_mut_t())
+            self.obj.ref_mut_t()
         }
     }
 }
@@ -1466,8 +1466,8 @@ impl HasType for Block {
             .unwrap_or(Type::FAILURE)
     }
     #[inline]
-    fn ref_mut_t(&mut self) -> &mut Type {
-        self.last_mut().unwrap().ref_mut_t()
+    fn ref_mut_t(&mut self) -> Option<&mut Type> {
+        self.last_mut()?.ref_mut_t()
     }
     #[inline]
     fn t(&self) -> Type {
@@ -1517,8 +1517,8 @@ impl HasType for Dummy {
         Type::FAILURE
     }
     #[inline]
-    fn ref_mut_t(&mut self) -> &mut Type {
-        todo!()
+    fn ref_mut_t(&mut self) -> Option<&mut Type> {
+        None
     }
     #[inline]
     fn t(&self) -> Type {
@@ -1583,7 +1583,7 @@ impl HasType for VarSignature {
         self.ident.ref_t()
     }
     #[inline]
-    fn ref_mut_t(&mut self) -> &mut Type {
+    fn ref_mut_t(&mut self) -> Option<&mut Type> {
         self.ident.ref_mut_t()
     }
     #[inline]
@@ -1874,7 +1874,7 @@ impl HasType for SubrSignature {
         self.ident.ref_t()
     }
     #[inline]
-    fn ref_mut_t(&mut self) -> &mut Type {
+    fn ref_mut_t(&mut self) -> Option<&mut Type> {
         self.ident.ref_mut_t()
     }
     #[inline]
@@ -2105,8 +2105,8 @@ impl HasType for Def {
         Type::NONE
     }
     #[inline]
-    fn ref_mut_t(&mut self) -> &mut Type {
-        todo!()
+    fn ref_mut_t(&mut self) -> Option<&mut Type> {
+        None
     }
     #[inline]
     fn signature_t(&self) -> Option<&Type> {
@@ -2188,8 +2188,8 @@ impl HasType for Methods {
         Type::NONE
     }
     #[inline]
-    fn ref_mut_t(&mut self) -> &mut Type {
-        todo!()
+    fn ref_mut_t(&mut self) -> Option<&mut Type> {
+        None
     }
     #[inline]
     fn signature_t(&self) -> Option<&Type> {
@@ -2242,8 +2242,8 @@ impl HasType for ClassDef {
         Type::NONE
     }
     #[inline]
-    fn ref_mut_t(&mut self) -> &mut Type {
-        todo!()
+    fn ref_mut_t(&mut self) -> Option<&mut Type> {
+        None
     }
     #[inline]
     fn signature_t(&self) -> Option<&Type> {
@@ -2312,8 +2312,8 @@ impl HasType for PatchDef {
         Type::NONE
     }
     #[inline]
-    fn ref_mut_t(&mut self) -> &mut Type {
-        todo!()
+    fn ref_mut_t(&mut self) -> Option<&mut Type> {
+        None
     }
     #[inline]
     fn signature_t(&self) -> Option<&Type> {
@@ -2368,8 +2368,8 @@ impl HasType for ReDef {
         Type::NONE
     }
     #[inline]
-    fn ref_mut_t(&mut self) -> &mut Type {
-        todo!()
+    fn ref_mut_t(&mut self) -> Option<&mut Type> {
+        None
     }
     #[inline]
     fn signature_t(&self) -> Option<&Type> {
@@ -2455,9 +2455,9 @@ impl HasType for TypeAscription {
         }
     }
     #[inline]
-    fn ref_mut_t(&mut self) -> &mut Type {
+    fn ref_mut_t(&mut self) -> Option<&mut Type> {
         if self.spec.kind().is_force_cast() {
-            &mut self.spec.spec_t
+            Some(&mut self.spec.spec_t)
         } else {
             self.expr.ref_mut_t()
         }

@@ -216,8 +216,8 @@ impl HasType for VarInfo {
         &self.t
     }
     #[inline]
-    fn ref_mut_t(&mut self) -> &mut Type {
-        &mut self.t
+    fn ref_mut_t(&mut self) -> Option<&mut Type> {
+        Some(&mut self.t)
     }
     #[inline]
     fn signature_t(&self) -> Option<&Type> {

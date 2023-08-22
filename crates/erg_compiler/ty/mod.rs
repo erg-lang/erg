@@ -31,6 +31,7 @@ use erg_common::set::Set;
 use erg_common::traits::{LimitedDisplay, Locational, StructuralEq};
 use erg_common::{enum_unwrap, fmt_option, ref_addr_eq, set, Str};
 
+use erg_parser::ast::Expr;
 use erg_parser::token::TokenKind;
 
 pub use const_subr::*;
@@ -59,8 +60,7 @@ pub trait HasType {
     // 関数呼び出しの場合、.ref_t()は戻り値を返し、signature_t()は関数全体の型を返す
     fn signature_t(&self) -> Option<&Type>;
     // 最後にHIR全体の型変数を消すために使う
-    /// `x.ref_mut_t()` may panic, in which case `x` is `Call` and `x.ref_t() == Type::Failure`.
-    fn ref_mut_t(&mut self) -> &mut Type;
+    fn ref_mut_t(&mut self) -> Option<&mut Type>;
     fn signature_mut_t(&mut self) -> Option<&mut Type>;
     #[inline]
     fn t(&self) -> Type {
@@ -89,8 +89,8 @@ macro_rules! impl_t {
                 &self.t
             }
             #[inline]
-            fn ref_mut_t(&mut self) -> &mut Type {
-                &mut self.t
+            fn ref_mut_t(&mut self) -> Option<&mut Type> {
+                Some(&mut self.t)
             }
             #[inline]
             fn signature_t(&self) -> Option<&Type> {
@@ -109,7 +109,7 @@ macro_rules! impl_t {
                 &self.$attr.ref_t()
             }
             #[inline]
-            fn ref_mut_t(&mut self) -> &mut Type {
+            fn ref_mut_t(&mut self) -> Option<&mut Type> {
                 self.$attr.ref_mut_t()
             }
             #[inline]
@@ -133,7 +133,7 @@ macro_rules! impl_t_for_enum {
                     $($Enum::$Variant(v) => v.ref_t(),)*
                 }
             }
-            fn ref_mut_t(&mut self) -> &mut Type {
+            fn ref_mut_t(&mut self) -> Option<&mut Type> {
                 match self {
                     $($Enum::$Variant(v) => v.ref_mut_t(),)*
                 }
@@ -752,80 +752,74 @@ impl ArgsOwnership {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Variable {
+pub enum CastTarget {
     Param {
         nth: usize,
         name: Str,
         loc: Location,
     },
     Var {
-        namespace: Str,
         name: Str,
         loc: Location,
     },
-    Attr {
-        receiver: Box<Variable>,
-        attr: Str,
-        loc: Location,
-    },
+    // NOTE: `Expr(Expr)` causes a bad memory access error
+    Expr(Box<Expr>),
 }
 
-impl fmt::Display for Variable {
+impl fmt::Display for CastTarget {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Param { nth, name, .. } => write!(f, "{name}#{nth}"),
             Self::Var { name, .. } => write!(f, "{name}"),
-            Self::Attr { receiver, attr, .. } => write!(f, "{receiver}.{attr}"),
+            Self::Expr(expr) => write!(f, "{expr}"),
         }
     }
 }
 
-impl Locational for Variable {
+impl Locational for CastTarget {
     fn loc(&self) -> Location {
         match self {
             Self::Param { loc, .. } => *loc,
             Self::Var { loc, .. } => *loc,
-            Self::Attr { loc, .. } => *loc,
+            Self::Expr(expr) => expr.loc(),
         }
     }
 }
 
-impl Variable {
+impl CastTarget {
     pub const fn param(nth: usize, name: Str, loc: Location) -> Self {
         Self::Param { nth, name, loc }
     }
 
-    pub fn attr(receiver: Variable, attr: Str, loc: Location) -> Self {
-        Self::Attr {
-            receiver: Box::new(receiver),
-            attr,
-            loc,
-        }
+    pub fn expr(expr: Expr) -> Self {
+        Self::Expr(Box::new(expr))
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct GuardType {
-    pub var: Variable,
+    pub namespace: Str,
+    pub target: CastTarget,
     pub to: Box<Type>,
 }
 
 impl fmt::Display for GuardType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{{{} in {}}}", self.var, self.to)
+        write!(f, "{{{} in {}}}", self.target, self.to)
     }
 }
 
 impl StructuralEq for GuardType {
     fn structural_eq(&self, other: &Self) -> bool {
-        self.var == other.var && self.to.structural_eq(&other.to)
+        self.target == other.target && self.to.structural_eq(&other.to)
     }
 }
 
 impl GuardType {
-    pub fn new(var: Variable, to: Type) -> Self {
+    pub fn new(namespace: Str, target: CastTarget, to: Type) -> Self {
         Self {
-            var,
+            namespace,
+            target,
             to: Box::new(to),
         }
     }
@@ -1359,8 +1353,8 @@ impl HasType for Type {
         self
     }
     #[inline]
-    fn ref_mut_t(&mut self) -> &mut Type {
-        self
+    fn ref_mut_t(&mut self) -> Option<&mut Type> {
+        Some(self)
     }
     fn inner_ts(&self) -> Vec<Type> {
         match self {
@@ -3107,9 +3101,11 @@ impl Type {
                 proj_call(lhs, attr_name.clone(), args)
             }
             Self::Structural(ty) => ty.derefine().structuralize(),
-            Self::Guard(guard) => {
-                Self::Guard(GuardType::new(guard.var.clone(), guard.to.derefine()))
-            }
+            Self::Guard(guard) => Self::Guard(GuardType::new(
+                guard.namespace.clone(),
+                guard.target.clone(),
+                guard.to.derefine(),
+            )),
             Self::Bounded { sub, sup } => Self::Bounded {
                 sub: Box::new(sub.derefine()),
                 sup: Box::new(sup.derefine()),
@@ -3253,7 +3249,8 @@ impl Type {
             }
             Self::Structural(ty) => ty._replace(target, to).structuralize(),
             Self::Guard(guard) => Self::Guard(GuardType::new(
-                guard.var.clone(),
+                guard.namespace,
+                guard.target.clone(),
                 guard.to._replace(target, to),
             )),
             Self::Bounded { sub, sup } => Self::Bounded {
@@ -3315,7 +3312,11 @@ impl Type {
             Self::Or(l, r) => l.normalize() | r.normalize(),
             Self::Not(ty) => !ty.normalize(),
             Self::Structural(ty) => ty.normalize().structuralize(),
-            Self::Guard(guard) => Self::Guard(GuardType::new(guard.var, guard.to.normalize())),
+            Self::Guard(guard) => Self::Guard(GuardType::new(
+                guard.namespace,
+                guard.target,
+                guard.to.normalize(),
+            )),
             Self::Bounded { sub, sup } => Self::Bounded {
                 sub: Box::new(sub.normalize()),
                 sup: Box::new(sup.normalize()),

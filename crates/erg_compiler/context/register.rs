@@ -35,7 +35,7 @@ use crate::ty::free::{Constraint, HasLevel};
 use crate::ty::typaram::TyParam;
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{
-    Field, GuardType, HasType, ParamTy, SubrType, Type, Variable, Visibility, VisibilityModifier,
+    CastTarget, Field, GuardType, HasType, ParamTy, SubrType, Type, Visibility, VisibilityModifier,
 };
 
 use crate::build_hir::HIRBuilder;
@@ -2272,49 +2272,61 @@ impl Context {
         }
     }
 
+    pub(crate) fn get_casted_type(&self, expr: &ast::Expr) -> Option<Type> {
+        for guard in self.rec_get_guards() {
+            if !self.name.starts_with(&guard.namespace[..]) {
+                continue;
+            }
+            if let CastTarget::Expr(target) = &guard.target {
+                if expr == target.as_ref() {
+                    return Some(*guard.to.clone());
+                }
+            }
+        }
+        None
+    }
+
     pub(crate) fn cast(
         &mut self,
         guard: GuardType,
         overwritten: &mut Vec<(VarName, VarInfo)>,
     ) -> TyCheckResult<()> {
-        if let Variable::Var {
-            namespace, name, ..
-        } = &guard.var
-        {
-            if !self.name.starts_with(&namespace[..]) {
-                return Ok(());
-            }
-            let vi = if let Some((name, vi)) = self.locals.remove_entry(name) {
-                overwritten.push((name, vi.clone()));
-                vi
-            } else if let Some((n, vi)) = self.get_var_kv(name) {
-                overwritten.push((n.clone(), vi.clone()));
-                vi.clone()
-            } else {
-                VarInfo::nd_parameter(
-                    *guard.to.clone(),
-                    self.absolutize(().loc()),
-                    self.name.clone(),
-                )
-            };
-            match self.recover_typarams(&vi.t, &guard) {
-                Ok(t) => {
-                    self.locals
-                        .insert(VarName::from_str(name.clone()), VarInfo { t, ..vi });
+        match &guard.target {
+            CastTarget::Var { name, .. } => {
+                if !self.name.starts_with(&guard.namespace[..]) {
+                    return Ok(());
                 }
-                Err(errs) => {
-                    self.locals.insert(VarName::from_str(name.clone()), vi);
-                    return Err(errs);
+                let vi = if let Some((name, vi)) = self.locals.remove_entry(name) {
+                    overwritten.push((name, vi.clone()));
+                    vi
+                } else if let Some((n, vi)) = self.get_var_kv(name) {
+                    overwritten.push((n.clone(), vi.clone()));
+                    vi.clone()
+                } else {
+                    VarInfo::nd_parameter(
+                        *guard.to.clone(),
+                        self.absolutize(().loc()),
+                        self.name.clone(),
+                    )
+                };
+                match self.recover_typarams(&vi.t, &guard) {
+                    Ok(t) => {
+                        self.locals
+                            .insert(VarName::from_str(name.clone()), VarInfo { t, ..vi });
+                    }
+                    Err(errs) => {
+                        self.locals.insert(VarName::from_str(name.clone()), vi);
+                        return Err(errs);
+                    }
                 }
             }
-        } /* else {
-              return Err(TyCheckErrors::from(TyCheckError::feature_error(
-                  self.cfg.input.clone(),
-                  guard.var.loc(),
-                  &format!("casting {}", guard.var),
-                  self.caused_by(),
-              )));
-          } */
+            CastTarget::Param { .. } => {
+                // TODO:
+            }
+            CastTarget::Expr(_) => {
+                self.guards.push(guard);
+            }
+        }
         Ok(())
     }
 
