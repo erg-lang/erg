@@ -5,6 +5,7 @@ use std::thread::{current, JoinHandle, ThreadId};
 use erg_common::dict::Dict;
 use erg_common::pathutil::NormalizedPathBuf;
 use erg_common::shared::Shared;
+use erg_common::spawn::safe_yield;
 
 use super::SharedModuleGraph;
 
@@ -102,6 +103,21 @@ impl SharedPromises {
             .insert(path, Promise::running(handle));
     }
 
+    pub fn remove(&self, path: &Path) {
+        self.promises.borrow_mut().remove(path);
+    }
+
+    pub fn initialize(&self) {
+        self.promises.borrow_mut().clear();
+    }
+
+    pub fn rename(&self, old: &Path, new: PathBuf) {
+        let Some(promise) = self.promises.borrow_mut().remove(old) else {
+            return;
+        };
+        self.promises.borrow_mut().insert(new.into(), promise);
+    }
+
     pub fn is_registered(&self, path: &Path) -> bool {
         self.promises.borrow().get(path).is_some()
     }
@@ -140,7 +156,7 @@ impl SharedPromises {
                     .get(path)
                     .is_some_and(|p| !p.is_finished())
                 {
-                    std::thread::yield_now();
+                    safe_yield();
                 }
                 return Ok(());
             }
@@ -152,7 +168,7 @@ impl SharedPromises {
 
     pub fn join(&self, path: &Path) -> std::thread::Result<()> {
         while let Some(Promise::Joining) | None = self.promises.borrow().get(path) {
-            std::thread::yield_now();
+            safe_yield();
         }
         let promise = self.promises.borrow_mut().get_mut(path).unwrap().take();
         self.join_checked(path, promise)

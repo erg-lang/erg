@@ -54,27 +54,37 @@ impl SharedCompilerResource {
         _self
     }
 
+    /// Clear all but builtin modules
     pub fn clear_all(&self) {
         self.mod_cache.initialize();
         self.py_mod_cache.initialize();
         self.index.initialize();
         self.graph.initialize();
-        self.trait_impls.initialize();
+        // self.trait_impls.initialize();
+        self.promises.initialize();
         self.errors.clear();
         self.warns.clear();
     }
 
+    /// Clear all information about the module. All child modules are also cleared.
     pub fn clear(&self, path: &Path) {
+        for child in self.graph.children(path) {
+            self.clear(&child);
+        }
         self.mod_cache.remove(path);
         self.py_mod_cache.remove(path);
         self.index.remove_path(path);
         self.graph.remove(path);
+        self.promises.remove(path);
+        // self.errors.remove(path);
+        // self.warns.remove(path);
     }
 
     pub fn rename_path(&self, old: &Path, new: PathBuf) {
         self.mod_cache.rename_path(old, new.clone());
         self.py_mod_cache.rename_path(old, new.clone());
         self.index.rename_path(old, new.clone());
-        self.graph.rename_path(old, new);
+        self.graph.rename_path(old, new.clone());
+        self.promises.rename(old, new);
     }
 }

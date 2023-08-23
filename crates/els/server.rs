@@ -32,19 +32,20 @@ use lsp_types::request::{
     WillRenameFiles,
 };
 use lsp_types::{
-    ClientCapabilities, CodeActionKind, CodeActionOptions, CodeActionProviderCapability,
-    CodeLensOptions, CompletionOptions, DidChangeTextDocumentParams, DidOpenTextDocumentParams,
-    ExecuteCommandOptions, HoverProviderCapability, InitializeResult, InlayHintOptions,
-    InlayHintServerCapabilities, OneOf, Position, SemanticTokenType, SemanticTokensFullOptions,
-    SemanticTokensLegend, SemanticTokensOptions, SemanticTokensServerCapabilities,
-    ServerCapabilities, SignatureHelpOptions, WorkDoneProgressOptions,
+    CodeActionKind, CodeActionOptions, CodeActionProviderCapability, CodeLensOptions,
+    CompletionOptions, ConfigurationItem, ConfigurationParams, DidChangeTextDocumentParams,
+    DidOpenTextDocumentParams, ExecuteCommandOptions, HoverProviderCapability, InitializeParams,
+    InitializeResult, InlayHintOptions, InlayHintServerCapabilities, OneOf, Position,
+    SemanticTokenType, SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions,
+    SemanticTokensServerCapabilities, ServerCapabilities, SignatureHelpOptions,
+    WorkDoneProgressOptions,
 };
 
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_json::Value;
 
-use crate::channels::{SendChannels, Sendable};
+use crate::channels::{SendChannels, Sendable, WorkerMessage};
 use crate::completion::CompletionCache;
 use crate::file_cache::FileCache;
 use crate::hir_visitor::HIRVisitor;
@@ -52,6 +53,7 @@ use crate::message::{ErrorMessage, LSPResult, LogMessage, ShowMessage};
 use crate::util::{self, NormalizedUrl};
 
 pub const HEALTH_CHECKER_ID: i64 = 10000;
+pub const ASK_AUTO_SAVE_ID: i64 = 10001;
 
 pub type ELSResult<T> = Result<T, Box<dyn std::error::Error>>;
 
@@ -312,7 +314,8 @@ pub struct Server<Checker: BuildRunnable = HIRBuilder, Parser: Parsable = Simple
     pub(crate) cfg: ErgConfig,
     pub(crate) home: PathBuf,
     pub(crate) erg_path: PathBuf,
-    pub(crate) client_capas: ClientCapabilities,
+    pub(crate) init_params: InitializeParams,
+    pub(crate) client_answers: Shared<Dict<i64, Value>>,
     pub(crate) disabled_features: Vec<DefaultFeatures>,
     pub(crate) opt_features: Vec<OptionalFeatures>,
     pub(crate) file_cache: FileCache,
@@ -332,7 +335,8 @@ impl<C: BuildRunnable, P: Parsable> Clone for Server<C, P> {
             cfg: self.cfg.clone(),
             home: self.home.clone(),
             erg_path: self.erg_path.clone(),
-            client_capas: self.client_capas.clone(),
+            init_params: self.init_params.clone(),
+            client_answers: self.client_answers.clone(),
             disabled_features: self.disabled_features.clone(),
             opt_features: self.opt_features.clone(),
             file_cache: self.file_cache.clone(),
@@ -354,7 +358,8 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             cfg,
             home: normalize_path(std::env::current_dir().unwrap_or_default()),
             erg_path: erg_path().clone(), // already normalized
-            client_capas: ClientCapabilities::default(),
+            init_params: InitializeParams::default(),
+            client_answers: Shared::new(Dict::new()),
             disabled_features: vec![],
             opt_features: vec![],
             file_cache: FileCache::new(),
@@ -390,7 +395,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         send_log("initializing ELS")?;
         // #[allow(clippy::collapsible_if)]
         if msg.get("params").is_some() && msg["params"].get("capabilities").is_some() {
-            self.client_capas = ClientCapabilities::deserialize(&msg["params"]["capabilities"])?;
+            self.init_params = InitializeParams::deserialize(&msg["params"])?;
             // send_log(format!("set client capabilities: {:?}", self.client_capas))?;
         }
         let mut args = self.cfg.runtime_args.iter();
@@ -503,7 +508,22 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         capabilities
     }
 
-    fn init_services(&mut self) {
+    pub(crate) fn ask_auto_save(&self) -> ELSResult<()> {
+        let params = ConfigurationParams {
+            items: vec![ConfigurationItem {
+                scope_uri: None,
+                section: Some("files.autoSave".to_string()),
+            }],
+        };
+        send(&json!({
+            "jsonrpc": "2.0",
+            "id": ASK_AUTO_SAVE_ID,
+            "method": "workspace/configuration",
+            "params": params,
+        }))
+    }
+
+    fn start_language_services(&mut self) {
         let (senders, receivers) = SendChannels::new();
         self.channels = Some(senders);
         self.start_service::<Completion>(receivers.completion, Self::handle_completion);
@@ -544,8 +564,12 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             receivers.execute_command,
             Self::handle_execute_command,
         );
-        self.start_auto_diagnostics();
         self.start_client_health_checker(receivers.health_check);
+    }
+
+    fn init_services(&mut self) {
+        self.start_language_services();
+        self.start_auto_diagnostics();
     }
 
     fn exit(&self) -> ELSResult<()> {
@@ -560,6 +584,17 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             "id": id,
             "result": json!(null),
         }))
+    }
+
+    #[allow(unused)]
+    pub(crate) fn restart(&mut self) {
+        self.file_cache.clear();
+        self.comp_cache.clear();
+        self.modules = ModuleCache::new();
+        self.analysis_result = AnalysisResultCache::new();
+        self.current_sig = None;
+        self.channels.as_ref().unwrap().close();
+        self.start_language_services();
     }
 
     /// Copied and modified from RLS, https://github.com/rust-lang/rls/blob/master/rls/src/server/io.rs
@@ -654,7 +689,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
 
     fn start_service<R>(
         &self,
-        receiver: mpsc::Receiver<(i64, R::Params)>,
+        receiver: mpsc::Receiver<WorkerMessage<R::Params>>,
         handler: Handler<Server<Checker, Parser>, R::Params, R::Result>,
     ) where
         R: lsp_types::request::Request + 'static,
@@ -664,8 +699,15 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         let mut _self = self.clone();
         spawn_new_thread(
             move || loop {
-                let (id, params) = receiver.recv().unwrap();
-                let _ = send(&LSPResult::new(id, handler(&mut _self, params).unwrap()));
+                let msg = receiver.recv().unwrap();
+                match msg {
+                    WorkerMessage::Request(id, params) => {
+                        let _ = send(&LSPResult::new(id, handler(&mut _self, params).unwrap()));
+                    }
+                    WorkerMessage::Kill => {
+                        break;
+                    }
+                }
             },
             fn_name!(),
         );
@@ -742,16 +784,25 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     fn handle_response(&mut self, id: i64, msg: &Value) -> ELSResult<()> {
         match id {
             HEALTH_CHECKER_ID => {
-                self.channels.as_ref().unwrap().health_check.send(())?;
+                self.channels
+                    .as_ref()
+                    .unwrap()
+                    .health_check
+                    .send(WorkerMessage::Request(0, ()))?;
             }
             _ => {
-                _log!("received a unknown response: {msg}");
-                // ignore at this time
+                _log!("msg: {msg}");
+                if msg.get("error").is_none() {
+                    self.client_answers.borrow_mut().insert(id, msg.clone());
+                }
             }
         }
         Ok(())
     }
 
+    /// TODO: Reuse cache.
+    /// Because of the difficulty of caching "transitional types" such as assert casting and mutable dependent types,
+    /// the cache is deleted after each analysis.
     pub(crate) fn get_checker(&self, path: PathBuf) -> Checker {
         if let Some(shared) = self.get_shared() {
             let shared = shared.clone();
@@ -892,9 +943,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         if let Some(module) = self.modules.remove(uri) {
             let shared = module.context.shared();
             let path = util::uri_to_path(uri);
-            shared.mod_cache.remove(&path);
-            shared.index.remove_path(&path);
-            shared.graph.remove(&path);
+            shared.clear(&path);
         }
     }
 }

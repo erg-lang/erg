@@ -19,9 +19,12 @@ use lsp_types::{
 };
 use serde_json::json;
 
+use crate::_log;
+use crate::channels::WorkerMessage;
 use crate::diff::{ASTDiff, HIRDiff};
 use crate::server::{
-    send, send_log, AnalysisResult, DefaultFeatures, ELSResult, Server, HEALTH_CHECKER_ID,
+    send, send_log, AnalysisResult, DefaultFeatures, ELSResult, Server, ASK_AUTO_SAVE_ID,
+    HEALTH_CHECKER_ID,
 };
 use crate::util::{self, NormalizedUrl};
 
@@ -43,6 +46,12 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         } else {
             "exec"
         };
+        if let Some((old, new)) = self.analysis_result.get_ast(&uri).zip(self.get_ast(&uri)) {
+            if ASTDiff::diff(old, &new).is_nop() {
+                crate::_log!("no changes: {uri}");
+                return Ok(());
+            }
+        }
         let mut checker = self.get_checker(path.clone());
         let artifact = match checker.build(code.into(), mode) {
             Ok(artifact) => {
@@ -198,7 +207,8 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         }
         let params = PublishDiagnosticsParams::new(uri, diagnostics, None);
         if self
-            .client_capas
+            .init_params
+            .capabilities
             .text_document
             .as_ref()
             .map(|doc| doc.publish_diagnostics.is_some())
@@ -223,6 +233,25 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             move || {
                 let mut file_vers = Dict::<NormalizedUrl, i32>::new();
                 loop {
+                    if _self
+                        .client_answers
+                        .borrow()
+                        .get(&ASK_AUTO_SAVE_ID)
+                        .is_none()
+                    {
+                        _self.ask_auto_save().unwrap();
+                    } else if _self
+                        .client_answers
+                        .borrow()
+                        .get(&ASK_AUTO_SAVE_ID)
+                        .is_some_and(|val| {
+                            val["result"].as_array().and_then(|a| a[0].as_str())
+                                == Some("afterDelay")
+                        })
+                    {
+                        _log!("Auto saving is enabled");
+                        break;
+                    }
                     for uri in _self.file_cache.entries() {
                         let Some(latest_ver) = _self.file_cache.get_ver(&uri) else {
                             continue;
@@ -247,8 +276,11 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
 
     /// Send an empty `workspace/configuration` request periodically.
     /// If there is no response to the request within a certain period of time, terminate the server.
-    pub fn start_client_health_checker(&self, receiver: Receiver<()>) {
+    pub fn start_client_health_checker(&self, receiver: Receiver<WorkerMessage<()>>) {
+        const INTERVAL: Duration = Duration::from_secs(5);
+        const TIMEOUT: Duration = Duration::from_secs(10);
         // let mut self_ = self.clone();
+        // FIXME: close this thread when the server is restarted
         spawn_new_thread(
             move || {
                 loop {
@@ -261,7 +293,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                         "params": params,
                     }))
                     .unwrap();
-                    sleep(Duration::from_secs(10));
+                    sleep(INTERVAL);
                 }
             },
             "start_client_health_checker_sender",
@@ -269,14 +301,20 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         spawn_new_thread(
             move || {
                 loop {
-                    match receiver.recv_timeout(Duration::from_secs(20)) {
+                    match receiver.recv_timeout(TIMEOUT) {
+                        Ok(WorkerMessage::Kill) => {
+                            break;
+                        }
                         Ok(_) => {
                             // send_log("client health check passed").unwrap();
                         }
                         Err(_) => {
-                            // send_log("client health check timed out").unwrap();
-                            lsp_log!("client health check timed out");
-                            std::process::exit(1);
+                            lsp_log!("Client health check timed out");
+                            // lsp_log!("Restart the server");
+                            // _log!("Restart the server");
+                            // send_error_info("Something went wrong, ELS has been restarted").unwrap();
+                            // self_.restart();
+                            panic!("Client health check timed out");
                         }
                     }
                 }

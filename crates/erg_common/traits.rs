@@ -254,6 +254,10 @@ pub trait Stream<T>: Sized {
     fn split_off(&mut self, at: usize) -> Vec<T> {
         self.ref_mut_payload().split_off(at)
     }
+
+    fn retain(&mut self, f: impl FnMut(&T) -> bool) {
+        self.ref_mut_payload().retain(f);
+    }
 }
 
 #[macro_export]

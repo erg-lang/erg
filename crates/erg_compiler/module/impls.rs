@@ -61,6 +61,15 @@ impl TraitImpls {
         self.cache.remove(path)
     }
 
+    pub fn rename<Q: Eq + Hash + ?Sized>(&mut self, old: &Q, new: Str)
+    where
+        Str: Borrow<Q>,
+    {
+        if let Some(impls) = self.remove(old) {
+            self.register(new, impls);
+        }
+    }
+
     pub fn initialize(&mut self) {
         self.cache.clear();
     }
@@ -121,6 +130,13 @@ impl SharedTraitImpls {
         Str: Borrow<Q>,
     {
         self.0.borrow_mut().remove(path)
+    }
+
+    pub fn rename<Q: Eq + Hash + ?Sized>(&self, old: &Q, new: Str)
+    where
+        Str: Borrow<Q>,
+    {
+        self.0.borrow_mut().rename(old, new);
     }
 
     pub fn ref_inner(&self) -> MappedRwLockReadGuard<Dict<Str, Set<TraitImpl>>> {

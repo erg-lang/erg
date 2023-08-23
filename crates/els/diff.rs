@@ -63,6 +63,10 @@ impl ASTDiff {
                 .unwrap_or(Self::Nop),
         }
     }
+
+    pub const fn is_nop(&self) -> bool {
+        matches!(self, Self::Nop)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
