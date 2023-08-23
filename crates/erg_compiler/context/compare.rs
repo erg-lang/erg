@@ -605,12 +605,10 @@ impl Context {
             (Structural(_), Refinement(refine)) => self.supertype_of(lhs, &refine.t),
             // Int :> {I: Int | ...} == true
             // Int :> {I: Str| ...} == false
-            // Eq({1, 2}) :> {1, 2} (= {I: Int | I == 1 or I == 2})
-            // => Eq(Int) :> Eq({1, 2}) :> {1, 2}
-            // => true
             // Bool :> {1} == true
             // Bool :> {2} == false
             // [2, 3]: {A: Array(Nat) | A.prod() == 6}
+            // Array({1, 2}, _) :> {[3, 4]} == false
             (l, Refinement(r)) => {
                 // Type / {S: Set(Str) | S == {"a", "b"}}
                 if let Pred::Equal { rhs, .. } = r.pred.as_ref() {
@@ -623,9 +621,11 @@ impl Context {
                 } else if self.subtype_of(l, &r.t) {
                     return false;
                 }
-                let l = l.derefine();
-                if self.supertype_of(&l, &r.t) {
-                    return true;
+                if r.t.is_monomorphic() {
+                    let l = l.derefine();
+                    if self.supertype_of(&l, &r.t) {
+                        return true;
+                    }
                 }
                 let l = Type::Refinement(l.clone().into_refinement());
                 self.structural_supertype_of(&l, rhs)
@@ -1141,6 +1141,8 @@ impl Context {
     /// union(Nat, Int) == Int
     /// union(Int, Str) == Int or Str
     /// union(?T(<: Str), ?U(<: Int)) == ?T or ?U
+    /// union(Array(Int, 2), Array(Str, 2)) == Array(Int or Str, 2)
+    /// union(Array(Int, 2), Array(Str, 3)) == Array(Int, 2) or Array(Int, 3)
     /// ```
     pub(crate) fn union(&self, lhs: &Type, rhs: &Type) -> Type {
         if lhs == rhs {
@@ -1151,6 +1153,16 @@ impl Context {
                 self.union(&fv.crack(), other)
             }
             (Refinement(l), Refinement(r)) => Type::Refinement(self.union_refinement(l, r)),
+            (Refinement(refine), other) | (other, Refinement(refine))
+                if other.qual_name() == refine.t.qual_name() =>
+            {
+                let union = self.union(other, &refine.t);
+                if union.is_union_type() {
+                    self.simple_union(lhs, rhs)
+                } else {
+                    union
+                }
+            }
             (Structural(l), Structural(r)) => self.union(l, r).structuralize(),
             // Int..Obj or Nat..Obj ==> Int..Obj
             // Str..Obj or Int..Obj ==> Str..Obj or Int..Obj
@@ -1192,6 +1204,11 @@ impl Context {
         }
     }
 
+    /// ```erg
+    /// union_tp(1, 1) => Some(1)
+    /// union_tp(1, 2) => None
+    /// union_tp(?N, 2) => Some(2) # REVIEW:
+    /// ```
     pub(crate) fn union_tp(&self, lhs: &TyParam, rhs: &TyParam) -> Option<TyParam> {
         match (lhs, rhs) {
             (TyParam::Value(ValueObj::Type(l)), TyParam::Value(ValueObj::Type(r))) => {
@@ -1214,6 +1231,17 @@ impl Context {
                     }
                 }
                 Some(TyParam::Array(tps))
+            }
+            (fv @ TyParam::FreeVar(f), other) | (other, fv @ TyParam::FreeVar(f))
+                if f.is_unbound() =>
+            {
+                let fv_t = self.get_tp_t(fv).ok()?.derefine();
+                let other_t = self.get_tp_t(other).ok()?.derefine();
+                if self.same_type_of(&fv_t, &other_t) {
+                    Some(other.clone())
+                } else {
+                    None
+                }
             }
             (_, _) => {
                 if self.eq_tp(lhs, rhs) {

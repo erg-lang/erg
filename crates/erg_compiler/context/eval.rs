@@ -95,8 +95,8 @@ fn op_to_name(op: OpKind) -> &'static str {
 
 #[derive(Debug, Default)]
 pub struct UndoableLinkedList {
-    tys: Shared<Set<Type>>,
-    tps: Shared<Set<TyParam>>,
+    tys: Shared<Vec<Type>>, // not Set
+    tps: Shared<Vec<TyParam>>,
 }
 
 impl Drop for UndoableLinkedList {
@@ -113,17 +113,17 @@ impl Drop for UndoableLinkedList {
 impl UndoableLinkedList {
     pub fn new() -> Self {
         Self {
-            tys: Shared::new(set! {}),
-            tps: Shared::new(set! {}),
+            tys: Shared::new(vec![]),
+            tps: Shared::new(vec![]),
         }
     }
 
     pub fn push_t(&self, t: &Type) {
-        self.tys.borrow_mut().insert(t.clone());
+        self.tys.borrow_mut().push(t.clone());
     }
 
     pub fn push_tp(&self, tp: &TyParam) {
-        self.tps.borrow_mut().insert(tp.clone());
+        self.tps.borrow_mut().push(tp.clone());
     }
 }
 
@@ -152,7 +152,6 @@ impl<'c> Substituter<'c> {
     /// qt: Iterable(T), st: Array(Int, 3)
     /// qt: Array(T, N), st: Array!(Int, 3) # TODO
     /// ```
-    /// use `undo_substitute_typarams` after executing this method
     pub(crate) fn substitute_typarams(
         ctx: &'c Context,
         qt: &Type,
