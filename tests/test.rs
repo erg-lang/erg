@@ -264,6 +264,11 @@ fn exec_self_type() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_slice() -> Result<(), ()> {
+    expect_success("tests/should_ok/slice.er", 0)
+}
+
+#[test]
 fn exec_structural_example() -> Result<(), ()> {
     expect_success("examples/structural.er", 0)
 }

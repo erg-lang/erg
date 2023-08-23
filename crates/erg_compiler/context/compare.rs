@@ -630,7 +630,13 @@ impl Context {
                 let l = Type::Refinement(l.clone().into_refinement());
                 self.structural_supertype_of(&l, rhs)
             }
-            // ({I: Int | True} :> Int) == true, ({N: Nat | ...} :> Int) == false, ({I: Int | I >= 0} :> Int) == false
+            // {1, 2, 3} :> {1} or {2, 3} == true
+            (Refinement(_refine), Or(l, r)) => {
+                self.supertype_of(lhs, l) && self.supertype_of(lhs, r)
+            }
+            // ({I: Int | True} :> Int) == true
+            // {N: Nat | ...} :> Int) == false
+            // ({I: Int | I >= 0} :> Int) == false
             (Refinement(l), r) => {
                 if l.pred.mentions(&l.var) {
                     match l.pred.can_be_false() {
