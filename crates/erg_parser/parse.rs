@@ -3470,18 +3470,26 @@ impl Parser {
                 .try_reduce_call_or_acc(false)
                 .map_err(|_| self.stack_dec(fn_name!()))?;
             let Expr::Call(mut call) = expect_call else {
-                    let caused_by = caused_by!();
-                    log!(err "error caused by: {caused_by}");
-                let err = self.get_stream_op_syntax_error(line!() as usize, expect_call.loc(), caused_by!());
+                let caused_by = caused_by!();
+                log!(err "error caused by: {caused_by}");
+                let err = self.get_stream_op_syntax_error(
+                    line!() as usize,
+                    expect_call.loc(),
+                    caused_by!(),
+                );
                 self.errs.push(err);
                 debug_exit_info!(self);
                 return Err(());
             };
             let ExprOrOp::Expr(first_arg) = stack.pop().unwrap() else {
-                    let caused_by = caused_by!();
-                    log!(err "error caused by: {caused_by}");
-                self.errs
-                    .push(ParseError::compiler_bug(line!() as usize, call.loc(), fn_name!(), line!()));
+                let caused_by = caused_by!();
+                log!(err "error caused by: {caused_by}");
+                self.errs.push(ParseError::compiler_bug(
+                    line!() as usize,
+                    call.loc(),
+                    fn_name!(),
+                    line!(),
+                ));
                 debug_exit_info!(self);
                 return Err(());
             };

@@ -130,7 +130,7 @@ impl SharedPromises {
     }
 
     fn join_checked(&self, path: &Path, promise: Promise) -> std::thread::Result<()> {
-        let Promise::Running{ handle, parent } = promise else {
+        let Promise::Running { handle, parent } = promise else {
             return Ok(());
         };
         if self.graph.ancestors(path).contains(&self.path) || handle.thread().id() == current().id()

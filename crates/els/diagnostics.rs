@@ -75,7 +75,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     .errors
                     .clone()
                     .into_iter()
-                    .chain(artifact.warns.clone().into_iter())
+                    .chain(artifact.warns.clone())
                     .collect();
                 let uri_and_diags = self.make_uri_and_diags(diags);
                 if uri_and_diags.is_empty() {

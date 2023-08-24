@@ -558,7 +558,7 @@ impl SubrType {
     pub fn param_names(&self) -> impl Iterator<Item = &str> + Clone {
         self.non_default_params
             .iter()
-            .chain(self.var_params.as_deref().into_iter())
+            .chain(self.var_params.as_deref())
             .chain(self.default_params.iter())
             .map(|pt| pt.name().map_or("_", |s| &s[..]))
     }
@@ -1371,14 +1371,9 @@ impl HasType for Type {
                 .default_params
                 .iter()
                 .map(|pt| pt.typ().clone())
-                .chain(
-                    sub.var_params
-                        .as_deref()
-                        .map(|pt| pt.typ().clone())
-                        .into_iter(),
-                )
+                .chain(sub.var_params.as_deref().map(|pt| pt.typ().clone()))
                 .chain(sub.non_default_params.iter().map(|pt| pt.typ().clone()))
-                .chain([*sub.return_t.clone()].into_iter())
+                .chain([*sub.return_t.clone()])
                 .collect(),
             Self::Callable { param_ts, .. } => param_ts.clone(),
             Self::Poly { params, .. } => params.iter().filter_map(get_t_from_tp).collect(),

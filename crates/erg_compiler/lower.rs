@@ -1754,7 +1754,11 @@ impl ASTLowerer {
                 &class,
             )));
         };
-        let Some(class_type) = self.module.context.rec_get_const_obj(hir_def.sig.ident().inspect()) else {
+        let Some(class_type) = self
+            .module
+            .context
+            .rec_get_const_obj(hir_def.sig.ident().inspect())
+        else {
             return unreachable_error!(LowerErrors, LowerError, self);
         };
         let ValueObj::Type(TypeObj::Generated(type_obj)) = class_type else {
@@ -1766,7 +1770,10 @@ impl ASTLowerer {
         if let Some(sup_type) = call.args.get_left_or_key("Super") {
             Self::check_inheritable(&self.cfg, &mut self.errs, type_obj, sup_type, &hir_def.sig);
         }
-        let Some(__new__) = class_ctx.get_current_scope_var(&VarName::from_static("__new__")).or(class_ctx.get_current_scope_var(&VarName::from_static("__call__"))) else {
+        let Some(__new__) = class_ctx
+            .get_current_scope_var(&VarName::from_static("__new__"))
+            .or(class_ctx.get_current_scope_var(&VarName::from_static("__call__")))
+        else {
             return unreachable_error!(LowerErrors, LowerError, self);
         };
         let need_to_gen_new = class_ctx
@@ -2180,13 +2187,10 @@ impl ASTLowerer {
 
     fn check_collision_and_push(&mut self, class: Type, impl_trait: Option<Type>) {
         let methods = self.module.context.pop();
-        let Some((_, class_root)) = self
-            .module
-            .context
-            .get_mut_nominal_type_ctx(&class) else {
-                log!(err "{class} not found");
-                return;
-            };
+        let Some((_, class_root)) = self.module.context.get_mut_nominal_type_ctx(&class) else {
+            log!(err "{class} not found");
+            return;
+        };
         for (newly_defined_name, vi) in methods.locals.clone().into_iter() {
             for (_, already_defined_methods) in class_root.methods_list.iter_mut() {
                 // TODO: 特殊化なら同じ名前でもOK
@@ -2222,7 +2226,9 @@ impl ASTLowerer {
 
     fn push_patch(&mut self) {
         let methods = self.module.context.pop();
-        let ContextKind::PatchMethodDefs(base) = &methods.kind else { unreachable!() };
+        let ContextKind::PatchMethodDefs(base) = &methods.kind else {
+            unreachable!()
+        };
         let patch_name = *methods.name.split_with(&["::", "."]).last().unwrap();
         let patch_root = self
             .module

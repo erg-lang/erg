@@ -909,7 +909,9 @@ impl Context {
                 } else if ctx.kind.is_type() && !ctx.params.is_empty() {
                     Ok(TyParam::t(poly(ctx.name.clone(), args)))
                 } else {
-                    let ast::ConstExpr::Accessor(ast::ConstAccessor::Local(ident)) = app.obj.as_ref() else {
+                    let ast::ConstExpr::Accessor(ast::ConstAccessor::Local(ident)) =
+                        app.obj.as_ref()
+                    else {
                         return type_feature_error!(self, app.loc(), "instantiating const callee");
                     };
                     Ok(TyParam::app(ident.inspect().clone(), args))
@@ -1095,7 +1097,7 @@ impl Context {
                         self,
                         bin.loc(),
                         &format!("instantiating const expression {bin}")
-                    )
+                    );
                 };
                 let lhs = self.instantiate_const_expr(
                     &bin.lhs,
@@ -1117,7 +1119,7 @@ impl Context {
                         self,
                         unary.loc(),
                         &format!("instantiating const expression {unary}")
-                    )
+                    );
                 };
                 let val = self.instantiate_const_expr(
                     &unary.expr,

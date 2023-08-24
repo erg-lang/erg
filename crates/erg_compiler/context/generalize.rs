@@ -858,7 +858,9 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
     //     ?T -> K(?T)
     //     ?T -> ?U(:> ?T)
     fn eliminate_needless_quant(&mut self, subr: Type) -> TyCheckResult<Type> {
-        let Ok(mut subr) = SubrType::try_from(subr) else { unreachable!() };
+        let Ok(mut subr) = SubrType::try_from(subr) else {
+            unreachable!()
+        };
         let essential_qnames = subr.essential_qnames();
         let mut _self = Dereferencer::new(
             self.ctx,
@@ -1227,7 +1229,9 @@ impl Context {
             hir::Expr::Def(def) => {
                 let qnames = if let Type::Quantified(quant) = def.sig.ref_t() {
                     // double quantification is not allowed
-                    let Ok(subr) = <&SubrType>::try_from(quant.as_ref()) else { unreachable!() };
+                    let Ok(subr) = <&SubrType>::try_from(quant.as_ref()) else {
+                        unreachable!()
+                    };
                     subr.essential_qnames()
                 } else {
                     qnames.clone()
@@ -1245,7 +1249,9 @@ impl Context {
             }
             hir::Expr::Lambda(lambda) => {
                 let qnames = if let Type::Quantified(quant) = lambda.ref_t() {
-                    let Ok(subr) = <&SubrType>::try_from(quant.as_ref()) else { unreachable!() };
+                    let Ok(subr) = <&SubrType>::try_from(quant.as_ref()) else {
+                        unreachable!()
+                    };
                     subr.essential_qnames()
                 } else {
                     qnames.clone()

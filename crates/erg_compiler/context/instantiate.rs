@@ -203,7 +203,9 @@ impl TyVarCache {
         // T<inst> is uninitialized
         // T<inst>.link(T<tv>);
         // T <: Eq(T <: Eq(T <: ...))
-        let Type::FreeVar(free_inst) = inst else { todo!("{inst}") };
+        let Type::FreeVar(free_inst) = inst else {
+            todo!("{inst}")
+        };
         if free_inst.constraint_is_uninited() {
             inst.destructive_link(tv);
         } else {
@@ -279,7 +281,9 @@ impl TyVarCache {
             inst.destructive_link(tp);
         } else {
             let old_type = free_inst.get_type().unwrap();
-            let Ok(tv) = <&FreeTyParam>::try_from(tp) else { todo!("{tp}") };
+            let Ok(tv) = <&FreeTyParam>::try_from(tp) else {
+                todo!("{tp}")
+            };
             let new_type = tv.get_type().unwrap();
             let new_constraint = Constraint::new_type_of(ctx.intersection(&old_type, &new_type));
             free_inst.update_constraint(new_constraint, true);

@@ -205,7 +205,9 @@ impl ASTLowerer {
         match chunk {
             Expr::Lit(lit) if lit.is_doc_comment() => {
                 let first_line = lit.ln_begin().unwrap_or(1);
-                let ValueObj::Str(content) = &lit.value else { return; };
+                let ValueObj::Str(content) = &lit.value else {
+                    return;
+                };
                 if content.starts_with("erg\n") {
                     let code = content.trim_start_matches("erg\n");
                     let indent = code.chars().take_while(|c| c.is_whitespace()).count();

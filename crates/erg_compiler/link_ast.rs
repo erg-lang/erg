@@ -137,7 +137,7 @@ impl ASTLinker {
                             decl.expr.loc(),
                             "".into(),
                             "".into(),
-                            None
+                            None,
                         ));
                         continue;
                     };

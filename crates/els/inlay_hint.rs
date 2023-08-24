@@ -146,7 +146,8 @@ impl<'s, C: BuildRunnable, P: Parsable> InlayHintGenerator<'s, C, P> {
             if d_param.sig.raw.t_spec.is_some() {
                 continue;
             }
-            let (Some(ln_end), Some(col_end)) = (d_param.sig.ln_end(), d_param.sig.col_end()) else {
+            let (Some(ln_end), Some(col_end)) = (d_param.sig.ln_end(), d_param.sig.col_end())
+            else {
                 continue;
             };
             let hint = self.type_anot(ln_end, col_end, &d_param.sig.vi.t, false);
@@ -158,7 +159,9 @@ impl<'s, C: BuildRunnable, P: Parsable> InlayHintGenerator<'s, C, P> {
     fn get_subr_def_hint(&self, def: &Def) -> Vec<InlayHint> {
         let mut result = vec![];
         result.extend(self.get_block_hint(&def.body.block));
-        let Signature::Subr(subr) = &def.sig else { unreachable!() };
+        let Signature::Subr(subr) = &def.sig else {
+            unreachable!()
+        };
         if subr.ref_t().is_quantified_subr() && subr.bounds.is_empty() {
             let subr = subr.ref_t().to_string();
             let ty_bounds = format!("|{}|", subr.split('|').nth(1).unwrap_or(""));
@@ -259,7 +262,8 @@ impl<'s, C: BuildRunnable, P: Parsable> InlayHintGenerator<'s, C, P> {
                 if disp_arg.trim_start_matches("::") == &name[..] {
                     continue;
                 }
-                let (Some(ln_begin), Some(col_begin)) = (pos_arg.ln_begin(), pos_arg.col_begin()) else {
+                let (Some(ln_begin), Some(col_begin)) = (pos_arg.ln_begin(), pos_arg.col_begin())
+                else {
                     continue;
                 };
                 // f i -> ...

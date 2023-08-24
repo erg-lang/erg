@@ -950,7 +950,9 @@ impl Context {
     /// HACK: The constant expression evaluator can evaluate attributes when the type of the receiver is known.
     /// import/pyimport is not a constant function, but specially assumes that the type of the module is known in the eval phase.
     fn pre_import(&mut self, def: &ast::Def) -> TyCheckResult<()> {
-        let Some(ast::Expr::Call(call)) = def.body.block.first() else { unreachable!() };
+        let Some(ast::Expr::Call(call)) = def.body.block.first() else {
+            unreachable!()
+        };
         let Some(ast::Expr::Literal(mod_name)) = call.args.get_left_or_key("Path") else {
             return Ok(());
         };
@@ -974,7 +976,9 @@ impl Context {
                 params: vec![arg],
             }
         };
-        let Some(ident) = def.sig.ident() else { return res };
+        let Some(ident) = def.sig.ident() else {
+            return res;
+        };
         let Some((_, vi)) = self.get_var_info(ident.inspect()) else {
             return res;
         };
@@ -1453,7 +1457,13 @@ impl Context {
                         2,
                         self.level,
                     );
-                    let Some(TypeObj::Builtin{ t: Type::Record(req), .. }) = gen.base_or_sup() else { todo!("{gen}") };
+                    let Some(TypeObj::Builtin {
+                        t: Type::Record(req),
+                        ..
+                    }) = gen.base_or_sup()
+                    else {
+                        todo!("{gen}")
+                    };
                     self.register_instance_attrs(&mut ctx, req)?;
                     self.register_gen_mono_type(ident, gen, ctx, Const)
                 } else {
@@ -1509,7 +1519,9 @@ impl Context {
             }
             GenTypeObj::Patch(_) => {
                 if gen.typ().is_monomorphic() {
-                    let Some(TypeObj::Builtin{ t: base, .. }) = gen.base_or_sup() else { todo!("{gen}") };
+                    let Some(TypeObj::Builtin { t: base, .. }) = gen.base_or_sup() else {
+                        todo!("{gen}")
+                    };
                     let ctx = Self::mono_patch(
                         gen.typ().qual_name(),
                         base.clone(),
@@ -1829,7 +1841,11 @@ impl Context {
         mod_name: &Literal,
     ) -> CompileResult<PathBuf> {
         let ValueObj::Str(__name__) = &mod_name.value else {
-            let name = if kind.is_erg_import() { "import" } else { "pyimport" };
+            let name = if kind.is_erg_import() {
+                "import"
+            } else {
+                "pyimport"
+            };
             return Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
                 self.cfg.input.clone(),
                 line!() as usize,

@@ -667,7 +667,9 @@ impl PyScriptGenerator {
             Some("for" | "for!") => {
                 let mut code = "for ".to_string();
                 let iter = call.args.remove(0);
-                let Expr::Lambda(block) = call.args.remove(0) else { todo!() };
+                let Expr::Lambda(block) = call.args.remove(0) else {
+                    todo!()
+                };
                 let non_default = block.params.non_defaults.get(0).unwrap();
                 let param = match &non_default.raw.pat {
                     ParamPattern::VarName(name) => name.token(),
@@ -682,7 +684,9 @@ impl PyScriptGenerator {
             Some("while" | "while!") => {
                 let mut code = "while ".to_string();
                 let cond = call.args.remove(0);
-                let Expr::Lambda(block) = call.args.remove(0) else { todo!() };
+                let Expr::Lambda(block) = call.args.remove(0) else {
+                    todo!()
+                };
                 code += &format!("{}:\n", self.transpile_expr(cond));
                 code += &self.transpile_block(block.body, Discard);
                 code
@@ -694,7 +698,9 @@ impl PyScriptGenerator {
 
     fn transpile_if(&mut self, mut call: Call) -> String {
         let cond = self.transpile_expr(call.args.remove(0));
-        let Expr::Lambda(mut then_block) = call.args.remove(0) else { todo!() };
+        let Expr::Lambda(mut then_block) = call.args.remove(0) else {
+            todo!()
+        };
         let else_block = call.args.try_remove(0).map(|ex| {
             if let Expr::Lambda(blk) = ex {
                 blk

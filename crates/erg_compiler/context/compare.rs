@@ -98,8 +98,12 @@ impl Context {
                 return self.same_type_of(l.as_ref(), r.typ());
             }
             (l, r) if l.has_unbound_var() || r.has_unbound_var() => {
-                let Ok(lt) = self.get_tp_t(l) else { return false; };
-                let Ok(rt) = self.get_tp_t(r) else { return false };
+                let Ok(lt) = self.get_tp_t(l) else {
+                    return false;
+                };
+                let Ok(rt) = self.get_tp_t(r) else {
+                    return false;
+                };
                 return self.same_type_of(&lt, &rt);
             }
             _ => {}
@@ -796,7 +800,7 @@ impl Context {
                 };
                 ctx.type_dir(self)
                     .into_iter()
-                    .chain(mod_fields.into_iter())
+                    .chain(mod_fields)
                     .map(|(name, vi)| {
                         (
                             Field::new(vi.vis.modifier.clone(), name.inspect().clone()),

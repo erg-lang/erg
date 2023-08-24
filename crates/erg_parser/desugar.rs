@@ -149,7 +149,9 @@ impl Desugarer {
             },
             Expr::DataPack(pack) => {
                 let class = desugar(*pack.class);
-                let Expr::Record(args) = desugar(Expr::Record(pack.args)) else { unreachable!() };
+                let Expr::Record(args) = desugar(Expr::Record(pack.args)) else {
+                    unreachable!()
+                };
                 Expr::DataPack(DataPack::new(class, pack.connector, args))
             }
             Expr::Array(array) => match array {
@@ -273,7 +275,9 @@ impl Desugarer {
                 Expr::Def(Def::new(def.sig, body))
             }
             Expr::ClassDef(class_def) => {
-                let Expr::Def(def) = desugar(Expr::Def(class_def.def)) else { unreachable!() };
+                let Expr::Def(def) = desugar(Expr::Def(class_def.def)) else {
+                    unreachable!()
+                };
                 let methods = class_def
                     .methods_list
                     .into_iter()
@@ -282,7 +286,9 @@ impl Desugarer {
                 Expr::ClassDef(ClassDef::new(def, methods))
             }
             Expr::PatchDef(class_def) => {
-                let Expr::Def(def) = desugar(Expr::Def(class_def.def)) else { unreachable!() };
+                let Expr::Def(def) = desugar(Expr::Def(class_def.def)) else {
+                    unreachable!()
+                };
                 let methods = class_def
                     .methods_list
                     .into_iter()
@@ -401,7 +407,9 @@ impl Desugarer {
                     if let Some(Expr::Def(previous)) = new.last() {
                         if previous.is_subr() && previous.sig.name_as_str() == def.sig.name_as_str()
                         {
-                            let Some(Expr::Def(previous)) = new.pop() else { unreachable!() };
+                            let Some(Expr::Def(previous)) = new.pop() else {
+                                unreachable!()
+                            };
                             let name = def.sig.ident().unwrap().clone();
                             let id = def.body.id;
                             let op = def.body.op.clone();
@@ -479,8 +487,12 @@ impl Desugarer {
 
     fn add_arg_to_match_call(&self, mut previous: Def, def: Def) -> (Call, Option<TypeSpecWithOp>) {
         let op = Token::from_str(TokenKind::FuncArrow, "->");
-        let Expr::Call(mut call) = previous.body.block.remove(0) else { unreachable!() };
-        let Signature::Subr(sig) = def.sig else { unreachable!() };
+        let Expr::Call(mut call) = previous.body.block.remove(0) else {
+            unreachable!()
+        };
+        let Signature::Subr(sig) = def.sig else {
+            unreachable!()
+        };
         let return_t_spec = sig.return_t_spec;
         let first_arg = sig.params.non_defaults.first().unwrap();
         // 最後の定義の引数名を関数全体の引数名にする
@@ -509,7 +521,9 @@ impl Desugarer {
     // TODO: procedural match
     fn gen_match_call(&self, previous: Def, def: Def) -> (Call, Option<TypeSpecWithOp>) {
         let op = Token::from_str(TokenKind::FuncArrow, "->");
-        let Signature::Subr(prev_sig) = previous.sig else { unreachable!() };
+        let Signature::Subr(prev_sig) = previous.sig else {
+            unreachable!()
+        };
         let params_len = prev_sig.params.len();
         let params = if params_len == 1 {
             prev_sig.params
@@ -520,7 +534,9 @@ impl Desugarer {
         let match_symbol = Expr::static_local("match");
         let sig = LambdaSignature::new(params, prev_sig.return_t_spec, prev_sig.bounds);
         let first_branch = Lambda::new(sig, op.clone(), previous.body.block, previous.body.id);
-        let Signature::Subr(sig) = def.sig else { unreachable!() };
+        let Signature::Subr(sig) = def.sig else {
+            unreachable!()
+        };
         let params = if sig.params.len() == 1 {
             sig.params
         } else {
@@ -588,10 +604,13 @@ impl Desugarer {
     }
 
     fn desugar_pattern_in_module(&mut self, module: Module) -> Module {
+        // https://github.com/rust-lang/rust-clippy/issues/11300
+        #[allow(clippy::useless_conversion)]
         Module::new(self.desugar_pattern(module.into_iter()))
     }
 
     fn desugar_pattern_in_block(&mut self, block: Block) -> Block {
+        #[allow(clippy::useless_conversion)]
         Block::new(self.desugar_pattern(block.into_iter()))
     }
 

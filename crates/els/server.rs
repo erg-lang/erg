@@ -863,7 +863,9 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             .and_then(|p| p.parent().unwrap().read_dir().map_err(|_| ()))
         {
             for neighbor in dir {
-                let Ok(neighbor) = neighbor else { continue; };
+                let Ok(neighbor) = neighbor else {
+                    continue;
+                };
                 let uri = NormalizedUrl::from_file_path(neighbor.path()).unwrap();
                 if let Some(mod_ctx) = &self.modules.get(&uri) {
                     ctxs.push(&mod_ctx.context);

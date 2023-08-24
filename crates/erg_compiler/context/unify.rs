@@ -1129,7 +1129,9 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 self.sub_unify(&sub_subr.return_t, &sup_subr.return_t)?;
             }
             (Quantified(sub_subr), Subr(sup_subr)) => {
-                let Ok(sub_subr) = <&SubrType>::try_from(sub_subr.as_ref()) else { unreachable!() };
+                let Ok(sub_subr) = <&SubrType>::try_from(sub_subr.as_ref()) else {
+                    unreachable!()
+                };
                 sub_subr
                     .non_default_params
                     .iter()
@@ -1164,7 +1166,9 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 }
             }
             (Subr(sub_subr), Quantified(sup_subr)) => {
-                let Ok(sup_subr) = <&SubrType>::try_from(sup_subr.as_ref()) else { unreachable!() };
+                let Ok(sup_subr) = <&SubrType>::try_from(sup_subr.as_ref()) else {
+                    unreachable!()
+                };
                 sub_subr
                     .non_default_params
                     .iter()
@@ -1447,7 +1451,6 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
             (Type::Refinement(lhs), Type::Refinement(rhs)) => {
                 if let Some(_union) = self.unify(&lhs.t, &rhs.t) {
                     return Some(self.ctx.union_refinement(lhs, rhs).into());
-                } else {
                 }
             }
             _ => {}

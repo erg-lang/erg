@@ -39,7 +39,7 @@ pub fn consts_into_bytes(consts: Vec<ValueObj>, python_ver: PythonVersion) -> Ve
 
 pub fn jump_abs_addr(minor_ver: u8, op: u8, idx: usize, arg: usize) -> usize {
     match minor_ver {
-        7 | 8 | 9 => jump_abs_addr_309(Opcode309::from(op), idx, arg),
+        7..=9 => jump_abs_addr_309(Opcode309::from(op), idx, arg),
         10 => jump_abs_addr_310(Opcode310::from(op), idx, arg),
         11 => jump_abs_addr_311(Opcode311::from(op), idx, arg),
         n => todo!("unsupported version: {n}"),

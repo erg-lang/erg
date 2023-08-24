@@ -90,7 +90,9 @@ fn escape_name(name: &str, vis: &VisibilityModifier, def_line: u32, def_col: u32
 fn escape_ident(ident: Identifier) -> Str {
     let vis = ident.vis();
     if &ident.inspect()[..] == "Self" {
-        let Ok(ty) = <&Type>::try_from(ident.vi.t.singleton_value().unwrap()) else { unreachable!() };
+        let Ok(ty) = <&Type>::try_from(ident.vi.t.singleton_value().unwrap()) else {
+            unreachable!()
+        };
         escape_name(
             &ty.local_name(),
             &ident.vi.vis.modifier,
@@ -1098,7 +1100,9 @@ impl PyCodeGenerator {
     fn emit_trait_block(&mut self, kind: DefKind, sig: &Signature, mut block: Block) -> CodeObj {
         debug_assert_eq!(kind, DefKind::Trait);
         let name = sig.ident().inspect().clone();
-        let Expr::Call(mut trait_call) = block.remove(0) else { unreachable!() };
+        let Expr::Call(mut trait_call) = block.remove(0) else {
+            unreachable!()
+        };
         let req = if let Some(Expr::Record(req)) = trait_call.args.remove_left_or_key("Requirement")
         {
             req.attrs.into_iter()
@@ -1770,7 +1774,7 @@ impl PyCodeGenerator {
             // else block
             let idx_else_begin = match self.py_version.minor {
                 Some(11) => self.lasti() - idx_pop_jump_if_false - 2,
-                Some(10 | 9 | 8 | 7) => self.lasti() + 2,
+                Some(7..=10) => self.lasti() + 2,
                 _ => self.lasti() + 2,
             };
             self.fill_jump(idx_pop_jump_if_false + 1, idx_else_begin - 2);
@@ -1830,7 +1834,9 @@ impl PyCodeGenerator {
         // but after executing this instruction, stack_len should be 1
         // cannot detect where to jump to at this moment, so put as 0
         self.write_arg(0);
-        let Expr::Lambda(lambda) = args.remove(0) else { unreachable!() };
+        let Expr::Lambda(lambda) = args.remove(0) else {
+            unreachable!()
+        };
         // If there is nothing on the stack at the start, init_stack_len == 2 (an iterator and the first iterator value)
         let init_stack_len = self.stack_len();
         let params = self.gen_param_names(&lambda.params);
@@ -1849,7 +1855,7 @@ impl PyCodeGenerator {
                 self.write_arg(0);
                 self.fill_jump(idx + 1, self.lasti() - idx_for_iter);
             }
-            Some(10 | 9 | 8 | 7) => {
+            Some(7..=10) => {
                 self.write_instr(Opcode309::JUMP_ABSOLUTE);
                 self.write_arg(0);
                 self.fill_jump(idx + 1, idx_for_iter);
@@ -1884,7 +1890,9 @@ impl PyCodeGenerator {
         self.write_instr(Opcode310::POP_JUMP_IF_FALSE);
         self.write_arg(0);
         self.stack_dec();
-        let Expr::Lambda(lambda) = args.remove(0) else { unreachable!() };
+        let Expr::Lambda(lambda) = args.remove(0) else {
+            unreachable!()
+        };
         let init_stack_len = self.stack_len();
         let params = self.gen_param_names(&lambda.params);
         self.emit_frameless_block(lambda.body, params);
@@ -1929,7 +1937,9 @@ impl PyCodeGenerator {
                 self.dup_top();
             }
             // compilerで型チェック済み(可読性が下がるため、matchでNamedは使えない)
-            let Expr::Lambda(mut lambda) = expr else { unreachable!() };
+            let Expr::Lambda(mut lambda) = expr else {
+                unreachable!()
+            };
             debug_power_assert!(lambda.params.len(), ==, 1);
             if !lambda.params.defaults.is_empty() {
                 todo!("default values in match expression are not supported yet")
@@ -2084,7 +2094,9 @@ impl PyCodeGenerator {
             return self.deopt_instr(ControlKind::With, args);
         }
         let expr = args.remove(0);
-        let Expr::Lambda(lambda) = args.remove(0) else { unreachable!() };
+        let Expr::Lambda(lambda) = args.remove(0) else {
+            unreachable!()
+        };
         let params = self.gen_param_names(&lambda.params);
         self.emit_expr(expr);
         self.write_instr(Opcode311::BEFORE_WITH);
@@ -2132,7 +2144,9 @@ impl PyCodeGenerator {
             return self.deopt_instr(ControlKind::With, args);
         }
         let expr = args.remove(0);
-        let Expr::Lambda(lambda) = args.remove(0) else { unreachable!() };
+        let Expr::Lambda(lambda) = args.remove(0) else {
+            unreachable!()
+        };
         let params = self.gen_param_names(&lambda.params);
         self.emit_expr(expr);
         let idx_setup_with = self.lasti();
@@ -2185,7 +2199,9 @@ impl PyCodeGenerator {
             return self.deopt_instr(ControlKind::With, args);
         }
         let expr = args.remove(0);
-        let Expr::Lambda(lambda) = args.remove(0) else { unreachable!() };
+        let Expr::Lambda(lambda) = args.remove(0) else {
+            unreachable!()
+        };
         let params = self.gen_param_names(&lambda.params);
         self.emit_expr(expr);
         let idx_setup_with = self.lasti();
@@ -2238,7 +2254,9 @@ impl PyCodeGenerator {
             return self.deopt_instr(ControlKind::With, args);
         }
         let expr = args.remove(0);
-        let Expr::Lambda(lambda) = args.remove(0) else { unreachable!() };
+        let Expr::Lambda(lambda) = args.remove(0) else {
+            unreachable!()
+        };
         let params = self.gen_param_names(&lambda.params);
         self.emit_expr(expr);
         let idx_setup_with = self.lasti();
@@ -2270,7 +2288,9 @@ impl PyCodeGenerator {
             return self.deopt_instr(ControlKind::With, args);
         }
         let expr = args.remove(0);
-        let Expr::Lambda(lambda) = args.remove(0) else { unreachable!() };
+        let Expr::Lambda(lambda) = args.remove(0) else {
+            unreachable!()
+        };
         let params = self.gen_param_names(&lambda.params);
         self.emit_expr(expr);
         let idx_setup_with = self.lasti();
@@ -2485,7 +2505,9 @@ impl PyCodeGenerator {
     /// TODO: should be `X = X + 1` in the above case
     fn emit_call_update_311(&mut self, obj: Expr, mut args: Args) {
         log!(info "entered {}", fn_name!());
-        let Expr::Accessor(acc) = obj else { unreachable!() };
+        let Expr::Accessor(acc) = obj else {
+            unreachable!()
+        };
         let func = args.remove_left_or_key("f").unwrap();
         if !self.mutate_op_loaded {
             self.load_mutate_op();
@@ -2510,7 +2532,9 @@ impl PyCodeGenerator {
     /// X = X + 1
     fn emit_call_update_310(&mut self, obj: Expr, mut args: Args) {
         log!(info "entered {}", fn_name!());
-        let Expr::Accessor(acc) = obj else { unreachable!() };
+        let Expr::Accessor(acc) = obj else {
+            unreachable!()
+        };
         let func = args.remove_left_or_key("f").unwrap();
         if !self.mutate_op_loaded {
             self.load_mutate_op();

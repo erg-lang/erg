@@ -562,7 +562,10 @@ pub fn opt_which_python() -> Result<String, String> {
         return Err(format!("{}: {python} not found", fn_name_full!()));
     };
     let Ok(res) = String::from_utf8(out.stdout) else {
-        return Err(format!("{}: failed to commnunicate with Python", fn_name_full!()));
+        return Err(format!(
+            "{}: failed to commnunicate with Python",
+            fn_name_full!()
+        ));
     };
     let res = res.split('\n').next().unwrap_or("").replace('\r', "");
     if res.is_empty() {

@@ -426,11 +426,10 @@ impl Context {
             .skip(1)
             .map(|a| ParamTy::Pos(a.expr.ref_t().clone()))
             .collect::<Vec<_>>();
-        let Some(mut return_t) = branch_ts.get(0).and_then(|branch| {
-            branch.typ()
-                .return_t()
-                .cloned()
-        }) else {
+        let Some(mut return_t) = branch_ts
+            .get(0)
+            .and_then(|branch| branch.typ().return_t().cloned())
+        else {
             return Err(TyCheckErrors::from(TyCheckError::args_missing_error(
                 self.cfg.input.clone(),
                 line!() as usize,
@@ -926,12 +925,16 @@ impl Context {
             for ty in intersecs.iter() {
                 match (ty.is_method(), input_t.is_method()) {
                     (true, false) => {
-                        let Type::Subr(sub) = &mut input_t else { unreachable!() };
+                        let Type::Subr(sub) = &mut input_t else {
+                            unreachable!()
+                        };
                         sub.non_default_params
                             .insert(0, ParamTy::kw(Str::ever("self"), obj.t()));
                     }
                     (false, true) => {
-                        let Type::Subr(sub) = &mut input_t else { unreachable!() };
+                        let Type::Subr(sub) = &mut input_t else {
+                            unreachable!()
+                        };
                         sub.non_default_params.remove(0);
                     }
                     _ => {}
@@ -940,7 +943,9 @@ impl Context {
                     return Ok(ty.clone());
                 }
             }
-            let Type::Subr(subr_t) = input_t else { unreachable!() };
+            let Type::Subr(subr_t) = input_t else {
+                unreachable!()
+            };
             Err(TyCheckError::overload_error(
                 self.cfg.input.clone(),
                 line!() as usize,
@@ -1207,7 +1212,8 @@ impl Context {
                 namespace.caused_by(),
                 op.inspect(),
                 None,
-            ).into());
+            )
+            .into());
         };
         // not a `Token::from_str(op.kind, cont)` because ops are defined as symbols
         let symbol = Token::symbol_with_loc(Str::rc(cont), Location::concat(&args[0], &args[1]));
@@ -1261,7 +1267,8 @@ impl Context {
                 namespace.caused_by(),
                 op.inspect(),
                 None,
-            ).into());
+            )
+            .into());
         };
         let symbol = Token::symbol(cont);
         let ident = Identifier::private_from_token(symbol.clone());
@@ -1637,7 +1644,7 @@ impl Context {
                     .map_or(vec![], |ctx| vec![ctx])
             })
             .unwrap_or(vec![]);
-        let fallbacks = one.into_iter().chain(two.into_iter());
+        let fallbacks = one.into_iter().chain(two);
         for typ_ctx in fallbacks {
             if let Some(call_vi) = typ_ctx.get_current_scope_var(&VarName::from_static("__call__"))
             {

@@ -421,7 +421,9 @@ impl Context {
         match acc {
             Accessor::Ident(ident) => self.get_mod(ident.inspect()),
             Accessor::Attr(attr) => {
-                let Expr::Accessor(acc) = attr.obj.as_ref() else { return None; };
+                let Expr::Accessor(acc) = attr.obj.as_ref() else {
+                    return None;
+                };
                 self.get_mod_ctx_from_acc(acc)
                     .and_then(|ctx| ctx.get_mod(attr.ident.inspect()))
             }

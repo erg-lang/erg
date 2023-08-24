@@ -142,7 +142,11 @@ impl Parser {
 
     fn convert_def_to_var_record_attr(&mut self, mut attr: Def) -> ParseResult<VarRecordAttr> {
         debug_call_info!(self);
-        let Signature::Var(VarSignature{ pat: VarPattern::Ident(lhs), .. }) = attr.sig else {
+        let Signature::Var(VarSignature {
+            pat: VarPattern::Ident(lhs),
+            ..
+        }) = attr.sig
+        else {
             let err = ParseError::simple_syntax_error(line!() as usize, attr.sig.loc());
             self.errs.push(err);
             return Err(());
@@ -293,7 +297,11 @@ impl Parser {
                 let sig = self
                     .convert_rhs_to_sig(*t_app.obj)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
-                let Signature::Var(VarSignature { pat: VarPattern::Ident(ident), .. }) = sig else {
+                let Signature::Var(VarSignature {
+                    pat: VarPattern::Ident(ident),
+                    ..
+                }) = sig
+                else {
                     let err = ParseError::simple_syntax_error(line!() as usize, sig.loc());
                     self.errs.push(err);
                     debug_exit_info!(self);
@@ -343,7 +351,11 @@ impl Parser {
                 let lhs = self
                     .convert_rhs_to_sig(*tasc.expr)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
-                let Signature::Var(VarSignature{ pat: VarPattern::Ident(lhs), .. }) = lhs else {
+                let Signature::Var(VarSignature {
+                    pat: VarPattern::Ident(lhs),
+                    ..
+                }) = lhs
+                else {
                     let err = ParseError::simple_syntax_error(line!() as usize, lhs.loc());
                     self.errs.push(err);
                     return Err(());
@@ -541,7 +553,11 @@ impl Parser {
     }
 
     fn convert_def_to_param_record_attr(&mut self, mut attr: Def) -> ParseResult<ParamRecordAttr> {
-        let Signature::Var(VarSignature{ pat: VarPattern::Ident(lhs), .. }) = attr.sig else {
+        let Signature::Var(VarSignature {
+            pat: VarPattern::Ident(lhs),
+            ..
+        }) = attr.sig
+        else {
             let err = ParseError::simple_syntax_error(line!() as usize, attr.sig.loc());
             self.errs.push(err);
             debug_exit_info!(self);

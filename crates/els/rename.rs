@@ -269,7 +269,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         } else if old_uri.as_str().ends_with(".py") {
             let d_er_file = PathBuf::from(old_uri.as_str().replace(".py", ".d.er"));
             if d_er_file.exists() {
-                let Ok(old_uri) =  Url::from_file_path(&d_er_file) else {
+                let Ok(old_uri) = Url::from_file_path(&d_er_file) else {
                     return;
                 };
                 let Ok(new_uri) = Url::parse(&new_uri.as_str().replace(".py", ".d.er")) else {
