@@ -38,11 +38,11 @@ impl TryFrom<&str> for ErgMode {
             "desugar" | "desugarer" => Ok(Self::Desugar),
             "typecheck" | "lower" | "tc" => Ok(Self::TypeCheck),
             "fullcheck" | "check" | "checker" => Ok(Self::FullCheck),
-            "compile" | "compiler" => Ok(Self::Compile),
-            "transpile" | "transpiler" => Ok(Self::Transpile),
+            "comp" | "compile" | "compiler" => Ok(Self::Compile),
+            "trans" | "transpile" | "transpiler" => Ok(Self::Transpile),
             "run" | "execute" => Ok(Self::Execute),
             "server" | "language-server" => Ok(Self::LanguageServer),
-            "byteread" | "read" | "reader" => Ok(Self::Read),
+            "byteread" | "read" | "reader" | "dis" => Ok(Self::Read),
             _ => Err(()),
         }
     }
@@ -217,11 +217,6 @@ impl ErgConfig {
         // not `for` because we need to consume the next argument
         while let Some(arg) = args.next() {
             match &arg[..] {
-                /* Commands */
-                "lex" | "parse" | "desugar" | "typecheck" | "check" | "compile" | "transpile"
-                | "run" | "execute" | "server" | "tc" => {
-                    cfg.mode = ErgMode::try_from(&arg[..]).unwrap();
-                }
                 /* Options */
                 "--" => {
                     for arg in args {
@@ -407,24 +402,28 @@ USAGE:
                     process::exit(2);
                 }
                 _ => {
-                    let path = PathBuf::from_str(&arg[..])
-                        .unwrap_or_else(|_| panic!("invalid file path: {arg}"));
-                    let path = normalize_path(path);
-                    cfg.input = Input::file(path);
-                    match args.next().as_ref().map(|s| &s[..]) {
-                        Some("--") => {
-                            for arg in args {
-                                cfg.runtime_args.push(Box::leak(arg.into_boxed_str()));
+                    if let Ok(mode) = ErgMode::try_from(&arg[..]) {
+                        cfg.mode = mode;
+                    } else {
+                        let path = PathBuf::from_str(&arg[..])
+                            .unwrap_or_else(|_| panic!("invalid file path: {arg}"));
+                        let path = normalize_path(path);
+                        cfg.input = Input::file(path);
+                        match args.next().as_ref().map(|s| &s[..]) {
+                            Some("--") => {
+                                for arg in args {
+                                    cfg.runtime_args.push(Box::leak(arg.into_boxed_str()));
+                                }
                             }
+                            Some(some) => {
+                                println!("invalid argument: {some}");
+                                println!("Do not pass options after the file path. If you want to pass runtime arguments, use `--` before them.");
+                                process::exit(1);
+                            }
+                            _ => {}
                         }
-                        Some(some) => {
-                            println!("invalid argument: {some}");
-                            println!("Do not pass options after the file path. If you want to pass runtime arguments, use `--` before them.");
-                            process::exit(1);
-                        }
-                        _ => {}
+                        break;
                     }
-                    break;
                 }
             }
         }

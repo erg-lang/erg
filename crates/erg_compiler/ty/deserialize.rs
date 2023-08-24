@@ -11,7 +11,7 @@ use erg_common::traits::ExitStatus;
 use erg_common::{fn_name, switch_lang};
 use erg_common::{ArcArray, Str};
 
-use super::codeobj::CodeObj;
+use super::codeobj::{CodeObj, FastKind};
 use super::constructors::array_t;
 use super::typaram::TyParam;
 use super::value::ValueObj;
@@ -70,22 +70,29 @@ impl DeserializeError {
         )
     }
 
-    pub fn type_error(expect: &Type, found: &Type) -> Self {
+    pub fn type_error(field: Option<&str>, expect: &Type, found: &Type) -> Self {
+        let field = switch_lang!(
+            "japanese" => field.map(|f| format!("フィールド{f}の読み取りに失敗しました: ")),
+            "simplified_chinese" => field.map(|f| format!("读取字段{f}失败: ")),
+            "traditional_chinese" => field.map(|f| format!("讀取字段{f}失敗: ")),
+            "english" => field.map(|f| format!("failed to read field {f}: ")),
+        )
+        .unwrap_or("".to_string());
         Self::new(
             0,
             fn_name!(),
             switch_lang!(
                 "japanese" => format!(
-                    "{expect}型オブジェクトを予期しましたが、 読み込んだオブジェクトは{found}型です",
+                    "{field}{expect}型オブジェクトを予期しましたが、 読み込んだオブジェクトは{found}型です",
                 ),
                 "simplified_chinese" => format!(
-                    "期望{expect}对象，但反序列化的对象是{found}",
+                    "{field}期望{expect}对象，但反序列化的对象是{found}",
                 ),
                 "traditional_chinese" => format!(
-                    "期望一個{expect}對象，但反序列化的對像是{found}",
+                    "{field}期望一個{expect}對象，但反序列化的對像是{found}",
                 ),
                 "english" => format!(
-                    "expect a {expect} object, but the deserialized object is {found}",
+                    "{field}expect a {expect} object, but the deserialized object is {found}",
                 ),
             ),
         )
@@ -113,8 +120,8 @@ impl Deserializer {
     pub fn run(cfg: ErgConfig) -> ExitStatus {
         let filename = cfg.input.path();
         match CodeObj::from_pyc(filename) {
-            Ok(codeobj) => {
-                println!("{}", codeobj.code_info(None));
+            Ok((codeobj, ver)) => {
+                println!("{}", codeobj.code_info(Some(ver)));
                 ExitStatus::OK
             }
             Err(e) => {
@@ -195,60 +202,8 @@ impl Deserializer {
                 Ok(self.get_cached_arr(&arr))
             }
             DataTypePrefix::Code => {
-                let argcount = Self::deserialize_u32(v);
-                let posonlyargcount = if python_ver.minor >= Some(8) {
-                    Self::deserialize_u32(v)
-                } else {
-                    0
-                };
-                let kwonlyargcount = Self::deserialize_u32(v);
-                let nlocals = if python_ver.minor < Some(11) {
-                    Self::deserialize_u32(v)
-                } else {
-                    0
-                };
-                let stacksize = Self::deserialize_u32(v);
-                let flags = Self::deserialize_u32(v);
-                let code = self.deserialize_bytes(v)?;
-                let consts = self.deserialize_const_vec(v, python_ver)?;
-                let names = self.deserialize_str_vec(v, python_ver)?;
-                let varnames = self.deserialize_str_vec(v, python_ver)?;
-                let freevars = self.deserialize_str_vec(v, python_ver)?;
-                let cellvars = self.deserialize_str_vec(v, python_ver)?;
-                let filename = self.deserialize_str(v, python_ver)?;
-                let name = self.deserialize_str(v, python_ver)?;
-                let qualname = if python_ver.minor >= Some(11) {
-                    self.deserialize_str(v, python_ver)?
-                } else {
-                    name.clone()
-                };
-                let firstlineno = Self::deserialize_u32(v);
-                let lnotab = self.deserialize_bytes(v)?;
-                let exceptiontable = if python_ver.minor >= Some(11) {
-                    self.deserialize_bytes(v)?
-                } else {
-                    vec![]
-                };
-                Ok(ValueObj::from(CodeObj {
-                    argcount,
-                    posonlyargcount,
-                    kwonlyargcount,
-                    nlocals,
-                    stacksize,
-                    flags,
-                    code,
-                    consts,
-                    names,
-                    varnames,
-                    freevars,
-                    cellvars,
-                    filename,
-                    name,
-                    qualname,
-                    firstlineno,
-                    lnotab,
-                    exceptiontable,
-                }))
+                v.insert(0, DataTypePrefix::Code as u8);
+                Ok(ValueObj::from(CodeObj::from_bytes(v, python_ver)?))
             }
             DataTypePrefix::None => Ok(ValueObj::None),
             other => Err(DeserializeError::new(
@@ -268,10 +223,15 @@ impl Deserializer {
         &mut self,
         v: &mut Vec<u8>,
         python_ver: PythonVersion,
+        field: Option<&str>,
     ) -> DeserializeResult<Vec<ValueObj>> {
         match self.deserialize_const(v, python_ver)? {
             ValueObj::Array(arr) => Ok(arr.to_vec()),
-            other => Err(DeserializeError::type_error(&Type::Str, other.ref_t())),
+            other => Err(DeserializeError::type_error(
+                field,
+                &Type::Str,
+                other.ref_t(),
+            )),
         }
     }
 
@@ -279,10 +239,15 @@ impl Deserializer {
         &mut self,
         v: &mut Vec<u8>,
         python_ver: PythonVersion,
+        field: Option<&str>,
     ) -> DeserializeResult<ArcArray<ValueObj>> {
         match self.deserialize_const(v, python_ver)? {
             ValueObj::Array(arr) => Ok(arr),
-            other => Err(DeserializeError::type_error(&Type::Str, other.ref_t())),
+            other => Err(DeserializeError::type_error(
+                field,
+                &Type::Str,
+                other.ref_t(),
+            )),
         }
     }
 
@@ -293,7 +258,11 @@ impl Deserializer {
     pub fn try_into_str(&mut self, c: ValueObj) -> DeserializeResult<Str> {
         match c {
             ValueObj::Str(s) => Ok(s),
-            other => Err(DeserializeError::type_error(&Type::Str, other.ref_t())),
+            other => Err(DeserializeError::type_error(
+                None,
+                &Type::Str,
+                other.ref_t(),
+            )),
         }
     }
 
@@ -301,9 +270,10 @@ impl Deserializer {
         &mut self,
         v: &mut Vec<u8>,
         python_ver: PythonVersion,
+        field: Option<&str>,
     ) -> DeserializeResult<Vec<Str>> {
         match self.deserialize_const(v, python_ver)? {
-            ValueObj::Array(arr) => {
+            ValueObj::Array(arr) | ValueObj::Tuple(arr) => {
                 let mut strs = Vec::with_capacity(arr.len());
                 for c in arr.iter().cloned() {
                     strs.push(self.try_into_str(c)?);
@@ -311,9 +281,41 @@ impl Deserializer {
                 Ok(strs)
             }
             other => Err(DeserializeError::type_error(
+                field,
                 &array_t(Type::Str, TyParam::erased(Type::Nat)),
-                other.ref_t(),
+                &other.class(),
             )),
+        }
+    }
+
+    pub fn deserialize_locals(
+        &mut self,
+        v: &mut Vec<u8>,
+        python_ver: PythonVersion,
+    ) -> DeserializeResult<(Vec<Str>, Vec<Str>, Vec<Str>)> {
+        if python_ver.minor >= Some(11) {
+            let names =
+                self.deserialize_str_vec(v, python_ver, Some("varnames, freevars, cellvars"))?;
+            let kinds = self.deserialize_bytes(v)?;
+            assert_eq!(names.len(), kinds.len());
+            // partition
+            let mut varnames = vec![];
+            let mut freevars = vec![];
+            let mut cellvars = vec![];
+            for (name, kind) in names.into_iter().zip(kinds.into_iter()) {
+                match FastKind::try_from(kind) {
+                    Ok(FastKind::Local) => varnames.push(name),
+                    Ok(FastKind::Free) => freevars.push(name),
+                    Ok(FastKind::Cell) => cellvars.push(name),
+                    _ => unreachable!(),
+                }
+            }
+            Ok((varnames, freevars, cellvars))
+        } else {
+            let varnames = self.deserialize_str_vec(v, python_ver, Some("varnames"))?;
+            let freevars = self.deserialize_str_vec(v, python_ver, Some("freevars"))?;
+            let cellvars = self.deserialize_str_vec(v, python_ver, Some("cellvars"))?;
+            Ok((varnames, freevars, cellvars))
         }
     }
 
@@ -321,10 +323,15 @@ impl Deserializer {
         &mut self,
         v: &mut Vec<u8>,
         python_ver: PythonVersion,
+        field: Option<&str>,
     ) -> DeserializeResult<Str> {
         match self.deserialize_const(v, python_ver)? {
             ValueObj::Str(s) => Ok(s),
-            other => Err(DeserializeError::type_error(&Type::Str, other.ref_t())),
+            other => Err(DeserializeError::type_error(
+                field,
+                &Type::Str,
+                other.ref_t(),
+            )),
         }
     }
 

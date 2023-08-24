@@ -149,7 +149,7 @@ pub fn strs_into_bytes(names: Vec<Str>) -> Vec<u8> {
 
 pub fn str_into_bytes(cont: Str, is_interned: bool) -> Vec<u8> {
     let mut bytes = vec![];
-    if cont.is_ascii() {
+    if cont.is_ascii() && cont.len() <= u8::MAX as usize {
         if is_interned {
             bytes.push(DataTypePrefix::ShortAsciiInterned as u8);
         } else {

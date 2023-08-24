@@ -91,6 +91,18 @@ pub enum FastKind {
     Free = 0x80,
 }
 
+impl TryFrom<u8> for FastKind {
+    type Error = &'static str;
+    fn try_from(kind: u8) -> Result<Self, Self::Error> {
+        match kind {
+            0x20 => Ok(Self::Local),
+            0x40 => Ok(Self::Cell),
+            0x80 => Ok(Self::Free),
+            _ => Err("invalid kind"),
+        }
+    }
+}
+
 /// Bit masks for CodeObj.flags
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
@@ -290,7 +302,7 @@ impl CodeObj {
         }
     }
 
-    pub fn from_pyc<P: AsRef<Path>>(path: P) -> DeserializeResult<Self> {
+    pub fn from_pyc<P: AsRef<Path>>(path: P) -> DeserializeResult<(Self, PythonVersion)> {
         let mut f = BufReader::new(File::open(path)?);
         let v = &mut Vec::with_capacity(16);
         f.read_to_end(v)?;
@@ -300,10 +312,11 @@ impl CodeObj {
         let _timestamp = Deserializer::deserialize_u32(v);
         let _padding = Deserializer::deserialize_u32(v);
         let code = Self::from_bytes(v, python_ver)?;
-        Ok(code)
+        Ok((code, python_ver))
     }
 
     pub fn from_bytes(v: &mut Vec<u8>, python_ver: PythonVersion) -> DeserializeResult<Self> {
+        assert_eq!(v.remove(0), DataTypePrefix::Code as u8, "not a code object");
         let mut des = Deserializer::new();
         let argcount = Deserializer::deserialize_u32(v);
         let posonlyargcount = if python_ver.minor >= Some(8) {
@@ -320,15 +333,16 @@ impl CodeObj {
         let stacksize = Deserializer::deserialize_u32(v);
         let flags = Deserializer::deserialize_u32(v);
         let code = des.deserialize_bytes(v)?;
-        let consts = des.deserialize_const_vec(v, python_ver)?;
-        let names = des.deserialize_str_vec(v, python_ver)?;
-        // TODO: localplusnames
-        let varnames = des.deserialize_str_vec(v, python_ver)?;
-        let freevars = des.deserialize_str_vec(v, python_ver)?;
-        let cellvars = des.deserialize_str_vec(v, python_ver)?;
-        let filename = des.deserialize_str(v, python_ver)?;
-        let name = des.deserialize_str(v, python_ver)?;
-        let qualname = des.deserialize_str(v, python_ver)?;
+        let consts = des.deserialize_const_vec(v, python_ver, Some("consts"))?;
+        let names = des.deserialize_str_vec(v, python_ver, Some("names"))?;
+        let (varnames, freevars, cellvars) = des.deserialize_locals(v, python_ver)?;
+        let filename = des.deserialize_str(v, python_ver, Some("filename"))?;
+        let name = des.deserialize_str(v, python_ver, Some("name"))?;
+        let qualname = if python_ver.minor >= Some(11) {
+            des.deserialize_str(v, python_ver, Some("qualname"))?
+        } else {
+            name.clone()
+        };
         let firstlineno = Deserializer::deserialize_u32(v);
         let lnotab = des.deserialize_bytes(v)?;
         let exceptiontable = if python_ver.minor >= Some(11) {
