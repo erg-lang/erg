@@ -134,7 +134,12 @@ impl Generalizer {
                 TyParam::unary(op, val)
             }
             other if other.has_no_unbound_var() => other,
-            other => todo!("{other:?}"),
+            other => {
+                if DEBUG_MODE {
+                    todo!("{other:?}");
+                }
+                other
+            }
         }
     }
 

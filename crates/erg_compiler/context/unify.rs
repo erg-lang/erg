@@ -2,6 +2,7 @@
 use std::mem;
 use std::option::Option;
 
+use erg_common::consts::DEBUG_MODE;
 use erg_common::fresh::FRESH_GEN;
 use erg_common::traits::Locational;
 use erg_common::Str;
@@ -509,7 +510,10 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     }
                     Ok(())
                 } else {
-                    todo!()
+                    if DEBUG_MODE {
+                        todo!()
+                    }
+                    Ok(())
                 }
             }
             (l, r) => {

@@ -1441,8 +1441,10 @@ impl Context {
             Predicate::Const(name) => {
                 if let Some(value) = self.rec_get_const_obj(name) {
                     value.class()
+                } else if DEBUG_MODE {
+                    todo!("get_pred_type({name})");
                 } else {
-                    todo!("get_pred_type({name})")
+                    Obj
                 }
             }
         }

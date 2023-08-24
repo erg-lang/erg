@@ -2,7 +2,7 @@
 use std::option::Option; // conflicting to Type::Option
 use std::path::{Path, PathBuf};
 
-use erg_common::consts::{ERG_MODE, PYTHON_MODE};
+use erg_common::consts::{DEBUG_MODE, ERG_MODE, PYTHON_MODE};
 use erg_common::error::{ErrorCore, Location, SubMessage};
 use erg_common::io::Input;
 use erg_common::levenshtein;
@@ -2318,16 +2318,16 @@ impl Context {
         t: &Type,
     ) -> Option<impl Iterator<Item = &'a Context>> {
         let (_, ctx) = self.get_nominal_type_ctx(t)?;
-        let sups = ctx
-            .super_classes
-            .iter()
-            .chain(ctx.super_traits.iter())
-            .map(|sup| {
-                self.get_nominal_type_ctx(sup)
-                    .unwrap_or_else(|| todo!("compiler bug: {sup} not found"))
-                    .1
-            });
-        Some(vec![ctx].into_iter().chain(sups))
+        let sups = ctx.super_classes.iter().chain(ctx.super_traits.iter());
+        let mut sup_ctxs = vec![];
+        for sup in sups {
+            if let Some((_, ctx)) = self.get_nominal_type_ctx(sup) {
+                sup_ctxs.push(ctx);
+            } else if DEBUG_MODE {
+                todo!("no ctx for {sup}");
+            }
+        }
+        Some(vec![ctx].into_iter().chain(sup_ctxs))
     }
 
     pub(crate) fn _get_super_traits(&self, typ: &Type) -> Option<impl Iterator<Item = Type>> {

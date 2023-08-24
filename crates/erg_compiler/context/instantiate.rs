@@ -2,6 +2,7 @@ use std::fmt;
 use std::mem;
 use std::option::Option; // conflicting to Type::Option
 
+use erg_common::consts::DEBUG_MODE;
 use erg_common::dict::Dict;
 use erg_common::enum_unwrap;
 #[allow(unused)]
@@ -12,9 +13,7 @@ use erg_common::Str;
 use erg_parser::ast::VarName;
 
 use crate::ty::constructors::*;
-use crate::ty::free::FreeTyParam;
-use crate::ty::free::GENERIC_LEVEL;
-use crate::ty::free::{Constraint, HasLevel};
+use crate::ty::free::{Constraint, FreeTyParam, FreeTyVar, HasLevel, GENERIC_LEVEL};
 use crate::ty::typaram::{TyParam, TyParamLambda};
 use crate::ty::ConstSubr;
 use crate::ty::ValueObj;
@@ -203,8 +202,11 @@ impl TyVarCache {
         // T<inst> is uninitialized
         // T<inst>.link(T<tv>);
         // T <: Eq(T <: Eq(T <: ...))
-        let Type::FreeVar(free_inst) = inst else {
-            todo!("{inst}")
+        let Ok(free_inst) = <&FreeTyVar>::try_from(inst) else {
+            if DEBUG_MODE {
+                todo!("{inst}");
+            }
+            return;
         };
         if free_inst.constraint_is_uninited() {
             inst.destructive_link(tv);
@@ -216,7 +218,12 @@ impl TyVarCache {
             // tv: ?T(:> Nat)
             // => ?T(:> Nat or Str)
             let (old_sub, old_sup) = free_inst.get_subsup().unwrap();
-            let Type::FreeVar(tv) = tv else { todo!("{tv}") };
+            let Ok(tv) = <&FreeTyVar>::try_from(tv) else {
+                if DEBUG_MODE {
+                    todo!("{tv}");
+                }
+                return;
+            };
             let (new_sub, new_sup) = tv.get_subsup().unwrap();
             let new_constraint = Constraint::new_sandwiched(
                 ctx.union(&old_sub, &new_sub),
@@ -274,7 +281,10 @@ impl TyVarCache {
             if let (Ok(inst), Ok(t)) = (<&Type>::try_from(inst), <&Type>::try_from(tp)) {
                 return self.update_tyvar(inst, t, ctx);
             } else {
-                todo!("{inst}");
+                if DEBUG_MODE {
+                    todo!("{inst}");
+                }
+                return;
             }
         };
         if free_inst.constraint_is_uninited() {
@@ -282,7 +292,10 @@ impl TyVarCache {
         } else {
             let old_type = free_inst.get_type().unwrap();
             let Ok(tv) = <&FreeTyParam>::try_from(tp) else {
-                todo!("{tp}")
+                if DEBUG_MODE {
+                    todo!("{tp}");
+                }
+                return;
             };
             let new_type = tv.get_type().unwrap();
             let new_constraint = Constraint::new_type_of(ctx.intersection(&old_type, &new_type));
