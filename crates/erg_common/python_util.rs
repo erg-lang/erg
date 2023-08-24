@@ -893,3 +893,47 @@ pub fn exec_py_code(code: &str, args: &[&str], output: Output) -> std::io::Resul
     };
     out.wait()
 }
+
+pub fn exec_py_code_with_output(
+    code: &str,
+    args: &[&str],
+) -> std::io::Result<std::process::Output> {
+    let out = if cfg!(windows) {
+        let fallback = |err: std::io::Error| {
+            // if the filename or extension is too long
+            // create a temporary file and execute it
+            if err.raw_os_error() == Some(206) {
+                let tmp_dir = env::temp_dir();
+                let tmp_file = tmp_dir.join("tmp.py");
+                File::create(&tmp_file)
+                    .unwrap()
+                    .write_all(code.as_bytes())
+                    .unwrap();
+                Command::new(which_python())
+                    .arg(tmp_file)
+                    .args(args)
+                    .stdout(Stdio::piped())
+                    .spawn()
+            } else {
+                Err(err)
+            }
+        };
+        Command::new(which_python())
+            .arg("-c")
+            .arg(code)
+            .args(args)
+            .stdout(Stdio::piped())
+            .spawn()
+            .or_else(fallback)
+            .expect("cannot execute python")
+    } else {
+        let exec_command = format!("{} -c \"{code}\" {}", which_python(), args.join(" "));
+        Command::new("sh")
+            .arg("-c")
+            .arg(exec_command)
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("cannot execute python")
+    };
+    out.wait_with_output()
+}

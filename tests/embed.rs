@@ -1,6 +1,7 @@
 use erg::DummyVM;
 use erg_common::config::ErgConfig;
 use erg_common::error::MultiErrorDisplay;
+use erg_common::python_util::exec_py_code_with_output;
 use erg_compiler::artifact::Buildable;
 use erg_compiler::module::SharedCompilerResource;
 use erg_compiler::HIRBuilder;
@@ -21,11 +22,15 @@ fn test_vm_embedding() -> Result<(), ()> {
 fn test_transpiler_embedding() -> Result<(), ()> {
     let mut trans = Transpiler::default();
     let res = trans
-        .transpile("print!(\"\")".into(), "exec")
+        .transpile("print!(\"hello\")".into(), "exec")
         .map_err(|es| {
             es.errors.write_all_stderr();
         })?;
-    assert!(res.object.code().ends_with("(print)(Str(\"\"),)\n"));
+    assert!(res.object.code().ends_with("(print)(Str(\"hello\"),)\n"));
+    let code = res.object.code().replace('"', "\\\"").replace('`', "\\`");
+    let res = exec_py_code_with_output(&code, &[]).map_err(|_| ())?;
+    assert!(res.status.success());
+    assert_eq!(res.stdout, b"hello\n");
     Ok(())
 }
 
