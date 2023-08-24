@@ -313,7 +313,7 @@ pub struct PyScriptGenerator {
     fresh_var_n: usize,
     namedtuple_loaded: bool,
     mutate_op_loaded: bool,
-    in_op_loaded: bool,
+    contains_op_loaded: bool,
     range_ops_loaded: bool,
     builtin_types_loaded: bool,
     builtin_control_loaded: bool,
@@ -328,7 +328,7 @@ impl PyScriptGenerator {
             fresh_var_n: 0,
             namedtuple_loaded: false,
             mutate_op_loaded: false,
-            in_op_loaded: false,
+            contains_op_loaded: false,
             range_ops_loaded: false,
             builtin_types_loaded: false,
             builtin_control_loaded: false,
@@ -367,6 +367,7 @@ impl PyScriptGenerator {
             .replace("from _erg_result import Error", "")
             .replace("from _erg_result import is_ok", "")
             .replace("from _erg_control import then__", "")
+            .replace("from _erg_contains_operator import contains_operator", "")
     }
 
     fn load_namedtuple_if_not(&mut self) {
@@ -389,12 +390,12 @@ impl PyScriptGenerator {
     }
 
     fn load_contains_op_if_not(&mut self) {
-        if !self.in_op_loaded {
+        if !self.contains_op_loaded {
             self.prelude += &Self::replace_import(include_str!("lib/std/_erg_result.py"));
             self.prelude += &Self::replace_import(include_str!("lib/std/_erg_range.py"));
             self.prelude +=
                 &Self::replace_import(include_str!("lib/std/_erg_contains_operator.py"));
-            self.in_op_loaded = true;
+            self.contains_op_loaded = true;
         }
     }
 
@@ -408,18 +409,11 @@ impl PyScriptGenerator {
     fn load_builtin_types_if_not(&mut self) {
         if !self.builtin_types_loaded {
             self.load_builtin_controls_if_not();
+            self.load_contains_op_if_not();
             if self.range_ops_loaded {
                 self.prelude += &Self::replace_import(include_str!("lib/std/_erg_float.py"));
                 self.prelude += &Self::replace_import(include_str!("lib/std/_erg_array.py"));
-            } else if self.in_op_loaded {
-                self.prelude += &Self::replace_import(include_str!("lib/std/_erg_int.py"));
-                self.prelude += &Self::replace_import(include_str!("lib/std/_erg_nat.py"));
-                self.prelude += &Self::replace_import(include_str!("lib/std/_erg_bool.py"));
-                self.prelude += &Self::replace_import(include_str!("lib/std/_erg_str.py"));
-                self.prelude += &Self::replace_import(include_str!("lib/std/_erg_float.py"));
-                self.prelude += &Self::replace_import(include_str!("lib/std/_erg_array.py"));
             } else {
-                self.prelude += &Self::replace_import(include_str!("lib/std/_erg_result.py"));
                 self.prelude += &Self::replace_import(include_str!("lib/std/_erg_int.py"));
                 self.prelude += &Self::replace_import(include_str!("lib/std/_erg_nat.py"));
                 self.prelude += &Self::replace_import(include_str!("lib/std/_erg_bool.py"));
@@ -461,11 +455,12 @@ impl PyScriptGenerator {
             Expr::UnaryOp(unary) => self.transpile_unaryop(unary),
             Expr::Array(array) => match array {
                 Array::Normal(arr) => {
-                    let mut code = "[".to_string();
+                    self.load_builtin_types_if_not();
+                    let mut code = "Array([".to_string();
                     for elem in arr.elems.pos_args {
                         code += &format!("{},", self.transpile_expr(elem.expr));
                     }
-                    code += "]";
+                    code += "])";
                     code
                 }
                 other => todo!("transpiling {other}"),
