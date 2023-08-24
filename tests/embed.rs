@@ -22,15 +22,17 @@ fn test_vm_embedding() -> Result<(), ()> {
 fn test_transpiler_embedding() -> Result<(), ()> {
     let mut trans = Transpiler::default();
     let res = trans
-        .transpile("print!(\"hello\")".into(), "exec")
+        .transpile("print!(\"hello\", end:=\"\")".into(), "exec")
         .map_err(|es| {
             es.errors.write_all_stderr();
         })?;
-    assert!(res.object.code().ends_with("(print)(Str(\"hello\"),)\n"));
-    let code = res.object.code().replace('"', "\\\"").replace('`', "\\`");
-    let res = exec_py_code_with_output(&code, &[]).map_err(|_| ())?;
+    assert!(res
+        .object
+        .code()
+        .ends_with("(print)(Str(\"hello\"),end=Str(\"\"),)\n"));
+    let res = exec_py_code_with_output(res.object.code(), &[]).map_err(|_| ())?;
     assert!(res.status.success());
-    assert_eq!(res.stdout, b"hello\n");
+    assert_eq!(res.stdout, b"hello");
     Ok(())
 }
 

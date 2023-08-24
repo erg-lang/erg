@@ -886,6 +886,7 @@ pub fn exec_py_code(code: &str, args: &[&str], output: Output) -> std::io::Resul
             .or_else(fallback)
             .expect("cannot execute python")
     } else {
+        let code = code.replace('"', "\\\"").replace('`', "\\`");
         let exec_command = format!("{} -c \"{code}\" {}", which_python(), args.join(" "));
         Command::new("sh")
             .arg("-c")
@@ -930,6 +931,7 @@ pub fn exec_py_code_with_output(
             .or_else(fallback)
             .expect("cannot execute python")
     } else {
+        let code = code.replace('"', "\\\"").replace('`', "\\`");
         let exec_command = format!("{} -c \"{code}\" {}", which_python(), args.join(" "));
         Command::new("sh")
             .arg("-c")
