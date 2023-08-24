@@ -411,10 +411,18 @@ USAGE:
                         .unwrap_or_else(|_| panic!("invalid file path: {arg}"));
                     let path = normalize_path(path);
                     cfg.input = Input::file(path);
-                    if let Some("--") = args.next().as_ref().map(|s| &s[..]) {
-                        for arg in args {
-                            cfg.runtime_args.push(Box::leak(arg.into_boxed_str()));
+                    match args.next().as_ref().map(|s| &s[..]) {
+                        Some("--") => {
+                            for arg in args {
+                                cfg.runtime_args.push(Box::leak(arg.into_boxed_str()));
+                            }
                         }
+                        Some(some) => {
+                            println!("invalid argument: {some}");
+                            println!("Do not pass options after the file path. If you want to pass runtime arguments, use `--` before them.");
+                            process::exit(1);
+                        }
+                        _ => {}
                     }
                     break;
                 }
