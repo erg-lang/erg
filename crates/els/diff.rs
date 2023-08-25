@@ -125,7 +125,11 @@ impl HIRDiff {
     pub fn update<H: DerefMut<Target = HIR>>(self, mut old: H) {
         match self {
             Self::Addition(idx, expr) => {
-                old.module.insert(idx, expr);
+                if idx > old.module.len() {
+                    old.module.push(expr);
+                } else {
+                    old.module.insert(idx, expr);
+                }
             }
             Self::Deletion(usize) => {
                 if old.module.get(usize).is_some() {
