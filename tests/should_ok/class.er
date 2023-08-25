@@ -2,3 +2,10 @@ unittest = pyimport "unittest"
 
 Test! = Inherit unittest.TestCase!
 _ = Test!
+
+# forward reference
+C = Class { .x = D }
+D = Class { .y = Int }
+
+c = C.new { .x = D.new { .y = 1 } }
+assert c.x.y == 1

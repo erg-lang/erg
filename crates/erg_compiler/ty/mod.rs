@@ -22,6 +22,7 @@ use std::fmt;
 use std::ops::{BitAnd, BitOr, Deref, Not, Range, RangeInclusive};
 use std::path::PathBuf;
 
+use erg_common::consts::DEBUG_MODE;
 use erg_common::dict::Dict;
 use erg_common::error::Location;
 use erg_common::fresh::FRESH_GEN;
@@ -1925,6 +1926,14 @@ impl Type {
         }
     }
 
+    pub fn is_singleton_refinement(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_singleton_refinement(),
+            Self::Refinement(refine) => matches!(refine.pred.as_ref(), Predicate::Equal { .. }),
+            _ => false,
+        }
+    }
+
     pub fn is_record(&self) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_record(),
@@ -2528,6 +2537,35 @@ impl Type {
             }
             Type::Refinement(r) => r,
             t => RefinementType::new(Str::ever("_"), t, Predicate::TRUE),
+        }
+    }
+
+    /// ```erg
+    /// { .x = {Int} } == {{ .x = Int }}
+    /// K({Int}) == {K(Int)} # TODO
+    /// ```
+    pub fn to_singleton(&self) -> Option<RefinementType> {
+        match self {
+            Type::Record(rec) if rec.values().all(|t| t.is_singleton_refinement()) => {
+                let mut new_rec = Dict::new();
+                for (k, t) in rec.iter() {
+                    if let Some(t) = t
+                        .singleton_value()
+                        .and_then(|tp| <&Type>::try_from(tp).ok())
+                    {
+                        new_rec.insert(k.clone(), t.clone());
+                    } else if DEBUG_MODE {
+                        todo!("{t}");
+                    }
+                }
+                let t = Type::Record(new_rec);
+                Some(RefinementType::new(
+                    Str::ever("_"),
+                    Type::Type,
+                    Predicate::eq(Str::ever("_"), TyParam::t(t)),
+                ))
+            }
+            _ => None,
         }
     }
 

@@ -159,6 +159,11 @@ fn exec_interpolation() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_list() -> Result<(), ()> {
+    expect_success("examples/list.er", 0)
+}
+
+#[test]
 fn exec_long() -> Result<(), ()> {
     expect_success("tests/should_ok/long.er", 257)
 }

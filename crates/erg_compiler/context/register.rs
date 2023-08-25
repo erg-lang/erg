@@ -907,13 +907,46 @@ impl Context {
         Ok(())
     }
 
-    // To allow forward references and recursive definitions
-    pub(crate) fn preregister(&mut self, block: &ast::Block) -> TyCheckResult<()> {
+    pub(crate) fn preregister_const(&mut self, block: &ast::Block) -> TyCheckResult<()> {
         let mut total_errs = TyCheckErrors::empty();
         for expr in block.iter() {
             match expr {
                 ast::Expr::Def(def) => {
-                    if let Err(errs) = self.preregister_def(def) {
+                    if let Err(errs) = self.preregister_const_def(def) {
+                        total_errs.extend(errs);
+                    }
+                }
+                ast::Expr::ClassDef(class_def) => {
+                    if let Err(errs) = self.preregister_const_def(&class_def.def) {
+                        total_errs.extend(errs);
+                    }
+                }
+                ast::Expr::PatchDef(patch_def) => {
+                    if let Err(errs) = self.preregister_const_def(&patch_def.def) {
+                        total_errs.extend(errs);
+                    }
+                }
+                ast::Expr::Dummy(dummy) => {
+                    if let Err(errs) = self.preregister_const(&dummy.exprs) {
+                        total_errs.extend(errs);
+                    }
+                }
+                _ => {}
+            }
+        }
+        if total_errs.is_empty() {
+            Ok(())
+        } else {
+            Err(total_errs)
+        }
+    }
+
+    pub(crate) fn register_const(&mut self, block: &ast::Block) -> TyCheckResult<()> {
+        let mut total_errs = TyCheckErrors::empty();
+        for expr in block.iter() {
+            match expr {
+                ast::Expr::Def(def) => {
+                    if let Err(errs) = self.register_const_def(def) {
                         total_errs.extend(errs);
                     }
                     if def.def_kind().is_import() {
@@ -923,17 +956,17 @@ impl Context {
                     }
                 }
                 ast::Expr::ClassDef(class_def) => {
-                    if let Err(errs) = self.preregister_def(&class_def.def) {
+                    if let Err(errs) = self.register_const_def(&class_def.def) {
                         total_errs.extend(errs);
                     }
                 }
                 ast::Expr::PatchDef(patch_def) => {
-                    if let Err(errs) = self.preregister_def(&patch_def.def) {
+                    if let Err(errs) = self.register_const_def(&patch_def.def) {
                         total_errs.extend(errs);
                     }
                 }
                 ast::Expr::Dummy(dummy) => {
-                    if let Err(errs) = self.preregister(&dummy.exprs) {
+                    if let Err(errs) = self.register_const(&dummy.exprs) {
                         total_errs.extend(errs);
                     }
                 }
@@ -988,7 +1021,43 @@ impl Context {
         res
     }
 
-    pub(crate) fn preregister_def(&mut self, def: &ast::Def) -> TyCheckResult<()> {
+    fn preregister_const_def(&mut self, def: &ast::Def) -> TyCheckResult<()> {
+        match &def.sig {
+            ast::Signature::Var(var) if var.is_const() => {
+                let Some(ast::Expr::Call(call)) = def.body.block.first() else {
+                    return Ok(());
+                };
+                self.preregister_type(var, call)
+            }
+            _ => Ok(()),
+        }
+    }
+
+    fn preregister_type(&mut self, var: &ast::VarSignature, call: &ast::Call) -> TyCheckResult<()> {
+        match call.obj.as_ref() {
+            ast::Expr::Accessor(ast::Accessor::Ident(ident)) => match &ident.inspect()[..] {
+                "Class" => {
+                    let ident = var.ident().unwrap();
+                    let t = Type::Mono(format!("{}{ident}", self.name).into());
+                    let class = GenTypeObj::class(t, None, None, false);
+                    let class = ValueObj::Type(TypeObj::Generated(class));
+                    self.register_gen_const(ident, class, false)
+                }
+                "Trait" => {
+                    let ident = var.ident().unwrap();
+                    let t = Type::Mono(format!("{}{ident}", self.name).into());
+                    let trait_ =
+                        GenTypeObj::trait_(t, TypeObj::builtin_type(Type::Failure), None, false);
+                    let trait_ = ValueObj::Type(TypeObj::Generated(trait_));
+                    self.register_gen_const(ident, trait_, false)
+                }
+                _ => Ok(()),
+            },
+            _ => Ok(()),
+        }
+    }
+
+    pub(crate) fn register_const_def(&mut self, def: &ast::Def) -> TyCheckResult<()> {
         let id = Some(def.body.id);
         let __name__ = def.sig.ident().map(|i| i.inspect()).unwrap_or(UBAR);
         match &def.sig {
@@ -1278,7 +1347,10 @@ impl Context {
         alias: bool,
     ) -> CompileResult<()> {
         let vis = self.instantiate_vis_modifier(&ident.vis)?;
-        if self.rec_get_const_obj(ident.inspect()).is_some() && vis.is_private() {
+        let inited = self
+            .rec_get_const_obj(ident.inspect())
+            .is_some_and(|v| v.is_inited());
+        if inited && vis.is_private() {
             Err(CompileErrors::from(CompileError::reassign_error(
                 self.cfg.input.clone(),
                 line!() as usize,
@@ -1457,14 +1529,13 @@ impl Context {
                         2,
                         self.level,
                     );
-                    let Some(TypeObj::Builtin {
+                    if let Some(TypeObj::Builtin {
                         t: Type::Record(req),
                         ..
                     }) = gen.base_or_sup()
-                    else {
-                        todo!("{gen}")
-                    };
-                    self.register_instance_attrs(&mut ctx, req)?;
+                    {
+                        self.register_instance_attrs(&mut ctx, req)?;
+                    }
                     self.register_gen_mono_type(ident, gen, ctx, Const)
                 } else {
                     feature_error!(
@@ -1635,15 +1706,10 @@ impl Context {
         meta_t: Type,
     ) -> CompileResult<()> {
         let vis = self.instantiate_vis_modifier(&ident.vis)?;
-        if self.mono_types.contains_key(ident.inspect()) {
-            Err(CompileErrors::from(CompileError::reassign_error(
-                self.cfg.input.clone(),
-                line!() as usize,
-                ident.loc(),
-                self.caused_by(),
-                ident.inspect(),
-            )))
-        } else if self.rec_get_const_obj(ident.inspect()).is_some() && vis.is_private() {
+        let inited = self
+            .rec_get_const_obj(ident.inspect())
+            .is_some_and(|v| v.is_inited());
+        if inited && vis.is_private() {
             // TODO: display where defined
             Err(CompileErrors::from(CompileError::reassign_error(
                 self.cfg.input.clone(),
@@ -1682,16 +1748,10 @@ impl Context {
         muty: Mutability,
     ) -> CompileResult<()> {
         let vis = self.instantiate_vis_modifier(&ident.vis)?;
-        // FIXME: recursive search
-        if self.mono_types.contains_key(ident.inspect()) {
-            Err(CompileErrors::from(CompileError::reassign_error(
-                self.cfg.input.clone(),
-                line!() as usize,
-                ident.loc(),
-                self.caused_by(),
-                ident.inspect(),
-            )))
-        } else if self.rec_get_const_obj(ident.inspect()).is_some() && vis.is_private() {
+        let inited = self
+            .rec_get_const_obj(ident.inspect())
+            .is_some_and(|v| v.is_inited());
+        if inited && vis.is_private() {
             Err(CompileErrors::from(CompileError::reassign_error(
                 self.cfg.input.clone(),
                 line!() as usize,
@@ -1732,16 +1792,10 @@ impl Context {
         muty: Mutability,
     ) -> CompileResult<()> {
         let vis = self.instantiate_vis_modifier(&ident.vis)?;
-        // FIXME: recursive search
-        if self.poly_types.contains_key(ident.inspect()) {
-            Err(CompileErrors::from(CompileError::reassign_error(
-                self.cfg.input.clone(),
-                line!() as usize,
-                ident.loc(),
-                self.caused_by(),
-                ident.inspect(),
-            )))
-        } else if self.rec_get_const_obj(ident.inspect()).is_some() && vis.is_private() {
+        let inited = self
+            .rec_get_const_obj(ident.inspect())
+            .is_some_and(|v| v.is_inited());
+        if inited && vis.is_private() {
             Err(CompileErrors::from(CompileError::reassign_error(
                 self.cfg.input.clone(),
                 line!() as usize,

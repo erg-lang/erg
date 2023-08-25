@@ -65,12 +65,12 @@ pub(crate) fn class_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<
     match base {
         Some(value) => {
             if let Some(base) = value.as_type(ctx) {
-                Ok(ValueObj::gen_t(GenTypeObj::class(t, Some(base), impls)).into())
+                Ok(ValueObj::gen_t(GenTypeObj::class(t, Some(base), impls, true)).into())
             } else {
                 Err(type_mismatch("type", value, "Base"))
             }
         }
-        None => Ok(ValueObj::gen_t(GenTypeObj::class(t, None, impls)).into()),
+        None => Ok(ValueObj::gen_t(GenTypeObj::class(t, None, impls, true)).into()),
     }
 }
 
@@ -133,7 +133,7 @@ pub(crate) fn trait_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<
     let impls = args.remove_left_or_key("Impl");
     let impls = impls.map(|v| v.as_type(ctx).unwrap());
     let t = mono(ctx.name.clone());
-    Ok(ValueObj::gen_t(GenTypeObj::trait_(t, req, impls)).into())
+    Ok(ValueObj::gen_t(GenTypeObj::trait_(t, req, impls, true)).into())
 }
 
 /// Base: Type, Impl := Type -> Patch

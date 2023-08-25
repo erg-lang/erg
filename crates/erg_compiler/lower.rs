@@ -1230,7 +1230,7 @@ impl ASTLowerer {
             }
             overwritten
         };
-        if let Err(errs) = self.module.context.preregister(&lambda.body) {
+        if let Err(errs) = self.module.context.register_const(&lambda.body) {
             self.errs.extend(errs);
         }
         let body = self.lower_block(lambda.body).map_err(|errs| {
@@ -1453,7 +1453,7 @@ impl ASTLowerer {
         body: ast::DefBody,
     ) -> LowerResult<hir::Def> {
         log!(info "entered {}({sig})", fn_name!());
-        if let Err(errs) = self.module.context.preregister(&body.block) {
+        if let Err(errs) = self.module.context.register_const(&body.block) {
             self.errs.extend(errs);
         }
         match self.lower_block(body.block) {
@@ -1549,7 +1549,7 @@ impl ASTLowerer {
                 if let Err(errs) = self.module.context.assign_params(&mut params, Some(subr_t)) {
                     self.errs.extend(errs);
                 }
-                if let Err(errs) = self.module.context.preregister(&body.block) {
+                if let Err(errs) = self.module.context.register_const(&body.block) {
                     self.errs.extend(errs);
                 }
                 match self.lower_block(body.block) {
@@ -1614,7 +1614,7 @@ impl ASTLowerer {
                 if let Err(errs) = self.module.context.assign_params(&mut params, None) {
                     self.errs.extend(errs);
                 }
-                if let Err(errs) = self.module.context.preregister(&body.block) {
+                if let Err(errs) = self.module.context.register_const(&body.block) {
                     self.errs.extend(errs);
                 }
                 self.module
@@ -1678,10 +1678,13 @@ impl ASTLowerer {
             for attr in methods.attrs.iter_mut() {
                 match attr {
                     ast::ClassAttr::Def(def) => {
-                        self.module.context.preregister_def(def).map_err(|errs| {
-                            self.pop_append_errs();
-                            errs
-                        })?;
+                        self.module
+                            .context
+                            .register_const_def(def)
+                            .map_err(|errs| {
+                                self.pop_append_errs();
+                                errs
+                            })?;
                         if let Some(ident) = def.sig.ident() {
                             if self
                                 .module
@@ -1899,10 +1902,13 @@ impl ASTLowerer {
                                 def.sig.col_begin().unwrap(),
                             ));
                         }
-                        self.module.context.preregister_def(def).map_err(|errs| {
-                            self.pop_append_errs();
-                            errs
-                        })?;
+                        self.module
+                            .context
+                            .register_const_def(def)
+                            .map_err(|errs| {
+                                self.pop_append_errs();
+                                errs
+                            })?;
                     }
                     ast::ClassAttr::Decl(_) | ast::ClassAttr::Doc(_) => {}
                 }
@@ -2536,7 +2542,10 @@ impl ASTLowerer {
             }
         }
         let mut module = hir::Module::with_capacity(ast.module.len());
-        if let Err(errs) = self.module.context.preregister(ast.module.block()) {
+        if let Err(errs) = self.module.context.preregister_const(ast.module.block()) {
+            self.errs.extend(errs);
+        }
+        if let Err(errs) = self.module.context.register_const(ast.module.block()) {
             self.errs.extend(errs);
         }
         for chunk in ast.module.into_iter() {

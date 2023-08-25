@@ -1323,8 +1323,12 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 self.sub_unify(maybe_sub, &Type::Refinement(sup))?;
             }
             (sub, Refinement(_)) => {
-                let sub = sub.clone().into_refinement();
-                self.sub_unify(&Type::Refinement(sub), maybe_sup)?;
+                if let Some(sub) = sub.to_singleton() {
+                    self.sub_unify(&Type::Refinement(sub), maybe_sup)?;
+                } else {
+                    let sub = sub.clone().into_refinement();
+                    self.sub_unify(&Type::Refinement(sub), maybe_sup)?;
+                }
             }
             (Subr(_) | Record(_), Type) => {}
             // REVIEW: correct?

@@ -63,14 +63,16 @@ pub struct ClassTypeObj {
     pub t: Type,
     pub base: Option<Box<TypeObj>>,
     pub impls: Option<Box<TypeObj>>,
+    pub inited: bool,
 }
 
 impl ClassTypeObj {
-    pub fn new(t: Type, base: Option<TypeObj>, impls: Option<TypeObj>) -> Self {
+    pub fn new(t: Type, base: Option<TypeObj>, impls: Option<TypeObj>, inited: bool) -> Self {
         Self {
             t,
             base: base.map(Box::new),
             impls: impls.map(Box::new),
+            inited,
         }
     }
 }
@@ -99,14 +101,16 @@ pub struct TraitTypeObj {
     pub t: Type,
     pub requires: Box<TypeObj>,
     pub impls: Option<Box<TypeObj>>,
+    pub inited: bool,
 }
 
 impl TraitTypeObj {
-    pub fn new(t: Type, requires: TypeObj, impls: Option<TypeObj>) -> Self {
+    pub fn new(t: Type, requires: TypeObj, impls: Option<TypeObj>, inited: bool) -> Self {
         Self {
             t,
             requires: Box::new(requires),
             impls: impls.map(Box::new),
+            inited,
         }
     }
 }
@@ -223,8 +227,8 @@ impl LimitedDisplay for GenTypeObj {
 }
 
 impl GenTypeObj {
-    pub fn class(t: Type, require: Option<TypeObj>, impls: Option<TypeObj>) -> Self {
-        GenTypeObj::Class(ClassTypeObj::new(t, require, impls))
+    pub fn class(t: Type, require: Option<TypeObj>, impls: Option<TypeObj>, inited: bool) -> Self {
+        GenTypeObj::Class(ClassTypeObj::new(t, require, impls, inited))
     }
 
     pub fn inherited(
@@ -236,8 +240,8 @@ impl GenTypeObj {
         GenTypeObj::Subclass(InheritedTypeObj::new(t, sup, impls, additional))
     }
 
-    pub fn trait_(t: Type, require: TypeObj, impls: Option<TypeObj>) -> Self {
-        GenTypeObj::Trait(TraitTypeObj::new(t, require, impls))
+    pub fn trait_(t: Type, require: TypeObj, impls: Option<TypeObj>, inited: bool) -> Self {
+        GenTypeObj::Trait(TraitTypeObj::new(t, require, impls, inited))
     }
 
     pub fn patch(t: Type, base: TypeObj, impls: Option<TypeObj>) -> Self {
@@ -263,6 +267,14 @@ impl GenTypeObj {
 
     pub fn structural(t: Type, type_: TypeObj) -> Self {
         GenTypeObj::Structural(StructuralTypeObj::new(t, type_))
+    }
+
+    pub const fn is_inited(&self) -> bool {
+        match self {
+            Self::Class(class) => class.inited,
+            Self::Trait(trait_) => trait_.inited,
+            _ => true,
+        }
     }
 
     pub fn base_or_sup(&self) -> Option<&TypeObj> {
@@ -425,6 +437,13 @@ impl TypeObj {
         TypeObj::Builtin {
             t,
             meta_t: Type::TraitType,
+        }
+    }
+
+    pub const fn is_inited(&self) -> bool {
+        match self {
+            Self::Builtin { .. } => true,
+            Self::Generated(gen) => gen.is_inited(),
         }
     }
 
@@ -968,6 +987,13 @@ impl ValueObj {
 
     pub const fn is_type(&self) -> bool {
         matches!(self, Self::Type(_))
+    }
+
+    pub const fn is_inited(&self) -> bool {
+        match self {
+            Self::Type(t) => t.is_inited(),
+            _ => true,
+        }
     }
 
     pub fn from_str(t: Type, mut content: Str) -> Option<Self> {

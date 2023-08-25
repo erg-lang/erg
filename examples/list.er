@@ -1,0 +1,11 @@
+IntList = Class NoneType or { .node = Int; .next = IntList }
+IntList.
+    null = IntList::__new__ None
+    insert self, node = IntList::__new__ { .node; .next = self }
+    fst self =
+        match self::base:
+            { node; next = _ } => node
+            None => None
+
+l = IntList.null.insert 1
+assert l.fst() == 1

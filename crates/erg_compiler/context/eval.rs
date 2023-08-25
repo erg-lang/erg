@@ -595,7 +595,13 @@ impl Context {
                     call.loc(),
                     self.caused_by(),
                 ))),
-                _ => unreachable!(),
+                other => Err(EvalErrors::from(EvalError::feature_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    other.loc(),
+                    &format!("const call: {other}"),
+                    self.caused_by(),
+                ))),
             }
         } else {
             Err(EvalErrors::from(EvalError::not_const_expr(
@@ -1031,26 +1037,8 @@ impl Context {
                     line!(),
                 ))
             }),
-            Or | BitOr => match (lhs, rhs) {
-                (ValueObj::Bool(l), ValueObj::Bool(r)) => Ok(ValueObj::Bool(l || r)),
-                (ValueObj::Int(l), ValueObj::Int(r)) => Ok(ValueObj::Int(l | r)),
-                (ValueObj::Type(lhs), ValueObj::Type(rhs)) => Ok(self.eval_or_type(lhs, rhs)),
-                _ => Err(EvalErrors::from(EvalError::unreachable(
-                    self.cfg.input.clone(),
-                    fn_name!(),
-                    line!(),
-                ))),
-            },
-            And | BitAnd => match (lhs, rhs) {
-                (ValueObj::Bool(l), ValueObj::Bool(r)) => Ok(ValueObj::Bool(l && r)),
-                (ValueObj::Int(l), ValueObj::Int(r)) => Ok(ValueObj::Int(l & r)),
-                (ValueObj::Type(lhs), ValueObj::Type(rhs)) => Ok(self.eval_and_type(lhs, rhs)),
-                _ => Err(EvalErrors::from(EvalError::unreachable(
-                    self.cfg.input.clone(),
-                    fn_name!(),
-                    line!(),
-                ))),
-            },
+            Or | BitOr => self.eval_or(lhs, rhs),
+            And | BitAnd => self.eval_and(lhs, rhs),
             BitXor => match (lhs, rhs) {
                 (ValueObj::Bool(l), ValueObj::Bool(r)) => Ok(ValueObj::Bool(l ^ r)),
                 (ValueObj::Int(l), ValueObj::Int(r)) => Ok(ValueObj::Int(l ^ r)),
@@ -1065,6 +1053,27 @@ impl Context {
                 fn_name!(),
                 line!(),
             ))),
+        }
+    }
+
+    fn eval_or(&self, lhs: ValueObj, rhs: ValueObj) -> EvalResult<ValueObj> {
+        match (lhs, rhs) {
+            (ValueObj::Bool(l), ValueObj::Bool(r)) => Ok(ValueObj::Bool(l || r)),
+            (ValueObj::Int(l), ValueObj::Int(r)) => Ok(ValueObj::Int(l | r)),
+            (ValueObj::Type(lhs), ValueObj::Type(rhs)) => Ok(self.eval_or_type(lhs, rhs)),
+            (lhs, rhs) => {
+                let lhs = self.convert_value_into_type(lhs).ok();
+                let rhs = self.convert_value_into_type(rhs).ok();
+                if let Some((l, r)) = lhs.zip(rhs) {
+                    self.eval_or(ValueObj::builtin_type(l), ValueObj::builtin_type(r))
+                } else {
+                    Err(EvalErrors::from(EvalError::unreachable(
+                        self.cfg.input.clone(),
+                        fn_name!(),
+                        line!(),
+                    )))
+                }
+            }
         }
     }
 
@@ -1098,6 +1107,27 @@ impl Context {
                 lhs,
                 rhs,
             )),
+        }
+    }
+
+    fn eval_and(&self, lhs: ValueObj, rhs: ValueObj) -> EvalResult<ValueObj> {
+        match (lhs, rhs) {
+            (ValueObj::Bool(l), ValueObj::Bool(r)) => Ok(ValueObj::Bool(l && r)),
+            (ValueObj::Int(l), ValueObj::Int(r)) => Ok(ValueObj::Int(l & r)),
+            (ValueObj::Type(lhs), ValueObj::Type(rhs)) => Ok(self.eval_and_type(lhs, rhs)),
+            (lhs, rhs) => {
+                let lhs = self.convert_value_into_type(lhs).ok();
+                let rhs = self.convert_value_into_type(rhs).ok();
+                if let Some((l, r)) = lhs.zip(rhs) {
+                    self.eval_and(ValueObj::builtin_type(l), ValueObj::builtin_type(r))
+                } else {
+                    Err(EvalErrors::from(EvalError::unreachable(
+                        self.cfg.input.clone(),
+                        fn_name!(),
+                        line!(),
+                    )))
+                }
+            }
         }
     }
 

@@ -641,7 +641,11 @@ impl Context {
             // ({I: Int | True} :> Int) == true
             // {N: Nat | ...} :> Int) == false
             // ({I: Int | I >= 0} :> Int) == false
+            // {U(: Type)} :> { .x = {Int} }(== {{ .x = Int }}) == true
             (Refinement(l), r) => {
+                if let Some(r) = r.to_singleton() {
+                    return self.structural_supertype_of(lhs, &Type::Refinement(r));
+                }
                 if l.pred.mentions(&l.var) {
                     match l.pred.can_be_false() {
                         Some(true) => {

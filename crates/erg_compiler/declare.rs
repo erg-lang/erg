@@ -772,14 +772,18 @@ impl ASTLowerer {
         let (t, ty_obj) = match t {
             Type::ClassType => {
                 let t = mono(format!("{}{ident}", self.module.context.path()));
-                let ty_obj = GenTypeObj::class(t.clone(), None, None);
+                let ty_obj = GenTypeObj::class(t.clone(), None, None, true);
                 let t = v_enum(set! { ValueObj::builtin_class(t) });
                 (t, Some(ty_obj))
             }
             Type::TraitType => {
                 let t = mono(format!("{}{ident}", self.module.context.path()));
-                let ty_obj =
-                    GenTypeObj::trait_(t.clone(), TypeObj::builtin_type(Type::Uninited), None);
+                let ty_obj = GenTypeObj::trait_(
+                    t.clone(),
+                    TypeObj::builtin_type(Type::Uninited),
+                    None,
+                    true,
+                );
                 let t = v_enum(set! { ValueObj::builtin_trait(t) });
                 (t, Some(ty_obj))
             }
@@ -793,7 +797,7 @@ impl ASTLowerer {
                     })
                     .collect();
                 let t = poly(format!("{}{ident}", self.module.context.path()), params);
-                let ty_obj = GenTypeObj::class(t.clone(), None, None);
+                let ty_obj = GenTypeObj::class(t.clone(), None, None, true);
                 let t = v_enum(set! { ValueObj::builtin_class(t) });
                 (t, Some(ty_obj))
             }
@@ -875,7 +879,7 @@ impl ASTLowerer {
 
     pub(crate) fn declare_module(&mut self, ast: AST) -> HIR {
         let mut module = hir::Module::with_capacity(ast.module.len());
-        let _ = self.module.context.preregister(ast.module.block());
+        let _ = self.module.context.register_const(ast.module.block());
         for chunk in ast.module.into_iter() {
             match self.declare_chunk(chunk, false) {
                 Ok(chunk) => {
