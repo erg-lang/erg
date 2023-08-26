@@ -528,7 +528,7 @@ impl ASTLowerer {
 
     fn get_tv_ctx(&self, ident: &ast::Identifier, args: &ast::Args) -> TyVarCache {
         let mut tv_ctx = TyVarCache::new(self.module.context.level, &self.module.context);
-        if let Some((t, _)) = self.module.context.get_type(ident.inspect()) {
+        if let Some((t, _)) = self.module.context.get_type_and_ctx(ident.inspect()) {
             for (tp, arg) in t.typarams().iter().zip(args.pos_args()) {
                 if let ast::Expr::Accessor(ast::Accessor::Ident(ident)) = &arg.expr {
                     tv_ctx.push_or_init_typaram(&ident.name, tp, &self.module.context);

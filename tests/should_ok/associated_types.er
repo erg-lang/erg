@@ -1,0 +1,17 @@
+IO = Trait {
+    .Inp = Type
+    .Output = Type
+    .func = (self, x: .Inp) -> .Output
+}
+
+C = Class()
+C|<: IO|.
+    Inp = Int
+    Output = Bool
+    func self, i =
+        _ = self
+        i >= 0
+
+io x, y = x.func y
+
+assert io C.new(), 1

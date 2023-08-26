@@ -115,6 +115,13 @@ impl Visibility {
         }
     }
 
+    pub fn public(namespace: Str) -> Self {
+        Self {
+            modifier: VisibilityModifier::Public,
+            def_namespace: namespace,
+        }
+    }
+
     pub const fn is_public(&self) -> bool {
         self.modifier.is_public()
     }

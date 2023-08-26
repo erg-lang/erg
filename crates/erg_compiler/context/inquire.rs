@@ -213,7 +213,7 @@ impl Context {
         self.get_mod(ident.inspect())
             .map(|ctx| vec![ctx])
             .or_else(|| {
-                let (typ, _) = self.get_type(ident.inspect())?;
+                let (typ, _) = self.get_type_and_ctx(ident.inspect())?;
                 self.get_nominal_super_type_ctxs(typ)
             })
             .or_else(|| self.rec_get_patch(ident.inspect()).map(|ctx| vec![ctx]))
@@ -2829,7 +2829,7 @@ impl Context {
         }
     }
 
-    pub(crate) fn get_type(&self, name: &str) -> Option<(&Type, &Context)> {
+    pub(crate) fn get_type_and_ctx(&self, name: &str) -> Option<(&Type, &Context)> {
         if let Some((t, ctx)) = self.rec_local_get_type(name) {
             return Some((t, ctx));
         }
@@ -2848,7 +2848,8 @@ impl Context {
     }
 
     pub fn get_type_info_by_str(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
-        self.get_type(name).and_then(|(t, _)| self.get_type_info(t))
+        self.get_type_and_ctx(name)
+            .and_then(|(t, _)| self.get_type_info(t))
     }
 
     /// you should use `get_type` instead of this

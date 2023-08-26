@@ -28,6 +28,11 @@ fn exec_assert_cast_ok() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_associated_types() -> Result<(), ()> {
+    expect_success("tests/should_ok/associated_types.er", 0)
+}
+
+#[test]
 fn exec_class() -> Result<(), ()> {
     expect_success("examples/class.er", 0)
 }

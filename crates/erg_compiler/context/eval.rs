@@ -20,17 +20,20 @@ use erg_parser::desugar::Desugarer;
 use erg_parser::token::{Token, TokenKind};
 
 use crate::ty::constructors::{
-    array_t, dict_t, mono, named_free_var, poly, proj, proj_call, ref_, ref_mut, refinement, set_t,
-    subr_t, tp_enum, tuple_t, v_enum,
+    array_t, dict_t, mono, mono_q, named_free_var, poly, proj, proj_call, ref_, ref_mut,
+    refinement, set_t, subr_t, subtypeof, tp_enum, tuple_t, v_enum,
 };
 use crate::ty::free::{Constraint, HasLevel};
 use crate::ty::typaram::{OpKind, TyParam};
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
-use crate::ty::{ConstSubr, HasType, Predicate, SubrKind, Type, UserConstSubr, ValueArgs};
+use crate::ty::{
+    ConstSubr, HasType, Predicate, SubrKind, Type, UserConstSubr, ValueArgs, Visibility,
+};
 
 use crate::context::instantiate_spec::ParamKind;
 use crate::context::{ClassDefType, Context, ContextKind, RegistrationMode};
 use crate::error::{EvalError, EvalErrors, EvalResult, SingleEvalResult};
+use crate::varinfo::VarInfo;
 
 use super::instantiate::TyVarCache;
 use Type::{Failure, Never, Subr};
@@ -794,7 +797,7 @@ impl Context {
             let elem = record_ctx.eval_const_block(&attr.body.block)?;
             let ident = match &attr.sig {
                 Signature::Var(var) => match &var.pat {
-                    VarPattern::Ident(ident) => self.instantiate_field(ident)?,
+                    VarPattern::Ident(ident) => record_ctx.instantiate_field(ident)?,
                     other => {
                         return feature_error!(self, other.loc(), &format!("record field: {other}"))
                     }
@@ -803,6 +806,21 @@ impl Context {
                     return feature_error!(self, other.loc(), &format!("record field: {other}"))
                 }
             };
+            let name = VarName::from_str(ident.symbol.clone());
+            // T = Trait { .Output = Type; ... }
+            // -> .Output = Self(<: T).Output
+            if self.kind.is_trait() && self.convert_value_into_type(elem.clone()).is_ok() {
+                let slf = mono_q("Self", subtypeof(mono(self.name.clone())));
+                let t = ValueObj::builtin_type(slf.proj(ident.symbol.clone()));
+                record_ctx.consts.insert(name.clone(), t);
+            } else {
+                record_ctx.consts.insert(name.clone(), elem.clone());
+            }
+            let t = v_enum(set! { elem.clone() });
+            let vis = record_ctx.instantiate_vis_modifier(attr.sig.vis())?;
+            let vis = Visibility::new(vis, record_ctx.name.clone());
+            let vi = VarInfo::record_field(t, record_ctx.absolutize(attr.sig.loc()), vis);
+            record_ctx.locals.insert(name, vi);
             attrs.push((ident, elem));
         }
         Ok(ValueObj::Record(attrs.into_iter().collect()))
@@ -1795,10 +1813,7 @@ impl Context {
     pub(crate) fn convert_value_into_type(&self, val: ValueObj) -> Result<Type, ValueObj> {
         match val {
             ValueObj::Ellipsis => Ok(Type::Ellipsis),
-            ValueObj::Type(t) => match t {
-                TypeObj::Builtin { t, .. } => Ok(t),
-                TypeObj::Generated(gen) => Ok(gen.into_typ()),
-            },
+            ValueObj::Type(t) => Ok(t.into_typ()),
             ValueObj::Record(rec) => {
                 let mut fields = dict! {};
                 for (name, val) in rec.into_iter() {
@@ -1998,7 +2013,7 @@ impl Context {
             // obj: [T; N]|<: Add([T; M])|.Output == ValueObj::Type(<type [T; M+N]>)
             if let ValueObj::Type(quant_projected_t) = obj {
                 let projected_t = quant_projected_t.into_typ();
-                let (quant_sub, _) = self.get_type(&sub.qual_name()).unwrap();
+                let (quant_sub, _) = self.get_type_and_ctx(&sub.qual_name()).unwrap();
                 let _sup_subs = if let Some((sup, quant_sup)) = opt_sup.zip(methods.impl_of()) {
                     // T -> Int, M -> 2
                     match Substituter::substitute_typarams(self, &quant_sup, sup) {

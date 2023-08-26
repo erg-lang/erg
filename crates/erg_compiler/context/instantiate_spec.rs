@@ -550,8 +550,14 @@ impl Context {
                         return Ok(t);
                     }
                 }
-                if let Some((typ, _)) = self.get_type(ident.inspect()) {
+                if let Some((typ, _)) = self.get_type_and_ctx(ident.inspect()) {
                     Ok(typ.clone())
+                } else if let Some(typ) = self
+                    .consts
+                    .get(ident.inspect())
+                    .and_then(|v| self.convert_value_into_type(v.clone()).ok())
+                {
+                    Ok(typ)
                 } else if not_found_is_qvar {
                     let tyvar = named_free_var(Str::rc(other), self.level, Constraint::Uninited);
                     tmp_tv_cache.push_or_init_tyvar(&ident.name, &tyvar, self);
@@ -715,7 +721,7 @@ impl Context {
                 Ok(Type::NamedTuple(ts))
             }
             other => {
-                let Some((typ, ctx)) = self.get_type(&Str::rc(other)) else {
+                let Some((typ, ctx)) = self.get_type_and_ctx(&Str::rc(other)) else {
                     return Err(TyCheckErrors::from(TyCheckError::no_type_error(
                         self.cfg.input.clone(),
                         line!() as usize,

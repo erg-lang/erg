@@ -907,6 +907,7 @@ impl Context {
         Ok(())
     }
 
+    /// Registers type definitions of types and constants; unlike `register_const`, this does not evaluate terms.
     pub(crate) fn preregister_const(&mut self, block: &ast::Block) -> TyCheckResult<()> {
         let mut total_errs = TyCheckErrors::empty();
         for expr in block.iter() {

@@ -361,6 +361,19 @@ impl VarInfo {
         )
     }
 
+    pub fn record_field(t: Type, def_loc: AbsLocation, vis: Visibility) -> Self {
+        Self::new(
+            t,
+            Immutable,
+            vis,
+            VarKind::Declared,
+            None,
+            None,
+            None,
+            def_loc,
+        )
+    }
+
     pub fn is_untyped_parameter(&self) -> bool {
         self.kind.is_parameter() && self.t.is_unbound_var()
     }
