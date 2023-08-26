@@ -20,8 +20,8 @@ use erg_parser::desugar::Desugarer;
 use erg_parser::token::{Token, TokenKind};
 
 use crate::ty::constructors::{
-    array_t, dict_t, mono, named_free_var, poly, proj, proj_call, ref_, ref_mut, refinement, set_t,
-    subr_t, tp_enum, tuple_t, v_enum,
+    array_t, dict_t, mono, mono_q, named_free_var, poly, proj, proj_call, ref_, ref_mut,
+    refinement, set_t, subr_t, subtypeof, tp_enum, tuple_t, v_enum,
 };
 use crate::ty::free::{Constraint, HasLevel};
 use crate::ty::typaram::{OpKind, TyParam};
@@ -807,7 +807,15 @@ impl Context {
                 }
             };
             let name = VarName::from_str(ident.symbol.clone());
-            record_ctx.consts.insert(name.clone(), elem.clone());
+            // T = Trait { .Output = Type; ... }
+            // -> .Output = Self(<: T).Output
+            if self.kind.is_trait() && self.convert_value_into_type(elem.clone()).is_ok() {
+                let slf = mono_q("Self", subtypeof(mono(self.name.clone())));
+                let t = ValueObj::builtin_type(slf.proj(ident.symbol.clone()));
+                record_ctx.consts.insert(name.clone(), t);
+            } else {
+                record_ctx.consts.insert(name.clone(), elem.clone());
+            }
             let t = v_enum(set! { elem.clone() });
             let vis = record_ctx.instantiate_vis_modifier(attr.sig.vis())?;
             let vis = Visibility::new(vis, record_ctx.name.clone());
