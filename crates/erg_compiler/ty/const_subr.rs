@@ -269,6 +269,11 @@ impl ConstSubr {
                             subr.default_params.clone(),
                             return_t,
                         );
+                        let subr_t = if subr_t.has_qvar() {
+                            subr_t.quantify()
+                        } else {
+                            subr_t
+                        };
                         return Some(subr_t);
                     }
                 }
