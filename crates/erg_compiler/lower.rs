@@ -389,6 +389,17 @@ impl ASTLowerer {
         self.module
             .context
             .grow("<record>", ContextKind::Dummy, Private, None);
+        for attr in record.attrs.iter() {
+            if attr.sig.is_const() {
+                self.module
+                    .context
+                    .register_const_def(attr)
+                    .map_err(|errs| {
+                        self.pop_append_errs();
+                        errs
+                    })?;
+            }
+        }
         for attr in record.attrs.into_iter() {
             let attr = self.lower_def(attr).map_err(|errs| {
                 self.pop_append_errs();

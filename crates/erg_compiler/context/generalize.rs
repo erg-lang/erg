@@ -592,7 +592,9 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                             Ok(ty)
                         }
                         Err(errs) => {
-                            Type::FreeVar(fv).destructive_link(&Never);
+                            if !fv.is_generalized() {
+                                Type::FreeVar(fv).destructive_link(&Never);
+                            }
                             Err(errs)
                         }
                     }

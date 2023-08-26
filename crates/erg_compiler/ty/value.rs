@@ -1454,23 +1454,10 @@ impl ValueObj {
     pub fn as_type(&self, ctx: &Context) -> Option<TypeObj> {
         match self {
             Self::Type(t) => Some(t.clone()),
-            Self::Record(rec) => {
-                let mut attr_ts = dict! {};
-                for (k, v) in rec.iter() {
-                    attr_ts.insert(k.clone(), v.as_type(ctx)?.typ().clone());
-                }
-                Some(TypeObj::builtin_type(Type::Record(attr_ts)))
-            }
-            Self::Subr(subr) => subr.as_type(ctx).map(TypeObj::builtin_type),
-            Self::Array(elems) | Self::Tuple(elems) => {
-                log!(err "as_type({})", erg_common::fmt_vec(elems));
-                None
-            }
-            Self::Dict(elems) => {
-                log!(err "as_type({elems})");
-                None
-            }
-            _other => None,
+            other => ctx
+                .convert_value_into_type(other.clone())
+                .ok()
+                .map(TypeObj::builtin_type),
         }
     }
 }
