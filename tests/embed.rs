@@ -37,6 +37,40 @@ fn test_transpiler_embedding() -> Result<(), ()> {
 }
 
 #[test]
+fn test_transpiler_embedding2() -> Result<(), ()> {
+    let mut trans = Transpiler::default();
+    let res = trans
+        .transpile(
+            "
+print!(0, end:=\"\")
+i = match [1, 2]:
+    [2, 1] -> 0
+    [1, 2] -> 1
+print!(i, end:=\"\")
+j = if False:
+    do: 1
+    do: 2
+print!(j, end:=\"\")
+for! [3, 4], i =>
+    print!(i, end:=\"\")
+c = !5
+while! do! c < 7, do!:
+    print!(c, end:=\"\")
+    c.inc!()
+"
+            .into(),
+            "exec",
+        )
+        .map_err(|es| {
+            es.errors.write_all_stderr();
+        })?;
+    let res = exec_py_code_with_output(res.object.code(), &[]).map_err(|_| ())?;
+    assert!(res.status.success());
+    assert_eq!(res.stdout, b"0123456");
+    Ok(())
+}
+
+#[test]
 fn test_builder() -> Result<(), ()> {
     let mods = ["math", "time"];
     let src = mods.into_iter().fold("".to_string(), |acc, module| {

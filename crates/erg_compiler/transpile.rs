@@ -6,6 +6,7 @@ use erg_common::dict;
 use erg_common::dict::Dict as HashMap;
 use erg_common::error::MultiErrorDisplay;
 use erg_common::log;
+use erg_common::set::Set as HashSet;
 use erg_common::traits::{ExitStatus, Locational, Runnable, Stream};
 use erg_common::Str;
 
@@ -309,6 +310,7 @@ impl Transpiler {
 
 #[derive(Debug, Default)]
 pub struct PyScriptGenerator {
+    globals: HashSet<String>,
     level: usize,
     fresh_var_n: usize,
     namedtuple_loaded: bool,
@@ -322,8 +324,9 @@ pub struct PyScriptGenerator {
 }
 
 impl PyScriptGenerator {
-    pub const fn new() -> Self {
+    pub fn new() -> Self {
         Self {
+            globals: HashSet::new(),
             level: 0,
             fresh_var_n: 0,
             namedtuple_loaded: false,
@@ -676,18 +679,20 @@ impl PyScriptGenerator {
                     ParamPattern::Discard(token) => token,
                     _ => unreachable!(),
                 };
-                code += &format!("{}__ ", &param.content);
+                code += &format!("{}__ ", replace_non_symbolic(&param.content));
                 code += &format!("in {}:\n", self.transpile_expr(iter));
                 code += &self.transpile_block(block.body, Discard);
                 code
             }
             Some("while" | "while!") => {
                 let mut code = "while ".to_string();
-                let cond = call.args.remove(0);
+                let Expr::Lambda(mut cond) = call.args.remove(0) else {
+                    todo!()
+                };
                 let Expr::Lambda(block) = call.args.remove(0) else {
                     todo!()
                 };
-                code += &format!("{}:\n", self.transpile_expr(cond));
+                code += &format!("{}:\n", self.transpile_expr(cond.body.remove(0)));
                 code += &self.transpile_block(block.body, Discard);
                 code
             }
@@ -767,7 +772,39 @@ impl PyScriptGenerator {
             let target = arm.params.non_defaults.get(0).unwrap();
             match &target.raw.pat {
                 ParamPattern::VarName(param) => {
-                    code += &format!("case {}__:\n", &param.token().content);
+                    let param = if &param.token().content == "_" {
+                        "_".to_string()
+                    } else {
+                        replace_non_symbolic(&param.token().content) + "__"
+                    };
+                    match target.raw.t_spec.as_ref().map(|t| &t.t_spec) {
+                        Some(TypeSpec::Enum(enum_t)) => {
+                            let values = ValueObj::vec_from_const_args(enum_t.clone());
+                            let patterns = values
+                                .iter()
+                                .map(|v| v.to_string())
+                                .collect::<Vec<_>>()
+                                .join(" | ");
+                            code += &format!("case ({patterns}) as {param}:\n");
+                        }
+                        Some(other) => {
+                            if let Some(Expr::Set(Set::Normal(set))) = &target.t_spec_as_expr {
+                                let patterns = set
+                                    .elems
+                                    .pos_args
+                                    .iter()
+                                    .map(|elem| self.transpile_expr(elem.expr.clone()))
+                                    .collect::<Vec<_>>()
+                                    .join(" | ");
+                                code += &format!("case ({patterns}) as {param}:\n");
+                            } else {
+                                todo!("{other}")
+                            }
+                        }
+                        None => {
+                            code += &format!("case {param}:\n");
+                        }
+                    }
                     code += &self.transpile_block(arm.body, StoreTmp(tmp.clone()));
                     self.level -= 1;
                 }
@@ -775,11 +812,12 @@ impl PyScriptGenerator {
                     match target.raw.t_spec.as_ref().map(|t| &t.t_spec) {
                         Some(TypeSpec::Enum(enum_t)) => {
                             let values = ValueObj::vec_from_const_args(enum_t.clone());
-                            if values.len() == 1 {
-                                code += &format!("case {}:\n", values[0]);
-                            } else {
-                                todo!()
-                            }
+                            let patterns = values
+                                .iter()
+                                .map(|v| v.to_string())
+                                .collect::<Vec<_>>()
+                                .join(" | ");
+                            code += &format!("case {patterns}:\n");
                         }
                         Some(_) => todo!(),
                         None => {
@@ -851,7 +889,7 @@ impl PyScriptGenerator {
         }
         let name = ident.inspect().to_string();
         let name = replace_non_symbolic(&name);
-        if ident.vis().is_public() {
+        if ident.vis().is_public() || &name == "_" {
             name
         } else {
             format!("{name}__")
@@ -939,11 +977,13 @@ impl PyScriptGenerator {
         let mut code = if self.level == 0 {
             "".to_string()
         } else {
-            format!(
-                "global {}\n{}",
-                Self::transpile_ident(def.sig.ident().clone()),
-                "    ".repeat(self.level)
-            )
+            let name = Self::transpile_ident(def.sig.ident().clone());
+            if self.globals.contains(&name) {
+                "".to_string()
+            } else {
+                self.globals.insert(name.clone());
+                format!("global {name}\n{}", "    ".repeat(self.level))
+            }
         };
         match def.sig {
             Signature::Var(var) => {
@@ -1152,7 +1192,7 @@ impl JsonGenerator {
                 if let Some(val) = self.binds.get(&acc.var_info().def_loc) {
                     val.to_string()
                 } else {
-                    acc.to_string()
+                    replace_non_symbolic(&acc.to_string())
                 }
             }
             Expr::Array(array) => match array {
