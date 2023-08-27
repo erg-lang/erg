@@ -3333,7 +3333,7 @@ impl Parser {
                         Str::from(format!("\"{}", right.content.trim_start_matches('}')));
                     right.kind = StrLit;
                     let right = Expr::Literal(Literal::from(right));
-                    let op = Token::new(
+                    let op = Token::new_fake(
                         Plus,
                         "+",
                         right.ln_begin().unwrap(),
@@ -3373,7 +3373,7 @@ impl Parser {
                         mid_expr.col_end().unwrap(),
                     );
                     let call = Call::new(str_func, None, Args::single(PosArg::new(mid_expr)));
-                    let op = Token::new(
+                    let op = Token::new_fake(
                         Plus,
                         "+",
                         call.ln_begin().unwrap(),
@@ -3390,7 +3390,7 @@ impl Parser {
                         ));
                         mid.kind = StrLit;
                         let mid = Expr::Literal(Literal::from(mid));
-                        let op = Token::new(
+                        let op = Token::new_fake(
                             Plus,
                             "+",
                             mid.ln_begin().unwrap(),

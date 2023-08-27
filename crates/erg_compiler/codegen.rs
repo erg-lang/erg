@@ -3156,7 +3156,7 @@ impl PyCodeGenerator {
             }
             None => {}
         }
-        let none = Token::new(TokenKind::NoneLit, "None", line, 0, 0);
+        let none = Token::new_fake(TokenKind::NoneLit, "None", line, 0, 0);
         attrs.push(Expr::Lit(Literal::new(ValueObj::None, none)));
         let block = Block::new(attrs);
         let body = DefBody::new(EQUAL, block, DefId(0));

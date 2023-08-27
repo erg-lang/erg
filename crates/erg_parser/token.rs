@@ -421,7 +421,20 @@ impl Token {
     }
 
     #[inline]
-    pub fn new<S: Into<Str>>(
+    pub fn new<S: Into<Str>>(kind: TokenKind, cont: S, lineno: u32, col_begin: u32) -> Self {
+        let content = cont.into();
+        let col_end = col_begin + content.chars().count() as u32;
+        Token {
+            kind,
+            content,
+            lineno,
+            col_begin,
+            col_end,
+        }
+    }
+
+    #[inline]
+    pub fn new_fake<S: Into<Str>>(
         kind: TokenKind,
         cont: S,
         lineno: u32,

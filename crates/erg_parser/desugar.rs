@@ -428,14 +428,14 @@ impl Desugarer {
                                         match &arg.expr {
                                             Expr::Accessor(Accessor::Ident(ident)) => {
                                                 let param_name = ident.inspect();
-                                                let col_end = name.col_end().unwrap_or(0)
-                                                    + 1
-                                                    + param_name.len() as u32;
-                                                let param = VarName::new(Token::new(
+                                                let col_begin = name.col_end().unwrap_or(0) + 1;
+                                                let col_end =
+                                                    col_begin + param_name.chars().count() as u32;
+                                                let param = VarName::new(Token::new_fake(
                                                     TokenKind::Symbol,
                                                     param_name,
                                                     name.ln_begin().unwrap_or(1),
-                                                    name.col_end().unwrap_or(0) + 1,
+                                                    col_begin,
                                                     col_end,
                                                 ));
                                                 let param = NonDefaultParamSignature::new(
@@ -451,13 +451,13 @@ impl Desugarer {
                                 }
                                 Expr::Accessor(Accessor::Ident(ident)) => {
                                     let param_name = ident.inspect();
-                                    let col_end =
-                                        name.col_end().unwrap_or(0) + 1 + param_name.len() as u32;
-                                    let param = VarName::new(Token::new(
+                                    let col_begin = name.col_end().unwrap_or(0) + 1; // HACK: `(name) %x = ...`という形を想定
+                                    let col_end = col_begin + param_name.chars().count() as u32;
+                                    let param = VarName::new(Token::new_fake(
                                         TokenKind::Symbol,
                                         param_name,
                                         name.ln_begin().unwrap_or(1),
-                                        name.col_end().unwrap_or(0) + 1, // HACK: `(name) %x = ...`という形を想定
+                                        col_begin,
                                         col_end,
                                     ));
                                     let param = NonDefaultParamSignature::new(
@@ -797,7 +797,6 @@ impl Desugarer {
                     "]",
                     sig.ln_begin().unwrap_or(1),
                     sig.col_begin().unwrap_or(0),
-                    sig.col_end().unwrap_or(0),
                 );
                 obj.subscr(
                     Expr::Literal(Literal::nat(n, sig.ln_begin().unwrap_or(1))),
@@ -1002,7 +1001,7 @@ impl Desugarer {
             ParamPattern::VarName(_v) => {}
             ParamPattern::Lit(l) => {
                 let lit = l.clone();
-                param.pat = ParamPattern::Discard(Token::new(
+                param.pat = ParamPattern::Discard(Token::new_fake(
                     TokenKind::UBar,
                     "_",
                     l.ln_begin().unwrap_or(1),
@@ -1037,7 +1036,7 @@ impl Desugarer {
                         BufIndex::Tuple(n),
                         insertion_idx,
                     );
-                    let infer = Token::new(TokenKind::Try, "?", line, 0, 0);
+                    let infer = Token::new_fake(TokenKind::Try, "?", line, 0, 0);
                     let ty_expr = elem
                         .t_spec
                         .as_ref()
@@ -1081,9 +1080,14 @@ impl Desugarer {
                 }
                 if param.t_spec.is_none() {
                     let len = arr.elems.non_defaults.len();
-                    let len =
-                        Literal::new(Token::new(TokenKind::NatLit, len.to_string(), line, 0, 0));
-                    let infer = Token::new(TokenKind::Try, "?", line, 0, 0);
+                    let len = Literal::new(Token::new_fake(
+                        TokenKind::NatLit,
+                        len.to_string(),
+                        line,
+                        0,
+                        0,
+                    ));
+                    let infer = Token::new_fake(TokenKind::Try, "?", line, 0, 0);
                     let t_spec =
                         ArrayTypeSpec::new(TypeSpec::Infer(infer), ConstExpr::Lit(len.clone()));
                     let t_spec_as_expr = Self::dummy_array_expr(len);
@@ -1114,7 +1118,7 @@ impl Desugarer {
                             vis: VisModifierSpec::Public(Token::DUMMY),
                             ..lhs.clone()
                         };
-                        let infer = Token::new(TokenKind::Try, "?", line, 0, 0);
+                        let infer = Token::new_fake(TokenKind::Try, "?", line, 0, 0);
                         let expr = rhs
                             .t_spec
                             .as_ref()
@@ -1192,7 +1196,6 @@ impl Desugarer {
                     "]",
                     sig.ln_begin().unwrap_or(1),
                     sig.col_begin().unwrap_or(0),
-                    sig.col_end().unwrap_or(0),
                 );
                 obj.subscr(
                     Expr::Literal(Literal::nat(n, sig.ln_begin().unwrap_or(1))),
@@ -1234,7 +1237,7 @@ impl Desugarer {
                         BufIndex::Tuple(n),
                         insertion_idx,
                     );
-                    let infer = Token::new(TokenKind::Try, "?", line, 0, 0);
+                    let infer = Token::new_fake(TokenKind::Try, "?", line, 0, 0);
                     let ty_expr = elem
                         .t_spec
                         .as_ref()
@@ -1289,9 +1292,14 @@ impl Desugarer {
                 }
                 if sig.t_spec.is_none() {
                     let len = arr.elems.non_defaults.len();
-                    let len =
-                        Literal::new(Token::new(TokenKind::NatLit, len.to_string(), line, 0, 0));
-                    let infer = Token::new(TokenKind::Try, "?", line, 0, 0);
+                    let len = Literal::new(Token::new_fake(
+                        TokenKind::NatLit,
+                        len.to_string(),
+                        line,
+                        0,
+                        0,
+                    ));
+                    let infer = Token::new_fake(TokenKind::Try, "?", line, 0, 0);
                     let t_spec =
                         ArrayTypeSpec::new(TypeSpec::Infer(infer), ConstExpr::Lit(len.clone()));
                     let t_spec_as_expr = Self::dummy_array_expr(len);
@@ -1331,7 +1339,7 @@ impl Desugarer {
                         BufIndex::Record(&lhs),
                         insertion_idx,
                     );
-                    let infer = Token::new(TokenKind::Try, "?", line, 0, 0);
+                    let infer = Token::new_fake(TokenKind::Try, "?", line, 0, 0);
                     let expr = rhs
                         .t_spec
                         .as_ref()
@@ -1394,7 +1402,7 @@ impl Desugarer {
             }
             ParamPattern::Lit(l) => {
                 let lit = l.clone();
-                sig.pat = ParamPattern::Discard(Token::new(
+                sig.pat = ParamPattern::Discard(Token::new_fake(
                     TokenKind::UBar,
                     "_",
                     l.ln_begin().unwrap_or(1),

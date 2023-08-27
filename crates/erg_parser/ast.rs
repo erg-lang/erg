@@ -90,7 +90,7 @@ impl Literal {
     }
 
     pub fn nat(n: usize, line: u32) -> Self {
-        let token = Token::new(TokenKind::NatLit, Str::from(n.to_string()), line, 0, 0);
+        let token = Token::new_fake(TokenKind::NatLit, Str::from(n.to_string()), line, 0, 0);
         Self { token }
     }
 
@@ -3050,7 +3050,7 @@ impl VarName {
     }
 
     pub fn from_str_and_line(symbol: Str, line: u32) -> Self {
-        Self(Token::new(TokenKind::Symbol, symbol, line, 0, 0))
+        Self(Token::new_fake(TokenKind::Symbol, symbol, line, 0, 0))
     }
 
     pub fn from_str_and_loc(symbol: Str, loc: Location) -> Self {
@@ -4687,7 +4687,7 @@ impl Expr {
     }
 
     pub fn local(name: &str, lineno: u32, col_begin: u32, col_end: u32) -> Self {
-        Self::Accessor(Accessor::local(Token::new(
+        Self::Accessor(Accessor::local(Token::new_fake(
             TokenKind::Symbol,
             Str::rc(name),
             lineno,

@@ -1099,14 +1099,12 @@ impl ASTLowerer {
                 Str::ever("."),
                 pack.connector.ln_begin().unwrap(),
                 pack.connector.col_begin().unwrap(),
-                pack.connector.col_end().unwrap(),
             )),
             ast::VarName::new(Token::new(
                 TokenKind::Symbol,
                 Str::ever("new"),
                 pack.connector.ln_begin().unwrap(),
                 pack.connector.col_begin().unwrap(),
-                pack.connector.col_end().unwrap(),
             )),
         );
         let vi = match self.module.context.get_call_t(
@@ -1913,7 +1911,6 @@ impl ASTLowerer {
                                 ".",
                                 def.sig.ln_begin().unwrap(),
                                 def.sig.col_begin().unwrap(),
-                                def.sig.col_end().unwrap(),
                             ));
                         }
                         self.module
