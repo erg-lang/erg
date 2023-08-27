@@ -1,10 +1,61 @@
 io = pyimport "io"
 
+.abiflags: Str
+.api_version: Nat
 .argv: [Str; _]
-.byteorder: Str
+.base_exec_prefix: Str
+.base_prefix: Str
 .builtin_module_names: [Str; _]
+.byteorder: Str
+.dont_write_bytecode: Bool
 .copyright: Str
+.exec_prefix: Str
 .executable: Str
+.flags: NamedTuple {
+    .debug = Nat
+    .inspect = Nat
+    .interactive = Nat
+    .optimize = Nat
+    .dont_write_bytecode = Nat
+    .no_user_site = Nat
+    .no_site = Nat
+    .ignore_environment = Nat
+    .verbose = Nat
+    .bytes_warning = Nat
+    .quiet = Nat
+    .hash_randomization = Nat
+    .isolated = Nat
+    .dev_mode = Nat
+    .utf8_mode = Nat
+    .warn_default_encoding = Nat
+    .safe_path = Bool
+    .int_max_str_digits = Int
+}
+.float_indo: NamedTuple {
+    .max = Float
+    .max_exp = Nat
+    .max_10_exp = Nat
+    .min = Float
+    .min_exp = Int
+    .min_10_exp = Int
+    .dig = Nat
+    .mant_dig = Nat
+    .epsilon = Float
+    .radix = Nat
+    .rounds = Nat
+}
+.float_repr_style: Str
+.hash_info: NamedTuple {
+    .width = Nat
+    .modulus = Int
+    .inf = Int
+    .nan = Int
+    .imag = Int
+    .algorithm = Str
+    .hash_bits = Nat
+    .seed_bits = Nat
+    .cutoff = Int
+}
 .path: Array!(Str, _)
 '''
 * AIX -> 'aix'
@@ -17,14 +68,26 @@ io = pyimport "io"
 * macOS -> 'darwin'
 '''
 .platform: Str
+.platlibdir: Str
 .prefix: Str
 .ps1: Str!
 .ps2: Str!
+.pycache_prefix: Str
 .stderr: io.TextIOWrapper!
 .stdin: io.TextIOWrapper!
 .stdout: io.TextIOWrapper!
+.stdlib_module_names: [Str; _]
 .version: Str
+.version_info: NamedTuple {
+    .major = Nat
+    .minor = Nat
+    .micro = Nat
+    .releaselevel = Str
+    .serial = Nat
+}
 
-.exit: Int -> Never
+.addaudithook!: (hook: (Str, *Obj) => NoneType) => NoneType
+.audit!: (event: Str, *args: Obj) => NoneType
+.exit: Obj -> Never
 .getdefaultencoding!: () => Str
-.setrecursionlimit!: Int => NoneType
+.setrecursionlimit!: Nat => NoneType
