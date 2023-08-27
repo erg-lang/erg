@@ -2128,6 +2128,21 @@ impl_nested_display_for_chunk_enum!(ConstExpr; Lit, Accessor, App, Array, Set, D
 impl_display_from_nested!(ConstExpr);
 impl_locational_for_enum!(ConstExpr; Lit, Accessor, App, Array, Set, Dict, Tuple, Record, BinOp, UnaryOp, Def, Lambda, Set, TypeAsc);
 
+impl TryFrom<&ParamPattern> for ConstExpr {
+    type Error = ();
+    fn try_from(value: &ParamPattern) -> Result<Self, Self::Error> {
+        match value {
+            ParamPattern::VarName(name) => {
+                Ok(ConstExpr::Accessor(ConstAccessor::local(name.0.clone())))
+            }
+            ParamPattern::Lit(lit) => Ok(ConstExpr::Lit(lit.clone())),
+            ParamPattern::Array(array) => ConstExpr::try_from(array),
+            ParamPattern::Tuple(tuple) => ConstExpr::try_from(tuple),
+            _ => Err(()),
+        }
+    }
+}
+
 impl ConstExpr {
     pub fn need_to_be_closed(&self) -> bool {
         match self {
@@ -2247,6 +2262,10 @@ impl ConstArgs {
 
     pub fn pos_only(pos_args: Vec<ConstPosArg>, paren: Option<(Token, Token)>) -> Self {
         Self::new(pos_args, None, vec![], paren)
+    }
+
+    pub fn single(expr: ConstExpr) -> Self {
+        Self::pos_only(vec![ConstPosArg::new(expr)], None)
     }
 
     #[allow(clippy::type_complexity)]
@@ -3691,6 +3710,41 @@ impl NestedDisplay for ParamArrayPattern {
 impl_display_from_nested!(ParamArrayPattern);
 impl_locational!(ParamArrayPattern, l_sqbr, r_sqbr);
 
+impl TryFrom<&ParamArrayPattern> for Expr {
+    type Error = ();
+
+    fn try_from(value: &ParamArrayPattern) -> Result<Self, Self::Error> {
+        let mut new = vec![];
+        for elem in value.elems.non_defaults.iter() {
+            new.push(PosArg::new(Expr::try_from(&elem.pat)?));
+        }
+        let elems = Args::pos_only(new, None);
+        Ok(Expr::Array(Array::Normal(NormalArray::new(
+            value.l_sqbr.clone(),
+            value.r_sqbr.clone(),
+            elems,
+        ))))
+    }
+}
+
+impl TryFrom<&ParamArrayPattern> for ConstExpr {
+    type Error = ();
+
+    fn try_from(value: &ParamArrayPattern) -> Result<Self, Self::Error> {
+        let mut new = vec![];
+        for elem in value.elems.non_defaults.iter() {
+            new.push(ConstPosArg::new(ConstExpr::try_from(&elem.pat)?));
+        }
+        let elems = ConstArgs::pos_only(new, None);
+        Ok(ConstExpr::Array(ConstArray::Normal(ConstNormalArray::new(
+            value.l_sqbr.clone(),
+            value.r_sqbr.clone(),
+            elems,
+            None,
+        ))))
+    }
+}
+
 impl ParamArrayPattern {
     pub const fn new(l_sqbr: Token, elems: Params, r_sqbr: Token) -> Self {
         Self {
@@ -3721,6 +3775,32 @@ impl NestedDisplay for ParamTuplePattern {
 
 impl_display_from_nested!(ParamTuplePattern);
 impl_locational!(ParamTuplePattern, elems);
+
+impl TryFrom<&ParamTuplePattern> for Expr {
+    type Error = ();
+
+    fn try_from(value: &ParamTuplePattern) -> Result<Self, Self::Error> {
+        let mut new = vec![];
+        for elem in value.elems.non_defaults.iter() {
+            new.push(PosArg::new(Expr::try_from(&elem.pat)?));
+        }
+        let elems = Args::pos_only(new, value.elems.parens.clone());
+        Ok(Expr::Tuple(Tuple::Normal(NormalTuple::new(elems))))
+    }
+}
+
+impl TryFrom<&ParamTuplePattern> for ConstExpr {
+    type Error = ();
+
+    fn try_from(value: &ParamTuplePattern) -> Result<Self, Self::Error> {
+        let mut new = vec![];
+        for elem in value.elems.non_defaults.iter() {
+            new.push(ConstPosArg::new(ConstExpr::try_from(&elem.pat)?));
+        }
+        let elems = ConstArgs::pos_only(new, value.elems.parens.clone());
+        Ok(ConstExpr::Tuple(ConstTuple::new(elems)))
+    }
+}
 
 impl ParamTuplePattern {
     pub const fn new(elems: Params) -> Self {
@@ -3825,6 +3905,20 @@ impl NestedDisplay for ParamPattern {
             Self::Record(record) => write!(f, "{record}"),
             Self::Ref(var_name) => write!(f, "ref {var_name}"),
             Self::RefMut(var_name) => write!(f, "ref! {var_name}"),
+        }
+    }
+}
+
+impl TryFrom<&ParamPattern> for Expr {
+    type Error = ();
+    fn try_from(value: &ParamPattern) -> Result<Self, Self::Error> {
+        match value {
+            // ParamPattern::Discard(token) => Ok(Expr::Accessor(Accessor::local(token.clone()))),
+            ParamPattern::VarName(name) => Ok(Expr::Accessor(Accessor::local(name.0.clone()))),
+            ParamPattern::Lit(lit) => Ok(Expr::Literal(lit.clone())),
+            ParamPattern::Array(array) => Expr::try_from(array),
+            ParamPattern::Tuple(tuple) => Expr::try_from(tuple),
+            _ => Err(()),
         }
     }
 }

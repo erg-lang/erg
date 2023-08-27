@@ -51,6 +51,13 @@ match! k:
     0 => print! "zero"
     _ => print! "\{k}"
 
+ab = match ["a", "b"]:
+    ["a", "a"] -> "aa"
+    ["b", "a"] -> "ba"
+    ["a", "b"] -> "ab"
+    [_, _] -> "other"
+assert ab == "ab"
+
 arrs = [[0, 1], [2, 3]]
 
 for! arrs, arr =>

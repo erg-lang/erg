@@ -1068,6 +1068,7 @@ impl Desugarer {
                 param.pat = buf_param;
             }
             ParamPattern::Array(arr) => {
+                let expr = Expr::try_from(&*arr);
                 let (buf_name, buf_param) = self.gen_buf_nd_param(arr.loc());
                 for (n, elem) in arr.elems.non_defaults.iter_mut().enumerate() {
                     insertion_idx = self.desugar_nested_param_pattern(
@@ -1093,7 +1094,17 @@ impl Desugarer {
                         ConstExpr::Lit(len.clone()),
                         Some((arr.l_sqbr.clone(), arr.r_sqbr.clone())),
                     );
-                    let t_spec_as_expr = Self::dummy_array_expr(len);
+                    // [1, 2] -> ...
+                    // => _: {[1, 2]} -> ...
+                    let t_spec_as_expr = if let Ok(expr) = expr {
+                        Expr::Set(astSet::Normal(NormalSet::new(
+                            Token::DUMMY,
+                            Token::DUMMY,
+                            Args::single(PosArg::new(expr)),
+                        )))
+                    } else {
+                        Self::dummy_array_expr(len)
+                    };
                     param.t_spec = Some(TypeSpecWithOp::new(
                         Token::dummy(TokenKind::Colon, ":"),
                         TypeSpec::Array(t_spec),

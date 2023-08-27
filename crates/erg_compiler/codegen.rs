@@ -292,6 +292,13 @@ impl PyCodeGenerator {
 
     #[inline]
     #[allow(dead_code)]
+    fn debug_print(&mut self, value: impl Into<ValueObj>) {
+        self.emit_load_const(value);
+        self.emit_print_expr();
+    }
+
+    #[inline]
+    #[allow(dead_code)]
     fn emit_print_expr(&mut self) {
         self.write_instr(Opcode311::PRINT_EXPR);
         self.write_arg(0);
