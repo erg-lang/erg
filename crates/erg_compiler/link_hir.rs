@@ -475,11 +475,12 @@ impl<'a> HIRLinker<'a> {
         let mut comps = dir.components();
         let _first = comps.next().unwrap();
         let path = dir.to_string_lossy().replace(['/', '\\'], ".");
-        let token = Token::new(
+        let token = Token::new_fake(
             TokenKind::StrLit,
             path,
             mod_name_lit.ln_begin().unwrap(),
             mod_name_lit.col_begin().unwrap(),
+            mod_name_lit.col_end().unwrap(),
         );
         let mod_name = Expr::Lit(Literal::try_from(token).unwrap());
         args.insert_pos(0, PosArg::new(mod_name));

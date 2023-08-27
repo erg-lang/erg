@@ -376,8 +376,10 @@ impl Parser {
         }
     }
 
-    fn dict_to_dict_type_spec(dict: Dict) -> Result<Vec<(TypeSpec, TypeSpec)>, ParseError> {
-        match dict {
+    fn dict_to_dict_type_spec(dict: Dict) -> Result<DictTypeSpec, ParseError> {
+        let (l, r) = dict.braces();
+        let braces = (l.clone(), r.clone());
+        let kvs = match dict {
             Dict::Normal(dic) => {
                 let mut kvs = vec![];
                 for kv in dic.kvs.into_iter() {
@@ -391,13 +393,14 @@ impl Parser {
                 let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
                 Err(err)
             }
-        }
+        }?;
+        Ok(DictTypeSpec::new(Some(braces), kvs))
     }
 
-    fn record_to_record_type_spec(
-        record: Record,
-    ) -> Result<Vec<(Identifier, TypeSpec)>, ParseError> {
-        match record {
+    fn record_to_record_type_spec(record: Record) -> Result<RecordTypeSpec, ParseError> {
+        let (l, r) = record.braces();
+        let braces = (l.clone(), r.clone());
+        let attrs = match record {
             Record::Normal(rec) => rec
                 .attrs
                 .into_iter()
@@ -423,7 +426,8 @@ impl Parser {
                     }
                 })
                 .collect::<Result<Vec<_>, ParseError>>(),
-        }
+        }?;
+        Ok(RecordTypeSpec::new(Some(braces), attrs))
     }
 
     fn tuple_to_tuple_type_spec(tuple: Tuple) -> Result<TupleTypeSpec, ParseError> {

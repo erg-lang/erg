@@ -1483,7 +1483,7 @@ impl Context {
             }
             TypeSpec::Dict(dict) => {
                 let mut inst_tys = dict! {};
-                for (k, v) in dict {
+                for (k, v) in dict.kvs.iter() {
                     inst_tys.insert(
                         self.instantiate_typespec_full(
                             k,
@@ -1505,7 +1505,7 @@ impl Context {
             }
             TypeSpec::Record(rec) => {
                 let mut inst_tys = dict! {};
-                for (k, v) in rec {
+                for (k, v) in rec.attrs.iter() {
                     inst_tys.insert(
                         self.instantiate_field(k)?,
                         self.instantiate_typespec_full(
