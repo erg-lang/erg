@@ -337,7 +337,11 @@ impl Parser {
             Array::WithLength(arr) => {
                 let t_spec = Self::expr_to_type_spec(arr.elem.expr)?;
                 let len = Self::validate_const_expr(*arr.len)?;
-                Ok(ArrayTypeSpec::new(t_spec, len))
+                Ok(ArrayTypeSpec::new(
+                    t_spec,
+                    len,
+                    Some((arr.l_sqbr, arr.r_sqbr)),
+                ))
             }
             Array::Comprehension(arr) => {
                 // TODO: add hint

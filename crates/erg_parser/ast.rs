@@ -2550,6 +2550,7 @@ impl SubrTypeSpec {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ArrayTypeSpec {
+    pub sqbrs: Option<(Token, Token)>,
     pub ty: Box<TypeSpec>,
     pub len: ConstExpr,
 }
@@ -2560,13 +2561,22 @@ impl fmt::Display for ArrayTypeSpec {
     }
 }
 
-impl_locational!(ArrayTypeSpec, ty, len);
+impl Locational for ArrayTypeSpec {
+    fn loc(&self) -> Location {
+        if let Some((lsqbr, rsqbr)) = &self.sqbrs {
+            Location::concat(lsqbr, rsqbr)
+        } else {
+            Location::concat(self.ty.as_ref(), &self.len)
+        }
+    }
+}
 
 impl ArrayTypeSpec {
-    pub fn new(ty: TypeSpec, len: ConstExpr) -> Self {
+    pub fn new(ty: TypeSpec, len: ConstExpr, sqbrs: Option<(Token, Token)>) -> Self {
         Self {
             ty: Box::new(ty),
             len,
+            sqbrs,
         }
     }
 }
@@ -3667,9 +3677,9 @@ impl Vars {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ParamArrayPattern {
-    l_sqbr: Token,
+    pub l_sqbr: Token,
     pub elems: Params,
-    r_sqbr: Token,
+    pub r_sqbr: Token,
 }
 
 impl NestedDisplay for ParamArrayPattern {

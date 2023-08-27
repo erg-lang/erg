@@ -1088,8 +1088,11 @@ impl Desugarer {
                         0,
                     ));
                     let infer = Token::new_fake(TokenKind::Try, "?", line, 0, 0);
-                    let t_spec =
-                        ArrayTypeSpec::new(TypeSpec::Infer(infer), ConstExpr::Lit(len.clone()));
+                    let t_spec = ArrayTypeSpec::new(
+                        TypeSpec::Infer(infer),
+                        ConstExpr::Lit(len.clone()),
+                        Some((arr.l_sqbr.clone(), arr.r_sqbr.clone())),
+                    );
                     let t_spec_as_expr = Self::dummy_array_expr(len);
                     param.t_spec = Some(TypeSpecWithOp::new(
                         Token::dummy(TokenKind::Colon, ":"),
@@ -1300,8 +1303,11 @@ impl Desugarer {
                         0,
                     ));
                     let infer = Token::new_fake(TokenKind::Try, "?", line, 0, 0);
-                    let t_spec =
-                        ArrayTypeSpec::new(TypeSpec::Infer(infer), ConstExpr::Lit(len.clone()));
+                    let t_spec = ArrayTypeSpec::new(
+                        TypeSpec::Infer(infer),
+                        ConstExpr::Lit(len.clone()),
+                        Some((arr.l_sqbr.clone(), arr.r_sqbr.clone())),
+                    );
                     let t_spec_as_expr = Self::dummy_array_expr(len);
                     sig.t_spec = Some(TypeSpecWithOp::new(
                         COLON,
