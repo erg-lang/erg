@@ -360,6 +360,23 @@ impl Location {
         }
     }
 
+    pub fn left_main_concat<L: Locational, R: Locational>(l: &L, r: &R) -> Self {
+        let l_loc = l.loc();
+        let r_loc = r.loc();
+        match (
+            l_loc.ln_begin(),
+            l_loc.col_begin(),
+            r_loc.ln_end(),
+            r_loc.col_end(),
+        ) {
+            (Some(lb), Some(cb), Some(le), Some(ce)) => Self::range(lb, cb, le, ce),
+            (Some(_), _, None, None) => l_loc,
+            (Some(lb), _, Some(le), _) => Self::LineRange(lb, le),
+            (Some(l), _, _, _) | (_, _, Some(l), _) => Self::Line(l),
+            _ => Self::Unknown,
+        }
+    }
+
     pub fn stream<L: Locational>(ls: &[L]) -> Self {
         if ls.is_empty() {
             return Self::Unknown;

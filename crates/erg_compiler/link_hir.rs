@@ -480,6 +480,7 @@ impl<'a> HIRLinker<'a> {
             path,
             mod_name_lit.ln_begin().unwrap(),
             mod_name_lit.col_begin().unwrap(),
+            mod_name_lit.col_end().unwrap(),
         );
         let mod_name = Expr::Lit(Literal::try_from(token).unwrap());
         args.insert_pos(0, PosArg::new(mod_name));

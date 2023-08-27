@@ -3338,6 +3338,7 @@ impl Parser {
                         "+",
                         right.ln_begin().unwrap(),
                         right.col_begin().unwrap(),
+                        right.col_end().unwrap(),
                     );
                     expr = Expr::BinOp(BinOp::new(op, expr, right));
                     debug_exit_info!(self);
@@ -3369,6 +3370,7 @@ impl Parser {
                         "str",
                         mid_expr.ln_begin().unwrap(),
                         mid_expr.col_begin().unwrap(),
+                        mid_expr.col_end().unwrap(),
                     );
                     let call = Call::new(str_func, None, Args::single(PosArg::new(mid_expr)));
                     let op = Token::new(
@@ -3376,6 +3378,7 @@ impl Parser {
                         "+",
                         call.ln_begin().unwrap(),
                         call.col_begin().unwrap(),
+                        call.col_end().unwrap(),
                     );
                     let bin = BinOp::new(op, expr, Expr::Call(call));
                     expr = Expr::BinOp(bin);
@@ -3392,6 +3395,7 @@ impl Parser {
                             "+",
                             mid.ln_begin().unwrap(),
                             mid.col_begin().unwrap(),
+                            mid.col_end().unwrap(),
                         );
                         expr = Expr::BinOp(BinOp::new(op, expr, mid));
                     }

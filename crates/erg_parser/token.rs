@@ -340,8 +340,11 @@ pub struct Token {
     /// 1 origin
     // TODO: 複数行文字列リテラルもあるのでタプルにするのが妥当?
     pub lineno: u32,
-    /// a pointer from which the token starts (0 origin)
+    /// A pointer from which the token starts (0 origin)
     pub col_begin: u32,
+    /// A pointer to the end position of the token.
+    /// `col_end - col_start` does not necessarily equal `content.len()`
+    pub col_end: u32,
 }
 
 pub const COLON: Token = Token::dummy(TokenKind::Colon, ":");
@@ -356,6 +359,7 @@ impl fmt::Debug for Token {
             .field("content", &self.content.replace('\n', "\\n"))
             .field("lineno", &self.lineno)
             .field("col_begin", &self.col_begin)
+            .field("col_end", &self.col_end)
             .finish()
     }
 }
@@ -387,12 +391,7 @@ impl Locational for Token {
         if self.lineno == 0 {
             Location::Unknown
         } else {
-            Location::range(
-                self.lineno,
-                self.col_begin,
-                self.lineno,
-                self.col_begin + self.content.len() as u32,
-            )
+            Location::range(self.lineno, self.col_begin, self.lineno, self.col_end)
         }
     }
 
@@ -408,6 +407,7 @@ impl Token {
         content: Str::ever("DUMMY"),
         lineno: 1,
         col_begin: 0,
+        col_end: 0,
     };
 
     pub const fn dummy(kind: TokenKind, content: &'static str) -> Self {
@@ -416,16 +416,34 @@ impl Token {
             content: Str::ever(content),
             lineno: 1,
             col_begin: 0,
+            col_end: 0,
         }
     }
 
     #[inline]
-    pub fn new<S: Into<Str>>(kind: TokenKind, cont: S, lineno: u32, col_begin: u32) -> Self {
+    pub fn new<S: Into<Str>>(
+        kind: TokenKind,
+        cont: S,
+        lineno: u32,
+        col_begin: u32,
+        col_end: u32,
+    ) -> Self {
         Token {
             kind,
             content: cont.into(),
             lineno,
             col_begin,
+            col_end,
+        }
+    }
+
+    pub fn new_with_loc(kind: TokenKind, cont: impl Into<Str>, loc: Location) -> Self {
+        Token {
+            kind,
+            content: cont.into(),
+            lineno: loc.ln_begin().unwrap_or(0),
+            col_begin: loc.col_begin().unwrap_or(0),
+            col_end: loc.col_end().unwrap_or(1),
         }
     }
 
@@ -436,6 +454,7 @@ impl Token {
             content: Str::rc(cont),
             lineno: 0,
             col_begin: 0,
+            col_end: 0,
         }
     }
 
@@ -451,6 +470,7 @@ impl Token {
             content: Str::rc(cont),
             lineno,
             col_begin: 0,
+            col_end: 1,
         }
     }
 
@@ -460,6 +480,7 @@ impl Token {
             content: cont.into(),
             lineno: loc.ln_begin().unwrap_or(0),
             col_begin: loc.col_begin().unwrap_or(0),
+            col_end: loc.col_end().unwrap_or(1),
         }
     }
 
@@ -469,6 +490,7 @@ impl Token {
             content: Str::ever(s),
             lineno: 0,
             col_begin: 0,
+            col_end: 1,
         }
     }
 

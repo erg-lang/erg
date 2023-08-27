@@ -90,7 +90,7 @@ impl Literal {
     }
 
     pub fn nat(n: usize, line: u32) -> Self {
-        let token = Token::new(TokenKind::NatLit, Str::from(n.to_string()), line, 0);
+        let token = Token::new(TokenKind::NatLit, Str::from(n.to_string()), line, 0, 0);
         Self { token }
     }
 
@@ -814,6 +814,15 @@ impl_nested_display_for_enum!(Dict; Normal, Comprehension);
 impl_display_for_enum!(Dict; Normal, Comprehension);
 impl_locational_for_enum!(Dict; Normal, Comprehension);
 
+impl Dict {
+    pub fn braces(&self) -> (&Token, &Token) {
+        match self {
+            Self::Normal(dict) => (&dict.l_brace, &dict.r_brace),
+            Self::Comprehension(dict) => (&dict.l_brace, &dict.r_brace),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ClassAttr {
     Def(Def),
@@ -960,6 +969,13 @@ impl Record {
             r_brace,
             attrs: RecordAttrs::new(Vec::with_capacity(0)),
         })
+    }
+
+    pub fn braces(&self) -> (&Token, &Token) {
+        match self {
+            Self::Normal(record) => (&record.l_brace, &record.r_brace),
+            Self::Mixed(record) => (&record.l_brace, &record.r_brace),
+        }
     }
 }
 
@@ -2609,6 +2625,78 @@ impl TupleTypeSpec {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct DictTypeSpec {
+    pub braces: Option<(Token, Token)>,
+    pub kvs: Vec<(TypeSpec, TypeSpec)>,
+}
+
+impl fmt::Display for DictTypeSpec {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{{")?;
+        for (k, v) in self.kvs.iter() {
+            write!(f, "{k}: {v}, ")?;
+        }
+        write!(f, "}}")
+    }
+}
+
+impl Locational for DictTypeSpec {
+    fn loc(&self) -> Location {
+        if let Some((lparen, rparen)) = &self.braces {
+            Location::concat(lparen, rparen)
+        } else if !self.kvs.is_empty() {
+            let (first, _) = self.kvs.first().unwrap();
+            let (_, last) = self.kvs.last().unwrap();
+            Location::concat(first, last)
+        } else {
+            Location::Unknown
+        }
+    }
+}
+
+impl DictTypeSpec {
+    pub const fn new(braces: Option<(Token, Token)>, kvs: Vec<(TypeSpec, TypeSpec)>) -> Self {
+        Self { braces, kvs }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct RecordTypeSpec {
+    pub braces: Option<(Token, Token)>,
+    pub attrs: Vec<(Identifier, TypeSpec)>,
+}
+
+impl fmt::Display for RecordTypeSpec {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{{")?;
+        for (k, v) in self.attrs.iter() {
+            write!(f, "{k} = {v}; ")?;
+        }
+        write!(f, "}}")
+    }
+}
+
+impl Locational for RecordTypeSpec {
+    fn loc(&self) -> Location {
+        if let Some((lparen, rparen)) = &self.braces {
+            Location::concat(lparen, rparen)
+        } else if !self.attrs.is_empty() {
+            let (first, _) = self.attrs.first().unwrap();
+            let (_, last) = self.attrs.last().unwrap();
+            Location::concat(first, last)
+        } else {
+            Location::Unknown
+        }
+    }
+}
+
+impl RecordTypeSpec {
+    pub const fn new(braces: Option<(Token, Token)>, attrs: Vec<(Identifier, TypeSpec)>) -> Self {
+        Self { braces, attrs }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RefinementTypeSpec {
     pub var: Token,
     pub typ: Box<TypeSpec>,
@@ -2656,8 +2744,8 @@ pub enum TypeSpec {
     Array(ArrayTypeSpec),
     SetWithLen(SetWithLenTypeSpec),
     Tuple(TupleTypeSpec),
-    Dict(Vec<(TypeSpec, TypeSpec)>),
-    Record(Vec<(Identifier, TypeSpec)>),
+    Dict(DictTypeSpec),
+    Record(RecordTypeSpec),
     // Option(),
     And(Box<TypeSpec>, Box<TypeSpec>),
     Not(Box<TypeSpec>),
@@ -2687,20 +2775,8 @@ impl fmt::Display for TypeSpec {
             Self::Array(arr) => write!(f, "{arr}"),
             Self::SetWithLen(set) => write!(f, "{set}"),
             Self::Tuple(tup) => write!(f, "{tup}"),
-            Self::Dict(dict) => {
-                write!(f, "{{")?;
-                for (k, v) in dict.iter() {
-                    write!(f, "{k}: {v}, ")?;
-                }
-                write!(f, "}}")
-            }
-            Self::Record(rec) => {
-                write!(f, "{{")?;
-                for (k, v) in rec.iter() {
-                    write!(f, "{k} = {v}; ")?;
-                }
-                write!(f, "}}")
-            }
+            Self::Dict(dict) => dict.fmt(f),
+            Self::Record(rec) => rec.fmt(f),
             Self::Enum(elems) => {
                 write!(f, "{{")?;
                 for elem in elems.pos_args() {
@@ -2728,20 +2804,8 @@ impl Locational for TypeSpec {
             Self::Array(arr) => arr.loc(),
             Self::SetWithLen(set) => set.loc(),
             Self::Tuple(tup) => tup.loc(),
-            Self::Dict(dict) => {
-                if dict.is_empty() {
-                    Location::Unknown
-                } else {
-                    Location::concat(&dict.first().unwrap().0, &dict.last().unwrap().1)
-                }
-            }
-            Self::Record(rec) => {
-                if rec.is_empty() {
-                    Location::Unknown
-                } else {
-                    Location::concat(&rec.first().unwrap().0, &rec.last().unwrap().1)
-                }
-            }
+            Self::Dict(dict) => dict.loc(),
+            Self::Record(rec) => rec.loc(),
             Self::Enum(set) => set.loc(),
             Self::Interval { lhs, rhs, .. } => Location::concat(lhs, rhs),
             Self::Subr(s) => s.loc(),
@@ -2986,7 +3050,11 @@ impl VarName {
     }
 
     pub fn from_str_and_line(symbol: Str, line: u32) -> Self {
-        Self(Token::new(TokenKind::Symbol, symbol, line, 0))
+        Self(Token::new(TokenKind::Symbol, symbol, line, 0, 0))
+    }
+
+    pub fn from_str_and_loc(symbol: Str, loc: Location) -> Self {
+        Self(Token::new_with_loc(TokenKind::Symbol, symbol, loc))
     }
 
     #[inline]
@@ -3207,6 +3275,13 @@ impl Identifier {
         Self::new(
             VisModifierSpec::Private,
             VarName::from_str_and_line(name, line),
+        )
+    }
+
+    pub fn private_with_loc(name: Str, loc: Location) -> Self {
+        Self::new(
+            VisModifierSpec::Private,
+            VarName::from_str_and_loc(name, loc),
         )
     }
 
@@ -3801,7 +3876,7 @@ impl_display_from_nested!(NonDefaultParamSignature);
 impl Locational for NonDefaultParamSignature {
     fn loc(&self) -> Location {
         if let Some(t_spec) = &self.t_spec {
-            Location::concat(&self.pat, t_spec)
+            Location::left_main_concat(&self.pat, t_spec)
         } else {
             self.pat.loc()
         }
@@ -4611,12 +4686,13 @@ impl Expr {
         }
     }
 
-    pub fn local(name: &str, lineno: u32, col_begin: u32) -> Self {
+    pub fn local(name: &str, lineno: u32, col_begin: u32, col_end: u32) -> Self {
         Self::Accessor(Accessor::local(Token::new(
             TokenKind::Symbol,
             Str::rc(name),
             lineno,
             col_begin,
+            col_end,
         )))
     }
 
