@@ -1,13 +1,32 @@
-.architecture!: () => Str
+.architecture!: () => (Str, Str)
+.libc_ver!: (
+    executable := Str,
+    lib := Str,
+    version := Str,
+    chunksize := Nat
+) => (Str, Str)
+.mac_ver!: () => (Str, (Str, Str, Str), Str)
 .machine!: () => Str
 .node!: () => Str
-.platform!: () => Str
+.platform!: (aliased := Bool, terse := Bool) => Str
 .processor!: () => Str
-.python_build!: () => Str
+.python_build!: () => (Str, Str)
 .python_compiler!: () => Str
 .python_branch!: () => Str
 .python_implementation!: () => Str
 .python_revision!: () => Str
 .python_version!: () => Str
 .python_version_tuple!: () => (Str, Str, Str)
-.uname!: () => {.system = Str; .node = Str; .release = Str; .version = Str; .machine = Str}
+.release!: () => Str
+.system!: () => Str
+.system_alias!: (system: Str, release: Str, version: Str) => (Str, Str, Str)
+.version!: () => Str
+.win32_ver!: (
+    release := Str,
+    version := Str,
+    csd := Str,
+    ptype := Str
+) => (Str, Str, Str, Str)
+.win32_edition!: () => Str
+.win32_is_iot!: () => Bool
+.uname!: () => NamedTuple {.system = Str; .node = Str; .release = Str; .version = Str; .machine = Str}

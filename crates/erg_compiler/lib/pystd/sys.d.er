@@ -90,4 +90,7 @@ io = pyimport "io"
 .audit!: (event: Str, *args: Obj) => NoneType
 .exit: Obj -> Never
 .getdefaultencoding!: () => Str
+.getrecursionlimit!: () => Nat
+.getrefcount!: (obj: Obj) => Nat
+.getsizeof: (obj: Obj) -> Nat
 .setrecursionlimit!: Nat => NoneType
