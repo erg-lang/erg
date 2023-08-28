@@ -1173,7 +1173,7 @@ impl PyCodeGenerator {
             let ld = unit.prev_lineno - self.cur_block().prev_lineno;
             if ld != 0 {
                 if let Some(l) = self.mut_cur_block_codeobj().lnotab.last_mut() {
-                    *l += ld as u8;
+                    *l += u8::try_from(ld).unwrap();
                 }
                 self.mut_cur_block().prev_lineno += ld;
             }
@@ -1214,7 +1214,7 @@ impl PyCodeGenerator {
                     .saturating_sub(self.cur_block().prev_lineno);
                 if ld != 0 {
                     if let Some(l) = self.mut_cur_block_codeobj().lnotab.last_mut() {
-                        *l += ld as u8;
+                        *l += u8::try_from(ld).unwrap();
                     }
                     self.mut_cur_block().prev_lineno += ld;
                 }
@@ -1986,7 +1986,6 @@ impl PyCodeGenerator {
         self.stack_dec();
         let idx_end = match self.py_version.minor {
             Some(11) => self.lasti() - idx_while - 1,
-            Some(10) => self.lasti(),
             _ => self.lasti() + 2,
         };
         self.fill_jump(idx_while + 1, idx_end - 2);
@@ -2906,23 +2905,46 @@ impl PyCodeGenerator {
         self.cancel_if_pop_top();
     }
 
+    /// See `cpython/Object/lnotab_notes.txt` in details
     fn push_lnotab(&mut self, expr: &Expr) {
         let ln_begin = expr.ln_begin().unwrap_or(0);
         if ln_begin > self.cur_block().prev_lineno {
-            let sd = self.lasti() - self.cur_block().prev_lasti;
-            let ld = ln_begin - self.cur_block().prev_lineno;
+            let mut sd = self.lasti() - self.cur_block().prev_lasti;
+            let mut ld = ln_begin - self.cur_block().prev_lineno;
             if ld != 0 {
                 if sd != 0 {
+                    while sd > 254 {
+                        self.mut_cur_block_codeobj().lnotab.push(255);
+                        self.mut_cur_block_codeobj().lnotab.push(0);
+                        sd -= 254;
+                    }
+                    while ld > 127 {
+                        self.mut_cur_block_codeobj().lnotab.push(0);
+                        self.mut_cur_block_codeobj().lnotab.push(127);
+                        ld -= 127;
+                    }
                     self.mut_cur_block_codeobj().lnotab.push(sd as u8);
                     self.mut_cur_block_codeobj().lnotab.push(ld as u8);
                 } else {
                     // empty lines
-                    if let Some(last_ld) = self.mut_cur_block_codeobj().lnotab.last_mut() {
-                        *last_ld += ld as u8;
+                    if let Some(&last_ld) = self.cur_block_codeobj().lnotab.last() {
+                        if last_ld as u32 + ld > 127 {
+                            *self.mut_cur_block_codeobj().lnotab.last_mut().unwrap() = 127;
+                            self.mut_cur_block_codeobj().lnotab.push(0);
+                            ld -= 127;
+                        }
+                        while last_ld as u32 + ld > 127 {
+                            self.mut_cur_block_codeobj().lnotab.push(127);
+                            self.mut_cur_block_codeobj().lnotab.push(0);
+                            ld -= 127;
+                        }
+                        self.mut_cur_block_codeobj().lnotab.push(ld as u8);
                     } else {
                         // a block starts with an empty line
                         self.mut_cur_block_codeobj().lnotab.push(0);
-                        self.mut_cur_block_codeobj().lnotab.push(ld as u8);
+                        self.mut_cur_block_codeobj()
+                            .lnotab
+                            .push(u8::try_from(ld).unwrap());
                     }
                 }
                 self.mut_cur_block().prev_lineno += ld;
@@ -3140,7 +3162,7 @@ impl PyCodeGenerator {
             let ld = unit.prev_lineno - self.cur_block().prev_lineno;
             if ld != 0 {
                 if let Some(l) = self.mut_cur_block_codeobj().lnotab.last_mut() {
-                    *l += ld as u8;
+                    *l += u8::try_from(ld).unwrap();
                 }
                 self.mut_cur_block().prev_lineno += ld;
             }
@@ -3372,7 +3394,7 @@ impl PyCodeGenerator {
                 .saturating_sub(self.cur_block().prev_lineno);
             if ld != 0 {
                 if let Some(l) = self.mut_cur_block_codeobj().lnotab.last_mut() {
-                    *l += ld as u8;
+                    *l += u8::try_from(ld).unwrap();
                 }
                 self.mut_cur_block().prev_lineno += ld;
             }
@@ -3550,7 +3572,7 @@ impl PyCodeGenerator {
             let ld = unit.prev_lineno - self.cur_block().prev_lineno;
             if ld != 0 {
                 if let Some(l) = self.mut_cur_block_codeobj().lnotab.last_mut() {
-                    *l += ld as u8;
+                    *l += u8::try_from(ld).unwrap();
                 }
                 self.mut_cur_block().prev_lineno += ld;
             }
