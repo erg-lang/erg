@@ -828,6 +828,12 @@ impl From<Str> for ValueObj {
     }
 }
 
+impl From<String> for ValueObj {
+    fn from(item: String) -> Self {
+        ValueObj::Str(item.into())
+    }
+}
+
 impl From<bool> for ValueObj {
     fn from(item: bool) -> Self {
         ValueObj::Bool(item)

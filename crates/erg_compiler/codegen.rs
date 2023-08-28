@@ -1386,11 +1386,16 @@ impl PyCodeGenerator {
         } else {
             0
         };
-        let code = self.emit_block(lambda.body, Some("<lambda>".into()), params, flags);
+        let code = self.emit_block(
+            lambda.body,
+            Some(format!("<lambda_{}>", lambda.id).into()),
+            params,
+            flags,
+        );
         self.register_cellvars(&mut make_function_flag);
         self.emit_load_const(code);
         if self.py_version.minor < Some(11) {
-            self.emit_load_const("<lambda>");
+            self.emit_load_const(format!("<lambda_{}>", lambda.id));
         } else {
             self.stack_inc();
         }
