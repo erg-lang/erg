@@ -625,7 +625,8 @@ impl CodeObj {
             }
             Opcode308::CALL_FUNCTION
             | Opcode308::CALL_FUNCTION_EX
-            | Opcode308::CALL_FUNCTION_KW => {
+            | Opcode308::CALL_FUNCTION_KW
+            | Opcode308::CALL_METHOD => {
                 write!(instrs, "{arg}").unwrap();
             }
             _ => {}
@@ -665,7 +666,8 @@ impl CodeObj {
             }
             Opcode309::CALL_FUNCTION
             | Opcode309::CALL_FUNCTION_EX
-            | Opcode309::CALL_FUNCTION_KW => {
+            | Opcode309::CALL_FUNCTION_KW
+            | Opcode309::CALL_METHOD => {
                 write!(instrs, "{arg}").unwrap();
             }
             _ => {}
@@ -682,7 +684,15 @@ impl CodeObj {
         }
         match op310 {
             Opcode310::STORE_DEREF | Opcode310::LOAD_DEREF => {
-                write!(instrs, "{arg} ({})", self.freevars.get(arg).unwrap()).unwrap();
+                write!(
+                    instrs,
+                    "{arg} ({})",
+                    self.freevars
+                        .get(arg)
+                        .or_else(|| self.varnames.get(arg))
+                        .unwrap()
+                )
+                .unwrap();
             }
             Opcode310::LOAD_CLOSURE => {
                 write!(instrs, "{arg} ({})", self.cellvars.get(arg).unwrap()).unwrap();
@@ -704,7 +714,8 @@ impl CodeObj {
             }
             Opcode310::CALL_FUNCTION
             | Opcode310::CALL_FUNCTION_EX
-            | Opcode310::CALL_FUNCTION_KW => {
+            | Opcode310::CALL_FUNCTION_KW
+            | Opcode310::CALL_METHOD => {
                 write!(instrs, "{arg}").unwrap();
             }
             Opcode310::SETUP_WITH => {

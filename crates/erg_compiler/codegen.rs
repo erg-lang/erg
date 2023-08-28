@@ -116,6 +116,7 @@ pub struct PyCodeGenUnit {
     pub(crate) id: usize,
     pub(crate) py_version: PythonVersion,
     pub(crate) codeobj: CodeObj,
+    pub(crate) captured_vars: Vec<Str>,
     pub(crate) stack_len: u32, // the maximum stack size
     pub(crate) prev_lineno: u32,
     pub(crate) lasti: usize,
@@ -155,6 +156,7 @@ impl PyCodeGenUnit {
             id,
             py_version,
             codeobj: CodeObj::empty(params, filename, name, firstlineno, flags),
+            captured_vars: vec![],
             stack_len: 0,
             prev_lineno: firstlineno,
             lasti: 0,
@@ -359,6 +361,7 @@ impl PyCodeGenerator {
             self.write_arg(i);
         } else if i == 1 {
             self.write_instr(Opcode310::DUP_TOP);
+            self.write_arg(0);
         } else {
             todo!()
         }
@@ -580,6 +583,8 @@ impl PyCodeGenerator {
         {
             if current_is_toplevel {
                 Some(Name::local(idx))
+            } else if self.cur_block().captured_vars.contains(&Str::rc(name)) {
+                Some(Name::deref(idx))
             } else {
                 Some(Name::fast(idx))
             }
@@ -1345,6 +1350,7 @@ impl PyCodeGenerator {
         let code = self.emit_block(body.block, Some(name.clone()), params, flags);
         // code.flags += CodeObjFlags::Optimized as u32;
         self.register_cellvars(&mut make_function_flag);
+        self.rewrite_captured_fast(&code);
         self.emit_load_const(code);
         if self.py_version.minor < Some(11) {
             if let Some(class) = class_name {
@@ -1393,6 +1399,7 @@ impl PyCodeGenerator {
             flags,
         );
         self.register_cellvars(&mut make_function_flag);
+        self.rewrite_captured_fast(&code);
         self.emit_load_const(code);
         if self.py_version.minor < Some(11) {
             self.emit_load_const(format!("<lambda_{}>", lambda.id));
@@ -1424,6 +1431,56 @@ impl PyCodeGenerator {
             self.write_instr(BUILD_TUPLE);
             self.write_arg(cellvars_len);
             *flag += MakeFunctionFlags::Closure as usize;
+        }
+    }
+
+    /// ```erg
+    /// f = i ->
+    ///     log i
+    ///     do i
+    /// ```
+    /// ↓
+    /// ```pyc
+    /// Disassembly of <code object f ...>
+    /// 0 LOAD_NAME                0 (print)
+    /// 2 LOAD_NAME                1 (Nat)
+    /// 4 LOAD_DEREF               0 (::i) # not LOAD_FAST!
+    /// 6 CALL_FUNCTION            1
+    /// 8 CALL_FUNCTION            1
+    /// 10 POP_TOP
+    /// 12 LOAD_CLOSURE             0 (::i)
+    /// 14 BUILD_TUPLE              1
+    /// 16 LOAD_CONST               0 (<code object ...>)
+    /// 18 LOAD_CONST               1 ("<lambda>")
+    /// 20 MAKE_FUNCTION            8 (closure)
+    /// 22 RETURN_VALUE
+    /// ```
+    fn rewrite_captured_fast(&mut self, code: &CodeObj) {
+        if self.py_version.minor >= Some(11) {
+            return;
+        }
+        let cellvars = self.cur_block_codeobj().cellvars.clone();
+        for cellvar in cellvars {
+            if code.freevars.iter().any(|n| n == &cellvar) {
+                self.mut_cur_block().captured_vars.push(cellvar);
+                let mut op_idx = 0;
+                while let Some([op, _arg]) = self
+                    .mut_cur_block_codeobj()
+                    .code
+                    .get_mut(op_idx..=op_idx + 1)
+                {
+                    match Opcode310::try_from(*op) {
+                        Ok(Opcode310::LOAD_FAST) => {
+                            *op = Opcode310::LOAD_DEREF as u8;
+                        }
+                        Ok(Opcode310::STORE_FAST) => {
+                            *op = Opcode310::STORE_DEREF as u8;
+                        }
+                        _ => {}
+                    }
+                    op_idx += 2;
+                }
+            }
         }
     }
 
