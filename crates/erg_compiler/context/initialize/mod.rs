@@ -228,6 +228,8 @@ const PY_MODULE: &str = "PyModule";
 const GENERIC_ARRAY: &str = "GenericArray";
 const ARRAY: &str = "Array";
 const MUT_ARRAY: &str = "Array!";
+const FUNC_UPDATE_NTH: &str = "update_nth";
+const PROC_UPDATE_NTH: &str = "update_nth!";
 const FUNC_PARTITION: &str = "partition";
 const FUNC_DEDUP: &str = "dedup";
 const FUNC_CONCAT: &str = "concat";
@@ -427,6 +429,8 @@ const FUNDAMENTAL_LEN: &str = "__len__";
 const FUNDAMENTAL_CONTAINS: &str = "__contains__";
 const FUNDAMENTAL_CALL: &str = "__call__";
 const FUNDAMENTAL_NAME: &str = "__name__";
+const FUNDAMENTAL_FILE: &str = "__file__";
+const FUNDAMENTAL_PACKAGE: &str = "__package__";
 const FUNDAMENTAL_STR: &str = "__str__";
 const FUNDAMENTAL_HASH: &str = "__hash__";
 const FUNDAMENTAL_INT: &str = "__int__";
@@ -1074,6 +1078,20 @@ impl Context {
             Immutable,
             vis.clone(),
             Some(FUNDAMENTAL_NAME),
+        );
+        self.register_builtin_py_impl(
+            FUNDAMENTAL_FILE,
+            Str,
+            Immutable,
+            vis.clone(),
+            Some(FUNDAMENTAL_FILE),
+        );
+        self.register_builtin_py_impl(
+            FUNDAMENTAL_PACKAGE,
+            Str | NoneType,
+            Immutable,
+            vis.clone(),
+            Some(FUNDAMENTAL_PACKAGE),
         );
         if ERG_MODE {
             self.register_builtin_py_impl(

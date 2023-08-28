@@ -7,3 +7,29 @@ assert [1, 1, 2].dedup() == [1, 2]
 assert [0.0, 0.1, 10.0, 20.0, 20.1].dedup((lhs, rhs) -> abs(lhs - rhs) < 1.0) == [0.1, 10.0, 20.1]
 
 assert [-2, -1, 0, 1, 2].partition(x -> x >= 0) == ([0, 1, 2], [-2, -1])
+
+l = ![1]
+
+l.push! 2
+assert l == [1, 2]
+
+l.extend! [3, 4]
+assert l == [1, 2, 3, 4]
+
+l.update_nth! 0, (x: Nat) -> x + 2
+assert l == [3, 2, 3, 4]
+
+l.sort!()
+assert l == [2, 3, 3, 4]
+
+discard l.pop! 0
+assert l == [3, 3, 4]
+
+l.remove! 3
+assert l == [3, 4]
+
+l.reverse!()
+assert l == [4, 3]
+
+l.clear!()
+assert l == []

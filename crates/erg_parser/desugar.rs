@@ -1465,14 +1465,14 @@ impl Desugarer {
         match acc {
             // x[y] => x.__getitem__(y)
             Accessor::Subscr(subscr) => {
+                let loc = subscr.loc();
                 let args = Args::single(PosArg::new(Self::rec_desugar_acc(*subscr.index)));
-                let line = subscr.obj.ln_begin().unwrap_or(1);
                 let call = Call::new(
                     Self::rec_desugar_acc(*subscr.obj),
-                    Some(Identifier::public_with_line(
+                    Some(Identifier::public_with_loc(
                         DOT,
                         Str::ever("__getitem__"),
-                        line,
+                        loc,
                     )),
                     args,
                 );
@@ -1480,14 +1480,14 @@ impl Desugarer {
             }
             // x.0 => x.__Tuple_getitem__(0)
             Accessor::TupleAttr(tattr) => {
+                let loc = tattr.loc();
                 let args = Args::single(PosArg::new(Expr::Literal(tattr.index)));
-                let line = tattr.obj.ln_begin().unwrap_or(1);
                 let call = Call::new(
                     Self::rec_desugar_acc(*tattr.obj),
-                    Some(Identifier::public_with_line(
+                    Some(Identifier::public_with_loc(
                         DOT,
                         Str::ever("__Tuple_getitem__"),
-                        line,
+                        loc,
                     )),
                     args,
                 );

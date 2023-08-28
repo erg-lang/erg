@@ -94,3 +94,12 @@ array = pyimport "Array"
     assert arr == [3, 4]
     '''
     strict_map!: |T, N: Nat|(self: Array!(T, N), f: T -> T) => NoneType
+    '''
+    Update `index`-th element of the array according to the passed function `f`.
+    '''
+    '''erg
+    arr = ![1, 2]
+    arr.udpate_nth! 0, x -> x + 1
+    assert arr == [2, 2]
+    '''
+    update_nth!: |T, N: Nat|(self: Array!(T, N), index: Nat, f: T -> T) => NoneType

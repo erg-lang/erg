@@ -69,3 +69,6 @@ class Array(list):
             if not contains_operator(elem_t, elem):
                 return False
         return True
+
+    def update_nth(self, index, f):
+        self[index] = f(self[index])

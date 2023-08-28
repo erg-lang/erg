@@ -3321,6 +3321,13 @@ impl Identifier {
         )
     }
 
+    pub fn public_with_loc(dot: Token, name: Str, loc: Location) -> Self {
+        Self::new(
+            VisModifierSpec::Public(dot),
+            VarName::from_str_and_loc(name, loc),
+        )
+    }
+
     pub fn public_from_token(dot: Token, symbol: Token) -> Self {
         Self::new(VisModifierSpec::Public(dot), VarName::new(symbol))
     }

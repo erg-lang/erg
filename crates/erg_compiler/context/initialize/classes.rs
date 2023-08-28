@@ -2423,7 +2423,7 @@ impl Context {
             NoneType,
         )
         .quantify();
-        array_mut_.register_py_builtin(PROC_PUSH, t, Some(FUNC_APPEND), 14);
+        array_mut_.register_py_builtin(PROC_PUSH, t, Some(FUNC_APPEND), 15);
         let t_extend = pr_met(
             ref_mut(
                 array_mut_t.clone(),
@@ -2438,7 +2438,7 @@ impl Context {
             NoneType,
         )
         .quantify();
-        array_mut_.register_py_builtin(PROC_EXTEND, t_extend, Some(FUNC_EXTEND), 23);
+        array_mut_.register_py_builtin(PROC_EXTEND, t_extend, Some(FUNC_EXTEND), 24);
         let t_insert = pr_met(
             ref_mut(
                 array_mut_t.clone(),
@@ -2453,7 +2453,7 @@ impl Context {
             NoneType,
         )
         .quantify();
-        array_mut_.register_py_builtin(PROC_INSERT, t_insert, Some(FUNC_INSERT), 32);
+        array_mut_.register_py_builtin(PROC_INSERT, t_insert, Some(FUNC_INSERT), 33);
         let t_remove = pr_met(
             ref_mut(
                 array_mut_t.clone(),
@@ -2468,7 +2468,7 @@ impl Context {
             NoneType,
         )
         .quantify();
-        array_mut_.register_py_builtin(PROC_REMOVE, t_remove, Some(FUNC_REMOVE), 41);
+        array_mut_.register_py_builtin(PROC_REMOVE, t_remove, Some(FUNC_REMOVE), 42);
         let t_pop = pr_met(
             ref_mut(
                 array_mut_t.clone(),
@@ -2483,7 +2483,7 @@ impl Context {
             T.clone(),
         )
         .quantify();
-        array_mut_.register_py_builtin(PROC_POP, t_pop, Some(FUNC_POP), 51);
+        array_mut_.register_py_builtin(PROC_POP, t_pop, Some(FUNC_POP), 52);
         let t_clear = pr0_met(
             ref_mut(
                 array_mut_t.clone(),
@@ -2492,7 +2492,7 @@ impl Context {
             NoneType,
         )
         .quantify();
-        array_mut_.register_py_builtin(PROC_CLEAR, t_clear, Some(FUNC_CLEAR), 60);
+        array_mut_.register_py_builtin(PROC_CLEAR, t_clear, Some(FUNC_CLEAR), 61);
         let t_sort = pr_met(
             ref_mut(array_mut_t.clone(), None),
             vec![],
@@ -2504,9 +2504,9 @@ impl Context {
             NoneType,
         )
         .quantify();
-        array_mut_.register_py_builtin(PROC_SORT, t_sort, Some(FUNC_SORT), 77);
+        array_mut_.register_py_builtin(PROC_SORT, t_sort, Some(FUNC_SORT), 78);
         let t_reverse = pr0_met(ref_mut(array_mut_t.clone(), None), NoneType).quantify();
-        array_mut_.register_py_builtin(PROC_REVERSE, t_reverse, Some(FUNC_REVERSE), 86);
+        array_mut_.register_py_builtin(PROC_REVERSE, t_reverse, Some(FUNC_REVERSE), 87);
         let t = pr_met(
             array_mut_t.clone(),
             vec![kw(KW_FUNC, nd_func(vec![anon(T.clone())], None, T.clone()))],
@@ -2515,7 +2515,16 @@ impl Context {
             NoneType,
         )
         .quantify();
-        array_mut_.register_py_builtin(PROC_STRICT_MAP, t, None, 95);
+        array_mut_.register_py_builtin(PROC_STRICT_MAP, t, None, 96);
+        let t_update_nth = pr_met(
+            ref_mut(array_mut_t.clone(), None),
+            vec![kw(KW_IDX, Nat), kw(KW_FUNC, func1(T.clone(), T.clone()))],
+            None,
+            vec![],
+            NoneType,
+        )
+        .quantify();
+        array_mut_.register_py_builtin(PROC_UPDATE_NTH, t_update_nth, Some(FUNC_UPDATE_NTH), 105);
         let f_t = kw(
             KW_FUNC,
             func(vec![kw(KW_OLD, arr_t.clone())], None, vec![], arr_t.clone()),
