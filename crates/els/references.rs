@@ -4,6 +4,7 @@ use erg_compiler::varinfo::AbsLocation;
 
 use lsp_types::{Location, Position, ReferenceParams, Url};
 
+use crate::_log;
 use crate::server::{ELSResult, Server};
 use crate::util::{self, NormalizedUrl};
 
@@ -12,6 +13,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         &mut self,
         params: ReferenceParams,
     ) -> ELSResult<Option<Vec<Location>>> {
+        _log!("references: {params:?}");
         let uri = NormalizedUrl::new(params.text_document_position.text_document.uri);
         let pos = params.text_document_position.position;
         let result = self.show_refs_inner(&uri, pos);
@@ -19,8 +21,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     }
 
     fn show_refs_inner(&self, uri: &NormalizedUrl, pos: Position) -> Vec<lsp_types::Location> {
-        if let Some(tok) = self.file_cache.get_token(uri, pos) {
-            // send_log(format!("token: {tok}"))?;
+        if let Some(tok) = self.file_cache.get_symbol(uri, pos) {
             if let Some(visitor) = self.get_visitor(uri) {
                 if let Some(vi) = visitor.get_info(&tok) {
                     return self.get_refs_from_abs_loc(&vi.def_loc);

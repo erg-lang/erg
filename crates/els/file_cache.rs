@@ -13,7 +13,7 @@ use erg_common::dict::Dict;
 use erg_common::shared::Shared;
 use erg_common::traits::DequeStream;
 use erg_compiler::erg_parser::lex::Lexer;
-use erg_compiler::erg_parser::token::{Token, TokenStream};
+use erg_compiler::erg_parser::token::{Token, TokenCategory, TokenStream};
 
 use crate::_log;
 use crate::server::ELSResult;
@@ -139,7 +139,21 @@ impl FileCache {
                 return Some(tok.clone());
             }
         }
+        for tok in tokens.iter() {
+            if util::roughly_pos_in_loc(tok, pos) {
+                return Some(tok.clone());
+            }
+        }
         None
+    }
+
+    /// a{pos}\n -> \n -> a
+    pub fn get_symbol(&self, uri: &NormalizedUrl, pos: Position) -> Option<Token> {
+        let mut token = self.get_token(uri, pos)?;
+        while !matches!(token.category(), TokenCategory::Symbol) {
+            token = self.get_token_relatively(uri, pos, -1)?;
+        }
+        Some(token)
     }
 
     pub fn get_token_relatively(

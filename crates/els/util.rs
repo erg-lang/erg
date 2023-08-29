@@ -117,6 +117,18 @@ pub(crate) fn pos_in_loc<L: Locational>(loc: &L, pos: Position) -> bool {
     }
 }
 
+pub(crate) fn roughly_pos_in_loc<L: Locational>(loc: &L, pos: Position) -> bool {
+    let ln_begin = loc.ln_begin().unwrap_or(0);
+    let ln_end = loc.ln_end().unwrap_or(0);
+    let in_lines = (ln_begin..=ln_end).contains(&(pos.line + 1));
+    if ln_begin == ln_end {
+        in_lines
+            && (loc.col_begin().unwrap_or(0)..=loc.col_end().unwrap_or(0)).contains(&pos.character)
+    } else {
+        in_lines
+    }
+}
+
 pub(crate) fn pos_to_byte_index(src: &str, pos: Position) -> usize {
     if src.is_empty() {
         return 0;

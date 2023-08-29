@@ -36,7 +36,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     ) -> ELSResult<GotoDefinitionResponse> {
         let uri = NormalizedUrl::new(params.text_document_position_params.text_document.uri);
         let pos = params.text_document_position_params.position;
-        if let Some(token) = self.file_cache.get_token(&uri, pos) {
+        if let Some(token) = self.file_cache.get_symbol(&uri, pos) {
             if let Some(vi) = self.get_definition(&uri, &token)? {
                 // If the target variable is an imported one, jump to the definition file.
                 // Else if the target variable is an alias, jump to the definition of it.
