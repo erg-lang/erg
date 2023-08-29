@@ -96,7 +96,7 @@ pub(crate) fn loc_to_pos(loc: erg_common::error::Location) -> Option<Position> {
     Some(start)
 }
 
-pub fn _pos_to_loc(pos: Position) -> erg_common::error::Location {
+pub fn pos_to_loc(pos: Position) -> erg_common::error::Location {
     erg_common::error::Location::range(
         pos.line + 1,
         pos.character.saturating_sub(1),

@@ -162,6 +162,9 @@ impl FileCache {
         pos: Position,
         offset: isize,
     ) -> Option<Token> {
+        if offset == 0 {
+            return self.get_token(uri, pos);
+        }
         let _ = self.load_once(uri);
         let ent = self.files.borrow_mut();
         let tokens = ent.get(uri)?.token_stream.as_ref()?;

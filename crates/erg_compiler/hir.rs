@@ -332,6 +332,14 @@ impl Args {
         }
     }
 
+    pub fn last(&self) -> Option<&Expr> {
+        if self.kw_args.is_empty() {
+            self.pos_args.last().map(|a| &a.expr)
+        } else {
+            self.kw_args.last().map(|a| &a.expr)
+        }
+    }
+
     pub fn remove_left_or_key(&mut self, key: &str) -> Option<Expr> {
         if !self.pos_args.is_empty() {
             Some(self.pos_args.remove(0).expr)

@@ -10,6 +10,21 @@ use lsp_types::Position;
 use crate::file_cache::FileCache;
 use crate::util::{self, NormalizedUrl};
 
+#[derive(Debug)]
+pub enum ExprKind {
+    Call,
+    Expr,
+}
+
+impl ExprKind {
+    pub const fn matches(&self, expr: &Expr) -> bool {
+        matches!(
+            (self, expr),
+            (ExprKind::Call, Expr::Call(_)) | (ExprKind::Expr, _)
+        )
+    }
+}
+
 /// This struct provides:
 /// * namespace where the cursor is located (`get_namespace`)
 /// * cursor(`Token`) -> `Expr` mapping (`get_min_expr`)
@@ -19,6 +34,7 @@ pub struct HIRVisitor<'a> {
     file_cache: &'a FileCache,
     uri: NormalizedUrl,
     strict_cmp: bool,
+    search: ExprKind,
 }
 
 impl<'a> HIRVisitor<'a> {
@@ -32,6 +48,22 @@ impl<'a> HIRVisitor<'a> {
             file_cache,
             uri,
             strict_cmp: ERG_MODE,
+            search: ExprKind::Expr,
+        }
+    }
+
+    pub fn new_searcher(
+        hir: MappedRwLockReadGuard<'a, HIR>,
+        file_cache: &'a FileCache,
+        uri: NormalizedUrl,
+        search: ExprKind,
+    ) -> Self {
+        Self {
+            hir,
+            file_cache,
+            uri,
+            strict_cmp: ERG_MODE,
+            search,
         }
     }
 
@@ -176,6 +208,9 @@ impl<'a> HIRVisitor<'a> {
     }
 
     fn return_expr_if_same<'e>(&'e self, expr: &'e Expr, l: &Token, r: &Token) -> Option<&Expr> {
+        if !self.search.matches(expr) {
+            return None;
+        }
         if self.strict_cmp {
             if l.deep_eq(r) {
                 Some(expr)
@@ -187,6 +222,15 @@ impl<'a> HIRVisitor<'a> {
         } else {
             None
         }
+    }
+
+    fn return_expr_if_contains<'e>(
+        &'e self,
+        expr: &'e Expr,
+        token: &Token,
+        loc: &impl Locational,
+    ) -> Option<&Expr> {
+        (loc.loc().contains(token.loc()) && self.search.matches(expr)).then_some(expr)
     }
 
     fn get_expr<'e>(&'e self, expr: &'e Expr, token: &Token) -> Option<&'e Expr> {
@@ -236,7 +280,7 @@ impl<'a> HIRVisitor<'a> {
         bin: &'e BinOp,
         token: &Token,
     ) -> Option<&Expr> {
-        if &bin.op == token {
+        if &bin.op == token && self.search.matches(expr) {
             return Some(expr);
         }
         self.get_expr(&bin.lhs, token)
@@ -255,13 +299,22 @@ impl<'a> HIRVisitor<'a> {
             .as_ref()
             .and_then(|(_, end)| self.return_expr_if_same(expr, end, token))
             .or_else(|| {
-                call.attr_name
-                    .as_ref()
-                    .and_then(|attr| self.return_expr_if_same(expr, attr.raw.name.token(), token))
+                call.attr_name.as_ref().and_then(|attr| {
+                    self.return_expr_if_same(expr, attr.raw.name.token(), token)
+                        .map(|e| {
+                            crate::_log!("{e}");
+                            e
+                        })
+                })
             })
             .or_else(|| self.get_expr(&call.obj, token))
-            .or_else(|| self.get_expr_from_args(&call.args, token))
-            .or_else(|| call.loc().contains(token.loc()).then_some(expr))
+            .or_else(|| {
+                self.get_expr_from_args(&call.args, token).map(|e| {
+                    crate::_log!("{:?} / {e}", self.search);
+                    e
+                })
+            })
+            .or_else(|| self.return_expr_if_contains(expr, token, call))
     }
 
     fn get_expr_from_args<'e>(&'e self, args: &'e Args, token: &Token) -> Option<&Expr> {
@@ -291,7 +344,7 @@ impl<'a> HIRVisitor<'a> {
     ) -> Option<&Expr> {
         self.return_expr_if_same(expr, def.sig.ident().raw.name.token(), token)
             .or_else(|| self.get_expr_from_block(&def.body.block, token))
-            .or_else(|| def.loc().contains(token.loc()).then_some(expr))
+            .or_else(|| self.return_expr_if_contains(expr, token, def))
     }
 
     fn get_expr_from_class_def<'e>(
@@ -305,7 +358,7 @@ impl<'a> HIRVisitor<'a> {
             .as_ref()
             .and_then(|req_sup| self.get_expr(req_sup, token))
             .or_else(|| self.get_expr_from_block(&class_def.methods, token))
-            .or_else(|| class_def.loc().contains(token.loc()).then_some(expr))
+            .or_else(|| self.return_expr_if_contains(expr, token, class_def))
     }
 
     fn get_expr_from_block<'e>(&'e self, block: &'e Block, token: &Token) -> Option<&Expr> {
@@ -345,7 +398,7 @@ impl<'a> HIRVisitor<'a> {
         self.return_expr_if_same(expr, patch_def.sig.name().token(), token)
             .or_else(|| self.get_expr(&patch_def.base, token))
             .or_else(|| self.get_expr_from_block(&patch_def.methods, token))
-            .or_else(|| patch_def.loc().contains(token.loc()).then_some(expr))
+            .or_else(|| self.return_expr_if_contains(expr, token, patch_def))
     }
 
     fn get_expr_from_lambda<'e>(
@@ -354,7 +407,9 @@ impl<'a> HIRVisitor<'a> {
         lambda: &'e Lambda,
         token: &Token,
     ) -> Option<&Expr> {
-        if util::pos_in_loc(&lambda.params, util::loc_to_pos(token.loc())?) {
+        if util::pos_in_loc(&lambda.params, util::loc_to_pos(token.loc())?)
+            && self.search.matches(expr)
+        {
             return Some(expr);
         }
         self.get_expr_from_block(&lambda.body, token)
@@ -366,7 +421,7 @@ impl<'a> HIRVisitor<'a> {
         arr: &'e Array,
         token: &Token,
     ) -> Option<&Expr> {
-        if arr.ln_end() == token.ln_end() {
+        if arr.ln_end() == token.ln_end() && self.search.matches(expr) {
             // arr: `[1, 2]`, token: `]`
             return Some(expr);
         }
@@ -382,7 +437,7 @@ impl<'a> HIRVisitor<'a> {
         dict: &'e Dict,
         token: &Token,
     ) -> Option<&Expr> {
-        if dict.ln_end() == token.ln_end() {
+        if dict.ln_end() == token.ln_end() && self.search.matches(expr) {
             // arr: `{...}`, token: `}`
             return Some(expr);
         }
@@ -408,7 +463,7 @@ impl<'a> HIRVisitor<'a> {
         record: &'e Record,
         token: &Token,
     ) -> Option<&Expr> {
-        if record.ln_end() == token.ln_end() {
+        if record.ln_end() == token.ln_end() && self.search.matches(expr) {
             // arr: `{...}`, token: `}`
             return Some(expr);
         }
@@ -426,7 +481,7 @@ impl<'a> HIRVisitor<'a> {
         set: &'e Set,
         token: &Token,
     ) -> Option<&Expr> {
-        if set.ln_end() == token.ln_end() {
+        if set.ln_end() == token.ln_end() && self.search.matches(expr) {
             // arr: `{...}`, token: `}`
             return Some(expr);
         }
@@ -537,18 +592,18 @@ impl<'a> HIRVisitor<'a> {
 
     fn get_args_info(&self, args: &Args, token: &Token) -> Option<VarInfo> {
         for arg in args.pos_args.iter() {
-            if let Some(expr) = self.get_expr_info(&arg.expr, token) {
-                return Some(expr);
+            if let Some(vi) = self.get_expr_info(&arg.expr, token) {
+                return Some(vi);
             }
         }
         if let Some(var) = &args.var_args {
-            if let Some(expr) = self.get_expr_info(&var.expr, token) {
-                return Some(expr);
+            if let Some(vi) = self.get_expr_info(&var.expr, token) {
+                return Some(vi);
             }
         }
         for arg in args.kw_args.iter() {
-            if let Some(expr) = self.get_expr_info(&arg.expr, token) {
-                return Some(expr);
+            if let Some(vi) = self.get_expr_info(&arg.expr, token) {
+                return Some(vi);
             }
         }
         None
