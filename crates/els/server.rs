@@ -1,3 +1,4 @@
+use std::any::type_name;
 use std::io;
 use std::io::{stdin, stdout, BufRead, Read, Write};
 use std::ops::Not;
@@ -697,9 +698,17 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             move || loop {
                 let msg = receiver.recv().unwrap();
                 match msg {
-                    WorkerMessage::Request(id, params) => {
-                        let _ = send(&LSPResult::new(id, handler(&mut _self, params).unwrap()));
-                    }
+                    WorkerMessage::Request(id, params) => match handler(&mut _self, params) {
+                        Ok(result) => {
+                            let _ = send(&LSPResult::new(id, result));
+                        }
+                        Err(err) => {
+                            let _ = send(&ErrorMessage::new(
+                                Some(id),
+                                format!("err from {}: {err}", type_name::<R>()).into(),
+                            ));
+                        }
+                    },
                     WorkerMessage::Kill => {
                         break;
                     }

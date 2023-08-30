@@ -342,13 +342,27 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             .and_then(|v| serde_json::from_value::<CodeActionParams>(v).ok())
             .ok_or("invalid params")?;
         let uri = NormalizedUrl::new(params.text_document.uri.clone());
-        let visitor = self.get_visitor(&uri).unwrap();
-        match visitor.get_min_expr(params.range.start).unwrap() {
+        let visitor = self.get_visitor(&uri).ok_or("get_visitor")?;
+        match visitor
+            .get_min_expr(params.range.start)
+            .ok_or("get_min_expr")?
+        {
             Expr::Def(def) => {
                 action.edit = Some(WorkspaceEdit::new(self.inline_var_def(def)));
             }
             Expr::Accessor(acc) => {
-                let range = util::loc_to_range(acc.var_info().def_loc.loc).unwrap();
+                let uri = NormalizedUrl::new(
+                    Url::from_file_path(
+                        acc.var_info()
+                            .def_loc
+                            .module
+                            .as_ref()
+                            .ok_or("def_loc.module")?,
+                    )
+                    .map_err(|_| "from_file_path")?,
+                );
+                let visitor = self.get_visitor(&uri).ok_or(format!("{uri} not found"))?;
+                let range = util::loc_to_range(acc.var_info().def_loc.loc).ok_or("loc_to_range")?;
                 if let Some(Expr::Def(def)) = visitor.get_min_expr(range.start) {
                     action.edit = Some(WorkspaceEdit::new(self.inline_var_def(def)));
                 }
