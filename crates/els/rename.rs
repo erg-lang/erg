@@ -31,7 +31,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         send_log(format!("rename request: {params:?}"))?;
         let uri = NormalizedUrl::new(params.text_document_position.text_document.uri);
         let pos = params.text_document_position.position;
-        if let Some(tok) = self.file_cache.get_token(&uri, pos) {
+        if let Some(tok) = self.file_cache.get_symbol(&uri, pos) {
             // send_log(format!("token: {tok}"))?;
             if let Some(vi) = self
                 .get_visitor(&uri)
