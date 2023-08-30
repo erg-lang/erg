@@ -197,7 +197,7 @@ impl AnalysisResult {
     }
 }
 
-pub(crate) const TRIGGER_CHARS: [&str; 4] = [".", ":", "(", " "];
+pub const TRIGGER_CHARS: [&str; 4] = [".", ":", "(", " "];
 
 #[derive(Debug, Clone, Default)]
 pub struct AnalysisResultCache(Shared<Dict<NormalizedUrl, AnalysisResult>>);
@@ -664,7 +664,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         Ok(Value::from_str(&s)?)
     }
 
-    fn dispatch(&mut self, msg: Value) -> ELSResult<()> {
+    pub fn dispatch(&mut self, msg: Value) -> ELSResult<()> {
         match (
             msg.get("id").and_then(|i| i.as_i64()),
             msg.get("method").and_then(|m| m.as_str()),

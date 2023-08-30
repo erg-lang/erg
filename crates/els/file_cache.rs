@@ -46,7 +46,7 @@ impl FileCacheEntry {
 
 /// Stores the contents of the file on-memory.
 /// This struct can save changes in real-time & incrementally.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct FileCache {
     pub files: Shared<Dict<NormalizedUrl, FileCacheEntry>>,
 }
