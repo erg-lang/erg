@@ -165,7 +165,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 // not found or not symbol, etc.
                 None => {
                     if let Some(visitor) = self.get_visitor(&uri) {
-                        if let Some(typ) = visitor.get_min_expr(&token) {
+                        if let Some(typ) = visitor.get_min_expr(pos) {
                             let typ = MarkedString::from_language_code(
                                 ERG_LANG.into(),
                                 format!("{}: {typ}", token.content),

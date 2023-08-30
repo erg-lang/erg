@@ -8,7 +8,7 @@ use erg_common::cache::CacheSet;
 use erg_common::config::ErgConfig;
 use erg_common::io::Input;
 use erg_common::traits::DequeStream;
-use erg_common::traits::{Locational, Runnable, Stream};
+use erg_common::traits::{Runnable, Stream};
 use erg_common::{debug_power_assert, fn_name_full, normalize_newline, switch_lang};
 
 use crate::error::{LexError, LexErrors, LexResult, LexerRunnerError, LexerRunnerErrors};

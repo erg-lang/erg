@@ -50,7 +50,7 @@ use crate::completion::CompletionCache;
 use crate::file_cache::FileCache;
 use crate::hir_visitor::{ExprKind, HIRVisitor};
 use crate::message::{ErrorMessage, LSPResult, LogMessage, ShowMessage};
-use crate::util::{self, NormalizedUrl};
+use crate::util::{self, loc_to_pos, NormalizedUrl};
 
 pub const HEALTH_CHECKER_ID: i64 = 10000;
 pub const ASK_AUTO_SAVE_ID: i64 = 10001;
@@ -892,7 +892,9 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             // send_log(format!("token: {token}"))?;
             let mut ctxs = vec![];
             if let Some(visitor) = self.get_visitor(uri) {
-                if let Some(expr) = visitor.get_min_expr(&token) {
+                if let Some(expr) =
+                    loc_to_pos(token.loc()).and_then(|pos| visitor.get_min_expr(pos))
+                {
                     let type_ctxs = module
                         .context
                         .get_nominal_super_type_ctxs(expr.ref_t())
