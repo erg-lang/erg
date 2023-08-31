@@ -133,6 +133,26 @@ impl DummyClient {
         Ok(buf)
     }
 
+    fn wait_for<R>(&mut self) -> Result<R, Box<dyn std::error::Error>>
+    where
+        R: Deserialize<'static>,
+    {
+        loop {
+            let mut buf = String::new();
+            self.stdout_buffer.read_to_string(&mut buf)?;
+            for msg in parse_msgs(&buf) {
+                if let Some(result) = msg
+                    .get("result")
+                    .cloned()
+                    .and_then(|res| R::deserialize(res).ok())
+                {
+                    return Ok(result);
+                }
+            }
+            safe_yield();
+        }
+    }
+
     fn request_initialize(&mut self) -> Result<String, Box<dyn std::error::Error>> {
         let msg = json!({
             "jsonrpc": "2.0",
@@ -191,7 +211,7 @@ impl DummyClient {
         line: u32,
         col: u32,
         character: &str,
-    ) -> Result<String, Box<dyn std::error::Error>> {
+    ) -> Result<CompletionResponse, Box<dyn std::error::Error>> {
         let text_document_position = abs_pos(uri, line, col);
         let trigger_kind = if TRIGGER_CHARS.contains(&character) {
             CompletionTriggerKind::TRIGGER_CHARACTER
@@ -218,9 +238,7 @@ impl DummyClient {
             "params": params,
         });
         self.server.dispatch(msg)?;
-        let buf = self.wait_outputs(4)?;
-        // eprintln!("{}: `{}`", line!(), buf);
-        Ok(buf)
+        self.wait_for::<CompletionResponse>()
     }
 
     fn request_rename(
@@ -229,7 +247,7 @@ impl DummyClient {
         line: u32,
         col: u32,
         new_name: &str,
-    ) -> Result<String, Box<dyn std::error::Error>> {
+    ) -> Result<WorkspaceEdit, Box<dyn std::error::Error>> {
         let text_document_position = abs_pos(uri, line, col);
         let params = RenameParams {
             text_document_position,
@@ -243,9 +261,7 @@ impl DummyClient {
             "params": params,
         });
         self.server.dispatch(msg)?;
-        let buf = self.wait_outputs(4)?;
-        // eprintln!("{}: `{}`", line!(), buf);
-        Ok(buf)
+        self.wait_for::<WorkspaceEdit>()
     }
 
     fn request_signature_help(
@@ -254,7 +270,7 @@ impl DummyClient {
         line: u32,
         col: u32,
         character: &str,
-    ) -> Result<String, Box<dyn std::error::Error>> {
+    ) -> Result<SignatureHelp, Box<dyn std::error::Error>> {
         let text_document_position_params = abs_pos(uri, line, col);
         let context = SignatureHelpContext {
             trigger_kind: SignatureHelpTriggerKind::TRIGGER_CHARACTER,
@@ -274,9 +290,7 @@ impl DummyClient {
             "params": params,
         });
         self.server.dispatch(msg)?;
-        let buf = self.wait_outputs(4)?;
-        // eprintln!("{}: `{}`", line!(), buf);
-        Ok(buf)
+        self.wait_for::<SignatureHelp>()
     }
 
     fn request_hover(
@@ -284,7 +298,7 @@ impl DummyClient {
         uri: Url,
         line: u32,
         col: u32,
-    ) -> Result<String, Box<dyn std::error::Error>> {
+    ) -> Result<Hover, Box<dyn std::error::Error>> {
         let params = HoverParams {
             text_document_position_params: abs_pos(uri, line, col),
             work_done_progress_params: Default::default(),
@@ -296,9 +310,7 @@ impl DummyClient {
             "params": params,
         });
         self.server.dispatch(msg)?;
-        let buf = self.wait_outputs(4)?;
-        // eprintln!("{}: `{}`", line!(), buf);
-        Ok(buf)
+        self.wait_for::<Hover>()
     }
 
     fn request_references(
@@ -306,7 +318,7 @@ impl DummyClient {
         uri: Url,
         line: u32,
         col: u32,
-    ) -> Result<String, Box<dyn std::error::Error>> {
+    ) -> Result<Vec<Location>, Box<dyn std::error::Error>> {
         let context = ReferenceContext {
             include_declaration: false,
         };
@@ -323,9 +335,7 @@ impl DummyClient {
             "params": params,
         });
         self.server.dispatch(msg)?;
-        let buf = self.wait_outputs(4)?;
-        // eprintln!("{}: `{}`", line!(), buf);
-        Ok(buf)
+        self.wait_for::<Vec<Location>>()
     }
 
     fn request_goto_definition(
@@ -333,7 +343,7 @@ impl DummyClient {
         uri: Url,
         line: u32,
         col: u32,
-    ) -> Result<String, Box<dyn std::error::Error>> {
+    ) -> Result<Vec<Location>, Box<dyn std::error::Error>> {
         let params = GotoDefinitionParams {
             text_document_position_params: abs_pos(uri, line, col),
             work_done_progress_params: Default::default(),
@@ -346,9 +356,7 @@ impl DummyClient {
             "params": params,
         });
         self.server.dispatch(msg)?;
-        let buf = self.wait_outputs(4)?;
-        // eprintln!("{}: `{}`", line!(), buf);
-        Ok(buf)
+        self.wait_for::<Vec<Location>>()
     }
 }
 
@@ -369,18 +377,14 @@ fn test_completion() -> Result<(), Box<dyn std::error::Error>> {
     client.notify_open(FILE_A)?;
     client.notify_change(uri.clone().raw(), add_char(2, 0, "x"))?;
     client.notify_change(uri.clone().raw(), add_char(2, 1, "."))?;
-    let result = client.request_completion(uri.raw(), 2, 2, ".")?;
-    for msg in parse_msgs(&result) {
-        if let Some(CompletionResponse::Array(items)) = msg
-            .get("result")
-            .and_then(|res| CompletionResponse::deserialize(res).ok())
-        {
-            assert!(items.len() >= 40);
-            assert!(items.iter().any(|item| item.label == "abs"));
-            return Ok(());
-        }
+    let resp = client.request_completion(uri.raw(), 2, 2, ".")?;
+    if let CompletionResponse::Array(items) = resp {
+        assert!(items.len() >= 40);
+        assert!(items.iter().any(|item| item.label == "abs"));
+        Ok(())
+    } else {
+        Err(format!("not items: {resp:?}").into())
     }
-    Err("no result".into())
 }
 
 #[test]
@@ -389,19 +393,11 @@ fn test_rename() -> Result<(), Box<dyn std::error::Error>> {
     client.request_initialize()?;
     let uri = NormalizedUrl::from_file_path(Path::new(FILE_A).canonicalize()?)?;
     client.notify_open(FILE_A)?;
-    let result = client.request_rename(uri.clone().raw(), 1, 5, "y")?;
-    for msg in parse_msgs(&result) {
-        if let Some(edit) = msg
-            .get("result")
-            .and_then(|res| WorkspaceEdit::deserialize(res).ok())
-        {
-            assert!(edit
-                .changes
-                .is_some_and(|changes| changes.values().next().unwrap().len() == 2));
-            return Ok(());
-        }
-    }
-    Err("no result".into())
+    let edit = client.request_rename(uri.clone().raw(), 1, 5, "y")?;
+    assert!(edit
+        .changes
+        .is_some_and(|changes| changes.values().next().unwrap().len() == 2));
+    Ok(())
 }
 
 #[test]
@@ -412,20 +408,12 @@ fn test_signature_help() -> Result<(), Box<dyn std::error::Error>> {
     client.notify_open(FILE_A)?;
     client.notify_change(uri.clone().raw(), add_char(2, 0, "assert"))?;
     client.notify_change(uri.clone().raw(), add_char(2, 6, "("))?;
-    let result = client.request_signature_help(uri.raw(), 2, 7, "(")?;
-    for msg in parse_msgs(&result) {
-        if let Some(help) = msg
-            .get("result")
-            .and_then(|res| SignatureHelp::deserialize(res).ok())
-        {
-            assert_eq!(help.signatures.len(), 1);
-            let sig = &help.signatures[0];
-            assert_eq!(sig.label, "::assert: (test: Bool, msg := Str) -> NoneType");
-            assert_eq!(sig.active_parameter, Some(0));
-            return Ok(());
-        }
-    }
-    Err("no result".into())
+    let help = client.request_signature_help(uri.raw(), 2, 7, "(")?;
+    assert_eq!(help.signatures.len(), 1);
+    let sig = &help.signatures[0];
+    assert_eq!(sig.label, "::assert: (test: Bool, msg := Str) -> NoneType");
+    assert_eq!(sig.active_parameter, Some(0));
+    Ok(())
 }
 
 #[test]
@@ -434,31 +422,23 @@ fn test_hover() -> Result<(), Box<dyn std::error::Error>> {
     client.request_initialize()?;
     let uri = NormalizedUrl::from_file_path(Path::new(FILE_A).canonicalize()?)?;
     client.notify_open(FILE_A)?;
-    let result = client.request_hover(uri.raw(), 1, 4)?;
-    for msg in parse_msgs(&result) {
-        if let Some(hover) = msg
-            .get("result")
-            .and_then(|res| Hover::deserialize(res).ok())
-        {
-            let HoverContents::Array(contents) = hover.contents else {
-                todo!()
-            };
-            assert_eq!(contents.len(), 2);
-            let MarkedString::LanguageString(content) = &contents[0] else {
-                todo!()
-            };
-            assert!(
-                content.value == "# tests/a.er, line 1\nx = 1"
-                    || content.value == "# tests\\a.er, line 1\nx = 1"
-            );
-            let MarkedString::LanguageString(content) = &contents[1] else {
-                todo!()
-            };
-            assert_eq!(content.value, "x: {1}");
-            return Ok(());
-        }
-    }
-    Err("no result".into())
+    let hover = client.request_hover(uri.raw(), 1, 4)?;
+    let HoverContents::Array(contents) = hover.contents else {
+        todo!()
+    };
+    assert_eq!(contents.len(), 2);
+    let MarkedString::LanguageString(content) = &contents[0] else {
+        todo!()
+    };
+    assert!(
+        content.value == "# tests/a.er, line 1\nx = 1"
+            || content.value == "# tests\\a.er, line 1\nx = 1"
+    );
+    let MarkedString::LanguageString(content) = &contents[1] else {
+        todo!()
+    };
+    assert_eq!(content.value, "x: {1}");
+    Ok(())
 }
 
 #[test]
@@ -467,18 +447,10 @@ fn test_references() -> Result<(), Box<dyn std::error::Error>> {
     client.request_initialize()?;
     let uri = NormalizedUrl::from_file_path(Path::new(FILE_A).canonicalize()?)?;
     client.notify_open(FILE_A)?;
-    let result = client.request_references(uri.raw(), 1, 4)?;
-    for msg in parse_msgs(&result) {
-        if let Some(locations) = msg
-            .get("result")
-            .and_then(|res| Vec::<Location>::deserialize(res).ok())
-        {
-            assert_eq!(locations.len(), 1);
-            assert_eq!(&locations[0].range, &single_range(1, 4, 5));
-            return Ok(());
-        }
-    }
-    Err("no result".into())
+    let locations = client.request_references(uri.raw(), 1, 4)?;
+    assert_eq!(locations.len(), 1);
+    assert_eq!(&locations[0].range, &single_range(1, 4, 5));
+    Ok(())
 }
 
 #[test]
@@ -487,16 +459,8 @@ fn test_goto_definition() -> Result<(), Box<dyn std::error::Error>> {
     client.request_initialize()?;
     let uri = NormalizedUrl::from_file_path(Path::new(FILE_A).canonicalize()?)?;
     client.notify_open(FILE_A)?;
-    let result = client.request_goto_definition(uri.raw(), 1, 4)?;
-    for msg in parse_msgs(&result) {
-        if let Some(locations) = msg
-            .get("result")
-            .and_then(|res| Vec::<Location>::deserialize(res).ok())
-        {
-            assert_eq!(locations.len(), 1);
-            assert_eq!(&locations[0].range, &single_range(0, 0, 1));
-            return Ok(());
-        }
-    }
-    Err("no result".into())
+    let locations = client.request_goto_definition(uri.raw(), 1, 4)?;
+    assert_eq!(locations.len(), 1);
+    assert_eq!(&locations[0].range, &single_range(0, 0, 1));
+    Ok(())
 }
