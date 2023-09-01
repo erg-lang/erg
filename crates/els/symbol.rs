@@ -9,7 +9,7 @@ use crate::_log;
 use crate::server::{ELSResult, Server};
 use crate::util::abs_loc_to_lsp_loc;
 
-fn symbol_kind(vi: &VarInfo) -> SymbolKind {
+pub(crate) fn symbol_kind(vi: &VarInfo) -> SymbolKind {
     match &vi.t {
         Type::Subr(subr) if subr.self_t().is_some() => SymbolKind::METHOD,
         Type::Quantified(quant) if quant.self_t().is_some() => SymbolKind::METHOD,

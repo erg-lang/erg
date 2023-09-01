@@ -10,7 +10,7 @@ use lsp_types::{
     SignatureHelpParams, SignatureHelpTriggerKind, SignatureInformation,
 };
 
-use crate::hir_visitor::ExprKind;
+use crate::hir_visitor::GetExprKind;
 use crate::server::{send_log, ELSResult, Server};
 use crate::util::{loc_to_pos, pos_to_loc, NormalizedUrl};
 
@@ -92,9 +92,14 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         None
     }
 
-    pub(crate) fn get_min_call(&self, uri: &NormalizedUrl, pos: Position) -> Option<Expr> {
-        self.get_searcher(uri, ExprKind::Call)
+    pub(crate) fn get_min<E: TryFrom<Expr> + GetExprKind>(
+        &self,
+        uri: &NormalizedUrl,
+        pos: Position,
+    ) -> Option<E> {
+        self.get_searcher(uri, E::KIND)
             .and_then(|visitor| visitor.get_min_expr(pos).cloned())
+            .and_then(|expr| E::try_from(expr).ok())
     }
 
     pub(crate) fn nth(&self, uri: &NormalizedUrl, call: &Call, pos: Position) -> usize {
@@ -136,7 +141,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     ) -> Option<SignatureHelp> {
         if let Some(token) = self.file_cache.get_token(uri, pos) {
             crate::_log!("token: {token}");
-            if let Some(Expr::Call(call)) = self.get_min_call(uri, pos) {
+            if let Some(call) = self.get_min::<Call>(uri, pos) {
                 if call.ln_begin() > token.ln_begin() || call.ln_end() < token.ln_end() {
                     return None;
                 }
@@ -161,7 +166,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     }
 
     fn get_continuous_help(&mut self, uri: &NormalizedUrl, pos: Position) -> Option<SignatureHelp> {
-        if let Some(Expr::Call(call)) = self.get_min_call(uri, pos) {
+        if let Some(call) = self.get_min::<Call>(uri, pos) {
             let nth = self.nth(uri, &call, pos) as u32 + 1;
             let help = self.make_sig_help(call.obj.as_ref(), nth);
             return help;

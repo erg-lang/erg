@@ -1,3 +1,4 @@
+mod call_hierarchy;
 mod channels;
 mod code_action;
 mod code_lens;

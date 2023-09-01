@@ -28,12 +28,23 @@ impl PosLocational for Position {
     }
 }
 
+pub trait GetExprKind {
+    const KIND: ExprKind;
+}
+impl GetExprKind for Expr {
+    const KIND: ExprKind = ExprKind::Expr;
+}
+impl GetExprKind for Call {
+    const KIND: ExprKind = ExprKind::Call;
+}
+impl GetExprKind for Def {
+    const KIND: ExprKind = ExprKind::Def;
+}
+
 #[derive(Debug)]
 pub enum ExprKind {
     Call,
-    #[allow(dead_code)]
-    SubrDef,
-    // Def,
+    Def,
     Expr,
 }
 
@@ -41,8 +52,8 @@ impl ExprKind {
     pub const fn matches(&self, expr: &Expr) -> bool {
         match (self, expr) {
             (ExprKind::Call, Expr::Call(_)) | (ExprKind::Expr, _) => true,
-            // (ExprKind::Def, Expr::Def(_)) => true,
-            (ExprKind::SubrDef, Expr::Def(def)) => def.sig.is_subr(),
+            (ExprKind::Def, Expr::Def(_)) => true,
+            // (ExprKind::Def, Expr::Def(def)) => def.sig.is_subr(),
             _ => false,
         }
     }

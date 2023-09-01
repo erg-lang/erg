@@ -27,19 +27,20 @@ use erg_compiler::module::{SharedCompilerResource, SharedModuleGraph, SharedModu
 use erg_compiler::ty::HasType;
 
 use lsp_types::request::{
+    CallHierarchyIncomingCalls, CallHierarchyOutgoingCalls, CallHierarchyPrepare,
     CodeActionRequest, CodeActionResolveRequest, CodeLensRequest, Completion, ExecuteCommand,
     GotoDefinition, HoverRequest, InlayHintRequest, InlayHintResolveRequest, References, Rename,
     Request, ResolveCompletionItem, SemanticTokensFullRequest, SignatureHelpRequest,
     WillRenameFiles, WorkspaceSymbol,
 };
 use lsp_types::{
-    CodeActionKind, CodeActionOptions, CodeActionProviderCapability, CodeLensOptions,
-    CompletionOptions, ConfigurationItem, ConfigurationParams, DidChangeTextDocumentParams,
-    DidOpenTextDocumentParams, ExecuteCommandOptions, HoverProviderCapability, InitializeParams,
-    InitializeResult, InlayHintOptions, InlayHintServerCapabilities, OneOf, Position,
-    SemanticTokenType, SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions,
-    SemanticTokensServerCapabilities, ServerCapabilities, SignatureHelpOptions,
-    WorkDoneProgressOptions,
+    CallHierarchyServerCapability, CodeActionKind, CodeActionOptions, CodeActionProviderCapability,
+    CodeLensOptions, CompletionOptions, ConfigurationItem, ConfigurationParams,
+    DidChangeTextDocumentParams, DidOpenTextDocumentParams, ExecuteCommandOptions,
+    HoverProviderCapability, InitializeParams, InitializeResult, InlayHintOptions,
+    InlayHintServerCapabilities, OneOf, Position, SemanticTokenType, SemanticTokensFullOptions,
+    SemanticTokensLegend, SemanticTokensOptions, SemanticTokensServerCapabilities,
+    ServerCapabilities, SignatureHelpOptions, WorkDoneProgressOptions,
 };
 
 use serde::{Deserialize, Serialize};
@@ -503,6 +504,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             resolve_provider: Some(false),
         });
         capabilities.workspace_symbol_provider = Some(OneOf::Left(true));
+        capabilities.call_hierarchy_provider = Some(CallHierarchyServerCapability::Simple(true));
         capabilities
     }
 
@@ -565,6 +567,18 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         self.start_service::<WorkspaceSymbol>(
             receivers.workspace_symbol,
             Self::handle_workspace_symbol,
+        );
+        self.start_service::<CallHierarchyPrepare>(
+            receivers.call_hierarchy_prepare,
+            Self::handle_call_hierarchy_prepare,
+        );
+        self.start_service::<CallHierarchyIncomingCalls>(
+            receivers.call_hierarchy_incoming,
+            Self::handle_call_hierarchy_incoming,
+        );
+        self.start_service::<CallHierarchyOutgoingCalls>(
+            receivers.call_hierarchy_outgoing,
+            Self::handle_call_hierarchy_outgoing,
         );
         self.start_client_health_checker(receivers.health_check);
     }
@@ -746,6 +760,13 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             WillRenameFiles::METHOD => self.parse_send::<WillRenameFiles>(id, msg),
             ExecuteCommand::METHOD => self.parse_send::<ExecuteCommand>(id, msg),
             WorkspaceSymbol::METHOD => self.parse_send::<WorkspaceSymbol>(id, msg),
+            CallHierarchyIncomingCalls::METHOD => {
+                self.parse_send::<CallHierarchyIncomingCalls>(id, msg)
+            }
+            CallHierarchyOutgoingCalls::METHOD => {
+                self.parse_send::<CallHierarchyOutgoingCalls>(id, msg)
+            }
+            CallHierarchyPrepare::METHOD => self.parse_send::<CallHierarchyPrepare>(id, msg),
             other => send_error(Some(id), -32600, format!("{other} is not supported")),
         }
     }
