@@ -16,6 +16,7 @@ mod rename;
 mod semantic;
 mod server;
 mod sig_help;
+mod symbol;
 mod util;
 pub use server::*;
 pub use util::*;

@@ -25,6 +25,8 @@ ELS is a language server for the [Erg](https://github.com/erg-lang/erg) programm
   - [x] inline variables
 - [x] Code lens
   - [x] show trait implementations
+- [x] Signature help
+- [x] Workspace symbol
 
 ## Installation
 

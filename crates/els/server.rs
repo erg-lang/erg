@@ -30,7 +30,7 @@ use lsp_types::request::{
     CodeActionRequest, CodeActionResolveRequest, CodeLensRequest, Completion, ExecuteCommand,
     GotoDefinition, HoverRequest, InlayHintRequest, InlayHintResolveRequest, References, Rename,
     Request, ResolveCompletionItem, SemanticTokensFullRequest, SignatureHelpRequest,
-    WillRenameFiles,
+    WillRenameFiles, WorkspaceSymbol,
 };
 use lsp_types::{
     CodeActionKind, CodeActionOptions, CodeActionProviderCapability, CodeLensOptions,
@@ -391,7 +391,6 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     #[allow(clippy::field_reassign_with_default)]
     fn init(&mut self, msg: &Value, id: i64) -> ELSResult<()> {
         send_log("initializing ELS")?;
-        // #[allow(clippy::collapsible_if)]
         if msg.get("params").is_some() && msg["params"].get("capabilities").is_some() {
             self.init_params = InitializeParams::deserialize(&msg["params"])?;
             // send_log(format!("set client capabilities: {:?}", self.client_capas))?;
@@ -503,6 +502,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         capabilities.code_lens_provider = Some(CodeLensOptions {
             resolve_provider: Some(false),
         });
+        capabilities.workspace_symbol_provider = Some(OneOf::Left(true));
         capabilities
     }
 
@@ -561,6 +561,10 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         self.start_service::<ExecuteCommand>(
             receivers.execute_command,
             Self::handle_execute_command,
+        );
+        self.start_service::<WorkspaceSymbol>(
+            receivers.workspace_symbol,
+            Self::handle_workspace_symbol,
         );
         self.start_client_health_checker(receivers.health_check);
     }
@@ -741,6 +745,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             CodeLensRequest::METHOD => self.parse_send::<CodeLensRequest>(id, msg),
             WillRenameFiles::METHOD => self.parse_send::<WillRenameFiles>(id, msg),
             ExecuteCommand::METHOD => self.parse_send::<ExecuteCommand>(id, msg),
+            WorkspaceSymbol::METHOD => self.parse_send::<WorkspaceSymbol>(id, msg),
             other => send_error(Some(id), -32600, format!("{other} is not supported")),
         }
     }

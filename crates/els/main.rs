@@ -16,6 +16,7 @@ mod rename;
 mod semantic;
 mod server;
 mod sig_help;
+mod symbol;
 mod util;
 
 use erg_common::config::ErgConfig;

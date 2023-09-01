@@ -7,11 +7,13 @@ use lsp_types::request::{
     CodeActionRequest, CodeActionResolveRequest, CodeLensRequest, Completion, ExecuteCommand,
     GotoDefinition, HoverRequest, InlayHintRequest, InlayHintResolveRequest, References,
     ResolveCompletionItem, SemanticTokensFullRequest, SignatureHelpRequest, WillRenameFiles,
+    WorkspaceSymbol,
 };
 use lsp_types::{
     CodeAction, CodeActionParams, CodeLensParams, CompletionItem, CompletionParams,
     ExecuteCommandParams, GotoDefinitionParams, HoverParams, InlayHint, InlayHintParams,
     ReferenceParams, RenameFilesParams, SemanticTokensParams, SignatureHelpParams,
+    WorkspaceSymbolParams,
 };
 
 use crate::server::Server;
@@ -44,6 +46,7 @@ pub struct SendChannels {
     signature_help: mpsc::Sender<WorkerMessage<SignatureHelpParams>>,
     will_rename_files: mpsc::Sender<WorkerMessage<RenameFilesParams>>,
     execute_command: mpsc::Sender<WorkerMessage<ExecuteCommandParams>>,
+    workspace_symbol: mpsc::Sender<WorkerMessage<WorkspaceSymbolParams>>,
     pub(crate) health_check: mpsc::Sender<WorkerMessage<()>>,
 }
 
@@ -63,6 +66,7 @@ impl SendChannels {
         let (tx_sig_help, rx_sig_help) = mpsc::channel();
         let (tx_will_rename_files, rx_will_rename_files) = mpsc::channel();
         let (tx_execute_command, rx_execute_command) = mpsc::channel();
+        let (tx_workspace_symbol, rx_workspace_symbol) = mpsc::channel();
         let (tx_health_check, rx_health_check) = mpsc::channel();
         (
             Self {
@@ -80,6 +84,7 @@ impl SendChannels {
                 signature_help: tx_sig_help,
                 will_rename_files: tx_will_rename_files,
                 execute_command: tx_execute_command,
+                workspace_symbol: tx_workspace_symbol,
                 health_check: tx_health_check,
             },
             ReceiveChannels {
@@ -97,6 +102,7 @@ impl SendChannels {
                 signature_help: rx_sig_help,
                 will_rename_files: rx_will_rename_files,
                 execute_command: rx_execute_command,
+                workspace_symbol: rx_workspace_symbol,
                 health_check: rx_health_check,
             },
         )
@@ -117,6 +123,7 @@ impl SendChannels {
         self.signature_help.send(WorkerMessage::Kill).unwrap();
         self.will_rename_files.send(WorkerMessage::Kill).unwrap();
         self.execute_command.send(WorkerMessage::Kill).unwrap();
+        self.workspace_symbol.send(WorkerMessage::Kill).unwrap();
         self.health_check.send(WorkerMessage::Kill).unwrap();
     }
 }
@@ -137,6 +144,7 @@ pub struct ReceiveChannels {
     pub(crate) signature_help: mpsc::Receiver<WorkerMessage<SignatureHelpParams>>,
     pub(crate) will_rename_files: mpsc::Receiver<WorkerMessage<RenameFilesParams>>,
     pub(crate) execute_command: mpsc::Receiver<WorkerMessage<ExecuteCommandParams>>,
+    pub(crate) workspace_symbol: mpsc::Receiver<WorkerMessage<WorkspaceSymbolParams>>,
     pub(crate) health_check: mpsc::Receiver<WorkerMessage<()>>,
 }
 
@@ -179,3 +187,4 @@ impl_sendable!(CodeActionResolveRequest, CodeAction, code_action_resolve);
 impl_sendable!(SignatureHelpRequest, SignatureHelpParams, signature_help);
 impl_sendable!(WillRenameFiles, RenameFilesParams, will_rename_files);
 impl_sendable!(ExecuteCommand, ExecuteCommandParams, execute_command);
+impl_sendable!(WorkspaceSymbol, WorkspaceSymbolParams, workspace_symbol);
