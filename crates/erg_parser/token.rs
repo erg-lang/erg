@@ -514,6 +514,10 @@ impl Token {
             && self.col_begin == other.col_begin
     }
 
+    pub fn loc(&self) -> Location {
+        Locational::loc(self)
+    }
+
     pub const fn category(&self) -> TokenCategory {
         self.kind.category()
     }

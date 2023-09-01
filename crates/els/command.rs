@@ -33,11 +33,10 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         let refs = self.get_refs_from_abs_loc(&trait_loc);
         let filter = |loc: Location| {
             let uri = NormalizedUrl::new(loc.uri.clone());
-            let token = self.file_cache.get_token(&uri, loc.range.start)?;
             let opt_visitor = self.get_visitor(&uri);
             let min_expr = opt_visitor
                 .as_ref()
-                .and_then(|visitor| visitor.get_min_expr(&token))?;
+                .and_then(|visitor| visitor.get_min_expr(loc.range.start))?;
             matches!(min_expr, Expr::ClassDef(_)).then_some(loc)
         };
         let impls = refs.into_iter().filter_map(filter).collect::<Vec<_>>();

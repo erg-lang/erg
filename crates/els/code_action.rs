@@ -47,10 +47,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             let Some(pos) = util::loc_to_pos(warn.core.loc) else {
                 continue;
             };
-            let Some(token) = self.file_cache.get_token(&uri, pos) else {
-                continue;
-            };
-            match visitor.get_min_expr(&token) {
+            match visitor.get_min_expr(pos) {
                 Some(Expr::Def(def)) => {
                     let Some(mut range) = util::loc_to_range(def.loc()) else {
                         send_log("range not found")?;
@@ -163,8 +160,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     fn gen_inline_action(&self, params: &CodeActionParams) -> Option<CodeAction> {
         let uri = NormalizedUrl::new(params.text_document.uri.clone());
         let visitor = self.get_visitor(&uri)?;
-        let token = self.file_cache.get_token(&uri, params.range.start)?;
-        match visitor.get_min_expr(&token)? {
+        match visitor.get_min_expr(params.range.start)? {
             Expr::Def(def) => {
                 let title = if def.sig.is_subr() {
                     "Inline function"
@@ -346,19 +342,28 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             .and_then(|v| serde_json::from_value::<CodeActionParams>(v).ok())
             .ok_or("invalid params")?;
         let uri = NormalizedUrl::new(params.text_document.uri.clone());
-        let visitor = self.get_visitor(&uri).unwrap();
-        let token = self.file_cache.get_token(&uri, params.range.start).unwrap();
-        match visitor.get_min_expr(&token).unwrap() {
+        let visitor = self.get_visitor(&uri).ok_or("get_visitor")?;
+        match visitor
+            .get_min_expr(params.range.start)
+            .ok_or("get_min_expr")?
+        {
             Expr::Def(def) => {
                 action.edit = Some(WorkspaceEdit::new(self.inline_var_def(def)));
             }
             Expr::Accessor(acc) => {
                 let uri = NormalizedUrl::new(
-                    Url::from_file_path(acc.var_info().def_loc.module.as_ref().unwrap()).unwrap(),
+                    Url::from_file_path(
+                        acc.var_info()
+                            .def_loc
+                            .module
+                            .as_ref()
+                            .ok_or("def_loc.module")?,
+                    )
+                    .map_err(|_| "from_file_path")?,
                 );
-                let range = util::loc_to_range(acc.var_info().def_loc.loc).unwrap();
-                let token = self.file_cache.get_token(&uri, range.start).unwrap();
-                if let Some(Expr::Def(def)) = visitor.get_min_expr(&token) {
+                let visitor = self.get_visitor(&uri).ok_or(format!("{uri} not found"))?;
+                let range = util::loc_to_range(acc.var_info().def_loc.loc).ok_or("loc_to_range")?;
+                if let Some(Expr::Def(def)) = visitor.get_min_expr(range.start) {
                     action.edit = Some(WorkspaceEdit::new(self.inline_var_def(def)));
                 }
             }

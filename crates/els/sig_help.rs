@@ -1,8 +1,8 @@
 use erg_common::traits::{DequeStream, LimitedDisplay, Locational, NoTypeDisplay};
 use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::erg_parser::parse::Parsable;
-use erg_compiler::erg_parser::token::{Token, TokenKind};
-use erg_compiler::hir::Expr;
+use erg_compiler::erg_parser::token::{Token, TokenCategory, TokenKind};
+use erg_compiler::hir::{Call, Expr};
 use erg_compiler::ty::{HasType, ParamTy};
 
 use lsp_types::{
@@ -10,8 +10,9 @@ use lsp_types::{
     SignatureHelpParams, SignatureHelpTriggerKind, SignatureInformation,
 };
 
+use crate::hir_visitor::ExprKind;
 use crate::server::{send_log, ELSResult, Server};
-use crate::util::NormalizedUrl;
+use crate::util::{loc_to_pos, pos_to_loc, NormalizedUrl};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Trigger {
@@ -84,35 +85,47 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         let token = self.file_cache.get_token_relatively(uri, pos, offset)?;
         crate::_log!("token: {token}");
         if let Some(visitor) = self.get_visitor(uri) {
-            #[allow(clippy::single_match)]
-            match visitor.get_min_expr(&token) {
-                Some(expr) => {
-                    return Some((token, expr.clone()));
-                }
-                _ => {}
+            if let Some(expr) = visitor.get_min_expr(loc_to_pos(token.loc())?) {
+                return Some((token, expr.clone()));
             }
         }
         None
     }
 
-    pub(crate) fn nth(
-        &self,
-        uri: &NormalizedUrl,
-        args_loc: erg_common::error::Location,
-        token: &Token,
-    ) -> usize {
+    pub(crate) fn get_min_call(&self, uri: &NormalizedUrl, pos: Position) -> Option<Expr> {
+        self.get_searcher(uri, ExprKind::Call)
+            .and_then(|visitor| visitor.get_min_expr(pos).cloned())
+    }
+
+    pub(crate) fn nth(&self, uri: &NormalizedUrl, call: &Call, pos: Position) -> usize {
+        let origin_loc = call
+            .args
+            .paren
+            .as_ref()
+            .map(|(l, _)| l.loc())
+            .unwrap_or_else(|| call.obj.loc());
+        let loc = pos_to_loc(pos);
         let tks = self.file_cache.get_token_stream(uri).unwrap_or_default();
+        let mut paren = 0usize;
         // we should use the latest commas
         let commas = tks
             .iter()
-            .skip_while(|&tk| tk.loc() < args_loc)
-            .filter(|tk| tk.is(TokenKind::Comma) && args_loc.ln_end() >= tk.ln_begin())
+            .skip_while(|&tk| tk.loc() <= origin_loc)
+            .filter(|tk| {
+                // skip `,` of [1, ...]
+                match tk.category() {
+                    TokenCategory::LEnclosure => {
+                        paren += 1;
+                    }
+                    TokenCategory::REnclosure => {
+                        paren = paren.saturating_sub(1);
+                    }
+                    _ => {}
+                }
+                paren == 0 && tk.is(TokenKind::Comma) && tk.loc() <= loc
+            })
             .collect::<Vec<_>>();
-        let argc = commas.len();
-        commas
-            .iter()
-            .position(|c| c.col_end() >= token.col_end())
-            .unwrap_or(argc) // `commas.col_end() < token.col_end()` means the token is the last argument
+        commas.len()
     }
 
     fn resend_help(
@@ -123,13 +136,14 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     ) -> Option<SignatureHelp> {
         if let Some(token) = self.file_cache.get_token(uri, pos) {
             crate::_log!("token: {token}");
-            if let Some(Expr::Call(call)) = &self.current_sig {
+            if let Some(Expr::Call(call)) = self.get_min_call(uri, pos) {
                 if call.ln_begin() > token.ln_begin() || call.ln_end() < token.ln_end() {
-                    self.current_sig = None;
                     return None;
                 }
-                let nth = self.nth(uri, call.args.loc(), &token) as u32;
+                let nth = self.nth(uri, &call, pos) as u32;
                 return self.make_sig_help(call.obj.as_ref(), nth);
+            } else {
+                crate::_log!("failed to get the call");
             }
         } else {
             crate::_log!("failed to get the token");
@@ -147,10 +161,9 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     }
 
     fn get_continuous_help(&mut self, uri: &NormalizedUrl, pos: Position) -> Option<SignatureHelp> {
-        if let Some((comma, Expr::Call(call))) = self.get_min_expr(uri, pos, -1) {
-            let nth = self.nth(uri, call.args.loc(), &comma) as u32 + 1;
+        if let Some(Expr::Call(call)) = self.get_min_call(uri, pos) {
+            let nth = self.nth(uri, &call, pos) as u32 + 1;
             let help = self.make_sig_help(call.obj.as_ref(), nth);
-            self.current_sig = Some(Expr::Call(call));
             return help;
         } else {
             crate::_log!("failed to get continuous help");

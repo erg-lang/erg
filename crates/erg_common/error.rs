@@ -314,9 +314,9 @@ impl Ord for Location {
         } else if self.ln_begin() == self.ln_end() && other.ln_begin() == other.ln_end() {
             // assert_eq!(self.line_begin, other.line_begin);
             // assert_eq!(self.line_end, other.line_end);
-            if self.col_end() < other.col_begin() {
+            if self.col_end() <= other.col_begin() {
                 Ordering::Less
-            } else if other.col_end() < self.col_begin() {
+            } else if other.col_end() <= self.col_begin() {
                 Ordering::Greater
             } else {
                 Ordering::Equal

@@ -1,5 +1,5 @@
 use erg_common::consts::PYTHON_MODE;
-use erg_common::traits::{Locational, Stream};
+use erg_common::traits::Stream;
 use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::context::register::PylyzerStatus;
 use erg_compiler::erg_parser::parse::Parsable;

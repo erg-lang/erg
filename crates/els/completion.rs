@@ -543,7 +543,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             .and_then(|(token, expr)| match expr {
                 Expr::Call(call) => {
                     let sig_t = call.obj.t();
-                    let nth = self.nth(&uri, call.args.loc(), &token);
+                    let nth = self.nth(&uri, &call, pos);
                     let additional = if matches!(token.kind, Comma) { 1 } else { 0 };
                     let nth = nth + additional;
                     sig_t.non_default_params()?.get(nth).cloned()

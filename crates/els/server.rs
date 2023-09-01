@@ -1,3 +1,4 @@
+use std::any::type_name;
 use std::io;
 use std::io::{stdin, stdout, BufRead, Read, Write};
 use std::ops::Not;
@@ -20,7 +21,7 @@ use erg_compiler::build_hir::HIRBuilder;
 use erg_compiler::context::{Context, ModuleContext};
 use erg_compiler::erg_parser::ast::Module;
 use erg_compiler::erg_parser::parse::{Parsable, SimpleParser};
-use erg_compiler::hir::{Expr, HIR};
+use erg_compiler::hir::HIR;
 use erg_compiler::lower::ASTLowerer;
 use erg_compiler::module::{SharedCompilerResource, SharedModuleGraph, SharedModuleIndex};
 use erg_compiler::ty::HasType;
@@ -48,9 +49,9 @@ use serde_json::Value;
 use crate::channels::{SendChannels, Sendable, WorkerMessage};
 use crate::completion::CompletionCache;
 use crate::file_cache::FileCache;
-use crate::hir_visitor::HIRVisitor;
+use crate::hir_visitor::{ExprKind, HIRVisitor};
 use crate::message::{ErrorMessage, LSPResult, LogMessage, ShowMessage};
-use crate::util::{self, NormalizedUrl};
+use crate::util::{self, loc_to_pos, NormalizedUrl};
 
 pub const HEALTH_CHECKER_ID: i64 = 10000;
 pub const ASK_AUTO_SAVE_ID: i64 = 10001;
@@ -323,7 +324,6 @@ pub struct Server<Checker: BuildRunnable = HIRBuilder, Parser: Parsable = Simple
     // TODO: remove modules, analysis_result, and add `shared: SharedCompilerResource`
     pub(crate) modules: ModuleCache,
     pub(crate) analysis_result: AnalysisResultCache,
-    pub(crate) current_sig: Option<Expr>,
     pub(crate) channels: Option<SendChannels>,
     pub(crate) _parser: std::marker::PhantomData<fn() -> Parser>,
     pub(crate) _checker: std::marker::PhantomData<fn() -> Checker>,
@@ -343,7 +343,6 @@ impl<C: BuildRunnable, P: Parsable> Clone for Server<C, P> {
             comp_cache: self.comp_cache.clone(),
             modules: self.modules.clone(),
             analysis_result: self.analysis_result.clone(),
-            current_sig: self.current_sig.clone(),
             channels: self.channels.clone(),
             _parser: std::marker::PhantomData,
             _checker: std::marker::PhantomData,
@@ -365,7 +364,6 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             file_cache: FileCache::new(),
             modules: ModuleCache::new(),
             analysis_result: AnalysisResultCache::new(),
-            current_sig: None,
             channels: None,
             _parser: std::marker::PhantomData,
             _checker: std::marker::PhantomData,
@@ -592,7 +590,6 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         self.comp_cache.clear();
         self.modules = ModuleCache::new();
         self.analysis_result = AnalysisResultCache::new();
-        self.current_sig = None;
         self.channels.as_ref().unwrap().close();
         self.start_language_services();
     }
@@ -701,9 +698,17 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             move || loop {
                 let msg = receiver.recv().unwrap();
                 match msg {
-                    WorkerMessage::Request(id, params) => {
-                        let _ = send(&LSPResult::new(id, handler(&mut _self, params).unwrap()));
-                    }
+                    WorkerMessage::Request(id, params) => match handler(&mut _self, params) {
+                        Ok(result) => {
+                            let _ = send(&LSPResult::new(id, result));
+                        }
+                        Err(err) => {
+                            let _ = send(&ErrorMessage::new(
+                                Some(id),
+                                format!("err from {}: {err}", type_name::<R>()).into(),
+                            ));
+                        }
+                    },
                     WorkerMessage::Kill => {
                         break;
                     }
@@ -833,6 +838,12 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             .map(|hir| HIRVisitor::new(hir, &self.file_cache, uri.clone()))
     }
 
+    pub(crate) fn get_searcher(&self, uri: &NormalizedUrl, kind: ExprKind) -> Option<HIRVisitor> {
+        self.analysis_result
+            .get_hir(uri)
+            .map(|hir| HIRVisitor::new_searcher(hir, &self.file_cache, uri.clone(), kind))
+    }
+
     pub(crate) fn get_local_ctx(&self, uri: &NormalizedUrl, pos: Position) -> Vec<&Context> {
         let mut ctxs = vec![];
         if let Some(mod_ctx) = &self.modules.get(uri) {
@@ -890,7 +901,9 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             // send_log(format!("token: {token}"))?;
             let mut ctxs = vec![];
             if let Some(visitor) = self.get_visitor(uri) {
-                if let Some(expr) = visitor.get_min_expr(&token) {
+                if let Some(expr) =
+                    loc_to_pos(token.loc()).and_then(|pos| visitor.get_min_expr(pos))
+                {
                     let type_ctxs = module
                         .context
                         .get_nominal_super_type_ctxs(expr.ref_t())
