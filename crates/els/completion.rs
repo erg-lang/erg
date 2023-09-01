@@ -454,21 +454,20 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 if vi.vis.is_private() {
                     continue;
                 }
-                if already_appeared.contains(&name.inspect()[..]) {
-                    continue;
-                }
                 let Some(path) = vi.def_loc.module.as_ref() else {
                     continue;
                 };
                 let path = path.file_stem().unwrap().to_string_lossy();
-                let mut item = CompletionItem::new_simple(
-                    format!("{name} (import from {path})"),
-                    vi.t.to_string(),
-                );
+                let label = format!("{name} (import from {path})");
+                if already_appeared.contains(&label[..]) {
+                    continue;
+                }
+                let mut item = CompletionItem::new_simple(label, vi.t.to_string());
                 CompletionOrderSetter::new(vi, arg_pt.as_ref(), mod_ctx, item.label.clone())
                     .set(&mut item);
                 // item.sort_text = Some(format!("{}_{}", CompletionOrder::OtherNamespace, item.label));
                 item.kind = Some(comp_item_kind(vi));
+                item.data = Some(Value::String(vi.def_loc.to_string()));
                 let import = if PYTHON_MODE {
                     format!("from {path} import {name}\n")
                 } else {
@@ -480,7 +479,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 }]);
                 item.insert_text = Some(name.inspect().trim_end_matches('\0').to_string());
                 item.filter_text = Some(name.inspect().to_string());
-                already_appeared.insert(name.inspect().to_string());
+                already_appeared.insert(item.label.clone());
                 comps.push(item);
             }
         }
@@ -628,7 +627,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 self.comp_cache.insert("<module>".into(), comps.clone());
                 result.extend(comps);
             }
-            self.neighbor_completion(&uri, arg_pt, &mut already_appeared);
+            result.extend(self.neighbor_completion(&uri, arg_pt, &mut already_appeared));
         }
         send_log(format!("completion items: {}", result.len()))?;
         Ok(Some(CompletionResponse::Array(result)))

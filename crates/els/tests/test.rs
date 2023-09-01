@@ -19,6 +19,7 @@ use erg_common::config::ErgConfig;
 use erg_common::spawn::safe_yield;
 
 const FILE_A: &str = "tests/a.er";
+const FILE_B: &str = "tests/b.er";
 
 fn add_char(line: u32, character: u32, text: &str) -> TextDocumentContentChangeEvent {
     TextDocumentContentChangeEvent {
@@ -381,6 +382,25 @@ fn test_completion() -> Result<(), Box<dyn std::error::Error>> {
     if let CompletionResponse::Array(items) = resp {
         assert!(items.len() >= 40);
         assert!(items.iter().any(|item| item.label == "abs"));
+        Ok(())
+    } else {
+        Err(format!("not items: {resp:?}").into())
+    }
+}
+
+#[test]
+fn test_neighbor_completion() -> Result<(), Box<dyn std::error::Error>> {
+    let mut client = DummyClient::new();
+    client.request_initialize()?;
+    let uri = NormalizedUrl::from_file_path(Path::new(FILE_A).canonicalize()?)?;
+    client.notify_open(FILE_A)?;
+    client.notify_open(FILE_B)?;
+    let resp = client.request_completion(uri.raw(), 2, 0, "n")?;
+    if let CompletionResponse::Array(items) = resp {
+        assert!(items.len() >= 40);
+        assert!(items
+            .iter()
+            .any(|item| item.label == "neighbor (import from b)"));
         Ok(())
     } else {
         Err(format!("not items: {resp:?}").into())
