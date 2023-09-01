@@ -228,7 +228,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     return vec![];
                 };
                 match module_name {
-                    Expr::Lit(lit)
+                    Expr::Literal(lit)
                         if lit
                             .token
                             .content

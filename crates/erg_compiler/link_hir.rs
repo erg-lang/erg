@@ -112,7 +112,7 @@ impl<'a> HIRLinker<'a> {
     /// ```
     fn resolve_pymod_path(expr: &mut Expr) {
         match expr {
-            Expr::Lit(_) => {}
+            Expr::Literal(_) => {}
             Expr::Accessor(acc) => {
                 if let Accessor::Attr(attr) = acc {
                     Self::resolve_pymod_path(&mut attr.obj);
@@ -223,7 +223,7 @@ impl<'a> HIRLinker<'a> {
 
     fn replace_import(&self, expr: &mut Expr) {
         match expr {
-            Expr::Lit(_) => {}
+            Expr::Literal(_) => {}
             Expr::Accessor(acc) => {
                 /*if acc.ref_t().is_py_module() {
                     let import = Expr::Import(acc.clone());
@@ -450,7 +450,7 @@ impl<'a> HIRLinker<'a> {
     /// ```
     fn replace_py_import(&self, expr: &mut Expr) {
         let args = &mut enum_unwrap!(expr, Expr::Call).args;
-        let mod_name_lit = enum_unwrap!(args.remove_left_or_key("Path").unwrap(), Expr::Lit);
+        let mod_name_lit = enum_unwrap!(args.remove_left_or_key("Path").unwrap(), Expr::Literal);
         let mod_name_str = enum_unwrap!(mod_name_lit.value.clone(), ValueObj::Str);
         let mut dir = self.cfg.input.dir();
         let mod_path = self
@@ -482,7 +482,7 @@ impl<'a> HIRLinker<'a> {
             mod_name_lit.col_begin().unwrap(),
             mod_name_lit.col_end().unwrap(),
         );
-        let mod_name = Expr::Lit(Literal::try_from(token).unwrap());
+        let mod_name = Expr::Literal(Literal::try_from(token).unwrap());
         args.insert_pos(0, PosArg::new(mod_name));
         let line = expr.ln_begin().unwrap_or(0);
         for attr in comps {

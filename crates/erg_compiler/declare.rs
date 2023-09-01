@@ -501,7 +501,7 @@ impl ASTLowerer {
 
     pub(crate) fn fake_lower_expr(&self, expr: ast::Expr) -> LowerResult<hir::Expr> {
         match expr {
-            ast::Expr::Literal(lit) => Ok(hir::Expr::Lit(self.lower_literal(lit)?)),
+            ast::Expr::Literal(lit) => Ok(hir::Expr::Literal(self.lower_literal(lit)?)),
             ast::Expr::BinOp(binop) => Ok(hir::Expr::BinOp(self.fake_lower_binop(binop)?)),
             ast::Expr::UnaryOp(unop) => Ok(hir::Expr::UnaryOp(self.fake_lower_unaryop(unop)?)),
             ast::Expr::Array(arr) => Ok(hir::Expr::Array(self.fake_lower_array(arr)?)),
@@ -855,7 +855,7 @@ impl ASTLowerer {
         log!(info "entered {}", fn_name!());
         match expr {
             ast::Expr::Literal(lit) if lit.is_doc_comment() => {
-                Ok(hir::Expr::Lit(self.lower_literal(lit)?))
+                Ok(hir::Expr::Literal(self.lower_literal(lit)?))
             }
             ast::Expr::Accessor(acc) if allow_acc => Ok(hir::Expr::Accessor(self.lower_acc(acc)?)),
             ast::Expr::Def(def) => Ok(hir::Expr::Def(self.declare_def(def)?)),

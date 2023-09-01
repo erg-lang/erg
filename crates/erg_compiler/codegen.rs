@@ -2967,7 +2967,7 @@ impl PyCodeGenerator {
         log!(info "entered {} ({chunk})", fn_name!());
         self.push_lnotab(&chunk);
         match chunk {
-            Expr::Lit(lit) => self.emit_load_const(lit.value),
+            Expr::Literal(lit) => self.emit_load_const(lit.value),
             Expr::Accessor(acc) => self.emit_acc(acc),
             Expr::Def(def) => self.emit_def(def),
             Expr::ClassDef(class) => self.emit_class_def(class),
@@ -3043,7 +3043,7 @@ impl PyCodeGenerator {
             }
         }
         match expr {
-            Expr::Lit(lit) => self.emit_load_const(lit.value),
+            Expr::Literal(lit) => self.emit_load_const(lit.value),
             Expr::Accessor(acc) => self.emit_acc(acc),
             Expr::Def(def) => self.emit_def(def),
             Expr::ClassDef(class) => self.emit_class_def(class),
@@ -3248,7 +3248,7 @@ impl PyCodeGenerator {
             None => {}
         }
         let none = Token::new_fake(TokenKind::NoneLit, "None", line, 0, 0);
-        attrs.push(Expr::Lit(Literal::new(ValueObj::None, none)));
+        attrs.push(Expr::Literal(Literal::new(ValueObj::None, none)));
         let block = Block::new(attrs);
         let body = DefBody::new(EQUAL, block, DefId(0));
         self.emit_subr_def(Some(class_name), subr_sig, body);

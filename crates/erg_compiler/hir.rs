@@ -7,12 +7,12 @@ use erg_common::error::Location;
 #[allow(unused_imports)]
 use erg_common::log;
 use erg_common::traits::{Locational, NestedDisplay, NoTypeDisplay, Stream};
-use erg_common::Str;
 use erg_common::{
     enum_unwrap, fmt_option, fmt_vec, impl_display_for_enum, impl_display_from_nested,
     impl_locational, impl_locational_for_enum, impl_nested_display_for_chunk_enum,
     impl_nested_display_for_enum, impl_no_type_display_for_enum, impl_stream,
 };
+use erg_common::{impl_from_trait_for_enum, impl_try_from_trait_for_enum, Str};
 
 use erg_parser::ast::{self, AscriptionKind};
 use erg_parser::ast::{
@@ -2491,7 +2491,7 @@ impl TypeAscription {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Expr {
-    Lit(Literal),
+    Literal(Literal),
     Accessor(Accessor),
     Array(Array),
     Tuple(Tuple),
@@ -2513,11 +2513,13 @@ pub enum Expr {
     Dummy(Dummy), // for mapping to Python AST
 }
 
-impl_nested_display_for_chunk_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, ReDef, Code, Compound, TypeAsc, Set, Import, Dummy);
-impl_no_type_display_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, ReDef, Code, Compound, TypeAsc, Set, Import, Dummy);
+impl_nested_display_for_chunk_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, ReDef, Code, Compound, TypeAsc, Set, Import, Dummy);
+impl_no_type_display_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, ReDef, Code, Compound, TypeAsc, Set, Import, Dummy);
 impl_display_from_nested!(Expr);
-impl_locational_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, ReDef, Code, Compound, TypeAsc, Set, Import, Dummy);
-impl_t_for_enum!(Expr; Lit, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, ReDef, Code, Compound, TypeAsc, Set, Import, Dummy);
+impl_locational_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, ReDef, Code, Compound, TypeAsc, Set, Import, Dummy);
+impl_t_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, ReDef, Code, Compound, TypeAsc, Set, Import, Dummy);
+impl_from_trait_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, ReDef, Set, Dummy);
+impl_try_from_trait_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, ReDef, Set, Dummy);
 
 impl Default for Expr {
     fn default() -> Self {
@@ -2577,14 +2579,14 @@ impl Expr {
 
     pub fn is_doc_comment(&self) -> bool {
         match self {
-            Expr::Lit(lit) => lit.is_doc_comment(),
+            Expr::Literal(lit) => lit.is_doc_comment(),
             _ => false,
         }
     }
 
     pub const fn name(&self) -> &'static str {
         match self {
-            Self::Lit(_) => "literal",
+            Self::Literal(_) => "literal",
             Self::Accessor(_) => "accessor",
             Self::Array(_) => "array",
             Self::Tuple(_) => "tuple",

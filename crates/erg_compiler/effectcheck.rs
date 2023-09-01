@@ -121,7 +121,7 @@ impl SideEffectChecker {
                 Expr::UnaryOp(unary) => {
                     self.check_expr(&unary.expr);
                 }
-                Expr::Accessor(_) | Expr::Lit(_) => {}
+                Expr::Accessor(_) | Expr::Literal(_) => {}
                 Expr::Array(array) => match array {
                     Array::Normal(arr) => {
                         for elem in arr.elems.pos_args.iter() {
@@ -314,7 +314,7 @@ impl SideEffectChecker {
     /// ```
     fn check_expr(&mut self, expr: &Expr) {
         match expr {
-            Expr::Lit(_) => {}
+            Expr::Literal(_) => {}
             Expr::Def(def) => {
                 self.check_def(def);
             }

@@ -31,15 +31,20 @@ impl PosLocational for Position {
 #[derive(Debug)]
 pub enum ExprKind {
     Call,
+    #[allow(dead_code)]
+    SubrDef,
+    // Def,
     Expr,
 }
 
 impl ExprKind {
     pub const fn matches(&self, expr: &Expr) -> bool {
-        matches!(
-            (self, expr),
-            (ExprKind::Call, Expr::Call(_)) | (ExprKind::Expr, _)
-        )
+        match (self, expr) {
+            (ExprKind::Call, Expr::Call(_)) | (ExprKind::Expr, _) => true,
+            // (ExprKind::Def, Expr::Def(_)) => true,
+            (ExprKind::SubrDef, Expr::Def(def)) => def.sig.is_subr(),
+            _ => false,
+        }
     }
 }
 
@@ -122,7 +127,7 @@ impl<'a> HIRVisitor<'a> {
             return None;
         }
         match chunk {
-            Expr::Lit(_)
+            Expr::Literal(_)
             | Expr::Accessor(_)
             | Expr::BinOp(_)
             | Expr::UnaryOp(_)
@@ -250,7 +255,7 @@ impl<'a> HIRVisitor<'a> {
             return None;
         }
         match expr {
-            Expr::Lit(lit) => self.return_expr_if_same(expr, &lit.token, pos),
+            Expr::Literal(lit) => self.return_expr_if_same(expr, &lit.token, pos),
             Expr::Accessor(acc) => self.get_expr_from_acc(expr, acc, pos),
             Expr::BinOp(bin) => self.get_expr_from_bin(expr, bin, pos),
             Expr::UnaryOp(unary) => self.get_expr(&unary.expr, pos),
@@ -545,7 +550,7 @@ impl<'a> HIRVisitor<'a> {
             return None;
         }
         match expr {
-            Expr::Lit(_lit) => None,
+            Expr::Literal(_lit) => None,
             Expr::Accessor(acc) => self.get_acc_info(acc, token),
             Expr::BinOp(bin) => self.get_bin_info(bin, token),
             Expr::UnaryOp(unary) => self.get_expr_info(&unary.expr, token),

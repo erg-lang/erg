@@ -1094,7 +1094,7 @@ impl Context {
 
     fn resolve_expr_t(&self, expr: &mut hir::Expr, qnames: &Set<Str>) -> TyCheckResult<()> {
         match expr {
-            hir::Expr::Lit(_) => Ok(()),
+            hir::Expr::Literal(_) => Ok(()),
             hir::Expr::Accessor(acc) => {
                 if acc
                     .ref_t()

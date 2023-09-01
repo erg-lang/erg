@@ -1737,7 +1737,7 @@ impl ASTLowerer {
                     },
                     ast::ClassAttr::Doc(doc) => match self.lower_literal(doc) {
                         Ok(doc) => {
-                            hir_methods.push(hir::Expr::Lit(doc));
+                            hir_methods.push(hir::Expr::Literal(doc));
                         }
                         Err(errs) => {
                             self.errs.extend(errs);
@@ -1944,7 +1944,7 @@ impl ASTLowerer {
                     },
                     ast::ClassAttr::Doc(doc) => match self.lower_literal(doc) {
                         Ok(doc) => {
-                            hir_methods.push(hir::Expr::Lit(doc));
+                            hir_methods.push(hir::Expr::Literal(doc));
                         }
                         Err(errs) => {
                             self.errs.extend(errs);
@@ -2440,7 +2440,7 @@ impl ASTLowerer {
         log!(info "entered {}", fn_name!());
         let casted = self.module.context.get_casted_type(&expr);
         let mut expr = match expr {
-            ast::Expr::Literal(lit) => hir::Expr::Lit(self.lower_literal(lit)?),
+            ast::Expr::Literal(lit) => hir::Expr::Literal(self.lower_literal(lit)?),
             ast::Expr::Array(arr) => hir::Expr::Array(self.lower_array(arr)?),
             ast::Expr::Tuple(tup) => hir::Expr::Tuple(self.lower_tuple(tup)?),
             ast::Expr::Record(rec) => hir::Expr::Record(self.lower_record(rec)?),

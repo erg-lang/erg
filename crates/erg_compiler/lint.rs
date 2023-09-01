@@ -203,7 +203,7 @@ impl ASTLowerer {
 
     fn check_doc_comment(&mut self, chunk: &Expr) {
         match chunk {
-            Expr::Lit(lit) if lit.is_doc_comment() => {
+            Expr::Literal(lit) if lit.is_doc_comment() => {
                 let first_line = lit.ln_begin().unwrap_or(1);
                 let ValueObj::Str(content) = &lit.value else {
                     return;

@@ -452,7 +452,7 @@ impl PyScriptGenerator {
 
     fn transpile_expr(&mut self, expr: Expr) -> String {
         match expr {
-            Expr::Lit(lit) => self.transpile_lit(lit),
+            Expr::Literal(lit) => self.transpile_lit(lit),
             Expr::Call(call) => self.transpile_call(call),
             Expr::BinOp(bin) => self.transpile_binop(bin),
             Expr::UnaryOp(unary) => self.transpile_unaryop(unary),
@@ -1152,7 +1152,7 @@ impl JsonGenerator {
                 }
                 Some(ValueObj::Record(attrs))
             }
-            Expr::Lit(lit) => Some(lit.value),
+            Expr::Literal(lit) => Some(lit.value),
             Expr::Accessor(acc) => self.binds.get(&acc.var_info().def_loc).cloned(),
             Expr::BinOp(bin) => {
                 let lhs = self.expr_into_value(*bin.lhs)?;
@@ -1187,7 +1187,7 @@ impl JsonGenerator {
 
     fn transpile_expr(&mut self, expr: Expr) -> String {
         match expr {
-            Expr::Lit(lit) => lit.token.content.to_string(),
+            Expr::Literal(lit) => lit.token.content.to_string(),
             Expr::Accessor(acc) => {
                 if let Some(val) = self.binds.get(&acc.var_info().def_loc) {
                     val.to_string()

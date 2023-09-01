@@ -1182,6 +1182,23 @@ macro_rules! impl_from_trait_for_enum {
 }
 
 #[macro_export]
+macro_rules! impl_try_from_trait_for_enum {
+    ($Enum: ident; $($Variant: ident $(,)?)*) => {
+        $(
+            impl TryFrom<$Enum> for $Variant {
+                type Error = $Enum;
+                fn try_from(from: $Enum) -> Result<Self, Self::Error> {
+                    match from {
+                        Expr::$Variant(to) => Ok(to),
+                        _ => Err(from),
+                    }
+                }
+            }
+        )*
+    }
+}
+
+#[macro_export]
 macro_rules! impl_nested_display_for_enum {
     ($Enum: ident; $($Variant: ident $(,)?)*) => {
         impl $crate::traits::NestedDisplay for $Enum {
