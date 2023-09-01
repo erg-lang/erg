@@ -237,13 +237,6 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                         .client_answers
                         .borrow()
                         .get(&ASK_AUTO_SAVE_ID)
-                        .is_none()
-                    {
-                        _self.ask_auto_save().unwrap();
-                    } else if _self
-                        .client_answers
-                        .borrow()
-                        .get(&ASK_AUTO_SAVE_ID)
                         .is_some_and(|val| {
                             val["result"].as_array().and_then(|a| a[0].as_str())
                                 == Some("afterDelay")

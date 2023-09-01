@@ -747,7 +747,10 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
 
     fn handle_notification(&mut self, msg: &Value, method: &str) -> ELSResult<()> {
         match method {
-            "initialized" => send_log("successfully bound"),
+            "initialized" => {
+                self.ask_auto_save()?;
+                send_log("successfully bound")
+            }
             "exit" => self.exit(),
             "textDocument/didOpen" => {
                 let params = DidOpenTextDocumentParams::deserialize(msg["params"].clone())?;
