@@ -4,12 +4,12 @@ use std::path::Path;
 
 use lsp_types::{
     CompletionContext, CompletionParams, CompletionResponse, CompletionTriggerKind,
-    DidChangeTextDocumentParams, DidOpenTextDocumentParams, GotoDefinitionParams, Hover,
-    HoverContents, HoverParams, Location, MarkedString, Position, Range, ReferenceContext,
-    ReferenceParams, RenameParams, SignatureHelp, SignatureHelpContext, SignatureHelpParams,
-    SignatureHelpTriggerKind, TextDocumentContentChangeEvent, TextDocumentIdentifier,
-    TextDocumentItem, TextDocumentPositionParams, Url, VersionedTextDocumentIdentifier,
-    WorkspaceEdit,
+    ConfigurationParams, DidChangeTextDocumentParams, DidOpenTextDocumentParams,
+    GotoDefinitionParams, Hover, HoverContents, HoverParams, Location, MarkedString, Position,
+    Range, ReferenceContext, ReferenceParams, RenameParams, SignatureHelp, SignatureHelpContext,
+    SignatureHelpParams, SignatureHelpTriggerKind, TextDocumentContentChangeEvent,
+    TextDocumentIdentifier, TextDocumentItem, TextDocumentPositionParams, Url,
+    VersionedTextDocumentIdentifier, WorkspaceEdit,
 };
 use serde::de::Deserialize;
 use serde_json::{json, Value};
@@ -142,6 +142,9 @@ impl DummyClient {
             let mut buf = String::new();
             self.stdout_buffer.read_to_string(&mut buf)?;
             for msg in parse_msgs(&buf) {
+                if msg.get("method").is_some_and(|_| msg.get("id").is_some()) {
+                    self.handle_server_request(&msg);
+                }
                 if let Some(result) = msg
                     .get("result")
                     .cloned()
@@ -151,6 +154,17 @@ impl DummyClient {
                 }
             }
             safe_yield();
+        }
+    }
+
+    fn handle_server_request(&mut self, msg: &Value) {
+        if let Ok(_params) = ConfigurationParams::deserialize(&msg["params"]) {
+            let msg = json!({
+                "jsonrpc": "2.0",
+                "id": msg["id"].as_i64().unwrap(),
+                "result": null,
+            });
+            self.server.dispatch(msg).unwrap();
         }
     }
 
