@@ -57,7 +57,8 @@ fn single_range(line: u32, from: u32, to: u32) -> Range {
     }
 }
 
-fn parse_msgs(mut input: &str) -> Vec<Value> {
+fn parse_msgs(_input: &str) -> Vec<Value> {
+    let mut input = _input;
     let mut msgs = Vec::new();
     loop {
         if input.starts_with("Content-Length: ") {
@@ -72,7 +73,7 @@ fn parse_msgs(mut input: &str) -> Vec<Value> {
         input = &input[idx..];
         let msg = &input
             .get(..len)
-            .unwrap_or_else(|| panic!("len: {len}, input: {input}"));
+            .unwrap_or_else(|| panic!("len: {len}, input: `{input}` -> _input: `{_input}`"));
         input = &input[len..];
         msgs.push(serde_json::from_str(msg).unwrap());
     }
