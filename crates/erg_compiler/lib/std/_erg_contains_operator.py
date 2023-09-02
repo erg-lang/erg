@@ -4,7 +4,7 @@ from _erg_range import Range
 from collections import namedtuple
 
 # (elem in y) == contains_operator(y, elem)
-def contains_operator(y, elem):
+def contains_operator(y, elem) -> bool:
     if hasattr(elem, "type_check"):
         return elem.type_check(y)
     # 1 in Int

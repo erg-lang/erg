@@ -81,8 +81,9 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
 
     fn symbol(&self, chunk: &Expr) -> Option<DocumentSymbol> {
         match chunk {
-            Expr::Def(def) =>
-            {
+            Expr::Def(def) => {
+                let range = loc_to_range(def.loc())?;
+                let selection_range = loc_to_range(def.sig.loc())?;
                 #[allow(deprecated)]
                 Some(DocumentSymbol {
                     name: def.sig.name().to_string(),
@@ -90,13 +91,14 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     kind: symbol_kind(&def.sig.ident().vi),
                     tags: None,
                     deprecated: None,
-                    range: loc_to_range(def.loc()).unwrap(),
-                    selection_range: loc_to_range(def.sig.loc()).unwrap(),
+                    range,
+                    selection_range,
                     children: Some(self.child_symbols(chunk)),
                 })
             }
-            Expr::ClassDef(def) =>
-            {
+            Expr::ClassDef(def) => {
+                let range = loc_to_range(def.loc())?;
+                let selection_range = loc_to_range(def.sig.loc())?;
                 #[allow(deprecated)]
                 Some(DocumentSymbol {
                     name: def.sig.name().to_string(),
@@ -104,13 +106,14 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     kind: symbol_kind(&def.sig.ident().vi),
                     tags: None,
                     deprecated: None,
-                    range: loc_to_range(def.loc()).unwrap(),
-                    selection_range: loc_to_range(def.sig.loc()).unwrap(),
+                    range,
+                    selection_range,
                     children: Some(self.child_symbols(chunk)),
                 })
             }
-            Expr::PatchDef(def) =>
-            {
+            Expr::PatchDef(def) => {
+                let range = loc_to_range(def.loc())?;
+                let selection_range = loc_to_range(def.sig.loc())?;
                 #[allow(deprecated)]
                 Some(DocumentSymbol {
                     name: def.sig.name().to_string(),
@@ -118,8 +121,8 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     kind: symbol_kind(&def.sig.ident().vi),
                     tags: None,
                     deprecated: None,
-                    range: loc_to_range(def.loc()).unwrap(),
-                    selection_range: loc_to_range(def.sig.loc()).unwrap(),
+                    range,
+                    selection_range,
                     children: Some(self.child_symbols(chunk)),
                 })
             }

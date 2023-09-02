@@ -10,14 +10,14 @@ use crate::_log;
 use crate::server::{ELSResult, Server};
 use crate::util::NormalizedUrl;
 
-fn imports_range(start: &Location, end: &Location) -> FoldingRange {
-    FoldingRange {
-        start_line: start.ln_begin().unwrap().saturating_sub(1),
+fn imports_range(start: &Location, end: &Location) -> Option<FoldingRange> {
+    Some(FoldingRange {
+        start_line: start.ln_begin()?.saturating_sub(1),
         start_character: start.col_begin(),
-        end_line: end.ln_end().unwrap().saturating_sub(1),
+        end_line: end.ln_end()?.saturating_sub(1),
         end_character: end.col_end(),
         kind: Some(FoldingRangeKind::Imports),
-    }
+    })
 }
 
 impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
@@ -45,7 +45,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                         if !ranges.is_empty() {
                             let start = ranges.first().unwrap();
                             let end = ranges.last().unwrap();
-                            res.push(imports_range(start, end));
+                            res.extend(imports_range(start, end));
                             ranges.clear();
                         }
                     }
@@ -54,7 +54,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             if !ranges.is_empty() {
                 let start = ranges.first().unwrap();
                 let end = ranges.last().unwrap();
-                res.push(imports_range(start, end));
+                res.extend(imports_range(start, end));
             }
         }
         res

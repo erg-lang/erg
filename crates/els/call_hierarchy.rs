@@ -36,9 +36,15 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     ) -> ELSResult<Option<Vec<CallHierarchyIncomingCall>>> {
         let mut res = vec![];
         _log!("call hierarchy incoming calls requested: {params:?}");
-        let data = params.item.data.as_ref().unwrap().as_str().unwrap();
-        let loc = AbsLocation::from_str(data).unwrap();
-        let shared = self.get_shared().unwrap();
+        let Some(data) = params.item.data.as_ref().and_then(|d| d.as_str()) else {
+            return Ok(None);
+        };
+        let Ok(loc) = AbsLocation::from_str(data) else {
+            return Ok(None);
+        };
+        let Some(shared) = self.get_shared() else {
+            return Ok(None);
+        };
         if let Some(refs) = shared.index.get_refs(&loc) {
             for referrer_loc in refs.referrers.iter() {
                 let Some(uri) = referrer_loc

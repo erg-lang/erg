@@ -863,6 +863,15 @@ impl Context {
             bin_op(S, R.clone(), O).quantify()
         };
         self.register_builtin_erg_impl(OP_OR, op_t, Const, Visibility::BUILTIN_PRIVATE);
+        let T = mono_q(TY_T, instanceof(Type));
+        let C = mono_q(TY_C, subtypeof(poly(CONTAINER, vec![ty_tp(T.clone())])));
+        let op_t = bin_op(C, T, Bool).quantify();
+        self.register_builtin_erg_impl(
+            FUNDAMENTAL_CONTAINS,
+            op_t.clone(),
+            Const,
+            Visibility::BUILTIN_PRIVATE,
+        );
         /* unary */
         let M = mono_q(TY_M, subtypeof(mono(MUTIZABLE)));
         let op_t = func1(M.clone(), proj(M, MUTABLE_MUT_TYPE)).quantify();
