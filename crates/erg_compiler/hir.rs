@@ -2159,6 +2159,22 @@ impl Def {
             _ => DefKind::Other,
         }
     }
+
+    pub fn get_base(&self) -> Option<&Record> {
+        match self.body.block.first().unwrap() {
+            Expr::Call(call) => match call.obj.show_acc().as_ref().map(|n| &n[..]) {
+                Some("Class") | Some("Trait") => {
+                    if let Some(Expr::Record(rec)) = call.args.get_left_or_key("Base") {
+                        Some(rec)
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
+            },
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -2242,7 +2258,7 @@ impl NoTypeDisplay for ClassDef {
 }
 
 impl_display_from_nested!(ClassDef);
-impl_locational!(ClassDef, sig, methods);
+impl_locational!(ClassDef, sig, lossy methods);
 
 impl HasType for ClassDef {
     #[inline]

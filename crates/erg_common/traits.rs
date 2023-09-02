@@ -1090,6 +1090,28 @@ macro_rules! impl_locational {
             }
         }
     };
+    ($T: ty, $begin: ident, lossy $end: ident) => {
+        impl Locational for $T {
+            fn loc(&self) -> Location {
+                let begin_loc = self.$begin.loc();
+                let end_loc = self.$end.loc();
+                if end_loc.is_unknown() {
+                    return begin_loc;
+                }
+                match (
+                    begin_loc.ln_begin(),
+                    begin_loc.col_begin(),
+                    end_loc.ln_end(),
+                    end_loc.col_end(),
+                ) {
+                    (Some(lb), Some(cb), Some(le), Some(ce)) => Location::range(lb, cb, le, ce),
+                    (Some(lb), _, Some(le), _) => Location::LineRange(lb, le),
+                    (Some(l), _, _, _) | (_, _, Some(l), _) => Location::Line(l),
+                    _ => Location::Unknown,
+                }
+            }
+        }
+    };
     ($T: ty, $begin: ident, $middle: ident, $end: ident) => {
         impl Locational for $T {
             fn loc(&self) -> Location {

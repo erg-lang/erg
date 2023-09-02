@@ -28,10 +28,10 @@ use erg_compiler::ty::HasType;
 
 use lsp_types::request::{
     CallHierarchyIncomingCalls, CallHierarchyOutgoingCalls, CallHierarchyPrepare,
-    CodeActionRequest, CodeActionResolveRequest, CodeLensRequest, Completion, ExecuteCommand,
-    FoldingRangeRequest, GotoDefinition, HoverRequest, InlayHintRequest, InlayHintResolveRequest,
-    References, Rename, Request, ResolveCompletionItem, SemanticTokensFullRequest,
-    SignatureHelpRequest, WillRenameFiles, WorkspaceSymbol,
+    CodeActionRequest, CodeActionResolveRequest, CodeLensRequest, Completion,
+    DocumentSymbolRequest, ExecuteCommand, FoldingRangeRequest, GotoDefinition, HoverRequest,
+    InlayHintRequest, InlayHintResolveRequest, References, Rename, Request, ResolveCompletionItem,
+    SemanticTokensFullRequest, SignatureHelpRequest, WillRenameFiles, WorkspaceSymbol,
 };
 use lsp_types::{
     CallHierarchyServerCapability, CodeActionKind, CodeActionOptions, CodeActionProviderCapability,
@@ -505,6 +505,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             resolve_provider: Some(false),
         });
         capabilities.workspace_symbol_provider = Some(OneOf::Left(true));
+        capabilities.document_symbol_provider = Some(OneOf::Left(true));
         capabilities.call_hierarchy_provider = Some(CallHierarchyServerCapability::Simple(true));
         capabilities.folding_range_provider = Some(FoldingRangeProviderCapability::Simple(true));
         capabilities
@@ -569,6 +570,10 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         self.start_service::<WorkspaceSymbol>(
             receivers.workspace_symbol,
             Self::handle_workspace_symbol,
+        );
+        self.start_service::<DocumentSymbolRequest>(
+            receivers.document_symbol,
+            Self::handle_document_symbol,
         );
         self.start_service::<CallHierarchyPrepare>(
             receivers.call_hierarchy_prepare,
@@ -766,6 +771,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             WillRenameFiles::METHOD => self.parse_send::<WillRenameFiles>(id, msg),
             ExecuteCommand::METHOD => self.parse_send::<ExecuteCommand>(id, msg),
             WorkspaceSymbol::METHOD => self.parse_send::<WorkspaceSymbol>(id, msg),
+            DocumentSymbolRequest::METHOD => self.parse_send::<DocumentSymbolRequest>(id, msg),
             CallHierarchyIncomingCalls::METHOD => {
                 self.parse_send::<CallHierarchyIncomingCalls>(id, msg)
             }

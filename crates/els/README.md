@@ -27,6 +27,7 @@ ELS is a language server for the [Erg](https://github.com/erg-lang/erg) programm
   - [x] show trait implementations
 - [x] Signature help
 - [x] Workspace symbol
+- [x] Document symbol
 - [x] Call hierarchy
 - [x] Folding range
   - [x] Folding imports

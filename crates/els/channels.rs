@@ -5,17 +5,17 @@ use erg_compiler::erg_parser::parse::Parsable;
 
 use lsp_types::request::{
     CallHierarchyIncomingCalls, CallHierarchyOutgoingCalls, CallHierarchyPrepare,
-    CodeActionRequest, CodeActionResolveRequest, CodeLensRequest, Completion, ExecuteCommand,
-    FoldingRangeRequest, GotoDefinition, HoverRequest, InlayHintRequest, InlayHintResolveRequest,
-    References, ResolveCompletionItem, SemanticTokensFullRequest, SignatureHelpRequest,
-    WillRenameFiles, WorkspaceSymbol,
+    CodeActionRequest, CodeActionResolveRequest, CodeLensRequest, Completion,
+    DocumentSymbolRequest, ExecuteCommand, FoldingRangeRequest, GotoDefinition, HoverRequest,
+    InlayHintRequest, InlayHintResolveRequest, References, ResolveCompletionItem,
+    SemanticTokensFullRequest, SignatureHelpRequest, WillRenameFiles, WorkspaceSymbol,
 };
 use lsp_types::{
     CallHierarchyIncomingCallsParams, CallHierarchyOutgoingCallsParams, CallHierarchyPrepareParams,
     CodeAction, CodeActionParams, CodeLensParams, CompletionItem, CompletionParams,
-    ExecuteCommandParams, FoldingRangeParams, GotoDefinitionParams, HoverParams, InlayHint,
-    InlayHintParams, ReferenceParams, RenameFilesParams, SemanticTokensParams, SignatureHelpParams,
-    WorkspaceSymbolParams,
+    DocumentSymbolParams, ExecuteCommandParams, FoldingRangeParams, GotoDefinitionParams,
+    HoverParams, InlayHint, InlayHintParams, ReferenceParams, RenameFilesParams,
+    SemanticTokensParams, SignatureHelpParams, WorkspaceSymbolParams,
 };
 
 use crate::server::Server;
@@ -49,6 +49,7 @@ pub struct SendChannels {
     will_rename_files: mpsc::Sender<WorkerMessage<RenameFilesParams>>,
     execute_command: mpsc::Sender<WorkerMessage<ExecuteCommandParams>>,
     workspace_symbol: mpsc::Sender<WorkerMessage<WorkspaceSymbolParams>>,
+    document_symbol: mpsc::Sender<WorkerMessage<DocumentSymbolParams>>,
     call_hierarchy_prepare: mpsc::Sender<WorkerMessage<CallHierarchyPrepareParams>>,
     call_hierarchy_incoming: mpsc::Sender<WorkerMessage<CallHierarchyIncomingCallsParams>>,
     call_hierarchy_outgoing: mpsc::Sender<WorkerMessage<CallHierarchyOutgoingCallsParams>>,
@@ -73,6 +74,7 @@ impl SendChannels {
         let (tx_will_rename_files, rx_will_rename_files) = mpsc::channel();
         let (tx_execute_command, rx_execute_command) = mpsc::channel();
         let (tx_workspace_symbol, rx_workspace_symbol) = mpsc::channel();
+        let (tx_document_symbol, rx_document_symbol) = mpsc::channel();
         let (tx_call_hierarchy_prepare, rx_call_hierarchy_prepare) = mpsc::channel();
         let (tx_call_hierarchy_incoming, rx_call_hierarchy_incoming) = mpsc::channel();
         let (tx_call_hierarchy_outgoing, rx_call_hierarchy_outgoing) = mpsc::channel();
@@ -95,6 +97,7 @@ impl SendChannels {
                 will_rename_files: tx_will_rename_files,
                 execute_command: tx_execute_command,
                 workspace_symbol: tx_workspace_symbol,
+                document_symbol: tx_document_symbol,
                 call_hierarchy_prepare: tx_call_hierarchy_prepare,
                 call_hierarchy_incoming: tx_call_hierarchy_incoming,
                 call_hierarchy_outgoing: tx_call_hierarchy_outgoing,
@@ -117,6 +120,7 @@ impl SendChannels {
                 will_rename_files: rx_will_rename_files,
                 execute_command: rx_execute_command,
                 workspace_symbol: rx_workspace_symbol,
+                document_symbol: rx_document_symbol,
                 call_hierarchy_prepare: rx_call_hierarchy_prepare,
                 call_hierarchy_incoming: rx_call_hierarchy_incoming,
                 call_hierarchy_outgoing: rx_call_hierarchy_outgoing,
@@ -142,6 +146,7 @@ impl SendChannels {
         self.will_rename_files.send(WorkerMessage::Kill).unwrap();
         self.execute_command.send(WorkerMessage::Kill).unwrap();
         self.workspace_symbol.send(WorkerMessage::Kill).unwrap();
+        self.document_symbol.send(WorkerMessage::Kill).unwrap();
         self.call_hierarchy_prepare
             .send(WorkerMessage::Kill)
             .unwrap();
@@ -173,6 +178,7 @@ pub struct ReceiveChannels {
     pub(crate) will_rename_files: mpsc::Receiver<WorkerMessage<RenameFilesParams>>,
     pub(crate) execute_command: mpsc::Receiver<WorkerMessage<ExecuteCommandParams>>,
     pub(crate) workspace_symbol: mpsc::Receiver<WorkerMessage<WorkspaceSymbolParams>>,
+    pub(crate) document_symbol: mpsc::Receiver<WorkerMessage<DocumentSymbolParams>>,
     pub(crate) call_hierarchy_prepare: mpsc::Receiver<WorkerMessage<CallHierarchyPrepareParams>>,
     pub(crate) call_hierarchy_incoming:
         mpsc::Receiver<WorkerMessage<CallHierarchyIncomingCallsParams>>,
@@ -222,6 +228,7 @@ impl_sendable!(SignatureHelpRequest, SignatureHelpParams, signature_help);
 impl_sendable!(WillRenameFiles, RenameFilesParams, will_rename_files);
 impl_sendable!(ExecuteCommand, ExecuteCommandParams, execute_command);
 impl_sendable!(WorkspaceSymbol, WorkspaceSymbolParams, workspace_symbol);
+impl_sendable!(DocumentSymbolRequest, DocumentSymbolParams, document_symbol);
 impl_sendable!(
     CallHierarchyPrepare,
     CallHierarchyPrepareParams,

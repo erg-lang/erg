@@ -4,10 +4,11 @@ use std::path::Path;
 
 use lsp_types::{
     CompletionContext, CompletionParams, CompletionResponse, CompletionTriggerKind,
-    ConfigurationParams, DidChangeTextDocumentParams, DidOpenTextDocumentParams, FoldingRange,
-    FoldingRangeKind, FoldingRangeParams, GotoDefinitionParams, Hover, HoverContents, HoverParams,
-    Location, MarkedString, Position, Range, ReferenceContext, ReferenceParams, RenameParams,
-    SignatureHelp, SignatureHelpContext, SignatureHelpParams, SignatureHelpTriggerKind,
+    ConfigurationParams, DidChangeTextDocumentParams, DidOpenTextDocumentParams,
+    DocumentSymbolParams, DocumentSymbolResponse, FoldingRange, FoldingRangeKind,
+    FoldingRangeParams, GotoDefinitionParams, Hover, HoverContents, HoverParams, Location,
+    MarkedString, Position, Range, ReferenceContext, ReferenceParams, RenameParams, SignatureHelp,
+    SignatureHelpContext, SignatureHelpParams, SignatureHelpTriggerKind,
     TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentItem,
     TextDocumentPositionParams, Url, VersionedTextDocumentIdentifier, WorkspaceEdit,
 };
@@ -395,6 +396,25 @@ impl DummyClient {
         self.server.dispatch(msg)?;
         self.wait_for::<Option<Vec<FoldingRange>>>()
     }
+
+    fn request_document_symbols(
+        &mut self,
+        uri: Url,
+    ) -> Result<Option<DocumentSymbolResponse>, Box<dyn std::error::Error>> {
+        let params = DocumentSymbolParams {
+            text_document: TextDocumentIdentifier::new(uri),
+            work_done_progress_params: Default::default(),
+            partial_result_params: Default::default(),
+        };
+        let msg = json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "textDocument/documentSymbol",
+            "params": params,
+        });
+        self.server.dispatch(msg)?;
+        self.wait_for::<Option<DocumentSymbolResponse>>()
+    }
 }
 
 #[test]
@@ -539,5 +559,21 @@ fn test_folding_range() -> Result<(), Box<dyn std::error::Error>> {
             kind: Some(FoldingRangeKind::Imports),
         }
     );
+    Ok(())
+}
+
+#[test]
+fn test_document_symbol() -> Result<(), Box<dyn std::error::Error>> {
+    let mut client = DummyClient::new();
+    client.request_initialize()?;
+    let uri = NormalizedUrl::from_file_path(Path::new(FILE_A).canonicalize()?)?;
+    client.notify_open(FILE_A)?;
+    let Some(DocumentSymbolResponse::Nested(symbols)) =
+        client.request_document_symbols(uri.raw())?
+    else {
+        todo!()
+    };
+    assert_eq!(symbols.len(), 2);
+    assert_eq!(&symbols[0].name, "x");
     Ok(())
 }
