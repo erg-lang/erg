@@ -8,6 +8,7 @@ mod definition;
 mod diagnostics;
 mod diff;
 mod file_cache;
+mod folding_range;
 mod hir_visitor;
 mod hover;
 mod inlay_hint;

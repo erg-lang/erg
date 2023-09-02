@@ -6,15 +6,15 @@ use erg_compiler::erg_parser::parse::Parsable;
 use lsp_types::request::{
     CallHierarchyIncomingCalls, CallHierarchyOutgoingCalls, CallHierarchyPrepare,
     CodeActionRequest, CodeActionResolveRequest, CodeLensRequest, Completion, ExecuteCommand,
-    GotoDefinition, HoverRequest, InlayHintRequest, InlayHintResolveRequest, References,
-    ResolveCompletionItem, SemanticTokensFullRequest, SignatureHelpRequest, WillRenameFiles,
-    WorkspaceSymbol,
+    FoldingRangeRequest, GotoDefinition, HoverRequest, InlayHintRequest, InlayHintResolveRequest,
+    References, ResolveCompletionItem, SemanticTokensFullRequest, SignatureHelpRequest,
+    WillRenameFiles, WorkspaceSymbol,
 };
 use lsp_types::{
     CallHierarchyIncomingCallsParams, CallHierarchyOutgoingCallsParams, CallHierarchyPrepareParams,
     CodeAction, CodeActionParams, CodeLensParams, CompletionItem, CompletionParams,
-    ExecuteCommandParams, GotoDefinitionParams, HoverParams, InlayHint, InlayHintParams,
-    ReferenceParams, RenameFilesParams, SemanticTokensParams, SignatureHelpParams,
+    ExecuteCommandParams, FoldingRangeParams, GotoDefinitionParams, HoverParams, InlayHint,
+    InlayHintParams, ReferenceParams, RenameFilesParams, SemanticTokensParams, SignatureHelpParams,
     WorkspaceSymbolParams,
 };
 
@@ -52,6 +52,7 @@ pub struct SendChannels {
     call_hierarchy_prepare: mpsc::Sender<WorkerMessage<CallHierarchyPrepareParams>>,
     call_hierarchy_incoming: mpsc::Sender<WorkerMessage<CallHierarchyIncomingCallsParams>>,
     call_hierarchy_outgoing: mpsc::Sender<WorkerMessage<CallHierarchyOutgoingCallsParams>>,
+    folding_range: mpsc::Sender<WorkerMessage<FoldingRangeParams>>,
     pub(crate) health_check: mpsc::Sender<WorkerMessage<()>>,
 }
 
@@ -75,6 +76,7 @@ impl SendChannels {
         let (tx_call_hierarchy_prepare, rx_call_hierarchy_prepare) = mpsc::channel();
         let (tx_call_hierarchy_incoming, rx_call_hierarchy_incoming) = mpsc::channel();
         let (tx_call_hierarchy_outgoing, rx_call_hierarchy_outgoing) = mpsc::channel();
+        let (tx_foldging_range, rx_folding_range) = mpsc::channel();
         let (tx_health_check, rx_health_check) = mpsc::channel();
         (
             Self {
@@ -96,6 +98,7 @@ impl SendChannels {
                 call_hierarchy_prepare: tx_call_hierarchy_prepare,
                 call_hierarchy_incoming: tx_call_hierarchy_incoming,
                 call_hierarchy_outgoing: tx_call_hierarchy_outgoing,
+                folding_range: tx_foldging_range,
                 health_check: tx_health_check,
             },
             ReceiveChannels {
@@ -117,6 +120,7 @@ impl SendChannels {
                 call_hierarchy_prepare: rx_call_hierarchy_prepare,
                 call_hierarchy_incoming: rx_call_hierarchy_incoming,
                 call_hierarchy_outgoing: rx_call_hierarchy_outgoing,
+                folding_range: rx_folding_range,
                 health_check: rx_health_check,
             },
         )
@@ -147,6 +151,7 @@ impl SendChannels {
         self.call_hierarchy_outgoing
             .send(WorkerMessage::Kill)
             .unwrap();
+        self.folding_range.send(WorkerMessage::Kill).unwrap();
         self.health_check.send(WorkerMessage::Kill).unwrap();
     }
 }
@@ -173,6 +178,7 @@ pub struct ReceiveChannels {
         mpsc::Receiver<WorkerMessage<CallHierarchyIncomingCallsParams>>,
     pub(crate) call_hierarchy_outgoing:
         mpsc::Receiver<WorkerMessage<CallHierarchyOutgoingCallsParams>>,
+    pub(crate) folding_range: mpsc::Receiver<WorkerMessage<FoldingRangeParams>>,
     pub(crate) health_check: mpsc::Receiver<WorkerMessage<()>>,
 }
 
@@ -231,3 +237,4 @@ impl_sendable!(
     CallHierarchyOutgoingCallsParams,
     call_hierarchy_outgoing
 );
+impl_sendable!(FoldingRangeRequest, FoldingRangeParams, folding_range);

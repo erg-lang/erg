@@ -4,12 +4,12 @@ use std::path::Path;
 
 use lsp_types::{
     CompletionContext, CompletionParams, CompletionResponse, CompletionTriggerKind,
-    ConfigurationParams, DidChangeTextDocumentParams, DidOpenTextDocumentParams,
-    GotoDefinitionParams, Hover, HoverContents, HoverParams, Location, MarkedString, Position,
-    Range, ReferenceContext, ReferenceParams, RenameParams, SignatureHelp, SignatureHelpContext,
-    SignatureHelpParams, SignatureHelpTriggerKind, TextDocumentContentChangeEvent,
-    TextDocumentIdentifier, TextDocumentItem, TextDocumentPositionParams, Url,
-    VersionedTextDocumentIdentifier, WorkspaceEdit,
+    ConfigurationParams, DidChangeTextDocumentParams, DidOpenTextDocumentParams, FoldingRange,
+    FoldingRangeKind, FoldingRangeParams, GotoDefinitionParams, Hover, HoverContents, HoverParams,
+    Location, MarkedString, Position, Range, ReferenceContext, ReferenceParams, RenameParams,
+    SignatureHelp, SignatureHelpContext, SignatureHelpParams, SignatureHelpTriggerKind,
+    TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentItem,
+    TextDocumentPositionParams, Url, VersionedTextDocumentIdentifier, WorkspaceEdit,
 };
 use serde::de::Deserialize;
 use serde_json::{json, Value};
@@ -20,6 +20,7 @@ use erg_common::spawn::safe_yield;
 
 const FILE_A: &str = "tests/a.er";
 const FILE_B: &str = "tests/b.er";
+const FILE_IMPORTS: &str = "tests/imports.er";
 
 fn add_char(line: u32, character: u32, text: &str) -> TextDocumentContentChangeEvent {
     TextDocumentContentChangeEvent {
@@ -373,6 +374,25 @@ impl DummyClient {
         self.server.dispatch(msg)?;
         self.wait_for::<Vec<Location>>()
     }
+
+    fn request_folding_range(
+        &mut self,
+        uri: Url,
+    ) -> Result<Option<Vec<FoldingRange>>, Box<dyn std::error::Error>> {
+        let params = FoldingRangeParams {
+            text_document: TextDocumentIdentifier::new(uri),
+            work_done_progress_params: Default::default(),
+            partial_result_params: Default::default(),
+        };
+        let msg = json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "textDocument/foldingRange",
+            "params": params,
+        });
+        self.server.dispatch(msg)?;
+        self.wait_for::<Option<Vec<FoldingRange>>>()
+    }
 }
 
 #[test]
@@ -496,5 +516,26 @@ fn test_goto_definition() -> Result<(), Box<dyn std::error::Error>> {
     let locations = client.request_goto_definition(uri.raw(), 1, 4)?;
     assert_eq!(locations.len(), 1);
     assert_eq!(&locations[0].range, &single_range(0, 0, 1));
+    Ok(())
+}
+
+#[test]
+fn test_folding_range() -> Result<(), Box<dyn std::error::Error>> {
+    let mut client = DummyClient::new();
+    client.request_initialize()?;
+    let uri = NormalizedUrl::from_file_path(Path::new(FILE_IMPORTS).canonicalize()?)?;
+    client.notify_open(FILE_IMPORTS)?;
+    let ranges = client.request_folding_range(uri.raw())?.unwrap();
+    assert_eq!(ranges.len(), 1);
+    assert_eq!(
+        &ranges[0],
+        &FoldingRange {
+            start_line: 0,
+            start_character: Some(0),
+            end_line: 3,
+            end_character: Some(22),
+            kind: Some(FoldingRangeKind::Imports),
+        }
+    );
     Ok(())
 }

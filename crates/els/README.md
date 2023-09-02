@@ -28,6 +28,8 @@ ELS is a language server for the [Erg](https://github.com/erg-lang/erg) programm
 - [x] Signature help
 - [x] Workspace symbol
 - [x] Call hierarchy
+- [x] Folding range
+  - [x] Folding imports
 
 ## Installation
 

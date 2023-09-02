@@ -29,18 +29,19 @@ use erg_compiler::ty::HasType;
 use lsp_types::request::{
     CallHierarchyIncomingCalls, CallHierarchyOutgoingCalls, CallHierarchyPrepare,
     CodeActionRequest, CodeActionResolveRequest, CodeLensRequest, Completion, ExecuteCommand,
-    GotoDefinition, HoverRequest, InlayHintRequest, InlayHintResolveRequest, References, Rename,
-    Request, ResolveCompletionItem, SemanticTokensFullRequest, SignatureHelpRequest,
-    WillRenameFiles, WorkspaceSymbol,
+    FoldingRangeRequest, GotoDefinition, HoverRequest, InlayHintRequest, InlayHintResolveRequest,
+    References, Rename, Request, ResolveCompletionItem, SemanticTokensFullRequest,
+    SignatureHelpRequest, WillRenameFiles, WorkspaceSymbol,
 };
 use lsp_types::{
     CallHierarchyServerCapability, CodeActionKind, CodeActionOptions, CodeActionProviderCapability,
     CodeLensOptions, CompletionOptions, ConfigurationItem, ConfigurationParams,
     DidChangeTextDocumentParams, DidOpenTextDocumentParams, ExecuteCommandOptions,
-    HoverProviderCapability, InitializeParams, InitializeResult, InlayHintOptions,
-    InlayHintServerCapabilities, OneOf, Position, SemanticTokenType, SemanticTokensFullOptions,
-    SemanticTokensLegend, SemanticTokensOptions, SemanticTokensServerCapabilities,
-    ServerCapabilities, SignatureHelpOptions, WorkDoneProgressOptions,
+    FoldingRangeProviderCapability, HoverProviderCapability, InitializeParams, InitializeResult,
+    InlayHintOptions, InlayHintServerCapabilities, OneOf, Position, SemanticTokenType,
+    SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions,
+    SemanticTokensServerCapabilities, ServerCapabilities, SignatureHelpOptions,
+    WorkDoneProgressOptions,
 };
 
 use serde::{Deserialize, Serialize};
@@ -505,6 +506,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         });
         capabilities.workspace_symbol_provider = Some(OneOf::Left(true));
         capabilities.call_hierarchy_provider = Some(CallHierarchyServerCapability::Simple(true));
+        capabilities.folding_range_provider = Some(FoldingRangeProviderCapability::Simple(true));
         capabilities
     }
 
@@ -579,6 +581,10 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         self.start_service::<CallHierarchyOutgoingCalls>(
             receivers.call_hierarchy_outgoing,
             Self::handle_call_hierarchy_outgoing,
+        );
+        self.start_service::<FoldingRangeRequest>(
+            receivers.folding_range,
+            Self::handle_folding_range,
         );
         self.start_client_health_checker(receivers.health_check);
     }
@@ -767,6 +773,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 self.parse_send::<CallHierarchyOutgoingCalls>(id, msg)
             }
             CallHierarchyPrepare::METHOD => self.parse_send::<CallHierarchyPrepare>(id, msg),
+            FoldingRangeRequest::METHOD => self.parse_send::<FoldingRangeRequest>(id, msg),
             other => send_error(Some(id), -32600, format!("{other} is not supported")),
         }
     }
