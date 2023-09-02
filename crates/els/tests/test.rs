@@ -69,7 +69,9 @@ fn parse_msgs(mut input: &str) -> Vec<Value> {
         let len = input[..dights].parse::<usize>().unwrap();
         let idx = dights + "\r\n\r\n".len();
         input = &input[idx..];
-        let msg = &input[..len];
+        let msg = &input
+            .get(..len)
+            .unwrap_or_else(|| panic!("len: {len}, input: {input}"));
         input = &input[len..];
         msgs.push(serde_json::from_str(msg).unwrap());
     }
