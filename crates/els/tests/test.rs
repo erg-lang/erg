@@ -146,6 +146,10 @@ impl DummyClient {
         loop {
             let mut buf = String::new();
             self.stdout_buffer.read_to_string(&mut buf)?;
+            while !buf.ends_with('}') {
+                safe_yield();
+                self.stdout_buffer.read_to_string(&mut buf)?;
+            }
             for msg in parse_msgs(&buf) {
                 if msg.get("method").is_some_and(|_| msg.get("id").is_some()) {
                     self.handle_server_request(&msg);
