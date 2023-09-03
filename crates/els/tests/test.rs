@@ -367,7 +367,7 @@ impl DummyClient {
         uri: Url,
         line: u32,
         col: u32,
-    ) -> Result<Vec<Location>, Box<dyn std::error::Error>> {
+    ) -> Result<Location, Box<dyn std::error::Error>> {
         let params = GotoDefinitionParams {
             text_document_position_params: abs_pos(uri, line, col),
             work_done_progress_params: Default::default(),
@@ -380,7 +380,7 @@ impl DummyClient {
             "params": params,
         });
         self.server.dispatch(msg)?;
-        self.wait_for::<Vec<Location>>()
+        self.wait_for::<Location>()
     }
 
     fn request_folding_range(
@@ -540,9 +540,8 @@ fn test_goto_definition() -> Result<(), Box<dyn std::error::Error>> {
     client.request_initialize()?;
     let uri = NormalizedUrl::from_file_path(Path::new(FILE_A).canonicalize()?)?;
     client.notify_open(FILE_A)?;
-    let locations = client.request_goto_definition(uri.raw(), 1, 4)?;
-    assert_eq!(locations.len(), 1);
-    assert_eq!(&locations[0].range, &single_range(0, 0, 1));
+    let location = client.request_goto_definition(uri.raw(), 1, 4)?;
+    assert_eq!(&location.range, &single_range(0, 0, 1));
     Ok(())
 }
 

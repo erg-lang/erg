@@ -29,19 +29,20 @@ use erg_compiler::ty::HasType;
 use lsp_types::request::{
     CallHierarchyIncomingCalls, CallHierarchyOutgoingCalls, CallHierarchyPrepare,
     CodeActionRequest, CodeActionResolveRequest, CodeLensRequest, Completion,
-    DocumentSymbolRequest, ExecuteCommand, FoldingRangeRequest, GotoDefinition, HoverRequest,
-    InlayHintRequest, InlayHintResolveRequest, References, Rename, Request, ResolveCompletionItem,
-    SemanticTokensFullRequest, SignatureHelpRequest, WillRenameFiles, WorkspaceSymbol,
+    DocumentSymbolRequest, ExecuteCommand, FoldingRangeRequest, GotoDefinition, GotoImplementation,
+    HoverRequest, InlayHintRequest, InlayHintResolveRequest, References, Rename, Request,
+    ResolveCompletionItem, SemanticTokensFullRequest, SignatureHelpRequest, WillRenameFiles,
+    WorkspaceSymbol,
 };
 use lsp_types::{
     CallHierarchyServerCapability, CodeActionKind, CodeActionOptions, CodeActionProviderCapability,
     CodeLensOptions, CompletionOptions, ConfigurationItem, ConfigurationParams,
     DidChangeTextDocumentParams, DidOpenTextDocumentParams, ExecuteCommandOptions,
-    FoldingRangeProviderCapability, HoverProviderCapability, InitializeParams, InitializeResult,
-    InlayHintOptions, InlayHintServerCapabilities, OneOf, Position, SemanticTokenType,
-    SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions,
-    SemanticTokensServerCapabilities, ServerCapabilities, SignatureHelpOptions,
-    WorkDoneProgressOptions,
+    FoldingRangeProviderCapability, HoverProviderCapability, ImplementationProviderCapability,
+    InitializeParams, InitializeResult, InlayHintOptions, InlayHintServerCapabilities, OneOf,
+    Position, SemanticTokenType, SemanticTokensFullOptions, SemanticTokensLegend,
+    SemanticTokensOptions, SemanticTokensServerCapabilities, ServerCapabilities,
+    SignatureHelpOptions, WorkDoneProgressOptions,
 };
 
 use serde::{Deserialize, Serialize};
@@ -430,6 +431,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         capabilities.rename_provider = Some(OneOf::Left(true));
         capabilities.references_provider = Some(OneOf::Left(true));
         capabilities.definition_provider = Some(OneOf::Left(true));
+        capabilities.implementation_provider = Some(ImplementationProviderCapability::Simple(true));
         capabilities.hover_provider = self
             .disabled_features
             .contains(&DefaultFeatures::Hover)
@@ -537,6 +539,10 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         self.start_service::<GotoDefinition>(
             receivers.goto_definition,
             Self::handle_goto_definition,
+        );
+        self.start_service::<GotoImplementation>(
+            receivers.goto_implementation,
+            Self::handle_goto_implementation,
         );
         self.start_service::<SemanticTokensFullRequest>(
             receivers.semantic_tokens_full,
@@ -755,6 +761,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             Completion::METHOD => self.parse_send::<Completion>(id, msg),
             ResolveCompletionItem::METHOD => self.parse_send::<ResolveCompletionItem>(id, msg),
             GotoDefinition::METHOD => self.parse_send::<GotoDefinition>(id, msg),
+            GotoImplementation::METHOD => self.parse_send::<GotoImplementation>(id, msg),
             HoverRequest::METHOD => self.parse_send::<HoverRequest>(id, msg),
             References::METHOD => self.parse_send::<References>(id, msg),
             SemanticTokensFullRequest::METHOD => {

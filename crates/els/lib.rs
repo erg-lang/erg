@@ -11,6 +11,7 @@ mod file_cache;
 mod folding_range;
 mod hir_visitor;
 mod hover;
+mod implementation;
 mod inlay_hint;
 mod message;
 mod references;

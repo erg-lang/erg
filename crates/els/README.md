@@ -13,7 +13,7 @@ ELS is a language server for the [Erg](https://github.com/erg-lang/erg) programm
 - [x] Diagnostics
 - [x] Hover
 - [x] Go to definition
-- [ ] Go to implementation
+- [x] Go to implementation
 - [x] Find references
 - [x] Renaming
 - [x] Inlay hint

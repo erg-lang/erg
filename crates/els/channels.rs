@@ -6,9 +6,10 @@ use erg_compiler::erg_parser::parse::Parsable;
 use lsp_types::request::{
     CallHierarchyIncomingCalls, CallHierarchyOutgoingCalls, CallHierarchyPrepare,
     CodeActionRequest, CodeActionResolveRequest, CodeLensRequest, Completion,
-    DocumentSymbolRequest, ExecuteCommand, FoldingRangeRequest, GotoDefinition, HoverRequest,
-    InlayHintRequest, InlayHintResolveRequest, References, ResolveCompletionItem,
-    SemanticTokensFullRequest, SignatureHelpRequest, WillRenameFiles, WorkspaceSymbol,
+    DocumentSymbolRequest, ExecuteCommand, FoldingRangeRequest, GotoDefinition, GotoImplementation,
+    GotoImplementationParams, HoverRequest, InlayHintRequest, InlayHintResolveRequest, References,
+    ResolveCompletionItem, SemanticTokensFullRequest, SignatureHelpRequest, WillRenameFiles,
+    WorkspaceSymbol,
 };
 use lsp_types::{
     CallHierarchyIncomingCallsParams, CallHierarchyOutgoingCallsParams, CallHierarchyPrepareParams,
@@ -37,6 +38,7 @@ pub struct SendChannels {
     completion: mpsc::Sender<WorkerMessage<CompletionParams>>,
     resolve_completion: mpsc::Sender<WorkerMessage<CompletionItem>>,
     goto_definition: mpsc::Sender<WorkerMessage<GotoDefinitionParams>>,
+    goto_implementation: mpsc::Sender<WorkerMessage<GotoImplementationParams>>,
     semantic_tokens_full: mpsc::Sender<WorkerMessage<SemanticTokensParams>>,
     inlay_hint: mpsc::Sender<WorkerMessage<InlayHintParams>>,
     inlay_hint_resolve: mpsc::Sender<WorkerMessage<InlayHint>>,
@@ -62,6 +64,7 @@ impl SendChannels {
         let (tx_completion, rx_completion) = mpsc::channel();
         let (tx_resolve_completion, rx_resolve_completion) = mpsc::channel();
         let (tx_goto_definition, rx_goto_definition) = mpsc::channel();
+        let (tx_goto_implementation, rx_goto_implementation) = mpsc::channel();
         let (tx_semantic_tokens_full, rx_semantic_tokens_full) = mpsc::channel();
         let (tx_inlay_hint, rx_inlay_hint) = mpsc::channel();
         let (tx_inlay_hint_resolve, rx_inlay_hint_resolve) = mpsc::channel();
@@ -85,6 +88,7 @@ impl SendChannels {
                 completion: tx_completion,
                 resolve_completion: tx_resolve_completion,
                 goto_definition: tx_goto_definition,
+                goto_implementation: tx_goto_implementation,
                 semantic_tokens_full: tx_semantic_tokens_full,
                 inlay_hint: tx_inlay_hint,
                 inlay_hint_resolve: tx_inlay_hint_resolve,
@@ -108,6 +112,7 @@ impl SendChannels {
                 completion: rx_completion,
                 resolve_completion: rx_resolve_completion,
                 goto_definition: rx_goto_definition,
+                goto_implementation: rx_goto_implementation,
                 semantic_tokens_full: rx_semantic_tokens_full,
                 inlay_hint: rx_inlay_hint,
                 inlay_hint_resolve: rx_inlay_hint_resolve,
@@ -166,6 +171,7 @@ pub struct ReceiveChannels {
     pub(crate) completion: mpsc::Receiver<WorkerMessage<CompletionParams>>,
     pub(crate) resolve_completion: mpsc::Receiver<WorkerMessage<CompletionItem>>,
     pub(crate) goto_definition: mpsc::Receiver<WorkerMessage<GotoDefinitionParams>>,
+    pub(crate) goto_implementation: mpsc::Receiver<WorkerMessage<GotoImplementationParams>>,
     pub(crate) semantic_tokens_full: mpsc::Receiver<WorkerMessage<SemanticTokensParams>>,
     pub(crate) inlay_hint: mpsc::Receiver<WorkerMessage<InlayHintParams>>,
     pub(crate) inlay_hint_resolve: mpsc::Receiver<WorkerMessage<InlayHint>>,
@@ -212,6 +218,11 @@ macro_rules! impl_sendable {
 impl_sendable!(Completion, CompletionParams, completion);
 impl_sendable!(ResolveCompletionItem, CompletionItem, resolve_completion);
 impl_sendable!(GotoDefinition, GotoDefinitionParams, goto_definition);
+impl_sendable!(
+    GotoImplementation,
+    GotoImplementationParams,
+    goto_implementation
+);
 impl_sendable!(
     SemanticTokensFullRequest,
     SemanticTokensParams,
