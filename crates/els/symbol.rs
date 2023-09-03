@@ -42,6 +42,13 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 if name.inspect().starts_with(['%']) {
                     continue;
                 }
+                if vi
+                    .alias_of
+                    .as_ref()
+                    .is_some_and(|alias| &alias.name == name.inspect())
+                {
+                    continue;
+                }
                 if !params.query.is_empty() && !name.inspect().contains(&params.query) {
                     continue;
                 }

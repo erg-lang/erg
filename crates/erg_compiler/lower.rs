@@ -1512,6 +1512,7 @@ impl ASTLowerer {
                     &sig,
                     found_body_t,
                     body.id,
+                    block.last(),
                     None,
                 )?;
                 let ident = hir::Identifier::new(ident, None, vi);
@@ -1531,6 +1532,7 @@ impl ASTLowerer {
                     &sig,
                     &Type::Failure,
                     ast::DefId(0),
+                    None,
                     None,
                 )?;
                 Err(errs)

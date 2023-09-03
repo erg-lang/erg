@@ -28,6 +28,13 @@ impl PartialEq<str> for Str {
     }
 }
 
+impl PartialEq<String> for Str {
+    #[inline]
+    fn eq(&self, other: &String) -> bool {
+        self[..] == other[..]
+    }
+}
+
 impl Add<&str> for Str {
     type Output = Str;
     #[inline]

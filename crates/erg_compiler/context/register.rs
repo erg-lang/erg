@@ -45,7 +45,7 @@ use crate::error::{
     CompileError, CompileErrors, CompileResult, TyCheckError, TyCheckErrors, TyCheckResult,
 };
 use crate::hir::Literal;
-use crate::varinfo::{AbsLocation, Mutability, VarInfo, VarKind};
+use crate::varinfo::{AbsLocation, AliasInfo, Mutability, VarInfo, VarKind};
 use crate::{feature_error, hir};
 use Mutability::*;
 use RegistrationMode::*;
@@ -300,8 +300,19 @@ impl Context {
         sig: &ast::VarSignature,
         body_t: &Type,
         id: DefId,
+        expr: Option<&hir::Expr>,
         py_name: Option<Str>,
     ) -> TyCheckResult<VarInfo> {
+        let alias_of = if let Some((origin, name)) =
+            expr.and_then(|exp| exp.var_info().zip(exp.last_name()))
+        {
+            Some(AliasInfo::new(
+                name.inspect().clone(),
+                origin.def_loc.clone(),
+            ))
+        } else {
+            None
+        };
         let ident = match &sig.pat {
             ast::VarPattern::Ident(ident) => ident,
             ast::VarPattern::Discard(_) => {
@@ -310,6 +321,7 @@ impl Context {
                     impl_of: self.impl_of(),
                     def_loc: self.absolutize(sig.loc()),
                     py_name,
+                    alias_of,
                     ..VarInfo::const_default_private()
                 });
             }
@@ -344,6 +356,9 @@ impl Context {
             if vi.py_name.is_none() {
                 vi.py_name = py_name;
             }
+            if vi.alias_of.is_none() {
+                vi.alias_of = alias_of;
+            }
             self.locals.insert(ident.name.clone(), vi.clone());
             if let Ok(value) = self.convert_singular_type_into_value(vi.t.clone()) {
                 self.consts.insert(ident.name.clone(), value);
@@ -372,7 +387,7 @@ impl Context {
                 body_t.clone()
             }
         });
-        let vi = VarInfo::new(
+        let vi = VarInfo::maybe_alias(
             t,
             muty,
             Visibility::new(vis, self.name.clone()),
@@ -381,6 +396,7 @@ impl Context {
             self.impl_of(),
             py_name,
             self.absolutize(ident.name.loc()),
+            alias_of,
         );
         log!(info "Registered {}{}: {}", self.name, ident, vi);
         self.locals.insert(ident.name.clone(), vi.clone());

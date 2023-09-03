@@ -678,6 +678,13 @@ impl Accessor {
             _ => None,
         }
     }
+
+    pub fn last_name(&self) -> &VarName {
+        match self {
+            Self::Ident(ident) => &ident.raw.name,
+            Self::Attr(attr) => &attr.ident.raw.name,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -2547,6 +2554,7 @@ impl Expr {
     pub fn receiver_t(&self) -> Option<&Type> {
         match self {
             Self::Accessor(Accessor::Attr(attr)) => Some(attr.obj.ref_t()),
+            Self::TypeAsc(t_asc) => t_asc.expr.receiver_t(),
             _other => None,
         }
     }
@@ -2554,6 +2562,7 @@ impl Expr {
     pub fn show_acc(&self) -> Option<String> {
         match self {
             Expr::Accessor(acc) => Some(acc.show()),
+            Expr::TypeAsc(t_asc) => t_asc.expr.show_acc(),
             _ => None,
         }
     }
@@ -2570,6 +2579,7 @@ impl Expr {
     pub fn qual_name(&self) -> Option<Str> {
         match self {
             Expr::Accessor(acc) => acc.qual_name(),
+            Expr::TypeAsc(tasc) => tasc.expr.qual_name(),
             _ => None,
         }
     }
@@ -2578,6 +2588,7 @@ impl Expr {
     pub fn local_name(&self) -> Option<&str> {
         match self {
             Expr::Accessor(acc) => acc.local_name(),
+            Expr::TypeAsc(tasc) => tasc.expr.local_name(),
             _ => None,
         }
     }
@@ -2585,7 +2596,16 @@ impl Expr {
     pub fn is_py_api(&self) -> bool {
         match self {
             Expr::Accessor(acc) => acc.is_py_api(),
+            Expr::TypeAsc(tasc) => tasc.expr.is_py_api(),
             _ => false,
+        }
+    }
+
+    pub fn last_name(&self) -> Option<&VarName> {
+        match self {
+            Expr::Accessor(acc) => Some(acc.last_name()),
+            Expr::TypeAsc(tasc) => tasc.expr.last_name(),
+            _ => None,
         }
     }
 

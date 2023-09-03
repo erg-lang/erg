@@ -75,7 +75,7 @@ impl ASTLowerer {
         } else {
             self.module
                 .context
-                .assign_var_sig(&sig, found_body_t, id, None)?;
+                .assign_var_sig(&sig, found_body_t, id, Some(&chunk), None)?;
         }
         let mut ident = hir::Identifier::bare(ident.clone());
         let t = match found_body_t {
@@ -657,6 +657,7 @@ impl ASTLowerer {
                     &ast::VarSignature::new(ast::VarPattern::Ident(attr.ident.clone()), None),
                     &t,
                     ast::DefId(0),
+                    None,
                     Some(py_name.clone()),
                 )?;
                 if let Some(types) = self
@@ -807,6 +808,7 @@ impl ASTLowerer {
             &ast::VarSignature::new(ast::VarPattern::Ident(ident.clone()), None),
             &t,
             ast::DefId(0),
+            None,
             Some(py_name),
         )?;
         if let Some(gen) = ty_obj {

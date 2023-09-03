@@ -187,6 +187,18 @@ impl AbsLocation {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct AliasInfo {
+    pub name: Str,
+    pub loc: AbsLocation,
+}
+
+impl AliasInfo {
+    pub const fn new(name: Str, loc: AbsLocation) -> Self {
+        Self { name, loc }
+    }
+}
+
 /// Has information about the type, variability, visibility, and where the variable was defined (or declared, generated)
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct VarInfo {
@@ -198,6 +210,7 @@ pub struct VarInfo {
     pub impl_of: Option<Type>,
     pub py_name: Option<Str>,
     pub def_loc: AbsLocation,
+    pub alias_of: Option<AliasInfo>,
 }
 
 impl fmt::Display for VarInfo {
@@ -284,6 +297,32 @@ impl VarInfo {
             impl_of,
             py_name,
             def_loc,
+            alias_of: None,
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub const fn maybe_alias(
+        t: Type,
+        muty: Mutability,
+        vis: Visibility,
+        kind: VarKind,
+        comptime_decos: Option<Set<Str>>,
+        impl_of: Option<Type>,
+        py_name: Option<Str>,
+        def_loc: AbsLocation,
+        alias_of: Option<AliasInfo>,
+    ) -> Self {
+        Self {
+            t,
+            muty,
+            vis,
+            kind,
+            comptime_decos,
+            impl_of,
+            py_name,
+            def_loc,
+            alias_of,
         }
     }
 
