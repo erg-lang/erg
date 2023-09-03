@@ -46,7 +46,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - uses: Swatinem/rust-cache@v2
       - run: rustup update stable
-      - run: cargo test --all --verbose -- --include-ignored
+      - run: cargo test --all --verbose -- --include-ignored --nocapture
 
   build-check:
     strategy:
