@@ -39,6 +39,9 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         let mut res = vec![];
         for module in self.modules.values() {
             for (name, vi) in module.context.local_dir() {
+                if name.inspect().starts_with(['%']) {
+                    continue;
+                }
                 if !params.query.is_empty() && !name.inspect().contains(&params.query) {
                     continue;
                 }
@@ -82,6 +85,9 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     fn symbol(&self, chunk: &Expr) -> Option<DocumentSymbol> {
         match chunk {
             Expr::Def(def) => {
+                if def.sig.inspect().starts_with(['%']) {
+                    return None;
+                }
                 let range = loc_to_range(def.loc())?;
                 let selection_range = loc_to_range(def.sig.loc())?;
                 #[allow(deprecated)]
