@@ -140,9 +140,9 @@ X = 1 # OK
 X = !1 # TypeError: cannot define Int! object as a constant
 ```
 
-## Delete an Variable
+## Delete a Variable
 
-You can delete an variable by using the `Del` function. All other variables that depend on the variable (that is, that refer directly to the value of the variable) are also removed.
+You can delete a variable by using the `Del` function. All other variables that depend on the variable (that is, that refer directly to the value of the variable) are also removed.
 
 ```python,checker_ignore
 x = 1
