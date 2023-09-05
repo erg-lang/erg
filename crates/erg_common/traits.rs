@@ -1028,6 +1028,18 @@ impl<T: Locational, const N: usize> Locational for [T; N] {
     }
 }
 
+impl<T: Locational> Locational for Vec<T> {
+    fn loc(&self) -> Location {
+        Location::stream(self)
+    }
+}
+
+impl<T: Locational> Locational for &T {
+    fn loc(&self) -> Location {
+        (*self).loc()
+    }
+}
+
 #[macro_export]
 macro_rules! impl_locational_for_enum {
     ($Enum: ident; $($Variant: ident $(,)?)*) => {

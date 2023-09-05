@@ -91,6 +91,11 @@ fn exec_dict() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_dict_test() -> Result<(), ()> {
+    expect_success("tests/should_ok/dict.er", 0)
+}
+
+#[test]
 fn exec_external() -> Result<(), ()> {
     let py_command = opt_which_python().unwrap();
     if module_exists(&py_command, "matplotlib") && module_exists(&py_command, "tqdm") {
@@ -348,7 +353,7 @@ fn exec_addition_err() -> Result<(), ()> {
 
 #[test]
 fn exec_args() -> Result<(), ()> {
-    expect_failure("tests/should_err/args.er", 0, 16)
+    expect_failure("tests/should_err/args.er", 0, 17)
 }
 
 #[test]
@@ -384,6 +389,11 @@ fn exec_collection_err() -> Result<(), ()> {
 #[test]
 fn exec_dependent_err() -> Result<(), ()> {
     expect_failure("tests/should_err/dependent.er", 0, 5)
+}
+
+#[test]
+fn exec_dict_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/dict.er", 0, 2)
 }
 
 #[test]
@@ -535,6 +545,10 @@ fn exec_visibility() -> Result<(), ()> {
 fn exec_err_loc() -> Result<(), ()> {
     expect_error_location(
         "tests/should_err/err_loc.er",
-        vec![Location::range(2, 11, 2, 16), Location::range(7, 15, 7, 18)],
+        vec![
+            Location::range(2, 11, 2, 16),
+            Location::range(7, 15, 7, 18),
+            Location::range(10, 11, 10, 16),
+        ],
     )
 }

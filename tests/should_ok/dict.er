@@ -1,0 +1,4 @@
+for! {"a": 1, "b": 2}.keys(), s =>
+    print! "key: " + s
+for! {"a": 1, "b": 2}.values(), i =>
+    print! i + 0

@@ -5,3 +5,6 @@ for! zip([1+1], ["a"+"b"]), ((i, s),) => # i: Nat, s: Str
     print! i + 1
     print! s + "b"
     print! i + "a" # ERR
+
+for! {"a": 1}, s =>
+    print! s + 1 # ERR

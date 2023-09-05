@@ -669,8 +669,24 @@ impl Context {
     ) -> TyCheckResult<()> {
         let mut errs = TyCheckErrors::empty();
         if let Some(subr_t) = expect {
-            debug_assert_eq!(params.non_defaults.len(), subr_t.non_default_params.len());
-            debug_assert_eq!(params.defaults.len(), subr_t.default_params.len());
+            if params.non_defaults.len() > subr_t.non_default_params.len() {
+                let excessive_params = params
+                    .non_defaults
+                    .iter()
+                    .skip(subr_t.non_default_params.len())
+                    .collect::<Vec<_>>();
+                errs.push(TyCheckError::too_many_args_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    excessive_params.loc(),
+                    "<lambda>", // TODO:
+                    self.caused_by(),
+                    subr_t.non_default_params.len(),
+                    params.non_defaults.len(),
+                    params.defaults.len(),
+                ));
+            }
+            // debug_assert_eq!(params.defaults.len(), subr_t.default_params.len());
             for (non_default, pt) in params
                 .non_defaults
                 .iter_mut()

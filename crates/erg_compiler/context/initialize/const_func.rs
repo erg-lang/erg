@@ -8,13 +8,11 @@ use erg_common::{dict, enum_unwrap, set};
 
 use crate::context::Context;
 use crate::feature_error;
-use crate::ty::constructors::{and, mono, poly, tuple_t, ty_tp, v_enum};
+use crate::ty::constructors::{and, mono, tuple_t, v_enum};
 use crate::ty::value::{EvalValueError, EvalValueResult, GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{TyParam, Type, ValueArgs};
 use erg_common::error::{ErrorCore, ErrorKind, Location, SubMessage};
 use erg_common::style::{Color, StyledStr, StyledString, THEME};
-
-use super::{DICT_ITEMS, DICT_KEYS, DICT_VALUES};
 
 const ERR: Color = THEME.colors.error;
 const WARN: Color = THEME.colors.warning;
@@ -292,7 +290,7 @@ pub(crate) fn __dict_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueR
     }
 }
 
-/// `{Str: Int, Int: Float}.keys() == DictKeys(Str or Int)`
+/// `{Str: Int, Int: Float}.keys() == Str or Int`
 pub(crate) fn dict_keys(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
     let slf = args
         .remove_left_or_key("Self")
@@ -310,11 +308,11 @@ pub(crate) fn dict_keys(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<T
     let union = slf
         .keys()
         .fold(Type::Never, |union, t| ctx.union(&union, t));
-    let keys = poly(DICT_KEYS, vec![ty_tp(union)]);
-    Ok(ValueObj::builtin_class(keys).into())
+    // let keys = poly(DICT_KEYS, vec![ty_tp(union)]);
+    Ok(ValueObj::builtin_type(union).into())
 }
 
-/// `{Str: Int, Int: Float}.values() == DictValues(Int or Float)`
+/// `{Str: Int, Int: Float}.values() == Int or Float`
 pub(crate) fn dict_values(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
     let slf = args
         .remove_left_or_key("Self")
@@ -332,11 +330,11 @@ pub(crate) fn dict_values(mut args: ValueArgs, ctx: &Context) -> EvalValueResult
     let union = slf
         .values()
         .fold(Type::Never, |union, t| ctx.union(&union, t));
-    let values = poly(DICT_VALUES, vec![ty_tp(union)]);
-    Ok(ValueObj::builtin_class(values).into())
+    // let values = poly(DICT_VALUES, vec![ty_tp(union)]);
+    Ok(ValueObj::builtin_type(union).into())
 }
 
-/// `{Str: Int, Int: Float}.items() == DictItems((Str, Int) or (Int, Float))`
+/// `{Str: Int, Int: Float}.items() == (Str, Int) or (Int, Float)`
 pub(crate) fn dict_items(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
     let slf = args
         .remove_left_or_key("Self")
@@ -354,8 +352,8 @@ pub(crate) fn dict_items(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<
     let union = slf.iter().fold(Type::Never, |union, (k, v)| {
         ctx.union(&union, &tuple_t(vec![k.clone(), v.clone()]))
     });
-    let items = poly(DICT_ITEMS, vec![ty_tp(union)]);
-    Ok(ValueObj::builtin_class(items).into())
+    // let items = poly(DICT_ITEMS, vec![ty_tp(union)]);
+    Ok(ValueObj::builtin_type(union).into())
 }
 
 /// `[Int, Str].union() == Int or Str`

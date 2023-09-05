@@ -291,7 +291,7 @@ impl Context {
         /* Mapping */
         let mut mapping =
             Self::builtin_poly_trait(MAPPING, vec![PS::t_nd(TY_K), PS::t_nd(TY_V)], 2);
-        mapping.register_superclass(poly(COLLECTION, vec![ty_tp(V.clone())]), &collection);
+        // mapping.register_superclass(poly(COLLECTION, vec![ty_tp(V.clone())]), &collection);
         mapping.register_superclass(
             poly(INDEXABLE, vec![ty_tp(K.clone()), ty_tp(V.clone())]),
             &indexable,

@@ -1092,6 +1092,9 @@ impl Context {
         Ok(())
     }
 
+    /// Resolution should start at a deeper level.
+    /// For example, if it is a lambda function, the body should be checked before the signature.
+    /// However, a binop call error, etc., is more important then binop operands.
     fn resolve_expr_t(&self, expr: &mut hir::Expr, qnames: &Set<Str>) -> TyCheckResult<()> {
         match expr {
             hir::Expr::Literal(_) => Ok(()),
@@ -1112,20 +1115,20 @@ impl Context {
             }
             hir::Expr::Array(array) => match array {
                 hir::Array::Normal(arr) => {
-                    let t = mem::take(&mut arr.t);
-                    let mut dereferencer = Dereferencer::simple(self, qnames, arr);
-                    arr.t = dereferencer.deref_tyvar(t)?;
                     for elem in arr.elems.pos_args.iter_mut() {
                         self.resolve_expr_t(&mut elem.expr, qnames)?;
                     }
-                    Ok(())
-                }
-                hir::Array::WithLength(arr) => {
                     let t = mem::take(&mut arr.t);
                     let mut dereferencer = Dereferencer::simple(self, qnames, arr);
                     arr.t = dereferencer.deref_tyvar(t)?;
+                    Ok(())
+                }
+                hir::Array::WithLength(arr) => {
                     self.resolve_expr_t(&mut arr.elem, qnames)?;
                     self.resolve_expr_t(&mut arr.len, qnames)?;
+                    let t = mem::take(&mut arr.t);
+                    let mut dereferencer = Dereferencer::simple(self, qnames, arr);
+                    arr.t = dereferencer.deref_tyvar(t)?;
                     Ok(())
                 }
                 other => feature_error!(
@@ -1138,43 +1141,43 @@ impl Context {
             },
             hir::Expr::Tuple(tuple) => match tuple {
                 hir::Tuple::Normal(tup) => {
-                    let t = mem::take(&mut tup.t);
-                    let mut dereferencer = Dereferencer::simple(self, qnames, tup);
-                    tup.t = dereferencer.deref_tyvar(t)?;
                     for elem in tup.elems.pos_args.iter_mut() {
                         self.resolve_expr_t(&mut elem.expr, qnames)?;
                     }
+                    let t = mem::take(&mut tup.t);
+                    let mut dereferencer = Dereferencer::simple(self, qnames, tup);
+                    tup.t = dereferencer.deref_tyvar(t)?;
                     Ok(())
                 }
             },
             hir::Expr::Set(set) => match set {
                 hir::Set::Normal(st) => {
-                    let t = mem::take(&mut st.t);
-                    let mut dereferencer = Dereferencer::simple(self, qnames, st);
-                    st.t = dereferencer.deref_tyvar(t)?;
                     for elem in st.elems.pos_args.iter_mut() {
                         self.resolve_expr_t(&mut elem.expr, qnames)?;
                     }
-                    Ok(())
-                }
-                hir::Set::WithLength(st) => {
                     let t = mem::take(&mut st.t);
                     let mut dereferencer = Dereferencer::simple(self, qnames, st);
                     st.t = dereferencer.deref_tyvar(t)?;
+                    Ok(())
+                }
+                hir::Set::WithLength(st) => {
                     self.resolve_expr_t(&mut st.elem, qnames)?;
                     self.resolve_expr_t(&mut st.len, qnames)?;
+                    let t = mem::take(&mut st.t);
+                    let mut dereferencer = Dereferencer::simple(self, qnames, st);
+                    st.t = dereferencer.deref_tyvar(t)?;
                     Ok(())
                 }
             },
             hir::Expr::Dict(dict) => match dict {
                 hir::Dict::Normal(dic) => {
-                    let t = mem::take(&mut dic.t);
-                    let mut dereferencer = Dereferencer::simple(self, qnames, dic);
-                    dic.t = dereferencer.deref_tyvar(t)?;
                     for kv in dic.kvs.iter_mut() {
                         self.resolve_expr_t(&mut kv.key, qnames)?;
                         self.resolve_expr_t(&mut kv.value, qnames)?;
                     }
+                    let t = mem::take(&mut dic.t);
+                    let mut dereferencer = Dereferencer::simple(self, qnames, dic);
+                    dic.t = dereferencer.deref_tyvar(t)?;
                     Ok(())
                 }
                 other => feature_error!(
@@ -1186,9 +1189,6 @@ impl Context {
                 ),
             },
             hir::Expr::Record(record) => {
-                let t = mem::take(&mut record.t);
-                let mut dereferencer = Dereferencer::simple(self, qnames, record);
-                record.t = dereferencer.deref_tyvar(t)?;
                 for attr in record.attrs.iter_mut() {
                     let t = mem::take(attr.sig.ref_mut_t().unwrap());
                     let mut dereferencer = Dereferencer::simple(self, qnames, &attr.sig);
@@ -1198,6 +1198,9 @@ impl Context {
                         self.resolve_expr_t(chunk, qnames)?;
                     }
                 }
+                let t = mem::take(&mut record.t);
+                let mut dereferencer = Dereferencer::simple(self, qnames, record);
+                record.t = dereferencer.deref_tyvar(t)?;
                 Ok(())
             }
             hir::Expr::BinOp(binop) => {
@@ -1216,11 +1219,6 @@ impl Context {
                 Ok(())
             }
             hir::Expr::Call(call) => {
-                if let Some(t) = call.signature_mut_t() {
-                    let t = mem::take(t);
-                    let mut dereferencer = Dereferencer::simple(self, qnames, call);
-                    *call.signature_mut_t().unwrap() = dereferencer.deref_tyvar(t)?;
-                }
                 self.resolve_expr_t(&mut call.obj, qnames)?;
                 for arg in call.args.pos_args.iter_mut() {
                     self.resolve_expr_t(&mut arg.expr, qnames)?;
@@ -1230,6 +1228,11 @@ impl Context {
                 }
                 for arg in call.args.kw_args.iter_mut() {
                     self.resolve_expr_t(&mut arg.expr, qnames)?;
+                }
+                if let Some(t) = call.signature_mut_t() {
+                    let t = mem::take(t);
+                    let mut dereferencer = Dereferencer::simple(self, qnames, call);
+                    *call.signature_mut_t().unwrap() = dereferencer.deref_tyvar(t)?;
                 }
                 Ok(())
             }
@@ -1263,14 +1266,26 @@ impl Context {
                 } else {
                     qnames.clone()
                 };
+                let mut errs = TyCheckErrors::empty();
+                for chunk in lambda.body.iter_mut() {
+                    if let Err(es) = self.resolve_expr_t(chunk, &qnames) {
+                        errs.extend(es);
+                    }
+                }
+                if let Err(es) = self.resolve_params_t(&mut lambda.params, &qnames) {
+                    errs.extend(es);
+                }
                 let t = mem::take(&mut lambda.t);
                 let mut dereferencer = Dereferencer::simple(self, &qnames, lambda);
-                lambda.t = dereferencer.deref_tyvar(t)?;
-                self.resolve_params_t(&mut lambda.params, &qnames)?;
-                for chunk in lambda.body.iter_mut() {
-                    self.resolve_expr_t(chunk, &qnames)?;
+                match dereferencer.deref_tyvar(t) {
+                    Ok(t) => lambda.t = t,
+                    Err(es) => errs.extend(es),
                 }
-                Ok(())
+                if !errs.is_empty() {
+                    Err(errs)
+                } else {
+                    Ok(())
+                }
             }
             hir::Expr::ClassDef(class_def) => {
                 for def in class_def.methods.iter_mut() {

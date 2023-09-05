@@ -1706,7 +1706,8 @@ impl Context {
                 poly(MAPPING, vec![ty_tp(T.clone()), ty_tp(dict_getitem_out)]),
             )
             .unwrap();
-        let dict_keys_t = fn0_met(dict_t.clone(), proj_call(D.clone(), KEYS, vec![])).quantify();
+        let dict_keys_iterator = poly(DICT_KEYS, vec![ty_tp(proj_call(D.clone(), KEYS, vec![]))]);
+        let dict_keys_t = fn0_met(dict_t.clone(), dict_keys_iterator.clone()).quantify();
         let keys = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             KEYS,
             dict_keys,
@@ -1714,8 +1715,42 @@ impl Context {
             None,
         )));
         dict_.register_builtin_const(KEYS, Visibility::BUILTIN_PUBLIC, keys);
-        let dict_values_t =
-            fn0_met(dict_t.clone(), proj_call(D.clone(), VALUES, vec![])).quantify();
+        let mut dict_iterable = Self::builtin_methods(
+            Some(poly(
+                ITERABLE,
+                vec![ty_tp(proj_call(D.clone(), KEYS, vec![]))],
+            )),
+            2,
+        );
+        // Dict(D) -> DictKeys(D.keys())
+        let t = fn0_met(dict_t.clone(), dict_keys_iterator.clone()).quantify();
+        dict_iterable.register_builtin_py_impl(
+            FUNC_ITER,
+            t,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNDAMENTAL_ITER),
+        );
+        dict_iterable.register_builtin_const(
+            ITERATOR,
+            vis.clone(),
+            ValueObj::builtin_class(dict_keys_iterator),
+        );
+        dict_.register_trait(dict_t.clone(), dict_iterable);
+        dict_
+            .register_marker_trait(
+                self,
+                poly(CONTAINER, vec![ty_tp(proj_call(D.clone(), KEYS, vec![]))]),
+            )
+            .unwrap();
+        let dict_values_t = fn0_met(
+            dict_t.clone(),
+            poly(
+                DICT_VALUES,
+                vec![ty_tp(proj_call(D.clone(), VALUES, vec![]))],
+            ),
+        )
+        .quantify();
         let values = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             VALUES,
             dict_values,
@@ -1723,7 +1758,11 @@ impl Context {
             None,
         )));
         dict_.register_builtin_const(VALUES, Visibility::BUILTIN_PUBLIC, values);
-        let dict_items_t = fn0_met(dict_t.clone(), proj_call(D.clone(), ITEMS, vec![])).quantify();
+        let dict_items_t = fn0_met(
+            dict_t.clone(),
+            poly(DICT_ITEMS, vec![ty_tp(proj_call(D.clone(), ITEMS, vec![]))]),
+        )
+        .quantify();
         let items = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             ITEMS,
             dict_items,
