@@ -16,7 +16,7 @@ assert l == [1, 2]
 l.extend! [3, 4]
 assert l == [1, 2, 3, 4]
 
-l.update_nth! 0, (x: Nat) -> x + 2
+l.update_nth! 0, x -> x + 2
 assert l == [3, 2, 3, 4]
 
 l.sort!()

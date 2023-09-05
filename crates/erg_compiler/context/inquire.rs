@@ -897,6 +897,36 @@ impl Context {
         }
     }
 
+    fn search_callee_info_without_args(
+        &self,
+        obj: &hir::Expr,
+        attr_name: &Option<Identifier>,
+        input: &Input,
+        namespace: &Context,
+    ) -> SingleTyCheckResult<VarInfo> {
+        if obj.ref_t() == Type::FAILURE {
+            // (...Obj) -> Failure
+            return Ok(VarInfo {
+                t: Type::Subr(SubrType::new(
+                    SubrKind::Func,
+                    vec![],
+                    Some(ParamTy::Pos(ref_(Obj))),
+                    vec![],
+                    Failure,
+                )),
+                ..VarInfo::default()
+            });
+        }
+        if let Some(attr_name) = attr_name.as_ref() {
+            self.search_method_info_without_args(obj, attr_name, input, namespace)
+        } else {
+            Ok(VarInfo {
+                t: obj.t(),
+                ..VarInfo::default()
+            })
+        }
+    }
+
     fn resolve_overload(
         &self,
         obj: &hir::Expr,
@@ -1142,6 +1172,150 @@ impl Context {
             if get_hash(obj.ref_t()) != hash {
                 return self
                     .search_method_info(obj, attr_name, pos_args, kw_args, input, namespace);
+            }
+        }
+        Err(TyCheckError::no_attr_error(
+            self.cfg.input.clone(),
+            line!() as usize,
+            attr_name.loc(),
+            namespace.name.to_string(),
+            obj.ref_t(),
+            attr_name.inspect(),
+            self.get_similar_attr(obj.ref_t(), attr_name.inspect()),
+        ))
+    }
+
+    fn search_method_info_without_args(
+        &self,
+        obj: &hir::Expr,
+        attr_name: &Identifier,
+        input: &Input,
+        namespace: &Context,
+    ) -> SingleTyCheckResult<VarInfo> {
+        match self.get_attr_info_from_attributive(obj.ref_t(), attr_name) {
+            Triple::Ok(vi) => {
+                return Ok(vi);
+            }
+            Triple::Err(e) => {
+                return Err(e);
+            }
+            _ => {}
+        }
+        for ctx in self
+            .get_nominal_super_type_ctxs(obj.ref_t())
+            .ok_or_else(|| {
+                TyCheckError::type_not_found(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    obj.loc(),
+                    self.caused_by(),
+                    obj.ref_t(),
+                )
+            })?
+        {
+            if let Some(vi) = ctx
+                .locals
+                .get(attr_name.inspect())
+                .or_else(|| ctx.decls.get(attr_name.inspect()))
+            {
+                self.validate_visibility(attr_name, vi, input, namespace)?;
+                return Ok(vi.clone());
+            }
+            for (_, methods_ctx) in ctx.methods_list.iter() {
+                if let Some(vi) = methods_ctx
+                    .locals
+                    .get(attr_name.inspect())
+                    .or_else(|| methods_ctx.decls.get(attr_name.inspect()))
+                {
+                    self.validate_visibility(attr_name, vi, input, namespace)?;
+                    return Ok(vi.clone());
+                }
+            }
+            if let Some(ctx) = self.get_same_name_context(&ctx.name) {
+                match ctx.rec_get_var_info(attr_name, AccessKind::BoundAttr, input, namespace) {
+                    Triple::Ok(t) => {
+                        return Ok(t);
+                    }
+                    Triple::Err(e) => {
+                        return Err(e);
+                    }
+                    Triple::None => {}
+                }
+            }
+        }
+        if let Ok(singular_ctxs) = self.get_singular_ctxs_by_hir_expr(obj, namespace) {
+            for ctx in singular_ctxs {
+                if let Some(vi) = ctx
+                    .locals
+                    .get(attr_name.inspect())
+                    .or_else(|| ctx.decls.get(attr_name.inspect()))
+                {
+                    self.validate_visibility(attr_name, vi, input, namespace)?;
+                    return Ok(vi.clone());
+                }
+                for (_, method_ctx) in ctx.methods_list.iter() {
+                    if let Some(vi) = method_ctx
+                        .locals
+                        .get(attr_name.inspect())
+                        .or_else(|| method_ctx.decls.get(attr_name.inspect()))
+                    {
+                        self.validate_visibility(attr_name, vi, input, namespace)?;
+                        return Ok(vi.clone());
+                    }
+                }
+            }
+            return Err(TyCheckError::singular_no_attr_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                attr_name.loc(),
+                namespace.name.to_string(),
+                obj.qual_name().as_deref().unwrap_or("?"),
+                obj.ref_t(),
+                attr_name.inspect(),
+                self.get_similar_attr_from_singular(obj, attr_name.inspect()),
+            ));
+        }
+        match self.get_attr_type_by_name(obj, attr_name) {
+            Triple::Ok(method) => {
+                let def_t = self.instantiate_def_type(&method.definition_type).unwrap();
+                self.sub_unify(obj.ref_t(), &def_t, obj, None)
+                    // HACK: change this func's return type to TyCheckResult<Type>
+                    .map_err(|mut errs| errs.remove(0))?;
+                return Ok(method.method_info.clone());
+            }
+            Triple::Err(err) => {
+                return Err(err);
+            }
+            _ => {}
+        }
+        for patch in self.find_patches_of(obj.ref_t()) {
+            if let Some(vi) = patch
+                .locals
+                .get(attr_name.inspect())
+                .or_else(|| patch.decls.get(attr_name.inspect()))
+            {
+                self.validate_visibility(attr_name, vi, input, namespace)?;
+                return Ok(vi.clone());
+            }
+            for (_, methods_ctx) in patch.methods_list.iter() {
+                if let Some(vi) = methods_ctx
+                    .locals
+                    .get(attr_name.inspect())
+                    .or_else(|| methods_ctx.decls.get(attr_name.inspect()))
+                {
+                    self.validate_visibility(attr_name, vi, input, namespace)?;
+                    return Ok(vi.clone());
+                }
+            }
+        }
+        let coerced = self
+            .coerce(obj.t(), &())
+            .map_err(|mut errs| errs.remove(0))?;
+        if &coerced != obj.ref_t() {
+            let hash = get_hash(obj.ref_t());
+            obj.ref_t().destructive_coerce();
+            if get_hash(obj.ref_t()) != hash {
+                return self.search_method_info_without_args(obj, attr_name, input, namespace);
             }
         }
         Err(TyCheckError::no_attr_error(
@@ -1928,6 +2102,37 @@ impl Context {
             )));
         }
         Ok(())
+    }
+
+    pub(crate) fn get_call_t_without_args(
+        &self,
+        obj: &hir::Expr,
+        attr_name: &Option<Identifier>,
+        input: &Input,
+        namespace: &Context,
+    ) -> Result<VarInfo, (Option<VarInfo>, TyCheckErrors)> {
+        let found = self
+            .search_callee_info_without_args(obj, attr_name, input, namespace)
+            .map_err(|err| (None, TyCheckErrors::from(err)))?;
+        log!(
+            "Found:\ncallee: {obj}{}\nfound: {found}",
+            fmt_option!(pre ".", attr_name.as_ref().map(|ident| &ident.name))
+        );
+        let instance = self
+            .instantiate(found.t.clone(), obj)
+            .map_err(|errs| (Some(found.clone()), errs))?;
+        log!("Instantiated:\ninstance: {instance}");
+        debug_assert!(
+            !instance.is_quantified_subr(),
+            "{instance} is quantified subr"
+        );
+        log!(info "Substituted:\ninstance: {instance}");
+        debug_assert!(instance.has_no_qvar(), "{instance} has qvar");
+        let res = VarInfo {
+            t: instance,
+            ..found
+        };
+        Ok(res)
     }
 
     pub(crate) fn get_call_t(

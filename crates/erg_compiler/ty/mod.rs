@@ -556,6 +556,21 @@ impl SubrType {
         }
     }
 
+    /// WARN: This is an infinite iterator
+    ///
+    /// `self` is not included
+    pub fn pos_params(&self) -> impl Iterator<Item = &ParamTy> + Clone {
+        let non_defaults = self
+            .non_default_params
+            .iter()
+            .filter(|pt| !pt.name().is_some_and(|n| &n[..] == "self"));
+        if let Some(var_params) = self.var_params.as_ref() {
+            non_defaults.chain(std::iter::repeat(var_params.as_ref()))
+        } else {
+            non_defaults.chain(std::iter::repeat(&ParamTy::Pos(Type::Failure)))
+        }
+    }
+
     pub fn param_names(&self) -> impl Iterator<Item = &str> + Clone {
         self.non_default_params
             .iter()
@@ -2385,19 +2400,6 @@ impl Type {
             Self::Refinement(refine) => refine.t.union_pair(),
             Self::Or(t1, t2) => Some((*t1.clone(), *t2.clone())),
             _ => None,
-        }
-    }
-
-    pub fn union_types(&self) -> Vec<Type> {
-        match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().union_types(),
-            Self::Refinement(refine) => refine.t.union_types(),
-            Self::Or(t1, t2) => {
-                let mut types = t1.union_types();
-                types.extend(t2.union_types());
-                types
-            }
-            _ => vec![self.clone()],
         }
     }
 

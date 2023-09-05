@@ -14,4 +14,4 @@ v2 = ![1, 1, 1]
 v2.update!((x: [{1}; _]) -> x + [1])
 
 v3 as Array!(Int, _) = ![1, 2, 3]
-v3.update!((x: [Int; _]) -> x + [1] as [Int; _])
+v3.update!(x -> x + [1])

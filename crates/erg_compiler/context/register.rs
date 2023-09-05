@@ -665,26 +665,23 @@ impl Context {
     pub(crate) fn assign_params(
         &mut self,
         params: &mut hir::Params,
-        opt_decl_subr_t: Option<SubrType>,
+        expect: Option<SubrType>,
     ) -> TyCheckResult<()> {
         let mut errs = TyCheckErrors::empty();
-        if let Some(decl_subr_t) = opt_decl_subr_t {
-            debug_assert_eq!(
-                params.non_defaults.len(),
-                decl_subr_t.non_default_params.len()
-            );
-            debug_assert_eq!(params.defaults.len(), decl_subr_t.default_params.len());
+        if let Some(subr_t) = expect {
+            debug_assert_eq!(params.non_defaults.len(), subr_t.non_default_params.len());
+            debug_assert_eq!(params.defaults.len(), subr_t.default_params.len());
             for (non_default, pt) in params
                 .non_defaults
                 .iter_mut()
-                .zip(decl_subr_t.non_default_params.iter())
+                .zip(subr_t.non_default_params.iter())
             {
                 if let Err(es) = self.assign_param(non_default, Some(pt), ParamKind::NonDefault) {
                     errs.extend(es);
                 }
             }
             if let Some(var_params) = &mut params.var_params {
-                if let Some(pt) = &decl_subr_t.var_params {
+                if let Some(pt) = &subr_t.var_params {
                     let pt = pt.clone().map_type(unknown_len_array_t);
                     if let Err(es) = self.assign_param(var_params, Some(&pt), ParamKind::VarParams)
                     {
@@ -694,11 +691,7 @@ impl Context {
                     errs.extend(es);
                 }
             }
-            for (default, pt) in params
-                .defaults
-                .iter_mut()
-                .zip(decl_subr_t.default_params.iter())
-            {
+            for (default, pt) in params.defaults.iter_mut().zip(subr_t.default_params.iter()) {
                 if let Err(es) = self.assign_param(
                     &mut default.sig,
                     Some(pt),

@@ -20,7 +20,7 @@ use erg_parser::desugar::Desugarer;
 use erg_parser::token::{Token, TokenKind};
 
 use crate::ty::constructors::{
-    array_t, dict_t, mono, mono_q, named_free_var, poly, proj, proj_call, ref_, ref_mut,
+    array_t, bounded, dict_t, mono, mono_q, named_free_var, poly, proj, proj_call, ref_, ref_mut,
     refinement, set_t, subr_t, subtypeof, tp_enum, tuple_t, v_enum,
 };
 use crate::ty::free::{Constraint, HasLevel};
@@ -1668,8 +1668,8 @@ impl Context {
         if let Some(fv) = lhs.as_free() {
             let (sub, sup) = fv.get_subsup().unwrap();
             if self.is_trait(&sup) && !self.trait_impl_exists(&sub, &sup) {
-                // link to `Never` to prevent double errors from being reported
-                lhs.destructive_link(&Never);
+                // link to `Never..Obj` to prevent double errors from being reported
+                lhs.destructive_link(&bounded(Never, Type::Obj));
                 let sub = if cfg!(feature = "debug") {
                     sub
                 } else {

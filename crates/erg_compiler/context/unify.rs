@@ -716,6 +716,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 // ?T(<: Add(?T))
                 // ?U(:> {1, 2}, <: Add(?U)) ==> {1, 2}
                 sup_fv.dummy_link();
+                sub_fv.dummy_link();
                 if lsub.qual_name() == rsub.qual_name() {
                     for (lps, rps) in lsub.typarams().iter().zip(rsub.typarams().iter()) {
                         self.sub_unify_tp(lps, rps, None, false).map_err(|errs| {
@@ -735,6 +736,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     }
                 }
                 sup_fv.undo();
+                sub_fv.undo();
                 let intersec = self.ctx.intersection(&lsup, &rsup);
                 if intersec == Type::Never {
                     return Err(TyCheckErrors::from(TyCheckError::subtyping_error(
@@ -765,7 +767,9 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 }
                 // e.g. intersec == Int, rsup == Add(?T)
                 //   => ?T(:> Int)
-                self.sub_unify(&intersec, &rsup)?;
+                if !(intersec.is_recursive() && rsup.is_recursive()) {
+                    self.sub_unify(&intersec, &rsup)?;
+                }
                 self.sub_unify(&rsub, &union)?;
                 // self.sub_unify(&intersec, &lsup, loc, param_name)?;
                 // self.sub_unify(&lsub, &union, loc, param_name)?;
