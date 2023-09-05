@@ -1,0 +1,2 @@
+.call_method obj, x = obj.method(x) # ERR
+.member obj = obj.member # ERR

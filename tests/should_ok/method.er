@@ -1,0 +1,8 @@
+C = Class { .member = Int }
+C.
+    method self, x: Int =
+        _ = self
+        x
+
+.call_method obj, x = obj.method(x)
+.member obj = obj.member

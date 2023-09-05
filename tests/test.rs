@@ -192,6 +192,11 @@ fn exec_map() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_method() -> Result<(), ()> {
+    expect_success("tests/should_ok/method.er", 0)
+}
+
+#[test]
 fn exec_mut() -> Result<(), ()> {
     expect_success("examples/mut.er", 0)
 }
@@ -469,6 +474,11 @@ fn exec_tuple_err() -> Result<(), ()> {
 #[test]
 fn exec_callable() -> Result<(), ()> {
     expect_failure("tests/should_err/callable.er", 0, 6)
+}
+
+#[test]
+fn exec_method_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/method.er", 0, 2)
 }
 
 #[test]

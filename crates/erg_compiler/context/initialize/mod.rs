@@ -966,6 +966,9 @@ impl Context {
                 );
             }
         }
+        for (_, methods) in ctx.methods_list.iter() {
+            self.register_methods(t, methods);
+        }
     }
 
     fn register_builtin_patch(

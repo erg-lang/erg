@@ -790,15 +790,15 @@ impl Context {
 
     /// get type from given attributive type (Record).
     /// not ModuleType or ClassType etc.
-    /// if `t == Never`, returns `VarInfo::ILLEGAL`
+    /// if `t == Failure`, returns `VarInfo::ILLEGAL`
     fn get_attr_info_from_attributive(
         &self,
         t: &Type,
         ident: &Identifier,
     ) -> Triple<VarInfo, TyCheckError> {
         match t {
-            // (obj: Never).foo: Never
-            Type::Never => Triple::Ok(VarInfo::ILLEGAL),
+            // (obj: Failure).foo: Failure
+            Type::Failure => Triple::Ok(VarInfo::ILLEGAL),
             Type::FreeVar(fv) if fv.is_linked() => {
                 self.get_attr_info_from_attributive(&fv.crack(), ident)
             }
@@ -1233,8 +1233,8 @@ impl Context {
             }
             if let Some(ctx) = self.get_same_name_context(&ctx.name) {
                 match ctx.rec_get_var_info(attr_name, AccessKind::BoundAttr, input, namespace) {
-                    Triple::Ok(t) => {
-                        return Ok(t);
+                    Triple::Ok(vi) => {
+                        return Ok(vi);
                     }
                     Triple::Err(e) => {
                         return Err(e);

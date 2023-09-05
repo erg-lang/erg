@@ -2368,6 +2368,7 @@ impl ASTLowerer {
 
     fn check_collision_and_push(&mut self, class: Type, impl_trait: Option<Type>) {
         let methods = self.module.context.pop();
+        self.module.context.register_methods(&class, &methods);
         let Some((_, class_root)) = self.module.context.get_mut_nominal_type_ctx(&class) else {
             log!(err "{class} not found");
             return;
