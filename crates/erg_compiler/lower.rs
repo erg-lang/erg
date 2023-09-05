@@ -11,6 +11,7 @@ use erg_common::error::{Location, MultiErrorDisplay};
 use erg_common::fresh::FreshNameGenerator;
 use erg_common::set;
 use erg_common::set::Set;
+use erg_common::traits::OptionalTranspose;
 use erg_common::traits::{ExitStatus, Locational, NoTypeDisplay, Runnable, Stream};
 use erg_common::triple::Triple;
 use erg_common::{fmt_option, fn_name, log, switch_lang, Str};
@@ -294,15 +295,21 @@ impl ASTLowerer {
     fn lower_normal_array(
         &mut self,
         array: ast::NormalArray,
-        _expect: Option<&Type>,
+        expect: Option<&Type>,
     ) -> LowerResult<hir::NormalArray> {
         log!(info "entered {}({array})", fn_name!());
         let mut new_array = vec![];
         let eval_result = self.module.context.eval_const_normal_array(&array);
         let (elems, ..) = array.elems.deconstruct();
+        let expect_elem = expect.and_then(|t| {
+            self.module
+                .context
+                .convert_tp_into_type(t.typarams().get(0)?.clone())
+                .ok()
+        });
         let mut union = Type::Never;
         for elem in elems.into_iter() {
-            let elem = self.lower_expr(elem.expr, None)?;
+            let elem = self.lower_expr(elem.expr, expect_elem.as_ref())?;
             let union_ = self.module.context.union(&union, elem.ref_t());
             if let Some((l, r)) = union_.union_pair() {
                 match (l.is_unbound_var(), r.is_unbound_var()) {
@@ -352,12 +359,18 @@ impl ASTLowerer {
     fn lower_array_with_length(
         &mut self,
         array: ast::ArrayWithLength,
-        _expect: Option<&Type>,
+        expect: Option<&Type>,
     ) -> LowerResult<hir::ArrayWithLength> {
         log!(info "entered {}({array})", fn_name!());
-        let elem = self.lower_expr(array.elem.expr, None)?;
+        let expect_elem = expect.and_then(|t| {
+            self.module
+                .context
+                .convert_tp_into_type(t.typarams().get(0)?.clone())
+                .ok()
+        });
+        let elem = self.lower_expr(array.elem.expr, expect_elem.as_ref())?;
         let array_t = self.gen_array_with_length_type(&elem, &array.len);
-        let len = self.lower_expr(*array.len, None)?;
+        let len = self.lower_expr(*array.len, Some(&Type::Nat))?;
         let hir_array = hir::ArrayWithLength::new(array.l_sqbr, array.r_sqbr, array_t, elem, len);
         Ok(hir_array)
     }
@@ -384,13 +397,20 @@ impl ASTLowerer {
     fn lower_normal_tuple(
         &mut self,
         tuple: ast::NormalTuple,
-        _expect: Option<&Type>,
+        expect: Option<&Type>,
     ) -> LowerResult<hir::NormalTuple> {
         log!(info "entered {}({tuple})", fn_name!());
+        let expect = expect.and_then(|exp| {
+            self.module
+                .context
+                .convert_type_to_tuple_type(exp.clone())
+                .ok()
+        });
         let mut new_tuple = vec![];
         let (elems, .., paren) = tuple.elems.deconstruct();
-        for elem in elems {
-            let elem = self.lower_expr(elem.expr, None)?;
+        let expect_ts = expect.transpose(elems.len());
+        for (elem, expect) in elems.into_iter().zip(expect_ts) {
+            let elem = self.lower_expr(elem.expr, expect.as_ref())?;
             new_tuple.push(elem);
         }
         Ok(hir::NormalTuple::new(hir::Args::values(new_tuple, paren)))
@@ -463,14 +483,20 @@ impl ASTLowerer {
     fn lower_normal_set(
         &mut self,
         set: ast::NormalSet,
-        _expect: Option<&Type>,
+        expect: Option<&Type>,
     ) -> LowerResult<hir::NormalSet> {
         log!(info "entered {}({set})", fn_name!());
         let (elems, ..) = set.elems.deconstruct();
+        let expect_elem = expect.and_then(|t| {
+            self.module
+                .context
+                .convert_tp_into_type(t.typarams().get(0)?.clone())
+                .ok()
+        });
         let mut union = Type::Never;
         let mut new_set = vec![];
         for elem in elems {
-            let elem = self.lower_expr(elem.expr, None)?;
+            let elem = self.lower_expr(elem.expr, expect_elem.as_ref())?;
             union = self.module.context.union(&union, elem.ref_t());
             if ERG_MODE && union.is_union_type() {
                 return Err(LowerErrors::from(LowerError::syntax_error(
@@ -542,12 +568,18 @@ impl ASTLowerer {
     fn lower_set_with_length(
         &mut self,
         set: ast::SetWithLength,
-        _expect: Option<&Type>,
+        expect: Option<&Type>,
     ) -> LowerResult<hir::SetWithLength> {
         log!("entered {}({set})", fn_name!());
-        let elem = self.lower_expr(set.elem.expr, None)?;
+        let expect_elem = expect.and_then(|t| {
+            self.module
+                .context
+                .convert_tp_into_type(t.typarams().get(0)?.clone())
+                .ok()
+        });
+        let elem = self.lower_expr(set.elem.expr, expect_elem.as_ref())?;
         let set_t = self.gen_set_with_length_type(&elem, &set.len);
-        let len = self.lower_expr(*set.len, None)?;
+        let len = self.lower_expr(*set.len, Some(&Type::Nat))?;
         let hir_set = hir::SetWithLength::new(set.l_brace, set.r_brace, set_t, elem, len);
         Ok(hir_set)
     }
@@ -585,14 +617,23 @@ impl ASTLowerer {
     fn lower_normal_dict(
         &mut self,
         dict: ast::NormalDict,
-        _expect: Option<&Type>,
+        expect: Option<&Type>,
     ) -> LowerResult<hir::NormalDict> {
         log!(info "enter {}({dict})", fn_name!());
         let mut union = dict! {};
         let mut new_kvs = vec![];
-        for kv in dict.kvs {
-            let key = self.lower_expr(kv.key, None)?;
-            let value = self.lower_expr(kv.value, None)?;
+        let expect = expect
+            .and_then(|exp| {
+                self.module
+                    .context
+                    .convert_type_to_dict_type(exp.clone())
+                    .ok()
+            })
+            .map(|dict| dict.into_iter().collect::<Vec<_>>());
+        let expect_kvs = expect.transpose(dict.kvs.len());
+        for (kv, expect) in dict.kvs.into_iter().zip(expect_kvs) {
+            let key = self.lower_expr(kv.key, expect.as_ref().map(|(k, _)| k))?;
+            let value = self.lower_expr(kv.value, expect.as_ref().map(|(_, v)| v))?;
             if let Some(popped_val_t) = union.insert(key.t(), value.t()) {
                 if PYTHON_MODE {
                     let val_t = union.get_mut(key.ref_t()).unwrap();
@@ -2434,6 +2475,9 @@ impl ASTLowerer {
             .module
             .context
             .instantiate_typespec(&tasc.t_spec.t_spec)?;
+        let expect = expect.map_or(Some(&spec_t), |exp| {
+            self.module.context.min(exp, &spec_t).ok().or(Some(&spec_t))
+        });
         let expr = self.lower_expr(*tasc.expr, expect)?;
         match kind {
             AscriptionKind::TypeOf | AscriptionKind::AsCast => {
