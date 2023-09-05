@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use erg_common::config::ErgConfig;
 use erg_common::consts::DEBUG_MODE;
-use erg_common::error::MultiErrorDisplay;
+use erg_common::error::{Location, MultiErrorDisplay};
 use erg_common::io::{DummyStdin, Input, Output};
 use erg_common::python_util::PythonVersion;
 use erg_common::spawn::exec_new_thread;
@@ -188,6 +188,30 @@ pub(crate) fn expect_failure(
                 );
                 Err(())
             }
+        }
+    }
+}
+
+pub(crate) fn expect_error_location(
+    file_path: &'static str,
+    locs: Vec<Location>,
+) -> Result<(), ()> {
+    match exec_compiler(file_path) {
+        Ok(_) => {
+            println!("err[{file_path}]: compilation should fail, but end with 0");
+            Err(())
+        }
+        Err(errs) => {
+            for (err, loc) in errs.into_iter().zip(locs) {
+                if err.core.loc != loc {
+                    println!(
+                        "err[{file_path}]: error location should be {loc}, but got {}",
+                        err.core.loc
+                    );
+                    return Err(());
+                }
+            }
+            Ok(())
         }
     }
 }

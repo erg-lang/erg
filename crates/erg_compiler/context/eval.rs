@@ -20,7 +20,7 @@ use erg_parser::desugar::Desugarer;
 use erg_parser::token::{Token, TokenKind};
 
 use crate::ty::constructors::{
-    array_t, dict_t, mono, mono_q, named_free_var, poly, proj, proj_call, ref_, ref_mut,
+    array_t, bounded, dict_t, mono, mono_q, named_free_var, poly, proj, proj_call, ref_, ref_mut,
     refinement, set_t, subr_t, subtypeof, tp_enum, tuple_t, v_enum,
 };
 use crate::ty::free::{Constraint, HasLevel};
@@ -1668,8 +1668,8 @@ impl Context {
         if let Some(fv) = lhs.as_free() {
             let (sub, sup) = fv.get_subsup().unwrap();
             if self.is_trait(&sup) && !self.trait_impl_exists(&sub, &sup) {
-                // link to `Never` to prevent double errors from being reported
-                lhs.destructive_link(&Never);
+                // link to `Never..Obj` to prevent double errors from being reported
+                lhs.destructive_link(&bounded(Never, Type::Obj));
                 let sub = if cfg!(feature = "debug") {
                     sub
                 } else {
@@ -1790,6 +1790,38 @@ impl Context {
                 self.convert_tp_into_value(fv.crack().clone())
             }
             TyParam::Value(v) => Ok(v),
+            TyParam::Array(arr) => {
+                let mut new = vec![];
+                for elem in arr {
+                    let elem = self.convert_tp_into_value(elem)?;
+                    new.push(elem);
+                }
+                Ok(ValueObj::Array(new.into()))
+            }
+            TyParam::Tuple(tys) => {
+                let mut new = vec![];
+                for elem in tys {
+                    let elem = self.convert_tp_into_value(elem)?;
+                    new.push(elem);
+                }
+                Ok(ValueObj::Tuple(new.into()))
+            }
+            TyParam::Record(rec) => {
+                let mut new = dict! {};
+                for (name, elem) in rec {
+                    let elem = self.convert_tp_into_value(elem)?;
+                    new.insert(name, elem);
+                }
+                Ok(ValueObj::Record(new))
+            }
+            TyParam::Set(set) => {
+                let mut new = set! {};
+                for elem in set {
+                    let elem = self.convert_tp_into_value(elem)?;
+                    new.insert(elem);
+                }
+                Ok(ValueObj::Set(new))
+            }
             other => self.convert_tp_into_type(other).map(ValueObj::builtin_type),
         }
     }
@@ -1931,12 +1963,12 @@ impl Context {
         }
     }
 
-    fn _convert_type_to_dict_type(&self, ty: Type) -> Result<Dict<Type, Type>, ()> {
+    pub(crate) fn convert_type_to_dict_type(&self, ty: Type) -> Result<Dict<Type, Type>, ()> {
         match ty {
             Type::FreeVar(fv) if fv.is_linked() => {
-                self._convert_type_to_dict_type(fv.crack().clone())
+                self.convert_type_to_dict_type(fv.crack().clone())
             }
-            Type::Refinement(refine) => self._convert_type_to_dict_type(*refine.t),
+            Type::Refinement(refine) => self.convert_type_to_dict_type(*refine.t),
             Type::Poly { name, params } if &name[..] == "Dict" => {
                 let dict = Dict::try_from(params[0].clone())?;
                 let mut new_dict = dict! {};
@@ -1946,6 +1978,25 @@ impl Context {
                     new_dict.insert(k, v);
                 }
                 Ok(new_dict)
+            }
+            _ => Err(()),
+        }
+    }
+
+    pub(crate) fn convert_type_to_tuple_type(&self, ty: Type) -> Result<Vec<Type>, ()> {
+        match ty {
+            Type::FreeVar(fv) if fv.is_linked() => {
+                self.convert_type_to_tuple_type(fv.crack().clone())
+            }
+            Type::Refinement(refine) => self.convert_type_to_tuple_type(*refine.t),
+            Type::Poly { name, params } if &name[..] == "Tuple" => {
+                let tps = Vec::try_from(params[0].clone())?;
+                let mut tys = vec![];
+                for elem in tps.into_iter() {
+                    let elem = self.convert_tp_into_type(elem).map_err(|_| ())?;
+                    tys.push(elem);
+                }
+                Ok(tys)
             }
             _ => Err(()),
         }

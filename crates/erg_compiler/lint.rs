@@ -260,7 +260,7 @@ impl ASTLowerer {
             self.errs.extend(errs);
         }
         for chunk in ast.module.into_iter() {
-            match self.lower_chunk(chunk) {
+            match self.lower_chunk(chunk, None) {
                 Ok(chunk) => {
                     module.push(chunk);
                 }

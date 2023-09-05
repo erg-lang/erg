@@ -1,5 +1,8 @@
 mod common;
-use common::{expect_compile_success, expect_end_with, expect_failure, expect_success};
+use common::{
+    expect_compile_success, expect_end_with, expect_error_location, expect_failure, expect_success,
+};
+use erg_common::error::Location;
 use erg_common::python_util::{module_exists, opt_which_python};
 
 #[test]
@@ -516,4 +519,12 @@ fn exec_var_args_err() -> Result<(), ()> {
 #[test]
 fn exec_visibility() -> Result<(), ()> {
     expect_failure("tests/should_err/visibility.er", 2, 7)
+}
+
+#[test]
+fn exec_err_loc() -> Result<(), ()> {
+    expect_error_location(
+        "tests/should_err/err_loc.er",
+        vec![Location::range(2, 11, 2, 16), Location::range(7, 15, 7, 18)],
+    )
 }

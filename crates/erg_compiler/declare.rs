@@ -155,6 +155,19 @@ impl ASTLowerer {
         res
     }
 
+    fn fake_lower_literal(&self, lit: ast::Literal) -> LowerResult<hir::Literal> {
+        let loc = lit.loc();
+        let lit = hir::Literal::try_from(lit.token).map_err(|_| {
+            LowerError::invalid_literal(
+                self.cfg.input.clone(),
+                line!() as usize,
+                loc,
+                self.module.context.caused_by(),
+            )
+        })?;
+        Ok(lit)
+    }
+
     fn fake_lower_acc(&self, acc: ast::Accessor) -> LowerResult<hir::Accessor> {
         // TypeApp is lowered in `fake_lower_expr`
         match acc {
@@ -501,7 +514,7 @@ impl ASTLowerer {
 
     pub(crate) fn fake_lower_expr(&self, expr: ast::Expr) -> LowerResult<hir::Expr> {
         match expr {
-            ast::Expr::Literal(lit) => Ok(hir::Expr::Literal(self.lower_literal(lit)?)),
+            ast::Expr::Literal(lit) => Ok(hir::Expr::Literal(self.fake_lower_literal(lit)?)),
             ast::Expr::BinOp(binop) => Ok(hir::Expr::BinOp(self.fake_lower_binop(binop)?)),
             ast::Expr::UnaryOp(unop) => Ok(hir::Expr::UnaryOp(self.fake_lower_unaryop(unop)?)),
             ast::Expr::Array(arr) => Ok(hir::Expr::Array(self.fake_lower_array(arr)?)),
@@ -857,9 +870,11 @@ impl ASTLowerer {
         log!(info "entered {}", fn_name!());
         match expr {
             ast::Expr::Literal(lit) if lit.is_doc_comment() => {
-                Ok(hir::Expr::Literal(self.lower_literal(lit)?))
+                Ok(hir::Expr::Literal(self.lower_literal(lit, None)?))
             }
-            ast::Expr::Accessor(acc) if allow_acc => Ok(hir::Expr::Accessor(self.lower_acc(acc)?)),
+            ast::Expr::Accessor(acc) if allow_acc => {
+                Ok(hir::Expr::Accessor(self.lower_acc(acc, None)?))
+            }
             ast::Expr::Def(def) => Ok(hir::Expr::Def(self.declare_def(def)?)),
             ast::Expr::TypeAscription(tasc) => Ok(hir::Expr::TypeAsc(self.declare_ident(tasc)?)),
             ast::Expr::Call(call)
@@ -868,7 +883,7 @@ impl ASTLowerer {
                     .map(|op| op.is_import())
                     .unwrap_or(false) =>
             {
-                Ok(hir::Expr::Call(self.lower_call(call)?))
+                Ok(hir::Expr::Call(self.lower_call(call, None)?))
             }
             other => Err(LowerErrors::from(LowerError::declare_error(
                 self.cfg().input.clone(),

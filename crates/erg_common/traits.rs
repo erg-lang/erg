@@ -1022,6 +1022,12 @@ impl Locational for () {
     }
 }
 
+impl<T: Locational, const N: usize> Locational for [T; N] {
+    fn loc(&self) -> Location {
+        Location::stream(self)
+    }
+}
+
 #[macro_export]
 macro_rules! impl_locational_for_enum {
     ($Enum: ident; $($Variant: ident $(,)?)*) => {
@@ -1260,4 +1266,27 @@ pub trait StructuralEq {
 
 pub trait __Str__ {
     fn __str__(&self) -> String;
+}
+
+pub trait OptionalTranspose {
+    type Output;
+    type Fill;
+    /// `self: Option<_>`
+    fn transpose(self, fill: Self::Fill) -> Self::Output
+    where
+        Self: Sized;
+}
+
+impl<T: Clone> OptionalTranspose for Option<Vec<T>> {
+    type Output = Vec<Option<T>>;
+    type Fill = usize;
+    fn transpose(self, fill: Self::Fill) -> Self::Output
+    where
+        Self: Sized,
+    {
+        match self {
+            Some(v) => v.into_iter().map(Some).collect(),
+            None => vec![None; fill],
+        }
+    }
 }

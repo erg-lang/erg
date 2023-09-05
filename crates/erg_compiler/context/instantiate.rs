@@ -848,9 +848,7 @@ impl Context {
             }
             // HACK: {op: |T|(T -> T) | op == F} => ?T -> ?T
             Refinement(refine) if refine.t.is_quantified_subr() => {
-                let quant = enum_unwrap!(*refine.t, Type::Quantified);
-                let mut tmp_tv_cache = TyVarCache::new(self.level, self);
-                let t = self.instantiate_t_inner(*quant, &mut tmp_tv_cache, callee)?;
+                let t = self.instantiate(*refine.t, callee)?;
                 match &t {
                     Type::Subr(subr) => {
                         if let Some(self_t) = subr.self_t() {
