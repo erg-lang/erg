@@ -103,7 +103,7 @@ dependencies = [
 
 [[package]]
 name = "els"
-version = "0.1.32-nightly.1"
+version = "0.1.32-nightly.2"
 dependencies = [
  "erg_common",
  "erg_compiler",
@@ -115,7 +115,7 @@ dependencies = [
 
 [[package]]
 name = "erg"
-version = "0.6.20-nightly.1"
+version = "0.6.20-nightly.2"
 dependencies = [
  "els",
  "erg_common",
@@ -125,7 +125,7 @@ dependencies = [
 
 [[package]]
 name = "erg_common"
-version = "0.6.20-nightly.1"
+version = "0.6.20-nightly.2"
 dependencies = [
  "backtrace-on-stack-overflow",
  "crossterm",
@@ -135,7 +135,7 @@ dependencies = [
 
 [[package]]
 name = "erg_compiler"
-version = "0.6.20-nightly.1"
+version = "0.6.20-nightly.2"
 dependencies = [
  "erg_common",
  "erg_parser",
@@ -143,7 +143,7 @@ dependencies = [
 
 [[package]]
 name = "erg_parser"
-version = "0.6.20-nightly.1"
+version = "0.6.20-nightly.2"
 dependencies = [
  "erg_common",
  "unicode-xid",
@@ -500,9 +500,9 @@ checksum = "62bb4feee49fdd9f707ef802e22365a35de4b7b299de4763d44bfea899442ff9"
 
 [[package]]
 name = "syn"
-version = "2.0.30"
+version = "2.0.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ddc1f908d32ec46858c2d3b3daa00cc35bf4b6841ce4355c7bb3eedf2283a68"
+checksum = "718fa2415bcb8d8bd775917a1bf12a7931b6dfa890753378538118181e0cb398"
 dependencies = [
  "proc-macro2",
  "quote",
