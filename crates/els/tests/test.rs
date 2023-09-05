@@ -108,20 +108,6 @@ impl DummyClient {
         }
     }
 
-    #[allow(dead_code)]
-    fn wait_output(&mut self) -> Result<String, Box<dyn std::error::Error>> {
-        let mut buf = String::new();
-        loop {
-            self.stdout_buffer.read_to_string(&mut buf)?;
-            if buf.is_empty() {
-                safe_yield();
-            } else {
-                break;
-            }
-        }
-        Ok(buf)
-    }
-
     /// the server periodically outputs health check messages
     fn wait_outputs(&mut self, mut size: usize) -> Result<String, Box<dyn std::error::Error>> {
         let mut buf = String::new();
@@ -146,10 +132,6 @@ impl DummyClient {
         loop {
             let mut buf = String::new();
             self.stdout_buffer.read_to_string(&mut buf)?;
-            while !buf.ends_with('}') {
-                safe_yield();
-                self.stdout_buffer.read_to_string(&mut buf)?;
-            }
             for msg in parse_msgs(&buf) {
                 if msg.get("method").is_some_and(|_| msg.get("id").is_some()) {
                     self.handle_server_request(&msg);
