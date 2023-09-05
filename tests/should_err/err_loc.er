@@ -1,0 +1,7 @@
+for! "aaa", a =>
+    print! a + 1 # ERR
+
+for! zip([1+1], ["a"+"b"]), ((i, s),) => # i: Nat, s: Str
+    print! i + 1
+    print! s + "b"
+    print! i + "a" # ERR
