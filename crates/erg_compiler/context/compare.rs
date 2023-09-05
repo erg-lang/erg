@@ -9,7 +9,7 @@ use erg_common::{assume_unreachable, log};
 use erg_common::{Str, Triple};
 
 use crate::context::initialize::const_func::sub_tpdict_get;
-use crate::ty::constructors::{and, bounded, not, or, poly};
+use crate::ty::constructors::{self, and, bounded, not, or, poly};
 use crate::ty::free::{Constraint, FreeKind, FreeTyVar};
 use crate::ty::typaram::{TyParam, TyParamOrdering};
 use crate::ty::value::ValueObj;
@@ -1263,15 +1263,18 @@ impl Context {
 
     /// ```erg
     /// union_add(Int or ?T(:> NoneType), Nat) == Int or ?T
+    /// union_add(Nat or ?T(:> NoneType), Int) == Int or ?T
     /// union_add(Int or ?T(:> NoneType), Str) == Int or ?T or Str
     /// ```
     fn union_add(&self, union: &Type, elem: &Type) -> Type {
-        let union_ts = union.union_types();
-        let bounded = union_ts.into_iter().map(|t| t.lower_bounded());
+        let ors = union.ors();
+        let bounded = ors.iter().map(|t| t.lower_bounded());
         for t in bounded {
             if self.supertype_of(&t, elem) {
                 return union.clone();
-            }
+            } /* else if ors.contains(&t) && self.subtype_of(&t, elem) {
+                return constructors::ors(ors.exclude(&t).include(elem.clone()));
+              } */
         }
         or(union.clone(), elem.clone())
     }
@@ -1353,10 +1356,32 @@ impl Context {
             },
             (_, Not(r)) => self.diff(lhs, r),
             (Not(l), _) => self.diff(rhs, l),
+            // A and B and A == A and B
+            (other, and @ And(_, _)) | (and @ And(_, _), other) => {
+                self.intersection_add(and, other)
+            }
             // overloading
             (l, r) if l.is_subr() && r.is_subr() => and(lhs.clone(), rhs.clone()),
             _ => self.simple_intersection(lhs, rhs),
         }
+    }
+
+    /// ```erg
+    /// intersection_add(Nat and ?T(:> NoneType), Int) == Nat and ?T
+    /// intersection_add(Int and ?T(:> NoneType), Nat) == Nat and ?T
+    /// intersection_add(Int and ?T(:> NoneType), Str) == Never
+    /// ```
+    fn intersection_add(&self, intersection: &Type, elem: &Type) -> Type {
+        let ands = intersection.ands();
+        let bounded = ands.iter().map(|t| t.lower_bounded());
+        for t in bounded {
+            if self.subtype_of(&t, elem) {
+                return intersection.clone();
+            } else if self.supertype_of(&t, elem) {
+                return constructors::ands(ands.exclude(&t).include(elem.clone()));
+            }
+        }
+        and(intersection.clone(), elem.clone())
     }
 
     fn simple_intersection(&self, lhs: &Type, rhs: &Type) -> Type {
@@ -1405,7 +1430,7 @@ impl Context {
         &self,
         refine: RefinementType,
     ) -> Result<Type, RefinementType> {
-        let unions = refine.t.union_types();
+        let unions = refine.t.ors();
         let complement = Type::from(self.type_from_pred(refine.pred.clone().invert()));
         let union = unions
             .into_iter()

@@ -110,6 +110,13 @@ impl<T: Hash> Set<T> {
     pub fn iter(&self) -> Iter<'_, T> {
         self.elems.iter()
     }
+
+    pub fn to_vec(&self) -> Vec<T>
+    where
+        T: Clone,
+    {
+        self.iter().cloned().collect()
+    }
 }
 
 impl<T: Hash> IntoIterator for Set<T> {
@@ -271,6 +278,16 @@ impl<T: Hash + Eq + Clone> Set<T> {
 
     pub fn diff_iter<'a>(&'a self, other: &'a Set<T>) -> impl Iterator<Item = &'a T> {
         self.elems.difference(&other.elems)
+    }
+
+    pub fn include(mut self, other: T) -> Set<T> {
+        self.insert(other);
+        self
+    }
+
+    pub fn exclude(mut self, other: &T) -> Set<T> {
+        self.remove(other);
+        self
     }
 }
 

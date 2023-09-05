@@ -451,6 +451,7 @@ pub fn and(lhs: Type, rhs: Type) -> Type {
                 Type::And(Box::new(Type::And(l, r)), Box::new(other))
             }
         }
+        (Type::Obj, other) | (other, Type::Obj) => other,
         (lhs, rhs) => Type::And(Box::new(lhs), Box::new(rhs)),
     }
 }
@@ -466,8 +467,17 @@ pub fn or(lhs: Type, rhs: Type) -> Type {
                 Type::Or(Box::new(Type::Or(l, r)), Box::new(other))
             }
         }
+        (Type::Never, other) | (other, Type::Never) => other,
         (lhs, rhs) => Type::Or(Box::new(lhs), Box::new(rhs)),
     }
+}
+
+pub fn ors(tys: impl IntoIterator<Item = Type>) -> Type {
+    tys.into_iter().fold(Type::Never, or)
+}
+
+pub fn ands(tys: impl IntoIterator<Item = Type>) -> Type {
+    tys.into_iter().fold(Type::Obj, and)
 }
 
 pub fn not(ty: Type) -> Type {

@@ -692,10 +692,10 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
         }
         match (maybe_sub, maybe_sup) {
             (FreeVar(sub_fv), _) if sub_fv.is_linked() => {
-                self.sub_unify(&sub_fv.crack(), maybe_sup)?;
+                self.sub_unify(sub_fv.unsafe_crack(), maybe_sup)?;
             }
             (_, FreeVar(sup_fv)) if sup_fv.is_linked() => {
-                self.sub_unify(maybe_sub, &sup_fv.crack())?;
+                self.sub_unify(maybe_sub, sup_fv.unsafe_crack())?;
             }
             // lfv's sup can be shrunk (take min), rfv's sub can be expanded (take union)
             // lfvのsupは縮小可能(minを取る)、rfvのsubは拡大可能(unionを取る)
@@ -957,7 +957,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     // This increases the quality of error reporting
                     // (Try commenting out this part and run tests/should_err/subtyping.er to see the error report changes on lines 29-30)
                     if maybe_sub.union_size().max(sub.union_size()) < new_sub.union_size()
-                        && new_sub.union_types().iter().any(|t| !t.is_unbound_var())
+                        && new_sub.ors().iter().any(|t| !t.is_unbound_var())
                     {
                         let (l, r) = new_sub.union_pair().unwrap_or((maybe_sub.clone(), sub));
                         let unified = self.unify(&l, &r);

@@ -953,7 +953,7 @@ impl Context {
                 self.caused_by(),
                 subr_t.non_default_params,
                 subr_t.default_params,
-                intersecs,
+                intersecs.iter(),
             ))
         }
     }
