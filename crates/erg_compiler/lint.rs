@@ -93,7 +93,7 @@ impl ASTLowerer {
         let mut warns = LowerWarnings::empty();
         match expr {
             hir::Expr::Def(def) => {
-                let last = def.body.block.len() - 1;
+                let last = def.body.block.len().saturating_sub(1);
                 for (i, chunk) in def.body.block.iter().enumerate() {
                     if i == last {
                         if let Err(ws) = self.block_use_check(chunk) {
@@ -107,7 +107,7 @@ impl ASTLowerer {
                 }
             }
             hir::Expr::Lambda(lambda) => {
-                let last = lambda.body.len() - 1;
+                let last = lambda.body.len().saturating_sub(1);
                 for (i, chunk) in lambda.body.iter().enumerate() {
                     if i == last {
                         if let Err(ws) = self.block_use_check(chunk) {

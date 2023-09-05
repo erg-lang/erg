@@ -44,7 +44,7 @@ fn sort_hovers(mut contents: Vec<MarkedString>) -> Vec<MarkedString> {
         .iter()
         .rposition(|marked| language(marked) == Some("erg"));
     if let Some(erg_idx) = erg_idx {
-        let last = contents.len() - 1;
+        let last = contents.len().saturating_sub(1);
         if erg_idx != last {
             contents.swap(erg_idx, last);
         }

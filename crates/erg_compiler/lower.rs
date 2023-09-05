@@ -2669,7 +2669,7 @@ impl ASTLowerer {
     ) -> LowerResult<hir::Block> {
         log!(info "entered {}", fn_name!());
         let mut hir_block = Vec::with_capacity(ast_block.len());
-        let last = ast_block.len() - 1;
+        let last = ast_block.len().saturating_sub(1);
         for (i, chunk) in ast_block.into_iter().enumerate() {
             let expect = if i == last { expect } else { None };
             let chunk = match self.lower_chunk(chunk, expect) {
@@ -2691,7 +2691,7 @@ impl ASTLowerer {
     ) -> LowerResult<hir::Dummy> {
         log!(info "entered {}", fn_name!());
         let mut hir_dummy = Vec::with_capacity(ast_dummy.len());
-        let last = ast_dummy.len() - 1;
+        let last = ast_dummy.len().saturating_sub(1);
         for (i, chunk) in ast_dummy.into_iter().enumerate() {
             let expect = if i == last { expect } else { None };
             let chunk = self.lower_chunk(chunk, expect)?;

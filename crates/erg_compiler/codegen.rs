@@ -2056,7 +2056,7 @@ impl PyCodeGenerator {
         match param.t_spec_as_expr {
             // _: {0, 1} => case 0 | 1
             Some(Expr::Set(Set::Normal(set))) if !is_last_arm => {
-                let last = set.elems.pos_args.len() - 1;
+                let last = set.elems.pos_args.len().saturating_sub(1);
                 for (i, elem) in set.elems.pos_args.into_iter().enumerate() {
                     if i != 0 {
                         self.rot2();

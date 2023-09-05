@@ -270,7 +270,7 @@ impl SideEffectChecker {
         if let Signature::Subr(sig) = &def.sig {
             self.check_params(&sig.params);
         }
-        let last_idx = def.body.block.len() - 1;
+        let last_idx = def.body.block.len().saturating_sub(1);
         for (i, chunk) in def.body.block.iter().enumerate() {
             self.check_expr(chunk);
             // e.g. `echo = print!`
