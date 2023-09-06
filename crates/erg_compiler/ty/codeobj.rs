@@ -14,7 +14,7 @@ use erg_common::opcode308::Opcode308;
 use erg_common::opcode309::Opcode309;
 use erg_common::opcode310::Opcode310;
 use erg_common::opcode311::{BinOpCode, Opcode311};
-use erg_common::python_util::{env_magic_number, exec_py_code, PythonVersion};
+use erg_common::python_util::{env_magic_number, exec_pyc_code, PythonVersion};
 use erg_common::serialize::*;
 use erg_common::Str;
 
@@ -443,6 +443,12 @@ impl CodeObj {
         py_magic_num: Option<u32>,
     ) -> std::io::Result<()> {
         let mut file = File::create(path)?;
+        let bytes = self.into_bytecode(py_magic_num);
+        file.write_all(&bytes[..])?;
+        Ok(())
+    }
+
+    pub fn into_bytecode(self, py_magic_num: Option<u32>) -> Vec<u8> {
         let mut bytes = Vec::with_capacity(16);
         let py_magic_num = py_magic_num.unwrap_or_else(env_magic_number);
         let python_ver = get_ver_from_magic_num(py_magic_num);
@@ -451,11 +457,12 @@ impl CodeObj {
         bytes.append(&mut get_timestamp_bytes().to_vec());
         bytes.append(&mut vec![0; 4]); // padding
         bytes.append(&mut self.into_bytes(python_ver));
-        file.write_all(&bytes[..])?;
-        Ok(())
+        bytes
     }
 
-    pub fn executable_code(self, py_magic_num: Option<u32>) -> String {
+    /// Embed bytecode in a Python script.
+    /// This may generate a huge script, so don't pass it to `python -c`, but dump the bytecode and exec it.
+    pub fn into_script(self, py_magic_num: Option<u32>) -> String {
         let mut bytes = Vec::with_capacity(16);
         let py_magic_num = py_magic_num.unwrap_or_else(env_magic_number);
         let python_ver = get_ver_from_magic_num(py_magic_num);
@@ -468,8 +475,8 @@ impl CodeObj {
     }
 
     pub fn exec(self, cfg: &ErgConfig) -> std::io::Result<ExitStatus> {
-        exec_py_code(
-            &self.executable_code(cfg.py_magic_num),
+        exec_pyc_code(
+            &self.into_bytecode(cfg.py_magic_num),
             &cfg.runtime_args,
             cfg.output.clone(),
         )

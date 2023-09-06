@@ -318,7 +318,7 @@ impl Runnable for DummyVM {
         if let Err(err) = self.stream.as_mut().unwrap().send_msg(&Message::new(
             Inst::Execute,
             Some(
-                code.executable_code(self.compiler.cfg.py_magic_num)
+                code.into_script(self.compiler.cfg.py_magic_num)
                     .into_bytes(),
             ),
         )) {
