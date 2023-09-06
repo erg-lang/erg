@@ -405,7 +405,7 @@ impl Token {
     pub const DUMMY: Token = Token {
         kind: TokenKind::Illegal,
         content: Str::ever("DUMMY"),
-        lineno: 1,
+        lineno: 0,
         col_begin: 0,
         col_end: 0,
     };
@@ -414,7 +414,7 @@ impl Token {
         Self {
             kind,
             content: Str::ever(content),
-            lineno: 1,
+            lineno: 0,
             col_begin: 0,
             col_end: 0,
         }
