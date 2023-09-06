@@ -1329,7 +1329,7 @@ impl Context {
         ))
     }
 
-    fn validate_visibility(
+    pub(crate) fn validate_visibility(
         &self,
         ident: &Identifier,
         vi: &VarInfo,
