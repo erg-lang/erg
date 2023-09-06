@@ -198,6 +198,11 @@ fn exec_repl_invalid_def_after_the_at_sign() -> Result<(), ()> {
 #[test]
 #[ignore]
 fn exec_repl_server_mock_test() -> Result<(), ()> {
-    assert_eq!(exec_py("src/scripts/repl_server_test.py"), Some(0));
+    assert_eq!(
+        exec_py("src/scripts/repl_server_test.py")
+            .ok()
+            .and_then(|s| s.code()),
+        Some(0)
+    );
     Ok(())
 }

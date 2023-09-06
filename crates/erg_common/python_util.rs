@@ -1,8 +1,8 @@
 //! utilities for calling CPython.
 //!
 //! CPythonを呼び出すためのユーティリティー
-use std::env;
-use std::fs::{self, File};
+use std::env::{current_dir, set_current_dir, temp_dir};
+use std::fs::{canonicalize, remove_file, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus, Stdio};
@@ -10,6 +10,7 @@ use std::process::{Command, ExitStatus, Stdio};
 use crate::fn_name_full;
 use crate::io::Output;
 use crate::pathutil::remove_verbatim;
+use crate::random::random;
 use crate::serialize::get_magic_num_from_bytes;
 
 #[cfg(unix)]
@@ -552,6 +553,10 @@ pub const EXT_COMMON_ALIAS: [&str; 7] = [
     "urllib3",
 ];
 
+fn escape_py_code(code: &str) -> String {
+    code.replace('"', "\\\"").replace('`', "\\`")
+}
+
 pub fn opt_which_python() -> Result<String, String> {
     let (cmd, python) = if cfg!(windows) {
         ("where", "python")
@@ -719,7 +724,7 @@ pub fn env_python_version() -> PythonVersion {
 }
 
 pub fn get_sys_path(working_dir: Option<&Path>) -> Result<Vec<PathBuf>, std::io::Error> {
-    let working_dir = fs::canonicalize(working_dir.unwrap_or(Path::new(""))).unwrap_or_default();
+    let working_dir = canonicalize(working_dir.unwrap_or(Path::new(""))).unwrap_or_default();
     let working_dir = remove_verbatim(&working_dir);
     let py_command = opt_which_python().map_err(|e| {
         std::io::Error::new(
@@ -750,27 +755,38 @@ pub fn get_sys_path(working_dir: Option<&Path>) -> Result<Vec<PathBuf>, std::io:
     Ok(res)
 }
 
-/// executes over a shell, cause `python` may not exist as an executable file (like pyenv)
-pub fn exec_pyc<S: Into<String>, T: Into<Stdio>>(
-    file: S,
+fn exec_pyc_in(
+    file: impl AsRef<Path>,
     py_command: Option<&str>,
-    argv: &[&'static str],
-    stdout: T,
-) -> Option<i32> {
+    working_dir: impl AsRef<Path>,
+    args: &[&str],
+    stdout: impl Into<Stdio>,
+) -> std::io::Result<ExitStatus> {
+    let current_dir = current_dir()?;
+    set_current_dir(working_dir.as_ref())?;
+    let code = format!(
+        "import marshal; exec(marshal.loads(open(r\"{}\", \"rb\").read()[16:]))",
+        file.as_ref().display()
+    );
     let command = py_command
         .map(ToString::to_string)
-        .unwrap_or_else(which_python);
+        .unwrap_or(which_python());
     let mut out = if cfg!(windows) {
         Command::new("cmd")
             .arg("/C")
             .arg(command)
-            .arg(&file.into())
-            .args(argv)
+            .arg("-c")
+            .arg(code)
+            .args(args)
             .stdout(stdout)
             .spawn()
             .expect("cannot execute python")
     } else {
-        let exec_command = format!("{command} {} {}", file.into(), argv.join(" "));
+        let exec_command = format!(
+            "{command} -c \"{}\" {}",
+            escape_py_code(&code),
+            args.join(" ")
+        );
         Command::new("sh")
             .arg("-c")
             .arg(exec_command)
@@ -778,7 +794,44 @@ pub fn exec_pyc<S: Into<String>, T: Into<Stdio>>(
             .spawn()
             .expect("cannot execute python")
     };
-    out.wait().expect("python doesn't work").code()
+    let res = out.wait();
+    set_current_dir(current_dir)?;
+    res
+}
+
+/// executes over a shell, cause `python` may not exist as an executable file (like pyenv)
+pub fn exec_pyc(
+    file: impl AsRef<Path>,
+    py_command: Option<&str>,
+    working_dir: Option<impl AsRef<Path>>,
+    args: &[&str],
+    stdout: impl Into<Stdio>,
+) -> std::io::Result<ExitStatus> {
+    if let Some(working_dir) = working_dir {
+        return exec_pyc_in(file, py_command, working_dir, args, stdout);
+    }
+    let command = py_command
+        .map(ToString::to_string)
+        .unwrap_or_else(which_python);
+    let mut out = if cfg!(windows) {
+        Command::new("cmd")
+            .arg("/C")
+            .arg(command)
+            .arg(file.as_ref())
+            .args(args)
+            .stdout(stdout)
+            .spawn()
+            .expect("cannot execute python")
+    } else {
+        let exec_command = format!("{command} {} {}", file.as_ref().display(), args.join(" "));
+        Command::new("sh")
+            .arg("-c")
+            .arg(exec_command)
+            .stdout(stdout)
+            .spawn()
+            .expect("cannot execute python")
+    };
+    out.wait()
 }
 
 /// evaluates over a shell, cause `python` may not exist as an executable file (like pyenv)
@@ -805,21 +858,21 @@ pub fn _eval_pyc<S: Into<String>>(file: S, py_command: Option<&str>) -> String {
     String::from_utf8_lossy(&out.stdout).to_string()
 }
 
-pub fn exec_py(file: &str) -> Option<i32> {
+pub fn exec_py(file: impl AsRef<Path>) -> std::io::Result<ExitStatus> {
     let mut child = if cfg!(windows) {
         Command::new(which_python())
-            .arg(file)
+            .arg(file.as_ref())
             .spawn()
             .expect("cannot execute python")
     } else {
-        let exec_command = format!("{} {file}", which_python());
+        let exec_command = format!("{} {}", which_python(), file.as_ref().display());
         Command::new("sh")
             .arg("-c")
             .arg(exec_command)
             .spawn()
             .expect("cannot execute python")
     };
-    child.wait().expect("python doesn't work").code()
+    child.wait()
 }
 
 pub fn env_spawn_py(code: &str) {
@@ -830,7 +883,7 @@ pub fn env_spawn_py(code: &str) {
             .spawn()
             .expect("cannot execute python");
     } else {
-        let exec_command = format!("{} -c \"{}\"", which_python(), code);
+        let exec_command = format!("{} -c \"{}\"", which_python(), escape_py_code(code));
         Command::new("sh")
             .arg("-c")
             .arg(exec_command)
@@ -847,7 +900,11 @@ pub fn spawn_py(py_command: Option<&str>, code: &str) {
             .spawn()
             .expect("cannot execute python");
     } else {
-        let exec_command = format!("{} -c \"{}\"", py_command.unwrap_or(&which_python()), code);
+        let exec_command = format!(
+            "{} -c \"{}\"",
+            py_command.unwrap_or(&which_python()),
+            escape_py_code(code)
+        );
         Command::new("sh")
             .arg("-c")
             .arg(exec_command)
@@ -856,83 +913,37 @@ pub fn spawn_py(py_command: Option<&str>, code: &str) {
     }
 }
 
-pub fn exec_py_code(code: &str, args: &[&str], output: Output) -> std::io::Result<ExitStatus> {
-    let mut out = if cfg!(windows) {
-        let fallback = |err: std::io::Error| {
-            // if the filename or extension is too long
-            // create a temporary file and execute it
-            if err.raw_os_error() == Some(206) {
-                let tmp_dir = env::temp_dir();
-                let tmp_file = tmp_dir.join("tmp.py");
-                File::create(&tmp_file)
-                    .unwrap()
-                    .write_all(code.as_bytes())
-                    .unwrap();
-                Command::new(which_python())
-                    .arg(tmp_file)
-                    .args(args)
-                    .stdout(output.clone())
-                    .spawn()
-            } else {
-                Err(err)
-            }
-        };
-        Command::new(which_python())
-            .arg("-c")
-            .arg(code)
-            .args(args)
-            .stdout(output.clone())
-            .spawn()
-            .or_else(fallback)
-            .expect("cannot execute python")
-    } else {
-        let code = code.replace('"', "\\\"").replace('`', "\\`");
-        let exec_command = format!("{} -c \"{code}\" {}", which_python(), args.join(" "));
-        Command::new("sh")
-            .arg("-c")
-            .arg(exec_command)
-            .stdout(output)
-            .spawn()
-            .expect("cannot execute python")
-    };
-    out.wait()
+pub fn exec_pyc_code(code: &[u8], args: &[&str], output: Output) -> std::io::Result<ExitStatus> {
+    let tmp_dir = temp_dir();
+    let tmp_file = tmp_dir.join(format!("{}.pyc", random()));
+    File::create(&tmp_file).unwrap().write_all(code).unwrap();
+    let res = exec_pyc(&tmp_file, None, current_dir().ok(), args, output);
+    remove_file(tmp_file)?;
+    res
 }
 
 pub fn exec_py_code_with_output(
     code: &str,
     args: &[&str],
 ) -> std::io::Result<std::process::Output> {
+    let tmp_dir = temp_dir();
+    let tmp_file = tmp_dir.join(format!("{}.py", random()));
+    File::create(&tmp_file)
+        .unwrap()
+        .write_all(code.as_bytes())
+        .unwrap();
+    let command = which_python();
     let out = if cfg!(windows) {
-        let fallback = |err: std::io::Error| {
-            // if the filename or extension is too long
-            // create a temporary file and execute it
-            if err.raw_os_error() == Some(206) {
-                let tmp_dir = env::temp_dir();
-                let tmp_file = tmp_dir.join("tmp.py");
-                File::create(&tmp_file)
-                    .unwrap()
-                    .write_all(code.as_bytes())
-                    .unwrap();
-                Command::new(which_python())
-                    .arg(tmp_file)
-                    .args(args)
-                    .stdout(Stdio::piped())
-                    .spawn()
-            } else {
-                Err(err)
-            }
-        };
-        Command::new(which_python())
-            .arg("-c")
-            .arg(code)
+        Command::new("cmd")
+            .arg("/C")
+            .arg(command)
+            .arg(&tmp_file)
             .args(args)
             .stdout(Stdio::piped())
             .spawn()
-            .or_else(fallback)
             .expect("cannot execute python")
     } else {
-        let code = code.replace('"', "\\\"").replace('`', "\\`");
-        let exec_command = format!("{} -c \"{code}\" {}", which_python(), args.join(" "));
+        let exec_command = format!("{command} {} {}", tmp_file.display(), args.join(" "));
         Command::new("sh")
             .arg("-c")
             .arg(exec_command)
@@ -940,5 +951,7 @@ pub fn exec_py_code_with_output(
             .spawn()
             .expect("cannot execute python")
     };
-    out.wait_with_output()
+    let res = out.wait_with_output();
+    remove_file(tmp_file)?;
+    res
 }

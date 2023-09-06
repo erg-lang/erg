@@ -7,7 +7,8 @@
 * 0~3 byte(u32): magic number (see common/bytecode.rs for details)
 * 4~7 byte(u32): 0 padding
 * 8~12 byte(u32): timestamp
-* 13~ byte(PyCodeObject): code object
+* 13~16 byte(u32): 0 padding
+* 17~ byte(PyCodeObject): code object
 
 ## PyCodeObject
 
