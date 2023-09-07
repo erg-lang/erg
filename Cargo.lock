@@ -248,6 +248,8 @@ dependencies = [
 [[package]]
 name = "molc"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a19b669aab31ca7552fc43cb9ab08e325113aa090f7bf97a2112b3d6241ba898"
 dependencies = [
  "lsp-types",
  "serde",
