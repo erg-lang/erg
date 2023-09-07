@@ -11,7 +11,7 @@ use lsp_types::{
 };
 
 use crate::hir_visitor::GetExprKind;
-use crate::server::{send_log, ELSResult, Server};
+use crate::server::{ELSResult, RedirectableStdout, Server};
 use crate::util::{loc_to_pos, pos_to_loc, NormalizedUrl};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -52,7 +52,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         &mut self,
         params: SignatureHelpParams,
     ) -> ELSResult<Option<SignatureHelp>> {
-        send_log(format!("signature help requested: {params:?}"))?;
+        self.send_log(format!("signature help requested: {params:?}"))?;
         let uri = NormalizedUrl::new(params.text_document_position_params.text_document.uri);
         let pos = params.text_document_position_params.position;
         if params.context.as_ref().map(|ctx| &ctx.trigger_kind)
@@ -83,7 +83,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         offset: isize,
     ) -> Option<(Token, Expr)> {
         let token = self.file_cache.get_token_relatively(uri, pos, offset)?;
-        crate::_log!("token: {token}");
+        crate::_log!(self, "token: {token}");
         if let Some(visitor) = self.get_visitor(uri) {
             if let Some(expr) = visitor.get_min_expr(loc_to_pos(token.loc())?) {
                 return Some((token, expr.clone()));
@@ -140,7 +140,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         ctx: &SignatureHelpContext,
     ) -> Option<SignatureHelp> {
         if let Some(token) = self.file_cache.get_token(uri, pos) {
-            crate::_log!("token: {token}");
+            crate::_log!(self, "token: {token}");
             if let Some(call) = self.get_min::<Call>(uri, pos) {
                 if call.ln_begin() > token.ln_begin() || call.ln_end() < token.ln_end() {
                     return None;
@@ -148,10 +148,10 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 let nth = self.nth(uri, &call, pos) as u32;
                 return self.make_sig_help(call.obj.as_ref(), nth);
             } else {
-                crate::_log!("failed to get the call");
+                crate::_log!(self, "failed to get the call");
             }
         } else {
-            crate::_log!("failed to get the token");
+            crate::_log!(self, "failed to get the token");
         }
         ctx.active_signature_help.clone()
     }
@@ -160,7 +160,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         if let Some((_token, Expr::Accessor(acc))) = self.get_min_expr(uri, pos, -2) {
             return self.make_sig_help(&acc, 0);
         } else {
-            crate::_log!("lex error occurred");
+            crate::_log!(self, "lex error occurred");
         }
         None
     }
@@ -171,7 +171,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             let help = self.make_sig_help(call.obj.as_ref(), nth);
             return help;
         } else {
-            crate::_log!("failed to get continuous help");
+            crate::_log!(self, "failed to get continuous help");
         }
         None
     }

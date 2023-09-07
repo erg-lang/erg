@@ -11,7 +11,7 @@ use lsp_types::{
 };
 
 use crate::_log;
-use crate::server::{ELSResult, Server};
+use crate::server::{ELSResult, RedirectableStdout, Server};
 use crate::symbol::symbol_kind;
 use crate::util::{abs_loc_to_lsp_loc, loc_to_pos, NormalizedUrl};
 
@@ -35,7 +35,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         params: CallHierarchyIncomingCallsParams,
     ) -> ELSResult<Option<Vec<CallHierarchyIncomingCall>>> {
         let mut res = vec![];
-        _log!("call hierarchy incoming calls requested: {params:?}");
+        _log!(self, "call hierarchy incoming calls requested: {params:?}");
         let Some(data) = params.item.data.as_ref().and_then(|d| d.as_str()) else {
             return Ok(None);
         };
@@ -80,7 +80,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         &mut self,
         params: CallHierarchyOutgoingCallsParams,
     ) -> ELSResult<Option<Vec<CallHierarchyOutgoingCall>>> {
-        _log!("call hierarchy outgoing calls requested: {params:?}");
+        _log!(self, "call hierarchy outgoing calls requested: {params:?}");
         Ok(None)
     }
 
@@ -88,7 +88,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         &mut self,
         params: CallHierarchyPrepareParams,
     ) -> ELSResult<Option<Vec<CallHierarchyItem>>> {
-        _log!("call hierarchy prepare requested: {params:?}");
+        _log!(self, "call hierarchy prepare requested: {params:?}");
         let mut res = vec![];
         let uri = NormalizedUrl::new(params.text_document_position_params.text_document.uri);
         let pos = params.text_document_position_params.position;

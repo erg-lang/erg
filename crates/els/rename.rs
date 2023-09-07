@@ -22,17 +22,17 @@ use lsp_types::{
     WorkspaceEdit,
 };
 
-use crate::server::{send, send_error_info, send_log, ELSResult, Server};
+use crate::server::{ELSResult, RedirectableStdout, Server};
 use crate::util::{self, NormalizedUrl};
 
 impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     pub(crate) fn rename(&mut self, msg: &Value) -> ELSResult<()> {
         let params = RenameParams::deserialize(&msg["params"])?;
-        send_log(format!("rename request: {params:?}"))?;
+        self.send_log(format!("rename request: {params:?}"))?;
         let uri = NormalizedUrl::new(params.text_document_position.text_document.uri);
         let pos = params.text_document_position.position;
         if let Some(tok) = self.file_cache.get_symbol(&uri, pos) {
-            // send_log(format!("token: {tok}"))?;
+            // self.send_log(format!("token: {tok}"))?;
             if let Some(vi) = self
                 .get_visitor(&uri)
                 .and_then(|visitor| visitor.get_info(&tok))
@@ -65,14 +65,14 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                         _ => format!("this {kind} cannot be renamed"),
                     };
                     let edit = WorkspaceEdit::new(changes);
-                    send(
+                    self.send_stdout(
                         &json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": edit }),
                     )?;
-                    return send_error_info(error_reason);
+                    return self.send_error_info(error_reason);
                 }
                 Self::commit_change(&mut changes, &vi.def_loc, params.new_name.clone());
                 if let Some(value) = self.get_index().and_then(|ind| ind.get_refs(&vi.def_loc)) {
-                    // send_log(format!("referrers: {referrers:?}"))?;
+                    // self.send_log(format!("referrers: {referrers:?}"))?;
                     for referrer in value.referrers.iter() {
                         Self::commit_change(&mut changes, referrer, params.new_name.clone());
                     }
@@ -83,11 +83,11 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 }
                 let timestamps = self.get_timestamps(changes.keys());
                 let edit = WorkspaceEdit::new(changes);
-                send(
+                self.send_stdout(
                     &json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": edit }),
                 )?;
                 for _ in 0..20 {
-                    send_log("waiting for file to be modified...")?;
+                    self.send_log("waiting for file to be modified...")?;
                     if self.all_changed(&timestamps) {
                         break;
                     }
@@ -102,7 +102,9 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 return Ok(());
             }
         }
-        send(&json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": Value::Null }))
+        self.send_stdout(
+            &json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": Value::Null }),
+        )
     }
 
     fn commit_change(
@@ -292,7 +294,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         &mut self,
         params: RenameFilesParams,
     ) -> ELSResult<Option<WorkspaceEdit>> {
-        send_log("workspace/willRenameFiles request")?;
+        self.send_log("workspace/willRenameFiles request")?;
         let mut edits = HashMap::new();
         let mut renames = vec![];
         for file in &params.files {

@@ -8,7 +8,7 @@ use erg_compiler::varinfo::{AbsLocation, VarInfo};
 
 use lsp_types::{Hover, HoverContents, HoverParams, MarkedString, Url};
 
-use crate::server::{send_log, ELSResult, Server};
+use crate::server::{ELSResult, RedirectableStdout, Server};
 use crate::util::{self, NormalizedUrl};
 
 const PROG_LANG: &str = if PYTHON_MODE { "python" } else { "erg" };
@@ -80,7 +80,7 @@ macro_rules! next {
 
 impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     pub(crate) fn handle_hover(&mut self, params: HoverParams) -> ELSResult<Option<Hover>> {
-        send_log(format!("hover requested : {params:?}"))?;
+        self.send_log(format!("hover requested : {params:?}"))?;
         let uri = NormalizedUrl::new(params.text_document_position_params.text_document.uri);
         let pos = params.text_document_position_params.position;
         let mut contents = vec![];
@@ -176,7 +176,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 }
             }
         } else {
-            send_log("lex error")?;
+            self.send_log("lex error")?;
         }
         Ok(Some(Hover {
             contents: HoverContents::Array(sort_hovers(contents)),

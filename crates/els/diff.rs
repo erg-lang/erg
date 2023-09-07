@@ -95,8 +95,8 @@ impl HIRDiff {
             ASTDiff::Addition(idx, expr) => {
                 let expr = lowerer
                     .lower_chunk(expr, None)
-                    .map_err(|err| {
-                        crate::_log!("err: {err}");
+                    .map_err(|_err| {
+                        // crate::_log!(self, "err: {err}");
                     })
                     .ok()?;
                 Some(Self::Addition(idx, expr))
@@ -112,8 +112,8 @@ impl HIRDiff {
                 }
                 let expr = lowerer
                     .lower_chunk(expr, None)
-                    .map_err(|err| {
-                        crate::_log!("err: {err}");
+                    .map_err(|_err| {
+                        // crate::_log!(self, "err: {err}");
                     })
                     .ok()?;
                 Some(Self::Modification(idx, expr))

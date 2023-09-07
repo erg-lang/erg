@@ -23,7 +23,7 @@ use crate::_log;
 use crate::channels::WorkerMessage;
 use crate::diff::{ASTDiff, HIRDiff};
 use crate::server::{
-    send, send_log, AnalysisResult, DefaultFeatures, ELSResult, Server, ASK_AUTO_SAVE_ID,
+    AnalysisResult, DefaultFeatures, ELSResult, RedirectableStdout, Server, ASK_AUTO_SAVE_ID,
     HEALTH_CHECKER_ID,
 };
 use crate::util::{self, NormalizedUrl};
@@ -39,7 +39,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         uri: NormalizedUrl,
         code: S,
     ) -> ELSResult<()> {
-        send_log(format!("checking {uri}"))?;
+        self.send_log(format!("checking {uri}"))?;
         let path = util::uri_to_path(&uri);
         let mode = if path.to_string_lossy().ends_with(".d.er") {
             "declare"
@@ -48,14 +48,14 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         };
         if let Some((old, new)) = self.analysis_result.get_ast(&uri).zip(self.get_ast(&uri)) {
             if ASTDiff::diff(old, &new).is_nop() {
-                crate::_log!("no changes: {uri}");
+                crate::_log!(self, "no changes: {uri}");
                 return Ok(());
             }
         }
         let mut checker = self.get_checker(path.clone());
         let artifact = match checker.build(code.into(), mode) {
             Ok(artifact) => {
-                send_log(format!(
+                self.send_log(format!(
                     "checking {uri} passed, found warns: {}",
                     artifact.warns.len()
                 ))?;
@@ -63,14 +63,14 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 // clear previous diagnostics
                 self.send_diagnostics(uri.clone().raw(), vec![])?;
                 for (uri, diags) in uri_and_diags.into_iter() {
-                    send_log(format!("{uri}, warns: {}", diags.len()))?;
+                    self.send_log(format!("{uri}, warns: {}", diags.len()))?;
                     self.send_diagnostics(uri, diags)?;
                 }
                 artifact.into()
             }
             Err(artifact) => {
-                send_log(format!("found errors: {}", artifact.errors.len()))?;
-                send_log(format!("found warns: {}", artifact.warns.len()))?;
+                self.send_log(format!("found errors: {}", artifact.errors.len()))?;
+                self.send_log(format!("found warns: {}", artifact.warns.len()))?;
                 let diags = artifact
                     .errors
                     .clone()
@@ -82,7 +82,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     self.send_diagnostics(uri.clone().raw(), vec![])?;
                 }
                 for (uri, diags) in uri_and_diags.into_iter() {
-                    send_log(format!("{uri}, errs & warns: {}", diags.len()))?;
+                    self.send_log(format!("{uri}, errs & warns: {}", diags.len()))?;
                     self.send_diagnostics(uri, diags)?;
                 }
                 artifact
@@ -108,12 +108,12 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 .insert(uri.clone(), AnalysisResult::new(module, artifact));
         }
         if let Some(module) = checker.pop_context() {
-            send_log(format!("{uri}: {}", module.context.name))?;
+            self.send_log(format!("{uri}: {}", module.context.name))?;
             self.modules.insert(uri.clone(), module);
         }
         let dependents = self.dependents_of(&uri);
         for dep in dependents {
-            // _log!("dep: {dep}");
+            // _log!(self, "dep: {dep}");
             let code = self.file_cache.get_entire_code(&dep)?.to_string();
             self.check_file(dep, code)?;
         }
@@ -122,19 +122,19 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
 
     pub(crate) fn quick_check_file(&mut self, uri: NormalizedUrl) -> ELSResult<()> {
         let Some(old) = self.analysis_result.get_ast(&uri) else {
-            crate::_log!("not found");
+            crate::_log!(self, "not found");
             return Ok(());
         };
         let Some(new) = self.get_ast(&uri) else {
-            crate::_log!("not found");
+            crate::_log!(self, "not found");
             return Ok(());
         };
         let ast_diff = ASTDiff::diff(old, &new);
-        crate::_log!("diff: {ast_diff}");
+        crate::_log!(self, "diff: {ast_diff}");
         if let Some(mut lowerer) = self.steal_lowerer(&uri) {
             let hir = self.analysis_result.get_mut_hir(&uri);
             if let Some((hir_diff, hir)) = HIRDiff::new(ast_diff, &mut lowerer).zip(hir) {
-                crate::_log!("hir_diff: {hir_diff}");
+                crate::_log!(self, "hir_diff: {hir_diff}");
                 hir_diff.update(hir);
             }
             self.restore_lowerer(uri, lowerer);
@@ -154,7 +154,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     .unwrap_or(err.input.path().to_path_buf()),
             );
             let Ok(err_uri) = res_uri else {
-                crate::_log!("failed to get uri: {}", err.input.path().display());
+                crate::_log!(self, "failed to get uri: {}", err.input.path().display());
                 continue;
             };
             let mut message = remove_style(&err.core.main_message);
@@ -214,13 +214,13 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             .map(|doc| doc.publish_diagnostics.is_some())
             .unwrap_or(false)
         {
-            send(&json!({
+            self.send_stdout(&json!({
                 "jsonrpc": "2.0",
                 "method": "textDocument/publishDiagnostics",
                 "params": params,
             }))?;
         } else {
-            send_log("the client does not support diagnostics")?;
+            self.send_log("the client does not support diagnostics")?;
         }
         Ok(())
     }
@@ -242,7 +242,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                                 == Some("afterDelay")
                         })
                     {
-                        _log!("Auto saving is enabled");
+                        _log!(_self, "Auto saving is enabled");
                         break;
                     }
                     for uri in _self.file_cache.entries() {
@@ -272,20 +272,25 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     pub fn start_client_health_checker(&self, receiver: Receiver<WorkerMessage<()>>) {
         const INTERVAL: Duration = Duration::from_secs(5);
         const TIMEOUT: Duration = Duration::from_secs(10);
+        if self.stdout_redirect.is_some() {
+            return;
+        }
+        let _self = self.clone();
         // let mut self_ = self.clone();
         // FIXME: close this thread when the server is restarted
         spawn_new_thread(
             move || {
                 loop {
-                    // send_log("checking client health").unwrap();
+                    // self.send_log("checking client health").unwrap();
                     let params = ConfigurationParams { items: vec![] };
-                    send(&json!({
-                        "jsonrpc": "2.0",
-                        "id": HEALTH_CHECKER_ID,
-                        "method": "workspace/configuration",
-                        "params": params,
-                    }))
-                    .unwrap();
+                    _self
+                        .send_stdout(&json!({
+                            "jsonrpc": "2.0",
+                            "id": HEALTH_CHECKER_ID,
+                            "method": "workspace/configuration",
+                            "params": params,
+                        }))
+                        .unwrap();
                     sleep(INTERVAL);
                 }
             },
@@ -299,12 +304,12 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                             break;
                         }
                         Ok(_) => {
-                            // send_log("client health check passed").unwrap();
+                            // self.send_log("client health check passed").unwrap();
                         }
                         Err(_) => {
                             lsp_log!("Client health check timed out");
-                            // lsp_log!("Restart the server");
-                            // _log!("Restart the server");
+                            // lsp_log!(self, "Restart the server");
+                            // _log!(self, "Restart the server");
                             // send_error_info("Something went wrong, ELS has been restarted").unwrap();
                             // self_.restart();
                             panic!("Client health check timed out");

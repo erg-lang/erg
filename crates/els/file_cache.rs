@@ -1,5 +1,6 @@
 use std::fs::File;
 use std::io::Read;
+use std::sync::mpsc::Sender;
 
 use lsp_types::{
     DidChangeTextDocumentParams, FileOperationFilter, FileOperationPattern,
@@ -8,6 +9,7 @@ use lsp_types::{
     TextDocumentSyncKind, TextDocumentSyncOptions, Url, WorkspaceFileOperationsServerCapabilities,
     WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities,
 };
+use serde_json::Value;
 
 use erg_common::dict::Dict;
 use erg_common::shared::Shared;
@@ -16,7 +18,7 @@ use erg_compiler::erg_parser::lex::Lexer;
 use erg_compiler::erg_parser::token::{Token, TokenCategory, TokenStream};
 
 use crate::_log;
-use crate::server::ELSResult;
+use crate::server::{ELSResult, RedirectableStdout};
 use crate::util::{self, NormalizedUrl};
 
 fn _get_code_from_uri(uri: &Url) -> ELSResult<String> {
@@ -48,12 +50,20 @@ impl FileCacheEntry {
 /// This struct can save changes in real-time & incrementally.
 #[derive(Debug, Clone, Default)]
 pub struct FileCache {
+    stdout_redirect: Option<Sender<Value>>,
     pub files: Shared<Dict<NormalizedUrl, FileCacheEntry>>,
 }
 
+impl RedirectableStdout for FileCache {
+    fn sender(&self) -> Option<&Sender<Value>> {
+        self.stdout_redirect.as_ref()
+    }
+}
+
 impl FileCache {
-    pub fn new() -> Self {
+    pub fn new(stdout_redirect: Option<Sender<Value>>) -> Self {
         Self {
+            stdout_redirect,
             files: Shared::new(Dict::new()),
         }
     }
@@ -230,7 +240,7 @@ impl FileCache {
         let entry = ent.get(uri);
         if let Some(entry) = entry {
             if ver.map_or(false, |ver| ver <= entry.ver) {
-                // crate::_log!("171: double update detected: {ver:?}, {}, code:\n{}", entry.ver, entry.code);
+                // crate::_log!(self, "171: double update detected: {ver:?}, {}, code:\n{}", entry.ver, entry.code);
                 return;
             }
         }
@@ -275,7 +285,13 @@ impl FileCache {
             return;
         };
         if entry.ver >= params.text_document.version {
-            // crate::_log!("212: double update detected {}, {}, code:\n{}", entry.ver, params.text_document.version, entry.code);
+            crate::_log!(
+                self,
+                "212: double update detected {}, {}, code:\n{}",
+                entry.ver,
+                params.text_document.version,
+                entry.code
+            );
             return;
         }
         let mut code = entry.code.clone();
@@ -301,15 +317,15 @@ impl FileCache {
     pub fn rename_files(&mut self, params: &RenameFilesParams) -> ELSResult<()> {
         for file in &params.files {
             let Ok(old_uri) = NormalizedUrl::parse(&file.old_uri) else {
-                _log!("failed to parse old uri: {}", file.old_uri);
+                _log!(self, "failed to parse old uri: {}", file.old_uri);
                 continue;
             };
             let Ok(new_uri) = NormalizedUrl::parse(&file.new_uri) else {
-                _log!("failed to parse new uri: {}", file.new_uri);
+                _log!(self, "failed to parse new uri: {}", file.new_uri);
                 continue;
             };
             let Some(entry) = self.files.borrow_mut().remove(&old_uri) else {
-                _log!("failed to find old uri: {}", file.old_uri);
+                _log!(self, "failed to find old uri: {}", file.old_uri);
                 continue;
             };
             self.files.borrow_mut().insert(new_uri, entry);

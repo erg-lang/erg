@@ -19,7 +19,7 @@ use lsp_types::{
 };
 
 use crate::_log;
-use crate::server::{send, send_log, ELSResult, Server};
+use crate::server::{ELSResult, RedirectableStdout, Server};
 use crate::util::abs_loc_to_lsp_loc;
 use crate::util::{self, loc_to_range, NormalizedUrl};
 
@@ -294,7 +294,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         &mut self,
         params: InlayHintParams,
     ) -> ELSResult<Option<Vec<InlayHint>>> {
-        send_log(format!("inlay hint request: {params:?}"))?;
+        self.send_log(format!("inlay hint request: {params:?}"))?;
         let uri = NormalizedUrl::new(params.text_document.uri);
         let mut result = vec![];
         let gen = InlayHintGenerator {
@@ -316,7 +316,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         &mut self,
         mut hint: InlayHint,
     ) -> ELSResult<InlayHint> {
-        send_log(format!("inlay hint resolve request: {hint:?}"))?;
+        self.send_log(format!("inlay hint resolve request: {hint:?}"))?;
         if let Some(data) = &hint.data {
             let Ok(uri) = data.as_str().unwrap().parse::<NormalizedUrl>() else {
                 return Ok(hint);
