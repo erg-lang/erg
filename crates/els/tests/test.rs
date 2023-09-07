@@ -13,7 +13,7 @@ use molc::{add_char, oneline_range};
 
 #[test]
 fn test_open() -> Result<(), Box<dyn std::error::Error>> {
-    let mut client = Server::bind_dummy_client();
+    let mut client = Server::bind_fake_client();
     client.request_initialize()?;
     client.notify_open(FILE_A)?;
     client.wait_messages(3)?;
@@ -25,7 +25,7 @@ fn test_open() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 fn test_completion() -> Result<(), Box<dyn std::error::Error>> {
-    let mut client = Server::bind_dummy_client();
+    let mut client = Server::bind_fake_client();
     client.request_initialize()?;
     let uri = NormalizedUrl::from_file_path(Path::new(FILE_A).canonicalize()?)?;
     client.notify_open(FILE_A)?;
@@ -43,7 +43,7 @@ fn test_completion() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 fn test_neighbor_completion() -> Result<(), Box<dyn std::error::Error>> {
-    let mut client = Server::bind_dummy_client();
+    let mut client = Server::bind_fake_client();
     client.request_initialize()?;
     let uri = NormalizedUrl::from_file_path(Path::new(FILE_A).canonicalize()?)?;
     client.notify_open(FILE_A)?;
@@ -62,7 +62,7 @@ fn test_neighbor_completion() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 fn test_rename() -> Result<(), Box<dyn std::error::Error>> {
-    let mut client = Server::bind_dummy_client();
+    let mut client = Server::bind_fake_client();
     client.request_initialize()?;
     let uri = NormalizedUrl::from_file_path(Path::new(FILE_A).canonicalize()?)?;
     client.notify_open(FILE_A)?;
@@ -77,7 +77,7 @@ fn test_rename() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 fn test_signature_help() -> Result<(), Box<dyn std::error::Error>> {
-    let mut client = Server::bind_dummy_client();
+    let mut client = Server::bind_fake_client();
     client.request_initialize()?;
     let uri = NormalizedUrl::from_file_path(Path::new(FILE_A).canonicalize()?)?;
     client.notify_open(FILE_A)?;
@@ -95,7 +95,7 @@ fn test_signature_help() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 fn test_hover() -> Result<(), Box<dyn std::error::Error>> {
-    let mut client = Server::bind_dummy_client();
+    let mut client = Server::bind_fake_client();
     client.request_initialize()?;
     let uri = NormalizedUrl::from_file_path(Path::new(FILE_A).canonicalize()?)?;
     client.notify_open(FILE_A)?;
@@ -120,7 +120,7 @@ fn test_hover() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 fn test_references() -> Result<(), Box<dyn std::error::Error>> {
-    let mut client = Server::bind_dummy_client();
+    let mut client = Server::bind_fake_client();
     client.request_initialize()?;
     let uri = NormalizedUrl::from_file_path(Path::new(FILE_A).canonicalize()?)?;
     client.notify_open(FILE_A)?;
@@ -132,7 +132,7 @@ fn test_references() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 fn test_goto_definition() -> Result<(), Box<dyn std::error::Error>> {
-    let mut client = Server::bind_dummy_client();
+    let mut client = Server::bind_fake_client();
     client.request_initialize()?;
     let uri = NormalizedUrl::from_file_path(Path::new(FILE_A).canonicalize()?)?;
     client.notify_open(FILE_A)?;
@@ -147,7 +147,7 @@ fn test_goto_definition() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 fn test_folding_range() -> Result<(), Box<dyn std::error::Error>> {
-    let mut client = Server::bind_dummy_client();
+    let mut client = Server::bind_fake_client();
     client.request_initialize()?;
     let uri = NormalizedUrl::from_file_path(Path::new(FILE_IMPORTS).canonicalize()?)?;
     client.notify_open(FILE_IMPORTS)?;
@@ -168,7 +168,7 @@ fn test_folding_range() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 fn test_document_symbol() -> Result<(), Box<dyn std::error::Error>> {
-    let mut client = Server::bind_dummy_client();
+    let mut client = Server::bind_fake_client();
     client.request_initialize()?;
     let uri = NormalizedUrl::from_file_path(Path::new(FILE_A).canonicalize()?)?;
     client.notify_open(FILE_A)?;

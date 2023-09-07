@@ -133,7 +133,7 @@ pub trait LangServer {
     fn dispatch(&mut self, msg: impl Into<Value>) -> Result<()>;
 }
 
-pub struct DummyClient<LS: LangServer> {
+pub struct FakeClient<LS: LangServer> {
     server: LS,
     receiver: std::sync::mpsc::Receiver<Value>,
     server_capas: Option<ServerCapabilities>,
@@ -144,10 +144,10 @@ pub struct DummyClient<LS: LangServer> {
     req_id: i64,
 }
 
-impl<LS: LangServer> DummyClient<LS> {
+impl<LS: LangServer> FakeClient<LS> {
     /// The server should send responses to the channel at least during testing.
     pub fn new(server: LS, receiver: std::sync::mpsc::Receiver<Value>) -> Self {
-        DummyClient {
+        FakeClient {
             receiver,
             responses: Vec::new(),
             ver: 0,

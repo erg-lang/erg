@@ -27,7 +27,7 @@ use erg_compiler::module::{SharedCompilerResource, SharedModuleGraph, SharedModu
 use erg_compiler::ty::HasType;
 
 pub use molc::RedirectableStdout;
-use molc::{DummyClient, LangServer};
+use molc::{FakeClient, LangServer};
 
 use lsp_types::request::{
     CallHierarchyIncomingCalls, CallHierarchyOutgoingCalls, CallHierarchyPrepare,
@@ -298,9 +298,9 @@ impl LangServer for Server {
 
 impl Server {
     #[allow(unused)]
-    pub fn bind_dummy_client() -> DummyClient<Server> {
+    pub fn bind_fake_client() -> FakeClient<Server> {
         let (sender, receiver) = std::sync::mpsc::channel();
-        DummyClient::new(Server::new(ErgConfig::default(), Some(sender)), receiver)
+        FakeClient::new(Server::new(ErgConfig::default(), Some(sender)), receiver)
     }
 }
 

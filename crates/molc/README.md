@@ -1,6 +1,6 @@
 # `molc`
 
-`molc` is a mock language client for testing language servers.
+`molc` is a mock (fake) language client for testing language servers.
 
 ## Usage
 
@@ -9,7 +9,7 @@ You can see specific examples of molc use in [ELS](https://github.com/erg-lang/e
 ```rust
 use lsp_types::{Url, Value};
 
-use molc::{DummyClient, LangServer, RedirectableStdout};
+use molc::{FakeClient, LangServer, RedirectableStdout};
 use molc::oneline_range;
 
 pub struct Server {
@@ -30,7 +30,7 @@ impl RedirectableStdout for Server {
 }
 
 impl Server {
-    fn bind_dummy_client() -> DummyClient<Self> {
+    fn bind_fake_client() -> FakeClient<Self> {
         // The server should send responses to this channel at least during testing.
         let (sender, receiver) = std::sync::mpsc::channel();
         DummyClient::new(
@@ -57,7 +57,7 @@ impl Server {
 
 #[test]
 fn test_references() -> Result<(), Box<dyn std::error::Error>> {
-    let mut client = Server::bind_dummy_client();
+    let mut client = Server::bind_fake_client();
     client.request_initialize()?;
     let uri = Url::from_file_path(Path::new(FILE_A).canonicalize()?).unwrap();
     client.notify_open(FILE_A)?;
