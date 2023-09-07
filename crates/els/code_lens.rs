@@ -4,7 +4,7 @@ use erg_compiler::hir::Expr;
 
 use lsp_types::{CodeLens, CodeLensParams};
 
-use crate::server::{send_log, ELSResult, Server};
+use crate::server::{ELSResult, RedirectableStdout, Server};
 use crate::util::{self, NormalizedUrl};
 
 impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
@@ -12,7 +12,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         &mut self,
         params: CodeLensParams,
     ) -> ELSResult<Option<Vec<CodeLens>>> {
-        send_log("code lens requested")?;
+        self.send_log("code lens requested")?;
         let uri = NormalizedUrl::new(params.text_document.uri);
         // TODO: parallelize
         let result = [

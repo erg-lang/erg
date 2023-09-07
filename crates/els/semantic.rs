@@ -15,7 +15,7 @@ use lsp_types::{
     SemanticToken, SemanticTokenType, SemanticTokens, SemanticTokensParams, SemanticTokensResult,
 };
 
-use crate::server::{send_log, ELSResult, Server};
+use crate::server::{ELSResult, RedirectableStdout, Server};
 use crate::util::{self, NormalizedUrl};
 
 #[derive(Debug)]
@@ -288,7 +288,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         &mut self,
         params: SemanticTokensParams,
     ) -> ELSResult<Option<SemanticTokensResult>> {
-        send_log(format!("full semantic tokens request: {params:?}"))?;
+        self.send_log(format!("full semantic tokens request: {params:?}"))?;
         let uri = NormalizedUrl::new(params.text_document.uri);
         let path = util::uri_to_path(&uri);
         let src = self.file_cache.get_entire_code(&uri)?;

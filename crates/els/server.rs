@@ -1,6 +1,6 @@
 use std::any::type_name;
 use std::io;
-use std::io::{stdin, stdout, BufRead, Read, Write};
+use std::io::{stdin, BufRead, Read};
 use std::ops::Not;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -25,6 +25,9 @@ use erg_compiler::hir::HIR;
 use erg_compiler::lower::ASTLowerer;
 use erg_compiler::module::{SharedCompilerResource, SharedModuleGraph, SharedModuleIndex};
 use erg_compiler::ty::HasType;
+
+pub use molc::RedirectableStdout;
+use molc::{DummyClient, LangServer};
 
 use lsp_types::request::{
     CallHierarchyIncomingCalls, CallHierarchyOutgoingCalls, CallHierarchyPrepare,
@@ -53,7 +56,7 @@ use crate::channels::{SendChannels, Sendable, WorkerMessage};
 use crate::completion::CompletionCache;
 use crate::file_cache::FileCache;
 use crate::hir_visitor::{ExprKind, HIRVisitor};
-use crate::message::{ErrorMessage, LSPResult, LogMessage, ShowMessage};
+use crate::message::{ErrorMessage, LSPResult};
 use crate::util::{self, loc_to_pos, NormalizedUrl};
 
 pub const HEALTH_CHECKER_ID: i64 = 10000;
@@ -131,62 +134,10 @@ impl From<&str> for OptionalFeatures {
 
 #[macro_export]
 macro_rules! _log {
-    ($($arg:tt)*) => {
+    ($self:ident, $($arg:tt)*) => {
         let s = format!($($arg)*);
-        $crate::server::send_log(format!("{}@{}: {s}", file!(), line!())).unwrap();
+        $self.send_log(format!("{}@{}: {s}", file!(), line!())).unwrap();
     };
-}
-
-fn send_stdout<T: ?Sized + Serialize>(message: &T) -> ELSResult<()> {
-    let msg = serde_json::to_string(message)?;
-    let mut stdout = stdout().lock();
-    write!(stdout, "Content-Length: {}\r\n\r\n{}", msg.len(), msg)?;
-    stdout.flush()?;
-    Ok(())
-}
-
-fn read_line() -> io::Result<String> {
-    let mut line = String::new();
-    stdin().lock().read_line(&mut line)?;
-    Ok(line)
-}
-
-fn read_exact(len: usize) -> io::Result<Vec<u8>> {
-    let mut buf = vec![0; len];
-    stdin().lock().read_exact(&mut buf)?;
-    Ok(buf)
-}
-
-pub(crate) fn send<T: ?Sized + Serialize>(message: &T) -> ELSResult<()> {
-    send_stdout(message)
-}
-
-pub(crate) fn send_log<S: Into<String>>(msg: S) -> ELSResult<()> {
-    if cfg!(debug_assertions) || cfg!(feature = "debug") {
-        send(&LogMessage::new(msg))
-    } else {
-        Ok(())
-    }
-}
-
-#[allow(unused)]
-pub(crate) fn send_info<S: Into<String>>(msg: S) -> ELSResult<()> {
-    send(&ShowMessage::info(msg))
-}
-
-pub(crate) fn send_error_info<S: Into<String>>(msg: S) -> ELSResult<()> {
-    send(&ShowMessage::error(msg))
-}
-
-pub(crate) fn send_error<S: Into<String>>(id: Option<i64>, code: i64, msg: S) -> ELSResult<()> {
-    send(&ErrorMessage::new(
-        id,
-        json!({ "code": code, "message": msg.into() }),
-    ))
-}
-
-pub(crate) fn send_invalid_req_error() -> ELSResult<()> {
-    send_error(None, -32601, "received an invalid request")
 }
 
 #[derive(Debug)]
@@ -328,8 +279,29 @@ pub struct Server<Checker: BuildRunnable = HIRBuilder, Parser: Parsable = Simple
     pub(crate) modules: ModuleCache,
     pub(crate) analysis_result: AnalysisResultCache,
     pub(crate) channels: Option<SendChannels>,
+    pub(crate) stdout_redirect: Option<mpsc::Sender<Value>>,
     pub(crate) _parser: std::marker::PhantomData<fn() -> Parser>,
     pub(crate) _checker: std::marker::PhantomData<fn() -> Checker>,
+}
+
+impl<C: BuildRunnable, P: Parsable> RedirectableStdout for Server<C, P> {
+    fn sender(&self) -> Option<&mpsc::Sender<Value>> {
+        self.stdout_redirect.as_ref()
+    }
+}
+
+impl LangServer for Server {
+    fn dispatch(&mut self, msg: impl Into<Value>) -> Result<(), Box<dyn std::error::Error>> {
+        self.dispatch(msg.into())
+    }
+}
+
+impl Server {
+    #[allow(unused)]
+    pub fn bind_dummy_client() -> DummyClient<Server> {
+        let (sender, receiver) = std::sync::mpsc::channel();
+        DummyClient::new(Server::new(ErgConfig::default(), Some(sender)), receiver)
+    }
 }
 
 impl<C: BuildRunnable, P: Parsable> Clone for Server<C, P> {
@@ -347,6 +319,7 @@ impl<C: BuildRunnable, P: Parsable> Clone for Server<C, P> {
             modules: self.modules.clone(),
             analysis_result: self.analysis_result.clone(),
             channels: self.channels.clone(),
+            stdout_redirect: self.stdout_redirect.clone(),
             _parser: std::marker::PhantomData,
             _checker: std::marker::PhantomData,
         }
@@ -354,7 +327,7 @@ impl<C: BuildRunnable, P: Parsable> Clone for Server<C, P> {
 }
 
 impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
-    pub fn new(cfg: ErgConfig) -> Self {
+    pub fn new(cfg: ErgConfig, stdout_redirect: Option<mpsc::Sender<Value>>) -> Self {
         Self {
             comp_cache: CompletionCache::new(cfg.copy()),
             cfg,
@@ -364,10 +337,11 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             client_answers: Shared::new(Dict::new()),
             disabled_features: vec![],
             opt_features: vec![],
-            file_cache: FileCache::new(),
+            file_cache: FileCache::new(stdout_redirect.clone()),
             modules: ModuleCache::new(),
             analysis_result: AnalysisResultCache::new(),
             channels: None,
+            stdout_redirect,
             _parser: std::marker::PhantomData,
             _checker: std::marker::PhantomData,
         }
@@ -377,7 +351,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         loop {
             let msg = self.read_message()?;
             if let Err(err) = self.dispatch(msg) {
-                send_error_info(format!("err: {err:?}"))?;
+                self.send_error_info(format!("err: {err:?}"))?;
             }
         }
         // Ok(())
@@ -391,12 +365,24 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         }
     }
 
+    fn read_line(&self) -> io::Result<String> {
+        let mut line = String::new();
+        stdin().lock().read_line(&mut line)?;
+        Ok(line)
+    }
+
+    fn read_exact(&self, len: usize) -> io::Result<Vec<u8>> {
+        let mut buf = vec![0; len];
+        stdin().lock().read_exact(&mut buf)?;
+        Ok(buf)
+    }
+
     #[allow(clippy::field_reassign_with_default)]
     fn init(&mut self, msg: &Value, id: i64) -> ELSResult<()> {
-        send_log("initializing ELS")?;
+        self.send_log("initializing ELS")?;
         if msg.get("params").is_some() && msg["params"].get("capabilities").is_some() {
             self.init_params = InitializeParams::deserialize(&msg["params"])?;
-            // send_log(format!("set client capabilities: {:?}", self.client_capas))?;
+            // self.send_log(format!("set client capabilities: {:?}", self.client_capas))?;
         }
         let mut args = self.cfg.runtime_args.iter();
         while let Some(&arg) = args.next() {
@@ -413,7 +399,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         let mut result = InitializeResult::default();
         result.capabilities = self.init_capabilities();
         self.init_services();
-        send(&json!({
+        self.send_stdout(&json!({
             "jsonrpc": "2.0",
             "id": id,
             "result": result,
@@ -520,7 +506,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 section: Some("files.autoSave".to_string()),
             }],
         };
-        send(&json!({
+        self.send_stdout(&json!({
             "jsonrpc": "2.0",
             "id": ASK_AUTO_SAVE_ID,
             "method": "workspace/configuration",
@@ -606,13 +592,13 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     }
 
     fn exit(&self) -> ELSResult<()> {
-        send_log("exiting ELS")?;
+        self.send_log("exiting ELS")?;
         std::process::exit(0);
     }
 
     fn shutdown(&self, id: i64) -> ELSResult<()> {
-        send_log("shutting down ELS")?;
-        send(&json!({
+        self.send_log("shutting down ELS")?;
+        self.send_stdout(&json!({
             "jsonrpc": "2.0",
             "id": id,
             "result": json!(null),
@@ -634,7 +620,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         // Read in the "Content-Length: xx" part.
         let mut size: Option<usize> = None;
         loop {
-            let buffer = read_line()?;
+            let buffer = self.read_line()?;
 
             // End of input.
             if buffer.is_empty() {
@@ -689,7 +675,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             }
         };
 
-        let content = read_exact(size)?;
+        let content = self.read_exact(size)?;
 
         let s = String::from_utf8(content)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
@@ -704,7 +690,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             (Some(id), Some(method)) => self.handle_request(&msg, id, method),
             (Some(id), None) => self.handle_response(id, &msg),
             (None, Some(notification)) => self.handle_notification(&msg, notification),
-            _ => send_invalid_req_error(),
+            _ => self.send_invalid_req_error(),
         }
     }
 
@@ -735,10 +721,10 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 match msg {
                     WorkerMessage::Request(id, params) => match handler(&mut _self, params) {
                         Ok(result) => {
-                            let _ = send(&LSPResult::new(id, result));
+                            let _ = _self.send_stdout(&LSPResult::new(id, result));
                         }
                         Err(err) => {
-                            let _ = send(&ErrorMessage::new(
+                            let _ = _self.send_stdout(&ErrorMessage::new(
                                 Some(id),
                                 format!("err from {}: {err}", type_name::<R>()).into(),
                             ));
@@ -787,7 +773,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             }
             CallHierarchyPrepare::METHOD => self.parse_send::<CallHierarchyPrepare>(id, msg),
             FoldingRangeRequest::METHOD => self.parse_send::<FoldingRangeRequest>(id, msg),
-            other => send_error(Some(id), -32600, format!("{other} is not supported")),
+            other => self.send_error(Some(id), -32600, format!("{other} is not supported")),
         }
     }
 
@@ -795,13 +781,13 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         match method {
             "initialized" => {
                 self.ask_auto_save()?;
-                send_log("successfully bound")
+                self.send_log("successfully bound")
             }
             "exit" => self.exit(),
             "textDocument/didOpen" => {
                 let params = DidOpenTextDocumentParams::deserialize(msg["params"].clone())?;
                 let uri = NormalizedUrl::new(params.text_document.uri);
-                send_log(format!("{method}: {uri}"))?;
+                self.send_log(format!("{method}: {uri}"))?;
                 let code = params.text_document.text;
                 let ver = params.text_document.version;
                 self.file_cache.update(&uri, code.clone(), Some(ver));
@@ -810,7 +796,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             "textDocument/didSave" => {
                 let uri =
                     NormalizedUrl::parse(msg["params"]["textDocument"]["uri"].as_str().unwrap())?;
-                send_log(format!("{method}: {uri}"))?;
+                self.send_log(format!("{method}: {uri}"))?;
                 let code = self.file_cache.get_entire_code(&uri)?;
                 self.clear_cache(&uri);
                 self.check_file(uri, code)
@@ -831,7 +817,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 self.file_cache.incremental_update(params);
                 Ok(())
             }
-            _ => send_log(format!("received notification: {method}")),
+            _ => self.send_log(format!("received notification: {method}")),
         }
     }
 
@@ -845,7 +831,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     .send(WorkerMessage::Request(0, ()))?;
             }
             _ => {
-                _log!("msg: {msg}");
+                _log!(self, "msg: {msg}");
                 if msg.get("error").is_none() {
                     self.client_answers.borrow_mut().insert(id, msg.clone());
                 }
@@ -947,7 +933,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             .file_cache
             .get_token_relatively(uri, attr_marker_pos, -2);
         if let Some(token) = maybe_token {
-            // send_log(format!("token: {token}"))?;
+            // self.send_log(format!("token: {token}"))?;
             let mut ctxs = vec![];
             if let Some(visitor) = self.get_visitor(uri) {
                 if let Some(expr) =
@@ -965,12 +951,12 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                         ctxs.extend(singular_ctxs);
                     }
                 } else {
-                    _log!("expr not found: {token}");
+                    _log!(self, "expr not found: {token}");
                 }
             }
             Ok(ctxs)
         } else {
-            send_log("token not found")?;
+            self.send_log("token not found")?;
             Ok(vec![])
         }
     }

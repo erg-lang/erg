@@ -7,7 +7,7 @@ use erg_compiler::erg_parser::parse::Parsable;
 use lsp_types::{FoldingRange, FoldingRangeKind, FoldingRangeParams};
 
 use crate::_log;
-use crate::server::{ELSResult, Server};
+use crate::server::{ELSResult, RedirectableStdout, Server};
 use crate::util::NormalizedUrl;
 
 fn imports_range(start: &Location, end: &Location) -> Option<FoldingRange> {
@@ -25,7 +25,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         &mut self,
         params: FoldingRangeParams,
     ) -> ELSResult<Option<Vec<FoldingRange>>> {
-        _log!("folding range requested: {params:?}");
+        _log!(self, "folding range requested: {params:?}");
         let uri = NormalizedUrl::new(params.text_document.uri);
         let mut res = vec![];
         res.extend(self.fold_imports(&uri));

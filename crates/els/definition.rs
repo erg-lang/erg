@@ -10,7 +10,7 @@ use erg_compiler::varinfo::VarInfo;
 
 use lsp_types::{GotoDefinitionParams, GotoDefinitionResponse, Location, Position, Url};
 
-use crate::server::{send_log, ELSResult, Server};
+use crate::server::{ELSResult, RedirectableStdout, Server};
 use crate::util::{self, NormalizedUrl};
 
 impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
@@ -20,12 +20,12 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         token: &Token,
     ) -> ELSResult<Option<VarInfo>> {
         if !token.category_is(TokenCategory::Symbol) {
-            send_log(format!("not symbol: {token}"))?;
+            self.send_log(format!("not symbol: {token}"))?;
             Ok(None)
         } else if let Some(visitor) = self.get_visitor(uri) {
             Ok(visitor.get_info(token))
         } else {
-            send_log("not found")?;
+            self.send_log("not found")?;
             Ok(None)
         }
     }
@@ -99,7 +99,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                                     return Ok(Some(lsp_types::Location::new(def_uri, range)));
                                 }
                                 _ => {
-                                    send_log("not found (maybe builtin)")?;
+                                    self.send_log("not found (maybe builtin)")?;
                                     return Ok(None);
                                 }
                             }
@@ -112,7 +112,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                         Ok(Some(lsp_types::Location::new(def_uri, range)))
                     }
                     _ => {
-                        send_log("not found (maybe builtin)")?;
+                        self.send_log("not found (maybe builtin)")?;
                         Ok(None)
                     }
                 }
@@ -120,7 +120,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 Ok(None)
             }
         } else {
-            send_log("lex error occurred")?;
+            self.send_log("lex error occurred")?;
             Ok(None)
         }
     }
@@ -129,7 +129,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         &mut self,
         params: GotoDefinitionParams,
     ) -> ELSResult<Option<GotoDefinitionResponse>> {
-        send_log(format!("definition requested: {params:?}"))?;
+        self.send_log(format!("definition requested: {params:?}"))?;
         let uri = NormalizedUrl::new(params.text_document_position_params.text_document.uri);
         let pos = params.text_document_position_params.position;
         let result = self.get_definition_location(&uri, pos)?;

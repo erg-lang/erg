@@ -17,6 +17,7 @@ members = [
     "crates/erg_compiler",
     "crates/erg_parser",
     "crates/els",
+    "crates/molc"
 ]
 
 [workspace.package]
@@ -68,6 +69,7 @@ erg_common = { version = "0.6.20-nightly.2", path = "./crates/erg_common" }
 erg_parser = { version = "0.6.20-nightly.2", path = "./crates/erg_parser" }
 erg_compiler = { version = "0.6.20-nightly.2", path = "./crates/erg_compiler" }
 els = { version = "0.1.32-nightly.2", path = "./crates/els" }
+molc = { version = "0.1.0", path = "./crates/molc" }
 
 [dependencies]
 erg_common = { workspace = true }

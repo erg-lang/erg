@@ -14,7 +14,7 @@ use lsp_types::{
     Position, Range, TextEdit, Url, WorkspaceEdit,
 };
 
-use crate::server::{send_log, ELSResult, Server};
+use crate::server::{ELSResult, RedirectableStdout, Server};
 use crate::util::{self, NormalizedUrl};
 
 impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
@@ -29,11 +29,11 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         };
         let mut map = HashMap::new();
         let Some(visitor) = self.get_visitor(&uri) else {
-            send_log("visitor not found")?;
+            self.send_log("visitor not found")?;
             return Ok(None);
         };
         let Some(result) = self.analysis_result.get(&uri) else {
-            send_log("artifact not found")?;
+            self.send_log("artifact not found")?;
             return Ok(None);
         };
         let warns = result
@@ -50,7 +50,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             match visitor.get_min_expr(pos) {
                 Some(Expr::Def(def)) => {
                     let Some(mut range) = util::loc_to_range(def.loc()) else {
-                        send_log("range not found")?;
+                        self.send_log("range not found")?;
                         continue;
                     };
                     let next = lsp_types::Range {
@@ -72,7 +72,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                         }
                         Some(";") => range.end.character += 1,
                         Some(other) => {
-                            send_log(format!("? {other}"))?;
+                            self.send_log(format!("? {other}"))?;
                         }
                     }
                     let edit = TextEdit::new(range, "".to_string());
@@ -228,7 +228,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         &mut self,
         params: CodeActionParams,
     ) -> ELSResult<Option<CodeActionResponse>> {
-        send_log(format!("code action requested: {params:?}"))?;
+        self.send_log(format!("code action requested: {params:?}"))?;
         let result = match params
             .context
             .only
@@ -238,7 +238,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             Some("quickfix") => self.send_quick_fix(&params)?,
             None => self.send_normal_action(&params)?,
             Some(other) => {
-                send_log(&format!("Unknown code action requested: {other}"))?;
+                self.send_log(&format!("Unknown code action requested: {other}"))?;
                 vec![]
             }
         };
@@ -254,7 +254,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         &mut self,
         action: CodeAction,
     ) -> ELSResult<CodeAction> {
-        send_log(format!("code action resolve requested: {action:?}"))?;
+        self.send_log(format!("code action resolve requested: {action:?}"))?;
         match &action.title[..] {
             "Extract into function" | "Extract into variable" => {
                 self.resolve_extract_action(action)

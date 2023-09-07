@@ -1,0 +1,19 @@
+[package]
+name = "molc"
+version = "0.1.0"
+description = "A mock language client for testing language servers"
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.85"
+lsp-types = { version = "0.93.2", features = ["proposed"] }
+
+[path]
+lib = "src/lib.rs"

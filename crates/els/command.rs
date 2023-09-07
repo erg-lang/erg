@@ -8,7 +8,7 @@ use erg_compiler::hir::Expr;
 use lsp_types::{Command, ExecuteCommandParams, Location, Url};
 
 use crate::_log;
-use crate::server::{ELSResult, Server};
+use crate::server::{ELSResult, RedirectableStdout, Server};
 use crate::util::{self, NormalizedUrl};
 
 impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
@@ -16,11 +16,11 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         &mut self,
         params: ExecuteCommandParams,
     ) -> ELSResult<Option<Value>> {
-        _log!("command requested: {}", params.command);
+        _log!(self, "command requested: {}", params.command);
         #[allow(clippy::match_single_binding)]
         match &params.command[..] {
             other => {
-                _log!("unknown command {other}: {params:?}");
+                _log!(self, "unknown command {other}: {params:?}");
                 Ok(None)
             }
         }

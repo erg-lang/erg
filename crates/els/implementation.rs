@@ -3,7 +3,7 @@ use erg_compiler::erg_parser::parse::Parsable;
 use lsp_types::request::{GotoImplementationParams, GotoImplementationResponse};
 
 use crate::_log;
-use crate::server::{ELSResult, Server};
+use crate::server::{ELSResult, RedirectableStdout, Server};
 use crate::util::{loc_to_pos, NormalizedUrl};
 
 impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
@@ -11,7 +11,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         &mut self,
         params: GotoImplementationParams,
     ) -> ELSResult<Option<GotoImplementationResponse>> {
-        _log!("implementation requested: {params:?}");
+        _log!(self, "implementation requested: {params:?}");
         let uri = NormalizedUrl::new(params.text_document_position_params.text_document.uri);
         let pos = params.text_document_position_params.position;
         let Some(symbol) = self.file_cache.get_symbol(&uri, pos) else {

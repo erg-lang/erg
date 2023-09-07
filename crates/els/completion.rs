@@ -31,7 +31,7 @@ use lsp_types::{
     MarkupContent, MarkupKind, Position, Range, TextEdit,
 };
 
-use crate::server::{send_log, ELSResult, Server};
+use crate::server::{ELSResult, RedirectableStdout, Server};
 use crate::util::{self, NormalizedUrl};
 
 fn comp_item_kind(vi: &VarInfo) -> CompletionItemKind {
@@ -355,7 +355,7 @@ impl CompletionCache {
         let clone = cache.clone();
         spawn_new_thread(
             move || {
-                crate::_log!("load_modules");
+                // crate::_log!("load_modules");
                 let major_mods = [
                     "argparse",
                     "array",
@@ -490,7 +490,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         &mut self,
         params: CompletionParams,
     ) -> ELSResult<Option<CompletionResponse>> {
-        send_log(format!("completion requested: {params:?}"))?;
+        self.send_log(format!("completion requested: {params:?}"))?;
         let uri = NormalizedUrl::new(params.text_document_position.text_document.uri);
         let path = util::uri_to_path(&uri);
         let pos = params.text_document_position.position;
@@ -514,7 +514,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             Some("(") => CompletionKind::LParen,
             _ => CompletionKind::Local,
         };
-        send_log(format!("CompletionKind: {comp_kind:?}"))?;
+        self.send_log(format!("CompletionKind: {comp_kind:?}"))?;
         let mut result: Vec<CompletionItem> = vec![];
         let mut already_appeared = Set::new();
         let contexts = if comp_kind.should_be_local() {
@@ -629,7 +629,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             }
             result.extend(self.neighbor_completion(&uri, arg_pt, &mut already_appeared));
         }
-        send_log(format!("completion items: {}", result.len()))?;
+        self.send_log(format!("completion items: {}", result.len()))?;
         Ok(Some(CompletionResponse::Array(result)))
     }
 
@@ -637,7 +637,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         &mut self,
         mut item: CompletionItem,
     ) -> ELSResult<CompletionItem> {
-        send_log(format!("completion resolve requested: {item:?}"))?;
+        self.send_log(format!("completion resolve requested: {item:?}"))?;
         if let Some(data) = &item.data {
             let mut contents = vec![];
             let Ok(def_loc) = data.as_str().unwrap_or_default().parse::<AbsLocation>() else {

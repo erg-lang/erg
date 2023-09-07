@@ -12,7 +12,7 @@ use lsp_types::{
 };
 
 use crate::_log;
-use crate::server::{ELSResult, Server};
+use crate::server::{ELSResult, RedirectableStdout, Server};
 use crate::util::{abs_loc_to_lsp_loc, loc_to_range, NormalizedUrl};
 
 pub(crate) fn symbol_kind(vi: &VarInfo) -> SymbolKind {
@@ -35,7 +35,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         &mut self,
         params: WorkspaceSymbolParams,
     ) -> ELSResult<Option<Vec<SymbolInformation>>> {
-        _log!("workspace symbol requested: {params:?}");
+        _log!(self, "workspace symbol requested: {params:?}");
         let mut res = vec![];
         for module in self.modules.values() {
             for (name, vi) in module.context.local_dir() {
@@ -74,7 +74,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         &mut self,
         params: DocumentSymbolParams,
     ) -> ELSResult<Option<DocumentSymbolResponse>> {
-        _log!("document symbol requested: {params:?}");
+        _log!(self, "document symbol requested: {params:?}");
         let uri = NormalizedUrl::new(params.text_document.uri);
         if let Some(result) = self.analysis_result.get(&uri) {
             if let Some(hir) = &result.artifact.object {

@@ -5,7 +5,7 @@ use erg_compiler::varinfo::AbsLocation;
 use lsp_types::{Location, Position, ReferenceParams, Url};
 
 use crate::_log;
-use crate::server::{ELSResult, Server};
+use crate::server::{ELSResult, RedirectableStdout, Server};
 use crate::util::{self, NormalizedUrl};
 
 impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
@@ -13,7 +13,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         &mut self,
         params: ReferenceParams,
     ) -> ELSResult<Option<Vec<Location>>> {
-        _log!("references: {params:?}");
+        _log!(self, "references: {params:?}");
         let uri = NormalizedUrl::new(params.text_document_position.text_document.uri);
         let pos = params.text_document_position.position;
         let result = self.show_refs_inner(&uri, pos);
