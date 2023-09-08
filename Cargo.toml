@@ -15,6 +15,7 @@ homepage.workspace = true
 members = [
     "crates/erg_common",
     "crates/erg_compiler",
+    "crates/erg_formatter",
     "crates/erg_parser",
     "crates/els",
 ]
