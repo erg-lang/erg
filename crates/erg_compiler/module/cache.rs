@@ -153,6 +153,10 @@ impl ModuleCache {
         self.cache.iter()
     }
 
+    pub fn values(&self) -> impl Iterator<Item = &ModuleEntry> {
+        self.cache.values()
+    }
+
     pub fn clear(&mut self) {
         self.cache.clear();
     }
@@ -283,5 +287,17 @@ impl SharedModuleCache {
 
     pub fn ref_inner(&self) -> MappedRwLockReadGuard<Dict<NormalizedPathBuf, ModuleEntry>> {
         RwLockReadGuard::map(self.0.borrow(), |mc| &mc.cache)
+    }
+
+    pub fn raw_values(&self) -> impl Iterator<Item = &ModuleEntry> {
+        let _ref = self.0.borrow();
+        let ref_ = unsafe { self.0.as_ptr().as_ref().unwrap() };
+        ref_.values()
+    }
+
+    pub fn raw_iter(&self) -> impl Iterator<Item = (&NormalizedPathBuf, &ModuleEntry)> {
+        let _ref = self.0.borrow();
+        let ref_ = unsafe { self.0.as_ptr().as_ref().unwrap() };
+        ref_.iter()
     }
 }

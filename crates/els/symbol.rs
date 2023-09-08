@@ -1,8 +1,8 @@
 use erg_common::traits::Locational;
+
 use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::erg_parser::ast::DefKind;
 use erg_compiler::erg_parser::parse::Parsable;
-
 use erg_compiler::hir::Expr;
 use erg_compiler::ty::{HasType, Type};
 use erg_compiler::varinfo::VarInfo;
@@ -37,8 +37,8 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     ) -> ELSResult<Option<Vec<SymbolInformation>>> {
         _log!(self, "workspace symbol requested: {params:?}");
         let mut res = vec![];
-        for module in self.modules.values() {
-            for (name, vi) in module.context.local_dir() {
+        for context in self.get_workspace_ctxs() {
+            for (name, vi) in context.local_dir() {
                 if name.inspect().starts_with(['%']) {
                     continue;
                 }
@@ -47,9 +47,6 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     .as_ref()
                     .is_some_and(|alias| &alias.name == name.inspect())
                 {
-                    continue;
-                }
-                if !params.query.is_empty() && !name.inspect().contains(&params.query) {
                     continue;
                 }
                 let Some(location) = abs_loc_to_lsp_loc(&vi.def_loc) else {

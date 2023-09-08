@@ -1,10 +1,14 @@
+use std::env::current_dir;
+use std::ffi::OsStr;
+use std::path::PathBuf;
+use std::sync::atomic::Ordering;
 use std::sync::mpsc::Receiver;
 use std::thread::sleep;
 use std::time::Duration;
 
 use erg_common::consts::PYTHON_MODE;
 use erg_common::dict::Dict;
-use erg_common::spawn::spawn_new_thread;
+use erg_common::spawn::{safe_yield, spawn_new_thread};
 use erg_common::style::*;
 use erg_common::traits::Stream;
 use erg_common::{fn_name, lsp_log};
@@ -14,19 +18,18 @@ use erg_compiler::erg_parser::parse::Parsable;
 use erg_compiler::error::CompileErrors;
 
 use lsp_types::{
-    ConfigurationParams, Diagnostic, DiagnosticSeverity, NumberOrString, Position,
-    PublishDiagnosticsParams, Range, Url,
+    ConfigurationParams, Diagnostic, DiagnosticSeverity, NumberOrString, Position, ProgressParams,
+    ProgressParamsValue, PublishDiagnosticsParams, Range, Url, WorkDoneProgress,
+    WorkDoneProgressBegin, WorkDoneProgressCreateParams, WorkDoneProgressEnd,
 };
 use serde_json::json;
 
 use crate::_log;
 use crate::channels::WorkerMessage;
 use crate::diff::{ASTDiff, HIRDiff};
-use crate::server::{
-    AnalysisResult, DefaultFeatures, ELSResult, RedirectableStdout, Server, ASK_AUTO_SAVE_ID,
-    HEALTH_CHECKER_ID,
-};
-use crate::util::{self, NormalizedUrl};
+use crate::server::{AnalysisResult, DefaultFeatures, ELSResult, RedirectableStdout, Server};
+use crate::server::{ASK_AUTO_SAVE_ID, HEALTH_CHECKER_ID};
+use crate::util::{self, project_root_of, NormalizedUrl};
 
 impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     pub(crate) fn get_ast(&self, uri: &NormalizedUrl) -> Option<Module> {
@@ -262,6 +265,96 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     }
                     sleep(Duration::from_millis(500));
                 }
+            },
+            fn_name!(),
+        );
+    }
+
+    fn project_files(dir: PathBuf) -> Vec<NormalizedUrl> {
+        let mut uris = vec![];
+        let Ok(read_dir) = dir.read_dir() else {
+            return uris;
+        };
+        for entry in read_dir {
+            let Ok(entry) = entry else {
+                continue;
+            };
+            if entry.path().extension() == Some(OsStr::new("er")) {
+                if let Ok(uri) = NormalizedUrl::from_file_path(entry.path()) {
+                    uris.push(uri);
+                }
+            } else if entry.path().is_dir() {
+                uris.extend(Self::project_files(entry.path()));
+            }
+        }
+        uris
+    }
+
+    pub(crate) fn start_workspace_diagnostics(&mut self) {
+        let mut _self = self.clone();
+        spawn_new_thread(
+            move || {
+                while !_self.flags.client_initialized() {
+                    safe_yield();
+                }
+                let token = NumberOrString::String("els/start_workspace_diagnostics".to_string());
+                let progress_token = WorkDoneProgressCreateParams {
+                    token: token.clone(),
+                };
+                let _ = _self.send_stdout(&json!({
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "window/workDoneProgress/create",
+                    "params": progress_token,
+                }));
+                let Some(project_root) = project_root_of(&current_dir().unwrap()) else {
+                    _self.flags.workspace_checked.store(true, Ordering::Relaxed);
+                    return;
+                };
+                let src_dir = if project_root.join("src").is_dir() {
+                    project_root.join("src")
+                } else {
+                    project_root
+                };
+                let Ok(main_uri) = NormalizedUrl::from_file_path(src_dir.join("main.er")) else {
+                    _self.flags.workspace_checked.store(true, Ordering::Relaxed);
+                    return;
+                };
+                let uris = Self::project_files(src_dir);
+                let progress_begin = WorkDoneProgressBegin {
+                    title: "Checking workspace".to_string(),
+                    cancellable: Some(false),
+                    message: Some(format!("checking {} files ...", uris.len())),
+                    percentage: Some(0),
+                };
+                let params = ProgressParams {
+                    token: token.clone(),
+                    value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(progress_begin)),
+                };
+                _self
+                    .send_stdout(&json!({
+                        "jsonrpc": "2.0",
+                        "method": "$/progress",
+                        "params": params,
+                    }))
+                    .unwrap();
+                let code = _self.file_cache.get_entire_code(&main_uri).unwrap();
+                let _ = _self.check_file(main_uri, code);
+                let progress_end = WorkDoneProgressEnd {
+                    message: Some(format!("checked {} files", uris.len())),
+                };
+                let params = ProgressParams {
+                    token: token.clone(),
+                    value: ProgressParamsValue::WorkDone(WorkDoneProgress::End(progress_end)),
+                };
+                _self
+                    .send_stdout(&json!({
+                        "jsonrpc": "2.0",
+                        "method": "$/progress",
+                        "params": params,
+                    }))
+                    .unwrap();
+                _self.flags.workspace_checked.store(true, Ordering::Relaxed);
             },
             fn_name!(),
         );

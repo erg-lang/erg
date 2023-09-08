@@ -183,3 +183,17 @@ pub(crate) fn abs_loc_to_lsp_loc(loc: &AbsLocation) -> Option<lsp_types::Locatio
     let range = loc_to_range(loc.loc)?;
     Some(lsp_types::Location::new(uri, range))
 }
+
+pub(crate) fn project_root_of(path: &Path) -> Option<PathBuf> {
+    if path.is_dir() && path.join("package.er").exists() {
+        return Some(path.to_path_buf());
+    }
+    let mut path = path.to_path_buf();
+    while let Some(parent) = path.parent() {
+        if parent.join("package.er").exists() {
+            return Some(parent.to_path_buf());
+        }
+        path = parent.to_path_buf();
+    }
+    None
+}

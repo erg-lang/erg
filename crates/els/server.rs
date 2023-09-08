@@ -4,7 +4,8 @@ use std::io::{stdin, BufRead, Read};
 use std::ops::Not;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use std::sync::mpsc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{mpsc, Arc};
 
 use erg_common::config::ErgConfig;
 use erg_common::consts::PYTHON_MODE;
@@ -57,7 +58,7 @@ use crate::completion::CompletionCache;
 use crate::file_cache::FileCache;
 use crate::hir_visitor::{ExprKind, HIRVisitor};
 use crate::message::{ErrorMessage, LSPResult};
-use crate::util::{self, loc_to_pos, NormalizedUrl};
+use crate::util::{self, loc_to_pos, project_root_of, NormalizedUrl};
 
 pub const HEALTH_CHECKER_ID: i64 = 10000;
 pub const ASK_AUTO_SAVE_ID: i64 = 10001;
@@ -261,6 +262,29 @@ impl ModuleCache {
         let ref_ = unsafe { self.0.as_ptr().as_ref() };
         ref_.unwrap().values()
     }
+
+    pub fn _iter(&self) -> std::collections::hash_map::Iter<NormalizedUrl, ModuleContext> {
+        let _ref = self.0.borrow();
+        let ref_ = unsafe { self.0.as_ptr().as_ref() };
+        ref_.unwrap().iter()
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct Flags {
+    pub(crate) client_initialized: Arc<AtomicBool>,
+    pub(crate) workspace_checked: Arc<AtomicBool>,
+}
+
+impl Flags {
+    pub fn client_initialized(&self) -> bool {
+        self.client_initialized.load(Ordering::Relaxed)
+    }
+
+    #[allow(unused)]
+    pub fn workspace_checked(&self) -> bool {
+        self.workspace_checked.load(Ordering::Relaxed)
+    }
 }
 
 /// A Language Server, which can be used any object implementing `BuildRunnable` internally by passing it as a generic parameter.
@@ -277,6 +301,7 @@ pub struct Server<Checker: BuildRunnable = HIRBuilder, Parser: Parsable = Simple
     pub(crate) comp_cache: CompletionCache,
     // TODO: remove modules, analysis_result, and add `shared: SharedCompilerResource`
     pub(crate) modules: ModuleCache,
+    pub(crate) flags: Flags,
     pub(crate) analysis_result: AnalysisResultCache,
     pub(crate) channels: Option<SendChannels>,
     pub(crate) stdout_redirect: Option<mpsc::Sender<Value>>,
@@ -319,6 +344,7 @@ impl<C: BuildRunnable, P: Parsable> Clone for Server<C, P> {
             modules: self.modules.clone(),
             analysis_result: self.analysis_result.clone(),
             channels: self.channels.clone(),
+            flags: self.flags.clone(),
             stdout_redirect: self.stdout_redirect.clone(),
             _parser: std::marker::PhantomData,
             _checker: std::marker::PhantomData,
@@ -341,6 +367,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             modules: ModuleCache::new(),
             analysis_result: AnalysisResultCache::new(),
             channels: None,
+            flags: Flags::default(),
             stdout_redirect,
             _parser: std::marker::PhantomData,
             _checker: std::marker::PhantomData,
@@ -588,6 +615,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
 
     fn init_services(&mut self) {
         self.start_language_services();
+        self.start_workspace_diagnostics();
         self.start_auto_diagnostics();
     }
 
@@ -613,6 +641,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         self.analysis_result = AnalysisResultCache::new();
         self.channels.as_ref().unwrap().close();
         self.start_language_services();
+        self.start_workspace_diagnostics();
     }
 
     /// Copied and modified from RLS, https://github.com/rust-lang/rls/blob/master/rls/src/server/io.rs
@@ -780,6 +809,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     fn handle_notification(&mut self, msg: &Value, method: &str) -> ELSResult<()> {
         match method {
             "initialized" => {
+                self.flags.client_initialized.store(true, Ordering::Relaxed);
                 self.ask_auto_save()?;
                 self.send_log("successfully bound")
             }
@@ -899,6 +929,37 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         }
         let builtin_ctx = self.get_builtin_module();
         ctxs.extend(builtin_ctx);
+        ctxs
+    }
+
+    pub(crate) fn _get_all_ctxs(&self) -> Vec<Arc<ModuleContext>> {
+        let mut ctxs = vec![];
+        if let Some(shared) = self.get_shared() {
+            ctxs.extend(shared.mod_cache.raw_values().map(|ent| ent.module.clone()));
+            ctxs.extend(
+                shared
+                    .py_mod_cache
+                    .raw_values()
+                    .map(|ent| ent.module.clone()),
+            );
+        }
+        ctxs
+    }
+
+    pub(crate) fn get_workspace_ctxs(&self) -> Vec<&Context> {
+        let project_root = project_root_of(&self.home).unwrap_or(self.home.clone());
+        let mut ctxs = vec![];
+        if let Some(shared) = self.get_shared() {
+            for (path, ent) in shared
+                .mod_cache
+                .raw_iter()
+                .chain(shared.py_mod_cache.raw_iter())
+            {
+                if path.starts_with(&project_root) {
+                    ctxs.push(&ent.module.context);
+                }
+            }
+        }
         ctxs
     }
 
