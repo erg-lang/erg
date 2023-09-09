@@ -858,14 +858,20 @@ pub fn _eval_pyc<S: Into<String>>(file: S, py_command: Option<&str>) -> String {
     String::from_utf8_lossy(&out.stdout).to_string()
 }
 
-pub fn exec_py(file: impl AsRef<Path>) -> std::io::Result<ExitStatus> {
+pub fn exec_py(file: impl AsRef<Path>, args: &[&str]) -> std::io::Result<ExitStatus> {
     let mut child = if cfg!(windows) {
         Command::new(which_python())
             .arg(file.as_ref())
+            .args(args)
             .spawn()
             .expect("cannot execute python")
     } else {
-        let exec_command = format!("{} {}", which_python(), file.as_ref().display());
+        let exec_command = format!(
+            "{} {} {}",
+            which_python(),
+            file.as_ref().display(),
+            args.join(" ")
+        );
         Command::new("sh")
             .arg("-c")
             .arg(exec_command)
@@ -952,6 +958,18 @@ pub fn exec_py_code_with_output(
             .expect("cannot execute python")
     };
     let res = out.wait_with_output();
+    remove_file(tmp_file)?;
+    res
+}
+
+pub fn exec_py_code(code: &str, args: &[&str]) -> std::io::Result<ExitStatus> {
+    let tmp_dir = temp_dir();
+    let tmp_file = tmp_dir.join(format!("{}.py", random()));
+    File::create(&tmp_file)
+        .unwrap()
+        .write_all(code.as_bytes())
+        .unwrap();
+    let res = exec_py(&tmp_file, args);
     remove_file(tmp_file)?;
     res
 }

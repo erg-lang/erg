@@ -74,22 +74,27 @@ pub static ERG_PYSTD_PATH: OnceLock<PathBuf> = OnceLock::new();
 pub static ERG_EXTERNAL_LIB_PATH: OnceLock<PathBuf> = OnceLock::new();
 pub static PYTHON_SITE_PACKAGES: OnceLock<Vec<PathBuf>> = OnceLock::new();
 
+/// == `Path::new(".")` if ERG_PATH is not set
 pub fn erg_path() -> &'static PathBuf {
     ERG_PATH.get_or_init(|| normalize_path(_erg_path())) // .with(|s| s.clone())
 }
 
+/// == `Path::new("lib/std")` if ERG_PATH is not set
 pub fn erg_std_path() -> &'static PathBuf {
     ERG_STD_PATH.get_or_init(|| normalize_path(_erg_std_path()))
 }
 
+/// == `Path::new("lib/std.d")` if ERG_PATH is not set
 pub fn erg_std_decl_path() -> &'static PathBuf {
     ERG_STD_DECL_PATH.get_or_init(|| normalize_path(_erg_std_decl_path()))
 }
 
+/// == `Path::new("lib/pystd")` if ERG_PATH is not set
 pub fn erg_pystd_path() -> &'static PathBuf {
     ERG_PYSTD_PATH.get_or_init(|| normalize_path(_erg_pystd_path()))
 }
 
+/// == `Path::new("lib/external")` if ERG_PATH is not set
 pub fn erg_py_external_lib_path() -> &'static PathBuf {
     ERG_EXTERNAL_LIB_PATH.get_or_init(|| normalize_path(_erg_external_lib_path()))
 }

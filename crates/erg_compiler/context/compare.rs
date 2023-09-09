@@ -795,7 +795,8 @@ impl Context {
                     if let Ok(ValueObj::Str(mod_name)) =
                         ValueObj::try_from(other.typarams()[0].clone())
                     {
-                        self.get_mod(&mod_name).unwrap().local_dir()
+                        self.get_mod(&mod_name)
+                            .map_or(Dict::new(), |ctx| ctx.local_dir())
                     } else {
                         Dict::new()
                     }
