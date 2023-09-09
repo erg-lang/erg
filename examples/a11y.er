@@ -5,5 +5,5 @@ private = "this is a private variable"
 .C.
     x = 1
 .C|<: Eq|.
-    __eq__ self, other =
+    `==` self, other =
         self.x == other.x

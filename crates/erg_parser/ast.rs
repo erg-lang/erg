@@ -837,6 +837,8 @@ impl_locational_for_enum!(ClassAttr; Def, Decl, Doc);
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ClassAttrs(Vec<ClassAttr>);
 
+impl_stream!(ClassAttrs, ClassAttr);
+
 impl NestedDisplay for ClassAttrs {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
         fmt_lines(self.0.iter(), f, level)?;
@@ -853,28 +855,6 @@ impl Locational for ClassAttrs {
 impl From<Vec<ClassAttr>> for ClassAttrs {
     fn from(attrs: Vec<ClassAttr>) -> Self {
         Self(attrs)
-    }
-}
-
-impl ClassAttrs {
-    pub const fn new(attrs: Vec<ClassAttr>) -> Self {
-        Self(attrs)
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = &ClassAttr> {
-        self.0.iter()
-    }
-
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut ClassAttr> {
-        self.0.iter_mut()
-    }
-}
-
-impl IntoIterator for ClassAttrs {
-    type Item = ClassAttr;
-    type IntoIter = <Vec<ClassAttr> as IntoIterator>::IntoIter;
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
     }
 }
 
@@ -3134,6 +3114,10 @@ impl VarName {
     /// This method is for undoing it (e.g. pylyzer-mode)
     pub fn trim_end_proc_mark(&mut self) {
         self.0.content = Str::rc(self.0.content.trim_end_matches('!'));
+    }
+
+    pub fn rename(&mut self, new: Str) {
+        self.0.content = new;
     }
 }
 
