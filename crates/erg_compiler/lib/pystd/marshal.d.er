@@ -1,0 +1,6 @@
+.version: Nat
+
+.dump!: (value: Obj, file := PathLike, version := Nat) => NoneType
+.load!: (file: PathLike) => Obj
+.dumps: (value: Obj, version := Nat) -> Bytes
+.loads: (bytes: Bytes) -> Obj

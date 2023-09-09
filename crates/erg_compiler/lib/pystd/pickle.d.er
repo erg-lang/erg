@@ -1,0 +1,17 @@
+.HIGHEST_PROTOCOL: Nat
+.DEFAULT_PROTOCOL: Nat
+
+.dump!: (obj: Obj, file: PathLike, protocol := Nat) => NoneType
+.dumps: (obj: Obj, protocol := Nat) -> Bytes
+.load!: (
+    file: PathLike,
+    fix_imports := Bool,
+    encoding := Str,
+    errors := Str,
+) => Obj
+.loads: (
+    data: Bytes,
+    fix_imports := Bool,
+    encoding := Str,
+    errors := Str
+) -> Obj
