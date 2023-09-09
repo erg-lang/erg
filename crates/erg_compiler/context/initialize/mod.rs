@@ -412,6 +412,9 @@ const OP_ABS: &str = "__abs__";
 const OP_PARTIAL_CMP: &str = "__partial_cmp__";
 const OP_AND: &str = "__and__";
 const OP_OR: &str = "__or__";
+const OP_XOR: &str = "__xor__";
+const OP_LSHIFT: &str = "__lshift__";
+const OP_RSHIFT: &str = "__rshift__";
 const OP_POW: &str = "__pow__";
 const OP_MOD: &str = "__mod__";
 const OP_IS: &str = "__is__!";
@@ -423,6 +426,7 @@ const OP_ORNG: &str = "__orng__";
 const OP_MUTATE: &str = "__mutate__";
 const OP_POS: &str = "__pos__";
 const OP_NEG: &str = "__neg__";
+const OP_INVERT: &str = "__invert__";
 
 const FUNDAMENTAL_ARGS: &str = "__args__";
 const FUNDAMENTAL_LEN: &str = "__len__";

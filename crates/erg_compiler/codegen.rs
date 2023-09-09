@@ -183,6 +183,7 @@ pub struct PyCodeGenerator {
     module_type_loaded: bool,
     control_loaded: bool,
     convertors_loaded: bool,
+    operators_loaded: bool,
     abc_loaded: bool,
     unit_size: usize,
     units: PyCodeGenStack,
@@ -202,6 +203,7 @@ impl PyCodeGenerator {
             module_type_loaded: false,
             control_loaded: false,
             convertors_loaded: false,
+            operators_loaded: false,
             abc_loaded: false,
             unit_size: 0,
             units: PyCodeGenStack::empty(),
@@ -221,6 +223,7 @@ impl PyCodeGenerator {
             module_type_loaded: false,
             control_loaded: false,
             convertors_loaded: false,
+            operators_loaded: false,
             abc_loaded: false,
             unit_size: 0,
             units: PyCodeGenStack::empty(),
@@ -240,6 +243,7 @@ impl PyCodeGenerator {
         self.module_type_loaded = false;
         self.control_loaded = false;
         self.convertors_loaded = false;
+        self.operators_loaded = false;
         self.abc_loaded = false;
     }
 
@@ -728,6 +732,11 @@ impl PyCodeGenerator {
             }
             "int__" | "nat__" | "str__" | "float__" => {
                 self.load_convertors();
+            }
+            "add" | "sub" | "mul" | "truediv" | "floordiv" | "mod" | "pow" | "eq" | "ne" | "lt"
+            | "le" | "gt" | "ge" | "and_" | "or_" | "xor" | "lshift" | "rshift" | "pos" | "neg"
+            | "invert" | "is_" | "is_not" | "call" => {
+                self.load_operators();
             }
             // NoneType is not defined in the global scope, use `type(None)` instead
             "NoneType" => {
@@ -3448,6 +3457,12 @@ impl PyCodeGenerator {
         let mod_name = Identifier::public("_erg_convertors");
         self.emit_import_all_instr(mod_name);
         self.convertors_loaded = true;
+    }
+
+    fn load_operators(&mut self) {
+        let mod_name = Identifier::public("operator");
+        self.emit_import_all_instr(mod_name);
+        self.operators_loaded = true;
     }
 
     fn load_prelude_py(&mut self) {

@@ -307,6 +307,11 @@ fn exec_subtyping() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_sym_op() -> Result<(), ()> {
+    expect_success("tests/should_ok/sym_op.er", 0)
+}
+
+#[test]
 fn exec_trait() -> Result<(), ()> {
     expect_success("examples/trait.er", 0)
 }
