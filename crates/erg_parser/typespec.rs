@@ -315,6 +315,23 @@ impl Parser {
             };
             defaults.push(param);
         }
+        let kw_params =
+            lambda
+                .sig
+                .params
+                .kw_params
+                .map(|kw_args| match (kw_args.pat, kw_args.t_spec) {
+                    (ParamPattern::VarName(name), Some(t_spec_with_op)) => {
+                        ParamTySpec::new(Some(name.into_token()), t_spec_with_op.t_spec)
+                    }
+                    (ParamPattern::VarName(name), None) => ParamTySpec::anonymous(TypeSpec::mono(
+                        Identifier::new(VisModifierSpec::Private, name),
+                    )),
+                    (ParamPattern::Discard(_), Some(t_spec_with_op)) => {
+                        ParamTySpec::anonymous(t_spec_with_op.t_spec)
+                    }
+                    (param, t_spec) => todo!("{param}: {t_spec:?}"),
+                });
         let return_t = Self::expr_to_type_spec(lambda.body.remove(0))?;
         Ok(SubrTypeSpec::new(
             bounds,
@@ -322,6 +339,7 @@ impl Parser {
             non_defaults,
             var_params,
             defaults,
+            kw_params,
             lambda.op,
             return_t,
         ))

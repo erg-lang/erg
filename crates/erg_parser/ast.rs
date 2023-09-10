@@ -2486,6 +2486,7 @@ pub struct SubrTypeSpec {
     pub non_defaults: Vec<ParamTySpec>,
     pub var_params: Option<Box<ParamTySpec>>,
     pub defaults: Vec<DefaultParamTySpec>,
+    pub kw_params: Option<Box<ParamTySpec>>,
     pub arrow: Token,
     pub return_t: Box<TypeSpec>,
 }
@@ -2497,10 +2498,11 @@ impl fmt::Display for SubrTypeSpec {
         }
         write!(
             f,
-            "({}, {}, {}) {} {}",
+            "({}{}, {}{}) {} {}",
             fmt_vec(&self.non_defaults),
-            fmt_option!(pre "*", &self.var_params),
+            fmt_option!(pre ", *", &self.var_params),
             fmt_vec(&self.defaults),
+            fmt_option!(pre ", **", &self.kw_params),
             self.arrow.content,
             self.return_t
         )
@@ -2526,12 +2528,14 @@ impl Locational for SubrTypeSpec {
 }
 
 impl SubrTypeSpec {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         bounds: TypeBoundSpecs,
         lparen: Option<Token>,
         non_defaults: Vec<ParamTySpec>,
         var_params: Option<ParamTySpec>,
         defaults: Vec<DefaultParamTySpec>,
+        kw_params: Option<ParamTySpec>,
         arrow: Token,
         return_t: TypeSpec,
     ) -> Self {
@@ -2541,6 +2545,7 @@ impl SubrTypeSpec {
             non_defaults,
             var_params: var_params.map(Box::new),
             defaults,
+            kw_params: kw_params.map(Box::new),
             arrow,
             return_t: Box::new(return_t),
         }
@@ -4028,6 +4033,7 @@ pub struct Params {
     pub non_defaults: Vec<NonDefaultParamSignature>,
     pub var_params: Option<Box<NonDefaultParamSignature>>,
     pub defaults: Vec<DefaultParamSignature>,
+    pub kw_params: Option<Box<NonDefaultParamSignature>>,
     pub parens: Option<(Token, Token)>,
 }
 
@@ -4039,6 +4045,9 @@ impl fmt::Display for Params {
         }
         if !self.defaults.is_empty() {
             write!(f, ", {}", fmt_vec(&self.defaults))?;
+        }
+        if let Some(kw_params) = &self.kw_params {
+            write!(f, ", **{kw_params}")?;
         }
         write!(f, ")")
     }
@@ -4072,6 +4081,7 @@ type RawParams = (
     Vec<NonDefaultParamSignature>,
     Option<Box<NonDefaultParamSignature>>,
     Vec<DefaultParamSignature>,
+    Option<Box<NonDefaultParamSignature>>,
     Option<(Token, Token)>,
 );
 
@@ -4080,18 +4090,24 @@ impl Params {
         non_defaults: Vec<NonDefaultParamSignature>,
         var_params: Option<NonDefaultParamSignature>,
         defaults: Vec<DefaultParamSignature>,
+        kw_params: Option<NonDefaultParamSignature>,
         parens: Option<(Token, Token)>,
     ) -> Self {
         Self {
             non_defaults,
             var_params: var_params.map(Box::new),
             defaults,
+            kw_params: kw_params.map(Box::new),
             parens,
         }
     }
 
     pub fn single(non_default: NonDefaultParamSignature) -> Self {
-        Self::new(vec![non_default], None, vec![], None)
+        Self::new(vec![non_default], None, vec![], None, None)
+    }
+
+    pub fn nd_only(non_defaults: Vec<NonDefaultParamSignature>) -> Self {
+        Self::new(non_defaults, None, vec![], None, None)
     }
 
     pub fn deconstruct(self) -> RawParams {
@@ -4099,6 +4115,7 @@ impl Params {
             self.non_defaults,
             self.var_params,
             self.defaults,
+            self.kw_params,
             self.parens,
         )
     }
@@ -4245,7 +4262,7 @@ impl LambdaSignature {
     pub fn do_sig(do_symbol: &Token) -> Self {
         let parens = Some((do_symbol.clone(), do_symbol.clone()));
         Self::new(
-            Params::new(vec![], None, vec![], parens),
+            Params::new(vec![], None, vec![], None, parens),
             None,
             TypeBoundSpecs::empty(),
         )

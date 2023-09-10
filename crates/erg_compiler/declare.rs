@@ -422,7 +422,7 @@ impl ASTLowerer {
     }
 
     fn fake_lower_params(&self, params: ast::Params) -> LowerResult<hir::Params> {
-        let (non_defaults_, var_params_, defaults_, parens) = params.deconstruct();
+        let (non_defaults_, var_params_, defaults_, _kw_args, parens) = params.deconstruct();
         let mut non_defaults = vec![];
         for non_default_ in non_defaults_.into_iter() {
             let t_spec_as_expr = non_default_

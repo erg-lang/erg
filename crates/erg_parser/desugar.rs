@@ -477,7 +477,7 @@ impl Desugarer {
                                             _ => unreachable!(),
                                         }
                                     }
-                                    Params::new(params, None, vec![], None)
+                                    Params::nd_only(params)
                                 }
                                 Expr::Accessor(Accessor::Ident(ident)) => {
                                     let param_name = ident.inspect();

@@ -378,7 +378,7 @@ impl Parser {
     pub(crate) fn convert_args_to_params(&mut self, args: Args) -> ParseResult<Params> {
         debug_call_info!(self);
         let (pos_args, var_args, kw_args, parens) = args.deconstruct();
-        let mut params = Params::new(vec![], None, vec![], parens);
+        let mut params = Params::new(vec![], None, vec![], None, parens);
         for (i, arg) in pos_args.into_iter().enumerate() {
             let nd_param = self
                 .convert_pos_arg_to_non_default_param(arg, i == 0)
@@ -539,7 +539,7 @@ impl Parser {
                 for arg in arr.elems.into_iters().0 {
                     params.push(self.convert_pos_arg_to_non_default_param(arg, false)?);
                 }
-                let params = Params::new(params, None, vec![], None);
+                let params = Params::nd_only(params);
                 debug_exit_info!(self);
                 Ok(ParamArrayPattern::new(arr.l_sqbr, params, arr.r_sqbr))
             }
@@ -632,7 +632,7 @@ impl Parser {
                 } else {
                     None
                 };
-                let params = Params::new(params, var_params, vec![], parens);
+                let params = Params::new(params, var_params, vec![], None, parens);
                 debug_exit_info!(self);
                 Ok(ParamTuplePattern::new(params))
             }
@@ -775,7 +775,7 @@ impl Parser {
         match tuple {
             Tuple::Normal(tup) => {
                 let (pos_args, var_args, kw_args, paren) = tup.elems.deconstruct();
-                let mut params = Params::new(vec![], None, vec![], paren);
+                let mut params = Params::new(vec![], None, vec![], None, paren);
                 for (i, arg) in pos_args.into_iter().enumerate() {
                     let param = self
                         .convert_pos_arg_to_non_default_param(arg, i == 0)
