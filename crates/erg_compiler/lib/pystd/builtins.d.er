@@ -204,3 +204,30 @@ opened in a binary mode.
   newline := Str or NoneType,
   closefd := Bool,
 ) => File!
+
+'''
+Convert `iterable` into an array.
+'''
+'''erg
+assert array() == []
+assert array((1, 2)) == [1, 2]
+'''
+.array: |T| (iterable := Iterable(T)) -> [T; _]
+
+'''
+Convert `iterable` into a dict.
+'''
+'''erg
+assert dict() == {:}
+assert dict([("a", 1), ("b": 2)]) == {"a": 1, "b": 2}
+'''
+.dict: |K, V| (iterable := Iterable((K, V))) -> {K: V}
+
+'''
+Convert `iterable` into a set.
+'''
+'''erg
+assert set() == {}
+assert set([1, 2]) == {1, 2}
+'''
+.set: |T| (iterable := Iterable(T)) -> {T; _}

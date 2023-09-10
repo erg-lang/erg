@@ -629,44 +629,44 @@ impl ArrayWithLength {
 pub struct ArrayComprehension {
     pub l_sqbr: Token,
     pub r_sqbr: Token,
-    pub elem: Box<Expr>,
+    pub layout: Option<Box<Expr>>,
     pub generators: Vec<(Identifier, Expr)>,
-    pub guards: Vec<Expr>,
+    pub guard: Option<Box<Expr>>,
 }
 
 impl NestedDisplay for ArrayComprehension {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         let mut generators = String::new();
         for (name, gen) in self.generators.iter() {
-            write!(generators, "{name} <- {gen}, ")?;
+            write!(generators, "{name} <- {gen}; ")?;
         }
         write!(
             f,
-            "[{}| {}{}]",
-            self.elem,
+            "[{}{}{}]",
+            fmt_option!(self.layout, post " | "),
             generators,
-            fmt_vec(&self.guards)
+            fmt_option!(pre " | ", &self.guard)
         )
     }
 }
 
 impl_display_from_nested!(ArrayComprehension);
-impl_locational!(ArrayComprehension, l_sqbr, elem, r_sqbr);
+impl_locational!(ArrayComprehension, l_sqbr, r_sqbr);
 
 impl ArrayComprehension {
     pub fn new(
         l_sqbr: Token,
         r_sqbr: Token,
-        elem: Expr,
+        layout: Option<Expr>,
         generators: Vec<(Identifier, Expr)>,
-        guards: Vec<Expr>,
+        guard: Option<Expr>,
     ) -> Self {
         Self {
             l_sqbr,
             r_sqbr,
-            elem: Box::new(elem),
+            layout: layout.map(Box::new),
             generators,
-            guards,
+            guard: guard.map(Box::new),
         }
     }
 }
@@ -779,27 +779,43 @@ impl NormalDict {
 pub struct DictComprehension {
     l_brace: Token,
     r_brace: Token,
-    pub attrs: Args,
-    guards: Vec<Expr>,
+    pub kv: Box<KeyValue>,
+    pub generators: Vec<(Identifier, Expr)>,
+    pub guard: Option<Box<Expr>>,
 }
 
-// TODO:
 impl NestedDisplay for DictComprehension {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "{{{} | {}}}", self.attrs, fmt_vec(&self.guards))
+        let mut generators = String::new();
+        for (name, gen) in self.generators.iter() {
+            write!(generators, "{name} <- {gen}; ")?;
+        }
+        write!(
+            f,
+            "{{{} | {generators}{}}}",
+            self.kv,
+            fmt_option!(pre " | ", &self.guard)
+        )
     }
 }
 
 impl_display_from_nested!(DictComprehension);
-impl_locational!(DictComprehension, l_brace, attrs, r_brace);
+impl_locational!(DictComprehension, l_brace, kv, r_brace);
 
 impl DictComprehension {
-    pub const fn new(l_brace: Token, r_brace: Token, attrs: Args, guards: Vec<Expr>) -> Self {
+    pub fn new(
+        l_brace: Token,
+        r_brace: Token,
+        kv: KeyValue,
+        generators: Vec<(Identifier, Expr)>,
+        guard: Option<Expr>,
+    ) -> Self {
         Self {
             l_brace,
             r_brace,
-            attrs,
-            guards,
+            kv: Box::new(kv),
+            generators,
+            guard: guard.map(Box::new),
         }
     }
 }
@@ -1075,18 +1091,22 @@ impl SetWithLength {
 pub struct SetComprehension {
     pub l_brace: Token,
     pub r_brace: Token,
-    pub var: Token,
-    pub op: Token, // <- or :
-    pub iter: Box<Expr>,
-    pub pred: Box<Expr>,
+    pub layout: Option<Box<Expr>>,
+    pub generators: Vec<(Identifier, Expr)>,
+    pub guard: Option<Box<Expr>>,
 }
 
 impl NestedDisplay for SetComprehension {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        let mut generators = String::new();
+        for (name, gen) in self.generators.iter() {
+            write!(generators, "{name} <- {gen}; ")?;
+        }
         write!(
             f,
-            "{{{} {} {} | {}}}",
-            self.var, self.op, self.iter, self.pred
+            "{{{}{generators}{}}}",
+            fmt_option!(self.layout, post " | "),
+            fmt_option!(pre " | ", self.guard)
         )
     }
 }
@@ -1098,18 +1118,16 @@ impl SetComprehension {
     pub fn new(
         l_brace: Token,
         r_brace: Token,
-        var: Token,
-        op: Token,
-        iter: Expr,
-        pred: Expr,
+        layout: Option<Expr>,
+        generators: Vec<(Identifier, Expr)>,
+        guard: Option<Expr>,
     ) -> Self {
         Self {
             l_brace,
             r_brace,
-            var,
-            op,
-            iter: Box::new(iter),
-            pred: Box::new(pred),
+            layout: layout.map(Box::new),
+            generators,
+            guard: guard.map(Box::new),
         }
     }
 }
@@ -1641,41 +1659,43 @@ impl ConstNormalSet {
 pub struct ConstSetComprehension {
     pub l_brace: Token,
     pub r_brace: Token,
-    pub var: Token,
-    pub op: Token,
-    pub iter: Box<ConstExpr>,
-    pub pred: Box<ConstExpr>,
+    pub layout: Option<Box<ConstExpr>>,
+    pub generators: Vec<(ConstIdentifier, ConstExpr)>,
+    pub guard: Option<Box<ConstExpr>>,
 }
 
 impl NestedDisplay for ConstSetComprehension {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        let mut generators = String::new();
+        for (name, gen) in self.generators.iter() {
+            write!(generators, "{name} <- {gen}, ")?;
+        }
         write!(
             f,
-            "{{{} {} {} | {}}}",
-            self.var, self.op, self.iter, self.pred
+            "{{{}{generators}{}}}",
+            fmt_option!(self.layout, post " | "),
+            fmt_option!(pre " | ", self.guard)
         )
     }
 }
 
 impl_display_from_nested!(ConstSetComprehension);
-impl_locational!(ConstSetComprehension, l_brace, var, r_brace);
+impl_locational!(ConstSetComprehension, l_brace, r_brace);
 
 impl ConstSetComprehension {
     pub fn new(
         l_brace: Token,
         r_brace: Token,
-        var: Token,
-        op: Token,
-        iter: ConstExpr,
-        pred: ConstExpr,
+        elem: Option<ConstExpr>,
+        generators: Vec<(ConstIdentifier, ConstExpr)>,
+        guard: Option<ConstExpr>,
     ) -> Self {
         Self {
             l_brace,
             r_brace,
-            var,
-            op,
-            iter: Box::new(iter),
-            pred: Box::new(pred),
+            layout: elem.map(Box::new),
+            generators,
+            guard: guard.map(Box::new),
         }
     }
 
@@ -1683,10 +1703,12 @@ impl ConstSetComprehension {
         SetComprehension::new(
             self.l_brace,
             self.r_brace,
-            self.var,
-            self.op,
-            self.iter.downgrade(),
-            self.pred.downgrade(),
+            self.layout.map(|ex| ex.downgrade()),
+            self.generators
+                .into_iter()
+                .map(|(name, gen)| (name, gen.downgrade()))
+                .collect(),
+            self.guard.map(|ex| ex.downgrade()),
         )
     }
 }
@@ -3352,6 +3374,26 @@ impl Identifier {
 
     pub fn trim_end_proc_mark(&mut self) {
         self.name.trim_end_proc_mark();
+    }
+
+    pub fn call1(self, arg: Expr) -> Call {
+        Call::new(
+            self.into(),
+            None,
+            Args::pos_only(vec![PosArg::new(arg)], None),
+        )
+    }
+
+    pub fn call2(self, arg1: Expr, arg2: Expr) -> Call {
+        Call::new(
+            self.into(),
+            None,
+            Args::pos_only(vec![PosArg::new(arg1), PosArg::new(arg2)], None),
+        )
+    }
+
+    pub fn call(self, args: Args) -> Call {
+        Call::new(self.into(), None, args)
     }
 }
 

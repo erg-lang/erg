@@ -1,6 +1,6 @@
 d = {"a": 1}
-dict = !d
+dic = !d
 
-dict.insert! "b", 2
-assert dict.get("a") == 1
-assert dict.get("b") == 2
+dic.insert! "b", 2
+assert dic.get("a") == 1
+assert dic.get("b") == 2

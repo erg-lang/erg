@@ -61,6 +61,11 @@ fn exec_comment() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_comprehension() -> Result<(), ()> {
+    expect_success("tests/should_ok/comprehension.er", 0)
+}
+
+#[test]
 fn exec_control() -> Result<(), ()> {
     expect_success("examples/control.er", 2)
 }

@@ -31,27 +31,6 @@ assert {i % 2 | i <- 0..9} == {0, 1}
 assert {k: v | k <- ["a", "b"]; v <- [1, 2]} == {"a": 1, "b": 2}
 ```
 
-Erg comprehensions are inspired by Haskell, but with some differences.
-For Haskell list comprehensions, the order of variables makes a difference in the result, but in Erg it doesn't matter.
-
-``` haskell
--- Haskell
-[(i, j) | i <- [1..3], j <- [3..5]] == [(1,3),(1,4),(1,5),(2 ,3),(2,4),(2,5),(3,3),(3,4),(3,5)]
-[(i, j) | j <- [3..5], i <- [1..3]] == [(1,3),(2,3),(3,3),(1 ,4),(2,4),(3,4),(1,5),(2,5),(3,5)]
-```
-
-```python
-# Erg
-assert [(i, j) | i <- 1..<3; j <- 3..<5] == [(i, j) | j <- 3..<5; i <- 1.. <3]
-```
-
-This specification is the same as that of Python.
-
-```python
-# Python
-assert [(i, j) for i in range(1, 3) for j in range(3, 5)] == [(i, j) for j in range(3, 5) for i in range(1, 3)]
-```
-
 ## Refinement type
 
 Similar to comprehensions are refinement types. A refinement type is a type (enumerated type) created in the form `{Name: Type | Predicate}`.

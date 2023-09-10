@@ -37,6 +37,13 @@ impl Context {
             Bool,
         );
         let t_ascii = nd_func(vec![kw(KW_OBJECT, Obj)], None, Str);
+        let t_array = func(
+            vec![],
+            None,
+            vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())]))],
+            array_t(T.clone(), TyParam::erased(Nat)),
+        )
+        .quantify();
         let t_assert = func(
             vec![kw(KW_TEST, Bool)],
             None,
@@ -65,6 +72,16 @@ impl Context {
             ],
             None,
             T.clone(),
+        )
+        .quantify();
+        let t_dict = func(
+            vec![],
+            None,
+            vec![kw(
+                KW_ITERABLE,
+                poly(ITERABLE, vec![ty_tp(tuple_t(vec![T.clone(), U.clone()]))]),
+            )],
+            dict! { T.clone() => U.clone() }.into(),
         )
         .quantify();
         let t_discard = nd_func(vec![kw(KW_OBJ, Obj)], None, NoneType);
@@ -221,6 +238,13 @@ impl Context {
         )
         .quantify();
         let t_round = nd_func(vec![kw(KW_NUMBER, Float)], None, Int);
+        let t_set = func(
+            vec![],
+            None,
+            vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())]))],
+            set_t(T.clone(), TyParam::erased(Nat)),
+        )
+        .quantify();
         let t_slice = func(
             vec![kw(KW_START, Int)],
             None,
@@ -256,6 +280,7 @@ impl Context {
         self.register_py_builtin(FUNC_ABS, t_abs, Some(FUNC_ABS), 11);
         self.register_py_builtin(FUNC_ALL, t_all, Some(FUNC_ALL), 22);
         self.register_py_builtin(FUNC_ANY, t_any, Some(FUNC_ANY), 33);
+        self.register_py_builtin(FUNC_ARRAY, t_array, Some(FUNC_LIST), 215);
         self.register_py_builtin(FUNC_ASCII, t_ascii, Some(FUNC_ASCII), 53);
         // Leave as `Const`, as it may negatively affect assert casting.
         self.register_builtin_erg_impl(FUNC_ASSERT, t_assert, Const, vis.clone());
@@ -283,6 +308,7 @@ impl Context {
             Some(FUNC_COMPILE),
         );
         self.register_builtin_erg_impl(KW_COND, t_cond, Immutable, vis.clone());
+        self.register_py_builtin(FUNC_DICT, t_dict, Some(FUNC_DICT), 224);
         self.register_builtin_py_impl(
             FUNC_ENUMERATE,
             t_enumerate,
@@ -401,6 +427,7 @@ impl Context {
             vis.clone(),
             Some(FUNC_ROUND),
         );
+        self.register_py_builtin(FUNC_SET, t_set, Some(FUNC_SET), 233);
         self.register_builtin_py_impl(
             FUNC_SLICE,
             t_slice,
