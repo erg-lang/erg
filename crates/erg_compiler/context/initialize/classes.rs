@@ -6,7 +6,7 @@ use erg_common::log;
 use crate::ty::constructors::*;
 use crate::ty::typaram::TyParam;
 use crate::ty::value::ValueObj;
-use crate::ty::{Type, Visibility};
+use crate::ty::{IntervalOp, Type, Visibility};
 use ParamSpec as PS;
 use Type::*;
 
@@ -2463,6 +2463,8 @@ impl Context {
         )
         .quantify();
         array_mut_.register_py_builtin(PROC_PUSH, t, Some(FUNC_APPEND), 15);
+        let t_copy = pr0_met(ref_(array_mut_t.clone()), array_mut_t.clone()).quantify();
+        array_mut_.register_py_builtin(FUNC_COPY, t_copy, Some(FUNC_COPY), 116);
         let t_extend = pr_met(
             ref_mut(
                 array_mut_t.clone(),
@@ -2584,6 +2586,87 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
         );
         array_mut_.register_trait(array_mut_t.clone(), array_mut_mutable);
+        /* ByteArray! */
+        let bytearray_mut_t = mono(BYTEARRAY);
+        let mut bytearray_mut = Self::builtin_mono_class(BYTEARRAY, 2);
+        let t_append = pr_met(
+            ref_mut(bytearray_mut_t.clone(), None),
+            vec![kw(KW_ELEM, int_interval(IntervalOp::Closed, 0, 255))],
+            None,
+            vec![],
+            NoneType,
+        );
+        bytearray_mut.register_builtin_py_impl(
+            PROC_PUSH,
+            t_append,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_APPEND),
+        );
+        let t_copy = pr0_met(bytearray_mut_t.clone(), bytearray_mut_t.clone());
+        bytearray_mut.register_builtin_py_impl(
+            FUNC_COPY,
+            t_copy,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_COPY),
+        );
+        let t_extend = pr_met(
+            ref_mut(bytearray_mut_t.clone(), None),
+            vec![kw(
+                KW_ITERABLE,
+                poly(
+                    ITERABLE,
+                    vec![ty_tp(int_interval(IntervalOp::Closed, 0, 255))],
+                ),
+            )],
+            None,
+            vec![],
+            NoneType,
+        );
+        bytearray_mut.register_builtin_py_impl(
+            PROC_EXTEND,
+            t_extend,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_EXTEND),
+        );
+        let t_insert = pr_met(
+            ref_mut(bytearray_mut_t.clone(), None),
+            vec![
+                kw(KW_INDEX, Nat),
+                kw(KW_ELEM, int_interval(IntervalOp::Closed, 0, 255)),
+            ],
+            None,
+            vec![],
+            NoneType,
+        );
+        bytearray_mut.register_builtin_py_impl(
+            PROC_INSERT,
+            t_insert,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_INSERT),
+        );
+        let t_pop = pr0_met(
+            ref_mut(bytearray_mut_t.clone(), None),
+            int_interval(IntervalOp::Closed, 0, 255),
+        );
+        bytearray_mut.register_builtin_py_impl(
+            PROC_POP,
+            t_pop,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_POP),
+        );
+        let t_reverse = pr0_met(ref_mut(bytearray_mut_t.clone(), None), NoneType);
+        bytearray_mut.register_builtin_py_impl(
+            PROC_REVERSE,
+            t_reverse,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_REVERSE),
+        );
         /* Dict! */
         let dict_mut_t = poly(MUT_DICT, vec![D.clone()]);
         let mut dict_mut =
@@ -2918,6 +3001,13 @@ impl Context {
         );
         self.register_builtin_type(mono(MUT_FILE), file_mut, vis.clone(), Const, Some(FILE));
         self.register_builtin_type(array_mut_t, array_mut_, vis.clone(), Const, Some(ARRAY));
+        self.register_builtin_type(
+            bytearray_mut_t,
+            bytearray_mut,
+            vis.clone(),
+            Const,
+            Some(BYTEARRAY),
+        );
         self.register_builtin_type(dict_mut_t, dict_mut, vis.clone(), Const, Some(DICT));
         self.register_builtin_type(set_mut_t, set_mut_, vis.clone(), Const, Some(SET));
         self.register_builtin_type(

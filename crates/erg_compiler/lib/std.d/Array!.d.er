@@ -103,3 +103,14 @@ array = pyimport "Array"
     assert arr == [2, 2]
     '''
     update_nth!: |T, N: Nat|(self: Array!(T, N), index: Nat, f: T -> T) => NoneType
+    '''
+    Return a (deep) copy of the array.
+    '''
+    '''erg
+    arr = ![1, 2]
+    arr_copy = arr.copy()
+    arr_copy.push! 3
+    assert arr_copy == [1, 2, 3]
+    assert arr == [1, 2]
+    '''
+    copy: |T, N: Nat|(self: Ref(Array!(T, N))) => Array!(T, N)

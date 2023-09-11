@@ -52,10 +52,17 @@ impl Context {
         );
         let t_bin = nd_func(vec![kw(KW_N, Int)], None, Str);
         // TODO: overload: Iterable(Int) -> Bytes
-        let t_bytes = nd_func(
-            vec![kw(KW_STR, Str), kw(KW_ENCODING, Str)],
+        let t_bytes = func(
+            vec![],
             None,
+            vec![kw(KW_STR, Str), kw(KW_ENCODING, Str)],
             mono(BYTES),
+        );
+        let t_bytes_array = func(
+            vec![],
+            None,
+            vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(Int)]))],
+            mono(BYTEARRAY),
         );
         let t_chr = nd_func(
             vec![kw(KW_I, Type::from(value(0usize)..=value(1_114_111usize)))],
@@ -292,6 +299,13 @@ impl Context {
             vis.clone(),
             Some(FUNC_BYTES),
         );
+        self.register_builtin_py_impl(
+            FUNC_BYTEARRAY,
+            t_bytes_array,
+            Immutable,
+            vis.clone(),
+            Some(FUNC_BYTEARRAY),
+        );
         self.register_builtin_py_impl(FUNC_CHR, t_chr, Immutable, vis.clone(), Some(FUNC_CHR));
         self.register_builtin_py_impl(
             FUNC_CLASSOF,
@@ -516,31 +530,6 @@ impl Context {
                 Some(FUNC_EXIT),
             );
         } else {
-            let t_list = func(
-                vec![],
-                None,
-                vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())]))],
-                poly(ARRAY, vec![ty_tp(T.clone()), TyParam::erased(Nat)]),
-            )
-            .quantify();
-            self.register_builtin_py_impl(
-                FUNC_LIST,
-                t_list,
-                Immutable,
-                vis.clone(),
-                Some(FUNC_LIST),
-            );
-            let t_dict = func(
-                vec![],
-                None,
-                vec![kw(
-                    KW_ITERABLE,
-                    poly(ITERABLE, vec![ty_tp(tuple_t(vec![T.clone(), U.clone()]))]),
-                )],
-                dict! { T => U }.into(),
-            )
-            .quantify();
-            self.register_builtin_py_impl(FUNC_DICT, t_dict, Immutable, vis, Some(FUNC_DICT));
             self.register_builtin_py_impl(
                 PYIMPORT,
                 t_pyimport,
