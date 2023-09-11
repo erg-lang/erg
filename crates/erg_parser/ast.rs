@@ -3053,6 +3053,13 @@ impl Borrow<Str> for VarName {
     }
 }
 
+impl From<&'static str> for VarName {
+    #[inline]
+    fn from(s: &'static str) -> Self {
+        Self::from_static(s)
+    }
+}
+
 impl Locational for VarName {
     #[inline]
     fn loc(&self) -> Location {

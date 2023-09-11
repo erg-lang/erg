@@ -4,6 +4,7 @@
 //! e.g. Literal parameters, Multi assignment
 //! 型チェックなどによる検証は行わない
 
+use erg_common::consts::PYTHON_MODE;
 use erg_common::error::Location;
 use erg_common::fresh::FreshNameGenerator;
 use erg_common::traits::{Locational, Stream};
@@ -1612,9 +1613,8 @@ impl Desugarer {
                 }
                 let (ident, iter) = comp.generators.remove(0);
                 let iterator = Self::desugar_layout_and_guard(ident, iter, comp.layout, comp.guard);
-                Identifier::private("array".into())
-                    .call1(iterator.into())
-                    .into()
+                let array = if PYTHON_MODE { "list" } else { "array" };
+                Identifier::auto(array.into()).call1(iterator.into()).into()
             }
             Expr::Dict(Dict::Comprehension(mut comp)) => {
                 debug_power_assert!(comp.generators.len(), >, 0);
@@ -1634,7 +1634,7 @@ impl Desugarer {
                 let body = Block::new(vec![tuple.into()]);
                 let lambda = Lambda::new(sig, Token::DUMMY, body, DefId(0));
                 let map = Identifier::private("map".into()).call2(lambda.into(), iter);
-                Identifier::private("dict".into()).call1(map.into()).into()
+                Identifier::auto("dict".into()).call1(map.into()).into()
             }
             Expr::Set(astSet::Comprehension(mut comp)) => {
                 debug_power_assert!(comp.generators.len(), >, 0);
@@ -1643,9 +1643,7 @@ impl Desugarer {
                 }
                 let (ident, iter) = comp.generators.remove(0);
                 let iterator = Self::desugar_layout_and_guard(ident, iter, comp.layout, comp.guard);
-                Identifier::private("set".into())
-                    .call1(iterator.into())
-                    .into()
+                Identifier::auto("set".into()).call1(iterator.into()).into()
             }
             expr => Self::perform_desugar(Self::rec_desugar_comprehension, expr),
         }
@@ -1666,20 +1664,20 @@ impl Desugarer {
             (Some(elem), Some(guard)) => {
                 let f_body = Block::new(vec![*guard]);
                 let f_lambda = Lambda::new(sig.clone(), Token::DUMMY, f_body, DefId(0));
-                let filter = Identifier::private("filter".into()).call2(f_lambda.into(), iter);
+                let filter = Identifier::auto("filter".into()).call2(f_lambda.into(), iter);
                 let m_body = Block::new(vec![*elem]);
                 let m_lambda = Lambda::new(sig, Token::DUMMY, m_body, DefId(0));
-                Identifier::private("map".into()).call2(m_lambda.into(), filter.into())
+                Identifier::auto("map".into()).call2(m_lambda.into(), filter.into())
             }
             (Some(elem), None) => {
                 let body = Block::new(vec![*elem]);
                 let lambda = Lambda::new(sig, Token::DUMMY, body, DefId(0));
-                Identifier::private("map".into()).call2(lambda.into(), iter)
+                Identifier::auto("map".into()).call2(lambda.into(), iter)
             }
             (None, Some(guard)) => {
                 let body = Block::new(vec![*guard]);
                 let lambda = Lambda::new(sig, Token::DUMMY, body, DefId(0));
-                Identifier::private("filter".into()).call2(lambda.into(), iter)
+                Identifier::auto("filter".into()).call2(lambda.into(), iter)
             }
             (None, None) => todo!(),
         }
