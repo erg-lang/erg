@@ -9,6 +9,7 @@ const FILE_B: &str = "tests/b.er";
 const FILE_IMPORTS: &str = "tests/imports.er";
 
 use els::{NormalizedUrl, Server};
+use erg_proc_macros::exec_new_thread;
 use molc::{add_char, oneline_range};
 
 #[test]
@@ -146,6 +147,7 @@ fn test_goto_definition() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[test]
+#[exec_new_thread]
 fn test_folding_range() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = Server::bind_fake_client();
     client.request_initialize()?;

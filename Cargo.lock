@@ -101,6 +101,7 @@ version = "0.1.33-nightly.1"
 dependencies = [
  "erg_common",
  "erg_compiler",
+ "erg_proc_macros",
  "lsp-types",
  "molc",
  "serde",
@@ -141,6 +142,15 @@ version = "0.6.21-nightly.1"
 dependencies = [
  "erg_common",
  "unicode-xid",
+]
+
+[[package]]
+name = "erg_proc_macros"
+version = "0.6.21-nightly.1"
+dependencies = [
+ "erg_common",
+ "quote",
+ "syn 1.0.109",
 ]
 
 [[package]]
@@ -247,9 +257,9 @@ dependencies = [
 
 [[package]]
 name = "molc"
-version = "0.1.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a19b669aab31ca7552fc43cb9ab08e325113aa090f7bf97a2112b3d6241ba898"
+checksum = "9485212d67a88d2169ee683420e1a2fe763afb96a3901ebfabb5ba095d0d2eaa"
 dependencies = [
  "lsp-types",
  "serde",
@@ -375,7 +385,7 @@ checksum = "4eca7ac642d82aa35b60049a6eccb4be6be75e599bd2e9adb5f875a737654af2"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.31",
 ]
 
 [[package]]
@@ -397,7 +407,7 @@ checksum = "8725e1dfadb3a50f7e5ce0b1a540466f6ed3fe7a0fca2ac2b8b831d31316bd00"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.31",
 ]
 
 [[package]]
@@ -435,6 +445,17 @@ name = "smallvec"
 version = "1.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "62bb4feee49fdd9f707ef802e22365a35de4b7b299de4763d44bfea899442ff9"
+
+[[package]]
+name = "syn"
+version = "1.0.109"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "72b64191b275b66ffe2469e8af2c1cfe3bafa67b529ead792a6d0160888b4237"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "unicode-ident",
+]
 
 [[package]]
 name = "syn"
