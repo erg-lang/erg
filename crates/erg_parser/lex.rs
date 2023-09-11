@@ -1094,6 +1094,7 @@ impl Lexer /*<'a>*/ {
                         }
                         Interpolation::SingleLine => {
                             self.interpol_stack.pop();
+                            s.push(c);
                             let token = self.emit_token(StrInterpRight, &s);
                             return Ok(token);
                         }
