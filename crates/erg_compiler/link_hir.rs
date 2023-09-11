@@ -477,7 +477,7 @@ impl<'a> HIRLinker<'a> {
         let path = dir.to_string_lossy().replace(['/', '\\'], ".");
         let token = Token::new_fake(
             TokenKind::StrLit,
-            path,
+            format!("\"{path}\""),
             mod_name_lit.ln_begin().unwrap(),
             mod_name_lit.col_begin().unwrap(),
             mod_name_lit.col_end().unwrap(),
