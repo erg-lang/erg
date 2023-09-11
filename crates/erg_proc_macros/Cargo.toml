@@ -1,5 +1,6 @@
 [package]
 name = "erg_proc_macros"
+description = "proc macros for Erg"
 version.workspace = true
 authors.workspace = true
 license.workspace = true
