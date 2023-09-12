@@ -53,7 +53,7 @@ class Array(list):
 
     def type_check(self, t: type) -> bool:
         if isinstance(t, list):
-            if len(t) != len(self):
+            if len(t) < len(self):
                 return False
             for (inner_t, elem) in zip(t, self):
                 if not contains_operator(inner_t, elem):

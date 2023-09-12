@@ -184,6 +184,7 @@ pub struct PyCodeGenerator {
     control_loaded: bool,
     convertors_loaded: bool,
     operators_loaded: bool,
+    union_loaded: bool,
     abc_loaded: bool,
     unit_size: usize,
     units: PyCodeGenStack,
@@ -204,6 +205,7 @@ impl PyCodeGenerator {
             control_loaded: false,
             convertors_loaded: false,
             operators_loaded: false,
+            union_loaded: false,
             abc_loaded: false,
             unit_size: 0,
             units: PyCodeGenStack::empty(),
@@ -224,6 +226,7 @@ impl PyCodeGenerator {
             control_loaded: false,
             convertors_loaded: false,
             operators_loaded: false,
+            union_loaded: false,
             abc_loaded: false,
             unit_size: 0,
             units: PyCodeGenStack::empty(),
@@ -244,6 +247,7 @@ impl PyCodeGenerator {
         self.control_loaded = false;
         self.convertors_loaded = false;
         self.operators_loaded = false;
+        self.union_loaded = false;
         self.abc_loaded = false;
     }
 
@@ -1565,6 +1569,16 @@ impl PyCodeGenerator {
             TokenKind::Open => {
                 self.emit_push_null();
                 self.emit_load_name_instr(Identifier::public("OpenRange"));
+            }
+            // From 3.10, `or` can be used for types.
+            // But Erg supports Python 3.7~, so we should use `typing.Union`.
+            TokenKind::OrOp if bin.lhs.ref_t().is_type() => {
+                self.load_union();
+                // self.emit_push_null();
+                self.emit_load_name_instr(Identifier::private("#Union"));
+                let args = Args::pos_only(vec![PosArg::new(*bin.lhs), PosArg::new(*bin.rhs)], None);
+                self.emit_index_args(args);
+                return;
             }
             TokenKind::ContainsOp => {
                 // if no-std, always `x contains y == True`
@@ -3514,6 +3528,16 @@ impl PyCodeGenerator {
                     Some(Identifier::private("#abstractmethod")),
                 ),
             ],
+        );
+    }
+
+    fn load_union(&mut self) {
+        self.emit_global_import_items(
+            Identifier::public("typing"),
+            vec![(
+                Identifier::public("Union"),
+                Some(Identifier::private("#Union")),
+            )],
         );
     }
 

@@ -101,6 +101,11 @@ fn exec_dict_test() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_empty_check() -> Result<(), ()> {
+    expect_success("tests/should_ok/dyn_type_check.er", 0)
+}
+
+#[test]
 fn exec_external() -> Result<(), ()> {
     let py_command = opt_which_python().unwrap();
     if module_exists(&py_command, "matplotlib") && module_exists(&py_command, "tqdm") {

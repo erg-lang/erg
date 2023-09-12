@@ -1,5 +1,6 @@
 from _erg_result import is_ok
 from _erg_range import Range
+from _erg_type import is_type, isinstance
 
 from collections import namedtuple
 
@@ -8,7 +9,7 @@ def contains_operator(y, elem) -> bool:
     if hasattr(elem, "type_check"):
         return elem.type_check(y)
     # 1 in Int
-    elif type(y) == type:
+    elif is_type(y):
         if isinstance(elem, y):
             return True
         elif hasattr(y, "try_new") and is_ok(y.try_new(elem)):
@@ -17,26 +18,33 @@ def contains_operator(y, elem) -> bool:
         return False
     # [1] in [Int]
     elif isinstance(y, list) and isinstance(elem, list) and (
-        type(y[0]) == type or isinstance(y[0], Range)
+        len(y) == 0 or is_type(y[0]) or isinstance(y[0], Range)
     ):
-        # FIXME:
-        type_check = contains_operator(y[0], elem[0])
-        len_check = len(elem) == len(y)
+        type_check = all(map(lambda x: contains_operator(x[0], x[1]), zip(y, elem)))
+        len_check = len(elem) <= len(y)
         return type_check and len_check
     # (1, 2) in (Int, Int)
     elif isinstance(y, tuple) and isinstance(elem, tuple) and (
-        type(y[0]) == type or isinstance(y[0], Range)
+        len(y) == 0 or is_type(y[0]) or isinstance(y[0], Range)
     ):
         if not hasattr(elem, "__iter__"):
             return False
         type_check = all(map(lambda x: contains_operator(x[0], x[1]), zip(y, elem)))
-        len_check = len(elem) == len(y)
+        len_check = len(elem) <= len(y)
         return type_check and len_check
     # {1: 2} in {Int: Int}
-    elif isinstance(y, dict) and isinstance(elem, dict) and isinstance(next(iter(y.keys())), type):
+    elif isinstance(y, dict) and isinstance(elem, dict) and (
+        len(y) == 0 or is_type(next(iter(y.keys())))
+    ):
+        if len(y) == 1:
+            key = next(iter(y.keys()))
+            key_check = all([contains_operator(key, el) for el in elem.keys()])
+            value = next(iter(y.values()))
+            value_check = all([contains_operator(value, el) for el in elem.values()])
+            return key_check and value_check
         # TODO:
         type_check = True  # contains_operator(next(iter(y.keys())), x[next(iter(x.keys()))])
-        len_check = len(elem) >= len(y)
+        len_check = True # It can be True even if either elem or y has the larger number of elems
         return type_check and len_check
     elif isinstance(elem, list):
         from _erg_array import Array
