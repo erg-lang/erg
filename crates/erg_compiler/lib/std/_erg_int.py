@@ -9,6 +9,12 @@ class Int(int):
         else:
             return Error("not an integer")
 
+    def bit_count(self):
+        if hasattr(int, "bit_count"):
+            return int.bit_count(self)
+        else:
+            return bin(self).count("1")
+
     def succ(self):
         return Int(self + 1)
 

@@ -1,21 +1,33 @@
-from typing import _GenericAlias, Union
-try:
-    from types import UnionType
-except ImportError:
-    class UnionType:
+from typing import Union
+
+class UnionType:
+        __origin__ = Union
         __args__: list # list[type]
         def __init__(self, *args):
             self.__args__ = args
 
-def is_type(x) -> bool:
-    return isinstance(x, type) or \
-        isinstance(x, _GenericAlias) or \
-        isinstance(x, UnionType)
+class FakeGenericAlias:
+        __origin__: type
+        __args__: list # list[type]
+        def __init__(self, origin, *args):
+            self.__origin__ = origin
+            self.__args__ = args
+try:
+    from types import GenericAlias
+except ImportError:
+    GenericAlias = FakeGenericAlias
 
-instanceof = isinstance
+def is_type(x) -> bool:
+    return isinstance(x, (type, GenericAlias, UnionType))
+
 # The behavior of `builtins.isinstance` depends on the Python version.
-def isinstance(obj, classinfo) -> bool:
-    if instanceof(classinfo, _GenericAlias) and classinfo.__origin__ == Union:
-        return any(instanceof(obj, t) for t in classinfo.__args__)
+def _isinstance(obj, classinfo) -> bool:
+    if isinstance(classinfo, (GenericAlias, UnionType)):
+        if classinfo.__origin__ == Union:
+            return any(isinstance(obj, t) for t in classinfo.__args__)
+        else:
+            return isinstance(obj, classinfo.__origin__)
+    elif is_type(classinfo):
+        return isinstance(obj, classinfo)
     else:
-        return instanceof(obj, classinfo)
+        return False

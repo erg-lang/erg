@@ -185,6 +185,7 @@ pub struct PyCodeGenerator {
     convertors_loaded: bool,
     operators_loaded: bool,
     union_loaded: bool,
+    fake_generic_loaded: bool,
     abc_loaded: bool,
     unit_size: usize,
     units: PyCodeGenStack,
@@ -206,6 +207,7 @@ impl PyCodeGenerator {
             convertors_loaded: false,
             operators_loaded: false,
             union_loaded: false,
+            fake_generic_loaded: false,
             abc_loaded: false,
             unit_size: 0,
             units: PyCodeGenStack::empty(),
@@ -227,6 +229,7 @@ impl PyCodeGenerator {
             convertors_loaded: false,
             operators_loaded: false,
             union_loaded: false,
+            fake_generic_loaded: false,
             abc_loaded: false,
             unit_size: 0,
             units: PyCodeGenStack::empty(),
@@ -248,6 +251,7 @@ impl PyCodeGenerator {
         self.convertors_loaded = false;
         self.operators_loaded = false;
         self.union_loaded = false;
+        self.fake_generic_loaded = false;
         self.abc_loaded = false;
     }
 
@@ -1574,10 +1578,10 @@ impl PyCodeGenerator {
             // But Erg supports Python 3.7~, so we should use `typing.Union`.
             TokenKind::OrOp if bin.lhs.ref_t().is_type() => {
                 self.load_union();
-                // self.emit_push_null();
-                self.emit_load_name_instr(Identifier::private("#Union"));
                 let args = Args::pos_only(vec![PosArg::new(*bin.lhs), PosArg::new(*bin.rhs)], None);
-                self.emit_index_args(args);
+                self.emit_push_null();
+                self.emit_load_name_instr(Identifier::private("#UnionType"));
+                self.emit_args_311(args, Name, false);
                 return;
             }
             TokenKind::ContainsOp => {
@@ -2453,8 +2457,16 @@ impl PyCodeGenerator {
                 _ => todo!("not supported Python version"),
             },
             other if local.ref_t().is_poly_type_meta() && other != "classof" => {
-                self.emit_load_name_instr(local);
-                self.emit_index_args(args);
+                if self.py_version.minor <= Some(9) {
+                    self.load_fake_generic();
+                    self.emit_load_name_instr(Identifier::private("#FakeGenericAlias"));
+                    let mut args = args;
+                    args.insert_pos(0, PosArg::new(Expr::Accessor(Accessor::Ident(local))));
+                    self.emit_args_311(args, Name, false);
+                } else {
+                    self.emit_load_name_instr(local);
+                    self.emit_index_args(args);
+                }
             }
             // "pyimport" | "py" are here
             _ => {
@@ -3533,10 +3545,20 @@ impl PyCodeGenerator {
 
     fn load_union(&mut self) {
         self.emit_global_import_items(
-            Identifier::public("typing"),
+            Identifier::public("_erg_type"),
             vec![(
-                Identifier::public("Union"),
-                Some(Identifier::private("#Union")),
+                Identifier::public("UnionType"),
+                Some(Identifier::private("#UnionType")),
+            )],
+        );
+    }
+
+    fn load_fake_generic(&mut self) {
+        self.emit_global_import_items(
+            Identifier::public("_erg_type"),
+            vec![(
+                Identifier::public("FakeGenericAlias"),
+                Some(Identifier::private("#FakeGenericAlias")),
             )],
         );
     }

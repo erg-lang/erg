@@ -7,7 +7,7 @@ from _erg_contains_operator import contains_operator
 class Array(list):
     def try_new(arr):  # -> Result[Array]
         if isinstance(arr, list):
-            return Array(a)
+            return Array(arr)
         else:
             return Error("not a list")
 
