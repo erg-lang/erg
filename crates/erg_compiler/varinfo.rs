@@ -1,4 +1,5 @@
 use std::fmt;
+use std::path::Path;
 
 use erg_common::error::Location;
 use erg_common::pathutil::NormalizedPathBuf;
@@ -157,6 +158,14 @@ impl AbsLocation {
 
     pub const fn unknown() -> Self {
         Self::new(None, Location::Unknown)
+    }
+
+    pub fn is_unknown(&self) -> bool {
+        self.module.is_none() && self.loc.is_unknown()
+    }
+
+    pub fn starts_with(&self, path: impl AsRef<Path>) -> bool {
+        self.module.as_ref().is_some_and(|p| p.starts_with(path))
     }
 
     pub fn code(&self) -> Option<String> {

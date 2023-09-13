@@ -4966,7 +4966,7 @@ impl Module {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AST {
     pub name: Str,
     pub module: Module,

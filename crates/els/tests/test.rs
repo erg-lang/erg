@@ -6,6 +6,7 @@ use lsp_types::{
 };
 const FILE_A: &str = "tests/a.er";
 const FILE_B: &str = "tests/b.er";
+const FILE_C: &str = "tests/c.er";
 const FILE_IMPORTS: &str = "tests/imports.er";
 
 use els::{NormalizedUrl, Server};
@@ -128,6 +129,13 @@ fn test_references() -> Result<(), Box<dyn std::error::Error>> {
     let locations = client.request_references(uri.raw(), 1, 4)?.unwrap();
     assert_eq!(locations.len(), 1);
     assert_eq!(&locations[0].range, &oneline_range(1, 4, 5));
+    client.notify_open(FILE_C)?;
+    client.notify_open(FILE_B)?;
+    let uri_b = NormalizedUrl::from_file_path(Path::new(FILE_B).canonicalize()?)?;
+    let uri_c = NormalizedUrl::from_file_path(Path::new(FILE_C).canonicalize()?)?;
+    let locations = client.request_references(uri_b.raw(), 0, 2)?.unwrap();
+    assert_eq!(locations.len(), 1);
+    assert_eq!(NormalizedUrl::new(locations[0].uri.clone()), uri_c);
     Ok(())
 }
 

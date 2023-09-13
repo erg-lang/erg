@@ -1132,7 +1132,7 @@ impl Context {
         let module = ModuleContext::new(ctx, dict! {});
         shared
             .mod_cache
-            .register(PathBuf::from("<builtins>"), None, module);
+            .register(PathBuf::from("<builtins>"), None, None, module);
     }
 
     pub fn new_module<S: Into<Str>>(

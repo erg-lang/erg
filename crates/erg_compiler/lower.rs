@@ -731,7 +731,10 @@ impl ASTLowerer {
                     &self.cfg.input,
                     &self.module.context,
                 ) {
-                    Triple::Ok(vi) => vi,
+                    Triple::Ok(vi) => {
+                        self.inc_ref(attr.ident.inspect(), &vi, &attr.ident.name);
+                        vi
+                    }
                     Triple::Err(errs) => {
                         self.errs.push(errs);
                         VarInfo::ILLEGAL
@@ -757,7 +760,6 @@ impl ASTLowerer {
                         VarInfo::ILLEGAL
                     }
                 };
-                self.inc_ref(attr.ident.inspect(), &vi, &attr.ident.name);
                 let ident = hir::Identifier::new(attr.ident, None, vi);
                 let acc = hir::Accessor::Attr(hir::Attribute::new(obj, ident));
                 Ok(acc)

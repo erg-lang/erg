@@ -12,6 +12,7 @@ use erg_common::shared::{
     MappedRwLockReadGuard, MappedRwLockWriteGuard, RwLockReadGuard, RwLockWriteGuard, Shared,
 };
 use erg_common::Str;
+use erg_parser::ast::Module;
 
 use crate::context::ModuleContext;
 use crate::hir::HIR;
@@ -34,6 +35,8 @@ impl ModId {
 #[derive(Debug, Clone)]
 pub struct ModuleEntry {
     pub id: ModId, // builtin == 0, __main__ == 1
+    /// mainly for ELS
+    pub ast: Option<Module>,
     pub hir: Option<HIR>,
     pub module: Arc<ModuleContext>,
 }
@@ -49,9 +52,10 @@ impl fmt::Display for ModuleEntry {
 }
 
 impl ModuleEntry {
-    pub fn new(id: ModId, hir: Option<HIR>, ctx: ModuleContext) -> Self {
+    pub fn new(id: ModId, ast: Option<Module>, hir: Option<HIR>, ctx: ModuleContext) -> Self {
         Self {
             id,
+            ast,
             hir,
             module: Arc::new(ctx),
         }
@@ -60,6 +64,7 @@ impl ModuleEntry {
     pub fn builtin(ctx: ModuleContext) -> Self {
         Self {
             id: ModId::builtin(),
+            ast: None,
             hir: None,
             module: Arc::new(ctx),
         }
@@ -111,10 +116,16 @@ impl ModuleCache {
         self.cache.get_mut(path)
     }
 
-    pub fn register(&mut self, path: NormalizedPathBuf, hir: Option<HIR>, ctx: ModuleContext) {
+    pub fn register(
+        &mut self,
+        path: NormalizedPathBuf,
+        ast: Option<Module>,
+        hir: Option<HIR>,
+        ctx: ModuleContext,
+    ) {
         self.last_id += 1;
         let id = ModId::new(self.last_id);
-        let entry = ModuleEntry::new(id, hir, ctx);
+        let entry = ModuleEntry::new(id, ast, hir, ctx);
         self.cache.insert(path, entry);
     }
 
@@ -251,10 +262,11 @@ impl SharedModuleCache {
     pub fn register<P: Into<NormalizedPathBuf>>(
         &self,
         path: P,
+        ast: Option<Module>,
         hir: Option<HIR>,
         ctx: ModuleContext,
     ) {
-        self.0.borrow_mut().register(path.into(), hir, ctx);
+        self.0.borrow_mut().register(path.into(), ast, hir, ctx);
     }
 
     pub fn remove<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<ModuleEntry>
@@ -278,7 +290,12 @@ impl SharedModuleCache {
             return;
         };
         self.0.borrow_mut().clear();
-        self.register(builtin_path, None, Arc::try_unwrap(builtin.module).unwrap());
+        self.register(
+            builtin_path,
+            None,
+            None,
+            Arc::try_unwrap(builtin.module).unwrap(),
+        );
     }
 
     pub fn rename_path<P: Into<NormalizedPathBuf>>(&self, path: &Path, new: P) {

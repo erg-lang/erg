@@ -8,6 +8,7 @@ use std::time::Duration;
 
 use erg_common::consts::PYTHON_MODE;
 use erg_common::dict::Dict;
+use erg_common::shared::MappedRwLockReadGuard;
 use erg_common::spawn::{safe_yield, spawn_new_thread};
 use erg_common::style::*;
 use erg_common::traits::Stream;
@@ -49,7 +50,14 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         } else {
             "exec"
         };
-        if let Some((old, new)) = self.analysis_result.get_ast(&uri).zip(self.get_ast(&uri)) {
+        let old = self.analysis_result.get_ast(&uri).or_else(|| {
+            let ent = self.get_shared()?.mod_cache.get(&path)?;
+            ent.ast.as_ref()?;
+            Some(MappedRwLockReadGuard::map(ent, |ent| {
+                ent.ast.as_ref().unwrap()
+            }))
+        });
+        if let Some((old, new)) = old.zip(self.get_ast(&uri)) {
             if ASTDiff::diff(old, &new).is_nop() {
                 crate::_log!(self, "no changes: {uri}");
                 return Ok(());
@@ -92,15 +100,18 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             }
         };
         if let Some(shared) = self.get_shared() {
+            let ast = self.get_ast(&uri);
             if mode == "declare" {
                 shared.py_mod_cache.register(
                     path,
+                    ast,
                     artifact.object.clone(),
                     checker.get_context().unwrap().clone(),
                 );
             } else {
                 shared.mod_cache.register(
                     path,
+                    ast,
                     artifact.object.clone(),
                     checker.get_context().unwrap().clone(),
                 );

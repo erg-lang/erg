@@ -116,6 +116,12 @@ impl Parsable for SimpleParser {
     }
 }
 
+impl SimpleParser {
+    pub fn parse(code: String) -> Result<CompleteArtifact, IncompleteArtifact> {
+        <Self as Parsable>::parse(code)
+    }
+}
+
 enum ExprOrOp {
     Expr(Expr),
     Op(Token),
