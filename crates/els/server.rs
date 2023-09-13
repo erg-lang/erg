@@ -901,12 +901,31 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         self.analysis_result
             .get_hir(uri)
             .map(|hir| HIRVisitor::new(hir, &self.file_cache, uri.clone()))
+            .or_else(|| {
+                let path = uri.to_file_path().ok()?;
+                let ent = self.get_shared()?.mod_cache.get(&path)?;
+                ent.hir.as_ref()?;
+                let hir = MappedRwLockReadGuard::map(ent, |ent| ent.hir.as_ref().unwrap());
+                Some(HIRVisitor::new(hir, &self.file_cache, uri.clone()))
+            })
     }
 
     pub(crate) fn get_searcher(&self, uri: &NormalizedUrl, kind: ExprKind) -> Option<HIRVisitor> {
         self.analysis_result
             .get_hir(uri)
             .map(|hir| HIRVisitor::new_searcher(hir, &self.file_cache, uri.clone(), kind))
+            .or_else(|| {
+                let path = uri.to_file_path().ok()?;
+                let ent = self.get_shared()?.mod_cache.get(&path)?;
+                ent.hir.as_ref()?;
+                let hir = MappedRwLockReadGuard::map(ent, |ent| ent.hir.as_ref().unwrap());
+                Some(HIRVisitor::new_searcher(
+                    hir,
+                    &self.file_cache,
+                    uri.clone(),
+                    kind,
+                ))
+            })
     }
 
     pub(crate) fn get_local_ctx(&self, uri: &NormalizedUrl, pos: Position) -> Vec<&Context> {

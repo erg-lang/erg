@@ -41,7 +41,7 @@ impl GetExprKind for Def {
     const KIND: ExprKind = ExprKind::Def;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum ExprKind {
     Call,
     Def,
