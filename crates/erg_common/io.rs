@@ -245,6 +245,7 @@ impl Input {
         }
     }
 
+    /// This is not normalized, so use `NormalizedPathBuf::new` to compare
     pub fn path(&self) -> &Path {
         self.kind.path()
     }

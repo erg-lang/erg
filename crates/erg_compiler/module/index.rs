@@ -3,6 +3,7 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 
 use erg_common::dict::Dict;
+use erg_common::pathutil::NormalizedPathBuf;
 use erg_common::set;
 use erg_common::set::Set;
 use erg_common::shared::{MappedRwLockReadGuard, RwLockReadGuard, Shared};
@@ -112,6 +113,7 @@ impl ModuleIndex {
     }
 
     pub fn rename_path(&mut self, old: &Path, new: PathBuf) {
+        let new = NormalizedPathBuf::new(new);
         let mut new_members = Dict::new();
         for (loc, mut value) in std::mem::take(&mut self.members) {
             if value.vi.def_loc.module.as_deref() == Some(old) {

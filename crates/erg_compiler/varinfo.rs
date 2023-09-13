@@ -1,7 +1,7 @@
 use std::fmt;
-use std::path::PathBuf;
 
 use erg_common::error::Location;
+use erg_common::pathutil::NormalizedPathBuf;
 use erg_common::set::Set;
 use erg_common::{switch_lang, Str};
 
@@ -125,7 +125,7 @@ impl VarKind {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AbsLocation {
-    pub module: Option<PathBuf>,
+    pub module: Option<NormalizedPathBuf>,
     pub loc: Location,
 }
 
@@ -144,14 +144,14 @@ impl std::str::FromStr for AbsLocation {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut split = s.split('@');
-        let module = split.next().map(PathBuf::from);
+        let module = split.next().map(NormalizedPathBuf::from);
         let loc = split.next().ok_or(())?.parse().map_err(|_| ())?;
         Ok(Self { module, loc })
     }
 }
 
 impl AbsLocation {
-    pub const fn new(module: Option<PathBuf>, loc: Location) -> Self {
+    pub const fn new(module: Option<NormalizedPathBuf>, loc: Location) -> Self {
         Self { module, loc }
     }
 

@@ -41,7 +41,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 // Else if the target variable is an alias, jump to the definition of it.
                 // `foo = import "foo"` => jump to `foo.er`
                 // `{x;} = import "foo"` => jump to `x` of `foo.er`
-                if vi.def_loc.module == Some(util::uri_to_path(uri))
+                if vi.def_loc.module == Some(util::uri_to_path(uri).into())
                     && vi.def_loc.loc == token.loc()
                 {
                     if let Some(def) = self.get_min::<Def>(uri, pos) {
@@ -91,9 +91,9 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                                             .parse::<PylyzerStatus>()
                                             .ok()
                                             .map(|stat| stat.file);
-                                        py_file.unwrap_or(path.clone())
+                                        py_file.unwrap_or(path.to_path_buf())
                                     } else {
-                                        path.clone()
+                                        path.to_path_buf()
                                     };
                                     let def_uri = Url::from_file_path(def_file).unwrap();
                                     return Ok(Some(lsp_types::Location::new(def_uri, range)));

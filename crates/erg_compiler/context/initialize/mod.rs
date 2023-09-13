@@ -708,7 +708,7 @@ impl Context {
         } else {
             erg_std_decl_path().join(format!("{}.d.er", self.name))
         };
-        let abs_loc = AbsLocation::new(Some(module), loc);
+        let abs_loc = AbsLocation::new(Some(module.into()), loc);
         self.register_builtin_impl(name, t, muty, vis, py_name, abs_loc);
     }
 
