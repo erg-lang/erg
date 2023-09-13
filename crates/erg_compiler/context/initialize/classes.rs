@@ -278,7 +278,7 @@ impl Context {
         let mut float_show = Self::builtin_methods(Some(mono(SHOW)), 1);
         let t = fn0_met(Float, Str);
         float_show.register_builtin_py_impl(
-            TO_STR,
+            FUNDAMENTAL_STR,
             t,
             Immutable,
             Visibility::BUILTIN_PUBLIC,
@@ -405,7 +405,12 @@ impl Context {
         ratio.register_trait(Ratio, ratio_mutizable);
         let mut ratio_show = Self::builtin_methods(Some(mono(SHOW)), 1);
         let t = fn0_met(Ratio, Str);
-        ratio_show.register_builtin_erg_impl(TO_STR, t, Immutable, Visibility::BUILTIN_PUBLIC);
+        ratio_show.register_builtin_erg_impl(
+            FUNDAMENTAL_STR,
+            t,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
         ratio.register_trait(Ratio, ratio_show);
 
         /* Int */
@@ -569,7 +574,7 @@ impl Context {
         let mut int_show = Self::builtin_methods(Some(mono(SHOW)), 1);
         let t = fn0_met(Int, Str);
         int_show.register_builtin_py_impl(
-            TO_STR,
+            FUNDAMENTAL_STR,
             t,
             Immutable,
             Visibility::BUILTIN_PUBLIC,
@@ -725,7 +730,7 @@ impl Context {
         bool_.register_trait(Bool, bool_mutizable);
         let mut bool_show = Self::builtin_methods(Some(mono(SHOW)), 1);
         bool_show.register_builtin_erg_impl(
-            TO_STR,
+            FUNDAMENTAL_STR,
             fn0_met(Bool, Str),
             Immutable,
             Visibility::BUILTIN_PUBLIC,
@@ -1087,7 +1092,7 @@ impl Context {
         str_.register_trait(Str, str_mutizable);
         let mut str_show = Self::builtin_methods(Some(mono(SHOW)), 1);
         str_show.register_builtin_erg_impl(
-            TO_STR,
+            FUNDAMENTAL_STR,
             fn0_met(Str, Str),
             Immutable,
             Visibility::BUILTIN_PUBLIC,
@@ -1129,7 +1134,7 @@ impl Context {
         nonetype.register_marker_trait(self, mono(EQ_HASH)).unwrap();
         let mut nonetype_show = Self::builtin_methods(Some(mono(SHOW)), 1);
         nonetype_show.register_builtin_erg_impl(
-            TO_STR,
+            FUNDAMENTAL_STR,
             fn0_met(NoneType, Str),
             Immutable,
             Visibility::BUILTIN_PUBLIC,
@@ -1498,7 +1503,7 @@ impl Context {
         array_.unregister_trait(&poly(INDEXABLE, vec![ty_tp(Nat), ty_tp(T.clone())]));
         let mut array_show = Self::builtin_methods(Some(mono(SHOW)), 1);
         array_show.register_builtin_py_impl(
-            TO_STR,
+            FUNDAMENTAL_STR,
             fn0_met(arr_t.clone(), Str).quantify(),
             Immutable,
             Visibility::BUILTIN_PUBLIC,
@@ -1636,7 +1641,7 @@ impl Context {
             .unwrap();
         let mut set_show = Self::builtin_methods(Some(mono(SHOW)), 1);
         set_show.register_builtin_erg_impl(
-            TO_STR,
+            FUNDAMENTAL_STR,
             fn0_met(set_t.clone(), Str).quantify(),
             Immutable,
             Visibility::BUILTIN_PUBLIC,

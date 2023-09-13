@@ -170,10 +170,10 @@ impl Context {
         /* Show */
         let mut show = Self::builtin_mono_trait(SHOW, 2);
         let Slf = mono_q(SELF, subtypeof(mono(SHOW)));
-        let t_show = fn0_met(ref_(Slf), Str).quantify();
+        let t_str = fn0_met(ref_(Slf), Str).quantify();
         show.register_builtin_decl(
-            TO_STR,
-            t_show,
+            FUNDAMENTAL_STR,
+            t_str,
             Visibility::BUILTIN_PUBLIC,
             Some(FUNDAMENTAL_STR),
         );

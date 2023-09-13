@@ -101,7 +101,6 @@ const HASH: &str = "Hash";
 const EQ_HASH: &str = "EqHash";
 const PARTIAL_ORD: &str = "PartialOrd";
 const ORD: &str = "Ord";
-const TO_STR: &str = "to_str";
 const ORDERING: &str = "Ordering";
 const SEQUENCE: &str = "Sequence";
 const MUTABLE_SEQUENCE: &str = "Sequence!";
