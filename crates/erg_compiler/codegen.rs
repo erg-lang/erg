@@ -187,6 +187,7 @@ pub struct PyCodeGenerator {
     union_loaded: bool,
     fake_generic_loaded: bool,
     abc_loaded: bool,
+    builtins_loaded: bool,
     unit_size: usize,
     units: PyCodeGenStack,
     fresh_gen: SharedFreshNameGenerator,
@@ -209,6 +210,7 @@ impl PyCodeGenerator {
             union_loaded: false,
             fake_generic_loaded: false,
             abc_loaded: false,
+            builtins_loaded: false,
             unit_size: 0,
             units: PyCodeGenStack::empty(),
             fresh_gen: SharedFreshNameGenerator::new("codegen"),
@@ -231,6 +233,7 @@ impl PyCodeGenerator {
             union_loaded: false,
             fake_generic_loaded: false,
             abc_loaded: false,
+            builtins_loaded: false,
             unit_size: 0,
             units: PyCodeGenStack::empty(),
             fresh_gen: self.fresh_gen.clone(),
@@ -253,6 +256,7 @@ impl PyCodeGenerator {
         self.union_loaded = false;
         self.fake_generic_loaded = false;
         self.abc_loaded = false;
+        self.builtins_loaded = false;
     }
 
     #[inline]
@@ -2456,13 +2460,18 @@ impl PyCodeGenerator {
                 Some(7) => self.emit_with_instr_307(args),
                 _ => todo!("not supported Python version"),
             },
+            "sum" if self.py_version.minor <= Some(7) && args.get_kw("start").is_some() => {
+                self.load_builtins();
+                self.emit_load_name_instr(Identifier::private("#sum"));
+                self.emit_args_311(args, Name, true);
+            }
             other if local.ref_t().is_poly_type_meta() && other != "classof" => {
                 if self.py_version.minor <= Some(9) {
                     self.load_fake_generic();
                     self.emit_load_name_instr(Identifier::private("#FakeGenericAlias"));
                     let mut args = args;
                     args.insert_pos(0, PosArg::new(Expr::Accessor(Accessor::Ident(local))));
-                    self.emit_args_311(args, Name, false);
+                    self.emit_args_311(args, Name, true);
                 } else {
                     self.emit_load_name_instr(local);
                     self.emit_index_args(args);
@@ -3570,6 +3579,13 @@ impl PyCodeGenerator {
                 Identifier::public("ModuleType"),
                 Some(Identifier::private("#ModuleType")),
             )],
+        );
+    }
+
+    fn load_builtins(&mut self) {
+        self.emit_global_import_items(
+            Identifier::public("_erg_builtins"),
+            vec![(Identifier::public("sum"), Some(Identifier::private("#sum")))],
         );
     }
 

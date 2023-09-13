@@ -14,6 +14,8 @@ def contains_operator(y, elem) -> bool:
             return True
         elif hasattr(y, "try_new") and is_ok(y.try_new(elem)):
             return True
+        elif hasattr(y, "__origin__") and hasattr(y.__origin__, "type_check"):
+            return y.__origin__.type_check(elem, y)
         # TODO: trait check
         return False
     # [1] in [Int]

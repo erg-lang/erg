@@ -385,6 +385,13 @@ impl Args {
     pub fn insert_pos(&mut self, idx: usize, pos: PosArg) {
         self.pos_args.insert(idx, pos);
     }
+
+    pub fn get_kw(&self, keyword: &str) -> Option<&Expr> {
+        self.kw_args
+            .iter()
+            .find(|kw| kw.keyword.inspect() == keyword)
+            .map(|kw| &kw.expr)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

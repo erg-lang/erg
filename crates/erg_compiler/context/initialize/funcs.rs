@@ -139,7 +139,7 @@ impl Context {
         let t_isinstance = nd_func(
             vec![
                 kw(KW_OBJECT, Obj),
-                kw(KW_CLASSINFO, ClassType), // TODO: => ClassInfo
+                kw(KW_CLASSINFO, ClassType | unknown_len_array_t(ClassType)), // TODO: => ClassInfo
             ],
             None,
             Bool,
@@ -147,7 +147,7 @@ impl Context {
         let t_issubclass = nd_func(
             vec![
                 kw(KW_SUBCLASS, ClassType),
-                kw(KW_CLASSINFO, ClassType), // TODO: => ClassInfo
+                kw(KW_CLASSINFO, ClassType | unknown_len_array_t(ClassType)), // TODO: => ClassInfo
             ],
             None,
             Bool,
