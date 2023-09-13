@@ -2338,6 +2338,10 @@ impl ASTLowerer {
                     .replace(impl_trait, class);
                 unverified_names.remove(name);
                 if !self.module.context.supertype_of(&replaced_decl_t, def_t) {
+                    let hint = self
+                        .module
+                        .context
+                        .get_simple_type_mismatch_hint(&replaced_decl_t, def_t);
                     errors.push(LowerError::trait_member_type_error(
                         self.cfg.input.clone(),
                         line!() as usize,
@@ -2347,7 +2351,7 @@ impl ASTLowerer {
                         impl_trait,
                         &decl_vi.t,
                         &vi.t,
-                        None,
+                        hint,
                     ));
                 }
             } else {

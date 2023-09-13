@@ -2021,6 +2021,15 @@ impl Type {
         }
     }
 
+    pub fn is_ref(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_ref(),
+            Self::Ref(_) => true,
+            Self::Refinement(refine) => refine.t.is_ref(),
+            _ => false,
+        }
+    }
+
     pub fn is_structural(&self) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_structural(),

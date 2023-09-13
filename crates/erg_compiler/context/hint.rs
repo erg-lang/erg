@@ -3,7 +3,7 @@ use erg_common::{option_enum_unwrap, switch_lang};
 
 use crate::ty::typaram::TyParam;
 use crate::ty::value::ValueObj;
-use crate::ty::{HasType, Predicate, SubrKind, Type};
+use crate::ty::{HasType, Predicate, SubrKind, SubrType, Type};
 
 use crate::context::Context;
 
@@ -85,35 +85,22 @@ impl Context {
         let mut hint = StyledStrings::default();
         match (&expected, &found) {
             (Type::Subr(expt), Type::Subr(fnd)) => {
-                if let (SubrKind::Func, SubrKind::Proc) = (expt.kind, fnd.kind) {
-                    switch_lang!(
-                        "japanese" => {
-                            hint.push_str("この仮引数は(副作用のない)関数を受け取りますが、プロシージャは副作用があるため受け取りません。副作用を取り除き、");
-                            hint.push_str_with_color_and_attr("=>", ERR, ATTR);
-                            hint.push_str("の代わりに");
-                            hint.push_str_with_color_and_attr("->", HINT, ATTR);
-                            hint.push_str("を使用する必要があります");
-                        },
-                        "simplified_chinese" => {
-                            hint.push_str("此参数接受函数(无副作用)，但不接受过程，因为过程有副作用。你应该使用");
-                            hint.push_str_with_color_and_attr("=>", HINT, ATTR);
-                            hint.push_str("而不是");
-                            hint.push_str_with_color_and_attr("->", ERR, ATTR);
-                        },
-                        "traditional_chinese" => {
-                            hint.push_str("此參數接受函數(無副作用)，但不接受過程，因為過程有副作用。你應該使用");
-                            hint.push_str_with_color_and_attr("=>", HINT, ATTR);
-                            hint.push_str("而不是");
-                            hint.push_str_with_color_and_attr("->", ERR, ATTR);
-                        },
-                        "english" => {
-                            hint.push_str("This param accepts func (without side-effects) but not proc because of side-effects. You should use ");
-                            hint.push_str_with_color_and_attr("=>", HINT, ATTR);
-                            hint.push_str(" instead of ");
-                            hint.push_str_with_color_and_attr("->", ERR, ATTR);
-                        },
-                    );
-                    return Some(hint.to_string());
+                if let Some(hint) = self.get_subr_type_mismatch_hint(expt, fnd) {
+                    return Some(hint);
+                }
+            }
+            (Type::Quantified(expt), Type::Subr(fnd)) => {
+                if let Type::Subr(expt) = expt.as_ref() {
+                    if let Some(hint) = self.get_subr_type_mismatch_hint(expt, fnd) {
+                        return Some(hint);
+                    }
+                }
+            }
+            (Type::Quantified(expt), Type::Quantified(fnd)) => {
+                if let (Type::Subr(expt), Type::Subr(fnd)) = (expt.as_ref(), fnd.as_ref()) {
+                    if let Some(hint) = self.get_subr_type_mismatch_hint(expt, fnd) {
+                        return Some(hint);
+                    }
                 }
             }
             (Type::And(l, r), found) => {
@@ -186,6 +173,54 @@ impl Context {
                     })
             }
         }
+    }
+
+    fn get_subr_type_mismatch_hint(&self, expected: &SubrType, found: &SubrType) -> Option<String> {
+        let mut hint = StyledStrings::default();
+        if let (SubrKind::Func, SubrKind::Proc) = (expected.kind, found.kind) {
+            switch_lang!(
+                "japanese" => {
+                    hint.push_str("この仮引数は(副作用のない)関数を受け取りますが、プロシージャは副作用があるため受け取りません。副作用を取り除き、");
+                    hint.push_str_with_color_and_attr("=>", ERR, ATTR);
+                    hint.push_str("の代わりに");
+                    hint.push_str_with_color_and_attr("->", HINT, ATTR);
+                    hint.push_str("を使用する必要があります");
+                },
+                "simplified_chinese" => {
+                    hint.push_str("此参数接受函数(无副作用)，但不接受过程，因为过程有副作用。你应该使用");
+                    hint.push_str_with_color_and_attr("=>", HINT, ATTR);
+                    hint.push_str("而不是");
+                    hint.push_str_with_color_and_attr("->", ERR, ATTR);
+                },
+                "traditional_chinese" => {
+                    hint.push_str("此參數接受函數(無副作用)，但不接受過程，因為過程有副作用。你應該使用");
+                    hint.push_str_with_color_and_attr("=>", HINT, ATTR);
+                    hint.push_str("而不是");
+                    hint.push_str_with_color_and_attr("->", ERR, ATTR);
+                },
+                "english" => {
+                    hint.push_str("This param accepts func (without side-effects) but not proc because of side-effects. You should use ");
+                    hint.push_str_with_color_and_attr("=>", HINT, ATTR);
+                    hint.push_str(" instead of ");
+                    hint.push_str_with_color_and_attr("->", ERR, ATTR);
+                },
+            );
+            return Some(hint.to_string());
+        }
+        if let Some((expect, _found)) = expected
+            .non_var_params()
+            .zip(found.non_var_params())
+            .find(|(expect, found)| expect.typ().is_ref() && !found.typ().is_ref())
+        {
+            let hint = switch_lang!(
+                "japanese" => format!("{expect}は参照を受け取るよう宣言されましたが、実体が渡されています(refプレフィックスを追加してください)"),
+                "simplified_chinese" => format!("{expect}被声明为接受引用，但实体被传递(请添加ref前缀)"),
+                "traditional_chinese" => format!("{expect}被宣告為接受引用，但實體被傳遞(請添加ref前綴)"),
+                "english" => format!("{expect} is declared as a reference parameter but definition is an owned parameter (add `ref` prefix)"),
+            );
+            return Some(hint);
+        }
+        None
     }
 
     pub(crate) fn get_no_candidate_hint(&self, proj: &Type) -> Option<String> {
