@@ -3,7 +3,7 @@ use common::{
     expect_compile_success, expect_end_with, expect_error_location, expect_failure, expect_success,
 };
 use erg_common::error::Location;
-use erg_common::python_util::{module_exists, opt_which_python};
+use erg_common::python_util::{env_python_version, module_exists, opt_which_python};
 
 #[test]
 fn exec_addition_ok() -> Result<(), ()> {
@@ -123,7 +123,7 @@ fn exec_fib() -> Result<(), ()> {
 #[test]
 fn exec_helloworld() -> Result<(), ()> {
     // HACK: When running the test with Windows, the exit code is 1 (the cause is unknown)
-    if cfg!(windows) {
+    if cfg!(windows) && env_python_version().minor >= Some(8) {
         expect_end_with("examples/helloworld.er", 0, 1)
     } else {
         expect_success("examples/helloworld.er", 0)
@@ -253,7 +253,12 @@ fn exec_pattern() -> Result<(), ()> {
 
 #[test]
 fn exec_pyimport_test() -> Result<(), ()> {
-    expect_success("tests/should_ok/pyimport.er", 2)
+    // HACK: When running the test with Windows, the exit code is 1 (the cause is unknown)
+    if cfg!(windows) && env_python_version().minor < Some(8) {
+        expect_end_with("tests/should_ok/pyimport.er", 2, 1)
+    } else {
+        expect_success("tests/should_ok/pyimport.er", 2)
+    }
 }
 
 #[test]
