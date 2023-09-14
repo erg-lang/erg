@@ -308,14 +308,14 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 continue;
             };
             self.insert_module_entry(new_uri.clone(), entry);
-            let Some(entry) = self.modules.remove(&old_uri) else {
+            let Some(entry) = self.steal_entry(&old_uri) else {
                 continue;
             };
             self.shared.rename_path(
                 &old_uri.to_file_path().unwrap(),
                 new_uri.to_file_path().unwrap(),
             );
-            self.modules.insert(new_uri, entry);
+            self.restore_entry(new_uri, entry);
         }
         self.file_cache.rename_files(&params)?;
         let changes = {

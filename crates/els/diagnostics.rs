@@ -94,27 +94,18 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             }
         };
         let ast = self.build_ast(&uri);
+        let ctx = checker.pop_context().unwrap();
         if mode == "declare" {
-            self.shared.py_mod_cache.register(
-                path,
-                ast,
-                artifact.object,
-                checker.get_context().unwrap().clone(),
-            );
+            self.shared
+                .py_mod_cache
+                .register(path, ast, artifact.object, ctx);
         } else {
-            self.shared.mod_cache.register(
-                path,
-                ast,
-                artifact.object,
-                checker.get_context().unwrap().clone(),
-            );
+            self.shared
+                .mod_cache
+                .register(path, ast, artifact.object, ctx);
         }
         self.shared.errors.extend(artifact.errors);
         self.shared.warns.extend(artifact.warns);
-        if let Some(module) = checker.pop_context() {
-            _log!(self, "{uri}: {}", module.context.name);
-            self.modules.insert(uri.clone(), module);
-        }
         let dependents = self.dependents_of(&uri);
         for dep in dependents {
             // _log!(self, "dep: {dep}");
@@ -135,18 +126,14 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         };
         let ast_diff = ASTDiff::diff(old, &new);
         crate::_log!(self, "diff: {ast_diff}");
-        if let Some(mut lowerer) = self.steal_lowerer(&uri) {
-            let mut ent = self.steal_entry(&uri);
-            if let Some((hir_diff, hir)) = HIRDiff::new(ast_diff, &mut lowerer)
-                .zip(ent.as_mut().and_then(|ent| ent.hir.as_mut()))
+        if let Some((mut lowerer, mut irs)) = self.steal_lowerer(&uri) {
+            if let Some((hir_diff, hir)) =
+                HIRDiff::new(ast_diff, &mut lowerer).zip(irs.hir.as_mut())
             {
                 crate::_log!(self, "hir_diff: {hir_diff}");
                 hir_diff.update(hir);
             }
-            if let Some(ent) = ent {
-                self.restore_entry(uri.clone(), ent);
-            }
-            self.restore_lowerer(uri, lowerer);
+            self.restore_lowerer(uri, lowerer, irs);
         }
         // skip checking for dependents
         Ok(())

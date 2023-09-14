@@ -24,7 +24,7 @@ use erg_compiler::erg_parser::parse::{Parsable, SimpleParser};
 use erg_compiler::error::CompileWarning;
 use erg_compiler::hir::HIR;
 use erg_compiler::lower::ASTLowerer;
-use erg_compiler::module::{ModuleEntry, SharedCompilerResource};
+use erg_compiler::module::{IRs, ModuleEntry, SharedCompilerResource};
 use erg_compiler::ty::HasType;
 
 pub use molc::RedirectableStdout;
@@ -144,41 +144,6 @@ macro_rules! _log {
 pub const TRIGGER_CHARS: [&str; 4] = [".", ":", "(", " "];
 
 #[derive(Debug, Clone, Default)]
-pub struct ModuleCache(Shared<Dict<NormalizedUrl, ModuleContext>>);
-
-impl ModuleCache {
-    pub fn new() -> Self {
-        Self(Shared::new(Dict::new()))
-    }
-
-    pub fn get(&self, uri: &NormalizedUrl) -> Option<&ModuleContext> {
-        let _ref = self.0.borrow();
-        let ref_ = unsafe { self.0.as_ptr().as_ref() };
-        ref_.unwrap().get(uri)
-    }
-
-    pub fn get_mut(&self, uri: &NormalizedUrl) -> Option<&mut ModuleContext> {
-        let _ref = self.0.borrow_mut();
-        let ref_ = unsafe { self.0.as_ptr().as_mut() };
-        ref_.unwrap().get_mut(uri)
-    }
-
-    pub fn insert(&self, uri: NormalizedUrl, module: ModuleContext) {
-        self.0.borrow_mut().insert(uri, module);
-    }
-
-    pub fn remove(&self, uri: &NormalizedUrl) -> Option<ModuleContext> {
-        self.0.borrow_mut().remove(uri)
-    }
-
-    pub fn _iter(&self) -> std::collections::hash_map::Iter<NormalizedUrl, ModuleContext> {
-        let _ref = self.0.borrow();
-        let ref_ = unsafe { self.0.as_ptr().as_ref() };
-        ref_.unwrap().iter()
-    }
-}
-
-#[derive(Debug, Clone, Default)]
 pub struct Flags {
     pub(crate) client_initialized: Arc<AtomicBool>,
     pub(crate) workspace_checked: Arc<AtomicBool>,
@@ -206,8 +171,6 @@ pub struct Server<Checker: BuildRunnable = HIRBuilder, Parser: Parsable = Simple
     pub(crate) opt_features: Vec<OptionalFeatures>,
     pub(crate) file_cache: FileCache,
     pub(crate) comp_cache: CompletionCache,
-    // TODO: remove modules, analysis_result, and add `shared: SharedCompilerResource`
-    pub(crate) modules: ModuleCache,
     pub(crate) flags: Flags,
     pub(crate) shared: SharedCompilerResource,
     pub(crate) channels: Option<SendChannels>,
@@ -248,7 +211,7 @@ impl<C: BuildRunnable, P: Parsable> Clone for Server<C, P> {
             opt_features: self.opt_features.clone(),
             file_cache: self.file_cache.clone(),
             comp_cache: self.comp_cache.clone(),
-            modules: self.modules.clone(),
+            // modules: self.modules.clone(),
             shared: self.shared.clone(),
             channels: self.channels.clone(),
             flags: self.flags.clone(),
@@ -272,7 +235,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             disabled_features: vec![],
             opt_features: vec![],
             file_cache: FileCache::new(stdout_redirect.clone()),
-            modules: ModuleCache::new(),
+            // modules: ModuleCache::new(),
             channels: None,
             flags: Flags::default(),
             stdout_redirect,
@@ -544,9 +507,10 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     pub(crate) fn restart(&mut self) {
         self.file_cache.clear();
         self.comp_cache.clear();
-        self.modules = ModuleCache::new();
+        // self.modules = ModuleCache::new();
         // self.analysis_result = AnalysisResultCache::new();
         self.channels.as_ref().unwrap().close();
+        self.shared.clear_all();
         self.start_language_services();
         self.start_workspace_diagnostics();
     }
@@ -780,6 +744,20 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         Ok(())
     }
 
+    pub(crate) fn get_mod_ctx(
+        &self,
+        uri: &NormalizedUrl,
+    ) -> Option<MappedRwLockReadGuard<ModuleContext>> {
+        let path = uri.to_file_path().ok()?;
+        let ent = self.shared.mod_cache.get(&path)?;
+        Some(MappedRwLockReadGuard::map(ent, |ent| &ent.module))
+    }
+
+    pub(crate) fn raw_get_mod_ctx(&self, uri: &NormalizedUrl) -> Option<&ModuleContext> {
+        let path = uri.to_file_path().ok()?;
+        self.shared.mod_cache.raw_ref_ctx(&path)
+    }
+
     /// TODO: Reuse cache.
     /// Because of the difficulty of caching "transitional types" such as assert casting and mutable dependent types,
     /// the cache is deleted after each analysis.
@@ -789,18 +767,22 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         Checker::inherit(self.cfg.inherit(path), shared)
     }
 
-    pub(crate) fn steal_lowerer(&mut self, uri: &NormalizedUrl) -> Option<ASTLowerer> {
-        let module = self.modules.remove(uri)?;
-        Some(ASTLowerer::new_with_ctx(module))
+    pub(crate) fn steal_lowerer(&mut self, uri: &NormalizedUrl) -> Option<(ASTLowerer, IRs)> {
+        let path = uri.to_file_path().ok()?;
+        let module = self.shared.mod_cache.remove(&path)?;
+        let lowerer = ASTLowerer::new_with_ctx(module.module);
+        Some((lowerer, IRs::new(module.id, module.ast, module.hir)))
     }
 
-    pub(crate) fn restore_lowerer(&mut self, uri: NormalizedUrl, mut lowerer: ASTLowerer) {
+    pub(crate) fn restore_lowerer(
+        &mut self,
+        uri: NormalizedUrl,
+        mut lowerer: ASTLowerer,
+        irs: IRs,
+    ) {
         let module = lowerer.pop_mod_ctx().unwrap();
-        if let Some(m) = self.modules.get_mut(&uri) {
-            *m = module;
-        } else {
-            self.modules.insert(uri, module);
-        }
+        let entry = ModuleEntry::new(irs.id, irs.ast, irs.hir, module);
+        self.restore_entry(uri, entry);
     }
 
     pub(crate) fn get_visitor(&self, uri: &NormalizedUrl) -> Option<HIRVisitor> {
@@ -826,7 +808,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
 
     pub(crate) fn get_local_ctx(&self, uri: &NormalizedUrl, pos: Position) -> Vec<&Context> {
         let mut ctxs = vec![];
-        if let Some(mod_ctx) = &self.modules.get(uri) {
+        if let Some(mod_ctx) = self.raw_get_mod_ctx(uri) {
             if let Some(visitor) = self.get_visitor(uri) {
                 // FIXME:
                 let mut ns = visitor.get_namespace(pos);
@@ -847,20 +829,10 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         ctxs
     }
 
-    pub(crate) fn _get_all_ctxs(&self) -> Vec<Arc<ModuleContext>> {
+    pub(crate) fn _get_all_ctxs(&self) -> Vec<&ModuleContext> {
         let mut ctxs = vec![];
-        ctxs.extend(
-            self.shared
-                .mod_cache
-                .raw_values()
-                .map(|ent| ent.module.clone()),
-        );
-        ctxs.extend(
-            self.shared
-                .py_mod_cache
-                .raw_values()
-                .map(|ent| ent.module.clone()),
-        );
+        ctxs.extend(self.shared.mod_cache.raw_values().map(|ent| &ent.module));
+        ctxs.extend(self.shared.py_mod_cache.raw_values().map(|ent| &ent.module));
         ctxs
     }
 
@@ -891,7 +863,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     continue;
                 };
                 let uri = NormalizedUrl::from_file_path(neighbor.path()).unwrap();
-                if let Some(mod_ctx) = &self.modules.get(&uri) {
+                if let Some(mod_ctx) = self.raw_get_mod_ctx(&uri) {
                     ctxs.push(&mod_ctx.context);
                 }
             }
@@ -904,7 +876,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         uri: &NormalizedUrl,
         attr_marker_pos: Position,
     ) -> ELSResult<Vec<&Context>> {
-        let Some(module) = self.modules.get(uri) else {
+        let Some(module) = self.raw_get_mod_ctx(uri) else {
             return Ok(vec![]);
         };
         let maybe_token = self
@@ -950,7 +922,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         // self.analysis_result.remove(uri);
         let path = util::uri_to_path(uri);
         self.shared.clear(&path);
-        self.modules.remove(uri);
+        // self.shared.mod_ctx.remove(uri);
     }
 
     pub fn remove_module_entry(&mut self, uri: &NormalizedUrl) -> Option<ModuleEntry> {

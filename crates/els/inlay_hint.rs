@@ -322,7 +322,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             let Ok(uri) = data.as_str().unwrap().parse::<NormalizedUrl>() else {
                 return Ok(hint);
             };
-            if let Some(module) = self.modules.get(&uri) {
+            if let Some(module) = self.get_mod_ctx(&uri) {
                 let InlayHintLabel::String(label) = &hint.label else {
                     return Ok(hint);
                 };
