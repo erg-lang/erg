@@ -2,7 +2,7 @@ use std::path::Path;
 
 use lsp_types::{
     CompletionResponse, DocumentSymbolResponse, FoldingRange, FoldingRangeKind,
-    GotoDefinitionResponse, HoverContents, MarkedString,
+    GotoDefinitionResponse, HoverContents, InlayHintLabel, MarkedString,
 };
 const FILE_A: &str = "tests/a.er";
 const FILE_B: &str = "tests/b.er";
@@ -79,6 +79,15 @@ fn test_rename() -> Result<(), Box<dyn std::error::Error>> {
     assert!(edit
         .changes
         .is_some_and(|changes| changes.values().next().unwrap().len() == 2));
+    client.notify_open(FILE_C)?;
+    client.notify_open(FILE_B)?;
+    let uri_b = NormalizedUrl::from_file_path(Path::new(FILE_B).canonicalize()?)?;
+    let uri_c = NormalizedUrl::from_file_path(Path::new(FILE_C).canonicalize()?)?;
+    let edit = client
+        .request_rename(uri_b.clone().raw(), 2, 1, "y")?
+        .unwrap();
+    assert_eq!(edit.changes.as_ref().unwrap()[uri_b.as_ref()].len(), 1);
+    assert_eq!(edit.changes.as_ref().unwrap()[uri_c.as_ref()].len(), 1);
     Ok(())
 }
 
@@ -200,5 +209,25 @@ fn test_document_symbol() -> Result<(), Box<dyn std::error::Error>> {
     };
     assert_eq!(symbols.len(), 2);
     assert_eq!(&symbols[0].name, "x");
+    Ok(())
+}
+
+#[test]
+fn test_inlay_hint() -> Result<(), Box<dyn std::error::Error>> {
+    let mut client = Server::bind_fake_client();
+    client.request_initialize()?;
+    client.notify_initialized()?;
+    let uri = NormalizedUrl::from_file_path(Path::new(FILE_A).canonicalize()?)?;
+    client.notify_open(FILE_A)?;
+    let hints = client.request_inlay_hint(uri.raw())?.unwrap();
+    assert_eq!(hints.len(), 2);
+    let InlayHintLabel::String(label) = &hints[0].label else {
+        todo!()
+    };
+    assert_eq!(label, ": {1}");
+    let InlayHintLabel::String(label) = &hints[1].label else {
+        todo!()
+    };
+    assert_eq!(label, ": Nat");
     Ok(())
 }
