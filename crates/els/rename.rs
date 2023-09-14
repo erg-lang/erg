@@ -70,7 +70,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     return self.send_error_info(error_reason);
                 }
                 Self::commit_change(&mut changes, &vi.def_loc, params.new_name.clone());
-                if let Some(value) = self.get_index().and_then(|ind| ind.get_refs(&vi.def_loc)) {
+                if let Some(value) = self.shared.index.get_refs(&vi.def_loc) {
                     // self.send_log(format!("referrers: {referrers:?}"))?;
                     for referrer in value.referrers.iter() {
                         Self::commit_change(&mut changes, referrer, params.new_name.clone());
@@ -147,7 +147,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
 
     /// self is __included__
     pub fn dependencies_of(&self, uri: &NormalizedUrl) -> Vec<NormalizedUrl> {
-        let graph = self.get_graph().unwrap();
+        let graph = &self.shared.graph;
         let path = NormalizedPathBuf::from(util::uri_to_path(uri));
         graph.sort().unwrap();
         let self_node = graph.get_node(&path).unwrap();
@@ -161,7 +161,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
 
     /// self is __not included__
     pub fn dependents_of(&self, uri: &NormalizedUrl) -> Vec<NormalizedUrl> {
-        let graph = self.get_graph().unwrap();
+        let graph = &self.shared.graph;
         let path = NormalizedPathBuf::from(util::uri_to_path(uri));
         graph
             .ref_inner()
@@ -304,19 +304,17 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             let new_uri = NormalizedUrl::new(new);
             edits.extend(self.collect_module_changes(&old_uri, &new_uri));
             self.rename_linked_files(&mut renames, &old_uri, &new_uri);
-            let Some(entry) = self.analysis_result.remove(&old_uri) else {
+            let Some(entry) = self.remove_module_entry(&old_uri) else {
                 continue;
             };
-            self.analysis_result.insert(new_uri.clone(), entry);
+            self.insert_module_entry(new_uri.clone(), entry);
             let Some(entry) = self.modules.remove(&old_uri) else {
                 continue;
             };
-            if let Some(shared) = self.get_shared() {
-                shared.rename_path(
-                    &old_uri.to_file_path().unwrap(),
-                    new_uri.to_file_path().unwrap(),
-                );
-            }
+            self.shared.rename_path(
+                &old_uri.to_file_path().unwrap(),
+                new_uri.to_file_path().unwrap(),
+            );
             self.modules.insert(new_uri, entry);
         }
         self.file_cache.rename_files(&params)?;

@@ -269,6 +269,10 @@ impl SharedModuleCache {
         self.0.borrow_mut().register(path.into(), ast, hir, ctx);
     }
 
+    pub fn insert(&self, path: NormalizedPathBuf, entry: ModuleEntry) {
+        self.0.borrow_mut().cache.insert(path, entry);
+    }
+
     pub fn remove<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<ModuleEntry>
     where
         NormalizedPathBuf: Borrow<Q>,

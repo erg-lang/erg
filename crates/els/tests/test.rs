@@ -17,6 +17,8 @@ use molc::{add_char, oneline_range};
 fn test_open() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = Server::bind_fake_client();
     client.request_initialize()?;
+    client.notify_initialized()?;
+    client.wait_messages(3)?;
     client.notify_open(FILE_A)?;
     client.wait_messages(3)?;
     assert!(client.responses.iter().any(|val| val
@@ -29,6 +31,7 @@ fn test_open() -> Result<(), Box<dyn std::error::Error>> {
 fn test_completion() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = Server::bind_fake_client();
     client.request_initialize()?;
+    client.notify_initialized()?;
     let uri = NormalizedUrl::from_file_path(Path::new(FILE_A).canonicalize()?)?;
     client.notify_open(FILE_A)?;
     client.notify_change(uri.clone().raw(), add_char(2, 0, "x"))?;
@@ -47,6 +50,7 @@ fn test_completion() -> Result<(), Box<dyn std::error::Error>> {
 fn test_neighbor_completion() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = Server::bind_fake_client();
     client.request_initialize()?;
+    client.notify_initialized()?;
     let uri = NormalizedUrl::from_file_path(Path::new(FILE_A).canonicalize()?)?;
     client.notify_open(FILE_A)?;
     client.notify_open(FILE_B)?;
@@ -66,6 +70,7 @@ fn test_neighbor_completion() -> Result<(), Box<dyn std::error::Error>> {
 fn test_rename() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = Server::bind_fake_client();
     client.request_initialize()?;
+    client.notify_initialized()?;
     let uri = NormalizedUrl::from_file_path(Path::new(FILE_A).canonicalize()?)?;
     client.notify_open(FILE_A)?;
     let edit = client
@@ -81,6 +86,7 @@ fn test_rename() -> Result<(), Box<dyn std::error::Error>> {
 fn test_signature_help() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = Server::bind_fake_client();
     client.request_initialize()?;
+    client.notify_initialized()?;
     let uri = NormalizedUrl::from_file_path(Path::new(FILE_A).canonicalize()?)?;
     client.notify_open(FILE_A)?;
     client.notify_change(uri.clone().raw(), add_char(2, 0, "assert"))?;
@@ -99,6 +105,7 @@ fn test_signature_help() -> Result<(), Box<dyn std::error::Error>> {
 fn test_hover() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = Server::bind_fake_client();
     client.request_initialize()?;
+    client.notify_initialized()?;
     let uri = NormalizedUrl::from_file_path(Path::new(FILE_A).canonicalize()?)?;
     client.notify_open(FILE_A)?;
     let hover = client.request_hover(uri.raw(), 1, 4)?.unwrap();
@@ -124,6 +131,7 @@ fn test_hover() -> Result<(), Box<dyn std::error::Error>> {
 fn test_references() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = Server::bind_fake_client();
     client.request_initialize()?;
+    client.notify_initialized()?;
     let uri = NormalizedUrl::from_file_path(Path::new(FILE_A).canonicalize()?)?;
     client.notify_open(FILE_A)?;
     let locations = client.request_references(uri.raw(), 1, 4)?.unwrap();
@@ -143,6 +151,7 @@ fn test_references() -> Result<(), Box<dyn std::error::Error>> {
 fn test_goto_definition() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = Server::bind_fake_client();
     client.request_initialize()?;
+    client.notify_initialized()?;
     let uri = NormalizedUrl::from_file_path(Path::new(FILE_A).canonicalize()?)?;
     client.notify_open(FILE_A)?;
     let Some(GotoDefinitionResponse::Scalar(location)) =
@@ -159,6 +168,7 @@ fn test_goto_definition() -> Result<(), Box<dyn std::error::Error>> {
 fn test_folding_range() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = Server::bind_fake_client();
     client.request_initialize()?;
+    client.notify_initialized()?;
     let uri = NormalizedUrl::from_file_path(Path::new(FILE_IMPORTS).canonicalize()?)?;
     client.notify_open(FILE_IMPORTS)?;
     let ranges = client.request_folding_range(uri.raw())?.unwrap();
@@ -180,6 +190,7 @@ fn test_folding_range() -> Result<(), Box<dyn std::error::Error>> {
 fn test_document_symbol() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = Server::bind_fake_client();
     client.request_initialize()?;
+    client.notify_initialized()?;
     let uri = NormalizedUrl::from_file_path(Path::new(FILE_A).canonicalize()?)?;
     client.notify_open(FILE_A)?;
     let Some(DocumentSymbolResponse::Nested(symbols)) =

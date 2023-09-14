@@ -255,6 +255,7 @@ pub trait Stream<T>: Sized {
         self.ref_mut_payload().split_off(at)
     }
 
+    /// Remove all elements that don't satisfy the predicate.
     fn retain(&mut self, f: impl FnMut(&T) -> bool) {
         self.ref_mut_payload().retain(f);
     }

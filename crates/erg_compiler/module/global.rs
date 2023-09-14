@@ -76,8 +76,8 @@ impl SharedCompilerResource {
         self.index.remove_path(path);
         self.graph.remove(path);
         self.promises.remove(path);
-        // self.errors.remove(path);
-        // self.warns.remove(path);
+        self.errors.remove(path);
+        self.warns.remove(path);
     }
 
     pub fn rename_path(&self, old: &Path, new: PathBuf) {

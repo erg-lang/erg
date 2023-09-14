@@ -8,7 +8,6 @@ use std::time::Duration;
 
 use erg_common::consts::PYTHON_MODE;
 use erg_common::dict::Dict;
-use erg_common::shared::MappedRwLockReadGuard;
 use erg_common::spawn::{safe_yield, spawn_new_thread};
 use erg_common::style::*;
 use erg_common::traits::Stream;
@@ -28,7 +27,7 @@ use serde_json::json;
 use crate::_log;
 use crate::channels::WorkerMessage;
 use crate::diff::{ASTDiff, HIRDiff};
-use crate::server::{AnalysisResult, DefaultFeatures, ELSResult, RedirectableStdout, Server};
+use crate::server::{DefaultFeatures, ELSResult, RedirectableStdout, Server};
 use crate::server::{ASK_AUTO_SAVE_ID, HEALTH_CHECKER_ID};
 use crate::util::{self, project_root_of, NormalizedUrl};
 
@@ -43,45 +42,40 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         uri: NormalizedUrl,
         code: S,
     ) -> ELSResult<()> {
-        self.send_log(format!("checking {uri}"))?;
+        _log!(self, "checking {uri}");
         let path = util::uri_to_path(&uri);
         let mode = if path.to_string_lossy().ends_with(".d.er") {
             "declare"
         } else {
             "exec"
         };
-        let old = self.analysis_result.get_ast(&uri).or_else(|| {
-            let ent = self.get_shared()?.mod_cache.get(&path)?;
-            ent.ast.as_ref()?;
-            Some(MappedRwLockReadGuard::map(ent, |ent| {
-                ent.ast.as_ref().unwrap()
-            }))
-        });
+        let old = self.get_ast(&uri);
         if let Some((old, new)) = old.zip(self.build_ast(&uri)) {
             if ASTDiff::diff(old, &new).is_nop() {
-                crate::_log!(self, "no changes: {uri}");
+                _log!(self, "no changes: {uri}");
                 return Ok(());
             }
         }
         let mut checker = self.get_checker(path.clone());
         let artifact = match checker.build(code.into(), mode) {
             Ok(artifact) => {
-                self.send_log(format!(
+                _log!(
+                    self,
                     "checking {uri} passed, found warns: {}",
                     artifact.warns.len()
-                ))?;
+                );
                 let uri_and_diags = self.make_uri_and_diags(artifact.warns.clone());
                 // clear previous diagnostics
                 self.send_diagnostics(uri.clone().raw(), vec![])?;
                 for (uri, diags) in uri_and_diags.into_iter() {
-                    self.send_log(format!("{uri}, warns: {}", diags.len()))?;
+                    _log!(self, "{uri}, warns: {}", diags.len());
                     self.send_diagnostics(uri, diags)?;
                 }
                 artifact.into()
             }
             Err(artifact) => {
-                self.send_log(format!("found errors: {}", artifact.errors.len()))?;
-                self.send_log(format!("found warns: {}", artifact.warns.len()))?;
+                _log!(self, "found errors: {}", artifact.errors.len());
+                _log!(self, "found warns: {}", artifact.warns.len());
                 let diags = artifact
                     .errors
                     .clone()
@@ -93,36 +87,32 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     self.send_diagnostics(uri.clone().raw(), vec![])?;
                 }
                 for (uri, diags) in uri_and_diags.into_iter() {
-                    self.send_log(format!("{uri}, errs & warns: {}", diags.len()))?;
+                    _log!(self, "{uri}, errs & warns: {}", diags.len());
                     self.send_diagnostics(uri, diags)?;
                 }
                 artifact
             }
         };
-        if let Some(shared) = self.get_shared() {
-            let ast = self.build_ast(&uri);
-            if mode == "declare" {
-                shared.py_mod_cache.register(
-                    path,
-                    ast,
-                    artifact.object.clone(),
-                    checker.get_context().unwrap().clone(),
-                );
-            } else {
-                shared.mod_cache.register(
-                    path,
-                    ast,
-                    artifact.object.clone(),
-                    checker.get_context().unwrap().clone(),
-                );
-            }
+        let ast = self.build_ast(&uri);
+        if mode == "declare" {
+            self.shared.py_mod_cache.register(
+                path,
+                ast,
+                artifact.object,
+                checker.get_context().unwrap().clone(),
+            );
+        } else {
+            self.shared.mod_cache.register(
+                path,
+                ast,
+                artifact.object,
+                checker.get_context().unwrap().clone(),
+            );
         }
-        if let Some(module) = self.build_ast(&uri) {
-            self.analysis_result
-                .insert(uri.clone(), AnalysisResult::new(module, artifact));
-        }
+        self.shared.errors.extend(artifact.errors);
+        self.shared.warns.extend(artifact.warns);
         if let Some(module) = checker.pop_context() {
-            self.send_log(format!("{uri}: {}", module.context.name))?;
+            _log!(self, "{uri}: {}", module.context.name);
             self.modules.insert(uri.clone(), module);
         }
         let dependents = self.dependents_of(&uri);
@@ -135,7 +125,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     }
 
     pub(crate) fn quick_check_file(&mut self, uri: NormalizedUrl) -> ELSResult<()> {
-        let Some(old) = self.analysis_result.get_ast(&uri) else {
+        let Some(old) = self.get_ast(&uri) else {
             crate::_log!(self, "not found");
             return Ok(());
         };
@@ -146,10 +136,15 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         let ast_diff = ASTDiff::diff(old, &new);
         crate::_log!(self, "diff: {ast_diff}");
         if let Some(mut lowerer) = self.steal_lowerer(&uri) {
-            let hir = self.get_mut_hir(&uri);
-            if let Some((hir_diff, hir)) = HIRDiff::new(ast_diff, &mut lowerer).zip(hir) {
+            let mut ent = self.steal_entry(&uri);
+            if let Some((hir_diff, hir)) = HIRDiff::new(ast_diff, &mut lowerer)
+                .zip(ent.as_mut().and_then(|ent| ent.hir.as_mut()))
+            {
                 crate::_log!(self, "hir_diff: {hir_diff}");
                 hir_diff.update(hir);
+            }
+            if let Some(ent) = ent {
+                self.restore_entry(uri.clone(), ent);
             }
             self.restore_lowerer(uri, lowerer);
         }
