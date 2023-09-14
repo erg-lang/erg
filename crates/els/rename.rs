@@ -4,7 +4,6 @@ use std::time::SystemTime;
 
 use erg_common::pathutil::NormalizedPathBuf;
 use erg_common::traits::{Locational, Stream};
-use erg_compiler::artifact::IncompleteArtifact;
 use erg_compiler::erg_parser::parse::Parsable;
 use serde::Deserialize;
 use serde_json::json;
@@ -209,10 +208,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     /// returning exprs: import symbol (string literal)
     fn search_imports(&self, target: &NormalizedUrl, needle_module_name: &str) -> Vec<Literal> {
         let mut imports = vec![];
-        if let Some(IncompleteArtifact {
-            object: Some(hir), ..
-        }) = self.analysis_result.get_artifact(target).as_deref()
-        {
+        if let Some(hir) = self.get_hir(target) {
             for chunk in hir.module.iter() {
                 imports.extend(Self::extract_import_symbols(chunk, needle_module_name));
             }

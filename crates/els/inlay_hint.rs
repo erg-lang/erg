@@ -1,5 +1,6 @@
 #![allow(unused_imports)]
 
+use erg_common::spawn::safe_yield;
 use erg_compiler::erg_parser::parse::Parsable;
 use erg_compiler::varinfo::AbsLocation;
 use lsp_types::InlayHintLabelPart;
@@ -294,6 +295,9 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         &mut self,
         params: InlayHintParams,
     ) -> ELSResult<Option<Vec<InlayHint>>> {
+        while !self.flags.workspace_checked() {
+            safe_yield();
+        }
         self.send_log(format!("inlay hint request: {params:?}"))?;
         let uri = NormalizedUrl::new(params.text_document.uri);
         let mut result = vec![];
@@ -301,10 +305,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             _server: self,
             uri: uri.clone().raw().to_string().into(),
         };
-        if let Some(IncompleteArtifact {
-            object: Some(hir), ..
-        }) = self.analysis_result.get_artifact(&uri).as_deref()
-        {
+        if let Some(hir) = self.get_hir(&uri) {
             for chunk in hir.module.iter() {
                 result.extend(gen.get_expr_hint(chunk));
             }

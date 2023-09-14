@@ -33,7 +33,7 @@ use crate::server::{ASK_AUTO_SAVE_ID, HEALTH_CHECKER_ID};
 use crate::util::{self, project_root_of, NormalizedUrl};
 
 impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
-    pub(crate) fn get_ast(&self, uri: &NormalizedUrl) -> Option<Module> {
+    pub(crate) fn build_ast(&self, uri: &NormalizedUrl) -> Option<Module> {
         let code = self.file_cache.get_entire_code(uri).ok()?;
         Parser::parse(code).ok().map(|artifact| artifact.ast)
     }
@@ -57,7 +57,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 ent.ast.as_ref().unwrap()
             }))
         });
-        if let Some((old, new)) = old.zip(self.get_ast(&uri)) {
+        if let Some((old, new)) = old.zip(self.build_ast(&uri)) {
             if ASTDiff::diff(old, &new).is_nop() {
                 crate::_log!(self, "no changes: {uri}");
                 return Ok(());
@@ -100,7 +100,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             }
         };
         if let Some(shared) = self.get_shared() {
-            let ast = self.get_ast(&uri);
+            let ast = self.build_ast(&uri);
             if mode == "declare" {
                 shared.py_mod_cache.register(
                     path,
@@ -117,7 +117,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 );
             }
         }
-        if let Some(module) = self.get_ast(&uri) {
+        if let Some(module) = self.build_ast(&uri) {
             self.analysis_result
                 .insert(uri.clone(), AnalysisResult::new(module, artifact));
         }
@@ -139,14 +139,14 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             crate::_log!(self, "not found");
             return Ok(());
         };
-        let Some(new) = self.get_ast(&uri) else {
+        let Some(new) = self.build_ast(&uri) else {
             crate::_log!(self, "not found");
             return Ok(());
         };
         let ast_diff = ASTDiff::diff(old, &new);
         crate::_log!(self, "diff: {ast_diff}");
         if let Some(mut lowerer) = self.steal_lowerer(&uri) {
-            let hir = self.analysis_result.get_mut_hir(&uri);
+            let hir = self.get_mut_hir(&uri);
             if let Some((hir_diff, hir)) = HIRDiff::new(ast_diff, &mut lowerer).zip(hir) {
                 crate::_log!(self, "hir_diff: {hir_diff}");
                 hir_diff.update(hir);

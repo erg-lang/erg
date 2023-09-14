@@ -14,7 +14,7 @@ use erg_common::env::erg_path;
 use erg_common::shared::{
     MappedRwLockReadGuard, MappedRwLockWriteGuard, RwLockReadGuard, RwLockWriteGuard, Shared,
 };
-use erg_common::spawn::spawn_new_thread;
+use erg_common::spawn::{safe_yield, spawn_new_thread};
 use erg_common::{fn_name, normalize_path};
 
 use erg_compiler::artifact::{BuildRunnable, IncompleteArtifact};
@@ -67,7 +67,7 @@ pub type ELSResult<T> = Result<T, Box<dyn std::error::Error>>;
 
 pub type ErgLanguageServer = Server<HIRBuilder>;
 
-pub type Handler<Server, Params, Out> = fn(&mut Server, Params) -> ELSResult<Out>;
+pub type Handler<Server, Params, Out = ()> = fn(&mut Server, Params) -> ELSResult<Out>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DefaultFeatures {
@@ -204,6 +204,7 @@ impl AnalysisResultCache {
         })
     }
 
+    #[allow(unused)]
     pub fn get_artifact(
         &self,
         uri: &NormalizedUrl,
@@ -281,7 +282,6 @@ impl Flags {
         self.client_initialized.load(Ordering::Relaxed)
     }
 
-    #[allow(unused)]
     pub fn workspace_checked(&self) -> bool {
         self.workspace_checked.load(Ordering::Relaxed)
     }
@@ -815,6 +815,9 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             }
             "exit" => self.exit(),
             "textDocument/didOpen" => {
+                while !self.flags.workspace_checked() {
+                    safe_yield();
+                }
                 let params = DidOpenTextDocumentParams::deserialize(msg["params"].clone())?;
                 let uri = NormalizedUrl::new(params.text_document.uri);
                 self.send_log(format!("{method}: {uri}"))?;
@@ -1075,5 +1078,27 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             let path = util::uri_to_path(uri);
             shared.clear(&path);
         }
+    }
+
+    pub fn get_hir(&self, uri: &NormalizedUrl) -> Option<MappedRwLockReadGuard<HIR>> {
+        self.analysis_result.get_hir(uri).or_else(|| {
+            let path = uri.to_file_path().ok()?;
+            let ent = self.get_shared()?.mod_cache.get(&path)?;
+            ent.hir.as_ref()?;
+            Some(MappedRwLockReadGuard::map(ent, |ent| {
+                ent.hir.as_ref().unwrap()
+            }))
+        })
+    }
+
+    pub fn get_mut_hir(&self, uri: &NormalizedUrl) -> Option<MappedRwLockWriteGuard<HIR>> {
+        self.analysis_result.get_mut_hir(uri).or_else(|| {
+            let path = uri.to_file_path().ok()?;
+            let ent = self.get_shared()?.mod_cache.get_mut(&path)?;
+            ent.hir.as_ref()?;
+            Some(MappedRwLockWriteGuard::map(ent, |ent| {
+                ent.hir.as_mut().unwrap()
+            }))
+        })
     }
 }
