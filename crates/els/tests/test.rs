@@ -1,8 +1,8 @@
 use std::path::Path;
 
 use lsp_types::{
-    CompletionResponse, DocumentSymbolResponse, FoldingRange, FoldingRangeKind,
-    GotoDefinitionResponse, HoverContents, InlayHintLabel, MarkedString,
+    CompletionResponse, DiagnosticSeverity, DocumentSymbolResponse, FoldingRange, FoldingRangeKind,
+    GotoDefinitionResponse, HoverContents, InlayHintLabel, MarkedString, PublishDiagnosticsParams,
 };
 const FILE_A: &str = "tests/a.er";
 const FILE_B: &str = "tests/b.er";
@@ -11,7 +11,8 @@ const FILE_IMPORTS: &str = "tests/imports.er";
 
 use els::{NormalizedUrl, Server};
 use erg_proc_macros::exec_new_thread;
-use molc::{add_char, oneline_range};
+use molc::{add_char, delete_line, oneline_range};
+use serde::Deserialize;
 
 #[test]
 fn test_open() -> Result<(), Box<dyn std::error::Error>> {
@@ -229,5 +230,33 @@ fn test_inlay_hint() -> Result<(), Box<dyn std::error::Error>> {
         todo!()
     };
     assert_eq!(label, ": Nat");
+    Ok(())
+}
+
+#[test]
+fn test_dependents_check() -> Result<(), Box<dyn std::error::Error>> {
+    let mut client = Server::bind_fake_client();
+    client.request_initialize()?;
+    client.notify_initialized()?;
+    client.wait_messages(3)?;
+    client.notify_open(FILE_B)?;
+    client.wait_messages(4)?;
+    client.notify_open(FILE_C)?;
+    client.wait_messages(4)?;
+    let uri_b = NormalizedUrl::from_file_path(Path::new(FILE_B).canonicalize()?)?;
+    client.notify_change(uri_b.clone().raw(), delete_line(2))?;
+    client.wait_messages(2)?;
+    client.responses.clear();
+    client.notify_save(uri_b.clone().raw())?;
+    client.wait_messages(9)?;
+    assert!(client.responses.iter().any(|resp| resp
+        .to_string()
+        .contains("tests/b.er passed, found warns: 0")));
+    let diags = PublishDiagnosticsParams::deserialize(&client.responses.last().unwrap()["params"])?;
+    assert_eq!(diags.diagnostics.len(), 1);
+    assert_eq!(
+        diags.diagnostics[0].severity,
+        Some(DiagnosticSeverity::ERROR)
+    );
     Ok(())
 }

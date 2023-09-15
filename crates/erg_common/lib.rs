@@ -35,6 +35,7 @@ pub mod style;
 pub mod traits;
 pub mod triple;
 pub mod tsort;
+pub mod vfs;
 
 use consts::CASE_SENSITIVE;
 

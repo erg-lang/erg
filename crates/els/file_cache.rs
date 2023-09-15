@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::Read;
 use std::sync::mpsc::Sender;
 
+use erg_common::vfs::VFS;
 use lsp_types::{
     DidChangeTextDocumentParams, FileOperationFilter, FileOperationPattern,
     FileOperationPatternKind, FileOperationRegistrationOptions, OneOf, Position, Range,
@@ -256,6 +257,7 @@ impl FileCache {
             }
         });
         drop(lock);
+        VFS.update(uri.to_file_path().unwrap(), code.clone());
         self.files.borrow_mut().insert(
             uri.clone(),
             FileCacheEntry {
@@ -276,6 +278,7 @@ impl FileCache {
         let end = util::pos_to_byte_index(&code, old.end);
         code.replace_range(start..end, new_code);
         let token_stream = Lexer::from_str(code.clone()).lex().ok();
+        VFS.update(uri.to_file_path().unwrap(), code.clone());
         entry.code = code;
         // entry.ver += 1;
         entry.token_stream = token_stream;
@@ -306,6 +309,7 @@ impl FileCache {
             let end = util::pos_to_byte_index(&code, range.end);
             code.replace_range(start..end, &change.text);
         }
+        VFS.update(uri.to_file_path().unwrap(), code.clone());
         let token_stream = Lexer::from_str(code.clone()).lex().ok();
         entry.code = code;
         entry.ver = params.text_document.version;
@@ -314,6 +318,7 @@ impl FileCache {
 
     #[allow(unused)]
     pub fn remove(&mut self, uri: &NormalizedUrl) {
+        VFS.remove(uri.to_file_path().unwrap());
         self.files.borrow_mut().remove(uri);
     }
 
@@ -331,6 +336,10 @@ impl FileCache {
                 _log!(self, "failed to find old uri: {}", file.old_uri);
                 continue;
             };
+            VFS.rename(
+                old_uri.to_file_path().unwrap(),
+                new_uri.to_file_path().unwrap(),
+            );
             self.files.borrow_mut().insert(new_uri, entry);
         }
         Ok(())
