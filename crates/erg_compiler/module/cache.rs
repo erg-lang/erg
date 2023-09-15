@@ -2,7 +2,6 @@ use std::borrow::Borrow;
 use std::fmt;
 use std::hash::Hash;
 use std::path::Path;
-use std::sync::Arc;
 
 use erg_common::config::ErgConfig;
 use erg_common::dict::Dict;
@@ -38,7 +37,7 @@ pub struct ModuleEntry {
     /// mainly for ELS
     pub ast: Option<Module>,
     pub hir: Option<HIR>,
-    pub module: Arc<ModuleContext>,
+    pub module: ModuleContext,
 }
 
 impl fmt::Display for ModuleEntry {
@@ -57,7 +56,7 @@ impl ModuleEntry {
             id,
             ast,
             hir,
-            module: Arc::new(ctx),
+            module: ctx,
         }
     }
 
@@ -66,12 +65,25 @@ impl ModuleEntry {
             id: ModId::builtin(),
             ast: None,
             hir: None,
-            module: Arc::new(ctx),
+            module: ctx,
         }
     }
 
     pub fn cfg(&self) -> &ErgConfig {
         &self.module.context.cfg
+    }
+}
+
+/// `IRs = ModuleEntry - ModuleContext`
+pub struct IRs {
+    pub id: ModId,
+    pub ast: Option<Module>,
+    pub hir: Option<HIR>,
+}
+
+impl IRs {
+    pub const fn new(id: ModId, ast: Option<Module>, hir: Option<HIR>) -> Self {
+        Self { id, ast, hir }
     }
 }
 
@@ -224,13 +236,6 @@ impl SharedModuleCache {
         }
     }
 
-    pub fn get_ctx<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<Arc<ModuleContext>>
-    where
-        NormalizedPathBuf: Borrow<Q>,
-    {
-        self.0.borrow().get(path).map(|entry| entry.module.clone())
-    }
-
     pub fn ref_ctx<Q: Eq + Hash + ?Sized>(
         &self,
         path: &Q,
@@ -240,7 +245,7 @@ impl SharedModuleCache {
     {
         if self.0.borrow().get(path).is_some() {
             Some(RwLockReadGuard::map(self.0.borrow(), |cache| {
-                cache.get(path).unwrap().module.as_ref()
+                &cache.get(path).unwrap().module
             }))
         } else {
             None
@@ -256,7 +261,7 @@ impl SharedModuleCache {
         // If you delete `_ref`, this function returns `None` even if the key exists in rare cases
         let _ref = self.0.borrow();
         let ref_ = unsafe { self.0.as_ptr().as_ref().unwrap() };
-        ref_.get(path).map(|entry| entry.module.as_ref())
+        ref_.get(path).map(|entry| &entry.module)
     }
 
     pub fn register<P: Into<NormalizedPathBuf>>(
@@ -267,6 +272,10 @@ impl SharedModuleCache {
         ctx: ModuleContext,
     ) {
         self.0.borrow_mut().register(path.into(), ast, hir, ctx);
+    }
+
+    pub fn insert(&self, path: NormalizedPathBuf, entry: ModuleEntry) {
+        self.0.borrow_mut().cache.insert(path, entry);
     }
 
     pub fn remove<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<ModuleEntry>
@@ -290,12 +299,7 @@ impl SharedModuleCache {
             return;
         };
         self.0.borrow_mut().clear();
-        self.register(
-            builtin_path,
-            None,
-            None,
-            Arc::try_unwrap(builtin.module).unwrap(),
-        );
+        self.register(builtin_path, None, None, builtin.module);
     }
 
     pub fn rename_path<P: Into<NormalizedPathBuf>>(&self, path: &Path, new: P) {

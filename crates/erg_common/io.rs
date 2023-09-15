@@ -1,6 +1,6 @@
 use std::ffi::OsStr;
 use std::fs::File;
-use std::io::{BufRead, BufReader, Read, Stdout, Write};
+use std::io::{Stdout, Write};
 use std::path::{Path, PathBuf};
 use std::process;
 use std::process::Stdio;
@@ -13,7 +13,8 @@ use crate::pathutil::{add_postfix_foreach, remove_postfix};
 use crate::python_util::get_sys_path;
 use crate::random::random;
 use crate::stdin::GLOBAL_STDIN;
-use crate::{normalize_path, power_assert, read_file};
+use crate::vfs::VFS;
+use crate::{normalize_path, power_assert};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DummyStdin {
@@ -275,28 +276,17 @@ impl Input {
 
     pub fn read(&mut self) -> String {
         match &mut self.kind {
-            InputKind::File(filename) => {
-                let file = match File::open(&filename) {
-                    Ok(f) => f,
-                    Err(e) => {
-                        let code = e.raw_os_error().unwrap_or(1);
-                        let lossy = filename.to_str().unwrap().to_string();
-                        println!("cannot open '{lossy}': [Errno {code}] {e}",);
-                        process::exit(code);
-                    }
-                };
-                match read_file(file) {
-                    Ok(s) => s,
-                    Err(e) => {
-                        let code = e.raw_os_error().unwrap_or(1);
-                        println!(
-                            "cannot read '{}': [Errno {code}] {e}",
-                            filename.to_string_lossy()
-                        );
-                        process::exit(code);
-                    }
+            InputKind::File(filename) => match VFS.read(&filename) {
+                Ok(s) => s,
+                Err(e) => {
+                    let code = e.raw_os_error().unwrap_or(1);
+                    println!(
+                        "cannot read '{}': [Errno {code}] {e}",
+                        filename.to_string_lossy()
+                    );
+                    process::exit(code);
                 }
-            }
+            },
             InputKind::Pipe(s) | InputKind::Str(s) => s.clone(),
             InputKind::REPL => GLOBAL_STDIN.read(),
             InputKind::DummyREPL(dummy) => dummy.read_line(),
@@ -306,10 +296,7 @@ impl Input {
 
     pub fn try_read(&mut self) -> std::io::Result<String> {
         match &mut self.kind {
-            InputKind::File(filename) => {
-                let file = File::open(filename)?;
-                read_file(file)
-            }
+            InputKind::File(filename) => VFS.read(filename),
             InputKind::Pipe(s) | InputKind::Str(s) => Ok(s.clone()),
             InputKind::REPL => Ok(GLOBAL_STDIN.read()),
             InputKind::DummyREPL(dummy) => Ok(dummy.read_line()),
@@ -319,28 +306,17 @@ impl Input {
 
     pub fn read_non_dummy(&self) -> String {
         match &self.kind {
-            InputKind::File(filename) => {
-                let file = match File::open(filename) {
-                    Ok(f) => f,
-                    Err(e) => {
-                        let code = e.raw_os_error().unwrap_or(1);
-                        let lossy = filename.to_str().unwrap().to_string();
-                        println!("cannot open '{lossy}': [Errno {code}] {e}",);
-                        process::exit(code);
-                    }
-                };
-                match read_file(file) {
-                    Ok(s) => s,
-                    Err(e) => {
-                        let code = e.raw_os_error().unwrap_or(1);
-                        println!(
-                            "cannot read '{}': [Errno {code}] {e}",
-                            filename.to_string_lossy()
-                        );
-                        process::exit(code);
-                    }
+            InputKind::File(filename) => match VFS.read(filename) {
+                Ok(s) => s,
+                Err(e) => {
+                    let code = e.raw_os_error().unwrap_or(1);
+                    println!(
+                        "cannot read '{}': [Errno {code}] {e}",
+                        filename.to_string_lossy()
+                    );
+                    process::exit(code);
                 }
-            }
+            },
             InputKind::Pipe(s) | InputKind::Str(s) => s.clone(),
             InputKind::REPL => GLOBAL_STDIN.read(),
             InputKind::Dummy | InputKind::DummyREPL(_) => panic!("cannot read from a dummy file"),
@@ -350,12 +326,12 @@ impl Input {
     pub fn reread_lines(&self, ln_begin: usize, ln_end: usize) -> Vec<String> {
         power_assert!(ln_begin, >=, 1);
         match &self.kind {
-            InputKind::File(filename) => match File::open(filename) {
-                Ok(file) => {
+            InputKind::File(filename) => match VFS.read(filename) {
+                Ok(code) => {
                     let mut codes = vec![];
-                    let mut lines = BufReader::new(file).lines().skip(ln_begin - 1);
+                    let mut lines = code.lines().map(ToString::to_string).skip(ln_begin - 1);
                     for _ in ln_begin..=ln_end {
-                        codes.push(lines.next().unwrap_or_else(|| Ok("".to_string())).unwrap());
+                        codes.push(lines.next().unwrap_or("".to_string()));
                     }
                     codes
                 }
@@ -380,12 +356,7 @@ impl Input {
 
     pub fn reread(&self) -> String {
         match &self.kind {
-            InputKind::File(path) => {
-                let mut reader = BufReader::new(File::open(path).unwrap());
-                let mut buf = String::new();
-                reader.read_to_string(&mut buf).unwrap();
-                buf
-            }
+            InputKind::File(path) => VFS.read(path).unwrap(),
             InputKind::Pipe(s) | InputKind::Str(s) => s.clone(),
             InputKind::REPL => GLOBAL_STDIN.reread().trim_end().to_owned(),
             InputKind::DummyREPL(dummy) => dummy.reread().unwrap_or_default(),

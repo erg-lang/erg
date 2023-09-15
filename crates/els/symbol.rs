@@ -73,15 +73,13 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     ) -> ELSResult<Option<DocumentSymbolResponse>> {
         _log!(self, "document symbol requested: {params:?}");
         let uri = NormalizedUrl::new(params.text_document.uri);
-        if let Some(result) = self.analysis_result.get(&uri) {
-            if let Some(hir) = &result.artifact.object {
-                let mut res = vec![];
-                for chunk in hir.module.iter() {
-                    let symbol = self.symbol(chunk);
-                    res.extend(symbol);
-                }
-                return Ok(Some(DocumentSymbolResponse::Nested(res)));
+        if let Some(hir) = self.get_hir(&uri) {
+            let mut res = vec![];
+            for chunk in hir.module.iter() {
+                let symbol = self.symbol(chunk);
+                res.extend(symbol);
             }
+            return Ok(Some(DocumentSymbolResponse::Nested(res)));
         }
         Ok(None)
     }

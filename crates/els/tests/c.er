@@ -1,3 +1,4 @@
+b = import "b"
 {neighbor;} = import "b"
 
-print! neighbor
+print! neighbor, b.x

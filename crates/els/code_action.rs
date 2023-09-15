@@ -32,13 +32,11 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             self.send_log("visitor not found")?;
             return Ok(None);
         };
-        let Some(result) = self.analysis_result.get(&uri) else {
+        let Some(warns) = self.get_warns(&uri) else {
             self.send_log("artifact not found")?;
             return Ok(None);
         };
-        let warns = result
-            .artifact
-            .warns
+        let warns = warns
             .iter()
             .filter(|warn| warn.core.main_message.ends_with("is not used"))
             .collect::<Vec<_>>();
@@ -72,7 +70,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                         }
                         Some(";") => range.end.character += 1,
                         Some(other) => {
-                            self.send_log(format!("? {other}"))?;
+                            crate::_log!(self, "? {other}");
                         }
                     }
                     let edit = TextEdit::new(range, "".to_string());
@@ -116,7 +114,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         let def_loc = visitor.get_info(&token)?.def_loc;
         let edit = TextEdit::new(util::loc_to_range(def_loc.loc)?, new_text.clone());
         map.insert(uri.clone().raw(), vec![edit]);
-        if let Some(value) = self.get_index().and_then(|ind| ind.get_refs(&def_loc)) {
+        if let Some(value) = self.shared.index.get_refs(&def_loc) {
             for refer in value.referrers.iter() {
                 let url = Url::from_file_path(refer.module.as_ref()?).ok()?;
                 let range = util::loc_to_range(refer.loc)?;
@@ -389,10 +387,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             code
         };
         changes.insert(uri.raw(), vec![delete]);
-        if let Some(index) = self
-            .get_index()
-            .and_then(|index| index.get_refs(&def.sig.ident().vi.def_loc))
-        {
+        if let Some(index) = self.shared.index.get_refs(&def.sig.ident().vi.def_loc) {
             for ref_ in index.referrers.iter() {
                 let Some(path) = ref_.module.as_ref() else {
                     continue;

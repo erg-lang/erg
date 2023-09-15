@@ -42,10 +42,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         let Ok(loc) = AbsLocation::from_str(data) else {
             return Ok(None);
         };
-        let Some(shared) = self.get_shared() else {
-            return Ok(None);
-        };
-        if let Some(refs) = shared.index.get_refs(&loc) {
+        if let Some(refs) = self.shared.index.get_refs(&loc) {
             for referrer_loc in refs.referrers.iter() {
                 let Some(uri) = referrer_loc
                     .module

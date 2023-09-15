@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::Read;
 use std::sync::mpsc::Sender;
 
+use erg_common::vfs::VFS;
 use lsp_types::{
     DidChangeTextDocumentParams, FileOperationFilter, FileOperationPattern,
     FileOperationPatternKind, FileOperationRegistrationOptions, OneOf, Position, Range,
@@ -12,6 +13,7 @@ use lsp_types::{
 use serde_json::Value;
 
 use erg_common::dict::Dict;
+use erg_common::set::Set;
 use erg_common::shared::Shared;
 use erg_common::traits::DequeStream;
 use erg_compiler::erg_parser::lex::Lexer;
@@ -52,6 +54,7 @@ impl FileCacheEntry {
 pub struct FileCache {
     stdout_redirect: Option<Sender<Value>>,
     pub files: Shared<Dict<NormalizedUrl, FileCacheEntry>>,
+    pub editing: Shared<Set<NormalizedUrl>>,
 }
 
 impl RedirectableStdout for FileCache {
@@ -65,6 +68,7 @@ impl FileCache {
         Self {
             stdout_redirect,
             files: Shared::new(Dict::new()),
+            editing: Shared::new(Set::new()),
         }
     }
 
@@ -236,8 +240,8 @@ impl FileCache {
     }
 
     pub(crate) fn update(&self, uri: &NormalizedUrl, code: String, ver: Option<i32>) {
-        let ent = self.files.borrow_mut();
-        let entry = ent.get(uri);
+        let lock = self.files.borrow_mut();
+        let entry = lock.get(uri);
         if let Some(entry) = entry {
             if ver.map_or(false, |ver| ver <= entry.ver) {
                 // crate::_log!(self, "171: double update detected: {ver:?}, {}, code:\n{}", entry.ver, entry.code);
@@ -252,7 +256,8 @@ impl FileCache {
                 1
             }
         });
-        drop(ent);
+        drop(lock);
+        VFS.update(uri.to_file_path().unwrap(), code.clone());
         self.files.borrow_mut().insert(
             uri.clone(),
             FileCacheEntry {
@@ -273,6 +278,7 @@ impl FileCache {
         let end = util::pos_to_byte_index(&code, old.end);
         code.replace_range(start..end, new_code);
         let token_stream = Lexer::from_str(code.clone()).lex().ok();
+        VFS.update(uri.to_file_path().unwrap(), code.clone());
         entry.code = code;
         // entry.ver += 1;
         entry.token_stream = token_stream;
@@ -303,6 +309,7 @@ impl FileCache {
             let end = util::pos_to_byte_index(&code, range.end);
             code.replace_range(start..end, &change.text);
         }
+        VFS.update(uri.to_file_path().unwrap(), code.clone());
         let token_stream = Lexer::from_str(code.clone()).lex().ok();
         entry.code = code;
         entry.ver = params.text_document.version;
@@ -311,6 +318,7 @@ impl FileCache {
 
     #[allow(unused)]
     pub fn remove(&mut self, uri: &NormalizedUrl) {
+        VFS.remove(uri.to_file_path().unwrap());
         self.files.borrow_mut().remove(uri);
     }
 
@@ -328,6 +336,10 @@ impl FileCache {
                 _log!(self, "failed to find old uri: {}", file.old_uri);
                 continue;
             };
+            VFS.rename(
+                old_uri.to_file_path().unwrap(),
+                new_uri.to_file_path().unwrap(),
+            );
             self.files.borrow_mut().insert(new_uri, entry);
         }
         Ok(())

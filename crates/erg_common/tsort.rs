@@ -2,21 +2,50 @@
 use crate::dict::Dict;
 use crate::set::Set;
 
+use std::fmt::Debug;
 use std::hash::Hash;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum TopoSortError {
+pub enum TopoSortErrorKind {
     CyclicReference,
     KeyNotFound,
 }
 
-impl std::fmt::Display for TopoSortError {
+impl std::fmt::Display for TopoSortErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{self:?}")
     }
 }
 
+impl std::error::Error for TopoSortErrorKind {}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TopoSortError {
+    pub kind: TopoSortErrorKind,
+    pub msg: String,
+}
+
+impl std::fmt::Display for TopoSortError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: {}", self.kind, self.msg)
+    }
+}
+
 impl std::error::Error for TopoSortError {}
+
+impl TopoSortError {
+    pub fn new(kind: TopoSortErrorKind, msg: String) -> Self {
+        Self { kind, msg }
+    }
+
+    pub fn key_not_found(msg: String) -> Self {
+        Self::new(TopoSortErrorKind::KeyNotFound, msg)
+    }
+
+    pub fn cycle_detected(msg: String) -> Self {
+        Self::new(TopoSortErrorKind::CyclicReference, msg)
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Node<T: Eq + Hash, U> {
@@ -65,7 +94,7 @@ fn reorder_by_key<T: Eq + Hash, U>(mut g: Graph<T, U>, idx: Vec<T>) -> Graph<T, 
     g
 }
 
-fn dfs<T: Eq + Hash + Clone, U>(
+fn dfs<T: Eq + Hash + Clone + Debug, U: Debug>(
     g: &Graph<T, U>,
     v: T,
     used: &mut Set<T>,
@@ -73,12 +102,14 @@ fn dfs<T: Eq + Hash + Clone, U>(
 ) -> Result<(), TopoSortError> {
     used.insert(v.clone());
     let Some(vertex) = g.iter().find(|n| n.id == v) else {
-        return Err(TopoSortError::KeyNotFound);
+        return Err(TopoSortError::key_not_found(format!("{g:?}: {v:?}")));
     };
     for node_id in vertex.depends_on.iter() {
         // detecting cycles
         if used.contains(node_id) && !idx.contains(node_id) {
-            return Err(TopoSortError::CyclicReference);
+            return Err(TopoSortError::cycle_detected(format!(
+                "{v:?} -> {node_id:?}"
+            )));
         }
         if !used.contains(node_id) {
             dfs(g, node_id.clone(), used, idx)?;
@@ -90,7 +121,9 @@ fn dfs<T: Eq + Hash + Clone, U>(
 
 /// perform topological sort on a graph
 #[allow(clippy::result_unit_err)]
-pub fn tsort<T: Eq + Hash + Clone, U>(g: Graph<T, U>) -> Result<Graph<T, U>, TopoSortError> {
+pub fn tsort<T: Eq + Hash + Clone + Debug, U: Debug>(
+    g: Graph<T, U>,
+) -> Result<Graph<T, U>, TopoSortError> {
     let n = g.len();
     let mut idx = Vec::with_capacity(n);
     let mut used = Set::new();
