@@ -12,6 +12,7 @@ use lsp_types::{
 use serde_json::Value;
 
 use erg_common::dict::Dict;
+use erg_common::set::Set;
 use erg_common::shared::Shared;
 use erg_common::traits::DequeStream;
 use erg_compiler::erg_parser::lex::Lexer;
@@ -52,6 +53,7 @@ impl FileCacheEntry {
 pub struct FileCache {
     stdout_redirect: Option<Sender<Value>>,
     pub files: Shared<Dict<NormalizedUrl, FileCacheEntry>>,
+    pub editing: Shared<Set<NormalizedUrl>>,
 }
 
 impl RedirectableStdout for FileCache {
@@ -65,6 +67,7 @@ impl FileCache {
         Self {
             stdout_redirect,
             files: Shared::new(Dict::new()),
+            editing: Shared::new(Set::new()),
         }
     }
 

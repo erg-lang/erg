@@ -43,6 +43,10 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         code: S,
     ) -> ELSResult<()> {
         _log!(self, "checking {uri}");
+        if self.file_cache.editing.borrow().contains(&uri) {
+            _log!(self, "skipped: {uri}");
+            return Ok(());
+        }
         let path = util::uri_to_path(&uri);
         let mode = if path.to_string_lossy().ends_with(".d.er") {
             "declare"
@@ -116,6 +120,10 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     }
 
     pub(crate) fn quick_check_file(&mut self, uri: NormalizedUrl) -> ELSResult<()> {
+        if self.file_cache.editing.borrow().contains(&uri) {
+            _log!(self, "skipped: {uri}");
+            return Ok(());
+        }
         let Some(old) = self.get_ast(&uri) else {
             crate::_log!(self, "not found");
             return Ok(());

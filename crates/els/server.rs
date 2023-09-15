@@ -211,7 +211,6 @@ impl<C: BuildRunnable, P: Parsable> Clone for Server<C, P> {
             opt_features: self.opt_features.clone(),
             file_cache: self.file_cache.clone(),
             comp_cache: self.comp_cache.clone(),
-            // modules: self.modules.clone(),
             shared: self.shared.clone(),
             channels: self.channels.clone(),
             flags: self.flags.clone(),
@@ -235,7 +234,6 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             disabled_features: vec![],
             opt_features: vec![],
             file_cache: FileCache::new(stdout_redirect.clone()),
-            // modules: ModuleCache::new(),
             channels: None,
             flags: Flags::default(),
             stdout_redirect,
@@ -507,8 +505,6 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     pub(crate) fn restart(&mut self) {
         self.file_cache.clear();
         self.comp_cache.clear();
-        // self.modules = ModuleCache::new();
-        // self.analysis_result = AnalysisResultCache::new();
         self.channels.as_ref().unwrap().close();
         self.shared.clear_all();
         self.start_language_services();
@@ -919,10 +915,8 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     }
 
     pub(crate) fn clear_cache(&mut self, uri: &NormalizedUrl) {
-        // self.analysis_result.remove(uri);
         let path = util::uri_to_path(uri);
         self.shared.clear(&path);
-        // self.shared.mod_ctx.remove(uri);
     }
 
     pub fn remove_module_entry(&mut self, uri: &NormalizedUrl) -> Option<ModuleEntry> {

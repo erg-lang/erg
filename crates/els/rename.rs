@@ -77,6 +77,10 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     }
                 }
                 let dependencies = self.dependencies_of(&uri);
+                self.file_cache
+                    .editing
+                    .borrow_mut()
+                    .extend(dependencies.clone());
                 for uri in changes.keys() {
                     self.clear_cache(&NormalizedUrl::new(uri.clone()));
                 }
@@ -95,7 +99,8 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 // recheck dependencies and finally the file itself
                 for dep in dependencies {
                     let code = self.file_cache.get_entire_code(&dep)?.to_string();
-                    self.check_file(dep, code)?;
+                    self.check_file(dep.clone(), code)?;
+                    self.file_cache.editing.borrow_mut().remove(&dep);
                 }
                 // dependents are checked after changes are committed
                 return Ok(());
