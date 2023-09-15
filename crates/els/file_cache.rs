@@ -239,8 +239,8 @@ impl FileCache {
     }
 
     pub(crate) fn update(&self, uri: &NormalizedUrl, code: String, ver: Option<i32>) {
-        let ent = self.files.borrow_mut();
-        let entry = ent.get(uri);
+        let lock = self.files.borrow_mut();
+        let entry = lock.get(uri);
         if let Some(entry) = entry {
             if ver.map_or(false, |ver| ver <= entry.ver) {
                 // crate::_log!(self, "171: double update detected: {ver:?}, {}, code:\n{}", entry.ver, entry.code);
@@ -255,7 +255,7 @@ impl FileCache {
                 1
             }
         });
-        drop(ent);
+        drop(lock);
         self.files.borrow_mut().insert(
             uri.clone(),
             FileCacheEntry {

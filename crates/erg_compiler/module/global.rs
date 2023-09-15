@@ -66,7 +66,8 @@ impl SharedCompilerResource {
         self.warns.clear();
     }
 
-    /// Clear all information about the module. All child modules are also cleared.
+    /// Clear all information about the module.
+    /// Graph information is not cleared (due to ELS).
     pub fn clear(&self, path: &Path) {
         for child in self.graph.children(path) {
             self.clear(&child);
@@ -74,7 +75,7 @@ impl SharedCompilerResource {
         self.mod_cache.remove(path);
         self.py_mod_cache.remove(path);
         self.index.remove_path(path);
-        self.graph.remove(path);
+        // self.graph.remove(path);
         self.promises.remove(path);
         self.errors.remove(path);
         self.warns.remove(path);

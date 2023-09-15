@@ -150,12 +150,19 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         })
     }
 
-    /// self is __included__
+    /// self is __included__.
+    /// if self is not in the graph, return empty vec
     pub fn dependencies_of(&self, uri: &NormalizedUrl) -> Vec<NormalizedUrl> {
         let graph = &self.shared.graph;
         let path = NormalizedPathBuf::from(util::uri_to_path(uri));
-        graph.sort().unwrap();
-        let self_node = graph.get_node(&path).unwrap();
+        if let Err(err) = graph.sort() {
+            // maybe key not found == self is not in the graph
+            crate::_log!(self, "err: {err}");
+            return vec![];
+        };
+        let Some(self_node) = graph.get_node(&path) else {
+            return vec![];
+        };
         graph
             .ref_inner()
             .iter()

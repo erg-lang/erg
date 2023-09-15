@@ -37,10 +37,42 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         Parser::parse(code).ok().map(|artifact| artifact.ast)
     }
 
-    pub(crate) fn check_file<S: Into<String>>(
+    pub(crate) fn any_changes(&self, uri: &NormalizedUrl) -> bool {
+        let deps = self.dependencies_of(uri);
+        if deps.is_empty() {
+            return true;
+        }
+        for dep in deps {
+            let Some(old) = self.get_ast(&dep) else {
+                return true;
+            };
+            if let Some(new) = self.build_ast(&dep) {
+                if !ASTDiff::diff(old, &new).is_nop() {
+                    return true;
+                }
+            }
+        }
+        _log!(self, "no changes: {uri}");
+        false
+    }
+
+    pub(crate) fn recheck_file(
         &mut self,
         uri: NormalizedUrl,
-        code: S,
+        code: impl Into<String>,
+    ) -> ELSResult<()> {
+        if !self.any_changes(&uri) {
+            _log!(self, "no changes: {uri}");
+            return Ok(());
+        }
+        // self.clear_cache(&uri);
+        self.check_file(uri, code)
+    }
+
+    pub(crate) fn check_file(
+        &mut self,
+        uri: NormalizedUrl,
+        code: impl Into<String>,
     ) -> ELSResult<()> {
         _log!(self, "checking {uri}");
         if self.file_cache.editing.borrow().contains(&uri) {
@@ -53,13 +85,6 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         } else {
             "exec"
         };
-        let old = self.get_ast(&uri);
-        if let Some((old, new)) = old.zip(self.build_ast(&uri)) {
-            if ASTDiff::diff(old, &new).is_nop() {
-                _log!(self, "no changes: {uri}");
-                return Ok(());
-            }
-        }
         let mut checker = self.get_checker(path.clone());
         let artifact = match checker.build(code.into(), mode) {
             Ok(artifact) => {

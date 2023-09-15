@@ -698,8 +698,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     NormalizedUrl::parse(msg["params"]["textDocument"]["uri"].as_str().unwrap())?;
                 self.send_log(format!("{method}: {uri}"))?;
                 let code = self.file_cache.get_entire_code(&uri)?;
-                self.clear_cache(&uri);
-                self.check_file(uri, code)
+                self.recheck_file(uri, code)
             }
             "textDocument/didChange" => {
                 let params = DidChangeTextDocumentParams::deserialize(msg["params"].clone())?;
