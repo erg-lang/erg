@@ -22,7 +22,9 @@ use erg_common::option_enum_unwrap;
 use erg_common::python_util::{env_python_version, PythonVersion};
 use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
-use erg_common::{debug_power_assert, fn_name, fn_name_full, impl_stream, log, switch_unreachable};
+use erg_common::{
+    debug_power_assert, fn_name, fn_name_full, impl_stream, log, set, switch_unreachable,
+};
 use erg_parser::ast::VisModifierSpec;
 use erg_parser::ast::{DefId, DefKind};
 use CommonOpcode::*;
@@ -1371,6 +1373,10 @@ impl PyCodeGenerator {
         let code = self.emit_block(body.block, Some(name.clone()), params, flags);
         // code.flags += CodeObjFlags::Optimized as u32;
         self.register_cellvars(&mut make_function_flag);
+        let n_decos = sig.decorators.len();
+        for deco in sig.decorators {
+            self.emit_expr(deco);
+        }
         self.rewrite_captured_fast(&code);
         self.emit_load_const(code);
         if self.py_version.minor < Some(11) {
@@ -1384,6 +1390,15 @@ impl PyCodeGenerator {
         }
         self.write_instr(MAKE_FUNCTION);
         self.write_arg(make_function_flag);
+        for _ in 0..n_decos {
+            let argc = if self.py_version.minor >= Some(11) {
+                0
+            } else {
+                1
+            };
+            self.emit_call_instr(argc, Name);
+            self.stack_dec();
+        }
         // stack_dec: <code obj> + <name> -> <function>
         self.stack_dec();
         if make_function_flag & MakeFunctionFlags::Defaults as usize != 0 {
@@ -3250,7 +3265,13 @@ impl PyCodeGenerator {
             ("_".into(), Params::single(self_param))
         };
         let bounds = TypeBoundSpecs::empty();
-        let subr_sig = SubrSignature::new(ident, bounds, params, sig.t_spec_with_op().cloned());
+        let subr_sig = SubrSignature::new(
+            set! {},
+            ident,
+            bounds,
+            params,
+            sig.t_spec_with_op().cloned(),
+        );
         let mut attrs = vec![];
         match new_first_param.map(|pt| pt.typ()) {
             // namedtupleは仕様上::xなどの名前を使えない
@@ -3329,7 +3350,13 @@ impl PyCodeGenerator {
             let param = NonDefaultParamSignature::new(raw, vi, None);
             let params = Params::single(param);
             let bounds = TypeBoundSpecs::empty();
-            let sig = SubrSignature::new(ident, bounds, params, sig.t_spec_with_op().cloned());
+            let sig = SubrSignature::new(
+                set! {},
+                ident,
+                bounds,
+                params,
+                sig.t_spec_with_op().cloned(),
+            );
             let arg = PosArg::new(Expr::Accessor(Accessor::private_with_line(
                 param_name, line,
             )));
@@ -3340,7 +3367,13 @@ impl PyCodeGenerator {
         } else {
             let params = Params::empty();
             let bounds = TypeBoundSpecs::empty();
-            let sig = SubrSignature::new(ident, bounds, params, sig.t_spec_with_op().cloned());
+            let sig = SubrSignature::new(
+                set! {},
+                ident,
+                bounds,
+                params,
+                sig.t_spec_with_op().cloned(),
+            );
             let call = class_new.call_expr(Args::empty());
             let block = Block::new(vec![call]);
             let body = DefBody::new(EQUAL, block, DefId(0));

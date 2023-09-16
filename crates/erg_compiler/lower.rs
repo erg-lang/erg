@@ -1720,6 +1720,21 @@ impl ASTLowerer {
             .get_current_scope_var(&sig.ident.name)
             .map(|vi| vi.t.clone())
             .unwrap_or(Type::Failure);
+        let mut decorators = set! {};
+        for deco in sig.decorators.iter() {
+            // exclude comptime decorators
+            if self.module.context.eval_const_expr(&deco.0).is_ok() {
+                continue;
+            }
+            let deco = match self.lower_expr(deco.0.clone(), Some(&mono("GenericCallable"))) {
+                Ok(deco) => deco,
+                Err(es) => {
+                    self.errs.extend(es);
+                    continue;
+                }
+            };
+            decorators.insert(deco);
+        }
         match registered_t {
             Type::Subr(subr_t) => {
                 let mut params = self.lower_params(sig.params.clone())?;
@@ -1752,7 +1767,9 @@ impl ASTLowerer {
                         } else {
                             None
                         };
-                        let sig = hir::SubrSignature::new(ident, sig.bounds, params, ret_t_spec);
+                        let sig = hir::SubrSignature::new(
+                            decorators, ident, sig.bounds, params, ret_t_spec,
+                        );
                         let body = hir::DefBody::new(body.op, block, body.id);
                         Ok(hir::Def::new(hir::Signature::Subr(sig), body))
                     }
@@ -1778,7 +1795,9 @@ impl ASTLowerer {
                         } else {
                             None
                         };
-                        let sig = hir::SubrSignature::new(ident, sig.bounds, params, ret_t_spec);
+                        let sig = hir::SubrSignature::new(
+                            decorators, ident, sig.bounds, params, ret_t_spec,
+                        );
                         let block =
                             hir::Block::new(vec![hir::Expr::Dummy(hir::Dummy::new(vec![]))]);
                         let body = hir::DefBody::new(body.op, block, body.id);
@@ -1809,7 +1828,8 @@ impl ASTLowerer {
                 } else {
                     None
                 };
-                let sig = hir::SubrSignature::new(ident, sig.bounds, params, ret_t_spec);
+                let sig =
+                    hir::SubrSignature::new(decorators, ident, sig.bounds, params, ret_t_spec);
                 let body = hir::DefBody::new(body.op, block, body.id);
                 Ok(hir::Def::new(hir::Signature::Subr(sig), body))
             }

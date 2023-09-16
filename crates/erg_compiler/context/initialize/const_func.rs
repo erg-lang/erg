@@ -120,6 +120,13 @@ pub(crate) fn inheritable_func(mut args: ValueArgs, _ctx: &Context) -> EvalValue
     }
 }
 
+pub(crate) fn override_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let func = args
+        .remove_left_or_key("func")
+        .ok_or_else(|| not_passed("func"))?;
+    Ok(func.into())
+}
+
 /// Base: Type, Impl := Type -> TraitType
 pub(crate) fn trait_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
     let req = args

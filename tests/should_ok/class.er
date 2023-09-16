@@ -6,6 +6,13 @@ _ = Test!
 # forward reference
 C = Class { .x = D }
 D = Class { .y = Int }
+D.
+    new y = Self::__new__ { .y; }
+    @staticmethod
+    foo x = x + 1
 
-c = C.new { .x = D.new { .y = 1 } }
+d = D.new 1
+assert d.foo(1) == 2
+
+c = C.new { .x = D.new(1) }
 assert c.x.y == 1

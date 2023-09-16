@@ -69,6 +69,8 @@ impl Context {
             None,
             Str,
         );
+        let F = mono_q(TY_F, instanceof(mono(GENERIC_CALLABLE)));
+        let t_classmethod = nd_func(vec![kw(KW_FUNC, F.clone())], None, F.clone()).quantify();
         let t_classof = nd_func(vec![kw(KW_OLD, Obj)], None, ClassType);
         let t_compile = nd_func(vec![kw(KW_SRC, Str)], None, Code);
         let t_cond = nd_func(
@@ -264,6 +266,7 @@ impl Context {
             array_t(T.clone(), TyParam::erased(Nat)),
         )
         .quantify();
+        let t_staticmethod = nd_func(vec![kw(KW_FUNC, F.clone())], None, F.clone()).quantify();
         let t_str = nd_func(vec![kw(KW_OBJECT, Obj)], None, Str);
         let A = mono_q(TY_A, Constraint::Uninited);
         let A = mono_q(TY_A, subtypeof(poly(ADD, vec![ty_tp(A)])));
@@ -307,6 +310,13 @@ impl Context {
             Some(FUNC_BYTEARRAY),
         );
         self.register_builtin_py_impl(FUNC_CHR, t_chr, Immutable, vis.clone(), Some(FUNC_CHR));
+        self.register_builtin_py_impl(
+            FUNC_CLASSMETHOD,
+            t_classmethod,
+            Immutable,
+            vis.clone(),
+            Some(FUNC_CLASSMETHOD),
+        );
         self.register_builtin_py_impl(
             FUNC_CLASSOF,
             t_classof,
@@ -456,6 +466,13 @@ impl Context {
             vis.clone(),
             Some(FUNC_SORTED),
         );
+        self.register_builtin_py_impl(
+            FUNC_STATICMETHOD,
+            t_staticmethod,
+            Immutable,
+            vis.clone(),
+            Some(FUNC_STATICMETHOD),
+        );
         self.register_builtin_py_impl(FUNC_STR, t_str, Immutable, vis.clone(), Some(FUNC_STR__));
         self.register_builtin_py_impl(FUNC_SUM, t_sum, Immutable, vis.clone(), Some(FUNC_SUM));
         self.register_builtin_py_impl(FUNC_ZIP, t_zip, Immutable, vis.clone(), Some(FUNC_ZIP));
@@ -604,6 +621,15 @@ impl Context {
             None,
         ));
         self.register_builtin_const(INHERITABLE, vis.clone(), ValueObj::Subr(inheritable));
+        let F = mono_q(TY_F, instanceof(mono(GENERIC_CALLABLE)));
+        let override_t = func1(F.clone(), F).quantify();
+        let override_ = ConstSubr::Builtin(BuiltinConstSubr::new(
+            OVERRIDE,
+            override_func,
+            override_t,
+            None,
+        ));
+        self.register_builtin_const(OVERRIDE, vis.clone(), ValueObj::Subr(override_));
         // TODO: register Del function object
         let t_del = nd_func(vec![kw(KW_OBJ, Obj)], None, NoneType);
         self.register_builtin_erg_impl(DEL, t_del, Immutable, vis.clone());

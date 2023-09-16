@@ -6,6 +6,7 @@ use erg_common::dict::Dict as HashMap;
 use erg_common::error::Location;
 #[allow(unused_imports)]
 use erg_common::log;
+use erg_common::set::Set as HashSet;
 use erg_common::traits::{Locational, NestedDisplay, NoTypeDisplay, Stream};
 use erg_common::{
     enum_unwrap, fmt_option, fmt_vec, impl_display_for_enum, impl_display_from_nested,
@@ -1857,8 +1858,11 @@ impl Params {
     }
 }
 
+pub type Decorator = Expr;
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SubrSignature {
+    pub decorators: HashSet<Decorator>,
     pub ident: Identifier,
     pub bounds: TypeBoundSpecs,
     pub params: Params,
@@ -1911,12 +1915,14 @@ impl HasType for SubrSignature {
 
 impl SubrSignature {
     pub const fn new(
+        decorators: HashSet<Decorator>,
         ident: Identifier,
         bounds: TypeBoundSpecs,
         params: Params,
         return_t_spec: Option<TypeSpecWithOp>,
     ) -> Self {
         Self {
+            decorators,
             ident,
             bounds,
             params,
