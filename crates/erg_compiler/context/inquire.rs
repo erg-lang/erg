@@ -22,7 +22,8 @@ use crate::ty::free::{Constraint, FreeTyParam};
 use crate::ty::typaram::TyParam;
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{
-    Field, GuardType, HasType, ParamTy, Predicate, SubrKind, SubrType, Type, Visibility,
+    Field, GuardType, HasType, ParamTy, Predicate, RefinementType, SubrKind, SubrType, Type,
+    Visibility,
 };
 use Type::*;
 
@@ -173,7 +174,7 @@ impl Context {
         match obj {
             hir::Expr::Accessor(hir::Accessor::Ident(ident)) => {
                 // e.g. ident.t: {Int}
-                if let Type::Refinement(refine) = ident.ref_t() {
+                if let Ok(refine) = <&RefinementType>::try_from(ident.ref_t()) {
                     if let Predicate::Equal { rhs, .. } = refine.pred.as_ref() {
                         if let Ok(t) = <&Type>::try_from(rhs) {
                             if let Some(ctxs) = self.get_nominal_super_type_ctxs(t) {
@@ -1068,20 +1069,12 @@ impl Context {
                 )
             })?
         {
-            if let Some(vi) = ctx
-                .locals
-                .get(attr_name.inspect())
-                .or_else(|| ctx.decls.get(attr_name.inspect()))
-            {
+            if let Some(vi) = ctx.get_current_scope_var(&attr_name.name) {
                 self.validate_visibility(attr_name, vi, input, namespace)?;
                 return Ok(vi.clone());
             }
             for (_, methods_ctx) in ctx.methods_list.iter() {
-                if let Some(vi) = methods_ctx
-                    .locals
-                    .get(attr_name.inspect())
-                    .or_else(|| methods_ctx.decls.get(attr_name.inspect()))
-                {
+                if let Some(vi) = methods_ctx.get_current_scope_var(&attr_name.name) {
                     self.validate_visibility(attr_name, vi, input, namespace)?;
                     return Ok(vi.clone());
                 }
@@ -1100,20 +1093,12 @@ impl Context {
         }
         if let Ok(singular_ctxs) = self.get_singular_ctxs_by_hir_expr(obj, namespace) {
             for ctx in singular_ctxs {
-                if let Some(vi) = ctx
-                    .locals
-                    .get(attr_name.inspect())
-                    .or_else(|| ctx.decls.get(attr_name.inspect()))
-                {
+                if let Some(vi) = ctx.get_current_scope_var(&attr_name.name) {
                     self.validate_visibility(attr_name, vi, input, namespace)?;
                     return Ok(vi.clone());
                 }
                 for (_, method_ctx) in ctx.methods_list.iter() {
-                    if let Some(vi) = method_ctx
-                        .locals
-                        .get(attr_name.inspect())
-                        .or_else(|| method_ctx.decls.get(attr_name.inspect()))
-                    {
+                    if let Some(vi) = method_ctx.get_current_scope_var(&attr_name.name) {
                         self.validate_visibility(attr_name, vi, input, namespace)?;
                         return Ok(vi.clone());
                     }
@@ -1144,20 +1129,12 @@ impl Context {
             _ => {}
         }
         for patch in self.find_patches_of(obj.ref_t()) {
-            if let Some(vi) = patch
-                .locals
-                .get(attr_name.inspect())
-                .or_else(|| patch.decls.get(attr_name.inspect()))
-            {
+            if let Some(vi) = patch.get_current_scope_var(&attr_name.name) {
                 self.validate_visibility(attr_name, vi, input, namespace)?;
                 return Ok(vi.clone());
             }
             for (_, methods_ctx) in patch.methods_list.iter() {
-                if let Some(vi) = methods_ctx
-                    .locals
-                    .get(attr_name.inspect())
-                    .or_else(|| methods_ctx.decls.get(attr_name.inspect()))
-                {
+                if let Some(vi) = methods_ctx.get_current_scope_var(&attr_name.name) {
                     self.validate_visibility(attr_name, vi, input, namespace)?;
                     return Ok(vi.clone());
                 }
@@ -1213,20 +1190,12 @@ impl Context {
                 )
             })?
         {
-            if let Some(vi) = ctx
-                .locals
-                .get(attr_name.inspect())
-                .or_else(|| ctx.decls.get(attr_name.inspect()))
-            {
+            if let Some(vi) = ctx.get_current_scope_var(&attr_name.name) {
                 self.validate_visibility(attr_name, vi, input, namespace)?;
                 return Ok(vi.clone());
             }
             for (_, methods_ctx) in ctx.methods_list.iter() {
-                if let Some(vi) = methods_ctx
-                    .locals
-                    .get(attr_name.inspect())
-                    .or_else(|| methods_ctx.decls.get(attr_name.inspect()))
-                {
+                if let Some(vi) = methods_ctx.get_current_scope_var(&attr_name.name) {
                     self.validate_visibility(attr_name, vi, input, namespace)?;
                     return Ok(vi.clone());
                 }
@@ -1245,20 +1214,12 @@ impl Context {
         }
         if let Ok(singular_ctxs) = self.get_singular_ctxs_by_hir_expr(obj, namespace) {
             for ctx in singular_ctxs {
-                if let Some(vi) = ctx
-                    .locals
-                    .get(attr_name.inspect())
-                    .or_else(|| ctx.decls.get(attr_name.inspect()))
-                {
+                if let Some(vi) = ctx.get_current_scope_var(&attr_name.name) {
                     self.validate_visibility(attr_name, vi, input, namespace)?;
                     return Ok(vi.clone());
                 }
                 for (_, method_ctx) in ctx.methods_list.iter() {
-                    if let Some(vi) = method_ctx
-                        .locals
-                        .get(attr_name.inspect())
-                        .or_else(|| method_ctx.decls.get(attr_name.inspect()))
-                    {
+                    if let Some(vi) = method_ctx.get_current_scope_var(&attr_name.name) {
                         self.validate_visibility(attr_name, vi, input, namespace)?;
                         return Ok(vi.clone());
                     }
@@ -1289,20 +1250,12 @@ impl Context {
             _ => {}
         }
         for patch in self.find_patches_of(obj.ref_t()) {
-            if let Some(vi) = patch
-                .locals
-                .get(attr_name.inspect())
-                .or_else(|| patch.decls.get(attr_name.inspect()))
-            {
+            if let Some(vi) = patch.get_current_scope_var(&attr_name.name) {
                 self.validate_visibility(attr_name, vi, input, namespace)?;
                 return Ok(vi.clone());
             }
             for (_, methods_ctx) in patch.methods_list.iter() {
-                if let Some(vi) = methods_ctx
-                    .locals
-                    .get(attr_name.inspect())
-                    .or_else(|| methods_ctx.decls.get(attr_name.inspect()))
-                {
+                if let Some(vi) = methods_ctx.get_current_scope_var(&attr_name.name) {
                     self.validate_visibility(attr_name, vi, input, namespace)?;
                     return Ok(vi.clone());
                 }
@@ -2597,6 +2550,15 @@ impl Context {
                 }
             }
             Type::Refinement(refine) => {
+                if let Predicate::Equal {
+                    rhs: TyParam::Value(ValueObj::Type(typ)),
+                    ..
+                } = refine.pred.as_ref()
+                {
+                    if let Some(res) = self.get_nominal_type_ctx(typ.typ()) {
+                        return Some(res);
+                    }
+                }
                 if let Some(res) = self.get_nominal_type_ctx(&refine.t) {
                     return Some(res);
                 }
