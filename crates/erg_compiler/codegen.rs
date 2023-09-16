@@ -1394,10 +1394,10 @@ impl PyCodeGenerator {
             let argc = if self.py_version.minor >= Some(11) {
                 0
             } else {
+                self.stack_dec();
                 1
             };
             self.emit_call_instr(argc, Name);
-            self.stack_dec();
         }
         // stack_dec: <code obj> + <name> -> <function>
         self.stack_dec();
