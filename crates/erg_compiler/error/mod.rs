@@ -164,7 +164,7 @@ pub fn readable_name(name: &str) -> &str {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CompileError {
     pub core: Box<ErrorCore>, // ErrorCore is large, so box it
     pub input: Input,

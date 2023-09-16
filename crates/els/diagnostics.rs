@@ -93,6 +93,10 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     "checking {uri} passed, found warns: {}",
                     artifact.warns.len()
                 );
+                self.shared.errors.clear();
+                if artifact.warns.is_empty() {
+                    self.shared.warns.clear();
+                }
                 let uri_and_diags = self.make_uri_and_diags(artifact.warns.clone());
                 // clear previous diagnostics
                 self.send_diagnostics(uri.clone().raw(), vec![])?;
@@ -105,6 +109,9 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             Err(artifact) => {
                 _log!(self, "found errors: {}", artifact.errors.len());
                 _log!(self, "found warns: {}", artifact.warns.len());
+                if artifact.warns.is_empty() {
+                    self.shared.warns.clear();
+                }
                 let diags = artifact
                     .errors
                     .clone()

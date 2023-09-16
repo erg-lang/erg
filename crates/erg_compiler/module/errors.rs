@@ -1,21 +1,21 @@
 use std::path::Path;
 
 use erg_common::pathutil::NormalizedPathBuf;
+use erg_common::set::Set;
 use erg_common::shared::Shared;
-use erg_common::traits::Stream;
 
 use crate::error::{CompileError, CompileErrors};
 
 #[derive(Debug, Clone, Default)]
-pub struct SharedCompileErrors(Shared<CompileErrors>);
+pub struct SharedCompileErrors(Shared<Set<CompileError>>);
 
 impl SharedCompileErrors {
     pub fn new() -> Self {
-        Self(Shared::new(CompileErrors::empty()))
+        Self(Shared::new(Set::new()))
     }
 
     pub fn push(&self, error: CompileError) {
-        self.0.borrow_mut().push(error);
+        self.0.borrow_mut().insert(error);
     }
 
     pub fn extend(&self, errors: CompileErrors) {
@@ -23,7 +23,7 @@ impl SharedCompileErrors {
     }
 
     pub fn take(&self) -> CompileErrors {
-        self.0.borrow_mut().take_all().into()
+        self.0.borrow_mut().take_all().to_vec().into()
     }
 
     pub fn clear(&self) {

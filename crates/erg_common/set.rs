@@ -205,6 +205,18 @@ impl<T: Hash + Eq> Set<T> {
     pub fn retain(&mut self, f: impl FnMut(&T) -> bool) {
         self.elems.retain(f);
     }
+
+    #[inline]
+    pub fn clear(&mut self) {
+        self.elems.clear();
+    }
+
+    #[inline]
+    pub fn take_all(&mut self) -> Self {
+        Self {
+            elems: self.elems.drain().collect(),
+        }
+    }
 }
 
 impl<T: Hash + Eq + Clone> Set<T> {
