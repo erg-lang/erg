@@ -72,6 +72,32 @@ impl Context {
             .map(|mod_ctx| &mod_ctx.context)
     }
 
+    pub(crate) fn get_current_scope_non_param(&self, name: &VarName) -> Option<&VarInfo> {
+        #[cfg(feature = "py_compat")]
+        let search_name = self
+            .erg_to_py_names
+            .get(name.inspect())
+            .unwrap_or(name.inspect());
+        #[cfg(not(feature = "py_compat"))]
+        let search_name = name.inspect();
+        self.locals
+            .get(search_name)
+            .or_else(|| self.decls.get(search_name))
+            .or_else(|| {
+                for (_, methods) in self.methods_list.iter() {
+                    if let Some(vi) = methods.get_current_scope_non_param(name) {
+                        return Some(vi);
+                    }
+                }
+                None
+            })
+            .or_else(|| {
+                self.tv_cache
+                    .as_ref()
+                    .and_then(|tv_cache| tv_cache.var_infos.get(name))
+            })
+    }
+
     pub(crate) fn get_current_scope_var(&self, name: &VarName) -> Option<&VarInfo> {
         #[cfg(feature = "py_compat")]
         let search_name = self
@@ -668,22 +694,14 @@ impl Context {
             _ => {}
         }
         for patch in self.find_patches_of(obj.ref_t()) {
-            if let Some(vi) = patch
-                .locals
-                .get(ident.inspect())
-                .or_else(|| patch.decls.get(ident.inspect()))
-            {
+            if let Some(vi) = patch.get_current_scope_non_param(&ident.name) {
                 return match self.validate_visibility(ident, vi, input, namespace) {
                     Ok(_) => Triple::Ok(vi.clone()),
                     Err(e) => Triple::Err(e),
                 };
             }
             for (_, methods_ctx) in patch.methods_list.iter() {
-                if let Some(vi) = methods_ctx
-                    .locals
-                    .get(ident.inspect())
-                    .or_else(|| methods_ctx.decls.get(ident.inspect()))
-                {
+                if let Some(vi) = methods_ctx.get_current_scope_non_param(&ident.name) {
                     return match self.validate_visibility(ident, vi, input, namespace) {
                         Ok(_) => Triple::Ok(vi.clone()),
                         Err(e) => Triple::Err(e),
@@ -1069,12 +1087,12 @@ impl Context {
                 )
             })?
         {
-            if let Some(vi) = ctx.get_current_scope_var(&attr_name.name) {
+            if let Some(vi) = ctx.get_current_scope_non_param(&attr_name.name) {
                 self.validate_visibility(attr_name, vi, input, namespace)?;
                 return Ok(vi.clone());
             }
             for (_, methods_ctx) in ctx.methods_list.iter() {
-                if let Some(vi) = methods_ctx.get_current_scope_var(&attr_name.name) {
+                if let Some(vi) = methods_ctx.get_current_scope_non_param(&attr_name.name) {
                     self.validate_visibility(attr_name, vi, input, namespace)?;
                     return Ok(vi.clone());
                 }
@@ -1093,12 +1111,12 @@ impl Context {
         }
         if let Ok(singular_ctxs) = self.get_singular_ctxs_by_hir_expr(obj, namespace) {
             for ctx in singular_ctxs {
-                if let Some(vi) = ctx.get_current_scope_var(&attr_name.name) {
+                if let Some(vi) = ctx.get_current_scope_non_param(&attr_name.name) {
                     self.validate_visibility(attr_name, vi, input, namespace)?;
                     return Ok(vi.clone());
                 }
                 for (_, method_ctx) in ctx.methods_list.iter() {
-                    if let Some(vi) = method_ctx.get_current_scope_var(&attr_name.name) {
+                    if let Some(vi) = method_ctx.get_current_scope_non_param(&attr_name.name) {
                         self.validate_visibility(attr_name, vi, input, namespace)?;
                         return Ok(vi.clone());
                     }
@@ -1129,12 +1147,12 @@ impl Context {
             _ => {}
         }
         for patch in self.find_patches_of(obj.ref_t()) {
-            if let Some(vi) = patch.get_current_scope_var(&attr_name.name) {
+            if let Some(vi) = patch.get_current_scope_non_param(&attr_name.name) {
                 self.validate_visibility(attr_name, vi, input, namespace)?;
                 return Ok(vi.clone());
             }
             for (_, methods_ctx) in patch.methods_list.iter() {
-                if let Some(vi) = methods_ctx.get_current_scope_var(&attr_name.name) {
+                if let Some(vi) = methods_ctx.get_current_scope_non_param(&attr_name.name) {
                     self.validate_visibility(attr_name, vi, input, namespace)?;
                     return Ok(vi.clone());
                 }
@@ -1190,12 +1208,12 @@ impl Context {
                 )
             })?
         {
-            if let Some(vi) = ctx.get_current_scope_var(&attr_name.name) {
+            if let Some(vi) = ctx.get_current_scope_non_param(&attr_name.name) {
                 self.validate_visibility(attr_name, vi, input, namespace)?;
                 return Ok(vi.clone());
             }
             for (_, methods_ctx) in ctx.methods_list.iter() {
-                if let Some(vi) = methods_ctx.get_current_scope_var(&attr_name.name) {
+                if let Some(vi) = methods_ctx.get_current_scope_non_param(&attr_name.name) {
                     self.validate_visibility(attr_name, vi, input, namespace)?;
                     return Ok(vi.clone());
                 }
@@ -1214,12 +1232,12 @@ impl Context {
         }
         if let Ok(singular_ctxs) = self.get_singular_ctxs_by_hir_expr(obj, namespace) {
             for ctx in singular_ctxs {
-                if let Some(vi) = ctx.get_current_scope_var(&attr_name.name) {
+                if let Some(vi) = ctx.get_current_scope_non_param(&attr_name.name) {
                     self.validate_visibility(attr_name, vi, input, namespace)?;
                     return Ok(vi.clone());
                 }
                 for (_, method_ctx) in ctx.methods_list.iter() {
-                    if let Some(vi) = method_ctx.get_current_scope_var(&attr_name.name) {
+                    if let Some(vi) = method_ctx.get_current_scope_non_param(&attr_name.name) {
                         self.validate_visibility(attr_name, vi, input, namespace)?;
                         return Ok(vi.clone());
                     }
@@ -1250,12 +1268,12 @@ impl Context {
             _ => {}
         }
         for patch in self.find_patches_of(obj.ref_t()) {
-            if let Some(vi) = patch.get_current_scope_var(&attr_name.name) {
+            if let Some(vi) = patch.get_current_scope_non_param(&attr_name.name) {
                 self.validate_visibility(attr_name, vi, input, namespace)?;
                 return Ok(vi.clone());
             }
             for (_, methods_ctx) in patch.methods_list.iter() {
-                if let Some(vi) = methods_ctx.get_current_scope_var(&attr_name.name) {
+                if let Some(vi) = methods_ctx.get_current_scope_non_param(&attr_name.name) {
                     self.validate_visibility(attr_name, vi, input, namespace)?;
                     return Ok(vi.clone());
                 }
