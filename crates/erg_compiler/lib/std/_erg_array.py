@@ -51,6 +51,9 @@ class Array(list):
         else:
             return list.__getitem__(self, index_or_slice)
 
+    def __hash__(self):
+        return hash(tuple(self))
+
     def type_check(self, t: type) -> bool:
         if isinstance(t, list):
             if len(t) < len(self):
@@ -59,6 +62,8 @@ class Array(list):
                 if not contains_operator(inner_t, elem):
                     return False
             return True
+        elif isinstance(t, set):
+            return self in t
         elif not hasattr(t, "__args__"):
             return isinstance(self, t)
         elem_t = t.__args__[0]

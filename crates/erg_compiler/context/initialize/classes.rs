@@ -1359,6 +1359,14 @@ impl Context {
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
+        let mut array_hash = Self::builtin_methods(Some(mono(HASH)), 1);
+        array_hash.register_builtin_erg_impl(
+            OP_HASH,
+            fn0_met(mono(GENERIC_ARRAY), Int),
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        generic_array.register_trait(mono(GENERIC_ARRAY), array_hash);
         /* Array */
         let mut array_ =
             Self::builtin_poly_class(ARRAY, vec![PS::t_nd(TY_T), PS::default(TY_N, Nat)], 10);

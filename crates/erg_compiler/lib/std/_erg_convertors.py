@@ -5,28 +5,16 @@ from _erg_str import Str
 
 
 def int__(i):
-    try:
-        return Int(i)
-    except:
-        return None
+    return Int(i)
 
 
 def nat__(i):
-    try:
-        return Nat(i)
-    except:
-        return None
+    return Nat(i)
 
 
 def float__(f):
-    try:
-        return Float(f)
-    except:
-        return None
+    return Float(f)
 
 
 def str__(s):
-    try:
-        return Str(s)
-    except:
-        return None
+    return Str(s)

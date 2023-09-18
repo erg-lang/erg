@@ -2614,6 +2614,33 @@ impl Context {
                 }
                 res
             }
+            ast::Expr::BinOp(bin) => {
+                self.inc_ref_expr(&bin.args[0], namespace, tmp_tv_cache)
+                    || self.inc_ref_expr(&bin.args[1], namespace, tmp_tv_cache)
+            }
+            ast::Expr::Array(ast::Array::Normal(arr)) => {
+                let mut res = false;
+                for val in arr.elems.pos_args().iter() {
+                    if self.inc_ref_expr(&val.expr, namespace, tmp_tv_cache) {
+                        res = true;
+                    }
+                }
+                res
+            }
+            ast::Expr::Set(ast::Set::Comprehension(comp)) => {
+                let mut res = false;
+                for (_, gen) in comp.generators.iter() {
+                    if self.inc_ref_expr(gen, namespace, tmp_tv_cache) {
+                        res = true;
+                    }
+                }
+                if let Some(guard) = &comp.guard {
+                    if self.inc_ref_expr(guard, namespace, tmp_tv_cache) {
+                        res = true;
+                    }
+                }
+                res
+            }
             other => {
                 log!(err "inc_ref_expr: {other}");
                 false

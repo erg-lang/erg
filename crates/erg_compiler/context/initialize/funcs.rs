@@ -210,7 +210,7 @@ impl Context {
             O,
         )
         .quantify();
-        let t_nat = nd_func(vec![kw(KW_OBJ, Obj)], None, or(Nat, NoneType));
+        let t_nat = nd_func(vec![kw(KW_OBJ, Obj)], None, Nat);
         // e.g. not(b: Bool!): Bool!
         let B = mono_q(TY_B, subtypeof(Bool));
         let t_not = nd_func(vec![kw(KW_B, B.clone())], None, B).quantify();

@@ -3,13 +3,16 @@ from _erg_int import Int
 from _erg_int import IntMut  # don't unify with the above line
 from _erg_control import then__
 
-
 class Nat(Int):
+    def __init__(self, i):
+        if int(i) < 0:
+            raise ValueError("Nat can't be negative: {}".format(i))
+
     def try_new(i):  # -> Result[Nat]
         if i >= 0:
             return Nat(i)
         else:
-            return Error("Nat can't be negative")
+            return Error("Nat can't be negative: {}".format(i))
 
     def times(self, f):
         for _ in range(self):
@@ -38,6 +41,8 @@ class NatMut(IntMut):  # and Nat
     value: Nat
 
     def __init__(self, n: Nat):
+        if int(n) < 0:
+            raise ValueError("Nat can't be negative: {}".format(n))
         self.value = n
 
     def __int__(self):
