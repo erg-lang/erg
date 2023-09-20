@@ -1943,6 +1943,7 @@ impl SubrSignature {
 pub struct Lambda {
     pub params: Params,
     pub op: Token,
+    pub pre_block: Block,
     pub body: Block,
     pub id: usize,
     pub t: Type,
@@ -1971,11 +1972,19 @@ impl_locational!(Lambda, params, body);
 impl_t!(Lambda);
 
 impl Lambda {
-    pub const fn new(id: usize, params: Params, op: Token, body: Block, t: Type) -> Self {
+    pub const fn new(
+        id: usize,
+        params: Params,
+        op: Token,
+        pre_block: Block,
+        body: Block,
+        t: Type,
+    ) -> Self {
         Self {
             id,
             params,
             op,
+            pre_block,
             body,
             t,
         }
@@ -2087,6 +2096,7 @@ impl Signature {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DefBody {
     pub op: Token,
+    pub pre_block: Block,
     pub block: Block,
     pub id: DefId,
 }
@@ -2095,8 +2105,13 @@ impl_locational!(DefBody, lossy op, block);
 impl_t!(DefBody, delegate block);
 
 impl DefBody {
-    pub const fn new(op: Token, block: Block, id: DefId) -> Self {
-        Self { op, block, id }
+    pub const fn new(op: Token, pre_block: Block, block: Block, id: DefId) -> Self {
+        Self {
+            op,
+            pre_block,
+            block,
+            id,
+        }
     }
 }
 

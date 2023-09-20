@@ -1150,11 +1150,12 @@ pub struct BinOp {
 }
 
 impl NestedDisplay for BinOp {
-    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
-        writeln!(f, "`{}`:", self.op.content)?;
-        self.args[0].fmt_nest(f, level + 1)?;
-        writeln!(f)?;
-        self.args[1].fmt_nest(f, level + 1)
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(
+            f,
+            "`{}`({}, {})",
+            self.op.content, self.args[0], self.args[1]
+        )
     }
 }
 
@@ -1234,6 +1235,27 @@ impl NestedDisplay for Call {
         }
         if self.args.is_empty() {
             write!(f, "()")
+        } else if self.args.len() < 6 {
+            write!(f, "(")?;
+            for (i, arg) in self.args.pos_args().iter().enumerate() {
+                if i != 0 {
+                    write!(f, ", ")?;
+                }
+                write!(f, "{}", arg)?;
+            }
+            if let Some(rest) = self.args.var_args.as_ref() {
+                if !self.args.pos_args().is_empty() {
+                    write!(f, ", ")?;
+                }
+                write!(f, "*{}", rest)?;
+            }
+            for (i, kw_arg) in self.args.kw_args().iter().enumerate() {
+                if i != 0 || !self.args.pos_args().is_empty() || self.args.var_args.is_some() {
+                    write!(f, ", ")?;
+                }
+                write!(f, "{}", kw_arg)?;
+            }
+            write!(f, ")")
         } else {
             writeln!(f, ":")?;
             self.args.fmt_nest(f, level + 1)
@@ -1847,6 +1869,7 @@ impl ConstBlock {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstDefBody {
     pub op: Token,
+    pub pre_block: ConstBlock,
     pub block: ConstBlock,
     pub id: DefId,
 }
@@ -1854,12 +1877,22 @@ pub struct ConstDefBody {
 impl_locational!(ConstDefBody, lossy op, block);
 
 impl ConstDefBody {
-    pub const fn new(op: Token, block: ConstBlock, id: DefId) -> Self {
-        Self { op, block, id }
+    pub const fn new(op: Token, pre_block: ConstBlock, block: ConstBlock, id: DefId) -> Self {
+        Self {
+            op,
+            pre_block,
+            block,
+            id,
+        }
     }
 
     pub fn downgrade(self) -> DefBody {
-        DefBody::new(self.op, self.block.downgrade(), self.id)
+        DefBody::with_pre_block(
+            self.op,
+            self.pre_block.downgrade(),
+            self.block.downgrade(),
+            self.id,
+        )
     }
 }
 
@@ -1892,6 +1925,7 @@ impl ConstDef {
 pub struct ConstLambda {
     pub sig: Box<LambdaSignature>,
     pub op: Token,
+    pub pre_block: ConstBlock,
     pub body: ConstBlock,
     pub id: DefId,
 }
@@ -1910,13 +1944,20 @@ impl ConstLambda {
         Self {
             sig: Box::new(sig),
             op,
+            pre_block: ConstBlock::empty(),
             body,
             id,
         }
     }
 
     pub fn downgrade(self) -> Lambda {
-        Lambda::new(*self.sig, self.op, self.body.downgrade(), self.id)
+        Lambda::with_pre_block(
+            *self.sig,
+            self.op,
+            self.pre_block.downgrade(),
+            self.body.downgrade(),
+            self.id,
+        )
     }
 }
 
@@ -3891,6 +3932,10 @@ impl ParamRecordAttrs {
     pub const fn empty() -> Self {
         Self::new(vec![])
     }
+
+    pub fn keys(&self) -> impl Iterator<Item = &Identifier> {
+        self.elems.iter().map(|attr| &attr.lhs)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -4315,6 +4360,7 @@ pub struct Lambda {
     pub sig: LambdaSignature,
     /// for detecting func/proc
     pub op: Token,
+    pub pre_block: Block,
     pub body: Block,
     pub id: DefId,
 }
@@ -4322,6 +4368,11 @@ pub struct Lambda {
 impl NestedDisplay for Lambda {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
         writeln!(f, "{} {}", self.sig, self.op.content)?;
+        if !self.pre_block.is_empty() {
+            writeln!(f, "(")?;
+            self.pre_block.fmt_nest(f, level + 1)?;
+            writeln!(f, ")")?;
+        }
         self.body.fmt_nest(f, level + 1)
     }
 }
@@ -4330,7 +4381,29 @@ impl_display_from_nested!(Lambda);
 
 impl Lambda {
     pub const fn new(sig: LambdaSignature, op: Token, body: Block, id: DefId) -> Self {
-        Self { sig, op, body, id }
+        Self {
+            sig,
+            op,
+            pre_block: Block::empty(),
+            body,
+            id,
+        }
+    }
+
+    pub const fn with_pre_block(
+        sig: LambdaSignature,
+        op: Token,
+        pre_block: Block,
+        body: Block,
+        id: DefId,
+    ) -> Self {
+        Self {
+            sig,
+            op,
+            pre_block,
+            body,
+            id,
+        }
     }
 
     pub fn is_procedural(&self) -> bool {
@@ -4538,6 +4611,8 @@ impl DefKind {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct DefBody {
     pub op: Token,
+    /// generated by pattern match desugaring
+    pub pre_block: Block,
     pub block: Block,
     pub id: DefId,
 }
@@ -4546,7 +4621,21 @@ impl_locational!(DefBody, lossy op, block);
 
 impl DefBody {
     pub const fn new(op: Token, block: Block, id: DefId) -> Self {
-        Self { op, block, id }
+        Self {
+            op,
+            pre_block: Block::empty(),
+            block,
+            id,
+        }
+    }
+
+    pub const fn with_pre_block(op: Token, pre_block: Block, block: Block, id: DefId) -> Self {
+        Self {
+            op,
+            pre_block,
+            block,
+            id,
+        }
     }
 
     pub fn new_single(expr: Expr) -> Self {
@@ -4904,6 +4993,14 @@ impl Expr {
 
     pub fn type_asc_expr(self, t_spec: TypeSpecWithOp) -> Self {
         Self::TypeAscription(self.type_asc(t_spec))
+    }
+
+    pub fn bin_op(self, op: Token, rhs: Expr) -> BinOp {
+        BinOp::new(op, self, rhs)
+    }
+
+    pub fn unary_op(self, op: Token) -> UnaryOp {
+        UnaryOp::new(op, self)
     }
 }
 

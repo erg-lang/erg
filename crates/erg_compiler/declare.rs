@@ -112,7 +112,12 @@ impl ASTLowerer {
             None
         };
         let sig = hir::VarSignature::new(ident, t_spec);
-        let body = hir::DefBody::new(body.op, hir::Block::new(vec![chunk]), body.id);
+        let body = hir::DefBody::new(
+            body.op,
+            hir::Block::empty(),
+            hir::Block::new(vec![chunk]),
+            body.id,
+        );
         Ok(hir::Def::new(hir::Signature::Var(sig), body))
     }
 
@@ -344,8 +349,9 @@ impl ASTLowerer {
 
     fn fake_lower_def(&self, def: ast::Def) -> LowerResult<hir::Def> {
         let sig = self.fake_lower_signature(def.sig)?;
+        let pre_block = self.fake_lower_block(def.body.pre_block)?;
         let block = self.fake_lower_block(def.body.block)?;
-        let body = hir::DefBody::new(def.body.op, block, def.body.id);
+        let body = hir::DefBody::new(def.body.op, pre_block, block, def.body.id);
         Ok(hir::Def::new(sig, body))
     }
 
@@ -488,11 +494,13 @@ impl ASTLowerer {
 
     fn fake_lower_lambda(&self, lambda: ast::Lambda) -> LowerResult<hir::Lambda> {
         let params = self.fake_lower_params(lambda.sig.params)?;
+        let pre_block = self.fake_lower_block(lambda.pre_block)?;
         let body = self.fake_lower_block(lambda.body)?;
         Ok(hir::Lambda::new(
             lambda.id.0,
             params,
             lambda.op,
+            pre_block,
             body,
             Type::Failure,
         ))

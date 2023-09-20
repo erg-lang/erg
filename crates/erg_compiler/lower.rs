@@ -1305,7 +1305,12 @@ impl ASTLowerer {
         Ok(hir::TypeSpecWithOp::new(type_spec_with_op, expr, spec_t))
     }
 
-    fn lower_params(&mut self, params: ast::Params) -> LowerResult<hir::Params> {
+    /// lower and assign params
+    fn lower_params(
+        &mut self,
+        params: ast::Params,
+        expect: Option<&SubrType>,
+    ) -> LowerResult<hir::Params> {
         log!(info "entered {}({})", fn_name!(), params);
         let mut errs = LowerErrors::empty();
         let mut hir_non_defaults = vec![];
@@ -1335,15 +1340,22 @@ impl ASTLowerer {
                 Err(es) => errs.extend(es),
             }
         }
+        let mut hir_params = hir::Params::new(
+            hir_non_defaults,
+            hir_var_params,
+            hir_defaults,
+            params.parens,
+        );
+        if let Err(errs) = self
+            .module
+            .context
+            .assign_params(&mut hir_params, expect.cloned())
+        {
+            self.errs.extend(errs);
+        }
         if !errs.is_empty() {
             Err(errs)
         } else {
-            let hir_params = hir::Params::new(
-                hir_non_defaults,
-                hir_var_params,
-                hir_defaults,
-                params.parens,
-            );
             Ok(hir_params)
         }
     }
@@ -1378,19 +1390,14 @@ impl ASTLowerer {
                 .context
                 .grow(&name, kind, Private, Some(tv_cache));
         }
-        let mut params = self.lower_params(lambda.sig.params).map_err(|errs| {
-            if !in_statement {
-                self.pop_append_errs();
-            }
-            errs
-        })?;
-        if let Err(errs) = self
-            .module
-            .context
-            .assign_params(&mut params, expect.cloned())
-        {
-            self.errs.extend(errs);
-        }
+        let params = self
+            .lower_params(lambda.sig.params, expect)
+            .map_err(|errs| {
+                if !in_statement {
+                    self.pop_append_errs();
+                }
+                errs
+            })?;
         let overwritten = {
             let mut overwritten = vec![];
             let guards = if in_statement {
@@ -1405,9 +1412,18 @@ impl ASTLowerer {
             }
             overwritten
         };
+        if let Err(errs) = self.module.context.register_const(&lambda.pre_block) {
+            self.errs.extend(errs);
+        }
         if let Err(errs) = self.module.context.register_const(&lambda.body) {
             self.errs.extend(errs);
         }
+        let pre_block = self.lower_block(lambda.pre_block, None).map_err(|errs| {
+            if !in_statement {
+                self.pop_append_errs();
+            }
+            errs
+        })?;
         let body = self.lower_block(lambda.body, None).map_err(|errs| {
             if !in_statement {
                 self.pop_append_errs();
@@ -1534,7 +1550,7 @@ impl ASTLowerer {
             )
         };
         let t = if ty.has_qvar() { ty.quantify() } else { ty };
-        Ok(hir::Lambda::new(id, params, lambda.op, body, t))
+        Ok(hir::Lambda::new(id, params, lambda.op, pre_block, body, t))
     }
 
     fn lower_def(&mut self, def: ast::Def) -> LowerResult<hir::Def> {
@@ -1628,9 +1644,13 @@ impl ASTLowerer {
         body: ast::DefBody,
     ) -> LowerResult<hir::Def> {
         log!(info "entered {}({sig})", fn_name!());
+        if let Err(errs) = self.module.context.register_const(&body.pre_block) {
+            self.errs.extend(errs);
+        }
         if let Err(errs) = self.module.context.register_const(&body.block) {
             self.errs.extend(errs);
         }
+        let pre_block = self.lower_block(body.pre_block, None)?;
         match self.lower_block(body.block, None) {
             Ok(block) => {
                 let found_body_t = block.ref_t();
@@ -1688,7 +1708,7 @@ impl ASTLowerer {
                     None
                 };
                 let sig = hir::VarSignature::new(ident, t_spec);
-                let body = hir::DefBody::new(body.op, block, body.id);
+                let body = hir::DefBody::new(body.op, pre_block, block, body.id);
                 Ok(hir::Def::new(hir::Signature::Var(sig), body))
             }
             Err(errs) => {
@@ -1737,13 +1757,14 @@ impl ASTLowerer {
         }
         match registered_t {
             Type::Subr(subr_t) => {
-                let mut params = self.lower_params(sig.params.clone())?;
-                if let Err(errs) = self.module.context.assign_params(&mut params, Some(subr_t)) {
+                let params = self.lower_params(sig.params.clone(), Some(&subr_t))?;
+                if let Err(errs) = self.module.context.register_const(&body.pre_block) {
                     self.errs.extend(errs);
                 }
                 if let Err(errs) = self.module.context.register_const(&body.block) {
                     self.errs.extend(errs);
                 }
+                let pre_block = self.lower_block(body.pre_block, None)?;
                 match self.lower_block(body.block, None) {
                     Ok(block) => {
                         let found_body_t = self.module.context.squash_tyvar(block.t());
@@ -1770,7 +1791,7 @@ impl ASTLowerer {
                         let sig = hir::SubrSignature::new(
                             decorators, ident, sig.bounds, params, ret_t_spec,
                         );
-                        let body = hir::DefBody::new(body.op, block, body.id);
+                        let body = hir::DefBody::new(body.op, pre_block, block, body.id);
                         Ok(hir::Def::new(hir::Signature::Subr(sig), body))
                     }
                     Err(errs) => {
@@ -1800,14 +1821,14 @@ impl ASTLowerer {
                         );
                         let block =
                             hir::Block::new(vec![hir::Expr::Dummy(hir::Dummy::new(vec![]))]);
-                        let body = hir::DefBody::new(body.op, block, body.id);
+                        let body = hir::DefBody::new(body.op, pre_block, block, body.id);
                         Ok(hir::Def::new(hir::Signature::Subr(sig), body))
                     }
                 }
             }
             Type::Failure => {
-                let mut params = self.lower_params(sig.params)?;
-                if let Err(errs) = self.module.context.assign_params(&mut params, None) {
+                let params = self.lower_params(sig.params, None)?;
+                if let Err(errs) = self.module.context.register_const(&body.pre_block) {
                     self.errs.extend(errs);
                 }
                 if let Err(errs) = self.module.context.register_const(&body.block) {
@@ -1819,6 +1840,7 @@ impl ASTLowerer {
                     .as_mut()
                     .unwrap()
                     .fake_subr_assign(&sig.ident, &sig.decorators, Type::Failure)?;
+                let pre_block = self.lower_block(body.pre_block, None)?;
                 let block = self.lower_block(body.block, None)?;
                 let ident = hir::Identifier::bare(sig.ident);
                 let ret_t_spec = if let Some(ts) = sig.return_t_spec {
@@ -1830,7 +1852,7 @@ impl ASTLowerer {
                 };
                 let sig =
                     hir::SubrSignature::new(decorators, ident, sig.bounds, params, ret_t_spec);
-                let body = hir::DefBody::new(body.op, block, body.id);
+                let body = hir::DefBody::new(body.op, pre_block, block, body.id);
                 Ok(hir::Def::new(hir::Signature::Subr(sig), body))
             }
             _ => unreachable_error!(LowerErrors, LowerError, self),
