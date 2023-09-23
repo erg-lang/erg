@@ -1,3 +1,4 @@
+use std::fmt;
 use std::fs::File;
 use std::io::Read;
 use std::sync::mpsc::Sender;
@@ -60,6 +61,17 @@ pub struct FileCache {
 impl RedirectableStdout for FileCache {
     fn sender(&self) -> Option<&Sender<Value>> {
         self.stdout_redirect.as_ref()
+    }
+}
+
+impl fmt::Display for FileCache {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "FileCache {{")?;
+        for (key, entry) in self.files.borrow().iter() {
+            writeln!(f, "{key}: \"{}\"", entry.code)?;
+        }
+        writeln!(f, "}}")?;
+        Ok(())
     }
 }
 

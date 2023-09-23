@@ -8,6 +8,7 @@ const FILE_A: &str = "tests/a.er";
 const FILE_B: &str = "tests/b.er";
 const FILE_C: &str = "tests/c.er";
 const FILE_IMPORTS: &str = "tests/imports.er";
+const FILE_INVALID_SYNTAX: &str = "tests/invalid_syntax.er";
 
 use els::{NormalizedUrl, Server};
 use erg_proc_macros::exec_new_thread;
@@ -260,5 +261,32 @@ fn test_dependents_check() -> Result<(), Box<dyn std::error::Error>> {
         diags.diagnostics[0].severity,
         Some(DiagnosticSeverity::ERROR)
     );
+    Ok(())
+}
+
+#[test]
+fn test_fix_error() -> Result<(), Box<dyn std::error::Error>> {
+    let mut client = Server::bind_fake_client();
+    client.request_initialize()?;
+    client.notify_initialized()?;
+    client.wait_messages(3)?;
+    client.responses.clear();
+    client.notify_open(FILE_INVALID_SYNTAX)?;
+    client.wait_messages(6)?;
+    let msg = client.responses.last().unwrap();
+    let diags = PublishDiagnosticsParams::deserialize(&msg["params"])?;
+    assert_eq!(diags.diagnostics.len(), 1);
+    assert_eq!(
+        diags.diagnostics[0].severity,
+        Some(DiagnosticSeverity::ERROR)
+    );
+    client.responses.clear();
+    let uri = NormalizedUrl::from_file_path(Path::new(FILE_INVALID_SYNTAX).canonicalize()?)?;
+    client.notify_change(uri.clone().raw(), add_char(0, 10, " 1"))?;
+    client.notify_save(uri.clone().raw())?;
+    client.wait_messages(4)?;
+    let msg = client.responses.last().unwrap();
+    let diags = PublishDiagnosticsParams::deserialize(&msg["params"])?;
+    assert_eq!(diags.diagnostics.len(), 0);
     Ok(())
 }

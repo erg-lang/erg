@@ -1,6 +1,6 @@
 IO = Trait {
-    .Inp = Type
-    .Output = Type
+    .Inp = Type;
+    .Output = Type;
     .func = (self, x: .Inp) -> .Output
 }
 

@@ -943,16 +943,22 @@ impl Parser {
             match self.peek_kind() {
                 Some(Comma) => {
                     self.skip();
-                    if self.cur_is(Comma) {
-                        let err = self.skip_and_throw_invalid_seq_err(
-                            caused_by!(),
-                            line!() as usize,
-                            &["]", "element"],
-                            Comma,
-                        );
-                        self.errs.push(err);
-                        debug_exit_info!(self);
-                        return Err(());
+                    match self.peek_kind() {
+                        Some(Comma) => {
+                            let err = self.skip_and_throw_invalid_seq_err(
+                                caused_by!(),
+                                line!() as usize,
+                                &["]", "element"],
+                                Comma,
+                            );
+                            self.errs.push(err);
+                            debug_exit_info!(self);
+                            return Err(());
+                        }
+                        Some(RParen | RSqBr | RBrace | Dedent) => {
+                            break;
+                        }
+                        _ => {}
                     }
                     elems.push_pos(
                         self.try_reduce_elem()
@@ -2768,10 +2774,6 @@ impl Parser {
     fn try_reduce_brace_container(&mut self) -> ParseResult<BraceContainer> {
         debug_call_info!(self);
         let l_brace = expect_pop!(self, fail_next LBrace);
-        if self.cur_is(Newline) {
-            self.skip();
-            expect_pop!(self, fail_next Indent);
-        }
 
         // Empty brace literals
         match self.peek_kind() {

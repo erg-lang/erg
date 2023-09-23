@@ -14,6 +14,7 @@ use erg_common::traits::Stream;
 use erg_common::{fn_name, lsp_log};
 use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::erg_parser::ast::Module;
+use erg_compiler::erg_parser::error::IncompleteArtifact;
 use erg_compiler::erg_parser::parse::Parsable;
 use erg_compiler::error::CompileErrors;
 
@@ -31,29 +32,56 @@ use crate::server::{DefaultFeatures, ELSResult, RedirectableStdout, Server};
 use crate::server::{ASK_AUTO_SAVE_ID, HEALTH_CHECKER_ID};
 use crate::util::{self, project_root_of, NormalizedUrl};
 
+#[derive(Debug)]
+pub enum BuildASTError {
+    NoFile,
+    ParseError(IncompleteArtifact),
+}
+
+#[derive(Debug)]
+pub enum ChangeKind {
+    New,
+    NoChange,
+    Valid,
+    Invalid,
+}
+
+impl ChangeKind {
+    pub const fn is_no_change(&self) -> bool {
+        matches!(self, Self::NoChange)
+    }
+}
+
 impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
-    pub(crate) fn build_ast(&self, uri: &NormalizedUrl) -> Option<Module> {
-        let code = self.file_cache.get_entire_code(uri).ok()?;
-        Parser::parse(code).ok().map(|artifact| artifact.ast)
+    pub(crate) fn build_ast(&self, uri: &NormalizedUrl) -> Result<Module, BuildASTError> {
+        let code = self
+            .file_cache
+            .get_entire_code(uri)
+            .map_err(|_| BuildASTError::NoFile)?;
+        Parser::parse(code)
+            .map(|artifact| artifact.ast)
+            .map_err(BuildASTError::ParseError)
     }
 
-    pub(crate) fn any_changes(&self, uri: &NormalizedUrl) -> bool {
+    pub(crate) fn change_kind(&self, uri: &NormalizedUrl) -> ChangeKind {
         let deps = self.dependencies_of(uri);
         if deps.is_empty() {
-            return true;
+            return ChangeKind::New;
         }
         for dep in deps {
             let Some(old) = self.get_ast(&dep) else {
-                return true;
+                return ChangeKind::Invalid;
             };
-            if let Some(new) = self.build_ast(&dep) {
+            if let Ok(new) = self.build_ast(&dep) {
                 if !ASTDiff::diff(old, &new).is_nop() {
-                    return true;
+                    return ChangeKind::Valid;
                 }
+            } else {
+                return ChangeKind::Invalid;
             }
         }
         _log!(self, "no changes: {uri}");
-        false
+        ChangeKind::NoChange
     }
 
     pub(crate) fn recheck_file(
@@ -61,7 +89,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         uri: NormalizedUrl,
         code: impl Into<String>,
     ) -> ELSResult<()> {
-        if !self.any_changes(&uri) {
+        if self.change_kind(&uri).is_no_change() {
             _log!(self, "no changes: {uri}");
             return Ok(());
         }
@@ -129,7 +157,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 artifact
             }
         };
-        let ast = self.build_ast(&uri);
+        let ast = self.build_ast(&uri).ok();
         let ctx = checker.pop_context().unwrap();
         if mode == "declare" {
             self.shared
@@ -160,7 +188,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             crate::_log!(self, "not found");
             return Ok(());
         };
-        let Some(new) = self.build_ast(&uri) else {
+        let Ok(new) = self.build_ast(&uri) else {
             crate::_log!(self, "not found");
             return Ok(());
         };
