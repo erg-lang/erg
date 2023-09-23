@@ -167,6 +167,7 @@ pub struct Lexer /*<'a>*/ {
     str_cache: CacheSet<str>,
     chars: Vec<char>,
     indent_stack: Vec<usize>,
+    enclosure_level: usize,
     /// indicates the position in the entire source code
     cursor: usize,
     /// to determine the type of operators, etc.
@@ -185,6 +186,7 @@ impl Lexer /*<'a>*/ {
             str_cache: CacheSet::new(),
             chars: normed.chars().collect::<Vec<char>>(),
             indent_stack: vec![],
+            enclosure_level: 0,
             cursor: 0,
             prev_token: Token::new(TokenKind::BOF, "", 0, 0),
             lineno_token_starts: 0,
@@ -200,6 +202,7 @@ impl Lexer /*<'a>*/ {
             str_cache: CacheSet::new(),
             chars: escaped.chars().collect::<Vec<char>>(),
             indent_stack: vec![],
+            enclosure_level: 0,
             cursor: 0,
             prev_token: Token::new(TokenKind::BOF, "", 0, 0),
             lineno_token_starts: 0,
@@ -457,12 +460,12 @@ impl Lexer /*<'a>*/ {
         let is_linebreak = self.peek_cur_ch() == Some('\n');
         let is_empty = is_space || is_linebreak;
         let is_toplevel = is_line_break_after && !is_empty;
-        if is_toplevel {
+        if is_toplevel && self.enclosure_level == 0 {
             let dedent = self.emit_token(Dedent, "");
             self.indent_stack.pop();
             self.col_token_starts = 0;
             return Some(Ok(dedent));
-        } else if is_linebreak {
+        } else if is_linebreak && self.enclosure_level == 0 {
             self.consume();
             let token = self.emit_token(Newline, "\n");
             self.lineno_token_starts += 1;
@@ -1197,12 +1200,28 @@ impl Iterator for Lexer /*<'a>*/ {
             }
         }
         match self.consume() {
-            Some('(') => self.accept(LParen, "("),
-            Some(')') => self.accept(RParen, ")"),
-            Some('[') => self.accept(LSqBr, "["),
-            Some(']') => self.accept(RSqBr, "]"),
-            Some('{') => self.accept(LBrace, "{"),
+            Some('(') => {
+                self.enclosure_level += 1;
+                self.accept(LParen, "(")
+            }
+            Some(')') => {
+                self.enclosure_level = self.enclosure_level.saturating_sub(1);
+                self.accept(RParen, ")")
+            }
+            Some('[') => {
+                self.enclosure_level += 1;
+                self.accept(LSqBr, "[")
+            }
+            Some(']') => {
+                self.enclosure_level = self.enclosure_level.saturating_sub(1);
+                self.accept(RSqBr, "]")
+            }
+            Some('{') => {
+                self.enclosure_level += 1;
+                self.accept(LBrace, "{")
+            }
             Some('}') => {
+                self.enclosure_level = self.enclosure_level.saturating_sub(1);
                 if self.interpol_stack.last().unwrap().is_in() {
                     Some(self.lex_interpolation_mid())
                 } else {
@@ -1423,10 +1442,16 @@ impl Iterator for Lexer /*<'a>*/ {
             // Newline
             // 改行記号はLexer新規生成時に全て\nにreplaceしてある
             Some('\n') => {
-                let token = self.emit_token(Newline, "\n");
-                self.lineno_token_starts += 1;
-                self.col_token_starts = 0;
-                Some(Ok(token))
+                if self.enclosure_level > 0 {
+                    self.lineno_token_starts += 1;
+                    self.col_token_starts = 0;
+                    self.next()
+                } else {
+                    let token = self.emit_token(Newline, "\n");
+                    self.lineno_token_starts += 1;
+                    self.col_token_starts = 0;
+                    Some(Ok(token))
+                }
             }
             Some('\t') => {
                 let token = self.emit_token(Illegal, "\t");

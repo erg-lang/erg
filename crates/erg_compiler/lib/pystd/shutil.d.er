@@ -7,9 +7,9 @@ logging = pyimport "logging"
 .copy2!: (src: PathLike, dst: PathLike,) => NoneType
 .copytree!: (src: PathLike, dst: PathLike,) => NoneType
 .disk_usage!: (path: PathLike,) => NamedTuple {
-    .total = Nat
-    .used = Nat
-    .free = Nat
+    .total = Nat;
+    .used = Nat;
+    .free = Nat;
 }
 .get_archive_formats!: () => [(Str, Str); _]
 .get_unpack_formats!: () => [(Str, [Str; _], Str); _]
